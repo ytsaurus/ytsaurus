@@ -46,6 +46,8 @@ PEERDIR(
 
     yt/yt/server/controller_agent/controllers
 
+    yt/yt/ytlib
+
     library/cpp/getopt
 
     contrib/libs/tcmalloc/malloc_extension

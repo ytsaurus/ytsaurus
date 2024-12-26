@@ -13,6 +13,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
+
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <library/cpp/yt/memory/non_null_ptr.h>
@@ -298,6 +300,7 @@ private:
         TNodeId NodeId;
         TIncarnationId IncarnationId;
         THeartbeatRequest Request;
+        std::shared_ptr<THashMap<NScheduler::TClusterName, bool>> ClusterToNetworkBandwidthAvailability;
     };
 
     struct THeartbeatProcessingResult

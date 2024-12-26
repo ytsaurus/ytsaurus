@@ -271,19 +271,19 @@ TCompositeNeededResources TTask::GetTotalNeededResourcesDelta()
     return newValue - oldValue;
 }
 
-TCompositeNeededResources TTask::GetTotalNeededResources() const
+TCompositeNeededResources TTask::GetTotalNeededResources(i64 maxRunnableJobCount) const
 {
     auto jobCount = GetPendingJobCount();
     // NB: Don't call GetMinNeededResources if there are no pending jobs.
     TCompositeNeededResources result;
 
     if (jobCount.DefaultCount != 0) {
-        result.DefaultResources = GetMinNeededResources().ToJobResources() * static_cast<i64>(jobCount.DefaultCount);
+        result.DefaultResources = GetMinNeededResources().ToJobResources() * std::min(static_cast<i64>(jobCount.DefaultCount), maxRunnableJobCount);
     }
     for (const auto& [tree, count] : jobCount.CountByPoolTree) {
         result.ResourcesByPoolTree[tree] = count == 0
             ? TJobResources{}
-            : GetMinNeededResources().ToJobResources() * static_cast<i64>(count);
+            : GetMinNeededResources().ToJobResources() * std::min(static_cast<i64>(count), maxRunnableJobCount);
     }
     return result;
 }

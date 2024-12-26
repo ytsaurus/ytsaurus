@@ -892,6 +892,23 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
             "Controller agent disconnected");
     }
 
+    std::shared_ptr<THashMap<TClusterName, bool>> clusterToNetworkBandwidthAvailability;
+    if (request->has_cluster_network_bandwidth_availability()) {
+        // Create non nullptr clusterToNetworkBandwidthAvailability for leader's heartbeat.
+        clusterToNetworkBandwidthAvailability = std::make_shared<THashMap<TClusterName, bool>>();
+        for (const auto& availability : request->cluster_network_bandwidth_availability().availability()) {
+            const auto& clusterName = availability.cluster_name();
+            (*clusterToNetworkBandwidthAvailability)[TClusterName(clusterName)] = availability.is_available();
+        }
+
+        if (clusterToNetworkBandwidthAvailability->empty()) {
+            YT_LOG_DEBUG("Got empty cluster network bandwidth availability from leader");
+        } else {
+            YT_LOG_DEBUG("Got nonempty cluster network bandwidth availability from leader (NetworkAvailability: %v)",
+                *clusterToNetworkBandwidthAvailability);
+        }
+    }
+
     ProfileHeartbeatRequest(request);
     THashMap<TOperationId, std::vector<std::unique_ptr<TJobSummary>>> groupedJobSummaries;
     for (auto& job : *request->mutable_jobs()) {
@@ -929,6 +946,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
             .AllocationIdsRunningOnNode = std::move(allocationIdsRunningOnNode),
             .UnconfirmedJobIds = std::move(unconfirmedJobs),
         },
+        .ClusterToNetworkBandwidthAvailability = std::move(clusterToNetworkBandwidthAvailability),
     };
 
     BIND(
@@ -1354,6 +1372,11 @@ TJobTracker::THeartbeatProcessingResult TJobTracker::DoProcessHeartbeat(
         GetPtr(nodeInfo),
         GetPtr(heartbeatProcessingContext),
         GetPtr(heartbeatProcessingResult));
+
+    if (heartbeatProcessingContext.ClusterToNetworkBandwidthAvailability) {
+        Bootstrap_->GetControllerAgent()->UpdateClusterToNetworkBandwidthAvailability(
+            heartbeatProcessingContext.ClusterToNetworkBandwidthAvailability);
+    }
 
     heartbeatProcessingResult.Context = std::move(heartbeatProcessingContext);
 

@@ -174,6 +174,15 @@ public:
         NSecurityClient::TAccountResourceUsageLeaseId leaseId,
         const NScheduler::TDiskQuota& diskQuota) override;
 
+    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) override;
+    void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) override;
+    std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const override;
+    bool IsNetworkBandwidthAvailable(const NScheduler::TClusterName& clusterName) const override;
+
 private:
     const TOperationId OperationId_;
     const IInvokerPtr CancelableControlInvoker_;

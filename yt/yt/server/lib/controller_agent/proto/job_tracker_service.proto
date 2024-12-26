@@ -14,6 +14,17 @@ message TAllocationInfo
     required NYT.NProto.TGuid allocation_id = 1;
 }
 
+message TClusterNetworkBandwidthAvailability
+{
+    message TAvailability
+    {
+        optional string cluster_name = 1;
+        optional bool is_available = 2;
+    }
+
+    repeated TAvailability availability = 1;
+}
+
 // Sends job statistics to controller agent.
 message TReqHeartbeat
 {
@@ -28,6 +39,8 @@ message TReqHeartbeat
     repeated TAllocationInfo allocations = 11;
 
     optional uint64 sequence_number = 12;
+
+    optional TClusterNetworkBandwidthAvailability cluster_network_bandwidth_availability = 13;
 }
 
 message TJobToAbort
