@@ -11,7 +11,8 @@ TTypeBuilder::TTypeBuilder()
     ItemsStack.emplace(TItemType());
 }
 
-TLogicalTypePtr TTypeBuilder::PullResult() {
+TLogicalTypePtr TTypeBuilder::PullResult()
+{
     return Pop();
 }
 
