@@ -8,6 +8,9 @@
 # YQL_BUILD_PATH - path to the build directory. All artifacts will be placed here.
 # BUILD_FLAGS - flags to pass to ya make when building.
 
+# Due to --bazel-remote-put disables build dump, we need to run ya make without --bazel-remote-put also.
+BUILD_FLAGS_WITHOUT_PUT="${BUILD_FLAGS// --bazel-remote-put/}"
+
 set -eux
 shopt -s expand_aliases
 
@@ -48,9 +51,11 @@ mkdir -p $YQL_BUILD_PATH
 
 # Build yql agent binary.
 ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/agent/bin
+${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS_WITHOUT_PUT} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/agent/bin
 
 # Build mrjob binary.
 ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/tools/mrjob
+${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS_WITHOUT_PUT} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/tools/mrjob
 
 # Build required binaries and libraries.
 for path in "ydb/library/yql/yt/dynamic" \
@@ -59,6 +64,7 @@ for path in "ydb/library/yql/yt/dynamic" \
             "yql/essentials/udfs/logs/dsv"
 do
     ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/$path
+    ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS_WITHOUT_PUT} --ignore-recurses --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/$path
 done
 
 # Build common yql udfs.
@@ -87,7 +93,8 @@ for udf_name in compress_base \
                 yson2
 do
     ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses -DSTRIP=yes --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}
-    strip --remove-section=.gnu_debuglink ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}/*.so
+    ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS_WITHOUT_PUT} --ignore-recurses -DSTRIP=yes --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}
+    strip --remove-section=.gnu_debuglink ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}/*.so | true
 done
 
 if [ "$build_python_udfs" == "yes" ]; then

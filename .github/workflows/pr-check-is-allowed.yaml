@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - members/ilyaibraev/switch-to-bazel-1
     types:
       - opened
       - synchronize
@@ -147,11 +148,12 @@ jobs:
       - check-running-allowed
     if: needs.check-running-allowed.outputs.result == 'true' && needs.check-running-allowed.outputs.commit_sha != ''
     secrets:
-      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
       YC_SA_JSON_CREDENTIALS: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
       GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
       YC_VM_USERNAME: ${{ secrets.YC_VM_USERNAME }}
       YC_VM_SSH_PUBLIC_KEY: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
     uses: ./.github/workflows/pr-check.yaml
     with:
       commit-sha: ${{ needs.check-running-allowed.outputs.commit_sha }}
