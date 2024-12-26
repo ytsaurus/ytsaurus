@@ -288,7 +288,7 @@ public:
         }
     }
 
-    TChunkReplicaWithMediumList GetReplicas(
+    TChunkReplicaWithMediumSlimList GetReplicas(
         TChunkStoreBase* owner,
         TNodeId localNodeId) const override
     {
@@ -311,7 +311,7 @@ public:
         auto guard = ReaderGuard(ReaderLock_);
 
         auto makeLocalReplicas = [&] {
-            return TChunkReplicaWithMediumList{
+            return TChunkReplicaWithMediumSlimList{
                 TChunkReplicaWithMedium(localNodeId, GenericChunkReplicaIndex, GenericMediumIndex)
             };
         };
@@ -1255,7 +1255,7 @@ TTimestamp TChunkStoreBase::GetOverrideTimestamp() const
     return OverrideTimestamp_;
 }
 
-TChunkReplicaWithMediumList TChunkStoreBase::GetReplicas(NNodeTrackerClient::TNodeId localNodeId)
+TChunkReplicaWithMediumSlimList TChunkStoreBase::GetReplicas(NNodeTrackerClient::TNodeId localNodeId)
 {
     return BackendReadersHolder_->GetReplicas(this, localNodeId);
 }

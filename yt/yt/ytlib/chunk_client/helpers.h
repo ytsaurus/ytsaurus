@@ -302,7 +302,7 @@ struct TChunkWriterCounters
 
 struct TAllyReplicasInfo
 {
-    NChunkClient::TChunkReplicaWithMediumList Replicas;
+    NChunkClient::TChunkReplicaWithMediumSlimList Replicas;
     NHydra::TRevision Revision = NHydra::NullRevision;
 
     Y_FORCE_INLINE explicit operator bool() const;

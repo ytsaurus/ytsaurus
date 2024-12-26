@@ -48,7 +48,7 @@ struct TChunkReplicaInfo
     int ReplicaIndex = GenericChunkReplicaIndex;
 };
 
-using TChunkReplicaInfoList = TCompactVector<TChunkReplicaInfo, TypicalReplicaCount>;
+using TChunkReplicaInfoList = TCompactVector<TChunkReplicaInfo, UpperReplicaCountBound>;
 
 struct TReplicasWithRevision
 {
@@ -62,7 +62,7 @@ struct TReplicasWithRevision
 
 struct TChunkFragmentReadControllerPlan
 {
-    TCompactVector<int, TypicalReplicaCount> PeerIndices;
+    TCompactVector<int, UpperReplicaCountBound> PeerIndices;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

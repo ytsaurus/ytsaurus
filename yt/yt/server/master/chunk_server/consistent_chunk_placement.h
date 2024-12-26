@@ -101,7 +101,7 @@ private:
             const TChunkPlacementGroup*,
             TComparer,
             THasher,
-            NChunkClient::TypicalReplicaCount
+            NChunkClient::UpperReplicaCountBound
         >
     > Rings_;
 };

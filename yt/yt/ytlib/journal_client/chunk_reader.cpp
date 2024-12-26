@@ -79,7 +79,7 @@ std::vector<IChunkReaderPtr> CreatePartReaders(
             options,
             chunkReaderHost,
             partChunkId,
-            partReplicas));
+            std::move(partReplicas)));
     }
     return partReaders;
 }
@@ -124,7 +124,7 @@ public:
         TChunkReaderHostPtr chunkReaderHost,
         TChunkId chunkId,
         NErasure::ICodec* codec,
-        const TChunkReplicaWithMediumList& replicas)
+        TChunkReplicaWithMediumList replicas)
         : Config_(std::move(config))
         , Options_(std::move(remoteReaderOptions))
         , ChunkReaderHost_(std::move(chunkReaderHost))
@@ -132,7 +132,7 @@ public:
         , ChunkId_(chunkId)
         , Codec_(codec)
         , Logger(JournalClientLogger().WithTag("ChunkId: %v", ChunkId_))
-        , InitialReplicas_(replicas)
+        , InitialReplicas_(std::move(replicas))
     {
         const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
         YT_LOG_DEBUG("Erasure chunk reader created (ChunkId: %v, Codec: %v, InitialReplicas: %v)",
@@ -337,7 +337,7 @@ IChunkReaderPtr CreateChunkReader(
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
     NErasure::ECodec codecId,
-    const TChunkReplicaWithMediumList& replicas)
+    TChunkReplicaWithMediumList replicas)
 {
     if (codecId == NErasure::ECodec::None) {
         return CreateReplicationReader(
@@ -345,7 +345,7 @@ IChunkReaderPtr CreateChunkReader(
             std::move(remoteReaderOptions),
             std::move(chunkReaderHost),
             chunkId,
-            replicas);
+            std::move(replicas));
     } else {
         return New<TErasureChunkReader>(
             config,
@@ -353,7 +353,7 @@ IChunkReaderPtr CreateChunkReader(
             std::move(chunkReaderHost),
             chunkId,
             NErasure::GetCodec(codecId),
-            replicas);
+            std::move(replicas));
     }
 }
 
