@@ -339,7 +339,11 @@ void TDataBuilder::OnEndVariant()
 
 void TDataBuilder::OnPg(TMaybe<TStringBuf> value, bool /*isUtf8*/)
 {
-    THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
+    if (value) {
+        AddString(*value);
+    } else {
+        AddNull();
+    }
 }
 
 void TDataBuilder::AddNull()

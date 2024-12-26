@@ -309,7 +309,7 @@ void TTypeBuilder::OnEndTagged()
 
 void TTypeBuilder::OnPg(TStringBuf name, TStringBuf category)
 {
-    THROW_ERROR_EXCEPTION("%s not implemented.", __func__);
+    Push(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)));
 }
 
 void TTypeBuilder::Push(TLogicalTypePtr type)
