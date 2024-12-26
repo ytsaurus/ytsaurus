@@ -910,6 +910,11 @@ public: \
         int partitionIndex,
         const TFetchShuffleChunksOptions& options),
         (shuffleHandle, partitionIndex, options))
+    IMPLEMENT_METHOD(void, ForsakeChaosCoordinator, (
+        NHydra::TCellId chaosCellId,
+        NHydra::TCellId cordiantorCellId,
+        const TForsakeChaosCoordinatorOptions& options),
+        (chaosCellId, cordiantorCellId, options))
 
     TFuture<IRowBatchReaderPtr> CreateShuffleReader(
         const TShuffleHandlePtr& shuffleHandle,

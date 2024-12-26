@@ -5,6 +5,8 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
+
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -30,6 +32,7 @@
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
+using namespace NChaosClient;
 using namespace NChunkClient;
 using namespace NLeaseClient;
 using namespace NHydra;
@@ -367,6 +370,22 @@ std::vector<TErrorOr<i64>> TClient::DoGetOrderedTabletSafeTrimRowCount(
     }
 
     return results;
+}
+
+void TClient::DoForsakeChaosCoordinator(
+    NHydra::TCellId chaosCellId,
+    NHydra::TCellId coordiantorCellId,
+    const TForsakeChaosCoordinatorOptions& options)
+{
+    auto cellChannel = Connection_->GetChaosChannelByCellId(chaosCellId);
+    auto proxy = TChaosNodeServiceProxy(cellChannel);
+    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultChaosNodeServiceTimeout));
+    auto req = proxy.ForsakeCoordinator();
+
+    ToProto(req->mutable_coordinator_cell_id(), coordiantorCellId);
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

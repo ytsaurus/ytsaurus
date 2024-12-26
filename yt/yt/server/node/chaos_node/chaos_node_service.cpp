@@ -75,6 +75,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeChaosCell));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateReplicationCardCollocation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetReplicationCardCollocation));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ForsakeCoordinator));
     }
 
 private:
@@ -105,6 +106,17 @@ private:
 
         const auto& chaosManager = Slot_->GetChaosManager();
         chaosManager->RemoveReplicationCard(std::move(context));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, ForsakeCoordinator)
+    {
+        auto coordinatorCellId = FromProto<TReplicationCardId>(request->coordinator_cell_id());
+
+        context->SetRequestInfo("CoordinatorCellId: %v",
+            coordinatorCellId);
+
+        const auto& chaosManager = Slot_->GetChaosManager();
+        chaosManager->ForsakeCoordinator(std::move(context));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChaosClient::NProto, GetReplicationCard)
