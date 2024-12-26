@@ -2401,10 +2401,6 @@ done
 
     @authors("whatsername")
     def test_reduce_with_any_lists(self):
-        is_compat = "23_2" in getattr(self, "ARTIFACT_COMPONENTS", {})
-        if is_compat:
-            return
-
         create(
             "table",
             "//tmp/t1",

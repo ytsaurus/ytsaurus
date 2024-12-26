@@ -38,24 +38,25 @@ TFuture<NSequoiaClient::ISequoiaTransactionPtr> StartCypressProxyTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Selects all records with path in [path, path + sentinelChar) AND with tx_id
+//! in #transactionIds.
 TFuture<std::vector<NSequoiaClient::NRecords::TPathToNodeId>> SelectSubtree(
+    const NSequoiaClient::ISequoiaTransactionPtr& transaction,
     const NSequoiaClient::TAbsoluteYPath& path,
-    const NSequoiaClient::ISequoiaTransactionPtr& transaction);
+    TRange<NCypressClient::TTransactionId> cypressTransactionIds);
 
-NCypressClient::TNodeId LookupNodeId(
-    NSequoiaClient::TAbsoluteYPathBuf path,
-    const NSequoiaClient::ISequoiaTransactionPtr& transaction);
-
+//! Creates chain of map-nodes under transaction #parentId.TransactionId.
 //! Returns bottommost node ID (created or not).
 /*!
  *  NB: in case of empty #nodeKeys this function just returns #parentId.
  */
-NCypressClient::TNodeId CreateIntermediateNodes(
+NCypressClient::TNodeId CreateIntermediateMapNodes(
     const NSequoiaClient::TAbsoluteYPath& parentPath,
-    NCypressClient::TNodeId parentId,
+    NCypressClient::TVersionedNodeId parentId,
     TRange<std::string> nodeKeys,
     const NApi::TSuppressableAccessTrackingOptions& options,
-    const NSequoiaClient::ISequoiaTransactionPtr& transaction);
+    const TProgenitorTransactionCache& progenitorTransactionCache,
+    const NSequoiaClient::ISequoiaTransactionPtr& sequoiaTransaction);
 
 //! Copies subtree.
 /*!
@@ -67,8 +68,10 @@ NCypressClient::TNodeId CopySubtree(
     const NSequoiaClient::TAbsoluteYPath& sourceRootPath,
     const NSequoiaClient::TAbsoluteYPath& destinationRootPath,
     NCypressClient::TNodeId destinationSubtreeParentId,
+    NCypressClient::TTransactionId cypressTransactionId,
     const TCopyOptions& options,
     const THashMap<NCypressClient::TNodeId, NSequoiaClient::TAbsoluteYPath>& subtreeLinks,
+    const TProgenitorTransactionCache& progenitorTransactionCache,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction);
 
 //! Removes previously selected subtree. If root removal is requested then
@@ -78,6 +81,7 @@ void RemoveSelectedSubtree(
     const std::vector<TCypressNodeDescriptor>& nodesToRemove,
     const NSequoiaClient::ISequoiaTransactionPtr& transaction,
     NCypressClient::TTransactionId cypressTransactionId,
+    const TProgenitorTransactionCache& progenitorTransactionCache,
     bool removeRoot = true,
     NCypressClient::TNodeId subtreeParentId = {},
     const NApi::TSuppressableAccessTrackingOptions& options = {});

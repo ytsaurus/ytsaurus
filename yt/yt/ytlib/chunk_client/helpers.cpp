@@ -727,7 +727,7 @@ IChunkReaderPtr CreateRemoteReader(
                 optionsPerChunk,
                 chunkReaderHost,
                 partChunkId,
-                partReplicas);
+                std::move(partReplicas));
             readers.push_back(reader);
         }
 
@@ -746,7 +746,7 @@ IChunkReaderPtr CreateRemoteReader(
             std::move(optionsPerChunk),
             std::move(chunkReaderHost),
             chunkId,
-            replicas);
+            std::move(replicas));
     }
 }
 

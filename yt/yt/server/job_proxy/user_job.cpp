@@ -85,7 +85,6 @@
 
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/error_helpers.h>
 #include <yt/yt/core/misc/pattern_formatter.h>
 #include <yt/yt/core/misc/statistics.h>
 
@@ -94,6 +93,8 @@
 #include <yt/yt/core/rpc/server.h>
 
 #include <yt/yt/core/ypath/tokenizer.h>
+
+#include <library/cpp/yt/error/error_helpers.h>
 
 #include <library/cpp/yt/system/handle_eintr.h>
 

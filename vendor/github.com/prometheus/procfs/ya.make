@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v0.12.0)
+VERSION(v0.14.0)
 
 SRCS(
     arp.go
@@ -26,6 +26,7 @@ SRCS(
     net_sockstat.go
     net_softnet.go
     net_tcp.go
+    net_tls_stat.go
     net_udp.go
     net_unix.go
     net_wireless.go
@@ -75,6 +76,7 @@ GO_TEST_SRCS(
     net_sockstat_test.go
     net_softnet_test.go
     net_tcp_test.go
+    net_tls_stat_test.go
     net_udp_test.go
     net_unix_test.go
     net_wireless_test.go

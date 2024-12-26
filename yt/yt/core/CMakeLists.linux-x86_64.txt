@@ -197,7 +197,6 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/crash_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/digest.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/error.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/error_code.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/fs.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/hazard_ptr.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/hedging_manager.cpp
@@ -207,7 +206,6 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/linear_probe.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/memory_usage_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/relaxed_mpsc_queue.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/origin_attributes.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/parser_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/pattern_formatter.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/phoenix.cpp
@@ -226,8 +224,6 @@ target_sources(yt-yt-core PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/slab_allocator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/statistic_path.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/statistics.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/string_helpers.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/stripped_error.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/cache_config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/utf8_decoder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/zerocopy_output_writer.cpp

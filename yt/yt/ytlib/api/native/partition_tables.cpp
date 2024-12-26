@@ -267,6 +267,9 @@ void TMultiTablePartitioner::AddDataSlice(int tableIndex, TLegacyDataSlicePtr da
     ChunkPool_->Add(std::move(chunkStripe));
 }
 
+struct TMultiTablePartitionerTag
+{ };
+
 void TMultiTablePartitioner::RequestVersionedDataSlices(const TInputTable& inputTable)
 {
     const auto& [inputChunks, tableIndex] = inputTable;
@@ -276,7 +279,7 @@ void TMultiTablePartitioner::RequestVersionedDataSlices(const TInputTable& input
         tableIndex,
         inputChunks.size());
 
-    TRowBufferPtr rowBuffer = New<TRowBuffer>();
+    TRowBufferPtr rowBuffer = New<TRowBuffer>(TMultiTablePartitionerTag());
     auto fetcher = CreateChunkSliceFetcher(
         Options_.ChunkSliceFetcherConfig,
         Client_->GetNativeConnection()->GetNodeDirectory(),

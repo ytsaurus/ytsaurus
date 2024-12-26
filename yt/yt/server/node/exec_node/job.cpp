@@ -96,7 +96,6 @@
 
 #include <yt/yt/core/net/address.h>
 
-#include <yt/yt/core/misc/error_helpers.h>
 #include <yt/yt/core/misc/statistics.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
@@ -111,6 +110,8 @@
 #include <yt/yt/core/logging/config.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
+
+#include <library/cpp/yt/error/error_helpers.h>
 
 #include <library/cpp/yt/system/handle_eintr.h>
 

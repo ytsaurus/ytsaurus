@@ -968,7 +968,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: The implementation of this template class can be found in _cpp_file,
+// NB: The implementation of this template class can be found in _cpp_ file,
 // together with all relevant explicit instantiations.
 template <class TImpl = TCypressMapNode>
 class TCypressMapNodeTypeHandlerImpl

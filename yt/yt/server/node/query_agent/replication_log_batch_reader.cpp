@@ -75,7 +75,14 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
             columnFilter);
 
         bool needCheckNextRange = false;
-        auto rowBuffer = New<TRowBuffer>(MemoryUsageTracker_);
+
+        struct TReplicationBatchTag
+        { };
+
+        auto rowBuffer = New<TRowBuffer>(
+            TReplicationBatchTag(),
+            TChunkedMemoryPool::DefaultStartChunkSize,
+            MemoryUsageTracker_);
 
         while (readAllRows) {
             auto batch = batchFetcher->ReadNextRowBatch(currentRowIndex);

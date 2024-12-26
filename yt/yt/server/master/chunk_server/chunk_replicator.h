@@ -149,7 +149,7 @@ private:
         std::array<int, ChunkReplicaIndexBound> TemporarilyUnavailableReplicaCount{};
 
         //! Indexes of replicas whose replication is advised.
-        TCompactVector<int, TypicalReplicaCount> ReplicationIndexes;
+        TCompactVector<int, UpperReplicaCountBound> ReplicationIndexes;
 
         //! Decommissioned replicas whose removal is advised.
         // NB: there's no actual need to have medium index in context of this
@@ -157,7 +157,7 @@ private:
         TChunkLocationPtrWithReplicaIndexList DecommissionedRemovalReplicas;
 
         //! Indexes of replicas whose removal is advised for balancing.
-        TCompactVector<int, TypicalReplicaCount> BalancingRemovalIndexes;
+        TCompactVector<int, UpperReplicaCountBound> BalancingRemovalIndexes;
 
         //! Any replica that violates failure domain placement.
         TChunkLocationPtrWithReplicaInfo UnsafelyPlacedReplica;

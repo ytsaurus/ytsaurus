@@ -49,12 +49,12 @@ public:
         TTablet* tablet,
         ITabletSlotPtr slot,
         TReplicationCardId replicationCardId,
-        NNative::IConnectionPtr localConnection)
+        NNative::IClientPtr localClient)
         : Tablet_(tablet)
         , Slot_(std::move(slot))
         , MountConfig_(tablet->GetSettings().MountConfig)
         , ReplicationCardId_(replicationCardId)
-        , Connection_(std::move(localConnection))
+        , LocalClient_(std::move(localClient))
         , Logger(TabletNodeLogger()
             .WithTag("%v, ReplicationCardId: %v",
                 tablet->GetLoggingTag(),
@@ -125,7 +125,7 @@ private:
     const ITabletSlotPtr Slot_;
     const TTableMountConfigPtr MountConfig_;
     const TReplicationCardId ReplicationCardId_;
-    const NNative::IConnectionPtr Connection_;
+    const NNative::IClientPtr LocalClient_;
 
     TReplicationCardPtr ReplicationCard_;
 
@@ -174,7 +174,7 @@ private:
         try {
             YT_LOG_DEBUG("Updating tablet replication card");
 
-            const auto& replicationCardCache = Connection_->GetReplicationCardCache();
+            const auto& replicationCardCache = LocalClient_->GetNativeConnection()->GetReplicationCardCache();
 
             auto key = TReplicationCardCacheKey{
                 .CardId = ReplicationCardId_,
@@ -238,11 +238,13 @@ private:
                 YT_LOG_DEBUG("Replica history list is empty");
                 return nullptr;
             }
-            if (!IsReplicaLocationValid(selfReplica, Tablet_->GetTablePath(), Connection_->GetClusterName().value())) {
+
+            const auto& localClusterName = LocalClient_->GetNativeConnection()->GetClusterName().value();
+            if (!IsReplicaLocationValid(selfReplica, Tablet_->GetTablePath(), localClusterName)) {
                 YT_LOG_DEBUG("Upstream replica id corresponds to another table (TablePath: %v, ExpectedPath: %v, TableCluster: %v, ExpectedCluster: %v)",
                     Tablet_->GetTablePath(),
                     selfReplica->ReplicaPath,
-                    *Connection_->GetClusterName(),
+                    localClusterName,
                     selfReplica->ClusterName);
                 return nullptr;
             }
@@ -299,8 +301,9 @@ private:
                 auto newProgress = AdvanceReplicationProgress(
                     *progress,
                     currentTimestamp);
+
                 AdvanceTabletReplicationProgress(
-                    Connection_,
+                    LocalClient_,
                     Logger,
                     Slot_->GetCellId(),
                     Slot_->GetOptions()->ClockClusterTag,
@@ -326,12 +329,10 @@ private:
             counters->LagTime.Update(time);
         }
 
-        auto client = Connection_->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
-
         auto options = TUpdateChaosTableReplicaProgressOptions{
             .Progress = *progress
         };
-        auto future = client->UpdateChaosTableReplicaProgress(
+        auto future = LocalClient_->UpdateChaosTableReplicaProgress(
             Tablet_->GetUpstreamReplicaId(),
             options);
         auto resultOrError = WaitFor(future);
@@ -351,19 +352,19 @@ IChaosAgentPtr CreateChaosAgent(
     TTablet* tablet,
     ITabletSlotPtr slot,
     TReplicationCardId replicationCardId,
-    NNative::IConnectionPtr localConnection)
+    NNative::IClientPtr localClient)
 {
     return New<TChaosAgent>(
         tablet,
         std::move(slot),
         replicationCardId,
-        std::move(localConnection));
+        std::move(localClient));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 bool AdvanceTabletReplicationProgress(
-    NNative::IConnectionPtr connection,
+    const NNative::IClientPtr& localClient,
     const NLogging::TLogger& Logger,
     TTabletCellId tabletCellId,
     NApi::TClusterTag clockClusterTag,
@@ -372,8 +373,6 @@ bool AdvanceTabletReplicationProgress(
     bool validateStrictAdvance,
     std::optional<ui64> replicationRound)
 {
-    auto localClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
-
     TTransactionStartOptions startOptions;
     startOptions.ClockClusterTag = clockClusterTag;
     auto localTransaction = WaitFor(localClient->StartNativeTransaction(ETransactionType::Tablet, startOptions))

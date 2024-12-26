@@ -1823,7 +1823,7 @@ TEST(Operations, NetworkProblems)
     CreateTableWithFooColumn(client, workingDir + "/input");
 
     try {
-        auto outage = TAbortableHttpResponse::StartOutage("/map");
+        auto outage = TAbortableHttpResponse::StartOutage("/start_op");
         client->Map(
             TMapOperationSpec()
                 .AddInput<TNode>(workingDir + "/input")
@@ -1834,7 +1834,7 @@ TEST(Operations, NetworkProblems)
         // It's OK
     }
     {
-        auto outage = TAbortableHttpResponse::StartOutage("/map", TConfig::Get()->StartOperationRetryCount - 1);
+        auto outage = TAbortableHttpResponse::StartOutage("/start_op", TConfig::Get()->StartOperationRetryCount - 1);
         client->Map(
             TMapOperationSpec()
                 .AddInput<TNode>(workingDir + "/input")
@@ -3646,7 +3646,7 @@ TEST(Operations, FuturesAfterStartFailed)
         TOperationOptions::EStartOperationMode::AsyncPrepare,
         TOperationOptions::EStartOperationMode::AsyncStart,
     }) {
-        auto outage = TAbortableHttpResponse::StartOutage("/map");
+        auto outage = TAbortableHttpResponse::StartOutage("/start_op");
         auto operation = client->Map(
             new TIdMapper,
             {workingDir + "/input"},
@@ -3774,7 +3774,7 @@ TEST(Operations, GetStatus)
 
     CreateTableWithFooColumn(client, workingDir + "/input");
 
-    auto outage = TAbortableHttpResponse::StartOutage("/map");
+    auto outage = TAbortableHttpResponse::StartOutage("/start_op");
     auto operation = client->Map(
         new TIdMapper,
         {workingDir + "/input"},

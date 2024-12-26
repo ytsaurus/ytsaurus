@@ -318,11 +318,13 @@ public:
         TGuid id,
         TTableSchemaPtr schema,
         NCompression::ECodec codecId,
+        IMemoryChunkProviderPtr memoryChunkProvider,
         NLogging::TLogger logger)
         : Id_(id)
         , Schema_(std::move(schema))
         , CodecId_(codecId)
         , Logger(std::move(logger))
+        , MemoryChunkProvider_(std::move(memoryChunkProvider))
     {
         // NB: Don't move this assignment to initializer list as
         // OnResponse will access "this", which is not fully constructed yet.
@@ -397,6 +399,7 @@ private:
     TFuture<TQueryStatistics> QueryResult_;
     TFuture<TFeatureFlags> ResponseFeatureFlags_;
     TAtomicIntrusivePtr<ISchemafulUnversionedReader> RowsetReader_;
+    IMemoryChunkProviderPtr MemoryChunkProvider_;
 
     TErrorOr<TQueryStatistics> OnResponse(const TErrorOr<TQueryServiceProxy::TRspExecutePtr>& responseOrError)
     {
@@ -406,7 +409,8 @@ private:
                 response->Attachments(),
                 CodecId_,
                 Schema_,
-                false,
+                /*schemaful*/ false,
+                MemoryChunkProvider_,
                 Logger));
             auto statistics = FromProto<TQueryStatistics>(response->query_statistics());
 
@@ -736,6 +740,7 @@ private:
             query->Id,
             query->GetTableSchema(),
             config->SelectRowsResponseCodec,
+            MemoryChunkProvider_,
             Logger);
 
         return {resultReader, resultReader->GetQueryResult(), resultReader->GetResponseFeatureFlags()};

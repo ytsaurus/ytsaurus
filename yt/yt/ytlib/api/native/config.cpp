@@ -394,7 +394,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("tvm_id", &TThis::TvmId)
         .Default();
 
-    registrar.Parameter("replication_card_residency_cache", &TThis::ReplicationCardResidencyCache)
+    registrar.Parameter("chaos_residency_cache", &TThis::ChaosResidencyCache)
+        // COMPAT(gryzlov-ad)
+        .Alias("replication_card_residency_cache")
         .DefaultNew();
 
     registrar.Parameter("object_life_stage_check_period", &TThis::ObjectLifeStageCheckPeriod)

@@ -72,6 +72,9 @@ using NYT::FromProto;
 
 static constexpr auto& Logger = TabletNodeLogger;
 
+struct TPartitionSamplesTag
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TPartitionBalancer
@@ -339,7 +342,7 @@ private:
             splitFactor);
 
         try {
-            auto rowBuffer = New<TRowBuffer>();
+            auto rowBuffer = New<TRowBuffer>(TPartitionSamplesTag());
             auto samples = GetPartitionSamples(rowBuffer, slot, partition, config->MaxPartitioningSampleCount);
             int sampleCount = static_cast<int>(samples.size());
             int minSampleCount = std::max(config->MinPartitioningSampleCount, splitFactor);
@@ -541,7 +544,7 @@ private:
                 mountConfig->SamplesPerPartition * std::max(compressedDataSize, uncompressedDataSize) / compressedDataSize);
             YT_LOG_INFO("Sampling partition (DesiredSampleCount: %v)", scaledSamples);
 
-            auto rowBuffer = New<TRowBuffer>();
+            auto rowBuffer = New<TRowBuffer>(TPartitionSamplesTag());
             auto samples = GetPartitionSamples(rowBuffer, slot, partition, scaledSamples);
             samples.erase(
                 std::unique(samples.begin(), samples.end()),

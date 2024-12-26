@@ -5874,11 +5874,12 @@ private:
             path);
 
         NApi::TTableWriterOptions options;
+        TString tableWriterConfig("{}");
         if (request->has_config()) {
-            options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(request->config()));
-        } else {
-            options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(TStringBuf("{}")));
+            tableWriterConfig = request->config();
         }
+
+        options.Config = ConvertTo<TTableWriterConfigPtr>(TYsonString(tableWriterConfig));
 
         PatchTableWriterOptions(&options);
 

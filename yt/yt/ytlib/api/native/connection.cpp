@@ -304,7 +304,7 @@ public:
         }
 
         ChaosResidencyCache_ = CreateChaosResidencyCache(
-            config->ReplicationCardResidencyCache,
+            config->ChaosResidencyCache,
             StaticConfig_->ReplicationCardCache, // Nullptr is ok
             this,
             Options_.ChaosResidencyCacheMode,
@@ -369,7 +369,10 @@ public:
 
         ChunkReplicaCache_ = CreateChunkReplicaCache(
             this,
-            Profiler_.WithPrefix("/chunk_replica_cache"));
+            Profiler_.WithPrefix("/chunk_replica_cache"),
+            MemoryTracker_
+                ? MemoryTracker_->WithCategory(EMemoryCategory::ChunkReplicaCache)
+                : GetNullMemoryUsageTracker());
 
         SetupTvmIdSynchronization();
     }
@@ -867,7 +870,7 @@ public:
         TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
         ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
         ChunkReplicaCache_->Reconfigure(dynamicConfig->ChunkReplicaCache);
-        ChaosResidencyCache_->Reconfigure(dynamicConfig->ReplicationCardResidencyCache);
+        ChaosResidencyCache_->Reconfigure(dynamicConfig->ChaosResidencyCache);
         if (ReplicationCardCache_ && dynamicConfig->ReplicationCardCache) {
             ReplicationCardCache_->Reconfigure(dynamicConfig->ReplicationCardCache);
         }

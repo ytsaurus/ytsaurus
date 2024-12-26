@@ -303,6 +303,12 @@ def create_odin_checks_config():
                     "soft_query_timeout": 30,
                 },
             },
+            "query_tracker_dq_liveness": {
+                "check_timeout": 60,
+                "options": {
+                    "soft_query_timeout": 30,
+                },
+            },
         },
     }
 

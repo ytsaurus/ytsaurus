@@ -2,7 +2,6 @@
 #include "private.h"
 #include "bootstrap.h"
 #include "config.h"
-#include "yt/yt/library/profiling/solomon/helpers.h"
 
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
 #include <yt/yt/server/node/cellar_node/bundle_dynamic_config_manager.h>
@@ -19,11 +18,15 @@
 
 #include <yt/yt/library/containers/instance_limits_tracker.h>
 
+#include <yt/yt/library/profiling/solomon/helpers.h>
+
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
+
+#include <yt/yt/core/misc/ref_counted_tracker.h>
 
 #include <tcmalloc/malloc_extension.h>
 
@@ -592,6 +595,7 @@ void TNodeResourceManager::UpdateLimits()
 
     YT_LOG_DEBUG("Updating node resource limits");
 
+    UpdateLoggingCategory();
     UpdateProfilingCategory();
     UpdateMemoryFootprint();
     UpdateMemoryLimits();
@@ -666,6 +670,18 @@ void TNodeResourceManager::UpdateProfilingCategory()
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     Bootstrap_->GetNodeMemoryUsageTracker()->UpdateUsage(EMemoryCategory::Profiling, GetCountersBytesAlive());
+}
+
+void TNodeResourceManager::UpdateLoggingCategory()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    Bootstrap_
+        ->GetNodeMemoryUsageTracker()
+        ->UpdateUsage(
+            EMemoryCategory::Profiling,
+            TRefCountedTracker::Get()
+                ->GetBytesAlive(GetRefCountedTypeKey<NLogging::NDetail::TMessageBufferTag>()));
 }
 
 void TNodeResourceManager::UpdateMemoryFootprint()

@@ -257,7 +257,7 @@ private:
     {
         TBase::DoSetReachable(node);
 
-        // TODO(aleksandra-zh, kvk1920 or somebody else): fix this when Sequoia supports branches.
+        // TODO(aleksandra-zh, kvk1920 or somebody else): YT-23881.
         if (node->IsTrunk()) {
             const auto& cypressManager = GetBootstrap()->GetCypressManager();
             auto pathRootType = EPathRootType::Other;
@@ -274,7 +274,7 @@ private:
             node->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(
                 NYPath::DirNameAndBaseName(linkPath).second,
                 linkPath,
-                NullObjectId);
+                node->GetParent()->GetId());
 
             const auto& queueManager = GetBootstrap()->GetGroundUpdateQueueManager();
             queueManager->EnqueueWrite(NRecords::TPathToNodeId{

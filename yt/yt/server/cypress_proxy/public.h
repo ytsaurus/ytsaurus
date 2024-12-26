@@ -105,4 +105,27 @@ struct TCypressChildDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*!
+ *  This cache is used to insert rows into {node,path,child}_forks Sequoia
+ *  tables. In most cases we've already looked up all necessary records during
+ *  either resolve or subtree removal so we can rely on cached information
+ *  instead of looking into Sequoia tables again.
+ *
+ *  NB: treatment of this cache depends on context. In case of node removal a
+ *  record missing from this cache implies a bug somewhere since we haven't
+ *  observed the node existance before current request (or there wasn't such
+ *  node but we decided to remove nonexistent node instead of reporting resolve
+ *  error). In case of node creation record absence means that current Cypress
+ *  transaction is the progenitor one for the record.
+ */
+struct TProgenitorTransactionCache
+{
+    THashMap<NSequoiaClient::TAbsoluteYPath, NCypressClient::TTransactionId> Path;
+    THashMap<NCypressClient::TNodeId, NCypressClient::TTransactionId> Node;
+    // Key: (parent ID, child key).
+    THashMap<std::pair<NCypressClient::TNodeId, std::string>, NCypressClient::TTransactionId> Child;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NCypressProxy

@@ -53,6 +53,7 @@ struct TDependentTransaction;
 
 struct TNodeFork;
 struct TPathFork;
+struct TChildFork;
 struct TNodeSnapshot;
 
 struct TSequoiaResponseKeeper;

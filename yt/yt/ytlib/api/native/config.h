@@ -332,7 +332,7 @@ public:
     //! If set, should (and hopefully will) be used for authentication in all native protocol RPC requests.
     std::optional<NAuth::TTvmId> TvmId;
 
-    NChaosClient::TChaosResidencyCacheConfigPtr ReplicationCardResidencyCache;
+    NChaosClient::TChaosResidencyCacheConfigPtr ChaosResidencyCache;
 
     TDuration ObjectLifeStageCheckPeriod;
     int ObjectLifeStageCheckRetryCount;

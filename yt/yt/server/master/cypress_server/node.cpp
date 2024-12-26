@@ -393,8 +393,8 @@ void TCypressNode::VerifySequoia() const
 }
 
 TCypressNode::TImmutableSequoiaProperties::TImmutableSequoiaProperties(
-    TYPath key,
-    TString path,
+    std::string key,
+    TYPath path,
     TNodeId parentId)
     : Key(std::move(key))
     , Path(std::move(path))

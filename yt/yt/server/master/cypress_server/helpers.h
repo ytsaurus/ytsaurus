@@ -57,6 +57,12 @@ TCypressNode* FindMapNodeChild(
     NTransactionServer::TTransaction* transaction,
     TStringBuf key);
 
+TNodeId FindMapNodeChild(
+    const ICypressManagerPtr& cypressManager,
+    TSequoiaMapNode* trunkNode,
+    NTransactionServer::TTransaction* transaction,
+    TStringBuf key);
+
 TCypressNode* GetMapNodeChildOrThrow(
     const ICypressManagerPtr& cypressManager,
     TCypressMapNode* trunkNode,
@@ -106,8 +112,9 @@ void DetachChildFromNode(
     TCypressNode* trunkParent,
     TCypressNode* child);
 
+// NB: #parent is _not_ required to be trunk node.
 void AttachChildToSequoiaNodeOrThrow(
-    TCypressNode* trunkParent,
+    TCypressNode* parent,
     const std::string& childKey,
     TNodeId childId);
 

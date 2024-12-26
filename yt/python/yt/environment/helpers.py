@@ -420,6 +420,7 @@ class Restarter(object):
             QUEUE_AGENTS_SERVICE: self.yt_instance.start_queue_agents,
             RPC_PROXIES_SERVICE: self.yt_instance.start_rpc_proxy,
             HTTP_PROXIES_SERVICE: self.yt_instance.start_http_proxy,
+            KAFKA_PROXIES_SERVICE: self.yt_instance.start_kafka_proxy,
         }
         self.kill_dict = {
             SCHEDULERS_SERVICE: lambda: self.yt_instance.kill_schedulers(*self.kill_args, **self.kill_kwargs),
@@ -431,6 +432,7 @@ class Restarter(object):
             QUEUE_AGENTS_SERVICE: lambda: self.yt_instance.kill_queue_agents(*self.kill_args, **self.kill_kwargs),
             RPC_PROXIES_SERVICE: lambda: self.yt_instance.kill_rpc_proxies(*self.kill_args, **self.kill_kwargs),
             HTTP_PROXIES_SERVICE: lambda: self.yt_instance.kill_http_proxies(*self.kill_args, **self.kill_kwargs),
+            KAFKA_PROXIES_SERVICE: lambda: self.yt_instance.kill_kafka_proxies(*self.kill_args, **self.kill_kwargs),
         }
 
     def __enter__(self):

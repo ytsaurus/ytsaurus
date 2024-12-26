@@ -186,7 +186,8 @@ private:
             memoryLimits->TabletStatic.value_or(0) +
             memoryLimits->UncompressedBlockCache.value_or(0) +
             memoryLimits->VersionedChunkMeta.value_or(0) +
-            memoryLimits->Reserved.value_or(0);
+            memoryLimits->Reserved.value_or(0) +
+            memoryLimits->Query.value_or(0);
 
         if (sumMemoryLimits > bundleConfig->TabletNodeResourceGuarantee->Memory) {
             THROW_ERROR_EXCEPTION("The sum of the memory limits exceeds the allowed values")

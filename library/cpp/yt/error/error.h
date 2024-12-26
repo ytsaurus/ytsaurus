@@ -1,14 +1,10 @@
 #pragma once
 
-#include "public.h"
-
-#include <yt/yt/core/ytree/public.h>
+#include <library/cpp/yt/error/error_code.h>
 
 #include <library/cpp/yt/threading/public.h>
 
 #include <library/cpp/yt/error/mergeable_dictionary.h>
-
-#include <library/cpp/yt/yson/public.h>
 
 #include <library/cpp/yt/yson_string/convert.h>
 #include <library/cpp/yt/yson_string/string.h>
@@ -204,8 +200,7 @@ public:
     TError& operator <<= (TError&& innerError) &;
     TError& operator <<= (const std::vector<TError>& innerErrors) &;
     TError& operator <<= (std::vector<TError>&& innerErrors) &;
-    template <CMergeableDictionary TDictionary>
-    TError& operator <<= (const TDictionary& attributes) &;
+    TError& operator <<= (TAnyMergeableDictionaryRef attributes) &;
 
     template <CErrorNestable TValue>
     TError&& operator << (TValue&& operand) &&;
@@ -440,5 +435,5 @@ auto RunNoExcept(F&& functor, As&&... args) noexcept -> decltype(functor(std::fo
 } // namespace NYT
 
 #define STRIPPED_ERROR_INL_H_
-#include "stripped_error-inl.h"
+#include "error-inl.h"
 #undef STRIPPED_ERROR_INL_H_

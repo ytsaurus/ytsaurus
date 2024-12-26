@@ -245,7 +245,7 @@ public:
         std::optional<EWorkloadCategory> workloadCategory) override;
     void InvalidateCachedReaders(
         const TTableSettings& settings) override;
-    NChunkClient::TChunkReplicaWithMediumList GetReplicas(
+    NChunkClient::TChunkReplicaWithMediumSlimList GetReplicas(
         NNodeTrackerClient::TNodeId localNodeId) override;
 
     NTabletClient::EInMemoryMode GetInMemoryMode() const override;
@@ -377,7 +377,7 @@ struct IBackendChunkReadersHolder
         TChunkStoreBase* owner,
         std::optional<EWorkloadCategory> workloadCategory) = 0;
 
-    virtual NChunkClient::TChunkReplicaWithMediumList GetReplicas(
+    virtual NChunkClient::TChunkReplicaWithMediumSlimList GetReplicas(
         TChunkStoreBase* owner,
         NNodeTrackerClient::TNodeId localNodeId) const = 0;
 

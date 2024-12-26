@@ -7,7 +7,7 @@ option go_package = "go.ytsaurus.tech/yt/go/proto/core/misc";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message THyperLogLog
+message THyperLogLogDigest
 {
     required bytes data = 1;
 }

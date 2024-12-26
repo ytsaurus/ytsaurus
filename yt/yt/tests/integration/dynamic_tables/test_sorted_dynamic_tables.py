@@ -371,6 +371,26 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         with pytest.raises(YtError):
             commit_transaction(tx)
 
+    @authors("kvk1920")
+    @pytest.mark.xfail(run=False, reason="YT-23209")
+    def test_lock_unexisting_key(self):
+        sync_create_cells(1)
+
+        create_dynamic_table("//tmp/t", schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string", "lock": "LOCK"},
+        ])
+
+        sync_mount_table("//tmp/t")
+
+        tx = start_transaction(type="tablet")
+        lock_rows("//tmp/t", [{"key": 42}], tx=tx, locks=["LOCK"], lock_type="exclusive")
+        assert lookup_rows("//tmp/t", [{"key": 42}], tx=tx) == []
+        assert select_rows("* from [//tmp/t]", tx=tx) == []
+        commit_transaction(tx)
+        assert lookup_rows("//tmp/t", [{"key": 42}]) == []
+        assert select_rows("* from [//tmp/t]") == []
+
     @authors("ponasenko-rs")
     def test_transaction_shared_write_locks(self):
         sync_create_cells(1)
@@ -432,7 +452,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 4, "a": 1}], update=True, tx=tx1)
         commit_transaction(tx1)
 
-        wait(lambda:  lookup_rows("//tmp/t", [{"key": 4}], column_names=["key", "a"]) == [{"key": 4, "a": 1}])
+        wait(lambda: lookup_rows("//tmp/t", [{"key": 4}], column_names=["key", "a"]) == [{"key": 4, "a": 1}])
 
     @authors("ponasenko-rs")
     @pytest.mark.parametrize("has_explicit_lock_group", [True, False])

@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup, parametrize_external
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, copy,
+    authors, remount_table, wait, create, ls, get, set, copy,
     remove, exists, sorted_dicts,
     start_transaction, abort_transaction, insert_rows, trim_rows, read_table, write_table, merge, sort, interrupt_job,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_unfreeze_table, sync_flush_table,
@@ -18,6 +18,7 @@ from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 import yt.yson as yson
 
+from copy import deepcopy
 import pytest
 import string
 import random
@@ -2788,6 +2789,72 @@ class TestSchedulerMergeCommands(YTEnvSetup):
                 out="//tmp/t_out",
                 spec={"input_query": "key where key > 1"},
             )
+
+    @authors("coteeq")
+    @pytest.mark.xfail(reason="YTADMINREQ-46112")
+    def test_hunks_with_compression(self):
+        sync_create_cells(1)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value1", "type": "string", "max_inline_hunk_size": 10},
+            {"name": "value2", "type": "string", "max_inline_hunk_size": 10},
+        ]
+
+        create_dynamic_table(
+            "//tmp/t_dynamic",
+            schema=schema,
+            optimize_for="lookup",
+            enable_dynamic_store_read=False
+        )
+        set(
+            "//tmp/t_dynamic/@mount_config/value_dictionary_compression",
+            {
+                "enable": True,
+                "column_dictionary_size": 256,
+                "desired_processed_chunk_count": 1,
+                "max_processed_chunk_count": 2,
+            },
+        )
+        sync_mount_table("//tmp/t_dynamic")
+        dynamic_table_rows = [
+            {"key": i, "value1": "i am huuuunk" * 30, "value2": "i am hunk too" * 30}
+            for i in range(100)
+        ]
+        insert_rows("//tmp/t_dynamic", dynamic_table_rows)
+        sync_flush_table("//tmp/t_dynamic")
+
+        # One regular + one hunk + two compression
+        wait(lambda: len(get("//tmp/t_dynamic/@chunk_ids")) >= 4)
+
+        # NB: Compaction is essential for bug to trigger.
+        def get_stores():
+            return {
+                chunk_id
+                for chunk_id
+                in get("//tmp/t_dynamic/@chunk_ids")
+                if get(f"#{chunk_id}/@chunk_type") == "table"
+            }
+        stores = get_stores()
+        set("//tmp/t_dynamic/@forced_compaction_revision", 1)
+        remount_table("//tmp/t_dynamic")
+        wait(lambda: get_stores().isdisjoint(stores))
+
+        merge(
+            in_="<columns=[key; value1]>//tmp/t_dynamic",
+            out="<create=%true>//tmp/t_static",
+            mode="unordered",
+            spec={
+                "force_transform": True,
+            },
+        )
+
+        def drop_value2(row):
+            row = deepcopy(row)
+            row.pop("value2")
+            return row
+
+        assert read_table("//tmp/t_static") == [drop_value2(row) for row in dynamic_table_rows]
 
 
 ##################################################################

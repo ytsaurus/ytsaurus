@@ -1,6 +1,5 @@
 #include "master_ypath_proxy.h"
 
-
 namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -9,9 +8,10 @@ namespace NYT::NObjectClient {
     TMasterYPathProxy::TVectorized##method##Batcher TMasterYPathProxy::Create##method##Batcher( \
         const NApi::NNative::IClientPtr& client, \
         const TIntrusivePtr<NYTree::TTypedYPathRequest<ns::TReq##method, ns::TRsp##method>>& typedRequestPtr, \
-        TRange<TObjectId> objectIds) \
+        TRange<TObjectId> objectIds, \
+        TTransactionId cypressTransactionId) \
     { \
-        return TVectorized##method##Batcher(client, typedRequestPtr, objectIds); \
+        return TVectorized##method##Batcher(client, typedRequestPtr, objectIds, cypressTransactionId); \
     } \
     static_assert(true)
 

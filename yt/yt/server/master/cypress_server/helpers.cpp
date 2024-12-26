@@ -1,21 +1,31 @@
 #include "helpers.h"
+
+#include "config.h"
 #include "node_detail.h"
 #include "portal_exit_node.h"
 #include "shard.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/helpers.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
+
+#include <yt/yt/server/master/table_server/table_node.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/server/lib/sequoia/helpers.h>
 
 namespace NYT::NCypressServer {
 
+using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NSequoiaServer;
+using namespace NTableServer;
 using namespace NTransactionServer;
 using namespace NYPath;
 using namespace NYson;
@@ -118,17 +128,21 @@ const std::vector<TCypressNode*>& GetListNodeChildList(
     return listNode->IndexToChild();
 }
 
-TCypressNode* FindMapNodeChild(
+namespace {
+
+template <class TMapNodeImpl>
+auto FindMapNodeChildImpl(
     const ICypressManagerPtr& cypressManager,
-    TCypressMapNode* trunkNode,
+    TMapNodeImpl* trunkNode,
     TTransaction* transaction,
     TStringBuf key)
+    -> std::decay_t<decltype(trunkNode->KeyToChild())>::mapped_type
 {
     YT_ASSERT(trunkNode->IsTrunk());
 
     auto originators = cypressManager->GetNodeOriginators(transaction, trunkNode);
     for (const auto* node : originators) {
-        const auto* mapNode = node->As<TCypressMapNode>();
+        const auto* mapNode = node->template As<TMapNodeImpl>();
         auto it = mapNode->KeyToChild().find(key);
         if (it != mapNode->KeyToChild().end()) {
             return it->second;
@@ -138,7 +152,27 @@ TCypressNode* FindMapNodeChild(
             break;
         }
     }
-    return nullptr;
+    return {};
+}
+
+} // namespace
+
+TCypressNode* FindMapNodeChild(
+    const ICypressManagerPtr& cypressManager,
+    TCypressMapNode* trunkNode,
+    TTransaction* transaction,
+    TStringBuf key)
+{
+    return FindMapNodeChildImpl(cypressManager, trunkNode, transaction, key);
+}
+
+TNodeId FindMapNodeChild(
+    const ICypressManagerPtr& cypressManager,
+    TSequoiaMapNode* trunkNode,
+    TTransaction* transaction,
+    TStringBuf key)
+{
+    return FindMapNodeChildImpl(cypressManager, trunkNode, transaction, key);
 }
 
 TCypressNode* GetMapNodeChildOrThrow(
@@ -348,16 +382,14 @@ void DetachChildFromNode(
 }
 
 void AttachChildToSequoiaNodeOrThrow(
-    TCypressNode* trunkParent,
+    TCypressNode* parent,
     const std::string& childKey,
     TNodeId childId)
 {
-    // XXX(kvk1920): handle transactions.
-
-    auto type = trunkParent->GetType();
+    auto type = parent->GetType();
     YT_VERIFY(type == EObjectType::Scion || type == EObjectType::SequoiaMapNode);
-    auto* sequoiaTrunkNode = trunkParent->As<TSequoiaMapNode>();
-    auto& children = sequoiaTrunkNode->MutableChildren();
+    auto* sequoiaNode = parent->As<TSequoiaMapNode>();
+    auto& children = sequoiaNode->MutableChildren();
     if (auto it = children.KeyToChild().find(childKey); it != children.KeyToChild().end()) {
         // NB: "ignore_existing" flag is validated in Cypress proxy.
         children.Remove(childKey, it->second);
@@ -414,7 +446,7 @@ std::optional<std::string> FindNodeKey(
 bool NodeHasParentId(const TCypressNode* node)
 {
     if (node->IsSequoia() && node->ImmutableSequoiaProperties()) {
-        return true;
+        return static_cast<bool>(node->ImmutableSequoiaProperties()->ParentId);
     } else if (node->GetType() == EObjectType::PortalExit) {
         return true;
     } else {

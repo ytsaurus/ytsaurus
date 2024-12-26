@@ -252,6 +252,9 @@ std::vector<TPartRange> TParityPartSplitInfo::GetBlockRanges(int partIndex, cons
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPartWriterTag
+{ };
+
 class TPartWriter::TImpl
     : public TRefCounted
 {
@@ -307,7 +310,7 @@ public:
             int blockPosition = BlockRanges_[CurrentBlockIndex_].Begin + PositionInCurrentBlock_ - range.Begin;
             YT_VERIFY(blockPosition >= 0);
 
-            CurrentBlock_ = TSharedMutableRef::Allocate(BlockRanges_[CurrentBlockIndex_].Size());
+            CurrentBlock_ = TSharedMutableRef::Allocate<TPartWriterTag>(BlockRanges_[CurrentBlockIndex_].Size());
             i64 copySize = Min<i64>(block.Size(), range.Size() - blockPosition);
             memcpy(CurrentBlock_.Begin(), block.Begin() + blockPosition, copySize);
             PositionInCurrentBlock_ += copySize;

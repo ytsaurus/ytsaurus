@@ -777,7 +777,7 @@ private:
             options,
             std::move(chunkReaderHost),
             partChunkId,
-            partReplicas);
+            std::move(partReplicas));
     }
 
     IChunkWriterPtr CreateWriter(int partIndex)

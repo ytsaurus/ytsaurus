@@ -40,17 +40,16 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateErasurePartReaders(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    const TChunkReplicaWithMediumList& replicas,
+    TChunkReplicaWithMediumList replicas,
     const TPartIndexList& partIndexList,
     EUnavailablePartPolicy unavailablePartPolicy)
 {
     YT_VERIFY(IsErasureChunkId(chunkId));
     YT_VERIFY(std::is_sorted(partIndexList.begin(), partIndexList.end()));
 
-    auto sortedReplicas = replicas;
     std::sort(
-        sortedReplicas.begin(),
-        sortedReplicas.end(),
+        replicas.begin(),
+        replicas.end(),
         [] (TChunkReplica lhs, TChunkReplica rhs) {
             return lhs.GetReplicaIndex() < rhs.GetReplicaIndex();
         });
@@ -61,16 +60,16 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateErasurePartReaders(
     std::vector<IChunkReaderAllowingRepairPtr> readers;
     readers.reserve(partIndexList.size());
 
-    auto it = sortedReplicas.begin();
+    auto it = replicas.begin();
 
     for (auto partIndex : partIndexList) {
-        while (it != sortedReplicas.end() && it->GetReplicaIndex() < partIndex) {
+        while (it != replicas.end() && it->GetReplicaIndex() < partIndex) {
             ++it;
         }
 
-        if (it != sortedReplicas.end() && it->GetReplicaIndex() == partIndex) {
+        if (it != replicas.end() && it->GetReplicaIndex() == partIndex) {
             auto jt = it;
-            while (jt != sortedReplicas.end() && jt->GetReplicaIndex() == partIndex) {
+            while (jt != replicas.end() && jt->GetReplicaIndex() == partIndex) {
                 ++jt;
             }
 
@@ -81,8 +80,8 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateErasurePartReaders(
                 options,
                 chunkReaderHost,
                 partChunkId,
-                partReplicas);
-            readers.push_back(reader);
+                std::move(partReplicas));
+            readers.push_back(std::move(reader));
 
             it = jt;
         } else {
@@ -106,7 +105,7 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateAllErasurePartReaders(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    const TChunkReplicaWithMediumList& seedReplicas,
+    TChunkReplicaWithMediumList seedReplicas,
     const ICodec* codec,
     EUnavailablePartPolicy unavailablePartPolicy)
 {
@@ -119,7 +118,7 @@ std::vector<IChunkReaderAllowingRepairPtr> CreateAllErasurePartReaders(
         std::move(options),
         std::move(chunkReaderHost),
         chunkId,
-        seedReplicas,
+        std::move(seedReplicas),
         partIndexList,
         unavailablePartPolicy);
 }

@@ -14,6 +14,9 @@ using TSegmentMetas = TRange<const NProto::TSegmentMeta*>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMetaTag
+{ };
+
 bool IsDirect(int type)
 {
     // DirectRle/DirectSparse: 2,  DirectDense: 3
@@ -170,7 +173,7 @@ struct TPrepareResult
 template <class TMeta>
 static TPrepareResult DoPrepare(TSegmentMetas metas, IBlockDataProvider* blockProvider)
 {
-    auto preparedMeta = TSharedMutableRef::Allocate(sizeof(TMeta) * metas.size());
+    auto preparedMeta = TSharedMutableRef::Allocate<TMetaTag>(sizeof(TMeta) * metas.size());
     // Fill with invalid values to crash early when reading uninitialized data.
     memset(preparedMeta.Begin(), 0xfe, sizeof(TMeta) * metas.size());
     auto* preparedMetas = reinterpret_cast<TMeta*>(preparedMeta.begin());
@@ -366,7 +369,7 @@ TIntrusivePtr<TPreparedChunkMeta> TPreparedChunkMeta::FromProtoSegmentMetas(
             }
 
             auto offset = sizeof(ui32) * (columnCount + 1);
-            auto mergedMeta = TSharedMutableRef::Allocate(offset + size);
+            auto mergedMeta = TSharedMutableRef::Allocate<TMetaTag>(offset + size);
 
             ui32* offsets = reinterpret_cast<ui32*>(mergedMeta.Begin());
             auto* metasData = reinterpret_cast<char*>(mergedMeta.Begin() + offset);

@@ -13,6 +13,7 @@ RECURSE(
     disk_manager
     dns_over_rpc
     dynamic_config
+    fusion
     undumpable
     erasure
     error_skeleton

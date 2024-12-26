@@ -1,5 +1,8 @@
 #include "tablet.h"
 
+#include "private.h"
+#include "table.h"
+
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/schema.h>
 
@@ -13,6 +16,10 @@ namespace NYT::NTabletBalancer {
 using namespace NTableClient;
 using namespace NYson;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto& Logger = TabletBalancerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +57,21 @@ NYson::TYsonString TTablet::GetPerformanceCountersYson(
 
     auto performanceCountersProto = std::get_if<TPerformanceCountersProtoList>(&PerformanceCounters);
     YT_VERIFY(performanceCountersProto);
+
+    if (performanceCountersProto->size() != std::ssize(performanceCountersKeys)) {
+        YT_LOG_WARNING("Logging current state before coredump (TabletId: %v, TableId: %v, TablePath: %v, "
+            "MountTime: %v, TabletState: %v, PerformanceCountersProtoSize: %v, PerformanceCountersKeysSize: %v, "
+            "PerformanceCountersProto: %v, PerformanceCountersKeys: %v)",
+            Id,
+            Table->Id,
+            Table->Path,
+            MountTime,
+            State,
+            performanceCountersProto->size(),
+            std::ssize(performanceCountersKeys),
+            performanceCountersProto,
+            performanceCountersKeys);
+    }
 
     YT_VERIFY(performanceCountersProto->size() == std::ssize(performanceCountersKeys));
     return BuildYsonStringFluently()

@@ -430,7 +430,7 @@ private:
             New<TRemoteReaderOptions>(),
             MakeChunkReaderHost(),
             inputChunkId,
-            inputReplicas,
+            std::move(inputReplicas),
             erasureCodec,
             unavailablePartPolicy);
 
@@ -782,7 +782,7 @@ private:
             New<TRemoteReaderOptions>(),
             Host_->GetChunkReaderHost(),
             outputSessionId.ChunkId,
-            repairSeedReplicas,
+            std::move(repairSeedReplicas),
             repairPartIndices,
             EUnavailablePartPolicy::Crash);
         YT_VERIFY(repairPartReaders.size() == repairPartIndices.size());
@@ -861,7 +861,7 @@ private:
             New<TRemoteReaderOptions>(),
             MakeChunkReaderHost(),
             inputChunkId,
-            inputReplicas);
+            std::move(inputReplicas));
 
         chunkMeta = GetChunkMeta(inputChunkId, {reader});
         ReplaceHunkChunkIds(chunkMeta);

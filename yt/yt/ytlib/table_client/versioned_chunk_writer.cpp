@@ -286,7 +286,7 @@ protected:
             ColumnarStatistics_.ChunkRowCount.reset();
         }
         SetProtoExtension(meta->mutable_extensions(), ToProto<TColumnarStatisticsExt>(ColumnarStatistics_));
-        if (!ColumnarStatistics_.LargeStatistics.Empty() && Config_->EnableLargeColumnarStatistics) {
+        if (!ColumnarStatistics_.LargeStatistics.IsEmpty() && Config_->EnableLargeColumnarStatistics) {
             SetProtoExtension(meta->mutable_extensions(), ToProto<TLargeColumnarStatisticsExt>(ColumnarStatistics_.LargeStatistics));
         }
         SetProtoExtension(meta->mutable_extensions(), SystemBlockMetaExt_);

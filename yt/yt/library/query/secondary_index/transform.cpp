@@ -42,7 +42,7 @@ struct TListContainsTransformer
         }
 
         auto* reference = function->Arguments[0]->As<NAst::TReferenceExpression>();
-        if (reference->Reference != RepeatedIndexedColumn) {
+        if (reference && reference->Reference != RepeatedIndexedColumn) {
             return TBase::OnFunction(function);
         }
 

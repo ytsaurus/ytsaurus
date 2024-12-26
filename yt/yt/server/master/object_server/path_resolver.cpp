@@ -365,6 +365,7 @@ TPathResolver::TResolvePayload TPathResolver::ResolveRoot(const TPathResolverOpt
             // - if the request method should be handled by Master.
             if (IsSequoiaId(objectId) &&
                 IsVersionedType(TypeFromId(objectId)) &&
+                CellTagFromId(objectId) == Bootstrap_->GetCellTag() &&
                 !options.AllowResolveFromSequoiaObject &&
                 !NSequoiaClient::IsMethodShouldBeHandledByMaster(Method_))
             {

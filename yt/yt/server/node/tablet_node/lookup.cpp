@@ -89,6 +89,9 @@ struct TPartitionSession;
 
 class TStoreSession;
 
+struct TLookupRowsBufferTag
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EInitialQueryKind,
@@ -413,16 +416,6 @@ protected:
                 auto latestItem = GetLatestRow(foundItem);
 
                 auto outdated = latestItem->Outdated.load(std::memory_order::acquire);
-
-                YT_LOG_DEBUG_IF(lookupKeys.size() == 1,
-                    "FoundLookupRow "
-                    "(Key: %v, Outdated: %v, UpdatedInFlush: %v, Reallocated: %v, InsertTime: %v, UpdateTime: %v)",
-                    key,
-                    outdated,
-                    latestItem->UpdatedInFlush,
-                    latestItem->Reallocated,
-                    latestItem->InsertTime,
-                    latestItem->UpdateTime);
 
                 if (!foundItemRef.IsSealed()) {
                     ++NotSealedRows_;
@@ -1608,7 +1601,10 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
 
     tabletSnapshot->WaitOnLocks(timestamp);
 
-    auto rowBuffer = New<TRowBuffer>(lookupSession->ChunkReadOptions_.MemoryUsageTracker);
+    auto rowBuffer = New<TRowBuffer>(
+        TLookupRowsBufferTag(),
+        TChunkedMemoryPool::DefaultStartChunkSize,
+        lookupSession->ChunkReadOptions_.MemoryUsageTracker);
 
     auto reader = CreateWireProtocolReader(RequestData, rowBuffer);
 
@@ -2354,7 +2350,9 @@ ISchemafulUnversionedReaderPtr CreateLookupSessionReader(
         lookupKeys.Size(),
         useLookupCache);
 
-    auto rowBuffer = New<TRowBuffer>(memoryChunkProvider);
+    auto rowBuffer = New<TRowBuffer>(
+        TLookupRowsBufferTag(),
+        memoryChunkProvider);
 
     auto pipe = New<TSchemafulPipe>(memoryChunkProvider);
     auto reader = pipe->GetReader();

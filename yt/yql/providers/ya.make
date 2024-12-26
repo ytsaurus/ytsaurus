@@ -4,5 +4,6 @@ RECURSE(
 
 IF (NOT OPENSOURCE)
     RECURSE(
+        ytflow
     )
 ENDIF()

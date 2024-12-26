@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
+#include <yt/yt/server/master/cypress_server/helpers.h>
+
 #include <yt/yt/server/lib/sequoia/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
@@ -61,6 +63,7 @@ public:
             .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitRemoveNode, Unretained(this)),
         });
         transactionManager->RegisterTransactionActionHandlers<TReqDetachChild>({
+            .Prepare = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraPrepareDetachChild, Unretained(this)),
             .Commit = BIND_NO_PROPAGATE(&TSequoiaActionsExecutor::HydraCommitDetachChild, Unretained(this)),
         });
         transactionManager->RegisterTransactionActionHandlers<TReqSetNode>({
@@ -105,6 +108,51 @@ private:
             IsChunkOwnerType(type);
     }
 
+    static void PrepareSequoiaNodeCreation(
+        TCypressNode* node,
+        TNodeId parentId,
+        TStringBuf key,
+        TStringBuf rawPath) noexcept
+    {
+        using TImmutableProperties = TCypressNode::TImmutableSequoiaProperties;
+        using TMutableProperties = TCypressNode::TMutableSequoiaProperties;
+
+        auto path = TYPath(rawPath);
+        while (true) {
+            node->ImmutableSequoiaProperties() = std::make_unique<TImmutableProperties>(TImmutableProperties(
+                std::string(key),
+                path,
+                parentId));
+            node->MutableSequoiaProperties() = std::make_unique<TMutableProperties>(TMutableProperties{
+                .BeingCreated = true,
+            });
+
+            node->VerifySequoia();
+
+            if (node->IsTrunk()) {
+                break;
+            }
+
+            node = node->GetOriginator();
+        }
+    }
+
+    static void CommitSequoiaNodeCreation(TCypressNode* node)
+    {
+        while (true) {
+            VerifySequoiaNode(node);
+
+            YT_VERIFY(node->MutableSequoiaProperties()->BeingCreated);
+            node->MutableSequoiaProperties()->BeingCreated = false;
+
+            if (node->IsTrunk()) {
+                break;
+            }
+
+            node = node->GetOriginator();
+        }
+    }
+
     // NB: Sequoia node has to be created in prepare phase since we cannot
     // guarantee that object id will not be used between prepare and commit.
     // It's ok because this node cannot be reached from any other node until
@@ -121,6 +169,12 @@ private:
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
         auto parentId = FromProto<TNodeId>(request->parent_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* cypressTransaction = cypressTransactionId
+            ? transactionManager->GetTransactionOrThrow(cypressTransactionId)
+            : nullptr;
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto roles = multicellManager->GetMasterCellRoles(multicellManager->GetCellTag());
@@ -143,28 +197,26 @@ private:
 
         auto nodeFactory = cypressManager->CreateNodeFactory(
             cypressManager->GetRootCypressShard(),
-            /*transaction*/ nullptr,
+            cypressTransaction,
             securityManager->GetSysAccount(),
             /*options*/ {});
 
-        auto* node = nodeFactory->CreateNode(
+        auto* trunkNode = nodeFactory->CreateNode(
             type,
             nodeId,
             /*inheritedAttributes*/ nullptr,
             explicitAttributes.Get())
             ->GetTrunkNode();
 
-        TCypressNode::TImmutableSequoiaProperties immutableProperties(
+        auto* node = cypressManager->GetNode({nodeId, cypressTransactionId});
+
+        PrepareSequoiaNodeCreation(
+            node,
+            parentId,
             /*key*/ NYPath::DirNameAndBaseName(request->path()).second,
-            /*path*/ request->path(),
-            parentId);
+            /*path*/ request->path());
 
-        node->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(std::move(immutableProperties));
-        node->MutableSequoiaProperties() = std::make_unique<TCypressNode::TMutableSequoiaProperties>();
-        *node->MutableSequoiaProperties() = { .BeingCreated = true };
-
-        node->VerifySequoia();
-        node->RefObject();
+        trunkNode->RefObject();
 
         nodeFactory->Commit();
     }
@@ -178,12 +230,11 @@ private:
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* node = cypressManager->GetNode(TVersionedNodeId(nodeId));
 
-        VerifySequoiaNode(node);
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
 
-        auto beingCreated = std::exchange(node->MutableSequoiaProperties()->BeingCreated, false);
-        YT_VERIFY(beingCreated);
+        auto* node = cypressManager->GetNode(TVersionedNodeId{nodeId, cypressTransactionId});
+        CommitSequoiaNodeCreation(node);
     }
 
     void HydraAbortCreateNode(
@@ -194,12 +245,13 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
-        // TODO(h0pless): Add cypress transaction id here.
-        auto versionedNodeId = TVersionedObjectId(nodeId, NullObjectId);
 
-        if (auto* node = Bootstrap_->GetCypressManager()->FindNode(versionedNodeId)) {
+        if (auto* node = Bootstrap_->GetCypressManager()->FindNode(TVersionedNodeId(nodeId))) {
             Bootstrap_->GetObjectManager()->UnrefObject(node);
         }
+
+        // TODO(kvk1920): implement proper UnstageNode() and use it here.
+        // See YT-14219.
     }
 
     void HydraPrepareAttachChild(
@@ -216,8 +268,7 @@ private:
         auto* parent = cypressManager->GetNodeOrThrow(TVersionedNodeId(parentId));
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto cypressTransactionId = YT_PROTO_OPTIONAL(*request, transaction_id, TTransactionId)
-            .value_or(NullTransactionId);
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
         TTransaction* cypressTransaction = cypressTransactionId
             ? transactionManager->GetTransactionOrThrow(cypressTransactionId)
             : nullptr;
@@ -245,16 +296,24 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        // XXX(kvk1920): support transactions.
-
         auto parentId = FromProto<TNodeId>(request->parent_id());
+        YT_VERIFY(
+            TypeFromId(parentId) == EObjectType::SequoiaMapNode ||
+            TypeFromId(parentId) == EObjectType::Scion);
+
         auto childId = FromProto<TNodeId>(request->child_id());
         auto key = request->key();
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* parent = cypressManager->GetNode(TVersionedNodeId(parentId));
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
-        if (!IsObjectAlive(parent)) {
+        auto* cypressTransaction = cypressTransactionId
+            ? transactionManager->GetTransaction(cypressTransactionId)
+            : nullptr;
+
+        auto* trunkParent = cypressManager->GetNode(TVersionedNodeId(parentId))->As<TSequoiaMapNode>();
+        if (!IsObjectAlive(trunkParent)) {
             YT_LOG_ALERT("An attempt to attach a child to a zombie Sequoia node was made "
                 "(ParentId: %v, ChildId: %v, ChildKey: %v)",
                 parentId,
@@ -262,11 +321,61 @@ private:
                 key);
         }
 
+        // NB: no-op in case of late prepare.
+        auto* parent = cypressManager->LockNode(
+            trunkParent,
+            cypressTransaction,
+            TLockRequest::MakeSharedChild(request->key()));
+
         VerifySequoiaNode(parent);
         AttachChildToSequoiaNodeOrThrow(parent, key, childId);
 
-        auto proxy = cypressManager->GetNodeProxy(parent);
+        auto proxy = cypressManager->GetNodeProxy(trunkParent, cypressTransaction);
         MaybeTouchNode(proxy, request->access_tracking_options());
+    }
+
+    void HydraPrepareDetachChild(
+        TTransaction* /*transaction*/,
+        NProto::TReqDetachChild* request,
+        const TTransactionPrepareOptions& /*options*/)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto parentId = FromProto<TNodeId>(request->parent_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        const auto& key = request->key();
+
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+
+        auto* trunkNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(parentId));
+        auto* cypressTransaction = cypressTransactionId
+            ? transactionManager->GetTransactionOrThrow(cypressTransactionId)
+            : nullptr;
+
+        auto* node = cypressManager
+            ->GetVersionedNode(trunkNode, cypressTransaction)
+            ->As<TSequoiaMapNode>();
+        while (!node->IsTrunk() && !node->KeyToChild().contains(key)) {
+            node = node->GetOriginator()->As<TSequoiaMapNode>();
+        }
+
+        if (!GetOrDefault(node->KeyToChild(), key, NullObjectId)) {
+            THROW_ERROR_EXCEPTION("Node %v does not has a child with key %Qv",
+                parentId,
+                key);
+        }
+
+        cypressManager->CheckLock(
+            trunkNode,
+            cypressTransaction,
+            TLockRequest::MakeSharedChild(key))
+            .ThrowOnError();
+
+        // NB: nobody can acquire the shared child lock for this node between
+        // prepare and commit due to Sequoia table lock. DetachChild acquires
+        // exclusive lock on (nodeId, topmostTx, key) in "child_node" Sequoia
+        // table.
     }
 
     void HydraCommitDetachChild(
@@ -276,24 +385,40 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto parentId = FromProto<TNodeId>(request->parent_id());
-        auto* parent = cypressManager->GetNode(TVersionedNodeId(parentId));
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
+        auto key = request->key();
 
-        auto& children = parent->As<TSequoiaMapNode>()->MutableChildren();
-        auto childIt = children.KeyToChild().find(request->key());
-        // This is temporary logic.
-        // TODO(cherepashka): In future DetachChild should remove child from parent node proxy.
-        if (childIt == children.KeyToChild().end()) {
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+
+        auto* trunkParent = cypressManager->GetNode(TVersionedNodeId(parentId))->As<TSequoiaMapNode>();
+        auto* cypressTransaction = cypressTransactionId
+            ? transactionManager->GetTransaction(cypressTransactionId)
+            : nullptr;
+
+        if (!FindMapNodeChild(cypressManager, trunkParent, cypressTransaction, key)) {
             YT_LOG_ALERT("Sequoia map node has no such child (ParentId: %v, Key: %v)",
                 parentId,
-                request->key());
+                key);
             return;
         }
 
-        children.Remove(request->key(), childIt->second);
+        auto* parent = cypressManager->LockNode(
+            trunkParent,
+            cypressTransaction,
+            TLockRequest::MakeSharedChild(key))
+            ->As<TSequoiaMapNode>();
 
-        auto proxy = cypressManager->GetNodeProxy(parent);
+        auto& children = parent->MutableChildren();
+        if (parent->IsTrunk()) {
+            auto childIt = children.KeyToChild().find(request->key());
+            children.Remove(request->key(), childIt->second);
+        } else {
+            children.Set(key, NullObjectId);
+        }
+
+        auto proxy = cypressManager->GetNodeProxy(trunkParent, cypressTransaction);
         MaybeTouchNode(proxy, request->access_tracking_options());
     }
 
@@ -311,8 +436,7 @@ private:
         VerifySequoiaNode(trunkNode);
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
-        auto cypressTransactionId = YT_PROTO_OPTIONAL(*request, transaction_id, TTransactionId)
-            .value_or(NullTransactionId);
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
         TTransaction* cypressTransaction = cypressTransactionId
             ? transactionManager->GetTransactionOrThrow(cypressTransactionId)
             : nullptr;
@@ -322,7 +446,7 @@ private:
         }
 
         cypressManager
-            ->CheckExclusiveLock(trunkNode, cypressTransaction)
+            ->CheckLock(trunkNode, cypressTransaction, ELockMode::Exclusive)
             .ThrowOnError();
     }
 
@@ -335,24 +459,15 @@ private:
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* node = cypressManager->GetNode(TVersionedObjectId(nodeId));
+        auto* trunkNode = cypressManager->GetNode(TVersionedObjectId(nodeId));
 
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
-        if (cypressTransactionId) {
-            // NB: removal in transaction is not supported but lock conflict
-            // detection is already implemented. We want to test it.
-
-            // XXX(kvk1920): support it.
-            YT_LOG_WARNING("Sequoia node removal in transaction is not supported yet");
-            return;
-        }
-
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* cypressTransaction = cypressTransactionId
             ? transactionManager->GetTransaction(cypressTransactionId)
             : nullptr;
 
-        if (!IsObjectAlive(node)) {
+        if (!IsObjectAlive(trunkNode)) {
             YT_LOG_ALERT(
                 "Attempted to remove unexisting Sequoia node; ignored "
                 "(NodeId: %v)",
@@ -360,10 +475,10 @@ private:
             return;
         }
 
-        VerifySequoiaNode(node);
+        VerifySequoiaNode(trunkNode);
 
-        if (node->GetType() == EObjectType::Rootstock) {
-            auto parentNode = node->GetParent()->As<TCypressMapNode>();
+        if (trunkNode->GetType() == EObjectType::Rootstock) {
+            auto parentNode = trunkNode->GetParent()->As<TCypressMapNode>();
             if (!parentNode) {
                 YT_LOG_ALERT(
                     "Attempted to remove rootstock that is already detached from a parent, ignored "
@@ -372,17 +487,19 @@ private:
                 return;
             }
             auto parentProxy = cypressManager->GetNodeProxy(parentNode);
-            parentProxy->AsMap()->RemoveChild(cypressManager->GetNodeProxy(node));
-        } else if (cypressTransaction) {
-            // XXX(kvk1920): tests for chunk owners removal.
-            auto* branchedNode = cypressManager->LockNode(node, cypressTransaction, ELockMode::Exclusive);
+            parentProxy->AsMap()->RemoveChild(cypressManager->GetNodeProxy(trunkNode));
+            return;
+        }
+
+        // NB: lock is already checked in prepare. Nobody cannot lock this node
+        // between prepare and commit of Sequoia tx due to:
+        //   - exlusive lock in "node_id_to_path" Sequoia table;
+        //   - barrier for Sequoia tx
+        if (cypressTransaction) {
+            auto* branchedNode = cypressManager->LockNode(trunkNode, cypressTransaction, ELockMode::Exclusive);
             branchedNode->MutableSequoiaProperties()->Tombstone = true;
         } else {
-            // Lock is already checked in prepare. Nobody cannot lock this node
-            // between prepare and commit of Sequoia tx due to
-            //   - exlusive lock in "node_id_to_path" Sequoia table;
-            //   - barrier for Sequoia tx
-            Bootstrap_->GetObjectManager()->UnrefObject(node);
+            Bootstrap_->GetObjectManager()->UnrefObject(trunkNode);
         }
     }
 
@@ -489,10 +606,16 @@ private:
         auto sourceNodeId = FromProto<TNodeId>(request->src_id());
         auto destinationNodeId = FromProto<TNodeId>(request->dst_id());
         auto destinationParentId = FromProto<TNodeId>(request->dst_parent_id());
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
 
         // TODO(h0pless): Think about throwing an error if this cell is not sequoia_node_host anymore.
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* sourceNode = cypressManager->GetNodeOrThrow(TVersionedNodeId(sourceNodeId));
+
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        auto* cypressTransaction = cypressTransactionId
+            ? transactionManager->GetTransactionOrThrow(cypressTransactionId)
+            : nullptr;
 
         // Maybe this is excessive.
         auto type = sourceNode->GetType();
@@ -516,7 +639,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto nodeFactory = cypressManager->CreateNodeFactory(
             cypressManager->GetRootCypressShard(),
-            /*transaction*/ nullptr,
+            cypressTransaction,
             securityManager->GetSysAccount(),
             factoryOptions);
 
@@ -524,17 +647,13 @@ private:
         auto emptyInheritedAttributes = CreateEphemeralAttributes();
         auto* clonedNode = nodeFactory->CloneNode(sourceNode, mode, emptyInheritedAttributes.Get(), destinationNodeId);
 
-        TCypressNode::TImmutableSequoiaProperties immutableProperties(
-            /*key*/ NYPath::DirNameAndBaseName(request->dst_path()).second,
-            /*path*/ request->dst_path(),
-            destinationParentId);
+        PrepareSequoiaNodeCreation(
+            clonedNode,
+            destinationParentId,
+            NYPath::DirNameAndBaseName(request->dst_path()).second,
+            request->dst_path());
 
-        clonedNode->ImmutableSequoiaProperties() = std::make_unique<TCypressNode::TImmutableSequoiaProperties>(std::move(immutableProperties));
-        clonedNode->MutableSequoiaProperties() = std::make_unique<TCypressNode::TMutableSequoiaProperties>();
-        *clonedNode->MutableSequoiaProperties() = {.BeingCreated = true};
-
-        clonedNode->VerifySequoia();
-        clonedNode->RefObject();
+        clonedNode->GetTrunkNode()->RefObject();
         nodeFactory->Commit();
 
         Bootstrap_->GetObjectManager()->WeakRefObject(sourceNode);
@@ -549,36 +668,35 @@ private:
 
         auto sourceNodeId = FromProto<TNodeId>(request->src_id());
         auto destinationNodeId = FromProto<TNodeId>(request->dst_id());
-
+        auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* sourceNode = cypressManager->GetNode(TVersionedNodeId(sourceNodeId));
-        auto* destinationNode = cypressManager->GetNode(TVersionedNodeId(destinationNodeId));
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
-        if (!IsObjectAlive(destinationNode)) {
-            YT_LOG_ALERT("An attempt to clone a zombie Sequoia node was made (NodeId: %v)",
+        auto* trunkSourceNode = cypressManager->GetNode({sourceNodeId, NullTransactionId});
+
+        auto* cypressTransaction = cypressTransactionId
+            ? transactionManager->GetTransaction(cypressTransactionId)
+            : nullptr;
+
+        // TODO(danilalexeev): Sequoia transaction has to lock |sourceNodeId| to conflict
+        // with an expired nodes removal.
+        if (IsObjectAlive(trunkSourceNode)) {
+            auto proxy = cypressManager->GetNodeProxy(trunkSourceNode, cypressTransaction);
+            MaybeTouchNode(proxy);
+        }
+
+        objectManager->WeakUnrefObject(trunkSourceNode);
+
+        auto* destinationNode = cypressManager->GetNode(TVersionedNodeId(destinationNodeId, cypressTransactionId));
+
+        if (!IsObjectAlive(destinationNode->GetTrunkNode())) {
+            YT_LOG_ALERT("Cloned Sequoia node was zombified before its cloning is committed (NodeId: %v)",
                 destinationNodeId);
             return;
         }
 
-        auto beingCreated = std::exchange(destinationNode->MutableSequoiaProperties()->BeingCreated, false);
-        YT_VERIFY(beingCreated);
-
-        auto finally = Finally([&] {
-            if (sourceNode) {
-                Bootstrap_->GetObjectManager()->WeakUnrefObject(sourceNode);
-            }
-        });
-
-        if (!IsObjectAlive(sourceNode)) {
-            YT_LOG_ALERT("Source node is no longer alive (NodeId: %v)",
-                sourceNodeId);
-            return;
-        }
-
-        // TODO(danilalexeev): Sequoia transaction has to lock |sourceNodeId| to conflict
-        // with an expired nodes removal.
-        auto proxy = cypressManager->GetNodeProxy(sourceNode);
-        MaybeTouchNode(proxy);
+        CommitSequoiaNodeCreation(destinationNode);
     }
 
     void HydraAbortCloneNode(
@@ -590,14 +708,13 @@ private:
 
         auto sourceNodeId = FromProto<TNodeId>(request->src_id());
         auto destinationNodeId = FromProto<TNodeId>(request->dst_id());
-        // XXX(kvk1920): Add cypress transaction id here.
 
-        if (auto* destinationNode = Bootstrap_->GetCypressManager()->FindNode(TVersionedObjectId{destinationNodeId})) {
-            Bootstrap_->GetObjectManager()->UnrefObject(destinationNode);
+        if (auto* sourceNode = Bootstrap_->GetCypressManager()->FindNode(TVersionedNodeId(sourceNodeId))) {
+            Bootstrap_->GetObjectManager()->WeakUnrefObject(sourceNode);
         }
 
-        if (auto* sourceNode = Bootstrap_->GetCypressManager()->FindNode(TVersionedObjectId{sourceNodeId})) {
-            Bootstrap_->GetObjectManager()->WeakUnrefObject(sourceNode);
+        if (auto* destinationNode = Bootstrap_->GetCypressManager()->FindNode(TVersionedNodeId(destinationNodeId))) {
+            Bootstrap_->GetObjectManager()->UnrefObject(destinationNode);
         }
     }
 

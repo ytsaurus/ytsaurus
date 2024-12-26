@@ -1769,6 +1769,7 @@ private:
                 session->GetCodecId(),
                 schema,
                 false,
+                /*memoryChunkProvider*/ nullptr,
                 Logger),
             rowsetId);
 

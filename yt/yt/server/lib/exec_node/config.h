@@ -266,6 +266,9 @@ class THeartbeatReporterDynamicConfigBase
 public:
     NConcurrency::TRetryingPeriodicExecutorOptions HeartbeatExecutor;
 
+    //! Timeout of the exec node heartbeat RPC request.
+    TDuration HeartbeatTimeout;
+
     bool EnableTracing;
 
     NTracing::TSamplerConfigPtr TracingSampler;
@@ -307,9 +310,6 @@ class TMasterConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
 {
 public:
-    //! Timeout of the exec node heartbeat RPC request.
-    TDuration HeartbeatTimeout;
-
     REGISTER_YSON_STRUCT(TMasterConnectorDynamicConfig);
 
     static void Register(TRegistrar registrar);

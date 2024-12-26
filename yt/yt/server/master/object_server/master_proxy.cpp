@@ -651,7 +651,7 @@ private:
             THROW_ERROR_EXCEPTION("Error parsing request header");
         }
         auto templateMethod = templateRequestHeader.method();
-        auto transactionId = NCypressClient::GetTransactionId(templateRequestHeader);
+        auto transactionId = NCypressClient::GetTransactionId(context->RequestHeader());
 
         context->SetRequestInfo("TemplateMethod: %v, TransactionId: %v, ObjectIds: %v",
             templateMethod,

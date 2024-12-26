@@ -777,6 +777,7 @@ private:
             sensors->KeyFilterBlockCacheSize.Update(memoryLimits->KeyFilterBlockCache.value_or(0));
             sensors->VersionedChunkMetaSize.Update(memoryLimits->VersionedChunkMeta.value_or(0));
             sensors->LookupRowCacheSize.Update(memoryLimits->LookupRowCache.value_or(0));
+            sensors->QuerySize.Update(memoryLimits->Query.value_or(0));
         }
 
         for (const auto& [bundleName, bundleInfo] : input.Bundles) {
@@ -999,6 +1000,7 @@ private:
         sensors->LookupRowCacheSize = bundleProfiler.Gauge("/lookup_row_cache_size");
         sensors->TabletDynamicSize = bundleProfiler.Gauge("/tablet_dynamic_size");
         sensors->TabletStaticSize = bundleProfiler.Gauge("/tablet_static_size");
+        sensors->QuerySize = bundleProfiler.Gauge("/query");
 
         sensors->UsingSpareNodeCount = bundleProfiler.Gauge("/using_spare_node_count");
         sensors->UsingSpareProxyCount = bundleProfiler.Gauge("/using_spare_proxy_count");

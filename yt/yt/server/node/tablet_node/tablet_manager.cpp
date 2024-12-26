@@ -108,7 +108,6 @@
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/misc/ring_queue.h>
-#include <yt/yt/core/misc/string_helpers.h>
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 #include <yt/yt/core/rpc/dispatcher.h>
@@ -116,6 +115,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
+
+#include <library/cpp/yt/string/string.h>
 
 #include <library/cpp/iterator/zip.h>
 
@@ -2874,7 +2875,9 @@ private:
             return;
         }
 
-        auto reader = CreateWireProtocolReader(TSharedRef::FromString(request->sample_keys()));
+        auto reader = CreateWireProtocolReader(
+            TSharedRef::FromString(request->sample_keys()),
+            New<TRowBuffer>(TSampleKeyListTag()));
         auto sampleKeys = reader->ReadUnversionedRowset(true);
 
         auto storeManager = tablet->GetStoreManager()->AsSorted();
@@ -4193,11 +4196,10 @@ private:
             tablet,
             Slot_,
             replicationCardId,
-            Bootstrap_->GetClient()->GetNativeConnection()));
+            Bootstrap_->GetReplicatorClientCache()->GetLocalClient()));
         tablet->SetTablePuller(CreateTablePuller(
             Config_,
             tablet,
-            Bootstrap_->GetClient()->GetNativeConnection(),
             Bootstrap_->GetReplicatorClientCache(),
             Slot_,
             Bootstrap_->GetTabletSnapshotStore(),

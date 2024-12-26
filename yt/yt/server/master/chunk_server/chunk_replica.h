@@ -200,23 +200,23 @@ using TPtrWithReplicaInfoAndMediumIndex = TAugmentedPtr<
 ////////////////////////////////////////////////////////////////////////////////
 
 using TNodePtrWithReplicaIndex = TPtrWithReplicaIndex<NNodeTrackerServer::TNode>;
-using TNodePtrWithReplicaIndexList = TCompactVector<TNodePtrWithReplicaIndex, TypicalReplicaCount>;
+using TNodePtrWithReplicaIndexList = TCompactVector<TNodePtrWithReplicaIndex, UpperReplicaCountBound>;
 using TNodePtrWithReplicaInfo = TPtrWithReplicaInfo<NNodeTrackerServer::TNode>;
-using TNodePtrWithReplicaInfoList = TCompactVector<TNodePtrWithReplicaInfo, TypicalReplicaCount>;
+using TNodePtrWithReplicaInfoList = TCompactVector<TNodePtrWithReplicaInfo, UpperReplicaCountBound>;
 using TNodePtrWithReplicaAndMediumIndex = TPtrWithReplicaAndMediumIndex<NNodeTrackerServer::TNode>;
-using TNodePtrWithReplicaAndMediumIndexList = TCompactVector<TNodePtrWithReplicaAndMediumIndex, TypicalReplicaCount>;
+using TNodePtrWithReplicaAndMediumIndexList = TCompactVector<TNodePtrWithReplicaAndMediumIndex, UpperReplicaCountBound>;
 using TNodePtrWithReplicaInfoAndMediumIndex = TPtrWithReplicaInfoAndMediumIndex<NNodeTrackerServer::TNode>;
-using TNodePtrWithReplicaInfoAndMediumIndexList = TCompactVector<TNodePtrWithReplicaInfoAndMediumIndex, TypicalReplicaCount>;
+using TNodePtrWithReplicaInfoAndMediumIndexList = TCompactVector<TNodePtrWithReplicaInfoAndMediumIndex, UpperReplicaCountBound>;
 using TNodePtrWithMediumIndex = TPtrWithMediumIndex<NNodeTrackerServer::TNode>;
-using TNodePtrWithMediumIndexList = TCompactVector<TNodePtrWithMediumIndex, TypicalReplicaCount>;
+using TNodePtrWithMediumIndexList = TCompactVector<TNodePtrWithMediumIndex, UpperReplicaCountBound>;
 
 using TChunkLocationPtrWithReplicaIndex = TPtrWithReplicaIndex<TChunkLocation>;
-using TChunkLocationPtrWithReplicaIndexList = TCompactVector<TChunkLocationPtrWithReplicaIndex, TypicalReplicaCount>;
+using TChunkLocationPtrWithReplicaIndexList = TCompactVector<TChunkLocationPtrWithReplicaIndex, UpperReplicaCountBound>;
 using TChunkLocationPtrWithReplicaInfo = TPtrWithReplicaInfo<TChunkLocation>;
-using TChunkLocationPtrWithReplicaInfoList = TCompactVector<TChunkLocationPtrWithReplicaInfo, TypicalReplicaCount>;
+using TChunkLocationPtrWithReplicaInfoList = TCompactVector<TChunkLocationPtrWithReplicaInfo, UpperReplicaCountBound>;
 using TChunkToLocationPtrWithReplicaInfoList = THashMap<TChunkId, TErrorOr<TChunkLocationPtrWithReplicaInfoList>>;
 using TChunkLocationPtrWithReplicaAndMediumIndex = TPtrWithReplicaAndMediumIndex<TChunkLocation>;
-using TChunkLocationPtrWithReplicaAndMediumIndexList = TCompactVector<TChunkLocationPtrWithReplicaAndMediumIndex, TypicalReplicaCount>;
+using TChunkLocationPtrWithReplicaAndMediumIndexList = TCompactVector<TChunkLocationPtrWithReplicaAndMediumIndex, UpperReplicaCountBound>;
 
 using TChunkPtrWithReplicaInfo = TPtrWithReplicaInfo<TChunk>;
 using TChunkPtrWithReplicaIndex = TPtrWithReplicaIndex<TChunk>;

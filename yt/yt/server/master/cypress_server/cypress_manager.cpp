@@ -192,7 +192,6 @@ public:
     void Commit() noexcept override
     {
         TTransactionalNodeFactoryBase::Commit();
-
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         if (Transaction_) {
             for (auto* node : CreatedNodes_) {
@@ -599,8 +598,8 @@ public:
             clonedTrunkNode,
             Transaction_,
             ELockMode::Exclusive,
-            false,
-            true);
+            /*recursive*/ false,
+            /*dontLockForeign*/ true);
 
         // NB: No need to call RegisterCreatedNode since
         // cloning a node involves calling ICypressNodeFactory::InstantiateNode,
@@ -840,7 +839,6 @@ public:
 private:
     TCypressManager* const Owner_;
     const INodeTypeHandlerPtr UnderlyingHandler_;
-
 
     TCellTagList DoGetReplicationCellTags(const TCypressNode* node) override
     {
@@ -1342,7 +1340,6 @@ public:
         }
     }
 
-
     std::unique_ptr<ICypressNodeFactory> CreateNodeFactory(
         TCypressShard* shard,
         TTransaction* transaction,
@@ -1662,9 +1659,12 @@ public:
             .IsOK();
     }
 
-    TError CheckExclusiveLock(TCypressNode* trunkNode, TTransaction* transaction) override
+    virtual TError CheckLock(
+        TCypressNode* trunkNode,
+        TTransaction* transaction,
+        const TLockRequest& lockRequest) override
     {
-        return CheckLock(trunkNode, transaction, ELockMode::Exclusive, /*recursive*/ false);
+        return CheckLock(trunkNode, transaction, lockRequest, /*recursive*/ false);
     }
 
     TCypressNode* LockNode(
@@ -3648,7 +3648,7 @@ private:
             {
                 DoPromoteLock(lock);
             } else {
-                DoRemoveLock(lock, true /*resetEmptyLockingState*/);
+                DoRemoveLock(lock, /*resetEmptyLockingState*/ true);
             }
         }
 
@@ -3813,6 +3813,12 @@ private:
         // when trunkNode becomes orphaned.
         FlushObjectUnrefs();
 
+        // Since every Sequoia node is orphaned in some sense we have to rely on
+        // ref count to check if this node was just removed.
+        if (trunkNode->IsSequoia() && !IsObjectAlive(trunkNode)) {
+            return;
+        }
+
         // Ignore orphaned nodes. Eventually the node will get destroyed and the lock will become
         // orphaned.
         if (IsOrphaned(trunkNode)) {
@@ -3934,7 +3940,6 @@ private:
         }
     }
 
-
     TCypressNode* BranchNode(
         TCypressNode* originatingNode,
         TTransaction* transaction,
@@ -3965,7 +3970,7 @@ private:
         return branchedNode;
     }
 
-    // Returns originating node (and `nullptr` for snapshot branches).
+    // Returns originating node (and |nullptr| for snapshot branches).
     // NB: This function does not modify `transaction->BranchedNodes()`.
     TCypressNode* DoMergeNode(
         TTransaction* transaction,
@@ -4014,7 +4019,17 @@ private:
 
         YT_LOG_DEBUG("Branched node removed (NodeId: %v)", branchedNodeId);
 
-        return originatingNode;
+        if (originatingNode &&
+            originatingNode->IsTrunk() &&
+            originatingNode->IsSequoia() &&
+            originatingNode->IsNative() &&
+            originatingNode->MutableSequoiaProperties()->Tombstone)
+        {
+            objectManager->UnrefObject(originatingNode);
+            return nullptr;
+        } else {
+            return originatingNode;
+        }
     }
 
     //! Returns originating node.
@@ -4022,9 +4037,7 @@ private:
     {
         transaction->BranchedNodes().EraseOrCrash(node);
 
-        auto* originator = DoMergeNode(transaction, node);
-
-        return originator;
+        return DoMergeNode(transaction, node);
     }
 
     void MergeBranchedNodes(TTransaction* transaction)
@@ -4176,6 +4189,9 @@ private:
 
         auto nodeId = FromProto<TObjectId>(request->node_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
+
+        YT_ASSERT(!transactionId || IsExternalizedTransactionType(TypeFromId(transactionId)));
+
         auto accountId = FromProto<TAccountId>(request->account_id());
         auto type = FromProto<EObjectType>(request->type());
         auto nativeContentRevision = FromProto<NHydra::TRevision>(request->native_content_revision());
@@ -4613,10 +4629,10 @@ private:
         }
         auto* trunkNode = currentNode->GetTrunkNode();
 
-        while (currentNode != trunkNode) {
+        while (currentNode && currentNode != trunkNode) {
             auto* currentTransaction = currentNode->GetTransaction();
             currentNode = MergeParticularBranchedNode(currentTransaction, currentNode);
-            ForceRemoveAllLocksForNode(currentTransaction, currentNode->GetTrunkNode());
+            ForceRemoveAllLocksForNode(currentTransaction, trunkNode);
         }
     }
 
