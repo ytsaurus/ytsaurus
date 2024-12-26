@@ -1,4 +1,5 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import (
+    YTEnvSetup, Restarter, KAFKA_PROXIES_SERVICE)
 
 from yt_queue_agent_test_base import (
     TestQueueAgentBase, ReplicatedObjectBase)
@@ -6,7 +7,7 @@ from yt_queue_agent_test_base import (
 from yt_commands import (
     authors, get, ls, create, sync_mount_table, insert_rows, sync_create_cells,
     create_user, issue_token, raises_yt_error, pull_queue, pull_consumer, set,
-    make_ace, select_rows, sync_unmount_table)
+    make_ace, select_rows, sync_unmount_table, wait)
 
 import yt.yson
 
@@ -180,6 +181,38 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
 
         assert len(get("//sys/kafka_proxies/instances")) == 1
         assert ls("//sys/kafka_proxies/instances")[0] == address
+
+    @authors("nadya73")
+    def test_dynamic_config(self):
+        proxy_name = ls("//sys/kafka_proxies/instances")[0]
+
+        local_host_name = "123"
+        set(
+            "//sys/kafka_proxies/@config",
+            {"local_host_name": local_host_name},
+        )
+
+        def config_updated():
+            config = get("//sys/kafka_proxies/instances/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+            return "local_host_name" in config and local_host_name == config["local_host_name"]
+
+        wait(config_updated)
+
+        with Restarter(self.Env, KAFKA_PROXIES_SERVICE):
+            pass
+
+        wait(config_updated, ignore_exceptions=True)
+
+        set(
+            "//sys/kafka_proxies/@config",
+            {},
+        )
+
+        def config_cleared():
+            config = get("//sys/kafka_proxies/instances/" + proxy_name + "/orchid/dynamic_config_manager/effective_config")
+            return "local_host_name" not in config
+
+        wait(config_cleared)
 
     @authors("nadya73")
     def test_basic(self):
