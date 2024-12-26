@@ -13,7 +13,7 @@ import yt.logger as logger
 from collections import defaultdict
 from datetime import datetime
 from time import time
-from typing import Iterator, Tuple
+from typing import Iterator, Optional, Tuple
 import logging
 
 
@@ -256,7 +256,7 @@ class QueryState:
 
 
 def get_query_state_monitor(
-        query_id: str, time_watcher: TimeWatcher, stage: str | None = None, client=None) -> Iterator[QueryState]:
+        query_id: str, time_watcher: TimeWatcher, stage: Optional[str] = None, client=None) -> Iterator[QueryState]:
     """
     Yields state and sleeps. Waits for the state of query to become final.
 
@@ -278,7 +278,7 @@ def get_query_state_monitor(
 
 class QueryResult:
     """Holds information about query result."""
-    def __init__(self, query_id: str, result_index: int, query_tracker_stage: str | None = None, client=None):
+    def __init__(self, query_id: str, result_index: int, query_tracker_stage: Optional[str] = None, client=None):
         self.query_id = query_id
         self.result_index = result_index
         self.query_tracker_stage = query_tracker_stage
@@ -292,7 +292,7 @@ class QueryResult:
 
         return self._cached_query_result
 
-    def get_error(self) -> YtError | None:
+    def get_error(self) -> Optional[YtError]:
         """Returns error of the query result."""
         meta = self.get_meta()
         if "error" in meta:
@@ -303,7 +303,7 @@ class QueryResult:
         """Returns whether the result is truncated."""
         return self.get_meta().get("is_truncated", False)
 
-    def read_rows(self, validate_not_truncated: bool = True, format: str | None = None, raw: bool | None = None):
+    def read_rows(self, validate_not_truncated: bool = True, format: Optional[str] = None, raw: Optional[bool] = None):
         error = self.get_error()
         if error:
             raise error
@@ -372,7 +372,7 @@ class YqlQueryInfoPrinter(GenericQueryInfoPrinter):
 class Query:
     """Holds information about query."""
     def __init__(
-            self, id: str, engine: str, query_tracker_stage: str | None = None,
+            self, id: str, engine: str, query_tracker_stage: Optional[str] = None,
             abort_exceptions: Tuple[type] = (KeyboardInterrupt, TimeoutError), client=None):
         self.id = id
         self.engine = engine
@@ -423,7 +423,7 @@ class Query:
             raise YtError("Query does not have exactly one result; use get_results() instead")
         return iter(self.get_result(0))
 
-    def get_error(self, return_error_if_all_results_are_errors: bool = True) -> YtQueryFailedError | None:
+    def get_error(self, return_error_if_all_results_are_errors: bool = True) -> Optional[YtQueryFailedError]:
         """If query has failed, or, if return_error_if_all_results_are_errors = True and
         all subqueries within a query resulted in errors, returns YtQueryFailed. Subquery errors
         are returned as inner errors. Otherwise, return None."""
@@ -448,8 +448,8 @@ class Query:
 
         return None
 
-    def wait(self, print_progress: bool = True, timeout: int | None = None,
-             raise_if_all_results_are_errors: bool | None = True):
+    def wait(self, print_progress: bool = True, timeout: Optional[int] = None,
+             raise_if_all_results_are_errors: Optional[bool] = True):
         """Synchronously tracks query, prints current progress and finalizes at the completion.
 
         If query fails, raises :class:`YtOperationFailedError <yt.wrapper.errors.YtOperationFailedError>`.
@@ -487,8 +487,8 @@ class Query:
 
 
 def run_query(
-        engine: str, query: str, settings: dict | None = None, files: list | None = None, stage: str | None = None,
-        annotations: dict | None = None, access_control_objects: list | None = None, sync: bool = True,
+        engine: str, query: str, settings: Optional[dict] = None, files: Optional[list] = None, stage: Optional[str] = None,
+        annotations: Optional[dict] = None, access_control_objects: Optional[list] = None, sync: bool = True,
         client=None) -> Query:
     """Run query and track its progress (unless sync = false).
 
