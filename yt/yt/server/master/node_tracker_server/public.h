@@ -62,7 +62,7 @@ DECLARE_ENTITY_TYPE(TDataCenter, TDataCenterId, NObjectClient::TObjectIdEntropyH
 
 DECLARE_MASTER_OBJECT_TYPE(TNode)
 
-using TNodeList = TCompactVector<TNode*, NChunkClient::TypicalReplicaCount>;
+using TNodeList = TCompactVector<TNode*, NChunkClient::UpperReplicaCountBound>;
 
 class TNodeDirectoryBuilder;
 

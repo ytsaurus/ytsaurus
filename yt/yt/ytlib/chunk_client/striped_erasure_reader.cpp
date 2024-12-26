@@ -182,8 +182,8 @@ private:
 
     struct TSegmentState
     {
-        TCompactVector<int, TypicalReplicaCount> PartIndexToRequestCount;
-        TCompactVector<TFuture<TBlock>, TypicalReplicaCount> PartFutures;
+        TCompactVector<int, UpperReplicaCountBound> PartIndexToRequestCount;
+        TCompactVector<TFuture<TBlock>, UpperReplicaCountBound> PartFutures;
 
         bool NeedRepair = false;
     };

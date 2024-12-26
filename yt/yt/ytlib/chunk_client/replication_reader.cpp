@@ -190,7 +190,7 @@ public:
         TRemoteReaderOptionsPtr options,
         TChunkReaderHostPtr chunkReaderHost,
         TChunkId chunkId,
-        const TChunkReplicaWithMediumList& seedReplicas)
+        TChunkReplicaWithMediumList seedReplicas)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(chunkReaderHost->Client)
@@ -3913,14 +3913,14 @@ IChunkReaderAllowingRepairPtr CreateReplicationReader(
     TRemoteReaderOptionsPtr options,
     TChunkReaderHostPtr chunkReaderHost,
     TChunkId chunkId,
-    const TChunkReplicaWithMediumList& seedReplicas)
+    TChunkReplicaWithMediumList seedReplicas)
 {
     return New<TReplicationReader>(
         std::move(config),
         std::move(options),
         std::move(chunkReaderHost),
         chunkId,
-        seedReplicas);
+        std::move(seedReplicas));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

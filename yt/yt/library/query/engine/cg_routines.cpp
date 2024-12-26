@@ -2997,7 +2997,7 @@ struct TChunkReplica
     auto operator<=>(const TChunkReplica& other) const = default;
 };
 
-using TChunkReplicaList = TCompactVector<TChunkReplica, TypicalReplicaCount>;
+using TChunkReplicaList = TCompactVector<TChunkReplica, UpperReplicaCountBound>;
 
 TChunkReplicaList UniteReplicas(const TChunkReplicaList& first, const TChunkReplicaList& second)
 {
