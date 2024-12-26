@@ -50,11 +50,11 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature)
 {
     TSignatureHeader header;
     try {
-        header = ConvertTo<TSignatureHeader>(signature->Header_);
+        header = ConvertTo<TSignatureHeader>(GetHeader(signature));
     } catch(const std::exception& ex) {
         YT_LOG_WARNING(
             "Received invalid signature header (Header: %v, Error: %v)",
-            signature->Header_.ToString(),
+            GetHeader(signature).ToString(),
             ex);
         return MakeFuture(false);
     }
@@ -66,6 +66,8 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature)
 
     return Store_->FindKey(keyIssuer, keyId).Apply(
         BIND([
+                this,
+                this_ = MakeStrong(this),
                 keyIssuer = std::move(keyIssuer),
                 keyId = std::move(keyId),
                 signatureId = std::move(signatureId),
@@ -81,17 +83,17 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature)
                     return false;
                 }
 
-                auto toSign = PreprocessSignature(signature->Header_, signature->Payload());
+                auto toSign = PreprocessSignature(GetHeader(signature), signature->Payload());
 
-                if (signature->Signature_.size() != SignatureSize) {
+                if (GetSignature(signature).size() != SignatureSize) {
                     YT_LOG_WARNING(
                         "Signature size mismatch (SignatureId: %v, ReceivedSize: %v, ExpectedSize: %v)",
                         signatureId,
-                        signature->Signature_.size(),
+                        GetSignature(signature).size(),
                         SignatureSize);
                     return false;
                 }
-                std::span<const std::byte, SignatureSize> signatureSpan(signature->Signature_);
+                std::span<const std::byte, SignatureSize> signatureSpan(GetSignature(signature));
                 if (!keyInfo->Verify(toSign, signatureSpan)) {
                     YT_LOG_WARNING("Cryptographic verification failed (SignatureId: %v)", signatureId);
                     return false;

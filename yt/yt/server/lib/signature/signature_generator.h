@@ -4,6 +4,8 @@
 
 #include "key_pair.h"
 
+#include <yt/yt/client/signature/generator.h>
+
 #include <yt/yt/core/yson/public.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
@@ -12,14 +14,15 @@ namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSignatureGenerator final
+class TSignatureGenerator
+    : public ISignatureGenerator
 {
 public:
     explicit TSignatureGenerator(TSignatureGeneratorConfigPtr config, IKeyStoreWriterPtr store);
 
     //! Fills out the Signature_ and Header_ fields in a given TSignature
     // based on its payload.
-    void Sign(const TSignaturePtr& signature) const;
+    void Sign(const TSignaturePtr& signature) override;
 
     [[nodiscard]] TKeyInfoPtr KeyInfo() const;
 

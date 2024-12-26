@@ -2,18 +2,21 @@
 
 #include "public.h"
 
+#include <yt/yt/client/signature/validator.h>
+
 #include <yt/yt/core/actions/public.h>
 
 namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSignatureValidator final
+class TSignatureValidator
+    : public ISignatureValidator
 {
 public:
     explicit TSignatureValidator(TSignatureValidatorConfigPtr config, IKeyStoreReaderPtr store);
 
-    TFuture<bool> Validate(const TSignaturePtr& signature);
+    TFuture<bool> Validate(const TSignaturePtr& signature) override;
 
 private:
     const TSignatureValidatorConfigPtr Config_;

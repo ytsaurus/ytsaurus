@@ -68,10 +68,10 @@ TKeyInfoPtr TSignatureGenerator::KeyInfo() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TSignatureGenerator::Sign(const TSignaturePtr& signature) const
+void TSignatureGenerator::Sign(const TSignaturePtr& signature)
 {
     // Make sure that we are not overwriting an existing signature.
-    YT_VERIFY(!signature->Header_);
+    YT_VERIFY(!GetHeader(signature));
 
     auto signatureId = TGuid::Create();
     auto now = Now();
@@ -93,9 +93,9 @@ void TSignatureGenerator::Sign(const TSignaturePtr& signature) const
             .ExpiresAt = now + Config_->SignatureExpirationDelta,
         };
 
-        signature->Header_ = ConvertToYsonString(header, EYsonFormat::Binary);
+        GetHeader(signature) = ConvertToYsonString(header, EYsonFormat::Binary);
 
-        auto toSign = PreprocessSignature(signature->Header_, signature->Payload_);
+        auto toSign = PreprocessSignature(GetHeader(signature), signature->Payload());
 
         if (!IsKeyPairMetadataValid(KeyPair_->KeyInfo()->Meta())) {
             YT_LOG_WARNING(
@@ -104,15 +104,15 @@ void TSignatureGenerator::Sign(const TSignaturePtr& signature) const
                 GetKeyId(KeyPair_->KeyInfo()->Meta()));
         }
 
-        signature->Signature_.resize(SignatureSize);
-        KeyPair_->Sign(toSign, std::span<std::byte, SignatureSize>(signature->Signature_));
+        GetSignature(signature).resize(SignatureSize);
+        KeyPair_->Sign(toSign, std::span<std::byte, SignatureSize>(GetSignature(signature)));
     }
 
     YT_LOG_TRACE(
         "Created signature (SignatureId: %v, Header: %v, Payload: %v)",
         signatureId,
         header,
-        ConvertToYsonString(signature->Payload_, EYsonFormat::Text).ToString());
+        ConvertToYsonString(signature->Payload(), EYsonFormat::Text).ToString());
 
     YT_LOG_DEBUG(
         "Created signature (SignatureId: %v)",
