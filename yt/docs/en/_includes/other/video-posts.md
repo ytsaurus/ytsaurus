@@ -4,10 +4,27 @@ This page features video content and publications from {{product-name}} develope
 
 ## Conferences, publications
 
-### 2024: Improving YTsaurus dynamic tables with a variety of algorithms
-- **Event:** [Publication on Medium](https://medium.com/yandex/improving-ytsaurus-dynamic-tables-with-a-variety-of-algorithms-6c0a75a912c5)
+### 2024: YTsaurus dynamic tables — and yet another DBMS from Yandex
+- **Event:** HighLoad++ 2024
+- **Materials:** [YouTube](https://youtu.be/Zik0TXOHcmY)
+- **Speaker:** Ruslan Savchenko
+- **Language:** Russian
+
+### 2024: New dynamic tables: secondary indexes, WebAssembly, and many more improvements for YTsaurus 24.1.0
+- **Event:** [Publication on Habr](https://habr.com/ru/companies/yandex/articles/857708/)
 - **Author:** Ruslan Savchenko
-- **Language:** English
+- **Language:** Russian
+
+### 2024: Chaos: downtime-resistant replication protocol between YTsaurus clusters
+- **Event:** [Database Internals Meetup #3](https://databaseinternals.timepad.ru/event/2873648/)
+- **Materials:** [YouTube](https://www.youtube.com/live/iwA-vzD_5cQ?t=5917s), [slides](https://drive.google.com/file/d/1vAWBLzSBg7q-bGmHzXv0ney6dOSnMZX4/view?usp=sharing)
+- **Author:** Ruslan Savchenko
+- **Language:** Russian
+
+### 2024: Improving YTsaurus dynamic tables with a variety of algorithms
+- **Event:** {% if lang == "ru" %}[Publication on Habr](https://medium.com/yandex/improving-ytsaurus-dynamic-tables-with-a-variety-of-algorithms-6c0a75a912c5) {% else %}[Publication on Medium](https://medium.com/yandex/improving-ytsaurus-dynamic-tables-with-a-variety-of-algorithms-6c0a75a912c5){% endif %}
+- **Author:** Ruslan Savchenko
+- **Language:** {% if lang == "ru" %}Russian{% else %}English{% endif %}
 
 ### 2023: How we adapted YTsaurus dynamic tables to store blobs
 - **Event:** SmartData 2023
