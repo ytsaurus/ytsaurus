@@ -4,12 +4,12 @@
 #include <llvm/IR/Intrinsics.h>
 #include <llvm/IR/Module.h>
 
-#include <library/cpp/yt/assert/assert.h>
-
 #include <yt/yt/client/table_client/llvm_types.h>
 
 #include <yt/yt/library/codegen/llvm_migrate_helpers.h>
 #include <yt/yt/library/codegen/type_builder.h>
+
+#include <library/cpp/yt/assert/assert.h>
 
 namespace NYT::NQueryClient {
 

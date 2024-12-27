@@ -1,12 +1,12 @@
 #pragma once
 
-#include <library/cpp/yt/misc/guid.h>
-
 #include <yt/yt/client/scheduler/public.h>
 
 #include <yt/yt/client/job_tracker_client/public.h>
 
 #include <yt/yt/core/misc/common.h>
+
+#include <library/cpp/yt/misc/guid.h>
 
 namespace NYT::NChunkServer {
 

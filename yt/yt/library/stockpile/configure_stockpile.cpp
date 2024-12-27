@@ -1,8 +1,8 @@
 #include "config.h"
 
-#include <library/cpp/yt/stockpile/stockpile.h>
-
 #include <yt/yt/core/misc/configurable_singleton_def.h>
+
+#include <library/cpp/yt/stockpile/stockpile.h>
 
 namespace NYT {
 

@@ -18,10 +18,11 @@
 
 #include <yt/yt/core/logging/log_manager.h>
 
-#include <library/cpp/yt/memory/new.h>
 #include <yt/yt/core/misc/shutdown.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <library/cpp/yt/memory/new.h>
 
 #include <library/cpp/getopt/last_getopt.h>
 
