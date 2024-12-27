@@ -116,14 +116,14 @@ TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<IUnversionedWriterPtr> CreateSchemalessFragmentTableWriter(
+TFuture<IUnversionedTableFragmentWriterPtr> CreateSchemalessTableFragmentWriter(
     TTableWriterConfigPtr config,
     TTableWriterOptionsPtr options,
-    const NApi::TFragmentWriteCookiePtr& cookie,
+    const NApi::TWriteFragmentCookie& cookie,
     TNameTablePtr nameTable,
     NApi::NNative::IClientPtr client,
-    TString localHostName,
-    NCypressClient::TTransactionId txId,
+    std::string localHostName,
+    NCypressClient::TTransactionId transactionId,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 

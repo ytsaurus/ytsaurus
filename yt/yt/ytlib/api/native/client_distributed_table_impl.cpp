@@ -5,6 +5,8 @@
 #include <yt/yt/client/api/distributed_table_session.h>
 #include <yt/yt/client/api/transaction.h>
 
+#include <yt/yt/client/signature/signature.h>
+
 #include <yt/yt/client/table_client/adapters.h>
 #include <yt/yt/client/table_client/check_schema_compatibility.h>
 #include <yt/yt/client/table_client/name_table.h>
@@ -69,7 +71,7 @@ std::tuple<TMasterTableSchemaId, TTransactionId> BeginTableUpload(
     const TTableUploadOptions& tableUploadOptions,
     const TTableSchemaPtr& chunkSchema,
     const NLogging::TLogger& Logger,
-    bool setUploadTxTimeout);
+    bool setUploadTransactionTimeout);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -78,7 +80,7 @@ std::tuple<TLegacyOwningKey, TChunkListId, int> GetTableUploadParams(
     const TRichYPath path,
     TCellTag externalCellTag,
     NYPath::TYPath objectIdPath,
-    TTransactionId uploadTxId,
+    TTransactionId uploadTransactionId,
     const TTableUploadOptions& tableUploadOptions,
     const NLogging::TLogger& Logger);
 
@@ -95,7 +97,7 @@ void EndTableUpload(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // NTableClient::NDetail
+} // namespace NTableClient::NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,20 +108,18 @@ namespace NApi::NNative {
 namespace {
 
 void SortAndValidateDistributedWriteResults(
-    TNonNullPtr<std::vector<TFragmentWriteResult>> resultsPtr,
+    TNonNullPtr<std::vector<TWriteFragmentResult>> results,
     const TTableWriterPatchInfo& patchInfo,
     const TTableUploadOptions& tableUploadOptions,
     const NLogging::TLogger& Logger)
 {
-    auto& results = *resultsPtr;
-
     const auto& path = patchInfo.RichPath.GetPath();
     YT_LOG_DEBUG(
         "Sorting output chunk tree ids by boundary keys (ChunkTreeCount: %v, Table: %v)",
-        std::ssize(results),
+        std::ssize(*results),
         path);
 
-    if (results.empty()) {
+    if (results->empty()) {
         return;
     }
 
@@ -133,9 +133,9 @@ void SortAndValidateDistributedWriteResults(
         : TKey{};
 
     std::stable_sort(
-        std::begin(results),
-        std::end(results),
-        [&] (const TFragmentWriteResult& lhs, const TFragmentWriteResult& rhs) -> bool {
+        std::begin(*results),
+        std::end(*results),
+        [&] (const TWriteFragmentResult& lhs, const TWriteFragmentResult& rhs) -> bool {
             auto lhsMinKey = asKey(lhs.MinBoundaryKey);
             auto lhsMaxKey = asKey(lhs.MaxBoundaryKey);
             auto rhsMinKey = asKey(rhs.MinBoundaryKey);
@@ -153,37 +153,37 @@ void SortAndValidateDistributedWriteResults(
         YT_LOG_DEBUG(
             "Comparing table last key against first chunk min key (LastKey: %v, MinKey: %v, Comparator: %v)",
             lastKey,
-            std::begin(results)->MinBoundaryKey,
+            std::begin(*results)->MinBoundaryKey,
             comparator);
 
         int cmp = comparator.CompareKeys(
-            TKey::FromRow(std::begin(results)->MinBoundaryKey),
+            TKey::FromRow(std::begin(*results)->MinBoundaryKey),
             lastKey);
 
         if (cmp < 0) {
             THROW_ERROR_EXCEPTION(
                 NTableClient::EErrorCode::SortOrderViolation,
-                "Output table %v is not sorted: job outputs overlap with original table",
+                "Output table %v is not sorted: key ranges overlap with original table",
                 path)
                 << TErrorAttribute("table_max_key", lastKey)
-                << TErrorAttribute("job_output_min_key", std::begin(results)->MinBoundaryKey)
+                << TErrorAttribute("min_key", std::begin(*results)->MinBoundaryKey)
                 << TErrorAttribute("comparator", comparator);
         }
 
         if (cmp == 0 && patchInfo.ChunkSchema->IsUniqueKeys()) {
             THROW_ERROR_EXCEPTION(
                 NTableClient::EErrorCode::SortOrderViolation,
-                "Output table %v contains duplicate keys: job outputs overlap with original table",
+                "Output table %v contains duplicate keys: key ranges overlap with original table",
                 path)
                 << TErrorAttribute("table_max_key", lastKey)
-                << TErrorAttribute("job_output_min_key", std::begin(results)->MinBoundaryKey)
+                << TErrorAttribute("min_key", std::begin(*results)->MinBoundaryKey)
                 << TErrorAttribute("comparator", comparator);
         }
     }
 
-    for (auto current = std::begin(results); current != std::end(results); ++current) {
+    for (auto current = std::begin(*results); current != std::end(*results); ++current) {
         auto next = current + 1;
-        if (next == std::end(results)) {
+        if (next == std::end(*results)) {
             break;
         }
 
@@ -192,7 +192,7 @@ void SortAndValidateDistributedWriteResults(
         if (cmp < 0) {
             THROW_ERROR_EXCEPTION(
                 NTableClient::EErrorCode::SortOrderViolation,
-                "Output table %v is not sorted: job outputs have overlapping key ranges",
+                "Output table %v is not sorted: key ranges have overlapping key ranges",
                 path)
                 << TErrorAttribute("current_range_max_key", current->MaxBoundaryKey)
                 << TErrorAttribute("next_range_min_key", next->MinBoundaryKey)
@@ -202,7 +202,7 @@ void SortAndValidateDistributedWriteResults(
         if (cmp == 0 && patchInfo.ChunkSchema->IsUniqueKeys()) {
             THROW_ERROR_EXCEPTION(
                 NTableClient::EErrorCode::UniqueKeyViolation,
-                "Output table %v contains duplicate keys: job outputs have overlapping key ranges",
+                "Output table %v contains duplicate keys: key ranges have overlapping key ranges",
                 path)
                 << TErrorAttribute("current_range_max_key", current->MaxBoundaryKey)
                 << TErrorAttribute("next_range_min_key", next->MinBoundaryKey)
@@ -215,7 +215,7 @@ void SortAndValidateDistributedWriteResults(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TDistributedWriteSessionPtr> TClient::StartDistributedWriteSession(
+TFuture<TDistributedWriteSessionWithCookies> TClient::StartDistributedWriteSession(
     const TRichYPath& richPath,
     const TDistributedWriteSessionStartOptions& options)
 {
@@ -223,19 +223,19 @@ TFuture<TDistributedWriteSessionPtr> TClient::StartDistributedWriteSession(
 
     // NB(arkady-e1ppa): Started transaction is discarded in this scope
     // and is expected to be attached by the user, thus we must not abort it.
-    TTransactionStartOptions txStartOptions{
+    TTransactionStartOptions transactionStartOptions{
         .AutoAbort = false,
     };
     if (options.TransactionId) {
-        txStartOptions.ParentId = options.TransactionId;
-        txStartOptions.Ping = options.Ping;
-        txStartOptions.PingAncestors = options.PingAncestors;
+        transactionStartOptions.ParentId = options.TransactionId;
+        transactionStartOptions.Ping = true;
+        transactionStartOptions.PingAncestors = options.PingAncestors;
     }
 
-    auto tx = WaitFor(
+    auto transaction = WaitFor(
         StartTransaction(
             NTransactionClient::ETransactionType::Master,
-            txStartOptions))
+            transactionStartOptions))
                 .ValueOrThrow();
 
     TUserObject userObject(path);
@@ -243,7 +243,7 @@ TFuture<TDistributedWriteSessionPtr> TClient::StartDistributedWriteSession(
     GetUserObjectBasicAttributes(
         MakeStrong(this),
         {&userObject},
-        tx->GetId(),
+        transaction->GetId(),
         Logger,
         EPermission::Write);
 
@@ -291,67 +291,78 @@ TFuture<TDistributedWriteSessionPtr> TClient::StartDistributedWriteSession(
         YT_LOG_DEBUG("Extended attributes received (Attributes: %v)", ConvertToYsonString(attributes, EYsonFormat::Text));
     }
 
-    auto [chunkSchemaId, uploadTxId] = NTableClient::NDetail::BeginTableUpload(
+    auto [chunkSchemaId, uploadTransactionId] = NTableClient::NDetail::BeginTableUpload(
         MakeStrong(this),
         path,
         nativeCellTag,
         objectIdPath,
-        tx->GetId(),
+        transaction->GetId(),
         tableUploadOptions,
         chunkSchema,
         Logger,
-        /*setUploadTxTimeout*/ false);
+        /*setUploadTransactionTimeout*/ false);
 
     auto [writerLastKey, rootChunkListId, maxHeavyColumns] = NTableClient::NDetail::GetTableUploadParams(
         MakeStrong(this),
         path,
         externalCellTag,
         objectIdPath,
-        uploadTxId,
+        uploadTransactionId,
         tableUploadOptions,
         Logger);
 
     auto timestamp = WaitFor(GetNativeConnection()->GetTimestampProvider()->GenerateTimestamps())
         .ValueOrThrow();
 
-    auto session = New<TDistributedWriteSession>(
-        /*mainTxId*/ tx->GetId(),
-        uploadTxId,
+    auto session = TDistributedWriteSession(
+        /*mainTransactionId*/ transaction->GetId(),
+        uploadTransactionId,
         rootChunkListId,
-        TTableWriterPatchInfo(
-            std::move(richPath),
-            objectId,
-            /*externalCellTag*/ externalCellTag,
-            chunkSchemaId,
-            std::move(chunkSchema),
-            static_cast<bool>(writerLastKey) ? std::optional(std::move(writerLastKey)) : std::nullopt,
-            maxHeavyColumns,
-            timestamp,
-            nodeWithAttributes->Attributes()
-        ));
+        std::move(richPath),
+        objectId,
+        /*externalCellTag*/ externalCellTag,
+        chunkSchemaId,
+        std::move(chunkSchema),
+        static_cast<bool>(writerLastKey) ? std::optional(std::move(writerLastKey)) : std::nullopt,
+        maxHeavyColumns,
+        timestamp,
+        nodeWithAttributes->Attributes());
 
-    // TODO(arkady-e1ppa): Signatures???
-    return MakeFuture(std::move(session));
+    std::vector<TSignedWriteFragmentCookiePtr> cookies;
+    cookies.reserve(options.CookieCount);
+
+    for (int i = 0; i < options.CookieCount; ++i) {
+        cookies.push_back(TSignedWriteFragmentCookiePtr(New<NSignature::TSignature>(ConvertToYsonString(session.CookieFromThis()))));
+    }
+
+    return MakeFuture(TDistributedWriteSessionWithCookies{
+        .Session = TSignedDistributedWriteSessionPtr(New<NSignature::TSignature>(ConvertToYsonString(session))),
+        .Cookies = std::move(cookies),
+    });
 }
 
 TFuture<void> TClient::FinishDistributedWriteSession(
-    TDistributedWriteSessionPtr session,
+    const TDistributedWriteSessionWithResults& sessionWithResults,
     const TDistributedWriteSessionFinishOptions& options)
 {
-    const auto& patchInfo = session->GetPatchInfo();
-    auto attributesPtr = IAttributeDictionary::FromMap(patchInfo.TableAttributes->AsMap());
-    const auto& attributes = *attributesPtr;
+    YT_VERIFY(sessionWithResults.Session);
+
+    auto session = ConvertTo<TDistributedWriteSession>(sessionWithResults.Session.Underlying()->Payload());
+
+    const auto& patchInfo = session.PatchInfo;
     const auto& path = patchInfo.RichPath.GetPath();
 
-    auto tx = AttachTransaction(session->GetMainTransactionId(), TTransactionAttachOptions{
+    auto attributes = IAttributeDictionary::FromMap(patchInfo.TableAttributes->AsMap());
+
+    auto transaction = AttachTransaction(session.MainTransactionId, TTransactionAttachOptions{
         .AutoAbort = true,
     });
 
     const auto tableUploadOptions = GetTableUploadOptions(
         patchInfo.RichPath,
-        attributes,
-        attributes.Get<TTableSchemaPtr>("schema"),
-        attributes.Get<i64>("row_count"));
+        *attributes,
+        attributes->Get<TTableSchemaPtr>("schema"),
+        attributes->Get<i64>("row_count"));
 
     NChunkClient::NProto::TDataStatistics dataStatistics = {};
 
@@ -399,6 +410,7 @@ TFuture<void> TClient::FinishDistributedWriteSession(
         };
 
         int currentRequestSize = 0;
+        THashSet<TChunkTreeId> addedChunkTrees;
 
         auto addChunkTree = [&] (TChunkTreeId chunkTreeId) {
             if (batchReq && currentRequestSize >= options.MaxChildrenPerAttachRequest) {
@@ -418,34 +430,44 @@ TFuture<void> TClient::FinishDistributedWriteSession(
                     batchReq->set_suppress_upstream_sync(true);
                 }
                 req = batchReq->add_attach_chunk_trees_subrequests();
-                ToProto(req->mutable_parent_id(), session->GetRootChunkListId());
+                ToProto(req->mutable_parent_id(), session.RootChunkListId);
             }
 
             ToProto(req->add_child_ids(), chunkTreeId);
         };
 
-        auto* writeResultsPtr = static_cast<std::vector<TFragmentWriteResult>*>(GetOpaqueDistributedWriteResults(session));
+        std::vector<TWriteFragmentResult> writeResults;
+        writeResults.reserve(std::ssize(sessionWithResults.Results));
+        for (const auto& signedResult : sessionWithResults.Results) {
+            YT_VERIFY(signedResult);
+            writeResults.push_back(ConvertTo<TWriteFragmentResult>(signedResult.Underlying()->Payload()));
+        }
 
         if (tableUploadOptions.TableSchema->IsSorted()) {
             // Sorted output generated by user operation requires rearranging.
 
             SortAndValidateDistributedWriteResults(
-                writeResultsPtr,
+                &writeResults,
                 patchInfo,
                 tableUploadOptions,
                 Logger);
 
-            for (const auto& writeResult : *writeResultsPtr) {
+            for (const auto& writeResult : writeResults) {
                 addChunkTree(writeResult.ChunkListId);
             }
         } else {
-            auto& writeResults = *writeResultsPtr;
             YT_LOG_DEBUG(
                 "Attaching chunk tree ids in an arbitrary order (ChunkTreeCount: %v, Table: %v)",
                 std::ssize(writeResults),
                 path);
 
             for (const auto& writeResult : writeResults) {
+                if (!addedChunkTrees.insert(writeResult.ChunkListId).second) {
+                    THROW_ERROR_EXCEPTION("Duplicate chunk list ids")
+                        << TErrorAttribute("session_id", writeResult.SessionId)
+                        << TErrorAttribute("cookie_id", writeResult.CookieId)
+                        << TErrorAttribute("chunk_list_id", writeResult.ChunkListId);
+                }
                 addChunkTree(writeResult.ChunkListId);
             }
         }
@@ -464,33 +486,37 @@ TFuture<void> TClient::FinishDistributedWriteSession(
         path,
         CellTagFromId(patchInfo.ObjectId),
         FromObjectId(patchInfo.ObjectId),
-        session->GetUploadTransactionId(),
+        session.UploadTransactionId,
         tableUploadOptions,
         std::move(dataStatistics));
 
-    return tx->Commit().AsVoid();
+    return transaction->Commit().AsVoid();
 }
 
-TFuture<ITableWriterPtr> TClient::CreateFragmentTableWriter(
-    const TFragmentWriteCookiePtr& cookie,
-    const TFragmentTableWriterOptions& options)
+TFuture<ITableFragmentWriterPtr> TClient::CreateTableFragmentWriter(
+    const TSignedWriteFragmentCookiePtr& signedCookie,
+    const TTableFragmentWriterOptions& options)
 {
+    YT_VERIFY(signedCookie);
+
+    auto cookie = ConvertTo<TWriteFragmentCookie>(signedCookie.Underlying()->Payload());
+
     auto nameTable = New<TNameTable>();
     nameTable->SetEnableColumnNameValidation();
 
     auto writerOptions = New<NTableClient::TTableWriterOptions>();
     writerOptions->EnableValidationOptions(/*validateAnyIsValidYson*/ options.ValidateAnyIsValidYson);
 
-    auto asyncSchemalessWriter = CreateSchemalessFragmentTableWriter(
+    auto asyncSchemalessWriter = CreateSchemalessTableFragmentWriter(
         options.Config ? options.Config : New<TTableWriterConfig>(),
         writerOptions,
         cookie,
         nameTable,
         this,
-        /*localHostName*/ TString(), // Locality is not important during table upload.
-        cookie->GetMainTransactionId());
+        /*localHostName*/ std::string{}, // Locality is not important during table upload.
+        cookie.MainTransactionId);
 
-    return asyncSchemalessWriter.ApplyUnique(BIND([] (IUnversionedWriterPtr&& schemalessWriter) {
+    return asyncSchemalessWriter.ApplyUnique(BIND([] (IUnversionedTableFragmentWriterPtr&& schemalessWriter) {
         return CreateApiFromSchemalessWriterAdapter(std::move(schemalessWriter));
     }));
 }
