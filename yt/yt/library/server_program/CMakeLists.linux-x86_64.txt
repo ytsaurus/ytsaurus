@@ -28,6 +28,7 @@ target_link_libraries(yt-library-server_program PUBLIC
   yutil
   cpp-yt-phdr_cache
   cpp-yt-mlock
+  core-service_discovery-yp
   yt-library-program
   yt-library-containers
   yt-library-disk_manager
