@@ -111,6 +111,7 @@ jobs:
       build-ytsaurus: true
       build-chyt: ${{ github.ref_name == 'main' }}
       build-python: true
+      update-remote-cache: true
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
@@ -148,6 +149,7 @@ jobs:
       build-ytsaurus: true
       build-query-tracker: ${{ github.ref_name == 'main' }}
       build-python: true
+      update-remote-cache: true
     secrets:
       BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
