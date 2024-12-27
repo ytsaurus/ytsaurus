@@ -29,7 +29,7 @@ from flaky import flaky
 import pytest
 
 from copy import deepcopy
-from random import shuffle
+from random import shuffle, randint
 import builtins
 import time
 import yt_error_codes
@@ -1270,11 +1270,8 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
         },
     }
 
-    USER = 0
-
     def _get_user(self):
-        self.USER += 1
-        return f"u{self.USER}"
+        return f"u{randint(100000, 999999)}"
 
     @authors("ni-stoiko")
     @pytest.mark.timeout(120)
