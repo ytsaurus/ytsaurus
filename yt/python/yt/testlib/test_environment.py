@@ -57,6 +57,7 @@ class YtTestEnvironment(object):
                  delta_node_config=None,
                  delta_dynamic_node_config=None,
                  delta_proxy_config=None,
+                 modify_configs_func=None,
                  need_suid=False):
         # To use correct version of bindings we must reset it before start environment.
         yt.native_driver.driver_bindings = None
@@ -76,6 +77,9 @@ class YtTestEnvironment(object):
                 native_client_supported = True
             except ImportError:
                 native_client_supported = False
+
+        if "store_location_count" not in env_options:
+            env_options["store_location_count"] = 1
 
         has_http_proxy = config["backend"] not in ("native",)
 
@@ -163,6 +167,9 @@ class YtTestEnvironment(object):
                 if delta_proxy_config:
                     update_inplace(config, delta_proxy_config)
 
+            if modify_configs_func is not None:
+                modify_configs_func(configs)
+
         def modify_node_dynamic_config(config, abi_version):
             update_inplace(config, {
                 "%true": {
@@ -194,7 +201,6 @@ class YtTestEnvironment(object):
             rpc_proxy_count=1,
             fqdn="localhost",
             allow_chunk_storage_in_tmpfs=True,
-            store_location_count=1,
             enable_log_compression=True,
             log_compression_method="zstd",
             cluster_name=cluster_name,

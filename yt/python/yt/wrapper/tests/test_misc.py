@@ -2014,3 +2014,16 @@ class TestFileConfig:
 
             _update_from_file(yt_config, user_config_path=fs_mapping[config_file_name])
             assert yt_config["token"] == expected_token
+
+
+@authors("ignat")
+@pytest.mark.usefixtures("yt_env_additional_media")
+class TestMedia:
+    def test_simple(self):
+        yt.create("domestic_medium", attributes={"name": "custom_medium"})
+        yt.create("file", "//tmp/test_file", attributes={"primary_medium": "custom_medium"})
+
+        yt.set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/custom_medium", 10 * 1024**3)
+
+        FILE_PAYLOAD = b"PAYLOAD"
+        yt.write_file("//tmp/test_file", FILE_PAYLOAD)

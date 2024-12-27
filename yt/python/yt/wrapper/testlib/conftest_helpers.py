@@ -194,6 +194,24 @@ def test_environment_chaos(request):
 
 
 @pytest.fixture(scope="class")
+def test_environment_additional_media(request):
+    def apply_config_patches(configs):
+        for index, config in enumerate(configs["node"]):
+            assert len(config["data_node"]["store_locations"]) == 2
+
+            config["data_node"]["store_locations"][0]["medium_name"] = "default"
+            config["data_node"]["store_locations"][1]["medium_name"] = "custom_medium"
+
+    environment = init_environment_for_test_session(
+        request,
+        "v4",
+        env_options=dict(store_location_count=2),
+        modify_configs_func=apply_config_patches,
+    )
+    return environment
+
+
+@pytest.fixture(scope="class")
 def test_environment_for_yamr(request):
     environment = init_environment_for_test_session(request, "yamr")
     return environment
@@ -354,6 +372,11 @@ def yt_env_with_authentication(request, test_environment_with_authentication):
 @pytest.fixture(scope="function")
 def yt_env_chaos(request, test_environment_chaos):
     return _yt_env(request, test_environment_chaos)
+
+
+@pytest.fixture(scope="function")
+def yt_env_additional_media(request, test_environment_additional_media):
+    return _yt_env(request, test_environment_additional_media)
 
 
 @pytest.fixture(scope="function")
