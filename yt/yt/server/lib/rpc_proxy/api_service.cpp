@@ -103,6 +103,7 @@ using namespace NQueueClient;
 using namespace NRpc;
 using namespace NScheduler;
 using namespace NSecurityClient;
+using namespace NSignature;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTracing;
@@ -604,7 +605,9 @@ public:
         NLogging::TLogger logger,
         TProfiler profiler,
         INodeMemoryTrackerPtr memoryTracker,
-        IStickyTransactionPoolPtr stickyTransactionPool)
+        IStickyTransactionPoolPtr stickyTransactionPool,
+        ISignatureValidatorPtr signatureValidator,
+        ISignatureGeneratorPtr signatureGenerator)
         : TServiceBase(
             std::move(workerInvoker),
             GetServiceDescriptor(),
@@ -632,6 +635,8 @@ public:
             ? config->TestingOptions->HeapProfiler
             : nullptr)
         , LookupMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Lookup))
+        , SignatureValidator_(std::move(signatureValidator))
+        , SignatureGenerator_(std::move(signatureGenerator))
         , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
         , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
         , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
@@ -864,6 +869,9 @@ private:
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
     const IMemoryUsageTrackerPtr LookupMemoryTracker_;
 
+    const ISignatureValidatorPtr SignatureValidator_;
+    const ISignatureGeneratorPtr SignatureGenerator_;
+
     static const TStructuredLoggingMethodDynamicConfigPtr DefaultMethodConfig;
 
     TCounter SelectConsumeDataWeight_;
@@ -871,7 +879,6 @@ private:
 
     TCounter SelectOutputDataWeight_;
     TCounter SelectOutputRowCount_;
-
 
     struct TDetailedProfilingCountersKey
     {
@@ -6807,6 +6814,8 @@ IApiServicePtr CreateApiService(
     NTracing::TSamplerPtr traceSampler,
     NLogging::TLogger logger,
     TProfiler profiler,
+    ISignatureValidatorPtr signatureValidator,
+    ISignatureGeneratorPtr signatureGenerator,
     INodeMemoryTrackerPtr memoryUsageTracker,
     IStickyTransactionPoolPtr stickyTransactionPool)
 {
@@ -6823,7 +6832,9 @@ IApiServicePtr CreateApiService(
         std::move(logger),
         std::move(profiler),
         std::move(memoryUsageTracker),
-        std::move(stickyTransactionPool));
+        std::move(stickyTransactionPool),
+        std::move(signatureValidator),
+        std::move(signatureGenerator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

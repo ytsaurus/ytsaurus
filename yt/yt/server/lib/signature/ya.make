@@ -15,6 +15,8 @@ SRCS(
 
     key_stores/cypress.cpp
     key_stores/stub.cpp
+
+    instance_config.cpp
 )
 
 PEERDIR(

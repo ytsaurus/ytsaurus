@@ -12,6 +12,13 @@
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 #include <yt/yt/server/lib/rpc_proxy/security_manager.h>
 
+#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/key_rotator.h>
+#include <yt/yt/server/lib/signature/signature_generator.h>
+#include <yt/yt/server/lib/signature/signature_validator.h>
+
+#include <yt/yt/server/lib/signature/key_stores/cypress.h>
+
 #include <yt/yt/server/lib/shuffle_server/shuffle_service.h>
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -91,6 +98,7 @@ using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;
 using namespace NShuffleServer;
+using namespace NSignature;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -173,6 +181,31 @@ void TBootstrap::DoRun()
             Config_->TvmOnlyAuth,
             HttpPoller_,
             RootClient_);
+    }
+
+    if (Config_->SignatureValidation) {
+        CypressKeyReader_ = New<TCypressKeyReader>(
+            Config_->SignatureValidation->CypressKeyReader,
+            RootClient_);
+        SignatureValidator_ = New<TSignatureValidator>(
+            Config_->SignatureValidation->Validator,
+            CypressKeyReader_);
+    }
+
+    if (Config_->SignatureGeneration) {
+        CypressKeyWriter_ = New<TCypressKeyWriter>(
+            Config_->SignatureGeneration->CypressKeyWriter,
+            RootClient_);
+        SignatureGenerator_ = New<TSignatureGenerator>(
+            Config_->SignatureGeneration->Generator,
+            CypressKeyWriter_);
+        SignatureKeyRotator_ = New<TKeyRotator>(
+            Config_->SignatureGeneration->KeyRotator,
+            GetControlInvoker(),
+            SignatureGenerator_);
+
+        YT_UNUSED_FUTURE(CypressKeyWriter_->Initialize());
+        SignatureKeyRotator_->Start();
     }
 
     ProxyCoordinator_ = CreateProxyCoordinator();
@@ -281,6 +314,8 @@ void TBootstrap::DoRun()
             TraceSampler_,
             RpcProxyLogger(),
             RpcProxyProfiler(),
+            SignatureValidator_,
+            SignatureGenerator_,
             MemoryUsageTracker_);
     };
 

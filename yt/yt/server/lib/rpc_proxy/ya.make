@@ -28,6 +28,8 @@ PEERDIR(
 
     yt/yt/server/lib/transaction_server
 
+    yt/yt/server/lib/signature
+
     yt/yt/core
 )
 
