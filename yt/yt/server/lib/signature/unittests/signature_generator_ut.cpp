@@ -57,54 +57,55 @@ TEST_F(TSignatureGeneratorTest, Rotate)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TSignatureGeneratorTest, SimpleSign)
-{
-    WaitFor(Gen->Rotate()).ThrowOnError();
+// TODO(arkady-e1pa): Whenever trivial signature generator/validator are present, uncomment.
+// TEST_F(TSignatureGeneratorTest, SimpleSign)
+// {
+//     WaitFor(Gen->Rotate()).ThrowOnError();
 
-    auto data = ConvertToYsonString("MyImportantData");
-    auto signature = New<TSignature>(TYsonString(data));
-    Gen->Sign(signature);
-    EXPECT_EQ(signature->Payload(), data);
+//     auto data = ConvertToYsonString("MyImportantData");
+//     auto signature = New<TSignature>(TYsonString(data));
+//     Gen->Sign(signature);
+//     EXPECT_EQ(signature->Payload(), data);
 
-    auto signatureYson = ConvertToNode(ConvertToYsonString(signature));
-    auto headerString = signatureYson->AsMap()->GetChildValueOrThrow<TString>("header");
-    auto header = ConvertTo<TSignatureHeader>(TYsonString(headerString));
-    // Sanity check.
-    EXPECT_EQ(
-        std::visit([] (const auto& header_) {
-            return TOwnerId(header_.Issuer);
-        }, header),
-        Store->GetOwner());
+//     auto signatureYson = ConvertToNode(ConvertToYsonString(signature));
+//     auto headerString = signatureYson->AsMap()->GetChildValueOrThrow<TString>("header");
+//     auto header = ConvertTo<TSignatureHeader>(TYsonString(headerString));
+//     // Sanity check.
+//     EXPECT_EQ(
+//         std::visit([] (const auto& header_) {
+//             return TOwnerId(header_.Issuer);
+//         }, header),
+//         Store->GetOwner());
 
-    EXPECT_TRUE(std::visit(
-        [] (const auto& header_) {
-            auto now = Now();
-            return header_.ValidAfter < now && now < header_.ExpiresAt;
-        },
-        header));
+//     EXPECT_TRUE(std::visit(
+//         [] (const auto& header_) {
+//             auto now = Now();
+//             return header_.ValidAfter < now && now < header_.ExpiresAt;
+//         },
+//         header));
 
-    auto toSign = PreprocessSignature(TYsonString(headerString), signature->Payload());
+//     auto toSign = PreprocessSignature(TYsonString(headerString), signature->Payload());
 
-    auto signatureNode = ConvertToNode(ConvertToYsonString(signature));
-    auto signatureByteString = signatureNode->AsMap()->GetChildValueOrThrow<TString>("signature");
-    auto signatureBytes = std::as_bytes(std::span(TStringBuf(signatureByteString)));
-    EXPECT_EQ(signatureBytes.size(), SignatureSize);
+//     auto signatureNode = ConvertToNode(ConvertToYsonString(signature));
+//     auto signatureByteString = signatureNode->AsMap()->GetChildValueOrThrow<TString>("signature");
+//     auto signatureBytes = std::as_bytes(std::span(TStringBuf(signatureByteString)));
+//     EXPECT_EQ(signatureBytes.size(), SignatureSize);
 
-    EXPECT_TRUE(Store->Data[Store->GetOwner()][0]->Verify(
-        toSign,
-        signatureBytes.template first<SignatureSize>()));
-}
+//     EXPECT_TRUE(Store->Data[Store->GetOwner()][0]->Verify(
+//         toSign,
+//         signatureBytes.template first<SignatureSize>()));
+// }
 
-////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TSignatureGeneratorTest, UninitializedSign)
-{
-    EXPECT_TRUE(Store->Data.empty());
+// TEST_F(TSignatureGeneratorTest, UninitializedSign)
+// {
+//     EXPECT_TRUE(Store->Data.empty());
 
-    auto data = NYson::ConvertToYsonString("MyImportantData");
-    auto signature = New<TSignature>(TYsonString(data));
-    EXPECT_THROW_WITH_SUBSTRING(Gen->Sign(signature), "uninitialized generator");
-}
+//     auto data = NYson::ConvertToYsonString("MyImportantData");
+//     auto signature = New<TSignature>(TYsonString(data));
+//     EXPECT_THROW_WITH_SUBSTRING(Gen->Sign(signature), "uninitialized generator");
+// }
 
 ////////////////////////////////////////////////////////////////////////////////
 

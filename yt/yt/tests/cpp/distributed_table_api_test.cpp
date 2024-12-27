@@ -1,51 +1,11 @@
-#include <yt/yt/tests/cpp/test_base/api_test_base.h>
-
-#include <yt/yt/client/api/rowset.h>
-#include <yt/yt/client/api/transaction.h>
-
-#include <yt/yt/ytlib/api/native/config.h>
-#include <yt/yt/ytlib/api/native/client.h>
-#include <yt/yt/ytlib/api/native/connection.h>
-
-#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
-
-#include <yt/yt/ytlib/object_client/config.h>
-#include <yt/yt/ytlib/object_client/object_service_proxy.h>
-
-#include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
-
-#include <yt/yt/client/api/distributed_table_session.h>
-#include <yt/yt/client/api/internal_client.h>
-#include <yt/yt/client/api/table_reader.h>
-#include <yt/yt/client/api/table_writer.h>
-
-#include <yt/yt/client/table_client/helpers.h>
-#include <yt/yt/client/table_client/name_table.h>
-#include <yt/yt/client/table_client/row_buffer.h>
-#include <yt/yt/client/table_client/unversioned_row.h>
-
-#include <yt/yt/client/transaction_client/helpers.h>
-#include <yt/yt/client/transaction_client/timestamp_provider.h>
-
-#include <yt/yt/core/concurrency/scheduler.h>
-
-#include <yt/yt/core/logging/config.h>
-#include <yt/yt/core/logging/log_manager.h>
-
-#include <yt/yt/core/test_framework/framework.h>
-
-#include <yt/yt/core/yson/string.h>
-
-#include <util/datetime/base.h>
-
-#include <util/random/random.h>
+#include "distributed_table_api_test.h"
 
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NYT {
 namespace NCppTests {
-namespace {
+
+////////////////////////////////////////////////////////////////////////////////
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -61,194 +21,200 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDistributedTableApiTest
-    : public TApiTestBase
+void TDistributedTableApiTest::CreateStaticTable(
+    const TString& tablePath,
+    const TString& schema)
 {
-public:
-    static void CreateStaticTable(
-        const TString& tablePath,
-        const TString& schema)
-    {
-        Table_ = tablePath;
-        EXPECT_TRUE(tablePath.StartsWith("//tmp"));
+    Table_ = tablePath;
+    EXPECT_TRUE(tablePath.StartsWith("//tmp"));
 
-        auto attributes = TYsonString("{dynamic=%false;schema=" + schema + "}");
-        TCreateNodeOptions options;
-        options.Attributes = ConvertToAttributes(attributes);
-        options.Force = true;
+    auto attributes = TYsonString("{dynamic=%false;schema=" + schema + "}");
+    TCreateNodeOptions options;
+    options.Attributes = ConvertToAttributes(attributes);
+    options.Force = true;
 
-        while (true) {
-            TError error;
+    while (true) {
+        TError error;
 
-            try {
-                error = WaitFor(Client_->CreateNode(Table_, EObjectType::Table, options));
-            } catch (const std::exception& ex) {
-                error = TError(ex);
-            }
+        try {
+            error = WaitFor(Client_->CreateNode(Table_, EObjectType::Table, options));
+        } catch (const std::exception& ex) {
+            error = TError(ex);
+        }
 
-            if (error.IsOK()) {
-                break;
-            }
+        if (error.IsOK()) {
+            break;
+        }
+    }
+}
+
+void TDistributedTableApiTest::WriteTable(
+    std::vector<TString> columnNames,
+    std::vector<TString> rowStrings,
+    bool append)
+{
+    DoWriteTable(
+        std::move(columnNames),
+        YsonRowsToUnversionedRows(std::move(rowStrings)),
+        append);
+}
+
+std::vector<TString> TDistributedTableApiTest::ReadTable()
+{
+    return DoReadTable();
+}
+
+TDistributedWriteSessionWithCookies TDistributedTableApiTest::StartDistributedWriteSession(
+    bool append,
+    int cookieCount,
+    std::optional<TTransactionId> txId)
+{
+    TDistributedWriteSessionStartOptions options = {};
+    options.CookieCount = cookieCount;
+    if (txId) {
+        options.TransactionId = *txId;
+    }
+    return WaitFor(Client_
+        ->StartDistributedWriteSession(
+            MakeRichPath(append),
+            options))
+        .ValueOrThrow();
+}
+
+TSignedWriteFragmentResultPtr TDistributedTableApiTest::DistributedWriteTable(
+    const TSignedWriteFragmentCookiePtr& cookie,
+    std::vector<TString> columnNames,
+    std::vector<TString> rowStrings)
+{
+    return DoDistributedWriteTable(
+        cookie,
+        std::move(columnNames),
+        YsonRowsToUnversionedRows(std::move(rowStrings)));
+}
+
+void TDistributedTableApiTest::PingDistributedWriteSession(
+    const TSignedDistributedWriteSessionPtr& session)
+{
+    WaitFor(NApi::PingDistributedWriteSession(session, Client_)).ThrowOnError();
+}
+
+void TDistributedTableApiTest::FinishDistributedWriteSession(
+    TSignedDistributedWriteSessionPtr session,
+    std::vector<TSignedWriteFragmentResultPtr> results,
+    int chunkListsPerAttachRequest)
+{
+    YT_VERIFY(chunkListsPerAttachRequest > 0);
+
+    WaitFor(Client_
+        ->FinishDistributedWriteSession(
+            TDistributedWriteSessionWithResults{
+                .Session = std::move(session),
+                .Results = std::move(results),
+            },
+            TDistributedWriteSessionFinishOptions{
+                .MaxChildrenPerAttachRequest = chunkListsPerAttachRequest,
+        }))
+        .ThrowOnError();
+}
+
+NYPath::TRichYPath TDistributedTableApiTest::MakeRichPath(bool append)
+{
+    auto path = NYPath::TRichYPath(Table_);
+    path.SetAppend(append);
+    return path;
+}
+
+TSharedRange<TUnversionedRow> TDistributedTableApiTest::YsonRowsToUnversionedRows(
+    std::vector<TString> rowStrings)
+{
+    auto rowBuffer = New<TRowBuffer>();
+    std::vector<TUnversionedRow> rows;
+    rows.reserve(std::ssize(rowStrings));
+    for (const auto& rowString : rowStrings) {
+        rows.push_back(rowBuffer->CaptureRow(YsonToSchemalessRow(rowString).Get()));
+    }
+    return MakeSharedRange(std::move(rows), std::move(rowBuffer));
+}
+
+void TDistributedTableApiTest::DoWriteTable(
+    std::vector<TString> columnNames,
+    TSharedRange<TUnversionedRow> rows,
+    bool append)
+{
+    auto writer = WaitFor(Client_->CreateTableWriter(MakeRichPath(append)))
+        .ValueOrThrow();
+
+    const auto& nameTable = writer->GetNameTable();
+    for (int i = 0; const auto& name : columnNames) {
+        EXPECT_EQ(i++, nameTable->GetIdOrRegisterName(name));
+    }
+    auto readyEvent = VoidFuture;
+    if (!writer->Write(rows)) {
+        readyEvent = writer->GetReadyEvent();
+    }
+
+    WaitFor(readyEvent.Apply(BIND([writer] {
+        return writer->Close();
+    })))
+        .ThrowOnError();
+}
+
+std::vector<TString> TDistributedTableApiTest::DoReadTable()
+{
+    auto reader = WaitFor(Client_->CreateTableReader(NYPath::TRichYPath(Table_)))
+        .ValueOrThrow();
+
+    std::vector<TString> rowStrings;
+
+    while (auto batch = reader->Read()) {
+        if (batch->IsEmpty()) {
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
+            continue;
+        }
+
+        auto batchRows = batch->MaterializeRows();
+        rowStrings.reserve(std::ssize(rowStrings) + std::ssize(batchRows));
+
+        for (const auto& row : batchRows) {
+            rowStrings.push_back(KeyToYson(row));
         }
     }
 
-    static void WriteTable(
-        std::vector<TString> columnNames,
-        std::vector<TString> rowStrings,
-        bool append)
-    {
-        DoWriteTable(
-            std::move(columnNames),
-            YsonRowsToUnversionedRows(std::move(rowStrings)),
-            append);
+    return rowStrings;
+}
+
+TSignedWriteFragmentResultPtr TDistributedTableApiTest::DoDistributedWriteTable(
+    const TSignedWriteFragmentCookiePtr& cookie,
+    std::vector<TString> columnNames,
+    TSharedRange<TUnversionedRow> rows)
+{
+    auto writer = WaitFor(Client_->CreateTableFragmentWriter(cookie))
+        .ValueOrThrow();
+
+    const auto& nameTable = writer->GetNameTable();
+    for (int i = 0; const auto& name : columnNames) {
+        EXPECT_EQ(i++, nameTable->GetIdOrRegisterName(name));
+    }
+    auto readyEvent = VoidFuture;
+
+    if (!writer->Write(rows)) {
+        readyEvent = writer->GetReadyEvent();
     }
 
-    static std::vector<TString> ReadTable()
-    {
-        return DoReadTable();
-    }
+    WaitFor(readyEvent.Apply(BIND([writer] {
+        return writer->Close();
+    })))
+        .ThrowOnError();
 
-    static TDistributedWriteSessionPtr StartDistributedWriteSession(
-        bool append,
-        std::optional<TTransactionId> txId = {})
-    {
-        TDistributedWriteSessionStartOptions options = {};
-        if (txId) {
-            options.TransactionId = *txId;
-        }
-        return WaitFor(Client_
-            ->StartDistributedWriteSession(
-                MakeRichPath(append),
-                options))
-            .ValueOrThrow();
-    }
+    return writer->GetWriteFragmentResult();
+}
 
-    // Append is decided upon session opening.
-    static void DistributedWriteTable(
-        const TFragmentWriteCookiePtr& cookie,
-        std::vector<TString> columnNames,
-        std::vector<TString> rowStrings)
-    {
-        DoDistributedWriteTable(
-            cookie,
-            std::move(columnNames),
-            YsonRowsToUnversionedRows(std::move(rowStrings)));
-    }
+////////////////////////////////////////////////////////////////////////////////
 
-    static void PingDistributedWriteSession(
-        const TDistributedWriteSessionPtr& session)
-    {
-        WaitFor(session->Ping(Client_)).ThrowOnError();
-    }
+namespace {
 
-    static void FinishDistributedWriteSession(
-        TDistributedWriteSessionPtr session,
-        int chunkListsPerAttachRequest = 42)
-    {
-        YT_VERIFY(chunkListsPerAttachRequest > 0);
-
-        WaitFor(Client_
-            ->FinishDistributedWriteSession(
-                std::move(session),
-                TDistributedWriteSessionFinishOptions{
-                    .MaxChildrenPerAttachRequest = chunkListsPerAttachRequest,
-            }))
-            .ThrowOnError();
-    }
-
-private:
-    static inline TString Table_ = {};
-
-    static NYPath::TRichYPath MakeRichPath(bool append)
-    {
-        auto path = NYPath::TRichYPath(Table_);
-        path.SetAppend(append);
-        return path;
-    }
-
-    static TSharedRange<TUnversionedRow> YsonRowsToUnversionedRows(
-        std::vector<TString> rowStrings)
-    {
-        auto rowBuffer = New<TRowBuffer>();
-        std::vector<TUnversionedRow> rows;
-        rows.reserve(std::ssize(rowStrings));
-        for (const auto& rowString : rowStrings) {
-            rows.push_back(rowBuffer->CaptureRow(YsonToSchemalessRow(rowString).Get()));
-        }
-        return MakeSharedRange(std::move(rows), std::move(rowBuffer));
-    }
-
-    static void DoWriteTable(
-        std::vector<TString> columnNames,
-        TSharedRange<TUnversionedRow> rows,
-        bool append)
-    {
-        WaitFor(Client_
-            ->CreateTableWriter(MakeRichPath(append))
-            .Apply(BIND([rows, names = std::move(columnNames)] (const ITableWriterPtr& writer) {
-                const auto& nameTable = writer->GetNameTable();
-                for (int i = 0; const auto& name : names) {
-                    EXPECT_EQ(i++, nameTable->GetIdOrRegisterName(name));
-                }
-                if (writer->Write(rows)) {
-                    return writer->Close();
-                }
-
-                return writer->GetReadyEvent().Apply(BIND([writer] {
-                    return writer->Close();
-                }));
-            })))
-            .ThrowOnError();
-    }
-
-    static std::vector<TString> DoReadTable()
-    {
-        auto reader = WaitFor(Client_->CreateTableReader(NYPath::TRichYPath(Table_)))
-            .ValueOrThrow();
-
-        std::vector<TString> rowStrings;
-
-        while (auto batch = reader->Read()) {
-            if (batch->IsEmpty()) {
-                WaitFor(reader->GetReadyEvent())
-                    .ThrowOnError();
-                continue;
-            }
-
-            auto batchRows = batch->MaterializeRows();
-            rowStrings.reserve(std::ssize(rowStrings) + std::ssize(batchRows));
-
-            for (const auto& row : batchRows) {
-                rowStrings.push_back(KeyToYson(row));
-            }
-        }
-
-        return rowStrings;
-    }
-
-    static void DoDistributedWriteTable(
-        const TFragmentWriteCookiePtr& cookie,
-        std::vector<TString> columnNames,
-        TSharedRange<TUnversionedRow> rows)
-    {
-        WaitFor(Client_
-            ->CreateFragmentTableWriter(cookie)
-            .Apply(BIND([rows, names = std::move(columnNames)] (const ITableWriterPtr& writer) {
-                const auto& nameTable = writer->GetNameTable();
-                for (int i = 0; const auto& name : names) {
-                    EXPECT_EQ(i++, nameTable->GetIdOrRegisterName(name));
-                }
-                if (writer->Write(rows)) {
-                    return writer->Close();
-                }
-
-                return writer->GetReadyEvent().Apply(BIND([writer] {
-                    return writer->Close();
-                }));
-            })))
-            .ThrowOnError();
-    }
-};
+////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TDistributedTableApiTest, StartFinishNoTx)
 {
@@ -260,25 +226,35 @@ TEST_F(TDistributedTableApiTest, StartFinishNoTx)
         "]");
 
     {
-        auto session = StartDistributedWriteSession(/*append*/ false);
-        FinishDistributedWriteSession(std::move(session));
+        auto sessionWithCookies = StartDistributedWriteSession(/*append*/ false, /*cookieCount*/0);
+        FinishDistributedWriteSession(std::move(sessionWithCookies.Session));
     }
 
     {
-        auto session = StartDistributedWriteSession(/*append*/ true);
-        FinishDistributedWriteSession(std::move(session));
+        auto sessionWithCookies = StartDistributedWriteSession(/*append*/ true, /*cookieCount*/0);
+        FinishDistributedWriteSession(std::move(sessionWithCookies.Session));
     }
 
     {
-        auto session = StartDistributedWriteSession(/*append*/ false);
-        PingDistributedWriteSession(session);
-        FinishDistributedWriteSession(std::move(session));
+        auto sessionWithCookies = StartDistributedWriteSession(/*append*/ false, /*cookieCount*/1);
+        FinishDistributedWriteSession(std::move(sessionWithCookies.Session));
     }
 
     {
-        auto session = StartDistributedWriteSession(/*append*/ true);
-        PingDistributedWriteSession(session);
-        FinishDistributedWriteSession(std::move(session));
+        auto sessionWithCookies = StartDistributedWriteSession(/*append*/ true, /*cookieCount*/1);
+        FinishDistributedWriteSession(std::move(sessionWithCookies.Session));
+    }
+
+    {
+        auto sessionWithCookies = StartDistributedWriteSession(/*append*/ false, /*cookieCount*/0);
+        PingDistributedWriteSession(sessionWithCookies.Session);
+        FinishDistributedWriteSession(std::move(sessionWithCookies.Session));
+    }
+
+    {
+        auto sessionWithCookies = StartDistributedWriteSession(/*append*/ true, /*cookieCount*/0);
+        PingDistributedWriteSession(sessionWithCookies.Session);
+        FinishDistributedWriteSession(std::move(sessionWithCookies.Session));
     }
 }
 
@@ -297,8 +273,8 @@ TEST_F(TDistributedTableApiTest, StartFinishWithTx)
             auto tx = WaitFor(
                 Client_->StartTransaction(ETransactionType::Master))
                     .ValueOrThrow();
-            auto session = StartDistributedWriteSession(/*append*/ append);
-            FinishDistributedWriteSession(std::move(session));
+            auto sessionWithCookies = StartDistributedWriteSession(/*append*/ append, /*cookieCount*/ 0);
+            FinishDistributedWriteSession(std::move(sessionWithCookies.Session));
 
             WaitFor(tx->Commit()).ThrowOnError();
         }
@@ -307,10 +283,11 @@ TEST_F(TDistributedTableApiTest, StartFinishWithTx)
             auto tx = WaitFor(
                 Client_->StartTransaction(ETransactionType::Master))
                     .ValueOrThrow();
-            auto session = StartDistributedWriteSession(/*append*/ append);
-            FinishDistributedWriteSession(std::move(session));
+            auto sessionWithCookies = StartDistributedWriteSession(/*append*/ append, /*cookieCount*/ 0);
+            FinishDistributedWriteSession(std::move(sessionWithCookies.Session));
 
-            WaitFor(tx->Abort()).ThrowOnError();
+            WaitFor(tx->Abort())
+                .ThrowOnError();
         }
     }
 }
@@ -338,21 +315,21 @@ TEST_F(TDistributedTableApiTest, StartWriteFinish)
     }
 
     {
-        auto session = StartDistributedWriteSession(/*append*/ false);
+        auto sessionWithCookies = StartDistributedWriteSession(/*append*/ false, /*cookieCount*/ 1);
 
-        auto cookie = session->GiveCookie();
-        DistributedWriteTable(
-            cookie,
+        auto result = DistributedWriteTable(
+            sessionWithCookies.Cookies[0],
             {
                 "v1",
             },
             inputRows);
 
-        PingDistributedWriteSession(session);
+        PingDistributedWriteSession(sessionWithCookies.Session);
 
-        session->TakeCookie(std::move(cookie));
-
-        FinishDistributedWriteSession(std::move(session));
+        FinishDistributedWriteSession(
+            std::move(sessionWithCookies.Session),
+            {std::move(result)}
+        );
     }
 
     auto rowsDistributed = ReadTable();
@@ -385,12 +362,13 @@ TEST_F(TDistributedTableApiTest, StartWriteFinishAbort)
         auto tx = WaitFor(
             Client_->StartTransaction(ETransactionType::Master))
                 .ValueOrThrow();
-        auto session = StartDistributedWriteSession(
+        auto [session, cookies] = StartDistributedWriteSession(
             /*append*/ false,
+            /*cookieCount*/ 1,
             /*txId*/ tx->GetId());
 
-        auto cookie = session->GiveCookie();
-        DistributedWriteTable(
+        auto cookie = std::move(cookies[0]);
+        auto result = DistributedWriteTable(
             cookie,
             {
                 "v1",
@@ -399,11 +377,12 @@ TEST_F(TDistributedTableApiTest, StartWriteFinishAbort)
 
         PingDistributedWriteSession(session);
 
-        session->TakeCookie(std::move(cookie));
+        FinishDistributedWriteSession(
+            std::move(session),
+            {std::move(result)});
 
-        FinishDistributedWriteSession(std::move(session));
-
-        WaitFor(tx->Abort()).ThrowOnError();
+        WaitFor(tx->Abort())
+            .ThrowOnError();
     }
 
     auto rowsDistributed = ReadTable();
@@ -436,12 +415,13 @@ TEST_F(TDistributedTableApiTest, StartWriteAbortFinish)
         auto tx = WaitFor(
             Client_->StartTransaction(ETransactionType::Master))
                 .ValueOrThrow();
-        auto session = StartDistributedWriteSession(
+        auto [session, cookies] = StartDistributedWriteSession(
             /*append*/ false,
+            /*cookieCount*/ 1,
             /*txId*/ tx->GetId());
 
-        auto cookie = session->GiveCookie();
-        DistributedWriteTable(
+        auto cookie = std::move(cookies[0]);
+        auto result = DistributedWriteTable(
             cookie,
             {
                 "v1",
@@ -450,11 +430,12 @@ TEST_F(TDistributedTableApiTest, StartWriteAbortFinish)
 
         PingDistributedWriteSession(session);
 
-        session->TakeCookie(std::move(cookie));
+        WaitFor(tx->Abort())
+            .ThrowOnError();
 
-        WaitFor(tx->Abort()).ThrowOnError();
-
-        EXPECT_ANY_THROW(FinishDistributedWriteSession(std::move(session)));
+        EXPECT_ANY_THROW(FinishDistributedWriteSession(
+            std::move(session),
+            {std::move(result)}));
     }
 
     auto rowsDistributed = ReadTable();
@@ -484,10 +465,12 @@ TEST_F(TDistributedTableApiTest, StartWriteTwiceFinishSameCookie)
     }
 
     {
-        auto session = StartDistributedWriteSession(/*append*/ true);
+        auto [session, cookies] = StartDistributedWriteSession(
+            /*append*/ true,
+            /*cookieCount*/ 1);
 
-        auto cookie = session->GiveCookie();
-        DistributedWriteTable(
+        auto cookie = std::move(cookies[0]);
+        auto result1 = DistributedWriteTable(
             cookie,
             {
                 "v1",
@@ -499,7 +482,7 @@ TEST_F(TDistributedTableApiTest, StartWriteTwiceFinishSameCookie)
 
         PingDistributedWriteSession(session);
 
-        DistributedWriteTable(
+        auto result2 = DistributedWriteTable(
             cookie,
             {
                 "v1",
@@ -510,9 +493,9 @@ TEST_F(TDistributedTableApiTest, StartWriteTwiceFinishSameCookie)
 
         PingDistributedWriteSession(session);
 
-        session->TakeCookie(std::move(cookie));
-
-        FinishDistributedWriteSession(std::move(session));
+        FinishDistributedWriteSession(
+            std::move(session),
+            {std::move(result1), std::move(result2)});
     }
 
     auto rowsDistributed = ReadTable();
@@ -542,11 +525,13 @@ TEST_F(TDistributedTableApiTest, StartWriteTwiceFinishDifferentCookies)
     }
 
     {
-        auto session = StartDistributedWriteSession(/*append*/ true);
+        auto [session, cookies] = StartDistributedWriteSession(
+            /*append*/ true,
+            /*cookieCount*/ 2);
 
-        auto cookie1 = session->GiveCookie();
-        auto cookie2 = session->GiveCookie();
-        DistributedWriteTable(
+        auto cookie1 = cookies[0];
+        auto cookie2 = cookies[1];
+        auto result1 = DistributedWriteTable(
             cookie1,
             {
                 "v1",
@@ -558,7 +543,7 @@ TEST_F(TDistributedTableApiTest, StartWriteTwiceFinishDifferentCookies)
 
         PingDistributedWriteSession(session);
 
-        DistributedWriteTable(
+        auto result2 = DistributedWriteTable(
             cookie2,
             {
                 "v1",
@@ -569,10 +554,9 @@ TEST_F(TDistributedTableApiTest, StartWriteTwiceFinishDifferentCookies)
 
         PingDistributedWriteSession(session);
 
-        session->TakeCookie(std::move(cookie1));
-        session->TakeCookie(std::move(cookie2));
-
-        FinishDistributedWriteSession(std::move(session));
+        FinishDistributedWriteSession(
+            std::move(session),
+            {std::move(result1), std::move(result2)});
     }
 
     auto rowsDistributed = ReadTable();
@@ -602,9 +586,11 @@ TEST_F(TDistributedTableApiTest, StartWriteFailWriteSuccessFinish)
     }
 
     {
-        auto session = StartDistributedWriteSession(/*append*/ true);
+        auto [session, cookies] = StartDistributedWriteSession(
+            /*append*/ true,
+            /*cookieCount*/ 1);
 
-        auto cookie = session->GiveCookie();
+        auto cookie = cookies[0];
         EXPECT_ANY_THROW(DistributedWriteTable(
             cookie,
             {
@@ -617,7 +603,7 @@ TEST_F(TDistributedTableApiTest, StartWriteFailWriteSuccessFinish)
 
         PingDistributedWriteSession(session);
 
-        DistributedWriteTable(
+        auto result = DistributedWriteTable(
             cookie,
             {
                 "v1",
@@ -628,9 +614,9 @@ TEST_F(TDistributedTableApiTest, StartWriteFailWriteSuccessFinish)
 
         PingDistributedWriteSession(session);
 
-        session->TakeCookie(std::move(cookie));
-
-        FinishDistributedWriteSession(std::move(session));
+        FinishDistributedWriteSession(
+            std::move(session),
+            {std::move(result)});
     }
 
     auto rowsDistributed = ReadTable();
@@ -662,41 +648,29 @@ TEST_F(TDistributedTableApiTest, ManyChunksToAttach)
     }
 
     {
-        auto session = StartDistributedWriteSession(/*append*/ true);
+        auto [session, cookies] = StartDistributedWriteSession(
+            /*append*/ true,
+            /*cookieCount*/ 1);
 
-        auto cookie = session->GiveCookie();
-        DistributedWriteTable(
-            cookie,
-            {
-                "v1",
-            },
-            {
-                inputRows[0],
-            });
-
-        DistributedWriteTable(
-            cookie,
-            {
-                "v1",
-            },
-            {
-                inputRows[1],
-            });
-
-        DistributedWriteTable(
-            cookie,
-            {
-                "v1",
-            },
-            {
-                inputRows[2],
-            });
+        auto cookie = cookies[0];
+        std::vector<TSignedWriteFragmentResultPtr> results;
+        for (int i = 0; i < 3; ++i) {
+            results.push_back(DistributedWriteTable(
+                cookie,
+                {
+                    "v1",
+                },
+                {
+                    inputRows[i],
+                }));
+        }
 
         PingDistributedWriteSession(session);
 
-        session->TakeCookie(std::move(cookie));
-
-        FinishDistributedWriteSession(std::move(session), /*chunkListsPerAttachRequest*/ 1);
+        FinishDistributedWriteSession(
+            std::move(session),
+            std::move(results),
+            /*chunkListsPerAttachRequest*/ 1);
     }
 
     auto rowsDistributed = ReadTable();
@@ -726,20 +700,22 @@ TEST_F(TDistributedTableApiTest, SortedTableSimpleDistributedWrite)
     }
 
     {
-        auto session = StartDistributedWriteSession(/*append*/ true);
+        auto [session, cookies] = StartDistributedWriteSession(
+            /*append*/ true,
+            /*cookieCount*/ 1);
 
-        auto cookie = session->GiveCookie();
+        auto cookie = cookies[0];
 
-        DistributedWriteTable(
+        auto result = DistributedWriteTable(
             cookie,
             {
                 "v1",
             },
             inputRows);
 
-        session->TakeCookie(std::move(cookie));
-
-        FinishDistributedWriteSession(std::move(session));
+        FinishDistributedWriteSession(
+            std::move(session),
+            {std::move(result)});
     }
 
     auto rowsDistributed = ReadTable();
@@ -769,11 +745,13 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOneCookie)
     }
 
     {
-        auto session = StartDistributedWriteSession(/*append*/ true);
+        auto [session, cookies] = StartDistributedWriteSession(
+            /*append*/ true,
+            /*cookieCount*/ 1);
 
-        auto cookie = session->GiveCookie();
+        auto cookie = cookies[0];
 
-        DistributedWriteTable(
+        auto result1 = DistributedWriteTable(
             cookie,
             {
                 "v1",
@@ -783,7 +761,7 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOneCookie)
                 inputRows[1],
             });
 
-        DistributedWriteTable(
+        auto result2 = DistributedWriteTable(
             cookie,
             {
                 "v1",
@@ -792,9 +770,9 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOneCookie)
                 inputRows[2],
             });
 
-        session->TakeCookie(std::move(cookie));
-
-        FinishDistributedWriteSession(std::move(session));
+        FinishDistributedWriteSession(
+            std::move(session),
+            {std::move(result1), std::move(result2)});
     }
 
     auto rowsDistributed = ReadTable();
@@ -824,11 +802,13 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOneCookieInverte
     }
 
     {
-        auto session = StartDistributedWriteSession(/*append*/ true);
+        auto [session, cookies] = StartDistributedWriteSession(
+            /*append*/ true,
+            /*cookieCount*/ 1);
 
-        auto cookie = session->GiveCookie();
+        auto cookie = cookies[0];
 
-        DistributedWriteTable(
+        auto result1 = DistributedWriteTable(
             cookie,
             {
                 "v1",
@@ -837,7 +817,7 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOneCookieInverte
                 inputRows[2],
             });
 
-        DistributedWriteTable(
+        auto result2 = DistributedWriteTable(
             cookie,
             {
                 "v1",
@@ -847,9 +827,9 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOneCookieInverte
                 inputRows[1],
             });
 
-        session->TakeCookie(std::move(cookie));
-
-        FinishDistributedWriteSession(std::move(session));
+        FinishDistributedWriteSession(
+            std::move(session),
+            {std::move(result1), std::move(result2)});
     }
 
     auto rowsDistributed = ReadTable();
@@ -879,10 +859,13 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesTwoCookies)
     }
 
     {
-        auto session = StartDistributedWriteSession(/*append*/ true);
+        auto [session, cookies] = StartDistributedWriteSession(
+            /*append*/ true,
+            /*cookieCount*/ 2);
 
-        auto cookie1 = session->GiveCookie();
-        DistributedWriteTable(
+        auto cookie1 = cookies[0];
+        auto cookie2 = cookies[1];
+        auto result1 = DistributedWriteTable(
             cookie1,
             {
                 "v1",
@@ -892,8 +875,9 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesTwoCookies)
                 inputRows[1],
             });
 
-        auto cookie2 = session->GiveCookie();
-        DistributedWriteTable(
+        PingDistributedWriteSession(session);
+
+        auto result2 = DistributedWriteTable(
             cookie2,
             {
                 "v1",
@@ -902,10 +886,9 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesTwoCookies)
                 inputRows[2],
             });
 
-        session->TakeCookie(std::move(cookie1));
-        session->TakeCookie(std::move(cookie2));
-
-        FinishDistributedWriteSession(std::move(session));
+        FinishDistributedWriteSession(
+            std::move(session),
+            {std::move(result1), std::move(result2)});
     }
 
     auto rowsDistributed = ReadTable();
@@ -935,11 +918,15 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesTwoCookiesInvert
     }
 
     {
-        auto session = StartDistributedWriteSession(/*append*/ true);
+        auto [session, cookies] = StartDistributedWriteSession(
+            /*append*/ true,
+            /*cookieCount*/ 2);
 
-        auto cookie2 = session->GiveCookie();
-        DistributedWriteTable(
-            cookie2,
+        auto cookie1 = cookies[0];
+        auto cookie2 = cookies[1];
+
+        auto result1 = DistributedWriteTable(
+            cookie1,
             {
                 "v1",
             },
@@ -947,9 +934,10 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesTwoCookiesInvert
                 inputRows[2],
             });
 
-        auto cookie1 = session->GiveCookie();
-        DistributedWriteTable(
-            cookie1,
+        PingDistributedWriteSession(session);
+
+        auto result2 = DistributedWriteTable(
+            cookie2,
             {
                 "v1",
             },
@@ -958,10 +946,9 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesTwoCookiesInvert
                 inputRows[1],
             });
 
-        session->TakeCookie(std::move(cookie1));
-        session->TakeCookie(std::move(cookie2));
-
-        FinishDistributedWriteSession(std::move(session));
+        FinishDistributedWriteSession(
+            std::move(session),
+            {std::move(result1), std::move(result2)});
     }
 
     auto rowsDistributed = ReadTable();
@@ -991,10 +978,14 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesViolateUniquenes
     }
 
     {
-        auto session = StartDistributedWriteSession(/*append*/ true);
+        auto [session, cookies] = StartDistributedWriteSession(
+            /*append*/ true,
+            /*cookieCount*/ 2);
 
-        auto cookie1 = session->GiveCookie();
-        DistributedWriteTable(
+        auto cookie1 = cookies[0];
+        auto cookie2 = cookies[1];
+
+        auto result1 = DistributedWriteTable(
             cookie1,
             {
                 "v1",
@@ -1003,8 +994,9 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesViolateUniquenes
                 inputRows[0],
             });
 
-        auto cookie2 = session->GiveCookie();
-        DistributedWriteTable(
+        PingDistributedWriteSession(session);
+
+        auto result2 = DistributedWriteTable(
             cookie2,
             {
                 "v1",
@@ -1013,19 +1005,11 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesViolateUniquenes
                 inputRows[0],
             });
 
-        session->TakeCookie(std::move(cookie1));
-        session->TakeCookie(std::move(cookie2));
-
-        bool threw = false;
-
-        try {
-            FinishDistributedWriteSession(std::move(session));
-        } catch (const std::exception& ex) {
-            threw = true;
-            EXPECT_TRUE(TString(ex.what()).Contains("contains duplicate keys"));
-        }
-
-        EXPECT_TRUE(threw);
+        EXPECT_THROW_WITH_SUBSTRING(
+            FinishDistributedWriteSession(
+            std::move(session),
+            {std::move(result1), std::move(result2)}),
+            "contains duplicate keys");
     }
 
     auto rowsDistributed = ReadTable();
@@ -1056,10 +1040,14 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOverlapKeyRanges
     }
 
     {
-        auto session = StartDistributedWriteSession(/*append*/ true);
+        auto [session, cookies] = StartDistributedWriteSession(
+            /*append*/ true,
+            /*cookieCount*/ 2);
 
-        auto cookie1 = session->GiveCookie();
-        DistributedWriteTable(
+        auto cookie1 = cookies[0];
+        auto cookie2 = cookies[1];
+
+        auto result1 = DistributedWriteTable(
             cookie1,
             {
                 "v1",
@@ -1069,8 +1057,7 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOverlapKeyRanges
                 inputRows[3],
             });
 
-        auto cookie2 = session->GiveCookie();
-        DistributedWriteTable(
+        auto result2 = DistributedWriteTable(
             cookie2,
             {
                 "v1",
@@ -1080,23 +1067,61 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOverlapKeyRanges
                 inputRows[2],
             });
 
-        session->TakeCookie(std::move(cookie1));
-        session->TakeCookie(std::move(cookie2));
-
-        bool threw = false;
-
-        try {
-            FinishDistributedWriteSession(std::move(session));
-        } catch (const std::exception& ex) {
-            threw = true;
-            EXPECT_TRUE(TString(ex.what()).Contains("is not sorted"));
-        }
-
-        EXPECT_TRUE(threw);
+        EXPECT_THROW_WITH_SUBSTRING(
+            FinishDistributedWriteSession(
+            std::move(session),
+            {std::move(result1), std::move(result2)}),
+            "is not sorted");
     }
 
     auto rowsDistributed = ReadTable();
     EXPECT_EQ(std::ssize(rowsDistributed), 0);
+}
+
+TEST_F(TDistributedTableApiTest, StartWriteCookieDuplicateResult)
+{
+    CreateStaticTable(
+        /*tablePath*/ "//tmp/distributed_table_api_test",
+        /*schema*/ "["
+        "{name=v1;type=string};"
+        "]");
+
+    std::vector<TString> rowStrings = {
+        "Foo",
+        "Bar",
+        "Baz",
+    };
+
+    std::vector<TString> inputRows;
+    std::vector<TString> expectedRows;
+
+    for (const auto& row : rowStrings) {
+        inputRows.push_back("<id=0> " + row + ";");
+        expectedRows.push_back("[\"" + row + "\";]");
+    }
+
+    {
+        auto [session, cookies] = StartDistributedWriteSession(
+            /*append*/ true,
+            /*cookieCount*/ 1);
+
+        auto cookie = std::move(cookies[0]);
+        auto result1 = DistributedWriteTable(
+            cookie,
+            {
+                "v1",
+            },
+            {
+                inputRows[0],
+                inputRows[1],
+            });
+
+        PingDistributedWriteSession(session);
+
+        EXPECT_THROW_WITH_SUBSTRING(FinishDistributedWriteSession(
+            std::move(session),
+            {result1, result1}), "Duplicate chunk list ids");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

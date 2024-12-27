@@ -3,6 +3,7 @@ GTEST(cpp-integration-test-rpc-api)
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    test_distributed_table_signatures.cpp
     test_rpc_api.cpp
 )
 
