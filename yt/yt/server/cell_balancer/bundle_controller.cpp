@@ -51,7 +51,7 @@ static const TYPath BundleAttributeMetadataCellIds("metadata_cell_ids");
 static const TYPath BundleAttributeMuteTabletCellSnapshotCheck("mute_tablet_cell_snapshots_check");
 static const TYPath BundleAttributeMuteTabletCellsCheck("mute_tablet_cells_check");
 
-static const TString SensorTagInstanceSize = "instance_size";
+static const std::string SensorTagInstanceSize = "instance_size";
 
 static constexpr int DefaultMaxSize = 1'000'000;
 
@@ -59,7 +59,7 @@ static constexpr int DefaultMaxSize = 1'000'000;
 
 struct TBundleAlertCounters
 {
-    THashMap<TString, TCounter> IdToCounter;
+    THashMap<std::string, TCounter> IdToCounter;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +91,7 @@ public:
         : Bootstrap_(bootstrap)
     { }
 
-    IClientPtr Get(const TString& clusterName)
+    IClientPtr Get(const std::string& clusterName)
     {
         if (const auto& client = Clients_[clusterName]; client) {
             return client;
@@ -108,7 +108,7 @@ public:
 
 private:
     IBootstrap* const Bootstrap_;
-    THashMap<TString, IClientPtr> Clients_;
+    THashMap<std::string, IClientPtr> Clients_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -191,18 +191,18 @@ private:
     TCounter ChangedSystemAccountLimitCounter_;
     TCounter ChangedResourceLimitCounter_;
 
-    THashMap<TString, TBundleSensorsPtr> BundleSensors_;
-    THashMap<TString, TZoneSensorsPtr> ZoneSensors_;
+    THashMap<std::string, TBundleSensorsPtr> BundleSensors_;
+    THashMap<std::string, TZoneSensorsPtr> ZoneSensors_;
 
     NOrchid::TBundlesInfo OrchidBundlesInfo_;
     NOrchid::TZonesRacksInfo OrchidRacksInfo_;
 
     NOrchid::TScanBundleCounterPtr OrchidScanBundleCounter_;
 
-    THashMap<TString, TBundleAlertCounters> BundleAlerts_;
+    THashMap<std::string, TBundleAlertCounters> BundleAlerts_;
     ICellDowntimeTrackerPtr CellDowntimeTracker_;
 
-    THashSet<TString> BundleJail_;
+    THashSet<std::string> BundleJail_;
 
     void ScanBundles()
     {
@@ -274,7 +274,7 @@ private:
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         static const TYPath LeaderOrchidServicePath = "//sys/bundle_controller/orchid";
-        static const TString AttributeRemoteAddress = "remote_addresses";
+        static const std::string AttributeRemoteAddress = "remote_addresses";
 
         auto addresses = Bootstrap_->GetLocalAddresses();
 
@@ -289,7 +289,8 @@ private:
             createOptions.IgnoreExisting = true;
             createOptions.Recursive = true;
             createOptions.Attributes = CreateEphemeralAttributes();
-            createOptions.Attributes->Set(AttributeRemoteAddress, ConvertToYsonString(addresses));
+            // TODO(babenko): switch to std::string
+            createOptions.Attributes->Set(TString(AttributeRemoteAddress), ConvertToYsonString(addresses));
 
             WaitFor(client->CreateNode(LeaderOrchidServicePath, EObjectType::Orchid, createOptions))
                 .ThrowOnError();
@@ -316,7 +317,7 @@ private:
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         static const TYPath LeaderBundleControllerPath = "//sys/bundle_controller";
-        static const TString AttributeAddress = "addresses";
+        static const std::string AttributeAddress = "addresses";
 
         auto client = Bootstrap_->GetClient();
 
@@ -342,9 +343,9 @@ private:
             .ThrowOnError();
     }
 
-    static std::vector<TString> GetAliveAllocationsId(const TSchedulerInputState& inputState)
+    static std::vector<std::string> GetAliveAllocationsId(const TSchedulerInputState& inputState)
     {
-        std::vector<TString> result;
+        std::vector<std::string> result;
         for (const auto& [_, bundleState] : inputState.BundleStates) {
             for (const auto& [allocId, _] : bundleState->NodeAllocations) {
                 result.push_back(allocId);
@@ -357,9 +358,9 @@ private:
         return result;
     }
 
-    static std::vector<TString> GetAliveDeallocationsId(const TSchedulerInputState& inputState)
+    static std::vector<std::string> GetAliveDeallocationsId(const TSchedulerInputState& inputState)
     {
-        std::vector<TString> result;
+        std::vector<std::string> result;
         for (const auto& [_, bundleState] : inputState.BundleStates) {
             for (const auto& [deallocId, _] : bundleState->NodeDeallocations) {
                 result.push_back(deallocId);
@@ -411,7 +412,7 @@ private:
             CellDowntimeTracker_ = CreateCellDowntimeTracker();
         }
 
-        CellDowntimeTracker_->HandleState(inputState, [this] (const TString& bundleName) {
+        CellDowntimeTracker_->HandleState(inputState, [this] (const std::string& bundleName) {
             return GetBundleSensors(bundleName);
         });
     }
@@ -447,16 +448,16 @@ private:
         }
     }
 
-    inline static const TString  AttributeBundleControllerAnnotations = "bundle_controller_annotations";
-    inline static const TString  NodeAttributeUserTags = "user_tags";
-    inline static const TString  NodeAttributeDecommissioned = "decommissioned";
-    inline static const TString  NodeAttributeEnableBundleBalancer = "enable_bundle_balancer";
-    inline static const TString  ProxyAttributeRole = "role";
-    inline static const TString  AccountAttributeResourceLimits = "resource_limits";
-    inline static const TString  BundleTabletStaticMemoryLimits = "resource_limits/tablet_static_memory";
-    inline static const TString  BundleAttributeShortName = "short_name";
-    inline static const TString  BundleAttributeNodeTagFilter = "node_tag_filter";
-    inline static const TString  BundleAttributeTargetConfig = "bundle_controller_target_config";
+    inline static const std::string  AttributeBundleControllerAnnotations = "bundle_controller_annotations";
+    inline static const std::string  NodeAttributeUserTags = "user_tags";
+    inline static const std::string  NodeAttributeDecommissioned = "decommissioned";
+    inline static const std::string  NodeAttributeEnableBundleBalancer = "enable_bundle_balancer";
+    inline static const std::string  ProxyAttributeRole = "role";
+    inline static const std::string  AccountAttributeResourceLimits = "resource_limits";
+    inline static const std::string  BundleTabletStaticMemoryLimits = "resource_limits/tablet_static_memory";
+    inline static const std::string  BundleAttributeShortName = "short_name";
+    inline static const std::string  BundleAttributeNodeTagFilter = "node_tag_filter";
+    inline static const std::string  BundleAttributeTargetConfig = "bundle_controller_target_config";
 
     void Mutate(const ITransactionPtr& transaction, const TSchedulerMutations& mutations)
     {
@@ -639,9 +640,9 @@ private:
 
     void ReportInstanceCountBySize(
         const TSchedulerInputState::TInstanceCountBySize& countBySize,
-        const TString& sensorName,
+        const std::string& sensorName,
         TProfiler& profiler,
-        THashMap<TString, TGauge>& sensors)
+        THashMap<std::string, TGauge>& sensors)
     {
         for (auto& [sizeName, count] : countBySize) {
             auto it = sensors.find(sizeName);
@@ -662,11 +663,11 @@ private:
     }
 
     void ReportTargetInstanceCount(
-        const TString& targetSizeName,
-        const TString& sensorName,
+        const std::string& targetSizeName,
+        const std::string& sensorName,
         int instanceCount,
         TProfiler& profiler,
-        THashMap<TString, TGauge>& sensors)
+        THashMap<std::string, TGauge>& sensors)
     {
         auto it = sensors.find(targetSizeName);
         if (it != sensors.end()) {
@@ -846,7 +847,7 @@ private:
         for (const auto& [bundleName, dataCenterNodes] : input.BundleNodes) {
             auto sensors = GetBundleSensors(bundleName);
 
-            THashMap<TString, int> assignedNodesByDC;
+            THashMap<std::string, int> assignedNodesByDC;
             for (const auto& [dataCenter, _] : sensors->AssignedBundleNodesPerDC) {
                 assignedNodesByDC[dataCenter] = 0;
             }
@@ -956,7 +957,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
-        static const TString DefaultBundleName = "all";
+        static const std::string DefaultBundleName = "all";
 
         auto bundleName = alert.BundleName.value_or(DefaultBundleName);
 
@@ -974,7 +975,7 @@ private:
         it->second.Increment(1);
     }
 
-    TBundleSensorsPtr GetBundleSensors(const TString& bundleName)
+    TBundleSensorsPtr GetBundleSensors(const std::string& bundleName)
     {
         auto it = BundleSensors_.find(bundleName);
         if (it != BundleSensors_.end()) {
@@ -1033,7 +1034,7 @@ private:
         return sensors;
     }
 
-    TZoneSensorsPtr GetZoneSensors(const TString& zoneName, const TString& dataCenter)
+    TZoneSensorsPtr GetZoneSensors(const std::string& zoneName, const std::string& dataCenter)
     {
         auto it = ZoneSensors_.find(zoneName);
         if (it != ZoneSensors_.end()) {
@@ -1198,7 +1199,8 @@ private:
     {
         TListNodeOptions options;
         options.MaxSize = DefaultMaxSize;
-        options.Attributes = TEntryInfo::GetAttributes();
+        // TODO(babenko): migrate to std::string
+        options.Attributes = {TEntryInfo::GetAttributes().begin(), TEntryInfo::GetAttributes().end()};
 
         auto yson = WaitFor(transaction->ListNode(path, options))
             .ValueOrThrow();
@@ -1229,7 +1231,8 @@ private:
     {
         TGetNodeOptions options;
         options.MaxSize = DefaultMaxSize;
-        options.Attributes = TEntryInfo::GetAttributes();
+        // TODO(babenko): switch to std::string
+        options.Attributes = {TEntryInfo::GetAttributes().begin(), TEntryInfo::GetAttributes().end()};
 
         auto yson = WaitFor(transaction->GetNode(path, options))
             .ValueOrThrow();
@@ -1283,7 +1286,7 @@ private:
     static void CypressSet(
         const ITransactionPtr& transaction,
         const TYPath& basePath,
-        const TString& name,
+        const std::string& name,
         const TEntryInfoPtr& entry)
     {
         auto path = Format("%v/%v", basePath, NYPath::ToYPathLiteral(name));
@@ -1304,7 +1307,7 @@ private:
 
     static void CreateSystemAccount(
         const IClientBasePtr& client,
-        const TString& accountName)
+        const std::string& accountName)
     {
         TCreateObjectOptions createOptions;
         createOptions.Attributes = CreateEphemeralAttributes();
@@ -1349,9 +1352,9 @@ private:
     static void SetInstanceAttributes(
         const IClientBasePtr& client,
         const TYPath& instanceBasePath,
-        const TString& attributeName,
-        const THashMap<TString, TAttribute>& attributes,
-        THashSet<TString>* instanceJail = nullptr)
+        const std::string& attributeName,
+        const THashMap<std::string, TAttribute>& attributes,
+        THashSet<std::string>* instanceJail = nullptr)
     {
         for (const auto& [instanceName, attribute] : attributes) {
             auto path = Format("%v/%v/@%v",
@@ -1371,8 +1374,8 @@ private:
     static void RemoveInstanceAttributes(
         const ITransactionPtr& transaction,
         const TYPath& instanceBasePath,
-        const TString& attributeName,
-        const THashSet<TString>& instancies)
+        const std::string& attributeName,
+        const THashSet<std::string>& instancies)
     {
         for (const auto& instanceName : instancies) {
             auto path = Format("%v/%v/@%v",
@@ -1391,8 +1394,8 @@ private:
     template <typename TAttribute>
     static void SetNodeAttributes(
         const ITransactionPtr& transaction,
-        const TString& attributeName,
-        const THashMap<TString, TAttribute>& attributes)
+        const std::string& attributeName,
+        const THashMap<std::string, TAttribute>& attributes)
     {
         SetInstanceAttributes(transaction, TabletNodesPath, attributeName, attributes);
     }
@@ -1400,8 +1403,8 @@ private:
     template <typename TAttribute>
     void SetProxyAttributes(
         const ITransactionPtr& transaction,
-        const TString& attributeName,
-        const THashMap<TString, TAttribute>& attributes)
+        const std::string& attributeName,
+        const THashMap<std::string, TAttribute>& attributes)
     {
         SetInstanceAttributes(transaction, RpcProxiesPath, attributeName, attributes);
     }
@@ -1410,7 +1413,7 @@ private:
     static TIndexedEntries<TEntryInfo> LoadHulkRequests(
         const ITransactionPtr& transaction,
         const std::vector<TYPath>& basePaths,
-        const std::vector<TString>& requests)
+        const std::vector<std::string>& requests)
     {
         TIndexedEntries<TEntryInfo> results;
         using TEntryInfoPtr = TIntrusivePtr<TEntryInfo>;
@@ -1428,7 +1431,7 @@ private:
     static TEntryInfoPtr LoadHulkRequest(
         const ITransactionPtr& transaction,
         const std::vector<TYPath>& basePaths,
-        const TString& id)
+        const std::string& id)
     {
         for (const auto& basePath: basePaths) {
             auto path = Format("%v/%v", basePath,  NYPath::ToYPathLiteral(id));
@@ -1473,7 +1476,7 @@ private:
             .ThrowOnError();
     }
 
-    static void CreateTabletCells(const ITransactionPtr& transaction, const THashMap<TString, int>& cellsToCreate)
+    static void CreateTabletCells(const ITransactionPtr& transaction, const THashMap<std::string, int>& cellsToCreate)
     {
         for (const auto& [bundleName, cellCount] : cellsToCreate) {
             TCreateObjectOptions createOptions;
@@ -1487,10 +1490,10 @@ private:
         }
     }
 
-    static void RemoveTabletCells(const ITransactionPtr& transaction, const std::vector<TString>& cellsToRemove)
+    static void RemoveTabletCells(const ITransactionPtr& transaction, const std::vector<std::string>& cellsToRemove)
     {
         for (const auto& cellId : cellsToRemove) {
-            TString path = Format("%v/%v", TabletCellsPath, cellId);
+            auto path = TYPath(Format("%v/%v", TabletCellsPath, cellId));
 
             YT_LOG_INFO("Removing tablet cell (CellId: %v, Path: %v)",
                 cellId,
@@ -1501,7 +1504,7 @@ private:
         }
     }
 
-    static void RemoveInstanceCypressNode(const ITransactionPtr& transaction, const TYPath& basePath, const THashSet<TString>& instanciesToRemove)
+    static void RemoveInstanceCypressNode(const ITransactionPtr& transaction, const TYPath& basePath, const THashSet<std::string>& instanciesToRemove)
     {
         for (const auto& instanceName : instanciesToRemove) {
             WaitFor(transaction->RemoveNode(Format("%v/%v", basePath, instanceName)))

@@ -24,11 +24,11 @@ static int GetCeiledShare(int totalAmount, int partCount)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::vector<TString> GetBundlesByTag(
+std::vector<std::string> GetBundlesByTag(
     const TTabletNodeInfoPtr& nodeInfo,
-    const THashMap<TString, TString>& filterTagToBundleName)
+    const THashMap<std::string, std::string>& filterTagToBundleName)
 {
-    std::vector<TString> result;
+    std::vector<std::string> result;
 
     for (const auto& tag : nodeInfo->UserTags) {
         if (auto it = filterTagToBundleName.find(tag); it != filterTagToBundleName.end()) {
@@ -41,7 +41,7 @@ std::vector<TString> GetBundlesByTag(
 
 int GetReadyNodeCount(
     const TBundleInfoPtr& bundleInfo,
-    const THashSet<TString>& aliveBundleNodes,
+    const THashSet<std::string>& aliveBundleNodes,
     const TSchedulerInputState& input)
 {
     const auto& nodeTagFilter = bundleInfo->NodeTagFilter;
@@ -60,7 +60,7 @@ int GetReadyNodeCount(
 ////////////////////////////////////////////////////////////////////////////////
 
 TPerDataCenterSpareNodesInfo GetSpareNodesInfo(
-    const TString& zoneName,
+    const std::string& zoneName,
     const TSchedulerInputState& input,
     TSchedulerMutations* mutations)
 {
@@ -76,12 +76,12 @@ TPerDataCenterSpareNodesInfo GetSpareNodesInfo(
     }
 
     // NodeTagFilter To Bundle Name.
-    THashMap<TString, TString> filterTagToBundleName;
+    THashMap<std::string, std::string> filterTagToBundleName;
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         filterTagToBundleName[bundleInfo->NodeTagFilter] = bundleName;
     }
 
-    THashMap<TString, TString> operationsToBundle;
+    THashMap<std::string, std::string> operationsToBundle;
     for (const auto& [bundleName, bundleState] : input.BundleStates) {
         for (const auto& [spareNode, _] : bundleState->SpareNodeAssignments) {
             operationsToBundle[spareNode] = bundleName;
@@ -167,8 +167,8 @@ TPerDataCenterSpareNodesInfo GetSpareNodesInfo(
 
 // Returns true if the node finally/already assigned to the bundle.
 bool ProcessNodeAssignment(
-    const TString& nodeName,
-    const TString& bundleName,
+    const std::string& nodeName,
+    const std::string& bundleName,
     const TSchedulerInputState& input,
     TSchedulerMutations* mutations)
 {
@@ -243,7 +243,7 @@ bool ProcessNodeAssignment(
 ////////////////////////////////////////////////////////////////////////////////
 
 void TryCreateSpareNodesReleasements(
-    const TString& bundleName,
+    const std::string& bundleName,
     const TSchedulerInputState& input,
     int slotsToRelease,
     TSpareNodesInfo* spareNodesInfo,
@@ -288,7 +288,7 @@ void TryCreateSpareNodesReleasements(
 ////////////////////////////////////////////////////////////////////////////////
 
 void TryCreateSpareNodesAssignment(
-    const TString& bundleName,
+    const std::string& bundleName,
     const TSchedulerInputState& input,
     int slotsToAdd,
     TSpareNodesInfo* spareNodesInfo,
@@ -319,9 +319,9 @@ void TryCreateSpareNodesAssignment(
 ////////////////////////////////////////////////////////////////////////////////
 
 void TryCreateBundleNodesAssignment(
-    const TString& bundleName,
+    const std::string& bundleName,
     const TSchedulerInputState& input,
-    const THashSet<TString>& aliveNodes,
+    const THashSet<std::string>& aliveNodes,
     const TBundleControllerStatePtr& bundleState,
     TSchedulerMutations* mutations)
 {
@@ -365,9 +365,9 @@ void TryCreateBundleNodesAssignment(
 ////////////////////////////////////////////////////////////////////////////////
 
 void TryCreateBundleNodesReleasement(
-    const TString& bundleName,
+    const std::string& bundleName,
     const TSchedulerInputState& input,
-    const THashSet<TString>& nodesToRelease,
+    const THashSet<std::string>& nodesToRelease,
     const TBundleControllerStatePtr& bundleState)
 {
     if (!bundleState->RemovingCells.empty()) {
@@ -414,12 +414,12 @@ bool AllTabletSlotsAreEmpty(const TTabletNodeInfoPtr& nodeInfo)
 ////////////////////////////////////////////////////////////////////////////////
 
 void ProcessNodesAssignments(
-    const TString& bundleName,
+    const std::string& bundleName,
     const TSchedulerInputState& input,
     TIndexedEntries<TNodeTagFilterOperationState>* nodeAssignments,
     TSchedulerMutations* mutations)
 {
-    std::vector<TString> finished;
+    std::vector<std::string> finished;
     auto now = TInstant::Now();
 
     for (const auto& [nodeName,  operation] : *nodeAssignments) {
@@ -454,14 +454,14 @@ void ProcessNodesAssignments(
 ////////////////////////////////////////////////////////////////////////////////
 
 void ProcessNodesReleasements(
-    const TString& bundleName,
+    const std::string& bundleName,
     const TSchedulerInputState& input,
     bool leaveDecommissioned,
     TIndexedEntries<TNodeTagFilterOperationState>* nodeAssignments,
     TSchedulerMutations* mutations)
 {
     const auto& nodeTagFilter = GetOrCrash(input.Bundles, bundleName)->NodeTagFilter;
-    std::vector<TString> finished;
+    std::vector<std::string> finished;
     auto now = TInstant::Now();
 
     for (const auto& [nodeName,  operation] : *nodeAssignments) {
@@ -545,7 +545,7 @@ struct TDataCenterOrder
     int RequiredNodeAssignmentCount = 0;
 
     // Just dc name alphabetical order for predictability.
-    TString DataCenter;
+    std::string DataCenter;
 
     auto MakeTuple() const
     {
@@ -559,9 +559,9 @@ struct TDataCenterOrder
 };
 
 int GetAvailableLiveTabletNodeCount(
-    const TString& bundleName,
-    const TString& dataCenterName,
-    const THashMap<TString, THashSet<TString>>& aliveBundleNodes,
+    const std::string& bundleName,
+    const std::string& dataCenterName,
+    const THashMap<std::string, THashSet<std::string>>& aliveBundleNodes,
     const TPerDataCenterSpareNodesInfo& spareNodesInfo)
 {
     int result = 0;
@@ -585,10 +585,10 @@ int GetAvailableLiveTabletNodeCount(
 }
 
 int GetAssignedTabletNodeCount(
-    const TString& bundleName,
-    const TString& nodeTagFilter,
-    const TString& dataCenterName,
-    const THashMap<TString, THashSet<TString>>& aliveBundleNodes,
+    const std::string& bundleName,
+    const std::string& nodeTagFilter,
+    const std::string& dataCenterName,
+    const THashMap<std::string, THashSet<std::string>>& aliveBundleNodes,
     const TPerDataCenterSpareNodesInfo& spareNodesInfo,
     const TSchedulerInputState& input)
 {
@@ -616,8 +616,8 @@ int GetAssignedTabletNodeCount(
 }
 
 int GetAssignedTabletCellCount(
-    const TString& dataCenterName,
-    const THashMap<TString, THashSet<TString>>& aliveBundleNodes,
+    const std::string& dataCenterName,
+    const THashMap<std::string, THashSet<std::string>>& aliveBundleNodes,
     const TSchedulerInputState& input)
 {
     int result = 0;
@@ -636,10 +636,10 @@ int GetAssignedTabletCellCount(
     return result;
 }
 
-THashSet<TString> GetDataCentersToPopulate(
-    const TString& bundleName,
-    const TString& nodeTagFilter,
-    const THashMap<TString, THashSet<TString>>& perDataCenterAliveNodes,
+THashSet<std::string> GetDataCentersToPopulate(
+    const std::string& bundleName,
+    const std::string& nodeTagFilter,
+    const THashMap<std::string, THashSet<std::string>>& perDataCenterAliveNodes,
     const TPerDataCenterSpareNodesInfo& spareNodesInfo,
     const TSchedulerInputState& input)
 {
@@ -705,7 +705,7 @@ THashSet<TString> GetDataCentersToPopulate(
     std::sort(dataCentersOrder.begin(), dataCentersOrder.end());
     dataCentersOrder.resize(activeDataCenterCount);
 
-    THashSet<TString> result;
+    THashSet<std::string> result;
     for (const auto& item : dataCentersOrder) {
         result.insert(item.DataCenter);
     }
@@ -737,7 +737,7 @@ int GetRequiredSlotCount(const TBundleInfoPtr& bundleInfo, const TSchedulerInput
 ////////////////////////////////////////////////////////////////////////////////
 
 void SetNodeTagFilter(
-    const TString& bundleName,
+    const std::string& bundleName,
     const TDataCenterToInstanceMap& bundleNodes,
     const TSchedulerInputState& input,
     TPerDataCenterSpareNodesInfo& perDataCenterSpareNodes,

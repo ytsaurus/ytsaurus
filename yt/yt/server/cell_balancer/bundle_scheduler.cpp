@@ -19,7 +19,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto& Logger = BundleControllerLogger;
-static const TString DefaultDataCenterName = "default";
+static const std::string DefaultDataCenterName = "default";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,18 +33,18 @@ bool IsAllocationCompleted(const auto& requestInfo)
     return requestInfo->Status && requestInfo->Status->State == "COMPLETED";
 }
 
-TString GetPodIdForInstance(const TString& name)
+std::string GetPodIdForInstance(const std::string& name)
 {
     // TODO(capone212): Get pod_id from node Cypress annotations.
 
     // For now we get PodId in a bit hacky way:
     // we expect PodId to be prefix of fqdn before the first dot.
     auto endPos = name.find(".");
-    if (endPos == TString::npos && name.StartsWith("localhost")) {
+    if (endPos == std::string::npos && name.starts_with("localhost")) {
         // For testing purposes.
         return name;
     }
-    YT_VERIFY(endPos != TString::npos);
+    YT_VERIFY(endPos != std::string::npos);
 
     auto podId = name.substr(0, endPos);
     YT_VERIFY(!podId.empty());
@@ -53,19 +53,19 @@ TString GetPodIdForInstance(const TString& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetInstancePodIdTemplate(
+std::string GetInstancePodIdTemplate(
     const std::string& cluster,
-    const TString& bundleName,
-    const TString& instanceType,
+    const std::string& bundleName,
+    const std::string& instanceType,
     int index)
 {
     return Format("<short-hostname>-%v-%03x-%v-%v", bundleName, index, instanceType, cluster);
 }
 
 std::optional<int> GetIndexFromPodId(
-    const TString& podId,
+    const std::string& podId,
     const std::string& cluster,
-    const TString& instanceType)
+    const std::string& instanceType)
 {
     TStringBuf buffer = podId;
     auto suffix = Format("-%v-%v", instanceType, cluster);
@@ -85,9 +85,9 @@ std::optional<int> GetIndexFromPodId(
 }
 
 int FindNextInstanceId(
-    const std::vector<TString>& instanceNames,
+    const std::vector<std::string>& instanceNames,
     const std::string& cluster,
-    const TString& instanceType)
+    const std::string& instanceType)
 {
     std::vector<int> existingIds;
     existingIds.reserve(instanceNames.size());
@@ -128,7 +128,7 @@ public:
     { }
 
     void ManageInstancies(
-        const TString& bundleName,
+        const std::string& bundleName,
         TInstanceTypeAdapter* adapter,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
@@ -209,7 +209,7 @@ private:
 
     int GetAllocationCountInDataCenter(
         const TIndexedEntries<TAllocationRequestState>& allocationsState,
-        const TString& dataCenterName)
+        const std::string& dataCenterName)
     {
         return std::count_if(allocationsState.begin(), allocationsState.end(), [&] (const auto& record) {
             return record.second->DataCenter.value_or(DefaultDataCenterName) == dataCenterName;
@@ -217,9 +217,9 @@ private:
     }
 
     void InitNewAllocations(
-        const TString& bundleName,
-        const TString& zoneName,
-        const TString& dataCenterName,
+        const std::string& bundleName,
+        const std::string& zoneName,
+        const std::string& dataCenterName,
         TInstanceTypeAdapter* adapter,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
@@ -293,7 +293,7 @@ private:
         }
 
         for (int i = 0; i < instanceCountToAllocate; ++i) {
-            TString allocationId = ToString(TGuid::Create());
+            std::string allocationId = ToString(TGuid::Create());
 
             YT_LOG_INFO("Init allocation for bundle (BundleName: %v, InstanceType %v, AllocationId: %v)",
                 bundleName,
@@ -328,7 +328,7 @@ private:
 
     int GetOutdatedInstanceCount(
         TInstanceTypeAdapter* adapter,
-        const TString& dataCenterName,
+        const std::string& dataCenterName,
         const TSchedulerInputState& input,
         const TBundleInfoPtr& bundleInfo)
     {
@@ -364,15 +364,15 @@ private:
         return count;
     }
 
-    TString GetPodIdTemplate(
-        const TString& bundleName,
-        const TString& dataCenterName,
+    std::string GetPodIdTemplate(
+        const std::string& bundleName,
+        const std::string& dataCenterName,
         const TZoneInfoPtr& zoneInfo,
         TInstanceTypeAdapter* adapter,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
     {
-        std::vector<TString> knownPodIds;
+        std::vector<std::string> knownPodIds;
         for (const auto& instanceName : adapter->GetInstancies(dataCenterName)) {
             knownPodIds.push_back(GetPodIdForInstance(instanceName));
         }
@@ -424,7 +424,7 @@ private:
     }
 
     void ProcessExistingAllocations(
-        const TString& bundleName,
+        const std::string& bundleName,
         TInstanceTypeAdapter* adapter,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
@@ -517,9 +517,9 @@ private:
     }
 
     bool ReturnToBundleBalancer(
-        const TString& bundleName,
+        const std::string& bundleName,
         TInstanceTypeAdapter* adapter,
-        const TString& deallocationId,
+        const std::string& deallocationId,
         const TDeallocationRequestStatePtr& deallocationState,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
@@ -543,9 +543,9 @@ private:
     }
 
     bool ProcessHulkDeallocation(
-        const TString& bundleName,
+        const std::string& bundleName,
         TInstanceTypeAdapter* adapter,
-        const TString& deallocationId,
+        const std::string& deallocationId,
         const TDeallocationRequestStatePtr& deallocationState,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
@@ -618,9 +618,9 @@ private:
 
     // Returns false if current deallocation should not be tracked any more.
     bool ProcessDeallocation(
-        const TString& bundleName,
+        const std::string& bundleName,
         TInstanceTypeAdapter* adapter,
-        const TString& deallocationId,
+        const std::string& deallocationId,
         const TDeallocationRequestStatePtr& deallocationState,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
@@ -671,7 +671,7 @@ private:
     }
 
     void ProcessExistingDeallocations(
-        const TString& bundleName,
+        const std::string& bundleName,
         TInstanceTypeAdapter* adapter,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
@@ -689,8 +689,8 @@ private:
     }
 
     void CreateHulkDeallocationRequest(
-        const TString& deallocationId,
-        const TString& instanceName,
+        const std::string& deallocationId,
+        const std::string& instanceName,
         TInstanceTypeAdapter* adapter,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
@@ -709,9 +709,9 @@ private:
     }
 
     void InitNewDeallocations(
-        const TString& bundleName,
-        const TString& zoneName,
-        const TString& dataCenterName,
+        const std::string& bundleName,
+        const std::string& zoneName,
+        const std::string& dataCenterName,
         TInstanceTypeAdapter* adapter,
         const TSchedulerInputState& input,
         TSchedulerMutations* /*mutations*/)
@@ -752,7 +752,7 @@ private:
         for (const auto& instanceName : instanciesToRemove) {
             const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
 
-            TString deallocationId = ToString(TGuid::Create());
+            std::string deallocationId = ToString(TGuid::Create());
             auto deallocationState = New<TDeallocationRequestState>();
             deallocationState->CreationTime = TInstant::Now();
             deallocationState->InstanceName = instanceName;
@@ -773,7 +773,7 @@ private:
         }
     }
 
-    TString LocateAllocatedInstance(
+    std::string LocateAllocatedInstance(
         const TAllocationRequestPtr& requestInfo,
         const TSchedulerInputState& input) const
     {
@@ -819,7 +819,7 @@ TSchedulerInputState::TZoneToInstanceMap MapZonesToInstancies(
     const TSchedulerInputState& input,
     const TCollection& collection)
 {
-    THashMap<TString, TString> nannyServiceToZone;
+    THashMap<std::string, std::string> nannyServiceToZone;
     for (const auto& [zoneName, zoneInfo] : input.Zones) {
         for (const auto& [dataCenterName, dataCenterInfo] : zoneInfo->DataCenters) {
             if (!dataCenterInfo->TabletNodeNannyService.empty()) {
@@ -851,11 +851,11 @@ TSchedulerInputState::TZoneToInstanceMap MapZonesToInstancies(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, TDataCenterRackInfo> MapZonesToRacks(
+THashMap<std::string, TDataCenterRackInfo> MapZonesToRacks(
     const TSchedulerInputState& input,
     TSchedulerMutations* mutations)
 {
-    THashMap<TString, TDataCenterRackInfo> zoneToRacks;
+    THashMap<std::string, TDataCenterRackInfo> zoneToRacks;
 
     for (const auto& [zoneName, zoneNodes] : input.ZoneNodes) {
         auto zoneInfo = GetOrCrash(input.Zones, zoneName);
@@ -933,9 +933,9 @@ THashMap<TString, TDataCenterRackInfo> MapZonesToRacks(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashMap<TString, TString> MapPodIdToInstanceName(const TSchedulerInputState& input)
+THashMap<std::string, std::string> MapPodIdToInstanceName(const TSchedulerInputState& input)
 {
-    THashMap<TString, TString> result;
+    THashMap<std::string, std::string> result;
 
     for (const auto& [nodeName, _] : input.TabletNodes) {
         auto podId = GetPodIdForInstance(nodeName);
@@ -950,9 +950,9 @@ THashMap<TString, TString> MapPodIdToInstanceName(const TSchedulerInputState& in
     return result;
 }
 
-TString GenerateShortNameForBundle(
-    const TString& bundleName,
-    const THashMap<TString, TString>& shortNameToBundle,
+std::string GenerateShortNameForBundle(
+    const std::string& bundleName,
+    const THashMap<std::string, std::string>& shortNameToBundle,
     int maxLength)
 {
     auto shortName = bundleName;
@@ -977,10 +977,10 @@ TString GenerateShortNameForBundle(
         << TErrorAttribute("bundle_name", bundleName);
 }
 
-THashMap<TString, TString> MapBundlesToShortNames(const TSchedulerInputState& input)
+THashMap<std::string, std::string> MapBundlesToShortNames(const TSchedulerInputState& input)
 {
-    THashMap<TString, TString> bundleToShortName;
-    THashMap<TString, TString> shortNameToBundle;
+    THashMap<std::string, std::string> bundleToShortName;
+    THashMap<std::string, std::string> shortNameToBundle;
 
     // Instance pod-id looks like sas3-4993-venus212-001-rpc-hume.
     // Max pod id length is 35, so cluster short name and bundle short name
@@ -1022,7 +1022,7 @@ THashMap<TString, TString> MapBundlesToShortNames(const TSchedulerInputState& in
     return bundleToShortName;
 }
 
-TString GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr& resource)
+std::string GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr& resource)
 {
     auto cpuCores = resource->Vcpu / 1000;
     auto memoryGB = resource->Memory / 1_GB;
@@ -1032,9 +1032,9 @@ TString GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr& re
 
 void CalculateResourceUsage(TSchedulerInputState& input)
 {
-    THashMap<TString, NBundleControllerClient::TInstanceResourcesPtr> aliveResources;
-    THashMap<TString, NBundleControllerClient::TInstanceResourcesPtr> allocatedResources;
-    THashMap<TString, NBundleControllerClient::TInstanceResourcesPtr> targetResources;
+    THashMap<std::string, NBundleControllerClient::TInstanceResourcesPtr> aliveResources;
+    THashMap<std::string, NBundleControllerClient::TInstanceResourcesPtr> allocatedResources;
+    THashMap<std::string, NBundleControllerClient::TInstanceResourcesPtr> targetResources;
 
     auto calculateResources = [] (
         const auto& aliveNames,
@@ -1114,15 +1114,15 @@ void CalculateResourceUsage(TSchedulerInputState& input)
     input.BundleResourceTarget = targetResources;
 }
 
-THashMap<TString, THashSet<TString>> GetAliveNodes(
-    const TString& bundleName,
+THashMap<std::string, THashSet<std::string>> GetAliveNodes(
+    const std::string& bundleName,
     const TDataCenterToInstanceMap& bundleNodes,
     const TSchedulerInputState& input,
     const TBundleControllerStatePtr& bundleState,
     EGracePeriodBehaviour gracePeriodBehaviour)
 {
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
-    THashMap<TString, THashSet<TString>> aliveNodes;
+    THashMap<std::string, THashSet<std::string>> aliveNodes;
 
     auto now = TInstant::Now();
 
@@ -1166,12 +1166,12 @@ THashMap<TString, THashSet<TString>> GetAliveNodes(
     return aliveNodes;
 }
 
-THashMap<TString, THashSet<TString>> GetAliveProxies(
+THashMap<std::string, THashSet<std::string>> GetAliveProxies(
     const TDataCenterToInstanceMap& bundleProxies,
     const TSchedulerInputState& input,
     EGracePeriodBehaviour gracePeriodBehaviour)
 {
-    THashMap<TString, THashSet<TString>> aliveProxies;
+    THashMap<std::string, THashSet<std::string>> aliveProxies;
     auto now = TInstant::Now();
 
     for (const auto& [dataCenterName, dataCenterProxies] : bundleProxies) {
@@ -1214,7 +1214,7 @@ struct TNodeRemoveOrder
     bool MaintenanceIsNotRequested = true;
     bool HasUpdatedResources = true;
     int UsedSlotCount = 0;
-    TString NodeName;
+    std::string NodeName;
 
     auto AsTuple() const
     {
@@ -1242,7 +1242,7 @@ int GetTargetCellCount(const TBundleInfoPtr& bundleInfo, const TZoneInfoPtr& zon
 }
 
 bool EnsureNodeDecommissioned(
-    const TString& nodeName,
+    const std::string& nodeName,
     const TTabletNodeInfoPtr& nodeInfo,
     TSchedulerMutations* mutations)
 {
@@ -1256,8 +1256,8 @@ bool EnsureNodeDecommissioned(
 
 struct TTabletCellRemoveOrder
 {
-    TString Id;
-    TString HostNode;
+    std::string Id;
+    std::string HostNode;
     bool Disrupted = false;
     // No tablet host and non zero tablet nodes
 
@@ -1272,9 +1272,9 @@ struct TTabletCellRemoveOrder
     }
 };
 
-TString GetHostNodeForCell(const TTabletCellInfoPtr& cellInfo, const THashSet<TString>& bundleNodes)
+std::string GetHostNodeForCell(const TTabletCellInfoPtr& cellInfo, const THashSet<std::string>& bundleNodes)
 {
-    TString nodeName;
+    std::string nodeName;
 
     for (const auto& peer : cellInfo->Peers) {
         if (bundleNodes.count(peer->Address) == 0) {
@@ -1289,13 +1289,13 @@ TString GetHostNodeForCell(const TTabletCellInfoPtr& cellInfo, const THashSet<TS
     return nodeName;
 }
 
-std::vector<TString> PeekTabletCellsToRemove(
+std::vector<std::string> PeekTabletCellsToRemove(
     int cellCountToRemove,
-    const std::vector<TString>& bundleCellIds)
+    const std::vector<std::string>& bundleCellIds)
 {
     YT_VERIFY(std::ssize(bundleCellIds) >= cellCountToRemove);
 
-    std::vector<TString> result;
+    std::vector<std::string> result;
     result.reserve(bundleCellIds.size());
 
     for (auto& cell : bundleCellIds) {
@@ -1309,13 +1309,13 @@ std::vector<TString> PeekTabletCellsToRemove(
 }
 
 void ProcessRemovingCells(
-    const TString& bundleName,
+    const std::string& bundleName,
     const TDataCenterToInstanceMap& /*bundleNodes*/,
     const TSchedulerInputState& input,
     TSchedulerMutations* mutations)
 {
     auto& state = mutations->ChangedStates[bundleName];
-    std::vector<TString> removeCompleted;
+    std::vector<std::string> removeCompleted;
 
     for (const auto& [cellId, removingStateInfo] : state->RemovingCells) {
         auto it = input.TabletCells.find(cellId);
@@ -1358,7 +1358,7 @@ void ProcessRemovingCells(
 }
 
 void CreateRemoveTabletCells(
-    const TString& bundleName,
+    const std::string& bundleName,
     const TDataCenterToInstanceMap& bundleNodes,
     const TSchedulerInputState& input,
     TSchedulerMutations* mutations)
@@ -1430,7 +1430,7 @@ void CreateRemoveTabletCells(
 struct TQuotaDiff
 {
     i64 ChunkCount = 0;
-    THashMap<TString, i64> DiskSpacePerMedium;
+    THashMap<std::string, i64> DiskSpacePerMedium;
     i64 NodeCount = 0;
 
     bool Empty() const
@@ -1445,10 +1445,10 @@ struct TQuotaDiff
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TQuotaChanges = THashMap<TString, TQuotaDiff>;
+using TQuotaChanges = THashMap<std::string, TQuotaDiff>;
 
 void AddQuotaChanges(
-    const TString& bundleName,
+    const std::string& bundleName,
     const TBundleInfoPtr& bundleInfo,
     const TSchedulerInputState& input,
     int cellCount,
@@ -1487,7 +1487,7 @@ void AddQuotaChanges(
     quotaDiff.ChunkCount = std::max<i64>(config->ChunkCountPerCell * multiplier, config->MinChunkCount) - currentLimit->ChunkCount;
     quotaDiff.NodeCount = std::max<i64>(config->NodeCountPerCell * multiplier, config->MinNodeCount) - currentLimit->NodeCount;
 
-    auto getSpace = [&] (const TString& medium) -> i64 {
+    auto getSpace = [&] (const std::string& medium) -> i64 {
         auto it = currentLimit->DiskSpacePerMedium.find(medium);
         if (it == currentLimit->DiskSpacePerMedium.end()) {
             return 0;
@@ -1629,7 +1629,7 @@ void ManageResourceLimits(TSchedulerInputState& input, TSchedulerMutations* muta
 ////////////////////////////////////////////////////////////////////////////////
 
 
-TString GetSpareBundleName(const TZoneInfoPtr& zoneInfo)
+std::string GetSpareBundleName(const TZoneInfoPtr& zoneInfo)
 {
     return zoneInfo->SpareBundleName;
 }
@@ -1710,8 +1710,8 @@ THashMap<TSchedulerInputState::TQualifiedDCName, TDataCenterDisruptedState> GetD
 }
 
 TInstanceAnnotationsPtr GetInstanceAnnotationsToSet(
-    const TString& bundleName,
-    const TString& dataCenterName,
+    const std::string& bundleName,
+    const std::string& dataCenterName,
     const TAllocationRequestPtr& allocationInfo,
     const TInstanceAnnotationsPtr& annotations)
 {
@@ -1748,7 +1748,7 @@ public:
     TTabletNodeAllocatorAdapter(
         TBundleControllerStatePtr state,
         const TDataCenterToInstanceMap& bundleNodes,
-        const THashMap<TString, THashSet<TString>>& aliveBundleNodes)
+        const THashMap<std::string, THashSet<std::string>>& aliveBundleNodes)
         : State_(std::move(state))
         , BundleNodes_(bundleNodes)
         , AliveBundleNodes_(aliveBundleNodes)
@@ -1756,7 +1756,7 @@ public:
 
     bool IsNewAllocationAllowed(
         const TBundleInfoPtr& /*bundleInfo*/,
-        const TString& dataCenterName,
+        const std::string& dataCenterName,
         const TSchedulerInputState& input)
     {
         if (GetInProgressAssignmentCount(dataCenterName, input) > 0) {
@@ -1767,7 +1767,7 @@ public:
         return true;
     }
 
-    int GetInProgressAssignmentCount(const TString& dataCenterName, const TSchedulerInputState& input)
+    int GetInProgressAssignmentCount(const std::string& dataCenterName, const TSchedulerInputState& input)
     {
         auto dataCenterPredicate = [&] (const auto& pair) {
             const auto& nodeInfo = GetOrCrash(input.TabletNodes, pair.first);
@@ -1788,7 +1788,7 @@ public:
 
     bool IsNewDeallocationAllowed(
         const TBundleInfoPtr& bundleInfo,
-        const TString& dataCenterName,
+        const std::string& dataCenterName,
         const TSchedulerInputState& input)
     {
         bool deallocationsInDataCenter = std::any_of(
@@ -1820,7 +1820,7 @@ public:
             // Check that all alive instancies have appropriate node_tag_filter and slots count
             auto expectedSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize;
 
-            std::vector<TString> notReadyNodes;
+            std::vector<std::string> notReadyNodes;
             const auto aliveDataCenterNodes = GetAliveInstancies(dataCenterName);
 
             for (const auto& nodeName : aliveDataCenterNodes) {
@@ -1849,8 +1849,8 @@ public:
     }
 
     bool IsInstanceCountLimitReached(
-        const TString& zoneName,
-        const TString& dataCenterName,
+        const std::string& zoneName,
+        const std::string& dataCenterName,
         const TZoneInfoPtr& zoneInfo,
         const TSchedulerInputState& input) const
     {
@@ -1897,7 +1897,7 @@ public:
         return bundleInfo->TargetConfig->TabletNodeResourceGuarantee;
     }
 
-    const std::optional<TString> GetHostTagFilter(const TBundleInfoPtr& bundleInfo, const TSchedulerInputState& input) const
+    const std::optional<std::string> GetHostTagFilter(const TBundleInfoPtr& bundleInfo, const TSchedulerInputState& input) const
     {
         auto resources = bundleInfo->TargetConfig->TabletNodeResourceGuarantee;
         const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
@@ -1911,9 +1911,9 @@ public:
         return {};
     }
 
-    const TString& GetInstanceType()
+    const std::string& GetInstanceType()
     {
-        static const TString TabletNode = "tab";
+        static const std::string TabletNode = "tab";
         return TabletNode;
     }
 
@@ -1927,14 +1927,14 @@ public:
         return State_->NodeDeallocations;
     }
 
-    const TTabletNodeInfoPtr& GetInstanceInfo(const TString& instanceName, const TSchedulerInputState& input)
+    const TTabletNodeInfoPtr& GetInstanceInfo(const std::string& instanceName, const TSchedulerInputState& input)
     {
         return GetOrCrash(input.TabletNodes, instanceName);
     }
 
     bool IsInstanceReadyToBeDeallocated(
-        const TString& instanceName,
-        const TString& deallocationId,
+        const std::string& instanceName,
+        const std::string& deallocationId,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations) const
     {
@@ -1950,15 +1950,15 @@ public:
         return EnsureNodeDecommissioned(instanceName, nodeInfo, mutations);
     }
 
-    TString GetNannyService(const TDataCenterInfoPtr& dataCenterInfo) const
+    std::string GetNannyService(const TDataCenterInfoPtr& dataCenterInfo) const
     {
         return dataCenterInfo->TabletNodeNannyService;
     }
 
     bool EnsureAllocatedInstanceTagsSet(
-        const TString& nodeName,
-        const TString& bundleName,
-        const TString& dataCenterName,
+        const std::string& nodeName,
+        const std::string& bundleName,
+        const std::string& dataCenterName,
         const TAllocationRequestPtr& allocationInfo,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations) const
@@ -2010,8 +2010,8 @@ public:
     }
 
     bool EnsureDeallocatedInstanceTagsSet(
-        const TString& nodeName,
-        const TString& strategy,
+        const std::string& nodeName,
+        const std::string& strategy,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
     {
@@ -2043,9 +2043,9 @@ public:
         return true;
     }
 
-    const THashSet<TString>& GetAliveInstancies(const TString& dataCenterName) const
+    const THashSet<std::string>& GetAliveInstancies(const std::string& dataCenterName) const
     {
-        const static THashSet<TString> Dummy;
+        const static THashSet<std::string> Dummy;
 
         auto it = AliveBundleNodes_.find(dataCenterName);
         if (it != AliveBundleNodes_.end()) {
@@ -2055,9 +2055,9 @@ public:
         return Dummy;
     }
 
-    const std::vector<TString>& GetInstancies(const TString& dataCenterName) const
+    const std::vector<std::string>& GetInstancies(const std::string& dataCenterName) const
     {
-        const static std::vector<TString> Dummy;
+        const static std::vector<std::string> Dummy;
 
         auto it = BundleNodes_.find(dataCenterName);
         if (it != BundleNodes_.end()) {
@@ -2067,9 +2067,9 @@ public:
         return Dummy;
     }
 
-    std::vector<TString> PeekInstanciesToDeallocate(
+    std::vector<std::string> PeekInstanciesToDeallocate(
         int nodeCountToRemove,
-        const TString& dataCenterName,
+        const std::string& dataCenterName,
         const TBundleInfoPtr& bundleInfo,
         const TSchedulerInputState& input) const
     {
@@ -2099,7 +2099,7 @@ public:
             std::nth_element(nodesOrder.begin(), endIt, nodesOrder.end());
         }
 
-        std::vector<TString> result;
+        std::vector<std::string> result;
         result.reserve(std::distance(nodesOrder.begin(), endIt));
         for (auto it = nodesOrder.begin(); it != endIt; ++it) {
             result.push_back(it->NodeName);
@@ -2111,7 +2111,7 @@ public:
 private:
     TBundleControllerStatePtr State_;
     const TDataCenterToInstanceMap& BundleNodes_;
-    const THashMap<TString, THashSet<TString>>& AliveBundleNodes_;
+    const THashMap<std::string, THashSet<std::string>>& AliveBundleNodes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2120,7 +2120,7 @@ struct TProxyRemoveOrder
 {
     bool MaintenanceIsNotRequested = true;
     bool HasUpdatedResources = true;
-    TString ProxyName;
+    std::string ProxyName;
 
     auto AsTuple() const
     {
@@ -2141,7 +2141,7 @@ public:
     TRpcProxyAllocatorAdapter(
         TBundleControllerStatePtr state,
         const TDataCenterToInstanceMap& bundleProxies,
-        const THashMap<TString, THashSet<TString>>& aliveProxies)
+        const THashMap<std::string, THashSet<std::string>>& aliveProxies)
         : State_(std::move(state))
         , BundleProxies_(bundleProxies)
         , AliveProxies_(aliveProxies)
@@ -2149,13 +2149,13 @@ public:
 
     bool IsNewAllocationAllowed(
         const TBundleInfoPtr& /*bundleInfo*/,
-        const TString& /*dataCenterName*/,
+        const std::string& /*dataCenterName*/,
         const TSchedulerInputState& /*input*/)
     {
         return true;
     }
 
-    bool IsNewDeallocationAllowed(const TBundleInfoPtr& /*bundleInfo*/, const TString& dataCenterName, const TSchedulerInputState& /*input*/)
+    bool IsNewDeallocationAllowed(const TBundleInfoPtr& /*bundleInfo*/, const std::string& dataCenterName, const TSchedulerInputState& /*input*/)
     {
         bool deallocationsInDataCenter = std::any_of(
             State_->ProxyDeallocations.begin(),
@@ -2173,8 +2173,8 @@ public:
     }
 
     bool IsInstanceCountLimitReached(
-        const TString& zoneName,
-        const TString& dataCenterName,
+        const std::string& zoneName,
+        const std::string& dataCenterName,
         const TZoneInfoPtr& zoneInfo,
         const TSchedulerInputState& input) const
     {
@@ -2226,14 +2226,14 @@ public:
         return bundleInfo->TargetConfig->RpcProxyResourceGuarantee;
     }
 
-    const std::optional<TString> GetHostTagFilter(const TBundleInfoPtr& /*bundleInfo*/, const TSchedulerInputState& /*input*/) const
+    const std::optional<std::string> GetHostTagFilter(const TBundleInfoPtr& /*bundleInfo*/, const TSchedulerInputState& /*input*/) const
     {
         return {};
     }
 
-    const TString& GetInstanceType()
+    const std::string& GetInstanceType()
     {
-        static const TString RpcProxy = "rpc";
+        static const std::string RpcProxy = "rpc";
         return RpcProxy;
     }
 
@@ -2247,29 +2247,29 @@ public:
         return State_->ProxyDeallocations;
     }
 
-    const TRpcProxyInfoPtr& GetInstanceInfo(const TString& instanceName, const TSchedulerInputState& input)
+    const TRpcProxyInfoPtr& GetInstanceInfo(const std::string& instanceName, const TSchedulerInputState& input)
     {
         return GetOrCrash(input.RpcProxies, instanceName);
     }
 
     bool IsInstanceReadyToBeDeallocated(
-        const TString& /*instanceName*/,
-        const TString& /*deallocationId*/,
+        const std::string& /*instanceName*/,
+        const std::string& /*deallocationId*/,
         const TSchedulerInputState& /*input*/,
         TSchedulerMutations* /*mutations*/) const
     {
         return true;
     }
 
-    TString GetNannyService(const TDataCenterInfoPtr& dataCenterInfo) const
+    std::string GetNannyService(const TDataCenterInfoPtr& dataCenterInfo) const
     {
         return dataCenterInfo->RpcProxyNannyService;
     }
 
     bool EnsureAllocatedInstanceTagsSet(
-        const TString& proxyName,
-        const TString& bundleName,
-        const TString& dataCenterName,
+        const std::string& proxyName,
+        const std::string& bundleName,
+        const std::string& dataCenterName,
         const TAllocationRequestPtr& allocationInfo,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations) const
@@ -2307,8 +2307,8 @@ public:
     }
 
     bool EnsureDeallocatedInstanceTagsSet(
-        const TString& proxyName,
-        const TString& strategy,
+        const std::string& proxyName,
+        const std::string& strategy,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
     {
@@ -2332,9 +2332,9 @@ public:
         return true;
     }
 
-    const THashSet<TString>& GetAliveInstancies(const TString& dataCenterName) const
+    const THashSet<std::string>& GetAliveInstancies(const std::string& dataCenterName) const
     {
-        const static THashSet<TString> Dummy;
+        const static THashSet<std::string> Dummy;
 
         auto it = AliveProxies_.find(dataCenterName);
         if (it != AliveProxies_.end()) {
@@ -2344,9 +2344,9 @@ public:
         return Dummy;
     }
 
-    const std::vector<TString>& GetInstancies(const TString& dataCenterName) const
+    const std::vector<std::string>& GetInstancies(const std::string& dataCenterName) const
     {
-        const static std::vector<TString> Dummy;
+        const static std::vector<std::string> Dummy;
 
         auto it = BundleProxies_.find(dataCenterName);
         if (it != BundleProxies_.end()) {
@@ -2356,9 +2356,9 @@ public:
         return Dummy;
     }
 
-    std::vector<TString> PeekInstanciesToDeallocate(
+    std::vector<std::string> PeekInstanciesToDeallocate(
         int proxyCountToRemove,
-        const TString& dataCenterName,
+        const std::string& dataCenterName,
         const TBundleInfoPtr& bundleInfo,
         const TSchedulerInputState& input) const
     {
@@ -2387,7 +2387,7 @@ public:
             std::nth_element(proxyOrder.begin(), endIt, proxyOrder.end());
         }
 
-        std::vector<TString> result;
+        std::vector<std::string> result;
         result.reserve(std::distance(proxyOrder.begin(), endIt));
         for (auto it = proxyOrder.begin(); it != endIt; ++it) {
             result.push_back(it->ProxyName);
@@ -2399,7 +2399,7 @@ public:
 private:
     TBundleControllerStatePtr State_;
     const TDataCenterToInstanceMap& BundleProxies_;
-    const THashMap<TString, THashSet<TString>>& AliveProxies_;
+    const THashMap<std::string, THashSet<std::string>>& AliveProxies_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2415,9 +2415,9 @@ bool IsOnline(const TRpcProxyInfoPtr& proxy)
 }
 
 template <typename TInstanceMap>
-THashSet<TString> ScanForObsoleteCypressNodes(const TSchedulerInputState& input, const TInstanceMap& instanceMap)
+THashSet<std::string> ScanForObsoleteCypressNodes(const TSchedulerInputState& input, const TInstanceMap& instanceMap)
 {
-    THashSet<TString> result;
+    THashSet<std::string> result;
     auto obsoleteThreshold = input.Config->RemoveInstanceCypressNodeAfter;
     auto now = TInstant::Now();
 
@@ -2571,7 +2571,7 @@ TIndexedEntries<TBundleControllerState> GetActuallyChangedStates(
     const TSchedulerMutations& mutations)
 {
     const auto inputStates = input.BundleStates;
-    std::vector<TString> unchangedBundleStates;
+    std::vector<std::string> unchangedBundleStates;
 
     for (auto [bundleName, possiblyChangedState] : mutations.ChangedStates) {
         auto it = inputStates.find(bundleName);
@@ -2655,17 +2655,17 @@ void InitializeNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* 
     }
 }
 
-TString GetDrillsNodeTagFilter(const TBundleInfoPtr& bundleInfo, const TString& bundleName)
+std::string GetDrillsNodeTagFilter(const TBundleInfoPtr& bundleInfo, const std::string& bundleName)
 {
     return Format("%v/%v_drills_mode_on", bundleInfo->Zone, bundleName);
 }
 
-TString GetNodeTagFilter(const TBundleInfoPtr& bundleInfo, const TString& bundleName)
+std::string GetNodeTagFilter(const TBundleInfoPtr& bundleInfo, const std::string& bundleName)
 {
     return Format("%v/%v", bundleInfo->Zone, bundleName);
 }
 
-void ProcessEnableDrillsMode(const TString& bundleName, TSchedulerInputState& input, TSchedulerMutations* mutations)
+void ProcessEnableDrillsMode(const std::string& bundleName, TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     auto& bundleState = GetOrCrash(mutations->ChangedStates, bundleName);
     const auto& drillsMode = bundleState->DrillsMode;
@@ -2720,7 +2720,7 @@ void ProcessEnableDrillsMode(const TString& bundleName, TSchedulerInputState& in
     drillsMode->TurningOn.Reset();
 }
 
-void ProcessDisableDrillsMode(const TString& bundleName, TSchedulerInputState& input, TSchedulerMutations* mutations)
+void ProcessDisableDrillsMode(const std::string& bundleName, TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     auto& bundleState = GetOrCrash(mutations->ChangedStates, bundleName);
     const auto& drillsMode = bundleState->DrillsMode;
@@ -2787,7 +2787,7 @@ void ProcessDisableDrillsMode(const TString& bundleName, TSchedulerInputState& i
     drillsMode->TurningOff.Reset();
 }
 
-void ToggleDrillsMode(const TString& bundleName, TSchedulerInputState& input, TSchedulerMutations* mutations)
+void ToggleDrillsMode(const std::string& bundleName, TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     auto& bundleState = GetOrCrash(mutations->ChangedStates, bundleName);
     const auto& drillsMode = bundleState->DrillsMode;
@@ -2997,9 +2997,9 @@ TIndexedEntries<TBundleControllerState> MergeBundleStates(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashSet<TString> FlattenAliveInstancies(const THashMap<TString, THashSet<TString>>& instancies)
+THashSet<std::string> FlattenAliveInstancies(const THashMap<std::string, THashSet<std::string>>& instancies)
 {
-    THashSet<TString> result;
+    THashSet<std::string> result;
 
     for (const auto& [_, dataCenterInstancies] : instancies) {
         for (const auto& instance : dataCenterInstancies) {
@@ -3010,9 +3010,9 @@ THashSet<TString> FlattenAliveInstancies(const THashMap<TString, THashSet<TStrin
     return result;
 }
 
-std::vector<TString> FlattenBundleInstancies(const THashMap<TString, std::vector<TString>>& instancies)
+std::vector<std::string> FlattenBundleInstancies(const THashMap<std::string, std::vector<std::string>>& instancies)
 {
-    std::vector<TString> result;
+    std::vector<std::string> result;
 
     for (const auto& [_, dataCenterInstancies] : instancies) {
         for (const auto& instance : dataCenterInstancies) {
