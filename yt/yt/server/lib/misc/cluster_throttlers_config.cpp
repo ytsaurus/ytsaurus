@@ -26,9 +26,7 @@ void TClusterThrottlersConfig::Register(TRegistrar registrar)
     registrar.Parameter("min_estimated_time_to_read_pending_bytes_threshold", &TThis::MinEstimatedTimeToReadPendingBytesThreshold)
         .Default(TDuration::Seconds(0));
     registrar.Parameter("rate_limit_ratio_hard_threshold", &TThis::RateLimitRatioHardThreshold)
-        .Default(1.0)
-        .GreaterThanOrEqual(0)
-        .LessThanOrEqual(1);
+        .Default(1.0);
     registrar.Parameter("rate_limit_ratio_soft_threshold", &TThis::RateLimitRatioSoftThreshold)
         .Default(0.98)
         .GreaterThanOrEqual(0)
