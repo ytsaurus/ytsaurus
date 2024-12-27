@@ -33,13 +33,8 @@ import itertools
 import functools
 from random import randint
 from time import sleep
+from typing import override
 
-# TODO: drop after opensource tests migration to python >= 3.12
-try:
-    from typing import override
-except ImportError:
-    def override(function):
-        return function
 
 ##################################################################
 

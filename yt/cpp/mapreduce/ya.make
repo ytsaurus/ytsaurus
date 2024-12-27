@@ -8,7 +8,6 @@ RECURSE(
     io
     library
     raw_client
-    rpc_client
     skiff
     util
     tests

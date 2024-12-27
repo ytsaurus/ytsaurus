@@ -212,22 +212,22 @@ jobs:
           bash ./ytsaurus/yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-systest-build --image-tag latest --image-cr ghcr.io/
           docker push ghcr.io/ytsaurus/ytsaurus-systest:latest
 
-  stop-vm:
-    name: Stop VM
-    needs:
-      - start-vm
-      - systest
-    runs-on: trampoline
-    if: ${{ always() }}
-    steps:
-      - name: Stop YC runner
-        uses: yc-actions/yc-github-runner@v1
-        with:
-          mode: stop
-          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          label: ${{ needs.start-vm.outputs.label }}
-          instance-id: ${{ needs.start-vm.outputs.instance-id }}
+  # stop-vm:
+  #   name: Stop VM
+  #   needs:
+  #     - start-vm
+  #     - systest
+  #   runs-on: trampoline
+  #   if: ${{ always() }}
+  #   steps:
+  #     - name: Stop YC runner
+  #       uses: yc-actions/yc-github-runner@v1
+  #       with:
+  #         mode: stop
+  #         yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+  #         github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+  #         label: ${{ needs.start-vm.outputs.label }}
+  #         instance-id: ${{ needs.start-vm.outputs.instance-id }}
 
   send-notifications:
     name: Send notifications

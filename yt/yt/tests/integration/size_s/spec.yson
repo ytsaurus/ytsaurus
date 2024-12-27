@@ -1,0 +1,26 @@
+{
+    pool="yt-integration-tests";
+    cypress_root="//home/yt-integration-tests";
+    enable_porto=%false;
+    operation_spec={
+        scheduling_tag_filter="!cpu_vendor_amd";
+        job_cpu_monitor={
+            enable_cpu_reclaim=%false;
+        };
+    };
+    task_spec={
+        monitoring={};
+        use_porto_memory_tracking=%false;
+        layer_paths=[];
+        make_rootfs_writable=%false;
+        memory_limit=12000000000;
+        use_smaps_memory_tracker=%true;
+        dusable_tmpfs=%true;
+    };
+    use_smaps_memory_tracker=%true;
+    run_as_root=%true;
+    enable_network=%false;
+    blob_ttl=302400000000000;
+    output_ttl=604800000000000;
+    memory_limit=12000000000;
+}

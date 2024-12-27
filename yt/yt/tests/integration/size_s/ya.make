@@ -18,5 +18,9 @@ ELSE()
     )
 ENDIF()
 
+# YT_SPEC(yt/yt/tests/integration/size_s/spec.yson)
+FORK_TESTS()
+SPLIT_FACTOR(1)
+
 END()
 
