@@ -53,9 +53,9 @@
 
 #include <yt/yt/core/compression/public.h>
 
-#include <library/cpp/yt/assert/assert.h>
-
 #include <yt/yt/library/erasure/impl/codec.h>
+
+#include <library/cpp/yt/assert/assert.h>
 
 #include <library/cpp/getopt/last_getopt.h>
 

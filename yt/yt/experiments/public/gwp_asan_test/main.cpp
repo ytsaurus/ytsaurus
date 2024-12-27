@@ -4,9 +4,9 @@
 
 #include <yt/yt/library/tcmalloc/config.h>
 
-#include <library/cpp/yt/string/enum.h>
-
 #include <yt/yt/core/misc/error.h>
+
+#include <library/cpp/yt/string/enum.h>
 
 #include <random>
 

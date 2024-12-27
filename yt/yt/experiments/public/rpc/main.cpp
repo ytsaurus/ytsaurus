@@ -28,10 +28,11 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <library/cpp/deprecated/atomic/atomic.h>
+#include <yt/yt/experiments/public/rpc/main.pb.h>
+
 #include <library/cpp/yt/assert/assert.h>
 
-#include <yt/yt/experiments/public/rpc/main.pb.h>
+#include <library/cpp/deprecated/atomic/atomic.h>
 
 #include <library/cpp/getopt/last_getopt.h>
 
