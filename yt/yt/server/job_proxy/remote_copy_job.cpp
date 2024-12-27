@@ -1039,7 +1039,7 @@ private:
                 endBlockIndex += 1;
             }
 
-            if (RemoteCopyJobSpecExt_.use_remote_throttler()) {
+            if (RemoteCopyJobSpecExt_.use_cluster_throttlers()) {
                 ReadBlocksOptions_.EstimatedSize = sizeToRead;
             }
 
@@ -1112,12 +1112,12 @@ private:
 
     TChunkReaderHostPtr MakeChunkReaderHost()
     {
-        YT_LOG_DEBUG("Creating chunk reader host (RemoteClusterName: %v, UseRemoteThrottler: %v)",
+        YT_LOG_DEBUG("Creating chunk reader host (RemoteClusterName: %v, UseClusterThrottlers: %v)",
             RemoteCopyJobSpecExt_.remote_cluster_name(),
-            RemoteCopyJobSpecExt_.use_remote_throttler());
+            RemoteCopyJobSpecExt_.use_cluster_throttlers());
 
         auto clusterName = LocalClusterName;
-        if (RemoteCopyJobSpecExt_.has_remote_cluster_name() && RemoteCopyJobSpecExt_.use_remote_throttler()) {
+        if (RemoteCopyJobSpecExt_.has_remote_cluster_name() && RemoteCopyJobSpecExt_.use_cluster_throttlers()) {
             clusterName = TClusterName(RemoteCopyJobSpecExt_.remote_cluster_name());
         }
 

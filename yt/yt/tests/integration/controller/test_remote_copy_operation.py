@@ -2207,7 +2207,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
                     },
                 },
                 "job_count": 1,
-                "use_remote_throttler": True,
+                "use_cluster_throttlers": True,
             },
         )
 
@@ -2263,7 +2263,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
                     },
                 },
                 "job_count": 1,
-                "use_remote_throttler": True,
+                "use_cluster_throttlers": True,
             },
         )
 
