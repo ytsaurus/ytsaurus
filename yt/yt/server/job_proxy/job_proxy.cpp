@@ -781,7 +781,9 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
         securityManager,
         New<TSampler>(),
         proxyLogger,
-        TProfiler());
+        TProfiler(),
+        /*signatureValidator*/ nullptr,
+        /*signatureGenerator*/ nullptr);
     GetRpcServer()->RegisterService(std::move(apiService));
     YT_LOG_INFO("RPC proxy API service registered (ThreadCount: %v)", rpcProxyWorkerThreadPoolSize);
 }

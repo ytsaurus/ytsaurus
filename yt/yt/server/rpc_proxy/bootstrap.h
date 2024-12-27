@@ -2,6 +2,10 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/signature/public.h>
+
+#include <yt/yt/server/lib/signature/key_stores/public.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/misc/public.h>
@@ -81,6 +85,13 @@ private:
     IAccessCheckerPtr AccessChecker_;
 
     INodeMemoryTrackerPtr MemoryUsageTracker_;
+
+    NSignature::TCypressKeyReaderPtr CypressKeyReader_;
+    NSignature::TSignatureValidatorPtr SignatureValidator_;
+
+    NSignature::TCypressKeyWriterPtr CypressKeyWriter_;
+    NSignature::TSignatureGeneratorPtr SignatureGenerator_;
+    NSignature::TKeyRotatorPtr SignatureKeyRotator_;
 
     void DoRun();
 

@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/cypress_registrar/public.h>
 
+#include <yt/yt/server/lib/signature/public.h>
+
 #include <yt/yt/library/auth_server/config.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
@@ -158,6 +160,9 @@ public:
     bool EnableShuffleService;
 
     THeapProfilerConfigPtr HeapProfiler;
+
+    NSignature::TSignatureGenerationConfigPtr SignatureGeneration;
+    NSignature::TSignatureValidationConfigPtr SignatureValidation;
 
     REGISTER_YSON_STRUCT(TProxyConfig);
 
