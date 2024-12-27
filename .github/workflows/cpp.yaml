@@ -231,8 +231,8 @@ jobs:
 
   send-notifications:
     name: Send notifications
-    needs:
-      - stop-vm
+    # needs:
+    #   - stop-vm
     runs-on: ubuntu-latest
     if: ${{ failure() }}
     steps:
