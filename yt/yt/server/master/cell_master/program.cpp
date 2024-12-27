@@ -119,7 +119,7 @@ private:
 
     bool IsLoadSnapshotMode() const
     {
-        return IsDumpSnapshotMode() || IsValidateSnapshotMode();
+        return IsDumpSnapshotMode() || IsValidateSnapshotMode() || IsExportSnapshotMode();
     }
 
     bool IsExportSnapshotMode() const
