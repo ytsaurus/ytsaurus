@@ -679,7 +679,7 @@ void TNodeResourceManager::UpdateLoggingCategory()
     Bootstrap_
         ->GetNodeMemoryUsageTracker()
         ->UpdateUsage(
-            EMemoryCategory::Profiling,
+            EMemoryCategory::Logging,
             TRefCountedTracker::Get()
                 ->GetBytesAlive(GetRefCountedTypeKey<NLogging::NDetail::TMessageBufferTag>()));
 }
