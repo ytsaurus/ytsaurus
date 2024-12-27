@@ -10,7 +10,7 @@ namespace NYT::NCellBalancer {
 struct ICellDowntimeTracker
     : public TRefCounted
 {
-    using TBundleSensorProvider = std::function<TBundleSensorsPtr(const TString& bundleName)>;
+    using TBundleSensorProvider = std::function<TBundleSensorsPtr(const std::string& bundleName)>;
 
     virtual void HandleState(
         const TSchedulerInputState& inputState,

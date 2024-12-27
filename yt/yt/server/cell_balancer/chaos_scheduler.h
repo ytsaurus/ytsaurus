@@ -8,14 +8,14 @@ namespace NYT::NCellBalancer {
 
 using TBundlesInfo = TIndexedEntries<TBundleInfo>;
 using TChaosBundlesInfo = TIndexedEntries<TChaosBundleInfo>;
-using TCellTagsByBundle = THashMap<TString, std::vector<TCellTagInfoPtr>>;
+using TCellTagsByBundle = THashMap<std::string, std::vector<TCellTagInfoPtr>>;
 
 struct TChaosSchedulerInputState
 {
     TBundleControllerConfigPtr Config;
     TIndexedEntries<TBundleInfo> TabletCellBundles;
-    THashMap<TString, TBundlesInfo> ForeignTabletCellBundles;
-    THashMap<TString, TChaosBundlesInfo> ForeignChaosCellBundles;
+    THashMap<std::string, TBundlesInfo> ForeignTabletCellBundles;
+    THashMap<std::string, TChaosBundlesInfo> ForeignChaosCellBundles;
 
     TGlobalCellRegistryPtr GlobalRegistry;
     TCellTagsByBundle CellTagsByBundle;
@@ -28,19 +28,19 @@ struct TChaosSchedulerInputState
 
 struct TChaosSchedulerMutations
 {
-    using TBundlesCellTag = THashMap<TString, NObjectClient::TCellTag>;
-    using TBundlesMetadataCells = THashMap<TString, THashSet<TChaosCellId>>;
-    using TObjectWithCreationInfo = THashMap<TString, NYTree::IAttributeDictionaryPtr>;
+    using TBundlesCellTag = THashMap<std::string, NObjectClient::TCellTag>;
+    using TBundlesMetadataCells = THashMap<std::string, THashSet<TChaosCellId>>;
+    using TObjectWithCreationInfo = THashMap<std::string, NYTree::IAttributeDictionaryPtr>;
 
     std::vector<TAlert> AlertsToFire;
 
-    THashMap<TString, THashSet<TString>> ForeignSystemAccountsToCreate;
-    THashMap<TString, TObjectWithCreationInfo> ForeignTabletCellBundlesToCreate;
-    THashMap<TString, TBundlesCellTag> ForeignBundleCellTagsToSet;
-    THashMap<TString, TObjectWithCreationInfo> ForeignChaosCellBundlesToCreate;
-    THashMap<TString, TObjectWithCreationInfo> ForeignChaosAreasToCreate;
-    THashMap<TString, TObjectWithCreationInfo> ForeignChaosCellsToCreate;
-    THashMap<TString, TBundlesMetadataCells> ForeignMetadataCellIdsToSet;
+    THashMap<std::string, THashSet<std::string>> ForeignSystemAccountsToCreate;
+    THashMap<std::string, TObjectWithCreationInfo> ForeignTabletCellBundlesToCreate;
+    THashMap<std::string, TBundlesCellTag> ForeignBundleCellTagsToSet;
+    THashMap<std::string, TObjectWithCreationInfo> ForeignChaosCellBundlesToCreate;
+    THashMap<std::string, TObjectWithCreationInfo> ForeignChaosAreasToCreate;
+    THashMap<std::string, TObjectWithCreationInfo> ForeignChaosCellsToCreate;
+    THashMap<std::string, TBundlesMetadataCells> ForeignMetadataCellIdsToSet;
 
     THashMap<NObjectClient::TCellTag, TCellTagInfoPtr> CellTagsToRegister;
     THashMap<NObjectClient::TCellTag, TCellTagInfoPtr> AdditionalCellTagsToRegister;

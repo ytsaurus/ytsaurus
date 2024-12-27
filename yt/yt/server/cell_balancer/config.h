@@ -52,12 +52,12 @@ class TChaosConfig
     : public NYTree::TYsonStruct
 {
 public:
-    std::vector<TString> TabletCellClusters;
-    std::vector<TString> ChaosCellClusters;
+    std::vector<std::string> TabletCellClusters;
+    std::vector<std::string> ChaosCellClusters;
     NObjectClient::TCellTag ClockClusterTag;
 
-    TString AlphaChaosCluster;
-    TString BetaChaosCluster;
+    std::string AlphaChaosCluster;
+    std::string BetaChaosCluster;
 
     REGISTER_YSON_STRUCT(TChaosConfig);
 
@@ -72,7 +72,7 @@ class TBundleControllerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TString Cluster;
+    std::string Cluster;
     TDuration BundleScanPeriod;
     TDuration BundleScanTransactionTimeout;
     TDuration HulkRequestTimeout;

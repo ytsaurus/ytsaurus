@@ -37,7 +37,7 @@ TChaosSchedulerInputState GenerateSimpleInputContext()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCellTagInfoPtr CreateCellInfo(const TString& area, const TString& cellBundle, TCellTag cellTag)
+TCellTagInfoPtr CreateCellInfo(const std::string& area, const std::string& cellBundle, TCellTag cellTag)
 {
     auto cellInfo = New<TCellTagInfo>();
 
@@ -63,7 +63,7 @@ void CheckEmptyAlerts(const TChaosSchedulerMutations& mutations)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBundleInfoPtr GetTabletCellBundleInfo(const TString& bundleName)
+TBundleInfoPtr GetTabletCellBundleInfo(const std::string& bundleName)
 {
     auto bundleInfo = New<TBundleInfo>();
     bundleInfo->Health = NTabletClient::ETabletCellHealth::Good;
@@ -139,8 +139,8 @@ TEST(TChaosCellBundleManagement, TestTabletCellCreation)
     EXPECT_EQ(0, std::ssize(mutations.ForeignBundleCellTagsToSet));
 
     // Checking account names
-    EXPECT_EQ(mutations.ForeignSystemAccountsToCreate["seneca-ist"], THashSet<TString>{"bigc_bundle_system_quotas"});
-    EXPECT_EQ(mutations.ForeignSystemAccountsToCreate["seneca-ayt"], THashSet<TString>{"bigc_bundle_system_quotas"});
+    EXPECT_EQ(mutations.ForeignSystemAccountsToCreate["seneca-ist"], THashSet<std::string>{"bigc_bundle_system_quotas"});
+    EXPECT_EQ(mutations.ForeignSystemAccountsToCreate["seneca-ayt"], THashSet<std::string>{"bigc_bundle_system_quotas"});
 
     EXPECT_TRUE(mutations.ForeignTabletCellBundlesToCreate["seneca-ist"].contains("bigc"));
     EXPECT_TRUE(mutations.ForeignTabletCellBundlesToCreate["seneca-ayt"].contains("bigc"));

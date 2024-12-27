@@ -17,17 +17,17 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString SpareBundleName = "spare";
+static const std::string SpareBundleName = "spare";
 constexpr int DefaultNodeCount = 0;
 constexpr int DefaultCellCount = 0;
 constexpr bool SetNodeTagFilters = true;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetPodIdForInstance(const TString& name)
+std::string GetPodIdForInstance(const std::string& name)
 {
     auto endPos = name.find(".");
-    YT_VERIFY(endPos != TString::npos);
+    YT_VERIFY(endPos != std::string::npos);
 
     return name.substr(0, endPos);
 }
@@ -65,7 +65,7 @@ bool Contains(const auto& container, const auto& item)
 
 TBundleInfoPtr SetBundleInfo(
     TSchedulerInputState& input,
-    const TString& bundleName,
+    const std::string& bundleName,
     int nodeCount,
     int writeThreadCount = 0,
     int proxyCount = 0)
@@ -166,15 +166,15 @@ TSchedulerInputState GenerateMultiDCInputContext(int nodeCount, int writeThreadC
 
 void VerifyMultiDCNodeAllocationRequests(
     const TSchedulerMutations& mutations,
-    THashMap<TString, int> requestsByDataCenter)
+    THashMap<std::string, int> requestsByDataCenter)
 {
     for (const auto& [id, request] : mutations.NewAllocations) {
         EXPECT_FALSE(id.empty());
         auto spec = request->Spec;
         EXPECT_TRUE(static_cast<bool>(spec));
-        EXPECT_TRUE(spec->YPCluster.StartsWith("yp-"));
+        EXPECT_TRUE(spec->YPCluster.starts_with("yp-"));
 
-        TString dataCenterName = spec->YPCluster.substr(3);
+        std::string dataCenterName = spec->YPCluster.substr(3);
         --requestsByDataCenter[dataCenterName];
 
         EXPECT_EQ(spec->NannyService, Format("nanny-tablet-nodes-%v", dataCenterName));
@@ -190,14 +190,14 @@ void VerifyMultiDCNodeAllocationRequests(
     }
 }
 
-void VerifyNodeAllocationRequests(const TSchedulerMutations& mutations, int expectedCount, const TString& dataCenterName = "default")
+void VerifyNodeAllocationRequests(const TSchedulerMutations& mutations, int expectedCount, const std::string& dataCenterName = "default")
 {
     VerifyMultiDCNodeAllocationRequests(mutations, {{dataCenterName, expectedCount}});
 }
 
 void VerifyMultiDCProxyAllocationRequests(
     const TSchedulerMutations& mutations,
-    THashMap<TString, int> requestsByDataCenter)
+    THashMap<std::string, int> requestsByDataCenter)
 {
     for (const auto& [id, request] : mutations.NewAllocations) {
         EXPECT_FALSE(id.empty());
@@ -205,8 +205,8 @@ void VerifyMultiDCProxyAllocationRequests(
         auto spec = request->Spec;
         EXPECT_TRUE(static_cast<bool>(spec));
 
-        EXPECT_TRUE(spec->YPCluster.StartsWith("yp-"));
-        TString dataCenterName = spec->YPCluster.substr(3);
+        EXPECT_TRUE(spec->YPCluster.starts_with("yp-"));
+        std::string dataCenterName = spec->YPCluster.substr(3);
         --requestsByDataCenter[dataCenterName];
 
         EXPECT_EQ(spec->NannyService, Format("nanny-rpc-proxies-%v", dataCenterName));
@@ -225,7 +225,7 @@ void VerifyMultiDCProxyAllocationRequests(
 void VerifyMultiDCNodeDeallocationRequests(
     const TSchedulerMutations& mutations,
     TBundleControllerStatePtr& bundleState,
-    THashMap<TString, int> requestsByDataCenter)
+    THashMap<std::string, int> requestsByDataCenter)
 {
     for (const auto& [id, request] : mutations.NewDeallocations) {
         EXPECT_FALSE(id.empty());
@@ -233,7 +233,7 @@ void VerifyMultiDCNodeDeallocationRequests(
         auto spec = request->Spec;
         EXPECT_TRUE(static_cast<bool>(spec));
 
-        TString dataCenterName = spec->YPCluster.substr(3);
+        std::string dataCenterName = spec->YPCluster.substr(3);
         --requestsByDataCenter[dataCenterName];
 
         EXPECT_EQ(spec->YPCluster, Format("yp-%v", dataCenterName));
@@ -256,7 +256,7 @@ void VerifyMultiDCNodeDeallocationRequests(
 void VerifyMultiDCProxyDeallocationRequests(
     const TSchedulerMutations& mutations,
     TBundleControllerStatePtr& bundleState,
-    THashMap<TString, int> requestsByDataCenter)
+    THashMap<std::string, int> requestsByDataCenter)
 {
     for (const auto& [id, request] : mutations.NewDeallocations) {
         EXPECT_FALSE(id.empty());
@@ -264,7 +264,7 @@ void VerifyMultiDCProxyDeallocationRequests(
         auto spec = request->Spec;
         EXPECT_TRUE(static_cast<bool>(spec));
 
-        TString dataCenterName = spec->YPCluster.substr(3);
+        std::string dataCenterName = spec->YPCluster.substr(3);
         --requestsByDataCenter[dataCenterName];
 
         EXPECT_EQ(spec->YPCluster, Format("yp-%v", dataCenterName));
@@ -287,16 +287,16 @@ struct TGenerateNodeOptions
     bool SetFilterTag = false;
     int SlotCount = 5;
     int InstanceIndex = 170;
-    TString DC = "default";
+    std::string DC = "default";
 };
 
-THashSet<TString> GenerateNodesForBundle(
+THashSet<std::string> GenerateNodesForBundle(
     TSchedulerInputState& inputState,
-    const TString& bundleName,
+    const std::string& bundleName,
     int nodeCount,
     const TGenerateNodeOptions& options = {})
 {
-    THashSet<TString> result;
+    THashSet<std::string> result;
 
     const auto& zoneInfo = inputState.Zones.begin()->second;
     const auto& targetConfig = (bundleName == SpareBundleName)
@@ -339,15 +339,15 @@ THashSet<TString> GenerateNodesForBundle(
     return result;
 }
 
-THashSet<TString> GenerateProxiesForBundle(
+THashSet<std::string> GenerateProxiesForBundle(
     TSchedulerInputState& inputState,
-    const TString& bundleName,
+    const std::string& bundleName,
     int proxyCount,
     bool setRole = false,
-    TString dataCenterName = "default",
-    std::optional<TString> customProxyRole = {})
+    std::string dataCenterName = "default",
+    std::optional<std::string> customProxyRole = {})
 {
-    THashSet<TString> result;
+    THashSet<std::string> result;
 
     const auto& zoneInfo = inputState.Zones.begin()->second;
     const auto& targetConfig = (bundleName == SpareBundleName)
@@ -373,7 +373,7 @@ THashSet<TString> GenerateProxiesForBundle(
 
         if (setRole) {
             auto& bundleInfo = GetOrCrash(inputState.Bundles, bundleName);
-            TString role = bundleInfo->RpcProxyRole ? *bundleInfo->RpcProxyRole : bundleName;
+            std::string role = bundleInfo->RpcProxyRole ? *bundleInfo->RpcProxyRole : bundleName;
             proxyInfo->Role = customProxyRole.value_or(role);
         }
 
@@ -384,7 +384,7 @@ THashSet<TString> GenerateProxiesForBundle(
     return result;
 }
 
-void SetTabletSlotsState(TSchedulerInputState& inputState, const TString& nodeName, const TString& state)
+void SetTabletSlotsState(TSchedulerInputState& inputState, const std::string& nodeName, const std::string& state)
 {
     const auto& nodeInfo = GetOrCrash(inputState.TabletNodes, nodeName);
 
@@ -396,9 +396,9 @@ void SetTabletSlotsState(TSchedulerInputState& inputState, const TString& nodeNa
 
 void GenerateNodeAllocationsForBundle(
     TSchedulerInputState& inputState,
-    const TString& bundleName,
+    const std::string& bundleName,
     int count,
-    const TString& dataCenterName = "default")
+    const std::string& dataCenterName = "default")
 {
     auto& state = inputState.BundleStates[bundleName];
     if (!state) {
@@ -428,9 +428,9 @@ void GenerateNodeAllocationsForBundle(
 
 void GenerateProxyAllocationsForBundle(
     TSchedulerInputState& inputState,
-    const TString& bundleName,
+    const std::string& bundleName,
     int count,
-    const TString& dataCenterName = "default")
+    const std::string& dataCenterName = "default")
 {
     auto& state = inputState.BundleStates[bundleName];
     if (!state) {
@@ -460,7 +460,7 @@ void GenerateProxyAllocationsForBundle(
 
 void GenerateTabletCellsForBundle(
     TSchedulerInputState& inputState,
-    const TString& bundleName,
+    const std::string& bundleName,
     int cellCount,
     int peerCount = 1)
 {
@@ -477,9 +477,9 @@ void GenerateTabletCellsForBundle(
 
 void GenerateNodeDeallocationsForBundle(
     TSchedulerInputState& inputState,
-    const TString& bundleName,
-    const std::vector<TString>& nodeNames,
-    const TString& dataCenterName = "default")
+    const std::string& bundleName,
+    const std::vector<std::string>& nodeNames,
+    const std::string& dataCenterName = "default")
 {
     auto& state = inputState.BundleStates[bundleName];
     if (!state) {
@@ -510,9 +510,9 @@ void GenerateNodeDeallocationsForBundle(
 
 void GenerateProxyDeallocationsForBundle(
     TSchedulerInputState& inputState,
-    const TString& bundleName,
-    const std::vector<TString>& proxyNames,
-    const TString& dataCenterName = "default")
+    const std::string& bundleName,
+    const std::vector<std::string>& proxyNames,
+    const std::string& dataCenterName = "default")
 {
     auto& state = inputState.BundleStates[bundleName];
     if (!state) {
@@ -536,9 +536,9 @@ void GenerateProxyDeallocationsForBundle(
     }
 }
 
-THashSet<TString> GetRandomElements(const auto& collection, int count)
+THashSet<std::string> GetRandomElements(const auto& collection, int count)
 {
-    std::vector<TString> result(collection.begin(), collection.end());
+    std::vector<std::string> result(collection.begin(), collection.end());
     Shuffle(result.begin(), result.end());
     result.resize(count);
     return {result.begin(), result.end()};
@@ -588,7 +588,7 @@ protected:
         }
     }
 
-    std::vector<TString> GetDataCenters(const TSchedulerInputState& inputContext)
+    std::vector<std::string> GetDataCenters(const TSchedulerInputState& inputContext)
     {
         auto setup = std::get<0>(GetParam());
 
@@ -596,7 +596,7 @@ protected:
             return { "default" };
         }
 
-        std::vector<TString> result;
+        std::vector<std::string> result;
 
         const auto& dataCenters = inputContext.Zones.begin()->second->DataCenters;
         for (const auto& [dataCenterName, _] : dataCenters) {
@@ -606,10 +606,10 @@ protected:
         return result;
     }
 
-    THashMap<TString, int> ForEachDataCenter(const TSchedulerInputState& inputContext, int count)
+    THashMap<std::string, int> ForEachDataCenter(const TSchedulerInputState& inputContext, int count)
     {
-        THashMap<TString, int> expected;
-        for (const TString& dataCenter : GetDataCenters(inputContext)) {
+        THashMap<std::string, int> expected;
+        for (const std::string& dataCenter : GetDataCenters(inputContext)) {
             expected[dataCenter] = count;
         }
 
@@ -631,7 +631,7 @@ TEST_P(TBundleSchedulerTest, AllocationCreated)
     auto dataCenters = GetDataCenters(input);
     TSchedulerMutations mutations;
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateNodesForBundle(input, "bigd", 1, {.SetFilterTag = false, .SlotCount = 5, .InstanceIndex = 2, .DC = dataCenter});
         GenerateNodeAllocationsForBundle(input, "bigd", 1, dataCenter);
     }
@@ -645,7 +645,7 @@ TEST_P(TBundleSchedulerTest, AllocationCreated)
     EXPECT_EQ(GetDataCenterCount() * 4, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
     auto orchidInfo = GetOrCrash(NOrchid::GetBundlesInfo(input, mutations), "bigd");
 
-    THashMap<TString, THashSet<TString>> templates;
+    THashMap<std::string, THashSet<std::string>> templates;
     for (auto& [allocId, request] : mutations.NewAllocations) {
         templates[request->Spec->YPCluster].insert(request->Spec->PodIdTemplate);
 
@@ -801,13 +801,13 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompleted)
     auto input = GenerateInputContext(2 * GetDataCenterCount());
     auto dataCenters = GetDataCenters(input);
 
-    const TString bundleName = "bigd";
+    const std::string bundleName = "bigd";
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateNodesForBundle(input, bundleName, 2, {.DC = dataCenter,});
     }
 
-    const TString dataCenterName = dataCenters.front();
+    const std::string dataCenterName = dataCenters.front();
 
     // To get bundle to node mapping
     {
@@ -817,7 +817,7 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompleted)
 
     GenerateNodeAllocationsForBundle(input, bundleName, 1, dataCenterName);
 
-    const TString nodeId = input.BundleNodes[bundleName].at(dataCenterName).front();
+    const std::string nodeId = input.BundleNodes[bundleName].at(dataCenterName).front();
 
     GetOrCrash(input.TabletNodes, nodeId)->Annotations = New<TInstanceAnnotations>();
 
@@ -884,12 +884,12 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompleted)
 TEST_P(TBundleSchedulerTest, AllocationProgressTrackFailed)
 {
     auto input = GenerateInputContext(2 * GetDataCenterCount());
-    const TString bundleName = "bigd";
+    const std::string bundleName = "bigd";
     auto dataCenters = GetDataCenters(input);
 
     TSchedulerMutations mutations;
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateNodesForBundle(input, bundleName, 2, {.DC = dataCenter});
         GenerateNodeAllocationsForBundle(input, bundleName, 1, dataCenter);
     }
@@ -912,12 +912,12 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackFailed)
 TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompletedButNoNode)
 {
     auto input = GenerateInputContext(2 * GetDataCenterCount());
-    const TString bundleName = "bigd";
+    const std::string bundleName = "bigd";
     auto dataCenters = GetDataCenters(input);
 
     TSchedulerMutations mutations;
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateNodesForBundle(input, bundleName, 2, {.DC = dataCenter});
         GenerateNodeAllocationsForBundle(input, bundleName, 1, dataCenter);
     }
@@ -941,7 +941,7 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackStaledAllocation)
 {
     auto input = GenerateInputContext(2 * GetDataCenterCount());
     auto dataCenters = GetDataCenters(input);
-    const TString bundleName = "bigd";
+    const std::string bundleName = "bigd";
 
     TSchedulerMutations mutations;
 
@@ -975,7 +975,7 @@ TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsWhileInProgress)
 {
     auto input = GenerateInputContext(2 * GetDataCenterCount(), DefaultCellCount);
     auto dataCenters = GetDataCenters(input);
-    const TString bundleName = "bigd";
+    const std::string bundleName = "bigd";
 
     for (const auto& dataCenter : dataCenters) {
         auto nodes = GenerateNodesForBundle(input, bundleName, 5, {
@@ -1084,7 +1084,7 @@ TEST_P(TBundleSchedulerTest, CreateNewDeallocations)
 
     auto input = GenerateInputContext(2 * GetDataCenterCount(), TabletSlotCount);
     auto dataCenters = GetDataCenters(input);
-    const TString bundleName = "bigd";
+    const std::string bundleName = "bigd";
 
     GenerateTabletCellsForBundle(input, bundleName, 2 * TabletSlotCount * GetActiveDataCenterCount());
 
@@ -1116,7 +1116,7 @@ TEST_P(TBundleSchedulerTest, CreateNewDeallocations)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(3 * GetDataCenterCount(), std::ssize(mutations.ChangedDecommissionedFlag));
 
-    std::vector<TString> nodesToRemove;
+    std::vector<std::string> nodesToRemove;
     for (auto& [nodeName, decommissioned] : mutations.ChangedDecommissionedFlag) {
         GetOrCrash(input.TabletNodes, nodeName)->Decommissioned = decommissioned;
         EXPECT_TRUE(decommissioned);
@@ -1157,7 +1157,7 @@ TEST_P(TBundleSchedulerTest, DeallocationsAreDisabled)
 
     auto input = GenerateInputContext(2 * GetDataCenterCount(), TabletSlotCount);
     auto dataCenters = GetDataCenters(input);
-    const TString bundleName = "bigd";
+    const std::string bundleName = "bigd";
     const auto& bundleInfo = input.Bundles[bundleName];
     bundleInfo->EnableInstanceAllocation = false;
 
@@ -1181,7 +1181,7 @@ TEST_P(TBundleSchedulerTest, DeallocationProgressTrackFailed)
 {
     auto input = GenerateInputContext(GetDataCenterCount());
     auto dataCenters = GetDataCenters(input);
-    const TString bundleName = "bigd";
+    const std::string bundleName = "bigd";
 
     TSchedulerMutations mutations;
 
@@ -1209,12 +1209,12 @@ TEST_P(TBundleSchedulerTest, DeallocationProgressTrackCompleted)
     auto input = GenerateInputContext(GetDataCenterCount());
     auto dataCenters = GetDataCenters(input);
 
-    THashSet<TString> nodesToDeallocate;
+    THashSet<std::string> nodesToDeallocate;
 
     for (const auto& dataCenter : dataCenters) {
         auto bundleNodes = GenerateNodesForBundle(input, "bigd", 2, {.DC = dataCenter});
 
-        const TString& nodeId = *bundleNodes.begin();
+        const std::string& nodeId = *bundleNodes.begin();
         nodesToDeallocate.insert(nodeId);
 
         GenerateNodeDeallocationsForBundle(input, "bigd", {nodeId});
@@ -1273,7 +1273,7 @@ TEST_P(TBundleSchedulerTest, DeallocationProgressTrackStaledAllocation)
 
     for (const auto& dataCenter : dataCenters) {
         auto bundleNodes = GenerateNodesForBundle(input, "bigd", 2 * GetDataCenterCount(), {.DC = dataCenter});
-        const TString nodeId = *bundleNodes.begin();
+        const std::string nodeId = *bundleNodes.begin();
         GenerateNodeDeallocationsForBundle(input, "bigd", {nodeId}, dataCenter);
     }
 
@@ -1569,7 +1569,7 @@ TEST_P(TBundleSchedulerTest, CheckMediumThroughputLimits)
 struct TFooBarStruct
     : public TYsonStructAttributes<TFooBarStruct>
 {
-    TString Foo;
+    std::string Foo;
     int Bar;
 
     REGISTER_YSON_STRUCT(TFooBarStruct);
@@ -1617,11 +1617,11 @@ TEST_P(TBundleSchedulerTest, ProxyAllocationProgressTrackCompleted)
     auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 2 * GetDataCenterCount());
     auto dataCenters = GetDataCenters(input);
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateProxiesForBundle(input, "bigd", 2, false, dataCenter);
     }
 
-    const TString dataCenterName = dataCenters.front();
+    const std::string dataCenterName = dataCenters.front();
     // To get bundle to proxy mapping
     {
         TSchedulerMutations mutations;
@@ -1630,7 +1630,7 @@ TEST_P(TBundleSchedulerTest, ProxyAllocationProgressTrackCompleted)
 
     GenerateProxyAllocationsForBundle(input, "bigd", 1, dataCenterName);
 
-    const TString proxyName = input.BundleProxies["bigd"].at(dataCenterName).front();
+    const std::string proxyName = input.BundleProxies["bigd"].at(dataCenterName).front();
     GetOrCrash(input.RpcProxies, proxyName)->Annotations = New<TInstanceAnnotations>();
 
     {
@@ -1695,7 +1695,7 @@ TEST_P(TBundleSchedulerTest, ProxyAllocationProgressTrackFailed)
     auto dataCenters = GetDataCenters(input);
     TSchedulerMutations mutations;
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateProxiesForBundle(input, "bigd", 2, false, dataCenter);
         GenerateProxyAllocationsForBundle(input, "bigd", 1, dataCenter);
     }
@@ -1724,7 +1724,7 @@ TEST_P(TBundleSchedulerTest, ProxyAllocationProgressTrackCompletedButNoProxy)
     auto dataCenters = GetDataCenters(input);
     TSchedulerMutations mutations;
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateProxiesForBundle(input, "bigd", 2, false, dataCenter);
         GenerateProxyAllocationsForBundle(input, "bigd", 1, dataCenter);
     }
@@ -1750,7 +1750,7 @@ TEST_P(TBundleSchedulerTest, ProxyAllocationProgressTrackStaledAllocation)
     auto dataCenters = GetDataCenters(input);
     TSchedulerMutations mutations;
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateProxiesForBundle(input, "bigd", 2, false, dataCenter);
         GenerateProxyAllocationsForBundle(input, "bigd", 1, dataCenter);
     }
@@ -1783,7 +1783,7 @@ TEST_P(TBundleSchedulerTest, ProxyCreateNewDeallocations)
     auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 2 * GetDataCenterCount());
     auto dataCenters = GetDataCenters(input);
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateProxiesForBundle(input, "bigd", 5, false, dataCenter);
     }
 
@@ -1901,7 +1901,7 @@ TEST_P(TBundleSchedulerTest, ProxyDeallocationProgressTrackCompleted)
 
     for (const auto& dataCenter : dataCenters) {
         auto bundleProxies = GenerateProxiesForBundle(input, "bigd", 2, false, dataCenter);
-        const TString proxyName = *bundleProxies.begin();
+        const std::string proxyName = *bundleProxies.begin();
         GenerateProxyDeallocationsForBundle(input, "bigd", {proxyName}, dataCenter);
     }
 
@@ -1962,7 +1962,7 @@ TEST_P(TBundleSchedulerTest, ProxyDeallocationProgressTrackStaledAllocation)
 
     for (const auto& dataCenter : dataCenters) {
         auto bundleProxies = GenerateProxiesForBundle(input, "bigd", 2, false, dataCenter);
-        const TString proxyName = *bundleProxies.begin();
+        const std::string proxyName = *bundleProxies.begin();
         GenerateProxyDeallocationsForBundle(input, "bigd", {proxyName}, dataCenter);
     }
 
@@ -1998,7 +1998,7 @@ TEST_P(TBundleSchedulerTest, TestSpareProxiesAllocate)
     EXPECT_EQ(GetDataCenterCount(), std::ssize(mutations.ChangedStates[SpareBundleName]->ProxyAllocations));
 
     auto dataCenters = GetDataCenters(input);
-    THashSet<TString> index(dataCenters.begin(), dataCenters.end());
+    THashSet<std::string> index(dataCenters.begin(), dataCenters.end());
 
     for (const auto& [_, state] : mutations.ChangedStates[SpareBundleName]->ProxyAllocations) {
         EXPECT_TRUE(index.erase(*state->DataCenter));
@@ -2382,7 +2382,7 @@ TEST_P(TBundleSchedulerTest, DeallocateOutdatedNodes)
     auto input = GenerateInputContext(10 * GetDataCenterCount(), DefaultCellCount);
     auto dataCenters = GetDataCenters(input);
 
-    THashSet<TString> nodesToRemove;
+    THashSet<std::string> nodesToRemove;
 
     for (const auto& dataCenter : dataCenters) {
         GenerateProxiesForBundle(input, "bigd", 5, false, dataCenter);
@@ -2424,7 +2424,7 @@ TEST_P(TBundleSchedulerTest, DeallocateOutdatedProxies)
 
     auto zoneInfo = input.Zones["default-zone"];
 
-    THashSet<TString> proxiesToRemove;
+    THashSet<std::string> proxiesToRemove;
 
     for (const auto& dataCenter : dataCenters) {
         auto proxyNames = GenerateProxiesForBundle(input, "bigd", 13, false, dataCenter);
@@ -2548,7 +2548,7 @@ TEST_P(TBundleSchedulerTest, DeallocateNodesUnderMaintenance)
     auto input = GenerateInputContext(10 * GetDataCenterCount(), DefaultCellCount);
     auto dataCenters = GetDataCenters(input);
 
-    THashSet<TString> nodesToRemove;
+    THashSet<std::string> nodesToRemove;
 
     for (const auto& dataCenter : dataCenters) {
         auto nodeNames = GenerateNodesForBundle(input, "bigd", 13, {.SetFilterTag = true, .SlotCount = DefaultCellCount, .DC = dataCenter});
@@ -2585,7 +2585,7 @@ TEST_P(TBundleSchedulerTest, DeallocateProxiesUnderMaintenance)
     auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 10 * GetDataCenterCount());
     auto dataCenters = GetDataCenters(input);
 
-    THashSet<TString> proxiesToRemove;
+    THashSet<std::string> proxiesToRemove;
     for (const auto& dataCenter : dataCenters) {
         auto proxyNames = GenerateProxiesForBundle(input, "bigd", 13, false, dataCenter);
 
@@ -2624,7 +2624,7 @@ TEST_P(TBundleSchedulerTest, RemoveProxyCypressNodes)
 
     const auto DateInThePast = TInstant::Now() - TDuration::Days(30);
 
-    THashSet<TString> proxiesToRemove;
+    THashSet<std::string> proxiesToRemove;
     for (const auto& dataCenter : dataCenters) {
         auto proxyNames = GenerateProxiesForBundle(input, "bigd", 13, false, dataCenter);
 
@@ -2670,7 +2670,7 @@ TEST_P(TBundleSchedulerTest, RemoveTabletNodeCypressNodes)
     auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 10 * GetDataCenterCount());
     auto dataCenters = GetDataCenters(input);
 
-    THashSet<TString> nodesToRemove;
+    THashSet<std::string> nodesToRemove;
     for (const auto& dataCenter : dataCenters) {
         auto nodeNames = GenerateNodesForBundle(input, "bigd", 13, {.DC = dataCenter});
         const auto DateInThePast = TInstant::Now() - TDuration::Days(30);
@@ -2718,8 +2718,8 @@ TEST_P(TBundleSchedulerTest, CheckBundleShortName)
 {
     auto input = GenerateSimpleInputContext(5 * GetDataCenterCount());
 
-    const TString bundleName = "bigd";
-    const TString clusterShortName = "seneca";
+    const std::string bundleName = "bigd";
+    const std::string clusterShortName = "seneca";
 
     auto bundleInfo = GetOrCrash(input.Bundles, bundleName);
     bundleInfo->ShortName = "bigc";
@@ -2735,14 +2735,14 @@ TEST_P(TBundleSchedulerTest, CheckBundleShortName)
 
     EXPECT_EQ(5 * GetDataCenterCount(), std::ssize(mutations.ChangedStates[bundleName]->NodeAllocations));
 
-    THashSet<TString> templates;
+    THashSet<std::string> templates;
     for (auto& [_, request] : mutations.NewAllocations) {
         templates.insert(request->Spec->PodIdTemplate);
-        EXPECT_TRUE(request->Spec->PodIdTemplate.find(*bundleInfo->ShortName) != TString::npos);
-        EXPECT_TRUE(request->Spec->PodIdTemplate.find(clusterShortName) != TString::npos);
+        EXPECT_TRUE(request->Spec->PodIdTemplate.find(*bundleInfo->ShortName) != std::string::npos);
+        EXPECT_TRUE(request->Spec->PodIdTemplate.find(clusterShortName) != std::string::npos);
 
-        EXPECT_TRUE(request->Spec->PodIdTemplate.find(bundleName) == TString::npos);
-        EXPECT_TRUE(request->Spec->PodIdTemplate.find(input.Config->Cluster) == TString::npos);
+        EXPECT_TRUE(request->Spec->PodIdTemplate.find(bundleName) == std::string::npos);
+        EXPECT_TRUE(request->Spec->PodIdTemplate.find(input.Config->Cluster) == std::string::npos);
     }
 
     EXPECT_EQ(std::ssize(templates), 5 * GetDataCenterCount());
@@ -2751,7 +2751,7 @@ TEST_P(TBundleSchedulerTest, CheckBundleShortName)
 
 TEST_P(TBundleSchedulerTest, CheckBundleAutoShorteningName)
 {
-    const TString LongBundleName = "m_looooooong_bundle-name";
+    const std::string LongBundleName = "m_looooooong_bundle-name";
 
     auto input = GenerateSimpleInputContext(0);
 
@@ -2773,11 +2773,11 @@ TEST_P(TBundleSchedulerTest, CheckBundleAutoShorteningName)
         EXPECT_EQ(shortName, "m-looooo1");
     }
 
-    THashSet<TString> templates;
+    THashSet<std::string> templates;
     for (auto& [_, request] : mutations.NewAllocations) {
         templates.insert(request->Spec->PodIdTemplate);
 
-        EXPECT_TRUE(request->Spec->PodIdTemplate.find(LongBundleName) == TString::npos);
+        EXPECT_TRUE(request->Spec->PodIdTemplate.find(LongBundleName) == std::string::npos);
     }
 
     EXPECT_EQ(std::ssize(templates), 5 * GetDataCenterCount());
@@ -2930,7 +2930,7 @@ TEST_P(TBundleSchedulerTest, DeallocateAdoptedNodes)
     auto input = GenerateInputContext(10 * GetDataCenterCount(), DefaultCellCount);
     auto dataCenters = GetDataCenters(input);
 
-    THashSet<TString> nodesToRemove;
+    THashSet<std::string> nodesToRemove;
 
     for (const auto& dataCenter : dataCenters) {
         auto nodeNames = GenerateNodesForBundle(input, "bigd", 13, {.SetFilterTag = true, .SlotCount = DefaultCellCount, .DC = dataCenter});
@@ -3175,7 +3175,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyRolesAssigned)
 
     EXPECT_EQ(2 * GetDataCenterCount(), std::ssize(mutations.ChangedProxyRole));
 
-    THashMap<std::string, THashSet<TString>> roleToProxies;
+    THashMap<std::string, THashSet<std::string>> roleToProxies;
     for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
         roleToProxies[role].insert(proxyName);
         input.RpcProxies[proxyName]->Role = role;
@@ -3211,7 +3211,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyCustomRolesAssigned)
 
     EXPECT_EQ(2 * GetDataCenterCount(), std::ssize(mutations.ChangedProxyRole));
 
-    THashMap<TString, THashSet<TString>> roleToProxies;
+    THashMap<std::string, THashSet<std::string>> roleToProxies;
     for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
         roleToProxies[role].insert(proxyName);
         input.RpcProxies[proxyName]->Role = role;
@@ -3235,10 +3235,10 @@ TEST_P(TProxyRoleManagement, TestBundleProxyBanned)
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
     auto dataCenters = GetDataCenters(input);
 
-    THashSet<TString> bundleProxies;
+    THashSet<std::string> bundleProxies;
     int dcIndex = 0;
     for (const auto& dataCenter : dataCenters) {
-        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("bigd") : TString("bigd");
+        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("bigd") : std::string("bigd");
         auto dcProxies = GenerateProxiesForBundle(input, "bigd", 3, true, dataCenter, customRole);
         if (dcIndex <= GetActiveDataCenterCount()) {
             bundleProxies.insert(dcProxies.begin(), dcProxies.end());
@@ -3249,7 +3249,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyBanned)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->RpcProxyCount = 3 * GetDataCenterCount();
 
-    THashSet<TString> spareProxies;
+    THashSet<std::string> spareProxies;
     for (const auto& dataCenter : dataCenters) {
         auto dcProxies = GenerateProxiesForBundle(input, SpareBundleName, 3, false, dataCenter);
         spareProxies.insert(dcProxies.begin(), dcProxies.end());
@@ -3288,10 +3288,10 @@ TEST_P(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
     auto dataCenters = GetDataCenters(input);
 
-    THashSet<TString> bundleProxies;
+    THashSet<std::string> bundleProxies;
     int dcIndex = 0;
     for (const auto& dataCenter : dataCenters) {
-        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("bigd") : TString("bigd");
+        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("bigd") : std::string("bigd");
         auto dcProxies = GenerateProxiesForBundle(input, "bigd", 1, true, dataCenter, customRole);
         if (dcIndex <= GetActiveDataCenterCount()) {
             bundleProxies.insert(dcProxies.begin(), dcProxies.end());
@@ -3301,7 +3301,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
     // Generate Spare proxies
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->RpcProxyCount = 3 * GetDataCenterCount();
-    THashSet<TString> spareProxies;
+    THashSet<std::string> spareProxies;
     for (const auto& dataCenter : dataCenters) {
         auto dcProxies = GenerateProxiesForBundle(input, SpareBundleName, 3, false, dataCenter);
         spareProxies.insert(dcProxies.begin(), dcProxies.end());
@@ -3313,7 +3313,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(mutations.ChangedProxyRole));
 
-    THashSet<TString> usedSpare;
+    THashSet<std::string> usedSpare;
 
     for (auto& [proxyName, role] : mutations.ChangedProxyRole) {
         EXPECT_EQ(role, "bigd");
@@ -3334,7 +3334,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
     // Add new proxies to bundle
     dcIndex = 0;
     for (const auto& dataCenter : dataCenters) {
-        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("bigd") : TString("bigd");
+        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("bigd") : std::string("bigd");
         GenerateProxiesForBundle(input, "bigd", 1, true, dataCenter, customRole);
     }
 
@@ -3366,10 +3366,10 @@ TEST_P(TProxyRoleManagement, TestBundleProxyRolesWentOffline)
     input.Config->OfflineInstanceGracePeriod = OfflineInstanceGracePeriod;
     auto dataCenters = GetDataCenters(input);
 
-    THashSet<TString> bundleProxies;
+    THashSet<std::string> bundleProxies;
     int dcIndex = 0;
     for (const auto& dataCenter : dataCenters) {
-        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("bigd") : TString("bigd");
+        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("bigd") : std::string("bigd");
         auto dcProxies = GenerateProxiesForBundle(input, "bigd", 2, true, dataCenter, customRole);
         if (dcIndex <= GetActiveDataCenterCount()) {
             bundleProxies.insert(dcProxies.begin(), dcProxies.end());
@@ -3379,7 +3379,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyRolesWentOffline)
     // Generate Spare proxies
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->RpcProxyCount = 3 * GetDataCenterCount();
-    THashSet<TString> spareProxies;
+    THashSet<std::string> spareProxies;
     for (const auto& dataCenter : dataCenters) {
         auto dcProxies = GenerateProxiesForBundle(input, SpareBundleName, 3, false, dataCenter);
         spareProxies.insert(dcProxies.begin(), dcProxies.end());
@@ -3411,10 +3411,10 @@ TEST_P(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
     input.Bundles["bigd"]->RpcProxyRole = "custom-role";
     auto dataCenters = GetDataCenters(input);
 
-    THashSet<TString> bundleProxies;
+    THashSet<std::string> bundleProxies;
     int dcIndex = 0;
     for (const auto& dataCenter : dataCenters) {
-        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("custom-role") : TString("custom-role");
+        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("custom-role") : std::string("custom-role");
         auto dcProxies = GenerateProxiesForBundle(input, "bigd", 1, true, dataCenter, customRole);
         if (dcIndex <= GetActiveDataCenterCount()) {
             bundleProxies.insert(dcProxies.begin(), dcProxies.end());
@@ -3424,7 +3424,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
     // Generate Spare proxies
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->RpcProxyCount = 3 * GetDataCenterCount();
-    THashSet<TString> spareProxies;
+    THashSet<std::string> spareProxies;
     for (const auto& dataCenter : dataCenters) {
         auto dcProxies = GenerateProxiesForBundle(input, SpareBundleName, 3, false, dataCenter);
         spareProxies.insert(dcProxies.begin(), dcProxies.end());
@@ -3436,7 +3436,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(mutations.ChangedProxyRole));
 
-    THashSet<TString> usedSpare;
+    THashSet<std::string> usedSpare;
 
     for (auto& [proxyName, role] : mutations.ChangedProxyRole) {
         EXPECT_EQ(role, "custom-role");
@@ -3457,7 +3457,7 @@ TEST_P(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
     // Add new proxies to bundle
     dcIndex = 0;
     for (const auto& dataCenter : dataCenters) {
-        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("custom-role") : TString("custom-role");
+        auto customRole = ++dcIndex > GetActiveDataCenterCount() ? GetReleasedProxyRole("custom-role") : std::string("custom-role");
         auto dcProxies = GenerateProxiesForBundle(input, "bigd", 1, true, dataCenter, customRole);
     }
 
@@ -3487,7 +3487,7 @@ TEST_P(TProxyRoleManagement, TestFreeSpareProxiesExhausted)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->RpcProxyCount = 3 * GetDataCenterCount();
 
-    THashSet<TString> spareProxies;
+    THashSet<std::string> spareProxies;
     for (const auto& dataCenter : dataCenters) {
         auto dcProxies = GenerateProxiesForBundle(input, SpareBundleName, 3, false, dataCenter);
         spareProxies.insert(dcProxies.begin(), dcProxies.end());
@@ -3516,9 +3516,9 @@ TEST_P(TProxyRoleManagement, TestFreeSpareProxiesExhausted)
 
 TEST(SchedulerUtilsTest, CheckGetIndexFromPodId)
 {
-    static const TString Cluster = "hume";
-    static const TString InstanceType = "tab";
-    static const TString Bundle = "venus212";
+    static const std::string Cluster = "hume";
+    static const std::string InstanceType = "tab";
+    static const std::string Bundle = "venus212";
 
     EXPECT_EQ(1, FindNextInstanceId({}, Cluster, InstanceType));
     EXPECT_EQ(1, FindNextInstanceId({"sas4-5335-venus212-0aa-tab-hume"}, Cluster, InstanceType));
@@ -3566,7 +3566,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleWithNoTagFilter)
     input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
     input.Bundles["bigd"]->NodeTagFilter = {};
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateNodesForBundle(input, "bigd", 2, {.DC = dataCenter});
     }
 
@@ -3588,7 +3588,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleWithNoTagFilterIgnoreEmptyAreas)
     input.Bundles["bigd"]->NodeTagFilter = {};
     input.Bundles["bigd"]->Areas.clear();
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateNodesForBundle(input, "bigd", 2, {.DC = dataCenter});
     }
 
@@ -3614,7 +3614,7 @@ TEST_P(TNodeTagsFilterManager, TestDrillsMode)
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
 
     int dataCenterIndex = 0;
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         bool setNodeTagFilter = ++dataCenterIndex <= GetActiveDataCenterCount();
         GenerateNodesForBundle(input, "bigd", 2, {.SetFilterTag = setNodeTagFilter, .SlotCount = SlotCount, .DC = dataCenter});
         GenerateNodesForBundle(input, SpareBundleName, 3, {.SetFilterTag = false, .SlotCount = 15, .DC = dataCenter});
@@ -3771,7 +3771,7 @@ TEST_P(TNodeTagsFilterManager, TestDrillsModeOffToOn)
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
 
     int dataCenterIndex = 0;
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         bool setNodeTagFilter = ++dataCenterIndex <= GetActiveDataCenterCount();
         GenerateNodesForBundle(input, "bigd", 2, {.SetFilterTag = setNodeTagFilter, .SlotCount = SlotCount, .DC = dataCenter});
         GenerateNodesForBundle(input, SpareBundleName, 3, {.SetFilterTag = false, .SlotCount = 15, .DC = dataCenter});
@@ -3825,7 +3825,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodeTagsAssigned)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateNodesForBundle(input, "bigd", 2, {.DC = dataCenter});
 
         GenerateNodesForBundle(input, SpareBundleName, 3, {.SetFilterTag = false, .SlotCount = 15, .DC = dataCenter});
@@ -3845,7 +3845,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodeTagsAssigned)
     EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(mutations.ChangedNodeUserTags));
     EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeAssignments));
 
-    THashSet<TString> newTabletNodes;
+    THashSet<std::string> newTabletNodes;
     for (const auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
         EXPECT_TRUE(mutations.ChangedDecommissionedFlag.at(nodeName));
         EXPECT_TRUE(tags.find(bundleNodeTagFilter) != tags.end());
@@ -3925,7 +3925,7 @@ TEST_P(TNodeTagsFilterManager, TestExtraBundleNodesReleasement)
     auto bundleNodeTagFilter = bundleInfo->NodeTagFilter;
     bundleInfo->TargetConfig->MemoryLimits->TabletStatic = 212212;
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateNodesForBundle(input, "bigd", 2, {.SetFilterTag = true, .DC = dataCenter});
     }
 
@@ -3941,7 +3941,7 @@ TEST_P(TNodeTagsFilterManager, TestExtraBundleNodesReleasement)
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
 
-    THashSet<TString> releasingNodes;
+    THashSet<std::string> releasingNodes;
     for (const auto& [nodeName, decommissioned] : mutations.ChangedDecommissionedFlag) {
         EXPECT_TRUE(decommissioned);
 
@@ -4042,10 +4042,10 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     bundleInfo->EnableNodeTagFilterManagement = true;
     bundleInfo->TargetConfig->MemoryLimits->TabletStatic = 212212;
 
-    THashSet<TString> activeDataCenters;
+    THashSet<std::string> activeDataCenters;
 
     int dataCenterIndex = 0;
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         bool setNodeTagFilter = ++dataCenterIndex <= GetActiveDataCenterCount();
         if (setNodeTagFilter) {
             activeDataCenters.insert(dataCenter);
@@ -4061,9 +4061,9 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
 
-    THashSet<TString> spareNodes;
+    THashSet<std::string> spareNodes;
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         auto dataCenterSpareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, {.SetFilterTag = false, .SlotCount = 15, .DC = dataCenter});
 
         for (const auto& nodeName : dataCenterSpareNodes) {
@@ -4087,8 +4087,8 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
 
     ApplyChangedStates(&input, mutations);
 
-    const TString BundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
-    THashSet<TString> usedSpare;
+    const std::string BundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
+    THashSet<std::string> usedSpare;
 
     for (const auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
         EXPECT_TRUE(mutations.ChangedDecommissionedFlag.at(nodeName));
@@ -4103,7 +4103,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
 
     EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(usedSpare));
 
-    for (const TString& dataCenter : activeDataCenters) {
+    for (const std::string& dataCenter : activeDataCenters) {
         EXPECT_EQ(1, std::ssize(input.ZoneToSpareNodes["default-zone"][dataCenter].FreeNodes));
     }
 
@@ -4181,7 +4181,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     EXPECT_EQ(0, std::ssize(mutations.ChangedStates));
 
     // Add new nodes to bundle
-    THashSet<TString> newNodes;
+    THashSet<std::string> newNodes;
     for (const auto& dataCenter : activeDataCenters) {
         auto dcNodes = GenerateNodesForBundle(input, "bigd", 1, {.SetFilterTag = false, .SlotCount = SlotCount, .DC = dataCenter});
         newNodes.insert(dcNodes.begin(), dcNodes.end());
@@ -4238,7 +4238,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
     EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.ChangedStates["bigd"]->SpareNodeReleasements));
 
-    THashSet<TString> spareNodeToRelease;
+    THashSet<std::string> spareNodeToRelease;
 
     for (const auto& [nodeName, decommission] : mutations.ChangedDecommissionedFlag) {
         EXPECT_TRUE(usedSpare.count(nodeName) != 0);
@@ -4365,7 +4365,7 @@ TEST_P(TNodeTagsFilterManager, TestSeveralBundlesNodesLookingForSpare)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 4 * GetDataCenterCount();
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 4, {.SlotCount = 0, .DC = dataCenter});
         for (const auto& nodeName : spareNodes) {
             const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
@@ -4386,9 +4386,9 @@ TEST_P(TNodeTagsFilterManager, TestSeveralBundlesNodesLookingForSpare)
     EXPECT_EQ(3 * GetActiveDataCenterCount() + zoneInfo->RedundantDataCenterCount, std::ssize(mutations.ChangedDecommissionedFlag));
     EXPECT_EQ(3 * GetActiveDataCenterCount() + zoneInfo->RedundantDataCenterCount, std::ssize(mutations.ChangedNodeUserTags));
 
-    THashSet<TString> oversubscribedDataCenters;
+    THashSet<std::string> oversubscribedDataCenters;
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         auto& zoneSpare = input.ZoneToSpareNodes["default-zone"][dataCenter];
         if (std::ssize(zoneSpare.FreeNodes) == 0) {
             oversubscribedDataCenters.insert(dataCenter);
@@ -4403,7 +4403,7 @@ TEST_P(TNodeTagsFilterManager, TestSeveralBundlesNodesLookingForSpare)
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         auto& zoneSpare = input.ZoneToSpareNodes["default-zone"][dataCenter];
         auto usingSpareNodeCount = std::ssize(zoneSpare.UsedByBundle["bigd"]) + std::ssize(zoneSpare.UsedByBundle["bigc"]);
 
@@ -4429,8 +4429,8 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesGracePeriod)
     input.Config->OfflineInstanceGracePeriod = OfflineInstanceGracePeriod;
     input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
 
-    THashSet<TString> nodes;
-    for (const TString& dataCenter : dataCenters) {
+    THashSet<std::string> nodes;
+    for (const std::string& dataCenter : dataCenters) {
         auto dataNodes = GenerateNodesForBundle(input, "bigd", 2, {.SetFilterTag = SetNodeFilterTag, .SlotCount = SlotCount, .DC = dataCenter});
         nodes.insert(dataNodes.begin(), dataNodes.end());
     }
@@ -4441,7 +4441,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesGracePeriod)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount = SlotCount, .DC = dataCenter});
     }
 
@@ -4468,8 +4468,8 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesDisabledTabletCells)
     auto dataCenters = GetDataCenters(input);
     input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
 
-    THashSet<TString> nodes;
-    for (const TString& dataCenter : dataCenters) {
+    THashSet<std::string> nodes;
+    for (const std::string& dataCenter : dataCenters) {
         auto dataNodes = GenerateNodesForBundle(input, "bigd", 2, {.SetFilterTag = SetNodeFilterTag, .SlotCount = SlotCount, .DC = dataCenter});
         nodes.insert(dataNodes.begin(), dataNodes.end());
     }
@@ -4480,7 +4480,7 @@ TEST_P(TNodeTagsFilterManager, TestBundleNodesDisabledTabletCells)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount = SlotCount, .DC = dataCenter});
     }
 
@@ -4512,7 +4512,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesExhausted)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount = SlotCount, .DC = dataCenter});
     }
 
@@ -4550,9 +4550,9 @@ TEST_P(TNodeTagsFilterManager, SpareNodesOffline)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
 
-    THashSet<TString> aliveSpare;
+    THashSet<std::string> aliveSpare;
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount = SlotCount, .DC = dataCenter});
         auto dcAliveSpare = GetRandomElements(spareNodes, 1);
         aliveSpare.insert(dcAliveSpare.begin(), dcAliveSpare.end());
@@ -4602,9 +4602,9 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineAfterAssigning)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
 
-    THashSet<TString> usingSpareNode;
+    THashSet<std::string> usingSpareNode;
     int dataCenterIndex = 0;
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount = SlotCount, .DC = dataCenter});
         if (++dataCenterIndex > GetActiveDataCenterCount()) {
             break;
@@ -4664,8 +4664,8 @@ TEST_P(TNodeTagsFilterManager, SpareNodesDecommissionedAfterAssigning)
     // Generate Spare nodes
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
-    THashSet<TString> activeDataCenters;
-    THashSet<TString> usingSpareNode;
+    THashSet<std::string> activeDataCenters;
+    THashSet<std::string> usingSpareNode;
     int dataCenterIndex = 0;
 
     for (const auto& dataCenter : dataCenters) {
@@ -4724,7 +4724,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesDecommissionedAfterAssigning)
     EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "externally_decommissioned_spare_nodes");
 
-    for (const TString& dataCenter : activeDataCenters) {
+    for (const std::string& dataCenter : activeDataCenters) {
         const auto& spareNodesInfo = input.ZoneToSpareNodes["default-zone"][dataCenter];
         EXPECT_EQ(1, std::ssize(spareNodesInfo.FreeNodes));
         EXPECT_EQ(1, std::ssize(spareNodesInfo.UsedByBundle.at("bigd")));
@@ -4741,7 +4741,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineDuringAssigning)
     bundleInfo->EnableNodeTagFilterManagement = true;
     bundleInfo->TargetConfig->MemoryLimits->TabletStatic = 212212;
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateNodeAllocationsForBundle(input, "bigd", GetDataCenterCount(), dataCenter);
     }
     GenerateTabletCellsForBundle(input, "bigd", 5 * GetActiveDataCenterCount());
@@ -4749,7 +4749,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineDuringAssigning)
     // Generate Spare nodes
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, {.SlotCount = 15, .DC = dataCenter});
     }
 
@@ -4766,7 +4766,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineDuringAssigning)
     EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.ChangedNodeUserTags));
 
     ApplyChangedStates(&input, mutations);
-    THashSet<TString> assigningSpare;
+    THashSet<std::string> assigningSpare;
 
     for (const auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
         assigningSpare.insert(nodeName);
@@ -4846,7 +4846,7 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineDuringReleasing)
     input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
     auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateNodeAllocationsForBundle(input, "bigd", 1, dataCenter);
     }
 
@@ -4855,12 +4855,12 @@ TEST_P(TNodeTagsFilterManager, SpareNodesWentOfflineDuringReleasing)
     // Generate Spare nodes
     auto zoneInfo = input.Zones["default-zone"];
 
-    THashSet<TString> usingSpareNode;
+    THashSet<std::string> usingSpareNode;
 
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3 * GetDataCenterCount();
-    THashSet<TString> activeDataCenters;
+    THashSet<std::string> activeDataCenters;
     int dataCenterIndex = 0;
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         auto flags = TGenerateNodeOptions{.SlotCount = SlotCount, .DC = dataCenter};
         auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, flags);
         if (++dataCenterIndex > GetActiveDataCenterCount()) {
@@ -4960,10 +4960,10 @@ TEST_P(TNodeTagsFilterManager, TestMultiPeerBundleLookingForSpare)
     auto& bundleInfo = input.Bundles["bigd"];
     bundleInfo->EnableNodeTagFilterManagement = true;
 
-    THashSet<TString> activeDataCenters;
+    THashSet<std::string> activeDataCenters;
     int dataCenterIndex = 0;
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         bool setNodeTagFilter = ++dataCenterIndex <= GetActiveDataCenterCount();
         if (setNodeTagFilter) {
             activeDataCenters.insert(dataCenter);
@@ -4983,9 +4983,9 @@ TEST_P(TNodeTagsFilterManager, TestMultiPeerBundleLookingForSpare)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 4 * GetDataCenterCount();
 
-    THashSet<TString> usingSpareNode;
+    THashSet<std::string> usingSpareNode;
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 4, {.SlotCount = 0, .DC = dataCenter});
 
         for (const auto& nodeName : spareNodes) {
@@ -5002,7 +5002,7 @@ TEST_P(TNodeTagsFilterManager, TestMultiPeerBundleLookingForSpare)
     EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(mutations.ChangedDecommissionedFlag));
     EXPECT_EQ(2 * GetActiveDataCenterCount(), std::ssize(mutations.ChangedNodeUserTags));
 
-    for (const TString& dataCenter : activeDataCenters) {
+    for (const std::string& dataCenter : activeDataCenters) {
         EXPECT_EQ(2, std::ssize(input.ZoneToSpareNodes["default-zone"][dataCenter].FreeNodes));
     }
 
@@ -5027,17 +5027,17 @@ TEST_P(TNodeTagsFilterManager, ReleasingExtraSpareNodes)
     input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
     auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
 
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         GenerateNodeAllocationsForBundle(input, "bigd", 1, dataCenter);
     }
     GenerateTabletCellsForBundle(input, "bigd", 15 * GetActiveDataCenterCount());
 
     // Generate Spare nodes
     auto zoneInfo = input.Zones["default-zone"];
-    THashSet<TString> usingSpareNode;
+    THashSet<std::string> usingSpareNode;
 
     zoneInfo->SpareTargetConfig->TabletNodeCount = 5 * GetDataCenterCount();
-    for (const TString& dataCenter : dataCenters) {
+    for (const std::string& dataCenter : dataCenters) {
         auto flags = TGenerateNodeOptions{.SlotCount = SlotCount, .DC = dataCenter};
         auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 5, flags);
 
@@ -5056,7 +5056,7 @@ TEST_P(TNodeTagsFilterManager, ReleasingExtraSpareNodes)
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(3 * zoneInfo->RedundantDataCenterCount, std::ssize(mutations.ChangedDecommissionedFlag));
 
-    THashSet<TString> releasingDC;
+    THashSet<std::string> releasingDC;
     for (const auto& [nodeName, _] : mutations.ChangedDecommissionedFlag) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
         releasingDC.insert(*nodeInfo->Annotations->DataCenter);
@@ -5100,7 +5100,7 @@ TEST(TDataCentersPriority, AlphaNumDC)
     constexpr int PerDataCenterCount = 3;
 
     auto input = GenerateMultiDCInputContext(3 * PerDataCenterCount, SlotCount);
-    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    auto dataCenters = THashSet<std::string>{"dc-1", "dc-2", "dc-3"};
     input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
     auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
 
@@ -5124,7 +5124,7 @@ TEST(TDataCentersPriority, AlphaNumDC)
     const auto& assignments = mutations.ChangedStates.at("bigd")->BundleNodeAssignments;
     EXPECT_EQ(6, std::ssize(assignments));
 
-    THashSet<TString> assigningDC;
+    THashSet<std::string> assigningDC;
     for (const auto& [nodeName, _] : assignments) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
         assigningDC.insert(*nodeInfo->Annotations->DataCenter);
@@ -5132,7 +5132,7 @@ TEST(TDataCentersPriority, AlphaNumDC)
 
     // Releasing data centers are all from single datacenter.
     EXPECT_EQ(2, std::ssize(assigningDC));
-    EXPECT_EQ(assigningDC, THashSet<TString>({"dc-1", "dc-2"}));
+    EXPECT_EQ(assigningDC, THashSet<std::string>({"dc-1", "dc-2"}));
 }
 
 TEST(TDataCentersPriority, Feasibility)
@@ -5140,7 +5140,7 @@ TEST(TDataCentersPriority, Feasibility)
     constexpr int SlotCount = 5;
 
     auto input = GenerateMultiDCInputContext(3, SlotCount);
-    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    auto dataCenters = THashSet<std::string>{"dc-1", "dc-2", "dc-3"};
     input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
     auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
 
@@ -5149,7 +5149,7 @@ TEST(TDataCentersPriority, Feasibility)
     zoneInfo->SpareTargetConfig->TabletNodeCount = 5 * dataCenters.size();
 
     // Add new node to bundle
-    TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
+    std::string offlineDC = *GetRandomElements(dataCenters, 1).begin();
 
     for (const auto& dataCenter : dataCenters) {
         auto flags = TGenerateNodeOptions{.SetFilterTag = true, .SlotCount = SlotCount, .DC = dataCenter};
@@ -5175,7 +5175,7 @@ TEST(TDataCentersPriority, Feasibility)
     EXPECT_EQ(0, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeAssignments));
     EXPECT_EQ(4, std::ssize(mutations.ChangedStates.at("bigd")->SpareNodeAssignments));
 
-    THashSet<TString> assigningDC;
+    THashSet<std::string> assigningDC;
     for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->SpareNodeAssignments) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
         assigningDC.insert(*nodeInfo->Annotations->DataCenter);
@@ -5192,7 +5192,7 @@ TEST(TDataCentersPriority, Forbidden)
     constexpr int SlotCount = 5;
 
     auto input = GenerateMultiDCInputContext(9, SlotCount);
-    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    auto dataCenters = THashSet<std::string>{"dc-1", "dc-2", "dc-3"};
     input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
     auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
 
@@ -5217,7 +5217,7 @@ TEST(TDataCentersPriority, Forbidden)
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(6, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeAssignments));
 
-    THashSet<TString> assigningDC;
+    THashSet<std::string> assigningDC;
     for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeAssignments) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
         assigningDC.insert(*nodeInfo->Annotations->DataCenter);
@@ -5234,12 +5234,12 @@ TEST(TDataCentersPriority, PerBundleForbidden)
     constexpr int SlotCount = 5;
 
     auto input = GenerateMultiDCInputContext(9, SlotCount);
-    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    auto dataCenters = THashSet<std::string>{"dc-1", "dc-2", "dc-3"};
     input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
     auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
 
     // Add new node to bundle
-    TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
+    std::string offlineDC = *GetRandomElements(dataCenters, 1).begin();
 
     input.Bundles["bigd"]->TargetConfig->ForbiddenDataCenters = { offlineDC };
 
@@ -5255,7 +5255,7 @@ TEST(TDataCentersPriority, PerBundleForbidden)
 
     EXPECT_EQ(6, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeAssignments));
 
-    THashSet<TString> assigningDC;
+    THashSet<std::string> assigningDC;
     for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeAssignments) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
         assigningDC.insert(*nodeInfo->Annotations->DataCenter);
@@ -5274,7 +5274,7 @@ TEST(TDataCentersPriority, DisruptionMinimizing)
 {
     constexpr int SlotCount = 5;
     auto input = GenerateMultiDCInputContext(9, SlotCount);
-    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    auto dataCenters = THashSet<std::string>{"dc-1", "dc-2", "dc-3"};
     input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
     auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
 
@@ -5282,7 +5282,7 @@ TEST(TDataCentersPriority, DisruptionMinimizing)
     auto zoneInfo = input.Zones["default-zone"];
 
     // Add new node to bundle
-    TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
+    std::string offlineDC = *GetRandomElements(dataCenters, 1).begin();
 
     for (const auto& dataCenter : dataCenters) {
         auto flags = TGenerateNodeOptions{.SetFilterTag = false, .SlotCount = SlotCount, .DC = dataCenter};
@@ -5307,7 +5307,7 @@ TEST(TDataCentersPriority, DisruptionMinimizing)
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(2, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeAssignments));
 
-    THashSet<TString> assigningDC;
+    THashSet<std::string> assigningDC;
     for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeAssignments) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
         assigningDC.insert(*nodeInfo->Annotations->DataCenter);
@@ -5323,7 +5323,7 @@ TEST(TDataCentersPriority, MinimizingTabletMoves)
 {
     constexpr int SlotCount = 5;
     auto input = GenerateMultiDCInputContext(9, SlotCount);
-    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    auto dataCenters = THashSet<std::string>{"dc-1", "dc-2", "dc-3"};
     input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
     auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
 
@@ -5331,7 +5331,7 @@ TEST(TDataCentersPriority, MinimizingTabletMoves)
     auto zoneInfo = input.Zones["default-zone"];
 
     // Add new node to bundle
-    TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
+    std::string offlineDC = *GetRandomElements(dataCenters, 1).begin();
 
     for (const auto& dataCenter : dataCenters) {
         auto flags = TGenerateNodeOptions{.SetFilterTag = true, .SlotCount = SlotCount, .DC = dataCenter};
@@ -5354,7 +5354,7 @@ TEST(TDataCentersPriority, MinimizingTabletMoves)
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(3, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeReleasements));
 
-    THashSet<TString> releasingDC;
+    THashSet<std::string> releasingDC;
     for (const auto& [nodeName, _] : mutations.ChangedStates.at("bigd")->BundleNodeReleasements) {
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
         releasingDC.insert(*nodeInfo->Annotations->DataCenter);
@@ -5371,7 +5371,7 @@ TEST(TDataCentersPriority, ChangeForbiddenSeveralTimes)
     constexpr int SlotCount = 5;
 
     auto input = GenerateMultiDCInputContext(9, SlotCount);
-    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    auto dataCenters = THashSet<std::string>{"dc-1", "dc-2", "dc-3"};
     input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
     auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
 
@@ -5437,7 +5437,7 @@ TEST(TDataCentersProxyPriority, AlphaNumDC)
 {
     constexpr int PerDataCenterCount = 3;
     auto input = GenerateMultiDCInputContext(0, 0, 3 * PerDataCenterCount);
-    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    auto dataCenters = THashSet<std::string>{"dc-1", "dc-2", "dc-3"};
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
 
     // Generate Spare nodes
@@ -5457,7 +5457,7 @@ TEST(TDataCentersProxyPriority, AlphaNumDC)
     const auto& assignments = mutations.ChangedProxyRole;
     EXPECT_EQ(9, std::ssize(assignments));
 
-    THashSet<TString> assigningDC;
+    THashSet<std::string> assigningDC;
     for (const auto& [proxyName, role] : assignments) {
         if (role != "bigd") {
             continue;
@@ -5467,7 +5467,7 @@ TEST(TDataCentersProxyPriority, AlphaNumDC)
     }
 
     EXPECT_EQ(2, std::ssize(assigningDC));
-    EXPECT_EQ(assigningDC, THashSet<TString>({"dc-1", "dc-2"}));
+    EXPECT_EQ(assigningDC, THashSet<std::string>({"dc-1", "dc-2"}));
 }
 
 TEST(TDataCentersProxyPriority, Feasibility)
@@ -5475,7 +5475,7 @@ TEST(TDataCentersProxyPriority, Feasibility)
     constexpr int PerDataCenterCount = 3;
 
     auto input = GenerateMultiDCInputContext(0, 0, 3 * PerDataCenterCount);
-    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    auto dataCenters = THashSet<std::string>{"dc-1", "dc-2", "dc-3"};
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
 
     // Generate Spare nodes
@@ -5483,7 +5483,7 @@ TEST(TDataCentersProxyPriority, Feasibility)
     zoneInfo->SpareTargetConfig->TabletNodeCount = 5 * dataCenters.size();
 
     // Add new node to bundle
-    TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
+    std::string offlineDC = *GetRandomElements(dataCenters, 1).begin();
 
     for (const auto& dataCenter : dataCenters) {
         GenerateProxiesForBundle(input, "bigd", 1, true, dataCenter);
@@ -5504,7 +5504,7 @@ TEST(TDataCentersProxyPriority, Feasibility)
     CheckEmptyAlerts(mutations);
     const auto& assignments = mutations.ChangedProxyRole;
 
-    THashSet<TString> assigningDC;
+    THashSet<std::string> assigningDC;
     for (const auto& [proxyName, role] : assignments) {
         if (role != "bigd") {
             continue;
@@ -5523,7 +5523,7 @@ TEST(TDataCentersProxyPriority, Forbidden)
 {
     constexpr int PerDataCenterCount = 3;
     auto input = GenerateMultiDCInputContext(0, 0, 3 * PerDataCenterCount);
-    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    auto dataCenters = THashSet<std::string>{"dc-1", "dc-2", "dc-3"};
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
 
     // Generate Spare nodes
@@ -5543,7 +5543,7 @@ TEST(TDataCentersProxyPriority, Forbidden)
     CheckEmptyAlerts(mutations);
     const auto& assignments = mutations.ChangedProxyRole;
 
-    THashSet<TString> assigningDC;
+    THashSet<std::string> assigningDC;
     for (const auto& [proxyName, role] : assignments) {
         if (role != "bigd") {
             continue;
@@ -5561,11 +5561,11 @@ TEST(TDataCentersProxyPriority, PerBundleForbidden)
 {
     constexpr int PerDataCenterCount = 3;
     auto input = GenerateMultiDCInputContext(0, 0, 3 * PerDataCenterCount);
-    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    auto dataCenters = THashSet<std::string>{"dc-1", "dc-2", "dc-3"};
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
 
     // Add new node to bundle
-    TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
+    std::string offlineDC = *GetRandomElements(dataCenters, 1).begin();
     input.Bundles["bigd"]->TargetConfig->ForbiddenDataCenters = { offlineDC };
 
     // Add new node to bundle
@@ -5578,7 +5578,7 @@ TEST(TDataCentersProxyPriority, PerBundleForbidden)
 
     const auto& assignments = mutations.ChangedProxyRole;
 
-    THashSet<TString> assigningDC;
+    THashSet<std::string> assigningDC;
     for (const auto& [proxyName, role] : assignments) {
         if (role != "bigd") {
             continue;
@@ -5597,11 +5597,11 @@ TEST(TDataCentersProxyPriority, DisruptionMinimizing)
 {
     constexpr int PerDataCenterCount = 3;
     auto input = GenerateMultiDCInputContext(0, 0, 3 * PerDataCenterCount);
-    auto dataCenters = THashSet<TString>{"dc-1", "dc-2", "dc-3"};
+    auto dataCenters = THashSet<std::string>{"dc-1", "dc-2", "dc-3"};
     input.Bundles["bigd"]->EnableRpcProxyManagement = true;
 
     // Add new node to bundle
-    TString offlineDC = *GetRandomElements(dataCenters, 1).begin();
+    std::string offlineDC = *GetRandomElements(dataCenters, 1).begin();
 
     for (const auto& dataCenter : dataCenters) {
         auto proxies = GenerateProxiesForBundle(input, "bigd", PerDataCenterCount, false, dataCenter);
@@ -5622,7 +5622,7 @@ TEST(TDataCentersProxyPriority, DisruptionMinimizing)
     CheckEmptyAlerts(mutations);
     const auto& assignments = mutations.ChangedProxyRole;
 
-    THashSet<TString> assigningDC;
+    THashSet<std::string> assigningDC;
     for (const auto& [proxyName, role] : assignments) {
         if (role != "bigd") {
             continue;

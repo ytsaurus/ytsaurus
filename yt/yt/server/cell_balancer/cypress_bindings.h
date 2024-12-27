@@ -53,23 +53,23 @@ DECLARE_REFCOUNTED_STRUCT(TDrillsModeOperationState)
 DECLARE_REFCOUNTED_STRUCT(TDrillsModeState)
 
 template <typename TEntryInfo>
-using TIndexedEntries = THashMap<TString, TIntrusivePtr<TEntryInfo>>;
+using TIndexedEntries = THashMap<std::string, TIntrusivePtr<TEntryInfo>>;
 using TChaosCellId = NObjectClient::TObjectId;
 
 constexpr int YTRoleTypeTabNode = 1;
 constexpr int YTRoleTypeRpcProxy = 3;
 
-inline static const TString InstanceStateOnline = "online";
-inline static const TString InstanceStateOffline = "offline";
+inline static const std::string InstanceStateOnline = "online";
+inline static const std::string InstanceStateOffline = "offline";
 
-inline static const TString TabletSlotStateEmpty = "none";
+inline static const std::string TabletSlotStateEmpty = "none";
 
-inline static const TString PeerStateLeading = "leading";
+inline static const std::string PeerStateLeading = "leading";
 
-inline static const TString DeallocationStrategyHulkRequest = "hulk_deallocation_request";
-inline static const TString DeallocationStrategyReturnToBB = "return_to_bundle_balancer";
+inline static const std::string DeallocationStrategyHulkRequest = "hulk_deallocation_request";
+inline static const std::string DeallocationStrategyReturnToBB = "return_to_bundle_balancer";
 
-inline static const TString TrashRole = "trash-role";
+inline static const std::string TrashRole = "trash-role";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,7 +92,7 @@ class TYsonStructAttributes
     : public NYTree::TYsonStruct
 {
 public:
-    static std::vector<TString> GetAttributes()
+    static std::vector<std::string> GetAttributes()
     {
         // Making sure attributes are registered.
         // YSON struct registration takes place in constructor.
@@ -102,14 +102,15 @@ public:
     }
 
     template <typename TRegistrar, typename TValue>
-    static auto& RegisterAttribute(TRegistrar registrar, const TString& attribute, TValue(TDerived::*field))
+    static auto& RegisterAttribute(TRegistrar registrar, const std::string& attribute, TValue(TDerived::*field))
     {
         Attributes_.push_back(attribute);
-        return registrar.Parameter(attribute, field);
+        // TODO(babenko): switch to std::string
+        return registrar.Parameter(TString(attribute), field);
     }
 
 private:
-    inline static std::vector<TString> Attributes_;
+    inline static std::vector<std::string> Attributes_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -178,12 +179,12 @@ struct TBundleConfig
     NBundleControllerClient::TInstanceResourcesPtr RpcProxyResourceGuarantee;
     NBundleControllerClient::TCpuLimitsPtr CpuLimits;
     NBundleControllerClient::TMemoryLimitsPtr MemoryLimits;
-    THashMap<TString, TMediumThroughputLimitsPtr> MediumThroughputLimits;
+    THashMap<std::string, TMediumThroughputLimitsPtr> MediumThroughputLimits;
     bool InitChaosBundles;
     int AdditionalChaosCellCount;
     bool EnableDrillsMode;
 
-    THashSet<TString> ForbiddenDataCenters;
+    THashSet<std::string> ForbiddenDataCenters;
 
     REGISTER_YSON_STRUCT(TBundleConfig);
 
@@ -197,7 +198,7 @@ DEFINE_REFCOUNTED_TYPE(TBundleConfig)
 struct TTabletCellStatus
     : public NYTree::TYsonStruct
 {
-    TString Health;
+    std::string Health;
     bool Decommissioned;
 
     REGISTER_YSON_STRUCT(TTabletCellStatus);
@@ -213,8 +214,8 @@ struct TTabletCellPeer
     : public NYTree::TYsonStruct
 {
     std::string Address;
-    TString State;
-    TString LastSeenState;
+    std::string State;
+    std::string LastSeenState;
     TInstant LastSeenTime;
 
     REGISTER_YSON_STRUCT(TTabletCellPeer);
@@ -230,8 +231,8 @@ struct TAbcInfo
     : public NYTree::TYsonStruct
 {
     std::optional<int> Id;
-    std::optional<TString> Name;
-    std::optional<TString> Slug;
+    std::optional<std::string> Name;
+    std::optional<std::string> Slug;
 
     REGISTER_YSON_STRUCT(TAbcInfo);
 
@@ -245,8 +246,8 @@ DEFINE_REFCOUNTED_TYPE(TAbcInfo)
 struct TCellTagInfo
     : public NYTree::TYsonStruct
 {
-    TString Area;
-    TString CellBundle;
+    std::string Area;
+    std::string CellBundle;
     TChaosCellId CellId;
 
     REGISTER_YSON_STRUCT(TCellTagInfo);
@@ -295,11 +296,11 @@ struct TBundleInfo
     : public TYsonStructAttributes<TBundleInfo>
 {
     NTabletClient::ETabletCellHealth Health;
-    TString Zone;
-    TString NodeTagFilter;
-    std::optional<TString> ShortName;
-    std::optional<TString> RpcProxyRole;
-    THashMap<TString, TBundleAreaPtr> Areas;
+    std::string Zone;
+    std::string NodeTagFilter;
+    std::optional<std::string> ShortName;
+    std::optional<std::string> RpcProxyRole;
+    THashMap<std::string, TBundleAreaPtr> Areas;
 
     bool EnableBundleController;
     bool EnableInstanceAllocation;
@@ -314,7 +315,7 @@ struct TBundleInfo
     bool MuteTabletCellSnapshotsCheck;
 
     TBundleConfigPtr TargetConfig;
-    std::vector<TString> TabletCellIds;
+    std::vector<std::string> TabletCellIds;
 
     TBundleSystemOptionsPtr Options;
     TResourceQuotaPtr ResourceQuota;
@@ -322,7 +323,7 @@ struct TBundleInfo
 
     double SystemAccountQuotaMultiplier;
 
-    TString FolderId;
+    std::string FolderId;
     TAbcInfoPtr Abc;
     bool BundleHotfix;
 
@@ -338,9 +339,9 @@ DEFINE_REFCOUNTED_TYPE(TBundleInfo)
 struct TBundleArea
     : public TYsonStructAttributes<TBundleArea>
 {
-    TString Id;
+    std::string Id;
     int CellCount;
-    TString NodeTagFilter;
+    std::string NodeTagFilter;
 
     REGISTER_YSON_STRUCT(TBundleArea);
 
@@ -354,10 +355,10 @@ DEFINE_REFCOUNTED_TYPE(TBundleArea)
 struct TChaosBundleInfo
     : public TYsonStructAttributes<TChaosBundleInfo>
 {
-    TString Id;
+    std::string Id;
     THashSet<TChaosCellId> ChaosCellIds;
     TBundleSystemOptionsPtr Options;
-    THashMap<TString, TBundleAreaPtr> Areas;
+    THashMap<std::string, TBundleAreaPtr> Areas;
     THashSet<TChaosCellId> MetadataCellIds;
 
     REGISTER_YSON_STRUCT(TChaosBundleInfo);
@@ -372,9 +373,9 @@ DEFINE_REFCOUNTED_TYPE(TChaosBundleInfo)
 struct TDataCenterInfo
     : public NYTree::TYsonStruct
 {
-    TString YPCluster;
-    TString TabletNodeNannyService;
-    TString RpcProxyNannyService;
+    std::string YPCluster;
+    std::string TabletNodeNannyService;
+    std::string RpcProxyNannyService;
 
     bool Forbidden;
 
@@ -390,26 +391,26 @@ DEFINE_REFCOUNTED_TYPE(TDataCenterInfo)
 struct TZoneInfo
     : public TYsonStructAttributes<TZoneInfo>
 {
-    TString DefaultYPCluster;
-    TString DefaultTabletNodeNannyService;
-    TString DefaultRpcProxyNannyService;
+    std::string DefaultYPCluster;
+    std::string DefaultTabletNodeNannyService;
+    std::string DefaultRpcProxyNannyService;
 
-    std::optional<TString> ShortName;
+    std::optional<std::string> ShortName;
 
     int MaxTabletNodeCount;
     int MaxRpcProxyCount;
 
-    THashMap<TString, NBundleControllerClient::TInstanceSizePtr> TabletNodeSizes;
-    THashMap<TString, NBundleControllerClient::TInstanceSizePtr> RpcProxySizes;
+    THashMap<std::string, NBundleControllerClient::TInstanceSizePtr> TabletNodeSizes;
+    THashMap<std::string, NBundleControllerClient::TInstanceSizePtr> RpcProxySizes;
 
     TBundleConfigPtr SpareTargetConfig;
-    TString SpareBundleName;
+    std::string SpareBundleName;
     double DisruptedThresholdFactor;
 
     bool RequiresMinusOneRackGuarantee;
     int RedundantDataCenterCount;
 
-    THashMap<TString, TDataCenterInfoPtr> DataCenters;
+    THashMap<std::string, TDataCenterInfoPtr> DataCenters;
 
     REGISTER_YSON_STRUCT(TZoneInfo);
 
@@ -423,12 +424,12 @@ DEFINE_REFCOUNTED_TYPE(TZoneInfo)
 struct TAllocationRequestSpec
     : public NYTree::TYsonStruct
 {
-    TString YPCluster;
-    TString NannyService;
+    std::string YPCluster;
+    std::string NannyService;
     THulkInstanceResourcesPtr ResourceRequest;
-    TString PodIdTemplate;
+    std::string PodIdTemplate;
     int InstanceRole;
-    std::optional<TString> HostTagFilter;
+    std::optional<std::string> HostTagFilter;
 
     REGISTER_YSON_STRUCT(TAllocationRequestSpec);
 
@@ -442,9 +443,9 @@ DEFINE_REFCOUNTED_TYPE(TAllocationRequestSpec)
 struct TAllocationRequestStatus
     : public NYTree::TYsonStruct
 {
-    TString State;
-    TString NodeId;
-    TString PodId;
+    std::string State;
+    std::string NodeId;
+    std::string PodId;
 
     REGISTER_YSON_STRUCT(TAllocationRequestStatus);
 
@@ -473,8 +474,8 @@ DEFINE_REFCOUNTED_TYPE(TAllocationRequest)
 struct TDeallocationRequestSpec
     : public NYTree::TYsonStruct
 {
-    TString YPCluster;
-    TString PodId;
+    std::string YPCluster;
+    std::string PodId;
     int InstanceRole;
 
     REGISTER_YSON_STRUCT(TDeallocationRequestSpec);
@@ -489,7 +490,7 @@ DEFINE_REFCOUNTED_TYPE(TDeallocationRequestSpec)
 struct TDeallocationRequestStatus
     : public NYTree::TYsonStruct
 {
-    TString State;
+    std::string State;
 
     REGISTER_YSON_STRUCT(TDeallocationRequestStatus);
 
@@ -519,8 +520,8 @@ struct TAllocationRequestState
     : public NYTree::TYsonStruct
 {
     TInstant CreationTime;
-    TString PodIdTemplate;
-    std::optional<TString> DataCenter;
+    std::string PodIdTemplate;
+    std::optional<std::string> DataCenter;
 
     REGISTER_YSON_STRUCT(TAllocationRequestState);
 
@@ -535,9 +536,9 @@ struct TDeallocationRequestState
     : public NYTree::TYsonStruct
 {
     TInstant CreationTime;
-    TString InstanceName;
-    TString Strategy;
-    std::optional<TString> DataCenter;
+    std::string InstanceName;
+    std::string Strategy;
+    std::optional<std::string> DataCenter;
 
     bool HulkRequestCreated;
 
@@ -638,16 +639,16 @@ DEFINE_REFCOUNTED_TYPE(TBundleControllerState)
 struct TInstanceAnnotations
     : public NYTree::TYsonStruct
 {
-    TString YPCluster;
-    TString NannyService;
-    TString AllocatedForBundle;
+    std::string YPCluster;
+    std::string NannyService;
+    std::string AllocatedForBundle;
     bool Allocated;
     NBundleControllerClient::TInstanceResourcesPtr Resource;
 
     std::optional<TInstant> DeallocatedAt;
-    TString DeallocationStrategy;
+    std::string DeallocationStrategy;
 
-    std::optional<TString> DataCenter;
+    std::optional<std::string> DataCenter;
 
     REGISTER_YSON_STRUCT(TInstanceAnnotations);
 
@@ -661,10 +662,10 @@ DEFINE_REFCOUNTED_TYPE(TInstanceAnnotations)
 struct TTabletSlot
     : public NYTree::TYsonStruct
 {
-    TString TabletCellBundle;
-    TString CellId;
+    std::string TabletCellBundle;
+    std::string CellId;
     int PeerId;
-    TString State;
+    std::string State;
 
     REGISTER_YSON_STRUCT(TTabletSlot);
 
@@ -738,16 +739,16 @@ struct TTabletNodeInfo
     bool Decommissioned;
     bool DisableTabletCells;
     std::optional<bool> EnableBundleBalancer;
-    TString Host;
-    TString State;
-    THashSet<TString> Tags;
-    THashSet<TString> UserTags;
+    std::string Host;
+    std::string State;
+    THashSet<std::string> Tags;
+    THashSet<std::string> UserTags;
     TInstanceAnnotationsPtr Annotations;
     std::vector<TTabletSlotPtr> TabletSlots;
-    THashMap<TString, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
+    THashMap<std::string, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
     TInstant LastSeenTime;
     TTabletNodeStatisticsPtr Statistics;
-    TString Rack;
+    std::string Rack;
 
     REGISTER_YSON_STRUCT(TTabletNodeInfo);
 
@@ -774,9 +775,9 @@ struct TRpcProxyInfo
     : public TYsonStructAttributes<TRpcProxyInfo>
 {
     bool Banned;
-    TString Role;
+    std::string Role;
     TInstanceAnnotationsPtr Annotations;
-    THashMap<TString, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
+    THashMap<std::string, TCmsMaintenanceRequestPtr> CmsMaintenanceRequests;
     TInstant ModificationTime;
 
     TRpcProxyAlivePtr Alive;
@@ -810,7 +811,7 @@ struct TBundleDynamicConfig
 {
     NBundleControllerClient::TCpuLimitsPtr CpuLimits;
     NBundleControllerClient::TMemoryLimitsPtr MemoryLimits;
-    THashMap<TString, TMediumThroughputLimitsPtr> MediumThroughputLimits;
+    THashMap<std::string, TMediumThroughputLimitsPtr> MediumThroughputLimits;
 
     REGISTER_YSON_STRUCT(TBundleDynamicConfig);
 
@@ -825,7 +826,7 @@ struct TAccountResources
     : public NYTree::TYsonStruct
 {
     i64 ChunkCount;
-    THashMap<TString, i64> DiskSpacePerMedium;
+    THashMap<std::string, i64> DiskSpacePerMedium;
     i64 NodeCount;
 
     REGISTER_YSON_STRUCT(TAccountResources);
@@ -855,11 +856,11 @@ DEFINE_REFCOUNTED_TYPE(TSystemAccount)
 struct TBundleSystemOptions
     : public NYTree::TYsonStruct
 {
-    TString ChangelogAccount;
-    TString ChangelogPrimaryMedium;
+    std::string ChangelogAccount;
+    std::string ChangelogPrimaryMedium;
 
-    TString SnapshotAccount;
-    TString SnapshotPrimaryMedium;
+    std::string SnapshotAccount;
+    std::string SnapshotPrimaryMedium;
 
     int PeerCount;
 
@@ -876,9 +877,9 @@ DEFINE_REFCOUNTED_TYPE(TBundleSystemOptions)
 
 struct TAlert
 {
-    TString Id;
-    std::optional<TString> BundleName;
-    TString Description;
+    std::string Id;
+    std::optional<std::string> BundleName;
+    std::string Description;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
