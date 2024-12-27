@@ -1195,7 +1195,7 @@ public:
                 "\"cluster_name\" is not set in remote copy operation spec");
         }
 
-        if (Spec_->ClusterName && Spec_->UseRemoteThrottler) {
+        if (Spec_->ClusterName && Spec_->UseClusterThrottlers) {
             UpdateNeededResourcesCallback_ = BIND(
                 &TRemoteCopyController::UpdateNeededResources,
                 MakeWeak(this))
@@ -1209,7 +1209,7 @@ public:
 
     ~TRemoteCopyController()
     {
-        if (Spec_->ClusterName && Spec_->UseRemoteThrottler) {
+        if (Spec_->ClusterName && Spec_->UseClusterThrottlers) {
             Host->UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
                 TClusterName(*Spec_->ClusterName),
                 UpdateNeededResourcesCallback_);
@@ -1288,7 +1288,7 @@ protected:
 
         NScheduler::TCompositeNeededResources GetTotalNeededResourcesDelta() override
         {
-            if (!Controller_->Spec_->UseRemoteThrottler) {
+            if (!Controller_->Spec_->UseClusterThrottlers) {
                 return TTask::GetTotalNeededResourcesDelta();
             }
 
@@ -1866,7 +1866,7 @@ private:
             remoteCopyJobSpecExt->set_remote_cluster_name(*Spec_->ClusterName);
         }
 
-        remoteCopyJobSpecExt->set_use_remote_throttler(Spec_->UseRemoteThrottler);
+        remoteCopyJobSpecExt->set_use_cluster_throttlers(Spec_->UseClusterThrottlers);
     }
 
     NNative::IConnectionPtr GetRemoteConnection() const

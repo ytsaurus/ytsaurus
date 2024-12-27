@@ -1997,7 +1997,7 @@ public:
     // COMPAT(yuryalekseev)
     bool AllowClusterConnection;
 
-    bool UseRemoteThrottler;
+    bool UseClusterThrottlers;
 
     REGISTER_YSON_STRUCT(TRemoteCopyOperationSpec);
 
