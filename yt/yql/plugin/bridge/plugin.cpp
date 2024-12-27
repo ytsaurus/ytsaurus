@@ -38,10 +38,11 @@ DEFINE_ENUM(EYqlPluginAbiVersion,
     ((ValidateExplain)     (2)) // aleksandr.gaev: Adjusted BridgeRun to accept settings length and execution mode.
     ((DqManager)           (3)) // mpereskokova: Added BridgeStartYqlPlugin; Adjusted TBridgeYqlPluginOptions to save DQ configs.
     ((TemporaryTokens)     (4)) // mpereskokova: Added GetUsedClusters step; Changed Run options.
+    ((Credentials)         (5)) // a-romanov: 'credentials' parameter instead of 'token'.
 );
 
-constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::TemporaryTokens;
-constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::TemporaryTokens;
+constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::Credentials;
+constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::Credentials;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -133,7 +134,7 @@ public:
     TQueryResult Run(
         TQueryId queryId,
         TString user,
-        TString token,
+        NYson::TYsonString credentials,
         TString queryText,
         NYson::TYsonString settings,
         std::vector<TQueryFile> files,
@@ -141,6 +142,8 @@ public:
     {
         auto settingsString = settings ? settings.ToString() : "{}";
         auto queryIdStr = ToString(queryId);
+        const auto credentialsString = credentials ? credentials.ToString() : "{}";
+
 
         std::vector<TBridgeQueryFile> filesData;
         filesData.reserve(files.size());
@@ -158,13 +161,14 @@ public:
             BridgePlugin_,
             queryIdStr.data(),
             user.data(),
-            token.data(),
             queryText.data(),
             settingsString.data(),
             settingsString.length(),
             filesData.data(),
             filesData.size(),
-            executeMode);
+            executeMode,
+            credentialsString.data(),
+            credentialsString.length());
         TQueryResult queryResult{
             .YsonResult = ToString(bridgeQueryResult->YsonResult, bridgeQueryResult->YsonResultLength),
             .Plan = ToString(bridgeQueryResult->Plan, bridgeQueryResult->PlanLength),
