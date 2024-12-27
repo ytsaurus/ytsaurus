@@ -160,11 +160,25 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
         auto keyMapping = BuildKeyMapping(keyColumns, inExpr->Arguments);
 
         bool orderedMapping = true;
-        for (int index = 1; index < std::ssize(keyMapping); ++index) {
-            if (keyMapping[index] <= keyMapping[index - 1]) {
-                orderedMapping = false;
-                break;
+        int lastExpressionIndex = -1;
+        for (int index = 0; index < std::ssize(keyMapping); ++index) {
+            if (keyMapping[index] == -1) {
+                // Key column in not used.
+                continue;
             }
+
+            // First index or index is repeated.
+            if (keyMapping[index] == lastExpressionIndex) {
+                continue;
+            }
+
+            if (keyMapping[index] == lastExpressionIndex + 1) {
+                ++lastExpressionIndex;
+                continue;
+            }
+
+            orderedMapping = false;
+            break;
         }
 
         if (!orderedMapping) {
