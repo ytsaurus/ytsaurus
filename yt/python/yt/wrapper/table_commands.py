@@ -1155,12 +1155,6 @@ class FileFormat(enum.Enum):
 
 
 def _dump_file(table, output_file, output_path, enable_several_files, unordered, format, client):
-    if not yson.HAS_PARQUET:
-        raise YtError(
-            'YSON bindings required.'
-            'Bindings are shipped as additional package and '
-            'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
-
     if not output_path:
         if output_file:
             output_path = output_file
@@ -1280,6 +1274,12 @@ def dump_parquet(table, output_file=None, output_path=None, enable_several_files
     :param unordered: if the option is set to false, the order will be as in the original table
     :type unordered: bool
     """
+    if not yson.HAS_PARQUET:
+        raise YtError(
+            'YSON bindings required.'
+            'Bindings are shipped as additional package and '
+            'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
+
     _dump_file(table, output_file, output_path, enable_several_files, unordered, FileFormat.PARQUET, client)
 
 
@@ -1352,6 +1352,11 @@ def dump_orc(table, output_file=None, output_path=None, enable_several_files=Fal
     :param unordered: if the option is set to false, the order will be as in the original table
     :type unordered: bool
     """
+    if not yson.HAS_ORC:
+        raise YtError(
+            'YSON bindings required.'
+            'Bindings are shipped as additional package and '
+            'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
     _dump_file(table, output_file, output_path, enable_several_files, unordered, FileFormat.ORC, client)
 
 
@@ -1363,7 +1368,7 @@ def upload_orc(table, input_file, client=None):
     :param input_file: path to input file
     :type input_file: str
     """
-    if not yson.HAS_PARQUET:
+    if not yson.HAS_ORC:
         raise YtError(
             'YSON bindings required.'
             'Bindings are shipped as additional package and '
