@@ -309,7 +309,14 @@ class Unary(IExpression):
     @staticmethod
     def make_random(schema: TSchema, desired_type: TType, depth: int, options: RegOptions):
         operand = make_random_expression(schema, desired_type, depth + 1, options)
-        op = UnaryOp.Not if is_compatible(desired_type, BOOLEAN) else random.choice([UnaryOp.BitNot, UnaryOp.Minus, UnaryOp.Plus])
+        if is_compatible(desired_type, BOOLEAN):
+            op = UnaryOp.Not
+        else:
+            operands = [UnaryOp.BitNot, UnaryOp.Plus]
+            if is_compatible(desired_type, INT):
+                operands.append(UnaryOp.Minus)
+
+            op = random.choice(operands)
 
         return Unary(op, operand)
 
