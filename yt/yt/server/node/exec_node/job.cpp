@@ -722,7 +722,7 @@ void TJob::Terminate(EJobState finalState, TError error)
         auto timeout = CommonConfig_->WaitingForJobCleanupTimeout;
 
         SetJobPhase(EJobPhase::WaitingForCleanup);
-        Finalize(finalState,std::move(error));
+        Finalize(finalState, std::move(error));
 
         YT_LOG_INFO("Waiting for job cleanup (Timeout: %v)", timeout);
         TDelayedExecutor::Submit(
@@ -795,14 +795,11 @@ void TJob::Finalize(TError error)
 
     TForbidContextSwitchGuard guard;
 
-    if (!Finalize(
+    Finalize(
         /*finalJobState*/ std::nullopt,
         std::move(error),
         /*jobResultExtension*/ std::nullopt,
-        /*byJobProxyCompletion*/ false))
-    {
-        return;
-    }
+        /*byJobProxyCompletion*/ false);
 
     YT_VERIFY(Error_);
     auto& currentError = *Error_;
@@ -961,7 +958,7 @@ void TJob::OnResultReceived(TJobResult jobResult)
             } else {
                 DoSetResult(
                     std::move(error),
-                    /*jobResultExtension*/ std::nullopt,
+                    std::move(jobResultExtension),
                     /*receivedFromJobProxy*/ true);
             }
         });
@@ -2426,7 +2423,9 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
     } else {
         YT_LOG_DEBUG("Extra GPU check command finished");
 
-        Finalize(std::move(initialError));
+        // NB: manually set error back to avoid reset of JobResultExtension.
+        Error_ = std::move(initialError);
+        Finalize(TError());
     }
 
     Cleanup();
