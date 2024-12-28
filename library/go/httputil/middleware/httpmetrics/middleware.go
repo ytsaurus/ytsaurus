@@ -29,6 +29,8 @@ type (
 
 		solomonRated bool
 
+		skipFunc func(*http.Request) bool
+
 		defaultEndpoint endpointMetrics
 		endpoints       sync.Map
 	}
@@ -141,6 +143,10 @@ func New(registry metrics.Registry, opts ...MiddlewareOption) func(next http.Han
 
 func (m *metricsMiddleware) wrap(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if m.skipFunc != nil && m.skipFunc(r) {
+			next.ServeHTTP(w, r)
+			return
+		}
 		key := m.endpointKey(r)
 		endpoint := m.endpoint(key)
 

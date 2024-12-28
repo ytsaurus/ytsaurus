@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"go.ytsaurus.tech/library/go/core/metrics/solomon"
 )
 
@@ -20,6 +22,13 @@ func fakeHandler(status int) http.Handler {
 
 func panicHandler(_ http.ResponseWriter, _ *http.Request) {
 	panic("hello")
+}
+
+func metricsToJSON(r *solomon.Registry, t *testing.T) string {
+	var buf bytes.Buffer
+	_, err := r.StreamJSON(context.Background(), &buf)
+	assert.NoError(t, err, "Unexpected error on streaming metrics to JSON")
+	return buf.String()
 }
 
 func TestMiddleware(t *testing.T) {
@@ -70,17 +79,33 @@ func TestMiddleware_WithPreinitializedEndpoints(t *testing.T) {
 	middleware(fakeHandler(200)).
 		ServeHTTP(w, httptest.NewRequest("HEAD", "/items", nil))
 
-	var buff bytes.Buffer
-	_, err := r.StreamJSON(context.Background(), &buff)
-	if err != nil {
-		t.Errorf("Unexpected error on stream json: %v", err)
-		t.FailNow()
-	}
-	contains := strings.Contains(buff.String(), fmt.Sprintf(`"endpoint":"%s"`, key))
+	metricsJSON := metricsToJSON(r, t)
+	contains := strings.Contains(metricsJSON, fmt.Sprintf(`"endpoint":"%s"`, key))
 	if !contains {
 		t.Errorf(
 			"Expect metrics to contain initialized %q endpoint subset of metrics, got:\n%s",
-			key, buff.String(),
+			key, metricsJSON,
 		)
 	}
+}
+
+func TestMiddleware_WithSkipFunc(t *testing.T) {
+	r := solomon.NewRegistry(solomon.NewRegistryOpts())
+
+	skippingMiddleware := New(r, WithPathEndpoint(), WithSkipFunc(func(req *http.Request) bool { return req.URL.Path == "/items" }))
+
+	handler := fakeHandler(200)
+
+	skippingMiddleware(handler).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/items", nil))
+	skippingMiddleware(handler).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/price", nil))
+
+	metricsJSON := metricsToJSON(r, t)
+	assert.NotContains(t, metricsJSON, "/items", "Registry does not contain metrics for /items endpoint")
+	assert.Contains(t, metricsJSON, "/price", "Registry contain unexpected metrics for /price endpoint")
+
+	plainMiddleware := New(r, WithPathEndpoint())
+
+	plainMiddleware(handler).ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/items", nil))
+	metricsJSON = metricsToJSON(r, t)
+	assert.Contains(t, metricsJSON, "/items", "Registry does not contain metrics for /items endpoint")
 }
