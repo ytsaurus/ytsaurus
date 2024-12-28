@@ -92,12 +92,11 @@ class TYsonStructAttributes
     : public NYTree::TYsonStruct
 {
 public:
-    static std::vector<std::string> GetAttributes()
+    static const std::vector<std::string>& GetAttributes()
     {
         // Making sure attributes are registered.
         // YSON struct registration takes place in constructor.
         static auto holder = New<TDerived>();
-
         return holder->Attributes_;
     }
 
