@@ -36,6 +36,15 @@ func WithHTTPCodes(codes ...int) func(*metricsMiddleware) {
 	}
 }
 
+// WithSkipFunc specifies the predicate for skipping metrics collection for particular requests.
+//
+// Metrics are not collected once the predicate returns true.
+func WithSkipFunc(skipFunc func(*http.Request) bool) func(*metricsMiddleware) {
+	return func(m *metricsMiddleware) {
+		m.skipFunc = skipFunc
+	}
+}
+
 func DefaultDurationBuckets() []time.Duration {
 	return []time.Duration{
 		100 * time.Millisecond,
