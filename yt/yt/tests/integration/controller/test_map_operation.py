@@ -2153,10 +2153,6 @@ done
 
     @authors("egor-gutrov")
     def test_auto_create(self):
-        # TODO(egor-gutrov): change it to (21, 3) after cherry-pick to 22.1
-        if self.Env.get_component_version("ytserver-controller-agent").abi <= (22, 1):
-            pytest.skip()
-
         create("table", "//tmp/t_input")
         write_table("//tmp/t_input", [{"a": "b"}])
 

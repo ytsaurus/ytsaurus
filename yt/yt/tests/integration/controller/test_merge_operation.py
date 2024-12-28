@@ -2591,10 +2591,6 @@ class TestSchedulerMergeCommands(YTEnvSetup):
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_mr_any_value_with_hunks(self, optimize_for):
-        # TODO(babenko): remove this once 23.1 binaries are updated.
-        if self.__class__.__name__ == "TestMergeCommandsCompatNewCA":
-            pytest.skip("Compat test is currently disabled")
-
         create("table", "//tmp/t", attributes={
             "optimize_for": optimize_for,
             "schema": [
