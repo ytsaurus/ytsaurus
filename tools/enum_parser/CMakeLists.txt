@@ -13,3 +13,5 @@
 # changes in this file.
 
 add_subdirectory(enum_serialization_runtime)
+add_subdirectory(enum_parser)
+add_subdirectory(parse_enum)

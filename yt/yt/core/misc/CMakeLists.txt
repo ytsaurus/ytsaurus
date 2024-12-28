@@ -13,3 +13,4 @@
 # changes in this file.
 
 add_subdirectory(isa_crc64)
+add_subdirectory(unittests)

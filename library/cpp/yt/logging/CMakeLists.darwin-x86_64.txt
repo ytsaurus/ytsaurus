@@ -13,6 +13,7 @@
 # changes in this file.
 
 add_subdirectory(plain_text_formatter)
+add_subdirectory(backends)
 
 add_library(cpp-yt-logging)
 

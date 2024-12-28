@@ -13,3 +13,5 @@
 # changes in this file.
 
 add_subdirectory(md5)
+add_subdirectory(murmur)
+add_subdirectory(lower_case)

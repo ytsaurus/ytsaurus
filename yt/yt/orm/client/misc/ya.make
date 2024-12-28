@@ -3,8 +3,6 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/yt/orm/ya_cpp.make.inc)
 
 PEERDIR(
-    yt/yt/orm/client/misc/autogen
-
     yt/yt/core
 
     yt/yt_proto/yt/orm/client/proto

@@ -16,6 +16,9 @@ add_subdirectory(resource_tracker)
 add_subdirectory(tcmalloc)
 add_subdirectory(perf)
 add_subdirectory(solomon)
+add_subdirectory(sensors_owner)
+add_subdirectory(unittests)
+add_subdirectory(example)
 
 add_library(yt-library-profiling)
 

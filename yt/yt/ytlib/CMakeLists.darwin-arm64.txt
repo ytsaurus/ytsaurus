@@ -74,8 +74,29 @@ find_package(Python3 REQUIRED)
 
 find_package(Python3 REQUIRED)
 
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
+
 add_subdirectory(discovery_client)
 add_subdirectory(query_tracker_client)
+add_subdirectory(distributed_throttler)
+add_subdirectory(unittests)
+add_subdirectory(misc)
+add_subdirectory(table_client)
+add_subdirectory(tablet_client)
+add_subdirectory(queue_client)
+add_subdirectory(table_chunk_format)
 
 add_library(yt-yt-ytlib)
 

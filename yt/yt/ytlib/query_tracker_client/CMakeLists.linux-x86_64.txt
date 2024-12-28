@@ -16,6 +16,20 @@ find_package(linux-headers-generic REQUIRED)
 
 find_package(Python3 REQUIRED)
 
+get_built_tool_path(
+  TOOL_protoc_bin
+  TOOL_protoc_dependency
+  contrib/tools/protoc/bin
+  protoc
+)
+
+get_built_tool_path(
+  TOOL_cpp_styleguide_bin
+  TOOL_cpp_styleguide_dependency
+  contrib/tools/protoc/plugins/cpp_styleguide
+  cpp_styleguide
+)
+
 add_library(yt-ytlib-query_tracker_client)
 
 

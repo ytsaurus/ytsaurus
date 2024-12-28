@@ -41,7 +41,9 @@ include(cmake/archive.cmake)
 include(cmake/bison.cmake)
 include(cmake/common.cmake)
 include(cmake/fbs.cmake)
+include(cmake/llvm-tools.cmake)
 include(cmake/protobuf.cmake)
+include(cmake/shared_libs.cmake)
 
 
 if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")

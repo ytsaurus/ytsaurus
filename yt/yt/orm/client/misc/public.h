@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/orm/client/misc/autogen/error.h>
+#include "error.h"
 
 #include <yt/yt/core/misc/public.h>
 

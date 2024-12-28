@@ -14,6 +14,8 @@
 
 find_package(linux-headers-generic REQUIRED)
 
+add_subdirectory(subscription)
+
 add_library(cpp-threading-future)
 
 
