@@ -1,0 +1,67 @@
+package NYT.NOrm.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
+option java_package = "ru.yandex.yt.yt_proto.yt.orm.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt_proto/yt/orm/data_model";
+
+option (NYT.NOrm.NClient.NProto.do_not_export) = true;
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum EAccessControlActionMixin
+{
+    ACA_NONE = 0 [
+        (NYT.NYson.NProto.enum_value_name) = "none"
+    ];
+
+    ACA_ALLOW = 1 [
+        (NYT.NYson.NProto.enum_value_name) = "allow"
+    ];
+
+    ACA_DENY = 2 [
+        (NYT.NYson.NProto.enum_value_name) = "deny"
+    ];
+}
+
+enum EAccessControlPermissionMixin
+{
+    ACP_NONE = 0 [
+        (NYT.NYson.NProto.enum_value_name) = "none"
+    ];
+
+    ACP_READ = 1 [
+        (NYT.NYson.NProto.enum_value_name) = "read"
+    ];
+
+    ACP_WRITE = 2 [
+        (NYT.NYson.NProto.enum_value_name) = "write"
+    ];
+
+    ACP_CREATE = 3 [
+        (NYT.NYson.NProto.enum_value_name) = "create"
+    ];
+
+    ACP_USE = 6 [
+        (NYT.NYson.NProto.enum_value_name) = "use"
+    ];
+
+    ACP_ADMINISTER = 9 [
+        (NYT.NYson.NProto.enum_value_name) = "administer"
+    ];
+}
+
+message TAccessControlEntryMixin
+{
+    // Determines the access control action to take upon a match.
+    optional EAccessControlActionMixin action = 1;
+    // List of permissions this entry applies to.
+    repeated EAccessControlPermissionMixin permissions = 2;
+    // List of subjects (users and groups) this entry applies to.
+    repeated string subjects = 3;
+    // List of attribute paths this entry applies to.
+    // If this list is not specified or empty, this entry is applied to the root attribute path.
+    repeated string attributes = 4;
+}

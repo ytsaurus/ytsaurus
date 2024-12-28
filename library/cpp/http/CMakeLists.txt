@@ -13,5 +13,3 @@
 # changes in this file.
 
 add_subdirectory(io)
-add_subdirectory(server)
-add_subdirectory(misc)

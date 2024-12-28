@@ -13,7 +13,6 @@
 # changes in this file.
 
 add_subdirectory(charset)
-add_subdirectory(draft)
 
 add_library(yutil)
 

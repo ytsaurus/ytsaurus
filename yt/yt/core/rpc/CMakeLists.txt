@@ -13,5 +13,3 @@
 # changes in this file.
 
 add_subdirectory(grpc)
-add_subdirectory(unittests)
-add_subdirectory(http)

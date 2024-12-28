@@ -1,0 +1,36 @@
+// {{ autogen_marker }}
+
+#include "tags.h"
+
+#include "type.h"
+
+#include <yt/yt/orm/client/objects/registry.h>
+
+#include <mutex>
+
+namespace {{ client_objects_cpp_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYT::NOrm::NClient::NObjects::ITagsRegistryPtr CreateTagsRegistry()
+{
+    return NYT::NOrm::NClient::NObjects::CreateTagsRegistry(
+        {
+    {%- for value in tags_enum.values %}
+            { .Value = {{ value.number }}, .Name = "{{ value.enum_value_name }}" },
+    {%- endfor %}
+        });
+}
+
+void EnsureTagsRegistryInitialized()
+{
+    // Prevent redundant initializations during unittests execution.
+    static std::once_flag Initialized;
+    std::call_once(Initialized, [] {
+        NYT::NOrm::NClient::NObjects::SetGlobalTagsRegistry(CreateTagsRegistry());
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ client_objects_cpp_namespace }}

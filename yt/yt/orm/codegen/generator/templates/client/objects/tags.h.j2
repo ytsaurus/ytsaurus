@@ -1,0 +1,17 @@
+// {{ autogen_marker }}
+
+#pragma once
+
+#include <yt/yt/orm/client/objects/tags.h>
+
+namespace {{ client_objects_cpp_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYT::NOrm::NClient::NObjects::ITagsRegistryPtr CreateTagsRegistry();
+
+void EnsureTagsRegistryInitialized();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ client_objects_cpp_namespace }}

@@ -1,0 +1,153 @@
+package NYT.NOrm.NClient.NProto;
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
+option java_package = "ru.yandex.yt.yt_proto.yt.orm.client.proto";
+option java_outer_classname = "Error";
+
+option go_package = "go.ytsaurus.tech/yt/yt_proto/yt/orm/client/proto;client";
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Use codes within the range [100000, 100500).
+enum EErrorCode
+{
+    reserved 100012;
+    reserved 100013;
+    reserved 100003;
+    reserved "EC_NOT_ENOUGH_RESOURCES";
+
+    EC_OK = 0 [
+        (NYT.NYson.NProto.enum_value_name) = "ok"
+    ];
+
+    EC_INVALID_OBJECT_ID = 100000 [
+        (NYT.NYson.NProto.enum_value_name) = "invalid_object_id"
+    ];
+
+    EC_DUPLICATE_OBJECT_ID = 100001 [
+        (NYT.NYson.NProto.enum_value_name) = "duplicate_object_id"
+    ];
+
+    EC_NO_SUCH_OBJECT = 100002 [
+        (NYT.NYson.NProto.enum_value_name) = "no_such_object"
+    ];
+
+    EC_INVALID_OBJECT_TYPE = 100004 [
+        (NYT.NYson.NProto.enum_value_name) = "invalid_object_type"
+    ];
+
+    EC_AUTHENTICATION_ERROR = 100005 [
+        (NYT.NYson.NProto.enum_value_name) = "authentication_error"
+    ];
+
+    EC_AUTHORIZATION_ERROR = 100006 [
+        (NYT.NYson.NProto.enum_value_name) = "authorization_error"
+    ];
+
+    EC_INVALID_TRANSACTION_STATE = 100007 [
+        (NYT.NYson.NProto.enum_value_name) = "invalid_transaction_state"
+    ];
+
+    EC_INVALID_TRANSACTION_ID = 100008 [
+        (NYT.NYson.NProto.enum_value_name) = "invalid_transaction_id"
+    ];
+
+    EC_INVALID_OBJECT_STATE = 100009 [
+        (NYT.NYson.NProto.enum_value_name) = "invalid_object_state"
+    ];
+
+    EC_NO_SUCH_TRANSACTION = 100010 [
+        (NYT.NYson.NProto.enum_value_name) = "no_such_transaction"
+    ];
+
+    EC_USER_BANNED = 100011 [
+        (NYT.NYson.NProto.enum_value_name) = "user_banned"
+    ];
+
+    EC_PREREQUISITE_CHECK_FAILURE = 100014 [
+        (NYT.NYson.NProto.enum_value_name) = "prerequisite_check_failure"
+    ];
+
+    EC_INVALID_CONTINUATION_TOKEN = 100015 [
+        (NYT.NYson.NProto.enum_value_name) = "invalid_continuation_token"
+    ];
+
+    EC_ROWS_ALREADY_TRIMMED = 100016 [
+        (NYT.NYson.NProto.enum_value_name) = "rows_already_trimmed"
+    ];
+
+    EC_INVALID_OBJECT_SPEC = 100017 [
+        (NYT.NYson.NProto.enum_value_name) = "invalid_object_spec"
+    ];
+
+    EC_CONTINUATION_TOKEN_VERSION_MISMATCH = 100018 [
+        (NYT.NYson.NProto.enum_value_name) = "continuation_token_version_mismatch"
+    ];
+
+    EC_TIMESTAMP_OUT_OF_RANGE = 100019 [
+        (NYT.NYson.NProto.enum_value_name) = "timestamp_out_of_range"
+    ];
+
+    EC_REQUEST_THROTTLED = 100020 [
+        (NYT.NYson.NProto.enum_value_name) = "request_throttled"
+    ];
+
+    EC_UNSTABLE_DATABASE_SETTINGS = 100021 [
+        (NYT.NYson.NProto.enum_value_name) = "unstable_database_settings"
+    ];
+
+    EC_ENTRY_NOT_FOUND = 100022 [
+        (NYT.NYson.NProto.enum_value_name) = "entry_not_found"
+    ];
+
+    EC_DUPLICATE_REQUEST = 100023 [
+        (NYT.NYson.NProto.enum_value_name) = "duplicate_request"
+    ];
+
+    EC_NO_SUCH_INDEX = 100024 [
+        (NYT.NYson.NProto.enum_value_name) = "no_such_index"
+    ];
+
+    EC_NOT_WATCHABLE = 100025 [
+        (NYT.NYson.NProto.enum_value_name) = "not_watchable"
+    ];
+
+    EC_TOO_MANY_AFFECTED_OBJECTS = 100026 [
+        (NYT.NYson.NProto.enum_value_name) = "too_many_affected_objects"
+    ];
+
+    EC_INDEX_NOT_APPLICABLE = 100027 [
+        (NYT.NYson.NProto.enum_value_name) = "index_not_applicable"
+    ];
+
+    EC_WATCHES_CONFIGURATION_MISMATCH = 100028 [
+        (NYT.NYson.NProto.enum_value_name) = "watches_configuration_mismatch"
+    ];
+
+    EC_INVALID_REQUEST_ARGUMENTS = 100029 [
+        (NYT.NYson.NProto.enum_value_name) = "invalid_request_arguments"
+    ];
+
+    EC_UNIQUE_VALUE_ALREADY_EXISTS = 100030 [
+        (NYT.NYson.NProto.enum_value_name) = "unique_value_already_exists"
+    ];
+
+    EC_LIMIT_TOO_LARGE = 100031 [
+        (NYT.NYson.NProto.enum_value_name) = "limit_too_large"
+    ];
+
+    EC_SEMAPHORE_FULL = 100032 [
+        (NYT.NYson.NProto.enum_value_name) = "semaphore_full"
+    ];
+
+    EC_REMOVAL_FORBIDDEN = 100033 [
+        (NYT.NYson.NProto.enum_value_name) = "removal_forbidden"
+    ];
+
+    EC_INVALID_ACCESS_CONTROL_PERMISSION = 100034 [
+        (NYT.NYson.NProto.enum_value_name) = "invalid_access_control_permission"
+    ];
+}
+
+////////////////////////////////////////////////////////////////////////////////

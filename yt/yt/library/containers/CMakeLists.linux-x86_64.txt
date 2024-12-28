@@ -14,9 +14,6 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-add_subdirectory(cri)
-add_subdirectory(unittests)
-
 add_library(yt-library-containers)
 
 

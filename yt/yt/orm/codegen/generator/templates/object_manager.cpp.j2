@@ -1,0 +1,69 @@
+// {{ autogen_marker }}
+
+#include "object_manager.h"
+{% if yp_compatible %}
+#include "type_handlers.h"
+
+#include <{{cpp_objects_path}}/db_schema.h>
+{%- else %}
+#include "db_schema.h"
+#include "type_handlers.h"
+{%- endif %}
+
+#include <yt/yt/orm/server/master/bootstrap.h>
+
+#include <yt/yt/orm/server/objects/config.h>
+
+#include <yt/yt/orm/server/objects/object_manager.h>
+
+namespace {{ cpp_objects_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+DECLARE_REFCOUNTED_CLASS(TDataModelObjectManager)
+
+class TDataModelObjectManager
+    : public NYT::NOrm::NServer::NObjects::TObjectManager
+{
+public:
+    TDataModelObjectManager(
+        NYT::NOrm::NServer::NMaster::IBootstrap* bootstrap,
+        NYT::NOrm::NServer::NObjects::TObjectManagerConfigPtr config)
+        : TObjectManager(bootstrap, std::move(config), Tables)
+    { }
+
+    bool AreHistoryEnabledAttributePathsEnabled() const override
+    {
+        return {{ yp_compatible | to_cpp_bool }};
+    }
+
+protected:
+    void RegisterTypeHandlers() override
+    {
+        auto* bootstrap = GetBootstrap();
+        auto config = GetConfig();
+
+    {%- for object in objects %}
+        RegisterTypeHandler(Create{{ object.camel_case_name }}TypeHandler(bootstrap, config));
+    {%- endfor %}
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TDataModelObjectManager)
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYT::NOrm::NServer::NObjects::TObjectManagerPtr CreateObjectManager(
+    NYT::NOrm::NServer::NMaster::IBootstrap* bootstrap,
+    NYT::NOrm::NServer::NObjects::TObjectManagerConfigPtr config)
+{
+    return New<TDataModelObjectManager>(bootstrap, std::move(config));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ cpp_objects_namespace }}

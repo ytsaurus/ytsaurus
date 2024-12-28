@@ -14,13 +14,6 @@
 
 find_package(linux-headers-generic REQUIRED)
 
-get_built_tool_path(
-  TOOL_rescompiler_bin
-  TOOL_rescompiler_dependency
-  tools/rescompiler/bin
-  rescompiler
-)
-
 add_library(certs INTERFACE)
 
 

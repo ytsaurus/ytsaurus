@@ -1,0 +1,93 @@
+// {{ autogen_marker }}
+{%- import "/macros.proto.j2" as macros %}
+
+{%- if proto3 %}
+syntax = "proto3";
+{%- endif %}
+
+package {{ data_model_proto_package }};
+
+{% if data_model_java_package -%}
+option java_package = "{{ data_model_java_package }}";
+{%- endif %}
+{%- if yp_compatible %}
+option java_outer_classname = "Autogen";
+{%- endif %}
+{%- if data_model_java_multiple_files %}
+option java_multiple_files = true;
+{%- endif %}
+{%- if data_model_go_package %}
+option go_package = "{{ data_model_go_package }}";
+{%- endif %}
+{% for i in imports %}
+import "{{ i }}";
+{%- endfor %}
+{%- if not data_model_objects_proto_file %}
+{% if access_control_file -%}
+{{ macros.import_public(data_model_proto_path ~ "/" ~ access_control_file, yp_compatible) }}
+{%- endif %}
+{%- if tags_enum_file %}
+{{ macros.import_public(data_model_proto_path ~ "/" ~ tags_enum_file, yp_compatible) }}
+{%- endif %}
+{%- if object_types_enum_file %}
+{{ macros.import_public(data_model_proto_path ~ "/" ~ object_types_enum_file, yp_compatible) }}
+{%- endif %}
+{%- for i in public_imports %}
+{{ macros.import_public(i, yp_compatible) }}
+{%- endfor %}
+{%- endif %}
+
+{%- if not object_types_enum_file %}
+
+////////////////////////////////////////////////////////////////////////////////
+{{ macros.print_object_types_enum(objects, yp_compatible) }}
+{%- endif %}
+{%- if not access_control_file %}
+
+////////////////////////////////////////////////////////////////////////////////
+{{ macros.print_access_control(acl_actions_enum, acl_permissions_enum, acl_entry_message, proto3) }}
+{%- endif %}
+
+{%- if not tags_enum_file %}
+
+////////////////////////////////////////////////////////////////////////////////
+{{ macros.print_enum(tags_enum) }}
+{%- endif %}
+
+{%- for enum in sourced_enums.get("default", []) | sort(attribute="name") %}
+{%- if loop.first %}
+////////////////////////////////////////////////////////////////////////////////
+{%- endif %}
+{{ macros.print_enum(enum) }}
+{%- endfor %}
+
+{%- for message in sourced_messages.get("default", []) | sort(attribute="name") %}
+{%- if loop.first %}
+////////////////////////////////////////////////////////////////////////////////
+{%- endif %}
+{{ macros.print_message(message, proto3) }}
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+{%- for object in objects %}
+{%- if not object.nested_object_field_messages %}
+    {%- if object.meta.output_to_default %}
+{{ macros.print_message(object.meta, proto3) }}
+    {%- endif %}
+    {%- if object.spec.output_to_default %}
+{{ macros.print_message(object.spec, proto3) }}
+    {%- endif %}
+    {%- if object.status.output_to_default %}
+{{ macros.print_message(object.status, proto3) }}
+    {%- endif %}
+    {%- if object.control.output_to_default %}
+{{ macros.print_message(object.control, proto3) }}
+    {%- endif %}
+    {%- endif %}
+    {%- if object.root.output_to_default %}
+{{ macros.print_message(object.root, proto3) }}
+
+////////////////////////////////////////////////////////////////////////////////
+    {%- endif %}
+{%- endfor %}

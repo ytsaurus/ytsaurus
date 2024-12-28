@@ -1,0 +1,20 @@
+# {{ autogen_marker }}
+from .yt_schema import DB_VERSION as LATEST_DB_VERSION, YT_SCHEMA as LATEST_YT_SCHEMA
+
+{%- for version in range(initial_db_version, db_version + 1) %}
+from .yt_schema_v{{ version }} import YT_SCHEMA as yt_schema_v{{ version }}
+{%- endfor %}
+
+
+DB_VERSION = {{ db_version }}
+INITIAL_DB_VERSION = {{ initial_db_version }}
+
+assert DB_VERSION == LATEST_DB_VERSION and yt_schema_v{{ db_version }} == LATEST_YT_SCHEMA, (
+    "Latest schema in db_versions mismatches codegen and should be regenerated"
+)
+
+YT_SCHEMAS = {
+{%- for version in range(initial_db_version, db_version + 1) %}
+    {{ version }}: yt_schema_v{{ version }},
+{%- endfor %}
+}

@@ -1,0 +1,17 @@
+// {{ autogen_marker }}
+
+#pragma once
+
+#include <yt/yt/orm/client/objects/acl.h>
+
+namespace {{ client_objects_cpp_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYT::NOrm::NClient::NObjects::IAccessControlRegistryPtr CreateAccessControlRegistry();
+
+void EnsureAccessControlRegistryInitialized();
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ client_objects_cpp_namespace }}

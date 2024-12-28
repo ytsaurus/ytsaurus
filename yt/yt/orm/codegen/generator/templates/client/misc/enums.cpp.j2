@@ -1,0 +1,58 @@
+// {{ autogen_marker }}
+
+#include "enums.h"
+
+#include <utility>
+
+namespace {{ client_misc_cpp_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+constexpr std::pair<EObjectType, TStringBuf> ValueStrings[] = {
+{%- if not yp_compatible %}
+    {EObjectType::Null, ""},
+{%- endif -%}
+{%- for object in objects | sort(attribute='type_value') %}
+    {EObjectType::{{ object.camel_case_name }}, "{{ object.snake_case_name }}"},
+{%- endfor %}
+};
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStringBuf FormatType(EObjectType v)
+{
+    switch (v) {
+{%- if not yp_compatible %}
+        case EObjectType::Null:
+            return ValueStrings[0].second;
+{%- endif %}
+{%- for object in objects | sort(attribute='type_value') %}
+        case EObjectType::{{ object.camel_case_name }}:
+    {%- if yp_compatible %}
+            return ValueStrings[{{loop.index0 }}].second;
+    {%- else %}
+            return ValueStrings[{{loop.index }}].second;
+    {%- endif %}
+{%- endfor %}
+    }
+    return {"Unknown"};
+}
+
+bool TryParseType(TStringBuf s, EObjectType* v)
+{
+    for (size_t i = 0; i < std::size(ValueStrings); ++i) {
+        if (ValueStrings[i].second == s) {
+            *v = ValueStrings[i].first;
+            return true;
+        }
+    }
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ client_misc_cpp_namespace }}

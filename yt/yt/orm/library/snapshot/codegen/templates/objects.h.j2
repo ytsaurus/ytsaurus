@@ -1,0 +1,231 @@
+// {{ autogen_marker }}
+#pragma once
+
+#include "public.h"
+
+{%- if snapshot.direct_parents | length > 0 %}
+{% for parent in snapshot.direct_parents %}
+#include <{{ parent.cpp_path }}/objects.h>
+{%- endfor %}
+{%- endif %}
+
+{%- if snapshot.cpp_includes | length > 0 %}
+{% for include in snapshot.cpp_includes %}
+#include <{{ include }}>
+{%- endfor %}
+{%- endif %}
+
+#include <yt/yt/orm/library/snapshot/includes_for_generated_objects.h>
+
+{% if snapshot.cpp_namespace -%}
+namespace {{ snapshot.cpp_namespace }} {
+{%- endif %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+{%- for object in snapshot.objects %}
+
+class {{ object.cpp_key_type }}
+{
+public:
+    template <class T>
+    using TReturn = ::NYT::NOrm::NSnapshot::TObjectFieldGetterReturn<T>;
+
+    {{ "explicit " if (object.key_fields | length) == 1 else "" }}{{ object.cpp_key_type }}(
+        {%- for field in object.key_fields %}
+        {{ field.cpp_type }} {{ field.name.camel_case }}{% if not loop.last %},{% endif %}
+        {%- endfor %});
+
+    static {{ object.cpp_key_type }} Parse(::NYT::NOrm::NClient::NNative::TPayload payload);
+    static {{ object.cpp_key_type }} Parse(
+        std::vector<::NYT::NOrm::NClient::NNative::TPayload> payloads);
+    {% for field in object.key_fields %}
+    TReturn<{{ field.cpp_type }}> {{ field.name.pascal_case }}() const;
+    {%- endfor %}
+
+    ::NYT::NOrm::NClient::NObjects::TObjectKey ToObjectKey() const;
+    {%- for parent in object.all_parents %}
+    operator {{parent.snapshot.cpp_namespace}}::{{parent.cpp_key_type}}() const;
+    {%- endfor %}
+
+    friend bool operator==(const {{ object.cpp_key_type }}& lhs, const {{ object.cpp_key_type }}& rhs);
+    friend std::strong_ordering operator<=>(const {{ object.cpp_key_type }}& lhs, const {{ object.cpp_key_type }}& rhs);
+
+    friend void FormatValue(::NYT::TStringBuilderBase* builder, const {{ object.cpp_key_type }}& key, TStringBuf spec);
+
+private:
+    {%- for field in object.key_fields %}
+    {{ field.cpp_type }} {{ field.name.pascal_case }}_;
+    {%- endfor %}
+};
+
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+{%- for object in snapshot.objects %}
+
+class {{ object.cpp_data_interface_type }}
+    : virtual public ::NYT::TRefCounted
+{
+public:
+    using TKey = {{ object.cpp_key_type }};
+
+    template <class T>
+    using TReturn = ::NYT::NOrm::NSnapshot::TObjectFieldGetterReturn<T>;
+    {% for field in object.fields %}
+    virtual TReturn<{{ field.cpp_type }}> {{ field.full_name.pascal_case }}() const = 0;
+    {%- endfor %}
+
+    {{ object.cpp_key_type }} Key() const;
+    {%- for reference in object.many_to_one_references %}
+    {{ reference.cpp_key_getter_return_type }} {{ reference.name.pascal_case }}Key() const;
+    {%- endfor %}
+};
+
+DECLARE_REFCOUNTED_CLASS({{ object.cpp_data_interface_type }});
+DEFINE_REFCOUNTED_TYPE({{ object.cpp_data_interface_type }});
+
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+{%- for object in snapshot.objects %}
+
+class {{ object.cpp_data_impl_type }}
+    : public {{ object.cpp_data_interface_type }}
+{
+public:
+    {{ "explicit " if (object.fields | length) == 1 else "" }}{{ object.cpp_data_impl_type }}(
+        {%- for field in object.fields %}
+        {{ field.cpp_type }} {{ field.full_name.camel_case }}{% if not loop.last %},{% endif %}
+        {%- endfor %});
+
+    static ::NYT::TIntrusivePtr<{{ object.cpp_data_impl_type }}> Parse(
+        std::vector<::NYT::NOrm::NClient::NNative::TPayload> payloads);
+    {% for field in object.fields %}
+    TReturn<{{ field.cpp_type }}> {{ field.full_name.pascal_case }}() const override;
+    {%- endfor %}
+
+private:
+    {%- for field in object.fields %}
+    {{ field.cpp_type }} {{ field.full_name.pascal_case }}_;
+    {%- endfor %}
+};
+
+{%- endfor %}
+
+{%- if snapshot.has_one_to_many_references %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+{%- for object, reference in snapshot.one_to_many_references %}
+
+struct T{{ object.name.pascal_case }}{{ reference.name.pascal_case }}Reference
+{
+    using TOneObjectData = {{ object.cpp_data_impl_type }};
+    using TManyObjectData = {{ reference.remote_object.cpp_data_impl_type }};
+    static constexpr auto KeyGetter = &TManyObjectData::{{ reference.remote_many_to_one_reference.name.pascal_case }}Key;
+};
+
+{%- endfor %}
+
+{%- endif %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSnapshotDataDescription
+{
+    using TObjectDataTypes = ::NYT::NOrm::NMpl::TTypes<
+        {%- for object in snapshot.objects %}
+        {{ object.cpp_data_impl_type }}{% if not loop.last %},{% endif %}
+        {%- endfor %}>;
+
+    using TOneToManyReferenceTypes = ::NYT::NOrm::NMpl::TTypes<
+        {%- for object, reference in snapshot.one_to_many_references %}
+        T{{ object.name.pascal_case }}{{ reference.name.pascal_case }}Reference{% if not loop.last %},{% endif %}
+        {%- endfor %}>;
+};
+
+using TSnapshotDataPtr =
+    ::NYT::NOrm::NSnapshot::TSnapshotDataPtr<TSnapshotDataDescription>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+{%- for object in snapshot.objects %}
+
+class {{ object.cpp_type }}
+{
+public:
+    using TKey = {{ object.cpp_key_type }};
+    using TData = {{ object.cpp_data_impl_type }};
+
+    template <class T>
+    using TReturn = ::NYT::NOrm::NSnapshot::TObjectFieldGetterReturn<T>;
+
+    static constexpr ::NYT::NOrm::NSnapshot::TObjectDescription Description = {
+        .HumanReadableName = "{{ object.name.human_readable }}",
+        .SnakeCaseName = "{{ object.name.snake_case }}",
+        .CamelCaseName = "{{ object.name.pascal_case }}",
+
+        .TypeValue = {{ object.type_value }},
+    };
+
+    static const ::NYT::NOrm::NSnapshot::TObjectAttributeDescription AttributeDescription;
+
+    {{ object.cpp_type }}({{ object.cpp_data_ptr_type }} objectData, TSnapshotDataPtr snapshotData);
+    {% for field in object.fields %}
+    TReturn<{{ field.cpp_type }}> {{ field.name.pascal_case }}() const;
+    {%- endfor %}
+
+    {{ object.cpp_key_type }} Key() const;
+    {%- for reference in object.many_to_one_references %}
+    {{ reference.cpp_key_getter_return_type }} {{ reference.name.pascal_case }}Key() const;
+    {%- endfor %}
+    {%- for reference in object.many_to_one_references %}
+    auto {{ reference.name.pascal_case }}() const;
+    {%- endfor %}
+    {%- for reference in object.one_to_many_references %}
+    auto {{ reference.name.pascal_case }}() const;
+    {%- endfor %}
+
+private:
+    {{ object.cpp_data_ptr_type }} ObjectData_;
+    TSnapshotDataPtr SnapshotData_;
+};
+
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSnapshotDescription
+{
+    using TDataDescription = TSnapshotDataDescription;
+
+    using TObjectTypes = ::NYT::NOrm::NMpl::TTypes<
+        {%- for object in snapshot.objects %}
+        {{ object.cpp_type }}{% if not loop.last %},{% endif %}
+        {%- endfor %}>;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+{% if snapshot.cpp_namespace -%}
+} // namespace {{ snapshot.cpp_namespace }}
+{%- endif %}
+
+{%- for object in snapshot.objects %}
+
+template <>
+struct THash<{{ snapshot.cpp_namespace }}::{{ object.cpp_key_type }}>
+{
+    size_t operator()(const {{ snapshot.cpp_namespace }}::{{ object.cpp_key_type }}& key) const;
+};
+
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define OBJECTS_INL_H_
+#include "objects-inl.h"
+#undef OBJECTS_INL_H_

@@ -1,0 +1,24 @@
+// {{ autogen_marker }}
+package {{ error_proto_package }};
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
+{% if error_java_package -%}
+option java_package = "{{ error_java_package }}";
+option java_outer_classname = "Error";
+{%- endif %}
+{%- if error_go_package %}
+option go_package = "{{ error_go_package }}";
+{%- endif %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+enum EErrorCode
+{
+{%- for error in errors.values %}
+    {{ error.name }} = {{ error.number }}
+    [(NYT.NYson.NProto.enum_value_name) = "{{ error.enum_value_name }}"];
+{% endfor -%}
+}
+
+////////////////////////////////////////////////////////////////////////////////

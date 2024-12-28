@@ -15,5 +15,3 @@
 add_subdirectory(brotli)
 add_subdirectory(bzip2)
 add_subdirectory(lzma)
-add_subdirectory(lz)
-add_subdirectory(zstd)

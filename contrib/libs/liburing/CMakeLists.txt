@@ -12,11 +12,24 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-  include(CMakeLists.darwin-x86_64.txt)
-elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
-  include(CMakeLists.darwin-arm64.txt)
-elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
-  include(CMakeLists.linux-x86_64.txt)
-endif()
+add_library(contrib-libs-liburing)
+
+
+target_compile_options(contrib-libs-liburing PRIVATE
+  -DLIBURING_INTERNAL
+  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
+)
+
+target_include_directories(contrib-libs-liburing PUBLIC
+  ${PROJECT_SOURCE_DIR}/contrib/libs/liburing/src/include
+)
+
+target_sources(contrib-libs-liburing PRIVATE
+  ${PROJECT_SOURCE_DIR}/contrib/libs/liburing/src/nolibc.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/liburing/src/queue.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/liburing/src/register.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/liburing/src/setup.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/liburing/src/syscall.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/liburing/src/version.c
+)
 

@@ -1,0 +1,43 @@
+// {{ autogen_marker }}
+
+{%- if proto3 %}
+syntax = "proto3";
+{%- endif %}
+
+package {{ server_proto_package }};
+
+{% if server_java_package -%}
+option java_package = "{{ server_java_package }}";
+{%- endif %}
+{%- if server_go_package %}
+option go_package = "{{ server_go_package }}";
+{%- endif %}
+{##}
+{%- for i in server_proto_imports %}
+import "{{ i }}";
+{%- endfor %}
+
+{%- macro etcs_for_message(message) %}
+{%- for etc in message.etcs %}
+
+message {{ message.etc_type_name }}{{ etc.camel_case_name }}Etc
+{
+    {%- if message.reserved_names %}
+    reserved {{ message.reserved_names_formatted }};
+    {%- endif %}
+    {%- if message.reserved_numbers %}
+    reserved {{ message.reserved_ranges_formatted }};
+    {%- endif %}
+    {%- for field in etc.fields %}
+    {{ field.label(proto3) }}{{ field.proto_type }} {{ field.snake_case_name }} = {{ field.number }}{{ field.options_formatted }};
+    {%- endfor %}
+}
+{%- endfor %}
+{%- endmacro %}
+
+////////////////////////////////////////////////////////////////////////////////
+{%- for message in etc_messages %}
+{{- etcs_for_message(message) }}
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////

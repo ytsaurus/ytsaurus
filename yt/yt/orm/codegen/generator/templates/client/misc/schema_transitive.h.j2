@@ -1,0 +1,14 @@
+// {{ autogen_marker }}
+
+// Includes .pb.h for every object.
+// Useful when data model is compiled with PROTOC_TRANSITIVE_HEADERS=no
+// and contains only forward declarations without transitive includes.
+
+#pragma once
+
+#include <{{ client_schema_h }}>
+
+// The variable `public_imports` contains list of proto files with declaration of objects.
+{% for i in public_imports %}
+#include <{{ i | replace(".proto", ".pb.h") }}>
+{%- endfor %}

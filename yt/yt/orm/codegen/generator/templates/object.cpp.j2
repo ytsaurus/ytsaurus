@@ -1,0 +1,426 @@
+// {{ autogen_marker }}
+
+#include "{{ object.snake_case_name }}.h"
+
+{% if not yp_compatible -%}
+#include "db_schema.h"
+{%- else -%}
+#include <yp/server/master/objects/db_schema.h>
+{%- endif %}
+
+{%- if object.foreign_objects %}
+{##}
+{%-for o in object.foreign_objects %}
+{%-if (dont_skip_cpp or not o.skip_cpp) and not o.custom_cpp_object %}
+#include "{{ o.snake_case_name }}.h"
+{%- else %}
+#include <{{ cpp_server_plugins_path }}/{{ o.snake_case_name }}.h>
+{%- endif %}
+{%- endfor %}
+{%- endif %}
+
+{%- if object.custom_cpp_object %}
+#include <{{ cpp_server_plugins_path }}/{{ object.snake_case_name }}.h>
+
+namespace NYT::NOrm::NServer::NObjects {
+
+////////////////////////////////////////////////////////////////////////////////
+
+{{ cpp_server_plugins_namespace }}::T{{ object.camel_case_name }}*
+TObjectPluginTraits<{{ cpp_objects_namespace }}::T{{ object.camel_case_name }}>::Downcast(
+    {{ cpp_objects_namespace }}::T{{ object.camel_case_name }}* object)
+{
+    auto* castedObject = dynamic_cast<{{ cpp_server_plugins_namespace }}::T{{ object.camel_case_name }}*>(object);
+    YT_VERIFY(castedObject);
+    return castedObject;
+};
+
+{{ cpp_objects_namespace }}::T{{ object.camel_case_name }}*
+TObjectPluginTraits<{{ cpp_server_plugins_namespace }}::T{{ object.camel_case_name }}>::Upcast(
+    {{ cpp_server_plugins_namespace }}::T{{ object.camel_case_name }}* object)
+{
+    return object;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NOrm::NServer::NObjects;
+{%- endif %}
+
+namespace {{ cpp_objects_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using NYT::NOrm::NServer::NObjects::IObjectTypeHandler;
+using NYT::NOrm::NServer::NObjects::ISession;
+
+////////////////////////////////////////////////////////////////////////////////
+{%- macro generate_index_attributes(attributes) -%}
+    std::vector<NYT::NOrm::NServer::NObjects::TIndexAttribute>{
+        {%- for attribute in attributes %}
+        NYT::NOrm::NServer::NObjects::TIndexAttribute(
+            &{%- if attribute.column_field.is_column -%}
+                {%- if attribute.column_field.parent.cpp_object_field_name != "Meta" -%}
+                    {{ attribute.column_field.parent.cpp_object_field_name }}().
+                {%- endif -%}
+                {{ attribute.column_field.cpp_camel_case_name }}()
+            {%- elif attribute.column_field.value_message.has_etc -%}
+                {%- if attribute.column_field.value_message.cpp_object_field_name != "Meta" -%}
+                    {{ attribute.column_field.value_message.cpp_object_field_name }}().Etc()
+                {%- else -%}
+                    MetaEtc()
+                {%- endif -%}
+            {%- else -%}
+                {{ attribute.column_field.parent.cpp_object_field_name }}()
+            {%- endif -%},
+            "{{ attribute.suffix }}",
+            /*repeated*/ {{ attribute.field.is_repeated | to_cpp_bool }}),
+        {%- endfor %}
+    }
+{%- endmacro %}
+
+{%- macro property_getter(target_field) -%}
+    return &obj->
+    {%- if target_field.reference_deprecated.source_field.parent.cpp_object_field_name != "Meta" -%}
+        {{ target_field.reference_deprecated.source_field.parent.cpp_object_field_name }}().
+    {%- endif -%}
+        {{ target_field.reference_deprecated.source_field.cpp_camel_case_name }}();
+{%- endmacro -%}
+
+{%- macro reference_table_keys(table, field_filter) -%}
+    {%- for column in table.table_columns | selectattr("is_key") | rejectattr("is_hash") |
+            rejectattr("is_parent_key_part") | selectattr(field_filter) -%}
+        &{{ table | references_table_camel_case }}Table.{{ column.full_cpp_name }}{{ ", " if not loop.last }}
+    {%- endfor %}
+{%- endmacro -%}
+
+{%- macro attribute_accessor(attribute) -%}
+{% for field in attribute.prefix_fields %}{% if loop.index != 0 and field.snake_case_name != "meta" %}{{ field.camel_case_name }}().{% endif %}{% endfor %}
+{%- if attribute.column_field.is_column -%}
+    {{ attribute.column_field.cpp_camel_case_name }}()
+{%- elif attribute.column_field.value_message.has_etc -%}
+    {%- if attribute.column_field.value_message.cpp_object_field_name != "Meta" -%}
+        {{ attribute.column_field.value_message.cpp_object_field_name }}().Etc()
+    {%- else -%}
+        MetaEtc()
+    {%- endif -%}
+{%- endif -%}
+{%- endmacro -%}
+
+{%- macro define_fields(object, message, field_names, is_meta) -%}
+    {%- set field_name = field_names | last -%}
+    {%- set class_name -%}
+        T{{([object.camel_case_name] + field_names) | join("::T")}}
+    {%- endset %}
+    {%- set accessor -%}
+        obj->{{ (field_names | join("().")) + "()." if field_names else "" }}
+    {%- endset -%}
+    {%- set comma = joiner(",") -%}
+    {%- if message.is_cpp_composite %}
+    {%- if field_names %}
+{{ class_name }}::T{{ field_name }}(T{{ object.camel_case_name }}* object)
+        {%- for field in message.composite_fields %}
+    {{ comma() or ":" }} {{ field.cpp_camel_case_name }}_(object)
+        {%- endfor %}
+        {%- for field in (message.column_fields + message.reference_fields_deprecated) | rejectattr("is_primary") %}
+    {{ comma() or ":" }} {{ field.cpp_camel_case_name }}_(object, &{{ field.cpp_camel_case_name }}Descriptor)
+        {%- endfor %}
+        {%- for field in message.reference_fields %}
+    {{ comma() or ":" }} {{ field.cpp_camel_case_name }}_(
+        object,
+        {{ field.cpp_camel_case_name }}Descriptor,
+        std::make_unique<NYT::NOrm::NServer::NObjects::T{{ field.reference.key_storage_kind}}{{ field.reference.kind}}KeyStorageDriver>(object, {{ field.cpp_camel_case_name }}Descriptor.KeyStorageDescriptor))
+        {%- endfor %}
+        {%- for field in (message.view_fields_deprecated) | rejectattr("is_primary") %}
+    {{ comma() or ":" }} {{ field.cpp_camel_case_name }}_(object)
+        {%- endfor %}
+        {%- for field in (message.view_fields) %}
+    {{ comma() or ":" }} {{ field.cpp_camel_case_name }}_(object)
+        {%- endfor %}
+        {%- for field in (message.children_view_fields) %}
+    {{ comma() or ":" }} {{ field.cpp_camel_case_name }}_(object)
+        {%- endfor %}
+        {%- for etc in message.etcs %}
+    {{ comma() or ":" }} {{ etc.camel_case_name }}Etc_(object, &{{ etc.camel_case_name }}EtcDescriptor)
+        {%- endfor %}
+{ }
+    {%- endif %}
+        {%- for field in message.composite_fields %}
+{##}
+        {{- define_fields(object, field.value_message, field_names + [field.cpp_camel_case_name], False) }}
+        {%- endfor %}
+        {%- for field in (message.column_fields + message.reference_fields_deprecated) | rejectattr("is_primary") | rejectattr("system") | rejectattr("is_parent_key_field") %}
+{##}
+            {%- if field.reference_deprecated %}
+const NYT::NOrm::NServer::NObjects::T{{ field.reference_deprecated.type.value }}AttributeDescriptor<{#
+    #}{{ cpp_objects_namespace }}::T{{ field.reference_deprecated.owner.camel_case_name }}, {#
+    #}{{ cpp_objects_namespace }}::T{{ field.reference_deprecated.foreign_object.camel_case_name }}> {#
+    #}{{ class_name }}::{{ field.cpp_camel_case_name }}Descriptor {
+                {%- if field.reference_deprecated.type.value in ("OneToMany", "ManyToManyTabular") %}
+    &{{ field.reference_deprecated.table | references_table_camel_case }}Table,
+    { {{ reference_table_keys(field.reference_deprecated.table, "is_reference_target") }} },
+    { {{ reference_table_keys(field.reference_deprecated.table, "is_reference_source") }} },
+    [] ({{ cpp_objects_namespace }}::T{{ field.reference_deprecated.owner.camel_case_name }}* obj) { return &{{ accessor }}{{ field.cpp_camel_case_name }}(); },
+    [] ({{ cpp_objects_namespace }}::T{{ field.reference_deprecated.foreign_object.camel_case_name }}* obj) { return &obj->{{ attribute_accessor(field.reference_deprecated.source_attribute) }}; },
+    /*foreignObjectTableKey*/ {{ field.index_over_reference_table | to_cpp_bool }},
+                {%- else %}
+    &{{ object.table_cpp_name }}.{{ field.column.full_cpp_name }},
+    [] ({{ cpp_objects_namespace }}::T{{ field.reference_deprecated.owner.camel_case_name }}* obj) { return &{{ accessor }}{{ field.cpp_camel_case_name }}(); },
+    [] ({{ cpp_objects_namespace }}::T{{ field.reference_deprecated.foreign_object.camel_case_name }}* obj) { return &obj->Status().{{ object | collective_name }}{{ field.reference_deprecated.table | references_table_suffix_camel_case }}(); },
+                {%- endif %}
+    /*forbidNonEmptyRemoval*/ {{ field.reference_deprecated.forbid_non_empty_removal | to_cpp_bool }}
+                {%- if not field.reference_deprecated.nullable %},
+    /*nullable*/ {{ field.reference_deprecated.nullable | to_cpp_bool }}
+                {%- endif %}
+};
+            {%- elif field.transitive_reference %}
+const NYT::NOrm::NServer::NObjects::TOneTransitiveAttributeDescriptor<{#
+    #}T{{ field.transitive_reference.owner.camel_case_name }}, {#
+    #}T{{ field.transitive_reference.foreign_object.camel_case_name }}> {#
+    #}T{{ object.camel_case_name }}::{{ field.cpp_camel_case_name }}Descriptor {
+    &{{ object.table_cpp_name }}.{{ field.column.full_cpp_name }},
+    [] (T{{ object.camel_case_name }}* {{ object.lower_camel_case_name }}) {
+        return &{{ object.lower_camel_case_name }}->{{ field.cpp_camel_case_name }}();
+    },
+    [] (T{{ object.camel_case_name }}* {{ object.lower_camel_case_name }}) {
+    {%- set foreign_object = field.transitive_reference.foreign_object %}
+        auto setter = [{{ object.lower_camel_case_name }}] (T{{ foreign_object.camel_case_name }}* {{ foreign_object.lower_camel_case_name }}) {
+            {{ object.lower_camel_case_name }}->{{ field.cpp_camel_case_name }}().StoreInitial({{ foreign_object.lower_camel_case_name }});
+        };
+        {%- macro open_preload(current_object, next_object) %}
+        {{ current_object.lower_camel_case_name }}->GetParentKeyAttribute()->ScheduleParentLoad();
+        {{ current_object.lower_camel_case_name }}->GetSession()->ScheduleLoad([{{ current_object.lower_camel_case_name }}, setter=std::move(setter)] (auto*) {
+            if ({{ current_object.lower_camel_case_name }}->IsRemoved()) {
+                return;
+            }
+            auto* {{ next_object.lower_camel_case_name }} = {{ current_object.lower_camel_case_name }}
+                ->GetTypeHandler()
+                ->GetParent({{ current_object.lower_camel_case_name }})
+                ->As<T{{ next_object.camel_case_name }}>();
+        {%- endmacro %}
+        {%- for link in field.transitive_reference.links -%}
+        {{ open_preload(link.object_from, link.object_to) | indent((loop.index0) * 4) }}
+        {%- endfor %}
+                setter({{ foreign_object.lower_camel_case_name }});
+        {%- macro close_preload() %}
+        });
+        {%- endmacro %}
+        {%- for _ in field.transitive_reference.links -%}
+        {{ close_preload() | indent((loop.length - loop.index) * 4) }}
+        {%- endfor %}
+    }
+};
+            {%- else %}
+                {%- if field.is_timestamp_attribute -%}
+const TTimestampAttributeDescriptor {{ class_name}}::{{ field.cpp_camel_case_name }}Descriptor{
+    &{{ object.table_cpp_name }}.{{ field.column.full_cpp_name }},
+};
+                {%- else %}
+const NYT::NOrm::NServer::NObjects::TScalar{%- if field.aggregate -%}Aggregated{%- endif -%}AttributeDescriptor<T{{ object.camel_case_name }}, {{ field.cpp_type }}>
+{{ class_name }}::{{ field.cpp_camel_case_name }}Descriptor{
+    &{{ object.table_cpp_name }}.{{ field.column.full_cpp_name }},
+    [] (T{{ object.camel_case_name }}* obj) { return &{{ accessor }}{{ field.cpp_camel_case_name }}(); }
+};
+                {%- endif %}
+            {%- endif %}
+        {%- endfor %}
+        {%- for field in message.reference_fields %}
+
+const NYT::NOrm::NServer::NObjects::T{{ field.reference.kind }}ReferenceDescriptor<{#
+    #}T{{ object.camel_case_name }}, {#
+    #}T{{ field.reference.foreign_object.camel_case_name }}> {#
+    #}{{ class_name }}::{{ field.cpp_camel_case_name }}Descriptor {
+    .ForwardAttributeGetter = [] (T{{ object.camel_case_name }}* obj) { return &obj->{{ field.cpp_getter }}; },
+    .InverseAttributeGetter = [] (T{{ field.reference.foreign_object.camel_case_name }}* obj) { return &obj->{{ field.reference.foreign_backref_field.cpp_getter }}; },
+    .KeyStorageDescriptor = NYT::NOrm::NServer::NObjects::T{{ field.reference.key_storage_kind }}KeyStorageDescriptor{
+        {%- for key, value in field.reference.key_storage_options.items() %}
+        .{{ key }} = {{ value }},
+        {%- endfor %}
+    },
+        {%- if field.reference.settings %}
+    .Settings = NYT::NOrm::NServer::NObjects::TReferenceAttributeSettings{
+        {%- for key, value in field.reference.settings.items() %}
+        .{{ key }} = {{ value }},
+        {%- endfor %}
+    },
+        {%- endif %}
+};
+        {%- endfor %}
+        {%- for field in message.view_fields_deprecated %}
+
+const NYT::NOrm::NServer::NObjects::T{{ field.foreign_view_key_field.reference_deprecated.type.value }}ViewAttributeDescriptor<{#
+    #}{{ cpp_objects_namespace }}::T{{ field.foreign_view_key_field.reference_deprecated.owner.camel_case_name }}, {#
+    #}{{ cpp_objects_namespace }}::T{{ field.foreign_view_key_field.reference_deprecated.foreign_object.camel_case_name }}> {#
+    #}{{ class_name }}::{{ field.cpp_camel_case_name }}Descriptor {
+    {{ class_name }}::{{ field.foreign_view_key_field.cpp_camel_case_name }}Descriptor,
+    [] (const T{{ object.camel_case_name }}* obj) { return &{{ accessor }}{{ field.cpp_camel_case_name }}(); }
+};
+        {%- endfor %}
+        {%- for field in message.view_fields %}
+
+const NYT::NOrm::NServer::NObjects::T{{ field.viewed_reference.kind }}ViewDescriptor<{#
+    #}T{{ object.camel_case_name }}, {#
+    #}T{{ field.viewed_reference.foreign_object.camel_case_name }}> {#
+    #}{{ class_name }}::{{ field.cpp_camel_case_name }}Descriptor {
+    .ReferenceDescriptor = {{ field.viewed_reference.field.cpp_descriptor }},
+    .ViewAttributeGetter = [] (T{{ object.camel_case_name }}* obj) { return &obj->{{ field.cpp_getter }}; }
+};
+        {%- endfor %}
+        {%- for field in message.children_view_fields %}
+
+const NYT::NOrm::NServer::NObjects::TChildrenViewAttributeDescriptor<{#
+    #}T{{ object.camel_case_name }}, {#
+    #}T{{ field.children_view }}> {#
+    #}{{ class_name }}::{{ field.cpp_camel_case_name }}Descriptor {
+    .ChildrenAttributeGetter = [] (const T{{ object.camel_case_name }}* obj) { return &obj->{{ field.children_view_object | collective_foreign_name }}(); },
+    .ViewAttributeGetter = [] (const T{{ object.camel_case_name }}* obj) { return &{{ accessor }}{{ field.cpp_camel_case_name }}(); },
+};
+        {%- endfor %}
+        {%- for etc in message.etcs %}
+        {%- set Etc -%}
+            {%- if is_meta -%}Meta{%- endif -%}{{ etc.camel_case_name }}Etc
+        {%- endset %}
+
+const NYT::NOrm::NServer::NObjects::TScalarAttributeDescriptor<T{{ object.camel_case_name }}, {{ class_name }}::T{{ Etc }}>
+{{ class_name }}::{{ Etc }}Descriptor{
+    &{{ object.table_cpp_name }}.{{ etc.column.full_cpp_name }},
+    [] (T{{ object.camel_case_name }}* obj) { return &{{ accessor }}{{ Etc }}(); }
+};
+        {%- endfor %}
+    {%- else %}
+
+const NYT::NOrm::NServer::NObjects::TScalarAttributeDescriptor<T{{ object.camel_case_name }}, {{ class_name }}>
+T{{ object.camel_case_name }}::{{ field_name }}Descriptor{
+    {%- set etc = message.etcs | last %}
+    &{{ object.table_cpp_name }}.{{ etc.column.full_cpp_name }},
+    [] (T{{ object.camel_case_name }}* obj) { return &{{ accessor | trim(".") }}; }
+};
+    {%- endif %}
+{%- endmacro %}
+
+{{- define_fields(object, object.meta, [], True) }}
+
+////////////////////////////////////////////////////////////////////////////////
+{{ define_fields(object, object.spec, ["Spec"], False) }}
+{{ define_fields(object, object.status, ["Status"], False) }}
+
+////////////////////////////////////////////////////////////////////////////////
+
+T{{ object.camel_case_name }}::T{{ object.camel_case_name }}(
+    {%- for field in object.key_fields %}
+    const {{ field.cpp_type }}& {{ field.lower_camel_case_name }},
+    {%- endfor %}
+    {%- if object.parent %}
+    const NYT::NOrm::NClient::NObjects::TObjectKey& parentKey,
+    {%- endif %}
+    IObjectTypeHandler* typeHandler,
+    ISession* session)
+    : TDataModelObject(typeHandler, session)
+    {%- for field in object.key_fields %}
+    , {{ field.cpp_camel_case_name }}_({{ field.lower_camel_case_name }})
+    {%- endfor %}
+    {%- if object.parent %}
+    , ParentKeyAttribute_(this, parentKey)
+    , {{ object.parent.camel_case_foreign_name }}_(this)
+    {%- endif %}
+    {%- for child in object.children %}
+    , {{ child | collective_foreign_name }}_(this)
+    {%- endfor %}
+    {%- for field in object.meta.fields | rejectattr("is_primary") | selectattr("is_column") | rejectattr("system") | rejectattr("is_parent_key_field") %}
+    , {{ field.cpp_camel_case_name }}_(this, &{{ field.cpp_camel_case_name }}Descriptor)
+    {%- endfor %}
+    {%- for field in object.meta.reference_fields %}
+    , {{ field.cpp_camel_case_name }}_(
+        this,
+        {{ field.cpp_camel_case_name }}Descriptor,
+        std::make_unique<NYT::NOrm::NServer::NObjects::T{{ field.reference.key_storage_kind}}{{ field.reference.kind}}KeyStorageDriver>(this, {{ field.cpp_camel_case_name }}Descriptor.KeyStorageDescriptor))
+        {%- endfor %}
+    {%- for field in object.meta.view_fields_deprecated %}
+    , {{ field.cpp_camel_case_name }}_(this)
+    {%- endfor %}
+    {%- for field in object.meta.view_fields %}
+    , {{ field.cpp_camel_case_name }}_(this)
+    {%- endfor %}
+    , MetaEtc_(this, &MetaEtcDescriptor)
+    {%- if object.spec.is_cpp_composite %}
+    , Spec_(this)
+    {%- else %}
+    , Spec_(this, &SpecDescriptor)
+    {%- endif %}
+    {%- if object.status.is_cpp_composite %}
+    , Status_(this)
+    {%- else %}
+    , Status_(this, &StatusDescriptor)
+    {%- endif %}
+{
+    {%- for index in object.indexes | rejectattr("underlying_table") %}
+    RegisterScalarAttributeIndex(
+        "{{ index.snake_case_name }}",
+        std::make_unique<NYT::NOrm::NServer::NObjects::{{ "TRepeatedScalarAttributeIndex" if index.is_repeated else "TScalarAttributeIndex" }}>(
+            typeHandler->GetIndexDescriptorOrThrow("{{ index.snake_case_name }}"),
+            this,
+            {{ generate_index_attributes(index.index_attributes) | indent(8) }},
+            {{ generate_index_attributes(index.predicate_attributes) | indent(8) }}
+            {%- if not index.is_repeated %},
+            /*unique*/ {{ index.is_unique | to_cpp_bool }}
+            {%- endif %}));
+    {%- endfor %}
+}
+{%- if object.custom_cpp_object %}
+
+T{{ object.camel_case_name }}::~T{{ object.camel_case_name }}()
+{ }
+{%- endif %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYT::NOrm::NClient::NObjects::TObjectKey T{{ object.camel_case_name }}::GetKey() const
+{
+    return NYT::NOrm::NServer::NObjects::TObjectKey(
+    {%- for field in object.key_fields %}
+        Get{{ field.cpp_camel_case_name }}(){{ "," if not loop.last else ");" }}
+    {%- endfor %}
+}
+
+{%- if object.parent %}
+
+NYT::NOrm::NClient::NObjects::TObjectKey T{{ object.camel_case_name }}::GetParentKey(
+    std::source_location location) const
+{
+    return ParentKeyAttribute_.GetKey(location);
+}
+
+NYT::NOrm::NServer::NObjects::TParentKeyAttribute* T{{ object.camel_case_name }}::GetParentKeyAttribute()
+{
+    return &ParentKeyAttribute_;
+}
+
+{%- for field in object.all_key_fields | selectattr("is_parent_key_field") %}
+
+{{ field.cpp_type }} T{{ object.camel_case_name }}::{{ object.parent.camel_case_foreign_name }}{{ field.cpp_camel_case_name }}(std::source_location location) const
+{
+    return GetParentKey(location).GetWithDefault<{{ field.cpp_type }}>({{ loop.index0 }});
+}
+{%- endfor %}
+{%- endif %}
+
+void T{{ object.camel_case_name }}::ScheduleUuidLoad() const
+{
+    MetaEtc().ScheduleLoad();
+}
+
+NYT::NOrm::NClient::NObjects::TObjectId T{{ object.camel_case_name }}::GetUuid(
+    std::source_location location) const
+{
+    return MetaEtc().Load(location).uuid();
+}
+
+TString T{{ object.camel_case_name }}::GetName(
+    std::source_location location) const
+{
+    return MetaEtc().Load(location).name();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ cpp_objects_namespace }}

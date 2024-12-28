@@ -13,4 +13,3 @@
 # changes in this file.
 
 add_subdirectory(mapreduce)
-add_subdirectory(roren)

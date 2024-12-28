@@ -13,5 +13,3 @@
 # changes in this file.
 
 add_subdirectory(absl_flat_hash)
-add_subdirectory(stack_array)
-add_subdirectory(paged_vector)

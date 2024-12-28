@@ -16,8 +16,6 @@ find_package(linux-headers-generic REQUIRED)
 
 add_subdirectory(api)
 add_subdirectory(proto)
-add_subdirectory(allocation_tag_profiler)
-add_subdirectory(http)
 
 add_library(yt-library-ytprof)
 

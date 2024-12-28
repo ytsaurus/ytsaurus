@@ -1,0 +1,137 @@
+// {{ autogen_marker }}
+#include "objects.h"
+
+{% if snapshot.cpp_namespace -%}
+namespace {{ snapshot.cpp_namespace }} {
+{%- endif %}
+
+{%- for object in snapshot.objects %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+{{ object.cpp_key_type }} {{ object.cpp_key_type }}::Parse(::NYT::NOrm::NClient::NNative::TPayload payload)
+{
+    return ::NYT::Visit(
+        std::move(payload),
+        [] (::NYT::NOrm::NClient::NNative::TNullPayload&&) -> {{ object.cpp_key_type }} {
+            YT_ABORT();
+        },
+        [] (::NYT::NOrm::NClient::NNative::TProtobufPayload&&) -> {{ object.cpp_key_type }} {
+            YT_UNIMPLEMENTED();
+        },
+        [] (::NYT::NOrm::NClient::NNative::TYsonPayload&& payload) -> {{ object.cpp_key_type }} {
+            auto map = ::NYT::NYTree::ConvertTo<::NYT::NYTree::IMapNodePtr>(std::move(payload.Yson));
+            return {{ object.cpp_key_type }}(
+                {%- for field in object.key_fields %}
+                ::NYT::NYTree::ConvertTo<{{ field.cpp_type }}>(map->FindChild("{{ field.name.snake_case }}")){{ "," if not loop.last }}
+                {%- endfor %});
+        });
+}
+
+{{ object.cpp_key_type }} {{ object.cpp_key_type }}::Parse(
+    std::vector<::NYT::NOrm::NClient::NNative::TPayload> payloads)
+{
+    {%- for field in object.key_fields %}
+    {{ field.cpp_type }} {{ field.name.camel_case }};
+    {%- endfor %}
+
+    ::NYT::NOrm::NClient::NNative::ParsePayloads(
+        std::move(payloads),
+        ::NYT::NOrm::NClient::NNative::TParsePayloadsOptions{},
+        {%- for field in object.key_fields %}
+        &{{ field.name.camel_case }}{{ "," if not loop.last }}
+        {%- endfor %});
+
+    return {{ object.cpp_key_type }}(
+        {%- for field in object.key_fields %}
+        std::move({{ field.name.camel_case }}){{ "," if not loop.last }}
+        {%- endfor %});
+}
+
+{%- endfor %}
+
+{%- for object in snapshot.objects %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+::NYT::TIntrusivePtr<{{ object.cpp_data_impl_type }}> {{ object.cpp_data_impl_type }}::Parse(
+    std::vector<::NYT::NOrm::NClient::NNative::TPayload> payloads)
+{
+    {%- for field in object.fields %}
+    {{ field.cpp_type }} {{ field.name.camel_case }};
+    {%- endfor %}
+
+    ::NYT::NOrm::NClient::NNative::ParsePayloads(
+        std::move(payloads),
+        ::NYT::NOrm::NClient::NNative::TParsePayloadsOptions{
+            .UnknownFieldMode = ::NYT::NOrm::NClient::NNative::EUnknownFieldMode::Skip,
+        },
+        {%- for field in object.fields %}
+        &{{ field.name.camel_case }}{{ "," if not loop.last }}
+        {%- endfor %});
+
+    return ::NYT::New<{{ object.cpp_data_impl_type }}>(
+        {%- for field in object.fields %}
+        std::move({{ field.name.camel_case }}){{ "," if not loop.last }}
+        {%- endfor %});
+}
+
+{%- endfor %}
+
+{%- for object in snapshot.objects %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const ::NYT::NOrm::NSnapshot::TObjectAttributeDescription {{ object.cpp_type }}::AttributeDescription = {
+    .KeyAttributeSelector = {
+        {%- for field in object.key_fields %}
+        "{{ field.path }}",
+        {%- endfor %}
+    },
+    .DataAttributeSelector = {
+        {%- for field in object.data_fields %}
+        "{{ field.path }}",
+        {%- endfor %}
+    },
+    .AllAttributeSelector = {
+        {%- for field in object.fields %}
+        "{{ field.path }}",
+        {%- endfor %}
+    },
+    .KeyFields = {
+        {%- for field in object.key_fields %}
+        "{{ field.name.snake_case }}",
+        {%- endfor %}
+    },
+};
+
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+{% if snapshot.cpp_namespace -%}
+} // namespace {{ snapshot.cpp_namespace }}
+{%- endif %}
+
+{%- for object in snapshot.objects %}
+
+size_t THash<{{ snapshot.cpp_namespace }}::{{ object.cpp_key_type }}>::operator()(const {{ snapshot.cpp_namespace }}::{{ object.cpp_key_type }}& key) const
+{
+    {%- set first_hash = "THash<" + object.key_fields[0].cpp_type + ">{}(key." + object.key_fields[0].name.pascal_case + "())" %}
+
+    {%- if object.key_fields | length == 1 %}
+    return {{ first_hash }};
+    {%- else %}
+    size_t hash = {{ first_hash }};
+    {%- for field in object.key_fields %}
+    {%- if not loop.first %}
+    NYT::HashCombine(hash, key.{{ field.name.pascal_case }}());
+    {%- endif %}
+    {%- endfor %}
+    return hash;
+    {%- endif %}
+}
+
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
