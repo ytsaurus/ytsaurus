@@ -4,10 +4,6 @@
 
 #include <yt/cpp/mapreduce/common/helpers.h>
 
-#include <yt/cpp/mapreduce/interface/errors.h>
-
-#include <yt/yt/client/api/rpc_proxy/client_base.h>
-
 #include <library/cpp/yson/node/node_io.h>
 
 namespace NYT::NDetail {
@@ -209,6 +205,40 @@ void TRpcRawClient::Unlock(
     auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
     auto future = Client_->UnlockNode(newPath, SerializeOptionsForUnlock(mutationId, transactionId, options));
     WaitFor(future).ThrowOnError();
+}
+
+TTransactionId TRpcRawClient::StartTransaction(
+    TMutationId& mutationId,
+    const TTransactionId& parentId,
+    const TStartTransactionOptions& options)
+{
+    auto future = Client_->StartTransaction(
+        NTransactionClient::ETransactionType::Master,
+        SerializeOptionsForStartTransaction(mutationId, parentId, Context_.Config->TxTimeout, options));
+    auto result = WaitFor(future).ValueOrThrow();
+    return UtilGuidFromYtGuid(result->GetId());
+}
+
+void TRpcRawClient::PingTransaction(const TTransactionId& transactionId)
+{
+    auto tx = Client_->AttachTransaction(YtGuidFromUtilGuid(transactionId));
+    WaitFor(tx->Ping()).ThrowOnError();
+}
+
+void TRpcRawClient::AbortTransaction(
+    TMutationId& mutationId,
+    const TTransactionId& transactionId)
+{
+    auto tx = Client_->AttachTransaction(YtGuidFromUtilGuid(transactionId));
+    WaitFor(tx->Abort(SerializeOptionsForAbortTransaction(mutationId))).ThrowOnError();
+}
+
+void TRpcRawClient::CommitTransaction(
+    TMutationId& mutationId,
+    const TTransactionId& transactionId)
+{
+    auto tx = Client_->AttachTransaction(YtGuidFromUtilGuid(transactionId));
+    WaitFor(tx->Commit(SerializeOptionsForCommitTransaction(mutationId))).ThrowOnError();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
