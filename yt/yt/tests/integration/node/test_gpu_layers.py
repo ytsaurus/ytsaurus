@@ -6,12 +6,17 @@ from yt_commands import (
     write_file, read_table, write_table,
     map, vanilla, update_nodes_dynamic_config,
     sync_create_cells, get_job, create_pool,
-    run_test_vanilla,
-    with_breakpoint, wait_breakpoint, release_breakpoint)
+    run_test_vanilla, list_jobs,
+    with_breakpoint, wait_breakpoint, release_breakpoint,
+    print_debug, raises_yt_error)
 
 from yt_helpers import profiler_factory
 
+import yt_error_codes
+
 import yt.environment.init_operations_archive as init_operations_archive
+
+from yt.yson import get_bytes
 
 import pytest
 
@@ -1017,6 +1022,14 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         "exec_node": {
             "job_proxy": {
                 "test_root_fs": True,
+                # For core table tests.
+                "job_proxy_heartbeat_period": 100,
+                "core_watcher": {
+                    "period": 100,
+                    "io_timeout": 5000,
+                    "finalization_timeout": 5000,
+                    "cores_processing_timeout": 7000,
+                },
             },
             "gpu_manager": {
                 "driver_version": "0",
@@ -1349,6 +1362,62 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
 
         res = op.read_stderr(job_id)
         assert res == b"AAA\n"
+
+    @authors("ignat")
+    def test_gpu_check_and_core_dump(self):
+        self.setup_gpu_layer_and_reset_nodes()
+
+        core_table = "//tmp/t_core"
+        create("table", core_table, attributes={"replication_factor": 1})
+
+        def _get_core_infos(op):
+            jobs = list_jobs(op.id)["jobs"]
+            return {job["id"]: job["core_infos"] for job in jobs if job["core_infos"]}
+
+        def _get_core_table_content():
+            rows = read_table(core_table, verbose=False)
+
+            content = {}
+            last_key = None
+            for row in rows:
+                key = (row["job_id"], row["core_id"], row["part_index"])
+                # Check that the table is sorted.
+                assert last_key is None or last_key < key
+                last_key = key
+                if not row["job_id"] in content:
+                    content[row["job_id"]] = []
+                if row["core_id"] >= len(content[row["job_id"]]):
+                    content[row["job_id"]].append(b"")
+                content[row["job_id"]][row["core_id"]] += get_bytes(row["data"])
+
+            return content
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "main": {
+                        "command": "kill -ABRT $$ ;",
+
+                        "job_count": 1,
+                        "fail_job_on_core_dump": True,
+
+                        "layer_paths": ["//tmp/base_layer"],
+                        "enable_gpu_layers": True,
+                        "gpu_check_layer_name": "0",
+                        "gpu_check_binary_path": "/gpu_check/gpu_check_success",
+                    }
+                },
+                "core_table_path": core_table,
+                "max_failed_job_count": 1,
+            },
+        )
+
+        with raises_yt_error(yt_error_codes.UserJobProducedCoreFiles):
+            op.track()
+
+        print_debug(_get_core_infos(op))
+        assert _get_core_table_content()
 
 
 @authors("ignat")
