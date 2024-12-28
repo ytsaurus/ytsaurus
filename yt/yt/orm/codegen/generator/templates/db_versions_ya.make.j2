@@ -1,0 +1,21 @@
+# {{ autogen_marker }}
+PY3_LIBRARY()
+
+SUBSCRIBER(
+    g:yt-orm
+)
+
+RUN_PROGRAM(
+    {{ user_codegen_dir }} render-yt-schema --output-path yt_schema.py
+    OUT_NOAUTO yt_schema.py
+)
+
+PY_SRCS(
+    __init__.py
+    yt_schema.py
+{%- for version in range(initial_db_version, db_version + 1) %}
+    yt_schema_v{{ version }}.py
+{%- endfor %}
+)
+
+END()

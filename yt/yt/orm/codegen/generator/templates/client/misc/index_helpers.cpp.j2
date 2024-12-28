@@ -1,0 +1,39 @@
+// {{ autogen_marker }}
+
+#include "enums.h"
+#include "index_helpers.h"
+
+#include <util/generic/hash.h>
+
+namespace {{ client_misc_cpp_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+const THashMap<TString, NYT::NOrm::NClient::NObjects::TObjectTypeValue> ObjectTypeValuePerIndexName{
+{%- for object in objects %}
+    {%- for index in object.indexes %}
+    {"{{ index.snake_case_name }}", static_cast<int>(EObjectType::{{ object.camel_case_name }})},
+    {%- endfor %}
+{%- endfor %}
+};
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYT::NOrm::NClient::NObjects::TObjectTypeValue GetObjectTypeValueByIndex(const TString& indexName)
+{
+    auto it = ObjectTypeValuePerIndexName.find(indexName);
+    if (it == ObjectTypeValuePerIndexName.end()) {
+        THROW_ERROR_EXCEPTION("Index %Qv not found",
+            indexName);
+    }
+
+    return it->second;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ client_misc_cpp_namespace }}

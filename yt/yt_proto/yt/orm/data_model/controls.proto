@@ -1,0 +1,49 @@
+package NYT.NOrm.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+option java_package = "ru.yandex.yt.yt_proto.yt.orm.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt_proto/yt/orm/data_model";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TObjectTouch
+{
+    option (NYT.NOrm.NClient.NProto.output_filename) = "default";
+
+    // If true, takes read lock to `existence_lock` column, thus blocking concurrent object removal.
+    optional bool lock_removal = 1;
+
+    optional bool store_event_to_history = 2;
+}
+
+message TObjectTouchIndex
+{
+    option (NYT.NOrm.NClient.NProto.output_filename) = "default";
+
+    reserved 1;
+    reserved "index_name";
+    repeated string index_names = 2;
+}
+
+message TObjectTouchRevision
+{
+    option (NYT.NOrm.NClient.NProto.output_filename) = "default";
+
+    optional string path = 1;
+}
+
+message TObjectMigrateAttributes
+{
+    option (NYT.NOrm.NClient.NProto.output_filename) = "default";
+
+    repeated string target_paths = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Return value for methods.
+message TVoid
+{
+    option (NYT.NOrm.NClient.NProto.output_filename) = "default";
+}

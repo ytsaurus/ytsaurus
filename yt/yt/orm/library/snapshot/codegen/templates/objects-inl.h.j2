@@ -1,0 +1,212 @@
+// {{ autogen_marker }}
+#ifndef OBJECTS_INL_H_
+#error "Direct inclusion of this file is not allowed, include objects.h"
+#include "objects.h"
+#endif
+
+{% if snapshot.cpp_namespace -%}
+namespace {{ snapshot.cpp_namespace }} {
+{%- endif %}
+
+{%- for object in snapshot.objects %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline {{ object.cpp_key_type }}::{{ object.cpp_key_type }}(
+    {%- for field in object.key_fields %}
+    {{ field.cpp_type }} {{ field.name.camel_case }}{{ "," if not loop.last }}
+    {%- endfor %})
+    {%- for field in object.key_fields %}
+    {% if loop.first %}    :{% else %}    ,{% endif %} {{ field.name.pascal_case }}_(std::move({{ field.name.camel_case }}))
+    {%- endfor %}
+{ }
+
+{%- for field in object.key_fields %}
+
+inline {{ object.cpp_key_type }}::TReturn<{{ field.cpp_type }}> {{ object.cpp_key_type }}::{{ field.name.pascal_case }}() const
+{
+    return {{ field.name.pascal_case }}_;
+}
+
+{%- endfor %}
+
+inline ::NYT::NOrm::NClient::NObjects::TObjectKey {{ object.cpp_key_type }}::ToObjectKey() const
+{
+    return ::NYT::NOrm::NClient::NObjects::TObjectKey({
+        {%- for field in object.key_fields -%}
+        {{ field.name.pascal_case }}_{{ ", " if not loop.last }}
+        {%- endfor %}});
+}
+
+{%- for parent in object.all_parents %}
+
+{{ object.cpp_key_type }}::operator {{parent.snapshot.cpp_namespace}}::{{parent.cpp_key_type}}() const
+{
+    return {{parent.snapshot.cpp_namespace}}::{{parent.cpp_key_type}}(
+        {%- for field in object.key_fields %}
+        {{ field.name.pascal_case }}_{{ "," if not loop.last }}
+        {%- endfor %});
+}
+
+{%- endfor %}
+
+inline bool operator==(const {{ object.cpp_key_type }}& lhs, const {{ object.cpp_key_type }}& rhs)
+{
+    return
+        {%- for field in object.key_fields %}
+        lhs.{{ field.name.pascal_case }}_ == rhs.{{ field.name.pascal_case }}_{% if not loop.last %} &&{% endif %}
+        {%- endfor %};
+}
+
+inline std::strong_ordering operator<=>(const {{ object.cpp_key_type }}& lhs, const {{ object.cpp_key_type }}& rhs)
+{
+    {%- for field in object.key_fields %}
+    if (auto ordering = ::NYT::NOrm::NSnapshot::Compare(lhs.{{ field.name.pascal_case }}_, rhs.{{ field.name.pascal_case }}_); ordering != std::strong_ordering::equal) {
+        return ordering;
+    }
+    {% endfor %}
+    return std::strong_ordering::equal;
+}
+
+inline void FormatValue(::NYT::TStringBuilderBase* builder, const {{ object.cpp_key_type }}& key, TStringBuf /*spec*/)
+{
+    Format(builder,
+        "{{ object.cpp_key_type }}{
+            {%- for field in object.key_fields -%}
+            {% if not loop.first %}, {% endif %}{{ field.name.snake_case }}=%v
+            {%- endfor -%}
+        }",
+        {%- for field in object.key_fields %}
+        key.{{ field.name.pascal_case }}_{{ "," if not loop.last }}
+        {%- endfor %});
+}
+
+{%- endfor %}
+
+{%- for object in snapshot.objects %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline {{ object.cpp_key_type }} {{ object.cpp_data_interface_type }}::Key() const
+{
+    return {{ object.cpp_key_type }}(
+        {%- for field in object.key_fields %}
+        {{ field.full_name.pascal_case }}(){{ "," if not loop.last }}
+        {%- endfor %});
+}
+
+{%- for reference in object.many_to_one_references %}
+
+inline {{ reference.cpp_key_getter_return_type }} {{ object.cpp_data_interface_type }}::{{ reference.name.pascal_case }}Key() const
+{
+    {%- for field in reference.local_fields %}
+    {%- if field.optional or field.falsy_value_is_invalid_reference %}
+    if (!{{ field.full_name.pascal_case }}()) {
+        return std::nullopt;
+    }
+    {% endif %}
+    {%- endfor %}
+    return {{ reference.remote_object.cpp_key_type }}(
+        {%- for field in reference.local_fields -%}
+        {% if field.optional %}*{% endif %}{{ field.full_name.pascal_case }}(){{ "," if not loop.last }}
+        {%- endfor %});
+}
+
+{%- endfor %}
+
+{%- endfor %}
+
+{%- for object in snapshot.objects %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline {{ object.cpp_data_impl_type }}::{{ object.cpp_data_impl_type }}(
+    {%- for field in object.fields %}
+    {{ field.cpp_type }} {{ field.full_name.camel_case }}{{ "," if not loop.last }}
+    {%- endfor %})
+    {%- for field in object.fields %}
+    {% if loop.first %}    :{% else %}    ,{% endif %} {{ field.full_name.pascal_case }}_(std::move({{ field.full_name.camel_case }}))
+    {%- endfor %}
+{ }
+
+{%- for field in object.fields %}
+
+inline {{ object.cpp_data_impl_type }}::TReturn<{{ field.cpp_type }}> {{ object.cpp_data_impl_type }}::{{ field.full_name.pascal_case }}() const
+{
+    return {{ field.full_name.pascal_case }}_;
+}
+
+{%- endfor %}
+
+{%- endfor %}
+
+{%- for object in snapshot.objects %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline {{ object.cpp_type }}::{{ object.cpp_type }}({{ object.cpp_data_ptr_type }} objectData, TSnapshotDataPtr snapshotData)
+    : ObjectData_(std::move(objectData))
+    , SnapshotData_(std::move(snapshotData))
+{ }
+
+{%- for field in object.fields %}
+
+inline {{ object.cpp_type }}::TReturn<{{ field.cpp_type }}> {{ object.cpp_type }}::{{ field.name.pascal_case }}() const
+{
+    return ObjectData_->{{ field.full_name.pascal_case }}();
+}
+
+{%- endfor %}
+
+inline {{ object.cpp_key_type }} {{ object.cpp_type }}::Key() const
+{
+    return ObjectData_->Key();
+}
+
+{%- for reference in object.many_to_one_references %}
+
+inline {{ reference.cpp_key_getter_return_type }} {{ object.cpp_type }}::{{ reference.name.pascal_case }}Key() const
+{
+    return ObjectData_->{{ reference.name.pascal_case }}Key();
+}
+
+{%- endfor %}
+
+{%- for reference in object.many_to_one_references %}
+
+inline auto {{ object.cpp_type }}::{{ reference.name.pascal_case }}() const
+{
+    return ::NYT::NOrm::NSnapshot::ResolveManyToOneReference<
+        TSnapshotDescription,
+        {{ reference.remote_object.cpp_type }}>
+    (
+        SnapshotData_,
+        {{ reference.name.pascal_case }}Key()
+    );
+}
+
+{%- endfor %}
+
+{%- for reference in object.one_to_many_references %}
+
+inline auto {{ object.cpp_type }}::{{ reference.name.pascal_case }}() const
+{
+    return ::NYT::NOrm::NSnapshot::ResolveOneToManyReference<
+        TSnapshotDescription,
+        {{ reference.remote_object.cpp_type }},
+        T{{ object.name.pascal_case }}{{ reference.name.pascal_case }}Reference>
+    (
+        SnapshotData_,
+        Key()
+    );
+}
+
+{%- endfor %}
+
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+{% if snapshot.cpp_namespace -%}
+} // namespace {{ snapshot.cpp_namespace }}
+{%- endif %}

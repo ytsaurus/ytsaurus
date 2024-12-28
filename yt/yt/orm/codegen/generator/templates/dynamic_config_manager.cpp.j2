@@ -1,0 +1,54 @@
+// {{ autogen_marker }}
+{%- set config -%}
+    {%- if custom_config -%}
+        {{ cpp_server_plugins_namespace }}::
+    {%- endif-%}
+    TMasterConfig
+{%- endset %}
+
+#include "dynamic_config_manager.h"
+
+#include <yt/yt/orm/server/master/yt_connector.h>
+
+namespace {{ cpp_server_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using namespace NYT::NDynamicConfig;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDynamicConfigManager
+    : public IDynamicConfigManager
+{
+public:
+    TDynamicConfigManager(
+        NYT::NOrm::NServer::NMaster::IBootstrap* bootstrap,
+        const {{ config }}Ptr& config)
+        : IDynamicConfigManager(
+            TDynamicConfigManagerOptions{
+                .ConfigPath = config->DynamicConfigPath
+                    ? config->DynamicConfigPath
+                    : bootstrap->GetYTConnector()->GetMasterPath() + "/config",
+                .Name = bootstrap->GetServiceName(),
+                .ConfigIsTagged = false,
+            },
+            config->DynamicConfigManager,
+            bootstrap->GetYTConnector()->GetControlClient(),
+            bootstrap->GetControlInvoker(),
+            bootstrap->GetInitialConfigNode())
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IDynamicConfigManagerPtr CreateDynamicConfigManager(
+    NYT::NOrm::NServer::NMaster::IBootstrap* bootstrap,
+    const {{ config }}Ptr& config)
+{
+    return NYT::New<TDynamicConfigManager>(bootstrap, config);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // {{ cpp_server_namespace }}

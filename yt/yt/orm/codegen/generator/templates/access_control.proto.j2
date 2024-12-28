@@ -1,0 +1,29 @@
+// {{ autogen_marker }}
+{%- import "/macros.proto.j2" as macros %}
+
+{%- if proto3 %}
+syntax = "proto3";
+{%- endif %}
+
+package {{ data_model_proto_package }};
+
+{% if data_model_java_package -%}
+option java_package = "{{ data_model_java_package }}";
+{%- endif %}
+{%- if yp_compatible %}
+option java_outer_classname = "{{ access_control_file | replace(".proto", "") | snake_to_camel_case }}";
+{%- endif %}
+{%- if data_model_java_multiple_files %}
+option java_multiple_files = true;
+{%- endif %}
+{%- if data_model_go_package %}
+option go_package = "{{ data_model_go_package }}";
+{%- endif %}
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+{{ macros.print_access_control(acl_actions_enum, acl_permissions_enum, acl_entry_message, proto3) }}

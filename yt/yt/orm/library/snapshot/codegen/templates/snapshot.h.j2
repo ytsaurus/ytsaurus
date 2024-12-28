@@ -1,0 +1,52 @@
+// {{ autogen_marker }}
+#pragma once
+
+#include "public.h"
+
+#include "objects.h"
+
+{%- if snapshot.direct_parents | length > 0 %}
+{% for parent in snapshot.direct_parents %}
+#include <{{ parent.cpp_path }}/snapshot.h>
+{%- endfor %}
+{%- endif %}
+
+#include <yt/yt/orm/library/snapshot/includes_for_generated_snapshot.h>
+
+{% if snapshot.cpp_namespace -%}
+namespace {{ snapshot.cpp_namespace }} {
+{%- endif %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TSnapshotOptions = ::NYT::NOrm::NSnapshot::TSnapshotOptions<TSnapshotDescription>;
+using TSnapshotConfig = ::NYT::NOrm::NSnapshot::TSnapshotConfig;
+
+class TSnapshot
+    : public ::NYT::NOrm::NSnapshot::TSnapshot<TSnapshotDescription>
+{
+public:
+    using ::NYT::NOrm::NSnapshot::TSnapshot<TSnapshotDescription>::TSnapshot;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSnapshot);
+
+class TSnapshotProvider
+    : public ::NYT::NOrm::NSnapshot::TSnapshotProvider<TSnapshotDescription>
+{
+    using TBase = ::NYT::NOrm::NSnapshot::TSnapshotProvider<TSnapshotDescription>;
+
+public:
+    using TBase::TSnapshotProvider;
+
+    ::NYT::TFuture<TSnapshotPtr> Load(
+        ::NYT::NOrm::NClient::NObjects::TTimestamp timestamp = ::NYT::NOrm::NClient::NObjects::NullTimestamp);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSnapshotProvider);
+
+////////////////////////////////////////////////////////////////////////////////
+
+{% if snapshot.cpp_namespace -%}
+} // namespace {{ snapshot.cpp_namespace }}
+{%- endif %}

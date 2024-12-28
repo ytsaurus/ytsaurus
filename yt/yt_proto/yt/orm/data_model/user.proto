@@ -1,0 +1,67 @@
+package NYT.NOrm.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+option java_package = "ru.yandex.yt.yt_proto.yt.orm.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt_proto/yt/orm/data_model";
+
+option (NYT.NOrm.NClient.NProto.do_not_export) = true;
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    builtin_object: true
+    camel_case_name: "User"
+    snake_case_name: "user"
+    primary_key: ["id"]
+    type_value: 9
+    hash_policy: HP_NO_HASH_COLUMN
+    nested_object_field_messages: false
+    watch_logs: [
+        {
+            snake_case_name: "watch_log"
+        }
+    ]
+    revision_trackers: [
+        {
+            tracked_paths: ["/spec", "/meta", "/status"]
+            disabled: true
+        }
+    ]
+};
+
+message TUserMetaMixin
+{
+    optional string id = 1 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.storage_type) = "string",
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM
+    ];
+}
+
+message TUserSpecMixin
+{
+    option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+
+    // If true, user is forbidden from accessing the cluster.
+    optional bool banned = 1;
+
+    // Limit on average request throughput (per sec). See `IThroughputThrottler` for more details.
+    // NB: Does not restrict global limit.
+    // 0 - unlimited
+    optional int64 request_weight_rate_limit = 2;
+
+    // Number of inflight requests to one of the ORM masters.
+    // NB: Does not restrict global limit, so there can potentially be limit * number_of_masters inflight requests.
+    // 0 - unlimited
+    optional int32 request_queue_size_limit = 3;
+
+    // Determines which execution pool the user belongs to.
+    // If field is set, it is used in fair-share.
+    // Otherwise, if "pass_user_tag_as_select_execution_pool" is set, the user tag is used.
+    optional string execution_pool = 4;
+
+    // User alias.
+    // If field is set and not empty, it is used in metrics instead of user id.
+    optional string alias = 5;
+}

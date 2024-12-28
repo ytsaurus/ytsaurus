@@ -1,0 +1,837 @@
+package NYT.NOrm.NClient.NProto;
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
+import "google/protobuf/descriptor.proto";
+
+option java_package = "ru.yandex.yt.orm.client.api";
+option java_outer_classname = "Object";
+
+option go_package = "go.ytsaurus.tech/yt/yt_proto/yt/orm/client/proto;client";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TWatchLogOption
+{
+    optional string snake_case_name = 1;
+    optional string filter = 2;
+    repeated string selectors = 3;
+    // Update event is selected from watchlog if it has at least one changed field that passes the tag filter.
+    // A field passes the tag filter if it has at least one required tag and no excluded tags.
+    // List of required tags.
+    repeated string required_tags = 4;
+    // List of excluded tags.
+    repeated string excluded_tags = 5;
+    // Table attributes.
+    optional int32 tablet_count = 6 [default = 6];
+    // Default 600000 is 10 minutes.
+    optional int32 min_data_ttl = 7 [default = 600000];
+    optional int32 max_data_ttl = 8 [default = 600000];
+    optional int32 min_data_versions = 9 [default = 0];
+    optional int32 max_data_versions = 10 [default = 1];
+}
+
+message THistoryAttribute
+{
+    optional string path = 1;
+    // TODO: Support disable mode. It would allow to implement logic "all fields except X".
+    optional bool indexed = 2;
+    optional bool allowed_in_filter = 3;
+}
+
+message THistoryOptions
+{
+    repeated THistoryAttribute attributes = 1;
+    optional string filter = 2;
+}
+
+message TCustomOption
+{
+    optional string key = 1;
+    optional string value = 2;
+}
+
+message TRevisionTracker
+{
+    reserved 1;
+    reserved "name";
+    reserved 2;
+    reserved "tracked_path";
+    optional string restrict_to_lock_group = 3;
+    optional bool disabled = 4;
+
+    // Path to the existing fixed64 field where revision value will be stored.
+    optional string tracker_path = 5;
+
+    repeated string tracked_paths = 6;
+
+    repeated string excluded_paths = 7;
+}
+
+message TAccessControlPermissionInfo
+{
+    optional string name = 1;
+    optional int32 value = 2;
+}
+
+// Table lookups can be optimized by adding the "hash" column.
+enum EHashPolicy
+{
+    // Do not generate the "hash" column
+    HP_NO_HASH_COLUMN = 0;
+    // Set the expression for the "hash" column as "farm_hash(key_columns...)".
+    // When a parent type is set, this setting will break searching all objects for a specific parent.
+    HP_FARM_HASH_ENTIRE_KEY = 1;
+    // Set the expression for the "hash" column as "farm_hash(parent_key_columns...)".
+    // Only for object types that have a parent.
+    HP_FARM_HASH_PARENT_KEY = 2;
+    // For object types that have a parent, this is the same as HP_FARM_HASH_PARENT_KEY above.
+    // For object types that do not have a parent, this is the same as HP_FARM_HASH_ENTIRE_KEY.
+    // Setting this project-wise provides a reasonable default for most object types.
+    HP_FARM_HASH_PARENT_OR_OBJECT_KEY = 3;
+}
+
+enum EParentKeyStoragePolicy
+{
+    // Use shared parents table (when an object that has a parent).
+    PKSP_PREFIX_WITH_SHARED_PARENTS_TABLE = 0;
+    // Enable separate parents table (when an object that has a parent).
+    PKSP_PREFIX_WITH_SEPARATE_PARENTS_TABLE = 1;
+}
+
+enum EAttributeSensorPolicy
+{
+    ASP_NO_SENSOR = 0;
+
+    // For each encountered attribute value a counter with corresponding tag is exported.
+    // The counter represents the number of updates for (object_type, attribute, value) tuple.
+    ASP_ATTRIBUTE_VALUE_AS_TAG = 1;
+
+    // Attribute sensor counter is increased with each attribute update.
+    ASP_UPDATE = 2;
+}
+
+enum EObjectWithReferenceRemovalPolicy
+{
+    // Both sides of reference can be removed independently. The reference between them also gets removed.
+    OWRRP_REMOVAL_ALLOWED = 0;
+
+    // Removal of the defined part of the reference is forbidden.
+    //
+    // E.g. in the one-to-many reference removal of `one` part is forbidden
+    // if there exists any `many` object connected to it.
+    OWRRP_SOURCE_REMOVAL_FORBIDDEN = 1;
+
+    // Removal of generated part of the reference is forbidden.
+    OWRRP_TARGET_REMOVAL_FORBIDDEN = 2;
+
+    // Both sides of reference cannot be removed until the reference itself is removed.
+    OWRRP_REMOVAL_FORBIDDEN = 3;
+}
+
+message TAttributeSensor
+{
+    optional string path = 1;
+    optional EAttributeSensorPolicy policy = 2;
+}
+
+message TAccessControlEntry
+{
+    optional string action = 1 [default = "allow"];
+    repeated string permissions = 2;
+    repeated string attributes = 3;
+}
+
+enum EOnMigrationConflictAction
+{
+    ON_MIGRATION_CONFLICT_ERROR = 0;
+    ON_MIGRATION_CONFLICT_USE_SOURCE = 1;
+    ON_MIGRATION_CONFLICT_USE_TARGET = 2;
+}
+
+message TAttributeMigration
+{
+    optional string source = 1;
+    optional string target = 2;
+    reserved 3;
+    reserved "tracker";
+    optional bool custom_migrator = 4;
+    optional EOnMigrationConflictAction on_conflict = 5;
+    optional bool reverse_write = 6;
+    optional bool custom_reverse_writer = 7;
+}
+
+// Next field number 48.
+message TObjectTypeOption
+{
+    reserved 6, 7, 15, 17, 28, 29, 38;
+    reserved "use_custom_default_permissions";
+    reserved "history_indexed_attributes";
+    reserved "history_attributes";
+    reserved "default_permissions";
+    reserved "default_permissions_attributes";
+
+    // Snake case names of fields in /meta comprising the primary key, in order.
+    repeated string primary_key = 13;
+    required string camel_case_name = 1;
+    required string snake_case_name = 2;
+    required int32 type_value = 3;
+    optional string human_readable_name = 4;
+    optional string parent = 5;
+    optional EParentKeyStoragePolicy parent_key_storage_policy = 34;
+    optional EHashPolicy hash_policy = 24;
+    optional THistoryOptions history = 43;
+    repeated TWatchLogOption watch_logs = 8;
+
+    // Overrides default proto message name.
+    // By default, message name lookup goes by 'T{camel_case_name}{field_camel_case_name}'.
+    // e.g. TBookMeta.
+    optional string meta_base_message_type_name = 9;
+    optional string control_base_message_type_name = 10;
+    optional string spec_message_type_name = 11;
+    optional string status_message_type_name = 12;
+
+    // Allows to work with /meta/name, which is used for better error formatting
+    // and can be used in other contexts as an object name as well.
+    optional bool name_supported = 14;
+
+    optional bool custom_type_handler = 16;
+    optional bool custom_cpp_object = 44;
+
+    // See FileOptions.skip_store_without_changes.
+    optional bool skip_store_without_changes = 18;
+    optional bool enable_tags = 19;
+
+    reserved "primary_key_data_group";
+    reserved 20;
+
+    reserved "labels_data_group";
+    reserved 21;
+
+    // To pass custom model options.
+    repeated TCustomOption custom_options = 22;
+
+    // Field name in meta message that would be used for access control inheritance.
+    // By default, objects' parent is used.
+    optional string access_control_parent = 23;
+
+    // COMPAT.
+    optional int32 parent_field_number_offset = 25;
+
+    repeated TRevisionTracker revision_trackers = 27;
+
+    optional string camel_case_foreign_name = 32;
+    optional string snake_case_foreign_name = 33;
+
+    // Use nested messages for top-level fields, e.g., TObject.TSpec instead of TObjectSpec.
+    optional bool nested_object_field_messages = 30;
+
+    // Use to reevaluate key attributes with zero value forcibly via synonym evaluation mechanism.
+    optional bool force_zero_key_evaluation = 31;
+
+    // COMPAT generate cpp code for this object in yp.
+    optional bool yp_generate_cpp = 35;
+
+    repeated TAttributeSensor attribute_sensors = 36;
+
+    // Use to migrate objects with not generated dependencies.
+    repeated string yp_compat_includes = 37;
+
+    optional bool use_custom_default_acl = 39;
+    repeated TAccessControlEntry default_acl = 40;
+
+    // The serialized form of the null key for this type.
+    // Zeros/empty strings are used by default.
+    optional string custom_null_key = 41;
+
+    // For internal use only. Marks objects directly handled by ORM core.
+    optional bool builtin_object = 42;
+
+    repeated TAttributeMigration attribute_migrations = 45;
+
+    // Forbids removal of parent object if child with enabled option exists.
+    // May be overriden by |enable_forbid_parent_removal|.
+    optional bool forbid_parent_removal = 46;
+
+    // meta.account_id column was mistakenly added to some ORM's.
+    optional bool remove_legacy_meta_account_id = 47;
+}
+
+message TIndexOption
+{
+    enum EIndexMode
+    {
+        IM_DISABLED = 0;
+        IM_REMOVE_ONLY = 3;
+        IM_BUILDING = 1;
+        IM_ENABLED = 2;
+    }
+
+    optional string object_type_snake_case_name = 1;
+    optional string camel_case_name = 2;
+    optional string snake_case_name = 3;
+    repeated string key = 4;
+    optional string hash_expression = 5;
+    optional EIndexMode mode = 6;
+    optional bool unique = 7;
+    optional string predicate = 8;
+    optional string custom_table_name = 9;
+}
+
+enum EHistoryCommitTime
+{
+    HCT_TRANSACTION_COMMIT_START = 0;
+    HCT_TRANSACTION_START = 1;
+}
+
+enum EHistoryTimeMode
+{
+    HTM_LOGICAL = 0;
+    HTM_PHYSICAL = 1;
+}
+
+enum EVersionCompatibility
+{
+    VC_LOWER_OR_EQUAL_THAN_DB_VERSION = 0;
+    VC_SAME_AS_DB_VERSION = 1;
+    VC_DO_NOT_VALIDATE = 2;
+}
+
+enum ESetUpdateObjectMode
+{
+    SUOM_OVERWRITE = 0;
+    SUOM_LEGACY = 1;
+}
+
+message THistoryTableOptions
+{
+    // Needed for migration without write downtime. Details in YTORM-513.
+    // NB!: It is considered to be used only during the migration, when history is write-only,
+    // so, if you intend to use it longer, modify configs accordingly (e.g. |last_trim_time_per_history_table| option).
+    optional string primary_table_name = 1;
+    optional string index_table_name = 2;
+
+    // Defines whether internal history representation would be based on physical clock or logical clock.
+    //
+    // Logical clocks have several advantages:
+    // 1. Prevent interleavings of events for different objects with the same object key;
+    // 2. Allow to search for events via their timestamps.
+    //
+    // One disadvantage logical clocks have is that it is currently not possible to store commit timestamp inside event
+    // because it is not known before the actual commit happens.
+    optional EHistoryTimeMode time_mode = 3;
+
+    // Specifies time with which history would be committed.
+    // By default, history events are committed with commit start time.
+    //
+    // Overriding this option may be useful for assigning time to the history event at the start of transaction
+    // and using it speculatively in other modifications.
+    //
+    // NB! This option may change the order of events.
+    optional EHistoryCommitTime commit_time = 4;
+
+    // Default history layout is not effective for queries without provided uuid.
+    // Therefore, it may beneficial to omit uuid from key in cases, where the majority of queries comes without uuid.
+    optional bool use_uuid_in_key = 5;
+
+    // Hash column is not generated if enabled.
+    optional bool no_hash = 6;
+
+    // Primary key columns group for history table.
+    // "default" used if value not set.
+    optional string table_key_group = 7;
+
+    // Effective scans require majority of queries to be consistent with db time order.
+    optional bool optimize_for_ascending_time = 8;
+
+    // By default orm sorts events by descending of event type.
+    // For query efficiency db should store negative event types
+    // for ascending optimized databases and positive for descending.
+    optional bool do_not_optimize_event_type_order = 9;
+
+    // Old history implementation used different column sets
+    // in farm_hash for primary and index tables. That led to
+    // occasionally omitting some events after switching.
+    // reads from primary to index table.
+    optional bool use_deprecated_hashing = 10;
+}
+
+// Next field 30044.
+extend google.protobuf.FileOptions
+{
+    repeated TObjectTypeOption object_type = 30000;
+    repeated TObjectTypeOption extend_object_type = 30036;
+    repeated TIndexOption index = 30001;
+
+    optional bool no_parents_hash = 30002;
+
+    // Makes /meta user-defined attributes of user-defined objects within the database updatable by superuser only.
+    // By default /meta user-defined attributes are updatable by any user having corresponding write permission.
+    //
+    // Note that the option do not affect /meta system attributes, e.g.: creation_time, uuid, name, parent_key, etc.
+    // System object types are not affected either, e.g.: user, group, schema, etc.
+    //
+    // Can be specified in any database proto file.
+    optional bool meta_attributes_updatable_by_superuser_only = 30003;
+
+    // Specifies whether tombstones mechanics is enabled or not.
+    // Disabled by default.
+    // If enabled, stores each object removal within tombstones table and
+    // allows to check within the master code whether the given object has been removed or not.
+    optional bool enable_tombstones = 30005;
+
+    // Specifies whether /annotations attribute is enabled or not for all object types.
+    // Disabled by default. If enabled:
+    // - Each /annotations/<key> = <value> is stored within annotations table as a separate row
+    //   allowing to store blobs within the object;
+    // - GetObject with root selector selects annotations table;
+    // - RemoveObject selects annotations table to remove dangling annotations.
+    optional bool enable_annotations = 30006;
+
+    // COMPAT. This file will not be exported.
+    optional bool do_not_export = 30010;
+
+    optional EVersionCompatibility version_compatibility = 30015;
+
+    // Allows to skip zero-diff writes to dynamic tables.
+    optional bool skip_store_without_changes = 30017;
+
+    // Set this hash policy by default for all objects. Can be overridden for an object.
+    optional EHashPolicy hash_policy = 30018;
+
+    // Use nested messages for top-level fields, e.g., TObject.TSpec instead of TObjectSpec by default.
+    optional bool nested_object_field_messages = 30022;
+
+    // COMPAT.
+    optional int32 meta_type_field_number = 30019;
+    optional int32 parent_field_number_offset = 30020;
+    optional int32 finalizers_field_number_offset = 30031;
+
+    repeated TRevisionTracker revision_trackers = 30021;
+
+    // Use to reevaluate key attributes with zero value forcibly via synonym evaluation mechanism.
+    optional bool force_zero_key_evaluation = 30023;
+
+    // Can be overridden per object.
+    optional EParentKeyStoragePolicy parent_key_storage_policy = 30024;
+
+    // Do not create or use "parents" table.
+    // The above parent_key_storage_policy must be set to PKSP_PREFIX_WITH_SEPARATE_PARENTS_TABLE everywhere.
+    // ParentsTableMode in dynconfig must be DontWriteToCommonTable.
+    optional bool no_legacy_parents_table = 30032;
+
+    optional bool enable_custom_base_type_handler = 30025;
+
+    // Enable adding column '$cumulative_data_weight' for watch logs.
+    optional bool enable_cumulative_data_weight_for_watch_log = 30026;
+
+    // Forbids removal of the foreign object when there are objects referencing it.
+    // By default, references get removed together with object removal.
+    optional EObjectWithReferenceRemovalPolicy object_with_reference_removal_policy = 30027;
+
+    // Correctness of new type is checked in codegen (must be one of "int64" or "string").
+    optional string default_enum_storage_type = 30028;
+
+    optional bool enable_finalizers = 30030;
+
+    // Whether to create and use by default pending_removals table for object deletion.
+    // If true, mode can be overridden with remove_mode option in object manager.
+    optional bool enable_asynchronous_removals = 30033 [default = true];
+
+    // Contains configuration of history. Multiple table are used in history migration.
+    repeated THistoryTableOptions history_tables = 30034;
+
+    // Override name of generated file.
+    optional string module_output_filename = 30035;
+
+    optional ESetUpdateObjectMode set_update_object_mode = 30037;
+    optional bool enable_history_snapshot_column = 30038;
+
+    // Can be overridden per object.
+    optional bool forbid_parent_removal = 30039;
+
+    // Can be overridden per object.
+    optional bool remove_legacy_meta_account_id = 30040;
+
+    // Enables inheritance of ACLs from '/meta/acl' of schemas['schema'] for all not builtin objects.
+    optional bool enable_base_schema_acl_inheritance = 30041;
+
+    optional bool enable_strict_enum_value_check = 30042 [default = true];
+
+    optional uint32 default_geohash_length = 30043;
+}
+
+enum EGenerationPolicy
+{
+    GP_UNDEFINED = 0;
+
+    // Default. The field value is only manually assigned. Note: other policies still allow
+    // a manual override; they apply only when an explicit value is not provided.
+    GP_MANUAL = 1;
+
+    // The field value will be randomly generated.
+    GP_RANDOM = 2;
+
+    // The field value will be assigned from a current YT timestamp.
+    // Monotonic, noncontiguous, with a small performance hit.
+    GP_TIMESTAMP = 3;
+
+    // The field value will be assigned from a buffered YT timestamp.
+    // Nonmonotonic within 1 second, noncontiguous, very fast.
+    // Turn on transaction_manager/timestamp_buffer_enabled in master config before use.
+    GP_BUFFERED_TIMESTAMP = 4;
+
+    // The field value will be assigned by looking up the largest value and incrementing it by 1.
+    // The field must be indexed or be the primary key.
+    // Monotonic, contiguous, slow, contentious. Simultaneous writes will have only one winner;
+    // retry the loser.
+    GP_INDEXED_INCREMENT = 5;
+
+    // The field value will be assigned by user defined policy plugin.
+    // A check will be made that policy plugin is provided.
+    GP_CUSTOM = 6;
+}
+
+enum EUpdatePolicy
+{
+    UP_UNDEFINED = 0;
+
+    UP_UPDATABLE = 1;
+
+    // Ignores implicit changes.
+    // Updates the attributes when a path is explicitly specified.
+    UP_OPAQUE_UPDATABLE = 2;
+
+    // Ignores implicit changes.
+    // Explicit changes will result in an error.
+    // For the superuser, it behaves as OPAQUE_UPDATABLE.
+    UP_OPAQUE_READ_ONLY = 3;
+
+    // Implicit changes will result in an error.
+    // For the superuser, it behaves as UPDATABLE.
+    UP_READ_ONLY = 4;
+}
+
+message TReferenceOption
+{
+    message TColumnarKeyStorageOption
+    {
+        // Path within this object to the columns containing the key.
+        // Multirefs use parallel repeated columns.
+        repeated string paths = 1;
+    }
+
+    message TProtoKeyStorageOption
+    {
+        // Path within this object to the message containing the key.
+        optional string path = 1;
+        // Paths within the message corresponding to key components.
+        repeated string suffixes = 2;
+    }
+
+    message TTabularKeyStorageOption
+    {
+        optional string table_suffix = 1;
+        optional string override_prefix = 2;
+    }
+
+    message TReferenceViewOption
+    {
+        optional string path = 1;
+        optional int32 number = 2;
+    }
+
+    // How we distinguish present and missing references.
+    enum EPresencePolicy
+    {
+        // Most suitable option (or an exception demanding an explicit choice) selected by codegen.
+        PP_DEFAULT = 0;
+
+        // Key fields are stored in a container that has an empty state (a table, or a repeated
+        // field). Present key fields constitute a valid reference key. Default mode for repeated
+        // references.
+        PP_CONTAINER = 1;
+
+        // The foreign object's null key value (zeros and empty strings by default, controllable by
+        // |custom_null_key| in the object type) indicates an empty reference. Available in single
+        // columnar and single or multi proto storages. NB: with multirefs, this policy allows for
+        // garbage accumulation after adding and removing many references. This is by design (the
+        // protos may contain auxiliary data) but requires some garbage collection strategy from the
+        // client. Default for singular references.
+        PP_NULL_KEY = 2;
+
+        // Future plans:
+
+        // This reference is never empty. Key storage must be initialized on creation. This object
+        // must be deleted before the referenced one.
+        // PP_MANDATORY = 3;
+
+        // If the reference is set, delete this object with the foreign one.
+        // bool cascading_deletion
+
+        // Use field presence at a specific path to decide whether the reference is empty.
+        // PP_FIELD_PRESENCE = 4;
+
+        // Future non-plans: rely on the null state of a column in the dynamic table (currently we always
+        // initialize the columns to the default value); use an separate bool "present" field.
+    }
+
+    optional string foreign_type = 1;
+
+    // Path to the matching reference in the foreign object. If the matching reference is not,
+    // declared, a tabular multiref will be autogenerated.
+    optional string foreign_backref_path = 2;
+    optional int32 foreign_backref_number = 8;
+
+    oneof key_storage
+    {
+        TColumnarKeyStorageOption columnar_key_storage = 3;
+        TProtoKeyStorageOption proto_key_storage = 4;
+        TTabularKeyStorageOption tabular_key_storage = 5;
+    }
+
+    // If no view is mentioned, one will be automatically generated in the same message.
+    // To disable automatic view generation, write |view: {}|.
+    optional TReferenceViewOption view = 7;
+
+    optional bool store_parent_key = 11;
+    optional bool allow_non_empty_removal = 12;
+    optional bool local_modification_only = 13;
+    optional EPresencePolicy presence_policy = 14;
+}
+
+message TReference
+{
+    // Placeholder for reference attributes.
+    // May add an API here in the future.
+    // For now, these fields are only specified in source packages but are not output by codegen.
+}
+
+message TGeohashOption
+{
+    optional uint32 length = 1;
+    // Path to field of NYT.NOrm.NDataModel.TGeoPoint type.
+    optional string source_geo_point_path = 2;
+}
+
+// Next field 31048.
+extend google.protobuf.FieldOptions
+{
+    optional bool column = 31001;
+
+    optional string foreign_key = 31002;
+    optional string children_view = 31046;
+    optional bool no_foreign_view = 31024;
+    // A special type of reference for ancestor fields.
+    optional string transitive_key = 31033;
+    // For disambiguation of tables when multiple foreign keys of the same type are present.
+    // Expands to |type_to_type_for_$your_suffix|. Use a snake case description of the relation.
+    optional string references_table_suffix = 31016;
+    // For disambiguation of columns when source `foreign_key_prefix` equals to target `foreign_key_prefix`.
+    optional string reference_name = 31018;
+    optional TReferenceOption reference = 31038;
+
+    // Note that not all suitable fields are labeled by these options.
+    optional bool not_initializable = 31003;
+    optional string field_lock_group = 31005;
+    optional string field_data_group = 31029;
+
+    // Policy parameters are currently supported only for key fields.
+    optional EGenerationPolicy generation_policy = 31006;
+
+    // Supported only for string key fields.
+    optional uint32 min_length = 31007;
+    optional uint32 max_length = 31008;
+    optional string valid_charset = 31011;
+
+    // Supported only for integer key fields. Use any expression that will convert to the
+    // appropriate type in C++.
+    optional string min_value = 31009;
+    optional string max_value = 31010;
+
+    // Snake-case name of the index that tracks this field. Must be set if and only if the policy is
+    // indexed increment. If the field is the singular primary key, use "primary_key".
+    optional string index_for_increment = 31013;
+
+    optional bool store_field_to_meta_response = 31014;
+
+    // Forbid removal of the foreign object when there are objects referencing it.
+    // Default option is |object_with_reference_removal_policy| global option.
+    // Can be used only in pair with 'foreign_key' option.
+    optional bool forbid_removal_with_non_empty_references = 31015;
+    optional bool forbid_target_object_removal_with_non_empty_references = 31030;
+
+    // Used by deprecated references. If false, forbids clearing of ManyToOne reference.
+    optional bool nullable = 31044;
+
+    // There is no convenient way for now to force ORM to work with enum as an integral-only type:
+    // enum writes and reads accept both integral and string values.
+    // Explicit usage of integral type `int32 field` instead of enum type `EField field` solves the problem,
+    // but lacks self-documentation and validation. Option `enum_type_name = "EField"` allows to document such fields.
+    // Will be removed in the future in favour of an option controlling accepted enum value types.
+    optional string enum_type_name = 31017;
+
+    optional bool system = 31019;
+
+    // Column defined in TObjectTableBase.
+    optional bool base_column = 31042;
+
+    // The field is evaluated at server-side.
+    // Respective implementation of TAttributeSchema handlers must be provided.
+    optional bool computed = 31020;
+
+    // The field must be provided in CreateObject request.
+    optional bool mandatory = 31021;
+
+    optional string custom_foreign_view_name = 31022;
+
+    // If true, the attribute can be requested only explicitly,
+    // requesting its parent attribute would not fetch it.
+    optional bool opaque = 31023;
+
+    // By default opaque fields are emitted as entities.
+    // For example, requesting `/spec` having `my_opaque_field` inside
+    // the result would be '{"my_opaque_field"=#;}'.
+    //
+    // If false, this option hides opaque fields completely.
+    optional bool emit_opaque_as_entity = 31041;
+
+    // Hide field from client, temporary used for migrations, see YTORM-607.
+    optional bool deprecated = 31025;
+
+    // Field for server-side internal usage, hidden from client like `deprecated`.
+    optional bool hidden_from_client = 31043;
+
+    // Embed the field directly in the message (or its Etc), not as a composite set of columns.
+    optional bool ignore_columns = 31026;
+
+    // Tags to add to the field.
+    repeated string add_tags = 31027;
+    // Parent message tags to remove from the field.
+    repeated string remove_tags = 31028;
+
+    optional EUpdatePolicy update_policy = 31032;
+    optional bool not_updatable = 31004;
+
+    // Overwrite default field storage type. Correctness of new type is checked in codegen.
+    optional string storage_type = 31034;
+
+    // Sets custom name for the column(after prefix) instead of `field.snake_case_name`, e.g.:
+    // spec.{custom_column_name}.
+    optional string custom_column_name = 31035;
+
+    // Allows to overwrite certain base options.
+    repeated string allow_mixin_overwrite_options = 31036;
+
+    // Defines attribute used to store latest touch timestamp only.
+    optional bool is_timestamp_attribute = 31037;
+
+    optional bool cpp_override = 31039;
+
+    // Aggregate function name.
+    // Description: https://yt.yandex-team.ru/docs/user-guide/dynamic-tables/sorted-dynamic-tables#aggr_columns
+    optional string aggregate = 31040;
+
+    // A type hint for caller.
+    optional string method_argument_type = 31045;
+
+    // Field marked with "geohash" option stores a geohash of specified TGeoPoint field.
+    optional TGeohashOption geohash = 31047;
+}
+
+// Next field 32014.
+extend google.protobuf.MessageOptions
+{
+    optional string message_lock_group = 32001;
+    optional string message_data_group = 32008;
+    optional bool no_etc = 32002;
+    // Compat option, remove after YT-14511 is ready.
+    optional bool no_etc_column_suffix = 32009;
+
+    // Makes user-defined attributes within the message updatable by superuser only. By default,
+    // user-defined attributes are updatable by any user having corresponding write permission.
+    //
+    // Note that the option does not affect system attributes, e.g.:
+    // /meta/{creation_time,uuid,name,parent_key} etc.
+    optional bool attributes_updatable_by_superuser_only = 32003;
+
+    // Marks the message as transplantable to the output package under the new mixins codegen
+    // scheme. This is for transition only, will be replaced by walking the graph.
+    optional bool is_exported = 32004;
+
+    // Marks the message as fixed in the current file in codegen.
+    optional bool in_place = 32005;
+
+    // The file into which this message should be exported.
+    optional string output_filename = 32006;
+
+    // Tags to add to the message.
+    repeated string message_tags = 32007;
+
+    // Allows unknown YSON attributes.
+    optional bool extensible = 32010;
+
+    // Compat option, allows to enable |Overwrite| mode for certain nodes in YP.
+    optional bool force_overwrite_update_mode = 32011;
+
+    // Ignores builtin objects for generic mixins.
+    optional bool ignore_builtin = 32012;
+
+    optional bool message_mandatory = 32013;
+}
+
+extend google.protobuf.EnumOptions
+{
+    // The file into which this enum should be exported.
+    optional string enum_output_filename = 33006;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Description: https://yt.yandex-team.ru/docs/api/commands#lock_rows.
+enum ELockType
+{
+    LT_NONE = 0
+    [(NYT.NYson.NProto.enum_value_name) = "none"];
+
+    LT_SHARED_WEAK = 1
+    [(NYT.NYson.NProto.enum_value_name) = "shared_weak"];
+
+    LT_SHARED_STRONG = 2
+    [(NYT.NYson.NProto.enum_value_name) = "shared_strong"];
+
+    LT_EXCLUSIVE = 3
+    [(NYT.NYson.NProto.enum_value_name) = "exclusive"];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Describes the desired format of TPayload.
+enum EPayloadFormat
+{
+    // Indicates a legacy client that is not aware of formats.
+    PF_NONE = 0;
+    PF_YSON = 1;
+    PF_PROTOBUF = 2;
+}
+
+// Represents a polymorphic payload.
+message TPayload
+{
+    oneof value
+    {
+        bool null = 1;
+        bytes yson = 2 [(NYT.NYson.NProto.yson_string) = true];
+        bytes protobuf = 3;
+    }
+}
+
+// Description: https://yt.yandex-team.ru/docs/user-guide/dynamic-tables/sorted-dynamic-tables#aggr_columns
+enum EAggregateMode
+{
+    AM_UNSPECIFIED = 0 [(NYT.NYson.NProto.enum_value_name) = "unspecified"];
+    AM_AGGREGATE = 1 [(NYT.NYson.NProto.enum_value_name) = "aggregate"];
+    AM_OVERRIDE = 2 [(NYT.NYson.NProto.enum_value_name) = "override"];
+}
+
+////////////////////////////////////////////////////////////////////////////////

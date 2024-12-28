@@ -1,0 +1,135 @@
+package NYT.NOrm.NDataModel;
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+
+option java_package = "ru.yandex.yt.yt_proto.yt.orm.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt_proto/yt/orm/data_model";
+
+option (NYT.NOrm.NClient.NProto.do_not_export) = true;
+
+////////////////////////////////////////////////////////////////////////////////
+
+option (NYT.NOrm.NClient.NProto.object_type) = {
+    builtin_object: true
+    camel_case_name: "Semaphore"
+    snake_case_name: "semaphore"
+    primary_key: ["id"]
+    type_value: 258
+    parent: "SemaphoreSet"
+    parent_field_number_offset: 3
+    parent_key_storage_policy: PKSP_PREFIX_WITH_SEPARATE_PARENTS_TABLE
+    hash_policy: HP_NO_HASH_COLUMN
+    nested_object_field_messages: false
+    revision_trackers: [
+        {
+            tracked_paths: ["/spec", "/meta", "/status"]
+            disabled: true
+        }
+    ]
+};
+
+message TSemaphoreMetaBase
+{
+    optional string id = 1 [
+        (NYT.NOrm.NClient.NProto.generation_policy) = GP_RANDOM,
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.storage_type) = "string"
+    ];
+}
+
+message TSemaphoreSpec
+{
+    option (NYT.NOrm.NClient.NProto.in_place) = true;
+    option (NYT.NOrm.NClient.NProto.no_etc_column_suffix) = true;
+
+    optional uint64 budget = 1;
+}
+
+message TSemaphoreLease
+{
+    // Last ping/acquire time of lease, in milliseconds.
+    optional uint64 last_acquire_time = 1;
+
+    // Timestamp, when lease expires, in milliseconds.
+    optional uint64 expiration_time = 2;
+
+    optional string acquirer_endpoint_description = 3;
+
+    // Quantity withdrawn from budget. Zero means nothing is withdrawn.
+    optional uint64 budget = 4;
+}
+
+message TSemaphoreStatus
+{
+    option (NYT.NOrm.NClient.NProto.in_place) = true;
+
+    // <lease uuid> -> <lease>. Leases can be expired.
+    map<string, TSemaphoreLease> leases = 1 [(NYT.NYson.NProto.yson_map) = true];
+
+    // <lease uuid> -> lease>. Contains only fresh leases.
+    map<string, TSemaphoreLease> fresh_leases = 2 [
+        (NYT.NOrm.NClient.NProto.computed) = true,
+        (NYT.NOrm.NClient.NProto.opaque) = true];
+}
+
+message TSemaphoreAcquire
+{
+    optional string lease_uuid = 1;
+
+    // Duration of lease, in milliseconds.
+    optional uint64 duration = 2;
+
+    // Quantity to withdraw from budget, 1 by default.
+    optional uint64 budget = 3;
+
+    // Path to the semaphore in the host object if it is embedded.
+    optional string embedded_path = 4;
+}
+
+message TSemaphorePing
+{
+    optional string lease_uuid = 1;
+
+    // Duration of lease, in milliseconds.
+    optional uint64 duration = 2;
+
+    // Path to the semaphore in the host object if it is embedded.
+    optional string embedded_path = 3;
+}
+
+message TSemaphoreRelease
+{
+    optional string lease_uuid = 1;
+
+    // Path to the semaphore in the host object if it is embedded.
+    optional string embedded_path = 2;
+}
+
+message TSemaphoreControlBase
+{
+    optional TSemaphoreAcquire acquire = 1;
+    optional TSemaphorePing ping = 2;
+    optional TSemaphoreRelease release = 3;
+}
+
+message TEmbeddedSemaphore
+{
+    optional TSemaphoreSpec spec = 1;
+    optional TSemaphoreStatus status = 2;
+}
+
+message TGenericObjectEmbeddedSemaphoreControl
+{
+    message TEmbeddedSemaphore
+    {
+        optional TSemaphoreAcquire acquire = 1;
+        optional TSemaphorePing ping = 2;
+        optional TSemaphoreRelease release = 3;
+    }
+
+    optional TEmbeddedSemaphore embedded_semaphore = 1002;
+}
+
+////////////////////////////////////////////////////////////////////////////////

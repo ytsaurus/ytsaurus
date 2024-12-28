@@ -1,0 +1,142 @@
+// {{ autogen_marker }}
+
+#include "db_schema.h"
+
+namespace {{ cpp_objects_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYT::NOrm::NServer::NObjects::TDBConfig CreateDBConfig()
+{
+    return NYT::NOrm::NServer::NObjects::TDBConfig{
+        .UpdateObjectMode = {% if database_options.set_update_object_mode == "SUOM_OVERWRITE" -%}
+            NYT::NOrm::NServer::NObjects::ESetUpdateObjectMode::Overwrite
+        {%- elif database_options.set_update_object_mode == "SUOM_LEGACY" -%}
+            NYT::NOrm::NServer::NObjects::ESetUpdateObjectMode::Legacy
+        {%- else -%}
+        {{ "Unsupported DB set_update_object_mode option \"" + database_options.set_update_object_mode | string + "\"" }}
+        {%- endif -%},
+        .VersionCompatibility = {% if database_options.version_compatibility == "VC_SAME_AS_DB_VERSION" -%}
+                NYT::NOrm::NServer::NObjects::EDBVersionCompatibility::SameAsDBVersion
+            {%- elif database_options.version_compatibility == "VC_LOWER_OR_EQUAL_THAN_DB_VERSION" -%}
+                NYT::NOrm::NServer::NObjects::EDBVersionCompatibility::LowerOrEqualThanDBVersion
+            {%- elif database_options.version_compatibility == "VC_DO_NOT_VALIDATE" -%}
+                NYT::NOrm::NServer::NObjects::EDBVersionCompatibility::DoNotValidate
+            {%- else -%}
+            {{ "Unsupported DB version_compatibility option \"" + database_options.version_compatibility | string + "\"" }}
+            {%- endif -%},
+        .EnableTombstones = {{ database_options.enable_tombstones | to_cpp_bool }},
+        .EnableAnnotations = {{ database_options.enable_annotations | to_cpp_bool }},
+        {%- if database_options.enable_history_snapshot_column %}
+        .EnableHistorySnapshotColumn = true,
+        {%- endif %}
+        .EnableFinalizers = {{ database_options.enable_finalizers | to_cpp_bool }},
+        .EnableAsynchronousRemovals = {{ database_options.enable_asynchronous_removals | to_cpp_bool }},
+        {%- if database_options.enable_base_schema_acl_inheritance %}
+        .EnableBaseSchemaAclInheritance = true,
+        {%- endif %}
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+{%- if not database_options.no_legacy_parents_table %}
+const NYT::NOrm::NServer::NObjects::TParentsTable ParentsTable({{ (not database_options.no_parents_hash) | to_cpp_bool }});
+{%- endif %}
+
+{%- macro history_commit_time_cpp(time) %}
+    {%- if time == "HCT_TRANSACTION_START" -%}
+NYT::NOrm::NServer::NObjects::EHistoryCommitTime::TransactionStart
+    {%- elif time == "HCT_TRANSACTION_COMMIT_START" -%}
+NYT::NOrm::NServer::NObjects::EHistoryCommitTime::TransactionCommitStart
+    {%- else -%}
+{{ "Unsupported DB history_commit_time option \"" + time | string + "\"" }}
+    {%- endif -%}
+{%- endmacro %}
+
+{%- macro history_time_mode_cpp(mode) %}
+    {%- if mode == "HTM_LOGICAL" -%}
+NYT::NOrm::NServer::NObjects::EHistoryTimeMode::Logical
+    {%- elif mode == "HTM_PHYSICAL" -%}
+NYT::NOrm::NServer::NObjects::EHistoryTimeMode::Physical
+    {%- else -%}
+{{ "Unsupported DB history_time_mode option \"" + mode | string + "\"" }}
+    {%- endif -%}
+{%- endmacro %}
+
+{%- for history_table in database_options.history_tables %}
+
+const NYT::NOrm::NServer::NObjects::THistoryEventsTable {{history_table.cpp_table_name}}(
+    /*addHashKeyField*/ {{ (not history_table.no_hash) | to_cpp_bool }},
+    /*useUuidInKey*/ {{ history_table.use_uuid_in_key | to_cpp_bool }},
+    /*usePositiveEventTypes*/ {{ history_table.use_positive_event_types | to_cpp_bool }},
+    /*optimizeForAscendingTime*/ {{ history_table.optimize_for_ascending_time | to_cpp_bool }},
+    /*commitTime*/ {{history_commit_time_cpp(history_table.commit_time)}},
+    /*timeMode*/ {{history_time_mode_cpp(history_table.time_mode)}},
+    /*tableName*/ "{{ history_table.primary_table_name }}");
+
+const NYT::NOrm::NServer::NObjects::THistoryIndexTable {{history_table.cpp_index_name}}(
+    /*addHashKeyField*/ {{ (not history_table.no_hash) | to_cpp_bool }},
+    /*primary_table*/ {{history_table.cpp_table_name}},
+    /*tableName*/ "{{history_table.index_table_name}}");
+
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+{%- for object in objects %}
+const T{{ object.table_cpp_name }} {{ object.table_cpp_name }};
+{%- if object.separate_parents_table %}
+const T{{ object.parents_table_cpp_name }} {{ object.parents_table_cpp_name }};
+{%- endif %}
+{%- endfor %}
+
+{%- for references_table in references_tables %}
+const T{{ references_table | references_table_camel_case }}Table {{ references_table | references_table_camel_case }}Table;
+{%- endfor %}
+
+{%- for index in indexes | rejectattr("underlying_table") %}
+const T{{ index.camel_case_name }}Table {{ index.camel_case_name }}Table;
+{%- endfor %}
+
+const std::vector<const NYT::NOrm::NServer::NObjects::TDBTable*> Tables = {
+    // Object tables.
+{%- for object in objects %}
+    &{{ object.table_cpp_name }},
+{%- endfor %}
+
+    // Index tables.
+{%- for index in indexes | rejectattr("underlying_table") %}
+    &{{ index.camel_case_name }}Table,
+{%- endfor %}
+
+    // References tables.
+{%- for references_table in references_tables %}
+    &{{ references_table | references_table_camel_case }}Table,
+{%- endfor %}
+
+    // Parents tables.
+{%- for object in objects %}
+{%- if object.separate_parents_table %}
+    &{{ object.parents_table_cpp_name }},
+{%- endif %}
+{%- endfor %}
+
+    // Tombstones table.
+{%- if database_options.enable_tombstones %}
+    &NYT::NOrm::NServer::NObjects::TombstonesTable,
+{%- endif %}
+
+    // Pending removals table.
+{%- if database_options.enable_asynchronous_removals %}
+    &NYT::NOrm::NServer::NObjects::PendingRemovalsTable,
+{%- endif %}
+
+    // Annotations table.
+{%- if database_options.enable_annotations %}
+    &NYT::NOrm::NServer::NObjects::AnnotationsTable,
+{%- endif %}
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ cpp_objects_namespace }}

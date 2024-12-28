@@ -1,0 +1,172 @@
+// {{ autogen_marker }}
+{%- import "/macros.proto.j2" as macros %}
+
+#pragma once
+
+#include "enums.h"
+
+#include <yt/yt/orm/client/misc/traits.h>
+
+#include <yt/yt/orm/client/objects/key.h>
+
+#include <yt/yt/orm/library/mpl/types.h>
+
+#include <util/generic/strbuf.h>
+
+#include <array>
+
+{%-set cpp_proto_namespace = data_model_proto_package | proto_to_cpp_namespace %}
+
+namespace {{ cpp_proto_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+{{ macros.line_break() }}
+{%- for object in objects %}
+class {{ object.root | message_cpp_class_name }};
+class {{ object.meta | message_cpp_class_name }};
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ cpp_proto_namespace }}
+
+namespace {{ client_misc_cpp_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TObjectTypes = ::NYT::NOrm::NMpl::TTypes<
+{%- for object in objects %}
+    {{ cpp_proto_namespace }}::{{ object.root | message_cpp_class_name }}{% if not loop.last %},{% else %}>;{% endif %}
+{%- endfor %}
+
+template <class T>
+concept CObjectType = ::NYT::NOrm::NMpl::COneOfTypes<T, TObjectTypes>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <CObjectType T>
+struct TObjectTypeTraitsByType;
+
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <EObjectType Value>
+struct TObjectTypeValueComparator
+{
+    template <class Trait>
+    constexpr bool operator()() const
+    {
+        return Value == Trait::Value;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+template <EObjectType Value>
+using TObjectTypeTraitsByValue = TObjectTypes::Map<TObjectTypeTraitsByType>::
+    template SuchThat<NDetail::TObjectTypeValueComparator<Value>>;
+
+template <EObjectType Value>
+using TObjectTypeByValue = typename TObjectTypeTraitsByValue<Value>::Type;
+
+template <CObjectType T>
+inline constexpr EObjectType ObjectTypeValueByType = TObjectTypeTraitsByType<T>::Value;
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Helper to get ObjectType by runtime enum type.
+//! TInvokable must have signature `void <typename T>()`,
+template <::NYT::NOrm::NMpl::CInvocableForEachType<TObjectTypes> TInvokable>
+bool InvokeForObjectType(EObjectType objectType, TInvokable&& consumer)
+{
+    bool found = false;
+    TObjectTypes::ForEach([&] <CObjectType T> {
+        if (TObjectTypeTraitsByType<T>::Value == objectType) {
+            found = true;
+            consumer.template operator()<T>();
+        }
+    });
+    return found;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+{%- for object in objects %}
+
+template <>
+struct TObjectTypeTraitsByType<{{ cpp_proto_namespace }}::T{{ object.camel_case_name }}>
+{
+    using Type = {{ cpp_proto_namespace }}::T{{ object.camel_case_name }};
+
+    static constexpr EObjectType Value = EObjectType::{{ object.camel_case_name }};
+    static constexpr bool HasParent = {{ object.parent | to_cpp_bool }};
+    {%- if object.parent %}
+    using ParentType = {{ cpp_proto_namespace }}::T{{ object.parent.camel_case_name }};
+    static constexpr EObjectType ParentValue = EObjectType::{{ object.parent.camel_case_name }};
+    {%- endif %}
+
+    static constexpr bool HasHashColumn = {{ (object.hash_policy != 0) | to_cpp_bool }};
+
+    static constexpr bool HasReferences = {{ [object.references, object.references_deprecated] | map("length") | sum | to_cpp_bool }};
+
+    static constexpr auto PrimaryKeySelector = std::to_array<TStringBuf>({
+    {%- if object.parent %}
+        {%- for field in object.all_key_fields | selectattr("is_parent_key_field") %}
+        "/meta/{{ object.parent | foreign_key_prefix }}_{{ field.snake_case_name }}",
+        {%- endfor %}
+    {%- endif %}
+    {%- for field in object.key_fields %}
+        "/meta/{{ field.snake_case_name }}",
+    {%- endfor %}
+    });
+    static constexpr auto ObjectKeyFieldTypes = std::to_array({
+    {%- for field in object.key_fields %}
+        {{ field.cpp_yt_type }},
+    {%- endfor %}
+    });
+
+    static constexpr bool IsBuiltin = {{ object.builtin | to_cpp_bool }};
+
+    // Return descriptions only for references described via TReference option.
+    static const THashMap<NYT::NYPath::TYPath, NYT::NOrm::NClient::TReferenceDescriptor> ReferenceDescriptors;
+};
+
+bool ExtractObjectMetaKeyFields(const {{ object.meta | message_cpp_full_name }}& source, {{ object.meta | message_cpp_full_name }}& destination);
+
+NYT::NOrm::NClient::NObjects::TObjectKey GetObjectKey(
+    const {{ object.meta | message_cpp_full_name }}& source,
+    bool ensureAllKeysPresent = false);
+
+void SetObjectKey(
+    {{ object.meta | message_cpp_full_name }}& destination,
+    const NYT::NOrm::NClient::NObjects::TObjectKey& key);
+
+{%- if object.parent %}
+NYT::NOrm::NClient::NObjects::TObjectKey GetParentKey(
+    const {{ object.meta | message_cpp_full_name }}& source,
+    bool ensureAllKeysPresent = false);
+{%- endif %}
+
+void TrySetParentKey(
+    {{ object.meta | message_cpp_full_name }}& destination,
+    const NYT::NOrm::NClient::NObjects::TObjectKey& key);
+
+// ParentKey (if present) + ObjectKey.
+NYT::NOrm::NClient::NObjects::TObjectKey GetPrimaryKey(
+    const {{ object.meta | message_cpp_full_name }}& source,
+    bool ensureAllKeysPresent = false);
+
+void SetPrimaryKey(
+    {{ object.meta | message_cpp_full_name }}& destination,
+    const NYT::NOrm::NClient::NObjects::TObjectKey& key);
+
+THashMap<std::pair<EObjectType, NYT::NYPath::TYPath>, std::vector<NYT::NOrm::NClient::NObjects::TObjectKey>> GetReferences(
+    const {{ cpp_proto_namespace }}::T{{ object.camel_case_name }}& object);
+
+////////////////////////////////////////////////////////////////////////////////
+{%- endfor %}
+{{ macros.line_break() }}
+} // namespace {{ client_misc_cpp_namespace }}

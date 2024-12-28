@@ -1,0 +1,138 @@
+package NYT.NOrm.NDataModel;
+
+import "yt_proto/yt/orm/data_model/access_control.proto";
+import "yt_proto/yt/orm/data_model/controls.proto";
+import "yt_proto/yt/orm/data_model/finalizers.proto";
+
+import "yt_proto/yt/orm/client/proto/object.proto";
+
+import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
+
+option java_package = "ru.yandex.yt.yt_proto.yt.orm.data_model";
+option go_package = "go.ytsaurus.tech/yt/yt_proto/yt/orm/data_model";
+
+option (NYT.NOrm.NClient.NProto.do_not_export) = true;
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TGenericObjectMeta
+{
+    option (NYT.NOrm.NClient.NProto.output_filename) = "default";
+    option (NYT.NOrm.NClient.NProto.message_tags) = "meta";
+
+    optional uint64 removal_time = 301 [
+        (NYT.NOrm.NClient.NProto.hidden_from_client) = true,
+        (NYT.NOrm.NClient.NProto.base_column) = true,
+        (NYT.NOrm.NClient.NProto.system) = true,
+        (NYT.NOrm.NClient.NProto.field_data_group) = "primary"];
+    repeated TAccessControlEntryMixin acl = 11 [
+        (NYT.NOrm.NClient.NProto.base_column) = true,
+        (NYT.NOrm.NClient.NProto.system) = true,
+        (NYT.NOrm.NClient.NProto.field_data_group) = "primary"];
+    optional uint64 creation_time = 9 [
+        (NYT.NOrm.NClient.NProto.not_initializable) = true,
+        (NYT.NOrm.NClient.NProto.not_updatable) = true,
+        (NYT.NOrm.NClient.NProto.base_column) = true,
+        (NYT.NOrm.NClient.NProto.system) = true];
+    optional bool inherit_acl = 10 [
+        (NYT.NOrm.NClient.NProto.base_column) = true,
+        (NYT.NOrm.NClient.NProto.system) = true];
+    optional string uuid = 12 [
+        (NYT.NOrm.NClient.NProto.not_initializable) = true,
+        (NYT.NOrm.NClient.NProto.not_updatable) = true];
+    optional string name = 13;
+    optional string fqid = 16 [
+        (NYT.NOrm.NClient.NProto.not_initializable) = true,
+        (NYT.NOrm.NClient.NProto.not_updatable) = true,
+        (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true,
+        (NYT.NOrm.NClient.NProto.computed) = true,
+        (NYT.NOrm.NClient.NProto.system) = true];
+    optional string key = 17 [
+        (NYT.NOrm.NClient.NProto.not_initializable) = true,
+        (NYT.NOrm.NClient.NProto.not_updatable) = true,
+        (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true,
+        (NYT.NOrm.NClient.NProto.computed) = true,
+        (NYT.NOrm.NClient.NProto.system) = true];
+    optional string parent_key = 18 [
+        (NYT.NOrm.NClient.NProto.not_initializable) = true,
+        (NYT.NOrm.NClient.NProto.not_updatable) = true,
+        (NYT.NOrm.NClient.NProto.store_field_to_meta_response) = true,
+        (NYT.NOrm.NClient.NProto.computed) = true,
+        (NYT.NOrm.NClient.NProto.system) = true];
+}
+
+message TGenericObjectFinalizer
+{
+    optional uint64 finalization_start_time = 110 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.not_initializable) = true,
+        (NYT.NOrm.NClient.NProto.cpp_override) = true,
+        (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY];
+
+    map<string, TFinalizer> finalizers = 111 [
+        (NYT.NOrm.NClient.NProto.column) = true,
+        (NYT.NOrm.NClient.NProto.cpp_override) = true,
+        (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY,
+        (NYT.NYson.NProto.yson_map) = true];
+
+    map<string, TFinalizer> active_finalizers = 112 [
+        (NYT.NOrm.NClient.NProto.computed) = true,
+        (NYT.NOrm.NClient.NProto.system) = true,
+        (NYT.NOrm.NClient.NProto.opaque) = true,
+        (NYT.NOrm.NClient.NProto.update_policy) = UP_OPAQUE_READ_ONLY,
+        (NYT.NYson.NProto.yson_map) = true];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TGenericObjectSpec
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "spec";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TGenericObjectStatus
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "status";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TGenericObjectControl
+{
+    option (NYT.NOrm.NClient.NProto.message_tags) = "control";
+
+    optional TObjectTouchIndex touch_index = 1000;
+    optional TObjectTouch touch = 1001 [
+        (NYT.NOrm.NClient.NProto.add_tags) = "touch"];
+    optional TObjectTouchRevision touch_revision = 1003;
+    optional TObjectAddFinalizer add_finalizer = 1004;
+    optional TObjectRemoveFinalizer remove_finalizer = 1007;
+    optional TObjectCompleteFinalization complete_finalization = 1005;
+    optional TObjectMigrateAttributes migrate_attributes = 1006;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TGenericObject
+{
+    optional TGenericObjectMeta meta = 1;
+    optional TGenericObjectSpec spec = 2;
+    optional TGenericObjectStatus status = 3;
+    optional NYT.NYTree.NProto.TAttributeDictionary labels = 4;
+    optional NYT.NYTree.NProto.TAttributeDictionary annotations = 5;
+    optional TGenericObjectControl control = 6;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TGenericObjectGeoHash
+{
+    optional string geohash = 1 [
+        (NYT.NOrm.NClient.NProto.column) = true
+    ];
+}
+
+////////////////////////////////////////////////////////////////////////////////

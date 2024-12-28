@@ -1,0 +1,16 @@
+// {{ autogen_marker }}
+
+#include "config.h"
+
+namespace {{ client_native_cpp_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TConnectionConfig::Register(TRegistrar registrar)
+{
+    SetDefaultDomain(registrar, ".{{ default_db_name.replace("_", "-") }}.yandex.net", {{ default_grpc_port }});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // {{ client_native_cpp_namespace }}

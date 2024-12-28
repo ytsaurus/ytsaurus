@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/yt/orm/ya_cpp.make.inc)
 
 SRCS(
     computed_fields_filter.cpp
+    continuation.cpp
     expression_evaluator.cpp
     filter_introspection.cpp
     filter_matcher.cpp
@@ -16,6 +17,8 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/orm/client/misc
+
     yt/yt/orm/library/attributes
 
     yt/yt/library/query/engine

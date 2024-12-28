@@ -1,0 +1,43 @@
+// {{ autogen_marker }}
+{%- set config -%}
+    {%- if custom_config -%}
+        {{ cpp_server_plugins_namespace }}::
+    {%- endif-%}
+    TMasterConfig
+{%- endset %}
+{%- set include_path -%}
+    {%- if custom_config -%}
+        {{ cpp_server_plugins_path }}
+    {%- else -%}
+        {{ cpp_server_path }}/{{ generated_files_dir_name }}
+    {%- endif-%}
+{%- endset %}
+
+#pragma once
+
+#include <{{ include_path }}/public.h>
+
+#include <{{ include_path }}/config.h>
+
+#include <yt/yt/orm/server/program/program.h>
+
+#include <yt/yt/core/ytree/public.h>
+
+namespace {{ cpp_server_namespace }} {
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMasterProgram
+    : public NYT::NOrm::NServer::NProgram::TMasterProgram<TMasterProgram, {{ config }}>
+{
+public:
+    TMasterProgram();
+
+    static NYT::NOrm::NServer::NMaster::IBootstrap* StartBootstrap(
+        {{ config }}Ptr config,
+        NYT::NYTree::INodePtr configPatchNode);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ cpp_server_namespace }}

@@ -1,0 +1,40 @@
+// {{ autogen_marker }}
+{%- import "/macros.proto.j2" as macros %}
+
+{%- if proto3 %}
+syntax = "proto3";
+{%- endif %}
+
+package {{ data_model_proto_package }};
+
+option java_package = "{{ data_model_java_package }}";
+{%- if module.java_outer_classname %}
+option java_outer_classname = "{{ module.java_outer_classname }}";
+{%- endif %}
+{%- if module.java_multiple_files %}
+option java_multiple_files = true;
+{%- endif %}
+{%- for key, value in module.exported_extensions.items() %}
+option ({{ key}}) = {{ value | python_value_to_proto }};
+{%- endfor %}
+
+option go_package = "{{ data_model_go_package }}";
+{%- for i in aux_public_imports %}
+import public "{{ i }}";
+{%- endfor %}
+{% for i in aux_imports %}
+import "{{ i }}";
+{%- endfor %}
+{##}
+{%- for enum in sourced_enums.get(aux_output_name, []) | sort(attribute="name") %}
+{%- if loop.first %}
+////////////////////////////////////////////////////////////////////////////////
+{%- endif %}
+{{ macros.print_enum(enum) }}
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+{%- for message in sourced_messages.get(aux_output_name, []) | sort(attribute="name") %}
+{{ macros.print_message(message, proto3) }}
+{%- endfor %}

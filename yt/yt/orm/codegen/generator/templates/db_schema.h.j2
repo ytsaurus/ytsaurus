@@ -1,0 +1,194 @@
+// {{ autogen_marker }}
+
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/orm/server/objects/db_schema.h>
+#include <yt/yt/orm/server/objects/db_config.h>
+
+#include <vector>
+
+namespace {{ cpp_objects_namespace }} {
+
+{% if db_version is defined -%}
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr int DBVersion = {{ db_version }};
+{%- endif %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYT::NOrm::NServer::NObjects::TDBConfig CreateDBConfig();
+
+////////////////////////////////////////////////////////////////////////////////
+
+{%- macro table_fields_list(table_columns) -%}
+    {%- for column in table_columns %}
+        &{{ column.full_cpp_name }}{{ "," if not loop.last }}
+    {%- endfor %}
+{%- endmacro %}
+
+{%- macro table_keys(table_columns) -%}
+    {{- table_fields_list(table_columns | selectattr("is_key")) }}
+{%- endmacro %}
+
+{%- macro table_initialize_call(table_columns) -%}
+        Initialize(/*keyFields*/ {
+            {{- table_keys(table_columns) | indent }}
+        },
+        /*otherFields*/ {
+            {{- table_fields_list(table_columns | rejectattr("is_key") | rejectattr("is_dummy")) | indent }}
+        });
+{%- endmacro %}
+
+{%- macro table_fields_multiline(table_columns) -%}
+    {%- for column in table_columns | rejectattr("is_dummy") %}
+        NYT::NOrm::NServer::NObjects::TDBField {{ column.cpp_name}}{
+            .Name = "{{ column.name }}",
+            .Type = {{ column.cpp_yt_type }},
+            {%- if column.lock %}
+            .LockGroup = "{{ column.lock }}",
+            {%- endif %}
+            {%- if column.expression %}
+            .Evaluated = true,
+            {%- endif %}
+        };
+    {%- endfor %}
+{%- endmacro %}
+{##}
+{% if database_options.no_legacy_parents_table -%}
+inline const NYT::NOrm::NServer::NObjects::TParentsTable* DoGetParentsTable()
+{
+    return nullptr;
+}
+{% else -%}
+inline const NYT::NOrm::NServer::NObjects::TParentsTable* DoGetParentsTable()
+{
+    extern const NYT::NOrm::NServer::NObjects::TParentsTable ParentsTable;
+    return &ParentsTable;
+}
+{% endif -%}
+{% for history_table in database_options.history_tables -%}
+extern const NYT::NOrm::NServer::NObjects::THistoryEventsTable {{history_table.cpp_table_name}};
+extern const NYT::NOrm::NServer::NObjects::THistoryIndexTable {{history_table.cpp_index_name}};
+{% endfor-%}
+
+////////////////////////////////////////////////////////////////////////////////
+
+{%- for object in objects %}
+
+extern const struct T{{ object.table_cpp_name }}
+    : public NYT::NOrm::NServer::NObjects::TDBTable
+{
+    T{{ object.table_cpp_name }}()
+        : NYT::NOrm::NServer::NObjects::TDBTable("{{ object.table_name }}")
+    {
+        {{ table_initialize_call(object.table_columns | list) }}
+    }
+
+    struct TFields
+        : public NYT::NOrm::NServer::NObjects::TObjectTableBase::TFields
+    {
+        {{- table_fields_multiline(object.table_columns | rejectattr("is_base")) }}
+    } Fields;
+} {{ object.table_cpp_name }};
+
+{%- if object.separate_parents_table %}
+
+extern const struct T{{ object.parents_table_cpp_name }}
+    : public NYT::NOrm::NServer::NObjects::TDBTable
+{
+    T{{ object.parents_table_cpp_name }}()
+        : NYT::NOrm::NServer::NObjects::TDBTable("{{ object.parents_table_name }}")
+    {
+        {{ table_initialize_call(object.parents_table_columns | list) }}
+    }
+
+    struct TFields
+    {
+        {{- table_fields_multiline(object.parents_table_columns) }}
+    } Fields;
+} {{ object.parents_table_cpp_name }};
+
+{%- endif %}
+
+////////////////////////////////////////////////////////////////////////////////
+{%- endfor %}
+
+{% for references_table in references_tables | rejectattr("indexed") %}
+extern const struct T{{ references_table | references_table_camel_case }}Table
+    : public NYT::NOrm::NServer::NObjects::TDBTable
+{
+    T{{ references_table | references_table_camel_case }}Table()
+        : NYT::NOrm::NServer::NObjects::TDBTable("{{ references_table | references_table_snake_case }}")
+    {
+        {{ table_initialize_call(references_table.table_columns | list) }}
+    }
+
+    struct TFields {
+        {{- table_fields_multiline(references_table.table_columns) }}
+    } Fields;
+} {{ references_table | references_table_camel_case }}Table;
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+{%- for references_table in references_tables | selectattr("indexed") %}
+extern const struct T{{ references_table | references_table_camel_case }}Table
+    : public NYT::NOrm::NServer::NObjects::TDBIndexTable
+{
+    T{{ references_table | references_table_camel_case }}Table()
+        : NYT::NOrm::NServer::NObjects::TDBIndexTable(
+            "{{ references_table | references_table_snake_case }}",
+            &{{references_table.source.table_cpp_name}})
+    {
+        IndexKey = {
+            {{- table_keys(references_table.table_columns | selectattr("is_reference_target")) | indent }}
+        };
+        ObjectTableKey = {
+            {{- table_keys(references_table.table_columns | selectattr("is_reference_source")) | indent }}
+        };
+        {{ table_initialize_call(references_table.table_columns | list) }}
+    }
+
+    struct TFields
+    {
+        {{- table_fields_multiline(references_table.table_columns) }}
+    } Fields;
+} {{ references_table | references_table_camel_case }}Table;
+{% endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+{%- for index in indexes | rejectattr("underlying_table") %}
+
+extern const struct T{{ index.camel_case_name }}Table
+    : public NYT::NOrm::NServer::NObjects::TDBIndexTable
+{
+    T{{ index.camel_case_name }}Table()
+        : NYT::NOrm::NServer::NObjects::TDBIndexTable(
+            "{{ index.table_name }}",
+            &{{index.object.table_cpp_name}})
+    {
+        IndexKey = {
+            {{- table_keys(index.table_columns | selectattr("is_reference_target")) | indent }}
+        };
+        ObjectTableKey = {
+            {{- table_keys(index.object_table_keys) | indent }}
+        };
+        {{ table_initialize_call(index.table_columns | list) }}
+    }
+
+    struct TFields
+    {
+        {{- table_fields_multiline(index.table_columns) }}
+    } Fields;
+} {{ index.camel_case_name }}Table;
+{%- endfor %}
+
+////////////////////////////////////////////////////////////////////////////////
+
+extern const std::vector<const NYT::NOrm::NServer::NObjects::TDBTable*> Tables;
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace {{ cpp_objects_namespace }}
