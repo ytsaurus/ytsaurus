@@ -1196,7 +1196,7 @@ public:
         }
 
         if (Spec_->ClusterName && Spec_->UseClusterThrottlers) {
-            UpdateNeededResourcesCallback_ = BIND(
+            UpdateNeededResourcesCallback_ = BIND_NO_PROPAGATE(
                 &TRemoteCopyController::UpdateNeededResources,
                 MakeWeak(this))
             .Via(GetCancelableInvoker());
@@ -1302,9 +1302,9 @@ protected:
                         CurrentMaxRunnableJobCount_,
                         0);
                     // Zero out maximum runnable jobs. It will be coming back once bandwidth becomes available.
-                    CurrentMaxRunnableJobCount_ = 0;
                     auto result = -CachedTotalNeededResources_;
-                    CachedTotalNeededResources_ = CachedTotalNeededResources_ - CachedTotalNeededResources_;
+                    CachedTotalNeededResources_ = {};
+                    CurrentMaxRunnableJobCount_ = 0;
                     return result;
                 }
             }

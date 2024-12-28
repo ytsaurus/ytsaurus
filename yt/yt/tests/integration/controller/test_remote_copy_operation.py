@@ -2278,7 +2278,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
 
     @authors("yuryalekseev")
     def test_rate_limit_ratio_hard_threshold(self):
-        bandwidth_limit = self.BANDWIDTH_LIMIT * 4
+        bandwidth_limit = self.BANDWIDTH_LIMIT * 8
 
         # Create //sys/cluster_throttlers
         remove('//sys/cluster_throttlers', force=True)

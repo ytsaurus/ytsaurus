@@ -901,12 +901,8 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
             (*clusterToNetworkBandwidthAvailability)[TClusterName(clusterName)] = availability.is_available();
         }
 
-        if (clusterToNetworkBandwidthAvailability->empty()) {
-            YT_LOG_DEBUG("Got empty cluster network bandwidth availability from leader");
-        } else {
-            YT_LOG_DEBUG("Got nonempty cluster network bandwidth availability from leader (NetworkAvailability: %v)",
-                *clusterToNetworkBandwidthAvailability);
-        }
+        YT_LOG_DEBUG("Received cluster network bandwidth availability from leader (NetworkAvailability: %v)",
+            *clusterToNetworkBandwidthAvailability);
     }
 
     ProfileHeartbeatRequest(request);
