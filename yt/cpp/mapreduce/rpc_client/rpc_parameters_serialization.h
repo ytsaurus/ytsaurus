@@ -3,6 +3,7 @@
 #include <yt/cpp/mapreduce/interface/client_method_options.h>
 
 #include <yt/yt/client/api/cypress_client.h>
+#include <yt/yt/client/api/transaction.h>
 
 namespace NYT::NDetail {
 
@@ -74,6 +75,16 @@ NApi::TUnlockNodeOptions SerializeOptionsForUnlock(
     TMutationId& mutationId,
     const TTransactionId& transactionId,
     const TUnlockOptions& options);
+
+NApi::TTransactionStartOptions SerializeOptionsForStartTransaction(
+    TMutationId& mutationId,
+    const TTransactionId& parentId,
+    TDuration timeout,
+    const TStartTransactionOptions& options);
+
+NApi::TTransactionAbortOptions SerializeOptionsForAbortTransaction(TMutationId& mutationId);
+
+NApi::TTransactionCommitOptions SerializeOptionsForCommitTransaction(TMutationId& mutationId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

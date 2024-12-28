@@ -109,6 +109,23 @@ public:
         const TYPath& path,
         const TUnlockOptions& options = {}) override;
 
+    // Transactions
+
+    TTransactionId StartTransaction(
+        TMutationId& mutationId,
+        const TTransactionId& parentId,
+        const TStartTransactionOptions& options = {}) override;
+
+    void PingTransaction(const TTransactionId& transactionId) override;
+
+    void AbortTransaction(
+        TMutationId& mutationId,
+        const TTransactionId& transactionId) override;
+
+    void CommitTransaction(
+        TMutationId& mutationId,
+        const TTransactionId& transactionId) override;
+
 private:
     const NApi::IClientPtr Client_;
     const TClientContext Context_;

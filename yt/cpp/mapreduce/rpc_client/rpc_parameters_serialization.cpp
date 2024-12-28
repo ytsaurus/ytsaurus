@@ -1,5 +1,9 @@
 #include "rpc_parameters_serialization.h"
 
+#include <yt/cpp/mapreduce/common/helpers.h>
+
+#include <yt/cpp/mapreduce/interface/errors.h>
+
 #include <library/cpp/yson/node/node_io.h>
 
 namespace NYT::NDetail {
@@ -285,6 +289,50 @@ NApi::TUnlockNodeOptions SerializeOptionsForUnlock(
     NApi::TUnlockNodeOptions result;
     SetMutationId(&result, &mutationId);
     SetTransactionId(&result, transactionId);
+    return result;
+}
+
+NApi::TTransactionStartOptions SerializeOptionsForStartTransaction(
+    TMutationId& mutationId,
+    const TTransactionId& parentId,
+    TDuration timeout,
+    const TStartTransactionOptions& options)
+{
+    NApi::TTransactionStartOptions result;
+    result.ParentId = YtGuidFromUtilGuid(parentId);
+    result.Timeout = options.Timeout_.GetOrElse(timeout);
+    if (options.Deadline_) {
+        result.Deadline = *options.Deadline_;
+    }
+    result.PingAncestors = options.PingAncestors_;
+
+    if (options.Attributes_ && !options.Attributes_->IsMap()) {
+        ythrow TApiUsageError() << "Attributes must be a Map node";
+    }
+
+    auto attributes = NYTree::ConvertToAttributes(
+        NYson::TYsonString(NodeToYsonString(*options.Attributes_, NYson::EYsonFormat::Binary)));
+    if (options.Title_) {
+        attributes->Set("title", *options.Title_);
+    } else if (!attributes->Contains("title")) {
+        attributes->Set("title", GetDefaultTransactionTitle());
+    }
+    result.Attributes = std::move(attributes);
+
+    return result;
+}
+
+NApi::TTransactionAbortOptions SerializeOptionsForAbortTransaction(TMutationId& mutationId)
+{
+    NApi::TTransactionAbortOptions result;
+    SetMutationId(&result, &mutationId);
+    return result;
+}
+
+NApi::TTransactionCommitOptions SerializeOptionsForCommitTransaction(TMutationId& mutationId)
+{
+    NApi::TTransactionCommitOptions result;
+    SetMutationId(&result, &mutationId);
     return result;
 }
 
