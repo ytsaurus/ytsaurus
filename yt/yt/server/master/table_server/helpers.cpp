@@ -21,6 +21,7 @@ using namespace NTableServer;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

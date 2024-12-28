@@ -9,7 +9,7 @@
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 using namespace NFormats;
 using namespace NScheduler;
@@ -163,4 +163,4 @@ TFormat TFormatManager::ConvertToFormat(const INodePtr& formatNode, TString orig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

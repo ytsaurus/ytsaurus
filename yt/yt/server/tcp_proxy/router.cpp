@@ -268,8 +268,8 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const TTcpProxyDynamicConfigPtr& /*oldConfig*/,
-        const TTcpProxyDynamicConfigPtr& /*newConfig*/)
+        const TProxyDynamicConfigPtr& /*oldConfig*/,
+        const TProxyDynamicConfigPtr& /*newConfig*/)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

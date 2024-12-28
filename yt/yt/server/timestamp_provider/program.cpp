@@ -10,21 +10,22 @@ namespace NYT::NTimestampProvider {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTimestampProviderProgram
-    : public TServerProgram<TTimestampProviderConfig>
+    : public TServerProgram<TTimestampProviderProgramConfig>
 {
 public:
     TTimestampProviderProgram()
     {
-        SetMainThreadName("TSProvider");
+        SetMainThreadName("TSProviderProg");
     }
 
 private:
     void DoStart() final
     {
-        auto* bootstrap = CreateBootstrap(GetConfig()).release();
+        auto bootstrap = CreateTimestampProviderBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Initialize();
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 };

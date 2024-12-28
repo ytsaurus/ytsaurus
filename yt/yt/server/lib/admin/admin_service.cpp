@@ -110,7 +110,10 @@ IServicePtr CreateAdminService(
     ICoreDumperPtr coreDumper,
     IAuthenticatorPtr authenticator)
 {
-    return New<TAdminService>(std::move(invoker), std::move(coreDumper), std::move(authenticator));
+    return New<TAdminService>(
+        std::move(invoker),
+        std::move(coreDumper),
+        std::move(authenticator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

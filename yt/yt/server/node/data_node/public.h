@@ -20,8 +20,6 @@ using NNodeTrackerClient::TNodeId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IBootstrap;
-
 struct TChunkDescriptor;
 struct TSessionOptions;
 struct TChunkReadOptions;
@@ -33,6 +31,7 @@ struct TArtifactKey;
 
 class TNetworkStatistics;
 
+DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
 
 DECLARE_REFCOUNTED_CLASS(TMasterJobBase)

@@ -61,7 +61,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NTabletClient::TTabletCellOptionsPtr, Options);
     DECLARE_BYVAL_RW_PROPERTY(TDynamicTabletCellOptionsPtr, DynamicOptions);
     DEFINE_BYVAL_RO_PROPERTY(int, DynamicConfigVersion);
-    DEFINE_BYREF_RW_PROPERTY(TCellBalancerConfigPtr, CellBalancerConfig);
+    DEFINE_BYREF_RW_PROPERTY(TCellBalancerBootstrapConfigPtr, CellBalancerConfig);
     DEFINE_BYREF_RW_PROPERTY(ECellHealth, Health, ECellHealth::Good);
 
     DEFINE_BYREF_RW_PROPERTY(THashSet<TCellBase*>, Cells);

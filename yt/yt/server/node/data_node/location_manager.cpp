@@ -26,6 +26,7 @@ using namespace NFS;
 using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

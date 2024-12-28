@@ -4,7 +4,9 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
+#include <yt/yt/library/coredumper/public.h>
+
+#include <yt/yt/library/profiling/solomon/public.h>
 
 #include <yt/yt/server/lib/transaction_server/timestamp_proxy_service.h>
 
@@ -15,10 +17,10 @@
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
 
+#include <yt/yt/library/fusion/service_locator.h>
+
 #include <yt/yt/client/transaction_client/config.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
-
-#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -45,6 +47,7 @@ using namespace NOrchid;
 using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NYTree;
+using namespace NFusion;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,8 +59,14 @@ class TBootstrap
     : public IBootstrap
 {
 public:
-    explicit TBootstrap(TTimestampProviderConfigPtr config)
+    TBootstrap(
+        TTimestampProviderBootstrapConfigPtr config,
+        INodePtr configNode,
+        IServiceLocatorPtr serviceLocator)
         : Config_(std::move(config))
+        , ConfigNode_(std::move(configNode))
+        , ServiceLocator_(std::move(serviceLocator))
+        , ControlQueue_(New<TActionQueue>("Control"))
     {
         if (Config_->AbortOnUnrecognizedOptions) {
             AbortOnUnrecognizedOptions(Logger(), Config_);
@@ -66,30 +75,28 @@ public:
         }
     }
 
-    void Initialize() override
+    void Initialize()
     {
-        ControlQueue_ = New<TActionQueue>("Control");
-
-        BIND(&TBootstrap::DoInitialize, this)
+        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
             .Get()
             .ThrowOnError();
     }
 
-    void Run() override
+    TFuture<void> Run() final
     {
-        BIND(&TBootstrap::DoRun, this)
+        return BIND(&TBootstrap::DoRun, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
+            .Run();
     }
 
 private:
-    const TTimestampProviderConfigPtr Config_;
+    const TTimestampProviderBootstrapConfigPtr Config_;
+    const INodePtr ConfigNode_;
+    const IServiceLocatorPtr ServiceLocator_;
 
-    TActionQueuePtr ControlQueue_;
+    const TActionQueuePtr ControlQueue_;
 
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
@@ -97,8 +104,6 @@ private:
 
     IMapNodePtr OrchidRoot_;
     TMonitoringManagerPtr MonitoringManager_;
-
-    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     const IInvokerPtr& GetControlInvoker() const
     {
@@ -111,15 +116,11 @@ private:
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
-        if (Config_->CoreDumper) {
-            CoreDumper_ = CreateCoreDumper(Config_->CoreDumper);
-        }
-
         // TODO(gepardo): Pass authentication here.
 
         NMonitoring::Initialize(
             HttpServer_,
-            Config_->SolomonExporter,
+            ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
             &MonitoringManager_,
             &OrchidRoot_);
 
@@ -127,7 +128,7 @@ private:
             SetNodeByYPath(
                 OrchidRoot_,
                 "/config",
-                CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+                CreateVirtualNode(ConfigNode_));
         }
         SetBuildAttributes(
             OrchidRoot_,
@@ -157,7 +158,7 @@ private:
             /*authenticator*/ nullptr));
         RpcServer_->RegisterService(CreateAdminService(
             GetControlInvoker(),
-            CoreDumper_,
+            ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
             /*authenticator*/ nullptr));
     }
 
@@ -173,9 +174,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(TTimestampProviderConfigPtr config)
+IBootstrapPtr CreateTimestampProviderBootstrap(
+    TTimestampProviderBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
 {
-    return std::make_unique<TBootstrap>(std::move(config));
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

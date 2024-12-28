@@ -6,8 +6,6 @@ namespace NYT::NCellarNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IBootstrap;
-
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TCellarNodeConfig)
@@ -19,6 +17,7 @@ DECLARE_REFCOUNTED_STRUCT(TMemoryLimits)
 DECLARE_REFCOUNTED_STRUCT(TMediumThroughputLimits)
 DECLARE_REFCOUNTED_STRUCT(TBundleDynamicConfig)
 
+DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
 
 ////////////////////////////////////////////////////////////////////////////////

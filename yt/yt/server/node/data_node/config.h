@@ -80,7 +80,7 @@ DEFINE_REFCOUNTED_TYPE(TP2PConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkLocationConfig
-    : public TDiskLocationConfig
+    : public NServer::TDiskLocationConfig
 {
 public:
     static constexpr bool EnableHazard = true;
@@ -148,7 +148,7 @@ DEFINE_REFCOUNTED_TYPE(TChunkLocationConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkLocationDynamicConfig
-    : public TDiskLocationDynamicConfig
+    : public NServer::TDiskLocationDynamicConfig
 {
 public:
     std::optional<NIO::EIOEngineType> IOEngineType;
@@ -333,7 +333,7 @@ DEFINE_REFCOUNTED_TYPE(TArtifactCacheReaderConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLayerLocationConfig
-    : public TDiskLocationConfig
+    : public NServer::TDiskLocationConfig
 {
 public:
     //! The location is considered to be full when available space becomes less than #LowWatermark.
@@ -971,7 +971,7 @@ public:
     NConcurrency::TThroughputThrottlerConfigPtr AnnounceChunkReplicaRpsOutThrottler;
 
     //! Runs periodic checks against disks.
-    TDiskHealthCheckerConfigPtr DiskHealthChecker;
+    NServer::TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
     //! Publish disabled locations to master.
     bool PublishDisabledLocations;

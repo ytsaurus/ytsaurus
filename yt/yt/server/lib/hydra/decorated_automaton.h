@@ -317,7 +317,7 @@ private:
     NProfiling::TGauge CompressedSnapshotSizeGauge_;
     NProfiling::TGauge UncompressedSnapshotSizeGauge_;
 
-    TForkCountersPtr ForkCounters_;
+    NServer::TForkCountersPtr ForkCounters_;
 
     TSharedRef SanitizedLocalHostName_;
 

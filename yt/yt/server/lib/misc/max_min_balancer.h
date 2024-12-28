@@ -5,7 +5,7 @@
 
 #include <optional>
 
-namespace NYT {
+namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,7 +76,7 @@ protected: // for testing
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer
 
 #define MAX_MIN_BALANCER_INL_H_
 #include "max_min_balancer-inl.h"

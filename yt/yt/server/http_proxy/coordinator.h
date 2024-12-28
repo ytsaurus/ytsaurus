@@ -82,7 +82,7 @@ class TCoordinator
 {
 public:
     TCoordinator(
-        TProxyConfigPtr config,
+        TProxyBootstrapConfigPtr config,
         TBootstrap* bootstrap);
 
     void Start();
@@ -90,7 +90,7 @@ public:
     bool IsBanned() const;
     bool CanHandleHeavyRequests() const;
 
-    std::vector<TProxyEntryPtr> ListProxyEntries(std::optional<std::string> roleFilter, bool includeDeadAndBanned = false);
+    std::vector<TProxyEntryPtr> LisTProxyEntries(std::optional<std::string> roleFilter, bool includeDeadAndBanned = false);
     TProxyEntryPtr AllocateProxy(const std::string& role);
     TProxyEntryPtr GetSelf();
 

@@ -137,11 +137,11 @@ public:
     {
         YT_LOG_INFO("Initializing cellar node");
 
+        // Cycles are fine for bootstrap.
         GetBundleDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, this));
-
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
 
         TransactionLeaseTrackerThreadPool_ = CreateTransactionLeaseTrackerThreadPool(
             "TxTracker",
@@ -240,7 +240,7 @@ public:
         NHydra::NProto::TSnapshotMeta meta = {},
         bool dumpSnapshot = false) override
     {
-        BIND(&TBootstrap::DoLoadSnapshot, this, fileName, meta, dumpSnapshot)
+        BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, meta, dumpSnapshot)
             .AsyncVia(GetControlInvoker())
             .Run()
             .Get()
@@ -249,7 +249,7 @@ public:
 
     void ReplayChangelogs(std::vector<TString> changelogFileNames) override
     {
-        BIND(&TBootstrap::DoReplayChangelogs, this, Passed(std::move(changelogFileNames)))
+        BIND(&TBootstrap::DoReplayChangelogs, MakeStrong(this), Passed(std::move(changelogFileNames)))
             .AsyncVia(GetControlInvoker())
             .Run()
             .Get()
@@ -258,7 +258,7 @@ public:
 
     void BuildSnapshot() override
     {
-        BIND(&TBootstrap::DoBuildSnapshot, this)
+        BIND(&TBootstrap::DoBuildSnapshot, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
             .Get()
@@ -267,7 +267,7 @@ public:
 
     void FinishDryRun() override
     {
-        BIND(&TBootstrap::DoFinishDryRun, this)
+        BIND(&TBootstrap::DoFinishDryRun, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
             .Get()
@@ -314,7 +314,7 @@ private:
         YT_LOG_EVENT(
             DryRunLogger,
             NLogging::ELogLevel::Info,
-            "Creating dry-run occupant (CellId: %v, TabletCellBundle: %v, ClockClusterTag: %v)",
+            "Creating dry run occupant (CellId: %v, TabletCellBundle: %v, ClockClusterTag: %v)",
             cellId,
             tabletCellBundle,
             clockClusterTag);
@@ -350,16 +350,15 @@ private:
         const auto& hydraManager = DryRunOccupant_->GetHydraManager();
         auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
 
-        for (auto changelogFileName : changelogFileNames) {
-            auto changelogId = TryFromString<int>(NFS::GetFileNameWithoutExtension(changelogFileName));
-            if (changelogId.Empty()) {
-                changelogId = InvalidSegmentId;
-                YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Cannot parse changelog name as id, using id %v as substitute",
+        for (const auto& changelogFileName : changelogFileNames) {
+            int changelogId  = InvalidSegmentId;
+            if (!TryFromString(NFS::GetFileNameWithoutExtension(changelogFileName), changelogId)) {
+                YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Error parsing changelog name as id, using id %v as substitute",
                     changelogId);
             }
 
             YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Started loading changelog");
-            auto changelog = CreateJournalAsLocalFileReadOnlyChangelog(changelogFileName, *changelogId);
+            auto changelog = CreateJournalAsLocalFileReadOnlyChangelog(changelogFileName, changelogId);
             dryRunHydraManager->DryRunReplayChangelog(changelog);
         }
     }
@@ -441,9 +440,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(NClusterNode::IBootstrap* bootstrap)
+IBootstrapPtr CreateBootstrap(NClusterNode::IBootstrap* bootstrap)
 {
-    return std::make_unique<TBootstrap>(bootstrap);
+    return New<TBootstrap>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

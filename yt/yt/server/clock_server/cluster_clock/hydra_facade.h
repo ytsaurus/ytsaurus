@@ -17,7 +17,7 @@ class THydraFacade
 {
 public:
     THydraFacade(
-        TClusterClockConfigPtr config,
+        TClusterClockBootstrapConfigPtr config,
         TBootstrap* bootstrap);
     ~THydraFacade();
 

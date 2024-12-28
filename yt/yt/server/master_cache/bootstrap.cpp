@@ -1,21 +1,27 @@
 #include "bootstrap.h"
 
-#include "chaos_cache_bootstrap.h"
+#include "part_bootstrap.h"
+#include "chaos_cache_part_bootstrap.h"
 #include "config.h"
-#include "master_cache_bootstrap.h"
+#include "master_cache_part_bootstrap.h"
 #include "private.h"
 #include "dynamic_config_manager.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 #include <yt/yt/server/lib/admin/restart_service.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
+#include <yt/yt/library/coredumper/public.h>
+
+#include <yt/yt/library/profiling/solomon/public.h>
 
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/library/program/helpers.h>
+#include <yt/yt/library/program/config.h>
+
+#include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 #include <yt/yt/server/lib/cypress_registrar/config.h>
@@ -34,8 +40,6 @@
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
-#include <yt/yt/library/coredumper/public.h>
-
 #include <yt/yt/core/bus/tcp/server.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -53,11 +57,12 @@ namespace NYT::NMasterCache {
 using namespace NAdmin;
 using namespace NApi::NNative;
 using namespace NConcurrency;
-using namespace NCoreDump;
 using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NYTree;
 using namespace NNodeTrackerClient;
+using namespace NFusion;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,8 +74,14 @@ class TBootstrap
     : public IBootstrap
 {
 public:
-    explicit TBootstrap(TMasterCacheConfigPtr config)
+    TBootstrap(
+        TMasterCacheBootstrapConfigPtr config,
+        INodePtr configNode,
+        IServiceLocatorPtr serviceLocator)
         : Config_(std::move(config))
+        , ConfigNode_(std::move(configNode))
+        , ServiceLocator_(std::move(serviceLocator))
+        , ControlQueue_(New<TActionQueue>("Control"))
     {
         if (Config_->AbortOnUnrecognizedOptions) {
             AbortOnUnrecognizedOptions(Logger(), Config_);
@@ -79,27 +90,23 @@ public:
         }
     }
 
-    void Initialize() override
+    void Initialize()
     {
-        ControlQueue_ = New<TActionQueue>("Control");
-
-        BIND(&TBootstrap::DoInitialize, this)
+        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
             .Get()
             .ThrowOnError();
     }
 
-    void Run() override
+    TFuture<void> Run() override
     {
-        BIND(&TBootstrap::DoRun, this)
+        return BIND(&TBootstrap::DoRun, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
+            .Run();
     }
 
-    const TMasterCacheConfigPtr& GetConfig() const override
+    const TMasterCacheBootstrapConfigPtr& GetConfig() const override
     {
         return Config_;
     }
@@ -140,9 +147,11 @@ public:
     }
 
 private:
-    const TMasterCacheConfigPtr Config_;
+    const TMasterCacheBootstrapConfigPtr Config_;
+    const INodePtr ConfigNode_;
+    const IServiceLocatorPtr ServiceLocator_;
 
-    TActionQueuePtr ControlQueue_;
+    const TActionQueuePtr ControlQueue_;
 
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
@@ -152,16 +161,14 @@ private:
     TMonitoringManagerPtr MonitoringManager_;
     ICypressRegistrarPtr CypressRegistrar_;
 
-    NCoreDump::ICoreDumperPtr CoreDumper_;
-
     IConnectionPtr Connection_;
 
     NApi::IClientPtr RootClient_;
 
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
-    std::unique_ptr<IBootstrap> MasterCacheBootstrap_;
-    std::unique_ptr<IBootstrap> ChaosCacheBootstrap_;
+    IPartBootstrapPtr MasterCacheBootstrap_;
+    IPartBootstrapPtr ChaosCacheBootstrap_;
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
@@ -171,13 +178,9 @@ private:
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
-        if (Config_->CoreDumper) {
-            CoreDumper_ = CreateCoreDumper(Config_->CoreDumper);
-        }
-
         NMonitoring::Initialize(
             HttpServer_,
-            Config_->SolomonExporter,
+            ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
             &MonitoringManager_,
             &OrchidRoot_);
 
@@ -211,15 +214,15 @@ private:
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
         DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
-        MasterCacheBootstrap_ = CreateMasterCacheBootstrap(this);
-        ChaosCacheBootstrap_ = CreateChaosCacheBootstrap(this);
+        MasterCacheBootstrap_ = CreateMasterCachePartBootstrap(this);
+        ChaosCacheBootstrap_ = CreateChaosCachePartBootstrap(this);
 
         MasterCacheBootstrap_->Initialize();
         ChaosCacheBootstrap_->Initialize();
 
         RpcServer_->RegisterService(CreateAdminService(
             GetControlInvoker(),
-            CoreDumper_,
+            ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
             NativeAuthenticator_));
 
         auto restartManager = New<TRestartManager>(GetControlInvoker());
@@ -233,7 +236,7 @@ private:
             SetNodeByYPath(
                 OrchidRoot_,
                 "/config",
-                CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+                CreateVirtualNode(ConfigNode_));
             SetNodeByYPath(
                 OrchidRoot_,
                 "/dynamic_config_manager",
@@ -273,55 +276,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(TMasterCacheConfigPtr config)
+IBootstrapPtr CreateMasterCacheBootstrap(
+    TMasterCacheBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator)
 {
-    return std::make_unique<TBootstrap>(std::move(config));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TBootstrapBase::TBootstrapBase(IBootstrap* bootstrap)
-    : Bootstrap_(bootstrap)
-{ }
-
-const TMasterCacheConfigPtr& TBootstrapBase::GetConfig() const
-{
-    return Bootstrap_->GetConfig();
-}
-
-const IConnectionPtr& TBootstrapBase::GetConnection() const
-{
-    return Bootstrap_->GetConnection();
-}
-
-const NApi::IClientPtr& TBootstrapBase::GetRootClient() const
-{
-    return Bootstrap_->GetRootClient();
-}
-
-const IMapNodePtr& TBootstrapBase::GetOrchidRoot() const
-{
-    return Bootstrap_->GetOrchidRoot();
-}
-
-const NRpc::IServerPtr& TBootstrapBase::GetRpcServer() const
-{
-    return Bootstrap_->GetRpcServer();
-}
-
-const IInvokerPtr& TBootstrapBase::GetControlInvoker() const
-{
-    return Bootstrap_->GetControlInvoker();
-}
-
-const NRpc::IAuthenticatorPtr& TBootstrapBase::GetNativeAuthenticator() const
-{
-    return Bootstrap_->GetNativeAuthenticator();
-}
-
-const TDynamicConfigManagerPtr& TBootstrapBase::GetDynamicConfigManger() const
-{
-    return Bootstrap_->GetDynamicConfigManger();
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -93,6 +93,7 @@ using namespace NObjectServer;
 using namespace NChunkServer::NProto;
 using namespace NCellMaster;
 using namespace NTransactionClient;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;

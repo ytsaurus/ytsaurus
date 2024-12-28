@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
+#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -20,6 +20,8 @@
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
+#include <yt/yt/library/coredumper/public.h>
+
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
@@ -29,7 +31,7 @@
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
 
-#include <yt/yt/library/coredumper/public.h>
+#include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -59,6 +61,7 @@ using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NTransactionClient;
 using namespace NYTree;
+using namespace NFusion;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,8 +73,13 @@ class TBootstrap
     : public IBootstrap
 {
 public:
-    explicit TBootstrap(TCellBalancerBootstrapConfigPtr config)
+    TBootstrap(
+        TCellBalancerBootstrapConfigPtr config,
+        INodePtr configNode,
+        IServiceLocatorPtr serviceLocator)
         : Config_(std::move(config))
+        , ConfigNode_(std::move(configNode))
+        , ServiceLocator_(std::move(serviceLocator))
     {
         if (Config_->AbortOnUnrecognizedOptions) {
             AbortOnUnrecognizedOptions(Logger(), Config_);
@@ -80,24 +88,20 @@ public:
         }
     }
 
-    void Initialize() override
+    void Initialize()
     {
-        ControlQueue_ = New<TActionQueue>("Control");
-
-        BIND(&TBootstrap::DoInitialize, this)
+        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
             .Get()
             .ThrowOnError();
     }
 
-    void Run() override
+    TFuture<void> Run() override
     {
-        BIND(&TBootstrap::DoRun, this)
+        return BIND(&TBootstrap::DoRun, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
+            .Run();
     }
 
     const NApi::NNative::IClientPtr& GetClient() override
@@ -118,7 +122,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
+        return NServer::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
     }
 
     const ICypressElectionManagerPtr& GetElectionManager() const override
@@ -138,8 +142,10 @@ public:
 
 private:
     const TCellBalancerBootstrapConfigPtr Config_;
+    const INodePtr ConfigNode_;
+    const IServiceLocatorPtr ServiceLocator_;
 
-    TActionQueuePtr ControlQueue_;
+    const TActionQueuePtr ControlQueue_ = New<TActionQueue>("Control");
 
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
@@ -147,8 +153,6 @@ private:
 
     IMapNodePtr OrchidRoot_;
     TMonitoringManagerPtr MonitoringManager_;
-
-    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     NNative::IConnectionPtr Connection_;
     NNative::IClientPtr Client_;
@@ -178,10 +182,6 @@ private:
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
-        if (Config_->CoreDumper) {
-            CoreDumper_ = CreateCoreDumper(Config_->CoreDumper);
-        }
-
         TCypressElectionManagerOptionsPtr options = New<TCypressElectionManagerOptions>();
         options->GroupName = "CellBalancer";
         options->MemberName = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
@@ -197,7 +197,7 @@ private:
 
         NMonitoring::Initialize(
             HttpServer_,
-            Config_->SolomonExporter,
+            ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
             &MonitoringManager_,
             &OrchidRoot_);
 
@@ -205,7 +205,7 @@ private:
             SetNodeByYPath(
                 OrchidRoot_,
                 "/config",
-                CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+                CreateVirtualNode(ConfigNode_));
         }
         SetNodeByYPath(
             OrchidRoot_,
@@ -225,7 +225,7 @@ private:
             NativeAuthenticator_));
         RpcServer_->RegisterService(CreateAdminService(
             GetControlInvoker(),
-            CoreDumper_,
+            ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
             NativeAuthenticator_));
         RpcServer_->RegisterService(NBundleController::CreateBundleControllerService(this));
     }
@@ -256,9 +256,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(TCellBalancerBootstrapConfigPtr config)
+IBootstrapPtr CreateCellBalancerBootstrap(
+    TCellBalancerBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
 {
-    return std::make_unique<TBootstrap>(std::move(config));
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

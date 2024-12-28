@@ -30,6 +30,7 @@ using namespace NChunkClient;
 using namespace NTableClient;
 using namespace NYson;
 using namespace NNodeTrackerClient;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

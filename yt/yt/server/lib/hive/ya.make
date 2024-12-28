@@ -23,6 +23,7 @@ SRCS(
 PEERDIR(
     yt/yt/core
     yt/yt/server/lib/election
+    yt/yt/server/lib/hydra
 )
 
 END()

@@ -15,9 +15,8 @@ namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IBootstrap;
-struct IBootstrapBase;
-
+DECLARE_REFCOUNTED_STRUCT(IBootstrapBase)
+DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 DECLARE_REFCOUNTED_STRUCT(ISlot)
 DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
 
@@ -29,7 +28,8 @@ DECLARE_REFCOUNTED_CLASS(TMasterConnectorConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterConnectorDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkReplicaCacheDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TTopLevelPortoEnvironmentConfig);
-DECLARE_REFCOUNTED_CLASS(TClusterNodeConfig)
+DECLARE_REFCOUNTED_CLASS(TClusterNodeBootstrapConfig)
+DECLARE_REFCOUNTED_CLASS(TClusterNodeProgramConfig)
 DECLARE_REFCOUNTED_CLASS(TClusterNodeDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TClusterNodeDynamicConfigManager)
 DECLARE_REFCOUNTED_CLASS(TProxyingChunkServiceConfig)

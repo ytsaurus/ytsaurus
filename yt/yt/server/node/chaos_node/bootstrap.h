@@ -36,9 +36,11 @@ struct IBootstrap
     virtual const NApi::NNative::IConnectionPtr& GetClusterConnection() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IBootstrap)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(NClusterNode::IBootstrap* bootstrap);
+IBootstrapPtr CreateBootstrap(NClusterNode::IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

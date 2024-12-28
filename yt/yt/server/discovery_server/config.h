@@ -14,9 +14,8 @@ namespace NYT::NClusterDiscoveryServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterDiscoveryServerConfig
-    : public TServerConfig
-    , public TServerProgramConfig
+class TDiscoveryServerBootstrapConfig
+    : public NServer::TServerBootstrapConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
@@ -27,12 +26,26 @@ public:
 
     NDiscoveryServer::TDiscoveryServerConfigPtr DiscoveryServer;
 
-    REGISTER_YSON_STRUCT(TClusterDiscoveryServerConfig);
+    REGISTER_YSON_STRUCT(TDiscoveryServerBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TClusterDiscoveryServerConfig)
+DEFINE_REFCOUNTED_TYPE(TDiscoveryServerBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TDiscoveryServerProgramConfig
+    : public TDiscoveryServerBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TDiscoveryServerProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDiscoveryServerProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

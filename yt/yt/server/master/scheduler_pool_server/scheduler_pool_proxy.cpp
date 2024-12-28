@@ -19,6 +19,7 @@ using namespace NObjectServer;
 using namespace NScheduler;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

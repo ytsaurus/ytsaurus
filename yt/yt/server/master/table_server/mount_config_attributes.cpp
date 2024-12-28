@@ -27,6 +27,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NTransactionServer;
 using namespace NObjectServer;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

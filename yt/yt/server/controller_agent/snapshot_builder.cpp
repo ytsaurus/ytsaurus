@@ -39,6 +39,7 @@ using namespace NConcurrency;
 using namespace NApi;
 using namespace NPipes;
 using namespace NScheduler;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

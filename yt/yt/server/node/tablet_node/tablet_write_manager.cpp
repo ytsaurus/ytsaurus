@@ -31,6 +31,7 @@ using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,7 +4,7 @@ namespace NYT::NClusterDiscoveryServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TClusterDiscoveryServerConfig::Register(TRegistrar registrar)
+void TDiscoveryServerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
@@ -18,6 +18,11 @@ void TClusterDiscoveryServerConfig::Register(TRegistrar registrar)
     registrar.Parameter("discovery_server", &TThis::DiscoveryServer)
         .DefaultNew();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TDiscoveryServerProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

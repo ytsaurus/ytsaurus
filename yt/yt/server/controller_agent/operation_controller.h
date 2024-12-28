@@ -214,7 +214,7 @@ struct IOperationControllerHost
     virtual const NCoreDump::ICoreDumperPtr& GetCoreDumper() = 0;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
-    virtual const TJobReporterPtr& GetJobReporter() = 0;
+    virtual const NServer::TJobReporterPtr& GetJobReporter() = 0;
     virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() = 0;
 
     virtual TJobProfiler* GetJobProfiler() const = 0;
@@ -481,7 +481,7 @@ struct IOperationController
     virtual bool ShouldSkipRunningJobEvents() const noexcept = 0;
 
     //! Produces allocations on heap for testing and returns container.
-    virtual std::vector<TTestAllocationGuard> TestHeap() const = 0;
+    virtual std::vector<NServer::TTestAllocationGuard> TestHeap() const = 0;
 
     //! Returns the total resources that are additionally needed.
     /*!

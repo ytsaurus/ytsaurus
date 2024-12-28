@@ -39,7 +39,7 @@ struct IServer
     void RegisterTypedHandler(TTypedHandler<TRequest, TResponse> handler);
 
     // Update kafka proxy dynamic config.
-    virtual void OnDynamicConfigChanged(const TKafkaProxyDynamicConfigPtr& config) = 0;
+    virtual void OnDynamicConfigChanged(const TProxyDynamicConfigPtr& config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IServer);
@@ -47,7 +47,7 @@ DEFINE_REFCOUNTED_TYPE(IServer);
 ////////////////////////////////////////////////////////////////////////////////
 
 IServerPtr CreateServer(
-    TKafkaProxyConfigPtr config,
+    TProxyBootstrapConfigPtr config,
     NApi::NNative::IConnectionPtr connection,
     NAuth::IAuthenticationManagerPtr authenticationManager,
     NConcurrency::IPollerPtr poller,

@@ -137,7 +137,7 @@ public:
     }
 
 private:
-    const TCellMasterConfigPtr Config_;
+    const TCellMasterBootstrapConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
     std::vector<TFuture<void>> ScheduledMutations_;

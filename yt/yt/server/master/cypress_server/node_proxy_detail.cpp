@@ -86,6 +86,7 @@ using namespace NTabletServer;
 using namespace NChaosServer;
 using namespace NCypressClient;
 using namespace NSequoiaServer;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

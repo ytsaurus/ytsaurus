@@ -2,43 +2,28 @@
 
 #include "public.h"
 
-#include <yt/yt/library/coredumper/public.h>
-
-#include <yt/yt/ytlib/chunk_client/public.h>
-
 #include <yt/yt/ytlib/api/native/public.h>
-
-#include <yt/yt/library/profiling/solomon/public.h>
-
-#include <yt/yt/library/program/config.h>
-
-#include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/bus/tcp/public.h>
 
-#include <yt/yt/core/logging/public.h>
-
 #include <yt/yt/core/http/public.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! A configuration for a server which does not necessarily have explicitly defined
 //! "native" cluster. Examples of non-native components are timestamp providers
 //! and discovery servers.
-class TServerConfig
-    : public virtual TSingletonsConfig
+struct TServerBootstrapConfig
+    : public virtual NYTree::TYsonStruct
 {
-public:
     NBus::TBusServerConfigPtr BusServer;
     NRpc::TServerConfigPtr RpcServer;
-    NCoreDump::TCoreDumperConfigPtr CoreDumper;
-    NProfiling::TSolomonExporterConfigPtr SolomonExporter;
 
     int RpcPort;
     int TvmOnlyRpcPort;
@@ -49,36 +34,33 @@ public:
 
     NHttp::TServerConfigPtr CreateMonitoringHttpServerConfig();
 
-    REGISTER_YSON_STRUCT(TServerConfig);
+    REGISTER_YSON_STRUCT(TServerBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TServerConfig)
+DEFINE_REFCOUNTED_TYPE(TServerBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNativeServerConfig
-    : public TServerConfig
+struct TNativeServerBootstrapConfig
+    : public NServer::TServerBootstrapConfig
 {
-public:
     NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
-
     NApi::NNative::EClusterConnectionDynamicConfigPolicy ClusterConnectionDynamicConfigPolicy;
 
-    REGISTER_YSON_STRUCT(TNativeServerConfig);
+    REGISTER_YSON_STRUCT(TNativeServerBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TNativeServerConfig)
+DEFINE_REFCOUNTED_TYPE(TNativeServerBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiskLocationConfig
+struct TDiskLocationConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! Root directory for the location.
     TString Path;
 
@@ -105,10 +87,9 @@ DEFINE_REFCOUNTED_TYPE(TDiskLocationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiskLocationDynamicConfig
+struct TDiskLocationDynamicConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     std::optional<i64> MinDiskSpace;
 
     REGISTER_YSON_STRUCT(TDiskLocationDynamicConfig);
@@ -120,10 +101,9 @@ DEFINE_REFCOUNTED_TYPE(TDiskLocationDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiskHealthCheckerConfig
+struct TDiskHealthCheckerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Period between consequent checks.
     TDuration CheckPeriod;
 
@@ -142,10 +122,9 @@ DEFINE_REFCOUNTED_TYPE(TDiskHealthCheckerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFormatConfigBase
+struct TFormatConfigBase
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
     NYTree::IMapNodePtr DefaultAttributes;
 
@@ -158,10 +137,9 @@ DEFINE_REFCOUNTED_TYPE(TFormatConfigBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFormatConfig
+struct TFormatConfig
     : public TFormatConfigBase
 {
-public:
     THashMap<std::string, TFormatConfigBasePtr> UserOverrides;
 
     REGISTER_YSON_STRUCT(TFormatConfig);
@@ -176,10 +154,9 @@ DEFINE_REFCOUNTED_TYPE(TFormatConfig)
 //! Part of the ArchiveReporter configuration with common options.
 //! Options which are supposed to be changed independently for every archive table
 //! are listed in TArchiveHandlerConfig.
-class TArchiveReporterConfig
+struct TArchiveReporterConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enabled;
     TDuration ReportingPeriod;
     TDuration MinRepeatDelay;
@@ -196,10 +173,9 @@ DEFINE_REFCOUNTED_TYPE(TArchiveReporterConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Part of the ArchiveReporter configuration with unique per-table options.
-class TArchiveHandlerConfig
+struct TArchiveHandlerConfig
     : public NYTree::TYsonStruct
 {
-public:
     i64 MaxInProgressDataSize;
     TString Path;
 
@@ -212,10 +188,9 @@ DEFINE_REFCOUNTED_TYPE(TArchiveHandlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobReporterConfig
+struct TJobReporterConfig
     : public TArchiveReporterConfig
 {
-public:
     TArchiveHandlerConfigPtr JobHandler;
     TArchiveHandlerConfigPtr OperationIdHandler;
     TArchiveHandlerConfigPtr JobSpecHandler;
@@ -258,10 +233,9 @@ DEFINE_REFCOUNTED_TYPE(TJobReporterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THeapProfilerTestingOptions
+struct THeapProfilerTestingOptions
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<i64> AllocationSize;
     std::optional<TDuration> AllocationReleaseDelay;
 
@@ -274,4 +248,4 @@ DEFINE_REFCOUNTED_TYPE(THeapProfilerTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

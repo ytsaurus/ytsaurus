@@ -6,6 +6,7 @@ RECURSE(
     log_tailer
     master
     master_cache
+    multidaemon
     node
     clock_server
     discovery_server

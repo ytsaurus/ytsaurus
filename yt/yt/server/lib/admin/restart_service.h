@@ -11,7 +11,7 @@ namespace NYT::NAdmin {
 ////////////////////////////////////////////////////////////////////////////////
 
 NRpc::IServicePtr CreateRestartService(
-    TRestartManagerPtr restartManager,
+    NServer::TRestartManagerPtr restartManager,
     IInvokerPtr invoker,
     NLogging::TLogger logger,
     NRpc::IAuthenticatorPtr authenticator);

@@ -9,7 +9,7 @@ namespace NYT::NExecNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNodeJobReport
-    : public TJobReport
+    : public NServer::TJobReport
 {
 public:
     TNodeJobReport OperationId(TOperationId operationId);
@@ -19,11 +19,11 @@ public:
     TNodeJobReport StartTime(TInstant startTime);
     TNodeJobReport FinishTime(TInstant finishTime);
     TNodeJobReport Error(const TError& error);
-    TNodeJobReport InterruptionInfo(TJobInterruptionInfo interruptionInfo);
+    TNodeJobReport InterruptionInfo(NServer::TJobInterruptionInfo interruptionInfo);
     TNodeJobReport Spec(const NControllerAgent::NProto::TJobSpec& spec);
     TNodeJobReport SpecVersion(i64 specVersion);
     TNodeJobReport Statistics(const NYson::TYsonString& statistics);
-    TNodeJobReport Events(const TJobEvents& events);
+    TNodeJobReport Events(const NServer::TJobEvents& events);
     TNodeJobReport StderrSize(i64 stderrSize);
     TNodeJobReport Stderr(const TString& stderr);
     TNodeJobReport FailContext(const TString& failContext);

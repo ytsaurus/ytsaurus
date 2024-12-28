@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,4 +25,4 @@ Y_FORCE_INLINE std::optional<std::string> GetProfilingUser(const NRpc::TAuthenti
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

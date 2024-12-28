@@ -12,20 +12,22 @@ namespace NYT::NTabletBalancer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletBalancerProgram
-    : public TServerProgram<TTabletBalancerServerConfig>
+    : public TServerProgram<TTabletBalancerProgramConfig>
 {
 public:
     TTabletBalancerProgram()
     {
-        SetMainThreadName("TabletBalancer");
+        SetMainThreadName("TabBalancerProg");
     }
 
 private:
     void DoStart() final
     {
-        auto* bootstrap = CreateBootstrap(GetConfig(), GetConfigNode()).release();
+        auto bootstrap = CreateTabletBalancerBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 };

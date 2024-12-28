@@ -38,6 +38,7 @@ PEERDIR(
     yt/yt/server/timestamp_provider
     yt/yt/server/tools
     yt/yt/server/replicated_table_tracker
+    yt/yt/server/multidaemon
 
     yt/yt/library/oom
 )

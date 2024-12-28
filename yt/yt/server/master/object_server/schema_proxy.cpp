@@ -19,6 +19,7 @@ using namespace NSecurityServer;
 using namespace NObjectClient;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -42,9 +42,8 @@ DEFINE_REFCOUNTED_TYPE(TClockHydraManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterClockConfig
-    : public TServerConfig
-    , public TServerProgramConfig
+class TClusterClockBootstrapConfig
+    : public NServer::TServerBootstrapConfig
 {
 public:
     NElection::TCellConfigPtr ClockCell;
@@ -61,12 +60,24 @@ public:
     //! Primary master cell tag
     NObjectClient::TCellTag ClockClusterTag;
 
-    REGISTER_YSON_STRUCT(TClusterClockConfig);
+    REGISTER_YSON_STRUCT(TClusterClockBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TClusterClockConfig)
+DEFINE_REFCOUNTED_TYPE(TClusterClockBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TClusterClockProgramConfig
+    : public TClusterClockBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TClusterClockProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -7,7 +7,7 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TRpcProxyTest, CrashExample)
+TEST(TProxyTest, CrashExample)
 {
     unsigned char badString[] = {
         0x4f, 0x6d, 0x61, 0x78, 0x00, 0x00, 0x01, 0x00,

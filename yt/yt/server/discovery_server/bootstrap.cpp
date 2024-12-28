@@ -6,15 +6,20 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
+#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/library/program/build_attributes.h>
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/library/coredumper/public.h>
+
+#include <yt/yt/library/profiling/solomon/public.h>
+
+#include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -51,6 +56,7 @@ using namespace NMonitoring;
 using namespace NNet;
 using namespace NOrchid;
 using namespace NYTree;
+using namespace NFusion;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,9 +68,15 @@ class TBootstrap
     : public IBootstrap
 {
 public:
-    explicit TBootstrap(TClusterDiscoveryServerConfigPtr config)
+    TBootstrap(
+        TDiscoveryServerBootstrapConfigPtr config,
+        INodePtr configNode,
+        IServiceLocatorPtr serviceLocator)
         : Config_(std::move(config))
-
+        , ConfigNode_(std::move(configNode))
+        , ServiceLocator_(std::move(serviceLocator))
+        , ControlQueue_(New<TActionQueue>("Control"))
+        , WorkerPool_(CreateThreadPool(Config_->WorkerThreadPoolSize, "Worker"))
     {
         if (Config_->AbortOnUnrecognizedOptions) {
             AbortOnUnrecognizedOptions(Logger(), Config_);
@@ -73,40 +85,35 @@ public:
         }
     }
 
-    void Initialize() override
+    void Initialize()
     {
-        ControlQueue_ = New<TActionQueue>("Control");
-        WorkerPool_ = CreateThreadPool(Config_->WorkerThreadPoolSize, "Worker");
-
-        BIND(&TBootstrap::DoInitialize, this)
+        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
             .Get()
             .ThrowOnError();
     }
 
-    void Run() override
+    TFuture<void> Run() final
     {
-        BIND(&TBootstrap::DoRun, this)
+        return BIND(&TBootstrap::DoRun, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
+            .Run();
     }
 
 private:
-    const TClusterDiscoveryServerConfigPtr Config_;
+    const TDiscoveryServerBootstrapConfigPtr Config_;
+    const INodePtr ConfigNode_;
+    const IServiceLocatorPtr ServiceLocator_;
 
-    TActionQueuePtr ControlQueue_;
-    IThreadPoolPtr WorkerPool_;
+    const TActionQueuePtr ControlQueue_;
+    const IThreadPoolPtr WorkerPool_;
 
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
 
     NRpc::IChannelFactoryPtr ChannelFactory_;
-
-    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     NDiscoveryServer::IDiscoveryServerPtr DiscoveryServer_;
 
@@ -132,10 +139,6 @@ private:
 
         ChannelFactory_ = CreateCachingChannelFactory(NRpc::NBus::CreateTcpBusChannelFactory(Config_->BusClient));
 
-        if (Config_->CoreDumper) {
-            CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
-        }
-
         auto localAddress = BuildServiceAddress(GetLocalHostName(), Config_->RpcPort);
 
         // TODO(gepardo): Pass authenticator here instead of nullptr.
@@ -152,7 +155,7 @@ private:
 
         NMonitoring::Initialize(
             HttpServer_,
-            Config_->SolomonExporter,
+            ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
             &MonitoringManager_,
             &OrchidRoot_);
 
@@ -160,7 +163,7 @@ private:
             SetNodeByYPath(
                 OrchidRoot_,
                 "/config",
-                ConvertTo<INodePtr>(Config_));
+                ConfigNode_);
         }
         SetNodeByYPath(
             OrchidRoot_,
@@ -176,7 +179,7 @@ private:
             /*authenticator*/ nullptr));
         RpcServer_->RegisterService(CreateAdminService(
             GetControlInvoker(),
-            CoreDumper_,
+            ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
             /*authenticator*/ nullptr));
     }
 
@@ -190,9 +193,19 @@ private:
     }
 };
 
-std::unique_ptr<IBootstrap> CreateBootstrap(TClusterDiscoveryServerConfigPtr config)
+////////////////////////////////////////////////////////////////////////////////
+
+IBootstrapPtr CreateDiscoveryServerBootstrap(
+    TDiscoveryServerBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
 {
-    return std::make_unique<TBootstrap>(std::move(config));
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

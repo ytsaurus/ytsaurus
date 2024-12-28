@@ -89,7 +89,7 @@ private:
 
     std::optional<int> ApiVersion_;
     std::optional<TAuthenticationResultAndToken> Auth_;
-    std::unique_ptr<TFormatManager> FormatManager_;
+    std::unique_ptr<NServer::TFormatManager> FormatManager_;
     std::optional<NFormats::TFormat> HeadersFormat_;
     std::optional<NFormats::TFormat> InputFormat_;
     std::optional<NHttp::TContentEncoding> InputContentEncoding_;

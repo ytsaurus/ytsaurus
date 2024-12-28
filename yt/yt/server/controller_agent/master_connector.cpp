@@ -73,6 +73,7 @@ using namespace NFileClient;
 using namespace NSecurityClient;
 using namespace NTransactionClient;
 using namespace NScheduler;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;

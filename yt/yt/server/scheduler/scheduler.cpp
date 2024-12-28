@@ -2320,7 +2320,7 @@ private:
 
             NodeManager_->UpdateConfig(Config_);
 
-            Bootstrap_->OnDynamicConfigChanged(Config_);
+            Bootstrap_->Reconfigure(Config_);
 
             Strategy_->UpdateConfig(Config_);
             MasterConnector_->UpdateConfig(Config_);

@@ -34,6 +34,7 @@ using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 using NCypressClient::NProto::TReqCreateRootstock;
 

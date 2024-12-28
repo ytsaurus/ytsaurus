@@ -17,6 +17,7 @@ using namespace NConcurrency;
 using namespace NScheduler;
 using namespace NYTree;
 using namespace NCoreDump;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -6,6 +6,7 @@ namespace NYT::NMaintenanceTrackerServer {
 
 using namespace NCellMaster;
 using namespace NCypressServer;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

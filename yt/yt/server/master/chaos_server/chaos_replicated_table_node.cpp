@@ -17,6 +17,7 @@ using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTableServer;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

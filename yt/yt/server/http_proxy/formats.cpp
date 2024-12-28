@@ -15,6 +15,7 @@ namespace NYT::NHttpProxy {
 using namespace NFormats;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

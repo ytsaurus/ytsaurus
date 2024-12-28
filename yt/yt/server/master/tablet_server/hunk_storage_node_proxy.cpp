@@ -23,6 +23,7 @@ using namespace NObjectClient;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 using ::NYT::ToProto;
 

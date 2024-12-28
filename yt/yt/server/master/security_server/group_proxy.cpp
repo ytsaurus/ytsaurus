@@ -13,6 +13,7 @@ namespace NYT::NSecurityServer {
 
 using namespace NYTree;
 using namespace NObjectServer;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

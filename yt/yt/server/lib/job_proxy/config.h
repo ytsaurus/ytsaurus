@@ -15,6 +15,8 @@
 #include <yt/yt/ytlib/job_proxy/public.h>
 #include <yt/yt/ytlib/job_proxy/config.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 #include <yt/yt/library/containers/config.h>
 
 #include <yt/yt/library/containers/cri/config.h>
@@ -174,7 +176,7 @@ class TJobTraceEventProcessorConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TJobReporterConfigPtr Reporter;
+    NServer::TJobReporterConfigPtr Reporter;
 
     int LoggingInterval;
 
@@ -334,7 +336,8 @@ DEFINE_POLYMORPHIC_YSON_STRUCT_FOR_ENUM(JobEnvironmentConfig, EJobEnvironmentTyp
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProxyInternalConfig
-    : public TNativeServerConfig
+    : public NServer::TNativeServerBootstrapConfig
+    , public TServerProgramConfig
 {
 public:
     // Job-specific parameters.

@@ -16,7 +16,7 @@ namespace NYT::NClusterClock {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterClockProgram
-    : public TServerProgram<TClusterClockConfig>
+    : public TServerProgram<TClusterClockProgramConfig>
 {
 public:
     TClusterClockProgram()
@@ -38,7 +38,7 @@ public:
             .StoreMappedResult(&LoadSnapshotPath_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
 
-        SetMainThreadName("Clock");
+        SetMainThreadName("ClockProg");
     }
 
 private:
@@ -83,25 +83,26 @@ private:
 
     void DoStart() final
     {
-        auto* bootstrap = new NClusterClock::TBootstrap(GetConfig(), GetConfigNode());
+        auto bootstrap = CreateClusterClockBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Initialize();
 
         if (IsDryRunMode()) {
             NBus::TTcpDispatcher::Get()->DisableNetworking();
 
             if (IsDumpSnapshotMode()) {
-                bootstrap->TryLoadSnapshot(LoadSnapshotPath_, true);
+                bootstrap->LoadSnapshot(LoadSnapshotPath_, true);
                 return;
             }
 
             if (IsValidateSnapshotMode()) {
-                bootstrap->TryLoadSnapshot(LoadSnapshotPath_, false);
+                bootstrap->LoadSnapshot(LoadSnapshotPath_, false);
                 return;
             }
         }
 
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 

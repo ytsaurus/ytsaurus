@@ -47,6 +47,7 @@ using namespace NTabletBalancer;
 using namespace NObjectServer;
 using namespace NNodeTrackerServer;
 using namespace NSecurityServer;
+using namespace NServer;
 
 using NYT::FromProto;
 

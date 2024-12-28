@@ -2,7 +2,7 @@
 
 #include <yt/yt/client/table_client/row_base.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 using namespace NTableClient;
 
@@ -25,4 +25,4 @@ NTableClient::TBlobTableSchema GetCoreBlobTableSchema()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

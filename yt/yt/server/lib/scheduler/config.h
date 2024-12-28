@@ -1041,8 +1041,7 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerBootstrapConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
     NScheduler::TSchedulerConfigPtr Scheduler;
@@ -1060,6 +1059,20 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchedulerProgramConfig
+    : public TSchedulerBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TSchedulerProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSchedulerProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

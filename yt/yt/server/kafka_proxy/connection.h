@@ -50,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(IConnection)
 ////////////////////////////////////////////////////////////////////////////////
 
 IConnectionPtr CreateConnection(
-    TKafkaProxyConfigPtr config,
+    TProxyBootstrapConfigPtr config,
     NNet::IConnectionPtr connection,
     IInvokerPtr invoker,
     TRequestHandler requestHandler,

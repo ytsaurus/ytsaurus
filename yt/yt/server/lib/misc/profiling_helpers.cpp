@@ -13,7 +13,7 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -159,4 +159,4 @@ void DumpGlobalMemoryUsageSnapshot(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

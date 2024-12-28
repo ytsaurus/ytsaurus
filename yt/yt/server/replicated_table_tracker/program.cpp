@@ -10,19 +10,21 @@ namespace NYT::NReplicatedTableTracker {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TReplicatedTableTrackerProgram
-    : public TServerProgram<TReplicatedTableTrackerServerConfig>
+    : public TServerProgram<TReplicatedTableTrackerProgramConfig>
 {
 public:
     TReplicatedTableTrackerProgram()
     {
-        SetMainThreadName("Rtt");
+        SetMainThreadName("RttProg");
     }
 
     void DoStart() final
     {
-        auto* bootstrap = CreateBootstrap(GetConfig(), GetConfigNode()).release();
+        auto bootstrap = CreateReplicatedTableTrackerBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 };

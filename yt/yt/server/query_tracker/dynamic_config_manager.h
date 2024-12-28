@@ -15,11 +15,11 @@ namespace NYT::NQueryTracker {
  *  Thread affinity: any
  */
 class TDynamicConfigManager
-    : public NDynamicConfig::TDynamicConfigManagerBase<TQueryTrackerServerDynamicConfig>
+    : public NDynamicConfig::TDynamicConfigManagerBase<TQueryTrackerComponentDynamicConfig>
 {
 public:
     TDynamicConfigManager(
-        const TQueryTrackerServerConfigPtr& queryTrackerConfig,
+        const TQueryTrackerBootstrapConfigPtr& queryTrackerConfig,
         NApi::IClientPtr client,
         IInvokerPtr invoker);
 };

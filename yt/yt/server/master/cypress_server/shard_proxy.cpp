@@ -18,6 +18,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NObjectServer;
 using namespace NTableClient;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

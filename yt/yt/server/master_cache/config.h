@@ -20,9 +20,8 @@ namespace NYT::NMasterCache {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterCacheConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+class TMasterCacheBootstrapConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
@@ -37,12 +36,26 @@ public:
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
 
-    REGISTER_YSON_STRUCT(TMasterCacheConfig);
+    REGISTER_YSON_STRUCT(TMasterCacheBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TMasterCacheConfig)
+DEFINE_REFCOUNTED_TYPE(TMasterCacheBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMasterCacheProgramConfig
+    : public TMasterCacheBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TMasterCacheProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterCacheProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

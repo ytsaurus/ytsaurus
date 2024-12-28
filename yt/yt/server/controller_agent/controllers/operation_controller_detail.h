@@ -278,7 +278,7 @@ public:
 
     bool IsRunning() const override;
 
-    std::vector<TTestAllocationGuard> TestHeap() const override;
+    std::vector<NServer::TTestAllocationGuard> TestHeap() const override;
 
     void SetProgressAttributesUpdated() override;
     bool ShouldUpdateProgressAttributes() const override;
@@ -1242,16 +1242,16 @@ private:
 
     //! Release queue of job ids that were completed after the latest snapshot was built.
     //! It is a transient field.
-    TReleaseQueue<TJobId> CompletedJobIdsReleaseQueue_;
+    NServer::TReleaseQueue<TJobId> CompletedJobIdsReleaseQueue_;
 
     //! Cookie corresponding to a state of the completed job ids release queue
     //! by the moment the most recent snapshot started to be built.
-    TReleaseQueue<TJobId>::TCookie CompletedJobIdsSnapshotCookie_ = 0;
+    NServer::TReleaseQueue<TJobId>::TCookie CompletedJobIdsSnapshotCookie_ = 0;
 
     //! Release queue of chunk stripe lists that are no longer needed by a controller.
     //! Similar to the previous field.
-    TReleaseQueue<NChunkPools::TChunkStripeListPtr> IntermediateStripeListReleaseQueue_;
-    TReleaseQueue<NChunkPools::TChunkStripeListPtr>::TCookie IntermediateStripeListSnapshotCookie_ = 0;
+    NServer::TReleaseQueue<NChunkPools::TChunkStripeListPtr> IntermediateStripeListReleaseQueue_;
+    NServer::TReleaseQueue<NChunkPools::TChunkStripeListPtr>::TCookie IntermediateStripeListSnapshotCookie_ = 0;
 
     //! Release queue of chunk trees that should be released, but the corresponding
     //! node does not know yet about their invalidation.
@@ -1259,8 +1259,8 @@ private:
      *  - Abandoned completed jobs.
      *  - Jobs aborted by confirmation timeout during the revival.
      */
-    TReleaseQueue<NChunkClient::TChunkTreeId> ChunkTreeReleaseQueue_;
-    TReleaseQueue<NChunkClient::TChunkTreeId>::TCookie ChunkTreeSnapshotCookie_ = 0;
+    NServer::TReleaseQueue<NChunkClient::TChunkTreeId> ChunkTreeReleaseQueue_;
+    NServer::TReleaseQueue<NChunkClient::TChunkTreeId>::TCookie ChunkTreeSnapshotCookie_ = 0;
 
     //! Number of times `OnSnapshotStarted()` was called up to this moment.
     std::atomic<int> SnapshotIndex_ = 0;

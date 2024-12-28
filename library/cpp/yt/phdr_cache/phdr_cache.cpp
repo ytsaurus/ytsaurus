@@ -39,7 +39,7 @@ std::vector<dl_phdr_info>* PhdrCache;
 
 } // namespace NYT::NPhdrCache
 
-extern "C"
+extern "C" Y_WEAK
 #ifndef __clang__
 [[gnu::visibility("default")]]
 [[gnu::externally_visible]]

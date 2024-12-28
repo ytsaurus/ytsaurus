@@ -63,6 +63,21 @@ void Initialize(
     TMonitoringManagerPtr* monitoringManager,
     NYTree::IMapNodePtr* orchidRoot)
 {
+    auto solomonExporter = New<NProfiling::TSolomonExporter>(config);
+    Initialize(
+        monitoringServer,
+        solomonExporter,
+        monitoringManager,
+        orchidRoot);
+    solomonExporter->Start();
+}
+
+void Initialize(
+    const NHttp::IServerPtr& monitoringServer,
+    const NProfiling::TSolomonExporterPtr& solomonExporter,
+    TMonitoringManagerPtr* monitoringManager,
+    NYTree::IMapNodePtr* orchidRoot)
+{
     *monitoringManager = New<TMonitoringManager>();
     (*monitoringManager)->Register("/ref_counted", CreateRefCountedTrackerStatisticsProducer());
     (*monitoringManager)->Register("/solomon", BIND([] (NYson::IYsonConsumer* consumer) {
@@ -101,14 +116,14 @@ void Initialize(
 #endif
 
     if (monitoringServer) {
-        auto exporter = New<NProfiling::TSolomonExporter>(config);
-        exporter->Register("/solomon", monitoringServer);
-        exporter->Start();
+        if (solomonExporter) {
+            solomonExporter->Register("/solomon", monitoringServer);
 
-        SetNodeByYPath(
-            *orchidRoot,
-            "/sensors",
-            CreateVirtualNode(exporter->GetSensorService()));
+            SetNodeByYPath(
+                *orchidRoot,
+                "/sensors",
+                CreateVirtualNode(solomonExporter->GetSensorService()));
+        }
 
 #ifdef _linux_
         NYTProf::Register(monitoringServer, "/ytprof", buildInfo);

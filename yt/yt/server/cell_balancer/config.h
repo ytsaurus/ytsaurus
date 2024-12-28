@@ -116,8 +116,7 @@ DEFINE_REFCOUNTED_TYPE(TBundleControllerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellBalancerBootstrapConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
@@ -137,6 +136,20 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellBalancerBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCellBalancerProgramConfig
+    : public TCellBalancerBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TCellBalancerProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCellBalancerProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

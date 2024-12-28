@@ -26,6 +26,7 @@ namespace NYT::NObjectServer {
 
 using namespace NCypressClient;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

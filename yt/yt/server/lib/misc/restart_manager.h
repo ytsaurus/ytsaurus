@@ -12,7 +12,7 @@
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,4 +43,4 @@ DEFINE_REFCOUNTED_TYPE(TRestartManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

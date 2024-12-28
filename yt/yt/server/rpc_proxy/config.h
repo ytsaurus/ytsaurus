@@ -30,6 +30,8 @@
 
 #include <yt/yt/library/dynamic_config/config.h>
 
+#include <yt/yt/library/program/config.h>
+
 #include <yt/yt/library/server_program/config.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
@@ -120,10 +122,9 @@ DEFINE_REFCOUNTED_TYPE(TProxyMemoryLimits)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyConfig
-    : public TNativeServerConfig
+class TProxyBootstrapConfig
+    : public NServer::TNativeServerBootstrapConfig
     , public NAuth::TAuthenticationManagerConfig
-    , public TServerProgramConfig
 {
 public:
     //! Initial config for API service.
@@ -164,12 +165,26 @@ public:
     NSignature::TSignatureGenerationConfigPtr SignatureGeneration;
     NSignature::TSignatureValidationConfigPtr SignatureValidation;
 
-    REGISTER_YSON_STRUCT(TProxyConfig);
+    REGISTER_YSON_STRUCT(TProxyBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TProxyConfig)
+DEFINE_REFCOUNTED_TYPE(TProxyBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProxyProgramConfig
+    : public TProxyBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TProxyProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TProxyProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -202,7 +217,6 @@ class TBundleProxyDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-
     std::optional<NObjectClient::TCellTag> ClockClusterTag;
 
     REGISTER_YSON_STRUCT(TBundleProxyDynamicConfig);

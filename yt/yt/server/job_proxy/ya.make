@@ -50,6 +50,7 @@ PEERDIR(
     yt/yt/library/query/row_comparer
     yt/yt/library/profiling/solomon
     yt/yt/library/tracing/jaeger
+    yt/yt/library/server_program
 )
 
 END()

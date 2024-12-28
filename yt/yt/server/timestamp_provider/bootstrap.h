@@ -2,21 +2,24 @@
 
 #include "private.h"
 
+#include <yt/yt/server/lib/misc/bootstrap.h>
+
 namespace NYT::NTimestampProvider {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IBootstrap
-{
-    virtual ~IBootstrap() = default;
+    : public NServer::IDaemonBootstrap
+{ };
 
-    virtual void Initialize() = 0;
-    virtual void Run() = 0;
-};
+DEFINE_REFCOUNTED_TYPE(IBootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(TTimestampProviderConfigPtr config);
+IBootstrapPtr CreateTimestampProviderBootstrap(
+    TTimestampProviderBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

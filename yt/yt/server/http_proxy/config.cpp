@@ -184,7 +184,7 @@ void TProxyMemoryLimitsConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TProxyConfig::Register(TRegistrar registrar)
+void TProxyBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("port", &TThis::Port)
         .Default(80);
@@ -289,6 +289,11 @@ void TProxyConfig::Register(TRegistrar registrar)
         }
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TProxyProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,7 +1,5 @@
 #include "config.h"
 
-#include <yt/yt/library/coredumper/config.h>
-
 #include <yt/yt/library/program/config.h>
 
 #include <yt/yt/library/profiling/solomon/config.h>
@@ -26,22 +24,18 @@
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 using namespace NYTree;
 using namespace NApi::NNative;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TServerConfig::Register(TRegistrar registrar)
+void TServerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("bus_server", &TThis::BusServer)
         .DefaultNew();
     registrar.Parameter("rpc_server", &TThis::RpcServer)
-        .DefaultNew();
-    registrar.Parameter("core_dumper", &TThis::CoreDumper)
-        .Default();
-    registrar.Parameter("solomon_exporter", &TThis::SolomonExporter)
         .DefaultNew();
 
     registrar.Parameter("rpc_port", &TThis::RpcPort)
@@ -66,16 +60,10 @@ void TServerConfig::Register(TRegistrar registrar)
             }
             config->BusServer->Port = config->RpcPort;
         }
-
-        // TODO(babenko): consider configuring memory_profile_dump_path in ytcfgen
-        auto tcmallocConfig = config->GetSingletonConfig<NTCMalloc::TTCMallocConfig>();
-        if (!tcmallocConfig->HeapSizeLimit->MemoryProfileDumpPath && config->CoreDumper) {
-            tcmallocConfig->HeapSizeLimit->MemoryProfileDumpPath = config->CoreDumper->Path;
-        }
     });
 }
 
-NHttp::TServerConfigPtr TServerConfig::CreateMonitoringHttpServerConfig()
+NHttp::TServerConfigPtr TServerBootstrapConfig::CreateMonitoringHttpServerConfig()
 {
     auto config = New<NHttp::TServerConfig>();
     config->Port = MonitoringPort;
@@ -87,7 +75,7 @@ NHttp::TServerConfigPtr TServerConfig::CreateMonitoringHttpServerConfig()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNativeServerConfig::Register(TRegistrar registrar)
+void TNativeServerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
 
@@ -275,4 +263,4 @@ void THeapProfilerTestingOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

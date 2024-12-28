@@ -17,9 +17,12 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
+#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/library/program/build_attributes.h>
+#include <yt/yt/library/program/config.h>
+
+#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
@@ -43,7 +46,7 @@
 
 #include <yt/yt/core/http/server.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
+#include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
@@ -79,6 +82,8 @@ using namespace NProfiling;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NYson;
+using namespace NFusion;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,16 +91,20 @@ static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Bootstrap");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(TClusterClockConfigPtr config, INodePtr configNode)
+TBootstrap::TBootstrap(
+    TClusterClockBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
+    , ServiceLocator_(std::move(serviceLocator))
 {
     WarnForUnrecognizedOptions(Logger(), Config_);
 }
 
 TBootstrap::~TBootstrap() = default;
 
-const TClusterClockConfigPtr& TBootstrap::GetConfig() const
+const TClusterClockBootstrapConfigPtr& TBootstrap::GetConfig() const
 {
     return Config_;
 }
@@ -155,25 +164,23 @@ void TBootstrap::Initialize()
     ControlQueue_ = New<TActionQueue>("Control");
     SnapshotIOQueue_ = New<TActionQueue>("SnapshotIO");
 
-    BIND(&TBootstrap::DoInitialize, this)
+    BIND(&TBootstrap::DoInitialize, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
         .ThrowOnError();
 }
 
-void TBootstrap::Run()
+TFuture<void> TBootstrap::Run()
 {
-    BIND(&TBootstrap::DoRun, this)
+    return BIND(&TBootstrap::DoRun, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
-        .Run()
-        .Get()
-        .ThrowOnError();
+        .Run();
 }
 
-void TBootstrap::TryLoadSnapshot(const TString& fileName, bool dump)
+void TBootstrap::LoadSnapshot(const TString& fileName, bool dump)
 {
-    BIND(&TBootstrap::DoLoadSnapshot, this, fileName, dump)
+    BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, dump)
         .AsyncVia(HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
         .Run()
         .Get()
@@ -204,10 +211,6 @@ void TBootstrap::DoInitialize()
         localPeerId);
 
     auto channelFactory = CreateCachingChannelFactory(NRpc::NBus::CreateTcpBusChannelFactory(Config_->BusClient));
-
-    if (Config_->CoreDumper) {
-        CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
-    }
 
     auto busServer = CreateBusServer(Config_->BusServer);
 
@@ -249,7 +252,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(timestampManager->GetRpcService()); // null realm
     RpcServer_->RegisterService(CreateAdminService(
         GetControlInvoker(),
-        CoreDumper_,
+        ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
         /*authenticator*/ nullptr));
 
     RpcServer_->Configure(Config_->RpcServer);
@@ -259,13 +262,13 @@ void TBootstrap::DoRun()
 {
     HydraFacade_->Initialize();
 
-    YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+    YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
-        Config_->SolomonExporter,
+        ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
 
@@ -294,7 +297,7 @@ void TBootstrap::DoRun()
 
     HttpServer_->Start();
 
-    YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+    YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
         GetControlInvoker(),
@@ -322,6 +325,21 @@ IYPathServicePtr TBootstrap::CreateCellOrchidService() const
             HydraFacade_->GetHydraManager()->GetMonitoringProducer()))
         ->AddChild("election", IYPathService::FromProducer(
             HydraFacade_->GetElectionManager()->GetMonitoringProducer()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBootstrapPtr CreateClusterClockBootstrap(
+    TClusterClockBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
+{
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

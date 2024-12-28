@@ -18,11 +18,8 @@
 #include <util/folder/path.h>
 
 namespace NYT {
+namespace {
 
-using namespace NYT::NCellMaster;
-using namespace NYT::NScheduler;
-using namespace NYT::NControllerAgent;
-using namespace NYT::NClusterNode;
 using namespace NYT::NYTree;
 using namespace NYT::NYson;
 
@@ -70,28 +67,28 @@ void TestConfigParsing(TStringBuf fileName)
 TEST(TConfigParsingTest, ServerConfig)
 {
     {
-        SCOPED_TRACE("TCellMasterConfig");
-        TestConfigParsing<TCellMasterConfig>("master.yson");
+        SCOPED_TRACE("TCellMasterProgramConfig");
+        TestConfigParsing<NCellMaster::TCellMasterProgramConfig>("master.yson");
     }
     {
-        SCOPED_TRACE("TSchedulerConfig");
-        TestConfigParsing<TSchedulerConfig>("scheduler.yson");
+        SCOPED_TRACE("TSchedulerProgramConfig");
+        TestConfigParsing<NScheduler::TSchedulerProgramConfig>("scheduler.yson");
     }
     {
         SCOPED_TRACE("TControllerAgentConfig");
-        TestConfigParsing<TControllerAgentConfig>("controller-agent.yson");
+        TestConfigParsing<NControllerAgent::TControllerAgentConfig>("controller-agent.yson");
     }
     {
-        SCOPED_TRACE("NHttpProxy::TProxyConfig");
-        TestConfigParsing<NHttpProxy::TProxyConfig>("http-proxy.yson");
+        SCOPED_TRACE("THttpProxyProgramConfig");
+        TestConfigParsing<NHttpProxy::TProxyProgramConfig>("http-proxy.yson");
     }
     {
-        SCOPED_TRACE("NRpcProxy::TProxyConfig");
-        TestConfigParsing<NRpcProxy::TProxyConfig>("master.yson");
+        SCOPED_TRACE("TRpcProxyConfig");
+        TestConfigParsing<NRpcProxy::TProxyProgramConfig>("rpc-proxy.yson");
     }
     {
-        SCOPED_TRACE("TClusterNodeConfig");
-        TestConfigParsing<TClusterNodeConfig>("node.yson");
+        SCOPED_TRACE("TClusterNodeProgramConfig");
+        TestConfigParsing<NClusterNode::TClusterNodeProgramConfig>("node.yson");
     }
 }
 
@@ -99,26 +96,27 @@ TEST(TConfigParsingTest, OperationSpec)
 {
     {
         SCOPED_TRACE("TMapOperationSpec");
-        TestConfigParsing<TMapOperationSpec>("map_spec.yson");
+        TestConfigParsing<NScheduler::TMapOperationSpec>("map_spec.yson");
     }
     {
         SCOPED_TRACE("TReduceOperationSpec");
-        TestConfigParsing<TReduceOperationSpec>("reduce_spec.yson");
+        TestConfigParsing<NScheduler::TReduceOperationSpec>("reduce_spec.yson");
     }
     {
         SCOPED_TRACE("TMapReduceOperationSpec");
-        TestConfigParsing<TMapReduceOperationSpec>("map_reduce_spec.yson");
+        TestConfigParsing<NScheduler::TMapReduceOperationSpec>("map_reduce_spec.yson");
     }
     {
         SCOPED_TRACE("TVanillaOperationSpec");
-        TestConfigParsing<TVanillaOperationSpec>("vanilla_spec.yson");
+        TestConfigParsing<NScheduler::TVanillaOperationSpec>("vanilla_spec.yson");
     }
     {
         SCOPED_TRACE("TSortOperationSpec");
-        TestConfigParsing<TSortOperationSpec>("sort_spec.yson");
+        TestConfigParsing<NScheduler::TSortOperationSpec>("sort_spec.yson");
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
+} // namespace
 } // namespace NYT

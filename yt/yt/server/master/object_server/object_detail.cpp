@@ -82,6 +82,7 @@ using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NTableServer;
 using namespace NTransactionServer;
+using namespace NServer;
 
 using NSecurityClient::ESecurityAction;
 

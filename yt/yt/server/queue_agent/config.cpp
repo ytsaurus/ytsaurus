@@ -117,7 +117,7 @@ void TQueueAgentShardingManagerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TQueueAgentServerConfig::Register(TRegistrar registrar)
+void TQueueAgentBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("queue_agent", &TThis::QueueAgent)
         .DefaultNew();
@@ -153,7 +153,12 @@ void TQueueAgentServerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TQueueAgentServerDynamicConfig::Register(TRegistrar registrar)
+void TQueueAgentProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TQueueAgentComponentDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("member_client", &TThis::MemberClient)
         .DefaultNew();

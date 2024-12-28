@@ -32,6 +32,7 @@ using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 using namespace NCypressServer::NProto;
 

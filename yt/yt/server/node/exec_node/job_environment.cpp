@@ -60,6 +60,7 @@ using namespace NContainers::NCri;
 using namespace NDataNode;
 using namespace NYTree;
 using namespace NTools;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

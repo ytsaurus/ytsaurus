@@ -145,6 +145,7 @@ using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
 using namespace NZookeeperServer;
+using namespace NServer;
 
 using TYPath = NYPath::TYPath;
 

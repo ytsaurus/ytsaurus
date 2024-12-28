@@ -10,10 +10,10 @@ using namespace NDynamicConfig;
 
 
 TDynamicConfigManager::TDynamicConfigManager(
-    const TQueryTrackerServerConfigPtr& queryTrackerConfig,
+    const TQueryTrackerBootstrapConfigPtr& queryTrackerConfig,
     NApi::IClientPtr client,
     IInvokerPtr invoker)
-    : TDynamicConfigManagerBase<TQueryTrackerServerDynamicConfig>(
+    : TDynamicConfigManagerBase<TQueryTrackerComponentDynamicConfig>(
         TDynamicConfigManagerOptions{
             .ConfigPath = queryTrackerConfig->DynamicConfigPath,
             .Name = "QueryTracker",

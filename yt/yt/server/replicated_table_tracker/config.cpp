@@ -4,7 +4,7 @@ namespace NYT::NReplicatedTableTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TReplicatedTableTrackerServerConfig::Register(TRegistrar registrar)
+void TReplicatedTableTrackerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
         .DefaultNew();
@@ -19,6 +19,11 @@ void TReplicatedTableTrackerServerConfig::Register(TRegistrar registrar)
         }
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TReplicatedTableTrackerProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

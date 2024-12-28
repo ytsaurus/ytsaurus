@@ -99,7 +99,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    const TJobReporterPtr& GetJobReporter() const;
+    const NServer::TJobReporterPtr& GetJobReporter() const;
 
     /*!
      *  \note Thread affinity: any

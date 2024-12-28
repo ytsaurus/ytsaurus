@@ -305,9 +305,9 @@ struct TQueryServiceCounters
 
     explicit TQueryServiceCounters(const NProfiling::TProfiler& profiler);
 
-    TMethodCounters Execute;
-    TMethodCounters Multiread;
-    TMethodCounters PullRows;
+    NServer::TMethodCounters Execute;
+    NServer::TMethodCounters Multiread;
+    NServer::TMethodCounters PullRows;
 };
 
 struct TTabletServiceCounters
@@ -316,7 +316,7 @@ struct TTabletServiceCounters
 
     explicit TTabletServiceCounters(const NProfiling::TProfiler& profiler);
 
-    TMethodCounters Write;
+    NServer::TMethodCounters Write;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

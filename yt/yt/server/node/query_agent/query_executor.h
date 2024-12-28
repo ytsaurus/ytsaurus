@@ -34,7 +34,7 @@ NQueryClient::TQueryStatistics ExecuteSubquery(
     IInvokerPtr invoker,
     NQueryClient::TQueryOptions queryOptions,
     NQueryClient::TFeatureFlags requestFeatureFlags,
-    TServiceProfilerGuard& profilerGuard);
+    NServer::TServiceProfilerGuard& profilerGuard);
 
 ////////////////////////////////////////////////////////////////////////////////
 

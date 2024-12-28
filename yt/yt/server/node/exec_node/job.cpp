@@ -153,6 +153,7 @@ using namespace NObjectClient;
 using namespace NStatisticPath;
 using namespace NNbd;
 using namespace NSquashFS;
+using namespace NServer;
 
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;

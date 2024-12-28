@@ -68,7 +68,7 @@ void TAccessCheckerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TProxyConfig::Register(TRegistrar registrar)
+void TProxyBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("grpc_server", &TThis::GrpcServer)
         .Default();
@@ -154,6 +154,11 @@ void TProxyConfig::Register(TRegistrar registrar)
         config->MemoryLimits->Total = 20_GB;
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TProxyProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

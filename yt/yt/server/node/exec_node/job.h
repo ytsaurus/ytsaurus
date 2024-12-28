@@ -335,7 +335,7 @@ private:
 
     NProfiling::TBufferedProducerPtr UserJobSensorProducer_;
 
-    TExecAttributes ExecAttributes_;
+    NServer::TExecAttributes ExecAttributes_;
 
     std::optional<int> ExitCode_;
     std::optional<TError> Error_;
@@ -386,7 +386,7 @@ private:
     EJobState JobState_ = EJobState::Waiting;
     EJobPhase JobPhase_ = EJobPhase::Created;
 
-    TJobEvents JobEvents_;
+    NServer::TJobEvents JobEvents_;
 
     i64 JobProxyHearbeatEpoch_ = -1;
 

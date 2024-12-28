@@ -8,7 +8,7 @@
 
 #include <util/random/random.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 using namespace NConcurrency;
 using namespace NProfiling;
@@ -155,4 +155,4 @@ void TDiskHealthChecker::DoRunCheck()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

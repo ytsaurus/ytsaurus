@@ -8,14 +8,14 @@ namespace NYT::NClusterClock {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TClusterClockConfig)
+DECLARE_REFCOUNTED_CLASS(TClusterClockBootstrapConfig)
+DECLARE_REFCOUNTED_CLASS(TClusterProgramClockConfig)
 DECLARE_REFCOUNTED_CLASS(TClockHydraManagerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TClockAutomaton)
 DECLARE_REFCOUNTED_CLASS(TClockAutomatonPart)
 DECLARE_REFCOUNTED_CLASS(THydraFacade)
-
-class TBootstrap;
+DECLARE_REFCOUNTED_CLASS(TBootstrap)
 
 enum class EClockSnapshotVersion;
 class TLoadContext;

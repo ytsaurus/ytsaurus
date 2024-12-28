@@ -160,9 +160,8 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryTrackerServerConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+class TQueryTrackerBootstrapConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
     int MinRequiredStateVersion;
@@ -181,28 +180,41 @@ public:
 
     TString Root;
 
-    REGISTER_YSON_STRUCT(TQueryTrackerServerConfig);
+    REGISTER_YSON_STRUCT(TQueryTrackerBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueryTrackerServerConfig)
+DEFINE_REFCOUNTED_TYPE(TQueryTrackerBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryTrackerServerDynamicConfig
+class TQueryTrackerProgramConfig
+    : public TQueryTrackerBootstrapConfig
+    , public TServerProgramConfig
+{
+    REGISTER_YSON_STRUCT(TQueryTrackerProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueryTrackerProgramConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueryTrackerComponentDynamicConfig
     : public TSingletonsDynamicConfig
 {
 public:
     NAlertManager::TAlertManagerDynamicConfigPtr AlertManager;
     TQueryTrackerDynamicConfigPtr QueryTracker;
 
-    REGISTER_YSON_STRUCT(TQueryTrackerServerDynamicConfig);
+    REGISTER_YSON_STRUCT(TQueryTrackerComponentDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueryTrackerServerDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TQueryTrackerComponentDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -423,48 +423,23 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellBaseBalancerTest
-    : public ::testing::Test
+    : public TBootstrapTestBase
     , public ::testing::WithParamInterface<TSettingParam>
-    , public TBootstrapMock
-{
-public:
-    void SetUp() override
-    {
-        SetupMasterSmartpointers();
-    }
-
-    void TearDown() override
-    {
-        ResetMasterSmartpointers();
-    }
-};
+{ };
 
 class TCellBaseBalancerRevokeTest
-    : public ::testing::Test
+    : public TBootstrapTestBase
     , public ::testing::WithParamInterface<TSettingParam>
-    , public TBootstrapMock
-{
-public:
-    void SetUp() override
-    {
-        SetupMasterSmartpointers();
-    }
-
-    void TearDown() override
-    {
-        ResetMasterSmartpointers();
-    }
-};
+{ };
 
 class TCellBaseBalancerStressTest
-    : public ::testing::Test
+    : public TBootstrapTestBase
     , public ::testing::WithParamInterface<TStressSettingParam>
-    , public TBootstrapMock
 {
 public:
     void SetUp() override
     {
-        SetupMasterSmartpointers();
+        TBootstrapTestBase::SetUp();
 
         std::tie(NodesNum_, TabletSlotCount_, PeersNum_, BundlesNum_, CellsNum_) = GetParam();
 
@@ -511,7 +486,7 @@ public:
 
         setting->ValidateAssignment(balancer->GetCellMoveDescriptors());
 
-        ResetMasterSmartpointers();
+        TBootstrapTestBase::TearDown();
     }
 
 protected:

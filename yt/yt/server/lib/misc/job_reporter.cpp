@@ -39,7 +39,7 @@
 
 #include <yt/yt/core/utilex/random.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 using namespace NNodeTrackerClient;
 using namespace NTransactionClient;
@@ -75,7 +75,7 @@ public:
 
     size_t EstimateSize() const override
     {
-        return ::NYT::EstimateSizes(
+        return NServer::EstimateSizes(
             Report_.OperationId().Underlying(),
             Report_.JobId().Underlying(),
             Report_.State(),
@@ -207,7 +207,7 @@ public:
 
     size_t EstimateSize() const override
     {
-        return ::NYT::EstimateSizes(
+        return ::NYT::NServer::EstimateSizes(
             Report_.OperationId().Underlying(),
             Report_.JobId().Underlying());
     }
@@ -242,7 +242,7 @@ public:
 
     size_t EstimateSize() const override
     {
-        return ::NYT::EstimateSizes(
+        return ::NYT::NServer::EstimateSizes(
             Report_.OperationId().Underlying(),
             Report_.JobId().Underlying(),
             Report_.Spec(),
@@ -282,7 +282,7 @@ public:
 
     size_t EstimateSize() const override
     {
-        return ::NYT::EstimateSizes(
+        return ::NYT::NServer::EstimateSizes(
             Report_.OperationId().Underlying(),
             Report_.JobId().Underlying(),
             Report_.Stderr());
@@ -324,7 +324,7 @@ public:
 
     size_t EstimateSize() const override
     {
-        return ::NYT::EstimateSizes(
+        return NServer::EstimateSizes(
             Report_.OperationId().Underlying(),
             Report_.JobId().Underlying(),
             Report_.FailContext());
@@ -366,7 +366,7 @@ public:
 
     size_t EstimateSize() const override
     {
-        return ::NYT::EstimateSizes(
+        return ::NYT::NServer::EstimateSizes(
             Report_.OperationId().Underlying(),
             Report_.JobId().Underlying(),
             Report_.Profile().value_or(NJobAgent::TJobProfile{}).Type,
@@ -639,4 +639,4 @@ void TJobReporter::OnDynamicConfigChanged(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

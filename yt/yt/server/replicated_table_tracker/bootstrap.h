@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/misc/bootstrap.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 namespace NYT::NReplicatedTableTracker {
@@ -9,25 +11,22 @@ namespace NYT::NReplicatedTableTracker {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IBootstrap
+    : public NServer::IDaemonBootstrap
 {
-    virtual ~IBootstrap() = default;
-
-    virtual void Run() = 0;
-
-    virtual const TReplicatedTableTrackerServerConfigPtr& GetServerConfig() const = 0;
-
+    virtual const TReplicatedTableTrackerBootstrapConfigPtr& GetServerConfig() const = 0;
     virtual const TDynamicConfigManagerPtr& GetDynamicConfigManager() const = 0;
-
     virtual const NApi::NNative::IConnectionPtr& GetClusterConnection() const = 0;
-
     virtual const IInvokerPtr& GetRttHostInvoker() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IBootstrap)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(
-    TReplicatedTableTrackerServerConfigPtr config,
-    NYTree::INodePtr configNode);
+IBootstrapPtr CreateReplicatedTableTrackerBootstrap(
+    TReplicatedTableTrackerBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

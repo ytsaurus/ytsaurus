@@ -4,7 +4,7 @@ namespace NYT::NCellServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCellBalancerConfig::Register(TRegistrar registrar)
+void TCellBalancerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_tablet_cell_smoothing", &TThis::EnableTabletCellSmoothing)
         .Default(true);

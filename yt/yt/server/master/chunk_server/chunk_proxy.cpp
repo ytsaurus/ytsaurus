@@ -64,6 +64,7 @@ using namespace NNodeTrackerServer;
 using namespace NConcurrency;
 using namespace NSecurityServer;
 using namespace NCellMaster;
+using namespace NServer;
 
 using NChunkClient::NProto::TMiscExt;
 using NTableClient::NProto::TBoundaryKeysExt;

@@ -11,7 +11,7 @@
 
 #include <yt/yt/core/utilex/random.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 using namespace NApi;
 using namespace NConcurrency;
@@ -116,7 +116,7 @@ public:
         NNative::IClientPtr client,
         IInvokerPtr invoker,
         const TProfiler& profiler)
-        : Logger(NYT::NDetail::ArchiveReporterLogger().WithTag("ReporterName: %v", std::move(reporterName)))
+        : Logger(NServer::NDetail::ArchiveReporterLogger().WithTag("ReporterName: %v", std::move(reporterName)))
         , ReporterConfig_(std::move(reporterConfig))
         , HandlerConfig_(std::move(handlerConfig))
         , NameTable_(std::move(nameTable))
@@ -187,7 +187,7 @@ public:
 
     bool IsQueueTooLarge() const override
     {
-        return NYT::NDetail::QueueIsTooLargeMultiplier * Limiter_.GetValue() > Limiter_.GetMaxValue();
+        return NServer::NDetail::QueueIsTooLargeMultiplier * Limiter_.GetValue() > Limiter_.GetMaxValue();
     }
 
 private:
@@ -198,7 +198,7 @@ private:
     const TArchiveVersionHolderPtr Version_;
     const NNative::IClientPtr Client_;
 
-    NYT::NDetail::TLimiter Limiter_;
+    NServer::NDetail::TLimiter Limiter_;
     TNonblockingBatcherPtr<std::unique_ptr<IArchiveRowlet>> Batcher_;
 
     TCounter EnqueuedCounter_;
@@ -411,4 +411,4 @@ IArchiveReporterPtr CreateArchiveReporter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

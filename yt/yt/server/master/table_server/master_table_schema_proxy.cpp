@@ -17,6 +17,7 @@ using namespace NCellMaster;
 using namespace NObjectServer;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

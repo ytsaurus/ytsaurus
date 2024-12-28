@@ -10,7 +10,13 @@
 
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
 
+#include <yt/yt/library/coredumper/coredumper.h>
+
+#include <yt/yt/library/profiling/solomon/exporter.h>
+
 #include <yt/yt/library/program/helpers.h>
+
+#include <yt/yt/library/fusion/service_directory.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
 
@@ -26,37 +32,16 @@ namespace NYT {
 
 template <class TConfig, class TDynamicConfig>
 TServerProgram<TConfig, TDynamicConfig>::TServerProgram()
-    : TProgram()
+    : TServerProgramBase()
     , TProgramPdeathsigMixin(Opts_)
     , TProgramSetsidMixin(Opts_)
     , TProgramConfigMixin<TConfig, TDynamicConfig>(Opts_)
 { }
 
 template <class TConfig, class TDynamicConfig>
-void TServerProgram<TConfig, TDynamicConfig>::SetMainThreadName(const std::string& name)
-{
-    MainThreadName_ = name;
-}
-
-template <class TConfig, class TDynamicConfig>
-void TServerProgram<TConfig, TDynamicConfig>::ValidateOpts()
-{ }
-
-template <class TConfig, class TDynamicConfig>
-void TServerProgram<TConfig, TDynamicConfig>::TweakConfig()
-{ }
-
-template <class TConfig, class TDynamicConfig>
-void TServerProgram<TConfig, TDynamicConfig>::SleepForever()
-{
-    Sleep(TDuration::Max());
-    YT_ABORT();
-}
-
-template <class TConfig, class TDynamicConfig>
 void TServerProgram<TConfig, TDynamicConfig>::DoRun()
 {
-    TThread::SetCurrentThreadName(MainThreadName_.c_str());
+    TThread::SetCurrentThreadName(GetMainThreadName().c_str());
 
     RunMixinCallbacks();
 
@@ -97,6 +82,16 @@ void TServerProgram<TConfig, TDynamicConfig>::Configure()
     if (config->EnableRefCountedTrackerProfiling) {
         EnableRefCountedTrackerProfiling();
     }
+
+    auto serviceDirectory = GetServiceDirectory();
+
+    if (config->CoreDumper) {
+        serviceDirectory->RegisterService(NCoreDump::CreateCoreDumper(config->CoreDumper));
+    }
+
+    auto solomonExporter = New<NProfiling::TSolomonExporter>(config->SolomonExporter);
+    solomonExporter->Start();
+    serviceDirectory->RegisterService(solomonExporter);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

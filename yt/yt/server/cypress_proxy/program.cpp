@@ -10,21 +10,22 @@ namespace NYT::NCypressProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressProxyProgram
-    : public TServerProgram<TCypressProxyConfig>
+    : public TServerProgram<TCypressProxyProgramConfig>
 {
 public:
     TCypressProxyProgram()
     {
-        SetMainThreadName("CypressProxy");
+        SetMainThreadName("CypressProxyProg");
     }
 
 protected:
     void DoStart() final
     {
-        auto* bootstrap = CreateBootstrap(GetConfig()).release();
+        auto bootstrap = CreateCypressProxyBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Initialize();
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 };

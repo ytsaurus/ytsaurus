@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/server/lib/misc/bootstrap.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/distributed_throttler/public.h>
@@ -15,13 +17,9 @@ namespace NYT::NCypressProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IBootstrap
+    : public NServer::IDaemonBootstrap
 {
-    virtual ~IBootstrap() = default;
-
-    virtual void Initialize() = 0;
-    virtual void Run() = 0;
-
-    virtual const TCypressProxyConfigPtr& GetConfig() const = 0;
+    virtual const TCypressProxyBootstrapConfigPtr& GetConfig() const = 0;
 
     virtual const TDynamicConfigManagerPtr& GetDynamicConfigManager() const = 0;
 
@@ -53,9 +51,14 @@ struct IBootstrap
         NProfiling::TProfiler profiler) const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IBootstrap)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(TCypressProxyConfigPtr config);
+IBootstrapPtr CreateCypressProxyBootstrap(
+    TCypressProxyBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

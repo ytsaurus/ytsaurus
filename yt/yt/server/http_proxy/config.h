@@ -27,6 +27,10 @@
 
 #include <yt/yt/library/profiling/solomon/proxy.h>
 
+#include <yt/yt/library/program/config.h>
+
+#include <yt/yt/library/server_program/config.h>
+
 #include <yt/yt/client/driver/public.h>
 
 #include <yt/yt/client/formats/public.h>
@@ -139,7 +143,7 @@ class TApiTestingOptions
 public:
     THashMap<TString, TIntrusivePtr<TDelayBeforeCommand>> DelayBeforeCommand;
 
-    THeapProfilerTestingOptionsPtr HeapProfiler;
+    NServer::THeapProfilerTestingOptionsPtr HeapProfiler;
 
     REGISTER_YSON_STRUCT(TApiTestingOptions);
 
@@ -194,7 +198,7 @@ class TApiDynamicConfig
 public:
     TFramingConfigPtr Framing;
 
-    THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
+    THashMap<NFormats::EFormatType, NServer::TFormatConfigPtr> Formats;
 
     bool EnableAllocationTags;
 
@@ -265,9 +269,8 @@ DEFINE_REFCOUNTED_TYPE(TProxyMemoryLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+class TProxyBootstrapConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
     int Port;
@@ -320,12 +323,26 @@ public:
 
     THeapProfilerConfigPtr HeapProfiler;
 
-    REGISTER_YSON_STRUCT(TProxyConfig);
+    REGISTER_YSON_STRUCT(TProxyBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TProxyConfig)
+DEFINE_REFCOUNTED_TYPE(TProxyBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProxyProgramConfig
+    : public TProxyBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TProxyProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TProxyProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -16,9 +16,8 @@ namespace NYT::NKafkaProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TKafkaProxyConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+class TProxyBootstrapConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
     //! Kafka proxy will listen on this port.
@@ -54,16 +53,30 @@ public:
 
     TSlruCacheConfigPtr ClientCache;
 
-    REGISTER_YSON_STRUCT(TKafkaProxyConfig);
+    REGISTER_YSON_STRUCT(TProxyBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TKafkaProxyConfig)
+DEFINE_REFCOUNTED_TYPE(TProxyBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TKafkaProxyDynamicConfig
+class TProxyProgramConfig
+    : public TProxyBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TProxyProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TProxyProgramConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProxyDynamicConfig
     : public TSingletonsDynamicConfig
 {
 public:
@@ -72,12 +85,12 @@ public:
 
     std::optional<TString> LocalHostName;
 
-    REGISTER_YSON_STRUCT(TKafkaProxyDynamicConfig);
+    REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TKafkaProxyDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TProxyDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

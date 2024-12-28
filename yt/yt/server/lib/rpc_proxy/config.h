@@ -75,7 +75,7 @@ class TApiTestingOptions
     : public NYTree::TYsonStruct
 {
 public:
-    THeapProfilerTestingOptionsPtr HeapProfiler;
+    NServer::THeapProfilerTestingOptionsPtr HeapProfiler;
 
     REGISTER_YSON_STRUCT(TApiTestingOptions);
 
@@ -132,7 +132,7 @@ public:
     //! Queries exceeding this limit will be truncated.
     i64 StructuredLoggingQueryTruncationSize;
 
-    THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
+    THashMap<NFormats::EFormatType, NServer::TFormatConfigPtr> Formats;
 
     bool EnableAllocationTags;
 

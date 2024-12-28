@@ -41,6 +41,8 @@
 
 #include <yt/yt/library/containers/public.h>
 
+#include <yt/yt/library/program/config.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -301,9 +303,8 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterNodeConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+class TClusterNodeBootstrapConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
     //! Interval between Orchid cache rebuilds.
@@ -408,12 +409,26 @@ public:
 
     NHttp::TServerConfigPtr CreateSkynetHttpServerConfig();
 
-    REGISTER_YSON_STRUCT(TClusterNodeConfig);
+    REGISTER_YSON_STRUCT(TClusterNodeBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TClusterNodeConfig)
+DEFINE_REFCOUNTED_TYPE(TClusterNodeBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TClusterNodeProgramConfig
+    : public TClusterNodeBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TClusterNodeProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TClusterNodeProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

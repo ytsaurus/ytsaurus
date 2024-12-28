@@ -16,7 +16,7 @@ namespace NYT::NTcpProxy {
  *  Thread affinity: any
  */
 class TDynamicConfigManager
-    : public NDynamicConfig::TDynamicConfigManagerBase<TTcpProxyDynamicConfig>
+    : public NDynamicConfig::TDynamicConfigManagerBase<TProxyDynamicConfig>
 {
 public:
     explicit TDynamicConfigManager(IBootstrap* bootstrap);

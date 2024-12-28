@@ -8,8 +8,6 @@
 
 #include <yt/yt/ytlib/job_proxy/private.h>
 
-#include <yt/yt/library/coredumper/public.h>
-
 #include <yt/yt/library/containers/public.h>
 
 #include <util/system/fs.h>

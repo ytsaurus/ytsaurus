@@ -89,8 +89,7 @@ using TTabletDistributedThrottlersVector = TEnumIndexedArray<
     NConcurrency::IReconfigurableThroughputThrottlerPtr>;
 using THunkStoreId = NChunkClient::TChunkId;
 
-struct IBootstrap;
-
+DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 DECLARE_REFCOUNTED_STRUCT(ITabletSnapshotStore)
 DECLARE_REFCOUNTED_STRUCT(ISlotManager)
 DECLARE_REFCOUNTED_STRUCT(IMasterConnector)

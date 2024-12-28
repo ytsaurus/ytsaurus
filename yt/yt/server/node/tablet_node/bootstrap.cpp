@@ -182,11 +182,11 @@ public:
     {
         YT_LOG_INFO("Initializing tablet node");
 
+        // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
-
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
         GetBundleDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, this));
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
 
         MasterConnector_ = CreateMasterConnector(this);
 
@@ -387,7 +387,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return IYPathService::FromProducer(BIND(&TBootstrap::BuildThreadPoolsOrchid, this))
+        return IYPathService::FromProducer(BIND(&TBootstrap::BuildThreadPoolsOrchid, MakeStrong(this)))
             ->Via(GetControlInvoker());
     }
 
@@ -679,9 +679,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(NClusterNode::IBootstrap* bootstrap)
+IBootstrapPtr CreateBootstrap(NClusterNode::IBootstrap* bootstrap)
 {
-    return std::make_unique<TBootstrap>(bootstrap);
+    return New<TBootstrap>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

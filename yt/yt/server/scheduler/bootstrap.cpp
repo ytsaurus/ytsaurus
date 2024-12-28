@@ -16,9 +16,14 @@
 
 #include <yt/yt/server/lib/scheduler/config.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
+#include <yt/yt/library/fusion/service_locator.h>
+
+#include <yt/yt/library/coredumper/public.h>
+
+#include <yt/yt/library/profiling/solomon/public.h>
 
 #include <yt/yt/library/program/build_attributes.h>
+#include <yt/yt/library/program/config.h>
 #include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -53,7 +58,6 @@
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/yt/core/misc/proc.h>
@@ -86,17 +90,24 @@ using namespace NHiveClient;
 using namespace NApi;
 using namespace NNodeTrackerClient;
 using namespace NControllerAgent;
+using namespace NFusion;
 using namespace NLogging;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = SchedulerLogger;
+static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "SchedulerBoot");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(TSchedulerBootstrapConfigPtr config, INodePtr configNode)
+TBootstrap::TBootstrap(
+    TSchedulerBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
+    , ServiceLocator_(std::move(serviceLocator))
+    , ControlQueue_(CreateEnumIndexedFairShareActionQueue<EControlQueue>("Control"))
 {
     if (Config_->AbortOnUnrecognizedOptions) {
         AbortOnUnrecognizedOptions(Logger(), Config_);
@@ -107,18 +118,23 @@ TBootstrap::TBootstrap(TSchedulerBootstrapConfigPtr config, INodePtr configNode)
 
 TBootstrap::~TBootstrap() = default;
 
-void TBootstrap::Run()
+void TBootstrap::Initialize()
 {
-    ControlQueue_ = CreateEnumIndexedFairShareActionQueue<EControlQueue>("Control");
-
-    BIND(&TBootstrap::DoRun, this)
+    BIND(&TBootstrap::DoInitialize, MakeStrong(this))
         .AsyncVia(GetControlInvoker(EControlQueue::Default))
         .Run()
         .Get()
         .ThrowOnError();
 }
 
-void TBootstrap::DoRun()
+TFuture<void> TBootstrap::Run()
+{
+    return BIND(&TBootstrap::DoRun, MakeStrong(this))
+        .AsyncVia(GetControlInvoker(EControlQueue::Default))
+        .Run();
+}
+
+void TBootstrap::DoInitialize()
 {
     YT_LOG_INFO("Starting scheduler");
 
@@ -146,17 +162,13 @@ void TBootstrap::DoRun()
 
     ControllerAgentTracker_ = New<TControllerAgentTracker>(Config_->Scheduler, this);
 
-    if (Config_->CoreDumper) {
-        CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
-    }
-
     Scheduler_->Initialize();
     ControllerAgentTracker_->Initialize();
 
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
-        Config_->SolomonExporter,
+        ServiceLocator_->GetServiceOrThrow<TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
 
@@ -176,7 +188,7 @@ void TBootstrap::DoRun()
 
     RpcServer_->RegisterService(CreateAdminService(
         GetControlInvoker(EControlQueue::Default),
-        CoreDumper_,
+        ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
         NativeAuthenticator_));
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
@@ -185,11 +197,14 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateOperationService(this, Scheduler_->GetOperationServiceResponseKeeper()));
     RpcServer_->RegisterService(CreateAllocationTrackerService(this));
     RpcServer_->RegisterService(CreateControllerAgentTrackerService(this, ControllerAgentTracker_->GetResponseKeeper()));
+}
 
-    YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+void TBootstrap::DoRun()
+{
+    YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_->Start();
 
-    YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+    YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
     RpcServer_->Start();
 }
@@ -219,7 +234,7 @@ const NNative::IClientPtr& TBootstrap::GetRemoteClient(TCellTag tag) const
 
 TAddressMap TBootstrap::GetLocalAddresses() const
 {
-    return NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
+    return NServer::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 }
 
 TNetworkPreferenceList TBootstrap::GetLocalNetworks() const
@@ -249,11 +264,26 @@ const NRpc::IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
     return NativeAuthenticator_;
 }
 
-void TBootstrap::OnDynamicConfigChanged(const TSchedulerConfigPtr& config)
+void TBootstrap::Reconfigure(const TSchedulerConfigPtr& config)
 {
     ReconfigureSingletons(config);
 
     RpcServer_->OnDynamicConfigChanged(config->RpcServer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBootstrapPtr CreateSchedulerBootstrap(
+    TSchedulerBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
+{
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

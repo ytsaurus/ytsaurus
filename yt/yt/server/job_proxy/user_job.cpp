@@ -140,6 +140,7 @@ using namespace NJobProberClient;
 using namespace NJobTrackerClient;
 using namespace NUserJob;
 using namespace NStatisticPath;
+using namespace NServer;
 
 using NControllerAgent::NProto::TJobResult;
 using NControllerAgent::NProto::TJobSpec;

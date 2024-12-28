@@ -46,7 +46,7 @@ public:
         NProto::TRspSettleJob>;
     using TCtxSettleJobPtr = TIntrusivePtr<TCtxSettleJob>;
 
-    TJobTracker(TBootstrap* bootstrap, TJobReporterPtr jobReporter);
+    TJobTracker(TBootstrap* bootstrap, NServer::TJobReporterPtr jobReporter);
 
     TFuture<void> Initialize();
     void OnSchedulerConnected(TIncarnationId incarnationId);
@@ -71,7 +71,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    TJobReporterPtr JobReporter_;
+    NServer::TJobReporterPtr JobReporter_;
 
     TJobTrackerConfigPtr Config_;
 

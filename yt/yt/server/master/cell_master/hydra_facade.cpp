@@ -364,7 +364,7 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    const TCellMasterConfigPtr Config_;
+    const TCellMasterBootstrapConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
     IElectionManagerPtr ElectionManager_;

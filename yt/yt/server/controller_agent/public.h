@@ -69,6 +69,7 @@ DECLARE_REFCOUNTED_CLASS(TUserFileLimitsPatchConfig)
 DECLARE_REFCOUNTED_CLASS(TControllerAgent)
 DECLARE_REFCOUNTED_CLASS(TControllerAgentConfig)
 DECLARE_REFCOUNTED_CLASS(TControllerAgentBootstrapConfig)
+DECLARE_REFCOUNTED_CLASS(TControllerAgentProgramConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IOperationControllerHost)
 DECLARE_REFCOUNTED_STRUCT(IOperationController)
@@ -89,7 +90,8 @@ class TSchedulingContext;
 class TAllocationSchedulingContext;
 
 class TMasterConnector;
-class TBootstrap;
+
+DECLARE_REFCOUNTED_CLASS(TBootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 

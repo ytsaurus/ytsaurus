@@ -38,6 +38,8 @@ void TIntermediateChunkScraperConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(10));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TTestingOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_snapshot_cycle_after_materialization", &TThis::EnableSnapshotCycleAfterMaterialization)
@@ -53,6 +55,8 @@ void TTestingOptions::Register(TRegistrar registrar)
         .Default();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TLowGpuPowerUsageOnWindowConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("window_size", &TThis::WindowSize)
@@ -64,6 +68,8 @@ void TLowGpuPowerUsageOnWindowConfig::Register(TRegistrar registrar)
     registrar.Parameter("threshold", &TThis::Threshold)
         .Default(100.0);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TAlertManagerConfig::Register(TRegistrar registrar)
 {
@@ -212,6 +218,8 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(1));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobSplitterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("min_job_time", &TThis::MinJobTime)
@@ -273,6 +281,8 @@ void TJobSplitterConfig::Register(TRegistrar registrar)
         .Default(false);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TSuspiciousJobsOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("inactivity_timeout", &TThis::InactivityTimeout)
@@ -289,6 +299,8 @@ void TSuspiciousJobsOptions::Register(TRegistrar registrar)
         .Default(100);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TDataBalancerOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("logging_min_consecutive_violation_count", &TThis::LoggingMinConsecutiveViolationCount)
@@ -301,6 +313,8 @@ void TDataBalancerOptions::Register(TRegistrar registrar)
         .Default(true);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TUserJobOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("thread_limit_multiplier", &TThis::ThreadLimitMultiplier)
@@ -308,6 +322,8 @@ void TUserJobOptions::Register(TRegistrar registrar)
     registrar.Parameter("initial_thread_limit", &TThis::InitialThreadLimit)
         .Default(10'000);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TOperationOptions::Register(TRegistrar registrar)
 {
@@ -402,6 +418,8 @@ void TOperationOptions::Register(TRegistrar registrar)
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TSimpleOperationOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_job_count", &TThis::MaxJobCount)
@@ -413,6 +431,8 @@ void TSimpleOperationOptions::Register(TRegistrar registrar)
         .GreaterThan(0);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TMapOperationOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("job_size_adjuster", &TThis::JobSizeAdjuster)
@@ -423,14 +443,22 @@ void TMapOperationOptions::Register(TRegistrar registrar)
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TUnorderedMergeOperationOptions::Register(TRegistrar /*registrar*/)
 { }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TOrderedMergeOperationOptions::Register(TRegistrar /*registrar*/)
 { }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TSortedMergeOperationOptions::Register(TRegistrar /*registrar*/)
 { }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TReduceOperationOptions::Register(TRegistrar registrar)
 {
@@ -439,8 +467,12 @@ void TReduceOperationOptions::Register(TRegistrar registrar)
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TEraseOperationOptions::Register(TRegistrar /*registrar*/)
 { }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TSortOperationOptionsBase::Register(TRegistrar registrar)
 {
@@ -495,11 +527,17 @@ void TSortOperationOptionsBase::Register(TRegistrar registrar)
         .GreaterThan(0.0);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TSortOperationOptions::Register(TRegistrar /*registrar*/)
 { }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TMapReduceOperationOptions::Register(TRegistrar /*registrar*/)
 { }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
 {
@@ -509,11 +547,15 @@ void TRemoteCopyOperationOptions::Register(TRegistrar registrar)
         .Default();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TGangManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default(true);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TVanillaOperationOptions::Register(TRegistrar registrar)
 {
@@ -524,6 +566,8 @@ void TVanillaOperationOptions::Register(TRegistrar registrar)
     registrar.Parameter("gang_manager", &TThis::GangManager)
         .DefaultNew();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TZombieOperationOrchidsConfig::Register(TRegistrar registrar)
 {
@@ -537,6 +581,8 @@ void TZombieOperationOrchidsConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TUserJobMonitoringConfig::Register(TRegistrar registrar)
 {
@@ -560,6 +606,8 @@ void TUserJobMonitoringConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TMemoryWatchdogConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("total_controller_memory_limit", &TThis::TotalControllerMemoryLimit)
@@ -574,6 +622,8 @@ void TMemoryWatchdogConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(5));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TUserFileLimitsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_size", &TThis::MaxSize)
@@ -583,6 +633,8 @@ void TUserFileLimitsConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_chunk_count", &TThis::MaxChunkCount)
         .Default(1'000);
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TUserFileLimitsPatchConfig::Register(TRegistrar registrar)
 {
@@ -594,11 +646,15 @@ void TUserFileLimitsPatchConfig::Register(TRegistrar registrar)
         .Default();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobTrackerTestingOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("delay_in_settle_job", &TThis::DelayInSettleJob)
         .Default();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TJobTrackerConfig::Register(TRegistrar registrar)
 {
@@ -627,11 +683,15 @@ void TJobTrackerConfig::Register(TRegistrar registrar)
         .Default();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TDockerRegistryConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("internal_registry_address", &TThis::InternalRegistryAddress)
         .Default();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TDisallowRemoteOperationsConfig::Register(TRegistrar registrar)
 {
@@ -642,6 +702,8 @@ void TDisallowRemoteOperationsConfig::Register(TRegistrar registrar)
     registrar.Parameter("allowed_for_everyone_clusters", &TThis::AllowedForEveryoneClusters)
         .Default();
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 void TControllerAgentConfig::Register(TRegistrar registrar)
 {
@@ -1282,6 +1344,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     });
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 void TControllerAgentBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("controller_agent", &TThis::ControllerAgent)
@@ -1298,6 +1362,11 @@ void TControllerAgentBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
         .DefaultNew();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TControllerAgentProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

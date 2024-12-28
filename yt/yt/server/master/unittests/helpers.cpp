@@ -47,6 +47,18 @@ void TBootstrapMock::ResetMasterSmartpointers()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TBootstrapTestBase::SetUp()
+{
+    Bootstrap_->SetupMasterSmartpointers();
+}
+
+void TBootstrapTestBase::TearDown()
+{
+    Bootstrap_->ResetMasterSmartpointers();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TGuid GenerateId(EObjectType type)
 {
     static i64 counter = 0;

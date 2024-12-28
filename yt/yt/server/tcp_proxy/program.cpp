@@ -9,22 +9,23 @@ namespace NYT::NTcpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTcpProxyProgram
-    : public TServerProgram<TTcpProxyConfig>
+class TProxyProgram
+    : public TServerProgram<TProxyProgramConfig>
 {
 public:
-    TTcpProxyProgram()
+    TProxyProgram()
     {
-        SetMainThreadName("TcpProxy");
+        SetMainThreadName("TcpProxyProg");
     }
 
 private:
     void DoStart() final
     {
-        auto* bootstrap = CreateBootstrap(GetConfig()).release();
+        auto bootstrap = CreateTcpProxyBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Initialize();
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 };
@@ -33,7 +34,7 @@ private:
 
 void RunTcpProxyProgram(int argc, const char** argv)
 {
-    TTcpProxyProgram().Run(argc, argv);
+    TProxyProgram().Run(argc, argv);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

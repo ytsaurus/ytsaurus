@@ -35,6 +35,7 @@ using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSequoiaClient;
 using namespace NYTree;
+using namespace NServer;
 
 using NYT::FromProto;
 

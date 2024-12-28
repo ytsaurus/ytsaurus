@@ -29,6 +29,7 @@ using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NDiscoveryClient;
 using namespace NDistributedThrottler;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -59,7 +60,7 @@ private:
     const NApi::NNative::IConnectionPtr Connection_;
     const NApi::NNative::IClientPtr Client_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
-    const TClusterNodeConfigPtr ClusterNodeConfig_;
+    const TClusterNodeBootstrapConfigPtr ClusterNodeConfig_;
     const IInvokerPtr Invoker_;
     const NRpc::IServerPtr RpcServer_;
     // Fields from manager options.

@@ -18,6 +18,7 @@ using namespace NCellMaster;
 using namespace NObjectServer;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 using NScheduler::TPoolConfigPtr;
 using NScheduler::TFairShareStrategyTreeConfigPtr;

@@ -46,7 +46,8 @@ struct TOperationControllerPrepareResult;
 struct TOperationRevivalDescriptor;
 
 class TMasterConnector;
-class TBootstrap;
+
+DECLARE_REFCOUNTED_CLASS(TBootstrap)
 
 DECLARE_REFCOUNTED_CLASS(TPersistentStrategyState)
 DECLARE_REFCOUNTED_CLASS(TPersistentTreeState)

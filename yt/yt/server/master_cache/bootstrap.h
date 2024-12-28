@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/server/lib/misc/bootstrap.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/core/actions/public.h>
@@ -16,14 +18,10 @@ namespace NYT::NMasterCache {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IBootstrap
+struct IBootstrapBase
+    : public virtual TRefCounted
 {
-    virtual ~IBootstrap() = default;
-
-    virtual void Initialize() = 0;
-    virtual void Run() = 0;
-
-    virtual const TMasterCacheConfigPtr& GetConfig() const = 0;
+    virtual const TMasterCacheBootstrapConfigPtr& GetConfig() const = 0;
     virtual const NApi::NNative::IConnectionPtr& GetConnection() const = 0;
     virtual const NApi::IClientPtr& GetRootClient() const = 0;
     virtual const NYTree::IMapNodePtr& GetOrchidRoot() const = 0;
@@ -35,28 +33,28 @@ struct IBootstrap
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(TMasterCacheConfigPtr config);
+struct IBootstrap
+    : public IBootstrapBase
+    , public NServer::IDaemonBootstrap
+{
+    virtual const TMasterCacheBootstrapConfigPtr& GetConfig() const = 0;
+    virtual const NApi::NNative::IConnectionPtr& GetConnection() const = 0;
+    virtual const NApi::IClientPtr& GetRootClient() const = 0;
+    virtual const NYTree::IMapNodePtr& GetOrchidRoot() const = 0;
+    virtual const NRpc::IServerPtr& GetRpcServer() const = 0;
+    virtual const IInvokerPtr& GetControlInvoker() const = 0;
+    virtual const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const = 0;
+    virtual const TDynamicConfigManagerPtr& GetDynamicConfigManger() const = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IBootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBootstrapBase
-    : public IBootstrap
-{
-public:
-    explicit TBootstrapBase(IBootstrap* bootstrap);
-
-    const TMasterCacheConfigPtr& GetConfig() const override;
-    const NApi::NNative::IConnectionPtr& GetConnection() const override;
-    const NApi::IClientPtr& GetRootClient() const override;
-    const NYTree::IMapNodePtr& GetOrchidRoot() const override;
-    const NRpc::IServerPtr& GetRpcServer() const override;
-    const IInvokerPtr& GetControlInvoker() const override;
-    const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const override;
-    const TDynamicConfigManagerPtr& GetDynamicConfigManger() const override;
-
-private:
-    IBootstrap* const Bootstrap_;
-};
+IBootstrapPtr CreateMasterCacheBootstrap(
+    TMasterCacheBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

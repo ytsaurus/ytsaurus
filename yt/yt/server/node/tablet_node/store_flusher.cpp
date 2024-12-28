@@ -64,6 +64,7 @@ using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NTracing;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;

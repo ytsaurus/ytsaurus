@@ -13,7 +13,7 @@ class TDynamicConfigManager
 {
 public:
     TDynamicConfigManager(
-        const TTabletBalancerServerConfigPtr& config,
+        const TTabletBalancerBootstrapConfigPtr& config,
         const IBootstrap* bootstrap);
 };
 

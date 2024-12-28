@@ -2,7 +2,7 @@
 
 #include <yt/yt/ytlib/table_client/blob_table_writer.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,4 +12,4 @@ NTableClient::TBlobTableSchema GetCoreBlobTableSchema();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

@@ -23,7 +23,7 @@ class TBundleDynamicConfigManager
 {
 public:
     TBundleDynamicConfigManager(
-        TProxyConfigPtr config,
+        TProxyBootstrapConfigPtr config,
         IProxyCoordinatorPtr proxyCoordinator,
         NApi::NNative::IConnectionPtr connection,
         IInvokerPtr controlInvoker)
@@ -53,7 +53,7 @@ public:
     }
 
 private:
-    const TProxyConfigPtr Config_;
+    const TProxyBootstrapConfigPtr Config_;
     const IProxyCoordinatorPtr ProxyCoordinator_;
 
     std::vector<std::string> BaseTags_;
@@ -81,7 +81,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IBundleDynamicConfigManagerPtr CreateBundleDynamicConfigManager(
-    TProxyConfigPtr config,
+    TProxyBootstrapConfigPtr config,
     IProxyCoordinatorPtr proxyCoordinator,
     NApi::NNative::IConnectionPtr connection,
     IInvokerPtr controlInvoker)

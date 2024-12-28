@@ -66,6 +66,7 @@ using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NServer;
 
 using NYT::FromProto;
 

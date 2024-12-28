@@ -35,6 +35,7 @@ using namespace NCypressServer;
 using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NSecurityClient;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

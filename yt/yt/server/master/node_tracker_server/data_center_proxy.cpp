@@ -17,6 +17,7 @@ namespace NYT::NNodeTrackerServer {
 using namespace NYTree;
 using namespace NYson;
 using namespace NObjectServer;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

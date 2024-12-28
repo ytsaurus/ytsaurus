@@ -56,6 +56,7 @@ using namespace NDataNode;
 using namespace NProfiling;
 using namespace NRpc;
 using namespace NFS;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
