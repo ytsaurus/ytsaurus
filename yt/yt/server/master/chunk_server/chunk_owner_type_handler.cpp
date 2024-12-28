@@ -53,6 +53,7 @@ using namespace NCypressServer;
 using namespace NSecurityServer;
 using namespace NObjectServer;
 using namespace NChunkClient;
+using namespace NServer;
 
 using NYT::ToProto;
 using NYT::FromProto;

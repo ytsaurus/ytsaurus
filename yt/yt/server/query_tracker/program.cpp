@@ -12,20 +12,22 @@ namespace NYT::NQueryTracker {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryTrackerProgram
-    : public TServerProgram<TQueryTrackerServerConfig>
+    : public TServerProgram<TQueryTrackerProgramConfig>
 {
 public:
     TQueryTrackerProgram()
     {
-        SetMainThreadName("QueryTracker");
+        SetMainThreadName("QTProg");
     }
 
 protected:
     void DoStart() final
     {
-        auto* bootstrap = new TBootstrap(GetConfig(), GetConfigNode());
+        auto bootstrap = CreateQueryTrackerBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 };

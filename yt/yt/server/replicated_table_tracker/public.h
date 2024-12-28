@@ -19,12 +19,12 @@ using TApplyChangeModeCommandsRsp = TIntrusivePtr<NRpc::TTypedClientResponse<
 using TComputeLagTimesRsp = TIntrusivePtr<NRpc::TTypedClientResponse<
     NReplicatedTableTrackerClient::NProto::TRspComputeReplicaLagTimes>>;
 
-struct IBootstrap;
+DECLARE_REFCOUNTED_CLASS(TReplicatedTableTrackerBootstrapConfig)
+DECLARE_REFCOUNTED_CLASS(TReplicatedTableTrackerProgramConfig)
 
-DECLARE_REFCOUNTED_CLASS(TReplicatedTableTrackerServerConfig)
+DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
 DECLARE_REFCOUNTED_CLASS(TReplicatedTableTrackerHost)
-
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
 ////////////////////////////////////////////////////////////////////////////////

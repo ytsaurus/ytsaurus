@@ -22,6 +22,7 @@ using namespace NObjectServer;
 using namespace NNodeTrackerServer;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

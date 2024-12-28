@@ -846,7 +846,7 @@ TFuture<TYsonString> GetMulticellOwningNodes(
     NCellMaster::TBootstrap* bootstrap,
     TChunkTree* chunkTree)
 {
-    return BIND(&DoGetMulticellOwningNodes, bootstrap, chunkTree->GetId())
+    return BIND(&DoGetMulticellOwningNodes, Unretained(bootstrap), chunkTree->GetId())
         .AsyncVia(GetCurrentInvoker())
         .Run();
 }

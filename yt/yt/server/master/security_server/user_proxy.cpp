@@ -31,6 +31,7 @@ using namespace NYson;
 using namespace NObjectServer;
 using namespace NConcurrency;
 using namespace NCellMaster;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

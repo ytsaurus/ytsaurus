@@ -98,6 +98,7 @@ using namespace NTransactionClient;
 using namespace NTransactionSupervisor;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 using NHydra::EPeerState;
 

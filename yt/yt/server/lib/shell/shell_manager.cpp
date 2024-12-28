@@ -48,6 +48,7 @@ using namespace NTools;
 using namespace NYTree;
 using namespace NYson;
 using namespace NFS;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

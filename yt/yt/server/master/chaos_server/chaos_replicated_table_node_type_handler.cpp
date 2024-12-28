@@ -34,6 +34,7 @@ using namespace NTableClient;
 using namespace NTableServer;
 using namespace NTransactionServer;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -37,6 +37,7 @@ using namespace NYTree;
 using namespace NObjectServer;
 using namespace NTransactionClient;
 using namespace NObjectClient;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

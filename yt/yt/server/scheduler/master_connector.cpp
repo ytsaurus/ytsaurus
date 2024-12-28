@@ -72,6 +72,7 @@ using namespace NApi;
 using namespace NSecurityClient;
 using namespace NConcurrency;
 using namespace NTransactionServer;
+using namespace NServer;
 
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::GetDefaultAddress;

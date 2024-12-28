@@ -236,8 +236,10 @@ void TDynamicResponseKeeperConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCellMasterConfig::Register(TRegistrar registrar)
+void TCellMasterBootstrapConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("expected_localhost_name", &TThis::ExpectedLocalHostName)
+        .Default();
     registrar.Parameter("networks", &TThis::Networks)
         .Default(NNodeTrackerClient::DefaultNetworkPreferences);
     registrar.Parameter("primary_master", &TThis::PrimaryMaster)
@@ -328,6 +330,11 @@ void TCellMasterConfig::Register(TRegistrar registrar)
         }
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCellMasterProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

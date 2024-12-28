@@ -8,9 +8,10 @@ namespace NYT::NTimestampProvider {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TTimestampProviderConfig)
+DECLARE_REFCOUNTED_CLASS(TTimestampProviderBootstrapConfig)
+DECLARE_REFCOUNTED_CLASS(TTimestampProviderProgramConfig)
 
-struct IBootstrap;
+DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -34,6 +34,7 @@ using namespace NHydra;
 using namespace NChaosClient;
 using namespace NTransactionClient;
 using namespace NTransactionSupervisor;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;

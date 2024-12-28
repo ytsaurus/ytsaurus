@@ -10,21 +10,22 @@ namespace NYT::NCellBalancer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellBalancerProgram
-    : public TServerProgram<TCellBalancerBootstrapConfig>
+    : public TServerProgram<TCellBalancerProgramConfig>
 {
 public:
     TCellBalancerProgram()
     {
-        SetMainThreadName("CellBalancer");
+        SetMainThreadName("CBProg");
     }
 
 private:
     void DoStart() final
     {
-        auto* bootstrap = CreateBootstrap(GetConfig()).release();
+        auto bootstrap = CreateCellBalancerBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Initialize();
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 };

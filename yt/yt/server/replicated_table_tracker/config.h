@@ -16,9 +16,8 @@ namespace NYT::NReplicatedTableTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicatedTableTrackerServerConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+class TReplicatedTableTrackerBootstrapConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
@@ -27,12 +26,26 @@ public:
 
     TDuration RttServiceRequestTimeout;
 
-    REGISTER_YSON_STRUCT(TReplicatedTableTrackerServerConfig);
+    REGISTER_YSON_STRUCT(TReplicatedTableTrackerBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TReplicatedTableTrackerServerConfig)
+DEFINE_REFCOUNTED_TYPE(TReplicatedTableTrackerBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TReplicatedTableTrackerProgramConfig
+    : public TReplicatedTableTrackerBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TReplicatedTableTrackerProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TReplicatedTableTrackerProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

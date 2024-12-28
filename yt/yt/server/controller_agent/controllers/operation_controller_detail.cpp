@@ -96,6 +96,8 @@
 
 #include <yt/yt/library/ytprof/heap_profiler.h>
 
+#include <yt/yt/library/coredumper/coredumper.h>
+
 #include <yt/yt/client/security_client/acl.h>
 #include <yt/yt/client/security_client/helpers.h>
 
@@ -184,6 +186,7 @@ using namespace NYPath;
 using namespace NYTProf;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;

@@ -15,6 +15,7 @@ using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NTransactionServer;
 using namespace NCellMaster;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

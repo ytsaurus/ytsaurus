@@ -72,6 +72,7 @@ using namespace NControllerAgent::NProto;
 using namespace NProfiling;
 using namespace NScheduler;
 using namespace NControllerAgent;
+using namespace NServer;
 
 using NNodeTrackerClient::NProto::TNodeResources;
 

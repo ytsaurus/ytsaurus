@@ -1,0 +1,19 @@
+#pragma once
+
+#include "bootstrap.h"
+
+namespace NYT::NMasterCache {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IPartBootstrap
+    : public IBootstrapBase
+{
+    virtual void Initialize() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IPartBootstrap)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NMasterCache

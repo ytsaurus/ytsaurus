@@ -2,7 +2,7 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -12,4 +12,4 @@ NNodeTrackerClient::TAddressMap GetLocalAddresses(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

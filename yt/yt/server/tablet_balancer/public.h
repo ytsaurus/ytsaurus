@@ -15,12 +15,13 @@ using NTabletClient::TTabletActionId;
 using NTabletClient::ETabletActionKind;
 using NTabletClient::ETabletActionState;
 
-struct IBootstrap;
+DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
 DECLARE_REFCOUNTED_CLASS(TStandaloneTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TTabletBalancerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TActionManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TTabletBalancerServerConfig)
+DECLARE_REFCOUNTED_CLASS(TTabletBalancerBootstrapConfig)
+DECLARE_REFCOUNTED_CLASS(TTabletBalancerProgramConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ITabletBalancer)
 

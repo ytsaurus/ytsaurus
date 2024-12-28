@@ -54,6 +54,7 @@ using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NCypressClient;
 using namespace NConcurrency;
+using namespace NServer;
 
 using NYT::FromProto;
 

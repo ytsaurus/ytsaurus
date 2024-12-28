@@ -10,9 +10,10 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TCypressProxyConfig)
+DECLARE_REFCOUNTED_CLASS(TCypressProxyBootstrapConfig)
+DECLARE_REFCOUNTED_CLASS(TCypressProxyProgramConfig)
 
-struct IBootstrap;
+DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 

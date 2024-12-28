@@ -1,6 +1,7 @@
-#include "chaos_cache_service.h"
+#include "chaos_cache_part_bootstrap.h"
 
-#include "bootstrap.h"
+#include "chaos_cache_service.h"
+#include "part_bootstrap_detail.h"
 #include "chaos_cache.h"
 #include "config.h"
 #include "private.h"
@@ -21,18 +22,19 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChaosCacheBootstrap
-    : public TBootstrapBase
+class TChaosCachePartBootstrap
+    : public TPartBootstrapBase
 {
 public:
-    using TBootstrapBase::TBootstrapBase;
+    explicit TChaosCachePartBootstrap(IBootstrap* bootstrap)
+        : TPartBootstrapBase(bootstrap)
+        , ChaosCacheQueue_(New<TActionQueue>("ChaosCache"))
+    { }
 
     void Initialize() override
     {
         auto client = GetConnection()->CreateNativeClient(
             TClientOptions::FromUser(NSecurityClient::RootUserName));
-
-        ChaosCacheQueue_ = New<TActionQueue>("ChaosCache");
 
         ChaosCache_ = New<TChaosCache>(
             GetConfig()->ChaosCache,
@@ -48,20 +50,18 @@ public:
         GetRpcServer()->RegisterService(ChaosCacheService_);
     }
 
-    void Run() override
-    { }
-
 private:
-    TActionQueuePtr ChaosCacheQueue_;
+    const TActionQueuePtr ChaosCacheQueue_;
+
     TChaosCachePtr ChaosCache_;
     NRpc::IServicePtr ChaosCacheService_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateChaosCacheBootstrap(IBootstrap* bootstrap)
+IPartBootstrapPtr CreateChaosCachePartBootstrap(IBootstrap* bootstrap)
 {
-    return std::make_unique<TChaosCacheBootstrap>(bootstrap);
+    return New<TChaosCachePartBootstrap>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

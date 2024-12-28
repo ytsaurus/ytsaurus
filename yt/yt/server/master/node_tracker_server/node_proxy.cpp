@@ -55,6 +55,7 @@ using namespace NOrchid;
 using namespace NYTree;
 using namespace NYson;
 using namespace NRpc;
+using namespace NServer;
 
 using NYT::FromProto;
 

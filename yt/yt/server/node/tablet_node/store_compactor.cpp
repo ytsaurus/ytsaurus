@@ -99,6 +99,7 @@ using namespace NProfiling;
 using namespace NTracing;
 using namespace NLsm;
 using namespace NHydra;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;

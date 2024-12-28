@@ -30,7 +30,6 @@ namespace NYT::NSecurityServer {
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NDistributedThrottler;
-using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 

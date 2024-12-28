@@ -15,9 +15,11 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
+#include <yt/yt/server/lib/misc/bootstrap.h>
+
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
+#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/server/lib/zookeeper_proxy/bootstrap.h>
 
@@ -47,9 +49,12 @@
 
 #include <yt/yt/library/profiling/solomon/proxy.h>
 #include <yt/yt/library/profiling/solomon/registry.h>
+#include <yt/yt/library/profiling/solomon/exporter.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/helpers.h>
+
+#include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/client/driver/driver.h>
 #include <yt/yt/client/driver/config.h>
@@ -94,6 +99,7 @@ using namespace NProfiling;
 using namespace NYson;
 using namespace NYTree;
 using namespace NAdmin;
+using namespace NFusion;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -101,28 +107,44 @@ static constexpr auto& Logger = HttpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
+TBootstrap::TBootstrap(
+    TProxyBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
+    , ServiceLocator_(std::move(serviceLocator))
+    , Control_(New<TActionQueue>("Control"))
+    , Poller_(CreateThreadPoolPoller(Config_->ThreadCount, "Poller"))
+    , Acceptor_(CreateThreadPoolPoller(1, "Acceptor"))
 {
+    // TODO(gepardo): Pass native authenticator here.
     if (Config_->AbortOnUnrecognizedOptions) {
         AbortOnUnrecognizedOptions(Logger(), Config_);
     } else {
         WarnForUnrecognizedOptions(Logger(), Config_);
     }
+}
 
-    // TODO(gepardo): Pass native authenticator here.
+TBootstrap::~TBootstrap() = default;
 
-    Control_ = New<TActionQueue>("Control");
-    Poller_ = CreateThreadPoolPoller(Config_->ThreadCount, "Poller");
-    Acceptor_ = CreateThreadPoolPoller(1, "Acceptor");
+void TBootstrap::Initialize()
+{
+    BIND(&TBootstrap::DoInitialize, MakeStrong(this))
+        .AsyncVia(GetControlInvoker())
+        .Run()
+        .Get()
+        .ThrowOnError();
+}
 
+void TBootstrap::DoInitialize()
+{
     MonitoringServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
-    NYTree::IMapNodePtr orchidRoot;
+    IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         MonitoringServer_,
-        Config_->SolomonExporter,
+        ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
 
@@ -198,13 +220,9 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         GetControlInvoker(),
         /*authenticator*/ nullptr));
 
-    if (Config_->CoreDumper) {
-        CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
-    }
-
     RpcServer_->RegisterService(CreateAdminService(
         GetControlInvoker(),
-        CoreDumper_,
+        ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
         /*authenticator*/ nullptr));
 
     HostsHandler_ = New<THostsHandler>(Coordinator_);
@@ -345,7 +363,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         "/http_proxy",
         CreateVirtualNode(Api_->CreateOrchidService()));
 
-    HttpProxyHeapUsageProfiler_ = New<THttpProxyHeapUsageProfiler>(
+    HttpProxyHeapUsageProfiler_ = New<TProxyHeapUsageProfiler>(
         GetControlInvoker(),
         Config_->HeapProfiler);
 }
@@ -355,8 +373,6 @@ bool TBootstrap::IsChytApiServerAddress(const NNet::TNetworkAddress& address) co
     return (ChytApiHttpServer_ && address == ChytApiHttpServer_->GetAddress())
         || (ChytApiHttpsServer_ && address == ChytApiHttpsServer_->GetAddress());
 }
-
-TBootstrap::~TBootstrap() = default;
 
 void TBootstrap::SetupClients()
 {
@@ -404,7 +420,14 @@ void TBootstrap::HandleRequest(
     }
 }
 
-void TBootstrap::Run()
+TFuture<void> TBootstrap::Run()
+{
+    return BIND(&TBootstrap::DoRun, MakeStrong(this))
+        .AsyncVia(GetControlInvoker())
+        .Run();
+}
+
+void TBootstrap::DoRun()
 {
     DynamicConfigManager_->Start();
 
@@ -442,7 +465,7 @@ const IInvokerPtr& TBootstrap::GetControlInvoker() const
     return Control_->GetInvoker();
 }
 
-const TProxyConfigPtr& TBootstrap::GetConfig() const
+const TProxyBootstrapConfigPtr& TBootstrap::GetConfig() const
 {
     return Config_;
 }
@@ -567,6 +590,21 @@ void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
                 .ThrowOnError();
         })));
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBootstrapPtr CreateHttpProxyBootstrap(
+    TProxyBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
+{
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

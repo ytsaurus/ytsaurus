@@ -38,6 +38,7 @@ using namespace NYPath;
 using namespace NYson;
 using namespace NTabletClient;
 using namespace NCellServer;
+using namespace NServer;
 
 using NYT::ToProto;
 using ::ToString;

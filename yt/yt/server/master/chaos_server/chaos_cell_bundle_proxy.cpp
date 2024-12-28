@@ -35,6 +35,7 @@ using namespace NTableServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NNodeTrackerServer;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

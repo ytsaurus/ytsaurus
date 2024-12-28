@@ -18,6 +18,7 @@ RECURSE(
     erasure
     error_skeleton
     formats
+    fusion
     heavy_schema_validation
     huggingface_client
     monitoring

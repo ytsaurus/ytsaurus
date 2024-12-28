@@ -34,7 +34,7 @@ using namespace NObjectClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterNodeProgram
-    : public TServerProgram<NClusterNode::TClusterNodeConfig, NClusterNode::TClusterNodeDynamicConfig>
+    : public TServerProgram<NClusterNode::TClusterNodeProgramConfig, NClusterNode::TClusterNodeDynamicConfig>
 {
 public:
     TClusterNodeProgram()
@@ -222,9 +222,8 @@ private:
         // TODO(babenko): refactor
         ConfigureAllocator({.SnapshotUpdatePeriod = GetConfig()->HeapProfiler->SnapshotUpdatePeriod});
 
-        auto* bootstrap = CreateBootstrap(GetConfig(), GetConfigNode()).release();
+        auto bootstrap = CreateNodeBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Initialize();
 
         if (IsDryRunMode()) {
             NBus::TTcpDispatcher::Get()->DisableNetworking();
@@ -254,7 +253,9 @@ private:
             AbortProcessSilently(EProcessExitCode::OK);
         }
 
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 

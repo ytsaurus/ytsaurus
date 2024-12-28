@@ -77,6 +77,7 @@ using namespace NTracing;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NYPath;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;

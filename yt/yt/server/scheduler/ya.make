@@ -60,6 +60,7 @@ PEERDIR(
     yt/yt/server/lib/transaction_server
     yt/yt/server/lib/controller_agent
 
+    yt/yt/library/monitoring
     yt/yt/library/numeric
     yt/yt/library/server_program
 )

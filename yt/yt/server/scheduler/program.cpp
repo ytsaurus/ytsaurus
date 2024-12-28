@@ -6,27 +6,27 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
-#include <yt/yt/library/program/helpers.h>
-
 namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerProgram
-    : public TServerProgram<TSchedulerBootstrapConfig>
+    : public TServerProgram<TSchedulerProgramConfig>
 {
 public:
     TSchedulerProgram()
     {
-        SetMainThreadName("Scheduler");
+        SetMainThreadName("SchedulerProg");
     }
 
 private:
     void DoStart() final
     {
-        auto* bootstrap = new TBootstrap(GetConfig(), GetConfigNode());
+        auto bootstrap = CreateSchedulerBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 };

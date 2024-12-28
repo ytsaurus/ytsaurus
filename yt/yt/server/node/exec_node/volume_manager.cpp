@@ -93,6 +93,7 @@ using namespace NProfiling;
 using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 using NControllerAgent::ELayerAccessMethod;
 using NControllerAgent::ELayerFilesystem;

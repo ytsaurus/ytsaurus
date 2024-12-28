@@ -47,6 +47,7 @@ using namespace NChunkClient;
 using namespace NNodeTrackerClient::NProto;
 using namespace NObjectServer;
 using namespace NChunkServer;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

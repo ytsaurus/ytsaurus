@@ -151,7 +151,7 @@ TClusterStateProvider::TClusterStateProvider(NCellBalancerClient::NProto::TRspGe
         auto options = New<TTabletCellOptions>();
         options->IndependentPeers = protoCellBundle->independent_peers();
         cellBundle->SetOptions(std::move(options));
-        cellBundle->CellBalancerConfig() = ConvertTo<NCellServer::TCellBalancerConfigPtr>(
+        cellBundle->CellBalancerConfig() = ConvertTo<NCellServer::TCellBalancerBootstrapConfigPtr>(
             TYsonString(protoCellBundle->cell_balancer_config()));
         return cellBundle;
     };

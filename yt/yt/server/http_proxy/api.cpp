@@ -23,6 +23,7 @@ using namespace NProfiling;
 using namespace NSecurityClient;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

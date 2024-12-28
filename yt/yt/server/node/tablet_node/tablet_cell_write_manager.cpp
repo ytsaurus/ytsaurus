@@ -46,6 +46,7 @@ using namespace NTabletNode::NProto;
 using namespace NTransactionClient;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

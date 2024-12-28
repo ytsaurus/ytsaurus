@@ -10,7 +10,7 @@ namespace NYT::NKafkaProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TKafkaProxyConfig::Register(TRegistrar registrar)
+void TProxyBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("port", &TThis::Port)
         .Default(80);
@@ -59,7 +59,12 @@ void TKafkaProxyConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TKafkaProxyDynamicConfig::Register(TRegistrar registrar)
+void TProxyProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TProxyDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("poller_thread_count", &TThis::PollerThreadCount)
         .Default(2);

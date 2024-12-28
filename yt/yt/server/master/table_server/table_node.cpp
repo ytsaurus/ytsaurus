@@ -52,6 +52,7 @@ using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
 using namespace NCrypto;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -43,11 +43,11 @@ private:
 
     std::vector<int> JobPorts_;
 
-    TJobEvents JobEvents_;
+    NServer::TJobEvents JobEvents_;
 
     NControllerAgent::TCoreInfos JobCoreInfos_;
 
-    TExecAttributes JobExecAttributes_;
+    NServer::TExecAttributes JobExecAttributes_;
 
     friend class TJob;
 
@@ -67,9 +67,9 @@ private:
         const NClusterNode::TJobResources& additionalResourceUsage,
         const NClusterNode::TJobResources& initialResourceDemand,
         const std::vector<int>& jobPorts,
-        const TJobEvents& jobEvents,
+        const NServer::TJobEvents& jobEvents,
         const NControllerAgent::TCoreInfos& jobCoreInfos,
-        const TExecAttributes& jobExecAttributes);
+        const NServer::TExecAttributes& jobExecAttributes);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -80,6 +80,7 @@ using namespace NRpc;
 using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NCoreDump;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;

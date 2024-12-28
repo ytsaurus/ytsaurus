@@ -36,6 +36,7 @@ using namespace NYson;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYTProf;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;

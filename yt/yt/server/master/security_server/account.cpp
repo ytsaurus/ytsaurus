@@ -25,6 +25,7 @@ using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NConcurrency;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

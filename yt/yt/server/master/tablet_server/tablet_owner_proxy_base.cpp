@@ -14,6 +14,7 @@ namespace NYT::NTabletServer {
 using namespace NTabletClient;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

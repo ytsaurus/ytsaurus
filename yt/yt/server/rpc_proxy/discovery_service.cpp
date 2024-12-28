@@ -55,6 +55,7 @@ using namespace NCypressClient;
 using namespace NRpc;
 using namespace NNet;
 using namespace NApi::NNative;
+using namespace NServer;
 
 using NYT::ToProto;
 
@@ -86,7 +87,7 @@ class TDiscoveryService
 {
 public:
     TDiscoveryService(
-        TProxyConfigPtr config,
+        TProxyBootstrapConfigPtr config,
         IProxyCoordinatorPtr proxyCoordinator,
         NApi::NNative::IConnectionPtr connection,
         IInvokerPtr controlInvoker,
@@ -149,7 +150,7 @@ public:
     }
 
 private:
-    const TProxyConfigPtr Config_;
+    const TProxyBootstrapConfigPtr Config_;
     const IProxyCoordinatorPtr ProxyCoordinator_;
     const NApi::NNative::IConnectionPtr Connection_;
     const NApi::NNative::IClientPtr RootClient_;
@@ -467,7 +468,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IServicePtr CreateDiscoveryService(
-    TProxyConfigPtr config,
+    TProxyBootstrapConfigPtr config,
     IProxyCoordinatorPtr proxyCoordinator,
     NApi::NNative::IConnectionPtr connection,
     IInvokerPtr controlInvoker,

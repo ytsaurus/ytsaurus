@@ -10,6 +10,8 @@
 
 #include <yt/yt/library/server_program/config.h>
 
+#include <yt/yt/core/net/config.h>
+
 namespace NYT::NTcpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,9 +33,8 @@ DEFINE_REFCOUNTED_TYPE(TRouterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTcpProxyConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+class TProxyBootstrapConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
@@ -46,12 +47,26 @@ public:
 
     TRouterConfigPtr Router;
 
-    REGISTER_YSON_STRUCT(TTcpProxyConfig);
+    REGISTER_YSON_STRUCT(TProxyBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TTcpProxyConfig)
+DEFINE_REFCOUNTED_TYPE(TProxyBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProxyProgramConfig
+    : public TProxyBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TProxyProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TProxyProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,7 +85,7 @@ DEFINE_REFCOUNTED_TYPE(TRouterDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTcpProxyDynamicConfig
+class TProxyDynamicConfig
     : public TSingletonsDynamicConfig
 {
 public:
@@ -79,12 +94,12 @@ public:
 
     TRouterDynamicConfigPtr Router;
 
-    REGISTER_YSON_STRUCT(TTcpProxyDynamicConfig);
+    REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TTcpProxyDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TProxyDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

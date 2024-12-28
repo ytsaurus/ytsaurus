@@ -24,6 +24,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 using namespace NDiscoveryClient;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

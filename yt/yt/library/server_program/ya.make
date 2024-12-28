@@ -4,6 +4,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     config.cpp
+    server_program.cpp
 )
 
 PEERDIR(
@@ -15,7 +16,9 @@ PEERDIR(
     yt/yt/library/program
     yt/yt/library/containers
     yt/yt/library/disk_manager
+    yt/yt/library/fusion
     yt/yt/library/stockpile # for stockpile singleton
+    yt/yt/library/profiling/solomon
 )
 
 END()

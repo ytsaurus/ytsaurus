@@ -53,6 +53,7 @@ using namespace NProfiling;
 using namespace NHydra;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

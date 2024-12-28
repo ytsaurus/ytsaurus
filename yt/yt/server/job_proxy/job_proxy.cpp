@@ -72,6 +72,7 @@
 
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/helpers.h>
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
@@ -157,6 +158,7 @@ using namespace NTransactionClient;
 using namespace NStatisticPath;
 using namespace NUserJob;
 using namespace NLogging;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;

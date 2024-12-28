@@ -51,6 +51,7 @@ using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NYTree;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;

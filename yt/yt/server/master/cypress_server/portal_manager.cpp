@@ -45,6 +45,7 @@ using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 using namespace NApi::NNative::NProto;
 

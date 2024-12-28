@@ -1168,7 +1168,7 @@ public:
 
     NScheduler::EEnablePorto DefaultEnablePorto;
 
-    TJobReporterConfigPtr JobReporter;
+    NServer::TJobReporterConfigPtr JobReporter;
 
     //! Timeout for the response to a heavy request to the operation controller,
     //! such as Initialize, Prepare, Materialize, Revive or Commit.
@@ -1271,8 +1271,7 @@ DEFINE_REFCOUNTED_TYPE(TControllerAgentConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControllerAgentBootstrapConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
     TControllerAgentConfigPtr ControllerAgent;
@@ -1292,6 +1291,20 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TControllerAgentProgramConfig
+    : public TControllerAgentBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TControllerAgentProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TControllerAgentProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

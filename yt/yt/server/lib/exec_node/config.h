@@ -29,7 +29,7 @@ namespace NYT::NExecNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSlotLocationConfig
-    : public TDiskLocationConfig
+    : public NServer::TDiskLocationConfig
 {
 public:
     //! Maximum reported total disk capacity.
@@ -831,7 +831,7 @@ public:
 
     TJobControllerDynamicConfigPtr JobController;
 
-    TJobReporterConfigPtr JobReporter;
+    NServer::TJobReporterConfigPtr JobReporter;
 
     TSchedulerConnectorDynamicConfigPtr SchedulerConnector;
 

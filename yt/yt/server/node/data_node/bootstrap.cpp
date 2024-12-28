@@ -47,6 +47,7 @@ using namespace NCypressClient;
 using namespace NQueryClient;
 using namespace NDiskManager;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,8 +82,9 @@ public:
     {
         YT_LOG_INFO("Initializing data node");
 
+        // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
 
         auto dynamicConfig = GetDynamicConfigManager()->GetConfig()->DataNode;
 
@@ -497,9 +499,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(NClusterNode::IBootstrap* bootstrap)
+IBootstrapPtr CreateBootstrap(NClusterNode::IBootstrap* bootstrap)
 {
-    return std::make_unique<TBootstrap>(bootstrap);
+    return New<TBootstrap>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

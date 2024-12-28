@@ -60,6 +60,7 @@ using namespace NPipes;
 using namespace NProfiling;
 using namespace NRpc;
 using namespace NNet;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

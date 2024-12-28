@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 using namespace NYTree;
 using namespace NYson;
@@ -46,4 +46,4 @@ IYPathServicePtr TRestartManager::GetOrchidService()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

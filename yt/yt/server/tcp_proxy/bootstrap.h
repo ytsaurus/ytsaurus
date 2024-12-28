@@ -2,24 +2,20 @@
 
 #include "public.h"
 
+#include <yt/yt/server/lib/misc/bootstrap.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/client/api/public.h>
-
-#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NTcpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IBootstrap
+    : public NServer::IDaemonBootstrap
 {
-    virtual ~IBootstrap() = default;
-
-    virtual void Initialize() = 0;
-    virtual void Run() = 0;
-
-    virtual const TTcpProxyConfigPtr& GetConfig() const = 0;
+    virtual const TProxyBootstrapConfigPtr& GetConfig() const = 0;
 
     virtual const TDynamicConfigManagerPtr& GetDynamicConfigManager() const = 0;
 
@@ -35,9 +31,14 @@ struct IBootstrap
     virtual NConcurrency::IPollerPtr GetAcceptor() const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IBootstrap)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(TTcpProxyConfigPtr config);
+IBootstrapPtr CreateTcpProxyBootstrap(
+    TProxyBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

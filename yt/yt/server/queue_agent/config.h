@@ -190,9 +190,8 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentShardingManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueAgentServerConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+class TQueueAgentBootstrapConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
     TQueueAgentConfigPtr QueueAgent;
@@ -214,16 +213,30 @@ public:
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
     TString DynamicConfigPath;
 
-    REGISTER_YSON_STRUCT(TQueueAgentServerConfig);
+    REGISTER_YSON_STRUCT(TQueueAgentBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueueAgentServerConfig)
+DEFINE_REFCOUNTED_TYPE(TQueueAgentBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueAgentServerDynamicConfig
+class TQueueAgentProgramConfig
+    : public TQueueAgentBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TQueueAgentProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueueAgentProgramConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueueAgentComponentDynamicConfig
     : public TSingletonsDynamicConfig
 {
 public:
@@ -235,12 +248,12 @@ public:
     TQueueAgentDynamicConfigPtr QueueAgent;
     TCypressSynchronizerDynamicConfigPtr CypressSynchronizer;
 
-    REGISTER_YSON_STRUCT(TQueueAgentServerDynamicConfig);
+    REGISTER_YSON_STRUCT(TQueueAgentComponentDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueueAgentServerDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TQueueAgentComponentDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -35,6 +35,7 @@ using namespace NObjectServer;
 using namespace NRpc;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 using ::ToString;
 

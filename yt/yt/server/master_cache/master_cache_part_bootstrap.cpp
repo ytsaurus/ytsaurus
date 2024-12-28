@@ -1,6 +1,6 @@
-#include "master_cache_bootstrap.h"
+#include "master_cache_part_bootstrap.h"
 
-#include "bootstrap.h"
+#include "part_bootstrap_detail.h"
 #include "private.h"
 #include "config.h"
 #include "dynamic_config_manager.h"
@@ -40,16 +40,17 @@ const auto static& Logger = MasterCacheLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterCacheBootstrap
-    : public TBootstrapBase
+class TMasterCachePartBootstrap
+    : public TPartBootstrapBase
 {
 public:
-    using TBootstrapBase::TBootstrapBase;
+    explicit TMasterCachePartBootstrap(IBootstrap* bootstrap)
+        : TPartBootstrapBase(bootstrap)
+        , MasterCacheQueue_(New<TActionQueue>("MasterCache"))
+    { }
 
     void Initialize() override
     {
-        MasterCacheQueue_ = New<TActionQueue>("MasterCache");
-
         ObjectServiceCache_ = New<TObjectServiceCache>(
             GetConfig()->CachingObjectService,
             GetNullMemoryUsageTracker(),
@@ -75,16 +76,15 @@ public:
             CreateVirtualNode(ObjectServiceCache_->GetOrchidService()));
 
         const auto& dynamicConfigManager = GetDynamicConfigManger();
-        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterCacheBootstrap::OnDynamicConfigChanged, Unretained(this)));
-        connection->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(BIND_NO_PROPAGATE(&TMasterCacheBootstrap::OnMasterCellDirectoryChanged, Unretained(this)));
+        dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMasterCachePartBootstrap::OnDynamicConfigChanged, Unretained(this)));
+        connection->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(BIND_NO_PROPAGATE(&TMasterCachePartBootstrap::OnMasterCellDirectoryChanged, Unretained(this)));
     }
 
-    void Run() override
-    { }
-
 private:
-    TActionQueuePtr MasterCacheQueue_;
+    const TActionQueuePtr MasterCacheQueue_;
+
     TObjectServiceCachePtr ObjectServiceCache_;
+
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     THashMap<TCellTag, ICachingObjectServicePtr> CachingObjectServices_;
 
@@ -152,9 +152,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateMasterCacheBootstrap(IBootstrap* bootstrap)
+IPartBootstrapPtr CreateMasterCachePartBootstrap(IBootstrap* bootstrap)
 {
-    return std::make_unique<TMasterCacheBootstrap>(bootstrap);
+    return New<TMasterCachePartBootstrap>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

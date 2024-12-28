@@ -59,6 +59,7 @@ using namespace NTabletClient;
 using namespace NTabletServer;
 using namespace NTabletNode;
 using namespace NTransactionSupervisor;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;

@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/library/server_program/config.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NLogTailer {
@@ -175,7 +177,8 @@ DEFINE_REFCOUNTED_TYPE(TLogTailerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogTailerBootstrapConfig
-    : public TNativeServerConfig
+    : public NServer::TNativeServerBootstrapConfig
+    , public TServerProgramConfig
 {
 public:
     TLogTailerConfigPtr LogTailer;

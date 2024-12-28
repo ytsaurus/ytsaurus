@@ -28,6 +28,7 @@ target_link_libraries(yt-server-clock_server PUBLIC
   yutil
   yt-library-server_program
   yt-library-monitoring
+  library-profiling-solomon
   ytserver
   server-lib-hydra
   server-lib-hive

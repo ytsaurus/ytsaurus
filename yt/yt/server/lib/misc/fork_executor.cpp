@@ -15,7 +15,7 @@
     #include <sys/wait.h>
 #endif
 
-namespace NYT {
+namespace NYT::NServer {
 
 using namespace NConcurrency;
 
@@ -223,4 +223,4 @@ void TForkExecutor::DoCancel(const TError& error)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

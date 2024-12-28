@@ -58,6 +58,7 @@ using namespace NTabletClient;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

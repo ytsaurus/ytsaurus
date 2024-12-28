@@ -33,7 +33,7 @@ struct TJobTraceEventReport
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobTraceEventRowlet
-    : public IArchiveRowlet
+    : public NServer::IArchiveRowlet
 {
 public:
     TJobTraceEventRowlet(TJobTraceEventReport&& report);
@@ -79,9 +79,9 @@ private:
     const TJobTraceEventProcessorConfigPtr Config_;
 
     const NConcurrency::TActionQueuePtr JobTraceReporterActionQueue_ = New<NConcurrency::TActionQueue>("JobTrace");
-    const TArchiveVersionHolderPtr ArchiveVersion_ = New<TArchiveVersionHolder>();
+    const NServer::TArchiveVersionHolderPtr ArchiveVersion_ = New<NServer::TArchiveVersionHolder>();
 
-    const IArchiveReporterPtr ArchiveReporter_;
+    const NServer::IArchiveReporterPtr ArchiveReporter_;
 
     bool IsControlEvent(const TTraceEvent& event) const;
 };

@@ -120,7 +120,7 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TQueryTrackerServerConfig::Register(TRegistrar registrar)
+void TQueryTrackerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("min_required_state_version", &TThis::MinRequiredStateVersion)
         .Default(11);
@@ -155,7 +155,12 @@ void TQueryTrackerServerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TQueryTrackerServerDynamicConfig::Register(TRegistrar registrar)
+void TQueryTrackerProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TQueryTrackerComponentDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("alert_manager", &TThis::AlertManager)
         .DefaultNew();

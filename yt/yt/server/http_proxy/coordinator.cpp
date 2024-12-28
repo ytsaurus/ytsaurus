@@ -41,8 +41,6 @@
 
 namespace NYT::NHttpProxy {
 
-static constexpr auto& Logger = HttpProxyLogger;
-
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NTracing;
@@ -54,6 +52,11 @@ using namespace NCypressClient;
 using namespace NNative;
 using namespace NProfiling;
 using namespace NObjectClient;
+using namespace NServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto& Logger = HttpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,7 +107,7 @@ TCoordinatorProxy::TCoordinatorProxy(const TProxyEntryPtr& proxyEntry)
 ////////////////////////////////////////////////////////////////////////////////
 
 TCoordinator::TCoordinator(
-    TProxyConfigPtr config,
+    TProxyBootstrapConfigPtr config,
     TBootstrap* bootstrap)
     : Config_(config->Coordinator)
     , Sampler_(New<TSampler>())
@@ -228,7 +231,7 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListProxies(std::optional<std::s
     return filtered;
 }
 
-std::vector<TProxyEntryPtr> TCoordinator::ListProxyEntries(std::optional<std::string> roleFilter, bool includeDeadAndBanned)
+std::vector<TProxyEntryPtr> TCoordinator::LisTProxyEntries(std::optional<std::string> roleFilter, bool includeDeadAndBanned)
 {
     std::vector<TProxyEntryPtr> result;
     auto proxies = ListProxies(roleFilter, includeDeadAndBanned);
@@ -519,7 +522,7 @@ void THostsHandler::HandleRequest(
 
     rsp->SetStatus(EStatusCode::OK);
     if (suffix && *suffix == "all") {
-        auto proxies = Coordinator_->ListProxyEntries({}, true);
+        auto proxies = Coordinator_->LisTProxyEntries({}, true);
         ReplyJson(rsp, [&] (NYson::IYsonConsumer* json) {
             BuildYsonFluently(json)
                 .DoListFor(proxies, [&] (auto item, const TProxyEntryPtr& proxy) {
@@ -546,7 +549,7 @@ void THostsHandler::HandleRequest(
             }
         };
 
-        auto proxies = Coordinator_->ListProxyEntries(role);
+        auto proxies = Coordinator_->LisTProxyEntries(role);
         if (returnJson) {
             ReplyJson(rsp, [&] (NYson::IYsonConsumer* json) {
                 BuildYsonFluently(json)

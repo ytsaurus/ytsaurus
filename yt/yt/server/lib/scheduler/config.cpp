@@ -1282,11 +1282,11 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_spec_tree_size_limit", &TThis::OperationSpecTreeSizeLimit)
         .Default(std::numeric_limits<int>::max());
 
-    registrar.Preprocessor([&] (TSchedulerConfig* config) {
+    registrar.Preprocessor([&] (TThis* config) {
         config->OperationServiceResponseKeeper->EnableWarmup = false;
     });
 
-    registrar.Postprocessor([&] (TSchedulerConfig* config) {
+    registrar.Postprocessor([&] (TThis* config) {
         if (config->SoftConcurrentHeartbeatLimit > config->HardConcurrentHeartbeatLimit) {
             THROW_ERROR_EXCEPTION("\"soft_limit\" must be less than or equal to \"hard_limit\"")
                 << TErrorAttribute("soft_limit", config->SoftConcurrentHeartbeatLimit)
@@ -1320,6 +1320,11 @@ void TSchedulerBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSchedulerProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

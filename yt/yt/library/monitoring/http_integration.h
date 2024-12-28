@@ -17,6 +17,11 @@ void Initialize(
     const NProfiling::TSolomonExporterConfigPtr& solomonExporterConfig,
     TMonitoringManagerPtr* monitoringManager,
     NYTree::IMapNodePtr* orchidRoot);
+void Initialize(
+    const NHttp::IServerPtr& monitoringServer,
+    const NProfiling::TSolomonExporterPtr& solomonExporter,
+    TMonitoringManagerPtr* monitoringManager,
+    NYTree::IMapNodePtr* orchidRoot);
 
 NHttp::IHttpHandlerPtr CreateTracingHttpHandler();
 

@@ -56,6 +56,7 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NCellarClient;
 using namespace NYTree;
 using namespace NProfiling;
+using namespace NServer;
 
 using NHydra::HasMutationContext;
 using NYT::FromProto;

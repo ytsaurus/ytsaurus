@@ -1,13 +1,11 @@
 #pragma once
 
-#include "private.h"
-
-namespace NYT::NMasterCache {
+namespace NYT::NMultidaemon {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateChaosCacheBootstrap(IBootstrap* bootstrap);
+void RuNMultidaemonProgram(int argc, const char** argv);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NMasterCache
+} // namespace NYT::NMultidaemon

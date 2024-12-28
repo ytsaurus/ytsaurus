@@ -16,6 +16,7 @@ using namespace NConcurrency;
 using namespace NClusterNode;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

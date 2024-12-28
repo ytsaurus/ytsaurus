@@ -10,20 +10,22 @@ namespace NYT::NQueueAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueueAgentProgram
-    : public TServerProgram<TQueueAgentServerConfig>
+    : public TServerProgram<TQueueAgentProgramConfig>
 {
 public:
     TQueueAgentProgram()
     {
-        SetMainThreadName("QueueAgent");
+        SetMainThreadName("QAProg");
     }
 
 private:
     void DoStart() final
     {
-        auto* bootstrap = new TBootstrap(GetConfig(), GetConfigNode());
+        auto bootstrap = CreateQueueAgentBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 };

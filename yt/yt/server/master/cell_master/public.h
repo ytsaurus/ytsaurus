@@ -26,7 +26,8 @@ DECLARE_REFCOUNTED_CLASS(TWorldInitializerConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterCellDirectoryConfig)
 DECLARE_REFCOUNTED_CLASS(TTestConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicMulticellManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TCellMasterConfig)
+DECLARE_REFCOUNTED_CLASS(TCellMasterProgramConfig)
+DECLARE_REFCOUNTED_CLASS(TCellMasterBootstrapConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicCellMasterConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicQueueAgentServerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicClusterConfig)
@@ -46,7 +47,7 @@ DECLARE_REFCOUNTED_STRUCT(IMulticellManager)
 DECLARE_REFCOUNTED_STRUCT(IWorldInitializer)
 DECLARE_REFCOUNTED_STRUCT(IWorldInitializerCache)
 
-class TBootstrap;
+DECLARE_REFCOUNTED_CLASS(TBootstrap);
 
 enum class EMasterReign;
 class TLoadContext;

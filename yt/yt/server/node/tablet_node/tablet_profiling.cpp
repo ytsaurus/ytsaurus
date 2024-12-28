@@ -31,6 +31,7 @@ using namespace NChunkClient::NProto;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NLsm;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

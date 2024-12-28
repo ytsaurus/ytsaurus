@@ -13,9 +13,7 @@
 #include <util/generic/string.h>
 #include <util/generic/hash.h>
 
-#include <optional>
-
-namespace NYT {
+namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,4 +67,4 @@ bool AreClusterThrottlersConfigsEqual(TClusterThrottlersConfigPtr lhs, TClusterT
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

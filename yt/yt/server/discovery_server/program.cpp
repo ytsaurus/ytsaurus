@@ -12,21 +12,22 @@ namespace NYT::NClusterDiscoveryServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterDiscoveryServerProgram
-    : public TServerProgram<TClusterDiscoveryServerConfig>
+    : public TServerProgram<TDiscoveryServerProgramConfig>
 {
 public:
     TClusterDiscoveryServerProgram()
     {
-        SetMainThreadName("DiscoveryServer");
+        SetMainThreadName("DiscServerProg");
     }
 
 protected:
     void DoStart() override
     {
-        auto* bootstrap = NClusterDiscoveryServer::CreateBootstrap(GetConfig()).release();
+        auto bootstrap = CreateDiscoveryServerBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Initialize();
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 };

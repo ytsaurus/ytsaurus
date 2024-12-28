@@ -31,7 +31,7 @@ class TTestChunkReplacerCallbacks
     : public IChunkReplacerCallbacks
 {
 public:
-    explicit TTestChunkReplacerCallbacks(TChunkGeneratorBase* chunkGenerator)
+    explicit TTestChunkReplacerCallbacks(TChunkGeneratorTestBase* chunkGenerator)
         : ChunkGenerator_(chunkGenerator)
     { }
 
@@ -56,13 +56,13 @@ public:
     { }
 
 private:
-    TChunkGeneratorBase* const ChunkGenerator_;
+    TChunkGeneratorTestBase* const ChunkGenerator_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkReplacerTest
-    : public TChunkGeneratorBase
+    : public TChunkGeneratorTestBase
 { };
 
 TEST_F(TChunkReplacerTest, Simple)

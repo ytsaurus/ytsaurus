@@ -37,6 +37,7 @@ using namespace NNodeTrackerClient;
 using namespace NTracing;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;

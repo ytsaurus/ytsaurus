@@ -49,7 +49,7 @@ public:
 
     virtual void Reconfigure(NClusterNode::TClusterNodeDynamicConfigPtr dynamicConfig) = 0;
 
-    virtual const TClusterThrottlersConfigPtr GetClusterThrottlersConfig() const = 0;
+    virtual const NServer::TClusterThrottlersConfigPtr GetClusterThrottlersConfig() const = 0;
 
     //! Only the leader has incoming traffic utilization collected over all members.
     virtual std::optional<THashMap<NScheduler::TClusterName, TIncomingTrafficUtilization>> GetClusterToIncomingTrafficUtilization(EThrottlerTrafficType trafficType) const = 0;

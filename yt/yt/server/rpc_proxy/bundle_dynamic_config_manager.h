@@ -24,7 +24,7 @@ DEFINE_REFCOUNTED_TYPE(IBundleDynamicConfigManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 IBundleDynamicConfigManagerPtr CreateBundleDynamicConfigManager(
-    TProxyConfigPtr config,
+    TProxyBootstrapConfigPtr config,
     IProxyCoordinatorPtr proxyCoordinator,
     NApi::NNative::IConnectionPtr connection,
     IInvokerPtr controlInvoker);

@@ -1,0 +1,14 @@
+#pragma once
+
+#include <yt/yt/core/misc/public.h>
+
+namespace NYT::NMultidaemon {
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TDaemonConfig)
+DECLARE_REFCOUNTED_STRUCT(TMultidaemonProgramConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NMultidaemon

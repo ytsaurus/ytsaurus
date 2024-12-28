@@ -8,7 +8,7 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTimestampProviderConfig::Register(TRegistrar registrar)
+void TTimestampProviderBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
@@ -26,6 +26,11 @@ void TTimestampProviderConfig::Register(TRegistrar registrar)
         .Default();
 
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTimestampProviderProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

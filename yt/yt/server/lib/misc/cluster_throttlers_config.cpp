@@ -7,7 +7,7 @@
 
 #include <yt/yt/ytlib/distributed_throttler/config.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 using namespace NApi;
 using namespace NYson;
@@ -71,4 +71,4 @@ bool AreClusterThrottlersConfigsEqual(TClusterThrottlersConfigPtr lhs, TClusterT
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

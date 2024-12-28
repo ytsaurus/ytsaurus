@@ -30,9 +30,10 @@ target_link_libraries(yt-server-log_tailer PUBLIC
   yutil
   library-query-engine
   yt-library-monitoring
+  yt-library-server_program
   yt-yt-core
   yt-yt-ytlib
-  ytserver
+  server-lib-misc
   cpp-getopt-small
 )
 

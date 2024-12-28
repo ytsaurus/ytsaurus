@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/zookeeper_proxy/bootstrap_proxy.h>
 
+#include <yt/yt/server/lib/misc/bootstrap.h>
+
 #include <yt/yt/ytlib/api/public.h>
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -52,16 +54,20 @@ namespace NYT::NHttpProxy {
 
 class TBootstrap
     : public NHttp::IHttpHandler
+    , public NServer::IDaemonBootstrap
 {
 public:
-    TBootstrap(TProxyConfigPtr config, NYTree::INodePtr configNode);
+    TBootstrap(
+        TProxyBootstrapConfigPtr config,
+        NYTree::INodePtr configNode,
+        NFusion::IServiceLocatorPtr serviceLocator);
     ~TBootstrap();
 
-    void Run();
+    void Initialize();
+    TFuture<void> Run() final;
 
     const IInvokerPtr& GetControlInvoker() const;
-
-    const TProxyConfigPtr& GetConfig() const;
+    const TProxyBootstrapConfigPtr& GetConfig() const;
     TProxyDynamicConfigPtr GetDynamicConfig() const;
     const NApi::IClientPtr& GetRootClient() const;
     const NApi::NNative::IConnectionPtr& GetNativeConnection() const;
@@ -82,18 +88,20 @@ public:
 
     void HandleRequest(
         const NHttp::IRequestPtr& req,
-        const NHttp::IResponseWriterPtr& rsp) override;
+        const NHttp::IResponseWriterPtr& rsp) final;
 
 private:
-    const TProxyConfigPtr Config_;
+    const TProxyBootstrapConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
+    const NFusion::IServiceLocatorPtr ServiceLocator_;
+
     const TInstant StartTime_ = TInstant::Now();
 
     TAtomicIntrusivePtr<TProxyDynamicConfig> DynamicConfig_ = TAtomicIntrusivePtr(New<TProxyDynamicConfig>());
 
-    NConcurrency::TActionQueuePtr Control_;
-    NConcurrency::IPollerPtr Poller_;
-    NConcurrency::IPollerPtr Acceptor_;
+    const NConcurrency::TActionQueuePtr Control_;
+    const NConcurrency::IPollerPtr Poller_;
+    const NConcurrency::IPollerPtr Acceptor_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr MonitoringServer_;
@@ -112,7 +120,7 @@ private:
 
     IDynamicConfigManagerPtr DynamicConfigManager_;
 
-    THttpProxyHeapUsageProfilerPtr HttpProxyHeapUsageProfiler_;
+    TProxyHeapUsageProfilerPtr HttpProxyHeapUsageProfiler_;
 
     NRpc::IServerPtr RpcServer_;
 
@@ -140,9 +148,10 @@ private:
 
     IAccessCheckerPtr AccessChecker_;
 
-    NCoreDump::ICoreDumperPtr CoreDumper_;
-
     INodeMemoryTrackerPtr MemoryUsageTracker_;
+
+    void DoInitialize();
+    void DoRun();
 
     void RegisterRoutes(const NHttp::IServerPtr& server);
     NHttp::IHttpHandlerPtr AllowCors(NHttp::IHttpHandlerPtr nextHandler) const;
@@ -155,6 +164,15 @@ private:
 
     void ReconfigureMemoryLimits(const TProxyMemoryLimitsConfigPtr& memoryLimits);
 };
+
+DEFINE_REFCOUNTED_TYPE(TBootstrap)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBootstrapPtr CreateHttpProxyBootstrap(
+    TProxyBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

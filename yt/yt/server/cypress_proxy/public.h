@@ -10,17 +10,18 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IBootstrap;
+DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
 DECLARE_REFCOUNTED_STRUCT(ISequoiaServiceContext)
 DECLARE_REFCOUNTED_CLASS(TSequoiaServiceContextWrapper)
 
-template <class RequestMessage, class ResponseMessage>
+template <class TRequestMessage, class TResponseMessage>
 using TTypedSequoiaServiceContext = NRpc::TGenericTypedServiceContext<
     ISequoiaServiceContext,
     TSequoiaServiceContextWrapper,
-    RequestMessage,
-    ResponseMessage>;
+    TRequestMessage,
+    TResponseMessage
+>;
 
 DECLARE_REFCOUNTED_CLASS(TNodeProxyBase)
 

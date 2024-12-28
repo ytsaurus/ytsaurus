@@ -29,7 +29,7 @@ class TJobProxyResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IBootstrap;
+DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
 struct TTmpfsVolume
 {

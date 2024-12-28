@@ -478,7 +478,7 @@ std::set<TChunkInfo> TraverseNaively(
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkTree* GenerateChunkTree(
-    TChunkGeneratorBase* chunkGenerator,
+    TChunkGeneratorTestBase* chunkGenerator,
     int numLayers,
     std::mt19937& randomGenerator,
     const std::function<int()>& keyYielder,
@@ -539,7 +539,7 @@ std::function<int()> CreateBasicKeyYielder()
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkTreeTraversingTest
-    : public TChunkGeneratorBase
+    : public TChunkGeneratorTestBase
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1724,7 +1724,7 @@ INSTANTIATE_TEST_SUITE_P(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkTreeTraversingStressTest
-    : public TChunkGeneratorBase
+    : public TChunkGeneratorTestBase
 { };
 
 TEST_F(TChunkTreeTraversingStressTest, StaticWithoutKeys)

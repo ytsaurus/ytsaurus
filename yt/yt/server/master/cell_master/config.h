@@ -261,11 +261,13 @@ DEFINE_REFCOUNTED_TYPE(TDynamicResponseKeeperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellMasterConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+class TCellMasterBootstrapConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
+    //! Used to check that master is being initialized from a correct container.
+    std::optional<TString> ExpectedLocalHostName;
+
     NNodeTrackerClient::TNetworkPreferenceList Networks;
 
     NElection::TCellConfigPtr PrimaryMaster;
@@ -328,12 +330,26 @@ public:
 
     bool DisableNodeConnections;
 
-    REGISTER_YSON_STRUCT(TCellMasterConfig);
+    REGISTER_YSON_STRUCT(TCellMasterBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TCellMasterConfig)
+DEFINE_REFCOUNTED_TYPE(TCellMasterBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCellMasterProgramConfig
+    : public TCellMasterBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TCellMasterProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCellMasterProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,6 +4,7 @@ namespace NYT::NExecNode {
 
 using namespace NClusterNode;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

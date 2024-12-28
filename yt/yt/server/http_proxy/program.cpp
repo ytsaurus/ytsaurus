@@ -25,15 +25,15 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THttpProxyProgram
-    : public TServerProgram<NHttpProxy::TProxyConfig>
+class TProxyProgram
+    : public TServerProgram<NHttpProxy::TProxyProgramConfig>
     , public NLogging::TProgramDescribeStructuredLogsMixin
 {
 public:
-    THttpProxyProgram()
+    TProxyProgram()
         : TProgramDescribeStructuredLogsMixin(Opts_)
     {
-        SetMainThreadName("HttpProxy");
+        SetMainThreadName("HttpProxyProg");
     }
 
 private:
@@ -42,9 +42,11 @@ private:
         // TODO(babenko): refactor
         ConfigureAllocator({.SnapshotUpdatePeriod = GetConfig()->HeapProfiler->SnapshotUpdatePeriod});
 
-        auto bootstrap = New<NHttpProxy::TBootstrap>(GetConfig(), GetConfigNode());
+        auto bootstrap = CreateHttpProxyBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 };
@@ -53,7 +55,7 @@ private:
 
 void RunHttpProxyProgram(int argc, const char** argv)
 {
-    THttpProxyProgram().Run(argc, argv);
+    TProxyProgram().Run(argc, argv);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

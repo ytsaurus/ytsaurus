@@ -33,7 +33,7 @@ DEFINE_REFCOUNTED_TYPE(TSnapshotJob)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSnapshotBuilder
-    : public TForkExecutor
+    : public NServer::TForkExecutor
 {
 public:
     TSnapshotBuilder(
@@ -41,7 +41,7 @@ public:
         NApi::IClientPtr client,
         IInvokerPtr ioInvoker,
         TIncarnationId incarnationId,
-        TForkCountersPtr counters);
+        NServer::TForkCountersPtr counters);
 
     TFuture<void> Run(const TOperationIdToWeakControllerMap& controllers);
 

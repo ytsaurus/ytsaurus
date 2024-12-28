@@ -13,6 +13,7 @@ namespace NYT::NZookeeperServer {
 using namespace NObjectServer;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -6,7 +6,7 @@ namespace NYT::NExecNode {
 
 using namespace NYTree;
 using namespace NYson;
-using namespace NCoreDump;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

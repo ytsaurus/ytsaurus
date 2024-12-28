@@ -48,6 +48,7 @@ using namespace NTableClient;
 using namespace NTableServer;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

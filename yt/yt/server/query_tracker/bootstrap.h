@@ -2,86 +2,24 @@
 
 #include "private.h"
 
-#include <yt/yt/server/lib/cypress_election/public.h>
-
-#include <yt/yt/server/lib/state_checker/public.h>
-
-#include <yt/yt/ytlib/api/native/public.h>
-
-#include <yt/yt/library/monitoring/public.h>
-
-#include <yt/yt/ytlib/node_tracker_client/public.h>
-
-#include <yt/yt/ytlib/transaction_client/public.h>
-
-#include <yt/yt/ytlib/hive/public.h>
-
-#include <yt/yt/library/coredumper/public.h>
-
-#include <yt/yt/core/bus/public.h>
-
-#include <yt/yt/core/concurrency/public.h>
-
-#include <yt/yt/core/http/public.h>
-
-#include <yt/yt/core/rpc/public.h>
-
-#include <yt/yt/core/ytree/public.h>
+#include <yt/yt/server/lib/misc/bootstrap.h>
 
 namespace NYT::NQueryTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBootstrap
-{
-public:
-    TBootstrap(TQueryTrackerServerConfigPtr config, NYTree::INodePtr configNode);
-    ~TBootstrap();
+struct IBootstrap
+    : public NServer::IDaemonBootstrap
+{ };
 
-    void Run();
+DEFINE_REFCOUNTED_TYPE(IBootstrap)
 
-private:
-    const TQueryTrackerServerConfigPtr Config_;
-    const NYTree::INodePtr ConfigNode_;
+////////////////////////////////////////////////////////////////////////////////
 
-    std::string SelfAddress_;
-
-    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
-    NConcurrency::TActionQueuePtr ControlQueue_;
-    NConcurrency::IThreadPoolPtr ProxyPool_;
-    IInvokerPtr ControlInvoker_;
-    IInvokerPtr ProxyInvoker_;
-    NBus::IBusServerPtr BusServer_;
-    NRpc::IServerPtr RpcServer_;
-    NHttp::IServerPtr HttpServer_;
-    NCoreDump::ICoreDumperPtr CoreDumper_;
-
-    NComponentStateChecker::IComponentStateCheckerPtr ComponentStateChecker_;
-
-    NApi::NNative::IConnectionPtr NativeConnection_;
-    NApi::NNative::IClientPtr NativeClient_;
-
-    NRpc::IAuthenticatorPtr NativeAuthenticator_;
-
-    TDynamicConfigManagerPtr DynamicConfigManager_;
-
-    NAlertManager::IAlertManagerPtr AlertManager_;
-
-    IQueryTrackerPtr QueryTracker_;
-
-    TQueryTrackerProxyPtr QueryTrackerProxy_;
-
-    void DoRun();
-
-    //! Creates instance node with proper annotations and an orchid node at the native cluster.
-    void UpdateCypressNode();
-
-    void OnDynamicConfigChanged(
-        const TQueryTrackerServerDynamicConfigPtr& oldConfig,
-        const TQueryTrackerServerDynamicConfigPtr& newConfig);
-
-    void CreateStateTablesIfNeeded();
-};
+IBootstrapPtr CreateQueryTrackerBootstrap(
+    TQueryTrackerBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

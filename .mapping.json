@@ -3496,6 +3496,7 @@
   "yt/yt/server/master/CMakeLists.txt":"",
   "yt/yt/server/master/unittests/CMakeLists.txt":"",
   "yt/yt/server/master_cache/CMakeLists.txt":"",
+  "yt/yt/server/multidaemon/CMakeLists.txt":"",
   "yt/yt/server/node/CMakeLists.darwin-arm64.txt":"",
   "yt/yt/server/node/CMakeLists.darwin-x86_64.txt":"",
   "yt/yt/server/node/CMakeLists.linux-x86_64.txt":"",

@@ -20,9 +20,8 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressProxyConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+class TCypressProxyBootstrapConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
@@ -36,12 +35,26 @@ public:
 
     TUserDirectorySynchronizerConfigPtr UserDirectorySynchronizer;
 
-    REGISTER_YSON_STRUCT(TCypressProxyConfig);
+    REGISTER_YSON_STRUCT(TCypressProxyBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TCypressProxyConfig)
+DEFINE_REFCOUNTED_TYPE(TCypressProxyBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCypressProxyProgramConfig
+    : public TCypressProxyBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TCypressProxyProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressProxyProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

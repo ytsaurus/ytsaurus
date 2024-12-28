@@ -13,6 +13,7 @@ using namespace NCypressServer;
 using namespace NSecurityServer;
 using namespace NTableServer;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

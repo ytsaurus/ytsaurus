@@ -128,12 +128,13 @@ public:
 
 private:
     const TDynamicChunkTreeBalancerConfigPtr Config_;
+
     std::vector<std::unique_ptr<TChunkList>>* ChunkLists_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(ChunkTreeBalancer, Chain)
+TEST(TChunkTreeBalancerTest, Chain)
 {
     const int ChainSize = 5;
 
@@ -163,7 +164,7 @@ TEST(ChunkTreeBalancer, Chain)
     EXPECT_EQ(2, root->Statistics().ChunkListCount);
 }
 
-TEST(ChunkTreeBalancer, ManyChunkLists)
+TEST(TChunkTreeBalancerTest, ManyChunkLists)
 {
     const int ChunkListCount = 5;
 
@@ -194,7 +195,7 @@ TEST(ChunkTreeBalancer, ManyChunkLists)
     EXPECT_EQ(2, root->Statistics().ChunkListCount);
 }
 
-TEST(ChunkTreeBalancer, EmptyChunkLists)
+TEST(TChunkTreeBalancerTest, EmptyChunkLists)
 {
     const int ChunkListCount = 5;
 
@@ -219,7 +220,7 @@ TEST(ChunkTreeBalancer, EmptyChunkLists)
     EXPECT_EQ(1, root->Statistics().ChunkListCount);
 }
 
-TEST(ChunkTreeBalancer, PermissiveMode)
+TEST(TChunkTreeBalancerTest, PermissiveMode)
 {
     // If Permissive or Strict mode values were changed these parameters might need to be changed as well.
     constexpr int ChunkListCount = 2;

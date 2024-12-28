@@ -32,7 +32,7 @@ TCellBundle::TCellBundle(TCellBundleId id)
     : TObject(id)
     , Acd_(this)
     , Options_(New<TTabletCellOptions>())
-    , CellBalancerConfig_(New<TCellBalancerConfig>())
+    , CellBalancerConfig_(New<TCellBalancerBootstrapConfig>())
     , Health_(ECellHealth::Failed)
     , DynamicOptions_(New<TDynamicTabletCellOptions>())
 { }

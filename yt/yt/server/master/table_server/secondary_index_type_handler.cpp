@@ -15,7 +15,6 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
-
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
@@ -24,6 +23,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

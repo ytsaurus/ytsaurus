@@ -14,13 +14,13 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcProxyProgram
-    : public TServerProgram<NRpcProxy::TProxyConfig>
+class TProxyProgram
+    : public TServerProgram<NRpcProxy::TProxyProgramConfig>
 {
 public:
-    TRpcProxyProgram()
+    TProxyProgram()
     {
-        SetMainThreadName("RpcProxy");
+        SetMainThreadName("RpcProxyProg");
     }
 
 private:
@@ -29,9 +29,11 @@ private:
         // TODO(babenko): refactor
         ConfigureAllocator({.SnapshotUpdatePeriod = GetConfig()->HeapProfiler->SnapshotUpdatePeriod});
 
-        auto* bootstrap = new NRpcProxy::TBootstrap(GetConfig(), GetConfigNode());
+        auto bootstrap = CreateRpcProxyBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 };
@@ -40,7 +42,7 @@ private:
 
 void RunRpcProxyProgram(int argc, const char** argv)
 {
-    TRpcProxyProgram().Run(argc, argv);
+    TProxyProgram().Run(argc, argv);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

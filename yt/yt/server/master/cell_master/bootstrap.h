@@ -54,6 +54,8 @@
 
 #include <yt/yt/server/lib/zookeeper_master/public.h>
 
+#include <yt/yt/server/lib/misc/bootstrap.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/election/public.h>
@@ -65,8 +67,6 @@
 #include <yt/yt/ytlib/distributed_throttler/public.h>
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
-
-#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -81,14 +81,18 @@ namespace NYT::NCellMaster {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrap
+    : public NServer::IDaemonBootstrap
 {
 public:
     TBootstrap();
-    TBootstrap(TCellMasterConfigPtr config);
+    TBootstrap(
+        TCellMasterBootstrapConfigPtr config,
+        NYTree::INodePtr configNode,
+        NFusion::IServiceLocatorPtr serviceLocator);
 
     ~TBootstrap();
 
-    const TCellMasterConfigPtr& GetConfig() const;
+    const TCellMasterBootstrapConfigPtr& GetConfig() const;
 
     bool IsPrimaryMaster() const;
     bool IsSecondaryMaster() const;
@@ -173,7 +177,7 @@ public:
         NProfiling::TProfiler profiler) const;
 
     void Initialize();
-    void Run();
+    TFuture<void> Run() final;
 
     void LoadSnapshot(const TString& fileName, bool dump);
     void ReplayChangelogs(std::vector<TString> changelogFileNames);
@@ -181,7 +185,13 @@ public:
     void FinishDryRun();
 
 protected:
-    const TCellMasterConfigPtr Config_;
+    const TCellMasterBootstrapConfigPtr Config_;
+    const NYTree::INodePtr ConfigNode_;
+    const NFusion::IServiceLocatorPtr ServiceLocator_;
+
+    const NConcurrency::TActionQueuePtr ControlQueue_;
+    const NConcurrency::TActionQueuePtr SnapshotIOQueue_;
+    const NConcurrency::TActionQueuePtr DiscoveryQueue_;
 
     bool PrimaryMaster_ = false;
     bool SecondaryMaster_ = false;
@@ -252,10 +262,6 @@ protected:
     NHiveClient::ICellDirectoryPtr CellDirectory_;
     NHiveServer::TSimpleAvenueDirectoryPtr AvenueDirectory_;
     NHiveClient::ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
-    NConcurrency::TActionQueuePtr ControlQueue_;
-    NConcurrency::TActionQueuePtr SnapshotIOQueue_;
-    NCoreDump::ICoreDumperPtr CoreDumper_;
-    NConcurrency::TActionQueuePtr DiscoveryQueue_;
     NDiscoveryServer::IDiscoveryServerPtr DiscoveryServer_;
     NRpc::IChannelFactoryPtr ChannelFactory_;
     TDiskSpaceProfilerPtr DiskSpaceProfiler_;
@@ -288,6 +294,15 @@ protected:
 
     void OnDynamicConfigChanged(const TDynamicClusterConfigPtr& oldConfig);
 };
+
+DEFINE_REFCOUNTED_TYPE(TBootstrap)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBootstrapPtr CreateMasterBootstrap(
+    TCellMasterBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

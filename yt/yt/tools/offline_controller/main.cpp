@@ -43,6 +43,7 @@ using namespace NYT::NControllerAgent;
 using namespace NYT::NEventLog;
 using namespace NYT::NScheduler;
 using namespace NYT::NCoreDump;
+using namespace NYT::NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -34,6 +34,7 @@ using namespace NScheduler;
 using namespace NSecurityClient;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -14,10 +14,14 @@ SRCS(
 PEERDIR(
     yt/yt/library/query/engine
     yt/yt/library/monitoring
+    yt/yt/library/server_program
 
     yt/yt/core
+
     yt/yt/ytlib
-    yt/yt/server/lib
+
+    yt/yt/server/lib/misc
+
     library/cpp/getopt/small
 )
 

@@ -26,6 +26,7 @@ using namespace NObjectServer;
 using namespace NOrchid;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
