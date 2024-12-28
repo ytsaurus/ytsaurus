@@ -1,6 +1,6 @@
 #include <yt/yt/orm/library/query/continuation.h>
 
-#include <yt/orm/client/misc/autogen/error.h>
+#include <yt/yt/orm/client/misc/public.h>
 
 #include <yt/yt/core/misc/error.h>
 
