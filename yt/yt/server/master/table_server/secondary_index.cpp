@@ -34,6 +34,7 @@ void TSecondaryIndex::Save(TSaveContext& context) const
     Save(context, ExternalCellTag_);
     Save(context, Predicate_);
     Save(context, UnfoldedColumn_);
+    Save(context, TableToIndexCorrespondence_);
 }
 
 void TSecondaryIndex::Load(TLoadContext& context)
@@ -65,6 +66,12 @@ void TSecondaryIndex::Load(TLoadContext& context)
     // For older snapshots, this field is filled in TTableManager::OnAfterSnapshotLoaded.
     if (context.GetVersion() >= EMasterReign::SecondaryIndexUnfoldedColumnApi) {
         Load(context, UnfoldedColumn_);
+    }
+    // COMPAT(sabdenovch)
+    if (context.GetVersion() >= EMasterReign::SecondaryIndexStates) {
+        Load(context, TableToIndexCorrespondence_);
+    } else {
+        TableToIndexCorrespondence_ = ETableToIndexCorrespondence::Unknown;
     }
 }
 

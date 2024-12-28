@@ -162,9 +162,17 @@ void TransformWithIndexStatement(
         return index.TableId == indexTableInfo->TableId;
     });
 
+    auto correspondence = ETableToIndexCorrespondence::Unknown;
+
     if (indexIt == indices.end()) {
         ValidateFullSyncIndexSchema(tableSchema, indexTableSchema);
     } else {
+        correspondence = indexIt->Correspondence;
+        if (correspondence == ETableToIndexCorrespondence::Invalid) {
+            THROW_ERROR_EXCEPTION("Cannot use index %v with %Qlv correspondence", indexIt->TableId, correspondence)
+                << TErrorAttribute("index_table_path", indexTableInfo->Path);
+        }
+
         switch (indexIt->Kind) {
             case ESecondaryIndexKind::FullSync:
                 ValidateFullSyncIndexSchema(tableSchema, indexTableSchema);
@@ -217,6 +225,10 @@ void TransformWithIndexStatement(
     THashSet<TStringBuf> replacedColumns;
 
     for (const auto& tableColumn : tableSchema.Columns()) {
+        if (correspondence == ETableToIndexCorrespondence::Bijective && !tableColumn.SortOrder()) {
+            break;
+        }
+
         const auto* indexColumn = indexTableSchema.FindColumn(tableColumn.Name());
 
         if (!indexColumn || *indexColumn->LogicalType() != *tableColumn.LogicalType()) {
@@ -245,7 +257,7 @@ void TransformWithIndexStatement(
 
     query.WherePredicate = TTableReferenceReplacer(
         head,
-        replacedColumns,
+        std::move(replacedColumns),
         query.Table.Alias,
         index.Alias)
         .Visit(query.WherePredicate);

@@ -323,8 +323,6 @@ private:
 
 using TStickyTableMountInfoCachePtr = TIntrusivePtr<TStickyTableMountInfoCache>;
 
-
-
 std::vector<TTableMountInfoPtr> GetQueryTableInfos(
     NAst::TQuery* query,
     const TStickyTableMountInfoCachePtr& cache)
