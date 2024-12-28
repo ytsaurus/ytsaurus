@@ -515,6 +515,7 @@
     XX(TableIds, table_ids) \
     XX(TablePath, table_path) \
     XX(TablePaths, table_paths) \
+    XX(TableToIndexCorrespondence, table_to_index_correspondence) \
     XX(TabletActions, tablet_actions) \
     XX(TabletBalancerConfig, tablet_balancer_config) \
     XX(TabletBackupState, tablet_backup_state) \

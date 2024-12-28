@@ -411,6 +411,9 @@ private:
                     .Kind = FromProto<ESecondaryIndexKind>(protoIndexInfo.index_kind()),
                     .Predicate = YT_PROTO_OPTIONAL(protoIndexInfo, predicate),
                     .UnfoldedColumn = YT_PROTO_OPTIONAL(protoIndexInfo, unfolded_column),
+                    .Correspondence = protoIndexInfo.has_index_correspondence()
+                        ? FromProto<ETableToIndexCorrespondence>(protoIndexInfo.index_correspondence())
+                        : ETableToIndexCorrespondence::Unknown,
                 };
                 tableInfo->Indices.push_back(indexInfo);
             }

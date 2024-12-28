@@ -47,6 +47,7 @@ DECLARE_MASTER_OBJECT_TYPE(TMasterTableSchema);
 
 using NTableClient::ETableCollocationType;
 using NTabletClient::ESecondaryIndexKind;
+using NTabletClient::ETableToIndexCorrespondence;
 
 ////////////////////////////////////////////////////////////////////////////////
 

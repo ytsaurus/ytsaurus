@@ -1621,6 +1621,7 @@ private:
                     if (const auto& unfoldedColumn = indexInfo.UnfoldedColumn) {
                         ToProto(protoIndexInfo->mutable_unfolded_column(), *unfoldedColumn);
                     }
+                    protoIndexInfo->set_index_correspondence(ToProto(indexInfo.Correspondence));
                 }
 
                 context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",
