@@ -27,7 +27,7 @@ public:
     THashMap<TString, TClusterLimitsConfigPtr> ClusterLimits;
     //! Rate might be too high if maximum estimated time required to read pending bytes is higher than this value.
     TDuration MaxEstimatedTimeToReadPendingBytesThreshold;
-    //! Rate is too high if minumum estimated time required to read pending bytes is higher than this value.
+    //! Rate is too high if minimum estimated time required to read pending bytes is higher than this value.
     TDuration MinEstimatedTimeToReadPendingBytesThreshold;
     //! Rate is too high if rate limit ratio is higher than this value.
     double RateLimitRatioHardThreshold;
