@@ -1,7 +1,0 @@
-# {{ autogen_marker }}
-
-SET_APPEND({{ ya_make_inc_set_variable }}
-{%- for source in ya_make_sources %}
-    {{ ya_make_inc_subdir }}{{ source }}
-{%- endfor %}
-)
