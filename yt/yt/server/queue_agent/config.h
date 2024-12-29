@@ -67,7 +67,7 @@ public:
     //! COMPAT(achulkov2): Remove this once the queue_agent_stage attribute is supported for chaos replicated tables.
     //! Currently chaos replicated tables do not have a builtin queue_agent_stage attribute, thus we set a default
     //! stage for crt-objects in the dynamic config.
-    TString ChaosReplicatedTableQueueAgentStage;
+    std::string ChaosReplicatedTableQueueAgentStage;
 
     REGISTER_YSON_STRUCT(TCypressSynchronizerDynamicConfig);
 

@@ -44,7 +44,7 @@ types:
         column_type: Any
 
       - cpp_name: QueueAgentStage
-        cpp_type: std::optional<TString>
+        cpp_type: std::optional<std::string>
         column_name: queue_agent_stage
         column_type: String
 

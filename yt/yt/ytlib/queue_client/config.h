@@ -106,7 +106,7 @@ class TQueueAgentConnectionConfig
     : public NYTree::TYsonStruct
 {
 public:
-    THashMap<TString, TQueueAgentStageChannelConfigPtr> Stages;
+    THashMap<std::string, TQueueAgentStageChannelConfigPtr> Stages;
 
     TQueueConsumerRegistrationManagerConfigPtr QueueConsumerRegistrationManager;
 
