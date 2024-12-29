@@ -165,7 +165,7 @@ private:
         return DynamicConfig_.Acquire();
     }
 
-    TString GetLocalHostName() const
+    std::string GetLocalHostName() const
     {
         auto dynamicConfig = GetDynamicConfig();
         return dynamicConfig->LocalHostName ? *dynamicConfig->LocalHostName : NNet::GetLocalHostName();

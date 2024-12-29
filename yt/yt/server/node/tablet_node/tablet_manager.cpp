@@ -762,7 +762,7 @@ private:
             return Owner_->Bootstrap_->GetHedgingManagerRegistry();
         }
 
-        TString GetLocalHostName() const override
+        std::string GetLocalHostName() const override
         {
             return Owner_->Bootstrap_->GetLocalHostName();
         }

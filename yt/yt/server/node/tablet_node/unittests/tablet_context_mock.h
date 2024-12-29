@@ -44,7 +44,7 @@ public:
     NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override;
     INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() const override;
     NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const override;
-    TString GetLocalHostName() const override;
+    std::string GetLocalHostName() const override;
     IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const override;
     ITabletWriteManagerHostPtr GetTabletWriteManagerHost() const override;
     IVersionedChunkMetaManagerPtr GetVersionedChunkMetaManager() const override;

@@ -93,9 +93,9 @@ void TProxyEntry::Register(TRegistrar registrar)
         .Default();
 }
 
-TString TProxyEntry::GetHost() const
+std::string TProxyEntry::GetHost() const
 {
-    return TString{NNet::GetServiceHostName(Endpoint)};
+    return std::string(NNet::GetServiceHostName(Endpoint));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -498,7 +498,7 @@ void THostsHandler::HandleRequest(
     const NHttp::IResponseWriterPtr& rsp)
 {
     auto role = Coordinator_->GetConfig()->DefaultRoleFilter;
-    std::optional<TString> suffix;
+    std::optional<std::string> suffix;
     bool returnJson = true;
 
     {
@@ -542,7 +542,7 @@ void THostsHandler::HandleRequest(
         auto formatHostname = [&] (const TProxyEntryPtr& proxy) {
             if (Coordinator_->GetConfig()->ShowPorts) {
                 return proxy->Endpoint;
-            } else if (suffix && suffix->StartsWith("fb")) {
+            } else if (suffix && suffix->starts_with("fb")) {
                 return "fb-" + proxy->GetHost();
             } else {
                 return proxy->GetHost();
