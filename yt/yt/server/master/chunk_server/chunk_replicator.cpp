@@ -2892,10 +2892,11 @@ void TChunkReplicator::OnCheckEnabledSecondary()
 
     auto [enabledRsp, faultyStorageDCsRsp] = WaitFor(proxy.ExecuteAll(
         TYPathProxy::Get("//sys/@chunk_replicator_enabled"),
-        TYPathProxy::Get("//sys/@faulty_storage_data_centers"))).ValueOrThrow();
+        TYPathProxy::Get("//sys/@faulty_storage_data_centers")))
+        .ValueOrThrow();
 
     auto enabled = ConvertTo<bool>(TYsonString(enabledRsp->value()));
-    auto faultyStorageDCs = ConvertTo<THashSet<TString>>(TYsonString(faultyStorageDCsRsp->value()));
+    auto faultyStorageDCs = ConvertTo<THashSet<std::string>>(TYsonString(faultyStorageDCsRsp->value()));
     if (!Enabled_ || enabled != *Enabled_) {
         if (enabled) {
             YT_LOG_INFO("Chunk replicator enabled at primary master");

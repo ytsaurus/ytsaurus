@@ -53,10 +53,10 @@ public:
 
     bool IsDataCenterFeasible(const NNodeTrackerServer::TDataCenter* dataCenter) const;
 
-    THashSet<TString> GetFaultyStorageDataCenterNames() const;
+    THashSet<std::string> GetFaultyStorageDataCenterNames() const;
 
     void CheckFaultyDataCentersOnPrimaryMaster();
-    void SetFaultyDataCentersOnSecondaryMaster(const THashSet<TString>& faultyDataCenters);
+    void SetFaultyDataCentersOnSecondaryMaster(const THashSet<std::string>& faultyDataCenters);
 
     TNodeList AllocateWriteTargets(
         TDomesticMedium* medium,
