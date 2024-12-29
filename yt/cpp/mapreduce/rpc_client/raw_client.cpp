@@ -241,6 +241,49 @@ void TRpcRawClient::CommitTransaction(
     WaitFor(tx->Commit(SerializeOptionsForCommitTransaction(mutationId))).ThrowOnError();
 }
 
+void TRpcRawClient::MountTable(
+    TMutationId& mutationId,
+    const TYPath& path,
+    const TMountTableOptions& options)
+{
+    auto future = Client_->MountTable(path, SerializeOptionsForMountTable(mutationId, options));
+    WaitFor(future).ThrowOnError();
+}
+
+void TRpcRawClient::UnmountTable(
+    TMutationId& mutationId,
+    const TYPath& path,
+    const TUnmountTableOptions& options)
+{
+    auto future = Client_->UnmountTable(path, SerializeOptionsForUnmountTable(mutationId, options));
+    WaitFor(future).ThrowOnError();
+}
+
+void TRpcRawClient::RemountTable(
+    TMutationId& mutationId,
+    const TYPath& path,
+    const TRemountTableOptions& options)
+{
+    auto future = Client_->RemountTable(path, SerializeOptionsForRemountTable(mutationId, options));
+    WaitFor(future).ThrowOnError();
+}
+
+void TRpcRawClient::FreezeTable(
+    const TYPath& path,
+    const TFreezeTableOptions& options)
+{
+    auto future = Client_->FreezeTable(path, SerializeOptionsForFreezeTable(options));
+    WaitFor(future).ThrowOnError();
+}
+
+void TRpcRawClient::UnfreezeTable(
+    const TYPath& path,
+    const TUnfreezeTableOptions& options)
+{
+    auto future = Client_->UnfreezeTable(path, SerializeOptionsForUnfreezeTable(options));
+    WaitFor(future).ThrowOnError();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDetail

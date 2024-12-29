@@ -86,6 +86,22 @@ NApi::TTransactionAbortOptions SerializeOptionsForAbortTransaction(TMutationId& 
 
 NApi::TTransactionCommitOptions SerializeOptionsForCommitTransaction(TMutationId& mutationId);
 
+NApi::TMountTableOptions SerializeOptionsForMountTable(
+    TMutationId& mutationId,
+    const TMountTableOptions& options);
+
+NApi::TUnmountTableOptions SerializeOptionsForUnmountTable(
+    TMutationId& mutationId,
+    const TUnmountTableOptions& options);
+
+NApi::TRemountTableOptions SerializeOptionsForRemountTable(
+    TMutationId& mutationId,
+    const TRemountTableOptions& options);
+
+NApi::TFreezeTableOptions SerializeOptionsForFreezeTable(const TFreezeTableOptions& options);
+
+NApi::TUnfreezeTableOptions SerializeOptionsForUnfreezeTable(const TUnfreezeTableOptions& options);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDetail

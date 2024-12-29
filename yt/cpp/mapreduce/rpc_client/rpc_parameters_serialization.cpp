@@ -337,6 +337,80 @@ NApi::TTransactionCommitOptions SerializeOptionsForCommitTransaction(TMutationId
     return result;
 }
 
+NApi::TMountTableOptions SerializeOptionsForMountTable(
+    TMutationId& mutationId,
+    const TMountTableOptions& options)
+{
+    NApi::TMountTableOptions result;
+    SetMutationId(&result, &mutationId);
+    if (options.CellId_) {
+        result.CellId = YtGuidFromUtilGuid(*options.CellId_);
+    }
+    if (options.FirstTabletIndex_) {
+        result.FirstTabletIndex = *options.FirstTabletIndex_;
+    }
+    if (options.LastTabletIndex_) {
+        result.LastTabletIndex = *options.LastTabletIndex_;
+    }
+    result.Freeze = options.Freeze_;
+    return result;
+}
+
+NApi::TUnmountTableOptions SerializeOptionsForUnmountTable(
+    TMutationId& mutationId,
+    const TUnmountTableOptions& options)
+{
+    NApi::TUnmountTableOptions result;
+    SetMutationId(&result, &mutationId);
+    if (options.FirstTabletIndex_) {
+        result.FirstTabletIndex = *options.FirstTabletIndex_;
+    }
+    if (options.LastTabletIndex_) {
+        result.LastTabletIndex = *options.LastTabletIndex_;
+    }
+    result.Force = options.Force_;
+    return result;
+}
+
+NApi::TRemountTableOptions SerializeOptionsForRemountTable(
+    TMutationId& mutationId,
+    const TRemountTableOptions& options)
+{
+    NApi::TRemountTableOptions result;
+    SetMutationId(&result, &mutationId);
+    if (options.FirstTabletIndex_) {
+        result.FirstTabletIndex = *options.FirstTabletIndex_;
+    }
+    if (options.LastTabletIndex_) {
+        result.LastTabletIndex = *options.LastTabletIndex_;
+    }
+    return result;
+}
+
+NApi::TFreezeTableOptions SerializeOptionsForFreezeTable(const TFreezeTableOptions& options)
+{
+    NApi::TFreezeTableOptions result;
+    if (options.FirstTabletIndex_) {
+        result.FirstTabletIndex = *options.FirstTabletIndex_;
+    }
+    if (options.LastTabletIndex_) {
+        result.LastTabletIndex = *options.LastTabletIndex_;
+    }
+    return result;
+}
+
+NApi::TUnfreezeTableOptions SerializeOptionsForUnfreezeTable(const TUnfreezeTableOptions& options)
+{
+    NApi::TUnfreezeTableOptions result;
+    if (options.FirstTabletIndex_) {
+        result.FirstTabletIndex = *options.FirstTabletIndex_;
+    }
+    if (options.LastTabletIndex_) {
+        result.LastTabletIndex = *options.LastTabletIndex_;
+    }
+    return result;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDetail
