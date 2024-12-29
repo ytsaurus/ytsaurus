@@ -146,7 +146,7 @@ private:
         std::vector<TReplicatedTableMappingTableRow> ReplicatedTableMappingRows;
 
         // NB: Must provide a strong exception-safety guarantee.
-        void AppendObject(const TObject& object, const IAttributeDictionaryPtr& attributes, const TString& chaosReplicatedTableQueueAgentStage)
+        void AppendObject(const TObject& object, const IAttributeDictionaryPtr& attributes, const std::string& chaosReplicatedTableQueueAgentStage)
         {
             auto fillChaosReplicatedTableQueueAgentStage = [=] (auto& row) {
                 if (row.ObjectType && *row.ObjectType == EObjectType::ChaosReplicatedTable && !row.QueueAgentStage) {
@@ -210,7 +210,7 @@ private:
         void AppendObjectWithErrorAndBasicAttributes(
             const TObject& object,
             const IAttributeDictionaryPtr& attributes,
-            const TString& chaosReplicatedTableQueueAgentStage,
+            const std::string& chaosReplicatedTableQueueAgentStage,
             const TError& error,
             const NLogging::TLogger& logger)
         {
@@ -233,7 +233,7 @@ private:
                 if (row.QueueAgentStage) {
                     return;
                 }
-                if (row.ObjectType && *row.ObjectType == EObjectType::ChaosReplicatedTable && chaosReplicatedTableQueueAgentStage) {
+                if (row.ObjectType && *row.ObjectType == EObjectType::ChaosReplicatedTable && !chaosReplicatedTableQueueAgentStage.empty()) {
                     row.QueueAgentStage = chaosReplicatedTableQueueAgentStage;
                 }
             };

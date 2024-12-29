@@ -380,7 +380,7 @@ class TDynamicQueueAgentServerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TString DefaultQueueAgentStage;
+    std::string DefaultQueueAgentStage;
 
     REGISTER_YSON_STRUCT(TDynamicQueueAgentServerConfig);
 

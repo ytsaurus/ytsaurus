@@ -43,7 +43,7 @@ class TYqlAgentConnectionConfig
     : public NYTree::TYsonStruct
 {
 public:
-    THashMap<TString, TYqlAgentStageConfigPtr> Stages;
+    THashMap<std::string, TYqlAgentStageConfigPtr> Stages;
 
     REGISTER_YSON_STRUCT(TYqlAgentConnectionConfig);
 

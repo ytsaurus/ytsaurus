@@ -25,9 +25,9 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetEffectiveQueueAgentStage(
+std::string GetEffectiveQueueAgentStage(
     TBootstrap* bootstrap,
-    const std::optional<TString>& queueAgentStage)
+    const std::optional<std::string>& queueAgentStage)
 {
     return queueAgentStage.value_or(
         bootstrap->GetConfigManager()->GetConfig()->QueueAgentServer->DefaultQueueAgentStage);
@@ -35,7 +35,7 @@ TString GetEffectiveQueueAgentStage(
 
 TFuture<TYsonString> GetQueueAgentAttributeAsync(
     TBootstrap* bootstrap,
-    const std::optional<TString>& queueAgentStageOptional,
+    const std::optional<std::string>& queueAgentStageOptional,
     const TYPath& path,
     TInternedAttributeKey key)
 {

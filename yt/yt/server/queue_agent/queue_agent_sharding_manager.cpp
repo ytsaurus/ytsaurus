@@ -50,7 +50,7 @@ public:
         TDynamicStatePtr dynamicState,
         IMemberClientPtr memberClient,
         IDiscoveryClientPtr discoveryClient,
-        TString queueAgentStage,
+        std::string queueAgentStage,
         TYPath dynamicStateRoot)
         : DynamicConfig_(New<TQueueAgentShardingManagerDynamicConfig>())
         , Client_(std::move(client))
@@ -107,7 +107,7 @@ private:
     const TDynamicStatePtr DynamicState_;
     const IMemberClientPtr MemberClient_;
     const IDiscoveryClientPtr DiscoveryClient_;
-    const TString QueueAgentStage_;
+    const std::string QueueAgentStage_;
     const TYPath DynamicStateRoot_;
     const TPeriodicExecutorPtr PassExecutor_;
     const IYPathServicePtr OrchidService_;
@@ -381,7 +381,7 @@ IQueueAgentShardingManagerPtr CreateQueueAgentShardingManager(
     TDynamicStatePtr dynamicState,
     IMemberClientPtr memberClient,
     IDiscoveryClientPtr discoveryClient,
-    TString queueAgentStage,
+    std::string queueAgentStage,
     TYPath dynamicStateRoot)
 {
     return New<TQueueAgentShardingManager>(
