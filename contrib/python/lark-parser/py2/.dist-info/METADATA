@@ -22,7 +22,6 @@ Requires-Dist: js2py; extra == "nearley"
 Provides-Extra: regex
 Requires-Dist: regex; extra == "regex"
 
-
 Lark is a modern general-purpose parsing library for Python.
 
 With Lark, you can parse any context-free grammar, efficiently, with very little code.
