@@ -337,6 +337,15 @@ NApi::TTransactionCommitOptions SerializeOptionsForCommitTransaction(TMutationId
     return result;
 }
 
+NApi::TSuspendOperationOptions SerializeOptionsForSuspendOperation(const TSuspendOperationOptions& options)
+{
+    NApi::TSuspendOperationOptions result;
+    if (options.AbortRunningJobs_) {
+        result.AbortRunningJobs = *options.AbortRunningJobs_;
+    }
+    return result;
+}
+
 NApi::TGetFileFromCacheOptions SerializeOptionsForGetFileFromCache(
     const TTransactionId& transactionId,
     const TYPath& cachePath,
