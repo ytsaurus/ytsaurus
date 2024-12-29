@@ -241,6 +241,29 @@ void TRpcRawClient::CommitTransaction(
     WaitFor(tx->Commit(SerializeOptionsForCommitTransaction(mutationId))).ThrowOnError();
 }
 
+TMaybe<TYPath> TRpcRawClient::GetFileFromCache(
+    const TTransactionId& transactionId,
+    const TString& md5Signature,
+    const TYPath& cachePath,
+    const TGetFileFromCacheOptions& options)
+{
+    auto future = Client_->GetFileFromCache(md5Signature, SerializeOptionsForGetFileFromCache(transactionId, cachePath, options));
+    auto result = WaitFor(future).ValueOrThrow();
+    return result.Path.empty() ? Nothing() : TMaybe<TYPath>(result.Path);
+}
+
+TYPath TRpcRawClient::PutFileToCache(
+    const TTransactionId& transactionId,
+    const TYPath& filePath,
+    const TString& md5Signature,
+    const TYPath& cachePath,
+    const TPutFileToCacheOptions& options)
+{
+    auto future = Client_->PutFileToCache(filePath, md5Signature, SerializeOptionsForPutFileToCache(transactionId, cachePath, options));
+    auto result = WaitFor(future).ValueOrThrow();
+    return result.Path;
+}
+
 void TRpcRawClient::MountTable(
     TMutationId& mutationId,
     const TYPath& path,

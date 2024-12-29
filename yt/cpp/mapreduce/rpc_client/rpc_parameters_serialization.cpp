@@ -337,6 +337,31 @@ NApi::TTransactionCommitOptions SerializeOptionsForCommitTransaction(TMutationId
     return result;
 }
 
+NApi::TGetFileFromCacheOptions SerializeOptionsForGetFileFromCache(
+    const TTransactionId& transactionId,
+    const TYPath& cachePath,
+    const TGetFileFromCacheOptions& /*options*/)
+{
+    NApi::TGetFileFromCacheOptions result;
+    SetTransactionId(&result, transactionId);
+    result.CachePath = cachePath;
+    return result;
+}
+
+NApi::TPutFileToCacheOptions SerializeOptionsForPutFileToCache(
+    const TTransactionId& transactionId,
+    const TYPath& cachePath,
+    const TPutFileToCacheOptions& options)
+{
+    NApi::TPutFileToCacheOptions result;
+    SetTransactionId(&result, transactionId);
+    result.CachePath = cachePath;
+    if (options.PreserveExpirationTimeout_) {
+        result.PreserveExpirationTimeout = *options.PreserveExpirationTimeout_;
+    }
+    return result;
+}
+
 NApi::TMountTableOptions SerializeOptionsForMountTable(
     TMutationId& mutationId,
     const TMountTableOptions& options)

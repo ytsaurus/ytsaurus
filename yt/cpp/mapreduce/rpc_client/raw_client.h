@@ -126,6 +126,21 @@ public:
         TMutationId& mutationId,
         const TTransactionId& transactionId) override;
 
+    // File cache
+
+    TMaybe<TYPath> GetFileFromCache(
+        const TTransactionId& transactionId,
+        const TString& md5Signature,
+        const TYPath& cachePath,
+        const TGetFileFromCacheOptions& options = {}) override;
+
+    TYPath PutFileToCache(
+        const TTransactionId& transactionId,
+        const TYPath& filePath,
+        const TString& md5Signature,
+        const TYPath& cachePath,
+        const TPutFileToCacheOptions& options = {}) override;
+
     // Tables
 
     void MountTable(
