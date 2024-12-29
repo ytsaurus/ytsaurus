@@ -6,8 +6,6 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_REFCOUNTED_TYPE(TNodeProxyBase)
-
 void TNodeProxyBase::Invoke(const ISequoiaServiceContextPtr& context)
 {
     TError error;

@@ -47,7 +47,7 @@ struct TParsedReqCreate
 };
 
 //! On parse error replies it to underlying context and returns |nullopt|.
-std::optional<TParsedReqCreate> TryParseReqCreate(ISequoiaServiceContextPtr context);
+std::optional<TParsedReqCreate> TryParseReqCreate(const ISequoiaServiceContextPtr& context);
 
 ////////////////////////////////////////////////////////////////////////////////
 
