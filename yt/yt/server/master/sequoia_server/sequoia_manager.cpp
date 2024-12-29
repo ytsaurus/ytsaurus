@@ -76,12 +76,8 @@ private:
         auto transactionId = FromProto<TGuid>(request->id());
         auto timeout = FromProto<TDuration>(request->timeout());
 
-        TString title = "Sequoia transaction";
-
         auto attributes = FromProto(request->attributes());
-        if (auto maybeTitle = attributes->FindAndRemove<TString>("title"); maybeTitle) {
-            title = *maybeTitle;
-        }
+        auto title = attributes->FindAndRemove<std::string>("title").value_or("Sequoia transaction");
 
         YT_LOG_DEBUG("Staring Sequoia transaction "
             "(TransactionId: %v, Timeout: %v, Title: %v)",
