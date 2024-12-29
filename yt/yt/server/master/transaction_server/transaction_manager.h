@@ -46,7 +46,7 @@ struct ITransactionManager
     virtual TTransaction* StartSystemTransaction(
         const NObjectClient::TCellTagList& replicatedToCellTags,
         std::optional<TDuration> timeout,
-        const TString& title,
+        const std::string& title,
         const NYTree::IAttributeDictionary& attributes,
         TTransactionId hintId = NullTransactionId) = 0;
 
@@ -57,7 +57,7 @@ struct ITransactionManager
      */
     virtual TTransaction* StartNonMirroredCypressTransaction(
         const NObjectClient::TCellTagList& replicatedToCellTags,
-        const TString& title) = 0;
+        const std::string& title) = 0;
 
     virtual void CommitMasterTransaction(
         TTransaction* transaction,
@@ -71,7 +71,7 @@ struct ITransactionManager
         std::vector<TTransaction*> prerequisiteTransactions,
         const NObjectClient::TCellTagList& replicatedToCellTags,
         std::optional<TDuration> timeout,
-        const std::optional<TString>& title,
+        const std::optional<std::string>& title,
         TTransactionId hintId) = 0;
     virtual TTransactionId ExternalizeTransaction(
         TTransaction* transaction,

@@ -290,7 +290,7 @@ public:
     TTransaction* StartSystemTransaction(
         const TCellTagList& replicatedToCellTags,
         std::optional<TDuration> timeout,
-        const TString& title,
+        const std::string& title,
         const IAttributeDictionary& attributes,
         TTransactionId hintId = NullTransactionId) override
     {
@@ -308,7 +308,7 @@ public:
 
     TTransaction* StartNonMirroredCypressTransaction(
         const TCellTagList& replicatedToCellTags,
-        const TString& title) override
+        const std::string& title) override
     {
         return StartTransaction(
             /*parent*/ nullptr,
@@ -328,7 +328,7 @@ public:
         const TCellTagList& replicatedToCellTags,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
-        const std::optional<TString>& title,
+        const std::optional<std::string>& title,
         const IAttributeDictionary& attributes,
         bool isCypressTransaction,
         TTransactionId hintId = NullTransactionId)
@@ -354,7 +354,7 @@ public:
         std::vector<TTransaction*> prerequisiteTransactions,
         const TCellTagList& replicatedToCellTags,
         std::optional<TDuration> timeout,
-        const std::optional<TString>& title,
+        const std::optional<std::string>& title,
         TTransactionId hintId) override
     {
         ValidateUploadTransactionStart(parent);
@@ -429,7 +429,7 @@ public:
         TCellTagList replicatedToCellTags,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
-        const std::optional<TString>& title,
+        const std::optional<std::string>& title,
         const IAttributeDictionary& attributes,
         bool isCypressTransaction,
         std::optional<bool> enableNativeTxExternalization,
