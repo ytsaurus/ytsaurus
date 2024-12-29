@@ -299,6 +299,7 @@ NApi::TTransactionStartOptions SerializeOptionsForStartTransaction(
     const TStartTransactionOptions& options)
 {
     NApi::TTransactionStartOptions result;
+    SetMutationId(&result, &mutationId);
     result.ParentId = YtGuidFromUtilGuid(parentId);
     result.Timeout = options.Timeout_.GetOrElse(timeout);
     if (options.Deadline_) {
