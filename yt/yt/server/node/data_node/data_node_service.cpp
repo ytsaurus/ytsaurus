@@ -108,8 +108,8 @@ using TRefCountedColumnarStatisticsSubresponsePtr = TIntrusivePtr<TRefCountedCol
 
 namespace {
 
-THashMap<TString, TString> MakeWriteIOTags(
-    TString method,
+THashMap<std::string, std::string> MakeWriteIOTags(
+    const std::string& method,
     const ISessionPtr& session,
     const IServiceContextPtr& context)
 {
@@ -121,28 +121,26 @@ THashMap<TString, TString> MakeWriteIOTags(
         {FormatIOTag(EAggregateIOTag::LocationType), FormatEnum(location->GetType())},
         {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
-        // TODO(babenko): switch to std::string
-        {FormatIOTag(EAggregateIOTag::User), TString(context->GetAuthenticationIdentity().User)},
+        {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
         {FormatIOTag(EAggregateIOTag::Direction), "write"},
         {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(session->GetChunkId()).Id)},
     };
 }
 
-THashMap<TString, TString> MakeReadIOTags(
-    TString method,
+THashMap<std::string, std::string> MakeReadIOTags(
+    const std::string& method,
     const TChunkLocationPtr& location,
     const IServiceContextPtr& context,
     const TChunkId& chunkId,
     TGuid readSessionId = TGuid())
 {
-    THashMap<TString, TString> result{
+    THashMap<std::string, std::string> result{
         {FormatIOTag(EAggregateIOTag::DataNodeMethod), std::move(method)},
         {FormatIOTag(ERawIOTag::LocationId), ToString(location->GetId())},
         {FormatIOTag(EAggregateIOTag::LocationType), FormatEnum(location->GetType())},
         {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
-        // TODO(babenko): switch to std::string
-        {FormatIOTag(EAggregateIOTag::User), TString(context->GetAuthenticationIdentity().User)},
+        {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
         {FormatIOTag(EAggregateIOTag::Direction), "read"},
     };
     if (chunkId) {
@@ -917,8 +915,7 @@ private:
 
             ioTracker->Enqueue(
                 TIOCounters{.Bytes = bytesReadFromDisk, .IORequests = ioRequests},
-                // TODO(babenko): migrate to std::string
-                MakeReadIOTags(TString(context->GetMethod()), chunk->GetLocation(), context, chunk->GetId()));
+                MakeReadIOTags(context->GetMethod(), chunk->GetLocation(), context, chunk->GetId()));
         }
 
         ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);

@@ -42,9 +42,9 @@ struct TSortedIOTagList
 {
     TIOTagList Tags;
 
-    std::optional<TString> FindTag(const TString& key) const
+    std::optional<std::string> FindTag(const std::string& key) const
     {
-        auto iter = std::lower_bound(Tags.begin(), Tags.end(), std::pair(key, TString()));
+        auto iter = std::lower_bound(Tags.begin(), Tags.end(), std::pair(key, std::string()));
         if (iter == Tags.end() || iter->first != key) {
             return std::nullopt;
         }
@@ -133,9 +133,9 @@ struct TParsedIOEvent
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsTagAggregating(const TString& tagName)
+bool IsTagAggregating(const std::string& tagName)
 {
-    return tagName.EndsWith("@");
+    return tagName.ends_with("@");
 }
 
 template <typename TFunc>
@@ -165,20 +165,20 @@ TParsedIOEvent ParseEvent(const TIOEvent& ioEvent)
     TIOTagList aggregatingTags;
     TIOTagList nonAggregatingTags;
 
-    auto addTag = [&] (TString key, TString value) {
+    auto addTag = [&] (const std::string& key, const std::string& value) {
         auto& targetList = IsTagAggregating(key) ? aggregatingTags : nonAggregatingTags;
-        targetList.emplace_back(std::move(key), std::move(value));
+        targetList.emplace_back(key, value);
     };
 
-    for (auto tag : ioEvent.LocalTags) {
-        addTag(std::move(tag.first), std::move(tag.second));
+    for (const auto& [tagKey, tagValue] : ioEvent.LocalTags) {
+        addTag(tagKey, tagValue);
     }
     ParseBaggage(ioEvent.Baggage, addTag);
 
     return TParsedIOEvent{
         .Counters = ioEvent.Counters,
         .AggregatingTags = TSortedIOTagList::FromTagList(std::move(aggregatingTags)),
-        .NonAggregatingTags = TSortedIOTagList::FromTagList(std::move(nonAggregatingTags))
+        .NonAggregatingTags = TSortedIOTagList::FromTagList(std::move(nonAggregatingTags)),
     };
 }
 
@@ -552,13 +552,13 @@ DELEGATE_SIGNAL_WITH_RENAME(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void IIOTracker::Enqueue(TIOCounters counters, THashMap<TString, TString> tags)
+void IIOTracker::Enqueue(TIOCounters counters, THashMap<std::string, std::string> tags)
 {
     auto* traceContext = NTracing::TryGetCurrentTraceContext();
     Enqueue(TIOEvent{
         .Counters = std::move(counters),
         .Baggage = traceContext ? traceContext->GetBaggage() : TYsonString{},
-        .LocalTags = std::move(tags)
+        .LocalTags = std::move(tags),
     });
 }
 
