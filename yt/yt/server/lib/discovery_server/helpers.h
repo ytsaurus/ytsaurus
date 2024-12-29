@@ -16,7 +16,7 @@ namespace NYT::NDiscoveryServer {
 struct TGossipMemberInfo
 {
     NDiscoveryClient::TMemberInfo MemberInfo;
-    TString GroupId;
+    TGroupId GroupId;
     TInstant LeaseDeadline;
 };
 

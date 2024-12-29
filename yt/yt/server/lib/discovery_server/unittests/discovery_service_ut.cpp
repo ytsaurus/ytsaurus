@@ -118,8 +118,8 @@ public:
     }
 
     IMemberClientPtr CreateMemberClient(
-        const TString& groupId,
-        const TString& memberId,
+        const TGroupId& groupId,
+        const TMemberId& memberId,
         const TDiscoveryConnectionConfigPtr& connectionConfig = New<TDiscoveryConnectionConfig>(),
         const TMemberClientConfigPtr& clientConfig = New<TMemberClientConfig>())
     {
@@ -165,9 +165,9 @@ private:
 
 TEST_F(TDiscoveryServiceTestSuite, TestSimple)
 {
-    const TString groupId = "/sample_group";
-    const TString memberId1 = "sample_member1";
-    const TString memberId2 = "sample_member2";
+    const TGroupId groupId = "/sample_group";
+    const TMemberId memberId1 = "sample_member1";
+    const TMemberId memberId2 = "sample_member2";
     auto memberClient1 = CreateMemberClient(groupId, memberId1);
     WaitFor(memberClient1->Start())
         .ThrowOnError();
@@ -210,14 +210,14 @@ TEST_F(TDiscoveryServiceTestSuite, TestSimple)
 
 TEST_F(TDiscoveryServiceTestSuite, TestListGroups)
 {
-    const TString groupId = "/sample_group";
-    const TString subgroupId1 = groupId + "/sub1";
-    const TString subgroupId2 = groupId + "/sub2";
-    const TString subgroupId3 = groupId + "/sub3";
-    const TString subgroupId4 = groupId + "/sub4";
-    const TString memberId1 = "sample_member1";
-    const TString memberId2 = "sample_member2";
-    const TString memberId3 = "sample_member3";
+    const TGroupId groupId = "/sample_group";
+    const TGroupId subgroupId1 = groupId + "/sub1";
+    const TGroupId subgroupId2 = groupId + "/sub2";
+    const TGroupId subgroupId3 = groupId + "/sub3";
+    const TGroupId subgroupId4 = groupId + "/sub4";
+    const TMemberId memberId1 = "sample_member1";
+    const TMemberId memberId2 = "sample_member2";
+    const TMemberId memberId3 = "sample_member3";
     auto memberClient1 = CreateMemberClient(subgroupId1, memberId1);
     WaitFor(memberClient1->Start())
         .ThrowOnError();
@@ -275,8 +275,8 @@ TEST_F(TDiscoveryServiceTestSuite, TestListGroups)
 
 TEST_F(TDiscoveryServiceTestSuite, TestGossip)
 {
-    const TString groupId = "/sample_group";
-    const TString memberId = "sample_member";
+    const TGroupId groupId = "/sample_group";
+    const TMemberId memberId = "sample_member";
     const auto& addresses = GetDiscoveryServersAddresses();
 
     auto memberConnectionConfig = New<TDiscoveryConnectionConfig>();
@@ -303,8 +303,8 @@ TEST_F(TDiscoveryServiceTestSuite, TestGossip)
 
 TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
 {
-    const TString groupId = "/sample_group";
-    const TString memberId = "sample_member";
+    const TGroupId groupId = "/sample_group";
+    const TMemberId memberId = "sample_member";
 
     const TString key = "key";
     const TString value = "value";
@@ -356,8 +356,8 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
 
 TEST_F(TDiscoveryServiceTestSuite, TestPriority)
 {
-    const TString groupId = "/sample_group";
-    const TString memberId = "sample_member";
+    const TGroupId groupId = "/sample_group";
+    const TMemberId memberId = "sample_member";
 
     std::vector<IMemberClientPtr> memberClients;
     std::vector<TFuture<void>> memberStartFutures;
@@ -421,8 +421,8 @@ TEST_F(TDiscoveryServiceTestSuite, TestPriority)
 
 TEST_F(TDiscoveryServiceTestSuite, TestServerBan)
 {
-    const TString groupId = "/sample_group";
-    const TString memberId = "sample_member";
+    const TGroupId groupId = "/sample_group";
+    const TMemberId memberId = "sample_member";
     const auto& addresses = GetDiscoveryServersAddresses();
 
     auto memberConnectionConfig = New<TDiscoveryConnectionConfig>();
@@ -545,11 +545,11 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestNestedGroups)
 
 TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
 {
-    const TString groupId1 = "/sample_group1";
-    const TString groupId2 = "/test/sample_group2";
+    const TGroupId groupId1 = "/sample_group1";
+    const TGroupId groupId2 = "/test/sample_group2";
 
-    const TString memberId1 = "sample_member1";
-    const TString memberId2 = "sample_member2";
+    const TMemberId memberId1 = "sample_member1";
+    const TMemberId memberId2 = "sample_member2";
 
     auto discoveryConnection1Config = New<TDiscoveryConnectionConfig>();
     auto member1Config = New<TMemberClientConfig>();
@@ -670,7 +670,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
                 SyncYPathGet(
                     ypathService,
                     "",
-                    std::vector<TString> {
+                    std::vector<TString>{
                         "child_count",
                         "type",
                         "member_count",
@@ -713,7 +713,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
                 SyncYPathGet(
                     ypathService,
                     "/sample_group1",
-                    std::vector<TString> {
+                    std::vector<TString>{
                         "child_count",
                         "type",
                         "member_count",
@@ -744,7 +744,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
                 SyncYPathGet(
                     ypathService,
                     "/sample_group1/@members",
-                    std::vector<TString> {
+                    std::vector<TString>{
                         "priority",
                         "test",
                         "q1",
@@ -792,11 +792,11 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
 
 TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestGroupRemoval)
 {
-    const TString groupId1 = "/sample_group1";
-    const TString memberId1 = "sample_member1";
+    const TGroupId groupId1 = "/sample_group1";
+    const TMemberId memberId1 = "sample_member1";
 
-    const TString groupId2 = "/sample_group2";
-    const TString memberId2 = "sample_member2";
+    const TGroupId groupId2 = "/sample_group2";
+    const TMemberId memberId2 = "sample_member2";
 
     auto memberClient1 = CreateMemberClient(groupId1, memberId1);
     WaitFor(memberClient1->Start())
@@ -843,14 +843,14 @@ TEST_F(TDiscoveryServiceTestSuite, TestLimits)
         serverConfig->MaxGroupCount = 2;
         RecreateDiscoveryServer(0, serverConfig);
 
-        const TString groupId1 = "/sample_group1";
-        const TString memberId1 = "sample_member1";
+        const TGroupId groupId1 = "/sample_group1";
+        const TMemberId memberId1 = "sample_member1";
 
-        const TString groupId2 = "/sample_group2";
-        const TString memberId2 = "sample_member2";
+        const TGroupId groupId2 = "/sample_group2";
+        const TMemberId memberId2 = "sample_member2";
 
-        const TString groupId3 = "/sample_group3";
-        const TString memberId3 = "sample_member3";
+        const TGroupId groupId3 = "/sample_group3";
+        const TMemberId memberId3 = "sample_member3";
 
         auto memberClient1 = CreateMemberClient(groupId1, memberId1, connectionConfig);
         WaitFor(memberClient1->Start())
@@ -871,8 +871,8 @@ TEST_F(TDiscoveryServiceTestSuite, TestLimits)
         serverConfig->MaxMembersPerGroup = 3;
         RecreateDiscoveryServer(0, serverConfig);
 
-        std::vector<TString> groups = {"/group1", "/group1/group2", "/group3"};
-        std::vector<TString> members = {"x", "y", "z"};
+        std::vector<TGroupId> groups = {"/group1", "/group1/group2", "/group3"};
+        std::vector<TMemberId> members = {"x", "y", "z"};
 
         for (const auto& groupId : groups) {
             for (const auto& memberId : members) {
@@ -883,7 +883,7 @@ TEST_F(TDiscoveryServiceTestSuite, TestLimits)
         }
 
         for (const auto& groupId : groups) {
-            TString memberId = "joker";
+            TMemberId memberId = "joker";
             auto memberClient = CreateMemberClient(groupId, memberId, connectionConfig);
             ASSERT_THROW(WaitFor(memberClient->Start()).ThrowOnError(), std::exception);
         }
@@ -896,14 +896,14 @@ TEST_F(TDiscoveryServiceTestSuite, TestLimits)
         serverConfig->MaxGroupTreeSize = 3;
         RecreateDiscoveryServer(0, serverConfig);
 
-        const TString groupId1 = "/a/bob/a";
-        const TString memberId1 = "sample_member1";
+        const TGroupId groupId1 = "/a/bob/a";
+        const TMemberId memberId1 = "sample_member1";
 
-        const TString groupId2 = "/a/bob";
-        const TString memberId2 = "sample_member2";
+        const TGroupId groupId2 = "/a/bob";
+        const TMemberId memberId2 = "sample_member2";
 
-        const TString groupId3 = "/a/bacaba";
-        const TString memberId3 = "sample_member3";
+        const TGroupId groupId3 = "/a/bacaba";
+        const TMemberId memberId3 = "sample_member3";
 
         auto memberClient1 = CreateMemberClient(groupId1, memberId1, connectionConfig);
         WaitFor(memberClient1->Start())
@@ -924,14 +924,14 @@ TEST_F(TDiscoveryServiceTestSuite, TestLimits)
         serverConfig->MaxGroupTreeDepth = 3;
         RecreateDiscoveryServer(0, serverConfig);
 
-        const TString groupId1 = "/a/b/a/c";
-        const TString memberId1 = "sample_member1";
+        const TGroupId groupId1 = "/a/b/a/c";
+        const TMemberId memberId1 = "sample_member1";
 
-        const TString groupId2 = "/a/d";
-        const TString memberId2 = "sample_member2";
+        const TGroupId groupId2 = "/a/d";
+        const TMemberId memberId2 = "sample_member2";
 
-        const TString groupId3 = "/a/b/a/c/aba";
-        const TString memberId3 = "sample_member3";
+        const TGroupId groupId3 = "/a/b/a/c/aba";
+        const TMemberId memberId3 = "sample_member3";
 
         auto memberClient1 = CreateMemberClient(groupId1, memberId1, connectionConfig);
         WaitFor(memberClient1->Start())
