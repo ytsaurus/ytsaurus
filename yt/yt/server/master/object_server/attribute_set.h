@@ -15,19 +15,18 @@ namespace NYT::NObjectServer {
 class TAttributeSet
 {
 public:
-    using TAttributeMap = THashMap<TString, NYson::TYsonString>;
+    using TAttributeMap = THashMap<std::string, NYson::TYsonString, THash<std::string_view>, TEqualTo<std::string_view>>;
     DEFINE_BYREF_RO_PROPERTY(TAttributeMap, Attributes);
     DEFINE_BYVAL_RO_PROPERTY(i64, MasterMemoryUsage);
 
 public:
-    bool TryInsert(const TString& key, const NYson::TYsonString& value);
-    void Set(const TString& key, const NYson::TYsonString& value);
-    bool Remove(const TString& key);
+    bool TryInsert(const std::string& key, const NYson::TYsonString& value);
+    void Set(const std::string& key, const NYson::TYsonString& value);
+    bool TryRemove(const std::string& key);
     NYson::TYsonString Find(TStringBuf key) const;
 
     void Load(NCellMaster::TLoadContext& context);
     void Save(NCellMaster::TSaveContext& context) const;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

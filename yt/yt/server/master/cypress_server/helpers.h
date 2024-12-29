@@ -97,7 +97,7 @@ THashMap<TString, NYson::TYsonString> GetNodeAttributes(
 std::vector<std::pair<TString, NYson::TYsonString>> SortKeyToAttribute(
     const THashMap<TString, NYson::TYsonString>& keyToAttributeMap);
 
-THashSet<TString> ListNodeAttributes(
+THashSet<std::string> ListNodeAttributes(
     const ICypressManagerPtr& cypressManager,
     TCypressNode* trunkNode,
     NTransactionServer::TTransaction* transaction);

@@ -424,7 +424,8 @@ void DumpTransaction(TFluent fluent, const TTransaction* transaction, bool dumpP
         if (it == attributeMap.end()) {
             return;
         }
-        customAttributes->SetYson(it->first, it->second);
+        // TODO(babenko): switch to std::string
+        customAttributes->SetYson(TString(it->first), it->second);
     };
     copyCustomAttribute("operation_id");
     copyCustomAttribute("operation_title");

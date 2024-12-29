@@ -227,7 +227,7 @@ bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const 
     if (node->GetTransaction()) {
         userAttributes->Set(key, {});
     } else {
-        YT_VERIFY(userAttributes->Remove(key));
+        YT_VERIFY(userAttributes->TryRemove(key));
     }
 
     const auto& securityManager = Proxy_->Bootstrap_->GetSecurityManager();

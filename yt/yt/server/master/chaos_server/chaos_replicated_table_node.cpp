@@ -89,7 +89,7 @@ void TChaosReplicatedTableNode::Load(TLoadContext& context)
             EInternedAttributeKey::QueueProducerPartitions,
         };
         for (const auto& attribute : producerRelatedAttributes) {
-            Attributes_->Remove(attribute.Unintern());
+            Attributes_->TryRemove(attribute.Unintern());
         }
     }
 

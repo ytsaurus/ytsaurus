@@ -45,17 +45,17 @@ void DropUnrecognizedRecursively(IMapNodePtr node, IMapNodePtr unrecognized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMountConfigStorage::Set(const TString& key, const TYsonString& value)
+void TMountConfigStorage::Set(const std::string& key, const TYsonString& value)
 {
     ValidateKey(key);
 
     TAttributeSet::Set(key, value);
 }
 
-bool TMountConfigStorage::Remove(const TString& key)
+bool TMountConfigStorage::TryRemove(const std::string& key)
 {
     // TODO: add validation specific for mount config.
-    return TAttributeSet::Remove(key);
+    return TAttributeSet::TryRemove(key);
 }
 
 void TMountConfigStorage::SetSelf(const NYson::TYsonString& value)
@@ -131,8 +131,7 @@ void Deserialize(TMountConfigStorage& storage, NYTree::INodePtr node)
 
     auto mapNode = node->AsMap();
     for (const auto& [key, child] : mapNode->GetChildren()) {
-        // TODO(babenko): migrate to std::string
-        storage.Set(TString(key), ConvertToYsonString(child));
+        storage.Set(key, ConvertToYsonString(child));
     }
 }
 
