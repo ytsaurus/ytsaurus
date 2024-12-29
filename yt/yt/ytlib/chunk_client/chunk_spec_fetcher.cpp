@@ -296,7 +296,7 @@ void TTabletChunkSpecFetcher::AddSorted(
     const auto& comparator = tableMountInfo.Schemas[ETableSchemaKind::Primary]->ToComparator();
     YT_VERIFY(comparator);
 
-    auto validateReadLimit = [&] (const TReadLimit& readLimit, const TStringBuf& limitKind) {
+    auto validateReadLimit = [&] (const TReadLimit& readLimit, TStringBuf limitKind) {
         try {
             if (readLimit.GetRowIndex()) {
                 THROW_ERROR_EXCEPTION("Row index selectors are not supported for sorted dynamic tables");
