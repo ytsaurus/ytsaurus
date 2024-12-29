@@ -1373,6 +1373,9 @@ class TestRpcProxySignaturesBase(TestRpcProxyBase):
         },
     }
 
+    # NB(pavook): to avoid key owner collision.
+    NUM_RPC_PROXIES = 1
+
     OWNERS_PATH = "//sys/public_keys/by_owner"
     KEYS_PATH = f"{OWNERS_PATH}/test-rpc-proxy"
 
