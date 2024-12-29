@@ -241,6 +241,42 @@ void TRpcRawClient::CommitTransaction(
     WaitFor(tx->Commit(SerializeOptionsForCommitTransaction(mutationId))).ThrowOnError();
 }
 
+void TRpcRawClient::AbortOperation(
+    TMutationId& /*mutationId*/,
+    const TOperationId& operationId)
+{
+    auto future = Client_->AbortOperation(NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)));
+    WaitFor(future).ThrowOnError();
+}
+
+void TRpcRawClient::CompleteOperation(
+    TMutationId& /*mutationId*/,
+    const TOperationId& operationId)
+{
+    auto future = Client_->CompleteOperation(NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)));
+    WaitFor(future).ThrowOnError();
+}
+
+void TRpcRawClient::SuspendOperation(
+    TMutationId& /*mutationId*/,
+    const TOperationId& operationId,
+    const TSuspendOperationOptions& options)
+{
+    auto future = Client_->SuspendOperation(
+        NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
+        SerializeOptionsForSuspendOperation(options));
+    WaitFor(future).ThrowOnError();
+}
+
+void TRpcRawClient::ResumeOperation(
+    TMutationId& /*mutationId*/,
+    const TOperationId& operationId,
+    const TResumeOperationOptions& /*options*/)
+{
+    auto future = Client_->ResumeOperation(NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)));
+    WaitFor(future).ThrowOnError();
+}
+
 TMaybe<TYPath> TRpcRawClient::GetFileFromCache(
     const TTransactionId& transactionId,
     const TString& md5Signature,

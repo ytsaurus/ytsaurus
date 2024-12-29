@@ -126,6 +126,26 @@ public:
         TMutationId& mutationId,
         const TTransactionId& transactionId) override;
 
+    // Operations
+
+    void AbortOperation(
+        TMutationId& mutationId,
+        const TOperationId& operationId) override;
+
+    void CompleteOperation(
+        TMutationId& mutationId,
+        const TOperationId& operationId) override;
+
+    void SuspendOperation(
+        TMutationId& mutationId,
+        const TOperationId& operationId,
+        const TSuspendOperationOptions& options = {}) override;
+
+    void ResumeOperation(
+        TMutationId& mutationId,
+        const TOperationId& operationId,
+        const TResumeOperationOptions& options = {}) override;
+
     // File cache
 
     TMaybe<TYPath> GetFileFromCache(
