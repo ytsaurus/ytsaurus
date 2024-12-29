@@ -126,6 +126,31 @@ public:
         TMutationId& mutationId,
         const TTransactionId& transactionId) override;
 
+    // Tables
+
+    void MountTable(
+        TMutationId& mutationId,
+        const TYPath& path,
+        const TMountTableOptions& options = {}) override;
+
+    void UnmountTable(
+        TMutationId& mutationId,
+        const TYPath& path,
+        const TUnmountTableOptions& options = {}) override;
+
+    void RemountTable(
+        TMutationId& mutationId,
+        const TYPath& path,
+        const TRemountTableOptions& options = {}) override;
+
+    void FreezeTable(
+        const TYPath& path,
+        const TFreezeTableOptions& options = {}) override;
+
+    void UnfreezeTable(
+        const TYPath& path,
+        const TUnfreezeTableOptions& options = {}) override;
+
 private:
     const NApi::IClientPtr Client_;
     const TClientContext Context_;
