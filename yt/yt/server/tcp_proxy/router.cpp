@@ -28,7 +28,7 @@ static constexpr auto& Logger = TcpProxyLogger;
 
 struct TEndpoint
 {
-    TString Host;
+    std::string Host;
     ui16 Port;
 };
 

@@ -385,7 +385,7 @@ public:
 
     //! Addresses derived from node local descriptor to leverage locality.
     NNodeTrackerClient::TAddressMap Addresses;
-    TString LocalHostName;
+    std::string LocalHostName;
     std::optional<TString> Rack;
     std::optional<TString> DataCenter;
 

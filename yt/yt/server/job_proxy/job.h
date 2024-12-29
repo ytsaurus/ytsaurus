@@ -69,7 +69,7 @@ struct IJobHost
 
     virtual TString GetAuthenticatedUser() const = 0;
 
-    virtual TString GetLocalHostName() const = 0;
+    virtual std::string GetLocalHostName() const = 0;
 
     virtual NApi::NNative::IClientPtr GetClient() const = 0;
 

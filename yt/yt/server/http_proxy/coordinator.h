@@ -45,7 +45,7 @@ DEFINE_REFCOUNTED_TYPE(TLiveness)
 struct TProxyEntry
     : public NYTree::TYsonStruct
 {
-    TString Endpoint;
+    std::string Endpoint;
     std::string Role;
 
     TLivenessPtr Liveness;
@@ -53,7 +53,7 @@ struct TProxyEntry
     bool IsBanned;
     std::optional<TString> BanMessage;
 
-    TString GetHost() const;
+    std::string GetHost() const;
 
     REGISTER_YSON_STRUCT(TProxyEntry);
 

@@ -1390,7 +1390,7 @@ TString TJobProxy::GetAuthenticatedUser() const
     return JobSpecHelper_->GetJobSpecExt().authenticated_user();
 }
 
-TString TJobProxy::GetLocalHostName() const
+std::string TJobProxy::GetLocalHostName() const
 {
     return Config_->LocalHostName;
 }

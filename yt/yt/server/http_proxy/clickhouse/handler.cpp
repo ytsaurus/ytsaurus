@@ -232,7 +232,7 @@ private:
     TString Token_;
     TString User_;
     TString InstanceId_;
-    TString InstanceHost_;
+    std::string InstanceHost_;
     TString InstanceHttpPort_;
     TCachedDiscoveryPtr Discovery_;
     TClickHouseHandlerPtr Handler_;
