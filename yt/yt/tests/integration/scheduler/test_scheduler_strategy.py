@@ -1713,7 +1713,7 @@ class TestSchedulerStuckOperations(YTEnvSetup):
             "operation_stuck_check": {
                 "period": 100,
                 "safe_timeout": 5000,
-                "min_schedule_job_attempts": 10,
+                "min_schedule_allocation_attempts": 10,
                 "limiting_ancestor_safe_timeout": 5000,
             },
         }
@@ -1740,7 +1740,7 @@ class TestSchedulerStuckOperations(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_pool_tree_config_path("default") + "/enable_limiting_ancestor_check"))
 
     @authors("ignat")
-    def test_hanging_operations(self):
+    def test_stuck_operation(self):
         ops = []
         for node in ls("//sys/cluster_nodes"):
             op = run_test_vanilla(
