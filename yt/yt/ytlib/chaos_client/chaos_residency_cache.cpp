@@ -254,7 +254,7 @@ TFuture<TCellTag> TChaosResidencyCacheBase::DoGet(
     auto connection = Connection_.Lock();
     if (!connection) {
         return MakeFuture<TCellTag>(
-            TError("Unable to locate %v: connection terminated",
+            TError("Unable to locate %Qlv: connection terminated",
                 TypeFromId(objectId))
                 << TErrorAttribute("object_id", objectId));
     }
@@ -292,7 +292,8 @@ public:
         }
 
         const auto& cellDirectory = connection->GetCellDirectory();
-        auto channel = WaitForFast(EnsureChaosCellChannel(connection, CellTag_)).ValueOrThrow();
+        auto channel = WaitForFast(EnsureChaosCellChannel(connection, CellTag_))
+            .ValueOrThrow();
         if (channel) {
             auto proxy = TChaosNodeServiceProxy(channel);
             auto req = proxy.FindReplicationCard();
