@@ -2,33 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/rpc/service_detail.h>
-
 namespace NYT::NCypressProxy {
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct ISequoiaServiceContext
-    : public virtual NRpc::IServiceContext
-{ };
-
-DEFINE_REFCOUNTED_TYPE(ISequoiaServiceContext)
-
-////////////////////////////////////////////////////////////////////////////////
-
-// TODO(kvk1920): do we actually want a separate type for Sequoia context?
-class TSequoiaServiceContextWrapper
-    : public NRpc::TServiceContextWrapper
-    , public ISequoiaServiceContext
-{
-public:
-    explicit TSequoiaServiceContextWrapper(ISequoiaServiceContextPtr underlyingContext);
-
-private:
-    const ISequoiaServiceContextPtr UnderlyingContext_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TSequoiaServiceContextWrapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
