@@ -419,9 +419,9 @@ bool TChunkPlacement::IsDataCenterFeasible(const TDataCenter* dataCenter) const
     return AliveStorageDataCenters_.contains(dataCenter);
 }
 
-THashSet<TString> TChunkPlacement::GetFaultyStorageDataCenterNames() const
+THashSet<std::string> TChunkPlacement::GetFaultyStorageDataCenterNames() const
 {
-    THashSet<TString> result;
+    THashSet<std::string> result;
     for (const auto* faultyDataCenter : FaultyStorageDataCenters_) {
         result.insert(faultyDataCenter->GetName());
     }
@@ -474,7 +474,7 @@ void TChunkPlacement::CheckFaultyDataCentersOnPrimaryMaster()
     RecomputeDataCenterSets();
 }
 
-void TChunkPlacement::SetFaultyDataCentersOnSecondaryMaster(const THashSet<TString>& faultyDataCenters)
+void TChunkPlacement::SetFaultyDataCentersOnSecondaryMaster(const THashSet<std::string>& faultyDataCenters)
 {
     // If replicator is not data center aware, data center sets are not required.
     if (!IsDataCenterAware_ || !IsDataCenterFailureDetectorEnabled_) {

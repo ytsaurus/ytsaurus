@@ -1881,7 +1881,7 @@ public:
         return ForeignChunks_;
     }
 
-    THashSet<TString> GetFaultyStorageDataCenterNames() const override
+    THashSet<std::string> GetFaultyStorageDataCenterNames() const override
     {
         return ChunkPlacement_->GetFaultyStorageDataCenterNames();
     }

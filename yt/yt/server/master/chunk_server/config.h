@@ -354,7 +354,7 @@ class TDynamicDataCenterFailureDetectorConfig
 {
 public:
     TDynamicDataCenterFaultThresholdsConfigPtr DefaultThresholds;
-    THashMap<TString, TDynamicDataCenterFaultThresholdsConfigPtr> DataCenterThresholds;
+    THashMap<std::string, TDynamicDataCenterFaultThresholdsConfigPtr> DataCenterThresholds;
     bool Enable;
 
     REGISTER_YSON_STRUCT(TDynamicDataCenterFailureDetectorConfig);
@@ -715,10 +715,10 @@ public:
     bool UseDataCenterAwareReplicator;
 
     //! Set of data centers that are used for chunk storage.
-    THashSet<TString> StorageDataCenters;
+    THashSet<std::string> StorageDataCenters;
 
     //! Set of storage data centers on which replica placement is forbidden.
-    THashSet<TString> BannedStorageDataCenters;
+    THashSet<std::string> BannedStorageDataCenters;
 
     TDynamicDataCenterFailureDetectorConfigPtr DataCenterFailureDetector;
 

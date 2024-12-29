@@ -261,7 +261,7 @@ struct IChunkManager
     virtual TChunkRequisitionRegistry* GetChunkRequisitionRegistry() = 0;
 
     virtual const THashSet<TChunk*>& ForeignChunks() const = 0;
-    virtual THashSet<TString> GetFaultyStorageDataCenterNames() const = 0;
+    virtual THashSet<std::string> GetFaultyStorageDataCenterNames() const = 0;
 
     virtual void ScheduleGlobalChunkRefresh() = 0;
     virtual void RescheduleChunkListRequisitionTraversals() = 0;
