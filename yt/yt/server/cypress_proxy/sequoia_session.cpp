@@ -240,7 +240,7 @@ class TPathForkResolver
 {
 public:
     void ProcessPath(
-        TRange<NRecords::TPathToNodeId> parentRecords,
+        TRange<NRecords::TPathToNodeId> /* parentRecords */,
         TRange<NRecords::TPathToNodeId> currentRecords)
     {
         YT_VERIFY(!currentRecords.Empty());
