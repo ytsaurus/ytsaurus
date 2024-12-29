@@ -86,6 +86,16 @@ NApi::TTransactionAbortOptions SerializeOptionsForAbortTransaction(TMutationId& 
 
 NApi::TTransactionCommitOptions SerializeOptionsForCommitTransaction(TMutationId& mutationId);
 
+NApi::TGetFileFromCacheOptions SerializeOptionsForGetFileFromCache(
+    const TTransactionId& transactionId,
+    const TYPath& cachePath,
+    const TGetFileFromCacheOptions& options);
+
+NApi::TPutFileToCacheOptions SerializeOptionsForPutFileToCache(
+    const TTransactionId& transactionId,
+    const TYPath& cachePath,
+    const TPutFileToCacheOptions& options);
+
 NApi::TMountTableOptions SerializeOptionsForMountTable(
     TMutationId& mutationId,
     const TMountTableOptions& options);
