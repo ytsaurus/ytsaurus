@@ -1349,7 +1349,7 @@ void TObjectManager::MergeAttributes(
     auto* originatingAttributes = originatingObject->GetMutableAttributes();
     for (const auto& [key, value] : branchedAttributes->Attributes()) {
         if (!value && originatingObject->IsTrunk()) {
-            originatingAttributes->Remove(key);
+            originatingAttributes->TryRemove(key);
         } else {
             originatingAttributes->Set(key, value);
         }
@@ -1448,7 +1448,8 @@ TObject* TObjectManager::CreateObject(
     if (schema && schema->GetAttributes()) {
         attributeHolder = CreateEphemeralAttributes();
         for (const auto& [key, value] : schema->GetAttributes()->Attributes()) {
-            attributeHolder->SetYson(key, value);
+            // TODO(babenko): switch to std::string
+            attributeHolder->SetYson(TString(key), value);
         }
         if (attributes) {
             auto attributeMap = PatchNode(attributeHolder->ToMap(), attributes->ToMap());
@@ -2452,10 +2453,11 @@ IAttributeDictionaryPtr TObjectManager::GetReplicatedAttributes(
     auto proxy = handler->GetProxy(object, nullptr);
 
     auto attributes = CreateEphemeralAttributes();
-    THashSet<TString> replicatedKeys;
-    auto replicateKey = [&] (const TString& key, const TYsonString& value) {
+    THashSet<std::string> replicatedKeys;
+    auto replicateKey = [&] (const std::string& key, const TYsonString& value) {
         if (replicatedKeys.insert(key).second) {
-            attributes->SetYson(key, value);
+            // TODO(babenko): migrate to std::string
+            attributes->SetYson(TString(key), value);
         }
     };
 

@@ -328,14 +328,14 @@ THashMap<TString, NYson::TYsonString> GetNodeAttributes(
     return result;
 }
 
-THashSet<TString> ListNodeAttributes(
+THashSet<std::string> ListNodeAttributes(
     const ICypressManagerPtr& cypressManager,
     TCypressNode* trunkNode,
     TTransaction* transaction)
 {
     auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
 
-    THashSet<TString> result;
+    THashSet<std::string> result;
     for (const auto* node : originators) {
         const auto* userAttributes = node->GetAttributes();
         if (userAttributes) {

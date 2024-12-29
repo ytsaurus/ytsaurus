@@ -1038,7 +1038,8 @@ std::vector<TString> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDi
         for (const auto& [key, value] : attributes->Attributes()) {
             // Attribute cannot be empty (i.e. deleted) in null transaction.
             YT_ASSERT(value);
-            keys.push_back(key);
+            // TODO(babenko): migrate to std::string
+            keys.push_back(TString(key));
         }
     }
     return keys;
@@ -1108,7 +1109,7 @@ bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove
 
     // Attribute cannot be empty (i.e. deleted) in null transaction.
     YT_ASSERT(it->second);
-    attributes->Remove(key);
+    attributes->TryRemove(key);
     if (attributes->Attributes().empty()) {
         object->ClearAttributes();
     }

@@ -721,7 +721,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, LastGossipState_);
 
     if (context.GetVersion() < EMasterReign::RemoveStuckAttributes && Attributes_) {
-        Attributes_->Remove(EInternedAttributeKey::MaintenanceRequests.Unintern());
+        Attributes_->TryRemove(EInternedAttributeKey::MaintenanceRequests.Unintern());
     }
 
     ComputeDefaultAddress();
