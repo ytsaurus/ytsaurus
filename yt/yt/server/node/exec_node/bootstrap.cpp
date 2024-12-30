@@ -177,7 +177,9 @@ public:
         SchedulerConnector_->Initialize();
         ControllerAgentConnectorPool_->Initialize();
 
-        SubscribePopulateAlerts(BIND_NO_PROPAGATE(&NDiskManager::THotswapManager::PopulateAlerts));
+        if (auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager()) {
+            SubscribePopulateAlerts(BIND_NO_PROPAGATE(&NDiskManager::IHotswapManager::PopulateAlerts, hotswapManager));
+        }
     }
 
     void Run() override
@@ -193,10 +195,12 @@ public:
             "/exec_node",
             CreateVirtualNode(GetOrchidService(this)));
 
-        SetNodeByYPath(
-            GetOrchidRoot(),
-            "/disk_monitoring",
-            CreateVirtualNode(NDiskManager::THotswapManager::GetOrchidService()));
+        if (auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager()) {
+            SetNodeByYPath(
+                GetOrchidRoot(),
+                "/disk_monitoring",
+                CreateVirtualNode(hotswapManager->GetOrchidService()));
+        }
 
         // COMPAT(pogorelov)
         if (JobProxyLogManager_) {

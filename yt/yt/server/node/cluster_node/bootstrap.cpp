@@ -284,6 +284,11 @@ public:
         return MasterConnector_;
     }
 
+    NDiskManager::IHotswapManagerPtr TryGetHotswapManager() const override
+    {
+        return ServiceLocator_->FindService<NDiskManager::IHotswapManagerPtr>();
+    }
+
     TRelativeThroughputThrottlerConfigPtr PatchRelativeNetworkThrottlerConfig(
         const TRelativeThroughputThrottlerConfigPtr& config) const override
     {
@@ -1677,7 +1682,7 @@ IBootstrapPtr CreateNodeBootstrap(
 TBootstrapBase::TBootstrapBase(IBootstrapBase* bootstrap)
     : Bootstrap_(bootstrap)
 {
-    // Cycles are fine for boostrap.
+    // Cycles are fine for bootstrap.
     Bootstrap_->SubscribeMasterConnected(
         BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (TNodeId nodeId) {
             MasterConnected_.Fire(nodeId);

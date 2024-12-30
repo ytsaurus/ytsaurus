@@ -37,25 +37,3 @@ target_sources(yt-library-disk_manager PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/disk_manager/hotswap_manager.cpp
 )
 
-
-add_global_library_for(yt-library-disk_manager.global
-  yt-library-disk_manager)
-
-
-target_compile_options(yt-library-disk_manager.global PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-)
-
-target_link_libraries(yt-library-disk_manager.global PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-core
-  core-rpc-grpc
-)
-
-target_sources(yt-library-disk_manager.global PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/disk_manager/configure_hotswap_manager.cpp
-)
-

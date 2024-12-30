@@ -22,6 +22,9 @@ void TServerProgramConfig::Register(TRegistrar registrar)
     registrar.Parameter("solomon_exporter", &TThis::SolomonExporter)
         .DefaultNew();
 
+    registrar.Parameter("hotswap_manager", &TThis::HotswapManager)
+        .Default();
+
     registrar.Postprocessor([] (TThis* config) {
         // TODO(babenko): consider configuring memory_profile_dump_path in ytcfgen
         auto tcmallocConfig = config->GetSingletonConfig<NTCMalloc::TTCMallocConfig>();
