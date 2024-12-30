@@ -19,16 +19,19 @@ public:
     // IChunkWriter implementation.
     TFuture<void> Open() override;
     bool WriteBlock(
+        const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const TBlock& block) override;
 
     bool WriteBlocks(
+        const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<TBlock>& blocks) override;
 
     TFuture<void> GetReadyEvent() override;
 
     TFuture<void> Close(
+        const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const TDeferredChunkMetaPtr& chunkMeta) override;
 

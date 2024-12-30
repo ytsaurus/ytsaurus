@@ -75,6 +75,11 @@ struct IIOEngine
         bool Flush = false;
     };
 
+    struct TWriteResponse
+    {
+        i64 IOWriteRequests = 0;
+    };
+
     struct TOpenRequest
     {
         TString Path;
@@ -135,7 +140,7 @@ struct IIOEngine
         TRefCountedTypeCookie tagCookie,
         TSessionId sessionId = {},
         bool useDedicatedAllocations = false) = 0;
-    virtual TFuture<void> Write(
+    virtual TFuture<TWriteResponse> Write(
         TWriteRequest request,
         EWorkloadCategory category = EWorkloadCategory::Idle,
         TSessionId sessionId = {}) = 0;

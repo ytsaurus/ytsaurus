@@ -49,6 +49,7 @@ TFileChunkOutput::TFileChunkOutput(
     NChunkClient::TDataSink dataSink,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     i64 sizeLimit)
     : Logger(FileClientLogger().WithTag("TransactionId: %v", transactionId))
     , Config_(std::move(config))
@@ -58,6 +59,7 @@ TFileChunkOutput::TFileChunkOutput(
     , DataSink_(std::move(dataSink))
     , TrafficMeter_(std::move(trafficMeter))
     , Throttler_(std::move(throttler))
+    , WriteBlocksOptions_(std::move(writeBlocksOptions))
     , SizeLimit_(sizeLimit)
 {
     YT_VERIFY(Config_);
@@ -126,6 +128,7 @@ void TFileChunkOutput::EnsureOpen()
         Config_,
         New<TEncodingWriterOptions>(),
         ConfirmingChunkWriter_,
+        WriteBlocksOptions_,
         DataSink_);
 
     YT_LOG_INFO("File chunk output opened (Account: %v, ReplicationFactor: %v, MediumName: %v, CellTag: %v)",

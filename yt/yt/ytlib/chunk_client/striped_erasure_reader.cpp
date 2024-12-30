@@ -418,7 +418,8 @@ public:
         std::vector<IChunkReaderAllowingRepairPtr> partReaders,
         std::vector<IChunkWriterPtr> partWriters,
         TChunkReaderMemoryManagerHolderPtr memoryManagerHolder,
-        IChunkReader::TReadBlocksOptions readBlocksOptions)
+        IChunkReader::TReadBlocksOptions readBlocksOptions,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
         : TErasureReaderSessionBase(
             std::move(config),
             std::move(codec),
@@ -426,6 +427,7 @@ public:
             std::move(memoryManagerHolder),
             std::move(readBlocksOptions))
         , PartWriters_(std::move(partWriters))
+        , WriteBlocksOptions_(std::move(writeBlocksOptions))
     {
         for (const auto& writer : PartWriters_) {
             ErasedIndices_.push_back(ReplicaIndexFromErasurePartId(writer->GetChunkId()));
@@ -441,6 +443,7 @@ public:
 
 private:
     const std::vector<IChunkWriterPtr> PartWriters_;
+    const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
     NErasure::TPartIndexList ErasedIndices_;
 
     void DoRun()
@@ -501,7 +504,7 @@ private:
                     .ValueOrThrow();
 
                 const auto& writer = PartWriters_[writerIndex];
-                if (!writer->WriteBlock(ReadBlocksOptions_.ClientOptions.WorkloadDescriptor, segmentPart)) {
+                if (!writer->WriteBlock(WriteBlocksOptions_, ReadBlocksOptions_.ClientOptions.WorkloadDescriptor, segmentPart)) {
                     WaitFor(writer->GetReadyEvent())
                         .ThrowOnError();
                 }
@@ -526,6 +529,7 @@ private:
             futures.reserve(PartWriters_.size());
             for (const auto& writer : PartWriters_) {
                 futures.push_back(writer->Close(
+                    WriteBlocksOptions_,
                     ReadBlocksOptions_.ClientOptions.WorkloadDescriptor,
                     deferredMeta));
             }
@@ -543,7 +547,8 @@ TFuture<void> RepairErasedPartsStriped(
     std::vector<IChunkReaderAllowingRepairPtr> partReaders,
     std::vector<IChunkWriterPtr> partWriters,
     TChunkReaderMemoryManagerHolderPtr memoryManagerHolder,
-    IChunkReader::TReadBlocksOptions readBlocksOptions)
+    IChunkReader::TReadBlocksOptions readBlocksOptions,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
 {
     auto repairSession = New<TErasureRepairSession>(
         std::move(config),
@@ -551,7 +556,8 @@ TFuture<void> RepairErasedPartsStriped(
         std::move(partReaders),
         std::move(partWriters),
         std::move(memoryManagerHolder),
-        std::move(readBlocksOptions));
+        std::move(readBlocksOptions),
+        std::move(writeBlocksOptions));
     return repairSession->Run();
 }
 

@@ -561,6 +561,8 @@ private:
         chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
         chunkReadOptions.MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
 
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions;
+
         TRefCountedChunkMetaPtr meta;
         {
             YT_LOG_DEBUG("Fetching chunk meta");
@@ -644,7 +646,7 @@ private:
                 currentBlockIndex,
                 currentBlockIndex + std::ssize(writeBlocks) - 1);
 
-            auto writeResult = writer->WriteBlocks(workloadDescriptor, writeBlocks);
+            auto writeResult = writer->WriteBlocks(writeBlocksOptions, workloadDescriptor, writeBlocks);
             if (!writeResult) {
                 WaitFor(writer->GetReadyEvent())
                     .ThrowOnError();
@@ -661,7 +663,7 @@ private:
             auto deferredMeta = New<TDeferredChunkMeta>();
             deferredMeta->MergeFrom(*meta);
 
-            WaitFor(writer->Close(workloadDescriptor, deferredMeta))
+            WaitFor(writer->Close(writeBlocksOptions, workloadDescriptor, deferredMeta))
                 .ThrowOnError();
 
             YT_LOG_DEBUG("Writer closed");
@@ -813,7 +815,8 @@ private:
         NErasure::ICodec* codec,
         NErasure::TPartIndexList erasedPartIndexes,
         IChunkReader::TReadBlocksOptions readBlocksOptions,
-        std::vector<IChunkWriterPtr> writers)
+        std::vector<IChunkWriterPtr> writers,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
     {
         auto readerConfig = DynamicConfig_->Reader;
         auto stripedErasure = JobSpecExt_.striped_erasure_chunk();
@@ -839,6 +842,7 @@ private:
                 readers,
                 BIND(&TChunkRepairJob::CreateWriter, MakeStrong(this)),
                 readBlocksOptions,
+                std::move(writeBlocksOptions),
                 Logger,
                 Sensors_.AdaptivelyRepairedChunksCounter);
 
@@ -887,14 +891,16 @@ private:
                 std::move(readers),
                 std::move(writers),
                 std::move(memoryManagerHolder),
-                std::move(readBlocksOptions));
+                std::move(readBlocksOptions),
+                std::move(writeBlocksOptions));
         } else {
             return RepairErasedParts(
                 codec,
                 std::move(erasedPartIndexes),
                 std::move(readers),
                 std::move(writers),
-                std::move(readBlocksOptions));
+                std::move(readBlocksOptions),
+                std::move(writeBlocksOptions));
         }
     }
 
@@ -940,6 +946,8 @@ private:
             },
         };
 
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions;
+
         NErasure::TPartIndexList sourcePartIndexes;
         for (auto replica : SourceReplicas_) {
             sourcePartIndexes.push_back(replica.GetReplicaIndex());
@@ -966,7 +974,8 @@ private:
                         codec,
                         std::move(erasedPartIndexes),
                         std::move(readBlocksOptions),
-                        std::move(writers));
+                        std::move(writers),
+                        std::move(writeBlocksOptions));
                     break;
                 }
 
@@ -984,6 +993,7 @@ private:
                         readers,
                         writers,
                         readBlocksOptions.ClientOptions,
+                        writeBlocksOptions,
                         Logger);
                     break;
                 }
@@ -1557,6 +1567,8 @@ private:
         options->MaxBlockCount = MaxBlockCount_;
         options->MemoryUsageTracker = DynamicConfig_->TrackWriterMemory ? MemoryUsageTracker_ : GetNullMemoryUsageTracker();
 
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions;
+
         auto writer = CreateMetaAggregatingWriter(
             confirmingWriter,
             options);
@@ -1614,7 +1626,11 @@ private:
 
                 memoryGuard.Release();
 
-                if (!writer->WriteBlocks(chunkReadContext.Options.ClientOptions.WorkloadDescriptor, blocks)) {
+                if (!writer->WriteBlocks(
+                    writeBlocksOptions,
+                    chunkReadContext.Options.ClientOptions.WorkloadDescriptor,
+                    blocks))
+                {
                     auto writeResult = WaitFor(writer->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(writeResult, "Error writing block");
                 }
@@ -1627,7 +1643,7 @@ private:
             ChunkMetaValidationError_ = ValidateChunkMeta(writer);
         }
 
-        WaitFor(writer->Close())
+        WaitFor(writer->Close(writeBlocksOptions))
             .ThrowOnError();
 
         if (JobSpecExt_.validate_shallow_merge()) {
@@ -1677,6 +1693,7 @@ private:
             Schema_,
             /*nameTable*/ nullptr,
             confirmingWriter,
+            /*writeBlocksOptions*/ {},
             /*dataSink*/ std::nullopt,
             {minTs, maxTs});
 
@@ -2101,6 +2118,8 @@ private:
             .MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker(),
         };
 
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions;
+
         auto oldChunkMeta = New<TDeferredChunkMeta>();
         {
             auto result = WaitFor(remoteReader->GetMeta(IChunkReader::TGetMetaOptions{ .ClientOptions = readerOptions }));
@@ -2165,6 +2184,7 @@ private:
                 std::move(readerOptions),
                 std::move(remoteReader),
                 std::move(confirmingWriter),
+                std::move(writeBlocksOptions),
                 std::move(oldChunkState));
         } else {
             ReincarnateUnversionedChunk(
@@ -2172,6 +2192,7 @@ private:
                 std::move(remoteReader),
                 std::move(readerOptions),
                 std::move(confirmingWriter),
+                std::move(writeBlocksOptions),
                 std::move(columnarMeta),
                 std::move(oldChunkState));
         }
@@ -2209,6 +2230,7 @@ private:
         TClientChunkReadOptions readerOptions,
         IChunkReaderPtr remoteReader,
         IChunkWriterPtr confirmingWriter,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         TChunkStatePtr oldChunkState)
     {
         IVersionedReaderPtr reader;
@@ -2250,7 +2272,8 @@ private:
             New<TChunkWriterConfig>(),
             CreateChunkWriterOptions(oldChunkMeta),
             oldChunkState->TableSchema,
-            confirmingWriter);
+            confirmingWriter,
+            writeBlocksOptions);
 
         while (auto batch = ReadRowBatch(reader)) {
             if (!writer->Write(batch->MaterializeRows())) {
@@ -2270,6 +2293,7 @@ private:
         IChunkReaderPtr remoteReader,
         TClientChunkReadOptions readerOptions,
         IChunkWriterPtr confirmingWriter,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         TColumnarChunkMetaPtr columnarMeta,
         TChunkStatePtr oldChunkState)
     {
@@ -2303,6 +2327,7 @@ private:
             columnarMeta->ChunkSchema(),
             columnarMeta->ChunkNameTable(),
             confirmingWriter,
+            writeBlocksOptions,
             /*dataSink*/ std::nullopt,
             chunkTimestamps);
 
@@ -2800,6 +2825,8 @@ private:
         std::vector<TFuture<void>> replicaFutures;
         replicaFutures.reserve(writers.size());
 
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions;
+
         TWorkloadDescriptor workloadDescriptor;
         workloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
 
@@ -2827,11 +2854,11 @@ private:
                 for (const auto& row : part) {
                     blocks.push_back(TBlock(row));
                 }
-                chunkWriter->WriteBlocks(workloadDescriptor, blocks);
+                chunkWriter->WriteBlocks(writeBlocksOptions, workloadDescriptor, blocks);
 
                 YT_LOG_DEBUG("Closing writer");
 
-                WaitFor(chunkWriter->Close(workloadDescriptor))
+                WaitFor(chunkWriter->Close(writeBlocksOptions, workloadDescriptor))
                     .ThrowOnError();
 
                 YT_LOG_DEBUG("Writer closed");

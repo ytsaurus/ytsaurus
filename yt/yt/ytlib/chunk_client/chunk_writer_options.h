@@ -1,0 +1,16 @@
+#pragma once
+
+#include "chunk_writer_statistics.h"
+
+namespace NYT::NChunkClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TClientChunkWriteOptions
+{
+    TChunkWriterStatisticsPtr ChunkWriterStatistics = New<TChunkWriterStatistics>();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NChunkClient

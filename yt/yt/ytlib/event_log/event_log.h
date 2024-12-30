@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
+
 #include <yt/yt/core/yson/public.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -119,7 +121,8 @@ using TEventLogWriterPtr = TIntrusivePtr<TEventLogWriter>;
 TEventLogWriterPtr CreateStaticTableEventLogWriter(
     TEventLogManagerConfigPtr config,
     NApi::NNative::IClientPtr client,
-    IInvokerPtr invoker);
+    IInvokerPtr invoker,
+    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -5,6 +5,7 @@
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_writer_base.h>
+#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/multi_chunk_writer.h>
@@ -50,6 +51,7 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TTableSchemaPtr schema,
     TNameTablePtr nameTable,
     NChunkClient::IChunkWriterPtr chunkWriter,
+    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     const std::optional<NChunkClient::TDataSink>& dataSink = {},
     const TChunkTimestamps& chunkTimestamps = {},
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
@@ -77,6 +79,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     NTransactionClient::TTransactionId transactionId,
     TMasterTableSchemaId schemaId,
     const std::optional<NChunkClient::TDataSink>& dataSink,
+    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     NChunkClient::TChunkListId parentChunkListId = NChunkClient::NullChunkListId,
     const TChunkTimestamps& chunkTimestamps = TChunkTimestamps(),
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
@@ -97,6 +100,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     NChunkClient::TChunkListId parentChunkListId,
     IPartitionerPtr partitioner,
     const std::optional<NChunkClient::TDataSink>& dataSink,
+    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
@@ -111,6 +115,7 @@ TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
     NApi::NNative::IClientPtr client,
     TString localHostName,
     NApi::ITransactionPtr transaction,
+    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
@@ -124,6 +129,7 @@ TFuture<IUnversionedTableFragmentWriterPtr> CreateSchemalessTableFragmentWriter(
     NApi::NNative::IClientPtr client,
     std::string localHostName,
     NCypressClient::TTransactionId transactionId,
+    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 

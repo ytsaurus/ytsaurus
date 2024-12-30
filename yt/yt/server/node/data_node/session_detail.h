@@ -3,6 +3,8 @@
 #include "session.h"
 #include "location.h"
 
+#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
+
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -24,7 +26,8 @@ public:
         const TSessionOptions& options,
         TStoreLocationPtr location,
         NConcurrency::TLease lease,
-        TLockedChunkGuard lockedChunkGuard);
+        TLockedChunkGuard lockedChunkGuard,
+        NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions);
 
     TChunkId GetChunkId() const& override;
     TSessionId GetId() const& override;
@@ -42,7 +45,7 @@ public:
 
     void Cancel(const TError& error) override;
 
-    TFuture<NChunkClient::NProto::TChunkInfo> Finish(
+    TFuture<TFinishResult> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) override;
 
@@ -58,7 +61,7 @@ public:
         i64 cumulativeBlockSize,
         const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
 
-    TFuture<NIO::TIOCounters> FlushBlocks(int blockIndex) override;
+    TFuture<TFlushBlocksResult> FlushBlocks(int blockIndex) override;
 
     void OnUnregistered() override;
 
@@ -83,6 +86,7 @@ protected:
     const TInstant StartTime_;
 
     TLockedChunkGuard LockedChunkGuard_;
+    const NChunkClient::IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
 
     TPromise<void> UnregisteredEvent_ = NewPromise<void>();
 
@@ -92,10 +96,9 @@ protected:
 
     std::atomic<bool> Canceled_ = false;
 
-
     virtual TFuture<void> DoStart() = 0;
     virtual void DoCancel(const TError& error) = 0;
-    virtual TFuture<NChunkClient::NProto::TChunkInfo> DoFinish(
+    virtual TFuture<TFinishResult> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) = 0;
     virtual TFuture<NIO::TIOCounters> DoPutBlocks(
@@ -108,7 +111,7 @@ protected:
         int blockCount,
         i64 cumulativeBlockSize,
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;
-    virtual TFuture<NIO::TIOCounters> DoFlushBlocks(int blockIndex) = 0;
+    virtual TFuture<TFlushBlocksResult> DoFlushBlocks(int blockIndex) = 0;
 
     void ValidateActive() const;
 };
