@@ -361,7 +361,7 @@ std::vector<TP2PSuggestion> TP2PSnooper::OnBlockRead(
             }
         }
 
-        if (blockIsHot && (*blocks)[i].Size() >= static_cast<size_t>(config->MaxBlockSize)) {
+        if (blockIsHot && (*blocks)[i].Size() >= config->MaxBlockSize) {
             ThrottledBytes_.Increment((*blocks)[i].Size());
             ThrottledLargeBlockBytes_.Increment((*blocks)[i].Size());
             (*blocks)[i] = {};

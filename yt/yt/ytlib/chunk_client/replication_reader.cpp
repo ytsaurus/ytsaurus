@@ -1734,9 +1734,9 @@ private:
                 return firstHit < secondHit;
             });
 
-        count = std::min(count, static_cast<int>(peerAndSuccessfulProbeResults.size()));
+        count = std::min<int>(count, std::ssize(peerAndSuccessfulProbeResults));
         TPeerList bestPeers;
-        for (int index = 0; index < static_cast<int>(peerAndSuccessfulProbeResults.size()); ++index) {
+        for (int index = 0; index < std::ssize(peerAndSuccessfulProbeResults); ++index) {
             const auto& [peer, probeResult] = peerAndSuccessfulProbeResults[index];
             if (index < count) {
                 bestPeers.push_back(peer);

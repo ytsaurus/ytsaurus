@@ -1665,7 +1665,7 @@ bool TChunkReplicator::TryScheduleRepairJob(
     if (!codec->CanRepair(erasedPartIndexes)) {
         // Can't repair without decommissioned replicas. Use them.
         auto guaranteedRepairablePartCount = codec->GetGuaranteedRepairablePartCount();
-        YT_VERIFY(guaranteedRepairablePartCount < static_cast<int>(erasedPartIndexes.size()));
+        YT_VERIFY(guaranteedRepairablePartCount < std::ssize(erasedPartIndexes));
 
         // Reorder the parts so that the actually erased ones go first and then the decommissioned ones.
         std::partition(

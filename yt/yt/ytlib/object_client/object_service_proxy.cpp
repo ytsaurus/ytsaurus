@@ -120,7 +120,7 @@ TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
 
 int TObjectServiceProxy::TReqExecuteSubbatch::GetSize() const
 {
-    return static_cast<int>(InnerRequestDescriptors_.size());
+    return std::ssize(InnerRequestDescriptors_);
 }
 
 TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>
@@ -813,7 +813,7 @@ void TObjectServiceProxy::TRspExecuteBatch::SetResponseReceived(
     auto& descriptor = InnerResponseDescriptors_[index];
     YT_VERIFY(!descriptor.Meta);
 
-    const auto attachmentCount = static_cast<int>(Attachments_.size());
+    const auto attachmentCount = std::ssize(Attachments_);
     const auto rangeSize = std::distance(attachments.Begin, attachments.End);
 
     descriptor.Uncertain = false;

@@ -66,7 +66,7 @@ public:
 
     int GetChildCount()
     {
-        return static_cast<int>(KeyToChild_.size());
+        return std::ssize(KeyToChild_);
     }
 
     const TGroupPtr& GetGroup()

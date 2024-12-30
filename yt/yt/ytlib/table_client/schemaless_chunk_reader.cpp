@@ -428,7 +428,7 @@ protected:
                 ToProto(chunkLowerLimit->mutable_key_bound_prefix(), firstUnreadKey.AsOwningRow());
                 chunkLowerLimit->set_key_bound_is_inclusive(true);
             }
-            i64 rowCount = std::max(1l, chunk.row_count_override() - RowCount_ + static_cast<i64>(unreadRows.Size()));
+            i64 rowCount = std::max(1l, chunk.row_count_override() - RowCount_ + std::ssize(unreadRows));
             rowCount = std::min(rowCount, upperRowIndex - rowIndex);
             chunk.set_row_count_override(rowCount);
             i64 chunkDataWeight = misc.has_data_weight() ? misc.data_weight() : misc.uncompressed_data_size();

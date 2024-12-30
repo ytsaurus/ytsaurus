@@ -423,9 +423,9 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
     if (config.MinTabletCount) {
         mergeBudgetByIndex.resize(table->Tablets.size());
 
-        int mergeBudget = std::max(
+        int mergeBudget = std::max<int>(
             0,
-            static_cast<int>(table->Tablets.size()) - *config.MinTabletCount);
+            std::ssize(table->Tablets) - *config.MinTabletCount);
 
         std::vector<int> tabletsPendingMerge;
         for (const auto& tablet : tablets) {

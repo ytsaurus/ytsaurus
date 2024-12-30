@@ -159,7 +159,7 @@ TMultiReaderManagerUnreadState TSequentialMultiReaderManager::GetUnreadState() c
     auto guard = Guard(ActiveReadersLock_);
     TMultiReaderManagerUnreadState state;
     state.CurrentReader = CurrentSession_.Reader;
-    for (int index = NextReaderIndex_; index < static_cast<int>(ReaderFactories_.size()); ++index) {
+    for (int index = NextReaderIndex_; index < std::ssize(ReaderFactories_); ++index) {
         state.ReaderFactories.push_back(ReaderFactories_[index]);
     }
     return state;

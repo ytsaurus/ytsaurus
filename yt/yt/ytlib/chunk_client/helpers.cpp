@@ -341,7 +341,7 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
         userObject.ExternalCellTag);
     auto batchReq = proxy.ExecuteBatchWithRetries(client->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
 
-    for (int rangeIndex = 0; rangeIndex < static_cast<int>(ranges.size()); ++rangeIndex) {
+    for (int rangeIndex = 0; rangeIndex < std::ssize(ranges); ++rangeIndex) {
         // XXX(babenko): YT-11825
         i64 subrequestCount = chunkCount < 0 ? 1 : (chunkCount + maxChunksPerFetch - 1) / maxChunksPerFetch;
         for (i64 subrequestIndex = 0; subrequestIndex < subrequestCount; ++subrequestIndex) {
@@ -797,9 +797,9 @@ void LocateChunks(
         TChunkServiceProxy proxy(channel);
 
         for (int beginIndex = 0; beginIndex < std::ssize(chunkSpecs); beginIndex += maxChunksPerLocateRequest) {
-            int endIndex = std::min(
+            int endIndex = std::min<int>(
                 beginIndex + maxChunksPerLocateRequest,
-                static_cast<int>(chunkSpecs.size()));
+                std::ssize(chunkSpecs));
 
             auto req = proxy.LocateChunks();
             req->SetRequestHeavy(true);

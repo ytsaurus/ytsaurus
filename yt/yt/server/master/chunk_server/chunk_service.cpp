@@ -587,7 +587,7 @@ private:
                     &allocatedNodes,
                     preferredHostName);
 
-                for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
+                for (int index = 0; index < std::ssize(targets); ++index) {
                     auto* target = targets[index];
                     builder.Add(target);
                     auto replica = TNodePtrWithReplicaAndMediumIndex(target, GenericChunkReplicaIndex, medium->GetIndex());

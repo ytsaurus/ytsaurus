@@ -290,13 +290,13 @@ void RegisterAdditionalChaos(
     auto lastCellTag = mutations->ChangedChaosCellTagLast.value_or(registry->CellTagLast);
     auto bundleInfo = GetOrCrash(input.TabletCellBundles, bundleName);
 
-    auto registeredChaosCells = [&] {
+    auto registeredChaosCells = [&] () -> int {
         auto it = input.AdditionalCellTagsByBundle.find(bundleName);
         if (it == input.AdditionalCellTagsByBundle.end()) {
             return 0;
         }
 
-        return static_cast<int>(it->second.size());
+        return std::ssize(it->second);
     }();
 
     auto cellsToRegister = std::max(bundleInfo->TargetConfig->AdditionalChaosCellCount - registeredChaosCells / 2, 0);

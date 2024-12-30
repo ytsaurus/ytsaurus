@@ -1543,7 +1543,7 @@ public:
 
         if (!table->Tablets().empty()) {
             int firstTabletIndex = 0;
-            int lastTabletIndex = static_cast<int>(table->Tablets().size()) - 1;
+            int lastTabletIndex = std::ssize(table->Tablets()) - 1;
 
             TouchAffectedTabletActions(table, firstTabletIndex, lastTabletIndex, "remove");
 
@@ -4714,7 +4714,7 @@ private:
         tablets.erase(tablets.begin() + firstTabletIndex, tablets.begin() + (lastTabletIndex + 1));
         tablets.insert(tablets.begin() + firstTabletIndex, newTablets.begin(), newTablets.end());
         // Update all indexes.
-        for (int index = 0; index < static_cast<int>(tablets.size()); ++index) {
+        for (int index = 0; index < std::ssize(tablets); ++index) {
             auto* tablet = tablets[index];
             tablet->SetIndex(index);
         }

@@ -1094,7 +1094,7 @@ private:
                 "provided_spec",
                 "has_secure_vault",
             };
-            const int operationsCount = static_cast<int>(OperationIds_.size());
+            const int operationsCount = std::ssize(OperationIds_);
 
             std::vector<TOperationId> operationIdsToRemove;
 

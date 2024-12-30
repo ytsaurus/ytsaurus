@@ -1164,7 +1164,7 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
 
     const auto& mountConfig = partition->GetTablet()->GetSettings().MountConfig;
 
-    int formerPartitionStoreCount = static_cast<int>(partition->Stores().size()) - static_cast<int>(addedStores.size());
+    int formerPartitionStoreCount = std::ssize(partition->Stores()) - std::ssize(addedStores);
 
     std::vector<TLegacyOwningKey> proposedPivots{partition->GetPivotKey()};
     i64 cumulativeDataSize = 0;

@@ -1631,8 +1631,8 @@ protected:
         Y_UNUSED(chunkWriter->Write(InitialRows_));
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
 
-        for (auto& block : memoryWriter->GetBlocks()) {
-            EXPECT_LE(block.Size(), static_cast<size_t>(config->BlockSize + overhead));
+        for (const auto& block : memoryWriter->GetBlocks()) {
+            EXPECT_LE(block.Size(), config->BlockSize + overhead);
         }
     }
 };

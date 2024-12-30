@@ -3640,10 +3640,10 @@ private:
         auto stat = AggregateStatistics(statistics).front();
 
         i64 outputBufferSize = std::min(
-            PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(GetFinalPartitions().size()),
+            PartitionJobIOConfig->TableWriter->BlockSize * std::ssize(GetFinalPartitions()),
             stat.DataWeight);
 
-        outputBufferSize += THorizontalBlockWriter::MaxReserveSize * static_cast<i64>(GetFinalPartitions().size());
+        outputBufferSize += THorizontalBlockWriter::MaxReserveSize * std::ssize(GetFinalPartitions());
 
         outputBufferSize = std::min(
             outputBufferSize,
@@ -4576,9 +4576,9 @@ private:
     {
         auto stat = AggregateStatistics(statistics).front();
 
-        i64 reserveSize = THorizontalBlockWriter::MaxReserveSize * static_cast<i64>(GetFinalPartitions().size());
+        i64 reserveSize = THorizontalBlockWriter::MaxReserveSize * std::ssize(GetFinalPartitions());
         i64 bufferSize = std::min(
-            reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(GetFinalPartitions().size()),
+            reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * std::ssize(GetFinalPartitions()),
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
         TExtendedJobResources result;

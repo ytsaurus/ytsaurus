@@ -642,7 +642,7 @@ private:
 
             YT_LOG_DEBUG("Enqueuing blocks for replication (Blocks: %v-%v)",
                 currentBlockIndex,
-                currentBlockIndex + static_cast<int>(writeBlocks.size()) - 1);
+                currentBlockIndex + std::ssize(writeBlocks) - 1);
 
             auto writeResult = writer->WriteBlocks(workloadDescriptor, writeBlocks);
             if (!writeResult) {

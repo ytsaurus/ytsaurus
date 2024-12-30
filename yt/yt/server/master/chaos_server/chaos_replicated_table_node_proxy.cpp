@@ -170,8 +170,8 @@ private:
     {
         auto client = connection->CreateClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
         auto tableMountInfoFuture = client->GetTableMountCache()->GetTableInfo(path);
-        return tableMountInfoFuture.Apply(BIND([] (const TTableMountInfoPtr& tableMountInfo) {
-            return static_cast<int>(tableMountInfo->Tablets.size());
+        return tableMountInfoFuture.Apply(BIND([] (const TTableMountInfoPtr& tableMountInfo) -> int {
+            return std::ssize(tableMountInfo->Tablets);
         }));
     }
 };

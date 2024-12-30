@@ -400,7 +400,7 @@ private:
 
         int operator()(TSortedDynamicRow lhs, TUnversionedValueRange rhs) const
         {
-            YT_ASSERT(static_cast<int>(rhs.Size()) >= KeyColumnCount_);
+            YT_ASSERT(std::ssize(rhs) >= KeyColumnCount_);
             return Compare(lhs, rhs.Begin(), KeyColumnCount_);
         }
 

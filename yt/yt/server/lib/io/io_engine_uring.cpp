@@ -879,7 +879,7 @@ private:
                 readSize = Min(readSize, *Config_->SimulatedMaxBytesPerRead);
             }
             Sensors_->RegisterReadBytes(readSize);
-            auto bufferSize = static_cast<i64>(subrequestState.Buffer.Size());
+            auto bufferSize = std::ssize(subrequestState.Buffer);
             subrequest.Offset += readSize;
             if (bufferSize == readSize) {
                 YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Read subrequest fully succeeded (Request: %p/%v, Size: %v)",
@@ -929,7 +929,7 @@ private:
 
         do {
             auto& buffer = request->WriteRequest.Buffers[request->CurrentWriteSubrequestIndex];
-            auto bufferSize = static_cast<i64>(buffer.Size());
+            auto bufferSize = std::ssize(buffer);
             if (bufferSize <= writtenSize) {
                 YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Write subrequest fully succeeded (Request: %p/%v, Size: %v)",
                     request,

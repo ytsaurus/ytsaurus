@@ -112,7 +112,7 @@ IUnversionedRowBatchPtr MakeColumnarRowBatch(
         TReadRange());
 
     TRowBatchReadOptions opt{
-        .MaxRowsPerRead = static_cast<i64>(rows.size()) + 10,
+        .MaxRowsPerRead = std::ssize(rows) + 10,
         .Columnar = true};
     auto batch = ReadRowBatch(schemalessRangeChunkReader, opt);
     return batch;

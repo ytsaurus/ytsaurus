@@ -423,7 +423,7 @@ private:
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
         int firstBlockIndex = request->first_block_index();
-        int blockCount = static_cast<int>(request->Attachments().size());
+        int blockCount = std::ssize(request->Attachments());
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
         bool populateCache = request->populate_cache();
         bool flushBlocks = request->flush_blocks();
@@ -2137,8 +2137,8 @@ private:
 
         // Don't return more than requested.
         std::random_shuffle(samples.begin(), samples.end());
-        auto count = std::min(
-            static_cast<int>(samples.size()),
+        auto count = std::min<int>(
+            std::ssize(samples),
             sampleRequest.sample_count());
         samples.erase(samples.begin() + count, samples.end());
 

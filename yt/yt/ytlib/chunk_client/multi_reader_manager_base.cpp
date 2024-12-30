@@ -45,7 +45,7 @@ TMultiReaderManagerBase::TMultiReaderManagerBase(
     }
 
     NonOpenedReaderIndexes_.reserve(ReaderFactories_.size());
-    for (int i = 0; i < static_cast<int>(ReaderFactories_.size()); ++i) {
+    for (int i = 0; i < std::ssize(ReaderFactories_); ++i) {
         YT_VERIFY(NonOpenedReaderIndexes_.insert(i).second);
     }
 }

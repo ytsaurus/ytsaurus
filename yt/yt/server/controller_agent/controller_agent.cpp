@@ -125,7 +125,7 @@ public:
         auto [iterator, inserted] = IdToOrchid_.emplace(id, std::move(orchid));
         YT_VERIFY(inserted);
         Queue_.emplace(TInstant::Now(), iterator);
-        while (static_cast<int>(Queue_.size()) > Config_->Limit) {
+        while (std::ssize(Queue_) > Config_->Limit) {
             QueuePop();
         }
     }

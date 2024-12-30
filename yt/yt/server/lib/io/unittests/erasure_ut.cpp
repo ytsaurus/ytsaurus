@@ -440,7 +440,7 @@ public:
             for (int i = 0; i < std::ssize(indexes); ++i) {
                 auto resultRef = result[i];
                 auto dataRef = dataRefs[indexes[i]];
-                EXPECT_EQ(dataRef.Size(), resultRef.Size());
+                EXPECT_EQ(std::ssize(dataRef), resultRef.Size());
                 EXPECT_EQ(ToString(dataRef), ToString(resultRef.Data));
             }
         };

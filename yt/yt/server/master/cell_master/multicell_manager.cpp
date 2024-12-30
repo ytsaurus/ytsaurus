@@ -1056,7 +1056,7 @@ private:
         }
 
         YT_VERIFY(RegisteredMasterMap_.size() == RegisteredMasterCellTags_.size());
-        int index = static_cast<int>(RegisteredMasterMap_.size());
+        int index = std::ssize(RegisteredMasterMap_);
         RegisteredMasterCellTags_.push_back(cellTag);
 
         auto [it, inserted] = RegisteredMasterMap_.emplace(cellTag, TMasterEntry());

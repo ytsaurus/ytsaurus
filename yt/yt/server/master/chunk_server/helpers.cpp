@@ -92,7 +92,7 @@ int GetChildIndex(const TChunkList* chunkList, const TChunkTree* child)
         return index;
     } else {
         // Typically called for the trailing chunks.
-        for (int index = static_cast<int>(children.size()) - 1; index >= 0; --index) {
+        for (int index = std::ssize(children) - 1; index >= 0; --index) {
             if (children[index] == child) {
                 return index;
             }

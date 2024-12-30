@@ -91,7 +91,7 @@ void TSimpleHydraManagerMock::DoApplyUpTo(int sequenceNumber)
 {
     YT_ASSERT_INVOKER_AFFINITY(AutomatonInvoker_);
 
-    YT_VERIFY(sequenceNumber <= static_cast<int>(MutationRequests_.size()));
+    YT_VERIFY(sequenceNumber <= std::ssize(MutationRequests_));
 
     while (AppliedSequenceNumber_ < sequenceNumber) {
         const auto& request = MutationRequests_[AppliedSequenceNumber_];

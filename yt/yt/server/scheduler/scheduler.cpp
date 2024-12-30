@@ -637,7 +637,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        if (static_cast<int>(IdToOperation_.size()) >= Config_->MaxOperationCount) {
+        if (std::ssize(IdToOperation_) >= Config_->MaxOperationCount) {
             THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::TooManyOperations,
                 "Limit for the total number of concurrent operations %v has been reached",
                 Config_->MaxOperationCount);

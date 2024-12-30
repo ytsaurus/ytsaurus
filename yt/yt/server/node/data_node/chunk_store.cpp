@@ -699,7 +699,7 @@ int TChunkStore::GetChunkCount() const
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(ChunkMapLock_);
-    return static_cast<int>(ChunkMap_.size());
+    return std::ssize(ChunkMap_);
 }
 
 std::vector<IChunkPtr> TChunkStore::GetLocationChunks(const TChunkLocationPtr& location)
@@ -896,7 +896,7 @@ TChunkStore::TPlacementInfo* TChunkStore::GetOrCreatePlacementInfo(TPlacementId 
     auto it = PlacementIdToInfo_.find(placementId);
     if (it == PlacementIdToInfo_.end()) {
         TPlacementInfo placementInfo;
-        placementInfo.CurrentLocationIndex = static_cast<int>(RandomNumber(Locations_.size()));
+        placementInfo.CurrentLocationIndex = RandomNumber(Locations_.size());
         auto pair = PlacementIdToInfo_.emplace(placementId, placementInfo);
         YT_VERIFY(pair.second);
         it = pair.first;

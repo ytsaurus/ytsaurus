@@ -260,7 +260,7 @@ void TJobSplittingBase::Completed(TCookie cookie, const TCompletedJobSummary& jo
         parentEmptyChildCount);
 
     YT_VERIFY(parentCookie < static_cast<TCookie>(CookieToChildCookies_.size()));
-    if (parentEmptyChildCount + 1 >= static_cast<int>(CookieToChildCookies_[parentCookie].size())) {
+    if (parentEmptyChildCount + 1 >= std::ssize(CookieToChildCookies_[parentCookie])) {
         YT_LOG_DEBUG(
             "All but one sibling of a cookie are empty, marking descendants of a "
             "parent as unsplittable (OutputCookie: %v, ParentOutputCookie: %v)",

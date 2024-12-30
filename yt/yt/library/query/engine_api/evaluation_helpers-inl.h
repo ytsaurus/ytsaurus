@@ -13,7 +13,7 @@ int TCGVariables::AddOpaque(TArgs&& ... args)
 {
     auto pointer = Holder_.Register(new T(std::forward<TArgs>(args)...));
 
-    int index = static_cast<int>(OpaquePointers_.size());
+    int index = std::ssize(OpaquePointers_);
     OpaquePointers_.push_back(pointer);
     OpaquePointeeSizes_.push_back(std::is_trivially_copyable_v<T> ? sizeof(T) : 0);
 

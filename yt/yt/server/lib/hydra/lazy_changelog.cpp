@@ -103,7 +103,7 @@ public:
                 maxRecords,
                 maxBytes);
         } else {
-            int recordCount = std::min(static_cast<int>(BacklogRecords_.size()) - firstRecordId, maxRecords);
+            int recordCount = std::min<int>(std::ssize(BacklogRecords_) - firstRecordId, maxRecords);
             std::vector<TSharedRef> result(recordCount);
             for (int index = 0; index < recordCount; ++index) {
                 result[index] = BacklogRecords_[index + firstRecordId];

@@ -1300,7 +1300,7 @@ bool TStickyGroupSizeCache::TKey::operator == (const TKey& other) const
     if (Key != other.Key || Message.Size() != other.Message.Size()) {
         return false;
     }
-    for (int i = 0; i < static_cast<int>(Message.Size()); ++i) {
+    for (int i = 0; i < std::ssize(Message); ++i) {
         if (!TRef::AreBitwiseEqual(Message[i], other.Message[i])) {
             return false;
         }

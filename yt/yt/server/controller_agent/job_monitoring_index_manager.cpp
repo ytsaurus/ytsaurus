@@ -101,7 +101,7 @@ bool TJobMonitoringIndexManager::TryRemoveOperation(TOperationId operationId)
         InsertOrCrash(FreeIndices_, index);
     }
 
-    Size_ -= static_cast<int>(indexes.size());
+    Size_ -= std::ssize(indexes);
     OperationIdToIndexes_.erase(indexesIt);
     return true;
 }

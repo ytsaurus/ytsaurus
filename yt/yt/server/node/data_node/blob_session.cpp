@@ -208,7 +208,7 @@ private:
     {
         YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
-        auto blockCount = static_cast<int>(blocks.size());
+        auto blockCount = std::ssize(blocks);
         auto totalSize = GetByteSize(blocks);
 
         YT_LOG_DEBUG("Started writing blocks (BlockIndexes: %v-%v, TotalSize: %v)",
@@ -600,7 +600,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
         BlockCount_.fetch_add(1);
 
         {
-            auto blockSize = static_cast<i64>(block.Size());
+            auto blockSize = block.Size();
 
             if (useCumulativeBlockSize) {
                 // Move tracking from pending guards.

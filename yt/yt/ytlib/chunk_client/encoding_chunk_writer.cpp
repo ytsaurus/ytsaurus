@@ -64,7 +64,7 @@ void TEncodingChunkWriter::WriteBlock(
 
     ++CurrentBlockIndex_;
 
-    LargestBlockSize_ = std::max(LargestBlockSize_, static_cast<i64>(block.Size()));
+    LargestBlockSize_ = std::max(LargestBlockSize_, std::ssize(block));
     EncodingWriter_->WriteBlock(std::move(block), blockType, groupIndex);
 }
 

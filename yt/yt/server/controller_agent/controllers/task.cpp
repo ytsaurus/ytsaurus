@@ -1217,7 +1217,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
     if (!jobSummary.Abandoned) {
         YT_VERIFY(jobSummary.OutputDataStatistics);
         const auto& outputDataStatistics = *jobSummary.OutputDataStatistics;
-        for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
+        for (int index = 0; index < std::ssize(joblet->ChunkListIds); ++index) {
             auto outputStatistics = VectorAtOr(outputDataStatistics, index);
             if (outputStatistics.chunk_count() == 0) {
                 if (!joblet->Revived) {

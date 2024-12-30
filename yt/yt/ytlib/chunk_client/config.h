@@ -248,7 +248,7 @@ class TChunkTeleporterConfig
 {
 public:
     //! Maximum number of chunks to export/import per request.
-    int MaxTeleportChunksPerRequest;
+    i64 MaxTeleportChunksPerRequest;
 
     REGISTER_YSON_STRUCT(TChunkTeleporterConfig);
 

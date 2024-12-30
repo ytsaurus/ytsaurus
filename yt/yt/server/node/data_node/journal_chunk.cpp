@@ -226,7 +226,7 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         auto readTime = timer.GetElapsedTime();
         const auto& blocks = blocksOrError.Value();
-        int blocksRead = static_cast<int>(blocks.size());
+        int blocksRead = std::ssize(blocks);
         i64 bytesRead = GetByteSize(blocks);
         session->Options.ChunkReaderStatistics->DataBytesReadFromDisk.fetch_add(bytesRead, std::memory_order::relaxed);
         // TODO(ngc224): propagate proper value in YT-23540
