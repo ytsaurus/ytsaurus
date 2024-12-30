@@ -45,7 +45,7 @@ public:
         return GetCurrentEngine()->Read(std::move(requests), category, tagCookie, sessionId, useDedicatedAllocations);
     }
 
-    TFuture<void> Write(
+    TFuture<TWriteResponse> Write(
         TWriteRequest request,
         EWorkloadCategory category,
         TSessionId sessionId) override

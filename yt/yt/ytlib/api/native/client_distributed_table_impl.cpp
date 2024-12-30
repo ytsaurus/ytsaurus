@@ -514,7 +514,8 @@ TFuture<ITableFragmentWriterPtr> TClient::CreateTableFragmentWriter(
         nameTable,
         this,
         /*localHostName*/ std::string{}, // Locality is not important during table upload.
-        cookie.MainTransactionId);
+        cookie.MainTransactionId,
+        /*writeBlocksOptions*/ {});
 
     return asyncSchemalessWriter.ApplyUnique(BIND([] (IUnversionedTableFragmentWriterPtr&& schemalessWriter) {
         return CreateApiFromSchemalessWriterAdapter(std::move(schemalessWriter));

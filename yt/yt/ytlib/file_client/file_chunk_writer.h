@@ -5,6 +5,7 @@
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_writer_base.h>
+#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/multi_chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
@@ -44,6 +45,7 @@ IFileChunkWriterPtr CreateFileChunkWriter(
     TFileChunkWriterConfigPtr config,
     NChunkClient::TEncodingWriterOptionsPtr options,
     NChunkClient::IChunkWriterPtr chunkWriter,
+    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     const NChunkClient::TDataSink& dataSink,
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
@@ -66,6 +68,7 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     NTransactionClient::TTransactionId transactionId,
     NChunkClient::TChunkListId parentChunkListId,
     const NChunkClient::TDataSink& dataSink,
+    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     NChunkClient::TTrafficMeterPtr trafficMeter = nullptr,
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());

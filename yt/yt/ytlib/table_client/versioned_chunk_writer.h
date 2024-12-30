@@ -5,6 +5,7 @@
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_writer_base.h>
+#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/multi_chunk_writer.h>
@@ -35,6 +36,7 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     TChunkWriterOptionsPtr options,
     TTableSchemaPtr schema,
     NChunkClient::IChunkWriterPtr chunkWriter,
+    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     const std::optional<NChunkClient::TDataSink>& dataSink = {},
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
@@ -69,6 +71,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     NObjectClient::TCellTag cellTag,
     NTransactionClient::TTransactionId transactionId,
     TMasterTableSchemaId schemaId,
+    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     const std::optional<NChunkClient::TDataSink>& dataSink = {},
     NChunkClient::TChunkListId parentChunkListId = {},
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),

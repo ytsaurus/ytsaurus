@@ -247,6 +247,7 @@ void TestCompaction(const std::vector<TString>& chunkNames, bool dump, int batch
             options,
             tableSchema, // TTableSchema(cols),
             memoryWriter,
+            /*writeBlocksOptions*/ {},
             /*dataSink*/ std::nullopt);
     }
 
@@ -433,6 +434,7 @@ void ConvertChunkFormat(
             options,
             tableSchema,
             memoryWriter,
+            /*writeBlocksOptions*/ {},
             /*dataSink*/ std::nullopt);
     }
 

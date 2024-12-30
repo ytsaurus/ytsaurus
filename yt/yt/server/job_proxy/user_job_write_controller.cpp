@@ -259,7 +259,8 @@ void TUserJobWriteController::Init()
             schema,
             schemaId,
             TChunkTimestamps{timestamp, timestamp},
-            dataSink);
+            dataSink,
+            OutputWriteBlocksOptions_.emplace_back());
 
         Writers_.push_back(writer);
     }
@@ -289,7 +290,8 @@ void TUserJobWriteController::Init()
                 /*dataSink*/ std::nullopt,
                 FromProto<TChunkListId>(outputTableSpec.chunk_list_id()),
                 Host_->GetTrafficMeter(),
-                Host_->GetOutBandwidthThrottler()));
+                Host_->GetOutBandwidthThrottler(),
+                /*writeBlocksOptions*/ {}));
     }
 }
 
@@ -389,6 +391,11 @@ void TUserJobWriteController::PopulateStderrResult(NControllerAgent::NProto::TJo
         *jobResultExt->mutable_stderr_result() = StderrTableWriter_->GetOutputResult(
             Host_->GetConfig()->EnableStderrAndCoreLivePreview);
     }
+}
+
+std::vector<IChunkWriter::TWriteBlocksOptions> TUserJobWriteController::GetOutputWriteBlocksOptions() const
+{
+    return OutputWriteBlocksOptions_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

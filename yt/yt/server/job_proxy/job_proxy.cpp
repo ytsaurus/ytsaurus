@@ -1123,6 +1123,11 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics"_SP, extendedStatistics.ChunkReaderStatistics);
         DumpTimingStatistics(&statistics, "/chunk_reader_statistics"_SP, extendedStatistics.TimingStatistics);
 
+        for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, extendedStatistics.ChunkWriterStatistics.size()); ++index) {
+            auto ypathIndex = TStatisticPathLiteral(ToString(index));
+            DumpChunkWriterStatistics(&statistics, "/chunk_writer_statistics"_SP / ypathIndex, extendedStatistics.ChunkWriterStatistics[index]);
+        }
+
         if (const auto& pipeStatistics = extendedStatistics.PipeStatistics) {
             auto dumpPipeStatistics = [&] (const TStatisticPath& path, const IJob::TStatistics::TPipeStatistics& pipeStatistics) {
                 statistics.AddSample(path / "idle_time"_L, pipeStatistics.ConnectionStatistics.IdleDuration);

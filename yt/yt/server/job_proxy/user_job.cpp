@@ -904,7 +904,8 @@ private:
                 transactionId,
                 NChunkClient::TDataSink(),
                 Host_->GetTrafficMeter(),
-                Host_->GetOutBandwidthThrottler());
+                Host_->GetOutBandwidthThrottler(),
+                /*writeBlocksOptions*/ {});
 
             const auto& context = contexts[index];
             contextOutput.Write(context.Begin(), context.Size());
@@ -1430,6 +1431,9 @@ private:
         }
 
         result.ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics;
+        for (const auto& writeBlocksOptions: UserJobWriteController_->GetOutputWriteBlocksOptions()) {
+            result.ChunkWriterStatistics.push_back(writeBlocksOptions.ClientOptions.ChunkWriterStatistics);
+        }
 
         auto writers = UserJobWriteController_->GetWriters();
         for (const auto& writer : writers) {

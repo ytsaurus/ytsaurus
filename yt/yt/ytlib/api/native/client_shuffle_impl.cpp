@@ -256,7 +256,8 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
         NullTableSchemaId,
         NullChunkListId,
         std::move(partitioner),
-        /*dataSink*/ {});
+        /*dataSink*/ {},
+        /*writeBlocksOptions*/ {});
 
     return MakeFuture(New<TShuffleWriter>(std::move(writer), this, std::move(shuffleHandle)))
         .As<IRowBatchWriterPtr>();

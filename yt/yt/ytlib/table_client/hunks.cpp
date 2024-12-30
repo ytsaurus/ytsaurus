@@ -2196,10 +2196,12 @@ public:
     THunkChunkPayloadWriter(
         const TWorkloadDescriptor& workloadDescriptor,
         THunkChunkPayloadWriterConfigPtr config,
-        IChunkWriterPtr underlying)
+        IChunkWriterPtr underlying,
+        IChunkWriter::TWriteBlocksOptions underlyingOptions)
         : WorkloadDescriptor_(workloadDescriptor)
         , Config_(std::move(config))
         , Underlying_(std::move(underlying))
+        , UnderlyingOptions_(std::move(underlyingOptions))
     {
         Buffer_.Reserve(static_cast<i64>(Config_->DesiredBlockSize * BufferReserveFactor));
 
@@ -2276,7 +2278,7 @@ public:
             SetProtoExtension(Meta_->mutable_extensions(), ext);
         }
 
-        return Underlying_->Close(WorkloadDescriptor_, Meta_);
+        return Underlying_->Close(UnderlyingOptions_, WorkloadDescriptor_, Meta_);
     }
 
     TDeferredChunkMetaPtr GetMeta() const override
@@ -2322,6 +2324,7 @@ private:
     const TWorkloadDescriptor WorkloadDescriptor_;
     const THunkChunkPayloadWriterConfigPtr Config_;
     const IChunkWriterPtr Underlying_;
+    const IChunkWriter::TWriteBlocksOptions UnderlyingOptions_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 
@@ -2408,19 +2411,21 @@ private:
         MaxHunkSizeInBlock_ = 0;
         BlockSizes_.push_back(block.Size());
 
-        return Underlying_->WriteBlock(WorkloadDescriptor_, TBlock(std::move(block)));
+        return Underlying_->WriteBlock(UnderlyingOptions_, WorkloadDescriptor_, TBlock(std::move(block)));
     }
 };
 
 IHunkChunkPayloadWriterPtr CreateHunkChunkPayloadWriter(
     const TWorkloadDescriptor& workloadDescriptor,
     THunkChunkPayloadWriterConfigPtr config,
-    IChunkWriterPtr underlying)
+    IChunkWriterPtr underlying,
+    NChunkClient::IChunkWriter::TWriteBlocksOptions underlyingOptions)
 {
     return New<THunkChunkPayloadWriter>(
         workloadDescriptor,
         std::move(config),
-        std::move(underlying));
+        std::move(underlying),
+        std::move(underlyingOptions));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

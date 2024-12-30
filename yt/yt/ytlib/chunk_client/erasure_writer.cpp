@@ -173,7 +173,7 @@ public:
         , Output_(output)
     { }
 
-    void WriteStripe(int startBlockIndex, std::vector<TBlock> blocks)
+    void WriteStripe(const IChunkWriter::TWriteBlocksOptions& options, int startBlockIndex, std::vector<TBlock> blocks)
     {
         StripeStartBlockIndices_.push_back(startBlockIndex);
         StripeBlockCounts_.push_back(blocks.size());
@@ -185,7 +185,7 @@ public:
 
             BlockSizes_.push_back(blockWithChecksum.Size());
 
-            if (!Output_->WriteBlock(WorkloadDescriptor_, blockWithChecksum)) {
+            if (!Output_->WriteBlock(options, WorkloadDescriptor_, blockWithChecksum)) {
                 WaitFor(Output_->GetReadyEvent())
                     .ThrowOnError();
             }
@@ -264,14 +264,18 @@ public:
             .Run();
     }
 
-    bool WriteBlock(const TWorkloadDescriptor& workloadDescriptor, const TBlock& block) override;
+    bool WriteBlock(
+        const IChunkWriter::TWriteBlocksOptions& options,
+        const TWorkloadDescriptor& workloadDescriptor,
+        const TBlock& block) override;
 
     bool WriteBlocks(
+        const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<TBlock>& blocks) override
     {
         for (const auto& block : blocks) {
-            WriteBlock(workloadDescriptor, block);
+            WriteBlock(options, workloadDescriptor, block);
         }
         return ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK();
     }
@@ -321,6 +325,7 @@ public:
     }
 
     TFuture<void> Close(
+        const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const TDeferredChunkMetaPtr& chunkMeta) override;
 
@@ -368,14 +373,22 @@ private:
 
     void DoOpen();
 
-    TFuture<void> Flush(std::vector<TBlock> blocks);
+    TFuture<void> Flush(const IChunkWriter::TWriteBlocksOptions& options, std::vector<TBlock> blocks);
 
-    TFuture<void> WriteDataBlocks(const std::vector<std::vector<TBlock>>& groups);
-    TFuture<void> EncodeAndWriteParityBlocks(const std::vector<std::vector<TBlock>>& groups);
+    TFuture<void> WriteDataBlocks(
+        const IChunkWriter::TWriteBlocksOptions& options,
+        const std::vector<std::vector<TBlock>>& groups);
+
+    TFuture<void> EncodeAndWriteParityBlocks(
+        const IChunkWriter::TWriteBlocksOptions& options,
+        const std::vector<std::vector<TBlock>>& groups);
 
     void FillChunkMeta(const TDeferredChunkMetaPtr& chunkMeta);
 
-    void DoClose(const TWorkloadDescriptor& workloadDescriptor, TDeferredChunkMetaPtr chunkMeta);
+    void DoClose(
+        const IChunkWriter::TWriteBlocksOptions& options,
+        const TWorkloadDescriptor& workloadDescriptor,
+        TDeferredChunkMetaPtr chunkMeta);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -394,7 +407,10 @@ void TErasureWriter::DoOpen()
     IsOpen_ = true;
 }
 
-bool TErasureWriter::WriteBlock(const TWorkloadDescriptor& /*workloadDescriptor*/, const TBlock& block)
+bool TErasureWriter::WriteBlock(
+    const IChunkWriter::TWriteBlocksOptions& options,
+    const TWorkloadDescriptor& /*workloadDescriptor*/,
+    const TBlock& block)
 {
     Blocks_.push_back(block);
     AccumulatedSize_ += block.Size();
@@ -408,7 +424,7 @@ bool TErasureWriter::WriteBlock(const TWorkloadDescriptor& /*workloadDescriptor*
         AccumulatedSize_ >= *Config_->ErasureStripeSize * Codec_->GetDataPartCount())
     {
         ReadyEvent_ = ReadyEvent_.Apply(
-            BIND(&TErasureWriter::Flush, MakeStrong(this), Passed(std::move(Blocks_)))
+            BIND(&TErasureWriter::Flush, MakeStrong(this), options, Passed(std::move(Blocks_)))
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker()));
 
         AccumulatedSize_ = 0;
@@ -418,7 +434,9 @@ bool TErasureWriter::WriteBlock(const TWorkloadDescriptor& /*workloadDescriptor*
     return ReadyEvent_.IsSet() && ReadyEvent_.Get().IsOK();
 }
 
-TFuture<void> TErasureWriter::WriteDataBlocks(const std::vector<std::vector<TBlock>>& groups)
+TFuture<void> TErasureWriter::WriteDataBlocks(
+    const IChunkWriter::TWriteBlocksOptions& options,
+    const std::vector<std::vector<TBlock>>& groups)
 {
     YT_ASSERT_THREAD_AFFINITY(WriterThread);
     YT_VERIFY(groups.size() <= Writers_.size());
@@ -431,6 +449,7 @@ TFuture<void> TErasureWriter::WriteDataBlocks(const std::vector<std::vector<TBlo
             BIND(
                 &TErasurePartWriterWrapper::WriteStripe,
                 WriterWrappers_[index],
+                options,
                 blockIndex,
                 groups[index])
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
@@ -443,7 +462,9 @@ TFuture<void> TErasureWriter::WriteDataBlocks(const std::vector<std::vector<TBlo
     return AllSucceeded(asyncResults);
 }
 
-TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks(const std::vector<std::vector<TBlock>>& groups)
+TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks(
+    const IChunkWriter::TWriteBlocksOptions& options,
+    const std::vector<std::vector<TBlock>>& groups)
 {
     YT_ASSERT_INVOKER_AFFINITY(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker());
 
@@ -474,6 +495,7 @@ TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks(const std::vector<std::
             BIND(
                 &TErasurePartWriterWrapper::WriteStripe,
                 WriterWrappers_[partIndex],
+                options,
                 /*blockIndex*/ 0,
                 parityBlocks[index])
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
@@ -482,7 +504,7 @@ TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks(const std::vector<std::
     return AllSucceeded(asyncResults);
 }
 
-TFuture<void> TErasureWriter::Flush(std::vector<TBlock> blocks)
+TFuture<void> TErasureWriter::Flush(const IChunkWriter::TWriteBlocksOptions& options, std::vector<TBlock> blocks)
 {
     YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
@@ -498,8 +520,8 @@ TFuture<void> TErasureWriter::Flush(std::vector<TBlock> blocks)
         WorkloadDescriptor_.GetPriority());
 
     std::vector<TFuture<void>> asyncResults {
-        WriteDataBlocks(groups),
-        BIND(&TErasureWriter::EncodeAndWriteParityBlocks, MakeStrong(this), groups)
+        WriteDataBlocks(options, groups),
+        BIND(&TErasureWriter::EncodeAndWriteParityBlocks, MakeStrong(this), options, groups)
             .AsyncVia(compressionInvoker)
             .Run()
     };
@@ -507,11 +529,14 @@ TFuture<void> TErasureWriter::Flush(std::vector<TBlock> blocks)
     return AllSucceeded(asyncResults);
 }
 
-TFuture<void> TErasureWriter::Close(const TWorkloadDescriptor& workloadCategory, const TDeferredChunkMetaPtr& chunkMeta)
+TFuture<void> TErasureWriter::Close(
+    const IChunkWriter::TWriteBlocksOptions& options,
+    const TWorkloadDescriptor& workloadCategory,
+    const TDeferredChunkMetaPtr& chunkMeta)
 {
     YT_VERIFY(IsOpen_);
 
-    return BIND(&TErasureWriter::DoClose, MakeStrong(this), workloadCategory, chunkMeta)
+    return BIND(&TErasureWriter::DoClose, MakeStrong(this), options, workloadCategory, chunkMeta)
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
             .Run();
 }
@@ -553,13 +578,16 @@ void TErasureWriter::FillChunkMeta(const TDeferredChunkMetaPtr& chunkMeta)
     chunkMeta->Finalize();
 }
 
-void TErasureWriter::DoClose(const TWorkloadDescriptor& workloadCategory, TDeferredChunkMetaPtr chunkMeta)
+void TErasureWriter::DoClose(
+    const IChunkWriter::TWriteBlocksOptions& options,
+    const TWorkloadDescriptor& workloadCategory,
+    TDeferredChunkMetaPtr chunkMeta)
 {
     YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
     WaitFor(
         ReadyEvent_.Apply(
-            BIND(&TErasureWriter::Flush, MakeStrong(this), std::move(Blocks_))
+            BIND(&TErasureWriter::Flush, MakeStrong(this), options, std::move(Blocks_))
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())))
         .ThrowOnError();
 
@@ -567,7 +595,7 @@ void TErasureWriter::DoClose(const TWorkloadDescriptor& workloadCategory, TDefer
 
     std::vector<TFuture<void>> asyncResults;
     for (const auto& writer : Writers_) {
-        asyncResults.push_back(writer->Close(workloadCategory, chunkMeta));
+        asyncResults.push_back(writer->Close(options, workloadCategory, chunkMeta));
     }
 
     WaitFor(AllSucceeded(asyncResults))

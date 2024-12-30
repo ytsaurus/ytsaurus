@@ -86,7 +86,7 @@ i64 TJournalSession::GetIntermediateEmptyBlockCount() const
     return 0;
 }
 
-TFuture<TChunkInfo> TJournalSession::DoFinish(
+TFuture<ISession::TFinishResult> TJournalSession::DoFinish(
     const TRefCountedChunkMetaPtr& /*chunkMeta*/,
     std::optional<int> blockCount)
 {
@@ -96,7 +96,7 @@ TFuture<TChunkInfo> TJournalSession::DoFinish(
 
     if (blockCount) {
         if (*blockCount != Changelog_->GetRecordCount()) {
-            return MakeFuture<TChunkInfo>(TError("Block count mismatch in journal session %v: expected %v, got %v",
+            return MakeFuture<TFinishResult>(TError("Block count mismatch in journal session %v: expected %v, got %v",
                 SessionId_,
                 Changelog_->GetRecordCount(),
                 *blockCount));
@@ -113,7 +113,11 @@ TFuture<TChunkInfo> TJournalSession::DoFinish(
         TChunkInfo info;
         info.set_disk_space(Chunk_->GetDataSize());
         info.set_sealed(Chunk_->IsSealed());
-        return info;
+
+        return TFinishResult {
+            .ChunkInfo = std::move(info),
+            .ChunkWriterStatistics = WriteBlocksOptions_.ClientOptions.ChunkWriterStatistics,
+        };
     }).AsyncVia(SessionInvoker_));
 }
 
@@ -184,7 +188,7 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TJournalSession::DoSendBlocks(
     THROW_ERROR_EXCEPTION("Sending blocks is not supported for journal chunks");
 }
 
-TFuture<TIOCounters> TJournalSession::DoFlushBlocks(int blockIndex)
+TFuture<ISession::TFlushBlocksResult> TJournalSession::DoFlushBlocks(int blockIndex)
 {
     YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -209,9 +213,12 @@ TFuture<TIOCounters> TJournalSession::DoFlushBlocks(int blockIndex)
             // See YT-21626 for the details.
             ValidateActive();
 
-            return TIOCounters{
-                .Bytes = newDataSize - oldDataSize,
-                .IORequests = oldDataSize == newDataSize ? 0 : 1,
+            return TFlushBlocksResult {
+                .IOCounters = TIOCounters{
+                    .Bytes = newDataSize - oldDataSize,
+                    .IORequests = oldDataSize == newDataSize ? 0 : 1,
+                },
+                .ChunkWriterStatistics = New<NChunkClient::TChunkWriterStatistics>(),
             };
         }).AsyncVia(SessionInvoker_));
 }

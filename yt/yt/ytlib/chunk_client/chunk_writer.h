@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "chunk_writer_options.h"
 
 #include <yt/yt/client/misc/workload.h>
 
@@ -20,6 +21,11 @@ namespace NYT::NChunkClient {
 struct IChunkWriter
     : public virtual TRefCounted
 {
+    struct TWriteBlocksOptions
+    {
+        TClientChunkWriteOptions ClientOptions;
+    };
+
     //! Starts a new upload session.
     virtual TFuture<void> Open() = 0;
 
@@ -29,11 +35,13 @@ struct IChunkWriter
      *  The client must call #GetReadyEvent and wait for the result to be set.
      */
     virtual bool WriteBlock(
+        const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const TBlock& block) = 0;
 
     //! Similar to #WriteBlock but enqueues a bunch of blocks at once.
     virtual bool WriteBlocks(
+        const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<TBlock>& blocks) = 0;
 
@@ -46,6 +54,7 @@ struct IChunkWriter
      *  For journal chunks, #chunkMeta is not used.
      */
     virtual TFuture<void> Close(
+        const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor = {},
         const TDeferredChunkMetaPtr& chunkMeta = nullptr) = 0;
 

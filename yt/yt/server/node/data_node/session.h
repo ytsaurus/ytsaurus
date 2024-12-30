@@ -9,6 +9,7 @@
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 #include <yt/yt/ytlib/chunk_client/block.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
+#include <yt/yt/ytlib/chunk_client/chunk_writer_statistics.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
@@ -46,6 +47,18 @@ struct TSessionOptions
 struct ISession
     : public virtual TRefCounted
 {
+    struct TFinishResult
+    {
+        NChunkClient::NProto::TChunkInfo ChunkInfo;
+        NChunkClient::TChunkWriterStatisticsPtr ChunkWriterStatistics;
+    };
+
+    struct TFlushBlocksResult
+    {
+        NIO::TIOCounters IOCounters;
+        NChunkClient::TChunkWriterStatisticsPtr ChunkWriterStatistics;
+    };
+
     //! Returns the TChunkId being uploaded.
     virtual TChunkId GetChunkId() const& = 0;
 
@@ -85,7 +98,7 @@ struct ISession
     virtual i64 GetIntermediateEmptyBlockCount() const = 0;
 
     //! Finishes the session.
-    virtual TFuture<NChunkClient::NProto::TChunkInfo> Finish(
+    virtual TFuture<TFinishResult> Finish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) = 0;
 
@@ -104,7 +117,7 @@ struct ISession
         const NNodeTrackerClient::TNodeDescriptor& target) = 0;
 
     //! Flushes blocks up to a given one.
-    virtual TFuture<NIO::TIOCounters> FlushBlocks(int blockIndex) = 0;
+    virtual TFuture<TFlushBlocksResult> FlushBlocks(int blockIndex) = 0;
 
     //! Renews the lease.
     virtual void Ping() = 0;

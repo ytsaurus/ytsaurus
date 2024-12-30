@@ -272,10 +272,10 @@ public:
         EXPECT_TRUE(erasureWriter->Open().Get().IsOK());
 
         for (const auto& ref : data) {
-            erasureWriter->WriteBlock(TWorkloadDescriptor(), TBlock(ref, GetChecksum(ref)));
+            erasureWriter->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), TBlock(ref, GetChecksum(ref)));
             dataSize += ref.Size();
         }
-        EXPECT_TRUE(erasureWriter->Close(TWorkloadDescriptor(), meta).Get().IsOK());
+        EXPECT_TRUE(erasureWriter->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), meta).Get().IsOK());
         EXPECT_TRUE(erasureWriter->GetChunkInfo().disk_space() >= dataSize);
     }
 
@@ -767,7 +767,13 @@ TEST_F(TErasureMixtureTest, Repair1)
     auto reparingReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, std::nullopt);
 
-    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, /*options*/ {}).Get();
+    auto repairResult = RepairErasedParts(
+        codec,
+        erasedIndices,
+        readers,
+        writers,
+        /*chunkReadOptions*/ {},
+        /*writeBlocksOptions*/ {}).Get();
     EXPECT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
@@ -808,7 +814,13 @@ TEST_P(TErasureMixtureTest, Repair2)
     auto reparingReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, std::nullopt);
 
-    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, /*options*/ {}).Get();
+    auto repairResult = RepairErasedParts(
+        codec,
+        erasedIndices,
+        readers,
+        writers,
+        /*chunkReadOptions*/ {},
+        /*writeBlocksOptions*/ {}).Get();
     ASSERT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
@@ -851,7 +863,14 @@ TEST_P(TErasureMixtureTest, Repair3)
     auto reparingReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, 100);
 
-    RepairErasedParts(codec, erasedIndices, readers, writers, /*options*/ {}).Get();
+    RepairErasedParts(
+        codec,
+        erasedIndices,
+        readers,
+        writers,
+        /*chunkReadOptions*/ {},
+        /*writeBlocksOptions*/ {}).Get();
+
     {
         auto erasureReader = CreateErasureReader(codec);
         CheckRepairResult(erasureReader, dataRefs);
@@ -890,7 +909,14 @@ TEST_P(TErasureMixtureTest, Repair4)
     auto reparingReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, 100);
 
-    RepairErasedParts(codec, erasedIndices, readers, writers, /*options*/ {}).Get();
+    RepairErasedParts(
+        codec,
+        erasedIndices,
+        readers,
+        writers,
+        /*chunkReadOptions*/ {},
+        /*writeBlocksOptions*/ {}).Get();
+
     {
         auto erasureReader = CreateErasureReader(codec);
         CheckRepairResult(erasureReader, dataRefs);
@@ -932,7 +958,14 @@ TEST_P(TErasureMixtureTest, Repair5)
     auto reparingReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, 40);
 
-    RepairErasedParts(codec, erasedIndices, readers, writers, /*options*/ {}).Get();
+    RepairErasedParts(
+        codec,
+        erasedIndices,
+        readers,
+        writers,
+        /*chunkReadOptions*/ {},
+        /*writeBlocksOptions*/ {}).Get();
+
     {
         auto erasureReader = CreateErasureReader(codec);
         CheckRepairResult(erasureReader, dataRefs);
@@ -974,7 +1007,14 @@ TEST_P(TErasureMixtureTest, Repair6)
     auto reparingReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, 40);
 
-    RepairErasedParts(codec, erasedIndices, readers, writers, /*options*/ {}).Get();
+    RepairErasedParts(
+        codec,
+        erasedIndices,
+        readers,
+        writers,
+        /*chunkReadOptions*/ {},
+        /*writeBlocksOptions*/ {}).Get();
+
     {
         auto erasureReader = CreateErasureReader(codec);
         CheckRepairResult(erasureReader, dataRefs);
@@ -1056,7 +1096,13 @@ TEST_P(TErasureMixtureTest, RepairStriped1)
     auto reparingReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, std::nullopt);
 
-    auto repairResult = RepairErasedParts(codec, erasedIndices, readers, writers, /*options*/ {}).Get();
+    auto repairResult = RepairErasedParts(
+        codec,
+        erasedIndices,
+        readers,
+        writers,
+        /*chunkReadOptions*/ {},
+        /*writeBlocksOptions*/ {}).Get();
     ASSERT_TRUE(repairResult.IsOK());
 
     auto erasureReader = CreateErasureReader(codec);
@@ -1098,7 +1144,13 @@ TEST_P(TErasureMixtureTest, RepairStriped2)
     auto reparingReader = CreateRepairingErasureReader(codec, erasedIndices, allReaders);
     CheckRepairReader(reparingReader, dataRefs, 40);
 
-    RepairErasedParts(codec, erasedIndices, readers, writers, /*options*/ {}).Get();
+    RepairErasedParts(
+        codec,
+        erasedIndices,
+        readers,
+        writers,
+        /*chunkReadOptions*/ {},
+        /*writeBlocksOptions*/ {}).Get();
 
     {
         auto erasureReader = CreateErasureReader(codec);
@@ -1250,7 +1302,8 @@ void TErasureMixtureTest::ExecAdaptiveRepairTest(
         erasedIndices,
         allReaders,
         writerFactory,
-        {});
+        /*chunkReadOptions*/ {},
+        /*writeBlocksOptions*/ {});
     EXPECT_TRUE(repairFuture.Get().IsOK());
 
     auto erasureReader = CreateErasureReader(codec);

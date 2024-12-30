@@ -201,16 +201,20 @@ public:
         return Underlying_->Cancel();
     }
 
-    bool WriteBlock(const TWorkloadDescriptor& workloadDescriptor, const TBlock& block) override
+    bool WriteBlock(
+        const IChunkWriter::TWriteBlocksOptions& options,
+        const TWorkloadDescriptor& workloadDescriptor,
+        const TBlock& block) override
     {
-        return Underlying_->WriteBlock(workloadDescriptor, block);
+        return Underlying_->WriteBlock(options, workloadDescriptor, block);
     }
 
     bool WriteBlocks(
+        const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<TBlock>& blocks) override
     {
-        return Underlying_->WriteBlocks(workloadDescriptor, blocks);
+        return Underlying_->WriteBlocks(options, workloadDescriptor, blocks);
     }
 
     TFuture<void> GetReadyEvent() override
@@ -219,10 +223,11 @@ public:
     }
 
     TFuture<void> Close(
+        const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override
     {
-        return Check(Underlying_->Close(workloadDescriptor, chunkMeta));
+        return Check(Underlying_->Close(options, workloadDescriptor, chunkMeta));
     }
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
@@ -1015,6 +1020,8 @@ private:
 
             auto checkedChunkWriter = New<TErrorInterceptingChunkWriter>(location, chunkWriter);
 
+            IChunkWriter::TWriteBlocksOptions writeBlocksOptions;
+
             YT_LOG_DEBUG("Opening chunk writer");
 
             WaitFor(checkedChunkWriter->Open())
@@ -1072,7 +1079,7 @@ private:
                 YT_LOG_DEBUG("Writing block (BlockIndex: %v)",
                     index);
 
-                if (!checkedChunkWriter->WriteBlock(chunkReadOptions.WorkloadDescriptor, block)) {
+                if (!checkedChunkWriter->WriteBlock(writeBlocksOptions, chunkReadOptions.WorkloadDescriptor, block)) {
                     WaitFor(chunkWriter->GetReadyEvent())
                         .ThrowOnError();
                 }
@@ -1086,7 +1093,7 @@ private:
             auto deferredChunkMeta = New<TDeferredChunkMeta>();
             deferredChunkMeta->CopyFrom(*chunkMeta);
 
-            WaitFor(checkedChunkWriter->Close(chunkReadOptions.WorkloadDescriptor, deferredChunkMeta))
+            WaitFor(checkedChunkWriter->Close(writeBlocksOptions, chunkReadOptions.WorkloadDescriptor, deferredChunkMeta))
                 .ThrowOnError();
 
             if (Bootstrap_->GetIOTracker()->IsEnabled()) {

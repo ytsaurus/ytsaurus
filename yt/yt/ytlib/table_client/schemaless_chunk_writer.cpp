@@ -133,6 +133,7 @@ public:
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         IBlockCachePtr blockCache,
         TTableSchemaPtr schema,
         TNameTablePtr nameTable,
@@ -168,6 +169,7 @@ public:
             Config_,
             Options_,
             std::move(chunkWriter),
+            std::move(writeBlocksOptions),
             std::move(blockCache),
             Logger);
     }
@@ -531,6 +533,7 @@ public:
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         IBlockCachePtr blockCache,
         TTableSchemaPtr schema,
         TNameTablePtr nameTable,
@@ -540,6 +543,7 @@ public:
             std::move(config),
             std::move(options),
             std::move(chunkWriter),
+            std::move(writeBlocksOptions),
             std::move(blockCache),
             std::move(schema),
             std::move(nameTable),
@@ -613,6 +617,7 @@ public:
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         IBlockCachePtr blockCache,
         TTableSchemaPtr schema,
         TNameTablePtr nameTable,
@@ -622,6 +627,7 @@ public:
             std::move(config),
             std::move(options),
             std::move(chunkWriter),
+            std::move(writeBlocksOptions),
             std::move(blockCache),
             std::move(schema),
             std::move(nameTable),
@@ -831,6 +837,7 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TTableSchemaPtr schema,
     TNameTablePtr nameTable,
     IChunkWriterPtr chunkWriter,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     const std::optional<NChunkClient::TDataSink>& dataSink,
     const TChunkTimestamps& chunkTimestamps,
     IBlockCachePtr blockCache)
@@ -842,6 +849,7 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
                 std::move(config),
                 std::move(options),
                 std::move(chunkWriter),
+                std::move(writeBlocksOptions),
                 std::move(blockCache),
                 std::move(schema),
                 std::move(nameTable),
@@ -852,6 +860,7 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
                 std::move(config),
                 std::move(options),
                 std::move(chunkWriter),
+                std::move(writeBlocksOptions),
                 std::move(blockCache),
                 std::move(schema),
                 std::move(nameTable),
@@ -873,6 +882,7 @@ public:
         TChunkWriterConfigPtr config,
         TChunkWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         IBlockCachePtr blockCache,
         TTableSchemaPtr schema,
         TNameTablePtr nameTable,
@@ -882,6 +892,7 @@ public:
             std::move(config),
             std::move(options),
             std::move(chunkWriter),
+            std::move(writeBlocksOptions),
             std::move(blockCache),
             std::move(schema),
             std::move(nameTable),
@@ -1423,7 +1434,8 @@ public:
         TTrafficMeterPtr trafficMeter,
         IThroughputThrottlerPtr throttler,
         IBlockCachePtr blockCache,
-        const std::optional<NChunkClient::TDataSink>& dataSink)
+        const std::optional<NChunkClient::TDataSink>& dataSink,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
         : TSchemalessMultiChunkWriterBase(
             config,
             options,
@@ -1457,6 +1469,7 @@ public:
             options = std::move(options),
             blockCache = std::move(blockCache),
             schema = Schema_,
+            writeBlocksOptions = std::move(writeBlocksOptions),
             partitionCount,
             dataSink
         ] (IChunkWriterPtr underlyingWriter){
@@ -1464,6 +1477,7 @@ public:
                 config,
                 options,
                 std::move(underlyingWriter),
+                writeBlocksOptions,
                 blockCache,
                 schema,
                 /*nameTable*/ nullptr,
@@ -1645,6 +1659,7 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
     TChunkListId parentChunkListId,
     IPartitionerPtr partitioner,
     const std::optional<NChunkClient::TDataSink>& dataSink,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
@@ -1664,7 +1679,8 @@ ISchemalessMultiChunkWriterPtr CreatePartitionMultiChunkWriter(
         std::move(trafficMeter),
         std::move(throttler),
         std::move(blockCache),
-        dataSink);
+        dataSink,
+        std::move(writeBlocksOptions));
 
     writer->Init();
 
@@ -2160,6 +2176,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     TTransactionId transactionId,
     TMasterTableSchemaId schemaId,
     const std::optional<NChunkClient::TDataSink>& dataSink,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     TChunkListId parentChunkListId,
     const TChunkTimestamps& chunkTimestamps,
     TTrafficMeterPtr trafficMeter,
@@ -2197,12 +2214,13 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
 
         case EVersionedIOMode::LatestTimestamp: {
             return createSuitableSchemalessMultiChunkWriter.template operator()<TLatestTimestampMultiChunkWriter>(
-                [config, options, schema, dataSink, blockCache] (IChunkWriterPtr underlyingWriter) {
+                [=] (IChunkWriterPtr underlyingWriter) {
                     return CreateVersionedChunkWriter(
                         config,
                         options,
                         schema,
                         std::move(underlyingWriter),
+                        writeBlocksOptions,
                         dataSink,
                         blockCache);
                 });
@@ -2216,13 +2234,14 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
     switch (options->SchemaModification) {
         case ETableSchemaModification::None: {
             return createSuitableSchemalessMultiChunkWriter.template operator()<TSchemalessMultiChunkWriter>(
-                [config, options, schema, dataSink, chunkTimestamps, blockCache] (IChunkWriterPtr underlyingWriter) {
+                [=] (IChunkWriterPtr underlyingWriter) {
                     return CreateSchemalessChunkWriter(
                         config,
                         options,
                         schema,
                         /*nameTable*/ nullptr,
                         underlyingWriter,
+                        writeBlocksOptions,
                         dataSink,
                         chunkTimestamps,
                         blockCache);
@@ -2231,12 +2250,13 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
 
         case ETableSchemaModification::UnversionedUpdate: {
             return createSuitableSchemalessMultiChunkWriter.template operator()<TUnversionedUpdateMultiChunkWriter>(
-                [config, options, schema, dataSink, blockCache] (IChunkWriterPtr underlyingWriter) {
+                [=] (IChunkWriterPtr underlyingWriter) {
                     return CreateVersionedChunkWriter(
                         config,
                         options,
                         schema,
                         std::move(underlyingWriter),
+                        writeBlocksOptions,
                         dataSink,
                         blockCache);
                 });
@@ -2570,7 +2590,8 @@ public:
         TString localHostName,
         ITransactionPtr transaction,
         IThroughputThrottlerPtr throttler,
-        IBlockCachePtr blockCache)
+        IBlockCachePtr blockCache,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , RichPath_(richPath)
@@ -2581,6 +2602,7 @@ public:
         , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
         , Throttler_(std::move(throttler))
         , BlockCache_(std::move(blockCache))
+        , WriteBlocksOptions_(std::move(writeBlocksOptions))
         , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v",
             richPath.GetPath(),
             TransactionId_))
@@ -2646,6 +2668,7 @@ private:
     const TTransactionId TransactionId_;
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
+    const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
 
     const NLogging::TLogger Logger;
 
@@ -2773,6 +2796,7 @@ private:
             UploadTransaction_->GetId(),
             chunkSchemaId,
             dataSink,
+            WriteBlocksOptions_,
             chunkListId,
             TChunkTimestamps{timestamp, timestamp},
             /*trafficMeter*/ nullptr,
@@ -2830,6 +2854,7 @@ TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
     NNative::IClientPtr client,
     TString localHostName,
     ITransactionPtr transaction,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
@@ -2850,7 +2875,8 @@ TFuture<IUnversionedWriterPtr> CreateSchemalessTableWriter(
         std::move(localHostName),
         std::move(transaction),
         std::move(throttler),
-        std::move(blockCache));
+        std::move(blockCache),
+        std::move(writeBlocksOptions));
     return writer->Open()
         .Apply(BIND([=] () -> IUnversionedWriterPtr { return writer; }));
 }
@@ -2870,7 +2896,8 @@ public:
         std::string localHostName,
         TTransactionId transactionId,
         IThroughputThrottlerPtr throttler,
-        IBlockCachePtr blockCache)
+        IBlockCachePtr blockCache,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Cookie_(cookie)
@@ -2880,6 +2907,7 @@ public:
         , TransactionId_(transactionId)
         , Throttler_(std::move(throttler))
         , BlockCache_(std::move(blockCache))
+        , WriteBlocksOptions_(std::move(writeBlocksOptions))
         , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v",
             cookie.PatchInfo.RichPath,
             TransactionId_))
@@ -2939,6 +2967,7 @@ private:
     const TTransactionId TransactionId_;
     const IThroughputThrottlerPtr Throttler_;
     const IBlockCachePtr BlockCache_;
+    const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
 
     const NLogging::TLogger Logger;
 
@@ -3036,6 +3065,7 @@ private:
             Cookie_.MainTransactionId,
             patchInfo.ChunkSchemaId,
             dataSink,
+            WriteBlocksOptions_,
             WriteResult_.ChunkListId,
             TChunkTimestamps{patchInfo.Timestamp, patchInfo.Timestamp},
             /*trafficMeter*/ nullptr,
@@ -3094,6 +3124,7 @@ TFuture<IUnversionedTableFragmentWriterPtr> CreateSchemalessTableFragmentWriter(
     NNative::IClientPtr client,
     std::string localHostName,
     TTransactionId transactionId,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
 {
@@ -3114,7 +3145,8 @@ TFuture<IUnversionedTableFragmentWriterPtr> CreateSchemalessTableFragmentWriter(
         std::move(localHostName),
         transactionId,
         std::move(throttler),
-        std::move(blockCache));
+        std::move(blockCache),
+        std::move(writeBlocksOptions));
     return writer->Open()
         .Apply(BIND([=] () -> IUnversionedTableFragmentWriterPtr {
             return writer;
