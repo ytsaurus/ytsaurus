@@ -2360,21 +2360,40 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         remote_copy_time_limit = 2 * min(remote_copy_run_time, 30) * 1000
 
         # Copy table from remote cluster to local cluster.
-        with pytest.raises(YtError) as err:
-            remote_copy(
-                in_="//tmp/remote_table",
-                out="//tmp/local_table",
-                spec={
-                    "cluster_name": self.REMOTE_CLUSTER_NAME,
-                    "job_io": {
-                        "table_reader": {
-                            "enable_local_throttling": True,
-                        },
+        op = remote_copy(
+            track=False,
+            in_="//tmp/remote_table",
+            out="//tmp/local_table",
+            spec={
+                "cluster_name": self.REMOTE_CLUSTER_NAME,
+                "job_io": {
+                    "table_reader": {
+                        "enable_local_throttling": True,
                     },
-                    "job_count": 1,
-                    "use_cluster_throttlers": True,
-                    "time_limit": remote_copy_time_limit,
                 },
-            )
+                "job_count": 1,
+                "use_cluster_throttlers": True,
+                "time_limit": remote_copy_time_limit,
+            },
+        )
+
+        # Wait for network bandwidth to become unavailable.
+
+        op.wait_for_state("running")
+        wait(lambda: exists(op.get_orchid_path() + "/controller/network_bandwidth_availability"))
+
+        def is_not_available(cluster, op):
+            value = get(op.get_orchid_path() + "/controller/network_bandwidth_availability")
+            assert cluster in value
+            if str(value[cluster]) == "false":
+                return True
+            else:
+                return False
+
+        wait(lambda: is_not_available(self.REMOTE_CLUSTER_NAME, op))
+
+        # Wait for operation abortion by time limit.
+        with pytest.raises(YtError) as err:
+            op.track()
 
         assert 'Operation is running for too long' in str(err)

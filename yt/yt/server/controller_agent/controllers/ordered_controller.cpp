@@ -1294,7 +1294,8 @@ protected:
 
             if (Controller_->Spec_->ClusterName) {
                 TClusterName clusterName{Controller_->Spec_->ClusterName.value()};
-                if (!Controller_->Host->IsNetworkBandwidthAvailable(clusterName)) {
+                Controller_->IsNetworkBandwidthAvailable_ = Controller_->Host->IsNetworkBandwidthAvailable(clusterName);
+                if (!Controller_->IsNetworkBandwidthAvailable_) {
                     YT_LOG_DEBUG(
                         "Network bandwidth to remote cluster is not available now so zero out needed resources "
                         "(ClusterName: %v, OldMaxRunnableJobCount: %v, NewMaxRunnableJobCount: %v)",
@@ -1325,6 +1326,7 @@ protected:
         bool IsInitializationCompleted_;
 
         static constexpr i64 MaxRunnableJobCount = std::numeric_limits<i32>::max();
+        // Don't persist this transient state.
         i64 CurrentMaxRunnableJobCount_ = MaxRunnableJobCount;
 
         void AddDependent(TRemoteCopyTaskBasePtr dependent)
@@ -1451,6 +1453,9 @@ private:
     THashMap<TChunkId, TChunkId> HunkChunkIdMapping_;
 
     TExtendedCallback<void()> UpdateNeededResourcesCallback_;
+
+    // Don't persist this transient state.
+    bool IsNetworkBandwidthAvailable_ = true;
 
     void ValidateTableType(auto table) const
     {
@@ -1983,6 +1988,20 @@ private:
         for (auto task : OrderedTasks_) {
             UpdateTask(task.Get());
         }
+    }
+
+    void BuildControllerInfoYson(NYTree::TFluentMap fluent) const override
+    {
+        TOrderedControllerBase::BuildControllerInfoYson(fluent);
+
+        fluent
+            .DoIf(!!Spec_->ClusterName, [&] (auto fluent) {
+                fluent
+                    .Item("network_bandwidth_availability").BeginMap()
+                        .Item(*Spec_->ClusterName)
+                        .Value(IsNetworkBandwidthAvailable_)
+                    .EndMap();
+            });
     }
 
     PHOENIX_DECLARE_FRIEND();
