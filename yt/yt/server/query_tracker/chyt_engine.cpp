@@ -141,7 +141,7 @@ private:
     TFuture<TExecuteQueryResponse> AsyncQueryResult_;
     std::atomic<bool> Cancelled_ = false;
 
-    static const inline std::vector<TString> DiscoveryAttributes_ = std::vector<TString>{
+    static const inline std::vector<std::string> DiscoveryAttributes_ = std::vector<std::string>{
         "host",
         "rpc_port",
         "job_cookie",

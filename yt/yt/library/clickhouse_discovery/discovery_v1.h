@@ -18,7 +18,7 @@ public:
         TDiscoveryV1ConfigPtr config,
         NApi::IClientPtr client,
         IInvokerPtr invoker,
-        std::vector<TString> extraAttributes,
+        std::vector<std::string> extraAttributes,
         NLogging::TLogger logger = {});
 
     TFuture<void> Enter(TString name, NYTree::IAttributeDictionaryPtr attributes) override;
@@ -53,7 +53,7 @@ IDiscoveryPtr CreateDiscoveryV1(
     TDiscoveryV1ConfigPtr config,
     NApi::IClientPtr client,
     IInvokerPtr invoker,
-    std::vector<TString> extraAttributes,
+    std::vector<std::string> extraAttributes,
     NLogging::TLogger logger = {});
 
 ////////////////////////////////////////////////////////////////////////////////

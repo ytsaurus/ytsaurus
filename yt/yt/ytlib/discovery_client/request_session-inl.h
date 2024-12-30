@@ -74,7 +74,7 @@ TError TRequestSession<TResponse>::CreateError()
 template <class TResponse>
 void TRequestSession<TResponse>::TryMakeNextRequest(bool forceProbation)
 {
-    TString address;
+    std::string address;
 
     {
         TGuard addressesGuard(AddressesLock_);

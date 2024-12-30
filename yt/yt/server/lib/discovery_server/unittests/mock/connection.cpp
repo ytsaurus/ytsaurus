@@ -28,8 +28,8 @@ NDiscoveryClient::IMemberClientPtr TMockDistributedThrottlerConnection::CreateMe
     NDiscoveryClient::TMemberClientConfigPtr config,
     NRpc::IChannelFactoryPtr channelFactory,
     IInvokerPtr invoker,
-    TString id,
-    TString groupId)
+    NDiscoveryClient::TMemberId id,
+    NDiscoveryClient::TGroupId groupId)
 {
     return NDiscoveryClient::CreateMemberClient(
         Config_,

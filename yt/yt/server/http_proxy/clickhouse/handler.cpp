@@ -238,7 +238,7 @@ private:
     TClickHouseHandlerPtr Handler_;
     NRpc::IChannelFactoryPtr ChannelFactory_;
 
-    static const inline std::vector<TString> DiscoveryAttributes_ = std::vector<TString>{
+    static const inline std::vector<std::string> DiscoveryAttributes_ = std::vector<std::string>{
         "host",
         "http_port",
         "job_cookie",

@@ -147,8 +147,8 @@ struct IConnection
         NDiscoveryClient::TMemberClientConfigPtr config,
         NRpc::IChannelFactoryPtr channelFactory,
         IInvokerPtr invoker,
-        TString id,
-        TString groupId) = 0;
+        NDiscoveryClient::TMemberId id,
+        NDiscoveryClient::TGroupId groupId) = 0;
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 

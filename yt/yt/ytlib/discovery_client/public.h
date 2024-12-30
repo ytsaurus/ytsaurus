@@ -39,14 +39,14 @@ DECLARE_REFCOUNTED_STRUCT(IDiscoveryClient)
 ////////////////////////////////////////////////////////////////////////////////
 
 using TGroupId = NYPath::TYPath;
-using TMemberId = TString;
+using TMemberId = std::string;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TString PriorityAttribute = "priority";
-static const TString RevisionAttribute = "revision";
-static const TString LastHeartbeatTimeAttribute = "last_heartbeat_time";
-static const TString LastAttributesUpdateTimeAttribute = "last_attributes_update_time";
+inline const std::string PriorityAttribute = "priority";
+inline const std::string RevisionAttribute = "revision";
+inline const std::string LastHeartbeatTimeAttribute = "last_heartbeat_time";
+inline const std::string LastAttributesUpdateTimeAttribute = "last_attributes_update_time";
 
 ////////////////////////////////////////////////////////////////////////////////
 

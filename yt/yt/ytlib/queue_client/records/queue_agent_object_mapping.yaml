@@ -12,7 +12,7 @@ types:
         required: True
 
       - cpp_name: QueueAgentHost
-        cpp_type: TString
+        cpp_type: std::string
         column_name: host
         column_type: String
         required: True

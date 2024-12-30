@@ -26,7 +26,7 @@ public:
         IConnectionPtr connection,
         IChannelFactoryPtr channelFactory,
         IInvokerPtr invoker,
-        std::vector<TString> extraAttributes,
+        std::vector<std::string> extraAttributes,
         NLogging::TLogger logger,
         TProfiler profiler)
         : TDiscoveryBase(config, invoker, logger)
@@ -114,7 +114,7 @@ IDiscoveryPtr CreateDiscoveryV2(
     IConnectionPtr connection,
     NRpc::IChannelFactoryPtr channelFactory,
     IInvokerPtr invoker,
-    std::vector<TString> extraAttributes,
+    std::vector<std::string> extraAttributes,
     NLogging::TLogger logger,
     NProfiling::TProfiler profiler)
 {

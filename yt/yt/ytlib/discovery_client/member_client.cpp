@@ -225,8 +225,8 @@ IMemberClientPtr CreateMemberClient(
     TMemberClientConfigPtr clientConfig,
     IChannelFactoryPtr channelFactory,
     IInvokerPtr invoker,
-    TString memberId,
-    TString groupId)
+    TMemberId memberId,
+    TGroupId groupId)
 {
     return New<TMemberClient>(
         std::move(connectionConfig),
