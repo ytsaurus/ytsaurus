@@ -2662,19 +2662,10 @@ private:
 
         if (operation->Spec()->IssueTemporaryToken) {
             try {
-                // We check this first, so that we don't create a token in vain.
-                auto secureVault = operation->GetSecureVault();
-                if (secureVault && secureVault->FindChild(operation->Spec()->TemporaryTokenEnvironmentVariableName)) {
-                    THROW_ERROR_EXCEPTION(
-                        "Temporary token environment variable %Qv already exists in secure vault",
-                        operation->Spec()->TemporaryTokenEnvironmentVariableName);
-                }
-
                 auto temporaryToken = WaitFor(MasterConnector_->IssueTemporaryOperationToken(operation))
                     .ValueOrThrow();
                 // NB: This modifies secure vault contents.
-                operation->SetTemporaryToken(temporaryToken.Token);
-                operation->SetTemporaryTokenNodeId(temporaryToken.NodeId);
+                operation->SetTemporaryToken(temporaryToken.Token, temporaryToken.NodeId);
             } catch (const std::exception& ex) {
                 auto wrappedError = TError("Failed to issue temporary token for operation %v",
                     operation->GetId())

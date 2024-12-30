@@ -421,7 +421,7 @@ public:
     //! Adds token to secure vault according to the operation spec.
     //! Requires that the operation is in `Starting` state, token issuance is request in spec,
     //! and that the secure vault does not contain the key specified in the operation spec.
-    void SetTemporaryToken(const TString& token);
+    void SetTemporaryToken(const TString& token, const NCypressClient::TNodeId& nodeId);
 
     //! Returns a list of Cypress nodes which must be deleted alongside the operation node.
     std::vector<NCypressClient::TNodeId> GetDependentNodeIds() const;

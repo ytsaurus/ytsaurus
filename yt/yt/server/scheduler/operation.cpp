@@ -621,12 +621,14 @@ bool TOperation::AddSecureVaultEntry(const TString& key, const INodePtr& value)
     return SecureVault_->AddChild(key, value);
 }
 
-void TOperation::SetTemporaryToken(const TString& token)
+void TOperation::SetTemporaryToken(const TString& token, const TNodeId& nodeId)
 {
     YT_VERIFY(State_ == EOperationState::Starting);
     YT_VERIFY(Spec_->IssueTemporaryToken);
     // We check that the key is not already present in the secure vault before calling this method.
     YT_VERIFY(AddSecureVaultEntry(Spec_->TemporaryTokenEnvironmentVariableName, ConvertToNode(token)));
+
+    TemporaryTokenNodeId_ = nodeId;
 }
 
 std::vector<TNodeId> TOperation::GetDependentNodeIds() const

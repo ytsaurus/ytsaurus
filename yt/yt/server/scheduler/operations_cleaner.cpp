@@ -692,7 +692,7 @@ public:
 
         GetCancelableInvoker()->Invoke(BIND([this, this_ = MakeStrong(this), requests = std::move(requests)] {
             for (auto request : requests) {
-                EnqueueForRemoval(request);
+                EnqueueForRemoval(std::move(request));
             }
         }));
     }
@@ -840,7 +840,7 @@ public:
         result.ControllerFeatures = attributes.FindYson("controller_features");
 
         if (auto temporaryTokenNodeId = attributes.Find<TNodeId>("temporary_token_node_id")) {
-            result.DependentNodeIds = std::vector{*temporaryTokenNodeId};
+            result.DependentNodeIds = {*temporaryTokenNodeId};
         }
 
         return result;
@@ -1202,7 +1202,7 @@ private:
 
         YT_LOG_DEBUG("Operation enqueued for removal (OperationId: %v, DependentNodeIds: %v)", request.Id, request.DependentNodeIds);
         RemovePending_++;
-        RemoveBatcher_->Enqueue(request);
+        RemoveBatcher_->Enqueue(std::move(request));
     }
 
     void EnqueueForArchivation(TOperationId operationId)
@@ -1510,7 +1510,7 @@ private:
                         }
                     }
 
-                    auto removeOperationRequest = requests[index];
+                    auto& removeOperationRequest = requests[index];
                     if (isLocked) {
                         LockedOperationQueue_.emplace_back(std::move(removeOperationRequest), now);
                         ++lockedOperationCount;

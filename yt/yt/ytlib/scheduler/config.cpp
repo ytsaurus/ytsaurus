@@ -908,6 +908,16 @@ void TOperationSpecBase::Register(TRegistrar registrar)
             }
         }
 
+        if (spec->IssueTemporaryToken) {
+            NControllerAgent::ValidateEnvironmentVariableName(spec->TemporaryTokenEnvironmentVariableName);
+
+            if (spec->SecureVault && spec->SecureVault->FindChild(spec->TemporaryTokenEnvironmentVariableName)) {
+                THROW_ERROR_EXCEPTION(
+                    "Temporary token environment variable %Qv already exists in secure vault",
+                    spec->TemporaryTokenEnvironmentVariableName);
+            }
+        }
+
         if (spec->Alias && !spec->Alias->StartsWith(OperationAliasPrefix)) {
             THROW_ERROR_EXCEPTION("Operation alias should start with %Qv", OperationAliasPrefix)
                 << TErrorAttribute("operation_alias", spec->Alias);

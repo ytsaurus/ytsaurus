@@ -2248,7 +2248,8 @@ class TestTemporaryTokens(YTEnvSetup):
             "type": "async",
         })
 
-        expiration_timeout = 5000
+        # This should be enough time for the remainder of the test.
+        expiration_timeout = 20000
         update_scheduler_config("temporary_operation_token_expiration_timeout", expiration_timeout)
 
         create_user("alice")
