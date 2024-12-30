@@ -86,7 +86,7 @@ using NYT::ToProto;
 
 static constexpr auto& Logger = ClickHouseYtLogger;
 
-static const std::vector<TString> DiscoveryAttributes{
+static const std::vector<std::string> DiscoveryAttributes{
     "host",
     "rpc_port",
     "monitoring_port",

@@ -18,7 +18,7 @@ namespace NYT::NDiscoveryClient {
 struct TListMembersOptions
 {
     int Limit = 1000;
-    std::vector<TString> AttributeKeys;
+    std::vector<std::string> AttributeKeys;
 };
 
 struct TListGroupsOptions
@@ -65,7 +65,7 @@ void FromProto(TListGroupsOptions* listSubgroupsOptions, const NProto::TListGrou
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsMemberSystemAttribute(const TString& key);
+bool IsMemberSystemAttribute(const std::string& key);
 
 ////////////////////////////////////////////////////////////////////////////////
 

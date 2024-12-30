@@ -90,7 +90,7 @@ private:
     using TKey = std::tuple<TString, NDistributedThrottler::EDistributedThrottlerMode>;
 
     IBootstrap* const Bootstrap_;
-    const TString MemberId_;
+    const NDiscoveryClient::TMemberId MemberId_;
 
     THashMap<TKey, NDistributedThrottler::IDistributedThrottlerFactoryPtr> Factories_;
 

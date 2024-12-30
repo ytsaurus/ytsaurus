@@ -21,15 +21,15 @@ struct IDiscoveryClient
 
     //! It is not guaranteed that size of returned vector will be less than option.Limit
     virtual TFuture<std::vector<TMemberInfo>> ListMembers(
-        const TString& groupId,
+        const TGroupId& groupId,
         const TListMembersOptions& option) = 0;
 
     //! It is not guaranteed that size of returned vector will be less than option.Limit
     virtual TFuture<TListGroupsResult> ListGroups(
-        const TString& prefix,
+        const TGroupId& prefix,
         const TListGroupsOptions& option) = 0;
 
-    virtual TFuture<TGroupMeta> GetGroupMeta(const TString& groupId) = 0;
+    virtual TFuture<TGroupMeta> GetGroupMeta(const TGroupId& groupId) = 0;
 
     virtual void Reconfigure(TDiscoveryClientConfigPtr config) = 0;
 };

@@ -169,7 +169,7 @@ private:
 
     //! Picks host using rendezvous hashing.
     //! The probability of host reassignment in case of any small host set changes is low.
-    static TString PickHost(const TCrossClusterReference& object, const std::vector<TMemberInfo>& queueAgents)
+    static std::string PickHost(const TCrossClusterReference& object, const std::vector<TMemberInfo>& queueAgents)
     {
         YT_VERIFY(!queueAgents.empty());
 

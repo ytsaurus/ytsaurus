@@ -145,7 +145,7 @@ DEFINE_REFCOUNTED_TYPE(TConsumerTable)
 struct TQueueAgentObjectMappingTableRow
 {
     TCrossClusterReference Object;
-    TString QueueAgentHost;
+    std::string QueueAgentHost;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

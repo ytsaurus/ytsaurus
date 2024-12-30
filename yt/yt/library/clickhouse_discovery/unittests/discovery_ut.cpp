@@ -48,16 +48,17 @@ TEST(TDiscoveryTest, Simple)
     auto MockClient = New<TStrictMockClient>();
 
     NYPath::TYPath path = "/test/1234";
-    std::vector<TString> keys = {"lock_count"};
+    std::vector<std::string> keys = {"lock_count"};
     NApi::TListNodeOptions options;
-    options.Attributes = keys;
+    // TODO(babenko): switch to std::string
+    options.Attributes = {keys.begin(), keys.end()};
 
     NYson::TYsonString listRet(TStringBuf("[<locks=[{child_key=tmp}]>dead_node;<locks=[{child_key=lock}]>alive_node;]"));
 
     EXPECT_CALL(*MockClient, ListNode(path, _))
         .WillRepeatedly(Return(MakeFuture(listRet)));
 
-    TDiscoveryV1ConfigPtr config = New<TDiscoveryV1Config>();
+    auto config = New<TDiscoveryV1Config>();
     config->Directory = path;
     config->UpdatePeriod = TDuration::Seconds(1);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
@@ -101,7 +102,7 @@ TEST(TDiscoveryTest, Enter)
         .WillRepeatedly(Return(TGuid(0, 0, 0, 0)));
 
     NYPath::TYPath path = "/test/1234";
-    std::vector<TString> keys = {};
+    std::vector<std::string> keys = {};
 
     bool locked = false;
     bool created = false;
@@ -129,7 +130,7 @@ TEST(TDiscoveryTest, Enter)
     EXPECT_CALL(*MockTransaction, SubscribeAborted(_))
         .Times(1);
 
-    TDiscoveryV1ConfigPtr config = New<TDiscoveryV1Config>();
+    auto config = New<TDiscoveryV1Config>();
     config->Directory = path;
     config->UpdatePeriod = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
@@ -164,12 +165,13 @@ THashMap<TString, TString> TransformAttributes(TCreateNodeOptions options)
     return result;
 }
 
-TEST(TDiscoveryTest, Leave) {
+TEST(TDiscoveryTest, Leave)
+{
     auto MockClient = New<TStrictMockClient>();
     auto MockTransaction = New<TStrictMockTransaction>();
 
     NYPath::TYPath path = "/test/1234";
-    std::vector<TString> keys = {};
+    std::vector<std::string> keys = {};
 
     auto attrs = CreateEphemeralAttributes();
     attrs->Set("host", BuildYsonNodeFluently().Value("something.ru"));
@@ -216,7 +218,7 @@ TEST(TDiscoveryTest, Leave) {
     EXPECT_CALL(*MockTransaction, UnsubscribeAborted(_))
         .Times(1);
 
-    TDiscoveryV1ConfigPtr config = New<TDiscoveryV1Config>();
+    auto config = New<TDiscoveryV1Config>();
     config->Directory = path;
     config->UpdatePeriod = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
@@ -249,7 +251,7 @@ TEST(TDiscoveryTest, Ban)
         .WillRepeatedly(Return(TGuid(0, 0, 0, 0)));
 
     NYPath::TYPath path = "/test/1234";
-    std::vector<TString> keys = {};
+    std::vector<std::string> keys = {};
 
     EXPECT_CALL(*MockClient, ListNode(path, _))
         .WillRepeatedly(Return(MakeFuture(BuildYsonStringFluently()
@@ -261,7 +263,7 @@ TEST(TDiscoveryTest, Ban)
 
     std::vector<TString> expected = {"alive_node1", "alive_node2"};
 
-    TDiscoveryV1ConfigPtr config = New<TDiscoveryV1Config>();
+    auto config = New<TDiscoveryV1Config>();
     config->Directory = path;
     config->UpdatePeriod = TDuration::MilliSeconds(50);
     config->BanTimeout = TDuration::MilliSeconds(50);
@@ -303,7 +305,7 @@ TEST(TDiscoveryTest, Attributes)
         .WillRepeatedly(Return(TGuid(0, 0, 0, 0)));
 
     NYPath::TYPath path = "/test/1234";
-    std::vector<TString> keys = {"a1", "a2"};
+    std::vector<std::string> keys = {"a1", "a2"};
 
     EXPECT_CALL(*MockClient, ListNode(path, _))
         .WillRepeatedly(Return(MakeFuture(BuildYsonStringFluently()
@@ -329,7 +331,7 @@ TEST(TDiscoveryTest, Attributes)
                     .Value("alive_node2")
             .EndList())));
 
-    TDiscoveryV1ConfigPtr config = New<TDiscoveryV1Config>();
+    auto config = New<TDiscoveryV1Config>();
     config->Directory = path;
     config->UpdatePeriod = TDuration::MilliSeconds(50);
     auto discovery = New<TDiscovery>(config, MockClient, GetCurrentInvoker(), keys, TLogger("Test"));
@@ -354,7 +356,7 @@ TEST(TDiscoveryTest, CreationRace)
         .WillRepeatedly(Return(TGuid(0, 0, 0, 0)));
 
     NYPath::TYPath path = "/test/1234";
-    std::vector<TString> keys = {};
+    std::vector<std::string> keys = {};
 
     bool locked = false;
     bool created = false;
@@ -387,7 +389,7 @@ TEST(TDiscoveryTest, CreationRace)
     EXPECT_CALL(*MockTransaction, SubscribeAborted(_))
         .Times(1);
 
-    TDiscoveryV1ConfigPtr config = New<TDiscoveryV1Config>();
+    auto config = New<TDiscoveryV1Config>();
     config->Directory = path;
     config->UpdatePeriod = TDuration::MilliSeconds(50);
 

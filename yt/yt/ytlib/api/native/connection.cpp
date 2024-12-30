@@ -778,8 +778,8 @@ public:
         TMemberClientConfigPtr clientConfig,
         IChannelFactoryPtr channelFactory,
         IInvokerPtr invoker,
-        TString id,
-        TString groupId) override
+        NDiscoveryClient::TMemberId id,
+        NDiscoveryClient::TGroupId groupId) override
     {
         auto config = Config_.Acquire();
         if (!config->DiscoveryConnection) {

@@ -327,8 +327,8 @@ public:
         NDiscoveryClient::TMemberClientConfigPtr config,
         NRpc::IChannelFactoryPtr channelFactory,
         IInvokerPtr invoker,
-        TString id,
-        TString groupId) override;
+        NDiscoveryClient::TMemberId id,
+        NDiscoveryClient::TGroupId groupId) override;
 
     NYTree::IYPathServicePtr GetOrchidService() override
     {

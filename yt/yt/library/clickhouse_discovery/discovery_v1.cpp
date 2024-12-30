@@ -16,7 +16,7 @@ TDiscovery::TDiscovery(
     TDiscoveryV1ConfigPtr config,
     NApi::IClientPtr client,
     IInvokerPtr invoker,
-    std::vector<TString> extraAttributes,
+    std::vector<std::string> extraAttributes,
     NLogging::TLogger logger)
     : TDiscoveryBase(config, std::move(invoker), std::move(logger))
     , Config_(std::move(config))
@@ -26,7 +26,7 @@ TDiscovery::TDiscovery(
     if (std::find(extraAttributes.begin(), extraAttributes.end(), "locks") == extraAttributes.end()) {
         extraAttributes.push_back("locks");
     }
-    ListOptions_.Attributes = std::move(extraAttributes);
+    ListOptions_.Attributes = {extraAttributes.begin(), extraAttributes.end()};
     // TMasterReadOptions
     ListOptions_.ReadFrom = Config_->ReadFrom;
     ListOptions_.ExpireAfterSuccessfulUpdateTime = Config_->MasterCacheExpireTime;
@@ -228,7 +228,7 @@ IDiscoveryPtr CreateDiscoveryV1(
     TDiscoveryV1ConfigPtr config,
     NApi::IClientPtr client,
     IInvokerPtr invoker,
-    std::vector<TString> extraAttributes,
+    std::vector<std::string> extraAttributes,
     NLogging::TLogger logger)
 {
     return New<TDiscovery>(
