@@ -425,7 +425,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     const TClientChunkReadOptions& chunkReadOptions,
     std::optional<EWorkloadCategory> workloadCategory)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (MaxClipTimestamp_) {
         timestamp = std::min(timestamp, MaxClipTimestamp_);
@@ -586,7 +586,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateCacheBasedReader(
     const TClientChunkReadOptions& chunkReadOptions,
     bool enableNewScanReader) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& chunkMeta = chunkState->ChunkMeta;
 
@@ -1047,7 +1047,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
     const TClientChunkReadOptions& chunkReadOptions,
     std::optional<EWorkloadCategory> workloadCategory)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (MaxClipTimestamp_) {
         timestamp = std::min(timestamp, MaxClipTimestamp_);
@@ -1308,7 +1308,7 @@ NTableClient::TChunkColumnMappingPtr TSortedChunkStore::GetChunkColumnMapping(
 
 TChunkStatePtr TSortedChunkStore::PrepareChunkState(TCachedVersionedChunkMetaPtr meta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     TChunkSpec chunkSpec;
     ToProto(chunkSpec.mutable_chunk_id(), ChunkId_);

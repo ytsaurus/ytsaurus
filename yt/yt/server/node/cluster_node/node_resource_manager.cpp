@@ -451,14 +451,14 @@ void TNodeResourceManager::Start()
 
 void TNodeResourceManager::OnInstanceLimitsUpdated(const NContainers::TInstanceLimits& limits)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     Limits_.Store(limits);
 }
 
 IYPathServicePtr TNodeResourceManager::GetOrchidService()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return IYPathService::FromProducer(BIND(&TNodeResourceManager::BuildOrchid, MakeStrong(this)))
         ->Via(Bootstrap_->GetControlInvoker());
@@ -466,7 +466,7 @@ IYPathServicePtr TNodeResourceManager::GetOrchidService()
 
 std::optional<double> TNodeResourceManager::GetCpuGuarantee() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (auto cpu = Limits_.Load().Cpu) {
         return cpu;
@@ -477,7 +477,7 @@ std::optional<double> TNodeResourceManager::GetCpuGuarantee() const
 
 std::optional<double> TNodeResourceManager::GetCpuLimit() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (auto cpu = Limits_.Load().Cpu) {
         return cpu;
@@ -488,14 +488,14 @@ std::optional<double> TNodeResourceManager::GetCpuLimit() const
 
 double TNodeResourceManager::GetJobsCpuLimit() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return JobsCpuLimit_;
 }
 
 double TNodeResourceManager::GetCpuUsage() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto config = Bootstrap_->GetConfig()->ResourceLimits;
     auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
@@ -516,14 +516,14 @@ double TNodeResourceManager::GetCpuUsage() const
 
 i64 TNodeResourceManager::GetMemoryUsage() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     return Bootstrap_->GetNodeMemoryUsageTracker()->GetTotalUsed();
 }
 
 double TNodeResourceManager::GetCpuDemand() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto config = Bootstrap_->GetConfig()->ResourceLimits;
     auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
@@ -541,7 +541,7 @@ double TNodeResourceManager::GetCpuDemand() const
 
 i64 TNodeResourceManager::GetMemoryDemand() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto limits = GetMemoryLimits();
 
@@ -568,7 +568,7 @@ std::optional<i64> TNodeResourceManager::GetNetRxLimit() const
 
 void TNodeResourceManager::SetResourceLimitsOverride(const TNodeResourceLimitsOverrides& resourceLimitsOverride)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     ResourceLimitsOverride_ = resourceLimitsOverride;
 }
@@ -591,7 +591,7 @@ TNodeResourceLimitsOverrides TNodeResourceManager::ComputeEffectiveResourceLimit
 
 void TNodeResourceManager::UpdateLimits()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_LOG_DEBUG("Updating node resource limits");
 
@@ -604,7 +604,7 @@ void TNodeResourceManager::UpdateLimits()
 
 void TNodeResourceManager::UpdateMemoryLimits()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     const auto& config = Bootstrap_->GetConfig()->ResourceLimits;
     const auto& memoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker();
@@ -667,14 +667,14 @@ void TNodeResourceManager::UpdateMemoryLimits()
 
 void TNodeResourceManager::UpdateProfilingCategory()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     Bootstrap_->GetNodeMemoryUsageTracker()->UpdateUsage(EMemoryCategory::Profiling, GetCountersBytesAlive());
 }
 
 void TNodeResourceManager::UpdateLoggingCategory()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     Bootstrap_
         ->GetNodeMemoryUsageTracker()
@@ -686,7 +686,7 @@ void TNodeResourceManager::UpdateLoggingCategory()
 
 void TNodeResourceManager::UpdateMemoryFootprint()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     const auto& memoryUsageTracker = Bootstrap_->GetNodeMemoryUsageTracker();
 
@@ -723,7 +723,7 @@ void TNodeResourceManager::UpdateMemoryFootprint()
 
 void TNodeResourceManager::UpdateJobsCpuLimit()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     double newJobsCpuLimit = 0;
 
@@ -749,7 +749,7 @@ void TNodeResourceManager::UpdateJobsCpuLimit()
 
 TJobResources TNodeResourceManager::GetJobResourceUsage() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return WaitFor(BIND([this, this_ = MakeStrong(this)] {
         const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
@@ -766,7 +766,7 @@ TJobResources TNodeResourceManager::GetJobResourceUsage() const
 
 double TNodeResourceManager::GetTabletSlotCpu() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (!Bootstrap_->IsTabletNode()) {
         return false;
@@ -785,7 +785,7 @@ double TNodeResourceManager::GetTabletSlotCpu() const
 
 double TNodeResourceManager::GetNodeDedicatedCpu() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto config = Bootstrap_->GetConfig()->ResourceLimits;
     auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
@@ -795,7 +795,7 @@ double TNodeResourceManager::GetNodeDedicatedCpu() const
 
 TEnumIndexedArray<EMemoryCategory, TMemoryLimitPtr> TNodeResourceManager::GetMemoryLimits() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     TEnumIndexedArray<EMemoryCategory, TMemoryLimitPtr> limits;
 
@@ -877,7 +877,7 @@ TEnumIndexedArray<EMemoryCategory, TMemoryLimitPtr> TNodeResourceManager::GetMem
 
 void TNodeResourceManager::BuildOrchid(IYsonConsumer* consumer) const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto memoryLimits = GetMemoryLimits();
     auto limits = Limits_.Load();

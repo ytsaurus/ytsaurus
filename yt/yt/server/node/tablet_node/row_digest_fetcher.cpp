@@ -75,7 +75,7 @@ private:
 
     void DoReconfigure(bool useRowDigests)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         if (UseRowDigests_ == useRowDigests) {
             return;
         }
@@ -114,7 +114,7 @@ private:
     {
         static constexpr int RequestStep = 1;
 
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(!stores.empty());
 
         std::vector<TFuture<TRefCountedChunkMetaPtr>> asyncRowDigestMetas;
@@ -149,7 +149,7 @@ private:
     {
         static constexpr int RequestStep = 2;
 
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_VERIFY(allSetResult.IsOK());
         auto errorOrRsps = allSetResult.Value();

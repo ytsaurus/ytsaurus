@@ -146,7 +146,7 @@ private:
 
     void GuardedOnRequest(IConnectionPtr connection, TMessage request)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         bool isRegularRequest;
         {
@@ -179,7 +179,7 @@ private:
 
     TMessage ProcessRegularRequest(const TMessage& /*request*/)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_ABORT();
     }
@@ -188,7 +188,7 @@ private:
         const IConnectionPtr& connection,
         const TMessage& request)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (request.size() != 1) {
             THROW_ERROR_EXCEPTION("Incoming message has %v, expected 1",
@@ -230,7 +230,7 @@ private:
 
     bool UnregisterConnection(TConnectionId connectionId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = WriterGuard(ConnectionMapLock_);
         if (Connections_.erase(connectionId)) {
@@ -246,7 +246,7 @@ private:
         const IConnectionPtr& connection,
         TSessionId sessionId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         connection->SetSessionId(sessionId);
 

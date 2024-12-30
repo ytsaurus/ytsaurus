@@ -160,7 +160,7 @@ public:
         , CellBundleMap_(TEntityMapTypeTraits<TCellBundle>(Bootstrap_))
         , CellMap_(TEntityMapTypeTraits<TCellBase>(Bootstrap_))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
         RegisterLoader(
@@ -237,7 +237,7 @@ public:
         std::unique_ptr<TCellBundle> holder,
         TTabletCellOptionsPtr options) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         ValidateCellBundleName(name);
 
@@ -269,7 +269,7 @@ public:
 
     void ZombifyCellBundle(TCellBundle* cellBundle) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(cellBundle->Cells().empty());
 
@@ -492,7 +492,7 @@ public:
         TArea* area,
         std::unique_ptr<TCellBase> holder) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidatePermission(cellBundle, EPermission::Use);
@@ -630,7 +630,7 @@ public:
 
     void ZombifyCell(TCellBase* cell) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = cell->GetId();
 
@@ -707,7 +707,7 @@ public:
 
     void DestroyCell(TCellBase* cell) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         Y_UNUSED(CellMap_.Release(cell->GetId()).release());
         MaybeUnregisterGlobalCell(cell);
@@ -1267,7 +1267,7 @@ private:
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& config = GetDynamicConfig();
         const auto& gossipConfig = config->MulticellGossip;
@@ -1299,7 +1299,7 @@ private:
 
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         CellBundleMap_.LoadKeys(context);
         CellMap_.LoadKeys(context);
@@ -1308,7 +1308,7 @@ private:
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         CellBundleMap_.LoadValues(context);
         CellMap_.LoadValues(context);
@@ -1403,7 +1403,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::Clear();
 
@@ -1671,7 +1671,7 @@ private:
         NCellarNodeTrackerClient::NProto::TReqCellarHeartbeat* request,
         NCellarNodeTrackerClient::NProto::TRspCellarHeartbeat* response)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto cellarType = FromProto<ECellarType>(request->type());
         auto Logger = CellServerLogger().WithTag("CellarType: %v", cellarType);
@@ -1993,7 +1993,7 @@ private:
 
     void HydraAssignPeers(TReqAssignPeers* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto* cell = FindCell(cellId);
@@ -2085,7 +2085,7 @@ private:
 
     void HydraRevokePeers(TReqRevokePeers* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto* cell = FindCell(cellId);
@@ -2134,7 +2134,7 @@ private:
 
     void HydraReassignPeers(TReqReassignPeers* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         for (auto& revocation : *request->mutable_revocations()) {
             HydraRevokePeers(&revocation);
@@ -2159,7 +2159,7 @@ private:
 
     void HydraSetLeadingPeer(TReqSetLeadingPeer* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = FromProto<TTamedCellId>(request->cell_id());
         auto* cell = FindCell(cellId);
@@ -2218,7 +2218,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnLeaderActive();
 
@@ -2240,7 +2240,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopLeading();
 

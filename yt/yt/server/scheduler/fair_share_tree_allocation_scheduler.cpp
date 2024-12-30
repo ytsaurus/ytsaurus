@@ -2512,7 +2512,7 @@ TFairShareTreeAllocationScheduler::TFairShareTreeAllocationScheduler(
 
 void TFairShareTreeAllocationScheduler::RegisterNode(TNodeId nodeId)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     ESchedulingSegment initialSchedulingSegment = ESchedulingSegment::Default;
     if (auto maybeState = FindInitialNodePersistentState(nodeId)) {
@@ -2539,7 +2539,7 @@ void TFairShareTreeAllocationScheduler::RegisterNode(TNodeId nodeId)
 
 void TFairShareTreeAllocationScheduler::UnregisterNode(TNodeId nodeId)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto nodeShardId = StrategyHost_->GetNodeShardId(nodeId);
     const auto& nodeShardInvoker = StrategyHost_->GetNodeShardInvokers()[nodeShardId];
@@ -2640,7 +2640,7 @@ void TFairShareTreeAllocationScheduler::ProcessSchedulingHeartbeat(
 
 void TFairShareTreeAllocationScheduler::ScheduleAllocations(TScheduleAllocationsContext* context)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     NProfiling::TWallTimer scheduleAllocationsTimer;
 
@@ -2663,7 +2663,7 @@ void TFairShareTreeAllocationScheduler::PreemptAllocationsGracefully(
     const ISchedulingContextPtr& schedulingContext,
     const TFairShareTreeSnapshotPtr& treeSnapshot) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     NProfiling::TEventTimerGuard eventTimerGuard(GracefulPreemptionTime_);
 
@@ -2691,7 +2691,7 @@ void TFairShareTreeAllocationScheduler::PreemptAllocationsGracefully(
 
 void TFairShareTreeAllocationScheduler::RegisterOperation(const TSchedulerOperationElement* element)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto operationId = element->GetOperationId();
     auto operationState = New<TFairShareTreeAllocationSchedulerOperationState>(
@@ -2727,7 +2727,7 @@ void TFairShareTreeAllocationScheduler::RegisterOperation(const TSchedulerOperat
 
 void TFairShareTreeAllocationScheduler::UnregisterOperation(const TSchedulerOperationElement* element)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto operationId = element->GetOperationId();
 
@@ -2742,7 +2742,7 @@ void TFairShareTreeAllocationScheduler::UnregisterOperation(const TSchedulerOper
 
 void TFairShareTreeAllocationScheduler::OnOperationMaterialized(const TSchedulerOperationElement* element)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto operationId = element->GetOperationId();
     const auto& operationState = GetOperationState(operationId);
@@ -2754,7 +2754,7 @@ void TFairShareTreeAllocationScheduler::OnOperationMaterialized(const TScheduler
 
 TError TFairShareTreeAllocationScheduler::CheckOperationSchedulingInSeveralTreesAllowed(const TSchedulerOperationElement* element) const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     const auto& operationState = GetOperationState(element->GetOperationId());
 
@@ -2791,7 +2791,7 @@ void TFairShareTreeAllocationScheduler::RegisterAllocationsFromRevivedOperation(
     TSchedulerOperationElement* element,
     std::vector<TAllocationPtr> allocations) const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     SortBy(allocations, [] (const TAllocationPtr& allocation) {
         return allocation->GetStartTime();
@@ -3059,7 +3059,7 @@ void TFairShareTreeAllocationScheduler::BuildElementYson(
 
 TAllocationSchedulerPostUpdateContext TFairShareTreeAllocationScheduler::CreatePostUpdateContext(TSchedulerRootElement* rootElement)
 {
-    VERIFY_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
+    YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
 
     // NB(eshcherbin): We cannot update SSD media in the constructor, because initial pool trees update
     // in the registration pipeline is done before medium directory sync. That's why we do the initial update
@@ -3080,7 +3080,7 @@ void TFairShareTreeAllocationScheduler::PostUpdate(
     TFairSharePostUpdateContext* fairSharePostUpdateContext,
     TAllocationSchedulerPostUpdateContext* postUpdateContext)
 {
-    VERIFY_INVOKER_AFFINITY(StrategyHost_->GetFairShareUpdateInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetFairShareUpdateInvoker());
 
     InitializeStaticAttributes(fairSharePostUpdateContext, postUpdateContext);
 
@@ -3108,7 +3108,7 @@ void TFairShareTreeAllocationScheduler::PostUpdate(
 
 TFairShareTreeSchedulingSnapshotPtr TFairShareTreeAllocationScheduler::CreateSchedulingSnapshot(TAllocationSchedulerPostUpdateContext* postUpdateContext)
 {
-    VERIFY_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
+    YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
 
     return New<TFairShareTreeSchedulingSnapshot>(
         std::move(postUpdateContext->StaticAttributesList),
@@ -3133,7 +3133,7 @@ void TFairShareTreeAllocationScheduler::ProfileOperation(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     ISensorWriter* writer) const
 {
-    VERIFY_INVOKER_AFFINITY(StrategyHost_->GetFairShareProfilingInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetFairShareProfilingInvoker());
 
     const auto& attributes = treeSnapshot->SchedulingSnapshot()->StaticAttributesList().AttributesOf(element);
     writer->AddGauge("/scheduling_index", attributes.SchedulingIndex);
@@ -3144,7 +3144,7 @@ void TFairShareTreeAllocationScheduler::ProfileOperation(
 
 void TFairShareTreeAllocationScheduler::UpdateConfig(TFairShareStrategyTreeConfigPtr config)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto oldConfig = std::move(Config_);
     Config_ = std::move(config);
@@ -3581,14 +3581,14 @@ void TFairShareTreeAllocationScheduler::RunPreemptiveSchedulingStage(
 
 const TFairShareTreeAllocationSchedulerOperationStatePtr& TFairShareTreeAllocationScheduler::GetOperationState(TOperationId operationId) const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     return GetOrCrash(OperationIdToState_, operationId);
 }
 
 const TFairShareTreeAllocationSchedulerOperationSharedStatePtr& TFairShareTreeAllocationScheduler::GetOperationSharedState(TOperationId operationId) const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     return GetOrCrash(OperationIdToSharedState_, operationId);
 }
@@ -3993,7 +3993,7 @@ TFairShareTreeAllocationSchedulerNodeState* TFairShareTreeAllocationScheduler::F
 {
     auto nodeShardId = StrategyHost_->GetNodeShardId(nodeId);
 
-    VERIFY_INVOKER_AFFINITY(StrategyHost_->GetNodeShardInvokers()[nodeShardId]);
+    YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetNodeShardInvokers()[nodeShardId]);
 
     auto& nodeStates = NodeStateShards_[nodeShardId].NodeIdToState;
     auto it = nodeStates.find(nodeId);
@@ -4002,7 +4002,7 @@ TFairShareTreeAllocationSchedulerNodeState* TFairShareTreeAllocationScheduler::F
 
 TFairShareTreeAllocationSchedulerOperationStateMap TFairShareTreeAllocationScheduler::GetOperationStateMapSnapshot() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     TFairShareTreeAllocationSchedulerOperationStateMap operationStateMapSnapshot;
     operationStateMapSnapshot.reserve(OperationIdToState_.size());
@@ -4111,7 +4111,7 @@ void TFairShareTreeAllocationScheduler::ApplyNodeSchedulingSegmentsChanges(const
 
 void TFairShareTreeAllocationScheduler::ManageSchedulingSegments()
 {
-    VERIFY_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
+    YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
 
     auto host = Host_.Lock();
     if (!host) {

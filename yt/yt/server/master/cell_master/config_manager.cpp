@@ -32,7 +32,7 @@ public:
     explicit TConfigManager(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, NCellMaster::EAutomatonThreadQueue::ConfigManager)
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
         RegisterLoader(
             "ConfigManager",
@@ -45,7 +45,7 @@ public:
 
     void Initialize() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
@@ -73,7 +73,7 @@ public:
 
     void SetConfig(INodePtr configNode) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto newConfig = New<TDynamicClusterConfig>();
         newConfig->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
@@ -111,7 +111,7 @@ private:
 
     void DoSetConfig(TDynamicClusterConfigPtr newConfig)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         Config_ = std::move(newConfig);
 
@@ -135,7 +135,7 @@ private:
 
     void Load(NCellMaster::TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Load;
 
@@ -147,7 +147,7 @@ private:
 
     void OnReplicateKeysToSecondaryMaster(TCellTag cellTag)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto req = TYPathProxy::Set("//sys/@config");
         req->set_value(ConvertToYsonString(GetConfig()).ToString());
@@ -158,7 +158,7 @@ private:
 
     void ReplicateConfigToSecondaryMasters()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
@@ -170,7 +170,7 @@ private:
 
     std::vector<TError> GetAlerts() const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         std::vector<TError> alerts;
         if (!UnrecognizedOptionsAlert_.IsOK()) {
@@ -182,7 +182,7 @@ private:
 
     void FireConfigChanged()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(!HasMutationContext());
 
         // Wait for config to be applied, so that it has all overrides after LeaderActive call.

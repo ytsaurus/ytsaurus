@@ -178,7 +178,7 @@ std::optional<TResolveCache::TResolveResult> TResolveCache::TryResolve(const TYP
 
 TResolveCacheNodePtr TResolveCache::FindNode(TNodeId nodeId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     // TODO(babenko): fastpath for root
     auto* shard = GetShard(nodeId);
@@ -192,7 +192,7 @@ TResolveCacheNodePtr TResolveCache::TryInsertNode(
     const TYPath& path,
     const ICypressManagerPtr& cypressManager)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto* shard = GetShard(trunkNode);
     auto guard = WriterGuard(shard->Lock);
@@ -222,7 +222,7 @@ void TResolveCache::AddNodeChild(
     const TResolveCacheNodePtr& childNode,
     const TString& key)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = WriterGuard(parentNode->Lock);
     YT_ASSERT(std::holds_alternative<TResolveCacheNode::TMapPayload>(parentNode->Payload));
@@ -246,7 +246,7 @@ void TResolveCache::AddNodeChild(
 
 void TResolveCache::InvalidateNode(TCypressNode* node)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     auto cacheNode = node->GetResolveCacheNode();
     if (!cacheNode) {
@@ -312,7 +312,7 @@ TResolveCache::TShard* TResolveCache::GetShard(TCypressNode* trunkNode)
 
 void TResolveCache::ResetNode(TCypressNode* trunkNode)
 {
-    VERIFY_WRITER_SPINLOCK_AFFINITY(GetShard(trunkNode)->Lock);
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(GetShard(trunkNode)->Lock);
 
     trunkNode->GetResolveCacheNode()->TrunkNode = nullptr;
     trunkNode->GetResolveCacheNode()->Parent = nullptr;
@@ -321,7 +321,7 @@ void TResolveCache::ResetNode(TCypressNode* trunkNode)
 
 void TResolveCache::Clear()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     for (auto& shard : Shards_) {
         auto guard = WriterGuard(shard.Lock);

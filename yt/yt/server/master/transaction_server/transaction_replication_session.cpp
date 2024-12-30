@@ -610,7 +610,7 @@ void TTransactionReplicationSessionWithBoomerangs::ConstructReplicationRequests(
 // TODO(shakurov): refactor. Get rid of .WithTimeout.
 TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeReplicationRequestsOffloaded(std::optional<TDuration> timeout)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     return BIND(&TTransactionReplicationSessionWithBoomerangs::InvokeReplicationRequests, MakeStrong(this), timeout)
         .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())

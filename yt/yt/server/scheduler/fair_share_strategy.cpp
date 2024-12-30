@@ -116,7 +116,7 @@ public:
 
     void OnMasterHandshake(const TMasterHandshakeResult& result) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         LastMeteringStatisticsUpdateTime_ = result.LastMeteringLogTime;
         ConnectionTime_ = TInstant::Now();
@@ -124,7 +124,7 @@ public:
 
     void OnMasterConnected() override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         Connected_ = true;
 
@@ -140,7 +140,7 @@ public:
 
     void OnMasterDisconnected() override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         Connected_ = false;
 
@@ -179,7 +179,7 @@ public:
 
     void OnMinNeededAllocationResourcesUpdate()
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         YT_LOG_INFO("Starting min needed allocation resources update");
 
@@ -200,7 +200,7 @@ public:
 
     void OnLogAccumulatedUsage()
     {
-        VERIFY_INVOKER_AFFINITY(Host_->GetFairShareLoggingInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Host_->GetFairShareLoggingInvoker());
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -228,7 +228,7 @@ public:
         std::vector<TString>* unknownTreeIds,
         TPoolTreeControllerSettingsMap* poolTreeControllerSettingsMap) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         YT_VERIFY(unknownTreeIds->empty());
 
@@ -269,7 +269,7 @@ public:
 
     void UnregisterOperation(IOperationStrategyHost* operation) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto& state = GetOperationState(operation->GetId());
         for (const auto& [treeId, poolName] : state->TreeIdToPoolNameMap()) {
@@ -281,7 +281,7 @@ public:
 
     void UnregisterOperationFromTree(TOperationId operationId, const TString& treeId) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto& state = GetOperationState(operationId);
 
@@ -303,7 +303,7 @@ public:
 
     void DisableOperation(IOperationStrategyHost* operation) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto operationId = operation->GetId();
         const auto& state = GetOperationState(operationId);
@@ -319,7 +319,7 @@ public:
 
     void UpdatePoolTrees(const TYsonString& poolTreesYson) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (poolTreesYson == LastPoolTreesYson_ && ConvertToYsonString(Config_->TemplatePoolTreeConfigMap) == LastTemplatePoolTreeConfigMapYson_) {
             YT_LOG_INFO("Pool trees and pools did not change, skipping update");
@@ -460,7 +460,7 @@ public:
 
     TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         std::vector<TError> errors;
         for (const auto& [_, tree] : IdToTree_) {
@@ -486,7 +486,7 @@ public:
 
     void BuildOperationProgress(TOperationId operationId, TFluentMap fluent) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (!FindOperationState(operationId)) {
             return;
@@ -497,7 +497,7 @@ public:
 
     void BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (!FindOperationState(operationId)) {
             return;
@@ -508,7 +508,7 @@ public:
 
     std::vector<std::pair<TOperationId, TError>> GetStuckOperations() override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         std::vector<std::pair<TOperationId, TError>> result;
         for (const auto& [operationId, operationState] : OperationIdToOperationState_) {
@@ -540,7 +540,7 @@ public:
 
     void UpdateConfig(const TFairShareStrategyConfigPtr& config) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         Config_ = config;
 
@@ -570,7 +570,7 @@ public:
 
     void BuildOperationInfoForEventLog(const IOperationStrategyHost* operation, TFluentMap fluent) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto& operationState = GetOperationState(operation->GetId());
         const auto& pools = operationState->TreeIdToPoolNameMap();
@@ -597,7 +597,7 @@ public:
 
     void ApplyOperationRuntimeParameters(IOperationStrategyHost* operation) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto state = GetOperationState(operation->GetId());
         const auto runtimeParameters = operation->GetRuntimeParameters();
@@ -626,7 +626,7 @@ public:
         EOperationType operationType,
         TOperationId operationId) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto poolTrees = ParsePoolTrees(spec, operationType);
         for (const auto& poolTreeDescription : poolTrees) {
@@ -722,7 +722,7 @@ public:
         const TOperationRuntimeParametersPtr& runtimeParameters,
         bool validatePools) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto& state = GetOperationState(operation->GetId());
 
@@ -744,7 +744,7 @@ public:
         IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto pools = GetOperationPools(runtimeParameters);
         for (const auto& [treeId, pool] : pools) {
@@ -755,7 +755,7 @@ public:
 
     IYPathServicePtr GetOrchidService() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto dynamicOrchidService = New<TCompositeMapService>();
         dynamicOrchidService->AddChild("pool_trees", New<TPoolTreeService>(this));
@@ -764,7 +764,7 @@ public:
 
     void BuildOrchid(TFluentMap fluent) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         // Snapshot list of treeIds.
         std::vector<TString> treeIds;
@@ -793,7 +793,7 @@ public:
 
     void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -836,7 +836,7 @@ public:
         const IOperationStrategyHost* operation,
         const TOperationRuntimeParametersPtr& runtimeParameters) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto pools = GetOperationPools(runtimeParameters);
 
@@ -856,7 +856,7 @@ public:
 
     void OnFairShareProfilingAt(TInstant /*now*/) override
     {
-        VERIFY_INVOKER_AFFINITY(Host_->GetFairShareProfilingInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Host_->GetFairShareProfilingInvoker());
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -872,7 +872,7 @@ public:
     // NB: This function is public for testing purposes.
     void OnFairShareUpdateAt(TInstant now) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         YT_LOG_INFO("Starting fair share update");
 
@@ -958,7 +958,7 @@ public:
 
     void OnFairShareEssentialLoggingAt(TInstant now) override
     {
-        VERIFY_INVOKER_AFFINITY(Host_->GetFairShareLoggingInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Host_->GetFairShareLoggingInvoker());
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -973,7 +973,7 @@ public:
 
     void OnFairShareLoggingAt(TInstant now) override
     {
-        VERIFY_INVOKER_AFFINITY(Host_->GetFairShareLoggingInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Host_->GetFairShareLoggingInvoker());
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -1001,7 +1001,7 @@ public:
         THashSet<TAllocationId>* allocationsToPostpone,
         THashMap<TAllocationId, EAbortReason>* allocationsToAbort) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
         YT_VERIFY(allocationsToPostpone->empty());
         YT_VERIFY(allocationsToAbort->empty());
 
@@ -1047,7 +1047,7 @@ public:
 
     void RegisterAllocationsFromRevivedOperation(TOperationId operationId, const std::vector<TAllocationPtr>& allocations) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         THashMap<TString, std::vector<TAllocationPtr>> allocationsByTreeId;
         for (const auto& allocation : allocations) {
@@ -1091,7 +1091,7 @@ public:
         const std::string& nodeAddress,
         const TBooleanFormulaTags& tags) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return BIND(&TFairShareStrategy::DoRegisterOrUpdateNode, MakeStrong(this))
             .AsyncVia(Host_->GetControlInvoker(EControlQueue::NodeTracker))
@@ -1100,7 +1100,7 @@ public:
 
     void UnregisterNode(TNodeId nodeId, const std::string& nodeAddress) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         Host_->GetControlInvoker(EControlQueue::NodeTracker)->Invoke(
             BIND([this, this_ = MakeStrong(this), nodeId, nodeAddress] {
@@ -1144,14 +1144,14 @@ public:
 
     bool IsConnected() const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         return Connected_;
     }
 
     void SetSchedulerTreeAlert(const TString& treeId, ESchedulerAlertType alertType, const TError& alert) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         YT_VERIFY(IsSchedulerTreeAlertType(alertType));
 
@@ -1165,7 +1165,7 @@ public:
 
     void UpdateSchedulerTreeAlerts()
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         for (const auto& [alertType, alertMessage] : GetSchedulerTreeAlertDescriptors()) {
             const auto& treeAlerts = TreeAlerts_[alertType];
@@ -1313,7 +1313,7 @@ public:
         bool revivedFromSnapshot,
         std::vector<TString>* treeIdsToErase) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -1426,7 +1426,7 @@ public:
 
     void ScanPendingOperations() override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         for (const auto& [_, tree] : IdToTree_) {
             tree->TryRunAllPendingOperations();
@@ -1435,7 +1435,7 @@ public:
 
     TFuture<void> GetFullFairShareUpdateFinished() override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         return FairShareUpdateExecutor_->GetExecutedEvent();
     }
@@ -1470,7 +1470,7 @@ public:
 
     std::optional<TString> GetMaybeTreeIdForNode(TNodeId nodeId) const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         return GetOrDefault(NodeIdToDescriptor_, nodeId).TreeId;
     }
@@ -2079,7 +2079,7 @@ private:
         const std::string& nodeAddress,
         const TBooleanFormulaTags& tags)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         std::vector<TString> treeIds;
         for (const auto& [treeId, tree] : IdToTree_) {
@@ -2150,7 +2150,7 @@ private:
         const THashSet<TString> treeIdsToAdd,
         const THashSet<TString> treeIdsToRemove)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         for (const auto& treeId : treeIdsToAdd) {
             EmplaceOrCrash(NodeIdsPerTree_, treeId, TNodeIdSet{});
@@ -2194,7 +2194,7 @@ private:
         TNodeId nodeId,
         const std::optional<TString>& newTreeId)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto it = NodeIdToDescriptor_.find(nodeId);
         YT_VERIFY(it != NodeIdToDescriptor_.end());
@@ -2275,7 +2275,7 @@ private:
 
     virtual void DoBuildResourceMeteringAt(TInstant now)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         TMeteringMap newStatistics;
 
@@ -2360,7 +2360,7 @@ private:
     // TODO(renadeen): we should move tagFilter to resourceLimits map into tree orchid and remove this method.
     TJobResourcesByTagFilter GetResourceLimitsByTagFilter() override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         TJobResourcesByTagFilter result;
         for (const auto& [_, tree] : IdToTree_) {
@@ -2385,13 +2385,13 @@ private:
 
         i64 GetSize() const final
         {
-            VERIFY_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
+            YT_ASSERT_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
             return std::ssize(Strategy_->IdToTree_);
         }
 
         std::vector<std::string> GetKeys(const i64 limit) const final
         {
-            VERIFY_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
+            YT_ASSERT_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
 
             std::vector<std::string> keys;
             keys.reserve(std::min(limit, std::ssize(Strategy_->IdToTree_)));
@@ -2407,7 +2407,7 @@ private:
 
         IYPathServicePtr FindItemService(const std::string& treeId) const final
         {
-            VERIFY_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
+            YT_ASSERT_INVOKERS_AFFINITY(Strategy_->FeasibleInvokers_);
 
             // TODO(babenko): switch to std::string
             const auto it = Strategy_->IdToTree_.find(treeId);

@@ -233,7 +233,7 @@ public:
 
     std::vector<TControllerAgentPtr> GetAgents() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         std::vector<TControllerAgentPtr> result;
         result.reserve(IdToAgent_.size());
@@ -245,14 +245,14 @@ public:
 
     IOperationControllerPtr CreateController(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return New<TOperationControllerImpl>(Bootstrap_, SchedulerConfig_, operation);
     }
 
     TControllerAgentPtr PickAgentForOperation(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto controllerAgentTag = operation->GetRuntimeParameters()->ControllerAgentTag;
 
@@ -369,7 +369,7 @@ public:
         const TOperationPtr& operation,
         const TControllerAgentPtr& agent)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(agent->Operations().insert(operation).second);
         operation->SetAgent(agent.Get());
@@ -385,7 +385,7 @@ public:
         const TControllerAgentPtr& agent,
         const TError& error)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto traceContext = NTracing::GetOrCreateTraceContext("HandleAgentFailure");
         auto guard = NTracing::TCurrentTraceContextGuard(std::move(traceContext));
@@ -405,7 +405,7 @@ public:
 
     void UnregisterOperationFromAgent(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto agent = operation->FindAgent();
         if (!agent) {
@@ -421,14 +421,14 @@ public:
 
     TControllerAgentTrackerConfigPtr GetConfig() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return AtomicConfig_.Acquire();
     }
 
     void UpdateConfig(TSchedulerConfigPtr config)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         SchedulerConfig_ = std::move(config);
         Config_ = SchedulerConfig_->ControllerAgentTracker;
@@ -457,14 +457,14 @@ public:
 
     TControllerAgentPtr FindAgent(const TAgentId& id) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return DoFindAgent(id, IdToAgent_);
     }
 
     TControllerAgentPtr GetAgentOrThrow(const TAgentId& id)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto agent = FindAgent(id);
         if (!agent) {
@@ -477,7 +477,7 @@ public:
 
     TControllerAgentPtr GetMirroredAgentOrThrow(const TAgentId& id)
     {
-        VERIFY_INVOKER_AFFINITY(GetHeartbeatInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetHeartbeatInvoker());
 
         auto agent = DoFindAgent(id, MirroredIdToAgent_);
         if (!agent) {
@@ -491,7 +491,7 @@ public:
     template <CInvocable<void(THashMap<TAgentId, TControllerAgentPtr>&)> TMutator>
     void MutateAgentMappings(TMutator mutator)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         mutator(IdToAgent_);
 
@@ -531,7 +531,7 @@ public:
         const TCtxAgentHeartbeatPtr& context,
         const TControllerAgentPtr& agent)
     {
-        VERIFY_INVOKER_AFFINITY(GetHeartbeatInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetHeartbeatInvoker());
 
         const auto& scheduler = Bootstrap_->GetScheduler();
 
@@ -812,7 +812,7 @@ public:
 
     void DoProcessAgentHandshake(const TCtxAgentHandshakePtr& context)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto* request = &context->Request();
         auto* response = &context->Response();
@@ -897,7 +897,7 @@ public:
     // TODO(arkady-e1ppa): This method is overly bloated. Split into several methods.
     void DoProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
     {
-        VERIFY_INVOKER_AFFINITY(GetHeartbeatInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetHeartbeatInvoker());
 
         const auto& scheduler = Bootstrap_->GetScheduler();
 
@@ -1048,7 +1048,7 @@ public:
 
     void DoProcessAgentScheduleAllocationHeartbeat(const TCtxAgentScheduleAllocationHeartbeatPtr& context)
     {
-        VERIFY_INVOKER_AFFINITY(GetHeartbeatInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetHeartbeatInvoker());
 
         auto* request = &context->Request();
         const auto& agentId = request->agent_id();
@@ -1115,7 +1115,7 @@ private:
 
     void DoRegisterAgent(TControllerAgentPtr agent)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         NApi::TTransactionStartOptions options;
         options.Timeout = Config_->IncarnationTransactionTimeout;
@@ -1200,7 +1200,7 @@ private:
 
         agent->GetIncarnationTransaction()->Abort()
             .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
-                VERIFY_THREAD_AFFINITY(ControlThread);
+                YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
                 // NB: No AgentInnerStateGuard required here since
                 // All mutations on agents with state >= Unregistering are done
@@ -1243,7 +1243,7 @@ private:
 
     void OnAgentHeartbeatTimeout(const TWeakPtr<TControllerAgent>& weakAgent)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto agent = weakAgent.Lock();
         if (!agent) {
@@ -1260,7 +1260,7 @@ private:
 
     void OnAgentIncarnationTransactionAborted(const TWeakPtr<TControllerAgent>& weakAgent, const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto agent = weakAgent.Lock();
         if (!agent) {
@@ -1286,7 +1286,7 @@ private:
 
     void HandleControllerAgentInstances(const NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_agent_list");
         THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -1376,7 +1376,7 @@ private:
 
     void OnMasterConnected()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         DoCleanup();
 
@@ -1387,7 +1387,7 @@ private:
 
     void OnMasterDisconnected()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         ResponseKeeper_->Stop();
 

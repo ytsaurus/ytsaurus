@@ -22,14 +22,14 @@ public:
 
     void UpdateWorldInitializationStatus(bool initialized) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         WorldInitialized_.store(initialized, std::memory_order::release);
     }
 
     TFuture<void> ValidateWorldInitialized() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!WorldInitialized_.load(std::memory_order::relaxed)) {
 

@@ -59,7 +59,7 @@ void TInstanceLimitsTracker::Stop()
 
 void TInstanceLimitsTracker::DoUpdateLimits()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
 #ifdef _linux_
     YT_LOG_DEBUG("Checking for instance limits update");

@@ -51,7 +51,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Abort));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DumpJobProxyLog));
 
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
     }
 
 private:
@@ -61,7 +61,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpInputContext)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -77,7 +77,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GetStderr)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v, Limit: %v, Offset: %v", jobId, request->limit(), request->offset());
@@ -97,7 +97,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GetFailContext)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
@@ -115,7 +115,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, GetSpec)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         context->SetRequestInfo("JobId: %v", jobId);
@@ -131,7 +131,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, PollJobShell)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto jobId = FromProto<TJobId>(request->job_id());
         auto parameters = TYsonString(request->parameters());
@@ -157,7 +157,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Interrupt)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
 
@@ -193,7 +193,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, Abort)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         auto error = FromProto<TError>(request->error());
@@ -214,7 +214,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NJobProberClient::NProto, DumpJobProxyLog)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto jobId = FromProto<TJobId>(request->job_id());
         auto path = FromProto<NYPath::TYPath>(request->path());

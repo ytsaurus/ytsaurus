@@ -145,7 +145,7 @@ public:
 
     void Start() override
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         StartTime_ = TInstant::Now();
 
@@ -206,7 +206,7 @@ private:
 
     void ScanBundles()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         if (!IsLeader()) {
             ClearState();
@@ -271,7 +271,7 @@ private:
 
     void LinkOrchidService() const
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         static const TYPath LeaderOrchidServicePath = "//sys/bundle_controller/orchid";
         static const std::string AttributeRemoteAddress = "remote_addresses";
@@ -314,7 +314,7 @@ private:
 
     void LinkBundleControllerService() const
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         static const TYPath LeaderBundleControllerPath = "//sys/bundle_controller";
         static const std::string AttributeAddress = "addresses";
@@ -375,7 +375,7 @@ private:
 
     void DoScanTabletBundles()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         YT_LOG_DEBUG("Bundles scan started");
 
@@ -419,7 +419,7 @@ private:
 
     void DoScanChaosBundles()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         if (!Config_->EnableChaosBundleManagement) {
             return;
@@ -461,7 +461,7 @@ private:
 
     void Mutate(const ITransactionPtr& transaction, const TSchedulerMutations& mutations)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         CreateHulkRequests<TAllocationRequest>(transaction, Config_->HulkAllocationsPath, mutations.NewAllocations);
         CreateHulkRequests<TDeallocationRequest>(transaction, Config_->HulkDeallocationsPath, mutations.NewDeallocations);
@@ -542,7 +542,7 @@ private:
         const ITransactionPtr& transaction,
         TForeignClientProvider* clientProvider)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         for (const auto& [cellTag, cellInfo] : mutations.CellTagsToRegister) {
             auto path = Format("%v/cell_tags/%v", GlobalCellRegistryPath, cellTag);
@@ -687,7 +687,7 @@ private:
 
     void ReportInflightMetrics(const TSchedulerInputState& input, const TSchedulerMutations& mutations)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         auto now = TInstant::Now();
         auto mergedBundlesState = MergeBundleStates(input, mutations);
@@ -737,7 +737,7 @@ private:
 
     void ReportResourceUsage(TSchedulerInputState& input)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         for (const auto& [bundleName, allocated] : input.BundleResourceAllocated) {
             auto sensors = GetBundleSensors(bundleName);
@@ -955,7 +955,7 @@ private:
 
     void RegisterAlert(const TAlert& alert)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         static const std::string DefaultBundleName = "all";
 
@@ -1538,28 +1538,28 @@ private:
 
     bool IsLeader() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetElectionManager()->IsLeader();
     }
 
     TYPath GetZonesPath() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Format("%v/zones", Config_->RootPath);
     }
 
     TYPath GetBundlesStatePath() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Format("%v/bundles_state", Config_->RootPath);
     }
 
     NYTree::IYPathServicePtr CreateOrchidService() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return IYPathService::FromProducer(BIND(&TBundleController::BuildOrchid, MakeStrong(this)))
             ->Via(Bootstrap_->GetControlInvoker());
@@ -1567,7 +1567,7 @@ private:
 
     void BuildOrchid(IYsonConsumer* consumer)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         BuildYsonFluently(consumer)
             .BeginMap()

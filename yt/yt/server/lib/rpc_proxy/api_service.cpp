@@ -841,7 +841,7 @@ public:
 
     void OnDynamicConfigChanged(const TApiServiceDynamicConfigPtr& config) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto oldConfig = Config_.Acquire();
 
@@ -6867,7 +6867,7 @@ private:
 
     bool IsUp(const TCtxDiscoverPtr& /*context*/) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ProxyCoordinator_->GetOperableState();
     }

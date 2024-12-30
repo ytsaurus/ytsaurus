@@ -25,7 +25,7 @@ TTransactionRotator::TTransactionRotator(
 
 void TTransactionRotator::Clear()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     PreviousTransaction_.ResetOnClear();
     Transaction_.ResetOnClear();
@@ -41,7 +41,7 @@ void TTransactionRotator::Persist(const TPersistenceContext& context)
 
 void TTransactionRotator::Rotate()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasHydraContext());
 
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -72,28 +72,28 @@ TTransactionId TTransactionRotator::TransactionIdFromPtr(const TTransactionWeakP
 
 TTransactionId TTransactionRotator::GetTransactionId() const
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     return TransactionIdFromPtr(Transaction_);
 }
 
 TTransaction* TTransactionRotator::GetTransaction() const
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     return Transaction_.Get();
 }
 
 TTransactionId TTransactionRotator::GetPreviousTransactionId() const
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     return TransactionIdFromPtr(PreviousTransaction_);
 }
 
 bool TTransactionRotator::OnTransactionFinished(TTransaction* transaction)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     if (PreviousTransaction_.Get() != transaction &&
         Transaction_.Get() != transaction)

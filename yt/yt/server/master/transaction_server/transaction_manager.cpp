@@ -159,7 +159,7 @@ public:
     {
         TransactionServerProfiler().AddProducer("", BufferedProducer_);
 
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
         Logger = TransactionServerLogger();
 
@@ -435,7 +435,7 @@ public:
         std::optional<bool> enableNativeTxExternalization,
         TTransactionId hintId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         NProfiling::TWallTimer timer;
 
@@ -655,7 +655,7 @@ public:
         const TTransactionCommitOptions& options,
         bool replicateViaHive = true)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         NProfiling::TWallTimer timer;
@@ -826,7 +826,7 @@ public:
         bool validatePermissions,
         bool replicateViaHive)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         NProfiling::TWallTimer timer;
 
@@ -1188,7 +1188,7 @@ public:
         TTransaction* transaction,
         TDuration timeout) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         transaction->SetTimeout(timeout);
 
@@ -1199,7 +1199,7 @@ public:
 
     void StageObject(TTransaction* transaction, TObject* object) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(transaction->StagedObjects().insert(object).second);
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1211,7 +1211,7 @@ public:
         TObject* object,
         bool recursive) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& handler = objectManager->GetHandler(object);
@@ -1225,7 +1225,7 @@ public:
 
     void StageNode(TTransaction* transaction, TCypressNode* trunkNode) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1235,7 +1235,7 @@ public:
 
     void ImportObject(TTransaction* transaction, TObject* object) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         transaction->ImportedObjects().push_back(object);
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -1255,7 +1255,7 @@ public:
         TObject* object,
         TCellTag destinationCellTag) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         transaction->ExportedObjects().push_back({object, destinationCellTag});
 
@@ -1325,7 +1325,7 @@ public:
         const std::vector<TCellId>& cellIdsToSyncWith,
         TTransactionId transactionIdToRevokeLeases)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (prerequisiteTransactionIds.empty() &&
             cellIdsToSyncWith.empty() &&
@@ -1363,7 +1363,7 @@ public:
         TTransactionId transactionId,
         const TTransactionPrepareOptions& options) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
         PrepareTransactionCommit(transaction, options);
@@ -1373,7 +1373,7 @@ public:
         TTransaction* transaction,
         const TTransactionPrepareOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto persistent = options.Persistent;
 
@@ -1431,7 +1431,7 @@ public:
         TTransactionId transactionId,
         const TTransactionAbortOptions& options) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
@@ -1462,7 +1462,7 @@ public:
         const TTransactionCommitOptions& options,
         TRevision nativeCommitMutationRevision)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
         transaction->SetNativeCommitMutationRevision(nativeCommitMutationRevision);
@@ -1483,7 +1483,7 @@ public:
         TTransactionId transactionId,
         const TTransactionAbortOptions& options) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
         AbortTransaction(
@@ -1497,7 +1497,7 @@ public:
         TTransactionId transactionId,
         bool pingAncestors) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
@@ -1562,7 +1562,7 @@ public:
 
     void StartCypressTransaction(const TCtxStartCypressTransactionPtr& context) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (IsMirroringToSequoiaEnabled()) {
             auto nonMirroredTransactionId = FindUsedNonMirroredTransaction(context);
@@ -1588,7 +1588,7 @@ public:
 
     void CommitCypressTransaction(const TCtxCommitCypressTransactionPtr& context) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& request = context->Request();
 
@@ -2606,7 +2606,7 @@ private:
         NProto::TReqIssueLeases* request,
         NProto::TRspIssueLeases* /*response*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto transactionIds = FromProto<std::vector<TTransactionId>>(request->transaction_ids());
@@ -2644,7 +2644,7 @@ private:
 
     void HydraRevokeLeases(NProto::TReqRevokeLeases* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -2660,7 +2660,7 @@ private:
 
     void RevokeLeases(TTransaction* transaction, bool force)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
@@ -2700,7 +2700,7 @@ private:
 public:
     void FinishTransaction(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
@@ -2830,7 +2830,7 @@ private:
         TTransaction* transaction,
         TCellBase* cell) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (!transaction->LeaseCellIds().insert(cell->GetId()).second) {
@@ -2857,7 +2857,7 @@ private:
         TTransaction* transaction,
         TCellBase* cell) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (!transaction->LeaseCellIds().erase(cell->GetId())) {
@@ -2896,14 +2896,14 @@ private:
 
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TransactionMap_.LoadKeys(context);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Load;
 
@@ -2915,7 +2915,7 @@ private:
 
     void OnAfterSnapshotLoaded() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         // Reconstruct NativeTransactions and NativeTopmostTransactions.
         for (auto [id, transaction] : TransactionMap_) {
@@ -2960,7 +2960,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::Clear();
 
@@ -2992,7 +2992,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnLeaderActive();
 
@@ -3013,7 +3013,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopLeading();
 
@@ -3036,7 +3036,7 @@ private:
 
     void OnStopFollowing() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopFollowing();
 
@@ -3081,7 +3081,7 @@ private:
 
     void OnTransactionExpired(TTransactionId transactionId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
@@ -3233,7 +3233,7 @@ private:
         ToProto(request.mutable_transaction_id(), transactionId);
         auto mutation = CreateMutation(HydraManager_, request);
         return mutation->Commit().AsVoid().Apply(BIND([=, this, this_ = MakeStrong(this)] {
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
+            YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
             auto* transaction = FindTransaction(transactionId);
             // Transaction was already committed or aborted. Let commit and abort handler
@@ -3263,7 +3263,7 @@ private:
 
     void OnLeaseRevoked(TLeaseId leaseId, TCellId cellId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto* transaction = FindTransaction(leaseId);
@@ -3305,7 +3305,7 @@ private:
 
     void OnProfiling()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (TransactionPresenceCache_) {
             TSensorBuffer buffer;
@@ -3351,7 +3351,7 @@ private:
 
     bool IsMirroringToSequoiaEnabled()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
         return config->Enable && config->EnableCypressTransactionsInSequoia;

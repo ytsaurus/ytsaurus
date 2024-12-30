@@ -53,7 +53,7 @@ public:
 
     void Start() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         RoutingTableUpdateExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetControlInvoker(),
@@ -96,7 +96,7 @@ private:
 
     void Reconfigure(const TRoutingTable& newRoutingTable)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = WriterGuard(Lock_);
 
@@ -162,7 +162,7 @@ private:
         ui16 port,
         IConnectionPtr connection)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         TEndpoint endpoint;
         {
@@ -209,7 +209,7 @@ private:
 
     void UpdateRoutingTable()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_INFO("Updating routing table");
 
@@ -224,7 +224,7 @@ private:
 
     void GuardedUpdateRoutingTable()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto client = Bootstrap_->GetRootClient();
         auto routesPath = TYPath(TcpProxiesRoutesPath) + "/" + Bootstrap_->GetConfig()->Role;
@@ -262,7 +262,7 @@ private:
 
     TRouterDynamicConfigPtr GetDynamicConfig()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetDynamicConfigManager()->GetConfig()->Router;
     }
@@ -271,7 +271,7 @@ private:
         const TProxyDynamicConfigPtr& /*oldConfig*/,
         const TProxyDynamicConfigPtr& /*newConfig*/)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         RoutingTableUpdateExecutor_->SetPeriod(GetDynamicConfig()->RoutingTableUpdatePeriod);
     }

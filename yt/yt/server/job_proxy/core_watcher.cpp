@@ -124,7 +124,7 @@ TCoreWatcher::TCoreWatcher(
 
 TCoreResult TCoreWatcher::Finalize(std::optional<TDuration> finalizationTimeout)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (finalizationTimeout && !CoreAppearedPromise_.IsSet()) {
         YT_LOG_DEBUG("Waiting for at least one core to appear (FinalizationTimeout: %v)",
@@ -191,7 +191,7 @@ TCoreResult TCoreWatcher::Finalize(std::optional<TDuration> finalizationTimeout)
 
 void TCoreWatcher::DoWatchCores()
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
     YT_LOG_DEBUG("Looking for new cores (CoreDirectoryPath: %v)",
         CoreDirectoryPath_);
@@ -256,7 +256,7 @@ void TCoreWatcher::DoWatchCores()
 
 void TCoreWatcher::DoProcessLinuxCore(const TString& coreName, int coreIndex)
 {
-    VERIFY_INVOKER_AFFINITY(IOInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(IOInvoker_);
 
     auto Logger = this->Logger().WithTag("CoreName: %v, CoreIndex: %v",
         coreName,
@@ -324,7 +324,7 @@ void TCoreWatcher::DoProcessLinuxCore(const TString& coreName, int coreIndex)
 
 void TCoreWatcher::DoProcessGpuCore(IAsyncInputStreamPtr coreStream, int coreIndex)
 {
-    VERIFY_INVOKER_AFFINITY(IOInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(IOInvoker_);
 
     const TString coreName = "cuda_gpu_core_dump";
 
@@ -360,7 +360,7 @@ void TCoreWatcher::DoProcessGpuCore(IAsyncInputStreamPtr coreStream, int coreInd
 
 i64 TCoreWatcher::DoReadCore(const IAsyncInputStreamPtr& coreStream, const TString& coreName, int coreIndex)
 {
-    VERIFY_INVOKER_AFFINITY(IOInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(IOInvoker_);
 
     auto Logger = this->Logger().WithTag("CoreName: %v, CoreIndex: %v",
         coreName,

@@ -352,7 +352,7 @@ private:
     //! Creates instance node with proper annotations and an orchid node at the native cluster.
     void UpdateCypressNode()
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
         TCypressRegistrarOptions options{
             .RootPath = Format("%v/instances/%v", Config_->DynamicState->Root, ToYPathLiteral(AgentId_)),

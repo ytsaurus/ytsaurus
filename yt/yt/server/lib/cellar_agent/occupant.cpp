@@ -205,7 +205,7 @@ public:
             bootstrap->GetChangelogOutThrottler(),
             Occupier_.Acquire()->GetProfiler()))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(GetOccupier()->GetOccupierAutomatonInvoker(), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(GetOccupier()->GetOccupierAutomatonInvoker(), AutomatonThread);
     }
 
     ICellarOccupierPtr GetOccupier() const override
@@ -220,14 +220,14 @@ public:
 
     TCellId GetCellId() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return CellDescriptor_.CellId;
     }
 
     EPeerState GetControlState() const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (Finalizing_) {
             YT_LOG_DEBUG("Peer is finalized (CellId: %v, State: %v)",
@@ -252,7 +252,7 @@ public:
 
     EPeerState GetAutomatonState() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto hydraManager = GetHydraManager();
         return hydraManager ? hydraManager->GetAutomatonState() : EPeerState::None;
@@ -260,28 +260,28 @@ public:
 
     int GetPeerId() const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return PeerId_;
     }
 
     const TCellDescriptor& GetCellDescriptor() const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return CellDescriptor_;
     }
 
     int GetConfigVersion() const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return ConfigVersion_;
     }
 
     const IDistributedHydraManagerPtr GetHydraManager() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return HydraManager_.Acquire();
     }
@@ -343,7 +343,7 @@ public:
 
     void Initialize() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(!Initialized_);
 
         Initialized_ = true;
@@ -353,7 +353,7 @@ public:
 
     bool CanConfigure() const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return Initialized_ && !Finalizing_;
     }
@@ -411,7 +411,7 @@ public:
 
     void Configure(const TConfigureCellSlotInfo& configureInfo) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(CanConfigure());
 
         auto occupier = GetOccupier();
@@ -661,21 +661,21 @@ public:
 
     TDynamicTabletCellOptionsPtr GetDynamicOptions() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DynamicOptions_.Acquire();
     }
 
     int GetDynamicConfigVersion() const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return DynamicConfigVersion_;
     }
 
     void UpdateDynamicConfig(const TUpdateCellSlotInfo& updateInfo) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto updateVersion = updateInfo.dynamic_config_version();
 
@@ -716,7 +716,7 @@ public:
 
     void Reconfigure(NHydra::TDynamicDistributedHydraManagerConfigPtr dynamicConfig) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         JournalWritesObserver_->Reconfigure(dynamicConfig);
         EnableSnapshotNetworkThrottling_.store(dynamicConfig->EnableSnapshotNetworkThrottling.value_or(false));
@@ -730,7 +730,7 @@ public:
 
     TFuture<void> Finalize() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (Finalizing_) {
             return FinalizeResult_;
@@ -761,14 +761,14 @@ public:
 
     const TTabletCellOptionsPtr& GetOptions() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Options_;
     }
 
     void PopulateAlerts(std::vector<TError>* alerts) const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (!UnrecognizedOptionsAlert_.IsOK()) {
             alerts->push_back(UnrecognizedOptionsAlert_);
@@ -897,7 +897,7 @@ private:
 
     void GetHydraMonitoring(IYsonConsumer* consumer) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (auto hydraManager = GetHydraManager()) {
             hydraManager->GetMonitoringProducer().Run(consumer);
@@ -909,7 +909,7 @@ private:
 
     TTransactionId GetPrerequisiteTransactionId() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return PrerequisiteTransactionId_;
     }
@@ -922,7 +922,7 @@ private:
 
     TFuture<void> OnLeaderLeaseCheck()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (PrerequisiteTransaction_) {
             YT_LOG_DEBUG("Checking prerequisite transaction");
@@ -937,7 +937,7 @@ private:
 
     void DoFinalize()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         CellManager_.Reset();
 
@@ -967,7 +967,7 @@ private:
 
     void DoFinalizeAutomaton()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto rpcServer = Bootstrap_->GetRpcServer();
 
@@ -993,7 +993,7 @@ private:
 
     void OnRecoveryComplete()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         // Notify masters about recovery completion as soon as possible via out-of-order heartbeat.
         Bootstrap_->ScheduleCellarHeartbeat();

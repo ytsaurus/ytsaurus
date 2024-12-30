@@ -333,7 +333,7 @@ private:
 
     void OnModelCreationRound()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto model = Model_->ReleaseSizes();
 
@@ -346,7 +346,7 @@ private:
 
     void OnLatenciesReportingRound()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto latencies = Model_->ReleaseLatencies();
 

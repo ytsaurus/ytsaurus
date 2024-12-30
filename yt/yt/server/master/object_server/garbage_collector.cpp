@@ -132,7 +132,7 @@ void TGarbageCollector::LoadKeys(NCellMaster::TLoadContext& context)
 
 void TGarbageCollector::LoadValues(NCellMaster::TLoadContext& context)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     using NYT::Load;
 
@@ -144,7 +144,7 @@ void TGarbageCollector::LoadValues(NCellMaster::TLoadContext& context)
 
 void TGarbageCollector::Clear()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     Zombies_.clear();
     RemovalAwaitingCellsSyncObjects_.clear();
@@ -158,7 +158,7 @@ void TGarbageCollector::Clear()
 
 TFuture<void> TGarbageCollector::Collect()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     YT_VERIFY(CollectPromise_);
     return CollectPromise_;
@@ -201,7 +201,7 @@ void TGarbageCollector::EphemeralUnrefObject(TObject* object)
         --LockedObjectCount_;
 
         if (object->IsGhost()) {
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
+            YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
             YT_VERIFY(!IsObjectAlive(object));
 
@@ -215,7 +215,7 @@ void TGarbageCollector::EphemeralUnrefObject(TObject* object)
 
 void TGarbageCollector::EphemeralUnrefObject(TObject* object, TEpoch epoch)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     EphemeralGhostUnrefQueue_.Enqueue(std::pair(object, epoch));
     ++EphemeralGhostUnrefQueueSize_;
@@ -223,7 +223,7 @@ void TGarbageCollector::EphemeralUnrefObject(TObject* object, TEpoch epoch)
 
 int TGarbageCollector::WeakRefObject(TObject* object)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(IsObjectAlive(object));
     YT_ASSERT(object->IsTrunk());
 
@@ -236,7 +236,7 @@ int TGarbageCollector::WeakRefObject(TObject* object)
 
 int TGarbageCollector::WeakUnrefObject(TObject* object)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(object->IsTrunk());
 
     int weakRefCounter = object->WeakUnrefObject();
@@ -268,7 +268,7 @@ int TGarbageCollector::WeakUnrefObject(TObject* object)
 
 void TGarbageCollector::RegisterZombie(TObject* object)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(!IsObjectAlive(object));
 
     if (Zombies_.empty() && CollectPromise_ && CollectPromise_.IsSet()) {
@@ -282,7 +282,7 @@ void TGarbageCollector::RegisterZombie(TObject* object)
 
 void TGarbageCollector::UnregisterZombie(TObject* object)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(object->GetObjectRefCounter() == 1);
 
     if (Zombies_.erase(object) == 1) {
@@ -294,7 +294,7 @@ void TGarbageCollector::UnregisterZombie(TObject* object)
 
 void TGarbageCollector::DestroyZombie(TObject* object)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     YT_VERIFY(Zombies_.erase(object) == 1);
 
@@ -338,7 +338,7 @@ const THashSet<TObject*>& TGarbageCollector::GetZombies() const
 
 void TGarbageCollector::RegisterRemovalAwaitingCellsSyncObject(TObject* object)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     YT_VERIFY(RemovalAwaitingCellsSyncObjects_.insert(object).second);
 
@@ -348,7 +348,7 @@ void TGarbageCollector::RegisterRemovalAwaitingCellsSyncObject(TObject* object)
 
 void TGarbageCollector::UnregisterRemovalAwaitingCellsSyncObject(TObject* object)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     if (RemovalAwaitingCellsSyncObjects_.erase(object) == 1) {
         YT_LOG_DEBUG("Removal awaiting cells sync object unregistered (ObjectId: %v)",
@@ -369,14 +369,14 @@ const THashSet<TObject*>& TGarbageCollector::GetRemovalAwaitingCellsSyncObjects(
 
 TObject* TGarbageCollector::GetWeakGhostObject(TObjectId id)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     return GetOrCrash(WeakGhosts_, id);
 }
 
 void TGarbageCollector::Reset()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     ClearEphemeralGhosts();
 }
@@ -415,7 +415,7 @@ void TGarbageCollector::ClearWeakGhosts()
 
 void TGarbageCollector::CheckEmpty()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     if (Zombies_.empty() && CollectPromise_ && !CollectPromise_.IsSet()) {
         YT_LOG_DEBUG("Zombie queue is empty");
@@ -425,7 +425,7 @@ void TGarbageCollector::CheckEmpty()
 
 void TGarbageCollector::OnSweep()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     ShrinkHashTable(Zombies_);
     ShrinkHashTable(EphemeralGhosts_);
@@ -437,7 +437,7 @@ void TGarbageCollector::OnSweep()
 
 void TGarbageCollector::SweepZombies()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& hydraFacade = Bootstrap_->GetHydraFacade();
     const auto& hydraManager = hydraFacade->GetHydraManager();
@@ -470,7 +470,7 @@ void TGarbageCollector::SweepZombies()
 
 void TGarbageCollector::SweepEphemeralGhosts()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     // TODO(gritukan): Extract ghosts one by one.
     auto objectsToUnref = EphemeralGhostUnrefQueue_.DequeueAll();
@@ -484,7 +484,7 @@ void TGarbageCollector::SweepEphemeralGhosts()
 
 void TGarbageCollector::OnObjectRemovalCellsSync()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& hydraFacade = Bootstrap_->GetHydraFacade();
     const auto& hydraManager = hydraFacade->GetHydraManager();

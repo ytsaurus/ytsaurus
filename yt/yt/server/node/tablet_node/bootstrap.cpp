@@ -385,7 +385,7 @@ public:
 
     NYTree::IYPathServicePtr CreateThreadPoolsOrchidService()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return IYPathService::FromProducer(BIND(&TBootstrap::BuildThreadPoolsOrchid, MakeStrong(this)))
             ->Via(GetControlInvoker());
@@ -393,7 +393,7 @@ public:
 
     void BuildThreadPoolsOrchid(IYsonConsumer* consumer)
     {
-        VERIFY_INVOKER_AFFINITY(GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetControlInvoker());
 
         BuildYsonFluently(consumer)
             .BeginMap()

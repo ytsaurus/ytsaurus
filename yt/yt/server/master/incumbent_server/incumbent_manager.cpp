@@ -47,12 +47,12 @@ public:
     explicit TIncumbentManager(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::IncumbentManager)
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
     }
 
     void Initialize() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TIncumbentManager::OnDynamicConfigChanged, MakeWeak(this)));
@@ -60,7 +60,7 @@ public:
 
     IYPathServicePtr GetOrchidService() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return IYPathService::FromProducer(BIND(&TIncumbentManager::BuildOrchid, MakeStrong(this)))
             ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkManager));
@@ -68,7 +68,7 @@ public:
 
     void BuildOrchid(IYsonConsumer* consumer) const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         BuildYsonFluently(consumer).BeginMap()
             .Item("local_state").Value(LocalIncumbentMap_)
@@ -151,7 +151,7 @@ private:
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         Config_ = Bootstrap_->GetConfigManager()->GetConfig()->IncumbentManager;
 
@@ -162,7 +162,7 @@ private:
 
     std::string GetSelfAddress() const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& cellManager = Bootstrap_->GetCellManager();
         return *cellManager->GetSelfConfig()->Address;
@@ -170,7 +170,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         TMasterAutomatonPart::OnLeaderActive();
@@ -207,7 +207,7 @@ private:
 
     void OnStartFollowing() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStartFollowing();
 
@@ -216,7 +216,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopLeading();
 
@@ -234,7 +234,7 @@ private:
 
     void OnStopFollowing() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopFollowing();
 
@@ -243,7 +243,7 @@ private:
 
     void OnStartEpoch()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         for (const auto& descriptor : LocalIncumbentMap_) {
             for (const auto& address : descriptor.Addresses) {
@@ -254,7 +254,7 @@ private:
 
     void OnEndEpoch()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TLeaseManager::CloseLease(LocalLease_);
         LocalLease_.Reset();
@@ -266,7 +266,7 @@ private:
         TInstant peerLeaseDeadline,
         const TIncumbentMap& incumbentMap) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto selfAddress = GetSelfAddress();
 
@@ -337,7 +337,7 @@ private:
 
     bool HasIncumbency(EIncumbentType type, int shardIndex) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return LocalIncumbentMap_[type].Addresses[shardIndex] == GetSelfAddress();
     }
@@ -351,7 +351,7 @@ private:
 
     void AssignIncumbents()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         if (!CanScheduleIncumbents_) {
@@ -441,7 +441,7 @@ private:
 
     void UpdateTargetState()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         std::vector<TPeerDescriptor> peerDescriptors;
@@ -460,7 +460,7 @@ private:
         TIncumbentMap reportedIncumbents,
         const TErrorOr<TIncumbentServiceProxy::TRspHeartbeatPtr>& response)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         auto& peer = Peers_[peerIndex];
@@ -524,7 +524,7 @@ private:
 
     void OnPeerOnline(int peerIndex)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         auto& peer = Peers_[peerIndex];
@@ -545,7 +545,7 @@ private:
 
     void OnPeerLeaseExpired(int peerIndex)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         auto& peer = Peers_[peerIndex];
@@ -575,7 +575,7 @@ private:
 
     void OnIncumbencyStarted(TIncumbencyDescriptor incumbency)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (const auto& incumbent = Incumbents_[incumbency.Type]) {
             incumbent->OnIncumbencyStarted(incumbency.ShardIndex);
@@ -588,7 +588,7 @@ private:
 
     void OnIncumbencyFinished(TIncumbencyDescriptor incumbency)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto& incumbencyAddress = LocalIncumbentMap_[incumbency.Type].Addresses[incumbency.ShardIndex];
         YT_LOG_ALERT_UNLESS(incumbencyAddress == GetSelfAddress(),
@@ -610,7 +610,7 @@ private:
 
     void OnLocalLeaseExpired()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_LOG_WARNING("Local lease expired, abandoning all local incumbencies");
 

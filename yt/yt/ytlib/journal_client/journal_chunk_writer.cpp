@@ -63,7 +63,7 @@ public:
 
     TFuture<void> Open() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return BIND(&TJournalChunkWriter::DoOpen, MakeStrong(this))
             .AsyncVia(Invoker_)
@@ -72,7 +72,7 @@ public:
 
     TFuture<void> Close() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return BIND(&TJournalChunkWriter::DoClose, MakeStrong(this))
             .AsyncVia(Invoker_)
@@ -81,7 +81,7 @@ public:
 
     TFuture<void> WriteRecord(TSharedRef record) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         std::vector<TSharedRef> recordParts{std::move(record)};
         return BIND(&TJournalChunkWriter::DoWriteRecord,
@@ -94,7 +94,7 @@ public:
 
     TFuture<void> WriteEncodedRecordParts(std::vector<TSharedRef> recordParts) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_VERIFY(Options_->ErasureCodec != NErasure::ECodec::None);
 
@@ -108,7 +108,7 @@ public:
 
     bool IsCloseDemanded() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return IsCloseDemanded_.load();
     }
@@ -193,7 +193,7 @@ private:
 
     void DoOpen()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         try {
             GuardedDoOpen();
@@ -207,7 +207,7 @@ private:
 
     void GuardedDoOpen()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto writeTargets = AllocateWriteTargets();
         CreateNodes(writeTargets);
@@ -217,7 +217,7 @@ private:
 
     TChunkReplicaWithMediumList AllocateWriteTargets()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_LOG_DEBUG("Allocating write targets (SessionId: %v, ReplicaCount: %v)",
             SessionId_,
@@ -248,7 +248,7 @@ private:
 
     void CreateNodes(const TChunkReplicaWithMediumList& replicas)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         Nodes_.reserve(ReplicaCount_);
 
@@ -275,7 +275,7 @@ private:
 
     void StartChunkSessions()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_LOG_DEBUG("Starting chunk sessions at nodes (SessionId: %v)",
             SessionId_);
@@ -304,7 +304,7 @@ private:
         const TNodePtr& node,
         const TDataNodeServiceProxy::TErrorOrRspStartChunkPtr& rspOrError)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (rspOrError.IsOK()) {
             const auto& rsp = rspOrError.Value();
@@ -332,7 +332,7 @@ private:
 
     void ConfirmChunk(const TChunkReplicaWithMediumList& replicas)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_LOG_DEBUG("Confirming chunk");
 
@@ -374,7 +374,7 @@ private:
 
     void PingSession(const TWeakPtr<TNode>& weakNode)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto node = weakNode.Lock();
         if (!node) {
@@ -396,7 +396,7 @@ private:
         const TNodePtr& node,
         TDataNodeServiceProxy::TErrorOrRspPingSessionPtr rspOrError)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (rspOrError.IsOK()) {
             YT_LOG_DEBUG("Ping succeeded (Address: %v, SessionId: %v)",
@@ -415,7 +415,7 @@ private:
 
     TFuture<void> DoWriteRecord(std::vector<TSharedRef> recordParts, bool alreadyEncoded)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (!Error_.IsOK()) {
             return MakeFuture<void>(Error_);
@@ -435,7 +435,7 @@ private:
 
     void MaybeFlushNodes()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (std::ssize(PendingRecords_) >= Config_->MaxBatchRowCount) {
             DoFlushNodes();
@@ -462,7 +462,7 @@ private:
 
     void MaybeFlushNode(const TNodePtr& node)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (node->IsFlushing) {
             return;
@@ -473,7 +473,7 @@ private:
 
     void DoFlushNode(const TNodePtr& node)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         YT_VERIFY(!node->IsFlushing);
 
         node->IsFlushing = true;
@@ -536,7 +536,7 @@ private:
         i64 recordCount,
         const TDataNodeServiceProxy::TErrorOrRspPutBlocksPtr& rspOrError)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         node->IsFlushing = false;
 
@@ -586,7 +586,7 @@ private:
 
     TSessionId GetSessionIdForNode(const TNodePtr& node)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto chunkId = Options_->ErasureCodec == NErasure::ECodec::None
             ? ChunkId_
@@ -606,7 +606,7 @@ private:
 
     void OnFailed(const TError& error)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_LOG_INFO(error, "Journal chunk writer failed");
         Error_ = error;
@@ -620,7 +620,7 @@ private:
 
     void OnCloseDemanded()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (!IsCloseDemanded_.exchange(true)) {
             YT_LOG_DEBUG("Journal chunk writer close demanded");
@@ -629,7 +629,7 @@ private:
 
     void DoClose()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_LOG_DEBUG("Closing journal chunk writer");
 
@@ -638,7 +638,7 @@ private:
 
     void OnWriterFinished()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         for (auto& node : Nodes_) {
             if (node->PingExecutor) {
@@ -652,7 +652,7 @@ private:
 
     TRecordPtr CreateRecord(std::vector<TSharedRef> recordParts, bool alreadyEncoded)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto record = New<TRecord>();
         record->Index = NextRecordIndex_++;
@@ -685,7 +685,7 @@ private:
 
     const TRecordPtr& GetPendingRecord(int index)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_VERIFY(
             index >= FirstPendingRecordIndex_ &&

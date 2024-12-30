@@ -195,7 +195,7 @@ private:
     protected:
         i64 GetWeight(const TCachedChunkMetaPtr& meta) const override
         {
-            VERIFY_THREAD_AFFINITY_ANY();
+            YT_ASSERT_THREAD_AFFINITY_ANY();
 
             return meta->GetWeight();
         }
@@ -220,7 +220,7 @@ private:
     protected:
         i64 GetWeight(const TCachedBlocksExtPtr& blocksExt) const override
         {
-            VERIFY_THREAD_AFFINITY_ANY();
+            YT_ASSERT_THREAD_AFFINITY_ANY();
 
             return blocksExt->GetWeight();
         }

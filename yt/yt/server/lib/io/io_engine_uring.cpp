@@ -1557,14 +1557,14 @@ private:
 
     void ReconfigureQueue()
     {
-        VERIFY_INVOKER_AFFINITY(ReconfigureInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(ReconfigureInvoker_);
 
         RequestQueue_->Reconfigure(std::ssize(Threads_));
     }
 
     void DoReconfigure()
     {
-        VERIFY_INVOKER_AFFINITY(ReconfigureInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(ReconfigureInvoker_);
 
         ResizeThreads();
     }

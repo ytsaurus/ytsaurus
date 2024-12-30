@@ -441,7 +441,7 @@ private:
     template <class... U>
     void AddJobEvent(U&&... u)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         JobEvents_.emplace_back(std::forward<U>(u)...);
         HandleJobReport(MakeDefaultJobReport()

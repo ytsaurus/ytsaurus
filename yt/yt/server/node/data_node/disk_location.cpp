@@ -32,28 +32,28 @@ TDiskLocation::TDiskLocation(
 
 const TString& TDiskLocation::GetId() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Id_;
 }
 
 TDiskLocationConfigPtr TDiskLocation::GetRuntimeConfig() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return RuntimeConfig_.Acquire();
 }
 
 void TDiskLocation::Reconfigure(TDiskLocationConfigPtr config)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     RuntimeConfig_.Store(std::move(config));
 }
 
 bool TDiskLocation::IsEnabled() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto value = State_.load();
     return value == ELocationState::Enabled;
@@ -61,7 +61,7 @@ bool TDiskLocation::IsEnabled() const
 
 bool TDiskLocation::CanHandleIncomingActions() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto currentState = State_.load();
     return currentState == ELocationState::Enabled ||
@@ -70,7 +70,7 @@ bool TDiskLocation::CanHandleIncomingActions() const
 
 ELocationState TDiskLocation::GetState() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return State_.load();
 }
@@ -79,7 +79,7 @@ bool TDiskLocation::ChangeState(
     ELocationState newState,
     std::optional<ELocationState> expectedState)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     StateChangingLock_.AcquireWriter();
 

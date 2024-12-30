@@ -125,7 +125,7 @@ TFuture<void> TSlotLocation::Initialize()
 
 void TSlotLocation::DoInitialize()
 {
-    VERIFY_INVOKER_AFFINITY(HeavyInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(HeavyInvoker_);
 
     YT_LOG_INFO("Location initialization started");
 

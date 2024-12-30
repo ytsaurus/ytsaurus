@@ -114,7 +114,7 @@ void TChunkTeleporter::Export()
 
 void TChunkTeleporter::DoExport(TCellTag cellTag, const std::vector<TChunkEntry*>& chunks)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     int oldExportedCount = GetExportedObjectCount(cellTag);
 
@@ -201,7 +201,7 @@ void TChunkTeleporter::Import()
 
 void TChunkTeleporter::DoImport(TCellTag cellTag, const std::vector<TChunkEntry*>& chunks)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     int oldImportedCount = GetImportedObjectCount(cellTag);
 

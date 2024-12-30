@@ -399,7 +399,7 @@ public:
 
     ~TExecuteSession()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         CancelPendingCacheSubrequests();
 
@@ -412,14 +412,14 @@ public:
 
     const std::string& GetUserName() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Identity_.User;
     }
 
     void RunRpc()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         try {
             GuardedRunRpc();
@@ -435,7 +435,7 @@ public:
 
     bool RunAutomatonFast()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         try {
             return GuardedRunAutomatonFast();
@@ -452,7 +452,7 @@ public:
 
     void RunAutomatonSlow()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto codicilGuard = MakeCodicilGuard();
         try {
@@ -464,7 +464,7 @@ public:
 
     void RunRead()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto codicilGuard = MakeCodicilGuard();
         try {
@@ -629,7 +629,7 @@ private:
 
     void ParseSubrequests()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& request = RpcContext_->Request();
         const auto& attachments = RpcContext_->RequestAttachments();
@@ -732,7 +732,7 @@ private:
 
     void LookupCachedSubrequests()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!Owner_->EnableTwoLevelCache_) {
             return;
@@ -809,7 +809,7 @@ private:
 
     TCellTagList CollectCellsToSyncForLocalExecution(ESyncPhase syncPhase)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         TCellTagList result;
         auto addCellTagToSyncWith = [&] (TCellTag cellTag) {
@@ -899,7 +899,7 @@ private:
 
     void MarkTentativelyRemoteSubrequests()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
@@ -909,7 +909,7 @@ private:
 
     TFuture<void> StartSync(ESyncPhase syncPhase, TFuture<void> additionalFuture = {})
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto cellTags = CollectCellsToSyncForLocalExecution(syncPhase);
 
@@ -936,7 +936,7 @@ private:
 
     void RunSyncPhaseOne()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto future = StartSync(ESyncPhase::One);
         if (future.IsSet()) {
@@ -950,7 +950,7 @@ private:
 
     void OnSyncPhaseOneCompleted(const TError& error = {})
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!error.IsOK()) {
             Reply(error);
@@ -1109,7 +1109,7 @@ private:
 
     void DecideSubrequestTypes()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         for (int subrequestIndex = 0; subrequestIndex < TotalSubrequestCount_; ++subrequestIndex) {
             auto& subrequest = Subrequests_[subrequestIndex];
@@ -1129,7 +1129,7 @@ private:
 
     void CheckSubrequestsForRemoteTransactions()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto addSubrequestTransactions = [&] (
             std::vector<TTransactionId>* transactions,
@@ -1227,7 +1227,7 @@ private:
 
     TFuture<void> InvokeRemoteTransactionReplicationWithoutBoomerangs()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto future = RemoteTransactionReplicationSession_->InvokeReplicationRequests();
         if (!future) {
@@ -1237,7 +1237,7 @@ private:
         return future.Apply(BIND(
             [this, this_ = MakeStrong(this)]
             (const THashMap<TTransactionId, TFuture<void>>& transactionReplicationFutures) {
-                VERIFY_THREAD_AFFINITY_ANY();
+                YT_ASSERT_THREAD_AFFINITY_ANY();
 
                 THashMap<TSubrequest*, std::vector<TFuture<void>>> subrequestToRemoteTransactionReplicationFutures;
 
@@ -1261,7 +1261,7 @@ private:
 
     void RunSyncPhaseTwo()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         // Read subrequests may request their remote transaction replication
         // right away, as they will subscribe and wait for any such transaction
@@ -1283,7 +1283,7 @@ private:
 
     void OnSyncPhaseTwoCompleted(const TError& error = {})
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!error.IsOK()) {
             Reply(error);
@@ -1299,7 +1299,7 @@ private:
 
     void RunSyncPhaseThree()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto future = StartSync(ESyncPhase::Three);
         if (future.IsSet()) {
@@ -1314,7 +1314,7 @@ private:
 
     void OnSyncPhaseThreeCompleted(const TError& error = {})
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!error.IsOK()) {
             Reply(error);
@@ -1332,7 +1332,7 @@ private:
 
     bool ContainsLocalSubrequests()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         for (int index = 0; index < TotalSubrequestCount_; ++index) {
             auto& subrequest = Subrequests_[index];
@@ -1347,7 +1347,7 @@ private:
 
     void ForwardRemoteRequests()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         using TBatchKey = std::tuple<TCellTag, NApi::EMasterChannelKind>;
         struct TBatchValue
@@ -1474,7 +1474,7 @@ private:
 
     void Reschedule()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!Enqueued_.exchange(true)) {
             Owner_->EnqueueReadySession(this);
@@ -1484,7 +1484,7 @@ private:
     template <class T>
     void CheckAndReschedule(const TErrorOr<T>& result)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!result.IsOK()) {
             Reply(result);
@@ -1495,7 +1495,7 @@ private:
 
     bool WaitForAndContinue(const TFuture<void>& result)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (auto optionalError = result.TryGet()) {
             optionalError->ThrowOnError();
@@ -1509,7 +1509,7 @@ private:
 
     bool AllSubrequestsProcessed() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_ASSERT(CurrentAutomatonSubrequestIndex_ <= TotalSubrequestCount_);
         YT_ASSERT(CurrentLocalReadSubrequestIndex_ <= TotalSubrequestCount_);
@@ -1527,7 +1527,7 @@ private:
 
     bool GuardedRunAutomatonFast()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         Owner_->ValidateClusterInitialized();
 
@@ -1671,7 +1671,7 @@ private:
 
     void GuardedRunAutomatonSlow()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto subrequestFilter = [] (TSubrequest* subrequest) {
             return subrequest->Type != EExecutionSessionSubrequestType::LocalRead;
@@ -1682,7 +1682,7 @@ private:
 
     void GuardedRunRead()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto subrequestFilter = [] (TSubrequest* subrequest) {
             return subrequest->Type == EExecutionSessionSubrequestType::LocalRead;
@@ -1746,7 +1746,7 @@ private:
 
     bool ExecuteSubrequest(TSubrequest* subrequest)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         subrequest->Revision = hydraManager->GetAutomatonVersion().ToRevision();
@@ -1767,7 +1767,7 @@ private:
 
     void OnMutationCommitted(TSubrequest* subrequest, const TErrorOr<TMutationResponse>& responseOrError)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_ASSERT(subrequest->MutationResponseFuture.IsSet());
 
@@ -1809,10 +1809,10 @@ private:
     {
         switch (subrequest->Type) {
             case EExecutionSessionSubrequestType::LocalWrite:
-                VERIFY_THREAD_AFFINITY(AutomatonThread);
+                YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
                 break;
             case EExecutionSessionSubrequestType::LocalRead:
-                VERIFY_THREAD_AFFINITY_ANY();
+                YT_ASSERT_THREAD_AFFINITY_ANY();
                 break;
             default:
                 YT_ABORT();
@@ -1897,7 +1897,7 @@ private:
 
     void ExecuteReadSubrequest(TSubrequest* subrequest)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         TWallTimer timer;
 
@@ -1944,7 +1944,7 @@ private:
 
     void WaitForSubresponse(TSubrequest* subrequest)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         // Optimize for the (typical) case of synchronous response.
         const auto& context = subrequest->RpcContext;
@@ -1957,7 +1957,7 @@ private:
 
     void SubscribeToSubresponse(TSubrequest* subrequest, TFuture<TSharedRefArray> asyncSubresponseMessage)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         asyncSubresponseMessage.Subscribe(
             BIND(&TExecuteSession::OnSubresponse, MakeStrong(this), subrequest));
@@ -1965,7 +1965,7 @@ private:
 
     void OnSubresponse(TSubrequest* subrequest, const TErrorOr<TSharedRefArray>& result)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!result.IsOK()) {
             Reply(result);
@@ -1977,7 +1977,7 @@ private:
 
     void MarkSubrequestAsUncertain(int index)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto& subrequest = Subrequests_[index];
         subrequest.Uncertain.store(true);
@@ -1986,7 +1986,7 @@ private:
 
     void OnSuccessfulSubresponse(TSubrequest* subrequest, TSharedRefArray subresponseMessage)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (subrequest->TraceContext) {
             subrequest->TraceContext->Finish();
@@ -2010,7 +2010,7 @@ private:
 
     void OnMissingSubresponse(TSubrequest* subrequest)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         // Missing subresponses are only possible for remote subrequests, and
         // there should be no trace contexts for them.
@@ -2025,7 +2025,7 @@ private:
 
     void Reply(const TError& error = TError())
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         Interrupt();
 
@@ -2037,7 +2037,7 @@ private:
 
     void DoReply(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         TDelayedExecutor::CancelAndClear(BackoffAlarmCookie_);
         CancelPendingCacheSubrequests();
@@ -2149,7 +2149,7 @@ private:
 
     void Interrupt()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!LocalExecutionInterrupted_.exchange(true)) {
             YT_LOG_DEBUG("Request interrupted");
@@ -2174,7 +2174,7 @@ private:
 
     bool InterruptIfCanceled()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (RpcContext_->IsCanceled() || EpochCancelableContext_->IsCanceled()) {
             Interrupt();
@@ -2186,7 +2186,7 @@ private:
 
     void ScheduleBackoffAlarm()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!RpcContext_->Request().allow_backoff()) {
             return;
@@ -2204,7 +2204,7 @@ private:
 
     void OnBackoffAlarm()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_DEBUG("Backoff alarm triggered");
 
@@ -2215,7 +2215,7 @@ private:
 
     void AcquireReplyLock()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         int result = ++ReplyLockCount_;
         YT_VERIFY(result > 1);
@@ -2225,7 +2225,7 @@ private:
 
     bool ReleaseReplyLock()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         int result = --ReplyLockCount_;
         YT_VERIFY(result >= 0);
@@ -2236,7 +2236,7 @@ private:
 
     bool ReleaseUltimateReplyLock()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (UltimateReplyLockReleased_.exchange(true)) {
             return false;
@@ -2248,7 +2248,7 @@ private:
 
     bool ScheduleReplyIfNeeded()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (ReplyScheduled_.load()) {
             return true;
@@ -2280,7 +2280,7 @@ private:
 
     TCodicilGuard MakeCodicilGuard()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return TCodicilGuard(MakeNonOwningCodicilBuilder(Codicil_));
     }
@@ -2357,14 +2357,14 @@ void TObjectService::TLocalReadInvoker::RegisterWaitTimeObserver(IInvoker::TWait
 
 const TDynamicObjectServiceConfigPtr& TObjectService::GetDynamicConfig()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     return Bootstrap_->GetConfigManager()->GetConfig()->ObjectService;
 }
 
 void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& objectServiceConfig = GetDynamicConfig();
     EnableTwoLevelCache_ = objectServiceConfig->EnableTwoLevelCache;
@@ -2383,14 +2383,14 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
 
 void TObjectService::EnqueueReadySession(TExecuteSessionPtr session)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     ReadySessions_.Enqueue(std::move(session));
 }
 
 void TObjectService::EnqueueFinishedSession(TExecuteSessionInfo sessionInfo)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (sessionInfo.EpochCancelableContext) {
         FinishedSessionInfos_.Enqueue(std::move(sessionInfo));
@@ -2399,7 +2399,7 @@ void TObjectService::EnqueueFinishedSession(TExecuteSessionInfo sessionInfo)
 
 void TObjectService::ProcessSessions()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     auto startTime = GetCpuInstant();
     auto deadlineTime = startTime + DurationToCpuDuration(Config_->YieldTimeout);
@@ -2452,7 +2452,7 @@ void TObjectService::ProcessSessions()
 
 void TObjectService::FinishSession(const TExecuteSessionInfo& sessionInfo)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     if (sessionInfo.EpochCancelableContext->IsCanceled()) {
         return;
@@ -2466,7 +2466,7 @@ void TObjectService::FinishSession(const TExecuteSessionInfo& sessionInfo)
 
 void TObjectService::OnUserCharged(TUser* user, const TUserWorkload& workload)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto charge = [&] (const auto& scheduler) {
         scheduler->ChargeUser(user->GetName(), workload.RequestTime);
@@ -2486,7 +2486,7 @@ void TObjectService::OnUserCharged(TUser* user, const TUserWorkload& workload)
 
 void TObjectService::SetStickyUserError(const std::string& userName, const TError& error)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     StickyUserErrorCache_.Put(userName, error);
 }

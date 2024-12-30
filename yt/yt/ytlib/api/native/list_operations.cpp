@@ -868,7 +868,7 @@ void TListOperationsFilter::ParseResponses(std::vector<TYsonString> operationsRe
 
 TListOperationsFilter::TParseResult TListOperationsFilter::ParseOperationsYson(TYsonString operationsYson) const
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     std::vector<TLightOperation> operations;
 

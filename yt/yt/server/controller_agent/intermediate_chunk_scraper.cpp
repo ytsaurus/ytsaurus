@@ -40,7 +40,7 @@ TIntermediateChunkScraper::TIntermediateChunkScraper(
 
 void TIntermediateChunkScraper::Start()
 {
-    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool_);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
     if (!Started_) {
         Started_ = true;
@@ -50,7 +50,7 @@ void TIntermediateChunkScraper::Start()
 
 void TIntermediateChunkScraper::Restart()
 {
-    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool_);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
     if (!Started_ || ResetScheduled_) {
         return;
@@ -70,7 +70,7 @@ void TIntermediateChunkScraper::Restart()
 
 void TIntermediateChunkScraper::ResetChunkScraper()
 {
-    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool_);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool_);
 
     ResetInstant_ = TInstant::Now();
     ResetScheduled_ = false;

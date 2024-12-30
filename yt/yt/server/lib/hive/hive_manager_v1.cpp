@@ -165,28 +165,28 @@ public:
 
     IServicePtr GetRpcService() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return this;
     }
 
     IYPathServicePtr GetOrchidService() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return OrchidService_;
     }
 
     TCellId GetSelfCellId() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return SelfCellId_;
     }
 
     TMailboxHandle CreateCellMailbox(TCellId cellId, bool allowResurrection = false) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(HasHydraContext());
 
@@ -216,7 +216,7 @@ public:
 
     TMailboxHandle FindMailbox(TEndpointId endpointId) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (IsAvenueEndpointType(TypeFromId(endpointId))) {
             return AsUntyped(AvenueMailboxMap_.Find(endpointId));
@@ -234,7 +234,7 @@ public:
 
     TMailboxRuntimeDataPtr FindMailboxRuntimeData(TCellId cellId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(MailboxRuntimeDataMapLock_);
         auto it = MailboxRuntimeDataMap_.find(cellId);
@@ -245,7 +245,7 @@ public:
 
     TMailboxHandle GetOrCreateCellMailbox(TCellId cellId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(HasHydraContext());
 
@@ -258,7 +258,7 @@ public:
 
     TMailboxHandle GetMailboxOrThrow(TEndpointId endpointId) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto mailbox = FindMailbox(endpointId);
         if (!mailbox) {
@@ -287,7 +287,7 @@ public:
 
     bool TryRemoveCellMailbox(TCellId cellId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* mailbox = CellMailboxMap_.Find(cellId);
         if (!mailbox) {
@@ -324,7 +324,7 @@ public:
         TAvenueEndpointId selfEndpointId,
         TPersistentMailboxStateCookie&& cookie) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto otherEndpointId = GetSiblingAvenueEndpointId(selfEndpointId);
@@ -372,7 +372,7 @@ public:
         TAvenueEndpointId selfEndpointId,
         bool allowDestructionInMessageToSelf) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto otherEndpointId = GetSiblingAvenueEndpointId(selfEndpointId);
@@ -405,7 +405,7 @@ public:
 
     TPersistentMailboxStateCookie DoUnregisterAvenueEndpoint(TAvenueMailbox* mailbox)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto otherEndpointId = mailbox->GetEndpointId();
         auto selfEndpointId = GetSiblingAvenueEndpointId(otherEndpointId);
@@ -441,14 +441,14 @@ public:
 
     void PostMessage(TMailboxHandle mailbox, const TSerializedMessagePtr& message, bool reliable) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         PostMessage(std::array{mailbox}, message, reliable);
     }
 
     void PostMessage(TRange<TMailboxHandle> mailboxes, const TSerializedMessagePtr& message, bool reliable) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (reliable) {
             ReliablePostMessage(mailboxes, message);
@@ -459,21 +459,21 @@ public:
 
     void PostMessage(TMailboxHandle mailbox, const ::google::protobuf::MessageLite& message, bool reliable) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         PostMessage(mailbox, SerializeOutcomingMessage(message), reliable);
     }
 
     void PostMessage(TRange<TMailboxHandle> mailboxes, const ::google::protobuf::MessageLite& message, bool reliable) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         PostMessage(mailboxes, SerializeOutcomingMessage(message), reliable);
     }
 
     TFuture<void> SyncWith(TCellId cellId, bool enableBatching) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (cellId == SelfCellId_) {
             return VoidFuture;
@@ -532,7 +532,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, Ping)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
 
@@ -559,7 +559,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, SyncCells)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         context->SetRequestInfo();
 
@@ -632,7 +632,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, PostMessages)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto srcCellId = FromProto<TCellId>(request->src_endpoint_id());
         auto firstMessageId = request->first_message_id();
@@ -702,7 +702,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, SendMessages)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         int messageCount = request->messages_size();
@@ -727,7 +727,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, SyncWithOthers)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto srcCellIds = FromProto<std::vector<TCellId>>(request->src_cell_ids());
 
@@ -746,7 +746,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, GetConsistentState)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto requestTime = request->has_logical_time()
             ? std::make_optional<TLogicalTime>(request->logical_time())
@@ -771,7 +771,7 @@ private:
 
     void HydraAcknowledgeMessages(NHiveServer::NProto::TReqAcknowledgeMessages* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto* mailbox = AsTyped(FindMailbox(cellId));
@@ -830,7 +830,7 @@ private:
 
     void HydraPostMessages(NHiveClient::NProto::TReqPostMessages* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto srcCellId = FromProto<TCellId>(request->src_endpoint_id());
 
@@ -869,7 +869,7 @@ private:
         NHiveClient::NProto::TReqSendMessages* request,
         NHiveClient::NProto::TRspSendMessages* /*response*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         auto* mailbox = AsTyped(GetMailboxOrThrow(srcCellId))->AsCell();
@@ -878,7 +878,7 @@ private:
 
     void HydraRegisterMailbox(NHiveServer::NProto::TReqRegisterMailbox* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = FromProto<TCellId>(request->cell_id());
         if (RemovedCellIds_.contains(cellId)) {
@@ -893,7 +893,7 @@ private:
 
     void HydraUnregisterMailbox(NHiveServer::NProto::TReqUnregisterMailbox* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = FromProto<TCellId>(request->cell_id());
         Y_UNUSED(TryRemoveCellMailbox(cellId));
@@ -1329,7 +1329,7 @@ private:
 
     TFuture<void> DoSyncWithCore(TCellId cellId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto channel = CellDirectory_->FindChannelByCellId(cellId, EPeerKind::Leader);
         if (!channel) {
@@ -1378,7 +1378,7 @@ private:
 
     TFuture<void> OnSyncPingResponse(TCellId cellId, const THiveServiceProxy::TErrorOrRspPingPtr& rspOrError)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (!rspOrError.IsOK()) {
             THROW_ERROR_EXCEPTION(
@@ -2048,7 +2048,7 @@ private:
 
     void OnAvenueDirectoryEndpointUpdated(TAvenueEndpointId endpointId, TCellId newCellId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (auto* mailbox = AvenueMailboxMap_.Find(endpointId)) {
             UpdateAvenueCellConnection(mailbox, newCellId);
@@ -2068,7 +2068,7 @@ private:
 
     void UpdateAvenueCellConnection(TAvenueMailbox* avenueMailbox, TCellMailbox* cellMailbox)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (cellMailbox == avenueMailbox->GetCellMailbox()) {
             return;
@@ -2157,7 +2157,7 @@ private:
 
     void OnReadOnlyCheck()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (!HydraManager_->GetReadOnly()) {
             return;
@@ -2285,14 +2285,14 @@ private:
 
     int GetRemovedCellIdCount() const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return RemovedCellIds_.size();
     }
 
     TLogicalTime GetLamportTimestamp() const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return LamportClock_->GetTime();
     }
@@ -2376,7 +2376,7 @@ private:
 
     void BuildMailboxOrchidYson(const TMailbox* mailbox, IYsonConsumer* consumer) const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         consumer->OnBeginMap();
 

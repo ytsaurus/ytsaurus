@@ -69,14 +69,14 @@ TBlobChunkBase::TBlobChunkBase(
 
 TChunkInfo TBlobChunkBase::GetInfo() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Info_;
 }
 
 bool TBlobChunkBase::IsActive() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return false;
 }
@@ -85,7 +85,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
     const TChunkReadOptions& options,
     const std::optional<std::vector<int>>& extensionTags)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!IsReadable()) {
         return MakeFuture<TRefCountedChunkMetaPtr>(TError("Chunk %v is not readable",
@@ -122,7 +122,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
 
 NIO::TBlocksExtPtr TBlobChunkBase::FindCachedBlocksExt()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     {
         auto guard = ReaderGuard(BlocksExtLock_);
@@ -148,7 +148,7 @@ NIO::TBlocksExtPtr TBlobChunkBase::FindCachedBlocksExt()
 
 TChunkFileReaderPtr TBlobChunkBase::GetReader()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
     YT_VERIFY(ReadLockCounter_.load() > 0);
 
     {
@@ -170,7 +170,7 @@ TChunkFileReaderPtr TBlobChunkBase::GetReader()
 
 void TBlobChunkBase::ReleaseReader(TWriterGuard<TReaderWriterSpinLock>& writerGuard)
 {
-    VERIFY_WRITER_SPINLOCK_AFFINITY(LifetimeLock_);
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(LifetimeLock_);
     YT_VERIFY(ReadLockCounter_.load() == 0);
 
     if (!PreparedReader_) {
@@ -200,7 +200,7 @@ TSharedRef TBlobChunkBase::WrapBlockWithDelayedReferenceHolder(TSharedRef rawRef
 
 void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 {
-    VERIFY_INVOKER_AFFINITY(session->Invoker);
+    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
     if (session->Finished.exchange(true)) {
         return;
@@ -236,7 +236,7 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 
 void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const TError& error)
 {
-    VERIFY_INVOKER_AFFINITY(session->Invoker);
+    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
     if (session->Finished.exchange(true)) {
         return;
@@ -267,7 +267,7 @@ void TBlobChunkBase::DoReadMeta(
     const TReadMetaSessionPtr& session,
     TCachedChunkMetaCookie cookie)
 {
-    VERIFY_INVOKER_AFFINITY(Context_->StorageHeavyInvoker);
+    YT_ASSERT_INVOKER_AFFINITY(Context_->StorageHeavyInvoker);
 
     YT_LOG_DEBUG("Started reading chunk meta (ChunkId: %v, LocationId: %v, WorkloadDescriptor: %v, ReadSessionId: %v)",
         Id_,
@@ -340,7 +340,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
     const TReadBlockSetSessionPtr& session,
     const NIO::TBlocksExtPtr& blocksExt)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     // Run async cache lookup.
     i64 pendingDataSize = 0;
@@ -449,7 +449,7 @@ void TBlobChunkBase::DoReadSession(
     const TBlobChunkBase::TReadBlockSetSessionPtr& session,
     i64 pendingDataSize)
 {
-    VERIFY_INVOKER_AFFINITY(session->Invoker);
+    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
     const auto& memoryTracker = Location_->GetReadMemoryTracker();
     auto memoryGuardOrError = TMemoryUsageTrackerGuard::TryAcquire(memoryTracker, pendingDataSize);
@@ -475,7 +475,7 @@ void TBlobChunkBase::DoReadSession(
 
 void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
 {
-    VERIFY_INVOKER_AFFINITY(session->Invoker);
+    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
     if (session->CurrentEntryIndex > 0 && TInstant::Now() > session->Options.ReadBlocksDeadline) {
         YT_LOG_DEBUG(
@@ -731,7 +731,7 @@ void TBlobChunkBase::OnBlocksRead(
     THashMap<int, TReadBlockSetSession::TBlockEntry> blockIndexToEntry,
     const TErrorOr<std::vector<TBlock>>& blocksOrError)
 {
-    VERIFY_INVOKER_AFFINITY(session->Invoker);
+    YT_ASSERT_INVOKER_AFFINITY(session->Invoker);
 
     if (!blocksOrError.IsOK()) {
         auto error = TError(
@@ -834,7 +834,7 @@ void TBlobChunkBase::OnBlocksRead(
 
 bool TBlobChunkBase::ShouldSyncOnClose()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto blocksExt = FindCachedBlocksExt();
     if (!blocksExt) {
@@ -846,7 +846,7 @@ bool TBlobChunkBase::ShouldSyncOnClose()
 
 bool TBlobChunkBase::IsReadable()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return !IsArtifactChunkId(GetId());
 }
@@ -855,7 +855,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
     const std::vector<int>& blockIndexes,
     const TChunkReadOptions& options)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!IsReadable()) {
         return MakeFuture<std::vector<TBlock>>(TError("Chunk %v is not readable",
@@ -962,7 +962,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockRange(
     int blockCount,
     const TChunkReadOptions& options)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
     YT_VERIFY(firstBlockIndex >= 0);
     YT_VERIFY(blockCount >= 0);
 
@@ -1057,7 +1057,7 @@ IIOEngine::TReadRequest TBlobChunkBase::MakeChunkFragmentReadRequest(
 
 void TBlobChunkBase::SyncRemove(bool force)
 {
-    VERIFY_INVOKER_AFFINITY(Location_->GetAuxPoolInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Location_->GetAuxPoolInvoker());
 
     Context_->BlobReaderCache->EvictReader(this);
 
@@ -1066,7 +1066,7 @@ void TBlobChunkBase::SyncRemove(bool force)
 
 TFuture<void> TBlobChunkBase::AsyncRemove()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return BIND(&TBlobChunkBase::SyncRemove, MakeStrong(this), false)
         .AsyncVia(Location_->GetAuxPoolInvoker())

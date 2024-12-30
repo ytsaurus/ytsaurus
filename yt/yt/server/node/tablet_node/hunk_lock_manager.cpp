@@ -99,7 +99,7 @@ public:
 
     void Initialize() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& configManager = Context_->GetDynamicConfigManager();
         configManager->SubscribeConfigChanged(
@@ -109,7 +109,7 @@ public:
 
     void StartEpoch() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto config = GetDynamicConfig();
 
@@ -124,7 +124,7 @@ public:
 
     void StopEpoch() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (UnlockExecutor_) {
             YT_UNUSED_FUTURE(UnlockExecutor_->Stop());
@@ -140,7 +140,7 @@ public:
         TTabletId hunkTabletId,
         TRevision hunkMountRevision) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         YT_LOG_DEBUG(
@@ -170,7 +170,7 @@ public:
 
     void UnregisterHunkStore(THunkStoreId hunkStoreId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         auto it = HunkStoreIdToLockingState_.find(hunkStoreId);
@@ -186,7 +186,7 @@ public:
 
     void IncrementPersistentLockCount(THunkStoreId hunkStoreId, int count) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         auto& lockingState = GetOrCrash(HunkStoreIdToLockingState_, hunkStoreId);
@@ -204,7 +204,7 @@ public:
 
     void IncrementTransientLockCount(THunkStoreId hunkStoreId, int count) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto it = HunkStoreIdToLockingState_.find(hunkStoreId);
         if (it == HunkStoreIdToLockingState_.end()) {
@@ -231,14 +231,14 @@ public:
 
     int GetTotalLockedHunkStoreCount() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return std::ssize(HunkStoreIdToLockingState_);
     }
 
     std::optional<int> GetPersistentLockCount(THunkStoreId hunkStoreId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (auto it = HunkStoreIdToLockingState_.find(hunkStoreId); it != HunkStoreIdToLockingState_.end()) {
             return it->second.PersistentLockCount;
@@ -249,7 +249,7 @@ public:
 
     std::optional<int> GetTotalLockCount(THunkStoreId hunkStoreId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (auto it = HunkStoreIdToLockingState_.find(hunkStoreId); it != HunkStoreIdToLockingState_.end()) {
             return it->second.TransientLockCount + it->second.PersistentLockCount;
@@ -260,7 +260,7 @@ public:
 
     TFuture<void> LockHunkStores(const THunkChunksInfo& hunkChunksInfo) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         std::vector<TFuture<void>> futures;
         std::vector<TChunkId> hunkStoreIdsToLock;
@@ -305,7 +305,7 @@ public:
 
     void OnBoggleLockPrepared(THunkStoreId hunkStoreId, bool lock) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (Context_->GetAutomatonState() == EPeerState::Leading) {
             if (lock) {
@@ -336,7 +336,7 @@ public:
 
     void OnBoggleLockAborted(THunkStoreId hunkStoreId, bool lock) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (Context_->GetAutomatonState() == EPeerState::Leading) {
             if (lock) {
@@ -415,7 +415,7 @@ private:
 
     void ClearTransientState()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         for (const auto& [hunkStoreId, promise] : HunkStoreIdsBeingLockedToPromise_) {
             promise.TrySet(TError("Epoch stopped"));
@@ -432,7 +432,7 @@ private:
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& config = newNodeConfig->TabletNode->HunkLockManager;
         if (UnlockExecutor_) {
@@ -442,7 +442,7 @@ private:
 
     void SetHunkStoreLockingFuture(THunkStoreId hunkStoreId, const TError& result)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (auto it = HunkStoreIdsBeingLockedToPromise_.find(hunkStoreId); it != HunkStoreIdsBeingLockedToPromise_.end()) {
             it->second.TrySet(result);
@@ -472,7 +472,7 @@ private:
 
     void Touch(THunkStoreLockingState& state)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         // Transient, now is OK.
         state.LastChangeTime = TInstant::Now();
@@ -485,7 +485,7 @@ private:
         TRevision hunkMountRevision,
         bool lock)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto term = Context_->GetAutomatonTerm();
         auto transactionFuture = Context_->GetClient()->StartNativeTransaction(

@@ -116,7 +116,7 @@ private:
 
     bool IsUp(const TCtxDiscoverPtr& /*context*/) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return !ComponentStateChecker_->IsComponentBanned();
     }

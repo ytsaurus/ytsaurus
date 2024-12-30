@@ -392,7 +392,7 @@ TExtendedJobResources TVanillaTask::GetMinNeededResourcesHeavy() const
 
 void TVanillaTask::BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
 {
-    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     jobSpec->CopyFrom(JobSpecTemplate_);
     AddOutputTableSpecs(jobSpec, joblet);
@@ -689,7 +689,7 @@ void TVanillaController::InitUserJobSpec(
     NControllerAgent::NProto::TUserJobSpec* proto,
     const TJobletPtr& joblet) const
 {
-    VERIFY_INVOKER_AFFINITY(GetJobSpecBuildInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetJobSpecBuildInvoker());
 
     TOperationControllerBase::InitUserJobSpec(proto, joblet);
     proto->add_environment(Format("YT_OPERATION_INCARNATION=%v", joblet->OperationIncarnation));
@@ -699,7 +699,7 @@ bool TVanillaController::OnJobFailed(
     TJobletPtr joblet,
     std::unique_ptr<TFailedJobSummary> jobSummary)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     if (!TOperationControllerBase::OnJobFailed(joblet, std::move(jobSummary))) {
         return false;
@@ -716,7 +716,7 @@ bool TVanillaController::OnJobAborted(
     TJobletPtr joblet,
     std::unique_ptr<TAbortedJobSummary> jobSummary)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     if (!TOperationControllerBase::OnJobAborted(joblet, std::move(jobSummary))) {
         return false;
@@ -737,7 +737,7 @@ TJobletPtr TVanillaController::CreateJoblet(
     std::optional<TString> poolPath,
     bool treeIsTentative)
 {
-    VERIFY_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
     auto joblet = TOperationControllerBase::CreateJoblet(
         task,
@@ -761,14 +761,14 @@ void TVanillaController::UpdateConfig(const TControllerAgentConfigPtr& config)
 
 void TVanillaController::TrySwitchToNewOperationIncarnation(const TJobletPtr& joblet, bool operationIsReviving)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     GangManager_.TrySwitchToNewIncarnation(joblet->OperationIncarnation, operationIsReviving);
 }
 
 void TVanillaController::OnOperationIncarnationChanged(bool operationIsReviving)
 {
-    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
 
     TForbidContextSwitchGuard guard;
 
@@ -804,7 +804,7 @@ void TVanillaController::ValidateOperationLimits()
 
 TError TVanillaController::CheckJobsIncarnationsEqual() const
 {
-    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
 
     if (empty(AllocationMap_)) {
         return TError();
@@ -833,7 +833,7 @@ TError TVanillaController::CheckJobsIncarnationsEqual() const
 
 bool TVanillaController::ShouldRestartJobsOnRevival() const
 {
-    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
 
     if (auto error = CheckJobsIncarnationsEqual(); !error.IsOK()) {
         // NB(pogorelov): If some jobs are in different operation incarnations then switching to new incarnation was enabled before revival, so we do not check spec.
@@ -883,7 +883,7 @@ bool TVanillaController::ShouldRestartJobsOnRevival() const
 
 void TVanillaController::OnOperationRevived()
 {
-    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
 
     TOperationControllerBase::OnOperationRevived();
 
@@ -894,7 +894,7 @@ void TVanillaController::OnOperationRevived()
 
 void TVanillaController::BuildControllerInfoYson(TFluentMap fluent) const
 {
-    VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
 
     TOperationControllerBase::BuildControllerInfoYson(fluent);
 
@@ -903,7 +903,7 @@ void TVanillaController::BuildControllerInfoYson(TFluentMap fluent) const
 
 void TVanillaController::TrySwitchToNewOperationIncarnation(bool operationIsReviving)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     GangManager_.TrySwitchToNewIncarnation(operationIsReviving);
 }

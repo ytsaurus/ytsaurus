@@ -717,7 +717,7 @@ private:
 
         void DoCreateWriter()
         {
-            VERIFY_SPINLOCK_AFFINITY(WriterLock_);
+            YT_ASSERT_SPINLOCK_AFFINITY(WriterLock_);
 
             if (Owner_->IsReadOnly()) {
                 THROW_ERROR_EXCEPTION("Changelog is read-only");

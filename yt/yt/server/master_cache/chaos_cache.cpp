@@ -171,7 +171,7 @@ bool TChaosCache::IsResurrectionSupported() const
 
 void TChaosCache::OnAdded(const TChaosCacheEntryPtr& entry)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     TAsyncSlruCacheBase::OnAdded(entry);
 
@@ -184,7 +184,7 @@ void TChaosCache::OnAdded(const TChaosCacheEntryPtr& entry)
 
 void TChaosCache::OnRemoved(const TChaosCacheEntryPtr& entry)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     TAsyncSlruCacheBase::OnRemoved(entry);
 
@@ -197,7 +197,7 @@ void TChaosCache::OnRemoved(const TChaosCacheEntryPtr& entry)
 
 i64 TChaosCache::GetWeight(const TChaosCacheEntryPtr& entry) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return entry->GetTotalSpace();
 }

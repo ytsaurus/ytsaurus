@@ -120,7 +120,7 @@ void Serialize(const TBackgroundActivityTaskInfoBase::TWriterStatistics& statist
 
 void SerializeFragment(const TBackgroundActivityTaskInfoBase::TRuntimeData& runtimeData, NYson::IYsonConsumer* consumer)
 {
-    VERIFY_SPINLOCK_AFFINITY(runtimeData.SpinLock);
+    YT_ASSERT_SPINLOCK_AFFINITY(runtimeData.SpinLock);
 
     BuildYsonMapFragmentFluently(consumer)
         .DoIf(static_cast<bool>(runtimeData.StartTime), [&] (auto fluent) {

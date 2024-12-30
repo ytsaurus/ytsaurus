@@ -684,7 +684,7 @@ public:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnLeaderActive();
 
@@ -739,7 +739,7 @@ public:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopLeading();
 
@@ -1004,14 +1004,14 @@ private:
 
     bool IsEnabled() const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return GetDynamicConfig()->Enable;
     }
 
     void CancelScheduledReincarnationsAndRestartTransaction()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         ScheduledJobs_ = {};
@@ -1022,7 +1022,7 @@ private:
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldClusterConfig)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& config = GetDynamicConfig();
         const auto& oldConfig = oldClusterConfig->ChunkManager->ChunkReincarnator;
@@ -1076,7 +1076,7 @@ private:
 
     const TDynamicChunkReincarnatorConfigPtr& GetDynamicConfig() const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& configManager = Bootstrap_->GetConfigManager();
 
@@ -1207,7 +1207,7 @@ private:
 
     void OnTransactionFinished(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
         YT_VERIFY(IsObjectAlive(transaction));
 
@@ -1233,7 +1233,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::Clear();
 
@@ -1253,7 +1253,7 @@ private:
     // Transient.
     void RescheduleReincarnation(TChunk* chunk, TChunkReincarnationOptions options)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         // NB: We don't unregister exported chunk check here because this method
@@ -1266,7 +1266,7 @@ private:
     // Transient.
     void ScheduleChunkReplacement(TReincarnationRequest request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -1289,7 +1289,7 @@ private:
 
     void ReplaceOldChunks(bool allowUnderfilledBatch = false)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         const auto& config = GetDynamicConfig();
@@ -1472,7 +1472,7 @@ private:
     // IJobController implementation.
     void ScheduleJobs(EJobType jobType, IJobSchedulingContext* context) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsMasterJobType(jobType));
 
         if (jobType != EJobType::ReincarnateChunk) {
@@ -1566,7 +1566,7 @@ private:
 
     void OnJobCompleted(const TReincarnationJobPtr& job) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         if (!IsLeader()) {
             return;
         }
@@ -1587,7 +1587,7 @@ private:
 
     void UpdateTransactions(bool rescheduleReincarnations)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         if (rescheduleReincarnations) {
@@ -1609,7 +1609,7 @@ private:
 
     void OnChunkScan()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         if (!IsEnabled()) {
@@ -2103,7 +2103,7 @@ private:
     void HydraUpdateChunkReincarnatorTransactions(
         NProto::TReqUpdateChunkReincarnatorTransactions* /*request*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         TransactionRotator_.Rotate();

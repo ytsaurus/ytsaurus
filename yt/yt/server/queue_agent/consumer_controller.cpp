@@ -475,7 +475,7 @@ public:
 
     void OnRowUpdated(std::any row) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& consumerRow = std::any_cast<const TConsumerTableRow&>(row);
 
@@ -484,7 +484,7 @@ public:
 
     void OnReplicatedTableMappingRowUpdated(const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& row) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         ReplicatedTableMappingRow_.Store(row);
     }
@@ -493,7 +493,7 @@ public:
         const TQueueControllerDynamicConfigPtr& oldConfig,
         const TQueueControllerDynamicConfigPtr& newConfig) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         DynamicConfig_.Exchange(newConfig);
 
@@ -512,7 +512,7 @@ public:
 
     void BuildOrchid(IYsonConsumer* consumer) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto consumerSnapshot = ConsumerSnapshot_.Acquire();
 
@@ -555,7 +555,7 @@ private:
 
     void Pass()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("ConsumerControllerPass"));
 

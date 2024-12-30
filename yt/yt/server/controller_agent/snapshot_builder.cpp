@@ -80,7 +80,7 @@ TSnapshotBuilder::TSnapshotBuilder(
 
 TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& controllers)
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
     YT_LOG_INFO("Snapshot builder started");
 
@@ -210,7 +210,7 @@ TFuture<void> TSnapshotBuilder::Run(const TOperationIdToWeakControllerMap& contr
 
 void TSnapshotBuilder::OnControllerSuspended(const TSnapshotJobPtr& job)
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
     if (!ControllersSuspended_) {
         YT_LOG_DEBUG("Controller suspended (OperationId: %v, SnapshotIndex: %v)",

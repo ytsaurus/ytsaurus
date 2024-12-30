@@ -56,7 +56,7 @@ public:
             config->RemovePeriod))
         , ReplicationCardKeepAlivePeriod_(config->ReplicationCardKeepAlivePeriod)
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
     }
 
     void Start() override

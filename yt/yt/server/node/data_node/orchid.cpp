@@ -16,7 +16,7 @@ using namespace NYTree;
 
 NYTree::IYPathServicePtr GetOrchidService(const IBootstrap* bootstrap)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto mapService = New<TCompositeMapService>();
 

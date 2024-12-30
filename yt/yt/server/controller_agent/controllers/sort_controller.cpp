@@ -843,7 +843,7 @@ protected:
 
         void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
-            VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+            YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             if (IsRoot()) {
                 jobSpec->CopyFrom(Controller_->RootPartitionJobSpecTemplate);
@@ -1176,7 +1176,7 @@ protected:
 
         void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
-            VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+            YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             if (IsFinalSort_) {
                 jobSpec->CopyFrom(Controller_->FinalSortJobSpecTemplate);
@@ -1846,7 +1846,7 @@ protected:
 
         void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
-            VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+            YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             jobSpec->CopyFrom(Controller_->SortedMergeJobSpecTemplate);
             auto comparator = GetComparator(Controller_->Spec->SortBy);
@@ -2013,7 +2013,7 @@ protected:
 
         void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
-            VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+            YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             jobSpec->CopyFrom(Controller_->UnorderedMergeJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, joblet);

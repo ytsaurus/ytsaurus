@@ -406,7 +406,7 @@ private:
     void OnGotAllyReplicas(
         TErrorOr<std::vector<TErrorOr<TAllyReplicasInfo>>> resultOrError)
     {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         YT_VERIFY(resultOrError.IsOK());
         auto allyReplicasInfosOrErrors = std::move(resultOrError.Value());
@@ -463,7 +463,7 @@ private:
         std::vector<TPeerProbingInfo> probingInfos,
         const TErrorOr<std::vector<TErrorOrProbeChunkSetResult>>& resultOrError)
     {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         YT_VERIFY(resultOrError.IsOK());
         const auto& probingRspOrErrors = resultOrError.Value();
@@ -602,7 +602,7 @@ private:
     template <typename TResponse>
     void TryUpdateChunkReplicas(TChunkId chunkId, const TResponse& response)
     {
-        VERIFY_READER_SPINLOCK_AFFINITY(Reader_->ChunkIdToChunkInfoLock_);
+        YT_ASSERT_READER_SPINLOCK_AFFINITY(Reader_->ChunkIdToChunkInfoLock_);
 
         if (!ChunkIdToReplicaInfoFuture_.contains(chunkId)) {
             return;
@@ -630,7 +630,7 @@ private:
 
     std::vector<TPeerProbingInfo> MakeNodeProbingInfos(const std::vector<TAllyReplicasInfo>& allyReplicasInfos)
     {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         std::vector<TNodeId> nodeIds;
         std::vector<TPeerProbingInfo> probingInfos;
@@ -679,7 +679,7 @@ private:
 
     TFuture<TProbeChunkSetResult> ProbePeer(const TPeerProbingInfo& probingInfo) const
     {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         YT_VERIFY(probingInfo.PeerInfoOrError.IsOK());
         const auto& peerInfo = probingInfo.PeerInfoOrError.Value();
@@ -788,7 +788,7 @@ private:
 
     bool IsChunkInfoExpired(const TChunkInfoPtr& chunkInfo, TInstant now) const
     {
-        VERIFY_SPINLOCK_AFFINITY(chunkInfo->Lock);
+        YT_ASSERT_SPINLOCK_AFFINITY(chunkInfo->Lock);
         return chunkInfo->LastAccessTime + Config_->ChunkInfoCacheExpirationTimeout < now;
     }
 
@@ -1594,7 +1594,7 @@ private:
         TChunkId chunkId,
         const TResponse& response)
     {
-        VERIFY_READER_SPINLOCK_AFFINITY(Reader_->ChunkIdToChunkInfoLock_);
+        YT_ASSERT_READER_SPINLOCK_AFFINITY(Reader_->ChunkIdToChunkInfoLock_);
 
         auto it = Reader_->ChunkIdToChunkInfo_.find(chunkId);
         if (it == Reader_->ChunkIdToChunkInfo_.end()) {
@@ -1615,7 +1615,7 @@ private:
         i64 throttledBytes,
         const TDataNodeServiceProxy::TErrorOrRspGetChunkFragmentSetPtr& rspOrError)
     {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         if (!rspOrError.IsOK()) {
             ReleaseThrottledBytes(throttledBytes);
@@ -1657,7 +1657,7 @@ private:
         const TPerPeerPlanPtr& plan,
         const TDataNodeServiceProxy::TErrorOrRspGetChunkFragmentSetPtr& rspOrError)
     {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         const auto& peerInfo = plan->PeerInfo;
 

@@ -217,7 +217,7 @@ TErrorOr<std::string> TryParseControllerAgentAddress(
     const NNodeTrackerClient::NProto::TAddressMap& proto,
     const NNodeTrackerClient::TNetworkPreferenceList& localNetworks)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(proto);
 
@@ -257,7 +257,7 @@ TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
     const NControllerAgent::NProto::TControllerAgentDescriptor& proto,
     const NNodeTrackerClient::TNetworkPreferenceList& localNetworks)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto incarnationId = FromProto<NScheduler::TIncarnationId>(proto.incarnation_id());
 

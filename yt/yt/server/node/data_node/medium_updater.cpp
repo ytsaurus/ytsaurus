@@ -46,7 +46,7 @@ void TMediumUpdater::UpdateLocationMedia(
     const NDataNodeTrackerClient::NProto::TMediumOverrides& protoMediumOverrides,
     bool onInitialize)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     THashMap<NChunkClient::TChunkLocationUuid, int> mediumOverrides;
     mediumOverrides.reserve(protoMediumOverrides.overrides_size());

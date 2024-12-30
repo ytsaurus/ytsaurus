@@ -235,7 +235,7 @@ private:
 
     void GuardedOnRequest(IConnectionPtr connection, TMessage request)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto response = ProcessRequest(connection, request);
 
@@ -251,7 +251,7 @@ private:
         const IConnectionPtr& connection,
         const TMessage& request)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (request.size() != 1) {
             THROW_ERROR_EXCEPTION("Incoming message has %v parts, expected 1",
@@ -355,7 +355,7 @@ private:
 
     bool UnregisterConnection(TConnectionId connectionId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = WriterGuard(ConnectionMapLock_);
         if (Connections_.erase(connectionId)) {

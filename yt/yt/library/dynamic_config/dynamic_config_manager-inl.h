@@ -65,7 +65,7 @@ TDynamicConfigManagerBase<TConfig>::TDynamicConfigManagerBase(
 template <typename TConfig>
 void TDynamicConfigManagerBase<TConfig>::Start()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_LOG_DEBUG("Starting dynamic config manager (ConfigPath: %v, UpdatePeriod: %v)",
         Options_.ConfigPath,
@@ -77,7 +77,7 @@ void TDynamicConfigManagerBase<TConfig>::Start()
 template <typename TConfig>
 std::vector<TError> TDynamicConfigManagerBase<TConfig>::GetErrors() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
     return LockedGetErrors(guard);
@@ -100,7 +100,7 @@ std::vector<TError> TDynamicConfigManagerBase<TConfig>::LockedGetErrors(const TG
 template <typename TConfig>
 NYTree::IYPathServicePtr TDynamicConfigManagerBase<TConfig>::GetOrchidService() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto producer = BIND_NO_PROPAGATE(&TDynamicConfigManagerBase<TConfig>::DoBuildOrchid, MakeStrong(this));
     return NYTree::IYPathService::FromProducer(producer);
@@ -109,7 +109,7 @@ NYTree::IYPathServicePtr TDynamicConfigManagerBase<TConfig>::GetOrchidService() 
 template <typename TConfig>
 bool TDynamicConfigManagerBase<TConfig>::IsConfigLoaded() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ConfigLoadedPromise_.IsSet();
 }
@@ -117,7 +117,7 @@ bool TDynamicConfigManagerBase<TConfig>::IsConfigLoaded() const
 template <typename TConfig>
 NYTree::IMapNodePtr TDynamicConfigManagerBase<TConfig>::GetConfigNode() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
     return AppliedConfigNode_;
@@ -126,7 +126,7 @@ NYTree::IMapNodePtr TDynamicConfigManagerBase<TConfig>::GetConfigNode() const
 template <typename TConfig>
 auto TDynamicConfigManagerBase<TConfig>::GetConfig() const -> TConfigPtr
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
     return AppliedConfig_;
@@ -135,7 +135,7 @@ auto TDynamicConfigManagerBase<TConfig>::GetConfig() const -> TConfigPtr
 template <typename TConfig>
 auto TDynamicConfigManagerBase<TConfig>::GetInitialConfig() const -> TConfigPtr
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return InitialConfig_;
 }
@@ -143,7 +143,7 @@ auto TDynamicConfigManagerBase<TConfig>::GetInitialConfig() const -> TConfigPtr
 template <typename TConfig>
 TFuture<void> TDynamicConfigManagerBase<TConfig>::GetConfigLoadedFuture() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ConfigLoadedPromise_.ToFuture();
 }
@@ -157,7 +157,7 @@ std::vector<std::string> TDynamicConfigManagerBase<TConfig>::GetInstanceTags() c
 template <typename TConfig>
 void TDynamicConfigManagerBase<TConfig>::DoUpdateConfig()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     YT_LOG_DEBUG("Updating dynamic config");
 
@@ -184,7 +184,7 @@ void TDynamicConfigManagerBase<TConfig>::DoUpdateConfig()
 template <typename TConfig>
 bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     YT_LOG_DEBUG("Trying to update dynamic config");
 
@@ -319,7 +319,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
 template <typename TConfig>
 void TDynamicConfigManagerBase<TConfig>::DoBuildOrchid(NYson::IYsonConsumer* consumer) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     NYTree::INodePtr configNode;
     TConfigPtr config;

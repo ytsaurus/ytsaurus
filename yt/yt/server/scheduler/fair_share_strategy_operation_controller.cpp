@@ -124,7 +124,7 @@ void TFairShareStrategyOperationController::UpdateMinNeededAllocationResources()
 void TFairShareStrategyOperationController::UpdateConcurrentScheduleAllocationThrottlingLimits(
     const TFairShareStrategyOperationControllerConfigPtr& config)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     int nodeShardCount = std::ssize(NodeShardInvokers_);
 
@@ -160,7 +160,7 @@ void TFairShareStrategyOperationController::UpdateConcurrentScheduleAllocationTh
 
 bool TFairShareStrategyOperationController::CheckMaxScheduleAllocationCallsOverdraft(int maxScheduleAllocationCalls) const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     for (auto& shard : StateShards_) {
         ScheduleAllocationCallsOverdraft_ += shard.ScheduleAllocationCallsSinceLastUpdate.exchange(0);
@@ -369,7 +369,7 @@ bool TFairShareStrategyOperationController::IsSaturatedInTentativeTree(TCpuInsta
 
 void TFairShareStrategyOperationController::UpdateConfig(const TFairShareStrategyOperationControllerConfigPtr& config)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     Config_.Store(config);
 
@@ -386,7 +386,7 @@ TFairShareStrategyOperationControllerConfigPtr TFairShareStrategyOperationContro
 
 void TFairShareStrategyOperationController::SetDetailedLogsEnabled(bool enabled)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     DetailedLogsEnabled_ = enabled;
 }

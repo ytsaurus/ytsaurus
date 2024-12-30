@@ -81,7 +81,7 @@ public:
 
     TFuture<TSharedRefArray> TryBeginRequest(TMutationId id, bool isRetry) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = WriterGuard(Lock_);
 
@@ -90,7 +90,7 @@ public:
 
     TFuture<TSharedRefArray> FindRequest(TMutationId id, bool isRetry) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(Lock_);
 
@@ -102,7 +102,7 @@ public:
         TSharedRefArray response,
         bool remember) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_ASSERT(id);
 
@@ -118,7 +118,7 @@ public:
 
         // Persistent part.
         if (remember) {
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
+            YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
             YT_VERIFY(HasMutationContext());
 
             // NB: Allow duplicates.
@@ -163,7 +163,7 @@ public:
         TErrorOr<TSharedRefArray> responseOrError,
         bool remember) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
         YT_ASSERT(id);
 
         if (responseOrError.IsOK()) {
@@ -186,7 +186,7 @@ public:
 
     void CancelPendingRequests(const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = WriterGuard(Lock_);
 
@@ -232,7 +232,7 @@ public:
 
     void Evict(TDuration expirationTimeout, int maxResponseCountPerEvictionPass) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         auto guard = WriterGuard(Lock_);
@@ -304,9 +304,9 @@ private:
 
     TFuture<TSharedRefArray> DoTryBeginRequest(TMutationId id, bool isRetry)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
         YT_VERIFY(!HasMutationContext());
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         auto result = DoFindRequest(id, isRetry);
         if (!result) {
@@ -318,9 +318,9 @@ private:
 
     TFuture<TSharedRefArray> DoFindRequest(TMutationId id, bool isRetry) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
         YT_VERIFY(!HasMutationContext());
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         YT_ASSERT(id);
 
@@ -352,7 +352,7 @@ private:
         // If anyone ever needs this as true, you have to schedule mutation or something like that.
         YT_VERIFY(!subscribeToResponse);
 
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
         YT_VERIFY(!HasMutationContext());
 
         auto guard = WriterGuard(Lock_);

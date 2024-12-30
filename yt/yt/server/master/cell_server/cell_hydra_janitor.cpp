@@ -123,7 +123,7 @@ private:
 
     void OnStartEpoch()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(!PeriodicExecutor_);
         PeriodicExecutor_ = New<TPeriodicExecutor>(
@@ -134,7 +134,7 @@ private:
 
     void OnStopEpoch()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (PeriodicExecutor_) {
             YT_UNUSED_FUTURE(PeriodicExecutor_->Stop());
@@ -144,14 +144,14 @@ private:
 
     TDynamicTabletManagerConfigPtr GetDynamicConfig()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DynamicConfig_.Acquire();
     }
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& newConfig = Bootstrap_->GetConfigManager()->GetConfig()->TabletManager;
         DynamicConfig_.Store(newConfig);
@@ -178,7 +178,7 @@ private:
         const std::vector<TPeerInfo>& peers,
         TEnumIndexedArray<ECellarType, bool> checkSecondaryStorage)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto proxy = CreateObjectServiceReadProxy(
             Bootstrap_->GetRootClient(),
@@ -317,7 +317,7 @@ private:
         int* snapshotBudget,
         int* changelogBudget)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto cleanupInfo = GetCleanupInfoForPeers(peers, checkSecondaryStorage);
 
@@ -389,7 +389,7 @@ private:
 
     void OnCleanup()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (GetActiveShardCount() == 0) {
             return;

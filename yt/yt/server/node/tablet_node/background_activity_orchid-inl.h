@@ -132,7 +132,7 @@ void TBackgroundActivityOrchid<TTaskInfo>::OnTaskFinished(
     std::deque<TTaskInfoPtr>* deque,
     int maxTaskCount)
 {
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
     if (auto it = RunningTasks_.find(taskId); it != RunningTasks_.end()) {
         if (ssize(*deque) == maxTaskCount) {
@@ -158,7 +158,7 @@ void TBackgroundActivityOrchid<TTaskInfo>::ShrinkDeque(
     std::deque<TTaskInfoPtr>* deque,
     int targetSize)
 {
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
     while (ssize(*deque) > targetSize) {
         deque->pop_front();
@@ -170,7 +170,7 @@ std::vector<typename TBackgroundActivityOrchid<TTaskInfo>::TTaskInfoPtr>
 TBackgroundActivityOrchid<TTaskInfo>::GetFromHashMap(
     const TTaskMap& source) const
 {
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
     std::vector<TTaskInfoPtr> output;
     output.reserve(source.size());

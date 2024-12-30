@@ -51,7 +51,7 @@ TJobWorkspaceBuilder::TJobWorkspaceBuilder(
 template<TFuture<void>(TJobWorkspaceBuilder::*Step)()>
 TFuture<void> TJobWorkspaceBuilder::GuardedAction()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto jobPhase = Context_.Job->GetPhase();
 
@@ -101,7 +101,7 @@ constexpr const char* TJobWorkspaceBuilder::GetStepName()
 template<TFuture<void>(TJobWorkspaceBuilder::*Method)()>
 TCallback<TFuture<void>()> TJobWorkspaceBuilder::MakeStep()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return BIND([this, this_ = MakeStrong(this)] {
         return GuardedAction<Method>();
@@ -110,7 +110,7 @@ TCallback<TFuture<void>()> TJobWorkspaceBuilder::MakeStep()
 
 void TJobWorkspaceBuilder::ValidateJobPhase(EJobPhase expectedPhase) const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto jobPhase = Context_.Job->GetPhase();
     if (jobPhase != expectedPhase) {
@@ -127,14 +127,14 @@ void TJobWorkspaceBuilder::ValidateJobPhase(EJobPhase expectedPhase) const
 
 void TJobWorkspaceBuilder::SetJobPhase(EJobPhase phase)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     UpdateBuilderPhase_.Fire(phase);
 }
 
 void TJobWorkspaceBuilder::UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     UpdateArtifactStatistics_.Fire(compressedDataSize, cacheHit);
 }
@@ -233,7 +233,7 @@ void TJobWorkspaceBuilder::PrepareArtifactBinds()
 
 TFuture<TJobWorkspaceBuildingResult> TJobWorkspaceBuilder::Run()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto future = MakeStep<&TJobWorkspaceBuilder::DoPrepareRootVolume>()
         .Run()
@@ -274,7 +274,7 @@ public:
 private:
     TRootFS MakeWritableRootFS()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_VERIFY(ResultHolder_.RootVolume);
 
@@ -293,7 +293,7 @@ private:
 
     TFuture<void> DoPrepareRootVolume() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_DEBUG("Root volume preparation is not supported in simple workspace");
 
@@ -305,7 +305,7 @@ private:
 
     TFuture<void> DoPrepareSandboxDirectories() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::PreparingRootVolume);
         SetJobPhase(EJobPhase::PreparingSandboxDirectories);
@@ -324,7 +324,7 @@ private:
 
     TFuture<void> DoRunSetupCommand() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_DEBUG("Setup command is not supported in simple workspace");
 
@@ -336,7 +336,7 @@ private:
 
     TFuture<void> DoRunGpuCheckCommand() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_DEBUG("GPU check is not supported in simple workspace");
 
@@ -381,7 +381,7 @@ public:
 private:
     TFuture<void> DoPrepareRootVolume() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::DownloadingArtifacts);
         SetJobPhase(EJobPhase::PreparingRootVolume);
@@ -434,7 +434,7 @@ private:
 
     TFuture<void> DoPrepareSandboxDirectories() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::PreparingRootVolume);
         SetJobPhase(EJobPhase::PreparingSandboxDirectories);
@@ -461,7 +461,7 @@ private:
 
     TRootFS MakeWritableRootFS()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_VERIFY(ResultHolder_.RootVolume);
 
@@ -480,7 +480,7 @@ private:
 
     TFuture<void> DoRunSetupCommand() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
         SetJobPhase(EJobPhase::RunningSetupCommands);
@@ -514,7 +514,7 @@ private:
 
     TFuture<void> DoRunGpuCheckCommand() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::RunningSetupCommands);
         SetJobPhase(EJobPhase::RunningGpuCheckCommand);
@@ -604,7 +604,7 @@ public:
 private:
     TFuture<void> DoPrepareRootVolume() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::DownloadingArtifacts);
         SetJobPhase(EJobPhase::PreparingRootVolume);
@@ -658,7 +658,7 @@ private:
 
     TFuture<void> DoPrepareSandboxDirectories() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateJobPhase(EJobPhase::PreparingRootVolume);
         SetJobPhase(EJobPhase::PreparingSandboxDirectories);
@@ -677,7 +677,7 @@ private:
 
     TFuture<void> DoRunSetupCommand() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_DEBUG_UNLESS(Context_.SetupCommands.empty(), "Setup command is not supported in CRI workspace");
 
@@ -689,7 +689,7 @@ private:
 
     TFuture<void> DoRunGpuCheckCommand() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_DEBUG_IF(Context_.NeedGpuCheck, "GPU check is not supported in CRI workspace");
 

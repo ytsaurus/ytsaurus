@@ -153,7 +153,7 @@ public:
         const TTransactionWriteRecord& writeRecord,
         bool lockless) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         // Note that the scope below affects only the transient state.
@@ -191,7 +191,7 @@ public:
         const TTransactionWriteRecord& writeRecord,
         bool lockless) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (!lockless) {
@@ -206,7 +206,7 @@ public:
         const TTransactionWriteRecord& writeRecord,
         bool isLeader) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto reader = CreateWireProtocolReader(writeRecord.Data, New<TRowBuffer>(TTabletWriterPoolTag()));
@@ -241,7 +241,7 @@ public:
         const TTransactionWriteRecord& writeRecord,
         bool lockless) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
         YT_VERIFY(lockless);
 
@@ -253,7 +253,7 @@ public:
 
     void OnTransactionPrepared(TTransaction* transaction, bool persistent) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext() == persistent);
 
         auto codicilGuard = MakeCodicilGuard();
@@ -306,7 +306,7 @@ public:
 
     void OnTransactionCommitted(TTransaction* transaction) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto codicilGuard = MakeCodicilGuard();
@@ -388,7 +388,7 @@ public:
 
     void OnTransactionAborted(TTransaction* transaction) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto codicilGuard = MakeCodicilGuard();
@@ -402,7 +402,7 @@ public:
 
     void OnTransactionSerialized(TTransaction* transaction) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto codicilGuard = MakeCodicilGuard();
@@ -432,7 +432,7 @@ public:
 
     void OnTransactionTransientReset(TTransaction* transaction) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (!Tablet_->GetStoreManager()) {
             // NB: OnStopLeading can be called prior to OnAfterSnapshotLoaded.
@@ -461,7 +461,7 @@ public:
 
     void OnTransientGenerationPromoted(TTransaction* transaction) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         AbortPrelockedRows(transaction);
         AbortLockedRows(transaction);
@@ -469,7 +469,7 @@ public:
 
     void OnPersistentGenerationPromoted(TTransaction* transaction) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         DropTransactionWriteLogs(transaction);
@@ -477,7 +477,7 @@ public:
 
     bool NeedsSerialization(TTransaction* transaction) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         // COMPAT(ponasenko-rs)
         if (auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
@@ -532,7 +532,7 @@ public:
 
     void OnTransactionFinished(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         YT_VERIFY(
@@ -568,7 +568,7 @@ public:
 
     void StartEpoch() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         // NB: Could be null in tests.
         if (!Host_) {
@@ -586,7 +586,7 @@ public:
 
     void StopEpoch() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
             writeState->PreparedBarrierCookie = InvalidAsyncBarrierCookie;
@@ -598,7 +598,7 @@ public:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TransactionIdToTransientWriteState_.clear();
         TransactionIdToPersistentWriteState_.clear();
@@ -652,7 +652,7 @@ public:
 
     void OnAfterSnapshotLoaded() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& transactionManager = Host_->GetTransactionManager();
         for (const auto& [transactionId, writeState] : TransactionIdToPersistentWriteState_) {
@@ -750,7 +750,7 @@ private:
 
     TTransactionPersistentWriteStatePtr FindTransactionPersistentWriteState(TTransactionId transactionId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(TypeFromId(transactionId) != EObjectType::NonAtomicTabletTransaction);
 
         return GetOrDefault(TransactionIdToPersistentWriteState_, transactionId);
@@ -758,7 +758,7 @@ private:
 
     TTransactionPersistentWriteStatePtr GetOrCreateTransactionPersistentWriteState(TTransactionId transactionId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
         YT_VERIFY(TypeFromId(transactionId) != EObjectType::NonAtomicTabletTransaction);
 
@@ -774,7 +774,7 @@ private:
 
     TTransactionTransientWriteStatePtr FindTransactionTransientWriteState(TTransactionId transactionId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(TypeFromId(transactionId) != EObjectType::NonAtomicTabletTransaction);
 
         return GetOrDefault(TransactionIdToTransientWriteState_, transactionId);
@@ -782,7 +782,7 @@ private:
 
     TTransactionTransientWriteStatePtr GetOrCreateTransactionTransientWriteState(TTransactionId transactionId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(TypeFromId(transactionId) != EObjectType::NonAtomicTabletTransaction);
 
         auto it = TransactionIdToTransientWriteState_.find(transactionId);
@@ -851,7 +851,7 @@ private:
         const TTransactionWriteRecord& writeRecord,
         int multiplier = 1)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         WriteLogsMemoryTrackerGuard_.IncreaseSize(writeRecord.GetByteSize() * multiplier);
         bool replicatorWrite = IsReplicatorWrite(transaction);
@@ -863,7 +863,7 @@ private:
         const TTransactionWriteRecord& writeRecord,
         bool lockless)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
@@ -884,7 +884,7 @@ private:
         TTransaction* transaction,
         TTransactionWriteLog* writeLog)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         for (const auto& writeRecord : *writeLog) {
@@ -895,7 +895,7 @@ private:
 
     void DropTransactionWriteLogs(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         const auto& persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
@@ -916,7 +916,7 @@ private:
 
     void PrepareLocklessRows(TTransaction* transaction, bool persistent, bool snapshotLoading = false)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(!persistent || HasHydraContext());
 
         if (!persistent) {
@@ -956,7 +956,7 @@ private:
 
     void CommitLocklessRows(TTransaction* transaction, bool delayed)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto writeState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
@@ -1045,7 +1045,7 @@ private:
 
     void AbortLocklessRows(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto writeState = FindTransactionPersistentWriteState(transaction->GetId());
@@ -1079,7 +1079,7 @@ private:
         ETransactionState state,
         bool snapshotLoading = false)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
         YT_VERIFY(
             state == ETransactionState::PersistentCommitPrepared ||
@@ -1149,7 +1149,7 @@ private:
         TTransaction* transaction,
         const TTransactionWriteRecord& writeRecord)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto reader = CreateWireProtocolReader(writeRecord.Data, New<TRowBuffer>(TTabletWriterPoolTag()));
@@ -1171,7 +1171,7 @@ private:
 
     void PrepareLockedRows(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto transactionId = transaction->GetId();
 
@@ -1208,7 +1208,7 @@ private:
 
     void CommitLockedRows(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
@@ -1259,7 +1259,7 @@ private:
 
     void AbortPrelockedRows(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto writeState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
         auto& prelockedRows = writeState->PrelockedRows;
@@ -1283,7 +1283,7 @@ private:
 
     void AbortLockedRows(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto writeState = FindTransactionTransientWriteState(transaction->GetId());
         if (!writeState) {
@@ -1313,7 +1313,7 @@ private:
         TTransactionId transactionId,
         TTimestamp commitTimestamp)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         const auto& hydraManager = Host_->GetHydraManager();
@@ -1535,7 +1535,7 @@ private:
 
     bool NeedsLocklessSerialization(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
         return
@@ -1545,7 +1545,7 @@ private:
 
     bool NeedsSortedSharedWriteSerialization(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto persistentWriteState = GetOrCreateTransactionPersistentWriteState(transaction->GetId());
         return transaction->GetHasSharedWriteLocks() &&
@@ -1554,7 +1554,7 @@ private:
 
     TWriteContext CreateWriteContext(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto transientWriteState = GetOrCreateTransactionTransientWriteState(transaction->GetId());
         return TWriteContext{

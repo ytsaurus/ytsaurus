@@ -164,7 +164,7 @@ private:
         NProto::TReqCreateNode* request,
         const TTransactionPrepareOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(options.Persistent);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
@@ -226,7 +226,7 @@ private:
         NProto::TReqCreateNode* request,
         const TTransactionCommitOptions& /*options*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -242,7 +242,7 @@ private:
         NProto::TReqCreateNode* request,
         const TTransactionAbortOptions& /*options*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
 
@@ -259,7 +259,7 @@ private:
         NProto::TReqAttachChild* request,
         const TTransactionPrepareOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(options.Persistent);
 
         auto parentId = FromProto<TNodeId>(request->parent_id());
@@ -294,7 +294,7 @@ private:
         NProto::TReqAttachChild* request,
         const TTransactionCommitOptions& /*options*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto parentId = FromProto<TNodeId>(request->parent_id());
         YT_VERIFY(
@@ -339,7 +339,7 @@ private:
         NProto::TReqDetachChild* request,
         const TTransactionPrepareOptions& /*options*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto parentId = FromProto<TNodeId>(request->parent_id());
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -383,7 +383,7 @@ private:
         NProto::TReqDetachChild* request,
         const TTransactionCommitOptions& /*options*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto parentId = FromProto<TNodeId>(request->parent_id());
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
@@ -427,7 +427,7 @@ private:
         NProto::TReqRemoveNode* request,
         const TTransactionPrepareOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(options.Persistent);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
@@ -455,7 +455,7 @@ private:
         NProto::TReqRemoveNode* request,
         const TTransactionCommitOptions& /*options*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -508,7 +508,7 @@ private:
         NProto::TReqSetNode* request,
         const TTransactionPrepareOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(options.Persistent);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
@@ -540,7 +540,7 @@ private:
         NProto::TReqMultisetAttributes* request,
         const TTransactionPrepareOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(options.Persistent);
 
         auto nodeId = FromProto<TNodeId>(request->node_id());
@@ -568,7 +568,7 @@ private:
         NProto::TReqRemoveNodeAttribute* request,
         const TTransactionPrepareOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(options.Persistent);
         YT_VERIFY(options.LatePrepare);
 
@@ -600,7 +600,7 @@ private:
         TReqCloneNode* request,
         const TTransactionPrepareOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(options.Persistent);
 
         auto sourceNodeId = FromProto<TNodeId>(request->src_id());
@@ -664,7 +664,7 @@ private:
         NProto::TReqCloneNode* request,
         const TTransactionCommitOptions& /*options*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto sourceNodeId = FromProto<TNodeId>(request->src_id());
         auto destinationNodeId = FromProto<TNodeId>(request->dst_id());
@@ -704,7 +704,7 @@ private:
         NProto::TReqCloneNode* request,
         const TTransactionAbortOptions& /*options*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto sourceNodeId = FromProto<TNodeId>(request->src_id());
         auto destinationNodeId = FromProto<TNodeId>(request->dst_id());

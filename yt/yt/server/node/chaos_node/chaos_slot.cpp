@@ -84,7 +84,7 @@ public:
             bootstrap->GetConnection()->GetInvoker()))
         , Logger(ChaosNodeLogger())
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 
         ResetEpochInvokers();
         ResetGuardedInvokers();
@@ -92,7 +92,7 @@ public:
 
     void SetOccupant(ICellarOccupantPtr occupant) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(!Occupant_);
 
         Occupant_ = std::move(occupant);
@@ -103,21 +103,21 @@ public:
 
     TCellId GetCellId() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetCellId();
     }
 
     const TString& GetCellBundleName() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetCellBundleName();
     }
 
     EPeerState GetAutomatonState() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto hydraManager = GetHydraManager();
         return hydraManager ? hydraManager->GetAutomatonState() : EPeerState::None;
@@ -125,105 +125,105 @@ public:
 
     IDistributedHydraManagerPtr GetHydraManager() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetHydraManager();
     }
 
     const TCompositeAutomatonPtr& GetAutomaton() const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return Occupant_->GetAutomaton();
     }
 
     const IHiveManagerPtr& GetHiveManager() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetHiveManager();
     }
 
     TMailboxHandle GetMasterMailbox() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return Occupant_->GetMasterMailbox();
     }
 
     ITransactionManagerPtr GetTransactionManager() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return TransactionManager_;
     }
 
     NTransactionSupervisor::ITransactionManagerPtr GetOccupierTransactionManager() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return TransactionManager_;
     }
 
     const ITimestampProviderPtr& GetTimestampProvider() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetTimestampProvider();
     }
 
     const ITransactionSupervisorPtr& GetTransactionSupervisor() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetTransactionSupervisor();
     }
 
     const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetLeaseManager();
     }
 
     const IChaosManagerPtr& GetChaosManager() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ChaosManager_;
     }
 
     const IReplicationCardsWatcherPtr& GetReplicationCardsWatcher() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ReplicationCardsWatcher_;
     }
 
     const ICoordinatorManagerPtr& GetCoordinatorManager() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return CoordinatorManager_;
     }
 
     const IShortcutSnapshotStorePtr& GetShortcutSnapshotStore() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ShortcutSnapshotStore_;
     }
 
     const IInvokerPtr& GetSnapshotStoreReadPoolInvoker() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetSnapshotStoreReadPoolInvoker();
     }
 
     const IInvokerPtr& GetAsyncSnapshotInvoker() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return SnapshotQueue_->GetInvoker();
     }
@@ -231,21 +231,21 @@ public:
 
     TObjectId GenerateId(EObjectType type) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return Occupant_->GenerateId(type);
     }
 
     TCompositeAutomatonPtr CreateAutomaton() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return New<TChaosAutomaton>(this);
     }
 
     void Configure(IDistributedHydraManagerPtr hydraManager) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         hydraManager->SubscribeStartLeading(BIND(&TChaosSlot::OnStartEpoch, MakeWeak(this)));
         hydraManager->SubscribeStartFollowing(BIND(&TChaosSlot::OnStartEpoch, MakeWeak(this)));
@@ -283,7 +283,7 @@ public:
 
     void Initialize() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         ChaosNodeService_ = CreateChaosNodeService(this, Bootstrap_->GetNativeAuthenticator());
         CoordinatorService_ = CreateCoordinatorService(this, Bootstrap_->GetNativeAuthenticator());
@@ -301,7 +301,7 @@ public:
 
     void Stop() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         ResetEpochInvokers();
         ResetGuardedInvokers();
@@ -309,7 +309,7 @@ public:
 
     void Finalize() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         ReplicatedTableTracker_.Reset();
         ChaosManager_.Reset();
@@ -330,7 +330,7 @@ public:
 
     TCompositeMapServicePtr PopulateOrchidService(TCompositeMapServicePtr orchid) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return orchid
             ->AddChild("transactions", TransactionManager_->GetOrchidService())
@@ -340,21 +340,21 @@ public:
 
     NProfiling::TRegistry GetProfiler() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ChaosNodeProfiler;
     }
 
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return TAutomatonInvokerHood<EAutomatonThreadQueue>::GetAutomatonInvoker(queue);
     }
 
     IInvokerPtr GetOccupierAutomatonInvoker() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return GetAutomatonInvoker();
     }
@@ -366,28 +366,28 @@ public:
 
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return TAutomatonInvokerHood<EAutomatonThreadQueue>::GetEpochAutomatonInvoker(queue);
     }
 
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return TAutomatonInvokerHood<EAutomatonThreadQueue>::GetGuardedAutomatonInvoker(queue);
     }
 
     ECellarType GetCellarType() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return IChaosSlot::CellarType;
     }
 
     NApi::IClientPtr CreateClusterClient(const TString& clusterName) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& clusterDirectory = Bootstrap_->GetClusterConnection()->GetClusterDirectory();
         auto connection = clusterDirectory->FindConnection(clusterName);
@@ -439,7 +439,7 @@ private:
 
     void OnStartEpoch()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto hydraManager = GetHydraManager();
         if (!hydraManager) {
@@ -451,7 +451,7 @@ private:
 
     void OnStopEpoch()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         ResetEpochInvokers();
     }

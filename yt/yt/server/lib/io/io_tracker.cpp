@@ -464,7 +464,7 @@ private:
 
     void UpdateConfig(TIOTrackerConfigPtr config)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         PeriodQuant_ = config->PeriodQuant;
         PathAggregateTags_ = config->PathAggregateTags;
@@ -484,7 +484,7 @@ private:
 
     TAggregateTagsKey FilterPathAggregateTags(const TParsedIOEvent& event)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto nestedTags = event.AggregatingTags.FilterTags([&] (const auto& tag) {
             return PathAggregateTags_.contains(tag.first);
@@ -501,7 +501,7 @@ private:
 
     void Run()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         TPeriodicYielder yielder(TDuration::MilliSeconds(50));
         while (true) {

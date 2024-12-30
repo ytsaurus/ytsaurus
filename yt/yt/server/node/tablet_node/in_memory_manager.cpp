@@ -236,7 +236,7 @@ public:
 
     TInMemoryChunkDataPtr EvictInterceptedChunkData(TChunkId chunkId) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = WriterGuard(InterceptedDataSpinLock_);
 
@@ -347,7 +347,7 @@ private:
         const IChunkStorePtr& store,
         const IStoreManagerPtr& storeManager)
     {
-        VERIFY_INVOKERS_AFFINITY(std::vector{
+        YT_ASSERT_INVOKERS_AFFINITY(std::vector{
             tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
             tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Mutation)
         });
@@ -405,7 +405,7 @@ private:
                 GetConfig()->EnablePreliminaryNetworkThrottling,
                 Bootstrap_->GetInThrottler(EWorkloadCategory::SystemTabletPreload));
 
-            VERIFY_INVOKERS_AFFINITY(std::vector{
+            YT_ASSERT_INVOKERS_AFFINITY(std::vector{
                 tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Default),
                 tablet->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Mutation)
             });

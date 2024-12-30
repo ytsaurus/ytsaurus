@@ -94,7 +94,7 @@ private:
 
     void EnsureBundleDataCreated(const ITabletSlotPtr& slot)
     {
-        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
         if (NameToBundleData_.contains(slot->GetTabletCellBundleName())) {
             return;

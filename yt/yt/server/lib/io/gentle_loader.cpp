@@ -553,7 +553,7 @@ private:
 
     void DoProbe()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         try {
             // Dropping old data.
@@ -908,7 +908,7 @@ private:
 
     void DoRun(const TRequestSizes& workloadModel)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto randomWriter = New<TRandomWriter>(
             Config_,

@@ -249,7 +249,7 @@ public:
         , BlockReorderer_(config)
     {
         YT_VERIFY(std::ssize(writers) == Codec_->GetTotalPartCount());
-        VERIFY_INVOKER_THREAD_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
 
         ChunkInfo_.set_disk_space(0);
         for (const auto& writer : writers) {
@@ -382,7 +382,7 @@ private:
 
 void TErasureWriter::DoOpen()
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
     std::vector<TFuture<void>> asyncResults;
     for (auto writer : Writers_) {
@@ -420,7 +420,7 @@ bool TErasureWriter::WriteBlock(const TWorkloadDescriptor& /*workloadDescriptor*
 
 TFuture<void> TErasureWriter::WriteDataBlocks(const std::vector<std::vector<TBlock>>& groups)
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(WriterThread);
     YT_VERIFY(groups.size() <= Writers_.size());
 
     int blockIndex = LastFlushedBlockIndex_;
@@ -445,7 +445,7 @@ TFuture<void> TErasureWriter::WriteDataBlocks(const std::vector<std::vector<TBlo
 
 TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks(const std::vector<std::vector<TBlock>>& groups)
 {
-    VERIFY_INVOKER_AFFINITY(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(NRpc::TDispatcher::Get()->GetCompressionPoolInvoker());
 
     std::vector<std::vector<TBlock>> parityBlocks(Codec_->GetParityPartCount());
 
@@ -484,7 +484,7 @@ TFuture<void> TErasureWriter::EncodeAndWriteParityBlocks(const std::vector<std::
 
 TFuture<void> TErasureWriter::Flush(std::vector<TBlock> blocks)
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
     if (blocks.empty()) {
         return VoidFuture;
@@ -518,7 +518,7 @@ TFuture<void> TErasureWriter::Close(const TWorkloadDescriptor& workloadCategory,
 
 void TErasureWriter::FillChunkMeta(const TDeferredChunkMetaPtr& chunkMeta)
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
     NProto::TErasurePlacementExt placementExt;
     for (int index = 0; index < Codec_->GetDataPartCount(); ++index) {
@@ -555,7 +555,7 @@ void TErasureWriter::FillChunkMeta(const TDeferredChunkMetaPtr& chunkMeta)
 
 void TErasureWriter::DoClose(const TWorkloadDescriptor& workloadCategory, TDeferredChunkMetaPtr chunkMeta)
 {
-    VERIFY_THREAD_AFFINITY(WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
     WaitFor(
         ReadyEvent_.Apply(

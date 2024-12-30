@@ -84,7 +84,7 @@ public:
         const TQueueAgentShardingManagerDynamicConfigPtr& oldConfig,
         const TQueueAgentShardingManagerDynamicConfigPtr& newConfig) override
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         DynamicConfig_.Exchange(newConfig);
 
@@ -125,7 +125,7 @@ private:
 
     void BuildOrchid(NYson::IYsonConsumer* consumer) const
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         BuildYsonFluently(consumer).BeginMap()
             .Item("active").Value(Active_)
@@ -137,7 +137,7 @@ private:
 
     void Pass()
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         PassInstant_ = TInstant::Now();
         ++PassIndex_;
@@ -230,7 +230,7 @@ private:
 
     void GuardedPass()
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueAgentShardingManager"));
 

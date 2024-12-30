@@ -23,14 +23,14 @@ bool TLeaderLease::IsValid() const
 
 void TLeaderLease::Restart()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     Deadline_.store(NotAcquiredDeadline);
 }
 
 void TLeaderLease::Extend(NProfiling::TCpuInstant deadline)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto curDeadline = Deadline_.load();
     if (curDeadline == AbandonedDeadline) {
@@ -42,7 +42,7 @@ void TLeaderLease::Extend(NProfiling::TCpuInstant deadline)
 
 bool TLeaderLease::TryAbandon()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (NProfiling::GetCpuInstant() >= Deadline_.load()) {
         return false;
@@ -65,7 +65,7 @@ public:
 
     TFuture<void> Run()
     {
-        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(Owner_->ControlThread);
 
         for (int id = 0; id < Owner_->EpochContext_->CellManager->GetTotalPeerCount(); ++id) {
             if (id == Owner_->EpochContext_->CellManager->GetSelfPeerId()) {
@@ -95,7 +95,7 @@ private:
 
     void SendPing(int followerId)
     {
-        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(Owner_->ControlThread);
 
         const auto& epochContext = Owner_->EpochContext_;
 
@@ -134,7 +134,7 @@ private:
         bool voting,
         const TInternalHydraServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError)
     {
-        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (!rspOrError.IsOK()) {
             PingErrors_.push_back(rspOrError);
@@ -162,7 +162,7 @@ private:
 
     void OnComplete(const TError&)
     {
-        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (!Promise_.IsSet()) {
             auto error = TError("Could not acquire quorum")
@@ -200,14 +200,14 @@ TLeaseTracker::TLeaseTracker(
 {
     YT_VERIFY(Config_);
     YT_VERIFY(EpochContext_);
-    VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
+    YT_ASSERT_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
 
     LeaseCheckExecutor_->Start();
 }
 
 void TLeaseTracker::EnableTracking()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_VERIFY(TermSendingEnabled_);
 
@@ -217,7 +217,7 @@ void TLeaseTracker::EnableTracking()
 
 void TLeaseTracker::EnableSendingTerm()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     TermSendingEnabled_ = true;
 }
@@ -236,7 +236,7 @@ TFuture<void> TLeaseTracker::GetNextQuorumFuture()
 {
     auto result =
         BIND([=, this, this_ = MakeStrong(this)] {
-            VERIFY_THREAD_AFFINITY(ControlThread);
+            YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
             while (!Finalized_) {
                 auto future = NextCheckPromise_.ToFuture();
@@ -256,14 +256,14 @@ TFuture<void> TLeaseTracker::GetNextQuorumFuture()
 
 void TLeaseTracker::SubscribeLeaseLost(const TCallback<void(const TError&)>& callback)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     LeaseLost_.Subscribe(callback);
 }
 
 void TLeaseTracker::OnLeaseCheck()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_VERIFY(!Finalized_);
 
@@ -294,7 +294,7 @@ void TLeaseTracker::OnLeaseCheck()
 
 TFuture<void> TLeaseTracker::FireLeaseCheck()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     std::vector<TFuture<void>> futures;
     futures.push_back(New<TFollowerPinger>(this)->Run());

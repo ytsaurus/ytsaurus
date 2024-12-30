@@ -959,7 +959,7 @@ private:
 
     std::pair<TGroupNodePtr, TYPath> ResolvePath(const TYPath& path)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         NYPath::TTokenizer tokenizer(path);
         auto currentNode = Root_;
@@ -1017,7 +1017,7 @@ private:
 
     void RemovePath(TGroupId path, TGroupNodePtr node)
     {
-        VERIFY_WRITER_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_WRITER_SPINLOCK_AFFINITY(Lock_);
 
         while (node != Root_ && node->GetChildCount() == 0 && GetMemberCount(node) == 0) {
             YT_VERIFY(IdToNode_.erase(path) > 0);

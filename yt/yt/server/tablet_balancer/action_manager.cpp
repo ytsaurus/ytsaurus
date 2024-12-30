@@ -116,14 +116,14 @@ TActionManager::TActionManager(
 
 void TActionManager::ScheduleActionCreation(const TString& bundleName, const TActionDescriptor& descriptor)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     PendingActionDescriptors_[bundleName].emplace_back(descriptor);
 }
 
 void TActionManager::CreateActions(const TString& bundleName)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     YT_VERIFY(Started_);
 
@@ -283,14 +283,14 @@ int TActionManager::CreatePendingBundleActions(const TString& bundleName, int ac
 
 bool TActionManager::HasUnfinishedActions(const TString& bundleName) const
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     return PendingActionDescriptors_.contains(bundleName) || RunningActions_.contains(bundleName);
 }
 
 bool TActionManager::IsKnownAction(const TString& bundleName, TTabletActionId actionId) const
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     if (auto it = RunningActions_.find(bundleName); it != RunningActions_.end()) {
         auto action = std::find_if(
@@ -321,7 +321,7 @@ bool TActionManager::IsKnownAction(const TString& bundleName, TTabletActionId ac
 
 void TActionManager::Start(TTransactionId prerequisiteTransactionId)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     YT_LOG_INFO("Starting tablet action manager (PrerequisiteTransactionId: %v)", prerequisiteTransactionId);
 
@@ -339,7 +339,7 @@ void TActionManager::Start(TTransactionId prerequisiteTransactionId)
 
 void TActionManager::Stop()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     YT_LOG_INFO("Stopping tablet action manager");
 
@@ -354,7 +354,7 @@ void TActionManager::Stop()
 
 void TActionManager::Reconfigure(const TActionManagerConfigPtr& config)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     Config_ = config;
     PollExecutor_->SetPeriod(Config_->TabletActionPollingPeriod);
@@ -373,7 +373,7 @@ void TActionManager::TryPoll()
 
 void TActionManager::Poll()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     YT_LOG_INFO("Start checking tablet action states");
 

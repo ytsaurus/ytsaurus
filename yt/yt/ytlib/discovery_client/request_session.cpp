@@ -175,7 +175,7 @@ void TServerAddressPool::OnEndpointsResolved(
 
 void TServerAddressPool::SetAddresses(const std::vector<std::string>& addresses)
 {
-    VERIFY_SPINLOCK_AFFINITY(Lock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
     DownAddresses_.clear();
     UpAddresses_.clear();

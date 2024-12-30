@@ -323,7 +323,7 @@ IThroughputThrottlerPtr TJobProxy::GetUserJobContainerCreationThrottler() const
 
 void TJobProxy::SendHeartbeat()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto job = FindJob();
     if (!job) {

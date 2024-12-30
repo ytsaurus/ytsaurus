@@ -81,7 +81,7 @@ public:
 
     TError Init(int slotCount, double cpuLimit, double idleCpuFraction) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         Bootstrap_->SubscribePopulateAlerts(
             BIND(&TProcessJobEnvironmentBase::PopulateAlerts, MakeWeak(this)));
@@ -100,7 +100,7 @@ public:
 
     TFuture<void> InitSlot(int slotIndex) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return BIND(&IJobEnvironment::CleanProcesses, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetJobInvoker())
@@ -116,7 +116,7 @@ public:
         TOperationId operationId,
         const std::optional<TNumaNodeInfo>& numaNodeAffinity) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateEnabled();
 
@@ -275,7 +275,7 @@ protected:
 
     void EnsureJobProxyFinished(int slotIndex, bool kill)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto it = JobProxyProcesses_.find(slotIndex);
         if (it != JobProxyProcesses_.end()) {
@@ -314,7 +314,7 @@ private:
         ESlotType /*slotType*/,
         TJobId /*jobId*/)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return New<TSimpleProcess>(JobProxyProgramName);
     }
@@ -337,7 +337,7 @@ public:
 
     void CleanProcesses(int slotIndex, ESlotType slotType) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateEnabled();
 
@@ -375,7 +375,7 @@ public:
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return CreateSimpleJobWorkspaceBuilder(
             invoker,
@@ -492,7 +492,7 @@ public:
 
     void CleanProcesses(int slotIndex, ESlotType slotType) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateEnabled();
 
@@ -567,7 +567,7 @@ public:
         const std::optional<std::vector<TDevice>>& devices,
         int startIndex) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return BIND([this, this_ = MakeStrong(this), slotIndex, slotType, jobId, commands, rootFS, user, devices, startIndex] {
             std::vector<TShellCommandOutput> outputs;
@@ -656,7 +656,7 @@ private:
 
     void DestroyAllSubcontainers(const TString& rootContainer)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_DEBUG(
             "Start destroy subcontainers (RootContainer: %v)",
@@ -709,7 +709,7 @@ private:
 
     void DoInit(int slotCount, double cpuLimit, double idleCpuFraction) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         // We use weak ptr to avoid cyclic references between container manager and job environment.
         auto portoFatalErrorHandler = BIND(&TPortoJobEnvironment::Disable, MakeWeak(this));
@@ -768,7 +768,7 @@ private:
 
     TFuture<void> InitSlot(int slotIndex) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto slotInitFuture = BIND([this, this_ = MakeStrong(this), slotIndex] {
             for (auto slotType : {ESlotType::Common, ESlotType::Idle}) {
@@ -867,7 +867,7 @@ private:
         ESlotType slotType,
         TJobId jobId) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto launcher = CreateJobProxyInstanceLauncher(slotIndex, slotType, jobId);
         return New<TPortoProcess>(JobProxyProgramName, launcher);
@@ -931,7 +931,7 @@ private:
 
     i64 GetMajorPageFaultCount() const override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         if (!SelfInstance_) {
             THROW_ERROR_EXCEPTION("Job environment disabled");
@@ -961,7 +961,7 @@ private:
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return CreatePortoJobWorkspaceBuilder(
             invoker,
@@ -989,7 +989,7 @@ public:
 
     void DoInit(int slotCount, double cpuLimit, double /*idleCpuFraction*/) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         Executor_->CleanNamespace();
 
@@ -1021,7 +1021,7 @@ public:
 
     TFuture<void> InitSlot(int slotIndex) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto podSpec = New<NCri::TCriPodSpec>();
         podSpec->Name = Format("%v%v", SlotPodPrefix, slotIndex);
@@ -1032,7 +1032,7 @@ public:
         auto slotInitFuture = Executor_->RunPodSandbox(podSpec);
         slotInitFuture
             .Subscribe(BIND([this, this_ = MakeStrong(this), slotIndex] (const TErrorOr<TCriPodDescriptor>& result){
-                VERIFY_THREAD_AFFINITY(JobThread);
+                YT_ASSERT_THREAD_AFFINITY(JobThread);
 
                 if (result.IsOK()) {
                     // Error is handled outside in slot manager.
@@ -1048,7 +1048,7 @@ public:
 
     void CleanProcesses(int slotIndex, ESlotType slotType) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ValidateEnabled();
 
@@ -1083,7 +1083,7 @@ public:
         TJobWorkspaceBuildingContext context,
         IJobDirectoryManagerPtr directoryManager) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         // Inject default docker image for job workspace.
         if (!context.DockerImage) {
@@ -1118,7 +1118,7 @@ private:
         ESlotType slotType,
         TJobId jobId) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_VERIFY(slotType == ESlotType::Common);
 
@@ -1252,7 +1252,7 @@ private:
 
     void UpdateSlotCpuSet(int slotIndex, ESlotType slotType, TStringBuf cpuSet) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         if (slotType != ESlotType::Common) {
             return;

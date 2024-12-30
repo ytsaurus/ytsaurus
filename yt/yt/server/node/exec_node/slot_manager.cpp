@@ -64,7 +64,7 @@ TSlotManager::TSlotManager(IBootstrap* bootstrap)
         Logger()))
     , DisableJobsBackoffStrategy_(DynamicConfig_.Acquire()->DisableJobsBackoffStrategy)
 {
-    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+    YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
     YT_VERIFY(StaticConfig_);
 }
@@ -103,7 +103,7 @@ void TSlotManager::OnContainerDevicesCheckFinished(const TError& error)
 
 void TSlotManager::OnPortoHealthCheckSuccess()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (IsJobEnvironmentResurrectionEnabled() &&
         CanResurrect())
@@ -128,7 +128,7 @@ void TSlotManager::OnPortoHealthCheckSuccess()
 
 void TSlotManager::OnPortoHealthCheckFailed(const TError& result)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (!IsJobEnvironmentResurrectionEnabled()) {
         return;
@@ -157,7 +157,7 @@ void TSlotManager::OnPortoHealthCheckFailed(const TError& result)
 
 void TSlotManager::Initialize()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     Bootstrap_->SubscribePopulateAlerts(
         BIND_NO_PROPAGATE(&TSlotManager::PopulateAlerts, MakeStrong(this)));
@@ -181,7 +181,7 @@ void TSlotManager::Initialize()
 void TSlotManager::Start()
 {
     auto initializeResult = WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         InitializeEnvironment().Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& /*error*/) {
             if (StaticConfig_->JobEnvironment.GetCurrentType() == NJobProxy::EJobEnvironmentType::Porto) {
@@ -205,7 +205,7 @@ void TSlotManager::Start()
 
 TFuture<void> TSlotManager::InitializeEnvironment()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto expected = ESlotManagerState::Disabled;
 
@@ -310,7 +310,7 @@ void TSlotManager::OnDynamicConfigChanged(
     const TSlotManagerDynamicConfigPtr& oldConfig,
     const TSlotManagerDynamicConfigPtr& newConfig)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     DynamicConfig_.Store(newConfig);
 
@@ -347,7 +347,7 @@ void TSlotManager::OnDynamicConfigChanged(
 
 void TSlotManager::UpdateAliveLocations()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto guard = WriterGuard(AliveLocationsLock_);
 
@@ -361,7 +361,7 @@ void TSlotManager::UpdateAliveLocations()
 
 IUserSlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest, NScheduler::NProto::TCpuRequest cpuRequest)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (IsJobSchedulingDisabled()) {
         THROW_ERROR_EXCEPTION(NExecNode::EErrorCode::SchedulerJobsDisabled, "Slot manager disabled");
@@ -464,7 +464,7 @@ std::unique_ptr<TSlotManager::TSlotGuard> TSlotManager::AcquireSlot(
     double requestedCpu,
     const std::optional<TNumaNodeInfo>& numaNodeAffinity
 ) {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return std::make_unique<TSlotManager::TSlotGuard>(
         this,
@@ -475,28 +475,28 @@ std::unique_ptr<TSlotManager::TSlotGuard> TSlotManager::AcquireSlot(
 
 int TSlotManager::GetSlotCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return SlotCount_;
 }
 
 int TSlotManager::GetUsedSlotCount() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return InitializedSlotCount_.load() - std::ssize(FreeSlots_);
 }
 
 int TSlotManager::GetInitializedSlotCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return InitializedSlotCount_.load();
 }
 
 bool TSlotManager::IsInitialized() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return State_.load() == ESlotManagerState::Initialized;
 }
@@ -523,7 +523,7 @@ bool TSlotManager::IsPersistent(ESlotManagerAlertType alertType)
 
 bool TSlotManager::IsJobSchedulingDisabled() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!IsEnabled()) {
         return true;
@@ -535,7 +535,7 @@ bool TSlotManager::IsJobSchedulingDisabled() const
 
 bool TSlotManager::HasArmedPersistentAlerts() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
     auto guard = ReaderGuard(AlertsLock_);
 
     return GuardedHasArmedPersistentAlerts();
@@ -543,7 +543,7 @@ bool TSlotManager::HasArmedPersistentAlerts() const
 
 bool TSlotManager::IsEnabled() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     bool hasAliveLocations = false;
     {
@@ -567,8 +567,8 @@ bool TSlotManager::IsEnabled() const
 
 bool TSlotManager::GuardedHasArmedAlerts() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-    VERIFY_SPINLOCK_AFFINITY(AlertsLock_);
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_SPINLOCK_AFFINITY(AlertsLock_);
 
     return
         GuardedHasArmedPersistentAlerts() ||
@@ -577,8 +577,8 @@ bool TSlotManager::GuardedHasArmedAlerts() const
 
 bool TSlotManager::GuardedHasArmedPersistentAlerts() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-    VERIFY_SPINLOCK_AFFINITY(AlertsLock_);
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_SPINLOCK_AFFINITY(AlertsLock_);
 
     return
         Alerts_.HasArmedPersistentAlert(/*inverseCondition*/ false);
@@ -586,8 +586,8 @@ bool TSlotManager::GuardedHasArmedPersistentAlerts() const
 
 bool TSlotManager::GuardedHasArmedTransientAlerts() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
-    VERIFY_SPINLOCK_AFFINITY(AlertsLock_);
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_SPINLOCK_AFFINITY(AlertsLock_);
 
     return
         Alerts_.HasArmedPersistentAlert(/*inverseCondition*/ true);
@@ -595,7 +595,7 @@ bool TSlotManager::GuardedHasArmedTransientAlerts() const
 
 bool TSlotManager::FixableByResurrect() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
     auto guard = ReaderGuard(AlertsLock_);
 
     return
@@ -604,7 +604,7 @@ bool TSlotManager::FixableByResurrect() const
 
 bool TSlotManager::CanResurrect() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     bool jobSchedulingDisabled = IsJobSchedulingDisabled();
 
@@ -615,7 +615,7 @@ bool TSlotManager::CanResurrect() const
 
 void TSlotManager::InitializeSlots()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     ++InitializationEpoch_;
 
@@ -635,7 +635,7 @@ void TSlotManager::InitializeSlots()
 
         slotInitFuture.Subscribe(
             BIND([this, this_ = MakeStrong(this), slotIndex, epoch = InitializationEpoch_] (const TError& error) {
-                VERIFY_THREAD_AFFINITY(JobThread);
+                YT_ASSERT_THREAD_AFFINITY(JobThread);
 
                 if (epoch != InitializationEpoch_) {
                     YT_LOG_DEBUG(
@@ -676,7 +676,7 @@ void TSlotManager::VerifyCurrentState(ESlotManagerState expectedState) const
 
 TSlotManager::TSlotManagerInfo TSlotManager::DoGetStateSnapshot() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     TEnumIndexedArray<ESlotManagerAlertType, TError> alerts;
 
@@ -723,7 +723,7 @@ double TSlotManager::GetIdleCpuFraction() const
 
 i64 TSlotManager::GetMajorPageFaultCount() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobEnvironment_) {
         return JobEnvironment_->GetMajorPageFaultCount();
@@ -740,7 +740,7 @@ bool TSlotManager::EnableNumaNodeScheduling() const
 
 void TSlotManager::ForceInitialize()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto expected = ESlotManagerState::Disabled;
 
@@ -755,7 +755,7 @@ void TSlotManager::ForceInitialize()
 
 void TSlotManager::ResetAlerts(const std::vector<ESlotManagerAlertType>& alertTypes)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     bool needInitialize;
     {
@@ -775,7 +775,7 @@ void TSlotManager::ResetAlerts(const std::vector<ESlotManagerAlertType>& alertTy
 
 void TSlotManager::OnJobsCpuLimitUpdated()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     try {
         const auto& resourceManager = Bootstrap_->GetNodeResourceManager();
@@ -788,7 +788,7 @@ void TSlotManager::OnJobsCpuLimitUpdated()
 
 std::vector<TSlotLocationPtr> TSlotManager::GetLocations() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(LocationsLock_);
     return Locations_;
@@ -802,7 +802,7 @@ void TSlotManager::SetDisabledState()
 
 bool TSlotManager::Disable(TError error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(!error.IsOK());
 
@@ -881,7 +881,7 @@ bool TSlotManager::Disable(TError error)
 
 void TSlotManager::OnGpuCheckCommandFailed(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_LOG_WARNING(
         error,
@@ -895,14 +895,14 @@ void TSlotManager::OnGpuCheckCommandFailed(const TError& error)
 
 void TSlotManager::OnPortoExecutorFailed(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     Disable(TError(NExecNode::EErrorCode::PortoExecutorFailure, "Porto exeuctor failed") << error);
 }
 
 void TSlotManager::OnWaitingForJobCleanupTimeout(TError error)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     // NB(arkady-e1ppa): This call is sync and this event has already
     // been logged before going there.
@@ -914,7 +914,7 @@ void TSlotManager::OnWaitingForJobCleanupTimeout(TError error)
 
 void TSlotManager::OnJobEnvironmentDisabled(TError error)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_VERIFY(error.FindMatching(NExecNode::EErrorCode::JobEnvironmentDisabled));
 
@@ -925,7 +925,7 @@ void TSlotManager::OnJobEnvironmentDisabled(TError error)
 
 void TSlotManager::OnJobFinished(const TJobPtr& job)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto guard = WriterGuard(AlertsLock_);
     if (job->GetState() == EJobState::Aborted) {
@@ -1000,7 +1000,7 @@ void TSlotManager::OnJobProxyBuildInfoUpdated(const TError& error)
 
 void TSlotManager::ResetConsecutiveAbortedJobCount()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto guard = WriterGuard(AlertsLock_);
 
@@ -1011,7 +1011,7 @@ void TSlotManager::ResetConsecutiveAbortedJobCount()
 
 void TSlotManager::ResetConsecutiveFailedGpuJobCount()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto guard = WriterGuard(AlertsLock_);
 
@@ -1040,7 +1040,7 @@ void TSlotManager::PopulateAlerts(std::vector<TError>* alerts)
 
 IYPathServicePtr TSlotManager::GetOrchidService() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return IYPathService::FromProducer(BIND_NO_PROPAGATE(
         &TSlotManager::BuildOrchid,
@@ -1049,7 +1049,7 @@ IYPathServicePtr TSlotManager::GetOrchidService() const
 
 void TSlotManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto slotManagerInfo = GetStateSnapshot();
 
@@ -1093,7 +1093,7 @@ void TSlotManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
 
 void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& nativeConnection = Bootstrap_->GetClient()->GetNativeConnection();
     WaitFor(nativeConnection->GetMediumDirectorySynchronizer()->RecentSync())
@@ -1137,21 +1137,21 @@ void TSlotManager::InitMedia(const NChunkClient::TMediumDirectoryPtr& mediumDire
 
 NJobProxy::TJobEnvironmentConfig TSlotManager::GetJobEnvironmentConfig() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return StaticConfig_->JobEnvironment;
 }
 
 bool TSlotManager::ShouldSetUserId() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return !StaticConfig_->DoNotSetUserId;
 }
 
 void TSlotManager::FinishInitialization(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     VerifyCurrentState(ESlotManagerState::Initializing);
 
@@ -1177,7 +1177,7 @@ void TSlotManager::FinishInitialization(const TError& error)
 
 void TSlotManager::AsyncInitialize()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_LOG_INFO("Slot manager async initialization started");
 
@@ -1239,7 +1239,7 @@ void TSlotManager::AsyncInitialize()
 
 int TSlotManager::DoAcquireSlot(ESlotType slotType)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(!FreeSlots_.empty());
     auto slotIndex = PopSlot();
@@ -1254,7 +1254,7 @@ int TSlotManager::DoAcquireSlot(ESlotType slotType)
 
 void TSlotManager::PushSlot(int slotIndex)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     for (auto slot : TRingQueueIterableWrapper(FreeSlots_)) {
         YT_LOG_FATAL_IF(
@@ -1278,7 +1278,7 @@ void TSlotManager::PushSlot(int slotIndex)
 
 int TSlotManager::PopSlot()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     int slotIndex = FreeSlots_.front();
     FreeSlots_.pop();
@@ -1287,7 +1287,7 @@ int TSlotManager::PopSlot()
 
 void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, double requestedCpu, const std::optional<i64>& numaNodeIdAffinity)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     PushSlot(slotIndex);
 
@@ -1314,7 +1314,7 @@ void TSlotManager::ReleaseSlot(ESlotType slotType, int slotIndex, double request
 
 NNodeTrackerClient::NProto::TDiskResources TSlotManager::GetDiskResources()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     NNodeTrackerClient::NProto::TDiskResources result;
     result.set_default_medium_index(DefaultMediumIndex_);

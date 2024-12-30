@@ -75,7 +75,7 @@ public:
 
     void DisposeNodeWithSemaphore(TNode* node) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(IsLeader());
 
@@ -126,7 +126,7 @@ public:
 
     void OnProfiling(TSensorBuffer* buffer) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         buffer->AddGauge("/data_nodes_being_disposed", DataNodesBeingDisposed_.size());
         buffer->AddGauge("/data_nodes_awaiting_for_being_disposed", DataNodesAwaitingForBeingDisposed_.size());
@@ -144,7 +144,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnLeaderActive();
 
@@ -158,7 +158,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopLeading();
         if (NodeDisposalExecutor_) {
@@ -195,7 +195,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::Clear();
 
@@ -205,7 +205,7 @@ private:
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& config = GetDynamicConfig();
         if (NodeDisposalExecutor_) {
@@ -218,14 +218,14 @@ private:
 
     const TDynamicNodeTrackerConfigPtr& GetDynamicConfig()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return Bootstrap_->GetConfigManager()->GetConfig()->NodeTracker;
     }
 
     void FinishNodeDisposal(TNodeId nodeId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(IsLeader());
 
@@ -242,7 +242,7 @@ private:
 
     void NodeDisposalTick()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(IsLeader());
 
@@ -276,7 +276,7 @@ private:
 
     void StartLocationDisposal(TNode* node, int locationIndex)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(IsLeader());
 

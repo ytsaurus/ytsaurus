@@ -626,21 +626,21 @@ public:
 
     void Start()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         GetUncancelableInvoker()->Invoke(BIND(&TImpl::DoStart, MakeStrong(this), /*fetchFinishedOperations*/ false));
     }
 
     void Stop()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         GetUncancelableInvoker()->Invoke(BIND(&TImpl::DoStop, MakeStrong(this)));
     }
 
     void UpdateConfig(const TOperationsCleanerConfigPtr& config)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         GetUncancelableInvoker()->Invoke(BIND(&TImpl::DoUpdateConfig, MakeStrong(this), config));
     }
@@ -697,7 +697,7 @@ public:
 
     void SetArchiveVersion(int version)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         ArchiveVersion_ = version;
     }
@@ -709,7 +709,7 @@ public:
 
     void BuildOrchid(TFluentMap fluent) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         fluent
             .Item("enable").Value(IsEnabled())
@@ -726,7 +726,7 @@ public:
         EOperationAlertType alertType,
         TError alert)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (!IsEnabled()) {
             return;
@@ -905,7 +905,7 @@ private:
 
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
     {
-        VERIFY_INVOKER_AFFINITY(GetUncancelableInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetUncancelableInvoker());
 
         Bootstrap_->GetControlInvoker(EControlQueue::OperationsCleaner)->Invoke(
             BIND(&IOperationsCleanerHost::SetSchedulerAlert, Host_, alertType, alert));
@@ -913,7 +913,7 @@ private:
 
     void DoStart(bool fetchFinishedOperations)
     {
-        VERIFY_INVOKER_AFFINITY(GetUncancelableInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetUncancelableInvoker());
 
         if (!Config_->Enable || Enabled_) {
             return;
@@ -998,7 +998,7 @@ private:
 
     void DoStop()
     {
-        VERIFY_INVOKER_AFFINITY(GetUncancelableInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetUncancelableInvoker());
         if (!Enabled_) {
             return;
         }
@@ -1037,7 +1037,7 @@ private:
 
     void DoUpdateConfig(TOperationsCleanerConfigPtr config)
     {
-        VERIFY_INVOKER_AFFINITY(GetUncancelableInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetUncancelableInvoker());
 
         bool oldEnable = Config_->Enable;
         bool oldEnableOperationArchivation = Config_->EnableOperationArchivation;
@@ -1091,7 +1091,7 @@ private:
 
     void DoSubmitForArchivation(TArchiveOperationRequest request)
     {
-        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
         auto id = request.Id;
 
@@ -1115,7 +1115,7 @@ private:
 
     void OnAnalyzeOperations()
     {
-        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
         YT_LOG_INFO("Analyzing operations submitted for archivation (SubmittedOperationCount: %v)",
             ArchiveTimeToOperationIdMap_.size());
@@ -1186,7 +1186,7 @@ private:
 
     void EnqueueForRemoval(TOperationId operationId)
     {
-        VERIFY_INVOKER_AFFINITY(GetUncancelableInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetUncancelableInvoker());
 
         YT_LOG_DEBUG("Operation enqueued for removal (OperationId: %v)", operationId);
         RemovePending_++;
@@ -1195,7 +1195,7 @@ private:
 
     void EnqueueForArchivation(TOperationId operationId)
     {
-        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
         YT_LOG_DEBUG("Operation enqueued for archivation (OperationId: %v)", operationId);
         ArchivePending_++;
@@ -1204,7 +1204,7 @@ private:
 
     void CleanOperation(TOperationId operationId)
     {
-        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
         if (IsOperationArchivationEnabled()) {
             EnqueueForArchivation(operationId);
@@ -1215,7 +1215,7 @@ private:
 
     void TryArchiveOperations(const std::vector<TOperationId>& operationIds)
     {
-        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
         int version = ArchiveVersion_;
         if (version == -1) {
@@ -1381,7 +1381,7 @@ private:
 
     void ArchiveOperations()
     {
-        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
         auto batch = WaitFor(ArchiveBatcher_->DequeueBatch())
             .ValueOrThrow();
@@ -1600,7 +1600,7 @@ private:
 
     void RemoveOperations()
     {
-        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
         auto batch = WaitFor(RemoveBatcher_->DequeueBatch())
             .ValueOrThrow();
@@ -1617,7 +1617,7 @@ private:
 
     void TemporarilyDisableArchivation()
     {
-        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
         DoStopOperationArchivation();
 
@@ -1819,7 +1819,7 @@ private:
 
     const TArchiveOperationRequest& GetRequest(TOperationId operationId) const
     {
-        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
         return GetOrCrash(OperationMap_, operationId);
     }
@@ -1841,7 +1841,7 @@ private:
 
     void SendOperationAlerts()
     {
-        VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
         if (ArchiveVersion_ < 43 || OperationAlertEventQueue_.empty()) {
             SetSchedulerAlert(ESchedulerAlertType::OperationAlertArchivation, TError());

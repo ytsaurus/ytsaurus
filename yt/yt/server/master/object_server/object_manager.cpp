@@ -804,28 +804,28 @@ void TObjectManager::Initialize()
 
 IYPathServicePtr TObjectManager::GetRootService()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return RootService_;
 }
 
 TObject* TObjectManager::GetMasterObject()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return MasterObject_.get();
 }
 
 IObjectProxyPtr TObjectManager::GetMasterProxy()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return MasterProxy_;
 }
 
 TObject* TObjectManager::FindSchema(EObjectType type)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto it = TypeToEntry_.find(type);
     return it == TypeToEntry_.end() ? nullptr : it->second.SchemaObject;
@@ -833,7 +833,7 @@ TObject* TObjectManager::FindSchema(EObjectType type)
 
 TObject* TObjectManager::GetSchema(EObjectType type)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto* schema = FindSchema(type);
     YT_VERIFY(schema);
@@ -842,7 +842,7 @@ TObject* TObjectManager::GetSchema(EObjectType type)
 
 IObjectProxyPtr TObjectManager::GetSchemaProxy(EObjectType type)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& entry = GetOrCrash(TypeToEntry_, type);
     YT_VERIFY(entry.SchemaProxy);
@@ -880,7 +880,7 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
 
 const IObjectTypeHandlerPtr& TObjectManager::FindHandler(EObjectType type) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto it = TypeToEntry_.find(type);
     return it == TypeToEntry_.end() ? NullTypeHandler : it->second.Handler;
@@ -888,7 +888,7 @@ const IObjectTypeHandlerPtr& TObjectManager::FindHandler(EObjectType type) const
 
 const IObjectTypeHandlerPtr& TObjectManager::GetHandler(EObjectType type) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& handler = FindHandler(type);
     YT_VERIFY(handler);
@@ -898,7 +898,7 @@ const IObjectTypeHandlerPtr& TObjectManager::GetHandler(EObjectType type) const
 
 const IObjectTypeHandlerPtr& TObjectManager::GetHandlerOrThrow(EObjectType type) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& handler = FindHandler(type);
     if (!handler) {
@@ -911,21 +911,21 @@ const IObjectTypeHandlerPtr& TObjectManager::GetHandlerOrThrow(EObjectType type)
 
 const IObjectTypeHandlerPtr& TObjectManager::GetHandler(const TObject* object) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return GetHandler(object->GetType());
 }
 
 const std::set<EObjectType>& TObjectManager::GetRegisteredTypes() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return RegisteredTypes_;
 }
 
 TObjectId TObjectManager::GenerateId(EObjectType type, TObjectId hintId)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     ++CreatedObjects_;
 
@@ -958,7 +958,7 @@ TObjectId TObjectManager::GenerateId(EObjectType type, TObjectId hintId)
 
 int TObjectManager::RefObject(TObject* object)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(!object->IsGhost());
     YT_ASSERT(object->IsTrunk());
 
@@ -984,7 +984,7 @@ int TObjectManager::RefObject(TObject* object)
 
 int TObjectManager::UnrefObject(TObject* object, int count)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(IsObjectAlive(object));
     YT_ASSERT(object->IsTrunk());
 
@@ -1062,7 +1062,7 @@ void TObjectManager::SaveValues(NCellMaster::TSaveContext& context) const
 
 void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     SchemaMap_.LoadKeys(context);
     GarbageCollector_->LoadKeys(context);
@@ -1071,7 +1071,7 @@ void TObjectManager::LoadKeys(NCellMaster::TLoadContext& context)
 
 void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     SchemaMap_.LoadValues(context);
 
@@ -1093,7 +1093,7 @@ void TObjectManager::OnAfterSnapshotLoaded()
 
 void TObjectManager::Clear()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     TMasterAutomatonPart::Clear();
 
@@ -1159,7 +1159,7 @@ void TObjectManager::OnRecoveryComplete()
 
 void TObjectManager::OnLeaderActive()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     TMasterAutomatonPart::OnLeaderActive();
 
@@ -1169,7 +1169,7 @@ void TObjectManager::OnLeaderActive()
 
 void TObjectManager::OnStopLeading()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     TMasterAutomatonPart::OnStopLeading();
 
@@ -1179,7 +1179,7 @@ void TObjectManager::OnStopLeading()
 
 void TObjectManager::OnStartFollowing()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     TMasterAutomatonPart::OnStartFollowing();
 
@@ -1188,7 +1188,7 @@ void TObjectManager::OnStartFollowing()
 
 void TObjectManager::OnStopFollowing()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     TMasterAutomatonPart::OnStopFollowing();
 
@@ -1197,7 +1197,7 @@ void TObjectManager::OnStopFollowing()
 
 void TObjectManager::CheckInvariants()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     TMasterAutomatonPart::CheckInvariants();
 
@@ -1245,13 +1245,13 @@ TObject* TObjectManager::GetObjectOrThrow(TObjectId id)
 
 TObject* TObjectManager::GetWeakGhostObject(TObjectId id)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     return GarbageCollector_->GetWeakGhostObject(id);
 }
 
 void TObjectManager::RemoveObject(TObject* object)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     if (object->GetLifeStage() != EObjectLifeStage::CreationCommitted) {
         THROW_ERROR_EXCEPTION("Object life stage is %Qlv",
@@ -1332,7 +1332,7 @@ void TObjectManager::BranchAttributes(
     const TObject* /*originatingObject*/,
     TObject* /*branchedObject*/)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     // We don't store empty deltas at the moment
 }
 
@@ -1340,7 +1340,7 @@ void TObjectManager::MergeAttributes(
     TObject* originatingObject,
     const TObject* branchedObject)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto* branchedAttributes = branchedObject->GetAttributes();
     if (!branchedAttributes)
@@ -1364,7 +1364,7 @@ void TObjectManager::FillAttributes(
     TObject* object,
     const IAttributeDictionary& attributes)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     auto pairs = attributes.ListPairs();
     if (pairs.empty()) {
@@ -1412,7 +1412,7 @@ std::unique_ptr<TMutation> TObjectManager::CreateDestroyObjectsMutation(const NP
 
 TFuture<void> TObjectManager::GCCollect()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     return GarbageCollector_->Collect();
 }
@@ -1422,7 +1422,7 @@ TObject* TObjectManager::CreateObject(
     EObjectType type,
     IAttributeDictionary* attributes)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& handler = GetHandlerOrThrow(type);
     auto flags = handler->GetFlags();
@@ -1580,7 +1580,7 @@ std::optional<TObject*> TObjectManager::FindObjectByAttributes(
     EObjectType type,
     const IAttributeDictionary* attributes)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& handler = GetHandlerOrThrow(type);
     return handler->FindObjectByAttributes(attributes);
@@ -1747,7 +1747,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     TCellTag cellTag,
     NApi::EMasterChannelKind channelKind)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     NRpc::NProto::TRequestHeader header;
     YT_VERIFY(TryParseRequestHeader(requestMessage, &header));
@@ -1958,7 +1958,7 @@ void TObjectManager::HydraExecuteLeader(
 
 void TObjectManager::HydraExecuteFollower(NProto::TReqExecute* request)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     TSharedRefArrayBuilder requestMessageBuilder(request->request_parts_size());
     for (const auto& part : request->request_parts()) {
@@ -2402,7 +2402,7 @@ NProfiling::TTimeCounter* TObjectManager::GetMethodCumulativeExecuteTimeCounter(
     EObjectType type,
     const std::string& method)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto key = std::pair(type, method);
     auto [entryPtr, inserted] = MethodToEntry_
@@ -2428,7 +2428,7 @@ const TGarbageCollectorPtr& TObjectManager::GetGarbageCollector() const
 
 void TObjectManager::OnProfiling()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     TSensorBuffer buffer;
     buffer.AddGauge("/zombie_object_count", GarbageCollector_->GetZombieCount());

@@ -569,7 +569,7 @@ public:
 
     void RefreshAccountsForProfiling()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         AccountsForProfiling_.clear();
         for (auto [_, account] : Accounts()) {
@@ -581,7 +581,7 @@ public:
 
     void OnAccountsProfiling()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (!Bootstrap_->IsPrimaryMaster()) {
             return;
@@ -2768,7 +2768,7 @@ public:
 
     TProfilerTagPtr GetUserCpuProfilerTag(TUser* user) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return *CpuProfilerTags_
             .FindOrInsert(
@@ -4075,7 +4075,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnLeaderActive();
 
@@ -4350,7 +4350,7 @@ private:
 
     void HydraUpdateUserActivityStatistics(NProto::TReqUpdateUserActivityStatistics* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         for (const auto& update : request->updates()) {
@@ -4425,7 +4425,7 @@ private:
 
     void OnTransactionFinished(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(transaction->NestedTransactions().empty());
 

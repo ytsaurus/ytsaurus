@@ -640,7 +640,7 @@ void ParseSpec(
     std::optional<TOperationId> operationId,
     TPreprocessedSpec* preprocessedSpec)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (specTemplate) {
         specNode = PatchNode(specTemplate, specNode)->AsMap();
@@ -704,7 +704,7 @@ IMapNodePtr ConvertSpecStringToNode(
     const TYsonString& specString,
     int treeSizeLimit)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     IMapNodePtr specNode;
     try {

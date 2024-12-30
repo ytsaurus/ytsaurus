@@ -405,7 +405,7 @@ TFuture<TOperationId> TNodeManager::FindOperationIdByAllocationId(TAllocationId 
 
 TJobResources TNodeManager::GetResourceLimits(const TSchedulingTagFilter& filter) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     TJobResources result;
     for (const auto& nodeShard : NodeShards_) {
@@ -416,7 +416,7 @@ TJobResources TNodeManager::GetResourceLimits(const TSchedulingTagFilter& filter
 
 TJobResources TNodeManager::GetResourceUsage(const TSchedulingTagFilter& filter) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     TJobResources result;
     for (const auto& nodeShard : NodeShards_) {
@@ -436,7 +436,7 @@ int TNodeManager::GetActiveAllocationCount() const
 
 int TNodeManager::GetExecNodeCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     int execNodeCount = 0;
     for (const auto& nodeShard : NodeShards_) {
@@ -447,7 +447,7 @@ int TNodeManager::GetExecNodeCount() const
 
 int TNodeManager::GetTotalNodeCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     int totalNodeCount = 0;
     for (const auto& nodeShard : NodeShards_) {
@@ -458,7 +458,7 @@ int TNodeManager::GetTotalNodeCount() const
 
 int TNodeManager::GetSubmitToStrategyAllocationCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     int submitToStrategyAllocationCount = 0;
     for (const auto& nodeShard : NodeShards_) {
@@ -469,7 +469,7 @@ int TNodeManager::GetSubmitToStrategyAllocationCount() const
 
 int TNodeManager::GetTotalConcurrentHeartbeatComplexity() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     int totalConcurrentHeartbeatComplexity = 0;
     for (const auto& nodeShard : NodeShards_) {
@@ -498,35 +498,35 @@ int TNodeManager::GetJobReporterQueueIsTooLargeNodeCount()
 
 int TNodeManager::GetNodeShardCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return std::ssize(NodeShards_);
 }
 
 int TNodeManager::GetNodeShardId(TNodeId nodeId) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return nodeId.Underlying() % std::ssize(NodeShards_);
 }
 
 const std::vector<TNodeShardPtr>& TNodeManager::GetNodeShards() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return NodeShards_;
 }
 
 const std::vector<IInvokerPtr>& TNodeManager::GetNodeShardInvokers() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return CancelableNodeShardInvokers_;
 }
 
 int TNodeManager::GetOngoingHeartbeatsCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto futures = ExecuteInNodeShards([] (const TNodeShardPtr& nodeShard) {
         return nodeShard->GetOnGoingHeartbeatCount();
@@ -548,7 +548,7 @@ void TNodeManager::RegisterAgentAtNodeShards(
     const NNodeTrackerClient::TAddressMap& addresses,
     TIncarnationId incarnationId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto futures = ExecuteInNodeShards([id, addresses, incarnationId] (const TNodeShardPtr& nodeShard) mutable {
         nodeShard->RegisterAgent(std::move(id), std::move(addresses), incarnationId);
@@ -563,7 +563,7 @@ void TNodeManager::RegisterAgentAtNodeShards(
 
 void TNodeManager::UnregisterAgentFromNodeShards(const TAgentId& id)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto futures = ExecuteInNodeShards([id] (const TNodeShardPtr& nodeShard) mutable {
         nodeShard->UnregisterAgent(std::move(id));

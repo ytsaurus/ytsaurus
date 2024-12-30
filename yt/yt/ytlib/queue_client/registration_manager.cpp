@@ -130,7 +130,7 @@ TQueueConsumerRegistrationManager::TQueueConsumerRegistrationManager(
 
 void TQueueConsumerRegistrationManager::StartSync() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_LOG_DEBUG("Starting queue consumer registration manager sync");
     ConfigurationRefreshExecutor_->Start();
@@ -139,7 +139,7 @@ void TQueueConsumerRegistrationManager::StartSync() const
 
 void TQueueConsumerRegistrationManager::StopSync() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_LOG_DEBUG("Stopping queue consumer registration manager sync");
     YT_UNUSED_FUTURE(CacheRefreshExecutor_->Stop());
@@ -150,7 +150,7 @@ TQueueConsumerRegistrationManager::TGetRegistrationResult TQueueConsumerRegistra
     TRichYPath queue,
     TRichYPath consumer)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetDynamicConfig();
     YT_VERIFY(config);
@@ -269,7 +269,7 @@ std::vector<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::Li
     std::optional<TRichYPath> queue,
     std::optional<TRichYPath> consumer)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetDynamicConfig();
     YT_VERIFY(config);
@@ -310,7 +310,7 @@ void TQueueConsumerRegistrationManager::RegisterQueueConsumer(
     bool vital,
     const std::optional<std::vector<int>>& partitions)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetDynamicConfig();
     Resolve(config, &queue, &consumer, /*throwOnFailure*/ true);
@@ -329,7 +329,7 @@ void TQueueConsumerRegistrationManager::UnregisterQueueConsumer(
     TRichYPath queue,
     TRichYPath consumer)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetDynamicConfig();
     // NB: We want to allow to delete registrations with nonexistent queues/consumers, therefore we don't throw exceptions.
@@ -345,7 +345,7 @@ void TQueueConsumerRegistrationManager::UnregisterQueueConsumer(
 
 void TQueueConsumerRegistrationManager::Clear()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = WriterGuard(CacheSpinLock_);
     Registrations_.clear();
@@ -354,7 +354,7 @@ void TQueueConsumerRegistrationManager::Clear()
 
 void TQueueConsumerRegistrationManager::RefreshCache()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     try {
         GuardedRefreshCache();
@@ -371,7 +371,7 @@ void TQueueConsumerRegistrationManager::RefreshCache()
 
 void TQueueConsumerRegistrationManager::GuardedRefreshCache()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetDynamicConfig();
 
@@ -394,7 +394,7 @@ void TQueueConsumerRegistrationManager::GuardedRefreshCache()
 
 void TQueueConsumerRegistrationManager::GuardedRefreshReplicationTableMappingCache()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetDynamicConfig();
 
@@ -422,7 +422,7 @@ void TQueueConsumerRegistrationManager::GuardedRefreshReplicationTableMappingCac
 
 void TQueueConsumerRegistrationManager::RefreshConfiguration()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     try {
         GuardedRefreshConfiguration();
@@ -433,7 +433,7 @@ void TQueueConsumerRegistrationManager::RefreshConfiguration()
 
 void TQueueConsumerRegistrationManager::GuardedRefreshConfiguration()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     YT_LOG_DEBUG("Refreshing queue consumer registration manager configuration");
 
@@ -483,7 +483,7 @@ void TQueueConsumerRegistrationManager::GuardedRefreshConfiguration()
 
 TConsumerRegistrationTablePtr TQueueConsumerRegistrationManager::CreateRegistrationTableWriteClientOrThrow() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetDynamicConfig();
 
@@ -499,7 +499,7 @@ std::vector<typename TTable::TRowType> TQueueConsumerRegistrationManager::FetchS
     const NYPath::TRichYPath& stateReadPath,
     const std::string& user) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     std::vector<TIntrusivePtr<TTable>> readClients;
 
@@ -536,7 +536,7 @@ std::vector<typename TTable::TRowType> TQueueConsumerRegistrationManager::FetchS
 
 TQueueConsumerRegistrationManagerConfigPtr TQueueConsumerRegistrationManager::GetDynamicConfig() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(ConfigurationSpinLock_);
     // NB: Always non-null, since it is initialized from the static config in the constructor.
@@ -545,7 +545,7 @@ TQueueConsumerRegistrationManagerConfigPtr TQueueConsumerRegistrationManager::Ge
 
 void TQueueConsumerRegistrationManager::BuildOrchid(TFluentAny fluent)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetDynamicConfig();
     YT_VERIFY(config);

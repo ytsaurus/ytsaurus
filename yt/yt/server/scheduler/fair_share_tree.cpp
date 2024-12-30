@@ -304,14 +304,14 @@ public:
 
     TFairShareStrategyTreeConfigPtr GetConfig() const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         return Config_;
     }
 
     TFairShareStrategyTreeConfigPtr GetSnapshottedConfig() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto treeSnapshot = GetAtomicTreeSnapshot();
 
@@ -322,7 +322,7 @@ public:
 
     bool UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto configNode = ConvertToNode(config);
         if (AreNodesEqual(configNode, ConfigNode_)) {
@@ -351,7 +351,7 @@ public:
 
     void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         ControllerConfig_ = config;
 
@@ -362,7 +362,7 @@ public:
 
     const TSchedulingTagFilter& GetNodesFilter() const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         return Config_->NodesFilter;
     }
@@ -377,7 +377,7 @@ public:
 
     void FinishFairShareUpdate() override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         YT_VERIFY(TreeSnapshotPrecommit_);
 
@@ -395,7 +395,7 @@ public:
 
     bool HasOperation(TOperationId operationId) const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         return static_cast<bool>(FindOperationElement(operationId));
     }
@@ -418,7 +418,7 @@ public:
         const TStrategyOperationSpecPtr& spec,
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -466,7 +466,7 @@ public:
 
     void UnregisterOperation(const TFairShareStrategyOperationStatePtr& state) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto operationId = state->GetHost()->GetId();
         auto operationElement = GetOperationElement(operationId);
@@ -493,7 +493,7 @@ public:
 
     void EnableOperation(const TFairShareStrategyOperationStatePtr& state) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto operationId = state->GetHost()->GetId();
         auto operationElement = GetOperationElement(operationId);
@@ -505,7 +505,7 @@ public:
 
     void DisableOperation(const TFairShareStrategyOperationStatePtr& state) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto operationElement = GetOperationElement(state->GetHost()->GetId());
         TreeScheduler_->DisableOperation(operationElement.Get(), /*markAsNonAlive*/ false);
@@ -530,7 +530,7 @@ public:
         const TPoolName& newPool,
         bool ensureRunning)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         bool operationWasRunning = element->IsOperationRunningInPool();
 
@@ -560,7 +560,7 @@ public:
         TOperationId operationId,
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (const auto& element = FindOperationElement(operationId)) {
             element->SetRuntimeParameters(runtimeParameters);
@@ -569,7 +569,7 @@ public:
 
     void RegisterAllocationsFromRevivedOperation(TOperationId operationId, std::vector<TAllocationPtr> allocations) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto& element = FindOperationElement(operationId);
         TreeScheduler_->RegisterAllocationsFromRevivedOperation(element.Get(), std::move(allocations));
@@ -577,7 +577,7 @@ public:
 
     void RegisterNode(TNodeId nodeId) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         ++NodeCount_;
 
@@ -586,7 +586,7 @@ public:
 
     void UnregisterNode(TNodeId nodeId) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         --NodeCount_;
 
@@ -595,7 +595,7 @@ public:
 
     const TString& GetId() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return TreeId_;
     }
@@ -604,7 +604,7 @@ public:
         TOperationId operationId,
         const TOperationStuckCheckOptionsPtr& options) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = FindOperationElementInSnapshot(operationId);
         if (!element) {
@@ -691,7 +691,7 @@ public:
 
     void ProcessActivatableOperations() override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         while (!ActivatableOperationIds_.empty()) {
             auto operationId = ActivatableOperationIds_.back();
@@ -761,7 +761,7 @@ public:
 
     TPoolsUpdateResult UpdatePools(const INodePtr& poolsNode, bool forceUpdate) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (!forceUpdate && LastPoolsNodeUpdate_ && AreNodesEqual(LastPoolsNodeUpdate_, poolsNode)) {
             YT_LOG_INFO("Pools are not changed, skipping update");
@@ -879,7 +879,7 @@ public:
 
     TError ValidateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (!Config_->UseUserDefaultParentPoolMap) {
             return TError();
@@ -903,7 +903,7 @@ public:
 
     void ValidatePoolLimits(const IOperationStrategyHost* operation, const TPoolName& poolName) const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         ValidateOperationCountLimit(poolName, operation->GetAuthenticatedUser());
         ValidateEphemeralPoolLimit(operation, poolName);
@@ -911,7 +911,7 @@ public:
 
     void ValidatePoolLimitsOnPoolChange(const IOperationStrategyHost* operation, const TPoolName& newPoolName) const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         ValidateEphemeralPoolLimit(operation, newPoolName);
         ValidateAllOperationCountsOnPoolChange(operation->GetId(), newPoolName);
@@ -919,7 +919,7 @@ public:
 
     TFuture<void> ValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName) const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         return BIND(&TFairShareTree::DoValidateOperationPoolsCanBeUsed, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())
@@ -928,7 +928,7 @@ public:
 
     TError CheckOperationJobResourceLimitsRestrictions(const TSchedulerOperationElementPtr& element) const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto& detailedMinNeededResources = element->GetDetailedInitialMinNeededResources();
 
@@ -981,7 +981,7 @@ public:
 
     void InitPersistentState(const TPersistentTreeStatePtr& persistentState) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         for (const auto& [poolName, poolState] : persistentState->PoolStates) {
             auto poolIt = Pools_.find(poolName);
@@ -1005,7 +1005,7 @@ public:
 
     void OnOperationMaterialized(TOperationId operationId) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
         TreeScheduler_->OnOperationMaterialized(element.Get());
@@ -1013,7 +1013,7 @@ public:
 
     TError CheckOperationJobResourceLimitsRestrictions(TOperationId operationId, bool revivedFromSnapshot) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
 
@@ -1031,7 +1031,7 @@ public:
 
     TError CheckOperationSchedulingInSeveralTreesAllowed(TOperationId operationId) const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
         return TreeScheduler_->CheckOperationSchedulingInSeveralTreesAllowed(element.Get());
@@ -1051,7 +1051,7 @@ public:
 
     void BuildOperationAttributes(TOperationId operationId, TFluentMap fluent) const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
 
@@ -1062,7 +1062,7 @@ public:
 
     void BuildOperationProgress(TOperationId operationId, TFluentMap fluent) const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (auto treeSnapshot = GetTreeSnapshot()) {
             if (auto element = treeSnapshot->FindEnabledOperationElement(operationId)) {
@@ -1073,7 +1073,7 @@ public:
 
     void BuildBriefOperationProgress(TOperationId operationId, TFluentMap fluent) const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const auto& element = FindOperationElement(operationId);
         if (!element) {
@@ -1092,7 +1092,7 @@ public:
 
     void BuildUserToEphemeralPoolsInDefaultPool(TFluentAny fluent) const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         fluent
             .DoMapFor(UserToEphemeralPoolsInDefaultPool_, [] (TFluentMap fluent, const auto& pair) {
@@ -1104,7 +1104,7 @@ public:
 
     void BuildStaticPoolsInformation(TFluentAny fluent) const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         fluent
             .DoMapFor(Pools_, [&] (TFluentMap fluent, const auto& pair) {
@@ -1116,7 +1116,7 @@ public:
 
     void BuildFairShareInfo(TFluentMap fluent) const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         Y_UNUSED(WaitFor(BIND(&TFairShareTree::DoBuildFullFairShareInfo, MakeWeak(this), GetTreeSnapshot(), fluent)
             .AsyncVia(StrategyHost_->GetOrchidWorkerInvoker())
@@ -1135,7 +1135,7 @@ public:
 
     IYPathServicePtr GetOrchidService() const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto dynamicOrchidService = New<TCompositeMapService>();
 
@@ -1200,7 +1200,7 @@ public:
         })))->Via(StrategyHost_->GetOrchidWorkerInvoker());
 
         dynamicOrchidService->AddChild("pool_count", IYPathService::FromProducer(BIND([this_ = MakeStrong(this), this] (IYsonConsumer* consumer) {
-            VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+            YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
             BuildYsonFluently(consumer).Value(GetPoolCount());
         })));
@@ -1218,21 +1218,21 @@ public:
 
     TResourceTree* GetResourceTree() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ResourceTree_.Get();
     }
 
     TFairShareTreeProfileManager* GetProfiler()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return TreeProfileManager_.Get();
     }
 
     void SetResourceUsageSnapshot(TResourceUsageSnapshotPtr snapshot)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (snapshot != nullptr) {
             ResourceUsageSnapshot_.Store(std::move(snapshot));
@@ -1245,7 +1245,7 @@ public:
 
     const TJobResourcesByTagFilter& GetResourceLimitsByTagFilter() const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         static const TJobResourcesByTagFilter EmptyJobResourcesByTagFilter;
 
@@ -1544,7 +1544,7 @@ private:
 
         i64 GetSize() const final
         {
-            VERIFY_INVOKER_AFFINITY(FairShareTree_->StrategyHost_->GetOrchidWorkerInvoker());
+            YT_ASSERT_INVOKER_AFFINITY(FairShareTree_->StrategyHost_->GetOrchidWorkerInvoker());
 
             auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshotForOrchid();
 
@@ -1553,7 +1553,7 @@ private:
 
         std::vector<std::string> GetKeys(const i64 limit) const final
         {
-            VERIFY_INVOKER_AFFINITY(FairShareTree_->StrategyHost_->GetOrchidWorkerInvoker());
+            YT_ASSERT_INVOKER_AFFINITY(FairShareTree_->StrategyHost_->GetOrchidWorkerInvoker());
 
             if (!limit) {
                 return {};
@@ -1576,7 +1576,7 @@ private:
 
         IYPathServicePtr FindItemService(const std::string& poolName) const final
         {
-            VERIFY_INVOKER_AFFINITY(FairShareTree_->StrategyHost_->GetOrchidWorkerInvoker());
+            YT_ASSERT_INVOKER_AFFINITY(FairShareTree_->StrategyHost_->GetOrchidWorkerInvoker());
 
             const auto fairShareTreeSnapshot = FairShareTree_->GetTreeSnapshotForOrchid();
 
@@ -1644,14 +1644,14 @@ private:
 
     TFairShareTreeSnapshotPtr GetTreeSnapshot() const noexcept override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         return TreeSnapshot_;
     }
 
     TFairShareTreeSnapshotPtr GetAtomicTreeSnapshot() const noexcept
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return AtomicTreeSnapshot_.Acquire();
     }
@@ -1679,7 +1679,7 @@ private:
 
     std::pair<IFairShareTreePtr, TError> DoFairShareUpdateAt(TInstant now)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         YT_LOG_DEBUG("Preparing for fair share tree update");
 
@@ -1821,7 +1821,7 @@ private:
 
     void DoRegisterPool(const TSchedulerPoolElementPtr& pool)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         YT_VERIFY(Pools_.emplace(pool->GetId(), pool).second);
         YT_VERIFY(PoolToMinUnusedSlotIndex_.emplace(pool->GetId(), 0).second);
@@ -1831,7 +1831,7 @@ private:
 
     void RegisterPool(const TSchedulerPoolElementPtr& pool, const TSchedulerCompositeElementPtr& parent)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         DoRegisterPool(pool);
 
@@ -1848,7 +1848,7 @@ private:
         const TPoolConfigPtr& config,
         TGuid objectId)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         bool lightweightOperationsEnabledBefore = pool->GetEffectiveLightweightOperationsEnabled();
 
@@ -1915,7 +1915,7 @@ private:
 
     void UnregisterPool(const TSchedulerPoolElementPtr& pool)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto userName = pool->GetUserName();
         if (userName && pool->IsEphemeralInDefaultParentPool()) {
@@ -1944,7 +1944,7 @@ private:
 
     TSchedulerPoolElementPtr GetOrCreatePool(const TPoolName& poolName, TString userName)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto pool = FindPool(poolName.GetPool());
         if (pool) {
@@ -2004,7 +2004,7 @@ private:
 
     bool TryAllocatePoolSlotIndex(const TString& poolName, int slotIndex)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto& minUnusedIndex = GetOrCrash(PoolToMinUnusedSlotIndex_, poolName);
         auto& spareSlotIndices = PoolToSpareSlotIndices_[poolName];
@@ -2025,7 +2025,7 @@ private:
 
     int AllocateOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (auto currentSlotIndex = state->GetHost()->FindSlotIndex(TreeId_)) {
             // Revive case
@@ -2063,7 +2063,7 @@ private:
 
     void ReleaseOperationSlotIndex(const TFairShareStrategyOperationStatePtr& state, const TString& poolName)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto slotIndex = state->GetHost()->FindSlotIndex(TreeId_);
         YT_VERIFY(slotIndex);
@@ -2095,7 +2095,7 @@ private:
         const TSchedulerOperationElementPtr& element,
         const TSchedulerCompositeElementPtr& parent)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto operationId = state->GetHost()->GetId();
         if (element->IsOperationRunningInPool()) {
@@ -2115,7 +2115,7 @@ private:
         const TFairShareStrategyOperationStatePtr& state,
         const TSchedulerOperationElementPtr& operationElement)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto violatedPool = FindPoolViolatingMaxRunningOperationCount(operationElement->GetMutableParent());
         if (operationElement->IsLightweight() || !violatedPool) {
@@ -2137,7 +2137,7 @@ private:
 
     void RemoveEmptyEphemeralPoolsRecursive(TSchedulerCompositeElement* compositeElement)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (!compositeElement->IsRoot() && compositeElement->IsEmpty()) {
             TSchedulerPoolElementPtr parentPool = static_cast<TSchedulerPoolElement*>(compositeElement);
@@ -2150,7 +2150,7 @@ private:
 
     void CheckOperationsPendingByPool(TSchedulerCompositeElement* pool)
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto* current = pool;
         while (current) {
@@ -2180,7 +2180,7 @@ private:
 
     TSchedulerCompositeElement* FindPoolViolatingMaxRunningOperationCount(TSchedulerCompositeElement* pool) const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         while (pool) {
             if (pool->RunningOperationCount() >= pool->GetMaxRunningOperationCount()) {
@@ -2193,7 +2193,7 @@ private:
 
     const TSchedulerCompositeElement* FindPoolWithViolatedOperationCountLimit(const TSchedulerCompositeElementPtr& element) const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const TSchedulerCompositeElement* current = element.Get();
         while (current) {
@@ -2210,7 +2210,7 @@ private:
         const TSchedulerElement* element,
         const TJobResources& neededResources) const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const TSchedulerElement* current = element;
         while (current) {
@@ -2228,7 +2228,7 @@ private:
 
     TSchedulerCompositeElementPtr GetDefaultParentPoolForUser(const std::string& userName) const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (Config_->UseUserDefaultParentPoolMap) {
             const auto& userToDefaultPoolMap = StrategyHost_->GetUserDefaultParentPoolMap();
@@ -2260,7 +2260,7 @@ private:
 
     void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (!Config_->UseUserDefaultParentPoolMap) {
             return;
@@ -2295,7 +2295,7 @@ private:
 
     TSchedulerCompositeElementPtr GetPoolOrParent(const TPoolName& poolName, const std::string& userName) const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         TSchedulerCompositeElementPtr pool = FindPool(poolName.GetPool());
         if (pool) {
@@ -2313,7 +2313,7 @@ private:
 
     void ValidateAllOperationCountsOnPoolChange(TOperationId operationId, const TPoolName& newPoolName) const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto operationElement = GetOperationElement(operationId);
         auto newPoolElement = GetPoolOrParent(newPoolName, operationElement->GetUserName());
@@ -2333,7 +2333,7 @@ private:
         const TSchedulerOperationElementPtr& operationElement,
         const TSchedulerCompositeElementPtr& newPoolElement) const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         std::vector<const TSchedulerCompositeElement*> poolsToValidate;
         const auto* pool = newPoolElement.Get();
@@ -2365,7 +2365,7 @@ private:
 
     void ValidateOperationCountLimit(const TPoolName& poolName, const std::string& userName) const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto poolWithViolatedLimit = FindPoolWithViolatedOperationCountLimit(GetPoolOrParent(poolName, userName));
         if (poolWithViolatedLimit) {
@@ -2380,7 +2380,7 @@ private:
 
     void ValidateEphemeralPoolLimit(const IOperationStrategyHost* operation, const TPoolName& poolName) const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto pool = FindPool(poolName.GetPool());
         if (pool) {
@@ -2413,7 +2413,7 @@ private:
         const TSchedulerCompositeElement* pool,
         const TJobResourcesConfigPtr& requiredLimitsConfig) const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto requiredLimits = ToJobResources(requiredLimitsConfig, TJobResources::Infinite());
 
@@ -2447,7 +2447,7 @@ private:
 
     void DoValidateOperationPoolsCanBeUsed(const IOperationStrategyHost* operation, const TPoolName& poolName) const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         const TSchedulerCompositeElement* pool = FindPool(poolName.GetPool()).Get();
         // NB: Check is not performed if operation is started in default or unknown pool.
@@ -2488,14 +2488,14 @@ private:
 
     int GetPoolCount() const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         return Pools_.size();
     }
 
     TSchedulerPoolElementPtr FindPool(const TString& id) const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto it = Pools_.find(id);
         return it == Pools_.end() ? nullptr : it->second;
@@ -2503,7 +2503,7 @@ private:
 
     TSchedulerPoolElementPtr GetPool(const TString& id) const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto pool = FindPool(id);
         YT_VERIFY(pool);
@@ -2512,7 +2512,7 @@ private:
 
     TSchedulerOperationElementPtr FindOperationElement(TOperationId operationId) const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto it = OperationIdToElement_.find(operationId);
         return it == OperationIdToElement_.end() ? nullptr : it->second;
@@ -2520,7 +2520,7 @@ private:
 
     TSchedulerOperationElementPtr GetOperationElement(TOperationId operationId) const
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = FindOperationElement(operationId);
         YT_VERIFY(element);
@@ -2537,7 +2537,7 @@ private:
 
     TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleAllocations) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (auto traceContext = NTracing::TryGetCurrentTraceContext()) {
             traceContext->AddTag("tree", TreeId_);
@@ -2566,7 +2566,7 @@ private:
 
     int GetSchedulingHeartbeatComplexity() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto treeSnapshot = GetAtomicTreeSnapshot();
 
@@ -2580,7 +2580,7 @@ private:
         THashSet<TAllocationId>* allocationsToPostpone,
         THashMap<TAllocationId, EAbortReason>* allocationsToAbort) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto treeSnapshot = GetAtomicTreeSnapshot();
 
@@ -2691,7 +2691,7 @@ private:
         const ISchedulingContextPtr& schedulingContext,
         const TFairShareTreeSnapshotPtr& treeSnapshot)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!treeSnapshot->TreeConfig()->EnableScheduledAndPreemptedResourcesProfiling) {
             return;
@@ -2951,7 +2951,7 @@ private:
 
     void DoBuildFullFairShareInfo(const TFairShareTreeSnapshotPtr& treeSnapshot, TFluentMap fluent) const
     {
-        VERIFY_INVOKER_AFFINITY(StrategyHost_->GetOrchidWorkerInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetOrchidWorkerInvoker());
 
         if (!treeSnapshot) {
             YT_LOG_DEBUG("Skipping construction of full fair share info, since snapshot is not constructed yet");

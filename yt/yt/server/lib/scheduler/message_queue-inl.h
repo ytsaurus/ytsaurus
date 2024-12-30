@@ -27,7 +27,7 @@ TMessageQueueOutbox<TItem>::TMessageQueueOutbox(
 template <class TItem>
 void TMessageQueueOutbox<TItem>::Enqueue(TItem&& item)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     EnqueuedItemsCounter_.Increment();
 
@@ -40,7 +40,7 @@ void TMessageQueueOutbox<TItem>::Enqueue(TItem&& item)
 template <class TItem>
 void TMessageQueueOutbox<TItem>::Enqueue(std::vector<TItem>&& items)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     EnqueuedItemsCounter_.Increment(items.size());
 
@@ -61,7 +61,7 @@ template <class TItem>
 template <class TProtoMessage, class TBuilder>
 void TMessageQueueOutbox<TItem>::BuildOutcoming(TProtoMessage* message, TBuilder protoItemBuilder, i64 itemCountLimit)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     Stack_.DequeueAll(true, [&] (TEntry& entry) {
         Visit(std::move(entry),
@@ -136,7 +136,7 @@ template <class TItem>
 template <class TProtoMessage>
 void TMessageQueueOutbox<TItem>::HandleStatus(const TProtoMessage& message)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     auto nextExpectedItemId = message.next_expected_item_id();
     YT_VERIFY(nextExpectedItemId <= NextItemId_);
@@ -180,7 +180,7 @@ inline TMessageQueueInbox::TMessageQueueInbox(
 template <class TProtoRequest>
 void TMessageQueueInbox::ReportStatus(TProtoRequest* request)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     request->set_next_expected_item_id(NextExpectedItemId_);
 
@@ -192,7 +192,7 @@ void TMessageQueueInbox::ReportStatus(TProtoRequest* request)
 template <class TProtoMessage, class TConsumer>
 void TMessageQueueInbox::HandleIncoming(TProtoMessage* message, TConsumer protoItemConsumer)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     if (message->items_size() == 0) {
         return;

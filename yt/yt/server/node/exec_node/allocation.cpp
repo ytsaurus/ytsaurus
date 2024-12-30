@@ -116,7 +116,7 @@ TAllocation::TAllocation(
 {
     YT_VERIFY(bootstrap);
 
-    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+    YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 }
 
 TAllocation::~TAllocation()
@@ -126,56 +126,56 @@ TAllocation::~TAllocation()
 
 TAllocationId TAllocation::GetId() const noexcept
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Id_;
 }
 
 TOperationId TAllocation::GetOperationId() const noexcept
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return OperationId_;
 }
 
 EAllocationState TAllocation::GetState() const noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return State_;
 }
 
 const TError& TAllocation::GetFinishError() const noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return FinishError_;
 }
 
 int TAllocation::GetRequestedGpu() const noexcept
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return RequestedGpu_;
 }
 
 double TAllocation::GetRequestedCpu() const noexcept
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return RequestedCpu_;
 }
 
 i64 TAllocation::GetRequestedMemory() const noexcept
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return RequestedMemory_;
 }
 
 void TAllocation::Start()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (Attributes_) {
         PrepareAllocationFromAttributes(*Attributes_);
@@ -189,14 +189,14 @@ void TAllocation::Start()
 
 void TAllocation::Cleanup()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(State_ == EAllocationState::Finished);
 }
 
 TJobPtr TAllocation::EvictJob() noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(Job_);
 
@@ -211,14 +211,14 @@ TJobPtr TAllocation::EvictJob() noexcept
 
 const TJobPtr& TAllocation::GetJob() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return Job_;
 }
 
 void TAllocation::UpdateControllerAgentDescriptor(TControllerAgentDescriptor descriptor)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     TForbidContextSwitchGuard guard;
 
@@ -245,14 +245,14 @@ void TAllocation::UpdateControllerAgentDescriptor(TControllerAgentDescriptor des
 
 const TControllerAgentDescriptor& TAllocation::GetControllerAgentDescriptor() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return ControllerAgentDescriptor_;
 }
 
 NClusterNode::TJobResources TAllocation::GetResourceUsage(bool excludeReleasing) const noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (ResourceHolder_) {
         return ResourceHolder_->GetResourceUsage(excludeReleasing);
@@ -263,7 +263,7 @@ NClusterNode::TJobResources TAllocation::GetResourceUsage(bool excludeReleasing)
 
 void TAllocation::Abort(TError error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (std::exchange(State_, EAllocationState::Finished) != EAllocationState::Finished) {
         YT_LOG_INFO(error, "Aborting allocation (CurrentState: %v)", State_);
@@ -289,7 +289,7 @@ void TAllocation::Abort(TError error)
 
 void TAllocation::Complete()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (std::exchange(State_, EAllocationState::Finished) != EAllocationState::Finished) {
         YT_LOG_INFO("Completing allocation");
@@ -315,7 +315,7 @@ void TAllocation::Preempt(
     TString preemptionReason,
     const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (State_ == EAllocationState::Finished) {
         YT_LOG_DEBUG("Ignore allocation preemption request since allocation is already finished");
@@ -357,7 +357,7 @@ bool TAllocation::IsResourceUsageOverdraftOccurred() const
 
 bool TAllocation::IsEmpty() const noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return !Job_;
 }
@@ -369,7 +369,7 @@ const TAllocationConfigPtr& TAllocation::GetConfig() const noexcept
 
 void TAllocation::SettleJob()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(!Job_);
 
@@ -388,7 +388,7 @@ void TAllocation::SettleJob()
 void TAllocation::OnSettledJobReceived(
     TErrorOr<TJobStartInfo>&& jobInfoOrError)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     TForbidContextSwitchGuard guard;
 
@@ -459,7 +459,7 @@ void TAllocation::CreateAndSettleJob(
     TJobId jobId,
     NControllerAgent::NProto::TJobSpec&& jobSpec)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     const auto& resourceHolder = GetResourceHolder();
     if (auto state = resourceHolder->GetState(); state == EResourcesState::Acquired) {
@@ -505,7 +505,7 @@ void TAllocation::CreateAndSettleJob(
 
 void TAllocation::OnResourcesAcquired() noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_LOG_INFO("Resources acquired; starting job");
 
@@ -524,7 +524,7 @@ void TAllocation::OnResourcesAcquired() noexcept
 
 const NJobAgent::TResourceHolderPtr& TAllocation::GetResourceHolder() const noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(ResourceHolder_);
 
@@ -533,7 +533,7 @@ const NJobAgent::TResourceHolderPtr& TAllocation::GetResourceHolder() const noex
 
 IYPathServicePtr TAllocation::GetOrchidService()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto jobService =  New<TCompositeMapService>();
 
@@ -553,7 +553,7 @@ IYPathServicePtr TAllocation::GetOrchidService()
 
 NYTree::IYPathServicePtr TAllocation::GetStaticOrchidService()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return IYPathService::FromProducer(BIND([this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
             auto [baseResourceUsage, additionalResourceUsage] = ResourceHolder_
@@ -572,21 +572,21 @@ NYTree::IYPathServicePtr TAllocation::GetStaticOrchidService()
 
 bool TAllocation::IsRunning() const noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return State_ == EAllocationState::Running;
 }
 
 bool TAllocation::IsFinished() const noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return State_ == EAllocationState::Finished;
 }
 
 void TAllocation::AbortJob(TError error, bool graceful, bool requestNewJob)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     Job_->Abort(std::move(error), graceful);
     if (requestNewJob) {
@@ -597,7 +597,7 @@ void TAllocation::AbortJob(TError error, bool graceful, bool requestNewJob)
 
 void TAllocation::InterruptJob(NScheduler::EInterruptReason interruptionReason, TDuration interruptionTimeout)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     Job_->Interrupt(
         interruptionTimeout,
@@ -608,7 +608,7 @@ void TAllocation::InterruptJob(NScheduler::EInterruptReason interruptionReason, 
 
 void TAllocation::OnAllocationFinished()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_VERIFY(!Job_);
 
@@ -623,14 +623,14 @@ void TAllocation::OnAllocationFinished()
 
 void TAllocation::OnJobPrepared(TJobPtr job)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     JobPrepared_.Fire(std::move(job));
 }
 
 void TAllocation::OnJobFinished(TJobPtr job)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto settlementNewJobOnJobAbortRequested = SettlementNewJobOnAbortRequested_.Consume();
 
@@ -721,7 +721,7 @@ void TAllocation::OnJobFinished(TJobPtr job)
 
 void TAllocation::TransferResourcesToJob()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(Job_);
 
@@ -731,7 +731,7 @@ void TAllocation::TransferResourcesToJob()
 void TAllocation::PrepareAllocationFromAttributes(
     const NScheduler::TAllocationAttributes& attributes)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto jobControllerConfig = Bootstrap_->GetJobController()->GetDynamicConfig();
     auto resources = PatchJobResources(
@@ -752,7 +752,7 @@ void TAllocation::PrepareAllocationFromAttributes(
 
 void TAllocation::LegacyPrepareAllocationFromStartInfo(TJobStartInfo& jobInfo)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto jobSpecExtId = TJobSpecExt::job_spec_ext;
     YT_VERIFY(jobInfo.JobSpec.HasExtension(jobSpecExtId));

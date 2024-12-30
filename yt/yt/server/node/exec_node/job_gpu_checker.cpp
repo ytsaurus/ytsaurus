@@ -28,7 +28,7 @@ TJobGpuChecker::TJobGpuChecker(
 
 TFuture<void> TJobGpuChecker::RunGpuCheck()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     int checkStartIndex = 0;
 
@@ -103,7 +103,7 @@ TFuture<void> TJobGpuChecker::RunGpuCheck()
 
 void TJobGpuChecker::OnGpuCheckFinished(TJobGpuCheckerPtr checker, TErrorOr<std::vector<TShellCommandOutput>>&& result)
 {
-    VERIFY_THREAD_AFFINITY(checker->JobThread);
+    YT_ASSERT_THREAD_AFFINITY(checker->JobThread);
 
     const auto& Logger = checker->Logger;
 

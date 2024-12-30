@@ -83,7 +83,7 @@ TSchedulerConnector::TSchedulerConnector(IBootstrap* bootstrap)
         DynamicConfig_.Acquire()->TracingSampler,
         SchedulerConnectorProfiler().WithPrefix("/tracing")))
 {
-    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
+    YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 }
 
 void TSchedulerConnector::Initialize()
@@ -114,7 +114,7 @@ void TSchedulerConnector::OnDynamicConfigChanged(
     const TSchedulerConnectorDynamicConfigPtr& /*oldConfig*/,
     const TSchedulerConnectorDynamicConfigPtr& newConfig)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     DynamicConfig_.Store(newConfig);
 
@@ -132,7 +132,7 @@ void TSchedulerConnector::OnDynamicConfigChanged(
 
 void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     auto scheduleOutOfBandHeartbeat = [&] {
         YT_LOG_DEBUG("Send out of band heartbeat to scheduler");
@@ -178,7 +178,7 @@ void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded()
 
 void TSchedulerConnector::SendOutOfBandHeartbeatIfNeeded()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     Bootstrap_->GetJobInvoker()->Invoke(
         BIND(&TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded, MakeStrong(this)));
@@ -186,7 +186,7 @@ void TSchedulerConnector::SendOutOfBandHeartbeatIfNeeded()
 
 void TSchedulerConnector::OnResourcesAcquired()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     ResourcesAcquiredHeartbeatRequestedCounter_.Increment();
 
@@ -195,7 +195,7 @@ void TSchedulerConnector::OnResourcesAcquired()
 
 void TSchedulerConnector::OnResourcesReleased()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     ResourcesReleasedHeartbeatRequestedCounter_.Increment();
 
@@ -206,7 +206,7 @@ void TSchedulerConnector::OnResourcesReleased()
 
 void TSchedulerConnector::SetMinSpareResources(const NScheduler::TJobResources& minSpareResources)
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     YT_LOG_INFO(
         "Seting new min spare resources (MinSpareResources: %v)",
@@ -217,7 +217,7 @@ void TSchedulerConnector::SetMinSpareResources(const NScheduler::TJobResources& 
 
 void TSchedulerConnector::EnqueueFinishedAllocation(TAllocationPtr allocation)
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     YT_LOG_DEBUG(
         "Finished allocation enqueued, send out of band heartbeat to scheduler (AllocationId: %v)",
@@ -232,7 +232,7 @@ void TSchedulerConnector::EnqueueFinishedAllocation(TAllocationPtr allocation)
 
 void TSchedulerConnector::RemoveSentAllocations(const THashSet<TAllocationPtr>& allocations)
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     for (const auto& allocation : allocations) {
         EraseOrCrash(FinishedAllocations_, allocation);
@@ -241,7 +241,7 @@ void TSchedulerConnector::RemoveSentAllocations(const THashSet<TAllocationPtr>& 
 
 TError TSchedulerConnector::DoSendHeartbeat()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     const auto& client = Bootstrap_->GetClient();
 
@@ -324,7 +324,7 @@ TError TSchedulerConnector::DoSendHeartbeat()
 
 void TSchedulerConnector::OnMasterConnected()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_LOG_INFO("Starting heartbeats to scheduler");
 
@@ -333,7 +333,7 @@ void TSchedulerConnector::OnMasterConnected()
 
 void TSchedulerConnector::OnMasterDisconnected()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_LOG_INFO("Stopping heartbeats to scheduler");
 
@@ -342,7 +342,7 @@ void TSchedulerConnector::OnMasterDisconnected()
 
 TError TSchedulerConnector::SendHeartbeat()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (!Bootstrap_->IsConnected() || !Bootstrap_->GetSlotManager()->IsInitialized()) {
         return TError();
@@ -355,7 +355,7 @@ void TSchedulerConnector::PrepareHeartbeatRequest(
     const TReqHeartbeatPtr& request,
     const TSchedulerHeartbeatContextPtr& context)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     SetNodeInfoToRequest(
         Bootstrap_->GetNodeId(),
@@ -380,7 +380,7 @@ void TSchedulerConnector::ProcessHeartbeatResponse(
     const TRspHeartbeatPtr& response,
     const TSchedulerHeartbeatContextPtr& context)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto error = WaitFor(BIND(
             &TSchedulerConnector::DoProcessHeartbeatResponse,
@@ -400,7 +400,7 @@ void TSchedulerConnector::DoPrepareHeartbeatRequest(
     const TReqHeartbeatPtr& request,
     const TSchedulerHeartbeatContextPtr& context)
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     context->FinishedAllocations = FinishedAllocations_;
 
@@ -442,7 +442,7 @@ void TSchedulerConnector::DoProcessHeartbeatResponse(
     const TRspHeartbeatPtr& response,
     const TSchedulerHeartbeatContextPtr& context)
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
 
     if (DynamicConfig_.Acquire()->UseProfilingTagsFromScheduler && response->has_profiling_tags()) {
         std::vector<NProfiling::TTag> tags;

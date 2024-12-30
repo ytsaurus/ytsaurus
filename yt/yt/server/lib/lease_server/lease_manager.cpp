@@ -184,14 +184,14 @@ public:
     // ILeaseManager implementation.
     ILease* FindLease(TLeaseId leaseId) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return LeaseMap_.Find(leaseId);
     }
 
     ILease* GetLease(TLeaseId leaseId) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* lease = FindLease(leaseId);
         YT_VERIFY(lease);
@@ -201,7 +201,7 @@ public:
 
     ILease* GetLeaseOrThrow(TLeaseId leaseId) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* lease = FindLease(leaseId);
         if (!lease) {
@@ -213,7 +213,7 @@ public:
 
     void SetDecommission(bool decommission) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (decommission == Decommission_) {
@@ -239,7 +239,7 @@ public:
 
     bool IsFullyDecommissioned() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return Decommission_ && LeaseMap_.empty();
     }
@@ -351,7 +351,7 @@ private:
 
     void HydraRegisterLease(NProto::TReqRegisterLease* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
@@ -379,7 +379,7 @@ private:
 
     void HydraRevokeLease(NProto::TReqRevokeLease* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
@@ -410,7 +410,7 @@ private:
 
     void HydraOnLeaseRevoked(NProto::TReqConfirmLeaseRevocation* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
@@ -426,7 +426,7 @@ private:
 
     void HydraRemoveLeases(NProto::TReqRemoveLeases* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         for (const auto& protoLeaseId : request->lease_ids()) {
@@ -471,7 +471,7 @@ private:
 
     void HydraToggleLeaseRefCounter(NProto::TReqToggleLeaseRefCounter* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
@@ -488,7 +488,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NLeaseClient::NProto, IssueLease)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
         context->SetRequestInfo("LeaseId: %v", leaseId);
@@ -501,7 +501,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NLeaseClient::NProto, RevokeLease)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
         auto force = request->force();
@@ -518,7 +518,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NLeaseClient::NProto, ReferenceLease)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
         auto persistent = request->persistent();
@@ -544,7 +544,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NLeaseClient::NProto, UnreferenceLease)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto leaseId = FromProto<TLeaseId>(request->lease_id());
         auto persistent = request->persistent();
@@ -567,7 +567,7 @@ private:
 
     int RefLeasePersistently(TLease* lease, bool force)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (!force && lease->GetState() != ELeaseState::Active) {
@@ -591,7 +591,7 @@ private:
 
     int UnrefLeasePersistently(TLease* lease)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto persistentRefCounter = lease->GetPersistentRefCounter() - 1;
@@ -614,7 +614,7 @@ private:
 
     int RefLeaseTransiently(TLease* lease, bool force)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         if (!force && lease->GetState() != ELeaseState::Active) {
@@ -638,7 +638,7 @@ private:
 
     int UnrefLeaseTransiently(TLease* lease)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto transientRefCounter = lease->GetTransientRefCounter() - 1;
         lease->SetTransientRefCounter(transientRefCounter);
@@ -657,7 +657,7 @@ private:
 
     void MaybeRemoveLease(TLease* lease)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         if (lease->GetState() == ELeaseState::Revoking &&
@@ -674,7 +674,7 @@ private:
 
     void DoRemoveLease(TLease* lease)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         // NB: Lease may die below.
@@ -701,7 +701,7 @@ private:
 
     void ScheduleRemoveLeases()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         std::vector<TLeaseId> leaseIdsToRemove;
         for (auto leaseId : LeaseIdsToRemove_) {

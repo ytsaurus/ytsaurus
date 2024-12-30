@@ -81,7 +81,7 @@ public:
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqPrepareTransaction>(
             [=, this] (TTransactionParticipantServiceProxy* proxy) {
-                VERIFY_THREAD_AFFINITY_ANY();
+                YT_ASSERT_THREAD_AFFINITY_ANY();
 
                 auto req = proxy->PrepareTransaction();
                 req->SetResponseHeavy(true);
@@ -103,7 +103,7 @@ public:
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqCommitTransaction>(
             [=, this] (TTransactionParticipantServiceProxy* proxy) {
-                VERIFY_THREAD_AFFINITY_ANY();
+                YT_ASSERT_THREAD_AFFINITY_ANY();
 
                 auto req = proxy->CommitTransaction();
                 req->SetResponseHeavy(true);
@@ -122,7 +122,7 @@ public:
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqAbortTransaction>(
             [=, this] (TTransactionParticipantServiceProxy* proxy) {
-                VERIFY_THREAD_AFFINITY_ANY();
+                YT_ASSERT_THREAD_AFFINITY_ANY();
 
                 auto req = proxy->AbortTransaction();
                 req->SetResponseHeavy(true);
@@ -155,7 +155,7 @@ private:
     template <class TRequest>
     TFuture<void> SendRequest(std::function<TIntrusivePtr<TRequest>(TTransactionParticipantServiceProxy*)> builder)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return BIND([=, this, this_ = MakeStrong(this)] {
             return GetChannel().Apply(BIND([=] (const NRpc::IChannelPtr& channel) {
@@ -170,14 +170,14 @@ private:
 
     void PrepareRequest(const TIntrusivePtr<NRpc::TClientRequest>& request)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         request->SetTimeout(Options_.RpcTimeout);
     }
 
     TFuture<NRpc::IChannelPtr> GetChannel()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto channel = CellDirectory_->FindChannelByCellId(CellId_);
         if (channel) {
@@ -197,7 +197,7 @@ private:
 
     TFuture<NRpc::IChannelPtr> MakeNoChannelError()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return MakeFuture<NRpc::IChannelPtr>(TError(
             NRpc::EErrorCode::Unavailable,

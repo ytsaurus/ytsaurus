@@ -194,7 +194,7 @@ public:
         , TabletChunkManager_(CreateTabletChunkManager(Bootstrap_))
         , TabletMap_(TEntityMapTypeTraits<TTabletBase>(Bootstrap_))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
         RegisterLoader(
             "TabletManager.Keys",
@@ -284,7 +284,7 @@ public:
 
     IYPathServicePtr GetOrchidService()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return IYPathService::FromMethod(&TImpl::BuildOrchidYson, MakeWeak(this))
             ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::TabletManager));
@@ -297,7 +297,7 @@ public:
 
     void OnTabletCellBundleDestroyed(TCellBundle* cellBundle)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (cellBundle->GetType() != EObjectType::TabletCellBundle) {
             return;
@@ -327,7 +327,7 @@ public:
 
     TTabletBase* CreateTablet(TTabletOwnerBase* table, EObjectType type)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
         YT_VERIFY(IsTabletType(type));
 
@@ -363,7 +363,7 @@ public:
 
     void DestroyTablet(TTabletBase* tablet)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         // XXX(savrus): this is a workaround for YTINCIDENTS-42
         if (auto* cell = tablet->GetCell()) {
@@ -432,7 +432,7 @@ public:
         const std::optional<std::vector<i64>>& startReplicationRowIndexes,
         bool enableReplicatedTableTracker)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         for (const auto* replica : GetValuesSortedByKey(table->Replicas())) {
             if (replica->GetClusterName() == clusterName &&
@@ -525,7 +525,7 @@ public:
 
     void ZombifyTableReplica(TTableReplica* replica)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (auto* table = replica->GetTable()) {
             EraseOrCrash(table->Replicas(), replica);
@@ -561,7 +561,7 @@ public:
         std::optional<bool> preserveTimestamps,
         std::optional<bool> enableReplicatedTableTracker)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (mode && !IsStableReplicaMode(*mode)) {
             THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *mode);
@@ -736,7 +736,7 @@ public:
         TInstant expirationTime,
         std::optional<TDuration> expirationTimeout)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (tablets.empty()) {
             THROW_ERROR_EXCEPTION("Invalid number of tablets: expected more than zero");
@@ -943,7 +943,7 @@ public:
 
     void ZombifyTabletAction(TTabletAction* action)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         UnbindTabletAction(action);
         if (auto* bundle = action->GetTabletCellBundle()) {
@@ -967,7 +967,7 @@ public:
         const std::vector<TTabletCellId>& targetCellIds,
         bool freeze)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
 
         table->ValidateMount();
@@ -1117,7 +1117,7 @@ public:
         bool freeze,
         TTimestamp mountTimestamp)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
 
         if (table->IsExternal()) {
@@ -1184,7 +1184,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
 
         table->ValidateUnmount();
@@ -1217,7 +1217,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
 
         if (table->IsExternal()) {
@@ -1236,7 +1236,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
 
         table->ValidateRemount();
@@ -1281,7 +1281,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
 
         if (table->IsExternal()) {
@@ -1311,7 +1311,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
 
         table->ValidateFreeze();
@@ -1341,7 +1341,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
 
         if (table->IsExternal()) {
@@ -1364,7 +1364,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
 
         table->ValidateUnfreeze();
@@ -1394,7 +1394,7 @@ public:
         int firstTabletIndex,
         int lastTabletIndex)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
 
         if (table->IsExternal()) {
@@ -1421,7 +1421,7 @@ public:
         const std::vector<i64>& trimmedRowCounts,
         bool create = false)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
 
         table->ValidateReshard(
@@ -2008,7 +2008,7 @@ public:
         TTableNode* clonedTable,
         ENodeCloneMode mode)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(sourceTable->IsExternal() == clonedTable->IsExternal());
 
         auto* trunkSourceTable = sourceTable->GetTrunkNode();
@@ -2235,7 +2235,7 @@ public:
 
     void ValidateMakeTableDynamic(TTableNode* table)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
 
         if (table->IsDynamic()) {
@@ -2247,7 +2247,7 @@ public:
 
     void MakeTableDynamic(TTableNode* table, i64 trimmedRowCount)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
 
         if (table->IsDynamic()) {
@@ -2286,7 +2286,7 @@ public:
 
     void ValidateMakeTableStatic(TTableNode* table)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
 
         if (!table->IsDynamic()) {
@@ -2309,7 +2309,7 @@ public:
 
     void MakeTableStatic(TTableNode* table)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
 
         if (!table->IsDynamic()) {
@@ -2356,7 +2356,7 @@ public:
         TTransaction* transaction,
         TTimestamp timestamp)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
 
         if (!GetDynamicConfig()->EnableBulkInsert) {
@@ -2450,7 +2450,7 @@ public:
 
     void ZombifyTabletCell(TTabletCell* cell)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto actions = cell->Actions();
         for (auto* action : actions) {
@@ -2960,7 +2960,7 @@ private:
         TInstant expirationTime,
         std::optional<TDuration> expirationTimeout)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(state == ETabletActionState::Preparing || state == ETabletActionState::Orphaned);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -3011,7 +3011,7 @@ private:
 
     void UnbindTabletActionFromCells(TTabletAction* action)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         for (auto* cell : action->TabletCells()) {
             cell->Actions().erase(action);
@@ -3022,7 +3022,7 @@ private:
 
     void UnbindTabletActionFromTablets(TTabletAction* action)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         for (auto* tablet : action->Tablets()) {
             YT_VERIFY(tablet->GetAction() == action);
@@ -3299,7 +3299,7 @@ private:
 
     void OnTabletActionStateChanged(TTabletAction* action)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (!action) {
             return;
@@ -4139,7 +4139,7 @@ private:
         const TSerializedHunkStorageSettings& serializedSettings,
         TTabletCell* cell)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         TReqMountHunkTablet request;
@@ -4502,7 +4502,7 @@ private:
         int lastTabletIndex,
         int newTabletCount)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
         YT_VERIFY(hunkStorage->IsTrunk());
         YT_VERIFY(!hunkStorage->IsExternal());
@@ -4574,7 +4574,7 @@ private:
         const std::vector<TLegacyOwningKey>& pivotKeys,
         const std::vector<i64>& trimmedRowCounts)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(table->IsTrunk());
         YT_VERIFY(!table->IsExternal());
 
@@ -4819,7 +4819,7 @@ private:
 
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TabletMap_.LoadKeys(context);
         TableReplicaMap_.LoadKeys(context);
@@ -4828,7 +4828,7 @@ private:
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TabletMap_.LoadValues(context);
         TableReplicaMap_.LoadValues(context);
@@ -5003,7 +5003,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::Clear();
 
@@ -5163,7 +5163,7 @@ private:
         NTabletNodeTrackerClient::NProto::TReqHeartbeat* request,
         NTabletNodeTrackerClient::NProto::TRspHeartbeat* /*response*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         NProfiling::TWallTimer timer;
 
@@ -6977,7 +6977,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnLeaderActive();
 
@@ -7010,7 +7010,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopLeading();
 
@@ -7087,7 +7087,7 @@ private:
         TTabletCell* hintCell,
         std::vector<TTabletBase*> tabletsToMount)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (IsCellActive(hintCell)) {
             std::vector<std::pair<TTabletBase*, TTabletCell*>> assignment;

@@ -285,8 +285,8 @@ public:
         , ReplicatorHintConfig_(New<NTabletNode::TReplicatorHintConfig>())
         , CheckerThreadPool_(CreateThreadPool(Config_->CheckerThreadCount, "RplTableTracker"))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker), AutomatonThread);
-        VERIFY_INVOKER_THREAD_AFFINITY(CheckerThreadPool_->GetInvoker(), CheckerThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(CheckerThreadPool_->GetInvoker(), CheckerThread);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->SubscribeNodeCreated(BIND_NO_PROPAGATE(&TImpl::OnNodeCreated, MakeStrong(this)));
@@ -957,7 +957,7 @@ private:
 
     void UpdateTables()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         UpdateClusterClients();
 
@@ -986,7 +986,7 @@ private:
 
     void CheckTables()
     {
-        VERIFY_THREAD_AFFINITY(CheckerThread);
+        YT_ASSERT_THREAD_AFFINITY(CheckerThread);
 
         std::vector<TFuture<TTable::TCheckResult>> futures;
         THashMap<TTableCollocationId, TFuture<TTable::TCheckResult>> collocationIdToLeaderFuture;
@@ -1056,7 +1056,7 @@ private:
 
     void UpdateIteration()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         CheckEnabled();
         if (!Enabled_) {
@@ -1072,7 +1072,7 @@ private:
 
     void CheckIteration()
     {
-        VERIFY_THREAD_AFFINITY(CheckerThread);
+        YT_ASSERT_THREAD_AFFINITY(CheckerThread);
 
         if (!Enabled_) {
             return;
@@ -1088,7 +1088,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         UpdaterExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker),
@@ -1103,7 +1103,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (CheckerExecutor_) {
             YT_UNUSED_FUTURE(CheckerExecutor_->Stop());
@@ -1125,7 +1125,7 @@ private:
 
     void OnAfterSnapshotLoaded() noexcept override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TCompositeAutomatonPart::OnAfterSnapshotLoaded();
 
@@ -1141,7 +1141,7 @@ private:
 
     void ProcessReplicatedTable(NTableServer::TReplicatedTableNode* object)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (object->IsExternal()) {
             return;
@@ -1251,7 +1251,7 @@ private:
 
     void OnNodeCreated(TObject* object)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (object->IsTrunk() && object->GetType() == EObjectType::ReplicatedTable) {
             auto* replicatedTable = object->As<NTableServer::TReplicatedTableNode>();
@@ -1267,7 +1267,7 @@ private:
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& dynamicConfig = GetDynamicConfig();
 

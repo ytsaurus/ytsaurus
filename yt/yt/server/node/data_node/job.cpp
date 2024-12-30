@@ -158,12 +158,12 @@ TMasterJobBase::TMasterJobBase(
     , NodeDirectory_(Bootstrap_->GetNodeDirectory())
     , StartTime_(TInstant::Now())
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 }
 
 void TMasterJobBase::Start()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(!std::exchange(Started_, true));
 
@@ -175,7 +175,7 @@ void TMasterJobBase::Start()
         .Run();
     JobFuture_
         .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
-            VERIFY_THREAD_AFFINITY(JobThread);
+            YT_ASSERT_THREAD_AFFINITY(JobThread);
 
             if (result.IsOK()) {
                 SetCompleted();
@@ -189,14 +189,14 @@ void TMasterJobBase::Start()
 
 bool TMasterJobBase::IsStarted() const noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return Started_;
 }
 
 void TMasterJobBase::Abort(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     switch (JobState_) {
         case EJobState::Waiting:
@@ -215,63 +215,63 @@ void TMasterJobBase::Abort(const TError& error)
 
 const TResourceHolderPtr& TMasterJobBase::GetResourceHolder() const noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return ResourceHolder_;
 }
 
 NChunkServer::TJobId TMasterJobBase::GetId() const noexcept
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return JobId_;
 }
 
 EJobType TMasterJobBase::GetType() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return FromProto<EJobType>(JobSpec_.type());
 }
 
 bool TMasterJobBase::IsUrgent() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return JobSpec_.urgent();
 }
 
 const std::string& TMasterJobBase::GetJobTrackerAddress() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return JobTrackerAddress_;
 }
 
 EJobState TMasterJobBase::GetState() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return JobState_;
 }
 
 TJobResources TMasterJobBase::GetResourceUsage() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return ResourceHolder_->GetResourceUsage();
 }
 
 TJobResult TMasterJobBase::GetResult() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return Result_;
 }
 
 TInstant TMasterJobBase::GetStartTime() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return StartTime_;
 }
@@ -279,7 +279,7 @@ TInstant TMasterJobBase::GetStartTime() const
 
 TBriefJobInfo TMasterJobBase::GetBriefInfo() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto [
         baseResourceUsage,
@@ -299,7 +299,7 @@ TBriefJobInfo TMasterJobBase::GetBriefInfo() const
 
 TFuture<void> TMasterJobBase::GuardedRun()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto context = TTraceContext::NewRoot(Format("%vJob.Run", GetType()));
     TCurrentTraceContextGuard guard(context);
@@ -315,7 +315,7 @@ TFuture<void> TMasterJobBase::GuardedRun()
 
 void TMasterJobBase::SetCompleted()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_LOG_INFO("Job completed");
     DoSetFinished(EJobState::Completed, TError());
@@ -323,7 +323,7 @@ void TMasterJobBase::SetCompleted()
 
 void TMasterJobBase::SetFailed(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_LOG_ERROR(error, "Job failed");
     DoSetFinished(EJobState::Failed, error);
@@ -331,7 +331,7 @@ void TMasterJobBase::SetFailed(const TError& error)
 
 void TMasterJobBase::SetAborted(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_LOG_INFO(error, "Job aborted");
     DoSetFinished(EJobState::Aborted, error);
@@ -339,14 +339,14 @@ void TMasterJobBase::SetAborted(const TError& error)
 
 IChunkPtr TMasterJobBase::FindLocalChunk(TChunkId chunkId, int mediumIndex)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     return chunkStore->FindChunk(chunkId, mediumIndex);
 }
 IChunkPtr TMasterJobBase::FindLocalChunk(TChunkId chunkId, TChunkLocationUuid locationUuid)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     return chunkStore->FindChunk(chunkId, locationUuid);
@@ -354,14 +354,14 @@ IChunkPtr TMasterJobBase::FindLocalChunk(TChunkId chunkId, TChunkLocationUuid lo
 
 IChunkPtr TMasterJobBase::GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     return chunkStore->GetChunkOrThrow(chunkId, mediumIndex);
 }
 IChunkPtr TMasterJobBase::GetLocalChunkOrThrow(TChunkId chunkId, TChunkLocationUuid locationUuid)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     return chunkStore->GetChunkOrThrow(chunkId, locationUuid);
@@ -371,7 +371,7 @@ void TMasterJobBase::DoSetFinished(
     EJobState finalState,
     const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobState_ != EJobState::Running && JobState_ != EJobState::Waiting) {
         return;
@@ -430,7 +430,7 @@ private:
 
     TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return BIND(&TChunkRemovalJob::Execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetMasterJobInvoker())
@@ -439,7 +439,7 @@ private:
 
     TFuture<void> Execute()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         auto chunkIsDead = JobSpecExt_.chunk_is_dead();
 
@@ -519,7 +519,7 @@ private:
 
     TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return BIND(&TChunkReplicationJob::Execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetMasterJobInvoker())
@@ -528,7 +528,7 @@ private:
 
     void Execute()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         int sourceMediumIndex = JobSpecExt_.source_medium_index();
         auto targetReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas());
@@ -900,7 +900,7 @@ private:
 
     TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return BIND(&TChunkRepairJob::Execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetMasterJobInvoker())
@@ -909,7 +909,7 @@ private:
 
     void Execute()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         auto codecId = FromProto<NErasure::ECodec>(JobSpecExt_.erasure_codec());
         auto* codec = NErasure::GetCodec(codecId);
@@ -1045,7 +1045,7 @@ private:
 
     TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return BIND(&TSealChunkJob::Execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetMasterJobInvoker())
@@ -1054,7 +1054,7 @@ private:
 
     void Execute()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         auto codecId = FromProto<NErasure::ECodec>(JobSpecExt_.codec_id());
         int mediumIndex = JobSpecExt_.medium_index();
@@ -1411,7 +1411,7 @@ private:
 
     TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return BIND(&TChunkMergeJob::Execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetMasterJobInvoker())
@@ -1420,7 +1420,7 @@ private:
 
     void Execute()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
 
@@ -1542,7 +1542,7 @@ private:
 
     void MergeShallow()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto confirmingWriter = CreateWriter();
 
@@ -1639,7 +1639,7 @@ private:
 
     void MergeDeep()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto confirmingWriter = CreateWriter();
 
@@ -2052,7 +2052,7 @@ private:
 
     TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return BIND(&TChunkReincarnationJob::Execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetMasterJobInvoker())
@@ -2061,7 +2061,7 @@ private:
 
     void Execute()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         if (IsTestingFailureNeeded()) {
             THROW_ERROR_EXCEPTION("Testing failure");
@@ -2408,7 +2408,7 @@ private:
 
     TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return BIND(&TAutotomizeChunkJob::Execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetMasterJobInvoker())
@@ -2417,7 +2417,7 @@ private:
 
     void Execute()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         if (DynamicConfig_->FailJobs) {
             THROW_ERROR_EXCEPTION("Testing failure");

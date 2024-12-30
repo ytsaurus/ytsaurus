@@ -45,7 +45,7 @@ public:
 
     virtual void StartTransaction(NSequoiaClient::NProto::TReqStartTransaction* request)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         // There is a common problem: if user got OK response on his request
         // there is no any guarantees that 2PC transaction was actually

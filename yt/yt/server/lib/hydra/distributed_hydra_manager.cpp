@@ -202,8 +202,8 @@ public:
             cellId,
             authenticator))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
-        VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
 
         Profiler_.AddFuncGauge("/leading", MakeStrong(this), [this] {
             return IsLeader();
@@ -215,7 +215,7 @@ public:
 
     void Initialize() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (ControlState_ != EPeerState::None) {
             return;
@@ -235,7 +235,7 @@ public:
 
     TFuture<void> Finalize() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (ControlState_ == EPeerState::Stopped) {
             return VoidFuture;
@@ -266,84 +266,84 @@ public:
 
     IElectionCallbacksPtr GetElectionCallbacks() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ElectionCallbacks_;
     }
 
     EPeerState GetControlState() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ControlState_;
     }
 
     EPeerState GetAutomatonState() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->GetState();
     }
 
     TVersion GetAutomatonVersion() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->GetAutomatonVersion();
     }
 
     IInvokerPtr CreateGuardedAutomatonInvoker(IInvokerPtr underlyingInvoker) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->CreateGuardedUserInvoker(underlyingInvoker);
     }
 
     bool IsActiveLeader() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->GetState() == EPeerState::Leading && LeaderRecovered_ && LeaderLease_->IsValid();
     }
 
     bool IsActiveFollower() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->GetState() == EPeerState::Following && FollowerRecovered_;
     }
 
     TCancelableContextPtr GetControlCancelableContext() const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return ControlEpochContext_ ? ControlEpochContext_->CancelableContext : nullptr;
     }
 
     TCancelableContextPtr GetAutomatonCancelableContext() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return AutomatonEpochContext_ ? AutomatonEpochContext_->CancelableContext : nullptr;
     }
 
     TEpochId GetAutomatonEpochId() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return AutomatonEpochContext_ ? AutomatonEpochContext_->EpochId : TEpochId();
     }
 
     int GetAutomatonTerm() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return AutomatonEpochContext_ ? AutomatonEpochContext_->Term : InvalidTerm;
     }
 
     TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr dynamicConfig) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (auto epochContext = AtomicEpochContext_.Acquire()) {
             return BIND(&TDistributedHydraManager::ReconfigureControl, MakeStrong(this), std::move(dynamicConfig))
@@ -355,7 +355,7 @@ public:
 
     TFuture<int> BuildSnapshot(bool setReadOnly, bool waitForSnapshotCompletion) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto epochContext = ControlEpochContext_;
         if (!IsActiveLeader() || !epochContext || !epochContext->LeaderCommitter) {
@@ -402,10 +402,10 @@ public:
 
     TYsonProducer GetMonitoringProducer() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return BIND([=, this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
-            VERIFY_THREAD_AFFINITY_ANY();
+            YT_ASSERT_THREAD_AFFINITY_ANY();
             auto epochContext = AtomicEpochContext_.Acquire();
 
             BuildYsonFluently(consumer)
@@ -446,14 +446,14 @@ public:
 
     TPeerIdSet GetAlivePeerIds() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return AutomatonEpochContext_ ? AutomatonEpochContext_->AlivePeerIds.Load() : TPeerIdSet();
     }
 
     TFuture<void> SyncWithLeader() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto epochContext = DecoratedAutomaton_->GetEpochContext();
         if (!epochContext || !IsActive()) {
@@ -475,7 +475,7 @@ public:
     TFuture<TMutationResponse> Forward(TMutationRequest&& request)
     {
         // TODO(aleksandra-zh): Change affinity to any.
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (!ControlEpochContext_) {
             return MakeFuture<TMutationResponse>(TError(
@@ -521,7 +521,7 @@ public:
 
     TFuture<TMutationResponse> CommitMutation(TMutationRequest&& request) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto state = GetAutomatonState();
         switch (state) {
@@ -561,7 +561,7 @@ public:
 
     bool GetReadOnly() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (auto epochContext = AtomicEpochContext_.Acquire()) {
             return epochContext->ReadOnly;
@@ -571,7 +571,7 @@ public:
 
     bool IsDiscombobulated() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (auto epochContext = AtomicEpochContext_.Acquire()) {
             return epochContext->Discombobulated;
@@ -581,21 +581,21 @@ public:
 
     i64 GetSequenceNumber() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->GetSequenceNumber();
     }
 
     TDistributedHydraManagerDynamicOptions GetDynamicOptions() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DynamicOptions_.Load();
     }
 
     void SetDynamicOptions(const TDistributedHydraManagerDynamicOptions& options) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         DynamicOptions_.Store(options);
     }
@@ -1136,7 +1136,7 @@ private:
 
     std::pair<int, std::optional<i64>> LookupChangelog(int changelogId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto changelog = OpenChangelogOrThrow(changelogId);
         auto recordCount = changelog->GetRecordCount();
@@ -1165,7 +1165,7 @@ private:
 
     std::pair<int, int> GetLatestChangelogId()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (!ChangelogStore_) {
             THROW_ERROR_EXCEPTION("Changelog store is not yet initialized");
@@ -1182,7 +1182,7 @@ private:
 
     std::vector<TSharedRef> ReadChangeLog(int changelogId, i64 startRecordId, i64 recordCount)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(startRecordId >= 0);
         YT_VERIFY(recordCount >= 0);
@@ -1202,7 +1202,7 @@ private:
         TTypedServiceResponse<NProto::TRspAcceptMutations>* response,
         const TIntrusivePtr<TTypedServiceContext<NProto::TReqAcceptMutations, NProto::TRspAcceptMutations>>& context)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto epochId = FromProto<TEpochId>(request->epoch_id());
         auto startSequenceNumber = request->start_sequence_number();
@@ -1222,7 +1222,7 @@ private:
         // TODO(aleksandra-zh): I hate that.
         SwitchTo(epochContext->EpochControlInvoker);
 
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto isPersistenceEnabled = IsPersistenceEnabled(epochContext->CellManager, Options_);
         auto controlState = GetControlState();
@@ -1368,7 +1368,7 @@ private:
 
     TFuture<TMutationResponse> EnqueueMutation(TMutationRequest&& request)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto keptResponse = DecoratedAutomaton_->TryBeginKeptRequest(request);
         if (keptResponse) {
@@ -1397,7 +1397,7 @@ private:
         if (Config_->Get()->MinimizeCommitLatency) {
             if (auto epochContext = AtomicEpochContext_.Acquire()) {
                 epochContext->EpochControlInvoker->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
-                    VERIFY_THREAD_AFFINITY(ControlThread);
+                    YT_ASSERT_THREAD_AFFINITY(ControlThread);
                     if (ControlState_ == EPeerState::Leading) {
                         epochContext->LeaderCommitter->SerializeMutations();
                     }
@@ -1411,7 +1411,7 @@ private:
     // TODO(aleksandra-zh): epochId seems redundant.
     EPeerState PingFollower(TEpochId epochId, std::optional<int> term, TPeerIdSet alivePeerIds)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto controlState = GetControlState();
         if (controlState != EPeerState::Following && controlState != EPeerState::FollowerRecovery) {
@@ -1444,7 +1444,7 @@ private:
 
     void AcquireChangelog(int term, std::optional<TPeerPriority> priority, int changelogId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto elections = priority.has_value();
 
@@ -1567,7 +1567,7 @@ private:
 
     i64 SyncWithLeader(TEpochId epochId, int term)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (!IsActiveLeader()) {
             THROW_ERROR_EXCEPTION(
@@ -1590,7 +1590,7 @@ private:
 
     void PrepareLeaderSwitch()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto state = GetAutomatonState();
         if (state != EPeerState::Leading) {
@@ -1621,7 +1621,7 @@ private:
 
     bool AbandonLeaderLease(int peerId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         bool abandoned = LeaderLease_->TryAbandon();
         if (abandoned) {
@@ -1633,7 +1633,7 @@ private:
 
     void ForceRestart(const TError& reason, bool armPriorityBoost)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto epochContext = ControlEpochContext_;
         if (!epochContext) {
@@ -1657,7 +1657,7 @@ private:
 
     void SetPriorityBoost(bool value)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (EnablePriorityBoost_ == value) {
             return;
@@ -1674,7 +1674,7 @@ private:
 
     TPeerPriority GetElectionPriority()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         // TODO(aleksandra-zh): order?
         if (!ElectionPriority_) {
@@ -1702,7 +1702,7 @@ private:
 
     void Participate()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         CancelableControlInvoker_->Invoke(
             BIND(&TDistributedHydraManager::DoParticipate, MakeStrong(this)));
@@ -1724,7 +1724,7 @@ private:
 
     void ScheduleRestart(const TEpochContextPtr& epochContext, const TError& error)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (epochContext->Restarting.test_and_set()) {
             return;
@@ -1741,7 +1741,7 @@ private:
 
     void ScheduleRestart(const TWeakPtr<TEpochContext>& weakEpochContext, const TError& error)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (auto epochContext = weakEpochContext.Lock()) {
             ScheduleRestart(epochContext, error);
@@ -1750,7 +1750,7 @@ private:
 
     void DoRestart(const TEpochContextPtr& epochContext, const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (ControlEpochContext_ != epochContext) {
             return;
@@ -1763,7 +1763,7 @@ private:
 
     TElectionPriority GetSnapshotElectionPriority()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto asyncMaxSnapshotId = SnapshotStore_->GetLatestSnapshotId();
         int maxSnapshotId = WaitFor(asyncMaxSnapshotId)
@@ -1798,7 +1798,7 @@ private:
 
     TElectionPriority GetChangelogElectionPriority()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         ChangelogStore_ = WaitFor(ChangelogStoreFactory_->Lock())
             .ValueOrThrow();
@@ -1830,7 +1830,7 @@ private:
 
     void DoParticipate()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO("Initializing persistent stores");
 
@@ -1868,7 +1868,7 @@ private:
 
     void DoFinalize()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         // NB: Epoch invokers are already canceled so we don't expect any more callbacks to
         // go through the automaton invoker.
@@ -1899,7 +1899,7 @@ private:
 
     void ReconfigureControl(TDynamicDistributedHydraManagerConfigPtr dynamicConfig)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto newConfig = StaticConfig_->ApplyDynamic(dynamicConfig);
         Config_->Set(newConfig);
@@ -1921,7 +1921,7 @@ private:
 
     IChangelogPtr OpenChangelogOrThrow(int id)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (!ChangelogStore_) {
             THROW_ERROR_EXCEPTION("Changelog store is not currently available");
@@ -1932,7 +1932,7 @@ private:
 
     void OnLoggingFailed(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto wrappedError = TError("Error logging mutations")
             << error;
@@ -1941,7 +1941,7 @@ private:
 
     void OnLeaderLeaseLost(const TWeakPtr<TEpochContext>& weakEpochContext, const TError& error)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto wrappedError = TError("Leader lease is lost")
             << error;
@@ -1951,7 +1951,7 @@ private:
 
     void OnUpdateAlivePeers()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (ControlState_ == EPeerState::Leading || ControlState_ == EPeerState::LeaderRecovery) {
             ControlEpochContext_->AlivePeerIds.Store(ElectionManager_->GetAlivePeerIds());
@@ -1960,7 +1960,7 @@ private:
 
     IChangelogPtr AcquireChangelog()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         // TODO(aleksandra-zh): verify state.
 
@@ -2001,7 +2001,7 @@ private:
 
     void OnElectionStartLeading(const NElection::TEpochContextPtr& electionEpochContext)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO("Starting leader recovery (SelfAddress: %v, SelfId: %v)",
             electionEpochContext->CellManager->GetSelfConfig(),
@@ -2024,7 +2024,7 @@ private:
 
     void OnElectionStartLeadingAutomaton(TEpochContextPtr epochContext)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(!AutomatonEpochContext_);
         AutomatonEpochContext_ = epochContext;
@@ -2036,7 +2036,7 @@ private:
 
     void RecoverLeader()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto epochContext = ControlEpochContext_;
 
@@ -2178,7 +2178,7 @@ private:
 
     void OnLeaderRecoveryCompleteAutomaton()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_LOG_INFO("Leader recovery completed");
 
@@ -2189,7 +2189,7 @@ private:
 
     void OnLeaderActiveAutomaton()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_LOG_INFO("Leader active");
 
@@ -2202,7 +2202,7 @@ private:
 
     bool TryAbandonExistingLease(const TEpochContextPtr& epochContext)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (!GetDynamicOptions().AbandonLeaderLeaseDuringRecovery) {
             return false;
@@ -2259,14 +2259,14 @@ private:
 
     void OnElectionAlivePeerSetChanged(const TPeerIdSet& peerIds)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         ControlEpochContext_->AlivePeerIds.Store(peerIds);
     }
 
     void OnElectionStopLeading(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO(error, "Stopped leading");
 
@@ -2302,7 +2302,7 @@ private:
 
     void OnElectionStopLeadingAutomaton()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (AutomatonEpochContext_) {
             AutomatonEpochContext_.Reset();
@@ -2314,7 +2314,7 @@ private:
 
     void OnElectionStartFollowing(const NElection::TEpochContextPtr& electionEpochContext)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO("Starting follower recovery (SelfAddress: %v, SelfId: %v)",
             electionEpochContext->CellManager->GetSelfConfig(),
@@ -2346,7 +2346,7 @@ private:
 
     void OnElectionsStartFollowingAutomaton(TEpochContextPtr epochContext)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(!AutomatonEpochContext_);
         AutomatonEpochContext_ = epochContext;
@@ -2358,7 +2358,7 @@ private:
 
     void RecoverFollower()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto epochContext = ControlEpochContext_;
 
@@ -2409,7 +2409,7 @@ private:
 
     void OnFollowerRecoveryCompleteAutomaton()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         DecoratedAutomaton_->OnFollowerRecoveryComplete();
         AutomatonFollowerRecoveryComplete_.Fire();
@@ -2417,7 +2417,7 @@ private:
 
     void OnElectionStopFollowing(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO(error, "Stopped following");
 
@@ -2446,7 +2446,7 @@ private:
 
     void OnElectionStopFollowingAutomaton()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (AutomatonEpochContext_) {
             AutomatonEpochContext_.Reset();
@@ -2458,7 +2458,7 @@ private:
 
     void OnElectionStopVoting(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO(error, "Stopped voting");
 
@@ -2471,7 +2471,7 @@ private:
 
     void OnDiscombobulate(i64 leaderSequenceNumber)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO("Entering discombobulated state");
 
@@ -2493,7 +2493,7 @@ private:
 
     bool CheckForInitialPing(TReachableState committedState, int term)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (ControlState_ != EPeerState::FollowerRecovery) {
             YT_VERIFY(ControlState_ == EPeerState::Following);
@@ -2555,7 +2555,7 @@ private:
 
     TEpochContextPtr StartEpoch(const NElection::TEpochContextPtr& electionEpochContext)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto selfPeerId = electionEpochContext->CellManager->GetSelfPeerId();
         auto voting = electionEpochContext->CellManager->GetPeerConfig(selfPeerId)->Voting;
@@ -2602,7 +2602,7 @@ private:
 
     void StopEpoch()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         ResetControlEpochContext();
 
@@ -2622,7 +2622,7 @@ private:
 
     TEpochContextPtr GetControlEpochContext(TEpochId epochId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (!ControlEpochContext_) {
             THROW_ERROR_EXCEPTION(
@@ -2643,7 +2643,7 @@ private:
 
     void ResetControlEpochContext()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (!ControlEpochContext_) {
             return;
@@ -2665,7 +2665,7 @@ private:
         const TWeakPtr<TDistributedHydraManager>& weakThis,
         const TWeakPtr<TEpochContext>& weakEpochContext)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto this_ = weakThis.Lock();
         auto epochContext = weakEpochContext.Lock();
@@ -2682,7 +2682,7 @@ private:
 
     TFuture<void> DoSyncWithLeaderCore()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (GetAutomatonState() == EPeerState::Leading) {
             return VoidFuture;
@@ -2715,7 +2715,7 @@ private:
 
     void OnSyncWithLeaderResponse(const TInternalHydraServiceProxy::TErrorOrRspSyncWithLeaderPtr& rspOrError)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto epochContext = ControlEpochContext_;
 
@@ -2739,7 +2739,7 @@ private:
 
     void CheckForPendingLeaderSync()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto epochContext = ControlEpochContext_;
 
@@ -2763,7 +2763,7 @@ private:
 
     void TrySetLeaderSyncPromise(const TEpochContextPtr& epochContext, TError error = {})
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         TError wrappedError;
         if (error.IsOK()) {
@@ -2783,7 +2783,7 @@ private:
 
     void CommitMutationsAtFollower(i64 committedSequenceNumber)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (auto future = ControlEpochContext_->FollowerCommitter->CommitMutations(committedSequenceNumber)) {
             future.Subscribe(BIND(&TDistributedHydraManager::OnMutationsCommittedAtFollower, MakeStrong(this))
@@ -2793,7 +2793,7 @@ private:
 
     void OnMutationsCommittedAtFollower(const TErrorOr<TFollowerCommitter::TCommitMutationsResult>& resultOrError)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (!resultOrError.IsOK()) {
             return;
@@ -2809,7 +2809,7 @@ private:
 
     void ReportMutationStateHashesToLeader(const TFollowerCommitter::TCommitMutationsResult& result)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto rate = Config_->Get()->StateHashCheckerMutationVerificationSamplingRate;
         auto startSequenceNumber = (result.FirstSequenceNumber + rate - 1) / rate * rate;
@@ -2857,7 +2857,7 @@ private:
 
     void OnHeartbeatMutationCommit()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (GetReadOnly()) {
             return;
@@ -2894,7 +2894,7 @@ private:
 
     void SetReadOnly(bool value)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (ControlEpochContext_->ReadOnly == value) {
             return;
@@ -2911,7 +2911,7 @@ private:
 
     void MaybeSetReadOnlyOnRecovery()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery || ControlState_ == EPeerState::FollowerRecovery);
 
@@ -2920,7 +2920,7 @@ private:
 
     void DiscombobulateNonvotingPeers()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO("Discombobulating nonvoting peers");
 

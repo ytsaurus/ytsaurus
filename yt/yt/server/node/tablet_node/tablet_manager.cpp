@@ -213,7 +213,7 @@ public:
             Bootstrap_->GetConnection()->GetChunkReplicaCache(),
             Bootstrap_->GetDynamicConfigManager()->GetConfig()))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
         RegisterLoader(
             "TabletManager.Keys",
@@ -344,7 +344,7 @@ public:
 
     TTablet* GetTabletOrThrow(TTabletId id) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* tablet = FindTablet(id);
         if (!tablet) {
@@ -359,7 +359,7 @@ public:
 
     TTablet* FindOrphanedTablet(TTabletId id) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (auto it = OrphanedTablets_.find(id); it != OrphanedTablets_.end()) {
             return it->second.get();
@@ -380,7 +380,7 @@ public:
 
     std::vector<TTabletMemoryStatistics> GetMemoryStatistics() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         std::vector<TTabletMemoryStatistics> results;
         results.reserve(Tablets().size());
@@ -426,7 +426,7 @@ public:
         const TTabletSnapshotPtr& tabletSnapshot,
         i64 trimmedRowCount) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         try {
             auto* tablet = GetTabletOrThrow(tabletSnapshot->TabletId);
@@ -465,7 +465,7 @@ public:
 
     void ScheduleStoreRotation(TTablet* tablet, EStoreRotationReason reason) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (!tablet->IsActiveServant()) {
             return;
@@ -498,7 +498,7 @@ public:
 
     void ReleaseBackingStore(const IChunkStorePtr& store) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (auto backingStore = store->GetBackingStore()) {
             store->SetBackingStore(nullptr);
@@ -869,14 +869,14 @@ private:
 
     void LoadKeys(TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TabletMap_.LoadKeys(context);
     }
 
     void LoadValues(TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Load;
 
@@ -888,7 +888,7 @@ private:
 
     void LoadAsync(TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         SERIALIZATION_DUMP_WRITE(context, "tablets[%v]", TabletMap_.size());
         SERIALIZATION_DUMP_INDENT(context) {
@@ -905,7 +905,7 @@ private:
 
     void OnAfterSnapshotLoaded() noexcept override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::OnAfterSnapshotLoaded();
 
@@ -940,7 +940,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::Clear();
 
@@ -955,7 +955,7 @@ private:
 
     void OnLeaderRecoveryComplete() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::OnLeaderRecoveryComplete();
 
@@ -964,7 +964,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::OnLeaderActive();
 
@@ -979,7 +979,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::OnStopLeading();
 
@@ -991,7 +991,7 @@ private:
 
     void OnFollowerRecoveryComplete() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::OnFollowerRecoveryComplete();
 
@@ -1000,7 +1000,7 @@ private:
 
     void OnStopFollowing() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::OnStopFollowing();
 
@@ -4249,7 +4249,7 @@ private:
 
     void ReleaseBackingStoreWeak(const TWeakPtr<IChunkStore>& storeWeak)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (auto store = storeWeak.Lock()) {
             ReleaseBackingStore(store);
@@ -5161,7 +5161,7 @@ private:
         const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         RowDigestFetcher_->Reconfigure(newConfig);
         ChunkViewSizeFetcher_->Reconfigure(newConfig);
