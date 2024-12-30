@@ -172,7 +172,7 @@ public:
     NDistributedThrottler::IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         NDistributedThrottler::TDistributedThrottlerConfigPtr config,
         IInvokerPtr invoker,
-        const TString& groupIdPrefix,
+        const NDiscoveryClient::TGroupId& groupIdPrefix,
         NLogging::TLogger logger,
         NProfiling::TProfiler profiler) const;
 

@@ -864,7 +864,7 @@ private:
         }
 
         const auto& diskFamilyWhitelist = medium->AsDomestic()->DiskFamilyWhitelist();
-        auto diskFamily = location->Statistics().disk_family();
+        auto diskFamily = FromProto<std::string>(location->Statistics().disk_family());
         if (diskFamilyWhitelist && !std::ranges::binary_search(*diskFamilyWhitelist, diskFamily)) {
             YT_LOG_ALERT("Inconsistent medium (LocationUuid: %v, Medium: %v, DiskFamily: %v, DiskFamilyWhitelist: %v)",
                 locationUuid,

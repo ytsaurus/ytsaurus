@@ -1246,7 +1246,7 @@ private:
     THashMap<ECellarType, THashSet<TCellBundle*>> CellBundlesPerTypeMap_;
     THashMap<ECellarType, THashSet<TCellBase*>> CellsPerTypeMap_;
 
-    THashMap<ECellarType, THashMap<TString, TCellBundle*>> NameToCellBundleMap_;
+    THashMap<ECellarType, THashMap<std::string, TCellBundle*>> NameToCellBundleMap_;
 
     THashMap<TCellTag, TCellBase*> CellTagToCell_;
     THashMap<std::string, TCellSet> AddressToCell_;

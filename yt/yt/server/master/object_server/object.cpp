@@ -222,7 +222,7 @@ void TObject::ClearAttributes()
     Attributes_.reset();
 }
 
-const NYson::TYsonString* TObject::FindAttribute(const TString& key) const
+const NYson::TYsonString* TObject::FindAttribute(const std::string& key) const
 {
     if (!Attributes_) {
         return nullptr;

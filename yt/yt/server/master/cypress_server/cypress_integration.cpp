@@ -105,7 +105,7 @@ private:
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& cypressManager = Bootstrap_->GetCypressManager();
-        auto* node = cypressManager->FindAccessControlObjectNamespaceByName(TString(key));
+        auto* node = cypressManager->FindAccessControlObjectNamespaceByName(key);
 
         if (!IsObjectAlive(node)) {
             return nullptr;

@@ -296,7 +296,7 @@ private:
 
             auto addUser = [&] (TUser* user) {
                 auto* protoLimits = protoUserDirectory->add_limits();
-                protoLimits->set_user_name(TString(user->GetName()));
+                protoLimits->set_user_name(ToProto(user->GetName()));
 
                 auto limits = user->GetObjectServiceRequestLimits();
                 if (auto limit = limits->ReadRequestRateLimits->Default) {

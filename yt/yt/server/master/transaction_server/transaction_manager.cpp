@@ -1124,13 +1124,13 @@ public:
         if (GetDynamicConfig()->EnableStartForeignTransactionFixes) {
             if (const auto* attributes = transaction->GetAttributes()) {
                 if (auto operationType = attributes->Find("operation_type")) {
-                    startRequest.set_operation_type(ConvertTo<TString>(operationType));
+                    startRequest.set_operation_type(ToProto(ConvertTo<std::string>(operationType)));
                 }
                 if (auto operationId = attributes->Find("operation_id")) {
-                    startRequest.set_operation_id(ConvertTo<TString>(operationId));
+                    startRequest.set_operation_id(ToProto(ConvertTo<std::string>(operationId)));
                 }
                 if (auto operationTitle = attributes->Find("operation_title")) {
-                    startRequest.set_operation_title(ConvertTo<TString>(operationTitle));
+                    startRequest.set_operation_title(ToProto(ConvertTo<std::string>(operationTitle)));
                 }
             }
 
@@ -1151,13 +1151,13 @@ public:
                 : transaction->GetAttributes();
             if (attributes) {
                 if (auto operationType = attributes->Find("operation_type")) {
-                    startRequest.set_operation_type(ConvertTo<TString>(operationType));
+                    startRequest.set_operation_type(ToProto(ConvertTo<std::string>(operationType)));
                 }
                 if (auto operationId = attributes->Find("operation_id")) {
-                    startRequest.set_operation_id(ConvertTo<TString>(operationId));
+                    startRequest.set_operation_id(ToProto(ConvertTo<std::string>(operationId)));
                 }
                 if (auto operationTitle = attributes->Find("operation_title")) {
-                    startRequest.set_operation_title(ConvertTo<TString>(operationTitle));
+                    startRequest.set_operation_title(ToProto(ConvertTo<std::string>(operationTitle)));
                 }
             }
         }

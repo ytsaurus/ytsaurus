@@ -24,7 +24,7 @@ private:
 public:
     explicit TTableNodeTypeHandlerBase(NCellMaster::TBootstrap* bootstrap);
 
-    bool IsSupportedInheritableAttribute(const TString& key) const override;
+    bool IsSupportedInheritableAttribute(const std::string& key) const override;
 
     bool HasBranchedChangesImpl(TImpl* originatingNode, TImpl* branchedNode) override;
 

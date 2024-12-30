@@ -99,7 +99,7 @@ private:
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* account = securityManager->FindAccountByName(TString(key), false /*activeLifeStageOnly*/);
+        auto* account = securityManager->FindAccountByName(key, false /*activeLifeStageOnly*/);
         if (!account) {
             return nullptr;
         }
@@ -249,7 +249,7 @@ private:
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* user = securityManager->FindUserByNameOrAlias(TString(key), false /*activeLifeStageOnly*/);
+        auto* user = securityManager->FindUserByNameOrAlias(key, false /*activeLifeStageOnly*/);
         if (!IsObjectAlive(user)) {
             return nullptr;
         }
@@ -296,7 +296,7 @@ private:
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
-        auto* group = securityManager->FindGroupByNameOrAlias(TString(key));
+        auto* group = securityManager->FindGroupByNameOrAlias(key);
         if (!IsObjectAlive(group)) {
             return nullptr;
         }

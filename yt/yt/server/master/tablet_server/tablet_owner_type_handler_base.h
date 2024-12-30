@@ -24,7 +24,7 @@ public:
         this->SetBootstrap(bootstrap);
     }
 
-    bool IsSupportedInheritableAttribute(const TString& key) const override;
+    bool IsSupportedInheritableAttribute(const std::string& key) const override;
 
 protected:
     void DoDestroy(TImpl* owner) override;

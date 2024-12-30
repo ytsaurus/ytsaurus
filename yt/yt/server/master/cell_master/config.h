@@ -266,7 +266,7 @@ class TCellMasterBootstrapConfig
 {
 public:
     //! Used to check that master is being initialized from a correct container.
-    std::optional<TString> ExpectedLocalHostName;
+    std::optional<std::string> ExpectedLocalHostName;
 
     NNodeTrackerClient::TNetworkPreferenceList Networks;
 

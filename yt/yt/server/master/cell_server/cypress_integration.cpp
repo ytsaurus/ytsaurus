@@ -237,7 +237,7 @@ private:
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
-        auto* cellBundle = cellManager->FindCellBundleByName(TString(key), CellarType_, false /*activeLifeStageOnly*/);
+        auto* cellBundle = cellManager->FindCellBundleByName(key, CellarType_, false /*activeLifeStageOnly*/);
         if (!IsObjectAlive(cellBundle)) {
             return nullptr;
         }
@@ -367,7 +367,7 @@ private:
     {
         auto* impl = GetThisImpl();
 
-        static const TString CellIdAttributeKey = "cell_id";
+        static const std::string CellIdAttributeKey = "cell_id";
         auto attribute = impl->FindAttribute(CellIdAttributeKey);
         if (!attribute) {
             THROW_ERROR_EXCEPTION("Attribute \"cell_id\" is not specified for a cell Orchid node")

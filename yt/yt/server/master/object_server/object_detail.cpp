@@ -836,10 +836,10 @@ void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
     }
 }
 
-void TObjectProxyBase::ValidateCustomAttributeRemoval(const TString& /*key*/)
+void TObjectProxyBase::ValidateCustomAttributeRemoval(const std::string& /*key*/)
 { }
 
-void TObjectProxyBase::GuardedValidateCustomAttributeRemoval(const TString& key)
+void TObjectProxyBase::GuardedValidateCustomAttributeRemoval(const std::string& key)
 {
     try {
         ValidateCustomAttributeRemoval(key);

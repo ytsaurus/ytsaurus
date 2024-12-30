@@ -142,10 +142,10 @@ protected:
         const NYson::TYsonString& newValue);
 
     //! Called before attribute #key is removed.
-    virtual void ValidateCustomAttributeRemoval(const TString& key);
+    virtual void ValidateCustomAttributeRemoval(const std::string& key);
 
     //! Same as #ValidateCustomAttributeRemoval but wraps the exceptions.
-    void GuardedValidateCustomAttributeRemoval(const TString& key);
+    void GuardedValidateCustomAttributeRemoval(const std::string& key);
 
     void ValidateCustomAttributeLength(const NYson::TYsonString& value);
 

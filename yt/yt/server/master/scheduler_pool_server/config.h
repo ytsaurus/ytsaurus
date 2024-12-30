@@ -15,10 +15,10 @@ public:
     int MaxSchedulerPoolSubtreeSize;
 
     // Pool name validation regex for user with |Administer| permission on scheduler pool schema object.
-    TString PoolNameRegexForAdministrators;
+    std::string PoolNameRegexForAdministrators;
 
     // Pool name validation regex for all others.
-    TString PoolNameRegexForUsers;
+    std::string PoolNameRegexForUsers;
 
     REGISTER_YSON_STRUCT(TDynamicSchedulerPoolManagerConfig);
 

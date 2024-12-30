@@ -1738,7 +1738,7 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
-    const TString UserName_;
+    const std::string UserName_;
     const IInvokerPtr Invoker_;
 
     static const IInvokerPtr CreateInvoker(const IHydraFacadePtr& hydraFacade, EAutomatonThreadQueue threadQueue)

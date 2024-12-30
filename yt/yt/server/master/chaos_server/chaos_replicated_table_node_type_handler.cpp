@@ -147,9 +147,9 @@ private:
         }
     }
 
-    bool IsSupportedInheritableAttribute(const TString& key) const override
+    bool IsSupportedInheritableAttribute(const std::string& key) const override
     {
-        static const THashSet<TString> SupportedInheritableAttributes{
+        static const THashSet<std::string> SupportedInheritableAttributes{
             EInternedAttributeKey::ChaosCellBundle.Unintern(),
         };
 

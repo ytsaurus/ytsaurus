@@ -674,7 +674,7 @@ public:
     std::optional<THashSet<NCompression::ECodec>> ForbiddenCompressionCodecs;
 
     //! Deprecated codec names and their alises, used values from yt/core/compression by default.
-    std::optional<THashMap<TString, TString>> ForbiddenCompressionCodecNameToAlias;
+    std::optional<THashMap<std::string, std::string>> ForbiddenCompressionCodecNameToAlias;
 
     //! Forbidden erasure codec ids, empty by default.
     THashSet<NErasure::ECodec> ForbiddenErasureCodecs;

@@ -590,7 +590,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoMaterializeNode(
 }
 
 template<class TImpl>
-bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TString& key) const
+bool TTableNodeTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const std::string& key) const
 {
     static const THashSet<TString> SupportedInheritableAttributes{
         EInternedAttributeKey::Atomicity.Unintern(),

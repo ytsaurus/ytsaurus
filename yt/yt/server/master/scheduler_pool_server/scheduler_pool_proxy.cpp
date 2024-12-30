@@ -34,7 +34,7 @@ TSchedulerPoolProxy::TProxyBasePtr TSchedulerPoolProxy::ResolveNameOrThrow(const
     return GetProxy(schedulerPoolManager->FindPoolTreeOrSchedulerPoolOrThrow(*poolTreeName, name));
 }
 
-std::optional<TString> TSchedulerPoolProxy::GetMaybePoolTreeName(const TSchedulerPool* schedulerPool)
+std::optional<std::string> TSchedulerPoolProxy::GetMaybePoolTreeName(const TSchedulerPool* schedulerPool)
 {
     return Bootstrap_->GetSchedulerPoolManager()->GetMaybePoolTreeName(schedulerPool);
 }
