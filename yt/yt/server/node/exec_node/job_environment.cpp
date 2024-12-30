@@ -445,6 +445,10 @@ public:
             ConcreteConfig_->PortoExecutor,
             "env_spawn",
             JobEnvironmentProfiler().WithPrefix("/porto")))
+        , CreatePortoExecutor_(CreatePortoExecutor(
+            ConcreteConfig_->PortoExecutor,
+            "env_create",
+            JobEnvironmentProfiler().WithPrefix("/porto_create")))
         , DestroyPortoExecutor_(CreatePortoExecutor(
             ConcreteConfig_->PortoExecutor,
             "env_destroy",
@@ -635,8 +639,11 @@ private:
 
     TPortoJobEnvironmentConfigPtr ConcreteConfig_;
 
-    //! Main Porto connection for container creation and lightweight operations.
+    //! Main Porto connection for lightweight operations.
     IPortoExecutorPtr PortoExecutor_;
+
+    //! Porto connection for container creation that could be long.
+    IPortoExecutorPtr CreatePortoExecutor_;
 
     //! Porto connection used for container destruction, which is
     //! possibly a long operation and requires additional retries.
@@ -773,7 +780,7 @@ private:
         auto slotInitFuture = BIND([this, this_ = MakeStrong(this), slotIndex] {
             for (auto slotType : {ESlotType::Common, ESlotType::Idle}) {
                 auto slotContainer = GetFullSlotMetaContainerName(slotIndex, slotType);
-                WaitFor(PortoExecutor_->CreateContainer(slotContainer))
+                WaitFor(CreatePortoExecutor_->CreateContainer(slotContainer))
                     .ThrowOnError();
 
                 // This forces creation of CPU cgroup for this container.
