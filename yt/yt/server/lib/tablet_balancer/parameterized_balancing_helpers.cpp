@@ -1477,11 +1477,12 @@ TParameterizedResharder::TTableStatistics TParameterizedResharder::GetTableStati
     statistics.DesiredTabletMetric = statistics.TableMetric / statistics.DesiredTabletCount;
     statistics.MinTabletMetric = statistics.DesiredTabletMetric / 1.9;
 
-    if (statistics.TableMetric == 0.0) {
-        YT_LOG_DEBUG("Calculated table metric for parameterized balancing via reshard is zero "
-            "(TableId: %v, TablePath: %v)",
+    if (statistics.TableMetric == 0.0 || statistics.DesiredTabletMetric == 0.0) {
+        YT_LOG_DEBUG("Calculated table metric for parameterized balancing via reshard is zero or almost zero "
+            "(TableId: %v, TablePath: %v, TableMetric: %v)",
             table->Id,
-            table->Path);
+            table->Path,
+            statistics.TableMetric);
         statistics.DesiredTabletMetric = 1;
     }
 
