@@ -51,6 +51,9 @@ TFuture<void> TLocationManager::FailDiskByName(
     const TString& diskName,
     const TError& error)
 {
+    if (!DiskInfoProvider_) {
+        return MakeFuture<void>(TError("Cannot fail disk: hotswap is not configured"));
+    }
     return DiskInfoProvider_->GetYTDiskInfos()
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TDiskInfo>& diskInfos) {
             for (const auto& diskInfo : diskInfos) {
@@ -147,16 +150,25 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
 
 TFuture<bool> TLocationManager::GetHotSwapEnabled()
 {
+    if (!DiskInfoProvider_) {
+        return FalseFuture;
+    }
     return DiskInfoProvider_->GetHotSwapEnabled();
 }
 
 TFuture<std::vector<TDiskInfo>> TLocationManager::GetDiskInfos()
 {
+    if (!DiskInfoProvider_) {
+        return MakeFuture<std::vector<TDiskInfo>>({});
+    }
     return DiskInfoProvider_->GetYTDiskInfos();
 }
 
 TFuture<void> TLocationManager::UpdateDiskCache()
 {
+    if (!DiskInfoProvider_) {
+        return VoidFuture;
+    }
     return DiskInfoProvider_->UpdateDiskCache();
 }
 
@@ -255,6 +267,9 @@ TFuture<std::vector<TGuid>> TLocationManager::ResurrectChunkLocations(const THas
 
 TFuture<void> TLocationManager::RecoverDisk(const TString& diskId)
 {
+    if (!DiskInfoProvider_) {
+        return MakeFuture<void>(TError("Cannot recover disk: hotswap dispatcher is not configured"));
+    }
     return DiskInfoProvider_->RecoverDisk(diskId);
 }
 

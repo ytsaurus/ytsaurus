@@ -296,10 +296,12 @@ void TBootstrap::DoRun()
             "/cluster_connection",
             CreateVirtualNode(Connection_->GetOrchidService()));
     }
-    SetNodeByYPath(
-        orchidRoot,
-        "/disk_monitoring",
-        CreateVirtualNode(NDiskManager::THotswapManager::GetOrchidService()));
+    if (auto hotswapManager = ServiceLocator_->FindService<NDiskManager::IHotswapManagerPtr>()) {
+        SetNodeByYPath(
+            orchidRoot,
+            "/disk_monitoring",
+            CreateVirtualNode(hotswapManager->GetOrchidService()));
+    }
     SetBuildAttributes(
         orchidRoot,
         "proxy");

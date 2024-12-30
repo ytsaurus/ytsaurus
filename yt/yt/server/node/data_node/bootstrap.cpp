@@ -248,11 +248,12 @@ public:
             DataNodeLogger().WithTag("IOMeter"));
         JobController_->Initialize();
 
+        auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager();
         LocationManager_ = New<TLocationManager>(
             this,
             ChunkStore_,
             GetControlInvoker(),
-            NDiskManager::THotswapManager::GetDiskInfoProvider());
+            hotswapManager ? hotswapManager->GetDiskInfoProvider() : nullptr);
         LocationHealthChecker_ = CreateLocationHealthChecker(
             ChunkStore_,
             LocationManager_,
@@ -261,7 +262,9 @@ public:
         LocationHealthChecker_->Initialize();
         MasterConnector_->Initialize();
 
-        SubscribePopulateAlerts(BIND(&NDiskManager::THotswapManager::PopulateAlerts));
+        if (hotswapManager) {
+            SubscribePopulateAlerts(BIND(&IHotswapManager::PopulateAlerts, hotswapManager));
+        }
     }
 
     void Run() override
@@ -275,10 +278,12 @@ public:
             GetOrchidRoot(),
             "/data_node",
             CreateVirtualNode(GetOrchidService(this)));
-        SetNodeByYPath(
-            GetOrchidRoot(),
-            "/disk_monitoring",
-            CreateVirtualNode(NDiskManager::THotswapManager::GetOrchidService()));
+        if (auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager()) {
+            SetNodeByYPath(
+                GetOrchidRoot(),
+                "/disk_monitoring",
+                CreateVirtualNode(hotswapManager->GetOrchidService()));
+        }
 
         P2PDistributor_->Start();
 

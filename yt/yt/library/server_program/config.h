@@ -12,6 +12,8 @@
 
 #include <yt/yt/library/profiling/solomon/config.h>
 
+#include <yt/yt/library/disk_manager/config.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -27,6 +29,8 @@ struct TServerProgramConfig
     NCoreDump::TCoreDumperConfigPtr CoreDumper;
 
     NProfiling::TSolomonExporterConfigPtr SolomonExporter;
+
+    NDiskManager::THotswapManagerConfigPtr HotswapManager;
 
     REGISTER_YSON_STRUCT(TServerProgramConfig)
 

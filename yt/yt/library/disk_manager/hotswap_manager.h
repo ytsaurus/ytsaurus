@@ -4,23 +4,25 @@
 
 #include <yt/yt/core/ytree/public.h>
 
-#include <util/generic/noncopyable.h>
-
 namespace NYT::NDiskManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THotswapManager
-    : private TNonCopyable
+struct IHotswapManager
+    : public TRefCounted
 {
-public:
-    static void Configure(const THotswapManagerConfigPtr& config);
-    static void Reconfigure(const THotswapManagerDynamicConfigPtr& dynamicConfig);
-
-    static IDiskInfoProviderPtr GetDiskInfoProvider();
-    static void PopulateAlerts(std::vector<TError>* alerts);
-    static NYTree::IYPathServicePtr GetOrchidService();
+    virtual void Reconfigure(const THotswapManagerDynamicConfigPtr& dynamicConfig) = 0;
+    virtual IDiskInfoProviderPtr GetDiskInfoProvider() = 0;
+    virtual void PopulateAlerts(std::vector<TError>* alerts) = 0;
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IHotswapManager)
+YT_DEFINE_TYPEID(IHotswapManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IHotswapManagerPtr CreateHotswapManager(THotswapManagerConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

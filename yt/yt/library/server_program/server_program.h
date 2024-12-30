@@ -34,6 +34,8 @@ protected:
     NFusion::IServiceLocatorPtr GetServiceLocator() const;
     NFusion::IServiceDirectoryPtr GetServiceDirectory() const;
 
+    void Configure(const TServerProgramConfigPtr& config);
+
 private:
     const NFusion::IServiceDirectoryPtr ServiceDirectory_;
 
@@ -54,7 +56,6 @@ protected:
 
 private:
     void DoRun() final;
-    void Configure();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

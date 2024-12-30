@@ -48,6 +48,8 @@
 
 #include <yt/yt/library/fusion/public.h>
 
+#include <yt/yt/library/disk_manager/public.h>
+
 #include <yt/yt/ytlib/object_client/public.h>
 
 #include <yt/yt/core/actions/signal.h>
@@ -202,6 +204,8 @@ struct IBootstrap
 
     virtual NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TString& bucket) = 0;
     virtual NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TString& bucket) = 0;
+
+    virtual NDiskManager::IHotswapManagerPtr TryGetHotswapManager() const = 0;
 
     virtual NConcurrency::TRelativeThroughputThrottlerConfigPtr PatchRelativeNetworkThrottlerConfig(
         const NConcurrency::TRelativeThroughputThrottlerConfigPtr& config) const = 0;

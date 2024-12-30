@@ -242,11 +242,12 @@ private:
                 "/dynamic_config_manager",
                 CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
         }
-        SetNodeByYPath(
-            OrchidRoot_,
-            "/disk_monitoring",
-            CreateVirtualNode(NDiskManager::THotswapManager::GetOrchidService()));
-
+        if (auto hotswapManager = ServiceLocator_->FindService<NDiskManager::IHotswapManagerPtr>()) {
+            SetNodeByYPath(
+                OrchidRoot_,
+                "/disk_monitoring",
+                CreateVirtualNode(hotswapManager->GetOrchidService()));
+        }
         RpcServer_->RegisterService(CreateOrchidService(
             OrchidRoot_,
             GetControlInvoker(),
