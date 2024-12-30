@@ -16,7 +16,7 @@ using NHydra::HasHydraContext;
 
 TTransactionRotator::TTransactionRotator(
     TBootstrap* bootstrap,
-    TString transactionTitle)
+    std::string transactionTitle)
     : Bootstrap_(bootstrap)
     , TransactionTitle_(std::move(transactionTitle))
 {

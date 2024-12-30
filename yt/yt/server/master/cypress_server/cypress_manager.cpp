@@ -848,7 +848,7 @@ private:
     }
 
     std::string DoGetName(const TCypressNode* node) override;
-    TString DoGetPath(const TCypressNode* node) override;
+    NYPath::TYPath DoGetPath(const TCypressNode* node) override;
 
     IObjectProxyPtr DoGetProxy(
         TCypressNode* node,
@@ -4735,10 +4735,9 @@ std::string TNodeTypeHandler::DoGetName(const TCypressNode* node)
     return Format("node %v", DoGetPath(node));
 }
 
-TString TNodeTypeHandler::DoGetPath(const TCypressNode* node)
+NYPath::TYPath TNodeTypeHandler::DoGetPath(const TCypressNode* node)
 {
-    auto path = Owner_->GetNodePath(node->GetTrunkNode(), node->GetTransaction());
-    return path;
+    return Owner_->GetNodePath(node->GetTrunkNode(), node->GetTransaction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

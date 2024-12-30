@@ -327,7 +327,7 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
     auto loadImmutableProperties = [&] {
         if (Load<bool>(context)) {
 
-            auto key = Load<TString>(context);
+            auto key = Load<std::string>(context);
             auto path = Load<TYPath>(context);
 
             TNodeId parentId = NullObjectId;

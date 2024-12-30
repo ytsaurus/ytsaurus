@@ -184,7 +184,7 @@ private:
             auto batchReq = proxy.ExecuteBatch(cellBundleIdToCellIds.size());
             for (auto cellBundleId : GetKeys(cellBundleIdToCellIds)) {
                 auto req = TYPathProxy::Get(FromObjectId(cellBundleId) + "/@");
-                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                     "options",
                     "config_version",
                 });
@@ -329,7 +329,7 @@ private:
                 }
 
                 if (TypeFromId(cellId) == EObjectType::TabletCell) {
-                    static const TString OrchidKey("orchid");
+                    static const std::string OrchidKey("orchid");
                     auto req = TCypressYPathProxy::Create(YPathJoin(cellNodePath, OrchidKey));
                     req->set_type(ToProto(EObjectType::CellOrchidNode));
                     auto attributes = CreateEphemeralAttributes();
@@ -560,7 +560,7 @@ private:
             auto batchReq = proxy.ExecuteBatch();
             auto listAliveCells = [&] (const TYPath& path) {
                 auto req = TYPathProxy::List(path);
-                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
+                ToProto(req->mutable_attributes()->mutable_keys(), std::vector<std::string>{
                     "registered_in_cypress",
                     "pending_acls_update",
                 });

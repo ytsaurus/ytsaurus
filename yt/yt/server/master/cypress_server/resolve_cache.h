@@ -27,7 +27,7 @@ struct TResolveCacheNode
 
     // These fields are mutated in automaton thread and are read in any thread.
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock);
-    THashMap<TString, TResolveCacheNodePtr>::iterator ParentKeyToChildIt;
+    THashMap<std::string, TResolveCacheNodePtr>::iterator ParentKeyToChildIt;
 
     struct TLinkPayload
     {
@@ -39,7 +39,7 @@ struct TResolveCacheNode
     };
     struct TMapPayload
     {
-        THashMap<TString, TResolveCacheNodePtr> KeyToChild;
+        THashMap<std::string, TResolveCacheNodePtr, THash<std::string_view>, TEqualTo<std::string_view>> KeyToChild;
     };
     using TPayload = std::variant<
         TLinkPayload,
@@ -80,7 +80,7 @@ public:
     void AddNodeChild(
         const TResolveCacheNodePtr& parentNode,
         const TResolveCacheNodePtr& childNode,
-        const TString& key);
+        const std::string& key);
     void InvalidateNode(TCypressNode* node);
     void Clear();
 

@@ -24,6 +24,8 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NServer;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkLocationProxy
@@ -142,11 +144,12 @@ private:
 
                 auto* domesticMedium = medium->AsDomestic();
                 const auto& whitelist = domesticMedium->DiskFamilyWhitelist();
+                auto diskFamily = FromProto<std::string>(location->Statistics().disk_family());
                 if (whitelist.has_value() &&
                     !std::binary_search(
                         whitelist->begin(),
                         whitelist->end(),
-                        location->Statistics().disk_family()))
+                        diskFamily))
                 {
                     THROW_ERROR_EXCEPTION("Inconsistent medium override: location's disk family %Qv is absent from medium %Qv whitelist",
                         location->Statistics().disk_family(),

@@ -18,7 +18,7 @@ using namespace NServer;
 ////////////////////////////////////////////////////////////////////////////////
 
 template<class TImpl>
-bool TTabletOwnerTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const TString& key) const
+bool TTabletOwnerTypeHandlerBase<TImpl>::IsSupportedInheritableAttribute(const std::string& key) const
 {
     static const THashSet<TString> SupportedInheritableAttributes{
         EInternedAttributeKey::InMemoryMode.Unintern(),

@@ -615,7 +615,7 @@ NZookeeperMaster::IBootstrap* TBootstrap::GetZookeeperBootstrap() const
 NDistributedThrottler::IDistributedThrottlerFactoryPtr TBootstrap::CreateDistributedThrottlerFactory(
     TDistributedThrottlerConfigPtr config,
     IInvokerPtr invoker,
-    const TString& groupIdPrefix,
+    const NDiscoveryClient::TGroupId& groupIdPrefix,
     NLogging::TLogger logger,
     NProfiling::TProfiler profiler) const
 {
@@ -909,8 +909,7 @@ void TBootstrap::DoInitialize()
     addresses.reserve(localCellConfig->Peers.size());
     for (const auto& peer : localCellConfig->Peers) {
         if (peer->Address) {
-            // TODO(babenko): switch to std::string
-            addresses.push_back(std::string(*peer->Address));
+            addresses.push_back(*peer->Address);
         }
     }
 

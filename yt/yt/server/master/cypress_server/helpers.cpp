@@ -501,7 +501,7 @@ TCypressShardId MakeCypressShardId(
     return ReplaceTypeInId(rootNodeId, EObjectType::CypressShard);
 }
 
-TString SuggestCypressShardName(TCypressShard* shard)
+std::string SuggestCypressShardName(TCypressShard* shard)
 {
     const auto* root = shard->GetRoot();
     switch (root->GetType()) {
@@ -519,7 +519,7 @@ TString SuggestCypressShardName(TCypressShard* shard)
 void ValidateCompressionCodec(
     const NYson::TYsonString& value,
     const std::optional<THashSet<NCompression::ECodec>>& configuredForbiddenCodecs,
-    const std::optional<THashMap<TString, TString>>& configuredForbiddenCodecNameToAlias)
+    const std::optional<THashMap<std::string, std::string>>& configuredForbiddenCodecNameToAlias)
 {
     if (NCellMaster::IsSubordinateMutation()) {
         return;
@@ -536,7 +536,7 @@ void ValidateCompressionCodec(
     auto deprecatedCodecNameToAlias = configuredForbiddenCodecNameToAlias
         ? *configuredForbiddenCodecNameToAlias
         : NCompression::GetForbiddenCodecNameToAlias();
-    auto codecName = ConvertTo<TString>(value);
+    auto codecName = ConvertTo<std::string>(value);
     auto it = deprecatedCodecNameToAlias.find(codecName);
     if (deprecatedCodecNameToAlias.find(codecName) != deprecatedCodecNameToAlias.end()) {
         auto& [_, alias] = *it;

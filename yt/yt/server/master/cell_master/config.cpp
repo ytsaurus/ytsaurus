@@ -190,7 +190,7 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
-        THashMap<TString, NObjectServer::TCellTag> nameToCellTag;
+        THashMap<std::string, NObjectServer::TCellTag> nameToCellTag;
         for (auto& [cellTag, descriptor] : config->CellDescriptors) {
             if (descriptor->Roles && None(*descriptor->Roles)) {
                 THROW_ERROR_EXCEPTION("Cell %v has no roles",

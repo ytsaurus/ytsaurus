@@ -94,7 +94,7 @@ class TDynamicNodeTrackerConfig
 public:
     static constexpr auto DefaultProfilingPeriod = TDuration::Seconds(10);
 
-    THashMap<TString, TNodeGroupConfigPtr> NodeGroups;
+    THashMap<std::string, TNodeGroupConfigPtr> NodeGroups;
 
     TDuration TotalNodeStatisticsUpdatePeriod;
 

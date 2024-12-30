@@ -222,7 +222,7 @@ private:
                 auto children = list->GetChildren();
                 result.reserve(result.size() + children.size());
                 for (const auto& child : children) {
-                    auto key = ConvertTo<TString>(child);
+                    auto key = ConvertTo<std::string>(child);
                     int id = 0;
                     if (!TryFromString<int>(key, id)) {
                         YT_LOG_WARNING("Janitor has found a broken Hydra file (Path: %v, Key: %v)",

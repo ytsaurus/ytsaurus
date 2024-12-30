@@ -1351,7 +1351,11 @@ void TChunkOwnerNodeProxy::SetVital(bool vital)
     OnStorageParametersUpdated();
 }
 
-TString TChunkOwnerNodeProxy::DoSetReplication(TChunkReplication* replicationStorage, const TChunkReplication& replication, int mediumIndex) {
+std::string TChunkOwnerNodeProxy::DoSetReplication(
+    TChunkReplication* replicationStorage,
+    const TChunkReplication& replication,
+    int mediumIndex)
+{
     auto* node = GetThisImpl<TChunkOwnerBase>();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 

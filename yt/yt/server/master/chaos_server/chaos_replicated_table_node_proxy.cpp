@@ -396,7 +396,7 @@ private:
                 }
 
                 auto* lockedTable = LockThisImpl();
-                lockedTable->SetQueueAgentStage(ConvertTo<TString>(value));
+                lockedTable->SetQueueAgentStage(ConvertTo<std::string>(value));
 
                 SetModified(EModificationType::Attributes);
 

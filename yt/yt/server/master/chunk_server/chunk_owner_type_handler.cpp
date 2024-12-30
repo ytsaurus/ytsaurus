@@ -79,9 +79,9 @@ ENodeType TChunkOwnerTypeHandler<TChunkOwner>::GetNodeType() const
 }
 
 template <class TChunkOwner>
-bool TChunkOwnerTypeHandler<TChunkOwner>::IsSupportedInheritableAttribute(const TString& key) const
+bool TChunkOwnerTypeHandler<TChunkOwner>::IsSupportedInheritableAttribute(const std::string& key) const
 {
-    static const THashSet<TString> SupportedInheritableAttributes{
+    static const THashSet<std::string> SupportedInheritableAttributes{
         EInternedAttributeKey::CompressionCodec.Unintern(),
         EInternedAttributeKey::ErasureCodec.Unintern(),
         EInternedAttributeKey::Media.Unintern(),

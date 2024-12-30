@@ -220,7 +220,7 @@ TResolveCacheNodePtr TResolveCache::TryInsertNode(
 void TResolveCache::AddNodeChild(
     const TResolveCacheNodePtr& parentNode,
     const TResolveCacheNodePtr& childNode,
-    const TString& key)
+    const std::string& key)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 

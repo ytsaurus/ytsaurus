@@ -34,9 +34,9 @@ using namespace NObjectClient;
 using TSettingParam = std::tuple<const char*, const char*, const char*, int, const char*>;
 using TStressSettingParam = std::tuple<int, int, int, int, int>;
 using TCompleteSettingParam = std::tuple<
-    THashMap<TString, int>,
-    THashMap<TString, std::vector<int>>,
-    THashMap<TString, std::vector<TString>>,
+    THashMap<std::string, int>,
+    THashMap<std::string, std::vector<int>>,
+    THashMap<std::string, std::vector<std::string>>,
     int,
     THashMap<std::string, std::vector<int>>>;
 
@@ -45,9 +45,9 @@ class TSetting
 {
 public:
     TSetting(
-        const THashMap<TString, int>& peersPerCell,
-        const THashMap<TString, std::vector<int>>& cellLists,
-        const THashMap<TString, std::vector<TString>>& nodeFeasibility,
+        const THashMap<std::string, int>& peersPerCell,
+        const THashMap<std::string, std::vector<int>>& cellLists,
+        const THashMap<std::string, std::vector<std::string>>& nodeFeasibility,
         int tabletSlotCount,
         const THashMap<std::string, std::vector<int>>& cellDistribution)
     {
@@ -56,11 +56,11 @@ public:
 
     explicit TSetting(const TSettingParam& param)
     {
-        auto peersPerCell = ConvertTo<THashMap<TString, int>>(
+        auto peersPerCell = ConvertTo<THashMap<std::string, int>>(
             TYsonString(TString(std::get<0>(param)), EYsonType::Node));
-        auto cellLists = ConvertTo<THashMap<TString, std::vector<int>>>(
+        auto cellLists = ConvertTo<THashMap<std::string, std::vector<int>>>(
             TYsonString(TString(std::get<1>(param)), EYsonType::Node));
-        auto nodeFeasibility = ConvertTo<THashMap<TString, std::vector<TString>>>(
+        auto nodeFeasibility = ConvertTo<THashMap<std::string, std::vector<std::string>>>(
             TYsonString(TString(std::get<2>(param)), EYsonType::Node));
         auto tabletSlotCount = std::get<3>(param);
         auto cellDistribution = ConvertTo<THashMap<std::string, std::vector<int>>>(
@@ -70,9 +70,9 @@ public:
     }
 
     void Initialize(
-        const THashMap<TString, int>& peersPerCell,
-        const THashMap<TString, std::vector<int>>& cellLists,
-        const THashMap<TString, std::vector<TString>>& nodeFeasibility,
+        const THashMap<std::string, int>& peersPerCell,
+        const THashMap<std::string, std::vector<int>>& cellLists,
+        const THashMap<std::string, std::vector<std::string>>& nodeFeasibility,
         int tabletSlotCount,
         const THashMap<std::string, std::vector<int>>& cellDistribution)
     {
@@ -447,7 +447,7 @@ public:
         YT_VERIFY(NodesNum_ >= PeersNum_);
 
         Nodes_.resize(NodesNum_);
-        std::vector<TString> bundles(BundlesNum_);
+        std::vector<std::string> bundles(BundlesNum_);
         for (int i = 0; i < NodesNum_; ++i) {
             Nodes_[i] = Format("n%v", i);
         }
@@ -499,9 +499,9 @@ protected:
     std::vector<std::vector<int>> Cells_;
     std::vector<int> CellsFlattened_;
 
-    THashMap<TString, int> PeersPerCell_;
-    THashMap<TString, std::vector<int>> CellLists_;
-    THashMap<TString, std::vector<TString>> NodeFeasibility_;
+    THashMap<std::string, int> PeersPerCell_;
+    THashMap<std::string, std::vector<int>> CellLists_;
+    THashMap<std::string, std::vector<std::string>> NodeFeasibility_;
     int TabletSlotCount_;
     THashMap<std::string, std::vector<int>> CellDistribution_;
 };

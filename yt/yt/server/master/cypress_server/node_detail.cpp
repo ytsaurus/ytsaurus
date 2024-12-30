@@ -77,7 +77,7 @@ void TNontemplateCypressNodeTypeHandlerBase::FillAttributes(
     objectManager->FillAttributes(trunkNode, *combinedAttributes);
 }
 
-bool TNontemplateCypressNodeTypeHandlerBase::IsSupportedInheritableAttribute(const TString&) const
+bool TNontemplateCypressNodeTypeHandlerBase::IsSupportedInheritableAttribute(const std::string& /*key*/) const
 {
     // NB: most node types don't inherit attributes. That would lead to
     // a lot of pseudo-user attributes.

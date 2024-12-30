@@ -227,7 +227,7 @@ public:
     void ClearAttributes();
 
     //! Returns a pointer to the value of the attribute or |nullptr| if it is not set.
-    const NYson::TYsonString* FindAttribute(const TString& key) const;
+    const NYson::TYsonString* FindAttribute(const std::string& key) const;
 
     NHydra::TRevision GetRevision() const;
     virtual void SetModified(EModificationType modificationType);

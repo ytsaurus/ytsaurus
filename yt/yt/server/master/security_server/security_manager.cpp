@@ -2891,7 +2891,7 @@ private:
     TUser* TabletBalancerUser_ = nullptr;
 
     NHydra::TEntityMap<TGroup> GroupMap_;
-    THashMap<TString, TGroup*> GroupNameMap_;
+    THashMap<std::string, TGroup*> GroupNameMap_;
 
     THashMap<std::string, TSubject*> SubjectAliasMap_;
 

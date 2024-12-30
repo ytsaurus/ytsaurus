@@ -259,7 +259,7 @@ void TSerializableChunkReplication::Deserialize(INodePtr node)
 {
     YT_VERIFY(node);
 
-    Entries_ = ConvertTo<std::map<TString, TReplicationPolicy>>(node);
+    Entries_ = ConvertTo<std::map<std::string, TReplicationPolicy>>(node);
 }
 
 void Serialize(const TSerializableChunkReplication& serializer, NYson::IYsonConsumer* consumer)
