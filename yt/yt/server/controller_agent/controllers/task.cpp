@@ -1544,7 +1544,7 @@ void TTask::AddSequentialInputSpec(
     TJobletPtr joblet,
     TComparator comparator)
 {
-    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
     auto nodeDirectoryBuilderFactory = TNodeDirectoryBuilderFactory(
@@ -1568,7 +1568,7 @@ void TTask::AddParallelInputSpec(
     TJobletPtr joblet,
     TComparator comparator)
 {
-    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     auto* jobSpecExt = jobSpec->MutableExtension(TJobSpecExt::job_spec_ext);
     auto directoryBuilderFactory = TNodeDirectoryBuilderFactory(
@@ -1595,7 +1595,7 @@ void TTask::AddChunksToInputSpec(
     TChunkStripePtr stripe,
     TComparator comparator)
 {
-    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     stripe = GetChunkMapping()->GetMappedStripe(stripe);
 
@@ -1660,7 +1660,7 @@ void TTask::UpdateInputSpecTotals(
 
 TString TTask::GetOrCacheSerializedSchema(const TTableSchemaPtr& schema)
 {
-    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     {
         auto guard = ReaderGuard(TableSchemaToProtobufTableSchemaLock_);
@@ -1686,7 +1686,7 @@ void TTask::AddOutputTableSpecs(
     TJobSpec* jobSpec,
     TJobletPtr joblet)
 {
-    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     const auto& outputStreamDescriptors = joblet->OutputStreamDescriptors;
     YT_VERIFY(joblet->ChunkListIds.size() == outputStreamDescriptors.size());
@@ -1927,7 +1927,7 @@ bool TTask::IsInputDataWeightHistogramSupported() const
 
 TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const std::optional<NScheduler::NProto::TScheduleAllocationSpec>& scheduleAllocationSpec)
 {
-    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     auto jobSpec = ObjectPool<TJobSpec>().Allocate();
 

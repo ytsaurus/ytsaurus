@@ -51,7 +51,7 @@ TRequestTracker::TRequestTracker(
 
 void TRequestTracker::Start()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
@@ -67,7 +67,7 @@ void TRequestTracker::Start()
 
 void TRequestTracker::Stop()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);

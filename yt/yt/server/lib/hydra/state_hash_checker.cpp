@@ -17,7 +17,7 @@ TStateHashChecker::TStateHashChecker(
 
 void TStateHashChecker::Report(i64 sequenceNumber, ui64 stateHash, int peerId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = WriterGuard(Lock_);
 
@@ -41,7 +41,7 @@ void TStateHashChecker::Report(i64 sequenceNumber, ui64 stateHash, int peerId)
 
 void TStateHashChecker::ReconfigureLimit(int limit)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = WriterGuard(Lock_);
 
@@ -50,7 +50,7 @@ void TStateHashChecker::ReconfigureLimit(int limit)
 
 THashMap<i64, ui64> TStateHashChecker::GetStateHashes(const std::vector<i64>& sequenceNumbers)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(Lock_);
 

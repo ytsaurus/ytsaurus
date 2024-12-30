@@ -106,28 +106,28 @@ public:
 
     const NApi::NNative::IClientPtr& GetClient() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Client_;
     }
 
     const IInvokerPtr& GetControlInvoker() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ControlQueue_->GetInvoker();
     }
 
     TAddressMap GetLocalAddresses() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return NServer::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
     }
 
     const ICypressElectionManagerPtr& GetElectionManager() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ElectionManager_;
     }
@@ -135,7 +135,7 @@ public:
 
     const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return NativeAuthenticator_;
     }

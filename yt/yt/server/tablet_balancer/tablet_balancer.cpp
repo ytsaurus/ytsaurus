@@ -276,7 +276,7 @@ TTabletBalancer::TTabletBalancer(
 
 void TTabletBalancer::Start()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_LOG_INFO("Starting tablet balancer instance (Period: %v)",
         DynamicConfig_.Acquire()->Period.value_or(Config_->Period));
@@ -297,7 +297,7 @@ void TTabletBalancer::Start()
 
 void TTabletBalancer::Stop()
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
     YT_LOG_INFO("Stopping tablet balancer instance");
 
@@ -333,7 +333,7 @@ IListNodePtr TTabletBalancer::FetchNodeStatistics() const
 
 void TTabletBalancer::BalancerIteration()
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
     if (!DynamicConfig_.Acquire()->Enable) {
         YT_LOG_INFO("Standalone tablet balancer is not enabled");
@@ -550,7 +550,7 @@ THashSet<TGroupName> TTabletBalancer::GetBalancingGroups(const TTabletCellBundle
 
 IYPathServicePtr TTabletBalancer::GetOrchidService()
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
     if (!IsActive_.test()) {
         YT_LOG_DEBUG("Removing errors by ttl for inactive instance");

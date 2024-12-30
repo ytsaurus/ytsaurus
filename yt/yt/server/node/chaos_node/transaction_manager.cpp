@@ -74,7 +74,7 @@ public:
         , ClockClusterTag_(clockClusterTag)
         , AbortTransactionIdPool_(Config_->MaxAbortedTransactionPoolSize)
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
         Logger = ChaosNodeLogger().WithTag("CellId: %v", slot->GetCellId());
 
@@ -126,7 +126,7 @@ public:
         TTransactionId transactionId,
         const TTransactionPrepareOptions& options) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         ValidateTimestampClusterTag(
             transactionId,
@@ -170,7 +170,7 @@ public:
         TTransactionId transactionId,
         const NTransactionSupervisor::TTransactionAbortOptions& options) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         AbortTransactionIdPool_.Register(transactionId);
 
@@ -192,7 +192,7 @@ public:
         TTransactionId transactionId,
         const NTransactionSupervisor::TTransactionCommitOptions& options) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
@@ -237,7 +237,7 @@ public:
         TTransactionId transactionId,
         const NTransactionSupervisor::TTransactionAbortOptions& options) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
@@ -263,7 +263,7 @@ public:
 
     TFuture<void> PingTransaction(TTransactionId transactionId, bool pingAncestors) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
@@ -299,7 +299,7 @@ private:
 
     void BuildOrchidYson(IYsonConsumer* consumer)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         BuildYsonFluently(consumer)
             .DoMapFor(TransactionMap_, [] (TFluentMap fluent, const std::pair<TTransactionId, TTransaction*>& pair) {
@@ -345,7 +345,7 @@ private:
 
     void OnTransactionExpired(TTransactionId id)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = FindTransaction(id);
         if (!transaction) {
@@ -368,7 +368,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TChaosAutomatonPart::OnLeaderActive();
 
@@ -395,7 +395,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TChaosAutomatonPart::OnStopLeading();
 
@@ -412,14 +412,14 @@ private:
 
     void SaveKeys(TSaveContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TransactionMap_.SaveKeys(context);
     }
 
     void SaveValues(TSaveContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Save;
         TransactionMap_.SaveValues(context);
@@ -428,14 +428,14 @@ private:
 
     void LoadKeys(TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TransactionMap_.LoadKeys(context);
     }
 
     void LoadValues(TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Load;
         TransactionMap_.LoadValues(context);
@@ -446,7 +446,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TChaosAutomatonPart::Clear();
 

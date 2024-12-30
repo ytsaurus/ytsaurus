@@ -108,7 +108,7 @@ void TLocationManager::SetFailedUnlinkedDiskIds(std::vector<TString> diskIds)
 std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
     const std::vector<TDiskInfo>& disks)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     THashMap<std::string, TDiskInfo> diskNameToDisk;
     THashSet<std::string> failedDisks;
@@ -162,7 +162,7 @@ TFuture<void> TLocationManager::UpdateDiskCache()
 
 std::vector<TGuid> TLocationManager::DoDisableLocations(const THashSet<TGuid>& locationUuids)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     std::vector<TGuid> locationsForDisable;
 
@@ -185,7 +185,7 @@ std::vector<TGuid> TLocationManager::DoDisableLocations(const THashSet<TGuid>& l
 
 std::vector<TGuid> TLocationManager::DoDestroyLocations(bool recoverUnlinkedDisk, const THashSet<TGuid>& locationUuids)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     std::vector<TGuid> locationsForDestroy;
 
@@ -213,7 +213,7 @@ std::vector<TGuid> TLocationManager::DoDestroyLocations(bool recoverUnlinkedDisk
 
 std::vector<TGuid> TLocationManager::DoResurrectLocations(const THashSet<TGuid>& locationUuids)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     std::vector<TGuid> locationsForResurrect;
 
@@ -296,7 +296,7 @@ TLocationHealthChecker::TLocationHealthChecker(
 
 void TLocationHealthChecker::Initialize()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     for (const auto& location : ChunkStore_->Locations()) {
         location->SubscribeDiskCheckFailed(
@@ -331,7 +331,7 @@ void TLocationHealthChecker::OnDiskHealthCheckFailed(
 
 void TLocationHealthChecker::OnLocationsHealthCheck()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     auto hotSwapEnabled = WaitFor(LocationManager_->GetHotSwapEnabled());
 

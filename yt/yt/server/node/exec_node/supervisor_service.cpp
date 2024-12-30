@@ -63,7 +63,7 @@ public:
             })
         , Bootstrap_(bootstrap)
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
         RegisterMethod(
             RPC_SERVICE_METHOD_DESC(GetJobSpec)
@@ -109,7 +109,7 @@ private:
 
     TJobPtr GetSchedulerJobOrThrow(TJobId jobId) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetJobController()->GetJobOrThrow(jobId);
     }

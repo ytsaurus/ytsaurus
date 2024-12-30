@@ -421,7 +421,7 @@ private:
         const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
-        VERIFY_INVOKER_AFFINITY(GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetControlInvoker());
 
         if (*oldConfig == *newConfig) {
             return;

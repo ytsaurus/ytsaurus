@@ -77,8 +77,8 @@ public:
         YT_VERIFY(Config_);
         YT_VERIFY(AutomatonInvoker_);
 
-        VERIFY_INVOKER_THREAD_AFFINITY(TimestampInvoker_, TimestampThread);
-        VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(TimestampInvoker_, TimestampThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
 
         CalibrationExecutor_->Start();
 
@@ -145,7 +145,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NTransactionClient::NProto, GenerateTimestamps)
     {
-        VERIFY_THREAD_AFFINITY(TimestampThread);
+        YT_ASSERT_THREAD_AFFINITY(TimestampThread);
 
         context->SetRequestInfo("Count: %v", request->count());
 
@@ -154,7 +154,7 @@ private:
 
     void DoGenerateTimestamps(const TCtxGenerateTimestampsPtr& context)
     {
-        VERIFY_THREAD_AFFINITY(TimestampThread);
+        YT_ASSERT_THREAD_AFFINITY(TimestampThread);
 
         if (!Active_.load()) {
             context->Reply(TError(
@@ -230,7 +230,7 @@ private:
 
     void Calibrate()
     {
-        VERIFY_THREAD_AFFINITY(TimestampThread);
+        YT_ASSERT_THREAD_AFFINITY(TimestampThread);
 
         if (!Active_.load()) {
             return;
@@ -283,7 +283,7 @@ private:
 
     void OnTimestampCommitted(TTimestamp timestamp, const TErrorOr<TMutationResponse>& result)
     {
-        VERIFY_THREAD_AFFINITY(TimestampThread);
+        YT_ASSERT_THREAD_AFFINITY(TimestampThread);
 
         if (!result.IsOK()) {
             YT_LOG_ERROR(result, "Error committing timestamp");
@@ -299,7 +299,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TCompositeAutomatonPart::Clear();
 
@@ -308,7 +308,7 @@ private:
 
     void Load(TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         NYT::Load(context, PersistentTimestamp_);
     }
@@ -321,7 +321,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TCompositeAutomatonPart::OnLeaderActive();
 
@@ -334,7 +334,7 @@ private:
             ->CreateInvoker(TimestampInvoker_);
 
         auto callback = BIND([=, this, this_ = MakeStrong(this)] {
-            VERIFY_THREAD_AFFINITY(TimestampThread);
+            YT_ASSERT_THREAD_AFFINITY(TimestampThread);
 
             Active_.store(true);
             CurrentTimestamp_ = persistentTimestamp;
@@ -362,12 +362,12 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TCompositeAutomatonPart::OnStopLeading();
 
         TimestampInvoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
-            VERIFY_THREAD_AFFINITY(TimestampThread);
+            YT_ASSERT_THREAD_AFFINITY(TimestampThread);
 
             if (!Active_.load()) {
                 return;
@@ -384,7 +384,7 @@ private:
 
     void HydraCommitTimestamp(TReqCommitTimestamp* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         PersistentTimestamp_ = request->timestamp();
 
@@ -395,7 +395,7 @@ private:
 
     bool IsUp(const TCtxDiscoverPtr& /*context*/) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Active_;
     }

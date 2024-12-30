@@ -2367,7 +2367,7 @@ private:
     //! Returns |(blockIndex, blockOffset, dataSize)|.
     std::tuple<int, i64, i64> AppendPayloadToBuffer(TRef payload)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         auto dataSize = sizeof(THunkPayloadHeader) + payload.Size();
         auto* ptr = BeginWriteToBuffer(dataSize);
@@ -2388,7 +2388,7 @@ private:
 
     bool FlushBuffer()
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         if (Buffer_.IsEmpty()) {
             return true;

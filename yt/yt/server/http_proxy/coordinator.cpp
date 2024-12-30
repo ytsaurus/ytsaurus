@@ -329,7 +329,7 @@ void TCoordinator::UpdateReadOnly()
 
 void TCoordinator::UpdateState()
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
     try {
         UpdateReadOnly();

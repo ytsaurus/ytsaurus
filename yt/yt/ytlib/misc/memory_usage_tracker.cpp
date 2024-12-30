@@ -590,7 +590,7 @@ TError TNodeMemoryTracker::TryChange(ECategory category, i64 size, const std::op
 TError TNodeMemoryTracker::DoTryAcquire(ECategory category, i64 size, TPool* pool)
 {
     YT_VERIFY(size >= 0);
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
     auto freeMemory = DoGetFree(category);
     if (size > freeMemory) {
@@ -621,7 +621,7 @@ TError TNodeMemoryTracker::DoTryAcquire(ECategory category, i64 size, TPool* poo
 void TNodeMemoryTracker::DoAcquire(ECategory category, i64 size, TPool* pool)
 {
     YT_VERIFY(size >= 0);
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
     TotalUsed_ += size;
     TotalFree_ -= size;
@@ -635,7 +635,7 @@ void TNodeMemoryTracker::DoAcquire(ECategory category, i64 size, TPool* pool)
 void TNodeMemoryTracker::DoRelease(ECategory category, i64 size, TPool* pool)
 {
     YT_VERIFY(size >= 0);
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
     TotalUsed_ -= size;
     TotalFree_ += size;
@@ -904,7 +904,7 @@ std::optional<EMemoryCategory> TNodeMemoryTracker::GetCategoryByUsage(const THas
 typename TNodeMemoryTracker::TPool*
 TNodeMemoryTracker::GetOrRegisterPool(const TPoolTag& poolTag)
 {
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
     if (auto it = Pools_.find(poolTag); it != Pools_.end()) {
         return it->second.Get();
@@ -941,7 +941,7 @@ TNodeMemoryTracker::GetOrRegisterPool(const std::optional<TPoolTag>& poolTag)
 typename TNodeMemoryTracker::TPool*
 TNodeMemoryTracker::FindPool(const TPoolTag& poolTag)
 {
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
     auto it = Pools_.find(poolTag);
     return it != Pools_.end() ? it->second.Get() : nullptr;
@@ -950,7 +950,7 @@ TNodeMemoryTracker::FindPool(const TPoolTag& poolTag)
 const typename TNodeMemoryTracker::TPool*
 TNodeMemoryTracker::FindPool(const TPoolTag& poolTag) const
 {
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
     auto it = Pools_.find(poolTag);
     return it != Pools_.end() ? it->second.Get() : nullptr;

@@ -105,7 +105,7 @@ public:
         TIOThroughputMeterConfigPtr config,
         TMediumThroughputMeterConfigPtr mediumConfig)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_LOG_DEBUG("Starting load test (Location: %v)",
             Location_->GetId());
@@ -143,14 +143,14 @@ public:
 
     bool Running() const
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return !!Session_;
     }
 
     void Stop()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         std::optional<TSession> session;
         std::swap(session, Session_);
@@ -168,14 +168,14 @@ public:
 
     TString GetMediumName() const
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return Location_->GetMediumName();
     }
 
     void SetScheduledTime(TInstant scheduledTime)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         YT_VERIFY(!ScheduledAt_);
 
         YT_LOG_DEBUG("Scheduled load test (Location: %v, ScheduledTime: %v)",
@@ -187,13 +187,13 @@ public:
 
     std::optional<TInstant> GetScheduledTime()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         return ScheduledAt_;
     }
 
     TDuration GetRunningTime()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (Session_) {
             return TInstant::Now() - Session_->Timestamp;
@@ -203,7 +203,7 @@ public:
 
     TStoreLocation::TIOStatistics GetMeasured()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(SpinLock_);
         return LastMeasuredThroughput_;
@@ -211,7 +211,7 @@ public:
 
     TString GetRootPath() const
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return Location_->GetPath();
     }
@@ -257,7 +257,7 @@ private:
 
     void StartTest(ETestingStage stage)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (!Session_) {
             return;
@@ -337,7 +337,7 @@ private:
 
     void SessionCongested(TInstant sessionTimestamp, ETestingStage stage, i64 congestionWindow)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (!Session_
             || Session_->Timestamp != sessionTimestamp
@@ -362,7 +362,7 @@ private:
 
     void EstimateCongested(i64 congestionWindow)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         const auto& config = Session_->Config;
 
         // Testing round is defined as a time between two congestions.
@@ -398,7 +398,7 @@ private:
 
     void VerifyCongested(i64 /*congestionWindow*/)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto statistics = Location_->GetIOStatistics();
 
@@ -473,7 +473,7 @@ public:
 
     TIOCapacity GetLocationIOCapacity(TChunkLocationUuid uuid) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto it = Locations_.find(uuid);
         if (it == Locations_.end()) {
@@ -503,7 +503,7 @@ private:
     {
         SetRandomSeed(GetCpuInstant());
 
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         auto config = DynamicConfigManager_->GetConfig()->DataNode->IOThroughputMeter;
 
         // Cancel all scheduled/ongoing test for locations that should not be tested anymore.

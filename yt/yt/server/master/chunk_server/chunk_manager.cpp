@@ -443,7 +443,7 @@ public:
 
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         Y_UNUSED(hydraFacade);
-        VERIFY_INVOKER_THREAD_AFFINITY(hydraFacade->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(hydraFacade->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
     }
 
     void Initialize() override
@@ -553,7 +553,7 @@ public:
 
     IYPathServicePtr GetOrchidService() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return IYPathService::FromProducer(BIND(&TChunkManager::BuildOrchidYson, MakeStrong(this)))
             ->Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkManager));
@@ -4740,7 +4740,7 @@ private:
             }
 
             runner.Run([] (TChunk* chunk) {
-                VERIFY_THREAD_AFFINITY_ANY();
+                YT_ASSERT_THREAD_AFFINITY_ANY();
 
                 for (auto replica : chunk->StoredReplicas()) {
                     auto* location = replica.GetPtr();
@@ -4771,7 +4771,7 @@ private:
             }
 
             runner.Run([] (TChunkLocation* location) {
-                VERIFY_THREAD_AFFINITY_ANY();
+                YT_ASSERT_THREAD_AFFINITY_ANY();
 
                 const auto* scratchData = location->GetLoadScratchData();
                 YT_VERIFY(scratchData->CurrentReplicaIndex == std::ssize(scratchData->Replicas));

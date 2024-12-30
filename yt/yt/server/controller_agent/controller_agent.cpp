@@ -250,7 +250,7 @@ public:
 
     void Initialize()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         MasterConnector_->Initialize();
         ScheduleConnect(true);
@@ -258,7 +258,7 @@ public:
 
     IYPathServicePtr CreateOrchidService()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto staticOrchidProducer = BIND_NO_PROPAGATE(&TImpl::BuildStaticOrchid, MakeStrong(this));
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer, Config_->StaticOrchidCacheUpdatePeriod);
@@ -281,28 +281,28 @@ public:
 
     bool IsConnected() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return Connected_;
     }
 
     TInstant GetConnectionTime() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ConnectionTime_.load();
     }
 
     TIncarnationId GetIncarnationId() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return IncarnationId_;
     }
 
     void ValidateConnected()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (!Connected_) {
             THROW_ERROR_EXCEPTION(
@@ -313,7 +313,7 @@ public:
 
     void ValidateIncarnation(TIncarnationId incarnationId) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (IncarnationId_ != incarnationId) {
             THROW_ERROR_EXCEPTION(
@@ -326,77 +326,77 @@ public:
 
     void Disconnect(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         DoDisconnect(error);
     }
 
     const IInvokerPtr& GetControllerThreadPoolInvoker()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ControllerThreadPool_->GetInvoker();
     }
 
     const IInvokerPtr& GetChunkScraperThreadPoolInvoker()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ChunkScraperThreadPool_->GetInvoker();
     }
 
     const IInvokerPtr& GetJobSpecBuildPoolInvoker()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return JobSpecBuildPool_->GetInvoker();
     }
 
     const IInvokerPtr& GetStatisticsOffloadInvoker()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return StatisticsOffloadPool_->GetInvoker();
     }
 
     const IInvokerPtr& GetExecNodesUpdateInvoker()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ExecNodesUpdateQueue_->GetInvoker();
     }
 
     const IInvokerPtr& GetSnapshotIOInvoker()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return SnapshotIOQueue_->GetInvoker();
     }
 
     TMasterConnector* GetMasterConnector()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return MasterConnector_.get();
     }
 
     TJobTracker* GetJobTracker() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return JobTracker_.Get();
     }
 
     TJobProfiler* GetJobProfiler() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return JobProfiler_.Get();
     }
 
     const TMediumDirectoryPtr& GetMediumDirectory() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return Bootstrap_
             ->GetClient()
@@ -406,14 +406,14 @@ public:
 
     const TControllerAgentConfigPtr& GetConfig() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return Config_;
     }
 
     void UpdateConfig(const TControllerAgentConfigPtr& config)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto oldConfigNode = ConvertToNode(Config_);
         auto newConfigNode = ConvertToNode(config);
@@ -466,28 +466,28 @@ public:
 
     const TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ChunkLocationThrottlerManager_;
     }
 
     const ICoreDumperPtr& GetCoreDumper() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetCoreDumper();
     }
 
     const TAsyncSemaphorePtr& GetCoreSemaphore() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return CoreSemaphore_;
     }
 
     const IEventLogWriterPtr& GetEventLogWriter() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return EventLogWriter_;
     }
@@ -499,14 +499,14 @@ public:
 
     IInvokerPtr CreateCancelableInvoker(const IInvokerPtr& invoker)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return CancelableContext_->CreateInvoker(invoker);
     }
 
     TOperationPtr FindOperation(TOperationId operationId) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         auto it = IdToOperation_.find(operationId);
@@ -515,7 +515,7 @@ public:
 
     TOperationPtr GetOperation(TOperationId operationId) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         auto operation = FindOperation(operationId);
@@ -526,7 +526,7 @@ public:
 
     TOperationPtr GetOperationOrThrow(TOperationId operationId) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         auto operation = FindOperation(operationId);
@@ -541,7 +541,7 @@ public:
 
     const TOperationIdToOperationMap& GetOperations() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         return IdToOperation_;
@@ -550,7 +550,7 @@ public:
 
     void RegisterOperation(const NProto::TOperationDescriptor& descriptor)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         auto operation = New<TOperation>(descriptor);
@@ -597,7 +597,7 @@ public:
 
     TOperationControllerUnregisterResult DoDisposeAndUnregisterOperation(TOperationId operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         TOperationControllerUnregisterResult result;
@@ -637,7 +637,7 @@ public:
 
     void UnregisterOperation(TOperationId operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         auto operation = GetOperationOrThrow(operationId);
@@ -722,7 +722,7 @@ public:
         const TOperationPtr& operation,
         const std::optional<NScheduler::TControllerTransactionIds>& transactions)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
@@ -767,7 +767,7 @@ public:
 
     TFuture<std::optional<TOperationControllerPrepareResult>> PrepareOperation(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
@@ -788,7 +788,7 @@ public:
 
     TFuture<std::optional<TOperationControllerMaterializeResult>> MaterializeOperation(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
@@ -809,7 +809,7 @@ public:
 
     TFuture<std::optional<TOperationControllerReviveResult>> ReviveOperation(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
@@ -830,7 +830,7 @@ public:
 
     TFuture<std::optional<TOperationControllerCommitResult>> CommitOperation(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
@@ -869,7 +869,7 @@ public:
 
     TFuture<void> CompleteOperation(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         operation->SetWatchTransactionIds({});
@@ -883,7 +883,7 @@ public:
     // NB(eshcherbin): controllerFinalState should be either Aborted or Failed.
     TFuture<void> TerminateOperation(const TOperationPtr& operation, EControllerState controllerFinalState)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         operation->SetWatchTransactionIds({});
@@ -912,7 +912,7 @@ public:
 
     TFuture<TOperationInfo> BuildOperationInfo(TOperationId operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         auto operation = GetOperationOrThrow(operationId);
@@ -924,7 +924,7 @@ public:
 
     TRefCountedExecNodeDescriptorMapPtr GetExecNodeDescriptors(const TSchedulingTagFilter& filter, bool onlineOnly = false) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (filter.IsEmpty() && !onlineOnly) {
             auto guard = ReaderGuard(ExecNodeDescriptorsLock_);
@@ -937,14 +937,14 @@ public:
 
     TJobResources GetMaxAvailableResources(const TSchedulingTagFilter& filter)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return CachedExecNodeDescriptorsByTags_->Get(filter).MaxAvailableResources;
     }
 
     int GetAvailableExecNodeCount() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(ExecNodeDescriptorsLock_);
         return AvailableExecNodeCount_;
@@ -952,7 +952,7 @@ public:
 
     const IThroughputThrottlerPtr& GetJobSpecSliceThrottler() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return JobSpecSliceThrottler_;
     }
@@ -962,7 +962,7 @@ public:
         TOperationId operationId,
         EPermission permission)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         ValidateConnected();
 
@@ -1188,7 +1188,7 @@ private:
 
     void DoConnect()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(ConnectScheduled_);
         ConnectScheduled_ = false;
@@ -1212,7 +1212,7 @@ private:
 
     void OnConnecting()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         // NB: We cannot be sure the previous incarnation did a proper cleanup due to possible
         // fiber cancelation.
@@ -1392,7 +1392,7 @@ private:
 
     void DoDisconnect(const TError& error) noexcept
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -1411,7 +1411,7 @@ private:
 
     void DoCleanup()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         Connected_ = false;
         ConnectionTime_.store(TInstant::Zero());
@@ -1460,7 +1460,7 @@ private:
 
     TPreparedHeartbeatRequest PrepareHeartbeatRequest()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         TPreparedHeartbeatRequest preparedRequest;
 
@@ -1626,7 +1626,7 @@ private:
 
     void ConfirmHeartbeatRequest(const TPreparedHeartbeatRequest& preparedRequest)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto now = TInstant::Now();
         if (preparedRequest.ExecNodesRequested) {
@@ -1688,7 +1688,7 @@ private:
 
     void SendHeartbeat()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto preparedRequest = PrepareHeartbeatRequest();
 
@@ -1973,7 +1973,7 @@ private:
 
     void HandleAbortedAllocationEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto allocationEventsPerOperationIdOrError = WaitFor(BIND([this, this_ = MakeStrong(this), rsp] {
                 struct TOperationAllocationEvents
@@ -2039,7 +2039,7 @@ private:
 
     void HandleOperationEvents(const TControllerAgentTrackerServiceProxy::TRspHeartbeatPtr& rsp)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         OperationEventsInbox_->HandleIncoming(
             rsp->mutable_scheduler_to_agent_operation_events(),
@@ -2064,7 +2064,7 @@ private:
 
     void ProcessUpdateMinNeededAllocationResourcesEvent(TOperationId operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto operation = this->FindOperation(operationId);
         if (!operation) {
@@ -2083,7 +2083,7 @@ private:
 
     void ProcessUnregisterOperationEvent(TOperationId operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto operation = FindOperation(operationId);
         if (!operation) {
@@ -2098,7 +2098,7 @@ private:
     // TODO(ignat): eliminate this copy/paste from scheduler.cpp somehow.
     TFilteredExecNodeDescriptors FilterExecNodes(const TSchedulingTagFilter& filter) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(ExecNodeDescriptorsLock_);
 
@@ -2131,7 +2131,7 @@ private:
 
     void BuildStaticOrchid(IYsonConsumer* consumer)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_DEBUG("Building static orchid");
 

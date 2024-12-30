@@ -1305,7 +1305,7 @@ private:
 
         TBatchPtr EnsureCurrentBatch()
         {
-            VERIFY_SPINLOCK_AFFINITY(CurrentBatchSpinLock_);
+            YT_ASSERT_SPINLOCK_AFFINITY(CurrentBatchSpinLock_);
             YT_VERIFY(!Closing_);
 
             if (CurrentBatch_ &&
@@ -1338,7 +1338,7 @@ private:
 
         void FlushCurrentBatch()
         {
-            VERIFY_SPINLOCK_AFFINITY(CurrentBatchSpinLock_);
+            YT_ASSERT_SPINLOCK_AFFINITY(CurrentBatchSpinLock_);
 
             if (!CurrentBatch_) {
                 return;

@@ -170,7 +170,7 @@ TErrorOr<bool> TExperimentAssigner::MatchExperiment(
     const TPreparedExperimentPtr& experiment,
     TAssignmentContext& attributes) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!experiment->FilterMatcher) {
         return true;
@@ -181,7 +181,7 @@ TErrorOr<bool> TExperimentAssigner::MatchExperiment(
 
 void TExperimentAssigner::UpdateExperimentConfigs(const THashMap<TString, TExperimentConfigPtr>& experiments)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto preparedExperiments = New<TPreparedExperiments>();
 
@@ -203,7 +203,7 @@ std::vector<TErrorOr<TExperimentAssignmentPtr>> TExperimentAssigner::Assign(
     const std::string& user,
     const IMapNodePtr& specNode) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     std::vector<TErrorOr<TExperimentAssignmentPtr>> assignments;
 

@@ -170,7 +170,7 @@ private:
 
     void BuildOrchid(IYsonConsumer* consumer)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         BuildYsonFluently(consumer)
             .BeginMap()

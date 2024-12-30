@@ -65,7 +65,7 @@ private:
 
     void OnScanSlots()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_DEBUG("Slot scan started");
 
@@ -101,7 +101,7 @@ private:
 
     const std::vector<ICellarOccupantPtr>& Occupants() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return Bootstrap_->GetCellarManager()->GetCellar(ECellarType::Chaos)->Occupants();
     }

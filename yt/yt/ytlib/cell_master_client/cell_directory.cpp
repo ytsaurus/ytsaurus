@@ -448,7 +448,7 @@ private:
     void InitMasterChannels(
         const TMasterConnectionConfigPtr& config)
     {
-        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+        YT_ASSERT_WRITER_SPINLOCK_AFFINITY(SpinLock_);
 
         auto cellTag = CellTagFromId(config->CellId);
 
@@ -488,7 +488,7 @@ private:
         const TMasterConnectionConfigPtr& config,
         EPeerKind peerKind)
     {
-        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+        YT_ASSERT_WRITER_SPINLOCK_AFFINITY(SpinLock_);
 
         auto cellTag = CellTagFromId(config->CellId);
         auto peerChannel = CreatePeerChannel(ChannelFactory_, config, peerKind, Options_);
@@ -498,7 +498,7 @@ private:
 
     void RemoveMasterChannels(TCellTag cellTag)
     {
-        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+        YT_ASSERT_WRITER_SPINLOCK_AFFINITY(SpinLock_);
 
         auto cachingObjectServiceIt = CachingObjectServices_.find(cellTag);
         YT_VERIFY(cachingObjectServiceIt != CachingObjectServices_.end());

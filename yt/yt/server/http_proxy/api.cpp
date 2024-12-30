@@ -370,7 +370,7 @@ void TApi::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& /*oldConfig*/,
     const TProxyDynamicConfigPtr& newConfig)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     DynamicConfig_.Store(newConfig->Api);
 }

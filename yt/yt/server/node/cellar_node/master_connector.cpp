@@ -66,12 +66,12 @@ public:
         , Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->CellarNode->MasterConnector)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
     }
 
     void Initialize() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         TMasterHeartbeatReporterBase::Initialize();
 
@@ -86,7 +86,7 @@ public:
 
     void ScheduleHeartbeat(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         Bootstrap_->GetControlInvoker()->Invoke(
             BIND([this, this_ = MakeStrong(this), cellTag] {
@@ -96,7 +96,7 @@ public:
 
     TCellarNodeTrackerServiceProxy::TReqHeartbeatPtr BuildHeartbeatRequest(TCellTag cellTag) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(Bootstrap_->IsConnected());
 
@@ -130,7 +130,7 @@ public:
 
     void OnHeartbeatSucceeded(const TCellarNodeTrackerServiceProxy::TRspHeartbeatPtr& response)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         const auto& cellarManager = Bootstrap_->GetCellarManager();
         std::optional<ECellarType> singleCellarType;
@@ -160,7 +160,7 @@ public:
 protected:
     TFuture<void> DoReportHeartbeat(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto req = BuildHeartbeatRequest(cellTag);
         auto rspFuture = req->Invoke();
@@ -170,7 +170,7 @@ protected:
 
     void OnHeartbeatSucceeded(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto rspOrError = GetHeartbeatResponseOrError(cellTag);
         YT_VERIFY(rspOrError.IsOK());
@@ -180,7 +180,7 @@ protected:
 
     void OnHeartbeatFailed(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto rspOrError = GetHeartbeatResponseOrError(cellTag);
         YT_VERIFY(!rspOrError.IsOK());
@@ -188,7 +188,7 @@ protected:
 
     void ResetState(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         CellTagToHeartbeatRspFuture_.erase(cellTag);
     }
@@ -204,7 +204,7 @@ private:
 
     void PopulateAlerts(std::vector<TError>* alerts) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (!SolomonTagAlert_.IsOK()) {
             alerts->push_back(SolomonTagAlert_);
@@ -213,7 +213,7 @@ private:
 
     void OnMasterConnected(TNodeId /*nodeId*/)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         StartNodeHeartbeats();
     }
@@ -222,7 +222,7 @@ private:
         const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
         const TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         Reconfigure(newNodeConfig->CellarNode->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
 
@@ -231,14 +231,14 @@ private:
 
     TMasterConnectorDynamicConfigPtr GetDynamicConfig() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetDynamicConfigManager()->GetConfig()->CellarNode->MasterConnector;
     }
 
     TErrorOr<TCellarNodeTrackerServiceProxy::TRspHeartbeatPtr> GetHeartbeatResponseOrError(TCellTag cellTag)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto futureIt = GetIteratorOrCrash(CellTagToHeartbeatRspFuture_, cellTag);
         auto future = std::move(futureIt->second);

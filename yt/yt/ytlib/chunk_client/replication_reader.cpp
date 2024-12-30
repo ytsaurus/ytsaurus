@@ -1454,7 +1454,7 @@ private:
         const TFuture<TAllyReplicasInfo>& allyReplicasFuture,
         int totalPeerCount)
     {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         YT_VERIFY(peer.NodeSuspicionMarkTime && NodeStatusDirectory_);
 
@@ -2418,7 +2418,7 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TReadBlocksOptions& options,
     const std::vector<int>& blockIndexes)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (blockIndexes.empty()) {
         return MakeFuture<std::vector<TBlock>>({});
@@ -2713,7 +2713,7 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     int firstBlockIndex,
     int blockCount)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
     YT_VERIFY(blockCount >= 0);
 
     if (blockCount == 0) {
@@ -2961,7 +2961,7 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::FindMetaInCache(
     const std::optional<std::vector<int>>& extensionTags,
     const ICachedChunkMeta::TMetaFetchCallback& callback)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto decodedChunkId = DecodeChunkId(ChunkId_).Id;
     if (!partitionTag && !IsJournalChunkId(decodedChunkId) && ChunkMetaCache_ && Config_->EnableChunkMetaCache) {
@@ -2979,7 +2979,7 @@ TFuture<TRefCountedChunkMetaPtr> TReplicationReader::GetMeta(
     std::optional<int> partitionTag,
     const std::optional<std::vector<int>>& extensionTags)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto callback = BIND([
         this,
@@ -3164,7 +3164,7 @@ private:
         const NProfiling::TWallTimer& pickPeerTimer,
         const TErrorOr<TPeerList>& peersOrError)
     {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         if (IsCanceled()) {
             return;
@@ -3410,7 +3410,7 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
     NCompression::ECodec codecId,
     IInvokerPtr sessionInvoker)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto session = New<TLookupRowsSession>(
         this,
@@ -3449,7 +3449,7 @@ public:
         const TReadBlocksOptions& options,
         const std::vector<int>& blockIndexes) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (blockIndexes.empty()) {
             return MakeFuture<std::vector<TBlock>>({});
@@ -3470,7 +3470,7 @@ public:
         int firstBlockIndex,
         int blockCount) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
         YT_VERIFY(blockCount >= 0);
 
         if (blockCount == 0) {
@@ -3493,7 +3493,7 @@ public:
         std::optional<int> partitionTag,
         const std::optional<std::vector<int>>& extensionTags) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto callback = BIND([
             this,
@@ -3525,7 +3525,7 @@ public:
         NCompression::ECodec codecId,
         IInvokerPtr sessionInvoker = {}) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto session = New<TLookupRowsSession>(
             UnderlyingReader_.Get(),
@@ -3792,7 +3792,7 @@ private:
     template <class TResponse>
     TRequestBatch<TResponse> ExecuteNewRequest(const TRequest& request)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         YT_LOG_DEBUG(
             "Start new batch request (Address: %v, RequestType: %v, BlockIds: %v, BlockCount: %v)",
@@ -3819,7 +3819,7 @@ private:
         const TRequest& request,
         TRequestBatch<TResponse>& nextBatch)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         YT_LOG_DEBUG(
             "Add blocks to next batch request (Address: %v, RequestType: %v, BlockIds: %v, BlockCount: %v)",
@@ -3847,7 +3847,7 @@ private:
     template <class TState>
     bool CurrentBatchContainsBlocks(const TState& probeNodeState, const std::vector<int>& blockIndexes)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         for (auto index : blockIndexes) {
             if (!probeNodeState.Current.BlockIds.contains(index)) {

@@ -2482,7 +2482,7 @@ void TSchedulerRootElement::InitializeFairShareUpdate(TInstant now)
 /// 2. Update dynamic attributes based on the calculated fair share (for orchid).
 void TSchedulerRootElement::PostUpdate(TFairSharePostUpdateContext* postUpdateContext)
 {
-    VERIFY_INVOKER_AFFINITY(StrategyHost_->GetFairShareUpdateInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(StrategyHost_->GetFairShareUpdateInvoker());
 
     YT_VERIFY(Mutable_);
 

@@ -159,7 +159,7 @@ private:
 
     void OnHealthCheck()
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
         YT_LOG_INFO("Requesting query tracker state version");
         TGetNodeOptions options;
@@ -191,7 +191,7 @@ private:
 
     void AcquireQueries()
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         AcquisitionIterations_.fetch_add(1);
 
@@ -276,7 +276,7 @@ private:
 
     void TryAcquireQuery(TActiveQuery queryRecord)
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
         auto traceContext = TTraceContext::NewRoot("QueryAcquisition");
         auto guard = TCurrentTraceContextGuard(traceContext);
@@ -290,7 +290,7 @@ private:
 
     void GuardedTryAcquireQuery(TActiveQuery queryRecord)
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
         auto queryId = queryRecord.Key.QueryId;
         auto Logger = NQueryTracker::Logger().WithTag("QueryId: %v", queryId);
@@ -426,7 +426,7 @@ private:
     //! Ping query assuming it is of given incarnation. Returns true if pinging must continue and false otherwise.
     bool TryPingQuery(TQueryId queryId, i64 incarnation)
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
         auto Logger = QueryTrackerLogger().WithTag("QueryId: %v, Incarnation: %v", queryId, incarnation);
 
@@ -500,7 +500,7 @@ private:
 
     void DetachQuery(TQueryId queryId)
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
         if (auto it = AcquiredQueries_.find(queryId); it != AcquiredQueries_.end()) {
             const auto& [queryId, query] = *it;
             YT_LOG_INFO("Query detached (QueryId: %v)", queryId);
@@ -536,7 +536,7 @@ private:
 
     void FinishQueryLoop(TQueryId queryId, TError error, EQueryState finalState)
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
         if (finalState == EQueryState::Aborted || finalState == EQueryState::Failed) {
             error = TError("Query %v %lv", queryId, finalState)
@@ -558,7 +558,7 @@ private:
     //! (including situations when we lost lease and finishing must not be retried).
     bool TryFinishQuery(TQueryId queryId, TError error, EQueryState finalState)
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
         auto Logger = NQueryTracker::Logger().WithTag("QueryId: %v", queryId);
 
@@ -710,7 +710,7 @@ private:
     // Lease transaction management.
     void StartLeaseTransaction()
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         YT_VERIFY(!LeaseTransaction_);
 
@@ -731,7 +731,7 @@ private:
 
     void OnLeaseTransactionAborted(TTransactionId transactionId, const TError& error)
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         YT_LOG_WARNING(error, "Lease transaction aborted (TransactionId: %v)", transactionId);
 
@@ -758,7 +758,7 @@ private:
     //! Returns the subset of transactions that are still alive.
     TFuture<THashSet<TTransactionId>> GetAliveTransactions(const THashSet<TTransactionId>& transactionIds)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto proxy = CreateObjectServiceReadProxy(StateClient_, NApi::EMasterChannelKind::Follower);
         auto batchReq = proxy.ExecuteBatch();

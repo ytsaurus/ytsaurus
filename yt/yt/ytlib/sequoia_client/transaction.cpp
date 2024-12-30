@@ -136,7 +136,7 @@ public:
 
     TFuture<ISequoiaTransactionPtr> Start(const TTransactionStartOptions& options)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& transactionManager = NativeRootClient_->GetTransactionManager();
 
@@ -153,7 +153,7 @@ public:
 
     TFuture<void> Commit(const NApi::TTransactionCommitOptions& options) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_VERIFY(!CommitStarted_.exchange(true));
 
@@ -200,7 +200,7 @@ public:
         TLegacyKey key,
         ELockType lockType) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(Lock_);
 
@@ -219,7 +219,7 @@ public:
         TLegacyKey key,
         ELockType lockType) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(Lock_);
 
@@ -237,7 +237,7 @@ public:
         TUnversionedRow row,
         ELockType lockType) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(Lock_);
 
@@ -254,7 +254,7 @@ public:
         ESequoiaTable table,
         NTableClient::TLegacyKey key) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(Lock_);
 
@@ -270,7 +270,7 @@ public:
         TCellTag masterCellTag,
         TTransactionActionData data) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(Lock_);
 
@@ -283,7 +283,7 @@ public:
         TCellTag cellTag,
         bool sequoia) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (cellTag == InvalidCellTag) {
             cellTag = GetRandomSequoiaNodeHostCellTag();
@@ -405,7 +405,7 @@ private:
 
     TMasterCellCommitSessionPtr GetOrCreateMasterCellCommitSession(TCellTag cellTag)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         auto it = MasterCellCommitSessions_.find(cellTag);
         if (it == MasterCellCommitSessions_.end()) {
@@ -422,7 +422,7 @@ private:
 
     TTableCommitSessionPtr GetOrCreateTableCommitSession(ESequoiaTable table)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         auto it = TableCommitSessions_.find(table);
         if (it != TableCommitSessions_.end()) {
@@ -440,7 +440,7 @@ private:
         const TTableMountInfoPtr& tableMountInfo,
         const TTabletInfoPtr& tabletInfo)
     {
-        VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
         auto key = std::pair(tabletId, dataless);
         auto sessionIt = TabletCommitSessions_.find(key);
@@ -464,7 +464,7 @@ private:
 
     ISequoiaTransactionPtr OnTransactionStarted(const TTransactionPtr& transaction)
     {
-        VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
         Transaction_ = transaction;
 
@@ -482,7 +482,7 @@ private:
 
     TFuture<void> ResolveSessionRequests(const TTableCommitSessionPtr& session)
     {
-        VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
         const auto* tableDescriptor = ITableDescriptor::Get(session->Table);
         auto path = GetSequoiaTablePath(NativeRootClient_, tableDescriptor);
@@ -527,7 +527,7 @@ private:
 
     TFuture<void> ResolveRequests()
     {
-        VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
         std::vector<TFuture<void>> futures;
         futures.reserve(TableCommitSessions_.size());
@@ -562,7 +562,7 @@ private:
         const TTableCommitSessionPtr& session,
         const TTableMountInfoPtr& tableMountInfo)
     {
-        VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
         const auto& primarySchema = tableMountInfo->Schemas[ETableSchemaKind::Primary];
         const auto& writeSchema = tableMountInfo->Schemas[ETableSchemaKind::Write];
@@ -739,7 +739,7 @@ private:
 
     void PrepareRequests()
     {
-        VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
         for (const auto& [tabletId, tabletCommitSession] : TabletCommitSessions_) {
             tabletCommitSession->PrepareRequests();
@@ -755,7 +755,7 @@ private:
 
     TFuture<void> CommitMasterSessions()
     {
-        VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
         std::vector<TFuture<void>> futures;
         futures.reserve(MasterCellCommitSessions_.size());
@@ -786,7 +786,7 @@ private:
 
     TFuture<void> CommitTabletSessions()
     {
-        VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
         std::vector<TFuture<void>> futures;
         futures.reserve(TabletCommitSessions_.size());
@@ -799,7 +799,7 @@ private:
 
     TFuture<void> CommitSessions()
     {
-        VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
         return AllSucceeded(std::vector<TFuture<void>>({
             CommitMasterSessions(),
@@ -809,7 +809,7 @@ private:
 
     TFuture<void> DoCommitTransaction(NApi::TTransactionCommitOptions options)
     {
-        VERIFY_INVOKER_AFFINITY(SerializedInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SerializedInvoker_);
 
         options.Force2PC = true; // Just in case.
         options.AllowAlienCoordinator = true;

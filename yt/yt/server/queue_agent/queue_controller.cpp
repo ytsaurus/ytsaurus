@@ -410,7 +410,7 @@ public:
 
     void BuildOrchid(IYsonConsumer* consumer) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto queueSnapshot = QueueSnapshot_.Acquire();
         auto queueExportsProgressOrError = GetQueueExportsProgressOrError();
@@ -430,7 +430,7 @@ public:
 
     void OnRowUpdated(std::any row) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& queueRow = std::any_cast<const TQueueTableRow&>(row);
 
@@ -439,7 +439,7 @@ public:
 
     void OnReplicatedTableMappingRowUpdated(const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& row) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         ReplicatedTableMappingRow_.Store(row);
     }
@@ -448,7 +448,7 @@ public:
         const TQueueControllerDynamicConfigPtr& oldConfig,
         const TQueueControllerDynamicConfigPtr& newConfig) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         DynamicConfig_.Exchange(newConfig);
 
@@ -507,7 +507,7 @@ private:
 
     void Pass()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueControllerPass"));
 
@@ -680,7 +680,7 @@ private:
     //! The queue is trimmed up to the smallest NextRowIndex over all vital consumers.
     void Trim()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         try {
             GuardedTrim();
@@ -899,7 +899,7 @@ private:
 
     void GuardedTrim()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_LOG_INFO("Starting trimming");
 

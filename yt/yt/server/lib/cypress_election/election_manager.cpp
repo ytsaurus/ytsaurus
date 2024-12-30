@@ -52,7 +52,7 @@ public:
 
     void Start() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_DEBUG("Starting Cypress election manager");
 
@@ -66,7 +66,7 @@ public:
 
     TFuture<void> Stop() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_DEBUG("Stopping Cypress election manager");
 
@@ -77,14 +77,14 @@ public:
 
     bool IsActive() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return IsActive_;
     }
 
     TFuture<void> StopLeading() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_DEBUG("Stopping leading");
 
@@ -95,21 +95,21 @@ public:
 
     TTransactionId GetPrerequisiteTransactionId() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return PrerequisiteTransactionId_.Load();
     }
 
     bool IsLeader() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return GetPrerequisiteTransactionId() != NullTransactionId;
     }
 
     IAttributeDictionaryPtr GetCachedLeaderTransactionAttributes() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (IsLeader()) {
             return Options_->TransactionAttributes;
@@ -144,7 +144,7 @@ private:
 
     void UpdateCachedLeaderTransactionAttributes()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         try {
             GuardedUpdateCachedLeaderTransactionAttributes();
@@ -155,7 +155,7 @@ private:
 
     void GuardedUpdateCachedLeaderTransactionAttributes()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto locksYson = WaitFor(Client_->GetNode(Config_->LockPath + "/@locks"))
             .ValueOrThrow();
@@ -175,7 +175,7 @@ private:
 
     void TryAcquireLock()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (IsLeader()) {
             return;
@@ -227,7 +227,7 @@ private:
 
     void StartTransaction()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         YT_VERIFY(!Transaction_);
         YT_VERIFY(!IsLeader());
 
@@ -258,7 +258,7 @@ private:
 
     void CreateLock()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         YT_VERIFY(!LockId_);
         YT_VERIFY(!IsLeader());
 
@@ -284,7 +284,7 @@ private:
 
     bool CheckLockAcquired()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         YT_VERIFY(!IsLeader());
 
         TGetNodeOptions options{
@@ -310,7 +310,7 @@ private:
 
     void OnTransactionAborted(TTransactionId transactionId, const TError& error)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_LOG_DEBUG(error, "Transaction aborted (TransactionId: %v)",
             transactionId);
@@ -320,7 +320,7 @@ private:
 
     void OnTransactionCommitted(TTransactionId transactionId)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_LOG_DEBUG("Transacton committed (TransactionId: %v)",
             transactionId);
@@ -330,7 +330,7 @@ private:
 
     void OnTransactionFinished(TTransactionId transactionId)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         // NB: Stale callbacks are possible.
         if (!Transaction_ || Transaction_->GetId() != transactionId) {
@@ -342,7 +342,7 @@ private:
 
     void OnLeadingStarted()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         YT_VERIFY(!IsLeader());
 
         PrerequisiteTransactionId_.Store(Transaction_->GetId());
@@ -359,7 +359,7 @@ private:
 
     void DoStop()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (Options_->TransactionAttributes) {
             WaitFor(LeaderTransactionAttributeCacheExecutor_->Stop())
@@ -377,7 +377,7 @@ private:
 
     void DoStopLeading()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (IsLeader()) {
             Reset();
@@ -386,7 +386,7 @@ private:
 
     void Reset()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (IsLeader()) {
             YT_LOG_DEBUG("Leading ended");
@@ -407,7 +407,7 @@ private:
 
     void CreateLockNode()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         YT_VERIFY(!LockNodeId_);
 
         TCreateNodeOptions options;

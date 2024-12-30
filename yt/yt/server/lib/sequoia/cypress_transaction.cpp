@@ -489,7 +489,7 @@ private:
 
     void ProcessChanges()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (CommittedCypressTransaction_) {
             TCypressTransactionChangesMerger(
@@ -509,7 +509,7 @@ private:
 
     void CleanupChanges(const auto& changes)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         for (const auto& record : changes) {
             SequoiaTransaction_->DeleteRow(MakeResolveRecordKey(record));
@@ -634,7 +634,7 @@ public:
     template <CInvocable<void(TRange<std::optional<NRecords::TTransaction>>)> F>
     void IterateOverInnermostTransactionGroupedByCoordinator(F&& callback)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_VERIFY(!InnermostTransactions_.empty());
 
@@ -654,7 +654,7 @@ public:
 
     TFuture<void> Run()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return FetchAncestorsAndReplicas()
             .ApplyUnique(BIND(
@@ -688,7 +688,7 @@ private:
 
     void ReplicateTransactions(TFetchedInfo&& fetchedInfo)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto totalTransactionCount = AncestorIds_.size() + InnermostTransactions_.size();
 
@@ -716,7 +716,7 @@ private:
         TRange<std::optional<NRecords::TTransactionReplica>> transactionReplicas,
         TCellTag cellTag)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         TSimpleTransactionReplicator replicator(SequoiaTransaction_.Get());
         replicator.AddCell(cellTag);
@@ -743,7 +743,7 @@ private:
 
     TFuture<TFetchedInfo> FetchAncestorsAndReplicas()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto ancestors = FetchAncestors();
         auto replicas = FetchReplicas();
@@ -779,7 +779,7 @@ private:
 
     TFuture<std::vector<std::optional<NRecords::TTransaction>>> FetchAncestors()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         // Fast path.
         if (AncestorIds_.empty()) {
@@ -793,7 +793,7 @@ private:
 
     TFuture<std::vector<std::optional<NRecords::TTransactionReplica>>> FetchReplicas()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto totalTransactionCount = AncestorIds_.size() + InnermostTransactions_.size();
         std::vector<NRecords::TTransactionReplicaKey> keys(
@@ -831,7 +831,7 @@ private:
 
     void ValidateAncestors(const std::vector<std::optional<NRecords::TTransaction>>& records)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         ValidateAllTransactionsExist(records);
         ValidateTransactionAncestors(records);
@@ -900,7 +900,7 @@ class TSequoiaMutation
 public:
     TFuture<TResult> Apply()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return BIND(&TSequoiaMutation::DoApply, MakeStrong(this))
             .AsyncVia(Invoker_)
@@ -928,12 +928,12 @@ protected:
         , Logger(std::move(logger))
         , Description_(description)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
     }
 
     TFuture<void> CommitSequoiaTransaction()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         // NB: |CoordinatorCellId_| may be null here but it's OK.
         return SequoiaTransaction_->Commit({
@@ -949,7 +949,7 @@ private:
 
     TFuture<TResult> DoApply()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return SequoiaClient_
             ->StartTransaction()
@@ -960,7 +960,7 @@ private:
 
     TFuture<TResult> OnSequoiaTransactionStarted(ISequoiaTransactionPtr&& sequoiaTransaction)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_VERIFY(!SequoiaTransaction_);
 
@@ -973,7 +973,7 @@ private:
 
     TResult ProcessResult(const TErrorOr<TResult>& result)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (result.IsOK()) {
             if constexpr (std::is_void_v<TResult>) {
@@ -1052,7 +1052,7 @@ public:
 protected:
     TFuture<TTransactionId> ApplyAndCommitSequoiaTransaction() override
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         YT_VERIFY(SequoiaTransaction_);
 
         // Should be the cell tag of Cypress tx coordinator.
@@ -1110,7 +1110,7 @@ private:
     TFuture<void> ModifyTablesAndRegisterActions(
         std::vector<TTransactionId>&& ancestorIds = {}) const
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto transactionId = FromProto<TTransactionId>(Request_.hint_id());
 
@@ -1197,7 +1197,7 @@ private:
     TFuture<std::vector<TTransactionId>> CheckParentAndGetParentAncestors(
         std::vector<std::optional<NRecords::TTransaction>>&& responses) const
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
         YT_VERIFY(responses.size() == 1);
 
         if (!responses.front()) {
@@ -1214,7 +1214,7 @@ private:
 
     TFuture<std::vector<TTransactionId>> LockParentAndCollectAncestors() const
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (!ParentId_) {
             return MakeFuture<std::vector<TTransactionId>>({});
@@ -1240,7 +1240,7 @@ private:
     void ValidateAndLockPrerequisiteTransactions(
         std::vector<std::optional<NRecords::TTransaction>>&& records)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_VERIFY(PrerequisiteTransactionIds_.size() == records.size());
 
@@ -1259,7 +1259,7 @@ private:
 
     TFuture<void> HandlePrerequisiteTransactions()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (PrerequisiteTransactionIds_.empty()) {
             return VoidFuture;
@@ -1341,7 +1341,7 @@ public:
 
     TFuture<TResult> Run()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         CollectedTransactions_[TargetTransaction_.Key.TransactionId] = TargetTransaction_;
         CurrentTransactions_.push_back(TargetTransaction_.Key.TransactionId);
@@ -1362,7 +1362,7 @@ private:
 
     TResult MakeResult() const
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         std::vector<TTransactionId> roots;
 
@@ -1389,7 +1389,7 @@ private:
 
     TFuture<void> CollectMoreTransactions()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (CurrentTransactions_.empty()) {
             return VoidFuture;
@@ -1407,7 +1407,7 @@ private:
 
     void ProcessNextTransaction(std::vector<std::optional<NRecords::TTransaction>>&& records)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         ValidateAllTransactionsExist(records);
         ValidateTransactionAncestors(records);
@@ -1424,7 +1424,7 @@ private:
 
     TFuture<std::vector<std::optional<NRecords::TTransaction>>> FetchNextTransaction() const
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto condition = BuildSelectByTransactionIds(CurrentTransactions_);
         auto descendentTransaction = SequoiaTransaction_
@@ -1441,7 +1441,7 @@ private:
                     descendentTransactionFuture = descendentTransaction,
                     dependentTransactionFuture = dependentTransaction
                 ] {
-                    VERIFY_INVOKER_AFFINITY(Invoker_);
+                    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
                     YT_VERIFY(descendentTransactionFuture.IsSet());
                     YT_VERIFY(dependentTransactionFuture.IsSet());
 
@@ -1527,7 +1527,7 @@ protected:
 
     TFuture<void> ApplyAndCommitSequoiaTransaction() final
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return FetchTargetTransaction()
             .ApplyUnique(BIND(
@@ -1550,7 +1550,7 @@ protected:
 
     void AbortTransactionOnParticipants(TRange<NRecords::TTransactionReplica> replicas)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (replicas.empty()) {
             // This transaction is not replicated to anywhere.
@@ -1572,7 +1572,7 @@ protected:
 private:
     TFuture<void> DoFinishTransactions(TDependentTransactionCollector::TResult&& transactionInfos)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto handleResolveTablesFuture = CreateTransactionChangesProcessor(transactionInfos.Transactions)
             ->Run();
@@ -1594,7 +1594,7 @@ private:
         TDependentTransactionCollector::TResult transactionsInfo,
         std::vector<NRecords::TTransactionReplica>&& replicas)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         // ORDER BY expression cannot help us here since IDs are stored as
         // strings and string and ID orders are different.
@@ -1656,7 +1656,7 @@ private:
 
     TFuture<std::vector<std::optional<NRecords::TTransaction>>> FetchTargetTransaction()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return SequoiaTransaction_->LookupRows<NRecords::TTransactionKey>(
             {{.TransactionId = TransactionId_}});
@@ -1665,7 +1665,7 @@ private:
     TFuture<void> ValidateAndFinishTargetTransaction(
         std::vector<std::optional<NRecords::TTransaction>>&& target)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_VERIFY(target.size() == 1);
 
@@ -1686,7 +1686,7 @@ private:
     TFuture<void> CollectDependentAndNestedTransactionsAndFinishThem(
         NRecords::TTransaction targetTransaction)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return New<TDependentTransactionCollector>(
             SequoiaTransaction_,
@@ -1773,7 +1773,7 @@ protected:
 
     void FinishTargetTransactionOnMaster(TRange<NRecords::TTransactionReplica> replicas) override
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         NTransactionServer::NProto::TReqAbortCypressTransaction req;
         ToProto(req.mutable_transaction_id(), TransactionId_);
@@ -1841,7 +1841,7 @@ protected:
     void FinishTargetTransactionOnMaster(
         TRange<NRecords::TTransactionReplica> replicas) override
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         SequoiaTransaction_->AddTransactionAction(
             CellTagFromId(CoordinatorCellId_),
@@ -1907,12 +1907,12 @@ protected:
         , TransactionIds_(std::move(transactionIds))
         , DestinationCellTags_(std::move(destinationCellTags))
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
     }
 
     TFuture<void> ApplyAndCommitSequoiaTransaction() override
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return SequoiaTransaction_->LookupRows(ToTransactionKeys(TransactionIds_))
             .ApplyUnique(BIND(&TThis::ReplicateTransactions, MakeStrong(this))

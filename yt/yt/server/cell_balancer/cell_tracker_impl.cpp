@@ -108,7 +108,7 @@ void TCellTrackerImpl::UpdateDynamicConfig()
 
 void TCellTrackerImpl::ScanCells()
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
     YT_LOG_DEBUG("Starting scan cells");
 

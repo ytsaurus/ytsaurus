@@ -191,7 +191,7 @@ TQueueAgent::TQueueAgent(
 
 void TQueueAgent::Start()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_LOG_INFO("Starting queue agent");
 
@@ -200,7 +200,7 @@ void TQueueAgent::Start()
 
 IMapNodePtr TQueueAgent::GetOrchidNode() const
 {
-    VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
     YT_LOG_DEBUG("Executing orchid request (LastSuccessfulPassIndex: %v)", PassIndex_ - 1);
 
@@ -224,7 +224,7 @@ void TQueueAgent::OnDynamicConfigChanged(
     const TQueueAgentDynamicConfigPtr& oldConfig,
     const TQueueAgentDynamicConfigPtr& newConfig)
 {
-    VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
     // NB: We do this in the beginning, so that we use the new config if a context switch happens below.
     DynamicConfig_ = newConfig;
@@ -251,7 +251,7 @@ void TQueueAgent::OnDynamicConfigChanged(
 
 TRefCountedPtr TQueueAgent::FindSnapshot(TCrossClusterReference objectRef) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(ObjectLock_);
 
@@ -273,7 +273,7 @@ std::vector<TConsumerRegistrationTableRow> TQueueAgent::GetRegistrations(
     TCrossClusterReference objectRef,
     EObjectKind objectKind) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(ObjectLock_);
 
@@ -287,7 +287,7 @@ std::vector<TConsumerRegistrationTableRow> TQueueAgent::GetRegistrations(
 
 void TQueueAgent::Pass()
 {
-    VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
     PassInstant_ = TInstant::Now();
     ++PassIndex_;
@@ -402,7 +402,7 @@ void TQueueAgent::Pass()
     };
 
     auto updateControllers = [&] (EObjectKind objectKind, const auto& rows, auto updateController, bool leading) {
-        VERIFY_READER_SPINLOCK_AFFINITY(ObjectLock_);
+        YT_ASSERT_READER_SPINLOCK_AFFINITY(ObjectLock_);
 
         for (const auto& row : rows) {
             YT_LOG_TRACE("Processing row (Kind: %v, Row: %v)", objectKind, ConvertToYsonString(row, EYsonFormat::Text).ToString());
@@ -633,7 +633,7 @@ void TQueueAgent::Profile()
 
 NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequest(const TString& host, TStringBuf queryRoot, TStringBuf key) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_LOG_DEBUG("Redirecting orchid request (QueueAgentHost: %v, QueryRoot: %v, Key: %v)", host, queryRoot, key);
     auto leaderChannel = QueueAgentChannelFactory_->CreateChannel(host);

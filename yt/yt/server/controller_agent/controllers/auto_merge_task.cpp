@@ -333,7 +333,7 @@ TExtendedJobResources TAutoMergeTask::GetMinNeededResourcesHeavy() const
 
 void TAutoMergeTask::BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
 {
-    VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
     auto poolIndex = *joblet->InputStripeList->PartitionTag;
     jobSpec->CopyFrom(GetJobSpecTemplate(GetTableIndex(poolIndex), GetMergeTypeFromJobType(joblet->JobType)));
@@ -483,7 +483,7 @@ const TJobSpec& TAutoMergeTask::GetJobSpecTemplate(
     int tableIndex,
     EMergeJobType type) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return JobSpecTemplates_[tableIndex][type];
 }

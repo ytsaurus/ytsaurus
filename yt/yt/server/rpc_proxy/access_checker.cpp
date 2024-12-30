@@ -46,7 +46,7 @@ public:
 
     TError CheckAccess(const std::string& user) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!Enabled_.load()) {
             return TError();
@@ -95,14 +95,14 @@ private:
         const TProxyDynamicConfigPtr& /*oldConfig*/,
         const TProxyDynamicConfigPtr& newConfig)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         Enabled_.store(newConfig->AccessChecker->Enabled.value_or(Config_->Enabled));
     }
 
     void OnProxyRoleChanged(const std::optional<std::string>& newRole)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         ProxyRole_.Store(newRole);
     }

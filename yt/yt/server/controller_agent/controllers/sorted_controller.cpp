@@ -277,7 +277,7 @@ protected:
 
         void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
-            VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+            YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
             BuildInputOutputJobSpec(joblet, jobSpec);

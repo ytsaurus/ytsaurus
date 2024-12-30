@@ -212,7 +212,7 @@ TQueryContextPtr TQueryContext::CreateFake(THost* host, NNative::IClientPtr clie
 
 TQueryContext::~TQueryContext()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     // Do not need to do anything for fake query context.
     if (QueryKind == EQueryKind::NoQuery) {

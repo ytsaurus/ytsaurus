@@ -142,7 +142,7 @@ public:
 
     bool CanHaveSequoiaReplicas(TChunkId chunkId, int probability) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (IsJournalChunkId(chunkId)) {
             return false;
@@ -364,7 +364,7 @@ public:
 
     TFuture<std::vector<TSequoiaChunkReplica>> GetSequoiaChunkReplicas(const std::vector<TChunkId>& chunkIds) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
         YT_VERIFY(idMapping.ChunkId && idMapping.StoredReplicas);
@@ -568,7 +568,7 @@ private:
         const TColumnFilter& columnFilter,
         const std::function<NYson::TYsonString(const NRecords::TChunkReplicas&)>& extractReplicas) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         std::vector<NRecords::TChunkReplicasKey> keys;
         for (auto chunkId : chunkIds) {
@@ -597,7 +597,7 @@ private:
 
     TFuture<std::vector<TSequoiaChunkReplica>> DoGetSequoiaLastSeenReplicas(TChunkId chunkId) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& idMapping = NRecords::TChunkReplicasDescriptor::Get()->GetIdMapping();
         YT_VERIFY(idMapping.ChunkId && idMapping.LastSeenReplicas);

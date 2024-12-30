@@ -103,7 +103,7 @@ private:
 
     void AddCachingObjectService(TCellId masterCellId)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         auto cachingObjectService = CreateCachingObjectService(
             GetConfig()->CachingObjectService,

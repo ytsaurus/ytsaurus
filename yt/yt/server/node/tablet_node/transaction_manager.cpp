@@ -112,7 +112,7 @@ public:
             .Timer("/transaction_serialization_lag"))
         , AbortTransactionIdPool_(Config_->MaxAbortedTransactionPoolSize)
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(host->GetAutomatonInvoker(), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(host->GetAutomatonInvoker(), AutomatonThread);
 
         Logger = TabletNodeLogger().WithTag("CellId: %v", host->GetCellId());
 
@@ -305,7 +305,7 @@ public:
         TTransactionId transactionId,
         const TTransactionPrepareOptions& options) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         ValidateTimestampClusterTag(
             transactionId,
@@ -398,7 +398,7 @@ public:
         TTransactionId transactionId,
         const NTransactionSupervisor::TTransactionAbortOptions& options) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         AbortTransactionIdPool_.Register(transactionId);
 
@@ -422,7 +422,7 @@ public:
         TTransactionId transactionId,
         const NTransactionSupervisor::TTransactionCommitOptions& options) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         auto* transaction = GetTransactionOrThrow(transactionId);
@@ -456,7 +456,7 @@ public:
         TTransaction* transaction,
         const NTransactionSupervisor::TTransactionCommitOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         // Make a copy, transaction may die.
@@ -534,7 +534,7 @@ public:
         TTransactionId transactionId,
         const NTransactionSupervisor::TTransactionAbortOptions& options) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = GetTransactionOrThrow(transactionId);
 
@@ -592,7 +592,7 @@ public:
 
     TFuture<void> PingTransaction(TTransactionId transactionId, bool pingAncestors) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return LeaseTracker_->PingTransaction(transactionId, pingAncestors);
     }
@@ -609,7 +609,7 @@ public:
 
     void IncrementCommitSignature(TTransaction* transaction, TTransactionSignature delta) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         transaction->CommitSignature() += delta;
@@ -631,7 +631,7 @@ public:
 
     TTimestamp GetMinPrepareTimestamp() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return PreparedTransactions_.empty()
             ? Host_->GetLatestTimestamp()
@@ -640,7 +640,7 @@ public:
 
     TTimestamp GetMinCommitTimestamp() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return MinCommitTimestamp_.value_or(Host_->GetLatestTimestamp());
     }
@@ -725,7 +725,7 @@ private:
 
     void BuildOrchidYson(IYsonConsumer* consumer)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto dumpTransaction = [&] (TFluentMap fluent, const std::pair<TTransactionId, TTransaction*>& pair) {
             auto* transaction = pair.second;
@@ -786,7 +786,7 @@ private:
 
     void OnTransactionExpired(TTransactionId id)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* transaction = FindTransaction(id);
         if (!transaction) {
@@ -816,7 +816,7 @@ private:
 
     void OnAfterSnapshotLoaded() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TCompositeAutomatonPart::OnAfterSnapshotLoaded();
 
@@ -845,7 +845,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TCompositeAutomatonPart::OnLeaderActive();
 
@@ -880,7 +880,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TCompositeAutomatonPart::OnStopLeading();
 
@@ -925,14 +925,14 @@ private:
 
     void SaveKeys(TSaveContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         PersistentTransactionMap_.SaveKeys(context);
     }
 
     void SaveValues(TSaveContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Save;
         PersistentTransactionMap_.SaveValues(context);
@@ -943,14 +943,14 @@ private:
 
     void LoadKeys(TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         PersistentTransactionMap_.LoadKeys(context);
     }
 
     void LoadValues(TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Load;
         PersistentTransactionMap_.LoadValues(context);
@@ -961,7 +961,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TCompositeAutomatonPart::Clear();
 
@@ -1226,7 +1226,7 @@ private:
 
     void OnProfiling()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TransactionSerializationLagTimer_.Record(ComputeTransactionSerializationLag());
     }
@@ -1234,7 +1234,7 @@ private:
 
     void OnPeriodicBarrierCheck()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_LOG_DEBUG("Running periodic barrier check (BarrierTimestamp: %v, MinPrepareTimestamp: %v)",
             TransientBarrierTimestamp_,

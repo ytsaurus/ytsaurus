@@ -1272,7 +1272,7 @@ private:
 
     IYPathServicePtr GetSecondaryMasterConnectionConfigsOrchidService()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return IYPathService::FromProducer(BIND([this, this_ = MakeStrong(this)] (NYson::IYsonConsumer* consumer) {
             auto secondaryMasterConnectionConfigs = IsConnected()
@@ -1318,7 +1318,7 @@ private:
 
     void CompleteNodeRegistration() override
     {
-        VERIFY_INVOKER_AFFINITY(GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetControlInvoker());
 
         if (DynamicConfigManager_->GetConfigLoadedFuture().IsSet()) {
             return;
@@ -1575,7 +1575,7 @@ private:
         const TSecondaryMasterConnectionConfigs& changedSecondaryMasterConfigs,
         const THashSet<TCellTag>& removedSecondaryMasterCellTags)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_ALERT_UNLESS(
             removedSecondaryMasterCellTags.empty(),

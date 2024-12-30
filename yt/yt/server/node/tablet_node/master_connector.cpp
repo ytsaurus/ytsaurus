@@ -76,12 +76,12 @@ public:
         , Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->TabletNode->MasterConnector)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
     }
 
     void Initialize() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         TMasterHeartbeatReporterBase::Initialize();
 
@@ -98,7 +98,7 @@ public:
 
     TTabletNodeTrackerServiceProxy::TReqHeartbeatPtr BuildHeartbeatRequest(TCellTag cellTag) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(Bootstrap_->IsConnected());
 
@@ -117,7 +117,7 @@ public:
 protected:
     TFuture<void> DoReportHeartbeat(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto req = BuildHeartbeatRequest(cellTag);
         auto rspFuture = req->Invoke();
@@ -127,7 +127,7 @@ protected:
 
     void OnHeartbeatSucceeded(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto rspOrError = GetHeartbeatResponseOrError(cellTag);
         YT_VERIFY(rspOrError.IsOK());
@@ -135,7 +135,7 @@ protected:
 
     void OnHeartbeatFailed(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto rspOrError = GetHeartbeatResponseOrError(cellTag);
         YT_VERIFY(!rspOrError.IsOK());
@@ -143,7 +143,7 @@ protected:
 
     void ResetState(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         CellTagToHeartbeatRspFuture_.erase(cellTag);
     }
@@ -157,7 +157,7 @@ private:
 
     void OnMasterConnected(TNodeId /*nodeId*/)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         StartNodeHeartbeats();
     }
@@ -166,7 +166,7 @@ private:
         const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
         const TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         Reconfigure(newNodeConfig->TabletNode->MasterConnector->HeartbeatExecutor.value_or(Config_->HeartbeatExecutor));
 
@@ -288,14 +288,14 @@ private:
 
     TMasterConnectorDynamicConfigPtr GetDynamicConfig() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetDynamicConfigManager()->GetConfig()->TabletNode->MasterConnector;
     }
 
     TErrorOr<TTabletNodeTrackerServiceProxy::TRspHeartbeatPtr> GetHeartbeatResponseOrError(TCellTag cellTag)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto futureIt = GetIteratorOrCrash(CellTagToHeartbeatRspFuture_, cellTag);
         auto future = std::move(futureIt->second);

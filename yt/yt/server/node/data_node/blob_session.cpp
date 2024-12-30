@@ -136,7 +136,7 @@ private:
 
     TFuture<void> EnqueueCommand(TCommand command)
     {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         auto promise = NewPromise<void>();
         CommandQueue_.push(TCommandEntry{
@@ -149,7 +149,7 @@ private:
 
     void RunCommands()
     {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         if (CommandRunning_) {
             return;
@@ -174,7 +174,7 @@ private:
 
     void OnCommandFinished(const TPromise<void>& promise, const TError& error)
     {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         YT_VERIFY(CommandRunning_);
         CommandRunning_ = false;
@@ -186,7 +186,7 @@ private:
 
     TFuture<void> DoOpen()
     {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         YT_LOG_DEBUG("Started opening blob chunk writer");
 
@@ -206,7 +206,7 @@ private:
 
     TFuture<void> DoWriteBlocks(int firstBlockIndex, const std::vector<TBlock>& blocks)
     {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         auto blockCount = static_cast<int>(blocks.size());
         auto totalSize = GetByteSize(blocks);
@@ -241,7 +241,7 @@ private:
 
     TFuture<void> DoClose(const TRefCountedChunkMetaPtr& chunkMeta)
     {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         YT_LOG_DEBUG("Started closing chunk writer (ChunkSize: %v)",
             Writer_->GetDataSize());
@@ -265,7 +265,7 @@ private:
 
     TFuture<void> DoAbort()
     {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         YT_LOG_DEBUG("Started aborting chunk writer");
 
@@ -314,7 +314,7 @@ TBlobSession::TBlobSession(
 
 TFuture<void> TBlobSession::DoStart()
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     PendingBlockMemoryGuard_ = TMemoryUsageTrackerGuard::Build(Location_->GetWriteMemoryTracker());
 
@@ -333,7 +333,7 @@ TFuture<void> TBlobSession::DoStart()
 
 void TBlobSession::OnStarted(const TError& error)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     if (!error.IsOK()) {
         if (IsOutOfDiskSpaceError(error)) {
@@ -360,7 +360,7 @@ TFuture<TChunkInfo> TBlobSession::DoFinish(
     const TRefCountedChunkMetaPtr& chunkMeta,
     std::optional<int> blockCount)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
     YT_VERIFY(chunkMeta);
 
     if (!blockCount) {
@@ -422,7 +422,7 @@ i64 TBlobSession::GetIntermediateEmptyBlockCount() const
 
 TChunkInfo TBlobSession::OnFinished(const TError& error)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     if (!error.IsOK()) {
         if (IsOutOfDiskSpaceError(error)) {
@@ -479,7 +479,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
     i64 cumulativeBlockSize,
     bool enableCaching)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     if (blocks.empty()) {
         return MakeFuture<NIO::TIOCounters>({});
@@ -559,7 +559,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
     bool useCumulativeBlockSize,
     bool enableCaching)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     // Run the validation again since the context could have been switched since the last check.
     ValidateActive();
@@ -727,7 +727,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
 
 void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const TError& error)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     if (Canceled_.load()) {
         return;
@@ -778,7 +778,7 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
     i64 cumulativeBlockSize,
     const TNodeDescriptor& targetDescriptor)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     const auto& channelFactory = Bootstrap_
         ->GetClient()
@@ -813,7 +813,7 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
 
 TFuture<NIO::TIOCounters> TBlobSession::DoFlushBlocks(int blockIndex)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     if (!IsInWindow(blockIndex)) {
         YT_LOG_DEBUG("Blocks are already flushed (BlockIndex: %v)",
@@ -836,7 +836,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoFlushBlocks(int blockIndex)
 
 NIO::TIOCounters TBlobSession::OnBlockFlushed(int blockIndex)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     if (Canceled_.load()) {
         return NIO::TIOCounters{};
@@ -850,7 +850,7 @@ NIO::TIOCounters TBlobSession::OnBlockFlushed(int blockIndex)
 
 void TBlobSession::DoCancel(const TError& error)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     MarkAllSlotsFailed(error);
     Abort();
@@ -858,7 +858,7 @@ void TBlobSession::DoCancel(const TError& error)
 
 void TBlobSession::Abort()
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     Pipeline_->Abort()
         .Subscribe(BIND(&TBlobSession::OnAborted, MakeStrong(this))
@@ -869,7 +869,7 @@ void TBlobSession::Abort()
 
 void TBlobSession::OnAborted(const TError& error)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     Finished_.Fire(Error_);
 
@@ -886,7 +886,7 @@ void TBlobSession::OnAborted(const TError& error)
 
 void TBlobSession::ReleaseBlockSlot(TSlot& slot)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     MemoryUsage_.fetch_sub(slot.Block.Size());
     slot.Block = {};
@@ -897,7 +897,7 @@ void TBlobSession::ReleaseBlockSlot(TSlot& slot)
 
 void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
     YT_VERIFY(WindowStartBlockIndex_ <= flushedBlockIndex);
 
     auto delayBeforeFree = Location_->GetDelayBeforeBlobSessionBlockFree();
@@ -937,14 +937,14 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
 
 bool TBlobSession::IsInWindow(int blockIndex)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     return blockIndex >= WindowStartBlockIndex_;
 }
 
 void TBlobSession::ValidateBlockIsInWindow(int blockIndex)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     if (!IsInWindow(blockIndex)) {
         THROW_ERROR_EXCEPTION(
@@ -956,7 +956,7 @@ void TBlobSession::ValidateBlockIsInWindow(int blockIndex)
 
 TBlobSession::TSlot& TBlobSession::GetSlot(int blockIndex)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
     YT_VERIFY(IsInWindow(blockIndex));
 
     while (std::ssize(Window_) <= blockIndex) {
@@ -977,7 +977,7 @@ TBlobSession::TSlot& TBlobSession::GetSlot(int blockIndex)
 
 TBlock TBlobSession::GetBlock(int blockIndex)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     ValidateBlockIsInWindow(blockIndex);
 
@@ -1005,7 +1005,7 @@ TBlock TBlobSession::GetBlock(int blockIndex)
 
 void TBlobSession::MarkAllSlotsFailed(const TError& error)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     for (const auto& slot : Window_) {
         if (const auto& promise = slot.WrittenPromise) {
@@ -1020,14 +1020,14 @@ void TBlobSession::MarkAllSlotsFailed(const TError& error)
 
 void TBlobSession::ReleaseSpace()
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     Location_->UpdateUsedSpace(-TotalByteSize_.load());
 }
 
 void TBlobSession::SetFailed(const TError& error, bool fatal)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     if (!Error_.IsOK()) {
         return;
@@ -1048,7 +1048,7 @@ void TBlobSession::SetFailed(const TError& error, bool fatal)
 
 void TBlobSession::OnSlotCanceled(int blockIndex, const TError& error)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     Cancel(TError(
         "Blob session canceled at block %v",

@@ -33,7 +33,7 @@ public:
 
     void Start() override
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         StartTime_ = TInstant::Now();
 
@@ -49,7 +49,7 @@ public:
 
     NYTree::IYPathServicePtr CreateOrchidService() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return IYPathService::FromProducer(BIND(&TCellTracker::BuildOrchid, MakeStrong(this)))
             ->Via(Bootstrap_->GetControlInvoker());
@@ -66,14 +66,14 @@ private:
 
     const TDynamicTabletManagerConfigPtr& GetTabletManagerConfig()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Config_->TabletManager;
     }
 
     void ScanCells()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         YT_PROFILE_TIMING("/cell_balancer/scan_cells") {
             CellTrackerImpl_->ScanCells();
@@ -82,14 +82,14 @@ private:
 
     bool IsLeader()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetElectionManager()->IsLeader();
     }
 
     void BuildOrchid(IYsonConsumer* consumer)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         BuildYsonFluently(consumer)
             .BeginMap()

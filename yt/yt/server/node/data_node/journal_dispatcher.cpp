@@ -361,7 +361,7 @@ TFuture<void> TJournalDispatcher::SealJournal(TJournalChunkPtr chunk)
 
 void TJournalDispatcher::OnAdded(const TCachedChangelogPtr& changelog)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     TAsyncSlruCacheBase::OnAdded(changelog);
 
@@ -373,7 +373,7 @@ void TJournalDispatcher::OnAdded(const TCachedChangelogPtr& changelog)
 
 void TJournalDispatcher::OnRemoved(const TCachedChangelogPtr& changelog)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     TAsyncSlruCacheBase::OnRemoved(changelog);
 

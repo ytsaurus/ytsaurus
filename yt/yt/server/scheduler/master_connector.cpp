@@ -109,7 +109,7 @@ public:
 
     void Start()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         Bootstrap_
             ->GetClient()
@@ -123,35 +123,35 @@ public:
 
     EMasterConnectorState GetState() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return State_.load();
     }
 
     TInstant GetConnectionTime() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ConnectionTime_.load();
     }
 
     const NApi::ITransactionPtr& GetLockTransaction() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return LockTransaction_;
     }
 
     void Disconnect(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         DoDisconnect(error);
     }
 
     const IInvokerPtr& GetCancelableControlInvoker(EControlQueue queue) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
@@ -160,7 +160,7 @@ public:
 
     void RegisterOperation(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
@@ -168,7 +168,7 @@ public:
 
     void UnregisterOperation(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         OperationNodesUpdateExecutor_->RemoveUpdate(operation->GetId());
@@ -196,7 +196,7 @@ public:
 
     void DoCreateOperationNode(TOperationPtr operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         auto operationId = operation->GetId();
@@ -335,7 +335,7 @@ public:
 
     TFuture<void> CreateOperationNode(TOperationPtr operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         return BIND(&TImpl::DoCreateOperationNode, MakeStrong(this), operation)
@@ -345,7 +345,7 @@ public:
 
     TFuture<void> UpdateInitializedOperationNode(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         auto operationId = operation->GetId();
@@ -386,7 +386,7 @@ public:
 
     TFuture<void> FlushOperationNode(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         YT_LOG_INFO("Flushing operation node (OperationId: %v)",
@@ -397,7 +397,7 @@ public:
 
     TFuture<void> FetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         return BIND(&TImpl::DoFetchOperationRevivalDescriptors, MakeStrong(this))
@@ -407,7 +407,7 @@ public:
 
     TFuture<TYsonString> GetOperationNodeProgressAttributes(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
@@ -460,7 +460,7 @@ public:
 
     void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         GetCancelableControlInvoker(EControlQueue::MasterConnector)
@@ -469,7 +469,7 @@ public:
 
     void StorePersistentStrategyState(const TPersistentStrategyStatePtr& persistentStrategyState)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         if (StoringStrategyState_) {
@@ -524,7 +524,7 @@ public:
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant time)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return BIND(&TImpl::DoUpdateLastMeteringLogTime, MakeStrong(this))
             .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
@@ -533,7 +533,7 @@ public:
 
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto savedAlert = alert;
         savedAlert <<= TErrorAttribute("alert_type", alertType);
@@ -545,7 +545,7 @@ public:
         TWatcherHandler handler,
         std::optional<ESchedulerAlertType> alertType)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         CommonWatcherRecords_.push_back(TWatcherRecord{requester, handler, alertType});
     }
@@ -558,7 +558,7 @@ public:
         std::optional<ESchedulerAlertType> alertType,
         std::optional<TWatcherLockOptions> lockOptions)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         CustomWatcherRecords_[type] = TCustomWatcherRecord{
             TWatcherRecord{
@@ -574,7 +574,7 @@ public:
 
     void UpdateConfig(const TSchedulerConfigPtr& config)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (State_ == EMasterConnectorState::Connected &&
             Config_->LockTransactionTimeout != config->LockTransactionTimeout)
@@ -677,7 +677,7 @@ private:
 
     void RandomDisconnect()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (Config_->TestingOptions->EnableRandomMasterDisconnection) {
             DoDisconnect(TError("Disconnecting scheduler due to enabled random disconnection"));
@@ -694,7 +694,7 @@ private:
 
     void DoStartConnecting()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (State_ != EMasterConnectorState::Disconnected) {
             return;
@@ -748,7 +748,7 @@ private:
 
     void OnConnected(const TError& error) noexcept
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ == EMasterConnectorState::Connecting);
 
         if (!error.IsOK()) {
@@ -778,7 +778,7 @@ private:
 
     void OnLockTransactionAborted(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         Disconnect(TError("Lock transaction aborted")
             << error);
@@ -1489,7 +1489,7 @@ private:
 
     void DoFetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO("Fetching operation revival descriptors (OperationCount: %v)",
             operations.size());
@@ -1659,7 +1659,7 @@ private:
 
     void DoCleanup()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         LockTransaction_.Reset();
 
@@ -1678,7 +1678,7 @@ private:
 
     void DoDisconnect(const TError& error) noexcept
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -1733,7 +1733,7 @@ private:
 
     void OnOperationUpdateFailed(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(!error.IsOK());
 
@@ -1742,7 +1742,7 @@ private:
 
     void DoUpdateOperationNode(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         try {
             operation->SetShouldFlush(false);
@@ -1851,7 +1851,7 @@ private:
 
     TCallback<TFuture<void>()> UpdateOperationNode(TOperationId /*operationId*/, TOperationNodeUpdate* update)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         // If operation is starting the node of operation may be missing.
         if (update->Operation->GetState() == EOperationState::Starting) {
@@ -1872,7 +1872,7 @@ private:
         const TOperationPtr& operation,
         const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto operationId = operation->GetId();
         auto error = GetCumulativeError(batchRspOrError);
@@ -1912,7 +1912,7 @@ private:
 
     void ExecuteCustomWatcherUpdate(const TCustomWatcherRecord& watcher, bool strictMode)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_DEBUG("Making custom watcher request (WatcherType: %v)", watcher.WatcherType);
 
@@ -1968,7 +1968,7 @@ private:
 
     void UpdateWatchers()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ == EMasterConnectorState::Connected);
 
         YT_LOG_DEBUG("Making common watcher requests");
@@ -1984,7 +1984,7 @@ private:
 
     void OnCommonWatchersUpdated(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ == EMasterConnectorState::Connected);
 
         YT_LOG_DEBUG("Updating common watchers");
@@ -2033,7 +2033,7 @@ private:
 
     void UpdateAlerts()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         std::vector<TError> alerts;
         for (auto alertType : TEnumTraits<ESchedulerAlertType>::GetDomainValues()) {
@@ -2055,14 +2055,14 @@ private:
 
     void OnClusterDirectorySynchronized(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         SetSchedulerAlert(ESchedulerAlertType::SyncClusterDirectory, error);
     }
 
     void UpdateLockTransactionTimeout(TDuration timeout)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(LockTransaction_);
         auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());

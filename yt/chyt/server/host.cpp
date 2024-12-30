@@ -234,7 +234,7 @@ public:
 
     void Start()
     {
-        VERIFY_INVOKER_AFFINITY(GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetControlInvoker());
 
         YT_VERIFY(getContext());
 

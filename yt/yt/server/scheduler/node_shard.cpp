@@ -204,7 +204,7 @@ const IInvokerPtr& TNodeShard::GetInvoker() const
 
 void TNodeShard::UpdateConfig(const TSchedulerConfigPtr& config)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     Config_ = config;
 
@@ -215,7 +215,7 @@ void TNodeShard::UpdateConfig(const TSchedulerConfigPtr& config)
 
 IInvokerPtr TNodeShard::OnMasterConnected(const TNodeShardMasterHandshakeResultPtr& result)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     DoCleanup();
 
@@ -236,14 +236,14 @@ IInvokerPtr TNodeShard::OnMasterConnected(const TNodeShardMasterHandshakeResultP
 
 void TNodeShard::OnMasterDisconnected()
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     DoCleanup();
 }
 
 void TNodeShard::ValidateConnected()
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     if (!Connected_) {
         THROW_ERROR_EXCEPTION(
@@ -301,7 +301,7 @@ void TNodeShard::RegisterOperation(
     const IOperationControllerPtr& controller,
     bool waitingForRevival)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
 
     EmplaceOrCrash(
@@ -318,7 +318,7 @@ void TNodeShard::RegisterOperation(
 
 void TNodeShard::StartOperationRevival(TOperationId operationId, TControllerEpoch newControllerEpoch)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
 
     auto& operationState = GetOperationState(operationId);
@@ -352,7 +352,7 @@ void TNodeShard::FinishOperationRevival(
     TOperationId operationId,
     const std::vector<TAllocationPtr>& allocations)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
 
     auto& operationState = GetOperationState(operationId);
@@ -380,7 +380,7 @@ void TNodeShard::FinishOperationRevival(
 
 void TNodeShard::ResetOperationRevival(TOperationId operationId)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
 
     auto& operationState = GetOperationState(operationId);
@@ -397,7 +397,7 @@ void TNodeShard::ResetOperationRevival(TOperationId operationId)
 
 void TNodeShard::UnregisterOperation(TOperationId operationId)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
 
     auto it = IdToOperationState_.find(operationId);
@@ -420,7 +420,7 @@ void TNodeShard::UnregisterOperation(TOperationId operationId)
 
 void TNodeShard::UnregisterAndRemoveNodeById(TNodeId nodeId)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     auto it = IdToNode_.find(nodeId);
     if (it != IdToNode_.end()) {
@@ -432,7 +432,7 @@ void TNodeShard::UnregisterAndRemoveNodeById(TNodeId nodeId)
 
 void TNodeShard::AbortAllocationsAtNode(TNodeId nodeId, EAbortReason reason)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     auto it = IdToNode_.find(nodeId);
     if (it != IdToNode_.end()) {
@@ -443,11 +443,11 @@ void TNodeShard::AbortAllocationsAtNode(TNodeId nodeId, EAbortReason reason)
 
 void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     GetInvoker()->Invoke(
         BIND([=, this, this_ = MakeStrong(this)] {
-            VERIFY_INVOKER_AFFINITY(GetInvoker());
+            YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
             try {
                 ValidateConnected();
@@ -462,7 +462,7 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& contex
 
 void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
 {
-    VERIFY_INVOKER_AFFINITY(CancelableInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(CancelableInvoker_);
 
     const auto& strategy = ManagerHost_->GetStrategy();
 
@@ -718,7 +718,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
 
 TRefCountedExecNodeDescriptorMapPtr TNodeShard::GetExecNodeDescriptors()
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     UpdateExecNodeDescriptors();
 
@@ -727,7 +727,7 @@ TRefCountedExecNodeDescriptorMapPtr TNodeShard::GetExecNodeDescriptors()
 
 void TNodeShard::UpdateExecNodeDescriptors()
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     auto now = TInstant::Now();
 
@@ -793,7 +793,7 @@ void TNodeShard::RemoveOperationScheduleAllocationEntries(const TOperationId ope
 
 void TNodeShard::RemoveMissingNodes(const std::vector<std::string>& nodeAddresses)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     if (!Connected_) {
         return;
@@ -823,7 +823,7 @@ void TNodeShard::RemoveMissingNodes(const std::vector<std::string>& nodeAddresse
 
 std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pair<std::string, INodePtr>>& nodeMaps)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     if (!Connected_) {
         return {};
@@ -972,7 +972,7 @@ void TNodeShard::AbortOperationAllocations(
     EAbortReason abortReason,
     bool controllerTerminated)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     ValidateConnected();
 
@@ -1000,7 +1000,7 @@ void TNodeShard::AbortOperationAllocations(
 
 void TNodeShard::SuspendOperationScheduling(TOperationId operationId)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     ValidateConnected();
 
@@ -1011,7 +1011,7 @@ void TNodeShard::SuspendOperationScheduling(TOperationId operationId)
 
 void TNodeShard::ResumeOperationScheduling(TOperationId operationId)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     ValidateConnected();
 
@@ -1025,7 +1025,7 @@ void TNodeShard::ResumeOperationScheduling(TOperationId operationId)
 
 TNodeDescriptor TNodeShard::GetAllocationNode(TAllocationId allocationId)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     ValidateConnected();
 
@@ -1048,7 +1048,7 @@ TNodeDescriptor TNodeShard::GetAllocationNode(TAllocationId allocationId)
 
 TAllocationDescription TNodeShard::GetAllocationDescription(TAllocationId allocationId)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     ValidateConnected();
 
@@ -1081,7 +1081,7 @@ TAllocationDescription TNodeShard::GetAllocationDescription(TAllocationId alloca
 
 void TNodeShard::AbortAllocation(TAllocationId allocationId, const TError& error, EAbortReason abortReason)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
 
     auto allocation = FindAllocation(allocationId);
@@ -1102,7 +1102,7 @@ void TNodeShard::AbortAllocation(TAllocationId allocationId, const TError& error
 
 void TNodeShard::AbortAllocations(const std::vector<TAllocationId>& allocationIds, const TError& error, EAbortReason abortReason)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
 
     for (auto allocationId : allocationIds) {
@@ -1112,7 +1112,7 @@ void TNodeShard::AbortAllocations(const std::vector<TAllocationId>& allocationId
 
 TNodeYsonList TNodeShard::BuildNodeYsonList() const
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     TNodeYsonList nodeYsons;
     nodeYsons.reserve(std::ssize(IdToNode_));
@@ -1125,7 +1125,7 @@ TNodeYsonList TNodeShard::BuildNodeYsonList() const
 
 TOperationId TNodeShard::FindOperationIdByAllocationId(TAllocationId allocationId)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     const auto& allocation = FindAllocation(allocationId);
     if (allocation) {
@@ -1137,7 +1137,7 @@ TOperationId TNodeShard::FindOperationIdByAllocationId(TAllocationId allocationI
 
 TNodeShard::TResourceStatistics TNodeShard::CalculateResourceStatistics(const TSchedulingTagFilter& filter)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto descriptors = CachedExecNodeDescriptors_.Acquire();
 
@@ -1153,49 +1153,49 @@ TNodeShard::TResourceStatistics TNodeShard::CalculateResourceStatistics(const TS
 
 TJobResources TNodeShard::GetResourceLimits(const TSchedulingTagFilter& filter) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return CachedResourceStatisticsByTags_->Get(filter).Limits;
 }
 
 TJobResources TNodeShard::GetResourceUsage(const TSchedulingTagFilter& filter) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return CachedResourceStatisticsByTags_->Get(filter).Usage;
 }
 
 int TNodeShard::GetActiveAllocationCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ActiveAllocationCount_;
 }
 
 int TNodeShard::GetSubmitToStrategyAllocationCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return SubmitToStrategyAllocationCount_;
 }
 
 int TNodeShard::GetExecNodeCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ExecNodeCount_;
 }
 
 int TNodeShard::GetTotalNodeCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return TotalNodeCount_;
 }
 
 int TNodeShard::GetTotalConcurrentHeartbeatComplexity() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ConcurrentHeartbeatComplexity_;
 }
@@ -1205,7 +1205,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TNodeShard::BeginScheduleAllocat
     TOperationId operationId,
     TAllocationId allocationId)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     ValidateConnected();
 
@@ -1228,7 +1228,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TNodeShard::BeginScheduleAllocat
 
 void TNodeShard::EndScheduleAllocation(const NProto::TScheduleAllocationResponse& response)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
     YT_VERIFY(Connected_);
 
     auto allocationId = FromProto<TAllocationId>(response.allocation_id());
@@ -1328,7 +1328,7 @@ int TNodeShard::GetJobReporterQueueIsTooLargeNodeCount()
 
 TControllerEpoch TNodeShard::GetOperationControllerEpoch(TOperationId operationId)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     if (auto* operationState = FindOperationState(operationId)) {
         return operationState->ControllerEpoch;
@@ -1339,7 +1339,7 @@ TControllerEpoch TNodeShard::GetOperationControllerEpoch(TOperationId operationI
 
 TControllerEpoch TNodeShard::GetAllocationControllerEpoch(TAllocationId allocationId)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     if (auto allocation = FindAllocation(allocationId)) {
         return allocation->GetControllerEpoch();
@@ -1356,14 +1356,14 @@ bool TNodeShard::IsOperationControllerTerminated(const TOperationId operationId)
 
 bool TNodeShard::IsOperationRegistered(const TOperationId operationId) const noexcept
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     return FindOperationState(operationId);
 }
 
 bool TNodeShard::AreNewAllocationsForbiddenForOperation(const TOperationId operationId) const noexcept
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     const auto& operationState = GetOperationState(operationId);
     return operationState.ForbidNewAllocations;
@@ -1981,7 +1981,7 @@ bool TNodeShard::IsHeartbeatThrottlingWithCount(const TExecNodePtr& node)
 
 void TNodeShard::SubtractNodeResources(const TExecNodePtr& node)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     TotalNodeCount_ -= 1;
     if (node->ResourceLimits().GetUserSlots() > 0) {
@@ -1991,7 +1991,7 @@ void TNodeShard::SubtractNodeResources(const TExecNodePtr& node)
 
 void TNodeShard::AddNodeResources(const TExecNodePtr& node)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     TotalNodeCount_ += 1;
 
@@ -2009,7 +2009,7 @@ void TNodeShard::UpdateNodeResources(
     const TJobResources& usage,
     TDiskResources diskResources)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     auto oldResourceLimits = node->ResourceLimits();
 

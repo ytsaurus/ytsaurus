@@ -37,7 +37,7 @@ TMemoryWatchdog::TMemoryWatchdog(TMemoryWatchdogConfigPtr config, TBootstrap* bo
 
 void TMemoryWatchdog::DoCheckMemoryUsage()
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
     YT_LOG_DEBUG("Memory watchdog check started");
 
@@ -137,7 +137,7 @@ void TMemoryWatchdog::DoCheckMemoryUsage()
 
 void TMemoryWatchdog::UpdateConfig(TMemoryWatchdogConfigPtr config)
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
     Config_ = std::move(config);
 

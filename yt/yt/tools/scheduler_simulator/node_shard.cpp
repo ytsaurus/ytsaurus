@@ -79,14 +79,14 @@ TSimulatorNodeShard::TSimulatorNodeShard(
 
 void TSimulatorNodeShard::RegisterNode(const NScheduler::TExecNodePtr& node)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     IdToNode_.emplace(node->GetId(), node);
 }
 
 void TSimulatorNodeShard::BuildNodesYson(TFluentMap fluent)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     for (const auto& [nodeId, node] : IdToNode_) {
         BuildNodeYson(node, fluent);
@@ -95,7 +95,7 @@ void TSimulatorNodeShard::BuildNodesYson(TFluentMap fluent)
 
 void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     const auto& node = IdToNode_[event.NodeId];
 
@@ -214,7 +214,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeEvent& event)
 
 void TSimulatorNodeShard::OnAllocationFinished(const TNodeEvent& event)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     auto allocation = event.Allocation;
 

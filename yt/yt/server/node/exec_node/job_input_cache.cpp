@@ -166,7 +166,7 @@ TJobInputCache::TJobInputCache(
 
 bool TJobInputCache::IsChunkCached(TChunkId chunkId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(Lock_);
     return ChunkIdToJobIds_.contains(chunkId);
@@ -174,21 +174,21 @@ bool TJobInputCache::IsChunkCached(TChunkId chunkId)
 
 bool TJobInputCache::IsBlockCacheMemoryLimitExceeded()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return BlockMemoryTracker_->IsExceeded();
 }
 
 bool TJobInputCache::IsEnabled()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Config_.Acquire()->Enabled;
 }
 
 void TJobInputCache::Reconfigure(const TJobInputCacheDynamicConfigPtr& config)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     BlockCache_->Reconfigure(config->BlockCache);
     MetaCache_->Reconfigure(config->MetaCache);
@@ -228,7 +228,7 @@ void TJobInputCache::RegisterJobChunks(
     TJobId jobId,
     THashMap<TChunkId, TRefCountedChunkSpecPtr> chunkSpecs)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = WriterGuard(Lock_);
 
@@ -252,7 +252,7 @@ void TJobInputCache::RegisterJobChunks(
 
 void TJobInputCache::UnregisterJobChunks(TJobId jobId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = WriterGuard(Lock_);
 
@@ -290,7 +290,7 @@ TFuture<TRefCountedChunkMetaPtr> TJobInputCache::GetChunkMeta(
     std::optional<int> partitionTag,
     const std::optional<std::vector<int>>& extensionTags)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto annotation = Format(
         "Proxying read via exec node (ChunkId: %v)",
@@ -313,7 +313,7 @@ TFuture<std::vector<TBlock>> TJobInputCache::ReadBlocks(
     int blockCount,
     IChunkReader::TReadBlocksOptions options)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto annotation = Format(
         "Proxying read via exec node (BlockIds: %v:%v-%v)",
@@ -332,7 +332,7 @@ TFuture<std::vector<TBlock>> TJobInputCache::ReadBlocks(
     const std::vector<int>& blockIndices,
     IChunkReader::TReadBlocksOptions options)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto annotation = Format(
         "Proxying read via exec node (BlockIds: %v:%v)",
@@ -353,7 +353,7 @@ TRefCountedChunkSpecPtr TJobInputCache::DoGetChunkSpec(TChunkId chunkId) const
 
 IChunkReaderPtr TJobInputCache::GetOrCreateReaderForChunk(TChunkId chunkId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = WriterGuard(Lock_);
 
@@ -370,7 +370,7 @@ IChunkReaderPtr TJobInputCache::GetOrCreateReaderForChunk(TChunkId chunkId)
 
 IChunkReaderPtr TJobInputCache::CreateReaderForChunk(TChunkId chunkId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto spec = DoGetChunkSpec(chunkId);
 

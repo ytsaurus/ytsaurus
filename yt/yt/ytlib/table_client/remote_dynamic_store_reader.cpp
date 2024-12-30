@@ -786,7 +786,7 @@ public:
 
     TDataStatistics GetDataStatistics() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto currentReader = CurrentReader_.Acquire();
         auto dataStatistics = currentReader ? currentReader->GetDataStatistics() : TDataStatistics{};
@@ -797,7 +797,7 @@ public:
 
     TCodecStatistics GetDecompressionStatistics() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto currentReader = CurrentReader_.Acquire();
         if (ChunkReaderFallbackOccurred_ && currentReader) {

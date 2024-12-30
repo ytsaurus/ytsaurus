@@ -167,7 +167,7 @@ TCellTrackerImpl::TCellTrackerImpl(
     , StartTime_(startTime)
 {
     YT_VERIFY(Bootstrap_);
-    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
+    YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
     for (auto cellarType : TEnumTraits<ECellarType>::GetDomainValues()) {
         PerCellarProviders_[cellarType] = New<TCellBalancerProvider>(Bootstrap_, cellarType);
@@ -179,7 +179,7 @@ TCellTrackerImpl::TCellTrackerImpl(
 
 void TCellTrackerImpl::ScanCells()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     if (WaitForCommit_) {
         return;

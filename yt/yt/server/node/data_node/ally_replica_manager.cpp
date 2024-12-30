@@ -118,7 +118,7 @@ public:
         NHydra::TRevision revision,
         bool onFullHeartbeat) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto selfNodeId = Bootstrap_->GetNodeId();
         auto now = TInstant::Now();
@@ -204,7 +204,7 @@ public:
         TRange<const NChunkClient::NProto::TChunkReplicaAnnouncement*> announcements,
         TNodeId sourceNodeId) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& chunkStore = Bootstrap_->GetChunkStore();
         auto selfNodeId = Bootstrap_->GetNodeId();
@@ -295,7 +295,7 @@ public:
     std::vector<std::pair<TChunkId, NHydra::TRevision>>
         TakeUnconfirmedAnnouncementRequests(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto it = UnconfirmedAnnouncements_.find(cellTag);
         if (it == UnconfirmedAnnouncements_.end()) {
@@ -307,14 +307,14 @@ public:
 
     void SetEnableLazyAnnouncements(bool enable) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         EnableLazyAnnouncements_ = enable;
     }
 
     TAllyReplicasInfo GetAllyReplicas(TChunkId chunkId) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         chunkId = DecodeChunkId(chunkId).Id;
         if (!IsBlobChunkId(chunkId)) {
@@ -330,7 +330,7 @@ public:
 
     IYPathServicePtr GetOrchidService() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return IYPathService::FromProducer(BIND(
             &TAllyReplicaManager::BuildOrchid,
@@ -340,7 +340,7 @@ public:
 
     void BuildChunkOrchidYson(NYTree::TFluentMap fluent, TChunkId chunkId) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         chunkId = DecodeChunkId(chunkId).Id;
         if (!IsBlobChunkId(chunkId)) {
@@ -448,7 +448,7 @@ private:
 
     TNodeState* GetOrCreateNodeState(TNodeId nodeId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (auto it = NodeStates_.find(nodeId); it != NodeStates_.end()) {
             return it->second.get();
@@ -499,7 +499,7 @@ private:
 
     void PromoteLazyAndDelayedAnnouncements(TNodeId nodeId, TNodeState* nodeState)
     {
-        VERIFY_SPINLOCK_AFFINITY(nodeState->SpinLock);
+        YT_ASSERT_SPINLOCK_AFFINITY(nodeState->SpinLock);
 
         auto now = TInstant::Now();
 
@@ -542,7 +542,7 @@ private:
 
     void FilterOutdatedAnnouncements(TNodeState* nodeState)
     {
-        VERIFY_SPINLOCK_AFFINITY(nodeState->SpinLock);
+        YT_ASSERT_SPINLOCK_AFFINITY(nodeState->SpinLock);
 
         auto& announcements = nodeState->ImmediateAnnouncements;
         EraseIf(

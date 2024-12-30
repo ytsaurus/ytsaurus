@@ -23,12 +23,12 @@ TMasterHeartbeatReporterBase::TMasterHeartbeatReporterBase(
     , ReportHeartbeatsToAllSecondaryMasters_(reportHeartbeatsToAllSecondaryMasters)
     , Logger(std::move(logger))
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 }
 
 void TMasterHeartbeatReporterBase::Initialize()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (ReportHeartbeatsToAllSecondaryMasters_) {
         MasterCellTags_ = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector()->GetMasterCellTags();
@@ -47,7 +47,7 @@ void TMasterHeartbeatReporterBase::Initialize()
 
 void TMasterHeartbeatReporterBase::StartNodeHeartbeats()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_LOG_INFO(
         "Starting node heartbeats (NodeId: %v)",
@@ -60,7 +60,7 @@ void TMasterHeartbeatReporterBase::StartNodeHeartbeats()
 
 void TMasterHeartbeatReporterBase::StartNodeHeartbeatsToCell(TCellTag cellTag)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (!MasterCellTags_.contains(cellTag)) {
         YT_LOG_ALERT(
@@ -78,7 +78,7 @@ void TMasterHeartbeatReporterBase::StartNodeHeartbeatsToCell(TCellTag cellTag)
 
 void TMasterHeartbeatReporterBase::Reconfigure(const TRetryingPeriodicExecutorOptions& options)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     Options_ = options;
     for (auto cellTag : MasterCellTags_) {
@@ -93,7 +93,7 @@ void TMasterHeartbeatReporterBase::Reconfigure(const TRetryingPeriodicExecutorOp
 
 void TMasterHeartbeatReporterBase::DoStartNodeHeartbeatsToCell(TCellTag cellTag)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (auto executor = FindExecutor(cellTag); executor && executor->IsStarted()) {
         YT_LOG_DEBUG(
@@ -130,7 +130,7 @@ void TMasterHeartbeatReporterBase::DoStartNodeHeartbeatsToCell(TCellTag cellTag)
 
 TError TMasterHeartbeatReporterBase::ReportHeartbeat(TCellTag cellTag)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
     YT_VERIFY(clusterNodeMasterConnector->IsConnected());
@@ -167,7 +167,7 @@ TError TMasterHeartbeatReporterBase::ReportHeartbeat(TCellTag cellTag)
 void TMasterHeartbeatReporterBase::OnReadyToUpdateHeartbeatStream(
     const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (!ReportHeartbeatsToAllSecondaryMasters_) {
         return;
@@ -195,7 +195,7 @@ void TMasterHeartbeatReporterBase::OnReadyToUpdateHeartbeatStream(
 
 TRetryingPeriodicExecutorPtr TMasterHeartbeatReporterBase::FindExecutor(TCellTag cellTag) const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto executorIt = Executors_.find(cellTag);
     return executorIt == Executors_.end() ? nullptr : executorIt->second;

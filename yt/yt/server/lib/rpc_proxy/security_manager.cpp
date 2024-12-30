@@ -91,7 +91,7 @@ public:
 
     void ValidateUser(const std::string& user) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         WaitForFast(UserCache_->Get(user))
             .ThrowOnError();
@@ -99,7 +99,7 @@ public:
 
     void Reconfigure(const TSecurityManagerDynamicConfigPtr& config) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         UserCache_->Reconfigure(config->UserCache);
     }

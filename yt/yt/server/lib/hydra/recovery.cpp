@@ -61,12 +61,12 @@ TRecovery::TRecovery(
     YT_VERIFY(ChangelogStore_);
     YT_VERIFY(SnapshotStore_);
     YT_VERIFY(EpochContext_);
-    VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochSystemAutomatonInvoker, AutomatonThread);
+    YT_ASSERT_INVOKER_THREAD_AFFINITY(EpochContext_->EpochSystemAutomatonInvoker, AutomatonThread);
 }
 
 void TRecovery::DoRun()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
     TTraceContextGuard traceContextGuard(TTraceContext::NewRoot("Recovery"));
 
     auto epochContext = EpochContext_;
@@ -287,7 +287,7 @@ void TRecovery::DoRun()
 
 void TRecovery::SyncChangelog(const IChangelogPtr& changelog)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto channel = EpochContext_->CellManager->GetPeerChannel(EpochContext_->LeaderId);
     YT_VERIFY(channel);
@@ -358,7 +358,7 @@ void TRecovery::SyncChangelog(const IChangelogPtr& changelog)
 
 void TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequenceNumber)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto changelogRecordCount = changelog->GetRecordCount();
     YT_LOG_INFO("Replaying changelog (ChangelogId: %v, RecordCount: %v, TargetSequenceNumber: %v)",
@@ -420,7 +420,7 @@ void TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequen
 
 TFuture<void> TRecovery::Run()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return BIND(&TRecovery::DoRun, MakeStrong(this))
         .AsyncVia(EpochContext_->EpochControlInvoker)

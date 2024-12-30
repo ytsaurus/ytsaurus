@@ -306,7 +306,7 @@ public:
 
     void Initialize()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         YT_LOG_INFO("Initializing chunk cache");
 
@@ -360,7 +360,7 @@ public:
 
     bool IsEnabled() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         for (const auto& location : Locations_) {
             if (location->IsEnabled()) {
@@ -372,14 +372,14 @@ public:
 
     IChunkPtr FindChunk(TChunkId chunkId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Find(TArtifactKey(chunkId));
     }
 
     std::vector<IChunkPtr> GetChunks()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto chunks = GetAll();
         return std::vector<IChunkPtr>(chunks.begin(), chunks.end());
@@ -390,7 +390,7 @@ public:
         const TArtifactDownloadOptions& artifactDownloadOptions,
         bool* fetchedFromCache = nullptr)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto traceContext = CreateTraceContextFromCurrent("ChunkCache");
         TTraceContextGuard guard(traceContext);
@@ -432,7 +432,7 @@ public:
         const TArtifactKey& key,
         const TArtifactDownloadOptions& artifactDownloadOptions)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto chunkReadOptions = MakeClientChunkReadOptions(
             artifactDownloadOptions,
@@ -504,7 +504,7 @@ private:
 
     void InitializeLocation(const TCacheLocationPtr& location)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         auto descriptors = location->Scan();
 
@@ -568,7 +568,7 @@ private:
         const TClientChunkReadOptions& chunkReadOptions,
         const NLogging::TLogger& Logger)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_INFO("Loading artifact into cache");
 
@@ -625,7 +625,7 @@ private:
         const TRegisteredChunkDescriptor& descriptor,
         NLogging::TLogger Logger)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto chunkId = descriptor.Descriptor.Id;
         const auto& location = descriptor.Location;
@@ -664,7 +664,7 @@ private:
         auto chunkId = descriptor.Descriptor.Id;
         const auto& location = descriptor.Location;
 
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         try {
             YT_LOG_INFO("Chunk validation started");
@@ -727,7 +727,7 @@ private:
         const TCacheLocationPtr& location,
         const TChunkDescriptor& descriptor)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_DEBUG("Cached chunk object created (ChunkId: %v, LocationId: %v)",
             descriptor.Id,
@@ -741,7 +741,7 @@ private:
         const TCacheLocationPtr& location,
         const TChunkDescriptor& descriptor)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_DEBUG("Cached chunk object destroyed (ChunkId: %v, LocationId: %v)",
             descriptor.Id,
@@ -765,7 +765,7 @@ private:
         TLockedChunkGuard&& lockedChunkGuard = {},
         const NChunkClient::TRefCountedChunkMetaPtr& meta = nullptr)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto chunk = New<TCachedBlobChunk>(
             TChunkContext::Create(Bootstrap_),
@@ -783,7 +783,7 @@ private:
         const TCacheLocationPtr& location,
         const TChunkDescriptor& descriptor)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         auto chunkId = descriptor.Id;
 
@@ -824,14 +824,14 @@ private:
 
     i64 GetWeight(const TCachedBlobChunkPtr& chunk) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return chunk->GetInfo().disk_space();
     }
 
     void OnAdded(const TCachedBlobChunkPtr& chunk) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_DEBUG("Chunk object added to cache (ChunkId: %v, LocationId: %v)",
             chunk->GetId(),
@@ -842,7 +842,7 @@ private:
 
     void OnRemoved(const TCachedBlobChunkPtr& chunk) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_DEBUG("Chunk object removed from cache (ChunkId: %v, LocationId: %v)",
             chunk->GetId(),
@@ -854,7 +854,7 @@ private:
 
     std::tuple<TCacheLocationPtr, TLockedChunkGuard> AcquireNewChunkLocation(TChunkId chunkId) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         struct TCandidate
         {
@@ -942,7 +942,7 @@ private:
         TArtifactDownloadOptions artifactDownloadOptions,
         bool bypassArtifactCache)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto workloadDescriptor = GetArtifactCacheReaderConfig()->WorkloadDescriptor;
         auto& annotations = workloadDescriptor.Annotations;
@@ -967,7 +967,7 @@ private:
         const TClientChunkReadOptions& chunkReadOptions,
         TInsertCookie cookie)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         const auto& chunkSpec = key.chunk_specs(0);
         auto seedReplicas = GetReplicasFromChunkSpec(chunkSpec);
@@ -1131,7 +1131,7 @@ private:
         const TClientChunkReadOptions& chunkReadOptions,
         TInsertCookie cookie)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         try {
             auto producer = MakeFileProducer(
@@ -1161,7 +1161,7 @@ private:
         const TClientChunkReadOptions& chunkReadOptions,
         const IThroughputThrottlerPtr& throttler)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         std::vector<TChunkSpec> chunkSpecs(key.chunk_specs().begin(), key.chunk_specs().end());
 
@@ -1218,7 +1218,7 @@ private:
         const TClientChunkReadOptions& chunkReadOptions,
         TInsertCookie cookie)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         try {
             auto producer = MakeTableProducer(
@@ -1274,7 +1274,7 @@ private:
         const TClientChunkReadOptions& chunkReadOptions,
         const IThroughputThrottlerPtr& throttler)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto nameTable = New<TNameTable>();
 
@@ -1372,7 +1372,7 @@ private:
         TLockedChunkGuard lockedChunkGuard,
         const std::function<void(IOutputStream*)>& producer)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         YT_LOG_INFO("Producing artifact file (ChunkId: %v, Location: %v)",
             chunkId,
@@ -1456,7 +1456,7 @@ private:
         const TCacheLocationPtr& location,
         TChunkId chunkId)
     {
-        VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
 
         if (!IsArtifactChunkId(chunkId)) {
             return TArtifactKey(chunkId);
@@ -1521,7 +1521,7 @@ private:
 
     TArtifactCacheReaderConfigPtr GetArtifactCacheReaderConfig() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ArtifactCacheReaderConfig_.Acquire();
     }
@@ -1530,7 +1530,7 @@ private:
         const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
         const TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         ArtifactCacheReaderConfig_.Store(newNodeConfig->DataNode->ArtifactCacheReader);
     }
@@ -1551,35 +1551,35 @@ void TChunkCache::Initialize()
 
 bool TChunkCache::IsEnabled() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Impl_->IsEnabled();
 }
 
 IChunkPtr TChunkCache::FindChunk(TChunkId chunkId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Impl_->FindChunk(chunkId);
 }
 
 std::vector<IChunkPtr> TChunkCache::GetChunks()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Impl_->GetChunks();
 }
 
 int TChunkCache::GetChunkCount()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Impl_->GetSize();
 }
 
 TFuture<void> TChunkCache::RemoveChunksByLocation(const TCacheLocationPtr& location)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Impl_->RemoveChunksByLocation(location);
 }
@@ -1589,7 +1589,7 @@ TFuture<IChunkPtr> TChunkCache::DownloadArtifact(
     const TArtifactDownloadOptions& artifactDownloadOptions,
     bool* fetchedFromCache)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Impl_->DownloadArtifact(key, artifactDownloadOptions, fetchedFromCache);
 }
@@ -1598,7 +1598,7 @@ std::function<void(IOutputStream*)> TChunkCache::MakeArtifactDownloadProducer(
     const TArtifactKey& key,
     const TArtifactDownloadOptions& artifactDownloadOptions)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Impl_->MakeArtifactDownloadProducer(key, artifactDownloadOptions);
 }

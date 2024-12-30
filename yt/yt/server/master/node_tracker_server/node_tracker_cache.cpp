@@ -18,14 +18,14 @@ class TNodeTrackerCache
 public:
     void ResetNodeDefaultAddresses() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         NodeDefaultAddresses_.Store(THashMap<TNodeId, std::string>{});
     }
 
     void UpdateNodeDefaultAddress(TNodeId nodeId, std::optional<TStringBuf> defaultAddress) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         NodeDefaultAddresses_.Transform([=] (auto& defaultAddresses) {
             if (defaultAddress.has_value()) {
@@ -38,7 +38,7 @@ public:
 
     std::string GetNodeDefaultAddressOrThrow(TNodeId nodeId) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return NodeDefaultAddresses_.Read([=] (const auto& nodeAddresses) {
             auto it = nodeAddresses.find(nodeId);

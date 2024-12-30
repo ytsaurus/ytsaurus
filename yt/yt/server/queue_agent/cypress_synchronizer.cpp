@@ -821,7 +821,7 @@ public:
     //! and updates the corresponding rows in the dynamic state.
     void Pass()
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("CypressSynchronizer"));
 
@@ -866,7 +866,7 @@ public:
         const TCypressSynchronizerDynamicConfigPtr& oldConfig,
         const TCypressSynchronizerDynamicConfigPtr& newConfig) override
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         DynamicConfig_ = newConfig;
 
@@ -899,7 +899,7 @@ private:
 
     void BuildOrchid(NYson::IYsonConsumer* consumer) const
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         BuildYsonFluently(consumer).BeginMap()
             .Item("active").Value(Active_)

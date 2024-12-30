@@ -703,7 +703,7 @@ private:
         const TMultiplexedChangelogConfigPtr& config,
         TRange<TMultiplexedRecord> multiplexedRecords)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         // Construct the multiplexed data record and append it.
         struct TMultiplexedRecordTag { };

@@ -28,7 +28,7 @@ TResourceTree::TResourceTree(
 
 void TResourceTree::UpdateConfig(const TFairShareStrategyTreeConfigPtr& config)
 {
-    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+    YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     EnableStructureLockProfiling.store(config->EnableResourceTreeStructureLockProfiling);
     EnableUsageLockProfiling.store(config->EnableResourceTreeUsageLockProfiling);
@@ -37,7 +37,7 @@ void TResourceTree::UpdateConfig(const TFairShareStrategyTreeConfigPtr& config)
 
 void TResourceTree::AttachParent(const TResourceTreeElementPtr& element, const TResourceTreeElementPtr& parent)
 {
-    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+    YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     // There is no necessity to acquire StructureLock_ since element is newly created and no concurrent operations are possible.
     YT_VERIFY(!element->Initialized_);
@@ -55,7 +55,7 @@ void TResourceTree::ChangeParent(
     const TResourceTreeElementPtr& newParent,
     const std::optional<std::vector<TResourceTreeElementPtr>>& descendantOperationElements)
 {
-    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+    YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     auto structureGuard = WriterGuard(StructureLock_);
 
@@ -90,7 +90,7 @@ void TResourceTree::ChangeParent(
 
 void TResourceTree::ScheduleDetachParent(const TResourceTreeElementPtr& element)
 {
-    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+    YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     YT_LOG_DEBUG("Scheduling element to detach (Id: %v)", element->GetId());
     YT_VERIFY(element->Initialized_);
@@ -99,7 +99,7 @@ void TResourceTree::ScheduleDetachParent(const TResourceTreeElementPtr& element)
 
 void TResourceTree::ReleaseResources(const TResourceTreeElementPtr& element, bool markAsNonAlive)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!element->GetAlive()) {
         return;
@@ -152,7 +152,7 @@ void TResourceTree::CheckCycleAbsence(const TResourceTreeElementPtr& element, co
 
 void TResourceTree::IncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!element->GetAlive()) {
         return;
@@ -169,7 +169,7 @@ void TResourceTree::IncreaseHierarchicalResourceUsage(const TResourceTreeElement
 
 void TResourceTree::DoIncreaseHierarchicalResourceUsage(const TResourceTreeElementPtr& element, const TJobResources& delta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_VERIFY(element->Initialized_);
 
@@ -189,7 +189,7 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsage(const TResourceTreeEleme
 
 void TResourceTree::IncreaseHierarchicalResourceUsagePrecommit(const TResourceTreeElementPtr& element, const TJobResources& delta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!element->GetAlive()) {
         return;
@@ -208,7 +208,7 @@ void TResourceTree::DoIncreaseHierarchicalResourceUsagePrecommit(
     const TResourceTreeElementPtr& element,
     const TJobResources& delta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_VERIFY(element->Initialized_);
 
@@ -231,7 +231,7 @@ EResourceTreeIncreaseResult TResourceTree::TryIncreaseHierarchicalResourceUsageP
     const TJobResources &delta,
     TJobResources *availableResourceLimitsOutput)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!element->GetAlive()) {
         return EResourceTreeIncreaseResult::ElementIsNotAlive;
@@ -280,7 +280,7 @@ void TResourceTree::CommitHierarchicalResourceUsage(
     const TJobResources& resourceUsageDelta,
     const TJobResources& precommittedResources)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(StructureLock_);
 
@@ -304,7 +304,7 @@ void TResourceTree::CommitHierarchicalResourceUsage(
 
 void TResourceTree::PerformPostponedActions()
 {
-    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+    YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     auto structureGuard = WriterGuard(StructureLock_);
 
@@ -390,7 +390,7 @@ void TResourceTree::InitializeResourceUsageFor(
     const TResourceTreeElementPtr& targetElement,
     const std::vector<TResourceTreeElementPtr>& operationElements)
 {
-    VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+    YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
     if (DelayInsideResourceUsageInitializationInTree_) {
         Sleep(*DelayInsideResourceUsageInitializationInTree_);

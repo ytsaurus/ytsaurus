@@ -26,7 +26,7 @@ using namespace NIO;
 
 TFuture<void> TJournalSession::DoStart()
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
     auto changelogFuture = dispatcher->CreateJournal(
@@ -36,7 +36,7 @@ TFuture<void> TJournalSession::DoStart()
         Options_.WorkloadDescriptor);
 
     return changelogFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const IFileChangelogPtr& changelog) {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         Changelog_ = changelog;
         Chunk_ = New<TJournalChunk>(
@@ -53,7 +53,7 @@ TFuture<void> TJournalSession::DoStart()
 
 void TJournalSession::DoCancel(const TError& /*error*/)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     OnFinished();
 }
@@ -90,7 +90,7 @@ TFuture<TChunkInfo> TJournalSession::DoFinish(
     const TRefCountedChunkMetaPtr& /*chunkMeta*/,
     std::optional<int> blockCount)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     auto result = Changelog_->Finish();
 
@@ -123,7 +123,7 @@ TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
     i64 /*cumulativeBlockSize*/,
     bool /*enableCaching*/)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     int recordCount = Changelog_->GetRecordCount();
 
@@ -179,14 +179,14 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TJournalSession::DoSendBlocks(
     i64 /*cumulativeBlockSize*/,
     const TNodeDescriptor& /*target*/)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     THROW_ERROR_EXCEPTION("Sending blocks is not supported for journal chunks");
 }
 
 TFuture<TIOCounters> TJournalSession::DoFlushBlocks(int blockIndex)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     int recordCount = Changelog_->GetRecordCount();
 
@@ -218,7 +218,7 @@ TFuture<TIOCounters> TJournalSession::DoFlushBlocks(int blockIndex)
 
 void TJournalSession::OnFinished()
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     if (Chunk_ && Changelog_) {
         Chunk_->UpdateFlushedRowCount(Changelog_->GetRecordCount());

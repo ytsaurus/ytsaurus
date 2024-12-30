@@ -282,7 +282,7 @@ public:
 
     void Register(TQueryContextPtr queryContext)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         const auto& Logger = queryContext->Logger;
 
@@ -313,7 +313,7 @@ public:
 
     void Unregister(TQueryContextPtr queryContext)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         const auto& Logger = queryContext->Logger;
 
@@ -379,14 +379,14 @@ public:
 
     size_t GetQueryCount() const
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return QueryContexts_.size();
     }
 
     TFuture<void> GetIdleFuture() const
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return IdlePromise_.ToFuture();
     }
@@ -414,7 +414,7 @@ public:
 
     void SaveState()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         TStringStream stream;
         TYsonWriter writer(&stream, EYsonFormat::Pretty);
@@ -426,7 +426,7 @@ public:
 
     void UpdateProcessListSnapshot()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         ProcessListSnapshot_ = TProcessListSnapshot(getContext()->getProcessList());
         SaveState();
@@ -434,7 +434,7 @@ public:
 
     void ClearQueryFinishInfos()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         std::vector<TQueryId> toRemove;
 
@@ -453,7 +453,7 @@ public:
 
     TFuture<std::vector<std::optional<TQueryFinishInfo>>> ExtractQueryFinishInfos(const std::vector<TQueryId>& queryIds)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return BIND(&TImpl::DoExtractQueryFinishInfos, MakeStrong(this), queryIds)
             .AsyncVia(Invoker_)
@@ -462,7 +462,7 @@ public:
 
     TFuture<std::optional<TQueryProgressValues>> GetQueryProgress(TQueryId queryId) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return BIND(&TImpl::DoGetQueryProgress, MakeStrong(this), queryId)
             .AsyncVia(Invoker_)
@@ -501,7 +501,7 @@ private:
 
     void BuildYson(IYsonConsumer* consumer) const
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -522,7 +522,7 @@ private:
 
     TUserProfilingEntry& GetOrRegisterUserProfilingEntry(const TString& user)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         THashMap<TString, TUserProfilingEntryPtr>::insert_ctx ctx;
         auto it = UserToUserProfilingEntry_.find(user, ctx);
@@ -537,7 +537,7 @@ private:
 
     std::vector<std::optional<TQueryFinishInfo>> DoExtractQueryFinishInfos(const std::vector<TQueryId>& queryIds)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         std::vector<std::optional<TQueryFinishInfo>> result;
         result.reserve(queryIds.size());
@@ -559,7 +559,7 @@ private:
 
     std::optional<TQueryProgressValues> DoGetQueryProgress(TQueryId queryId) const
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (auto it = QueryContexts_.find(queryId); it != QueryContexts_.end()) {
             return it->second->GetQueryProgress();

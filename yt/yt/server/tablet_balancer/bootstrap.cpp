@@ -103,28 +103,28 @@ public:
 
     const NNative::IClientPtr& GetClient() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Client_;
     }
 
     const ICypressElectionManagerPtr& GetElectionManager() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ElectionManager_;
     }
 
     const IInvokerPtr& GetControlInvoker() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ControlInvoker_;
     }
 
     const TDynamicConfigManagerPtr& GetDynamicConfigManager() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DynamicConfigManager_;
     }

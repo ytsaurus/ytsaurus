@@ -103,7 +103,7 @@ private:
     {
         static constexpr int RequestStep = 1;
 
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(!stores.empty());
 
         std::vector<TChunkId> chunkIds;
@@ -126,7 +126,7 @@ private:
     {
         static constexpr int RequestStep = 2;
 
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_VERIFY(allSetResult.IsOK());
         const auto& errorOrRsps = allSetResult.Value();
@@ -189,7 +189,7 @@ private:
     {
         static constexpr int RequestStep = 3;
 
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (!error.IsOK()) {
             for (const auto& store : stores) {

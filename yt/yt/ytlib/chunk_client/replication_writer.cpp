@@ -301,7 +301,7 @@ public:
 
     ~TReplicationWriter()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         // Just a quick check.
         if (State_.load() == EReplicationWriterState::Closed) {
@@ -382,21 +382,21 @@ public:
 
     const TChunkInfo& GetChunkInfo() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ChunkInfo_;
     }
 
     const TDataStatistics& GetDataStatistics() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_ABORT();
     }
 
     TWrittenChunkReplicasInfo GetWrittenChunkReplicasInfo() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         TWrittenChunkReplicasInfo result;
         for (const auto& node : Nodes_) {
@@ -409,14 +409,14 @@ public:
 
     TChunkId GetChunkId() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return SessionId_.ChunkId;
     }
 
     NErasure::ECodec GetErasureCodecId() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return NErasure::ECodec::None;
     }
@@ -550,7 +550,7 @@ private:
 
     void DoClose(const TWorkloadDescriptor& /*workloadDescriptor*/)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
         YT_VERIFY(!CloseRequested_);
 
         YT_LOG_DEBUG("Writer close requested");
@@ -573,7 +573,7 @@ private:
 
     TChunkReplicaWithMediumList AllocateTargets()
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
         if (!Options_->AllowAllocatingNewTargetNodes) {
             THROW_ERROR_EXCEPTION(
@@ -629,7 +629,7 @@ private:
 
     void StartSessions(const TChunkReplicaWithMediumList& targets, bool disableSendBlocks)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
         std::vector<TFuture<void>> asyncResults;
         for (auto target : targets) {
@@ -652,7 +652,7 @@ private:
 
     void FlushCurrentGroup()
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
         YT_VERIFY(!CloseRequested_);
 
         if (StateError_.IsSet()) {
@@ -672,7 +672,7 @@ private:
 
     void OnNodeFailed(const TNodePtr& node, const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
         // Finished flag may have been set in case of reordering of the responses.
         if (!node->IsAlive() || node->IsFinished()) {
@@ -711,7 +711,7 @@ private:
 
     void ShiftWindow()
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
         if (StateError_.IsSet()) {
             YT_VERIFY(Window_.empty());
@@ -753,7 +753,7 @@ private:
 
     void OnWindowShifted(int blockIndex, const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
         if (!error.IsOK()) {
             YT_LOG_WARNING(error, "Chunk writer failed");
@@ -791,7 +791,7 @@ private:
 
     void FlushBlocks(const TNodePtr& node, int blockIndex)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
         if (!node->IsAlive()) {
             return;
@@ -837,7 +837,7 @@ private:
 
     void StartChunk(TChunkReplicaWithMedium target, bool disableSendBlocks)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
         YT_VERIFY(IsErasureChunkPartId(SessionId_.ChunkId) || target.GetReplicaIndex() == GenericChunkReplicaIndex);
 
         const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
@@ -955,7 +955,7 @@ private:
 
     void CloseSessions()
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
         YT_VERIFY(CloseRequested_);
 
         YT_LOG_INFO("Closing writer");
@@ -969,7 +969,7 @@ private:
 
     void FinishChunk(const TNodePtr& node)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
         if (!node->IsAlive() || node->IsClosing()) {
             return;
@@ -1049,7 +1049,7 @@ private:
 
     TFuture<void> CancelWriter(bool wait = false)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         std::vector<TFuture<void>> cancelFutures;
         auto nodes = ExtractCandidateNodes();
@@ -1067,7 +1067,7 @@ private:
 
     void AddBlocks(const std::vector<TBlock>& blocks)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
         YT_VERIFY(!CloseRequested_);
 
         if (StateError_.IsSet()) {
@@ -1183,7 +1183,7 @@ bool TGroup::IsWritten() const
     auto writer = Writer_.Lock();
     YT_VERIFY(writer);
 
-    VERIFY_THREAD_AFFINITY(writer->WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
 
     for (int nodeIndex = 0; nodeIndex < std::ssize(SentTo_); ++nodeIndex) {
         if (writer->Nodes_[nodeIndex]->IsAlive() && !SentTo_[nodeIndex]) {
@@ -1200,7 +1200,7 @@ bool TGroup::ShouldThrottle(const std::string& address, const TReplicationWriter
 
 void TGroup::PutGroup(const TReplicationWriterPtr& writer)
 {
-    VERIFY_THREAD_AFFINITY(writer->WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
 
     std::vector<TNodePtr> selectedNodes;
     for (int index = 0; index < std::ssize(writer->Nodes_); ++index) {
@@ -1298,7 +1298,7 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
 
 void TGroup::SendGroup(const TReplicationWriterPtr& writer, const std::vector<TNodePtr>& srcNodes)
 {
-    VERIFY_THREAD_AFFINITY(writer->WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
 
     std::vector<TNodePtr> dstNodes;
     for (int index = 0; index < std::ssize(SentTo_); ++index) {
@@ -1367,7 +1367,7 @@ bool TGroup::IsFlushing() const
     auto writer = Writer_.Lock();
     YT_VERIFY(writer);
 
-    VERIFY_THREAD_AFFINITY(writer->WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
 
     return Flushing_;
 }
@@ -1377,7 +1377,7 @@ void TGroup::SetFlushing()
     auto writer = Writer_.Lock();
     YT_VERIFY(writer);
 
-    VERIFY_THREAD_AFFINITY(writer->WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
 
     Flushing_ = true;
 }
@@ -1405,7 +1405,7 @@ void TGroup::Process()
         return;
     }
 
-    VERIFY_THREAD_AFFINITY(writer->WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
 
     if (writer->StateError_.IsSet()) {
         return;

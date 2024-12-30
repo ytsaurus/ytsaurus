@@ -261,7 +261,7 @@ private:
             return;
         }
 
-        VERIFY_SPINLOCK_AFFINITY(HistoricUsageAggregatorLock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(HistoricUsageAggregatorLock_);
 
         Initialized_ = true;
 
@@ -1089,7 +1089,7 @@ private:
 
     void Start()
     {
-        VERIFY_SPINLOCK_AFFINITY(Throttlers_->Lock);
+        YT_ASSERT_SPINLOCK_AFFINITY(Throttlers_->Lock);
 
         YT_UNUSED_FUTURE(MemberClient_->Start());
         Active_ = true;
@@ -1097,7 +1097,7 @@ private:
 
     void Stop()
     {
-        VERIFY_SPINLOCK_AFFINITY(Throttlers_->Lock);
+        YT_ASSERT_SPINLOCK_AFFINITY(Throttlers_->Lock);
 
         Active_ = false;
         YT_UNUSED_FUTURE(MemberClient_->Stop());

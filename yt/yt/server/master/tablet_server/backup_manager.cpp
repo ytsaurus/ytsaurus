@@ -73,7 +73,7 @@ public:
     explicit TBackupManager(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::TabletManager)
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(
                 EAutomatonThreadQueue::Default),
             AutomatonThread);

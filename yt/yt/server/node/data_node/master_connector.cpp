@@ -112,7 +112,7 @@ public:
         , JobHeartbeatPeriod_(*Config_->JobHeartbeatPeriod)
         , JobHeartbeatPeriodSplay_(Config_->JobHeartbeatPeriodSplay)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         DataNodeProfiler().AddFuncGauge("/online", MakeStrong(this), [this] {
             return IsOnline() ? 1.0 : 0.0;
@@ -121,7 +121,7 @@ public:
 
     void Initialize() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         TMasterHeartbeatReporterBase::Initialize();
 
@@ -165,7 +165,7 @@ public:
         TNodeId nodeId,
         TCellTag cellTag)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto req = proxy.FullHeartbeat();
         req->SetRequestCodec(NCompression::ECodec::Lz4);
@@ -227,7 +227,7 @@ public:
         TNodeId nodeId,
         TCellTag cellTag)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto req = proxy.IncrementalHeartbeat();
         req->SetRequestCodec(NCompression::ECodec::Lz4);
@@ -319,7 +319,7 @@ public:
         TCellTag cellTag,
         const TRspFullHeartbeat& response)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto* delta = GetChunksDelta(cellTag);
         YT_VERIFY(delta->State == EMasterConnectorState::Registered);
@@ -378,7 +378,7 @@ public:
 
     void OnFullHeartbeatFailed(TCellTag cellTag, TError error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_WARNING(error, "Error reporting full data node heartbeat to master (CellTag: %v)",
             cellTag);
@@ -386,7 +386,7 @@ public:
 
     void OnIncrementalHeartbeatFailed(TCellTag cellTag, TError error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_WARNING(error, "Error reporting incremental data node heartbeat to master (CellTag: %v)",
             cellTag);
@@ -410,7 +410,7 @@ public:
         TCellTag cellTag,
         const TRspIncrementalHeartbeat& response)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto* delta = GetChunksDelta(cellTag);
 
@@ -480,7 +480,7 @@ public:
 
     EMasterConnectorState GetMasterConnectorState(TCellTag cellTag)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto* delta = GetChunksDelta(cellTag);
         return delta->State;
@@ -488,14 +488,14 @@ public:
 
     TFuture<void> GetHeartbeatBarrier(NObjectClient::TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return GetChunksDelta(cellTag)->NextHeartbeatBarrier.Load().ToFuture().ToUncancelable();
     }
 
     void ScheduleHeartbeat() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!Initialized_) {
             YT_LOG_WARNING("Master connector is not initialized");
@@ -519,7 +519,7 @@ public:
 
     void ScheduleJobHeartbeat(const std::string& jobTrackerAddress) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_DEBUG("Scheduling out-of-order job heartbeat "
             "(JobTrackerAddress: %v)",
@@ -535,7 +535,7 @@ public:
 
     bool IsOnline() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
         return OnlineCellCount_.load() == std::ssize(clusterNodeMasterConnector->GetMasterCellTags());
@@ -543,7 +543,7 @@ public:
 
     void SetLocationUuidsRequired(bool value) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         LocationUuidsRequired_ = value;
         YT_LOG_INFO("Location uuids in data node heartbeats are %v",
@@ -553,7 +553,7 @@ public:
 protected:
     TFuture<void> DoReportHeartbeat(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         THeartbeatRspFuture variantResult;
         auto state = GetMasterConnectorState(cellTag);
@@ -584,7 +584,7 @@ protected:
 
     void OnHeartbeatSucceeded(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto state = GetMemorizedMasterConnectorState(cellTag);
         switch (state) {
@@ -609,7 +609,7 @@ protected:
 
     void OnHeartbeatFailed(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto state = GetMemorizedMasterConnectorState(cellTag);
         switch (state) {
@@ -634,7 +634,7 @@ protected:
 
     void ResetState(TCellTag cellTag) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         CellTagToVariantHeartbeatRspFuture_.erase(cellTag);
         CellTagToMasterConnectorState_.erase(cellTag);
@@ -799,7 +799,7 @@ private:
 
     void OnMasterDisconnected()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
         for (auto cellTag : clusterNodeMasterConnector->GetMasterCellTags()) {
@@ -822,7 +822,7 @@ private:
 
     void OnMasterConnected(TNodeId /*nodeId*/)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         HeartbeatInvoker_ = Bootstrap_->GetMasterConnectionInvoker();
 
@@ -837,7 +837,7 @@ private:
 
     void InitPerCellData(TCellTag cellTag, const std::vector<std::string>& masterAddresses)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto cellId = Bootstrap_->GetConnection()->GetMasterCellId(cellTag);
         auto cellTagData = std::make_unique<TPerCellTagData>();
@@ -868,7 +868,7 @@ private:
 
     void OnSecondaryMasterCellListChanged(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
         for (const auto& [cellTag, config] : newSecondaryMasterConfigs) {
@@ -890,7 +890,7 @@ private:
         const TClusterNodeDynamicConfigPtr& /*oldNodeConfig*/,
         const TClusterNodeDynamicConfigPtr& newNodeConfig)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         const auto& dynamicConfig = newNodeConfig->DataNode->MasterConnector;
 
@@ -910,7 +910,7 @@ private:
 
     void StartHeartbeats()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO(
             "Starting data node and job heartbeats (NodeId: %v)",
@@ -924,7 +924,7 @@ private:
     // TODO(cherepashka): refactor report of job heartbeats.
     void DoScheduleJobHeartbeat(bool immediately)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto jobTrackerAddresses = GetJobTrackerAddresses();
         auto delay = immediately ? TDuration::Zero() : JobHeartbeatPeriod_ + RandomDuration(JobHeartbeatPeriodSplay_);
@@ -944,7 +944,7 @@ private:
 
     void ReportJobHeartbeat(const std::string& jobTrackerAddress, bool outOfOrder)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_DEBUG("Reporting job heartbeat to master (JobTrackerAddress: %v, OutOfOrder: %v)",
             jobTrackerAddress,
@@ -1032,7 +1032,7 @@ private:
         TDataNodeTrackerServiceProxy proxy,
         TCellTag cellTag)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto nodeId = Bootstrap_->GetNodeId();
 
@@ -1070,7 +1070,7 @@ private:
         TDataNodeTrackerServiceProxy proxy,
         TCellTag cellTag)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto nodeId = Bootstrap_->GetNodeId();
 
@@ -1085,7 +1085,7 @@ private:
 
     void ComputeStatistics(TDataNodeStatistics* statistics) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         i64 totalAvailableSpace = 0;
         i64 totalLowWatermarkSpace = 0;
@@ -1169,7 +1169,7 @@ private:
 
     bool IsLocationWriteable(const TStoreLocationPtr& location) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!location->IsWritable()) {
             return false;
@@ -1187,7 +1187,7 @@ private:
         TChunkLocationDirectory* locationDirectory,
         bool onMediumChange = false)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         TChunkAddInfo chunkAddInfo;
 
@@ -1213,7 +1213,7 @@ private:
         TChunkLocationDirectory* locationDirectory,
         bool onMediumChange = false)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         TChunkRemoveInfo chunkRemoveInfo;
 
@@ -1233,7 +1233,7 @@ private:
 
     TPerCellTagData* GetCellTagData(TCellTag cellTag)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(PerCellTagDataLock_);
         // Nothing is ever deleted from PerCellTagData_, therefore it is safe to return raw pointer.
@@ -1242,7 +1242,7 @@ private:
 
     TChunksDelta* GetChunksDelta(TCellTag cellTag)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto* cellTagData = GetCellTagData(cellTag);
         // Nothing is ever deleted from ChunksDelta, therefore it is safe to return raw pointer.
@@ -1251,7 +1251,7 @@ private:
 
     TPerJobTrackerData* GetJobTrackerData(const std::string& jobTrackerAddress)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(PerJobTrackerDataLock_);
         // Nothing is ever deleted from PerJobTrackerData_, therefore it is safe to return raw pointer.
@@ -1266,14 +1266,14 @@ private:
 
     TChunksDelta* GetChunksDelta(TObjectId id)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return GetChunksDelta(CellTagFromId(id));
     }
 
     void OnChunkAdded(const IChunkPtr& chunk)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (IsArtifactChunkId(chunk->GetId())) {
             return;
@@ -1290,7 +1290,7 @@ private:
 
     void OnChunkRemoved(const IChunkPtr& chunk)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (IsArtifactChunkId(chunk->GetId())) {
             return;
@@ -1333,14 +1333,14 @@ private:
 
     TDataNodeDynamicConfigPtr GetNodeDynamicConfig() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetDynamicConfigManager()->GetConfig()->DataNode;
     }
 
     TMasterConnectorDynamicConfigPtr GetDynamicConfig() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return GetNodeDynamicConfig()->MasterConnector;
     }
@@ -1348,7 +1348,7 @@ private:
     template <typename TRspHeartbeatType>
     TErrorOr<TRspHeartbeatType> GetHeartbeatResponseOrError(TCellTag cellTag)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto futureIt = GetIteratorOrCrash(CellTagToVariantHeartbeatRspFuture_, cellTag);
         auto variantFuture = std::move(futureIt->second);
@@ -1362,7 +1362,7 @@ private:
 
     EMasterConnectorState GetMemorizedMasterConnectorState(TCellTag cellTag)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto stateIt = GetIteratorOrCrash(CellTagToMasterConnectorState_, cellTag);
         auto state = std::move(stateIt->second);

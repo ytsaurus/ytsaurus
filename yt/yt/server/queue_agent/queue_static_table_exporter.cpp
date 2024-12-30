@@ -819,7 +819,7 @@ NQueueClient::TQueueStaticExportConfig TQueueExporter::GetConfig()
 
 void TQueueExporter::Export()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     // XXX(apachee): Rename this and TQueueExporter to QueueStaticTableExporter and TQueueStaticTableExporter respectively?
     auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueExporterIteration"));

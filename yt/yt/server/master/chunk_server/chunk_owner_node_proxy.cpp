@@ -359,7 +359,7 @@ public:
 
     void Run()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (FetchContext_.Ranges.empty()) {
             ReplySuccess();

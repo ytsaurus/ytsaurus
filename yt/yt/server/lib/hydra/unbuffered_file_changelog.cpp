@@ -66,14 +66,14 @@ public:
 
     const TFileChangelogConfigPtr& GetConfig() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Config_;
     }
 
     const TString& GetFileName() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return FileName_;
     }
@@ -296,35 +296,35 @@ public:
 
     const TChangelogMeta& GetMeta() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Meta_;
     }
 
     int GetRecordCount() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return RecordCount_.load();
     }
 
     i64 GetDataSize() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return CurrentFileOffset_.load();
     }
 
     double GetWriteAmplificationRatio() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return WriteAmplificationRatio_.load(std::memory_order::relaxed);
     }
 
     bool IsOpen() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Open_.load();
     }
@@ -403,7 +403,7 @@ public:
     IIOEngine::TReadRequest MakeChunkFragmentReadRequest(
         const TChunkFragmentDescriptor& fragmentDescriptor) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         switch (Format_) {
             case EFileChangelogFormat::V5:

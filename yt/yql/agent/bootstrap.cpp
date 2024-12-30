@@ -245,7 +245,7 @@ void TBootstrap::UpdateCypressNode()
 
 void TBootstrap::GuardedUpdateCypressNode()
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
     auto instancePath = Format("%v/instances/%v", Config_->Root, ToYPathLiteral(AgentId_));
 

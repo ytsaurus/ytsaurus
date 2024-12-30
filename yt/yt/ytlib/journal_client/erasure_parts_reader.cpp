@@ -220,7 +220,7 @@ private:
 
     std::vector<i64> GetCandidateReadRowCounts()
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         std::vector<i64> result;
         for (const auto& [_, replica] : Replicas_) {
@@ -234,7 +234,7 @@ private:
 
     void OnReplicaFinished(TGuard<NThreading::TSpinLock>&& guard)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         if (--OutstandingReplicaCount_ > 0) {
             return;
@@ -273,7 +273,7 @@ private:
 
     void Complete(TGuard<NThreading::TSpinLock>&& guard, i64 rowCount)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         YT_VERIFY(!std::exchange(Finished_, true));
 
@@ -326,7 +326,7 @@ private:
 
     void Fail(TGuard<NThreading::TSpinLock>&& guard)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         YT_VERIFY(!std::exchange(Finished_, true));
 
@@ -348,7 +348,7 @@ private:
 
     TPartIndexList GetAvailableIndices(i64 desiredRowCount)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         NErasure::TPartIndexList result;
         for (const auto& [partIndex, replica] : Replicas_) {
@@ -399,7 +399,7 @@ private:
 
     bool CanCompleteWithFastPath(i64 desiredRowCount)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         for (int partIndex : Reader_->PartIndices_) {
             auto it = Replicas_.find(partIndex);
@@ -423,7 +423,7 @@ private:
 
     bool CanComplete(i64 desiredRowCount)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         return CanCompleteWithFastPath(desiredRowCount) || CanCompleteWithSlowPath(desiredRowCount);
     }

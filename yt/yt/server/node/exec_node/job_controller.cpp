@@ -127,7 +127,7 @@ public:
     {
         YT_VERIFY(Bootstrap_);
 
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
         Profiler_.AddProducer("/gpu_utilization", GpuUtilizationBuffer_);
         Profiler_.AddProducer("", JobCountBuffer_);
@@ -193,7 +193,7 @@ public:
 
     TJobPtr FindJob(TJobId jobId) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(JobsLock_);
         auto it = IdToJob_.find(jobId);
@@ -202,7 +202,7 @@ public:
 
     TJobPtr GetJobOrThrow(TJobId jobId) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto job = FindJob(jobId);
         if (!job) {
@@ -216,7 +216,7 @@ public:
 
     TJobPtr FindRecentlyRemovedJob(TJobId jobId) const override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto it = RecentlyRemovedJobMap_.find(jobId);
         return it == RecentlyRemovedJobMap_.end() ? nullptr : it->second.Job;
@@ -224,7 +224,7 @@ public:
 
     void OnMasterConnected() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_INFO("Node connected to master");
 
@@ -233,7 +233,7 @@ public:
 
     void OnMasterDisconnected() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         MasterConnected_.store(false);
 
@@ -250,7 +250,7 @@ public:
 
     void SetJobsDisabledByMaster(bool value) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         JobsDisabledByMaster_.store(value);
 
@@ -258,7 +258,7 @@ public:
             TError error{"All scheduler jobs are disabled"};
 
             Bootstrap_->GetJobInvoker()->Invoke(BIND([=, this, this_ = MakeStrong(this), error{std::move(error)}] {
-                VERIFY_THREAD_AFFINITY(JobThread);
+                YT_ASSERT_THREAD_AFFINITY(JobThread);
 
                 InterruptAllJobs(std::move(error));
             }));
@@ -269,7 +269,7 @@ public:
         const TControllerAgentConnectorPool::TControllerAgentConnector::TReqHeartbeatPtr& request,
         const TAgentHeartbeatContextPtr& context) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         DoPrepareAgentHeartbeatRequest(request, context);
     }
@@ -278,7 +278,7 @@ public:
         const TControllerAgentConnectorPool::TControllerAgentConnector::TRspHeartbeatPtr& response,
         const TAgentHeartbeatContextPtr& context) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         DoProcessAgentHeartbeatResponse(response, context);
     }
@@ -287,7 +287,7 @@ public:
         const TSchedulerConnector::TReqHeartbeatPtr& request,
         const TSchedulerHeartbeatContextPtr& context) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         DoPrepareSchedulerHeartbeatRequest(request, context);
     }
@@ -296,28 +296,28 @@ public:
         const TSchedulerConnector::TRspHeartbeatPtr& response,
         const TSchedulerHeartbeatContextPtr& context) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         DoProcessSchedulerHeartbeatResponse(response, context);
     }
 
     bool IsJobProxyProfilingDisabled() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return GetDynamicConfig()->DisableJobProxyProfiling;
     }
 
     NJobProxy::TJobProxyDynamicConfigPtr GetJobProxyDynamicConfig() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return GetDynamicConfig()->JobProxy;
     }
 
     TBuildInfoPtr GetBuildInfo() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto buildInfo = CachedJobProxyBuildInfo_.Load();
         if (buildInfo.IsOK()) {
@@ -329,7 +329,7 @@ public:
 
     bool AreJobsDisabled() const noexcept override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
 
@@ -338,7 +338,7 @@ public:
 
     void ScheduleStartAllocations()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         if (StartAllocationsScheduled_) {
             return;
@@ -358,14 +358,14 @@ public:
 
     IYPathServicePtr GetOrchidService() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DoGetOrchidService();
     }
 
     void OnAgentIncarnationOutdated(const TControllerAgentDescriptor& outdatedAgentDescriptor) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TForbidContextSwitchGuard guard;
 
@@ -384,7 +384,7 @@ public:
 
     void OnJobMemoryThrashing(TJobId jobId) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto job = GetJobOrThrow(jobId);
         job->Abort(TError("Aborting job due to extensive memory thrashing in job container")
@@ -393,7 +393,7 @@ public:
 
     TFuture<void> AbortAllJobs(const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_INFO(error, "Aborting all jobs");
 
@@ -410,7 +410,7 @@ public:
 
     void AbortAllocation(TAllocationId allocationId, TError error)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto it = IdToAllocations_.find(allocationId);
         if (it == std::end(IdToAllocations_)) {
@@ -423,7 +423,7 @@ public:
 
     TFuture<void> GetAllJobsCleanupFinishedFuture() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TForbidContextSwitchGuard guard;
 
@@ -446,7 +446,7 @@ public:
         const TJobControllerDynamicConfigPtr& oldConfig,
         const TJobControllerDynamicConfigPtr& newConfig) override
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         if (*newConfig == *oldConfig) {
             return;
@@ -467,7 +467,7 @@ public:
 
     TGuid RegisterThrottlingRequest(TFuture<void> future) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
         auto id = TGuid::Create();
         YT_VERIFY(OutstandingThrottlingRequests_.emplace(id, future).second);
         // Remove future from outstanding requests after it was set + timeout.
@@ -481,7 +481,7 @@ public:
 
     TFuture<void> GetThrottlingRequestOrThrow(TGuid id) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
         auto future = FindThrottlingRequest(id);
         if (!future) {
             THROW_ERROR_EXCEPTION("Unknown throttling request %v", id);
@@ -491,28 +491,28 @@ public:
 
     TJobControllerDynamicConfigPtr GetDynamicConfig() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DynamicConfig_.Acquire();
     }
 
     void OnJobProxyProcessFinished(const TError& error, std::optional<TDuration> delay) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         JobProxyExitProfiler_.OnProcessExit(error, delay);
     }
 
     void OnJobCleanupFinished(TDuration duration) final
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         JobCleanupTimer_.Record(duration);
     }
 
     void EvictThrottlingRequest(TGuid id)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
         YT_LOG_DEBUG(
             "Outstanding throttling request evicted (ThrottlingRequestId: %v)",
             id);
@@ -521,7 +521,7 @@ public:
 
     TFuture<void> FindThrottlingRequest(TGuid id)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
         auto it = OutstandingThrottlingRequests_.find(id);
         return it == OutstandingThrottlingRequests_.end() ? TFuture<void>() : it->second;
     }
@@ -601,7 +601,7 @@ private:
 
     void OnAllocationFinished(TAllocationPtr allocation)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TForbidContextSwitchGuard guard;
 
@@ -622,7 +622,7 @@ private:
 
     std::vector<TJobPtr> GetJobs() const
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TForbidContextSwitchGuard guard;
 
@@ -638,7 +638,7 @@ private:
 
     TAllocationPtr FindAllocation(TAllocationId allocationId)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         if (auto it = IdToAllocations_.find(allocationId); it != std::end(IdToAllocations_)) {
             return it->second;
@@ -649,7 +649,7 @@ private:
 
     void CreateAndStartAllocations(std::vector<TAllocationStartInfo> allocationStartInfoProtos)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TForbidContextSwitchGuard guard;
 
@@ -727,7 +727,7 @@ private:
 
     void OnAllocationPrepared(TAllocationPtr allocation, TDuration waitingForResourcesTimeout)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TDelayedExecutor::Submit(
             BIND(&TJobController::OnWaitingAllocationTimeout, MakeWeak(this), MakeWeak(allocation), waitingForResourcesTimeout),
@@ -741,7 +741,7 @@ private:
 
     void OnJobSettled(TJobPtr job)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TForbidContextSwitchGuard guard;
 
@@ -764,7 +764,7 @@ private:
 
     void OnProfiling()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TForbidContextSwitchGuard guard;
 
@@ -844,7 +844,7 @@ private:
 
     TCounter* GetJobFinalStateCounter(EJobState state)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto it = JobFinalStateCounters_.find(state);
         if (it == JobFinalStateCounters_.end()) {
@@ -861,7 +861,7 @@ private:
 
     void ReplaceCpuWithVCpu(TNodeResources& resources) const
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         resources.set_cpu(static_cast<double>(NVectorHdrf::TCpuResource(resources.cpu() * LastHeartbeatCpuToVCpuFactor_)));
         resources.clear_vcpu();
@@ -869,7 +869,7 @@ private:
 
     void OnResourceUsageOverdraftOccurred(TResourceHolderPtr resourceHolder)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TForbidContextSwitchGuard guard;
 
@@ -934,7 +934,7 @@ private:
 
     void OnResourceReleased()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ScheduleStartAllocations();
     }
@@ -943,7 +943,7 @@ private:
         const TControllerAgentConnectorPool::TControllerAgentConnector::TReqHeartbeatPtr& request,
         const TAgentHeartbeatContextPtr& context)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TForbidContextSwitchGuard guard;
 
@@ -1164,7 +1164,7 @@ private:
         const TControllerAgentConnectorPool::TControllerAgentConnector::TRspHeartbeatPtr& response,
         const TAgentHeartbeatContextPtr& context)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         const auto& agentDescriptor = context->ControllerAgentConnector->GetDescriptor();
 
@@ -1307,7 +1307,7 @@ private:
         const TSchedulerConnector::TReqHeartbeatPtr& request,
         const TSchedulerHeartbeatContextPtr& context)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TForbidContextSwitchGuard guard;
 
@@ -1396,7 +1396,7 @@ private:
         const TSchedulerConnector::TRspHeartbeatPtr& response,
         const TSchedulerHeartbeatContextPtr& /*context*/)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         if (response->registered_controller_agents_sent()) {
             THashSet<TControllerAgentDescriptor> receivedRegisteredAgents;
@@ -1511,7 +1511,7 @@ private:
 
     void StartWaitingAllocations()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto resourceAcquiringContext = JobResourceManager_->GetResourceAcquiringContext();
 
@@ -1557,7 +1557,7 @@ private:
 
     void OnJobCleanupFinished(const TJobPtr& job)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_VERIFY(job->GetPhase() == EJobPhase::Finished);
         if (JobsWaitingForCleanup_.erase(job)) {
@@ -1571,7 +1571,7 @@ private:
 
     void UnregisterJob(const TJobPtr& job)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto operationId = job->GetOperationId();
 
@@ -1588,7 +1588,7 @@ private:
 
     void OnWaitingAllocationTimeout(const TWeakPtr<TAllocation>& weakAllocation, TDuration waitingForResourcesTimeout)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto allocation = weakAllocation.Lock();
         if (!allocation) {
@@ -1604,7 +1604,7 @@ private:
 
     void AbortAllocation(const TAllocationPtr& allocation, const NScheduler::TAllocationToAbort& abortAttributes)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto error = TError(NExecNode::EErrorCode::AbortByScheduler, "Job aborted by scheduler")
             << TErrorAttribute("abort_reason", abortAttributes.AbortReason.value_or(EAbortReason::Unknown));
@@ -1614,7 +1614,7 @@ private:
 
     void AbortJob(const TJobPtr& job, EAbortReason abortReason, bool graceful, bool requestNewJob)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         if (const auto& allocation = job->GetAllocation();
             !allocation || allocation->IsFinished())
@@ -1642,7 +1642,7 @@ private:
 
     void DoAbortJob(const TJobPtr& job, TError abortionError, bool graceful, bool requestNewJob)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_VERIFY(job->GetAllocation());
 
@@ -1651,7 +1651,7 @@ private:
 
     void InterruptJob(const TJobPtr& job, EInterruptReason interruptionReason, TDuration interruptionTimeout)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         if (const auto& allocation = job->GetAllocation();
             !allocation || allocation->IsFinished())
@@ -1672,7 +1672,7 @@ private:
         const TJobPtr& job,
         const NControllerAgent::TReleaseJobFlags& releaseFlags)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
         YT_VERIFY(job->GetPhase() >= EJobPhase::FinalizingJobProxy);
 
         job->SetStored();
@@ -1732,28 +1732,28 @@ private:
 
     TDuration GetMemoryOverdraftTimeout() const
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return GetDynamicConfig()->MemoryOverdraftTimeout;
     }
 
     TDuration GetCpuOverdraftTimeout() const
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return GetDynamicConfig()->CpuOverdraftTimeout;
     }
 
     TDuration GetRecentlyRemovedJobsStoreTimeout() const
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return GetDynamicConfig()->RecentlyRemovedJobsStoreTimeout;
     }
 
     void CleanRecentlyRemovedJobs()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto now = TInstant::Now();
 
@@ -1772,7 +1772,7 @@ private:
 
     void OnReservedMemoryOvercommitted(i64 mappedMemory)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto usage = JobResourceManager_->GetResourceUsage({
             NJobAgent::EResourcesState::Acquired,
@@ -1794,7 +1794,7 @@ private:
 
     void AdjustResources()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto usage = JobResourceManager_->GetResourceUsage({
             NJobAgent::EResourcesState::Acquired,
@@ -1857,7 +1857,7 @@ private:
 
     std::vector<TJobPtr> GetRunningJobsSortedByStartTime() const
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         std::vector<TJobPtr> schedulerJobs;
         for (TForbidContextSwitchGuard guard; const auto& [_, job] : IdToJob_) {
@@ -1875,7 +1875,7 @@ private:
 
     void InterruptAllJobs(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         for (const auto& job : GetJobs()) {
             try {
@@ -1892,7 +1892,7 @@ private:
 
     void OnJobPrepared(const TJobPtr& job)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_VERIFY(job->IsStarted());
 
@@ -1904,7 +1904,7 @@ private:
 
     void OnJobFinished(TJobPtr job)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TForbidContextSwitchGuard guard;
 
@@ -1918,7 +1918,7 @@ private:
 
     void UpdateJobProxyBuildInfo()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         // TODO(max42): not sure if running ytserver-job-proxy --build --yson from JobThread
         // is a good idea; maybe delegate to another thread?
@@ -1948,7 +1948,7 @@ private:
 
     void HandleJobsOfNonRunningOperation(TOperationId operationId)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_DEBUG("Removing jobs of operation (OperationId: %v)", operationId);
 
@@ -1968,7 +1968,7 @@ private:
                     this
                 ]
                 {
-                    VERIFY_THREAD_AFFINITY(JobThread);
+                    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
                     if (auto job = weakJob.Lock(); job && !IsJobRemoved(job)) {
                         RemoveJob(job, NControllerAgent::TReleaseJobFlags{});
@@ -2000,7 +2000,7 @@ private:
 
     bool IsJobRemoved(const TJobPtr& job) const
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return !IdToJob_.contains(job->GetId());
     }
@@ -2009,7 +2009,7 @@ private:
         TOperationId operationId,
         TControllerAgentDescriptor controllerAgentDescriptor)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto operationJobsIt = OperationIdToJobs_.find(operationId);
         if (operationJobsIt == std::end(OperationIdToJobs_)) {
@@ -2030,7 +2030,7 @@ private:
 
     void UpdateJobControllerAgent(const TJobPtr& job, const TControllerAgentDescriptor& newDescriptor)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         if (const auto& allocation = job->GetAllocation()) {
             allocation->UpdateControllerAgentDescriptor(newDescriptor);
@@ -2041,7 +2041,7 @@ private:
 
     void ConfirmJobs(const std::vector<TJobId>& jobIds, TControllerAgentConnectorPtr initiator)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         std::vector<TJobId> unconfirmedJobIds;
         for (auto jobId : jobIds) {
@@ -2073,7 +2073,7 @@ private:
         const std::vector<std::pair<TJobId, EJobPhase>>& jobsWaitingForCleanupInfo,
         TFluentAny fluent)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         fluent.DoMapFor(
             jobsWaitingForCleanupInfo,
@@ -2089,7 +2089,7 @@ private:
 
     static void BuildJobProxyBuildInfo(const TErrorOr<TBuildInfoPtr>& buildInfo, TFluentAny fluent)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (buildInfo.IsOK()) {
             fluent.Value(buildInfo.Value());
@@ -2103,7 +2103,7 @@ private:
 
     auto DoGetStaticOrchidInfo() const
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TForbidContextSwitchGuard guard;
 
@@ -2124,7 +2124,7 @@ private:
 
     auto GetStaticOrchidInfo() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto staticOrchidInfo = WaitFor(BIND(
             &TJobController::DoGetStaticOrchidInfo,
@@ -2142,7 +2142,7 @@ private:
 
     void BuildStaticOrchid(IYsonConsumer* consumer) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto [
             jobsCount,
@@ -2165,7 +2165,7 @@ private:
 
     IYPathServicePtr CreateActiveJobsService()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         class TActiveJobsService
             : public TVirtualMapBase
@@ -2219,7 +2219,7 @@ private:
 
     IYPathServicePtr CreateAllocationsService()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         class TAllocationsService
             : public TVirtualMapBase
@@ -2273,7 +2273,7 @@ private:
 
     IYPathServicePtr GetDynamicOrchidService()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return New<TCompositeMapService>()
             ->AddChild(
@@ -2286,7 +2286,7 @@ private:
 
     IYPathServicePtr DoGetOrchidService()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto staticOrchidService = IYPathService::FromProducer(BIND_NO_PROPAGATE(
             &TJobController::BuildStaticOrchid,

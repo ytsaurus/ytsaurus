@@ -32,7 +32,7 @@ public:
 
     std::optional<TSharedRefArray> FindResponse(const IServiceContextPtr& context, const ISequoiaTransactionPtr& transaction) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_VERIFY(transaction);
 
@@ -74,7 +74,7 @@ public:
         TMutationId mutationId,
         const TErrorOr<TSharedRefArray>& responseMessageOrError) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_VERIFY(mutationId);
         YT_VERIFY(transaction);
@@ -125,7 +125,7 @@ private:
 
     void DoKeepResponse(const ISequoiaTransactionPtr& transaction, TMutationId mutationId, const TSharedRefArray& response, bool remember) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_VERIFY(mutationId);
         YT_VERIFY(transaction);
@@ -156,7 +156,7 @@ private:
 
     TSharedRefArray DoLookupResponse(const ISequoiaTransactionPtr& transaction, TMutationId mutationId, bool isRetry) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_VERIFY(mutationId);
         YT_VERIFY(transaction);

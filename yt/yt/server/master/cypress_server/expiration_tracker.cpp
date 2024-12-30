@@ -42,7 +42,7 @@ TExpirationTracker::TExpirationTracker(NCellMaster::TBootstrap* bootstrap)
 
 void TExpirationTracker::Start()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     THashSet<TCypressNode*> expiredNodes;
     for (auto& shard : Shards_) {
@@ -86,7 +86,7 @@ void TExpirationTracker::Start()
 
 void TExpirationTracker::Stop()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
@@ -96,7 +96,7 @@ void TExpirationTracker::Stop()
 
 void TExpirationTracker::Clear()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     for (auto& shard : Shards_) {
         shard.ExpirationMap.clear();
@@ -106,7 +106,7 @@ void TExpirationTracker::Clear()
 
 void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNode* trunkNode)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(trunkNode->IsTrunk());
 
     if (trunkNode->IsForeign()) {
@@ -130,7 +130,7 @@ void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNode* trunkNode)
 
 void TExpirationTracker::OnNodeExpirationTimeoutUpdated(TCypressNode* trunkNode)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(trunkNode->IsTrunk());
 
     if (trunkNode->IsForeign()) {
@@ -184,7 +184,7 @@ void TExpirationTracker::OnNodeTouched(TCypressNode* trunkNode)
 
 void TExpirationTracker::OnNodeDestroyed(TCypressNode* trunkNode)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(trunkNode->IsTrunk());
 
     if (trunkNode->IsForeign()) {
@@ -206,7 +206,7 @@ void TExpirationTracker::OnNodeDestroyed(TCypressNode* trunkNode)
 
 void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(trunkNode->IsTrunk());
 
     if (trunkNode->IsForeign()) {
@@ -302,7 +302,7 @@ bool TExpirationTracker::IsNodeLocked(TCypressNode* trunkNode) const
 
 void TExpirationTracker::OnCheck()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     if (!hydraManager->IsActiveLeader()) {

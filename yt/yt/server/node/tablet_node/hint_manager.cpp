@@ -74,14 +74,14 @@ public:
 
     void Start() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         ReplicatorHintConfigFetcher_->Start();
     }
 
     bool IsReplicaClusterBanned(TStringBuf clusterName) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (!ReplicatorHintConfigFetcher_->IsConfigLoaded()) {
             return false;
@@ -186,7 +186,7 @@ private:
         const TReplicatorHintConfigPtr& /*oldConfig*/,
         const TReplicatorHintConfigPtr& newConfig)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         {
             auto guard = WriterGuard(BannedReplicaClustersSpinLock_);

@@ -424,7 +424,7 @@ void TOverloadController::Adjust()
 
 void TOverloadController::DoAdjust(const THazardPtr<TState>& state)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     auto now = NProfiling::GetCpuInstant();
 

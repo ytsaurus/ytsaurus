@@ -1080,7 +1080,7 @@ void TInputManager::OnInputChunkLocated(
     const TChunkReplicaWithMediumList& replicas,
     bool missing)
 {
-    VERIFY_INVOKER_AFFINITY(Host_->GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Host_->GetCancelableInvoker());
 
     if (missing) {
         // We must have locked all the relevant input chunks, but when user transaction is aborted
@@ -1119,7 +1119,7 @@ void TInputManager::OnInputChunkAvailable(
     const TChunkReplicaWithMediumList& replicas,
     TInputChunkDescriptor* descriptor)
 {
-    VERIFY_INVOKER_AFFINITY(Host_->GetCancelableInvoker(EOperationControllerQueue::Default));
+    YT_ASSERT_INVOKER_AFFINITY(Host_->GetCancelableInvoker(EOperationControllerQueue::Default));
 
     if (descriptor->State != EInputChunkState::Waiting) {
         return;
@@ -1153,7 +1153,7 @@ void TInputManager::OnInputChunkAvailable(
 
 void TInputManager::OnInputChunkUnavailable(TChunkId chunkId, TInputChunkDescriptor* descriptor)
 {
-    VERIFY_INVOKER_POOL_AFFINITY(Host_->GetCancelableInvokerPool());
+    YT_ASSERT_INVOKER_POOL_AFFINITY(Host_->GetCancelableInvokerPool());
 
     if (descriptor->State != EInputChunkState::Active) {
         return;

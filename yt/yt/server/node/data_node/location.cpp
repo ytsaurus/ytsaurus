@@ -447,28 +447,28 @@ TChunkLocation::TChunkLocation(
 
 const NIO::IIOEnginePtr& TChunkLocation::GetIOEngine() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return IOEngine_;
 }
 
 const NIO::IIOEngineWorkloadModelPtr& TChunkLocation::GetIOEngineModel() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return IOEngineModel_;
 }
 
 THazardPtr<TChunkLocationConfig> TChunkLocation::GetRuntimeConfig() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return RuntimeConfig_.AcquireHazard();
 }
 
 i64 TChunkLocation::GetPendingReadIOLimit() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetRuntimeConfig();
     return config->PendingReadIOLimit;
@@ -476,7 +476,7 @@ i64 TChunkLocation::GetPendingReadIOLimit() const
 
 i64 TChunkLocation::GetPendingWriteIOLimit() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetRuntimeConfig();
     return config->PendingWriteIOLimit;
@@ -484,7 +484,7 @@ i64 TChunkLocation::GetPendingWriteIOLimit() const
 
 i64 TChunkLocation::GetReadMemoryLimit() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetRuntimeConfig();
     return config->ReadMemoryLimit;
@@ -492,7 +492,7 @@ i64 TChunkLocation::GetReadMemoryLimit() const
 
 i64 TChunkLocation::GetWriteMemoryLimit() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetRuntimeConfig();
     return config->WriteMemoryLimit;
@@ -500,7 +500,7 @@ i64 TChunkLocation::GetWriteMemoryLimit() const
 
 double TChunkLocation::GetMemoryLimitFractionForStartingNewSessions() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetRuntimeConfig();
     return config->MemoryLimitFractionForStartingNewSessions;
@@ -508,7 +508,7 @@ double TChunkLocation::GetMemoryLimitFractionForStartingNewSessions() const
 
 i64 TChunkLocation::GetSessionCountLimit() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetRuntimeConfig();
     return config->SessionCountLimit;
@@ -516,7 +516,7 @@ i64 TChunkLocation::GetSessionCountLimit() const
 
 void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     TDiskLocation::Reconfigure(config);
 
@@ -535,91 +535,91 @@ void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
 
 ELocationType TChunkLocation::GetType() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Type_;
 }
 
 TChunkLocationUuid TChunkLocation::GetUuid() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Uuid_;
 }
 
 const TString& TChunkLocation::GetDiskFamily() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return StaticConfig_->DiskFamily;
 }
 
 TString TChunkLocation::GetMediumName() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return GetMediumDescriptor().Name;
 }
 
 TMediumDescriptor TChunkLocation::GetMediumDescriptor() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return MediumDescriptor_.Load();
 }
 
 const NProfiling::TProfiler& TChunkLocation::GetProfiler() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Profiler_;
 }
 
 TLocationPerformanceCounters& TChunkLocation::GetPerformanceCounters()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return *PerformanceCounters_;
 }
 
 const TString& TChunkLocation::GetPath() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return StaticConfig_->Path;
 }
 
 i64 TChunkLocation::GetQuota() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return StaticConfig_->Quota.value_or(std::numeric_limits<i64>::max());
 }
 
 double TChunkLocation::GetIOWeight() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return StaticConfig_->IOWeight;
 }
 
 i64 TChunkLocation::GetCoalescedReadMaxGapSize() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return GetRuntimeConfig()->CoalescedReadMaxGapSize;
 }
 
 const IInvokerPtr& TChunkLocation::GetAuxPoolInvoker()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return IOEngine_->GetAuxPoolInvoker();
 }
 
 std::vector<TChunkDescriptor> TChunkLocation::Scan()
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetAuxPoolInvoker());
     YT_VERIFY(GetState() == ELocationState::Enabling);
 
     try {
@@ -658,7 +658,7 @@ void TChunkLocation::Start()
 
 bool TChunkLocation::CanPublish() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return GetUuid() != InvalidChunkLocationUuid &&
         GetUuid() != EmptyChunkLocationUuid;
@@ -666,7 +666,7 @@ bool TChunkLocation::CanPublish() const
 
 bool TChunkLocation::StartDestroy()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (!ChangeState(ELocationState::Destroying, ELocationState::Disabled)) {
         return false;
@@ -682,7 +682,7 @@ bool TChunkLocation::FinishDestroy(
     bool destroyResult,
     const TError& reason = {})
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (destroyResult) {
         if (!ChangeState(ELocationState::Destroyed, ELocationState::Destroying)) {
@@ -705,7 +705,7 @@ bool TChunkLocation::FinishDestroy(
 
 bool TChunkLocation::OnDiskRepaired()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (!ChangeState(ELocationState::Disabled, ELocationState::Destroyed)) {
         return false;
@@ -717,7 +717,7 @@ bool TChunkLocation::OnDiskRepaired()
 
 bool TChunkLocation::Resurrect()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (!ChangeState(ELocationState::Enabling, ELocationState::Disabled)) {
         return false;
@@ -765,7 +765,7 @@ void TChunkLocation::Crash(const TError& reason)
 
 void TChunkLocation::UpdateUsedSpace(i64 size)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     UsedSpace_ += size;
     AvailableSpace_ -= size;
@@ -773,7 +773,7 @@ void TChunkLocation::UpdateUsedSpace(i64 size)
 
 i64 TChunkLocation::GetUsedSpace() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return UsedSpace_.load();
 }
@@ -785,7 +785,7 @@ std::optional<TDuration> TChunkLocation::GetDelayBeforeBlobSessionBlockFree() co
 
 i64 TChunkLocation::GetAvailableSpace() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!IsEnabled()) {
         return 0;
@@ -823,7 +823,7 @@ i64 TChunkLocation::GetUsedMemory(
     EIODirection direction,
     const TWorkloadDescriptor& workloadDescriptor) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto category = ToIOCategory(workloadDescriptor);
     return PerformanceCounters_->UsedMemory[direction][category].load();
@@ -831,7 +831,7 @@ i64 TChunkLocation::GetUsedMemory(
 
 i64 TChunkLocation::GetUsedMemory(EIODirection direction) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     i64 result = 0;
     for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
@@ -844,7 +844,7 @@ i64 TChunkLocation::GetPendingIOSize(
     EIODirection direction,
     const TWorkloadDescriptor& workloadDescriptor) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto category = ToIOCategory(workloadDescriptor);
     return PerformanceCounters_->PendingIOSize[direction][category].load();
@@ -852,7 +852,7 @@ i64 TChunkLocation::GetPendingIOSize(
 
 i64 TChunkLocation::GetMaxPendingIOSize(EIODirection direction) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     i64 result = 0;
     for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
@@ -863,7 +863,7 @@ i64 TChunkLocation::GetMaxPendingIOSize(EIODirection direction) const
 
 i64 TChunkLocation::GetPendingIOSize(EIODirection direction) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     i64 result = 0;
     for (auto category : TEnumTraits<EIOCategory>::GetDomainValues()) {
@@ -878,7 +878,7 @@ TPendingIOGuard TChunkLocation::AcquirePendingIO(
     const TWorkloadDescriptor& workloadDescriptor,
     i64 delta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_ASSERT(delta >= 0);
     auto category = ToIOCategory(workloadDescriptor);
@@ -896,7 +896,7 @@ TLocationMemoryGuard TChunkLocation::AcquireLocationMemory(
     const TWorkloadDescriptor& workloadDescriptor,
     i64 delta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_ASSERT(delta >= 0);
     auto category = ToIOCategory(workloadDescriptor);
@@ -943,7 +943,7 @@ void TChunkLocation::DecreasePendingIOSize(
     EIOCategory category,
     i64 delta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     UpdatePendingIOSize(direction, category, -delta);
 }
@@ -953,7 +953,7 @@ void TChunkLocation::UpdatePendingIOSize(
     EIOCategory category,
     i64 delta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     i64 result = PerformanceCounters_->PendingIOSize[direction][category].fetch_add(delta) + delta;
     YT_LOG_TRACE("Pending IO size updated (Direction: %v, Category: %v, PendingSize: %v, Delta: %v)",
@@ -968,7 +968,7 @@ void TChunkLocation::IncreaseUsedMemory(
     EIOCategory category,
     i64 delta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     UpdateUsedMemory(direction, category, delta);
 }
@@ -978,7 +978,7 @@ void TChunkLocation::DecreaseUsedMemory(
     EIOCategory category,
     i64 delta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     UpdateUsedMemory(direction, category, -delta);
 }
@@ -988,7 +988,7 @@ void TChunkLocation::UpdateUsedMemory(
     EIOCategory category,
     i64 delta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     i64 result = PerformanceCounters_->UsedMemory[direction][category].fetch_add(delta) + delta;
     YT_LOG_TRACE("Used memory updated (Direction: %v, Category: %v, UsedMemory: %v, Delta: %v)",
@@ -1003,7 +1003,7 @@ void TChunkLocation::IncreaseCompletedIOSize(
     const TWorkloadDescriptor& workloadDescriptor,
     i64 delta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto category = ToIOCategory(workloadDescriptor);
     PerformanceCounters_->CompletedIOSize[direction][category].Increment(delta);
@@ -1011,7 +1011,7 @@ void TChunkLocation::IncreaseCompletedIOSize(
 
 void TChunkLocation::UpdateSessionCount(ESessionType type, int delta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!IsEnabled()) {
         return;
@@ -1022,14 +1022,14 @@ void TChunkLocation::UpdateSessionCount(ESessionType type, int delta)
 
 int TChunkLocation::GetSessionCount(ESessionType type) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return PerTypeSessionCount_[type];
 }
 
 int TChunkLocation::GetSessionCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     int result = 0;
     for (const auto& count : PerTypeSessionCount_) {
@@ -1040,28 +1040,28 @@ int TChunkLocation::GetSessionCount() const
 
 void TChunkLocation::UpdateChunkCount(int delta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     ChunkCount_ += delta;
 }
 
 int TChunkLocation::GetChunkCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ChunkCount_;
 }
 
 TString TChunkLocation::GetChunkPath(TChunkId chunkId) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return NFS::CombinePaths(GetPath(), GetRelativeChunkPath(chunkId));
 }
 
 void TChunkLocation::RemoveChunkFilesPermanently(TChunkId chunkId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     try {
         YT_LOG_DEBUG("Started removing chunk files (ChunkId: %v)", chunkId);
@@ -1091,14 +1091,14 @@ void TChunkLocation::RemoveChunkFilesPermanently(TChunkId chunkId)
 
 void TChunkLocation::RemoveChunkFiles(TChunkId chunkId, bool /*force*/)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     RemoveChunkFilesPermanently(chunkId);
 }
 
 const IThroughputThrottlerPtr& TChunkLocation::GetInThrottler(const TWorkloadDescriptor& descriptor) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     switch (descriptor.Category) {
         case EWorkloadCategory::SystemRepair:
@@ -1131,7 +1131,7 @@ const IThroughputThrottlerPtr& TChunkLocation::GetInThrottler(const TWorkloadDes
 
 const IThroughputThrottlerPtr& TChunkLocation::GetOutThrottler(const TWorkloadDescriptor& descriptor) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     switch (descriptor.Category) {
         case EWorkloadCategory::SystemReplication:
@@ -1164,7 +1164,7 @@ const IThroughputThrottlerPtr& TChunkLocation::GetOutThrottler(const TWorkloadDe
 
 bool TChunkLocation::IsReadThrottling() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto time = PerformanceCounters_->LastReadThrottleTime.load();
     auto config = GetRuntimeConfig();
@@ -1173,7 +1173,7 @@ bool TChunkLocation::IsReadThrottling() const
 
 bool TChunkLocation::IsWriteThrottling() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto time = PerformanceCounters_->LastWriteThrottleTime.load();
     auto config = GetRuntimeConfig();
@@ -1423,14 +1423,14 @@ i64 TChunkLocation::GetWriteThrottlingLimit() const
 
 bool TChunkLocation::IsSick() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return IOEngine_->IsSick();
 }
 
 TLockedChunkGuard TChunkLocation::TryLockChunk(TChunkId chunkId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(LockedChunksLock_);
     if (!LockedChunkIds_.insert(chunkId).second) {
@@ -1443,7 +1443,7 @@ TLockedChunkGuard TChunkLocation::TryLockChunk(TChunkId chunkId)
 
 void TChunkLocation::UnlockChunk(TChunkId chunkId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(LockedChunksLock_);
     if (LockedChunkIds_.erase(chunkId) == 0) {
@@ -1457,7 +1457,7 @@ void TChunkLocation::UnlockChunk(TChunkId chunkId)
 
 void TChunkLocation::UnlockChunkLocks()
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetAuxPoolInvoker());
 
     auto state = GetState();
     YT_LOG_FATAL_IF(
@@ -1480,7 +1480,7 @@ bool TChunkLocation::IsLocationDiskOK() const
 
 void TChunkLocation::MarkLocationDiskFailed()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_LOG_WARNING("Disk with store location failed (LocationUuid: %v, DiskName: %v)",
         GetUuid(),
@@ -1496,7 +1496,7 @@ void TChunkLocation::MarkLocationDiskFailed()
 
 void TChunkLocation::MarkLocationDiskWaitingReplacement()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     LocationDiskFailedAlert_.Store(
         TError(NChunkClient::EErrorCode::LocationDiskWaitingReplacement,
@@ -1609,7 +1609,7 @@ void TChunkLocation::UpdateMediumTag()
 
 void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescriptor& newDescriptor, bool onInitialize)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(newDescriptor.Index != GenericMediumIndex);
 
     auto oldDescriptor = MediumDescriptor_.Exchange(newDescriptor);
@@ -1643,7 +1643,7 @@ void TChunkLocation::PopulateAlerts(std::vector<TError>* alerts)
 
 TFuture<void> TChunkLocation::SynchronizeActions()
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetAuxPoolInvoker());
 
     auto state = GetState();
     YT_LOG_FATAL_IF(
@@ -1667,7 +1667,7 @@ TFuture<void> TChunkLocation::SynchronizeActions()
 
 void TChunkLocation::CreateDisableLockFile(const TError& reason)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto state = GetState();
     YT_LOG_FATAL_IF(
@@ -1699,7 +1699,7 @@ void TChunkLocation::CreateDisableLockFile(const TError& reason)
 
 void TChunkLocation::ResetLocationStatistic()
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetAuxPoolInvoker());
 
     AvailableSpace_.store(0);
     UsedSpace_.store(0);
@@ -1827,7 +1827,7 @@ private:
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         UpdateStatisticsTimeout_.store(newConfig->DataNode->IOStatisticsUpdateTimeout);
     }
@@ -1908,21 +1908,21 @@ TStoreLocation::~TStoreLocation() = default;
 
 const TStoreLocationConfigPtr& TStoreLocation::GetStaticConfig() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return StaticConfig_;
 }
 
 TStoreLocationConfigPtr TStoreLocation::GetRuntimeConfig() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return RuntimeConfig_.Acquire();
 }
 
 void TStoreLocation::Reconfigure(TStoreLocationConfigPtr config)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     TChunkLocation::Reconfigure(config);
 
@@ -1935,14 +1935,14 @@ void TStoreLocation::Reconfigure(TStoreLocationConfigPtr config)
 
 const IJournalManagerPtr& TStoreLocation::GetJournalManager()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return JournalManager_;
 }
 
 i64 TStoreLocation::GetLowWatermarkSpace() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetRuntimeConfig();
     return config->LowWatermark;
@@ -1950,7 +1950,7 @@ i64 TStoreLocation::GetLowWatermarkSpace() const
 
 i64 TStoreLocation::GetMaxWriteRateByDwpd() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetRuntimeConfig();
     return config->MaxWriteRateByDwpd;
@@ -1958,7 +1958,7 @@ i64 TStoreLocation::GetMaxWriteRateByDwpd() const
 
 bool TStoreLocation::IsFull() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto available = GetAvailableSpace();
     auto config = GetRuntimeConfig();
@@ -1976,7 +1976,7 @@ bool TStoreLocation::IsFull() const
 
 bool TStoreLocation::HasEnoughSpace(i64 size) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetRuntimeConfig();
     return GetAvailableSpace() - size >= config->DisableWritesWatermark;
@@ -1984,7 +1984,7 @@ bool TStoreLocation::HasEnoughSpace(i64 size) const
 
 void TStoreLocation::RemoveChunkFiles(TChunkId chunkId, bool force)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto config = GetRuntimeConfig();
 
@@ -2176,7 +2176,7 @@ void TStoreLocation::MoveChunkFilesToTrash(TChunkId chunkId)
 
 void TStoreLocation::RemoveLocationChunks()
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetAuxPoolInvoker());
 
     auto state = GetState();
     YT_LOG_FATAL_IF(
@@ -2197,7 +2197,7 @@ void TStoreLocation::RemoveLocationChunks()
 
 bool TStoreLocation::ScheduleDisable(const TError& reason)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!ChangeState(ELocationState::Disabling, ELocationState::Enabled)) {
         return false;
@@ -2468,7 +2468,7 @@ TStoreLocation::TIOStatistics TStoreLocation::GetIOStatistics() const
 
 bool TStoreLocation::IsWritable() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!IsEnabled()) {
         return false;

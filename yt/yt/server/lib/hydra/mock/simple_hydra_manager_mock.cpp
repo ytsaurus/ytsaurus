@@ -89,7 +89,7 @@ void TSimpleHydraManagerMock::SaveLoad()
 
 void TSimpleHydraManagerMock::DoApplyUpTo(int sequenceNumber)
 {
-    VERIFY_INVOKER_AFFINITY(AutomatonInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(AutomatonInvoker_);
 
     YT_VERIFY(sequenceNumber <= static_cast<int>(MutationRequests_.size()));
 
@@ -123,7 +123,7 @@ void TSimpleHydraManagerMock::DoApplyUpTo(int sequenceNumber)
 
 TSimpleHydraManagerMock::TSnapshot TSimpleHydraManagerMock::DoSaveSnapshot()
 {
-    VERIFY_INVOKER_AFFINITY(AutomatonInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(AutomatonInvoker_);
 
     TString snapshotData;
     TStringOutput output(snapshotData);
@@ -148,7 +148,7 @@ TSimpleHydraManagerMock::TSnapshot TSimpleHydraManagerMock::DoSaveSnapshot()
 
 void TSimpleHydraManagerMock::DoLoadSnapshot(const TSnapshot& snapshot)
 {
-    VERIFY_INVOKER_AFFINITY(AutomatonInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(AutomatonInvoker_);
 
     StopLeading_.Fire();
 

@@ -93,7 +93,7 @@ public:
         IWireProtocolReader* reader,
         const TTabletCellWriteParams& params) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         bool failBeforeExecution = false;
         bool failAfterExecution = false;
@@ -388,7 +388,7 @@ public:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TCompositeAutomatonPart::OnStopLeading();
 
@@ -401,7 +401,7 @@ public:
 
     void OnAfterSnapshotLoaded() noexcept override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& transactionManager = Host_->GetTransactionManager();
         auto transactions = transactionManager->GetTransactions();
@@ -716,7 +716,7 @@ private:
 
     void HydraWriteDelayedRows(TReqWriteDelayedRows* request) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -799,7 +799,7 @@ private:
 
     void OnTransactionPrepared(TTransaction* transaction, bool persistent)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext() == persistent);
 
         auto codicilGuard = MakeCodicilGuard(transaction);
@@ -816,7 +816,7 @@ private:
 
     void OnTransactionCommitted(TTransaction* transaction) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         auto codicilGuard = MakeCodicilGuard(transaction);
@@ -833,7 +833,7 @@ private:
 
     void OnTransactionSerialized(TTransaction* transaction) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         auto codicilGuard = MakeCodicilGuard(transaction);
@@ -867,7 +867,7 @@ private:
 
     void OnTransactionAborted(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         auto codicilGuard = MakeCodicilGuard(transaction);
@@ -882,7 +882,7 @@ private:
 
     void OnTransactionFinished(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         UnlockLockedTablets(transaction);
         ClearTransientLeases(transaction);
@@ -1105,7 +1105,7 @@ private:
 
     std::vector<TTablet*> GetTabletByIds(const THashSet<TTabletId>& tabletIds, bool includeOrphaned = false)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         std::vector<TTablet*> tablets;
         tablets.reserve(tabletIds.size());
@@ -1124,7 +1124,7 @@ private:
 
     void AddTransientAffectedTablet(TTransaction* transaction, TTablet* tablet) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto tabletId = tablet->GetId();
         if (transaction->TransientAffectedTabletIds().emplace(tabletId).second) {
@@ -1139,7 +1139,7 @@ private:
 
     void AddPersistentAffectedTablet(TTransaction* transaction, TTablet* tablet) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
         YT_VERIFY(!transaction->GetTransient());
 
@@ -1156,21 +1156,21 @@ private:
 
     std::vector<TTablet*> GetTransientAffectedTablets(TTransaction* transaction, bool includeOrphaned = false)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return GetTabletByIds(transaction->TransientAffectedTabletIds(), includeOrphaned);
     }
 
     std::vector<TTablet*> GetPersistentAffectedTablets(TTransaction* transaction, bool includeOrphaned = false)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return GetTabletByIds(transaction->PersistentAffectedTabletIds(), includeOrphaned);
     }
 
     std::vector<TTablet*> GetAffectedTablets(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return GetTabletByIds(transaction->GetAffectedTabletIds());
     }
@@ -1244,7 +1244,7 @@ private:
 
     void ClearPersistentLeases(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& leaseManager = Host_->GetLeaseManager();
         for (auto leaseId : transaction->PersistentLeaseIds()) {
@@ -1257,7 +1257,7 @@ private:
 
     void ClearTransientLeases(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& leaseManager = Host_->GetLeaseManager();
         for (auto leaseId : transaction->TransientLeaseIds()) {

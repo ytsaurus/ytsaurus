@@ -140,7 +140,7 @@ private:
 
     void ScheduleCurrentRecordFlush()
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         CurrentRecordFlushCookie_ = TDelayedExecutor::Submit(
             BIND(&TJournalHunkChunkWriter::OnRecordFlushTimeout, MakeWeak(this), CurrentRecordIndex_),
@@ -166,7 +166,7 @@ private:
 
     bool FlushIfNeeded(std::optional<TGuard<NThreading::TSpinLock>>& guard)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         if (CurrentRecordSize_ >= Config_->MaxRecordSize ||
             std::ssize(CurrentRecordPayloads_) >= Config_->MaxRecordHunkCount)
@@ -180,7 +180,7 @@ private:
 
     void FlushCurrentRecord(std::optional<TGuard<NThreading::TSpinLock>>& guard)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
         YT_VERIFY(!CurrentRecordPayloads_.empty());
 
         YT_LOG_DEBUG("Flushing journal hunk chunk record "

@@ -66,7 +66,7 @@ TCellTracker::TCellTracker(NCellMaster::TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
 {
     YT_VERIFY(Bootstrap_);
-    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
+    YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TCellTracker::OnDynamicConfigChanged, MakeWeak(this)));
@@ -74,7 +74,7 @@ TCellTracker::TCellTracker(NCellMaster::TBootstrap* bootstrap)
 
 void TCellTracker::Start()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     StartTime_ = TInstant::Now();
 
@@ -90,7 +90,7 @@ void TCellTracker::Start()
 
 void TCellTracker::Stop()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     if (PeriodicExecutor_) {
         YT_UNUSED_FUTURE(PeriodicExecutor_->Stop());
@@ -141,7 +141,7 @@ bool TCellTracker::IsEnabled()
 
 void TCellTracker::ScanCells()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     if (!IsEnabled()) {
         return;

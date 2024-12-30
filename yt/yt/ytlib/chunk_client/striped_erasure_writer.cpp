@@ -228,21 +228,21 @@ private:
 
     void OnWriterOpened()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         Opened_ = true;
     }
 
     i64 GetWriterMemoryUsage(i64 blockSize) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return blockSize * Codec_->GetTotalPartCount() / Codec_->GetDataPartCount();
     }
 
     bool UpdateWindowSize(i64 delta)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(ReadyEventLock_);
 
@@ -272,7 +272,7 @@ private:
 
     void DoWriteBlock(TBlock block)
     {
-        VERIFY_INVOKER_AFFINITY(WriterInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(WriterInvoker_);
 
         try {
             CurrentGroupSize_ += block.Size();
@@ -286,7 +286,7 @@ private:
 
     void MaybeFlushCurrentGroup()
     {
-        VERIFY_INVOKER_AFFINITY(WriterInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(WriterInvoker_);
 
         if (CurrentGroupSize_ >= Config_->WriterGroupSize) {
             FlushCurrentGroup();
@@ -295,7 +295,7 @@ private:
 
     void FlushCurrentGroup()
     {
-        VERIFY_INVOKER_AFFINITY(WriterInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(WriterInvoker_);
 
         BlockReorderer_.ReorderBlocks(CurrentGroup_);
 
@@ -311,7 +311,7 @@ private:
 
     void FlushBlocks()
     {
-        VERIFY_INVOKER_AFFINITY(WriterInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(WriterInvoker_);
 
         // Prevent concurrent flushes.
         if (std::exchange(Flushing_, true)) {
@@ -357,7 +357,7 @@ private:
 
     void FlushSegment(std::vector<TBlock> segment)
     {
-        VERIFY_INVOKER_AFFINITY(WriterInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(WriterInvoker_);
 
         PlacementExt_.add_segment_block_counts(std::ssize(segment));
         for (const auto& block : segment) {
@@ -394,7 +394,7 @@ private:
 
     std::vector<TBlock> EncodeSegment(std::vector<TBlock> segment)
     {
-        VERIFY_INVOKER_AFFINITY(HeavyInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(HeavyInvoker_);
 
         i64 segmentSize = 0;
         for (const auto& block : segment) {
@@ -446,7 +446,7 @@ private:
 
     void DoClose(TDeferredChunkMetaPtr chunkMeta)
     {
-        VERIFY_INVOKER_AFFINITY(WriterInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(WriterInvoker_);
 
         Closing_ = true;
         FlushCurrentGroup();
@@ -479,7 +479,7 @@ private:
 
     void FillChunkMeta(const TDeferredChunkMetaPtr& chunkMeta)
     {
-        VERIFY_INVOKER_AFFINITY(WriterInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(WriterInvoker_);
 
         {
             auto chunkFeatures = FromProto<EChunkFeatures>(chunkMeta->features());
@@ -500,7 +500,7 @@ private:
 
     void OnFailed(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         FlushPromise_.TrySet(error);
 

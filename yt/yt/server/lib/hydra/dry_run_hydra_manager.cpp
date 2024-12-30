@@ -99,15 +99,15 @@ public:
             HydraLogger(),
             Profiler_))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
-        VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
     }
 
     void DryRunLoadSnapshot(
         const ISnapshotReaderPtr& reader,
         int snapshotId = InvalidSegmentId) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto startLeadingFuture = BIND(&TDryRunHydraManager::DryRunStartLeading, MakeStrong(this))
             .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
@@ -157,7 +157,7 @@ public:
 
     void DryRunReplayChangelog(IChangelogPtr changelog) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO("Replaying changelog (ChangelogId: %v, RecordCount: %v)",
             changelog->GetId(),
@@ -207,7 +207,7 @@ public:
 
     void DryRunBuildSnapshot() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto startLeadingFuture = BIND(&TDryRunHydraManager::DryRunStartLeading, MakeStrong(this))
             .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
@@ -245,28 +245,28 @@ public:
 
     EPeerState GetAutomatonState() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->GetState();
     }
 
     bool IsActiveLeader() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->GetState() == EPeerState::Leading && LeaderRecovered_;
     }
 
     bool IsActiveFollower() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->GetState() == EPeerState::Following && FollowerRecovered_;
     }
 
     TCancelableContextPtr GetAutomatonCancelableContext() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return AutomatonEpochContext_ ? AutomatonEpochContext_->CancelableContext : nullptr;
     }
@@ -300,7 +300,7 @@ public:
     // Stuff from IHydraManager
     void Initialize() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (Initialized_) {
             return;
@@ -327,14 +327,14 @@ public:
 
     TVersion GetAutomatonVersion() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->GetAutomatonVersion();
     }
 
     IInvokerPtr CreateGuardedAutomatonInvoker(IInvokerPtr underlyingInvoker) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DecoratedAutomaton_->CreateGuardedUserInvoker(underlyingInvoker);
     }
@@ -423,7 +423,7 @@ private:
     // However, it can't be called during construction, because necessary callbacks won't be populated yet.
     void DryRunStartLeading()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         // This only needs to be called once.
         if (StartedLeading_) {

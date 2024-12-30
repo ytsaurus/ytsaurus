@@ -1762,7 +1762,7 @@ public:
 
     TFuture<void> Disable(const TError& error, bool persistentDisable = false)
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
         YT_LOG_WARNING("Disable tmfps layer cache (Path: %v)", CacheName_);
 
@@ -2169,7 +2169,7 @@ public:
 
     TFuture<void> Disable(const TError& reason)
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
         YT_LOG_WARNING(reason, "Layer cache is disabled");
 
@@ -2751,7 +2751,7 @@ public:
 
     TFuture<void> DisableLayerCache(const TError& reason) override
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
         return LayerCache_->Disable(reason);
     }

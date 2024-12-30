@@ -305,7 +305,7 @@ private:
     //! 2) All readers have reserved_memory >= required_memory.
     void DoRebalance()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_LOG_DEBUG("Starting memory rebalancing (RebalancingsScheduled: %v)",
             RebalancingsScheduled_.load());
@@ -419,7 +419,7 @@ private:
 
     void DoUnregister(const IReaderMemoryManagerPtr& readerMemoryManager)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         DoRemoveReaderInfo(readerMemoryManager, true);
         readerMemoryManager->SetReservedMemorySize(0);
@@ -435,7 +435,7 @@ private:
 
     void DoUpdateReaderInfo(const IReaderMemoryManagerPtr& reader)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (State_.find(reader) == State_.end()) {
             // Reader is already unregistered. Do nothing.
@@ -453,7 +453,7 @@ private:
 
     void DoAddReaderInfo(const IReaderMemoryManagerPtr& reader, bool updateMemoryRequirements, bool updateFreeMemory = true)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto requiredMemory = reader->GetRequiredMemorySize();
         auto desiredMemory = reader->GetDesiredMemorySize();
@@ -515,7 +515,7 @@ private:
 
     void DoRemoveReaderInfo(const IReaderMemoryManagerPtr& reader, bool updateMemoryRequirements)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto requiredMemory = GetOrCrash(State_, reader).RequiredMemorySize;
         auto desiredMemory = GetOrCrash(State_, reader).DesiredMemorySize;
@@ -558,7 +558,7 @@ private:
 
     void TryUnregister()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (Finalized_ && State_.empty() && !Unregistered_) {
             YT_LOG_DEBUG("Parallel reader memory manager unregistered");
@@ -575,14 +575,14 @@ private:
 
     void OnProfiling() const
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         TryLogFullState();
     }
 
     void TryLogFullState() const
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto now = TInstant::Now();
         if (LastFullStateLoggingTime_ + FullStateLogPeriod > now) {

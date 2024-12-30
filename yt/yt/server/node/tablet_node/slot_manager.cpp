@@ -60,7 +60,7 @@ public:
 
     void Initialize() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto cellar = Bootstrap_->GetCellarManager()->GetCellar(ECellarType::Tablet);
         cellar->RegisterOccupierProvider(CreateTabletSlotOccupierProvider(Config_, Bootstrap_));
@@ -72,7 +72,7 @@ public:
 
     void Start() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         SlotScanExecutor_->Start();
     }
@@ -85,7 +85,7 @@ public:
 
     double GetUsedCpu(double cpuPerTabletSlot) const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         double result = 0;
         for (const auto& occupant : Occupants()) {
@@ -103,7 +103,7 @@ public:
 
     ITabletSlotPtr FindSlot(NHydra::TCellId id) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (auto occupant = Bootstrap_->GetCellarManager()->GetCellar(ECellarType::Tablet)->FindOccupant(id)) {
             return occupant->GetTypedOccupier<ITabletSlot>();
@@ -144,7 +144,7 @@ private:
 
     void GetDynamicMemoryPoolWeightsOrchid(IYsonConsumer* consumer) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         BuildYsonFluently(consumer)
             .DoMapFor(BundlesMemoryPoolWeights_, [] (TFluentMap fluent, const auto& pair) {
@@ -155,7 +155,7 @@ private:
 
     void UpdateMemoryPoolWeights()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         const auto& memoryTracker = Bootstrap_->GetNodeMemoryUsageTracker();
 
@@ -189,7 +189,7 @@ private:
 
     void OnScanSlots()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_DEBUG("Slot scan started");
 
@@ -229,14 +229,14 @@ private:
 
     const std::vector<ICellarOccupantPtr>& Occupants() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return Bootstrap_->GetCellarManager()->GetCellar(ECellarType::Tablet)->Occupants();
     }
 
     void GetMemoryUsageStatistics(IYsonConsumer* consumer) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         std::vector<TFuture<TTabletCellMemoryStatistics>> futureStatistics;
 

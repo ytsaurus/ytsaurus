@@ -215,7 +215,7 @@ private:
         TSharedRange<TUnversionedRow> keys,
         const TVersionedChunkMetaCacheEntryPtr& entry)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetStorageLookupInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetStorageLookupInvoker());
 
         if (timer) {
             Options_.ChunkReaderStatistics->RecordMetaWaitTime(

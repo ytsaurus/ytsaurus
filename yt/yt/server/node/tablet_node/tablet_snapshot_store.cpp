@@ -58,7 +58,7 @@ public:
 
     std::vector<TTabletSnapshotPtr> GetTabletSnapshots() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(TabletSnapshotsSpinLock_);
         std::vector<TTabletSnapshotPtr> snapshots;
@@ -71,7 +71,7 @@ public:
 
     TTabletSnapshotPtr FindLatestTabletSnapshot(TTabletId tabletId) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DoFindTabletSnapshot(tabletId, std::nullopt);
     }
@@ -80,7 +80,7 @@ public:
         TTabletId tabletId,
         TCellId cellId) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto snapshot = FindLatestTabletSnapshot(tabletId);
         ThrowOnMissingTabletSnapshot(tabletId, cellId, snapshot);
@@ -89,7 +89,7 @@ public:
 
     TTabletSnapshotPtr FindTabletSnapshot(TTabletId tabletId, TRevision mountRevision) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto snapshot = DoFindTabletSnapshot(tabletId, mountRevision);
         return snapshot && snapshot->MountRevision == mountRevision
@@ -102,7 +102,7 @@ public:
         TCellId cellId,
         TRevision mountRevision) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto snapshot = DoFindTabletSnapshot(tabletId, mountRevision);
         ThrowOnMissingTabletSnapshot(tabletId, cellId, snapshot);
@@ -175,7 +175,7 @@ public:
         TTablet* tablet,
         std::optional<TLockManagerEpoch> epoch) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto newSnapshot = tablet->BuildSnapshot(slot, epoch);
         tablet->RecomputeNonActiveStoresUnmergedRowCount();
@@ -207,7 +207,7 @@ public:
 
     void UnregisterTabletSnapshot(const ITabletSlotPtr& slot, TTablet* tablet) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(TabletSnapshotsSpinLock_);
         auto range = TabletIdToSnapshot_.equal_range(tablet->GetId());
@@ -235,7 +235,7 @@ public:
 
     void UnregisterTabletSnapshots(const ITabletSlotPtr& slot) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         std::vector<TTabletSnapshotPtr> deadSnapshots;
 
@@ -329,7 +329,7 @@ private:
 private:
     void EvictTabletSnapshot(TTabletId tabletId, const TTabletSnapshotPtr& snapshot)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = WriterGuard(TabletSnapshotsSpinLock_);
 
@@ -351,7 +351,7 @@ private:
 
     TTabletSnapshotPtr DoFindTabletSnapshot(TTabletId tabletId, std::optional<TRevision> mountRevision) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         TTabletSnapshotPtr snapshot;
 
@@ -430,7 +430,7 @@ private:
 
     std::vector<std::string> GetTabletIds(i64 limit) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
         auto guard = ReaderGuard(TabletSnapshotsSpinLock_);
 
         std::vector<std::string> result;
@@ -449,7 +449,7 @@ private:
 
     std::vector<TTabletSnapshotPtr> GetTabletSnapshots(TTabletId tabletId) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
         auto guard = ReaderGuard(TabletSnapshotsSpinLock_);
         auto range = TabletIdToSnapshot_.equal_range(tabletId);
         std::vector<TTabletSnapshotPtr> result;

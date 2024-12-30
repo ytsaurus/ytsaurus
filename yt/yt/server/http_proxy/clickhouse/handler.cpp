@@ -1350,7 +1350,7 @@ void TClickHouseHandler::HandleRequest(
 
 void TClickHouseHandler::AdjustQueryCount(const std::string& user, int delta)
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
     auto entry = UserToRunningQueryCount_.FindOrInsert(user, [&] {
         auto gauge = ClickHouseProxyProfiler()
