@@ -843,11 +843,11 @@ TError TNodeMemoryTracker::TryChangeCategoryUsage(
         if (allowOvercommit) {
             state->MemoryGuard = TMemoryUsageTrackerGuard::Acquire(
                 WithCategory(*newCategory),
-                static_cast<i64>(state->Reference.Size()));
+                std::ssize(state->Reference));
         } else {
             auto guardOrError = TMemoryUsageTrackerGuard::TryAcquire(
                 WithCategory(*newCategory),
-                static_cast<i64>(state->Reference.Size()));
+                std::ssize(state->Reference));
             if (!guardOrError.IsOK()) {
                 return guardOrError;
             }

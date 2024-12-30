@@ -595,7 +595,7 @@ private:
         }
         AllocateWriteTargetsTimestamp_ = TInstant::Now();
 
-        int activeTargets = static_cast<int>(Nodes_.size());
+        int activeTargets = std::ssize(Nodes_);
 
         std::vector<std::string> forbiddenAddresses;
         forbiddenAddresses.reserve(Nodes_.size() + BannedNodeAddresses_.size());

@@ -2105,7 +2105,7 @@ private:
 
         // COMPAT(babenko)
         if (!request.supports_portals()) {
-            for (int index = 0; index < static_cast<int>(completedIndexes.size()); ++index) {
+            for (int index = 0; index < std::ssize(completedIndexes); ++index) {
                 if (completedIndexes[index] != index) {
                     completedIndexes.erase(completedIndexes.begin() + index, completedIndexes.end());
                     break;

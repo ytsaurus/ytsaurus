@@ -522,7 +522,7 @@ void TMultiChunkPoolOutput::RegisterMetadata(auto&& registrar)
         // NB(gritukan): It seems hard to persist list iterators, so we do not persist statistics
         // and restore them from scratch here using underlying pools statistics.
         this_->PendingPoolIterators_ = std::vector<std::list<int>::iterator>(this_->UnderlyingPools_.size(), this_->PendingPools_.end());
-        for (int poolIndex = static_cast<int>(this_->UnderlyingPools_.size()) - 1; poolIndex >= 0; --poolIndex) {
+        for (int poolIndex = std::ssize(this_->UnderlyingPools_) - 1; poolIndex >= 0; --poolIndex) {
             if (this_->Pool(poolIndex)) {
                 this_->SetupCallbacks(poolIndex);
                 this_->OnUnderlyingPoolPendingJobCountChanged(poolIndex);

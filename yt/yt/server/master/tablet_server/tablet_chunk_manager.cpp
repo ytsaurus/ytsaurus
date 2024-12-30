@@ -1706,7 +1706,7 @@ private:
         YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
 
         const auto& children = chunkList->Children();
-        int firstDynamicStoreIndex = static_cast<int>(children.size()) - 1;
+        int firstDynamicStoreIndex = std::ssize(children) - 1;
         YT_VERIFY(IsDynamicTabletStoreType(children[firstDynamicStoreIndex]->GetType()));
         while (firstDynamicStoreIndex > chunkList->GetTrimmedChildCount() &&
             IsDynamicTabletStoreType(children[firstDynamicStoreIndex - 1]->GetType()))

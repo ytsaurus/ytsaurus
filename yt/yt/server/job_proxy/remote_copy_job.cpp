@@ -826,7 +826,7 @@ private:
         TChunkReplicaWithLocationList writtenReplicas;
 
         i64 diskSpace = 0;
-        for (int index = 0; index < static_cast<int>(writers.size()); ++index) {
+        for (int index = 0; index < std::ssize(writers); ++index) {
             diskSpace += writers[index]->GetChunkInfo().disk_space();
             auto replicas = writers[index]->GetWrittenChunkReplicasInfo().Replicas;
             if (replicas.empty()) {
@@ -1018,7 +1018,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error opening writer");
         }
 
-        int blockCount = static_cast<int>(blockSizes.size());
+        int blockCount = std::ssize(blockSizes);
 
         int blockIndex = 0;
         while (blockIndex < blockCount) {

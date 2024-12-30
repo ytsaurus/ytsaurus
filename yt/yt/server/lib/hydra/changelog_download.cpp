@@ -83,7 +83,7 @@ void DoDownloadChangelog(
                     changelog->GetId());
             }
 
-            int actualChunkSize = static_cast<int>(records.size());
+            int actualChunkSize = std::ssize(records);
             YT_LOG_DEBUG("Received records (StartRecord: %v, EndRecord: %v, DesiredRecordCount: %v, ActualRecordCount: %v)",
                 downloadedRecordCount,
                 downloadedRecordCount + actualChunkSize - 1,

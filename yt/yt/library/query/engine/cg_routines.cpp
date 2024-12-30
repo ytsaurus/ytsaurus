@@ -1789,7 +1789,7 @@ void OrderOpHelper(
         begin = std::bit_cast<const TPIValue**>(guard.GetCopiedOffset());
     }
 
-    auto rowCount = static_cast<i64>(rows.size());
+    auto rowCount = std::ssize(rows);
     for (i64 index = context->Offset; index < rowCount; index += RowsetProcessingBatchSize) {
         auto size = std::min(RowsetProcessingBatchSize, rowCount - index);
         processedRows += size;

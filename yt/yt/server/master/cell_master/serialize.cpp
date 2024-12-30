@@ -119,7 +119,7 @@ const TSecurityTagsRegistryPtr& TLoadContext::GetInternRegistry() const
 
 TEntitySerializationKey TLoadContext::RegisterInternedYsonString(NYson::TYsonString str)
 {
-    auto key = static_cast<int>(InternedYsonStrings_.size());
+    auto key = std::ssize(InternedYsonStrings_);
     InternedYsonStrings_.push_back(std::move(str));
     return TEntitySerializationKey(key);
 }

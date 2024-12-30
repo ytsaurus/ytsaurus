@@ -1329,7 +1329,7 @@ void TTablet::CreateInitialPartition()
     auto partition = std::make_unique<TPartition>(
         this,
         GenerateId(EObjectType::TabletPartition),
-        static_cast<int>(PartitionList_.size()),
+        std::ssize(PartitionList_),
         PivotKey_,
         NextPivotKey_);
     EmplaceOrCrash(PartitionMap_, partition->GetId(), partition.get());
@@ -1355,7 +1355,7 @@ void TTablet::MergePartitions(int firstIndex, int lastIndex, TDuration splitDela
 {
     YT_VERIFY(IsPhysicallySorted());
 
-    for (int i = lastIndex + 1; i < static_cast<int>(PartitionList_.size()); ++i) {
+    for (int i = lastIndex + 1; i < std::ssize(PartitionList_); ++i) {
         PartitionList_[i]->SetIndex(i - (lastIndex - firstIndex));
     }
 
@@ -1954,7 +1954,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
     snapshot->Atomicity = Atomicity_;
     snapshot->UpstreamReplicaId = UpstreamReplicaId_;
     snapshot->HashTableSize = HashTableSize_;
-    snapshot->StoreCount = static_cast<int>(StoreIdMap_.size());
+    snapshot->StoreCount = std::ssize(StoreIdMap_);
     snapshot->OverlappingStoreCount = OverlappingStoreCount_;
     snapshot->EdenOverlappingStoreCount = EdenOverlappingStoreCount_;
     snapshot->CriticalPartitionCount = CriticalPartitionCount_;
@@ -2478,7 +2478,7 @@ void TTablet::UpdateOverlappingStoreCount()
     int overlappingStoreCount = 0;
     int criticalPartitionCount = 0;
     for (const auto& partition : PartitionList_) {
-        int storeCount = static_cast<int>(partition->Stores().size());
+        int storeCount = std::ssize(partition->Stores());
         if (storeCount > overlappingStoreCount) {
             overlappingStoreCount = storeCount;
             criticalPartitionCount = 1;

@@ -74,10 +74,10 @@ public:
     {
         YT_VERIFY(!Finished);
 
-        auto cookie = static_cast<int>(InputStripes_.size());
+        auto cookie = std::ssize(InputStripes_);
 
         TInputStripe inputStripe;
-        inputStripe.ElementaryIndexBegin = static_cast<int>(ElementaryStripes_.size());
+        inputStripe.ElementaryIndexBegin = std::ssize(ElementaryStripes_);
 
         for (const auto& dataSlice : stripe->DataSlices) {
             YT_VERIFY(!dataSlice->IsLegacy);
@@ -85,7 +85,7 @@ public:
             // NB: TShuffleChunkPool contains only chunks from unversioned tables.
             const auto& chunkSpec = dataSlice->GetSingleUnversionedChunk();
 
-            int elementaryIndex = static_cast<int>(ElementaryStripes_.size());
+            int elementaryIndex = std::ssize(ElementaryStripes_);
             auto elementaryStripe = New<TChunkStripe>(dataSlice);
             ElementaryStripes_.push_back(elementaryStripe);
 
@@ -118,7 +118,7 @@ public:
             }
         }
 
-        inputStripe.ElementaryIndexEnd = static_cast<int>(ElementaryStripes_.size());
+        inputStripe.ElementaryIndexEnd = std::ssize(ElementaryStripes_);
         InputStripes_.push_back(inputStripe);
 
         return cookie;
@@ -516,7 +516,7 @@ private:
             }
 
             int lo = 0;
-            int hi = static_cast<int>(Runs_.size());
+            int hi = std::ssize(Runs_);
             while (lo + 1 < hi) {
                 int mid = (lo + hi) / 2;
                 const auto& run = Runs_[mid];

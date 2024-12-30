@@ -809,7 +809,7 @@ std::vector<TOperation> TListOperationsFilter::BuildOperations(const THashSet<TS
 
 i64 TListOperationsFilter::GetCount() const
 {
-    return static_cast<i64>(LightOperations_.size());
+    return std::ssize(LightOperations_);
 }
 
 void TListOperationsFilter::ParseResponses(std::vector<TYsonString> operationsResponses)

@@ -124,7 +124,7 @@ void TChunkTeleporter::DoExport(TCellTag cellTag, const std::vector<TChunkEntry*
     for (int beginIndex = 0; beginIndex < std::ssize(chunks); beginIndex += Config_->MaxTeleportChunksPerRequest) {
         int endIndex = std::min(
             beginIndex + Config_->MaxTeleportChunksPerRequest,
-            static_cast<int>(chunks.size()));
+            std::ssize(chunks));
 
         auto req = proxy.ExportChunks();
         GenerateMutationId(req);
@@ -153,7 +153,7 @@ void TChunkTeleporter::DoExport(TCellTag cellTag, const std::vector<TChunkEntry*
     }
 
     int newExportedCount = GetExportedObjectCount(cellTag);
-    int expectedExportedCount = oldExportedCount + static_cast<int>(chunks.size());
+    int expectedExportedCount = oldExportedCount + std::ssize(chunks);
     if (newExportedCount != expectedExportedCount) {
         THROW_ERROR_EXCEPTION("Exported object count mismatch for transaction %v in cell %v: expected %v, got %v",
             TransactionId_,
@@ -211,7 +211,7 @@ void TChunkTeleporter::DoImport(TCellTag cellTag, const std::vector<TChunkEntry*
     for (int beginIndex = 0; beginIndex < std::ssize(chunks); beginIndex += Config_->MaxTeleportChunksPerRequest) {
         int endIndex = std::min(
             beginIndex + Config_->MaxTeleportChunksPerRequest,
-            static_cast<int>(chunks.size()));
+            std::ssize(chunks));
 
         auto req = proxy.ImportChunks();
         GenerateMutationId(req);
@@ -231,7 +231,7 @@ void TChunkTeleporter::DoImport(TCellTag cellTag, const std::vector<TChunkEntry*
     }
 
     int newImportedCount = GetImportedObjectCount(cellTag);
-    int expectedImportedCount = oldImportedCount + static_cast<int>(chunks.size());
+    int expectedImportedCount = oldImportedCount + std::ssize(chunks);
     if (newImportedCount != expectedImportedCount) {
         THROW_ERROR_EXCEPTION("Imported object count mismatch for transaction %v in cell %v: expected %v, got %v",
             TransactionId_,

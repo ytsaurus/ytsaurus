@@ -1073,8 +1073,8 @@ TGetJobStderrResponse TClient::DoGetJobStderr(
     if (auto stderrRef = DoGetJobStderrFromArchive(operationId, jobId)) {
         return {
             .Data = stderrRef,
-            .TotalSize = static_cast<i64>(stderrRef.size()),
-            .EndOffset = static_cast<i64>(stderrRef.size()),
+            .TotalSize = std::ssize(stderrRef),
+            .EndOffset = std::ssize(stderrRef),
         };
     }
 

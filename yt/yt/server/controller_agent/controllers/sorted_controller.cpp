@@ -1103,7 +1103,7 @@ public:
     void CustomPrepare() override
     {
         int teleportOutputCount = 0;
-        for (int index = 0; index < static_cast<int>(OutputTables_.size()); ++index) {
+        for (int index = 0; index < std::ssize(OutputTables_); ++index) {
             if (OutputTables_[index]->Path.GetTeleport()) {
                 ++teleportOutputCount;
                 OutputTeleportTableIndex_ = index;

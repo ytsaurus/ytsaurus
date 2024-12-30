@@ -80,7 +80,7 @@ void TMasterChunkSpecFetcher::Add(
 
     auto oldReqCount = state.ReqCount;
 
-    for (int rangeIndex = 0; rangeIndex < static_cast<int>(ranges.size()); ++rangeIndex) {
+    for (int rangeIndex = 0; rangeIndex < std::ssize(ranges); ++rangeIndex) {
         // XXX(gritukan, babenko): YT-11825
         i64 subrequestCount = chunkCount < 0 ? 1 : (chunkCount + MaxChunksPerFetch_ - 1) / MaxChunksPerFetch_;
         for (i64 index = 0; index < subrequestCount; ++index) {
@@ -232,7 +232,7 @@ void TMasterChunkSpecFetcher::DoFetchFromCell(TCellTag cellTag)
     const auto& batchRsp = batchRspOrError.Value();
     auto rspsOrError = batchRsp->GetResponses<TChunkOwnerYPathProxy::TRspFetch>("fetch");
 
-    for (int resultIndex = 0; resultIndex < static_cast<int>(rspsOrError.size()); ++resultIndex) {
+    for (int resultIndex = 0; resultIndex < std::ssize(rspsOrError); ++resultIndex) {
         auto& rsp = rspsOrError[resultIndex].Value();
         for (auto& chunkSpec : *rsp->mutable_chunks()) {
             chunkSpec.set_table_index(cellState.TableIndices[resultIndex]);

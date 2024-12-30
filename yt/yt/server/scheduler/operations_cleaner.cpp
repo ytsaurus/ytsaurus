@@ -1667,7 +1667,7 @@ private:
         }
         auto rows = rowsetOrError.Value()->GetRows();
         YT_VERIFY(rows.size() == requests.size());
-        for (int i = 0; i < static_cast<int>(requests.size()); ++i) {
+        for (int i = 0; i < std::ssize(requests); ++i) {
             if (!requests[i].BriefProgress && rows[i] && rows[i][briefProgressIndex].Type != EValueType::Null) {
                 auto value = rows[i][briefProgressIndex];
                 requests[i].BriefProgress = TYsonString(value.AsString());
@@ -1755,7 +1755,7 @@ private:
 
             YT_LOG_INFO("Operations attributes for cleaner parsing started");
 
-            const int operationCount{static_cast<int>(operationIds.size())};
+            int operationCount = std::ssize(operationIds);
             std::vector<TFuture<std::vector<TArchiveOperationRequest>>> futures;
             futures.reserve(RoundUp(operationCount, parseOperationAttributesBatchSize));
 

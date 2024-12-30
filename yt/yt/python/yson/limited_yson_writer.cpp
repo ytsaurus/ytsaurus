@@ -34,7 +34,7 @@ public:
         if (LimitReached_ && !ExpectValue_) {
             return;
         }
-        Writer_.OnStringScalar(value.substr(0, std::min(static_cast<i64>(value.size()), static_cast<i64>(Limit_ - Result_.size()))));
+        Writer_.OnStringScalar(value.substr(0, std::min(std::ssize(value), Limit_ - std::ssize(Result_))));
         Postprocess();
     }
 
@@ -128,7 +128,7 @@ public:
         if (LimitReached_) {
             return;
         }
-        Writer_.OnKeyedItem(name.substr(0, std::min(static_cast<i64>(name.size()), static_cast<i64>(Limit_ - Result_.size()))));
+        Writer_.OnKeyedItem(name.substr(0, std::min(std::ssize(name), Limit_ - std::ssize(Result_))));
         // NB: Postprocess intentionally is not performed.
     }
 
@@ -174,7 +174,7 @@ public:
     }
 
 private:
-    i64 Limit_;
+    const i64 Limit_;
 
     std::vector<std::pair<ETokenType, bool>> Stack_;
 

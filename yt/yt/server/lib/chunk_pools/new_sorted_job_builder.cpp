@@ -334,7 +334,7 @@ public:
                 if (stripe->DataSlices.empty()) {
                     continue;
                 }
-                if (static_cast<int>(InputStreamIndexToLastDataSlice_.size()) <= inputStreamIndex) {
+                if (std::ssize(InputStreamIndexToLastDataSlice_) <= inputStreamIndex) {
                     InputStreamIndexToLastDataSlice_.resize(inputStreamIndex + 1, nullptr);
                 }
                 auto& lastDataSlice = InputStreamIndexToLastDataSlice_[inputStreamIndex];
@@ -660,7 +660,7 @@ private:
             YT_LOG_DEBUG("Sorted job skipped (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, "
                 "ForeignDataSize: %v, PrimaryLowerBound: %v, PrimaryUpperBound: %v)",
                 JobIndex_,
-                static_cast<int>(Jobs_.size()),
+                std::ssize(Jobs_),
                 job.GetPrimaryDataWeight(),
                 job.GetForeignDataWeight(),
                 job.GetPrimaryLowerBound(),

@@ -551,7 +551,7 @@ private:
         WriteRow(firstRow, LastKey_.Elements());
         FinishBlockIfLarge(firstRow);
 
-        int rowCount = static_cast<int>(rows.Size());
+        int rowCount = std::ssize(rows);
         for (int index = 1; index < rowCount; ++index) {
             WriteRow(rows[index], rows[index - 1].Keys());
             FinishBlockIfLarge(rows[index]);

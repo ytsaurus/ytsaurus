@@ -407,7 +407,7 @@ private:
                         "PrimarySliceCount: %v, PreliminaryForeignDataSize: %v, PreliminaryForeignRowCount: %v, "
                         "PreliminaryForeignSliceCount: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
                         jobIndex,
-                        static_cast<int>(Jobs_.size()) - 1,
+                        std::ssize(Jobs_) - 1,
                         Jobs_.back()->GetPrimaryDataWeight(),
                         Jobs_.back()->GetPrimaryRowCount(),
                         Jobs_.back()->GetPrimarySliceCount(),
@@ -424,13 +424,13 @@ private:
 
                     YT_LOG_TRACE("Sorted job details (JobIndex: %v, BuiltJobCount: %v, Details: %v)",
                         jobIndex,
-                        static_cast<int>(Jobs_.size()) - 1,
+                        std::ssize(Jobs_) - 1,
                         Jobs_.back()->GetDebugString());
                 } else {
                     YT_LOG_DEBUG("Sorted job skipped (JobIndex: %v, BuiltJobCount: %v, PrimaryDataSize: %v, "
                         "PreliminaryForeignDataSize: %v, LowerPrimaryKey: %v, UpperPrimaryKey: %v)",
                         jobIndex,
-                        static_cast<int>(Jobs_.size()) - 1,
+                        std::ssize(Jobs_) - 1,
                         Jobs_.back()->GetPrimaryDataWeight(),
                         Jobs_.back()->GetPreliminaryForeignDataWeight(),
                         Jobs_.back()->LowerPrimaryKey(),

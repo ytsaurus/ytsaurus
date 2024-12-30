@@ -32,7 +32,7 @@ struct TBlock
 
     explicit operator bool() const;
 
-    size_t Size() const;
+    i64 Size() const;
 
     TError ValidateChecksum() const;
 

@@ -145,7 +145,7 @@ TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
     std::vector<TSharedRef> records;
     records.reserve(blocks.size() - recordCount + startBlockIndex);
     for (int index = recordCount - startBlockIndex;
-         index < static_cast<int>(blocks.size());
+         index < std::ssize(blocks);
          ++index)
     {
         records.push_back(blocks[index].Data);

@@ -56,7 +56,7 @@ public:
         EBlockType type) override
     {
         YT_VERIFY(type == EBlockType::UncompressedData);
-        return id.BlockIndex >= StartBlockIndex_ && id.BlockIndex < StartBlockIndex_ + static_cast<int>(Blocks_.size())
+        return id.BlockIndex >= StartBlockIndex_ && id.BlockIndex < StartBlockIndex_ + std::ssize(Blocks_)
             ? TCachedBlock(Blocks_[id.BlockIndex - StartBlockIndex_])
             : TCachedBlock();
     }
@@ -66,7 +66,7 @@ public:
         EBlockType type) override
     {
         YT_VERIFY(type == EBlockType::UncompressedData);
-        return id.BlockIndex >= StartBlockIndex_ && id.BlockIndex < StartBlockIndex_ + static_cast<int>(Blocks_.size())
+        return id.BlockIndex >= StartBlockIndex_ && id.BlockIndex < StartBlockIndex_ + std::ssize(Blocks_)
             ? CreatePresetCachedBlockCookie(TCachedBlock(Blocks_[id.BlockIndex - StartBlockIndex_]))
             : CreateActiveCachedBlockCookie();
     }

@@ -375,7 +375,7 @@ private:
                 } else {
                     // Synthesize a fake pivot key.
                     TUnversionedOwningRowBuilder builder(1);
-                    int tabletIndex = static_cast<int>(tableInfo->Tablets.size());
+                    int tabletIndex = std::ssize(tableInfo->Tablets);
                     builder.AddValue(MakeUnversionedInt64Value(tabletIndex));
                     tabletInfo->PivotKey = builder.FinishRow();
                 }
@@ -426,7 +426,7 @@ private:
 
                 auto tabletCount = tableInfo->IsChaosReplicated()
                     ? rsp->tablet_count()
-                    : static_cast<int>(tableInfo->Tablets.size());
+                    : std::ssize(tableInfo->Tablets);
                 tableInfo->UpperCapBound = MakeUnversionedOwningRow(tabletCount);
             }
 

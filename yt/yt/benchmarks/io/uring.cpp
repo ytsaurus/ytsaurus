@@ -15,12 +15,12 @@ int UringQueueInit(unsigned entries, TUring* ring, unsigned flags)
 
 int UringRegisterFiles(TUring* ring, const std::vector<int>& files)
 {
-    return io_uring_register_files(ring, &files[0], static_cast<int>(files.size()));
+    return io_uring_register_files(ring, &files[0], std::ssize(files));
 }
 
 int UringRegisterBuffers(TUring* ring, const std::vector<TIovec>& buffers)
 {
-    return io_uring_register_buffers(ring, &buffers[0], static_cast<int>(buffers.size()));
+    return io_uring_register_buffers(ring, &buffers[0], std::ssize(buffers));
 }
 
 void UringPrepareReadv(TUringSqe* sqe, int fd, TIovec* iovecs, unsigned nr_vecs, off_t offset)

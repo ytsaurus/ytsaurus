@@ -185,7 +185,7 @@ const TGroupId& TGroup::GetId()
 int TGroup::GetMemberCount()
 {
     auto guard = ReaderGuard(MembersLock_);
-    return static_cast<int>(Members_.size());
+    return std::ssize(Members_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

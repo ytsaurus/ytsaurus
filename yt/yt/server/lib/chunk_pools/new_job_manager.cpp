@@ -676,7 +676,7 @@ void TNewJobManager::Enlarge(i64 dataWeightPerJob, i64 primaryDataWeightPerJob)
 std::pair<TKeyBound, TKeyBound> TNewJobManager::GetBounds(IChunkPoolOutput::TCookie cookie) const
 {
     YT_VERIFY(cookie >= 0);
-    YT_VERIFY(cookie < static_cast<int>(Jobs_.size()));
+    YT_VERIFY(cookie < std::ssize(Jobs_));
     const auto& job = Jobs_[cookie];
     return {job.GetLowerBound(), job.GetUpperBound()};
 }

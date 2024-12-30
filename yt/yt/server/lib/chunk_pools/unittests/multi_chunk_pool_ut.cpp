@@ -533,7 +533,7 @@ TEST_F(TMultiChunkPoolOutputTest, TestCookieMapping)
 
     // external_cookie -> (pool, cookie) mapping.
     std::vector<std::pair<int, int>> cookies;
-    for (int pool = static_cast<int>(poolSizes.size()) - 1; pool >= 0; --pool) {
+    for (int pool = std::ssize(poolSizes) - 1; pool >= 0; --pool) {
         for (int cookie = 0; cookie < poolSizes[pool]; ++cookie) {
             cookies.emplace_back(pool, cookie);
         }

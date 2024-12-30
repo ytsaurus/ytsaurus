@@ -6,14 +6,18 @@
 
 namespace NYT::NChunkClient {
 
+////////////////////////////////////////////////////////////////////////////////
+
 inline TBlock::operator bool() const
 {
-    return bool(Data);
+    return static_cast<bool>(Data);
 }
 
-inline size_t TBlock::Size() const
+inline i64 TBlock::Size() const
 {
-    return Data.Size();
+    return static_cast<i64>(Data.Size());
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient

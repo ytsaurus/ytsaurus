@@ -1943,7 +1943,7 @@ void TListNodeTypeHandler::DoClone(
     const auto& objectManager = GetBootstrap()->GetObjectManager();
     const auto& indexToChild = sourceNode->IndexToChild();
 
-    for (int index = 0; index < static_cast<int>(indexToChild.size()); ++index) {
+    for (int index = 0; index < std::ssize(indexToChild); ++index) {
         auto* childNode = indexToChild[index];
         auto* clonedChildNode = factory->CloneNode(childNode, mode, inheritedAttributes);
         auto* clonedChildTrunkNode = clonedChildNode->GetTrunkNode();

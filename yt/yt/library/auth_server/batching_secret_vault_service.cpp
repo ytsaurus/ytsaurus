@@ -107,7 +107,7 @@ private:
             std::vector<TQueueItem> items;
             {
                 auto guard = Guard(SpinLock_);
-                while (!SubrequestQueue_.empty() && static_cast<int>(items.size()) < Config_->MaxSubrequestsPerRequest) {
+                while (!SubrequestQueue_.empty() && std::ssize(items) < Config_->MaxSubrequestsPerRequest) {
                     items.push_back(SubrequestQueue_.front());
                     SubrequestQueue_.pop();
                 }

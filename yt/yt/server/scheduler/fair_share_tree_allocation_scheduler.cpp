@@ -1115,9 +1115,9 @@ void TScheduleAllocationsContext::AnalyzePreemptibleAllocations(
     PrepareConditionalUsageDiscounts(TreeSnapshot_->RootElement().Get(), &context);
 
     for (const auto& [_, allocationSet] : ConditionallyPreemptibleAllocationSetMap_) {
-        maxConditionallyPreemptibleAllocationCountInPool = std::max(
+        maxConditionallyPreemptibleAllocationCountInPool = std::max<int>(
             maxConditionallyPreemptibleAllocationCountInPool,
-            static_cast<int>(allocationSet.size()));
+            std::ssize(allocationSet));
     }
 
     StageState_->AnalyzeAllocationsDuration += timer.GetElapsedTime();

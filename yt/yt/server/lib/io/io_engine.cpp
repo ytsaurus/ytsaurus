@@ -467,7 +467,7 @@ private:
         AddReadWaitTimeSample(readWaitTime);
         Sensors_->UpdateKernelStatistics();
 
-        auto toReadRemaining = static_cast<i64>(buffer.Size());
+        auto toReadRemaining = std::ssize(buffer);
         auto fileOffset = request.Offset;
         i64 bufferOffset = 0;
 
@@ -628,7 +628,7 @@ private:
 
                     while (reallyWritten > 0) {
                         const auto& buffer = request.Buffers[bufferIndex];
-                        i64 toAdvance = Min(static_cast<i64>(buffer.Size()) - bufferOffset, reallyWritten);
+                        i64 toAdvance = Min(std::ssize(buffer) - bufferOffset, reallyWritten);
                         fileOffset += toAdvance;
                         bufferOffset += toAdvance;
                         reallyWritten -= toAdvance;
@@ -645,7 +645,7 @@ private:
 
                 auto pwrite = [&] {
                     const auto& buffer = request.Buffers[bufferIndex];
-                    auto toWrite = static_cast<ui32>(Min(toWriteRemaining, config->MaxBytesPerWrite, static_cast<i64>(buffer.Size()) - bufferOffset));
+                    auto toWrite = static_cast<ui32>(Min(toWriteRemaining, config->MaxBytesPerWrite, std::ssize(buffer) - bufferOffset));
 
                     i32 reallyWritten;
                     {

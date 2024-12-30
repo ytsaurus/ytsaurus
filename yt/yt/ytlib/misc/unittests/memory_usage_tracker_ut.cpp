@@ -15,7 +15,7 @@ TSharedRef CreateReference(i64 size)
     s.resize(size, '*');
 
     auto output = TSharedRef::FromString(s);
-    YT_ASSERT(static_cast<i64>(output.Size()) == size);
+    YT_ASSERT(std::ssize(output) == size);
     return output;
 }
 

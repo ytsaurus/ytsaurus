@@ -33,7 +33,7 @@ bool TryParseInstantFromLogInstant(TString logInstant, TInstant& instant)
     //          01234567890123456789012
     // Log:     2019-07-12 13:43:05,183
     // Iso8601: 2019-07-12T13:43:05.183+0300
-    if (static_cast<int>(logInstant.size()) != 23) {
+    if (std::ssize(logInstant) != 23) {
         return false;
     }
     logInstant[10] = 'T';

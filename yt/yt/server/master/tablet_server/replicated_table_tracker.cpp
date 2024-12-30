@@ -634,7 +634,7 @@ private:
         {
             auto guard = Guard(Lock_);
             Replicas_.resize(replicas.size());
-            for (int i = 0; i < static_cast<int>(replicas.size()); ++i) {
+            for (int i = 0; i < std::ssize(replicas); ++i) {
                 if (Replicas_[i] && *replicas[i] == *Replicas_[i]) {
                     replicas[i]->Merge(Replicas_[i]);
                 }
@@ -667,7 +667,7 @@ private:
                 std::optional<std::vector<TString>> preferredSyncReplicaClusters;
                 {
                     auto guard = Guard(Lock_);
-                    std::tie(minSyncReplicaCount, maxSyncReplicaCount) = Config_->GetEffectiveMinMaxReplicaCount(static_cast<int>(Replicas_.size()));
+                    std::tie(minSyncReplicaCount, maxSyncReplicaCount) = Config_->GetEffectiveMinMaxReplicaCount(std::ssize(Replicas_));
                     asyncReplicas.reserve(Replicas_.size());
                     syncReplicas.reserve(Replicas_.size());
                     for (auto& replica : Replicas_) {
@@ -727,7 +727,7 @@ private:
 
                         {
                             int index = 0;
-                            for (; index < static_cast<int>(syncReplicas.size()); ++index) {
+                            for (; index < std::ssize(syncReplicas); ++index) {
                                 const auto& result = results[index];
                                 const auto& replica = syncReplicas[index];
                                 logLivenessCheckResult(result, replica);
@@ -737,7 +737,7 @@ private:
                                     badSyncReplicas.push_back(replica);
                                 }
                             }
-                            for (; index < static_cast<int>(results.size()); ++index) {
+                            for (; index < std::ssize(results); ++index) {
                                 const auto& result = results[index];
                                 const auto& replica = asyncReplicas[index - syncReplicas.size()];
                                 logLivenessCheckResult(result, replica);
@@ -757,7 +757,7 @@ private:
                         std::vector<TFuture<void>> futures;
 
                         int switchCount = 0;
-                        int currentSyncReplicaCount = std::min(maxSyncReplicaCount, static_cast<int>(goodSyncReplicas.size()));
+                        int currentSyncReplicaCount = std::min<int>(maxSyncReplicaCount, std::ssize(goodSyncReplicas));
                         while (currentSyncReplicaCount < maxSyncReplicaCount && !goodAsyncReplicas.empty()) {
                             futures.push_back(goodAsyncReplicas.back()->SetMode(bootstrap, ETableReplicaMode::Sync));
                             ++switchCount;
@@ -767,14 +767,14 @@ private:
                         }
 
                         for (int index = Max(0, minSyncReplicaCount - currentSyncReplicaCount);
-                            index < static_cast<int>(badSyncReplicas.size());
+                            index < std::ssize(badSyncReplicas);
                             ++index)
                         {
                             futures.push_back(badSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
                             ++switchCount;
                         }
 
-                        for (int index = maxSyncReplicaCount; index < static_cast<int>(goodSyncReplicas.size()); ++index) {
+                        for (int index = maxSyncReplicaCount; index < std::ssize(goodSyncReplicas); ++index) {
                             futures.push_back(goodSyncReplicas[index]->SetMode(bootstrap, ETableReplicaMode::Async));
                             ++switchCount;
                             goodAsyncReplicas.push_back(goodSyncReplicas[index]);
@@ -1228,7 +1228,7 @@ private:
                 GeneralCheckTimeout_.load()));
         }
 
-        const auto [maxSyncReplicaCount,  minSyncReplicaCount] = config->GetEffectiveMinMaxReplicaCount(static_cast<int>(replicas.size()));
+        const auto [maxSyncReplicaCount,  minSyncReplicaCount] = config->GetEffectiveMinMaxReplicaCount(std::ssize(replicas));
 
         YT_LOG_DEBUG("Table %v "
             "(TableId: %v, CollocationId: %v, "

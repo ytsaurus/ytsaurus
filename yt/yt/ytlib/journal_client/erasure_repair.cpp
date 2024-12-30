@@ -79,7 +79,7 @@ void DoRepairErasedParts(
 
         YT_VERIFY(rowLists.size() == writers.size());
 
-        i64 readRowCount = static_cast<i64>(rowLists[0].size());
+        i64 readRowCount = std::ssize(rowLists[0]);
         for (const auto& rowList : rowLists) {
             YT_VERIFY(std::ssize(rowList) == readRowCount);
         }
