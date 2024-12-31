@@ -241,6 +241,148 @@ void TRpcRawClient::CommitTransaction(
     WaitFor(tx->Commit(SerializeOptionsForCommitTransaction(mutationId))).ThrowOnError();
 }
 
+TOperationId TRpcRawClient::StartOperation(
+    TMutationId& mutationId,
+    const TTransactionId& transactionId,
+    EOperationType type,
+    const TNode& spec)
+{
+    auto future = Client_->StartOperation(
+        NScheduler::EOperationType(type),
+        NYson::TYsonString(NodeToYsonString(spec)),
+        SerializeOptionsForStartOperation(mutationId, transactionId));
+    auto result = WaitFor(future).ValueOrThrow();
+    return UtilGuidFromYtGuid(result.Underlying());
+}
+
+TOperationAttributes ParseOperationAttributes(const NApi::TOperation& operation)
+{
+    TOperationAttributes result;
+    if (operation.Id) {
+        result.Id = UtilGuidFromYtGuid(operation.Id->Underlying());
+    }
+    if (operation.Type) {
+        result.Type = EOperationType(*operation.Type);
+    }
+    if (operation.State) {
+        result.State = ToString(*operation.State);
+        if (*result.State == "completed") {
+            result.BriefState = EOperationBriefState::Completed;
+        } else if (*result.State == "aborted") {
+            result.BriefState = EOperationBriefState::Aborted;
+        } else if (*result.State == "failed") {
+            result.BriefState = EOperationBriefState::Failed;
+        } else {
+            result.BriefState = EOperationBriefState::InProgress;
+        }
+    }
+    if (operation.AuthenticatedUser) {
+        result.AuthenticatedUser = *operation.AuthenticatedUser;
+    }
+    if (operation.StartTime) {
+        result.StartTime = *operation.StartTime;
+    }
+    if (operation.FinishTime) {
+        result.FinishTime = *operation.FinishTime;
+    }
+    if (operation.BriefProgress) {
+        auto briefProgressNode = NodeFromYsonString(operation.BriefProgress.AsStringBuf());
+        if (briefProgressNode.HasKey("jobs")) {
+            result.BriefProgress.ConstructInPlace();
+            static auto load = [] (const TNode& item) {
+                // Backward compatibility with old YT versions
+                return item.IsInt64() ? item.AsInt64() : item["total"].AsInt64();
+            };
+            const auto& jobs = briefProgressNode["jobs"];
+            result.BriefProgress->Aborted = load(jobs["aborted"]);
+            result.BriefProgress->Completed = load(jobs["completed"]);
+            result.BriefProgress->Running = jobs["running"].AsInt64();
+            result.BriefProgress->Total = jobs["total"].AsInt64();
+            result.BriefProgress->Failed = jobs["failed"].AsInt64();
+            result.BriefProgress->Lost = jobs["lost"].AsInt64();
+            result.BriefProgress->Pending = jobs["pending"].AsInt64();
+        }
+    }
+    if (operation.BriefSpec) {
+        result.BriefSpec = NodeFromYsonString(operation.BriefSpec.AsStringBuf());
+    }
+    if (operation.FullSpec) {
+        result.FullSpec = NodeFromYsonString(operation.FullSpec.AsStringBuf());
+    }
+    if (operation.UnrecognizedSpec) {
+        result.UnrecognizedSpec = NodeFromYsonString(operation.UnrecognizedSpec.AsStringBuf());
+    }
+    if (operation.Suspended) {
+        result.Suspended = *operation.Suspended;
+    }
+    if (operation.Result) {
+        auto resultNode = NodeFromYsonString(operation.Result.AsStringBuf());
+        result.Result.ConstructInPlace();
+        auto error = TYtError(resultNode["error"]);
+        if (error.GetCode() != 0) {
+            result.Result->Error = std::move(error);
+        }
+    }
+    if (operation.Progress) {
+        auto progressMap = NodeFromYsonString(operation.Progress.AsStringBuf()).AsMap();
+        TMaybe<TInstant> buildTime;
+        if (auto buildTimeNode = progressMap.FindPtr("build_time")) {
+            buildTime = TInstant::ParseIso8601(buildTimeNode->AsString());
+        }
+        TJobStatistics jobStatistics;
+        if (auto jobStatisticsNode = progressMap.FindPtr("job_statistics")) {
+            jobStatistics = TJobStatistics(*jobStatisticsNode);
+        }
+        TJobCounters jobCounters;
+        if (auto jobCountersNode = progressMap.FindPtr("total_job_counter")) {
+            jobCounters = TJobCounters(*jobCountersNode);
+        }
+        result.Progress = TOperationProgress{
+            .JobStatistics = std::move(jobStatistics),
+            .JobCounters = std::move(jobCounters),
+            .BuildTime = buildTime,
+        };
+    }
+    if (operation.Events) {
+        auto eventsNode = NodeFromYsonString(operation.Events.AsStringBuf());
+        result.Events.ConstructInPlace().reserve(eventsNode.Size());
+        for (const auto& eventNode : eventsNode.AsList()) {
+            result.Events->push_back(TOperationEvent{
+                eventNode["state"].AsString(),
+                TInstant::ParseIso8601(eventNode["time"].AsString()),
+            });
+        }
+    }
+    if (operation.Alerts) {
+        auto alertsNode = NodeFromYsonString(operation.Alerts.AsStringBuf());
+        result.Alerts.ConstructInPlace();
+        for (const auto& [alertType, alertError] : alertsNode.AsMap()) {
+            result.Alerts->emplace(alertType, alertError);
+        }
+    }
+    return result;
+}
+
+TOperationAttributes TRpcRawClient::GetOperation(
+    const TOperationId& operationId,
+    const TGetOperationOptions& options)
+{
+    auto future = Client_->GetOperation(
+        NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
+        SerializeOptionsForGetOperation(options));
+    auto result = WaitFor(future).ValueOrThrow();
+    return ParseOperationAttributes(result);
+}
+
+TOperationAttributes TRpcRawClient::GetOperation(
+    const TString& alias,
+    const TGetOperationOptions& options)
+{
+    auto future = Client_->GetOperation(alias, SerializeOptionsForGetOperation(options));
+    auto result = WaitFor(future).ValueOrThrow();
+    return ParseOperationAttributes(result);
+}
+
 void TRpcRawClient::AbortOperation(
     TMutationId& /*mutationId*/,
     const TOperationId& operationId)

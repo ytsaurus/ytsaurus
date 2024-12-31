@@ -3,6 +3,7 @@
 #include <yt/cpp/mapreduce/common/helpers.h>
 
 #include <yt/cpp/mapreduce/interface/errors.h>
+#include <yt/cpp/mapreduce/interface/operation.h>
 
 #include <library/cpp/yson/node/node_io.h>
 
@@ -334,6 +335,31 @@ NApi::TTransactionCommitOptions SerializeOptionsForCommitTransaction(TMutationId
 {
     NApi::TTransactionCommitOptions result;
     SetMutationId(&result, &mutationId);
+    return result;
+}
+
+NApi::TStartOperationOptions SerializeOptionsForStartOperation(
+    TMutationId& mutationId,
+    const TTransactionId& transactionId)
+{
+    NApi::TStartOperationOptions result;
+    SetMutationId(&result, &mutationId);
+    SetTransactionId(&result, transactionId);
+    return result;
+}
+
+NApi::TGetOperationOptions SerializeOptionsForGetOperation(const TGetOperationOptions& options)
+{
+    NApi::TGetOperationOptions result;
+    if (options.IncludeRuntime_) {
+        result.IncludeRuntime = *options.IncludeRuntime_;
+    }
+    if (options.AttributeFilter_) {
+        result.Attributes = THashSet<TString>();
+        for (const auto& attribute : options.AttributeFilter_->Attributes_) {
+            result.Attributes->emplace(ToString(attribute));
+        }
+    }
     return result;
 }
 
