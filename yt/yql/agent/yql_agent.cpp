@@ -378,7 +378,7 @@ private:
             auto refreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
             refreshTokenExecutor->Start();
 
-            const THashMap<TString, THashMap<TString, TString>> credentials = {{"yt_default", {{"category", "yt"}, {"content", token}}}};
+            const THashMap<TString, THashMap<TString, TString>> credentials = {{"default_yt", {{"category", "yt"}, {"content", token}}}};
             // This is a long blocking call.
             const auto result = YqlPlugin_->Run(queryId, user, ConvertToYsonString(credentials), query, settings, files, yqlRequest.mode());
             WaitFor(refreshTokenExecutor->Stop()).ThrowOnError();
