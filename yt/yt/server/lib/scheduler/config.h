@@ -620,6 +620,9 @@ public:
     // Testing option that enables sleeping after node state checking.
     TDelayConfigPtr NodeHeartbeatProcessingDelay;
 
+    // Testing option that enables sleeping right before creation of operation node.
+    TDelayConfigPtr OperationNodeCreationDelay;
+
     // Testing option that enables sleeping after creation of operation node, but before creation of secure vault node.
     TDelayConfigPtr SecureVaultCreationDelay;
 
@@ -1030,6 +1033,13 @@ public:
     NRpc::TServerDynamicConfigPtr RpcServer;
 
     int OperationSpecTreeSizeLimit;
+
+    //! Configures the default expiration timeout used when creating temporary
+    //! tokens for operations. In a regular scenario the expiration timeout
+    //! is removed right after creating the operation node in Cypress. However,
+    //! if a scheduler does disconnect after the token is issued but before the
+    //! operation node is created, this will ensure it is cleaned up eventually.
+    TDuration TemporaryOperationTokenExpirationTimeout;
 
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 

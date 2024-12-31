@@ -675,6 +675,7 @@ public:
             std::move(preprocessedSpec.TrimmedAnnotations),
             std::move(preprocessedSpec.BriefVanillaTaskSpecs),
             secureVault,
+            /*temporaryTokenNodeId*/ std::nullopt,
             runtimeParameters,
             std::move(baseAcl),
             user,
@@ -2658,6 +2659,22 @@ private:
                 << startError;
             operation->SetStarted(wrappedError);
             return;
+        }
+
+        if (operation->Spec()->IssueTemporaryToken) {
+            try {
+                auto temporaryToken = WaitFor(MasterConnector_->IssueTemporaryOperationToken(operation))
+                    .ValueOrThrow();
+                // NB: This modifies secure vault contents.
+                operation->SetTemporaryToken(temporaryToken.Token, temporaryToken.NodeId);
+            } catch (const std::exception& ex) {
+                auto wrappedError = TError("Failed to issue temporary token for operation %v",
+                    operation->GetId())
+                    << ex;
+                operation->SetStarted(wrappedError);
+                UnregisterOperation(operation);
+                return;
+            }
         }
 
         try {

@@ -839,6 +839,8 @@ void TTestingOptions::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("node_heartbeat_processing_delay", &TThis::NodeHeartbeatProcessingDelay)
         .Default();
+    registrar.Parameter("operation_node_creation_delay", &TThis::OperationNodeCreationDelay)
+        .Default();
     registrar.Parameter("secure_vault_creation_delay", &TThis::SecureVaultCreationDelay)
         .Default();
 }
@@ -1281,6 +1283,9 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("operation_spec_tree_size_limit", &TThis::OperationSpecTreeSizeLimit)
         .Default(std::numeric_limits<int>::max());
+
+    registrar.Parameter("temporary_operation_token_expiration_timeout", &TThis::TemporaryOperationTokenExpirationTimeout)
+        .Default(TDuration::Days(7));
 
     registrar.Preprocessor([&] (TThis* config) {
         config->OperationServiceResponseKeeper->EnableWarmup = false;
