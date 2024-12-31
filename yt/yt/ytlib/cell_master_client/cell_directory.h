@@ -38,7 +38,7 @@ struct ICellDirectory
     virtual NObjectClient::TCellId GetPrimaryMasterCellId() = 0;
     virtual NObjectClient::TCellTag GetPrimaryMasterCellTag() = 0;
     virtual NObjectClient::TCellTagList GetSecondaryMasterCellTags() = 0;
-    virtual NObjectClient::TCellIdList GetSecondaryMasterCellIds() = 0;
+    virtual THashSet<NObjectClient::TCellId> GetSecondaryMasterCellIds() = 0;
 
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         NApi::EMasterChannelKind kind,

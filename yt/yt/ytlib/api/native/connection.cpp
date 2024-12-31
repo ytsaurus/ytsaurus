@@ -976,7 +976,8 @@ private:
         TCellIdList cellIds;
         auto config = Config_.Acquire();
         if (config->CellDirectorySynchronizer->SyncCellsWithSecondaryMasters) {
-            cellIds = MasterCellDirectory_->GetSecondaryMasterCellIds();
+            auto secondaryMasterCellIds = MasterCellDirectory_->GetSecondaryMasterCellIds();
+            cellIds = TCellIdList(secondaryMasterCellIds.begin(), secondaryMasterCellIds.end());
         }
         if (cellIds.empty()) {
             cellIds.push_back(GetPrimaryMasterCellId());

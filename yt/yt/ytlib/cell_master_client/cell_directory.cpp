@@ -4,8 +4,6 @@
 #include "config.h"
 #include "protobuf_helpers.h"
 
-#include <yt/yt/client/object_client/helpers.h>
-
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -16,6 +14,8 @@
 #include <yt/yt/ytlib/object_client/config.h>
 #include <yt/yt/ytlib/object_client/caching_object_service.h>
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
+
+#include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/sequoia_client/public.h>
 
@@ -79,13 +79,12 @@ public:
             auto cellTag = CellTagFromId(cellId);
             EmplaceOrCrash(SecondaryMasterConnectionConfigs_, cellTag, masterConfig);
             SecondaryMasterCellTags_.push_back(cellTag);
-            SecondaryMasterCellIds_.push_back(cellId);
+            InsertOrCrash(SecondaryMasterCellIds_, cellId);
         }
         // Sort tag list to simplify subsequent equality checks.
         Sort(SecondaryMasterCellTags_);
 
         // NB: Unlike channels, roles will be filled on first sync.
-
         {
             auto guard = WriterGuard(SpinLock_);
             InitMasterChannels(Config_->PrimaryMaster);
@@ -112,7 +111,7 @@ public:
         return SecondaryMasterCellTags_;
     }
 
-    TCellIdList GetSecondaryMasterCellIds() override
+    THashSet<NObjectClient::TCellId> GetSecondaryMasterCellIds() override
     {
         auto guard = ReaderGuard(SpinLock_);
         return SecondaryMasterCellIds_;
@@ -248,6 +247,9 @@ public:
                     actualPrimaryCellAddresses);
 
                 for (const auto& [cellTag, cellConfig] : oldSecondaryMasterConnectionConfigs) {
+                    if (!newSecondaryMasterConnectionConfigs.contains(cellTag)) {
+                        continue;
+                    }
                     if (cellConfig->Addresses) {
                         const auto& expectedCellAddresses = *cellConfig->Addresses;
                         const auto& actualCellAddresses = cellTagToAddresses[CellTagFromId(cellConfig->CellId)];
@@ -311,7 +313,6 @@ private:
     const IServerPtr RpcServer_;
     const NNative::TConnectionOptions Options_;
 
-
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     THashMap<TCellTag, TEnumIndexedArray<EMasterChannelKind, IChannelPtr>> CellChannelMap_;
     THashMap<TCellTag, EMasterCellRoles> CellTagToRoles_;
@@ -319,7 +320,7 @@ private:
     TRandomGenerator RandomGenerator_;
     TSecondaryMasterConnectionConfigs SecondaryMasterConnectionConfigs_;
     TCellTagList SecondaryMasterCellTags_;
-    TCellIdList SecondaryMasterCellIds_;
+    THashSet<NObjectClient::TCellId> SecondaryMasterCellIds_;
     THashMap<TCellTag, IServicePtr> CachingObjectServices_;
 
     bool ClusterMasterCompositionChanged(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs)
@@ -348,12 +349,12 @@ private:
         const TSecondaryMasterConnectionConfigs& newSecondaryMasterConnectionConfigs,
         const TCellTagList& secondaryMasterCellTags)
     {
-        TCellIdList secondaryMasterCellIds;
+        THashSet<TCellId> newSecondaryMasterCellIds;
         THashSet<TCellTag> newSecondaryMasterCellTags;
         THashSet<TCellTag> changedSecondaryMasterCellTags;
         TSecondaryMasterConnectionConfigs newSecondaryMasterConfigs;
         TSecondaryMasterConnectionConfigs changedSecondaryMasterConfigs;
-        secondaryMasterCellIds.reserve(newSecondaryMasterConnectionConfigs.size());
+        newSecondaryMasterCellIds.reserve(newSecondaryMasterConnectionConfigs.size());
         newSecondaryMasterCellTags.reserve(newSecondaryMasterConnectionConfigs.size());
         changedSecondaryMasterCellTags.reserve(newSecondaryMasterConnectionConfigs.size());
         newSecondaryMasterConfigs.reserve(newSecondaryMasterConnectionConfigs.size());
@@ -371,10 +372,8 @@ private:
                 EmplaceOrCrash(changedSecondaryMasterConfigs, cellTag, secondaryMaster);
                 InsertOrCrash(changedSecondaryMasterCellTags, cellTag);
             }
-            secondaryMasterCellIds.push_back(secondaryMaster->CellId);
+            InsertOrCrash(newSecondaryMasterCellIds, secondaryMaster->CellId);
         }
-
-        Sort(secondaryMasterCellIds);
 
         THashSet<TCellTag> removedSecondaryMasterCellTags;
         removedSecondaryMasterCellTags.reserve(oldSecondaryMasterConnectionConfigs.size());
@@ -397,10 +396,9 @@ private:
                 RemoveMasterChannels(cellTag);
                 InitMasterChannels(secondaryMaster);
             }
-            // TODO(cherepashka): add logic for removal of master cells.
 
             SecondaryMasterConnectionConfigs_ = newSecondaryMasterConnectionConfigs;
-            SecondaryMasterCellIds_ = std::move(secondaryMasterCellIds);
+            SecondaryMasterCellIds_ = std::move(newSecondaryMasterCellIds);
             SecondaryMasterCellTags_ = secondaryMasterCellTags;
         }
 

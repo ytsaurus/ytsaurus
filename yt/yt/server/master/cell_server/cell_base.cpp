@@ -403,7 +403,7 @@ ECellHealth TCellBase::CombineHealths(ECellHealth lhs, ECellHealth rhs)
         ECellHealth::Failed,
         ECellHealth::Degraded,
         ECellHealth::Initializing,
-        ECellHealth::Good
+        ECellHealth::Good,
     }};
 
     for (auto health : HealthOrder) {

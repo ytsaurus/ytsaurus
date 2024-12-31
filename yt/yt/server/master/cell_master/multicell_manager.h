@@ -18,8 +18,6 @@
 
 #include <yt/yt/core/ytree/public.h>
 
-#include <library/cpp/yt/memory/ref.h>
-
 #include <variant>
 
 namespace NYT::NCellMaster {
@@ -86,7 +84,7 @@ struct IMulticellManager
     virtual NObjectClient::TCellId GetPrimaryCellId() const = 0;
     virtual NObjectClient::TCellTag GetPrimaryCellTag() const = 0;
 
-    virtual const NObjectClient::TCellTagList& GetSecondaryCellTags() const = 0;
+    virtual const std::set<NObjectClient::TCellTag>& GetSecondaryCellTags() const = 0;
     virtual const NApi::NNative::TConnectionStaticConfigPtr& GetMasterCellConnectionConfigs() const = 0;
     virtual THashSet<NObjectClient::TCellTag> GetDynamicallyPropagatedMastersCellTags() const = 0;
 
@@ -155,9 +153,6 @@ struct IMulticellManager
      */
     virtual const NObjectClient::TCellTagList& GetRegisteredMasterCellTags() const = 0;
 
-    //! Returns a stable index of a given (registered) master cell (other than the local one).
-    virtual int GetRegisteredMasterCellIndex(NObjectClient::TCellTag cellTag) const = 0;
-
     //! Picks a random (but deterministically chosen) secondary master cell to
     //! host an external chunk-owning node.
     /*!
@@ -185,7 +180,6 @@ struct IMulticellManager
     //! Returns the mailbox used for communicating with the primary master cell.
     //! May return null if the cell is not connected yet.
     virtual NHiveServer::TMailboxHandle FindPrimaryMasterMailbox() = 0;
-
 
     //! Synchronizes with the upstream.
     /*!

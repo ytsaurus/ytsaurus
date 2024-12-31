@@ -9,7 +9,8 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, map_reduce, raises_yt_error, read_table, wait, init_drivers, wait_drivers,
+    authors, create_dynamic_table, insert_rows, map_reduce, sync_create_cells,
+    master_exit_read_only, raises_yt_error, read_table, select_rows, sync_mount_table, wait, init_drivers, wait_drivers,
     exists, get, set, ls, create, remove,
     create_account, create_domestic_medium, remove_account,
     start_transaction, abort_transaction,
@@ -23,10 +24,13 @@ from yt_commands import (
     print_debug, decommission_node,
     sync_create_chaos_cell, generate_chaos_cell_id, align_chaos_cell_tag, write_table)
 
-from yt_helpers import master_exit_read_only_sync
+from yt_helpers import master_exit_read_only_sync, wait_no_peers_in_read_only
 from yt.test_helpers import assert_items_equal
+from yt.common import YtError
 
 import pytest
+import os
+import shutil
 
 from copy import deepcopy
 import builtins
@@ -44,13 +48,16 @@ class TestMasterCellAdditionBase(YTEnvSetup):
 
     PRIMARY_CLUSTER_INDEX = 0
 
+    REMOVE_LAST_MASTER_BEFORE_START = True
+
     @classmethod
     def setup_class(cls):
         super(TestMasterCellAdditionBase, cls).setup_class()
+        remove_master_before_start = cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cls.PRIMARY_CLUSTER_INDEX)
 
         for cluster_index, env in enumerate([cls.Env] + cls.remote_envs):
             secondary_master_cells_to_start = cls.get_param("NUM_SECONDARY_MASTER_CELLS", cluster_index)
-            if cluster_index == cls.PRIMARY_CLUSTER_INDEX:
+            if cluster_index == cls.PRIMARY_CLUSTER_INDEX and remove_master_before_start:
                 secondary_master_cells_to_start -= 1
 
             assert secondary_master_cells_to_start >= 0
@@ -58,6 +65,9 @@ class TestMasterCellAdditionBase(YTEnvSetup):
             # NB: The last secondary master cell on primary cluster is not started here.
             for cell_index in range(secondary_master_cells_to_start):
                 env.start_master_cell(cell_index + 1)
+            # TODO(cherepashka): fix master dynamic config load in tests.
+            set("//sys/@config/multicell_manager/testing/allow_master_cell_with_empty_role", True)
+            set("//sys/@config/multicell_manager/cell_descriptors", {"13": {"roles": []}})
 
             if cls.get_param("NUM_NODES", cluster_index) != 0:
                 env.start_nodes()
@@ -70,52 +80,143 @@ class TestMasterCellAdditionBase(YTEnvSetup):
 
     @classmethod
     def modify_master_config(cls, config, tag, peer_index, cluster_index):
-        cls._disable_last_cell_and_stash_config(config, cluster_index)
+        cls.proceed_master_config(config, cluster_index, cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
+
+    @classmethod
+    def proceed_master_config(cls, config, cluster_index, remove_last_master):
+        cls._collect_cell_ids_and_maybe_stash_last_cell(config, cluster_index, remove_last_master)
         cluster_connection = config["cluster_connection"]
         if len(cluster_connection["secondary_masters"]) == 3:
             # Prevent cluster nodes from finding out about the "new" cell via cell directory synchronizer.
-            cls._disable_last_cell_and_stash_config(cluster_connection, cluster_index)
+            cls._collect_cell_ids_and_maybe_stash_last_cell(cluster_connection, cluster_index, remove_last_master)
 
     @classmethod
     def modify_scheduler_config(cls, config, cluster_index):
-        cls._disable_last_cell_and_stash_config(config["cluster_connection"], cluster_index)
+        cls._collect_cell_ids_and_maybe_stash_last_cell(config["cluster_connection"], cluster_index, cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
     @classmethod
     def modify_controller_agent_config(cls, config, cluster_index):
-        cls._disable_last_cell_and_stash_config(config["cluster_connection"], cluster_index)
+        cls._collect_cell_ids_and_maybe_stash_last_cell(config["cluster_connection"], cluster_index, cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
     @classmethod
     def modify_node_config(cls, config, cluster_index):
-        cls._disable_last_cell_and_stash_config(config["cluster_connection"], cluster_index)
+        cls._collect_cell_ids_and_maybe_stash_last_cell(config["cluster_connection"], cluster_index, cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
     @classmethod
     def modify_chaos_node_config(cls, config, cluster_index):
-        cls._disable_last_cell_and_stash_config(config["cluster_connection"], cluster_index)
+        cls._collect_cell_ids_and_maybe_stash_last_cell(config["cluster_connection"], cluster_index, cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
     @classmethod
     def modify_driver_config(cls, config):
-        if "secondary_masters" in config.keys() and config["cluster_name"] == "primary":
-            # Prevent drivers from crashing after discovery of the "new" cell via cell directory synchronizer.
-            cls._disable_last_cell_and_stash_config(config, cls.PRIMARY_CLUSTER_INDEX)
+        cls.proceed_driver_config(config, cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cls.PRIMARY_CLUSTER_INDEX))
 
     @classmethod
-    def _disable_last_cell_and_stash_config(cls, config, cluster_index):
+    def proceed_driver_config(cls, config, remove_last_master):
+        if "secondary_masters" in config.keys() and config["cluster_name"] == "primary":
+            # Prevent drivers from crashing after discovery of the "new" cell via cell directory synchronizer.
+            cls._collect_cell_ids_and_maybe_stash_last_cell(config, cls.PRIMARY_CLUSTER_INDEX, remove_last_master)
+
+    @classmethod
+    def _collect_cell_ids_and_maybe_stash_last_cell(cls, config, cluster_index, remove_last_master):
         if cluster_index != cls.PRIMARY_CLUSTER_INDEX:
             return
 
-        # Stash the last cell's config and remove it for the time being.
-        cls.STASHED_CELL_CONFIGS.append(deepcopy(config["secondary_masters"][2]))
-        del config["secondary_masters"][2]
-        cls.PATCHED_CONFIGS.append(config)
+        cls._collect_cell_ids(config)
+        if remove_last_master:
+            cls._remove_last_cell_from_config(config)
 
+    @classmethod
+    def _collect_cell_ids(cls, config):
         cls.CELL_IDS.add(config["primary_master"]["cell_id"])
         for secondary_master in config["secondary_masters"]:
             cls.CELL_IDS.add(secondary_master["cell_id"])
 
+    @classmethod
+    def _remove_last_cell_from_config(cls, config):
+        # Stash the last cell's config and remove it for the time being.
+        cls.STASHED_CELL_CONFIGS.append(deepcopy(config["secondary_masters"][2]))
+        removed_cell_id = config["secondary_masters"][2]["cell_id"]
+        del config["secondary_masters"][2]
+        cls.PATCHED_CONFIGS.append(config)
+
+        if removed_cell_id in cls.CELL_IDS:
+            cls.CELL_IDS.remove(removed_cell_id)
+
         assert len(cls.PATCHED_CONFIGS) == len(cls.STASHED_CELL_CONFIGS)
 
     @classmethod
-    def _enable_last_cell(cls, downtime=True):
+    def _disable_last_cell(cls):
+        optional_services = [
+            SCHEDULERS_SERVICE if cls.NUM_SCHEDULERS != 0 else None,
+            CONTROLLER_AGENTS_SERVICE if cls.NUM_CONTROLLER_AGENTS != 0 else None,
+            NODES_SERVICE if cls.NUM_NODES != 0 else None,
+            CHAOS_NODES_SERVICE if cls.NUM_CHAOS_NODES != 0 else None,
+        ]
+        services = [service for service in optional_services if service is not None]
+
+        with Restarter(cls.Env, services):
+            drivers = ["driver"]
+            cls.Env.kill_service("driver")
+            for i in range(cls.Env.yt_config.secondary_cell_count):
+                cls.Env.kill_service(f"driver_secondary_{i}")
+                drivers.append(f"driver_secondary_{i}")
+
+            for cell_id in cls.CELL_IDS:
+                build_snapshot(cell_id=cell_id, set_read_only=True)
+            cls.Env.kill_all_masters()
+
+            # Patch static configs for all components.
+            configs = cls.Env._cluster_configuration
+            for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
+                for peer_index, _ in enumerate(configs["master"][tag]):
+                    cls.proceed_master_config(configs["master"][tag][peer_index], cls.PRIMARY_CLUSTER_INDEX, remove_last_master=True)
+                    configs["master"][tag][peer_index]["hive_manager"]["allowed_for_removal_master_cells"] = [13]
+            for service in services:
+                # Config keys are services in the singular, drop plural.
+                service_name_singular = service[:-1]
+                for _, config in enumerate(configs[service_name_singular]):
+                    cls._collect_cell_ids_and_maybe_stash_last_cell(config["cluster_connection"], cls.PRIMARY_CLUSTER_INDEX, remove_last_master=True)
+                    if service == NODES_SERVICE:
+                        if "tablet_node" in config.keys():
+                            config["tablet_node"]["hive_manager"]["allowed_for_removal_master_cells"] = [13]
+                    elif service == CHAOS_NODES_SERVICE:
+                        config["cellar_node"]["cellar_manager"]["cellars"]["chaos"]["occupant"]["hive_manager"]["allowed_for_removal_master_cells"] = [13]
+            for driver in drivers:
+                cls.proceed_driver_config(cls.Env.configs[driver], remove_last_master=True)
+
+            init_drivers([cls.Env])
+            cls.Env.rewrite_master_configs()
+            cls.Env.rewrite_node_configs()
+            cls.Env.rewrite_chaos_node_configs()
+            cls.Env.rewrite_scheduler_configs()
+            cls.Env.rewrite_controller_agent_configs()
+
+            cls.Env.start_master_cell(cell_index=0, set_config=False)
+            secondary_masters_to_start = cls.get_param("NUM_SECONDARY_MASTER_CELLS", cls.PRIMARY_CLUSTER_INDEX) - 1
+            for cell_index in range(secondary_masters_to_start):
+                cls.Env.start_master_cell(cell_index=cell_index + 1, set_config=False)
+            wait_drivers()
+            master_exit_read_only()
+            # Cell 13 was dropped.
+            wait_no_peers_in_read_only(secondary_cell_tags=["11", "12"])
+            cls.Env.synchronize()
+
+        def _move_files(directory):
+            files = os.listdir(directory)
+            for file in files:
+                file_path = os.path.join(directory, file)
+                shutil.move(file_path, f"{file_path}.bad")
+
+        # Move changelogs and snapshots of 13 cell, to make it's directory clear when it will be added further as new cell.
+        master_dirs = cls.Env._directories["master"][3]
+        for master_dir in master_dirs:
+            snapshots_path = os.path.join(master_dir, "snapshots")
+            changelogs_path = os.path.join(master_dir, "changelogs")
+            _move_files(snapshots_path)
+            _move_files(changelogs_path)
+
+    @classmethod
+    def _enable_last_cell(cls, downtime):
         assert len(cls.PATCHED_CONFIGS) == len(cls.STASHED_CELL_CONFIGS)
 
         optional_services = [
@@ -164,6 +265,10 @@ class TestMasterCellAdditionBase(YTEnvSetup):
         return callback(get_driver(cell_index))
 
     def _execute_checks_with_cell_addition(self, downtime):
+        if not self.get_param("REMOVE_LAST_MASTER_BEFORE_START", self.PRIMARY_CLUSTER_INDEX):
+            set("//sys/@config/multicell_manager/testing/allow_master_cell_removal", True)
+            self._disable_last_cell()
+
         checker_names = [attr for attr in dir(self) if attr.startswith('check_') and inspect.ismethod(getattr(self, attr))]
 
         print_debug("Checkers: ", checker_names)
@@ -295,17 +400,20 @@ class TestMasterCellAdditionBaseChecks(TestMasterCellAdditionBase):
         )
 
     def check_sys_masters_node(self):
-        def check(cell_ids):
+        def check(cell_tags):
             secondary_masters = get("//sys/secondary_masters")
-            if sorted(secondary_masters.keys()) != sorted(cell_ids):
+            if sorted(secondary_masters.keys()) != sorted(cell_tags):
                 return False
 
-            for cell_id in cell_ids:
-                assert len(secondary_masters[cell_id]) == 3
+            for cell_tag in cell_tags:
+                assert len(secondary_masters[cell_tag]) == 3
 
             return True
 
-        assert check(["11", "12"])
+        if self.REMOVE_LAST_MASTER_BEFORE_START:
+            assert check(["11", "12"])
+        else:
+            wait(lambda: check(["11", "12"]))
 
         yield
 
@@ -458,7 +566,7 @@ class TestMasterCellAdditionBaseChecks(TestMasterCellAdditionBase):
             assert get(f"//sys/cluster_nodes/{node}/@multicell_states") == multicell_states
         assert_true_for_all_cells(self.Env, lambda driver: _check_nodes_state(nodes, driver=driver))
 
-    def check_basic_avialibility(self):
+    def check_map_reduce_avialibility(self):
         def _check_basic_map_reduce():
             data = [{"foo": i} for i in range(3)]
             create("table", "//tmp/in")
@@ -516,16 +624,48 @@ class TestMasterCellAdditionWithoutDowntime(TestMasterCellAdditionBaseChecks):
     NUM_TEST_PARTITIONS = 3
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
-        "multicell_manager" : {
-            "cell_descriptors" : {
-                "13": {"roles": []},
+        "multicell_manager": {
+            "testing": {
+                "allow_master_cell_with_empty_role": True,
             },
         },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "13": {"roles": []},
     }
 
     @authors("shakurov", "cherepashka")
     @pytest.mark.timeout(120)
     def test_add_new_cell(self):
+        self._execute_checks_with_cell_addition(downtime=False)
+
+
+class TestMasterCellsListChangeWithoutDowntime(TestMasterCellAdditionBaseChecks):
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+
+    NUM_TEST_PARTITIONS = 3
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "multicell_manager": {
+            "testing": {
+                "allow_master_cell_removal": True,
+                "allow_master_cell_with_empty_role": True,
+            }
+        }
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "13": {"roles": []},
+    }
+
+    REMOVE_LAST_MASTER_BEFORE_START = False
+
+    @authors("shakurov", "cherepashka")
+    @pytest.mark.timeout(120)
+    def test_add_new_cell_after_removal(self):
         self._execute_checks_with_cell_addition(downtime=False)
 
 
@@ -542,6 +682,18 @@ class TestMasterCellAdditionChaosMultiClusterBaseChecks(TestMasterCellAdditionBa
         "world_initializer": {
             "update_period": 1000,
         },
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "multicell_manager": {
+            "testing": {
+                "allow_master_cell_with_empty_role": True,
+            },
+        },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "13": {"roles": []},
     }
 
     DELTA_DRIVER_CONFIG = {
@@ -676,14 +828,6 @@ class TestMasterCellAdditionChaosMultiClusterWithoutDowntime(TestMasterCellAddit
 
     NUM_TEST_PARTITIONS = 3
 
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "multicell_manager" : {
-            "cell_descriptors" : {
-                "13": {"roles": []},
-            },
-        },
-    }
-
     @authors("ponasenko-rs", "cherepashka")
     @pytest.mark.timeout(300)
     def test_add_new_cell(self):
@@ -694,6 +838,127 @@ class TestMasterCellAdditionChaosMultiClusterWithoutDowntime(TestMasterCellAddit
         })
 
         self._execute_checks_with_cell_addition(downtime=False)
+
+
+class TestMasterCellsListChangeChaosMultiClusterWithoutDowntime(TestMasterCellAdditionChaosMultiClusterBaseChecks):
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+
+    NUM_TEST_PARTITIONS = 3
+
+    # Overrides the same field from base class.
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "multicell_manager": {
+            "testing": {
+                "allow_master_cell_removal": True,
+                "allow_master_cell_with_empty_role": True,
+            },
+        },
+    }
+
+    REMOVE_LAST_MASTER_BEFORE_START = False
+
+    @authors("ponasenko-rs", "cherepashka")
+    @pytest.mark.timeout(300)
+    def test_add_new_cell_after_removal(self):
+        set("//sys/@config/chaos_manager/alien_cell_synchronizer", {
+            "enable": True,
+            "sync_period": 100,
+            "full_sync_period": 200,
+        })
+
+        self._execute_checks_with_cell_addition(downtime=False)
+
+
+class TestDynamicMasterCellListChangeWithTabletCells(TestMasterCellAdditionBase):
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+
+    NUM_SECONDARY_MASTER_CELLS = 3
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+    NUM_CONTROLLER_AGENTS = 1
+
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "cell_master": {
+            "logging": {
+                "suppressed_messages": [
+                    # NB: Tablet cells should not be replicated properly to the new secondary master for now.
+                    "Cell prerequisite transaction not found at secondary master",
+                ],
+            },
+        },
+        "multicell_manager": {
+            "testing": {
+                "allow_master_cell_removal": True,
+                "allow_master_cell_with_empty_role": True,
+            },
+        },
+        "tablet_manager": {
+            "leader_reassignment_timeout": 2000,  # 2 sec
+            "peer_revocation_timeout": 3000,  # 3 sec
+        },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "13": {"roles": []},
+    }
+
+    REMOVE_LAST_MASTER_BEFORE_START = False
+
+    @authors("cherepashka")
+    @pytest.mark.timeout(100)
+    def test_hive_in_cells(self):
+        def check_cell_tags(cell_id, expected_cell_tags):
+            actual_cell_tags = get(f"//sys/tablet_cells/{cell_id}/@multicell_status").keys()
+            return sorted(actual_cell_tags) == sorted(expected_cell_tags)
+
+        def cell_is_healthy(cell_id):
+            multicell_status = get(f"//sys/tablet_cells/{cell_id}/@multicell_status")
+            for cell_tag in multicell_status.keys():
+                if multicell_status[cell_tag]["health"] != "good":
+                    return False
+            return True
+
+        def get_cell_peer(cell_id):
+            try:
+                return get(f"#{cell_id}/@peers/0/address")
+            except YtError:
+                return None
+
+        def wait_for_cell_to_become_healthy(cell_id):
+            # Need to restart tablet nodes (in this test all nodes since they are multiflavored here) to make tablets healthy.
+            self.Env.kill_nodes()
+            wait(lambda: get_cell_peer(cell_id) is None)
+            self.Env.start_nodes()
+
+            wait(lambda: get_cell_peer(cell_id) is not None)
+            wait(lambda: cell_is_healthy(cell_id))
+
+        cell_id = sync_create_cells(1)[0]
+        assert cell_is_healthy(cell_id)
+        assert check_cell_tags(cell_id, ["10", "11", "12", "13"])
+        schema = [{"name": "k", "type": "int64", "sort_order": "ascending"}, {"name": "v", "type": "string"}]
+        create_dynamic_table("//tmp/dt", schema=schema)
+        sync_mount_table("//tmp/dt")
+        rows = [{"k": i, "v": f"aba{i}"} for i in range(5)]
+        insert_rows("//tmp/dt", rows)
+
+        self._disable_last_cell()
+
+        wait_for_cell_to_become_healthy(cell_id)
+        assert check_cell_tags(cell_id, ["10", "11", "12"])
+        assert select_rows("* from [//tmp/dt]") == rows
+
+        self._enable_last_cell(downtime=False)
+
+        wait_for_cell_to_become_healthy(cell_id)
+        assert check_cell_tags(cell_id, ["10", "11", "12", "13"])
+        assert select_rows("* from [//tmp/dt]") == rows
 
 
 class TestDynamicMasterCellPropagation(TestMasterCellAdditionBase):
@@ -713,11 +978,15 @@ class TestDynamicMasterCellPropagation(TestMasterCellAdditionBase):
     }
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
-        "multicell_manager" : {
-            "cell_descriptors" : {
-                "13": {"roles": []},
+        "multicell_manager": {
+            "testing": {
+                "allow_master_cell_with_empty_role": True,
             },
         },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "13": {"roles": []},
     }
 
     DELTA_NODE_CONFIG = {
@@ -740,7 +1009,7 @@ class TestDynamicMasterCellPropagation(TestMasterCellAdditionBase):
         config["flavors"] = node_flavors[cls.node_counter]
         cls.node_counter = (cls.node_counter + 1) % cls.NUM_NODES
 
-        cls._disable_last_cell_and_stash_config(config["cluster_connection"], cluster_index)
+        cls._collect_cell_ids_and_maybe_stash_last_cell(config["cluster_connection"], cluster_index, cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
     @authors("cherepashka")
     def test_add_cell(self):
@@ -754,7 +1023,7 @@ class TestDynamicMasterCellPropagation(TestMasterCellAdditionBase):
         for node in nodes:
             lease_txs[node] = get(f"//sys/cluster_nodes/{node}/@lease_transaction_id")
 
-        self._enable_last_cell(False)
+        self._enable_last_cell(downtime=False)
 
         # Make sure nodes have discovered the new cell.
         wait(lambda: self._nodes_synchronized_with_masters(nodes))
@@ -812,11 +1081,15 @@ class TestMasterCellDynamicPropagationDuringRegistration(TestMasterCellAdditionB
     }
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
-        "multicell_manager" : {
-            "cell_descriptors" : {
-                "13": {"roles": []},
+        "multicell_manager": {
+            "testing": {
+                "allow_master_cell_with_empty_role": True,
             },
         },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "13": {"roles": []},
     }
 
     @authors("cherepashka")

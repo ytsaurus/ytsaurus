@@ -5,6 +5,8 @@
 #endif
 
 #include "bootstrap.h"
+#include "config.h"
+#include "config_manager.h"
 
 namespace NYT::NCellMaster {
 
@@ -47,6 +49,16 @@ void TGossipValue<TValue>::Initialize(TBootstrap* bootstrap)
 
         for (auto secondaryCellTag : secondaryCellTags) {
             multicellStatistics[secondaryCellTag];
+        }
+
+        for (auto it = multicellStatistics.begin(); it != multicellStatistics.end();) {
+            auto masterCellTag = it->first;
+            if (!secondaryCellTags.contains(masterCellTag) && bootstrap->GetPrimaryCellTag() != masterCellTag) {
+                YT_VERIFY(bootstrap->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
+                multicellStatistics.erase(it++);
+            } else {
+                ++it;
+            }
         }
 
         SetLocalPtr(&multicellStatistics[cellTag]);

@@ -17,6 +17,8 @@
 #include <yt/yt/server/lib/hydra/mutation.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/hive_service_proxy.h>
 
@@ -73,6 +75,7 @@ public:
     THiveManager(
         THiveManagerConfigPtr config,
         ICellDirectoryPtr cellDirectory,
+        NCellMasterClient::ICellDirectoryPtr masterDirectory,
         IAvenueDirectoryPtr avenueDirectory,
         TCellId selfCellId,
         IInvokerPtr automatonInvoker,
@@ -97,6 +100,7 @@ public:
         , SelfCellId_(selfCellId)
         , Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
+        , MasterDirectory_(std::move(masterDirectory))
         , AvenueDirectory_(std::move(avenueDirectory))
         , AutomatonInvoker_(std::move(automatonInvoker))
         , GuardedAutomatonInvoker_(hydraManager->CreateGuardedAutomatonInvoker(AutomatonInvoker_))
@@ -181,7 +185,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        if (RemovedCellIds_.erase(cellId) != 0 && !allowResurrection) {
+        if (UnregisteredCellIds_.erase(cellId) != 0 && !allowResurrection) {
             YT_LOG_ALERT("Mailbox has been resurrected (SelfCellId: %v, CellId: %v)",
                 SelfCellId_,
                 cellId);
@@ -276,23 +280,49 @@ public:
     bool TryRemoveCellMailbox(TCellId cellId) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        if (!CellMailboxMap_.Contains(cellId)) {
+            return false;
+        }
+
+        RemoveCellMailbox(cellId);
+
+        YT_LOG_INFO("Mailbox removed (SrcCellId: %v, DstCellId: %v)",
+            SelfCellId_,
+            cellId);
+
+        return true;
+    }
+
+    bool TryUnregisterCellMailbox(TCellId cellId) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (!CellMailboxMap_.Contains(cellId)) {
             return false;
         }
 
-        auto mailboxHolder = CellMailboxMap_.Release(cellId);
+        RemoveCellMailbox(cellId);
 
-        if (!RemovedCellIds_.insert(cellId).second) {
-            YT_LOG_ALERT("Mailbox is already removed (SrcCellId: %v, DstCellId: %v)",
+        if (!UnregisteredCellIds_.insert(cellId).second) {
+            YT_LOG_ALERT("Mailbox is already unregistered (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 cellId);
         }
 
-        YT_LOG_INFO("Mailbox removed (SrcCellId: %v, DstCellId: %v)",
+        YT_LOG_INFO("Mailbox unregistered (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             cellId);
+
+        return true;
+    }
+
+    void RemoveCellMailbox(TCellId cellId)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto mailboxHolder = CellMailboxMap_.Release(cellId);
 
         if (!IsRecovery()) {
             RuntimeData_.Transform([&] (auto& runtimeData) {
@@ -309,8 +339,6 @@ public:
                 }
             }));
         }
-
-        return true;
     }
 
     void RegisterAvenueEndpoint(
@@ -495,6 +523,7 @@ private:
     const TCellId SelfCellId_;
     const THiveManagerConfigPtr Config_;
     const ICellDirectoryPtr CellDirectory_;
+    const NCellMasterClient::ICellDirectoryPtr MasterDirectory_;
     const IAvenueDirectoryPtr AvenueDirectory_;
     const IInvokerPtr AutomatonInvoker_;
     const IInvokerPtr GuardedAutomatonInvoker_;
@@ -520,7 +549,7 @@ private:
 
     NThreading::TAtomicObject<THiveRuntimeData> RuntimeData_;
 
-    THashSet<TCellId> RemovedCellIds_;
+    THashSet<TCellId> UnregisteredCellIds_;
 
     NThreading::TAtomicObject<std::vector<THiveEdge>> FrozenEdges_;
 
@@ -836,7 +865,7 @@ private:
 
         auto srcCellId = FromProto<TCellId>(request->src_endpoint_id());
 
-        ValidateCellNotRemoved(srcCellId);
+        ValidateCellNotUnregistered(srcCellId);
 
         auto firstMessageId = request->first_message_id();
         auto* mailbox = AsTyped(FindMailbox(srcCellId));
@@ -883,8 +912,8 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = FromProto<TCellId>(request->cell_id());
-        if (RemovedCellIds_.contains(cellId) != 0) {
-            YT_LOG_INFO("Mailbox is already removed (SrcCellId: %v, DstCellId: %v)",
+        if (UnregisteredCellIds_.contains(cellId)) {
+            YT_LOG_INFO("Mailbox is already unregistered (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 cellId);
             return;
@@ -898,11 +927,10 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = FromProto<TCellId>(request->cell_id());
-        Y_UNUSED(TryRemoveCellMailbox(cellId));
+        Y_UNUSED(TryUnregisterCellMailbox(cellId));
     }
 
-
-    NRpc::IChannelPtr FindMailboxChannel(const TCellMailboxRuntimeDataPtr& runtimeData)
+    IChannelPtr FindMailboxChannel(const TCellMailboxRuntimeDataPtr& runtimeData)
     {
         YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
@@ -1067,7 +1095,6 @@ private:
         }
     }
 
-
     bool IsEdgeFrozen(const THiveEdge& edge)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -1076,7 +1103,6 @@ private:
             return std::find(frozenEdges.begin(), frozenEdges.end(), edge) != frozenEdges.end();
         });
     }
-
 
     void SetMailboxConnected(const TCellMailboxRuntimeDataPtr& cellRuntimeData)
     {
@@ -1170,7 +1196,6 @@ private:
         TDelayedExecutor::CancelAndClear(cellRuntimeData->IdlePostCookie);
     }
 
-
     TCellMailboxRuntimeDataPtr CreateMailboxRuntimeData(TCellMailbox* mailbox)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -1202,12 +1227,28 @@ private:
         return avenueRuntimeData;
     }
 
-
     void InitializeRuntimeData()
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         THiveRuntimeData newRuntimeData{.Available = true};
+        auto secondaryMasterCellIds = MasterDirectory_->GetSecondaryMasterCellIds();
+        std::vector<TCellId> secondaryMasterCellsForRemoval;
+        secondaryMasterCellsForRemoval.reserve(secondaryMasterCellIds.size());
+        for (const auto& [cellId, _] : CellMailboxMap_) {
+            if (TypeFromId(cellId) == EObjectType::MasterCell) {
+                if (!secondaryMasterCellIds.contains(cellId) && cellId != MasterDirectory_->GetPrimaryMasterCellId()) {
+                    secondaryMasterCellsForRemoval.push_back(cellId);
+                }
+            }
+        }
+
+        // NB: Avenues are not removed here, since we can delete only cells without chunks and tablets on it, so without avenue channels to tablets.
+        for (auto cellId : secondaryMasterCellsForRemoval) {
+            if (Config_->AllowedForRemovalMasterCells.contains(CellTagFromId(cellId))) {
+                CellMailboxMap_.Release(cellId);
+            }
+        }
 
         for (auto [cellId, mailbox] : CellMailboxMap_) {
             auto cellRuntimeData = CreateMailboxRuntimeData(mailbox);
@@ -1267,17 +1308,15 @@ private:
         ReadOnlyCheckExecutor_.Reset();
     }
 
-
-    void ValidateCellNotRemoved(TCellId cellId)
+    void ValidateCellNotUnregistered(TCellId cellId)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        if (RemovedCellIds_.contains(cellId)) {
-            THROW_ERROR_EXCEPTION("Cell %v is removed",
+        if (UnregisteredCellIds_.contains(cellId)) {
+            THROW_ERROR_EXCEPTION("Cell %v is unregistered",
                 cellId);
         }
     }
-
 
     void StartPeriodicPings()
     {
@@ -1397,7 +1436,6 @@ private:
         SetMailboxConnected(cellRuntimeData);
     }
 
-
     void CheckRuntimeDataAvailability(const THiveRuntimeData& runtimeData, bool throwIfUnavailable)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -1437,7 +1475,6 @@ private:
             return FindCellMailboxRuntimeData(endpointId, throwIfUnavailable);
         }
     }
-
 
     static TFuture<void> DoSyncWithThunk(const TWeakPtr<THiveManager>& weakThis, TCellId cellId)
     {
@@ -1959,7 +1996,6 @@ private:
             dstCellId);
     }
 
-
     std::unique_ptr<TMutation> CreateAcknowledgeMessagesMutation(const NHiveServer::NProto::TReqAcknowledgeMessages& req)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -2013,7 +2049,6 @@ private:
             &THiveManager::HydraUnregisterMailbox,
             this);
     }
-
 
     bool CheckRequestedMessageIdAgainstMailbox(
         const TMailboxRuntimeDataPtr& runtimeData,
@@ -2101,7 +2136,6 @@ private:
         runtimeData->FirstInFlightOutcomingMessageId = nextTransientIncomingMessageId;
         return true;
     }
-
 
     void ApplyReliableIncomingMessages(TMailbox* mailbox, const NHiveClient::NProto::TReqPostMessages* req)
     {
@@ -2204,7 +2238,6 @@ private:
         static_cast<IAutomaton*>(Automaton_)->ApplyMutation(&mutationContext);
     }
 
-
     void OnAvenueDirectoryEndpointUpdated(TAvenueEndpointId endpointId, TCellId cellId)
     {
         YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
@@ -2302,7 +2335,6 @@ private:
         }
     }
 
-
     TString FormatIncomingMailboxEndpoints(TEndpointId endpointId) const
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -2345,7 +2377,6 @@ private:
         }
     }
 
-
     void OnReadOnlyCheck()
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -2371,7 +2402,6 @@ private:
                 }
             }));
     }
-
 
     void OnLeaderRecoveryComplete() override
     {
@@ -2407,7 +2437,6 @@ private:
         FinalizeRuntimeData();
     }
 
-
     bool ValidateSnapshotVersion(int version) override
     {
         return version == 5 ||
@@ -2421,14 +2450,13 @@ private:
         return 7;
     }
 
-
     void Clear() override
     {
         TCompositeAutomatonPart::Clear();
 
         CellMailboxMap_.Clear();
         AvenueMailboxMap_.Clear();
-        RemovedCellIds_.clear();
+        UnregisteredCellIds_.clear();
 
         RuntimeData_.Store(THiveRuntimeData{});
     }
@@ -2443,7 +2471,7 @@ private:
     {
         CellMailboxMap_.SaveValues(context);
         AvenueMailboxMap_.SaveValues(context);
-        Save(context, RemovedCellIds_);
+        Save(context, UnregisteredCellIds_);
         Save(context, *LamportClock_);
     }
 
@@ -2463,18 +2491,18 @@ private:
         if (context.GetVersion() >= 6) {
             AvenueMailboxMap_.LoadValues(context);
         }
-        Load(context, RemovedCellIds_);
+        Load(context, UnregisteredCellIds_);
         // COMPAT(danilalexeev)
         if (context.GetVersion() >= 7) {
             Load(context, *LamportClock_);
         }
     }
 
-    int GetRemovedCellIdCount() const
+    int GetUnregisteredCellIdCount() const
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        return std::ssize(RemovedCellIds_);
+        return std::ssize(UnregisteredCellIds_);
     }
 
     TLogicalTime GetLamportTimestamp() const
@@ -2496,8 +2524,8 @@ private:
             ->AddChild("avenue_mailboxes", New<TMailboxOrchidService<TAvenueMailboxRuntimeData, &THiveRuntimeData::EndpointIdToAvenueRuntimeData>>(
                 MakeWeak(this))
                 ->Via(BackgroundInvoker_))
-            ->AddChild("removed_cell_count", IYPathService::FromMethod(
-                &THiveManager::GetRemovedCellIdCount,
+            ->AddChild("unregistered_cell_count", IYPathService::FromMethod(
+                &THiveManager::GetUnregisteredCellIdCount,
                 MakeWeak(this))
                 ->Via(automatonInvoker))
             ->AddChild("lamport_timestamp", IYPathService::FromMethod(
@@ -2637,7 +2665,6 @@ private:
             });
     }
 
-
     static TMailbox* AsTyped(TMailboxHandle handle)
     {
         return static_cast<TMailbox*>(handle.Underlying());
@@ -2654,6 +2681,7 @@ private:
 IHiveManagerPtr CreateHiveManager(
     THiveManagerConfigPtr config,
     ICellDirectoryPtr cellDirectory,
+    NCellMasterClient::ICellDirectoryPtr masterDirectory,
     IAvenueDirectoryPtr avenueDirectory,
     TCellId selfCellId,
     IInvokerPtr automatonInvoker,
@@ -2665,6 +2693,7 @@ IHiveManagerPtr CreateHiveManager(
     return New<THiveManager>(
         std::move(config),
         std::move(cellDirectory),
+        std::move(masterDirectory),
         std::move(avenueDirectory),
         selfCellId,
         std::move(automatonInvoker),

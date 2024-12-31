@@ -73,6 +73,8 @@ public:
 
     TLogicalTimeRegistryConfigPtr LogicalTimeRegistry;
 
+    THashSet<NObjectClient::TCellTag> AllowedForRemovalMasterCells;
+
     REGISTER_YSON_STRUCT(THiveManagerConfig);
 
     static void Register(TRegistrar registrar);

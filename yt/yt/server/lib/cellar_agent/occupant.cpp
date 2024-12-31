@@ -5,8 +5,13 @@
 #include "occupier.h"
 #include "private.h"
 
+#include <yt/yt/server/lib/election/alien_cell_peer_channel_factory.h>
 #include <yt/yt/server/lib/election/election_manager.h>
+#include <yt/yt/server/lib/election/election_manager_thunk.h>
 #include <yt/yt/server/lib/election/distributed_election_manager.h>
+
+#include <yt/yt/server/lib/hive/avenue_directory.h>
+#include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/changelog_store_factory_thunk.h>
@@ -23,27 +28,13 @@
 #include <yt/yt/server/lib/hydra/dry_run_hydra_manager.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
-#include <yt/yt/server/lib/election/election_manager.h>
-#include <yt/yt/server/lib/election/election_manager_thunk.h>
-#include <yt/yt/server/lib/election/alien_cell_peer_channel_factory.h>
-
-#include <yt/yt/server/lib/hive/avenue_directory.h>
-#include <yt/yt/server/lib/hive/hive_manager.h>
-
 #include <yt/yt/server/lib/lease_server/lease_manager.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_participant_provider.h>
 
 #include <yt/yt/server/lib/misc/profiling_helpers.h>
-
-#include <yt/yt/ytlib/hive/cell_directory.h>
-
-#include <yt/yt/server/node/cluster_node/bootstrap.h>
-
 #include <yt/yt/server/lib/misc/interned_attributes.h>
-
-#include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
@@ -51,7 +42,10 @@
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 
+#include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
+#include <yt/yt/ytlib/tablet_client/config.h>
 
 #include <yt/yt/ytlib/transaction_client/remote_cluster_timestamp_provider.h>
 
@@ -596,6 +590,7 @@ public:
             HiveManager_ = CreateHiveManager(
                 Config_->HiveManager,
                 connection->GetCellDirectory(),
+                connection->GetMasterCellDirectory(),
                 AvenueDirectory_,
                 GetCellId(),
                 occupier->GetOccupierAutomatonInvoker(),

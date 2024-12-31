@@ -322,7 +322,7 @@ TCellTag TBootstrap::GetPrimaryCellTag() const
     return PrimaryCellTag_;
 }
 
-const TCellTagList& TBootstrap::GetSecondaryCellTags() const
+const std::set<TCellTag>& TBootstrap::GetSecondaryCellTags() const
 {
     return SecondaryCellTags_;
 }
@@ -788,7 +788,7 @@ void TBootstrap::DoInitialize()
     PrimaryCellTag_ = CellTagFromId(PrimaryCellId_);
 
     for (const auto& cellConfig : Config_->SecondaryMasters) {
-        SecondaryCellTags_.push_back(CellTagFromId(cellConfig->CellId));
+        SecondaryCellTags_.insert(CellTagFromId(cellConfig->CellId));
     }
 
     if (PrimaryMaster_) {
@@ -886,6 +886,8 @@ void TBootstrap::DoInitialize()
 
     EpochHistoryManager_ = CreateEpochHistoryManager(this);
 
+    // NB: It is important to register multicell manager's automaton part before node tracker's,
+    // because its state depend on proper list of master cells.
     MulticellManager_ = CreateMulticellManager(this);
 
     WorldInitializer_ = CreateWorldInitializer(this);
@@ -897,6 +899,7 @@ void TBootstrap::DoInitialize()
     HiveManager_ = CreateHiveManager(
         Config_->HiveManager,
         CellDirectory_,
+        ClusterConnection_->GetMasterCellDirectory(),
         AvenueDirectory_,
         CellId_,
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::HiveManager),
