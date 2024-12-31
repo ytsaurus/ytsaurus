@@ -711,6 +711,12 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("enable_secure_vault_variables_in_job_shell", &TThis::EnableSecureVaultVariablesInJobShell)
         .Default(true);
 
+    registrar.Parameter("issue_temporary_token", &TThis::IssueTemporaryToken)
+        .Default(false);
+
+    registrar.Parameter("temporary_token_environment_variable_name", &TThis::TemporaryTokenEnvironmentVariableName)
+        .Default("YT_TOKEN");
+
     registrar.Parameter("suspend_operation_if_account_limit_exceeded", &TThis::SuspendOperationIfAccountLimitExceeded)
         .Default(false);
 
@@ -899,6 +905,16 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         if (spec->SecureVault) {
             for (const auto& name : spec->SecureVault->GetKeys()) {
                 NControllerAgent::ValidateEnvironmentVariableName(name);
+            }
+        }
+
+        if (spec->IssueTemporaryToken) {
+            NControllerAgent::ValidateEnvironmentVariableName(spec->TemporaryTokenEnvironmentVariableName);
+
+            if (spec->SecureVault && spec->SecureVault->FindChild(spec->TemporaryTokenEnvironmentVariableName)) {
+                THROW_ERROR_EXCEPTION(
+                    "Temporary token environment variable %Qv already exists in secure vault",
+                    spec->TemporaryTokenEnvironmentVariableName);
             }
         }
 

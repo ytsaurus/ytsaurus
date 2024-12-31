@@ -9,6 +9,7 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/client/api/public.h>
+#include <yt/yt/client/api/security_client.h>
 
 #include <yt/yt/core/actions/signal.h>
 
@@ -79,6 +80,8 @@ public:
 
     void RegisterOperation(const TOperationPtr& operation);
     void UnregisterOperation(const TOperationPtr& operation);
+
+    TFuture<NApi::TIssueTokenResult> IssueTemporaryOperationToken(const TOperationPtr& operation);
 
     TFuture<void> CreateOperationNode(const TOperationPtr& operation);
     TFuture<void> UpdateInitializedOperationNode(const TOperationPtr& operation);

@@ -23,6 +23,7 @@
 namespace NYT::NScheduler {
 
 using namespace NApi;
+using namespace NCypressClient;
 using namespace NTransactionClient;
 using namespace NObjectClient;
 using namespace NSecurityClient;
@@ -95,6 +96,7 @@ TOperation::TOperation(
     TYsonString trimmedAnnotations,
     std::optional<TBriefVanillaTaskSpecMap> briefVanillaTaskSpecs,
     IMapNodePtr secureVault,
+    std::optional<TNodeId> temporaryTokenNodeId,
     TOperationRuntimeParametersPtr runtimeParameters,
     NSecurityClient::TSerializableAccessControlList baseAcl,
     const std::string& authenticatedUser,
@@ -113,6 +115,7 @@ TOperation::TOperation(
     , Suspended_(suspended)
     , UserTransactionId_(userTransactionId)
     , SecureVault_(std::move(secureVault))
+    , TemporaryTokenNodeId_(temporaryTokenNodeId)
     , Events_(events)
     , Spec_(std::move(spec))
     , ProvidedSpecString_(std::move(providedSpecString))
@@ -603,6 +606,38 @@ TFuture<void> TOperation::AbortCommonTransactions()
             .PropagateCancelationToInput = false,
             .CancelInputOnShortcut = false,
         });
+}
+
+bool TOperation::AddSecureVaultEntry(const TString& key, const INodePtr& value)
+{
+    YT_VERIFY(State_ == EOperationState::Starting);
+
+    if (!SecureVault_) {
+        YT_LOG_DEBUG("Creating empty secure vault due to scheduler request (OperationId: %v)", Id_);
+        SecureVault_ = GetEphemeralNodeFactory()->CreateMap();
+    }
+
+    YT_LOG_DEBUG("Adding secure vault entry (OperationId: %v, Key: %v)", Id_, key);
+    return SecureVault_->AddChild(key, value);
+}
+
+void TOperation::SetTemporaryToken(const TString& token, const TNodeId& nodeId)
+{
+    YT_VERIFY(State_ == EOperationState::Starting);
+    YT_VERIFY(Spec_->IssueTemporaryToken);
+    // We check that the key is not already present in the secure vault before calling this method.
+    YT_VERIFY(AddSecureVaultEntry(Spec_->TemporaryTokenEnvironmentVariableName, ConvertToNode(token)));
+
+    TemporaryTokenNodeId_ = nodeId;
+}
+
+std::vector<TNodeId> TOperation::GetDependentNodeIds() const
+{
+    if (TemporaryTokenNodeId_) {
+        return {*TemporaryTokenNodeId_};
+    }
+
+    return {};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
