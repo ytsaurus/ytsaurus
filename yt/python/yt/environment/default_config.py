@@ -520,6 +520,8 @@ def get_node_config():
         };
 
         sync_directories_on_connect = %true;
+
+        session_timeout = 20000;
     };
 
     exec_node = {
