@@ -1497,6 +1497,17 @@ private:
     {
         PopulateAlerts_.Fire(alerts);
 
+        PopulateTotalMemoryAlerts(alerts);
+
+        PopulatePerCategoryMemoryAlerts(alerts);
+
+        if (!UnrecognizedOptionsAlert_.IsOK()) {
+            alerts->push_back(UnrecognizedOptionsAlert_);
+        }
+    }
+
+    void PopulateTotalMemoryAlerts(std::vector<TError>* alerts)
+    {
         // NB: Don't expect IsXXXExceeded helpers to be atomic.
         auto totalUsed = NodeMemoryUsageTracker_->GetTotalUsed();
         auto totalLimit = NodeMemoryUsageTracker_->GetTotalLimit();
@@ -1510,7 +1521,10 @@ private:
                 << TErrorAttribute("used", totalUsed)
                 << TErrorAttribute("limit", totalLimit));
         }
+    }
 
+    void PopulatePerCategoryMemoryAlerts(std::vector<TError>* alerts)
+    {
         for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
             auto used = NodeMemoryUsageTracker_->GetUsed(category);
             auto limit = NodeMemoryUsageTracker_->GetLimit(category);
@@ -1520,10 +1534,6 @@ private:
                     << TErrorAttribute("used", used)
                     << TErrorAttribute("limit", limit));
             }
-        }
-
-        if (!UnrecognizedOptionsAlert_.IsOK()) {
-            alerts->push_back(UnrecognizedOptionsAlert_);
         }
     }
 
