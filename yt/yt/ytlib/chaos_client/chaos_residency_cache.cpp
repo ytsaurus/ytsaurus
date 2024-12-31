@@ -282,7 +282,7 @@ public:
         , Owner_(owner)
     { }
 
-    TCellTag Run()
+    TCellTag Run() override
     {
         auto connection = Owner_->Connection_.Lock();
         if (!connection) {
@@ -306,6 +306,14 @@ public:
             }
         }
 
+        return WaitFor(LookForCardOnAllChaosCells(cellDirectory)).ValueOrThrow();
+    }
+
+private:
+    const TIntrusivePtr<TChaosResidencyMasterCache> Owner_;
+
+    TFuture<TCellTag> LookForCardOnAllChaosCells(const NHiveClient::ICellDirectoryPtr& cellDirectory)
+    {
         using TResponse = TIntrusivePtr<TChaosNodeServiceProxy::TRspFindReplicationCard>;
         std::vector<TFuture<TResponse>> futureFoundReplicationCards;
         std::vector<TCellTag> futureCellTags;
@@ -329,33 +337,42 @@ public:
             Type_,
             futureCellTags);
 
-        auto resultOrError = WaitFor(AnyNSucceeded(futureFoundReplicationCards, 1));
-        if (!resultOrError.IsOK()) {
-            if (auto resolveError = resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                THROW_ERROR *resolveError;
-            }
+        return AnyNSucceeded(futureFoundReplicationCards, 1).ApplyUnique(BIND(
+            [
+                type = Type_,
+                objectId = ObjectId_,
+                futureFoundReplicationCards = std::move(futureFoundReplicationCards),
+                futureCellTags = std::move(futureCellTags)
+            ] (
+                TErrorOr<std::vector<TResponse>>&& resultOrError
+            )
+            {
+                if (!resultOrError.IsOK()) {
+                    if (auto resolveError = resultOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                        THROW_ERROR *resolveError;
+                    }
 
-            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %v %v",
-                Type_,
-                ObjectId_)
-                << resultOrError;
-        }
+                    THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Unable to locate %v %v",
+                        type,
+                        objectId)
+                    << resultOrError;
+                }
 
-        for (int index = 0; index < std::ssize(futureFoundReplicationCards); ++index) {
-            const auto& future = futureFoundReplicationCards[index];
-            if (!future.IsSet()) {
-                continue;
-            }
-            if (const auto& result = future.Get(); result.IsOK()) {
-                return futureCellTags[index];
-            }
-        }
+                for (int index = 0; index < std::ssize(futureFoundReplicationCards); ++index) {
+                    const auto& future = futureFoundReplicationCards[index];
+                    if (!future.IsSet()) {
+                        continue;
+                    }
 
-        YT_ABORT();
+                    if (const auto& result = future.Get(); result.IsOK()) {
+                        return futureCellTags[index];
+                    }
+                }
+
+                YT_ABORT();
+            }
+        ));
     }
-
-private:
-    const TIntrusivePtr<TChaosResidencyMasterCache> Owner_;
 
     TFuture<IChannelPtr> EnsureChaosCellChannel(IConnectionPtr connection, TCellTag /* cellTag */)
     {
@@ -417,7 +434,7 @@ public:
         , ForceRefresh_(forceRefresh)
     { }
 
-    TCellTag Run()
+    TCellTag Run() override
     {
         auto proxy = TChaosNodeServiceProxy(Owner_->ChaosCacheChannel_);
         auto req = proxy.GetReplicationCardResidency();
