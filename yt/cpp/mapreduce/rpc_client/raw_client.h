@@ -128,6 +128,20 @@ public:
 
     // Operations
 
+    TOperationId StartOperation(
+        TMutationId& mutationId,
+        const TTransactionId& transactionId,
+        EOperationType type,
+        const TNode& spec) override;
+
+    TOperationAttributes GetOperation(
+        const TOperationId& operationId,
+        const TGetOperationOptions& options = {}) override;
+
+    TOperationAttributes GetOperation(
+        const TString& alias,
+        const TGetOperationOptions& options = {}) override;
+
     void AbortOperation(
         TMutationId& mutationId,
         const TOperationId& operationId) override;
