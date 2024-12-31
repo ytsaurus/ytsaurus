@@ -107,7 +107,7 @@ public:
     NObjectClient::TCellId GetPrimaryCellId() const;
     NObjectClient::TCellTag GetPrimaryCellTag() const;
 
-    const NObjectClient::TCellTagList& GetSecondaryCellTags() const;
+    const std::set<NObjectClient::TCellTag>& GetSecondaryCellTags() const;
     const THashSet<NObjectClient::TCellTag>& GetDynamicallyPropagatedMastersCellTags() const;
 
     const IAlertManagerPtr& GetAlertManager() const;
@@ -201,7 +201,9 @@ protected:
     NObjectClient::TCellTag CellTag_;
     NObjectClient::TCellId PrimaryCellId_;
     NObjectClient::TCellTag PrimaryCellTag_;
-    NObjectClient::TCellTagList SecondaryCellTags_;
+
+    // Strong order if important here.
+    std::set<NObjectClient::TCellTag> SecondaryCellTags_;
 
     IAlertManagerPtr AlertManager_;
     IConfigManagerPtr ConfigManager_;

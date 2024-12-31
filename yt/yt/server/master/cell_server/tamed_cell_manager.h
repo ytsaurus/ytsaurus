@@ -1,9 +1,9 @@
 #pragma once
 
 #include "public.h"
-#include "config.h"
 #include "cell_base.h"
 #include "cell_bundle.h"
+#include "config.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 

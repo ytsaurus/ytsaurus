@@ -6,6 +6,7 @@
 #include "world_initializer_cache.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 
 #include <yt/yt/server/master/cell_server/config.h>
 
@@ -1019,6 +1020,21 @@ private:
                 createMasters(cellPath, cellConfig);
             }
 
+            auto listResult = ListNode("//sys/secondary_masters");
+            // Otherwise node `//sys/secondary_masters` has not been created yet.
+            if (listResult.IsOK()) {
+                auto secondaryMasterCellTagStrings = ConvertTo<std::vector<TString>>(listResult.Value());
+                const auto& knownSecondaryMasterCellTags = Bootstrap_->GetSecondaryCellTags();
+                for (const auto& stringCellTag : secondaryMasterCellTagStrings) {
+                    auto cellTag = TCellTag(FromString<ui16>(stringCellTag));
+                    if (!knownSecondaryMasterCellTags.contains(cellTag)) {
+                        YT_VERIFY(Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
+                        auto cellPath = "//sys/secondary_masters/" + ToYPathLiteral(cellTag);
+                        ScheduleRemoveNode(cellPath, transactionId, true);
+                    }
+                }
+            }
+
             // TODO(babenko): handle service discovery.
             if (Config_->TimestampProvider->Addresses) {
                 for (const auto& timestampProviderAddress : *Config_->TimestampProvider->Addresses) {
@@ -1181,6 +1197,21 @@ private:
         ScheduledMutations_.push_back(ExecuteVerb(service, req).AsVoid());
     }
 
+    void ScheduleRemoveNode(
+        const TYPath& path,
+        TTransactionId transactionId,
+        bool force = false)
+    {
+        auto service = Bootstrap_->GetObjectManager()->GetRootService();
+        auto req = TCypressYPathProxy::Remove(path);
+        SetTransactionId(req, transactionId);
+        req->set_recursive(true);
+        if (force) {
+            req->set_force(true);
+        }
+        ScheduledMutations_.push_back(ExecuteVerb(service, req).AsVoid());
+    }
+
     void ScheduleCreateObject(
         EObjectType type,
         const NYTree::IAttributeDictionaryPtr attributesPtr)
@@ -1220,6 +1251,17 @@ private:
         auto rsp = WaitFor(ExecuteVerb(service, req))
             .ValueOrThrow();
         return TYsonString(rsp->value());
+    }
+
+    TErrorOr<TYsonString> ListNode(const TYPath& path)
+    {
+        auto service = Bootstrap_->GetObjectManager()->GetRootService();
+        auto req = TCypressYPathProxy::List(path);
+        auto resultOrError = WaitFor(ExecuteVerb(service, req));
+        if (!resultOrError.IsOK()) {
+            return TError(resultOrError);
+        }
+        return TYsonString(resultOrError.Value()->value());
     }
 
     void FlushScheduled()

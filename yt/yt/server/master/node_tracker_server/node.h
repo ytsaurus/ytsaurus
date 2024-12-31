@@ -305,8 +305,9 @@ public:
     //! Inserts new entries into the map, fills missing ones with ENodeState::Offline value.
     void InitializeStates(
         NObjectClient::TCellTag selfCellTag,
-        const NObjectClient::TCellTagList& secondaryCellTags,
-        const THashSet<NObjectClient::TCellTag>& dynamicallyPropagatedMastersCellTags);
+        const std::set<NObjectClient::TCellTag>& secondaryCellTags,
+        const THashSet<NObjectClient::TCellTag>& dynamicallyPropagatedMastersCellTags,
+        bool allowMasterCellRemoval);
 
     //! Recomputes node IO weights from statistics.
     void RecomputeIOWeights(const NChunkServer::IChunkManagerPtr& chunkManager);

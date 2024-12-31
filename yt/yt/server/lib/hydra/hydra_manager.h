@@ -197,6 +197,10 @@ struct IHydraManager
      */
     virtual NElection::TPeerIdSet GetAlivePeerIds() = 0;
 
+    //! Returns the current read-only mode, not applicable in snapshot load.
+    /*!
+     *  \note Thread affinity: any
+     */
     virtual bool GetReadOnly() const = 0;
 
     virtual bool IsDiscombobulated() const = 0;

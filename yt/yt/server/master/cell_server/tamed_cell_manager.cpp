@@ -51,18 +51,18 @@
 #include <yt/yt/server/master/tablet_server/cypress_integration.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
 
-#include <yt/yt/server/lib/hive/hive_manager.h>
-#include <yt/yt/server/lib/hive/helpers.h>
-
-#include <yt/yt/server/lib/misc/interned_attributes.h>
-
 #include <yt/yt/server/lib/cellar_agent/helpers.h>
-
-#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/yt/server/lib/cell_server/proto/cell_manager.pb.h>
 
+#include <yt/yt/server/lib/hive/hive_manager.h>
+#include <yt/yt/server/lib/hive/helpers.h>
+
 #include <yt/yt/server/lib/hydra/mutation_context.h>
+
+#include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/server/lib/tablet_server/proto/tablet_manager.pb.h>
 
 #include <yt/yt/ytlib/cell_balancer/proto/cell_tracker_service.pb.h>
 
@@ -635,7 +635,7 @@ public:
         auto cellId = cell->GetId();
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        Y_UNUSED(hiveManager->TryRemoveCellMailbox(cellId));
+        Y_UNUSED(hiveManager->TryUnregisterCellMailbox(cellId));
 
         for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
             const auto& peer = cell->Peers()[peerId];
@@ -1956,7 +1956,6 @@ private:
         }
     }
 
-
     bool AddToAddressToCellMap(const TNodeDescriptor& descriptor, TCellBase* cell, int peerId)
     {
         const auto& address = descriptor.GetDefaultAddress();
@@ -2303,7 +2302,6 @@ private:
     {
         return IsObjectAlive(cell) && !cell->IsDecommissionStarted();
     }
-
 
     void RestartPrerequisiteTransactions(TCellBase* cell, const std::vector<int>& peerIds)
     {

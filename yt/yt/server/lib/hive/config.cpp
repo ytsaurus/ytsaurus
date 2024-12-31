@@ -46,6 +46,8 @@ void THiveManagerConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("logical_time_registry", &TThis::LogicalTimeRegistry)
         .DefaultNew();
+    registrar.Parameter("allowed_for_removal_master_cells", &TThis::AllowedForRemovalMasterCells)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

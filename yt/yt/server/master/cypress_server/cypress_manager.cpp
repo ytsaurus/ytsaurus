@@ -2620,6 +2620,18 @@ public:
         return FromObjectId(portalExit->GetId()) + *optionalSuffix;
     }
 
+    void ValidateNoExternalizedNodesOnRemovedMasters(const THashSet<TCellTag>& removedMasterCellTags) const override
+    {
+        YT_VERIFY(Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
+
+        for (const auto& [_, node] : NodeMap_) {
+            YT_LOG_FATAL_IF(
+                removedMasterCellTags.contains(node->GetExternalCellTag()),
+                "Master cell %v with externalized tables was removed",
+                node->GetExternalCellTag());
+        }
+    }
+
     DEFINE_SIGNAL_OVERRIDE(void(TCypressNode*), NodeCreated);
 
     TFuture<TYsonString> ComputeRecursiveResourceUsage(

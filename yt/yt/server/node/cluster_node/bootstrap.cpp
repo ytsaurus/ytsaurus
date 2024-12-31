@@ -752,6 +752,7 @@ private:
     TError UnrecognizedOptionsAlert_;
 
     TObjectServiceCachePtr ObjectServiceCache_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachingObjectServicesLock_);
     THashMap<TCellTag, ICachingObjectServicePtr> CachingObjectServices_;
     THashMap<TCellTag, IServicePtr> ProxyingChunkServices_;
 
@@ -995,9 +996,12 @@ private:
             Logger(),
             ClusterNodeProfiler().WithPrefix("/object_service_cache"));
 
-        InitCachingObjectService(PrimaryMaster_->CellId);
-        for (const auto& [_, masterConfig] : SecondaryMasterConnectionConfigs_) {
-            InitCachingObjectService(masterConfig->CellId);
+        {
+            auto guard = WriterGuard(CachingObjectServicesLock_);
+            InitCachingObjectService(PrimaryMaster_->CellId);
+            for (const auto& [_, masterConfig] : SecondaryMasterConnectionConfigs_) {
+                InitCachingObjectService(masterConfig->CellId);
+            }
         }
 
         // NB: Data Node master connector is required for chunk cache.
@@ -1446,7 +1450,7 @@ private:
         RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
         ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
-        for (const auto& [_, service] : CachingObjectServices_) {
+        for (const auto& [_, service] : GetCachingObjectServices()) {
             service->Reconfigure(newConfig->CachingObjectService);
         }
 
@@ -1541,7 +1545,7 @@ private:
     {
         MasterConnected_.Fire(nodeId);
 
-        for (const auto& [_, cachingObjectService] : CachingObjectServices_) {
+        for (const auto& [_, cachingObjectService] : GetCachingObjectServices()) {
             RpcServer_->RegisterService(cachingObjectService);
         }
     }
@@ -1550,13 +1554,21 @@ private:
     {
         MasterDisconnected_.Fire();
 
-        for (const auto& [_, cachingObjectService] : CachingObjectServices_) {
+        for (const auto& [_, cachingObjectService] : GetCachingObjectServices()) {
             RpcServer_->UnregisterService(cachingObjectService);
         }
     }
 
+    THashMap<TCellTag, ICachingObjectServicePtr> GetCachingObjectServices()
+    {
+        auto guard = ReaderGuard(CachingObjectServicesLock_);
+        return CachingObjectServices_;
+    }
+
     void InitCachingObjectService(TCellId cellId)
     {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(CachingObjectServicesLock_);
+
         auto cachingObjectService = CreateCachingObjectService(
             Config_->CachingObjectService,
             MasterCacheQueue_->GetInvoker(),
@@ -1597,6 +1609,8 @@ private:
             "Some cells disappeared in received configuration of secondary masters (RemovedCellTags: %v)",
             removedSecondaryMasterCellTags);
 
+        const auto& hiveCellDirectory = Connection_->GetCellDirectory();
+
         THashSet<TCellTag> newSecondaryMasterCellTags;
         THashSet<TCellTag> changedSecondaryMasterCellTags;
         newSecondaryMasterCellTags.reserve(newSecondaryMasterConfigs.size());
@@ -1605,7 +1619,7 @@ private:
         auto addMasterCell = [&] (const auto& masterConfig) {
             InitCachingObjectService(masterConfig->CellId);
             InitProxyingChunkService(masterConfig);
-            Connection_->GetCellDirectory()->ReconfigureCell(masterConfig);
+            hiveCellDirectory->ReconfigureCell(masterConfig);
         };
 
         auto reconfigureMasterCell = [&] (const auto& masterConfig) {
@@ -1616,9 +1630,12 @@ private:
             InitProxyingChunkService(masterConfig);
         };
 
-        for (const auto& [cellTag, masterConfig] : newSecondaryMasterConfigs) {
-            addMasterCell(masterConfig);
-            InsertOrCrash(newSecondaryMasterCellTags, cellTag);
+        {
+            auto guard = WriterGuard(CachingObjectServicesLock_);
+            for (const auto& [cellTag, masterConfig] : newSecondaryMasterConfigs) {
+                addMasterCell(masterConfig);
+                InsertOrCrash(newSecondaryMasterCellTags, cellTag);
+            }
         }
 
         for (const auto& [cellTag, masterConfig] : changedSecondaryMasterConfigs) {

@@ -16,6 +16,9 @@
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_replicator.h>
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/portal_manager.h>
+
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 
@@ -26,6 +29,7 @@
 #include <yt/yt/server/lib/hive/proto/hive_manager.pb.h>
 
 #include <yt/yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/snapshot_load_context.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 
@@ -186,7 +190,7 @@ public:
         return Bootstrap_->GetPrimaryCellTag();
     }
 
-    const TCellTagList& GetSecondaryCellTags() const override
+    const std::set<TCellTag>& GetSecondaryCellTags() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -323,8 +327,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        // NB: no locking here - just accessing atomics.
-
+        // NB: No locking here - just accessing atomics.
         return RoleMasterCellCounts_[cellRole].load();
     }
 
@@ -352,13 +355,6 @@ public:
         Bootstrap_->VerifyPersistentStateRead();
 
         return RegisteredMasterCellTags_;
-    }
-
-    int GetRegisteredMasterCellIndex(TCellTag cellTag) const override
-    {
-        Bootstrap_->VerifyPersistentStateRead();
-
-        return GetMasterEntry(cellTag)->Index;
     }
 
     TCellTag PickSecondaryChunkHostCell(double bias) override
@@ -576,19 +572,66 @@ private:
 
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
-        RegisteredMasterCellTags_.resize(RegisteredMasterMap_.size());
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& portalManager = Bootstrap_->GetPortalManager();
 
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-        for (auto& [cellTag, entry] : RegisteredMasterMap_) {
-            if (!IsValidCellTag(cellTag)) {
-                THROW_ERROR_EXCEPTION("Unknown master cell tag %v", cellTag);
+        std::vector<std::map<TCellTag, TMasterEntry>::iterator> removedMasterCellTagsIterators;
+        THashSet<TCellTag> removedMasterCellTags;
+        for (auto it = RegisteredMasterMap_.begin(); it != RegisteredMasterMap_.end(); ++it) {
+            auto cellTag = it->first;
+            const auto& entry = it->second;
+            if (!IsKnownCellTag(cellTag)) {
+                YT_LOG_FATAL_UNLESS(
+                    GetDynamicConfig()->Testing->AllowMasterCellRemoval,
+                    "Unknown master cell tag %v in saved master entry",
+                    cellTag);
+
+                YT_LOG_FATAL_UNLESS(
+                    GetCurrentSnapshotLoadContext()->ReadOnly,
+                    "Master cell %v was removed without readonly mode",
+                    cellTag);
+
+                YT_LOG_FATAL_IF(
+                    entry.Statistics.chunk_count() > 0,
+                    "Master cell %v with %v chunks was removed",
+                    cellTag,
+                    entry.Statistics.chunk_count());
+
+                auto cellRoles = ComputeMasterCellRolesFromConfig(cellTag);
+                YT_LOG_FATAL_UNLESS(
+                    cellRoles == EMasterCellRoles::None,
+                    "Master cell %v with roles %v was removed",
+                    cellTag,
+                    cellRoles);
+
+                removedMasterCellTagsIterators.emplace_back(it);
+                InsertOrCrash(removedMasterCellTags, cellTag);
             }
+        }
+        if (!removedMasterCellTags.empty()) {
+            cypressManager->ValidateNoExternalizedNodesOnRemovedMasters(removedMasterCellTags);
+            portalManager->ValidateNoNodesBehindRemovedMastersPortal(removedMasterCellTags);
+        }
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        for (auto iterator : removedMasterCellTagsIterators) {
+            auto cellTag = iterator->first;
+            RegisteredMasterMap_.erase(iterator);
+
+            YT_LOG_INFO("Master cell removed (CellTag: %v)",
+                cellTag);
+        }
+
+        RegisteredMasterCellTags_.resize(RegisteredMasterMap_.size());
+        for (auto& [cellTag, entry] : RegisteredMasterMap_) {
+            YT_LOG_FATAL_IF(
+                entry.Index >= std::ssize(RegisteredMasterCellTags_),
+                "Master cell from the middle of master entry map was removed");
 
             RegisteredMasterCellTags_[entry.Index] = cellTag;
 
             auto cellId = GetCellId(cellTag);
             auto mailbox = hiveManager->GetMailbox(cellId);
-            YT_VERIFY(CellTagToMasterMailbox_.emplace(cellTag, mailbox).second);
+            EmplaceOrCrash(CellTagToMasterMailbox_, cellTag, mailbox);
             if (cellTag == GetPrimaryCellTag()) {
                 PrimaryMasterMailbox_ = mailbox;
             }
@@ -624,7 +667,10 @@ private:
         RegisteredMasterCellTags_.clear();
         RegisterState_ = EPrimaryRegisterState::None;
         CellTagToMasterMailbox_.clear();
-        DynamicallyPropagatedMastersCellTags_.clear();
+        {
+            auto guard = WriterGuard(DynamicallyPropagatedMastersCellTagsLock_);
+            DynamicallyPropagatedMastersCellTags_.clear();
+        }
         PrimaryMasterMailbox_ = {};
         LocalCellStatistics_ = {};
         ClusterCellStatisics_ = {};
@@ -765,7 +811,7 @@ private:
         YT_VERIFY(IsPrimaryMaster());
 
         auto cellTag = FromProto<TCellTag>(request->cell_tag());
-        if (!IsValidSecondaryCellTag(cellTag)) {
+        if (!IsKnownSecondaryCellTag(cellTag)) {
             YT_LOG_ALERT("Received registration request from an unknown secondary cell, ignored (CellTag: %v)",
                 cellTag);
             return;
@@ -867,7 +913,7 @@ private:
         YT_VERIFY(IsSecondaryMaster());
 
         auto cellTag = FromProto<TCellTag>(request->cell_tag());
-        if (!IsValidSecondaryCellTag(cellTag)) {
+        if (!IsKnownSecondaryCellTag(cellTag)) {
             YT_LOG_ALERT("Received registration request for an unknown secondary cell, ignored (CellTag: %v)",
                 cellTag);
             return;
@@ -995,7 +1041,7 @@ private:
         }
     }
 
-    bool IsValidSecondaryCellTag(TCellTag cellTag)
+    bool IsKnownSecondaryCellTag(TCellTag cellTag)
     {
         const auto& config = Bootstrap_->GetConfig();
         for (const auto& cellConfig : config->SecondaryMasters) {
@@ -1006,16 +1052,13 @@ private:
         return false;
     }
 
-    bool IsValidCellTag(TCellTag cellTag)
+    bool IsKnownCellTag(TCellTag cellTag)
     {
         const auto& config = Bootstrap_->GetConfig();
         if (CellTagFromId(config->PrimaryMaster->CellId) == cellTag) {
             return true;
         }
-        if (IsValidSecondaryCellTag(cellTag)) {
-            return true;
-        }
-        return false;
+        return IsKnownSecondaryCellTag(cellTag);
     }
 
     bool IsDiscoveredMasterCell(TCellTag cellTag) const
@@ -1039,7 +1082,7 @@ private:
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         auto mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
 
-        YT_VERIFY(CellTagToMasterMailbox_.emplace(cellTag, mailbox).second);
+        EmplaceOrCrash(CellTagToMasterMailbox_, cellTag, mailbox);
         if (cellTag == GetPrimaryCellTag()) {
             PrimaryMasterMailbox_ = mailbox;
         }
@@ -1402,7 +1445,7 @@ private:
             });
 
         for (auto [cellTag, roles] : MasterCellRolesMap_) {
-            if (roles == EMasterCellRoles::None) {
+            if (roles == EMasterCellRoles::None && !GetDynamicConfig()->Testing->AllowMasterCellWithEmptyRole) {
                 alerts.push_back(TError("No roles configured for cell")
                     << TErrorAttribute("cell_tag", cellTag));
             }
@@ -1474,8 +1517,8 @@ private:
 
         auto populateCellName = [&] (TCellTag cellTag) {
             auto name = ComputeMasterCellNameFromConfig(cellTag);
-            YT_VERIFY(MasterCellNameMap_.emplace(cellTag, name).second);
-            YT_VERIFY(NameMasterCellMap_.emplace(name, cellTag).second);
+            EmplaceOrCrash(MasterCellNameMap_, cellTag, name);
+            EmplaceOrCrash(NameMasterCellMap_, name, cellTag);
         };
 
         populateCellName(GetCellTag());
@@ -1520,6 +1563,7 @@ private:
             }
             return *it->second->Roles;
         }
+
         return GetDefaultMasterCellRoles(cellTag);
     }
 

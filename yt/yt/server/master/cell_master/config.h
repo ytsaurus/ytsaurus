@@ -187,7 +187,7 @@ class TTestConfig
     : public NYTree::TYsonStruct
 {
 public:
-    // NB: Temporary field to test dynamic reconfiguration of master cell cluster on nodes.
+    // NB: Temporary field to test dynamic propagation of master cells to nodes.
     TMasterCellDirectoryConfigPtr MasterCellDirectoryOverride;
     THashSet<NObjectClient::TCellTag> DiscoveredMastersCellTags;
 
@@ -205,6 +205,9 @@ public:
     *  in essence by reproducing a quirk #2.
     */
     std::vector<std::vector<NObjectClient::TCellTag>> FrozenHiveEdges;
+
+    bool AllowMasterCellRemoval;
+    bool AllowMasterCellWithEmptyRole;
 
     REGISTER_YSON_STRUCT(TTestConfig);
 

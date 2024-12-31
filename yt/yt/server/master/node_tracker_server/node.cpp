@@ -420,8 +420,9 @@ TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
 
 void TNode::InitializeStates(
     TCellTag selfCellTag,
-    const TCellTagList& secondaryCellTags,
-    const THashSet<TCellTag>& dynamicallyPropagatedMastersCellTags)
+    const std::set<TCellTag>& secondaryCellTags,
+    const THashSet<TCellTag>& dynamicallyPropagatedMastersCellTags,
+    bool allowMasterCellRemoval)
 {
     auto addCell = [&] (TCellTag cellTag) {
         if (!MulticellDescriptors_.contains(cellTag)) {
@@ -442,6 +443,16 @@ void TNode::InitializeStates(
     addCell(selfCellTag);
     for (auto secondaryCellTag : secondaryCellTags) {
         addCell(secondaryCellTag);
+    }
+
+    for (auto it = MulticellDescriptors_.begin(); it != MulticellDescriptors_.end();) {
+        auto cellTag = it->first;
+        if (selfCellTag != cellTag && !secondaryCellTags.contains(cellTag)) {
+            YT_VERIFY(allowMasterCellRemoval);
+            MulticellDescriptors_.erase(it++);
+        } else {
+            ++it;
+        }
     }
 
     LocalDescriptorPtr_ = &MulticellDescriptors_[selfCellTag];

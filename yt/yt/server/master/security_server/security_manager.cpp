@@ -4217,26 +4217,34 @@ private:
         }
     }
 
-
     void InitializeAccountStatistics(TAccount* account)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto cellTag = multicellManager->GetCellTag();
+        auto selfCellTag = multicellManager->GetCellTag();
 
         auto& multicellStatistics = account->MulticellStatistics();
-        if (multicellStatistics.find(cellTag) == multicellStatistics.end()) {
-            multicellStatistics[cellTag] = account->ClusterStatistics();
-        }
+        multicellStatistics.emplace(selfCellTag, account->ClusterStatistics());
 
         if (multicellManager->IsPrimaryMaster()) {
-            const auto& secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
-            for (auto secondaryCellTag : secondaryCellTags) {
+            const auto& registeredSecondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
+            for (auto secondaryCellTag : registeredSecondaryCellTags) {
                 multicellStatistics[secondaryCellTag];
+            }
+
+            const auto& secondaryCellTags = multicellManager->GetSecondaryCellTags();
+            for (auto it = multicellStatistics.begin(); it != multicellStatistics.end();) {
+                auto cellTag = it->first;
+                if (cellTag != selfCellTag && !secondaryCellTags.contains(cellTag)) {
+                    YT_VERIFY(Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
+                    multicellStatistics.erase(it++);
+                } else {
+                    ++it;
+                }
             }
         }
 
-        account->SetLocalStatisticsPtr(&multicellStatistics[cellTag]);
-        account->DetailedMasterMemoryUsage() = multicellStatistics[cellTag].ResourceUsage.DetailedMasterMemory();
+        account->SetLocalStatisticsPtr(&multicellStatistics[selfCellTag]);
+        account->DetailedMasterMemoryUsage() = multicellStatistics[selfCellTag].ResourceUsage.DetailedMasterMemory();
     }
 
     void OnAccountStatisticsGossip()
