@@ -85,7 +85,7 @@ class TestOrderedDynamicTablesBase(DynamicTablesBase):
 
 
 class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 4
 
     @authors("babenko")
     def test_mount(self):
