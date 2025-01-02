@@ -92,19 +92,31 @@ class TestMasterCellAdditionBase(YTEnvSetup):
 
     @classmethod
     def modify_scheduler_config(cls, config, cluster_index):
-        cls._collect_cell_ids_and_maybe_stash_last_cell(config["cluster_connection"], cluster_index, cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
+        cls._collect_cell_ids_and_maybe_stash_last_cell(
+            config["cluster_connection"],
+            cluster_index,
+            cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
     @classmethod
     def modify_controller_agent_config(cls, config, cluster_index):
-        cls._collect_cell_ids_and_maybe_stash_last_cell(config["cluster_connection"], cluster_index, cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
+        cls._collect_cell_ids_and_maybe_stash_last_cell(
+            config["cluster_connection"],
+            cluster_index,
+            cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
     @classmethod
     def modify_node_config(cls, config, cluster_index):
-        cls._collect_cell_ids_and_maybe_stash_last_cell(config["cluster_connection"], cluster_index, cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
+        cls._collect_cell_ids_and_maybe_stash_last_cell(
+            config["cluster_connection"],
+            cluster_index,
+            cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
     @classmethod
     def modify_chaos_node_config(cls, config, cluster_index):
-        cls._collect_cell_ids_and_maybe_stash_last_cell(config["cluster_connection"], cluster_index, cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
+        cls._collect_cell_ids_and_maybe_stash_last_cell(
+            config["cluster_connection"],
+            cluster_index,
+            cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
     @classmethod
     def modify_driver_config(cls, config):
@@ -252,8 +264,6 @@ class TestMasterCellAdditionBase(YTEnvSetup):
                 cls.Env.rewrite_chaos_node_configs()
                 cls.Env.rewrite_scheduler_configs()
                 cls.Env.rewrite_controller_agent_configs()
-                # COMPAT(cherepashka)
-                set("//sys/@config/multicell_manager/testing/discovered_masters_cell_tags", [13])
 
         for tx in ls("//sys/transactions", attributes=["title"]):
             title = tx.attributes.get("title", "")
@@ -591,14 +601,6 @@ class TestMasterCellAdditionBaseChecks(TestMasterCellAdditionBase):
 
         _check_basic_map_reduce()
 
-
-class TestMasterCellAdditionWithDowntime(TestMasterCellAdditionBaseChecks):
-    PATCHED_CONFIGS = []
-    STASHED_CELL_CONFIGS = []
-    CELL_IDS = builtins.set()
-
-    NUM_TEST_PARTITIONS = 3
-
     def check_transactions(self):
         create("portal_entrance", "//tmp/p1", attributes={"exit_cell_tag": 12})
         tx = start_transaction(timeout=120000)
@@ -607,21 +609,21 @@ class TestMasterCellAdditionWithDowntime(TestMasterCellAdditionBaseChecks):
 
         yield
 
+        # Make the new master cell "reliable" for other master cells.
+        set("//sys/@config/multicell_manager/testing/discovered_masters_cell_tags", [13])
+        set("//sys/@config/multicell_manager/cell_descriptors", {"13": {"roles": ["cypress_node_host", "chunk_host"]}})
         create("portal_entrance", "//tmp/p2", attributes={"exit_cell_tag": 13})
         create("table", "//tmp/p2/t", tx=tx)  # replicate tx to cell 13
         assert get("#{}/@replicated_to_cell_tags".format(tx)) == [12, 13]
 
-    @authors("shakurov")
-    def test_add_new_cell(self):
-        self._execute_checks_with_cell_addition(downtime=True)
 
-
-class TestMasterCellAdditionWithoutDowntime(TestMasterCellAdditionBaseChecks):
+class TestMasterCellAddition(TestMasterCellAdditionBaseChecks):
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
     NUM_TEST_PARTITIONS = 3
+    DOWNTIME_ALL_COMPONENTS = True
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "multicell_manager": {
@@ -638,35 +640,33 @@ class TestMasterCellAdditionWithoutDowntime(TestMasterCellAdditionBaseChecks):
     @authors("shakurov", "cherepashka")
     @pytest.mark.timeout(120)
     def test_add_new_cell(self):
-        self._execute_checks_with_cell_addition(downtime=False)
+        self._execute_checks_with_cell_addition(downtime=self.DOWNTIME_ALL_COMPONENTS)
 
 
-class TestMasterCellsListChangeWithoutDowntime(TestMasterCellAdditionBaseChecks):
+class TestMasterCellAdditionWithoutDowntime(TestMasterCellAddition):
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
-    NUM_TEST_PARTITIONS = 3
+    DOWNTIME_ALL_COMPONENTS = False
+
+
+class TestMasterCellsListChangeWithoutDowntime(TestMasterCellAddition):
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+
+    DOWNTIME_ALL_COMPONENTS = False
+    REMOVE_LAST_MASTER_BEFORE_START = False
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "multicell_manager": {
             "testing": {
                 "allow_master_cell_removal": True,
                 "allow_master_cell_with_empty_role": True,
-            }
-        }
+            },
+        },
     }
-
-    MASTER_CELL_DESCRIPTORS = {
-        "13": {"roles": []},
-    }
-
-    REMOVE_LAST_MASTER_BEFORE_START = False
-
-    @authors("shakurov", "cherepashka")
-    @pytest.mark.timeout(120)
-    def test_add_new_cell_after_removal(self):
-        self._execute_checks_with_cell_addition(downtime=False)
 
 
 class TestMasterCellAdditionChaosMultiClusterBaseChecks(TestMasterCellAdditionBase):
@@ -802,12 +802,14 @@ class TestMasterCellAdditionChaosMultiClusterBaseChecks(TestMasterCellAdditionBa
         assert_true_for_all_cells(self.Env, _check)
 
 
-class TestMasterCellAdditionChaosMultiClusterWithDowntime(TestMasterCellAdditionChaosMultiClusterBaseChecks):
+class TestMasterCellAdditionChaosMultiCluster(TestMasterCellAdditionChaosMultiClusterBaseChecks):
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
     NUM_TEST_PARTITIONS = 3
+
+    DOWNTIME_ALL_COMPONENTS = True
 
     @authors("ponasenko-rs")
     @pytest.mark.timeout(300)
@@ -818,34 +820,24 @@ class TestMasterCellAdditionChaosMultiClusterWithDowntime(TestMasterCellAddition
             "full_sync_period": 200,
         })
 
-        self._execute_checks_with_cell_addition(downtime=True)
+        self._execute_checks_with_cell_addition(downtime=self.DOWNTIME_ALL_COMPONENTS)
 
 
-class TestMasterCellAdditionChaosMultiClusterWithoutDowntime(TestMasterCellAdditionChaosMultiClusterBaseChecks):
+class TestMasterCellAdditionChaosMultiClusterWithoutDowntime(TestMasterCellAdditionChaosMultiCluster):
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
-    NUM_TEST_PARTITIONS = 3
-
-    @authors("ponasenko-rs", "cherepashka")
-    @pytest.mark.timeout(300)
-    def test_add_new_cell(self):
-        set("//sys/@config/chaos_manager/alien_cell_synchronizer", {
-            "enable": True,
-            "sync_period": 100,
-            "full_sync_period": 200,
-        })
-
-        self._execute_checks_with_cell_addition(downtime=False)
+    DOWNTIME_ALL_COMPONENTS = False
 
 
-class TestMasterCellsListChangeChaosMultiClusterWithoutDowntime(TestMasterCellAdditionChaosMultiClusterBaseChecks):
+class TestMasterCellsListChangeChaosMultiClusterWithoutDowntime(TestMasterCellAdditionChaosMultiCluster):
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
 
-    NUM_TEST_PARTITIONS = 3
+    DOWNTIME_ALL_COMPONENTS = False
+    REMOVE_LAST_MASTER_BEFORE_START = False
 
     # Overrides the same field from base class.
     DELTA_DYNAMIC_MASTER_CONFIG = {
@@ -856,19 +848,6 @@ class TestMasterCellsListChangeChaosMultiClusterWithoutDowntime(TestMasterCellAd
             },
         },
     }
-
-    REMOVE_LAST_MASTER_BEFORE_START = False
-
-    @authors("ponasenko-rs", "cherepashka")
-    @pytest.mark.timeout(300)
-    def test_add_new_cell_after_removal(self):
-        set("//sys/@config/chaos_manager/alien_cell_synchronizer", {
-            "enable": True,
-            "sync_period": 100,
-            "full_sync_period": 200,
-        })
-
-        self._execute_checks_with_cell_addition(downtime=False)
 
 
 class TestDynamicMasterCellListChangeWithTabletCells(TestMasterCellAdditionBase):
@@ -882,6 +861,7 @@ class TestDynamicMasterCellListChangeWithTabletCells(TestMasterCellAdditionBase)
     NUM_CONTROLLER_AGENTS = 1
 
     USE_DYNAMIC_TABLES = True
+    REMOVE_LAST_MASTER_BEFORE_START = False
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "cell_master": {
@@ -907,8 +887,6 @@ class TestDynamicMasterCellListChangeWithTabletCells(TestMasterCellAdditionBase)
     MASTER_CELL_DESCRIPTORS = {
         "13": {"roles": []},
     }
-
-    REMOVE_LAST_MASTER_BEFORE_START = False
 
     @authors("cherepashka")
     @pytest.mark.timeout(100)
@@ -1097,6 +1075,6 @@ class TestMasterCellDynamicPropagationDuringRegistration(TestMasterCellAdditionB
         self.Env.kill_nodes()
         self._enable_last_cell(downtime=False)
         # Registration on primary master triggers master cell synhronization, which follows receiving new master cell
-        # and attempt of starting cellar/data/tablet heartbeats concurrently with registration.
+        # and attempt of starting cellar/data/tablet heartbeats before actual registration.
         # This shouldn't crash node.
         self.Env.start_nodes()
