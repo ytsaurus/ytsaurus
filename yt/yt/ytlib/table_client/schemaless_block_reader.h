@@ -67,7 +67,7 @@ public:
 
     TLegacyKey GetLegacyKey() const;
     TKey GetKey() const;
-    TMutableUnversionedRow GetRow(TChunkedMemoryPool* memoryPool, bool remap);
+    TMutableUnversionedRow GetRow(TChunkedMemoryPool* memoryPool, bool remapIds);
 
     i64 GetRowIndex() const;
 

@@ -851,7 +851,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
         }
 
         if (SampleRow(GetTableRowIndex())) {
-            auto row = BlockReader_->GetRow(&MemoryPool_, /*remap*/ false);
+            auto row = BlockReader_->GetRow(&MemoryPool_, /*remapIds*/ false);
             auto prefixToRemapSize = row.GetCount();
             AddExtraValues(row, GetTableRowIndex());
             FinalizeRow(row, prefixToRemapSize);
@@ -1358,7 +1358,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
             }
 
             if (key == BlockReader_->GetLegacyKey()) {
-                auto row = BlockReader_->GetRow(&MemoryPool_, /*remap*/ false);
+                auto row = BlockReader_->GetRow(&MemoryPool_, /*remapIds*/ false);
                 FinalizeRow(row, row.GetCount());
                 rows.push_back(row);
                 dataWeight += GetDataWeight(row);
@@ -1461,7 +1461,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessKeyRangesChunkReader::Read(const TR
             }
 
             if (!skipRow) {
-                auto row = BlockReader_->GetRow(&MemoryPool_, /*remap*/ false);
+                auto row = BlockReader_->GetRow(&MemoryPool_, /*remapIds*/ false);
                 auto prefixToRemapSize = row.GetCount();
                 AddExtraValues(row, GetTableRowIndex());
                 FinalizeRow(row, prefixToRemapSize);
