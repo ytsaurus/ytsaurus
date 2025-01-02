@@ -98,11 +98,11 @@ void TDiskLocationConfig::Register(TRegistrar registrar)
         .GreaterThanOrEqual(0)
         .Default();
     registrar.Parameter("disk_family", &TThis::DiskFamily)
-        .Default("UNKNOWN");
+        .Default(UnknownDiskFamily);
     registrar.Parameter("device_name", &TThis::DeviceName)
-        .Default("UNKNOWN");
+        .Default(UnknownDeviceName);
     registrar.Parameter("device_model", &TThis::DeviceModel)
-        .Default("UNKNOWN");
+        .Default(UnknownDeviceModel);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

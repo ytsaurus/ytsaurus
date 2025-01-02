@@ -1751,6 +1751,13 @@ public:
     }
 
 private:
+    const TString DeviceName_;
+    const i64 MaxWriteRateByDwpd_;
+    const NIO::IIOEnginePtr IOEngine_;
+    const TLogger Logger;
+
+    std::atomic<TDuration> UpdateStatisticsTimeout_;
+
     struct TCounters
     {
         i64 FilesystemRead = 0;
@@ -1758,12 +1765,6 @@ private:
         i64 DiskRead = 0;
         i64 DiskWritten = 0;
     };
-
-    const TString DeviceName_;
-    const i64 MaxWriteRateByDwpd_;
-    const NIO::IIOEnginePtr IOEngine_;
-    const TLogger Logger;
-    std::atomic<TDuration> UpdateStatisticsTimeout_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, CountersLock_);
     TInstant LastUpdateTime_;
@@ -1779,19 +1780,18 @@ private:
             .FilesystemWritten = IOEngine_->GetTotalWrittenBytes(),
         };
 
-        try {
-            auto stat = GetBlockDeviceStat(DeviceName_);
-            if (!stat) {
-                YT_LOG_WARNING("Cannot find disk statistics (DeviceName: %v, Func: GetCounters)",
-                    DeviceName_);
-                return counters;
+        if (DeviceName_ != TStoreLocationConfig::UnknownDeviceName) {
+            try {
+                if (auto stat = GetBlockDeviceStat(DeviceName_)) {
+                    counters.DiskRead = stat->SectorsRead * UnixSectorSize;
+                    counters.DiskWritten = stat->SectorsWritten * UnixSectorSize;
+                } else {
+                    YT_LOG_WARNING("Missing disk statistics (DeviceName: %v, Func: GetCounters)",
+                        DeviceName_);
+                }
+            } catch (const std::exception& ex) {
+                YT_LOG_WARNING(ex, "Failed to get disk statistics (Func: GetCounters)");
             }
-
-            counters.DiskRead = stat->SectorsRead * UnixSectorSize;
-            counters.DiskWritten = stat->SectorsWritten * UnixSectorSize;
-
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Failed to get disk statistics (Func: GetCounters)");
         }
 
         return counters;
@@ -1834,36 +1834,35 @@ private:
 
     void CollectSensors(ISensorWriter* writer) override
     {
-        try {
-            auto stat = GetBlockDeviceStat(DeviceName_);
-            if (!stat) {
-                YT_LOG_WARNING("Cannot find disk statistics (DeviceName: %v, Func: CollectSensors)",
-                    DeviceName_);
-                return;
-            }
+        if (DeviceName_ != TStoreLocationConfig::UnknownDeviceName) {
+            try {
+                if (auto stat = GetBlockDeviceStat(DeviceName_)) {
+                    writer->AddCounter(
+                        "/disk/read_bytes",
+                        stat->SectorsRead * UnixSectorSize);
 
-            writer->AddCounter(
-                "/disk/read_bytes",
-                stat->SectorsRead * UnixSectorSize);
+                    writer->AddCounter(
+                        "/disk/written_bytes",
+                        stat->SectorsWritten * UnixSectorSize);
 
-            writer->AddCounter(
-                "/disk/written_bytes",
-                stat->SectorsWritten * UnixSectorSize);
-
-            writer->AddGauge(
-                "/disk/io_in_progress",
-                stat->IOCurrentlyInProgress);
-
-            writer->AddGauge(
-                "/disk/max_write_rate_by_dwpd",
-                MaxWriteRateByDwpd_);
-
-        } catch (const std::exception& ex) {
-            if (!ErrorLogged_) {
-                YT_LOG_ERROR(ex, "Failed to get disk statistics (Func: CollectSensors)");
-                ErrorLogged_ = true;
+                    writer->AddGauge(
+                        "/disk/io_in_progress",
+                        stat->IOCurrentlyInProgress);
+                } else {
+                    YT_LOG_WARNING("Missing disk statistics (DeviceName: %v, Func: CollectSensors)",
+                        DeviceName_);
+                }
+            } catch (const std::exception& ex) {
+                if (!ErrorLogged_) {
+                    YT_LOG_ERROR(ex, "Failed to get disk statistics (Func: CollectSensors)");
+                    ErrorLogged_ = true;
+                }
             }
         }
+
+        writer->AddGauge(
+            "/disk/max_write_rate_by_dwpd",
+            MaxWriteRateByDwpd_);
     }
 };
 
