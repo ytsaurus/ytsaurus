@@ -1596,7 +1596,12 @@ TEST_F(TChunkTreeTraversingTest, SortedHunkListAsMain)
 class TTraverseWithKeyColumnCount
     : public TChunkTreeTraversingTest
     , public ::testing::WithParamInterface<std::tuple<
-        int, TString, TString, std::optional<TLegacyReadLimit>, std::optional<TLegacyReadLimit>>>
+        int,
+        TString,
+        TString,
+        std::optional<TLegacyReadLimit>,
+        std::optional<TLegacyReadLimit>
+    >>
 { };
 
 TEST_P(TTraverseWithKeyColumnCount, TestStatic)

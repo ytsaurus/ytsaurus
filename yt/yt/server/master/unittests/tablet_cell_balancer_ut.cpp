@@ -31,7 +31,12 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TSettingParam = std::tuple<const char*, const char*, const char*, int, const char*>;
+using TSettingParam = std::tuple<
+    TString,
+    TString,
+    TString,
+    int,
+    TString>;
 using TStressSettingParam = std::tuple<int, int, int, int, int>;
 using TCompleteSettingParam = std::tuple<
     THashMap<std::string, int>,
@@ -57,14 +62,14 @@ public:
     explicit TSetting(const TSettingParam& param)
     {
         auto peersPerCell = ConvertTo<THashMap<std::string, int>>(
-            TYsonString(TString(std::get<0>(param)), EYsonType::Node));
+            TYsonString(std::get<0>(param)));
         auto cellLists = ConvertTo<THashMap<std::string, std::vector<int>>>(
-            TYsonString(TString(std::get<1>(param)), EYsonType::Node));
+            TYsonString(std::get<1>(param)));
         auto nodeFeasibility = ConvertTo<THashMap<std::string, std::vector<std::string>>>(
-            TYsonString(TString(std::get<2>(param)), EYsonType::Node));
+            TYsonString(std::get<2>(param)));
         auto tabletSlotCount = std::get<3>(param);
         auto cellDistribution = ConvertTo<THashMap<std::string, std::vector<int>>>(
-            TYsonString(TString(std::get<4>(param)), EYsonType::Node));
+            TYsonString(std::get<4>(param)));
 
         Initialize(peersPerCell, cellLists, nodeFeasibility, tabletSlotCount, cellDistribution);
     }
