@@ -30,9 +30,6 @@
 
 #include <yt/yt/server/master/maintenance_tracker_server/maintenance_tracker.h>
 
-#include <yt/yt/server/master/zookeeper_server/bootstrap_proxy.h>
-#include <yt/yt/server/master/zookeeper_server/zookeeper_manager.h>
-
 #include <yt/yt/server/lib/hive/avenue_directory.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
@@ -57,9 +54,6 @@
 
 #include <yt/yt/server/lib/discovery_server/config.h>
 #include <yt/yt/server/lib/discovery_server/discovery_server.h>
-
-#include <yt/yt/server/lib/zookeeper_master/bootstrap.h>
-#include <yt/yt/server/lib/zookeeper_master/bootstrap_proxy.h>
 
 #include <yt/yt/server/master/journal_server/journal_manager.h>
 #include <yt/yt/server/master/journal_server/journal_node.h>
@@ -243,8 +237,6 @@ using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
 using namespace NYTree;
-using namespace NZookeeperMaster;
-using namespace NZookeeperServer;
 
 using NTransactionServer::ITransactionManagerPtr;
 
@@ -600,16 +592,6 @@ const IReplicatedTableTrackerStateProviderPtr& TBootstrap::GetReplicatedTableTra
 const NRpc::IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
 {
     return NativeAuthenticator_;
-}
-
-const NZookeeperServer::IZookeeperManagerPtr& TBootstrap::GetZookeeperManager() const
-{
-    return ZookeeperManager_;
-}
-
-NZookeeperMaster::IBootstrap* TBootstrap::GetZookeeperBootstrap() const
-{
-    return ZookeeperBootstrap_.get();
 }
 
 NDistributedThrottler::IDistributedThrottlerFactoryPtr TBootstrap::CreateDistributedThrottlerFactory(
@@ -976,11 +958,6 @@ void TBootstrap::DoInitialize()
 
     ObjectService_ = CreateObjectService(Config_->ObjectService, this);
 
-    ZookeeperBootstrapProxy_ = CreateZookeeperBootstrapProxy(this);
-    ZookeeperBootstrap_ = CreateBootstrap(ZookeeperBootstrapProxy_.get());
-
-    ZookeeperManager_ = CreateZookeeperManager(this);
-
     GroundUpdateQueueManager_ = CreateGroundUpdateQueueManager(this);
 
     InitializeTimestampProvider();
@@ -1033,8 +1010,6 @@ void TBootstrap::DoInitialize()
     BackupManager_->Initialize();
     ChaosManager_->Initialize();
     SchedulerPoolManager_->Initialize();
-    ZookeeperBootstrap_->Initialize();
-    ZookeeperManager_->Initialize();
     GroundUpdateQueueManager_->Initialize();
     GraftingManager_->Initialize();
     SequoiaActionsExecutor_->Initialize();

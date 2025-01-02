@@ -16,7 +16,6 @@ PEERDIR(
     ${YT_TESTS_ROOT}/queues
     ${YT_TESTS_ROOT}/scheduler
     ${YT_TESTS_ROOT}/scheduler_simulator
-    ${YT_TESTS_ROOT}/zookeeper
     ${YT_TESTS_ROOT}/queries
 )
 

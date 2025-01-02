@@ -3489,8 +3489,6 @@
   "yt/yt/server/lib/transaction_supervisor/CMakeLists.linux-x86_64.txt":"",
   "yt/yt/server/lib/transaction_supervisor/CMakeLists.txt":"",
   "yt/yt/server/lib/user_job/CMakeLists.txt":"",
-  "yt/yt/server/lib/zookeeper_master/CMakeLists.txt":"",
-  "yt/yt/server/lib/zookeeper_proxy/CMakeLists.txt":"",
   "yt/yt/server/log_tailer/CMakeLists.txt":"",
   "yt/yt/server/log_tailer/bin/CMakeLists.txt":"",
   "yt/yt/server/master/CMakeLists.txt":"",

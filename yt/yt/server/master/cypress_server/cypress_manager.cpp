@@ -30,6 +30,8 @@
 #include "shard_map_type_handler.h"
 #include "shard_type_handler.h"
 #include "shard.h"
+// COMPAT(babenko): drop
+#include "virtual.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -77,8 +79,6 @@
 #include <yt/yt/server/master/tablet_server/hunk_storage_node_type_handler.h>
 
 #include <yt/yt/server/master/transaction_server/cypress_integration.h>
-
-#include <yt/yt/server/master/zookeeper_server/cypress_integration.h>
 
 #include <yt/yt/server/lib/hydra/hydra_context.h>
 
@@ -144,7 +144,6 @@ using namespace NTransactionSupervisor;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
-using namespace NZookeeperServer;
 using namespace NServer;
 
 using TYPath = NYPath::TYPath;
@@ -1139,7 +1138,15 @@ public:
         RegisterHandler(CreateCellOrchidTypeHandler(Bootstrap_));
         RegisterHandler(CreateEstimatedCreationTimeMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateAccessControlObjectNamespaceMapTypeHandler(Bootstrap_));
-        RegisterHandler(CreateZookeeperShardMapTypeHandler(Bootstrap_));
+        // COMPAT(babenko): drop
+        RegisterHandler(CreateVirtualTypeHandler(
+            bootstrap,
+            EObjectType::ZookeeperShardMap,
+            BIND_NO_PROPAGATE([=] (INodePtr /*owningNode*/) -> IYPathServicePtr {
+                static const auto result = GetEphemeralNodeFactory()->CreateMap();
+                return result;
+            }),
+            EVirtualNodeOptions::RedirectSelf));
 
         RegisterLoader(
             "CypressManager.Keys",
