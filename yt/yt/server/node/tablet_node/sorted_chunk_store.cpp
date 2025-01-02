@@ -628,7 +628,7 @@ class TSortedChunkStore::TSortedChunkStoreVersionedReader
 {
 public:
     TSortedChunkStoreVersionedReader(
-        const NApi::NNative::IClientPtr client,
+        NApi::NNative::IClientPtr client,
         int skippedBefore,
         int skippedAfter,
         TSortedChunkStore* const chunk,
@@ -639,7 +639,7 @@ public:
         const TColumnFilter& columnFilter,
         const TClientChunkReadOptions& chunkReadOptions,
         std::optional<EWorkloadCategory> workloadCategory)
-        : Client_(client)
+        : Client_(std::move(client))
         , SkippedBefore_(skippedBefore)
         , SkippedAfter_(skippedAfter)
     {

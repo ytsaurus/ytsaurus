@@ -1640,7 +1640,7 @@ private:
         }
 
         if (JobSpecExt_.validate_chunk_meta_extensions()) {
-            ChunkMetaValidationError_ = ValidateChunkMeta(writer);
+            ChunkMetaValidationError_ = FinalizeAndValidateChunkMeta(writer);
         }
 
         WaitFor(writer->Close(writeBlocksOptions))
@@ -1805,7 +1805,7 @@ private:
         return deferredChunkMeta;
     }
 
-    TError ValidateChunkMeta(const IMetaAggregatingWriterPtr& writer)
+    TError FinalizeAndValidateChunkMeta(const IMetaAggregatingWriterPtr& writer)
     {
         if (DynamicConfig_->FailChunkMetaValidation) {
             return TError("Testing error");

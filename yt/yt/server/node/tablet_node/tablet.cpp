@@ -1631,7 +1631,7 @@ void TTablet::RemoveStore(IStorePtr store)
     GetTabletSizeProfiler().RemoveStore(store);
 }
 
-const NApi::NNative::IClientPtr TTablet::GetClient() const
+NApi::NNative::IClientPtr TTablet::GetClient() const
 {
     return Context_->GetClient();
 }
