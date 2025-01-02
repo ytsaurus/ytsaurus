@@ -75,7 +75,7 @@ private:
     const IInvokerPtr Invoker_;
     const ICypressNodeVisitorPtr Visitor_;
     const TEphemeralObjectPtr<TTransaction> Transaction_;
-    const TString UserName_;
+    const std::string UserName_;
 
     TDuration TotalTime_;
 

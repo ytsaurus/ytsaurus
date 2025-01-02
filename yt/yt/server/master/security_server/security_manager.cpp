@@ -2773,8 +2773,7 @@ public:
         return *CpuProfilerTags_
             .FindOrInsert(
                 user->GetName(),
-                // TODO(babenko): switch to std::string
-                [&] { return New<TProfilerTag>("user", TString(user->GetName())); })
+                [&] { return New<TProfilerTag>("user", user->GetName()); })
             .first;
     }
 
@@ -2843,7 +2842,7 @@ private:
     TAccount* SequoiaAccount_ = nullptr;
 
     NHydra::TEntityMap<TUser> UserMap_;
-    THashMap<TString, TUser*> UserNameMap_;
+    THashMap<std::string, TUser*> UserNameMap_;
 
     TUserId RootUserId_;
     TUser* RootUser_ = nullptr;
