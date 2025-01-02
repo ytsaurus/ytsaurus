@@ -107,7 +107,7 @@ public:
         EMaintenanceComponent component,
         const std::string& address,
         const std::optional<TCompactSet<TMaintenanceId, TypicalMaintenanceRequestCount>> ids,
-        std::optional<TStringBuf> user,
+        std::optional<std::string> user,
         std::optional<EMaintenanceType> type,
         std::optional<NCypressServer::TNodeId> componentRegistryId) override
     {

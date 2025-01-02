@@ -756,7 +756,7 @@ private:
             const auto multicellSyncExt = requestHeader.GetExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
             TObjectServiceCacheKey key(
                 Bootstrap_->GetCellTag(),
-                cachingRequestHeaderExt.disable_per_user_cache() ? TString() : RpcContext_->GetAuthenticationIdentity().User,
+                cachingRequestHeaderExt.disable_per_user_cache() ? std::string() : RpcContext_->GetAuthenticationIdentity().User,
                 subrequest.YPathExt->target_path(),
                 requestHeader.service(),
                 requestHeader.method(),

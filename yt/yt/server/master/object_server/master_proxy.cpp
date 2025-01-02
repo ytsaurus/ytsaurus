@@ -390,7 +390,7 @@ private:
             }
         }
 
-        std::optional<TStringBuf> user;
+        std::optional<std::string> user;
         if (request->has_user()) {
             user = request->user();
         } else if (request->mine()) {
