@@ -19,6 +19,7 @@ PEERDIR(
     yt/yt/library/fusion
     yt/yt/library/stockpile # for stockpile singleton
     yt/yt/library/profiling/solomon
+    yt/yt/library/profiling/perf
 )
 
 END()

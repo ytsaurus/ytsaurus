@@ -7,6 +7,8 @@
 #include <yt/yt/library/program/program_setsid_mixin.h>
 #include <yt/yt/library/program/helpers.h>
 
+#include <yt/yt/library/profiling/perf/event_counter_profiler.h>
+
 #include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
@@ -53,6 +55,8 @@ protected:
         auto configNode = GetConfigNode();
 
         ConfigureSingletons(config);
+
+        NProfiling::EnablePerfEventCounterProfiling();
 
         // TODO(babenko): This memory leak is intentional.
         // We should avoid destroying bootstrap since some of the subsystems
