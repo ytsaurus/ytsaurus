@@ -293,7 +293,7 @@ class _ConcatenateRetrier(Retrier):
 
             create(
                 self.type, self.destination_path, attributes=dst_attributes,
-                ignore_existing=True,  client=self.client,
+                ignore_existing=True, client=self.client,
             )
             params = {"source_paths": self.source_paths,
                       "destination_path": self.destination_path}
