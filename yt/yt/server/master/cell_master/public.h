@@ -122,7 +122,6 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (ChunkAutotomizer)
     (IncumbentManager)
     (TabletService)
-    (Zookeeper)
     (ChunkReincarnator)
     (GraftingManager)
     (NodeStatisticsFixer)

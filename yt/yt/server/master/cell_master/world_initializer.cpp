@@ -880,11 +880,6 @@ private:
                 EObjectType::MapNode);
 
             ScheduleCreateNode(
-                "//sys/zookeeper_shards",
-                transactionId,
-                EObjectType::ZookeeperShardMap);
-
-            ScheduleCreateNode(
                 "//sys/cypress_cookies",
                 transactionId,
                 EObjectType::MapNode,

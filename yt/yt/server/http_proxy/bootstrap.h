@@ -6,8 +6,6 @@
 
 #include <yt/yt/server/lib/chunk_pools/public.h>
 
-#include <yt/yt/server/lib/zookeeper_proxy/bootstrap_proxy.h>
-
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
 #include <yt/yt/ytlib/api/public.h>
@@ -134,9 +132,6 @@ private:
     TApiPtr Api_;
 
     NClickHouse::TClickHouseHandlerPtr ClickHouseHandler_;
-
-    std::unique_ptr<NZookeeperProxy::IBootstrapProxy> ZookeeperBootstrapProxy_;
-    std::unique_ptr<NZookeeperProxy::IBootstrap> ZookeeperBootstrap_;
 
     TCoordinatorPtr Coordinator_;
     THostsHandlerPtr HostsHandler_;

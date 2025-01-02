@@ -38,8 +38,6 @@
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/yt/server/master/zookeeper_server/public.h>
-
 #include <yt/yt/server/lib/hive/public.h>
 
 #include <yt/yt/server/lib/hydra/public.h>
@@ -51,8 +49,6 @@
 #include <yt/yt/server/lib/timestamp_server/public.h>
 
 #include <yt/yt/server/lib/discovery_server/public.h>
-
-#include <yt/yt/server/lib/zookeeper_master/public.h>
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
@@ -166,9 +162,6 @@ public:
     const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const;
     const NTabletServer::IReplicatedTableTrackerStateProviderPtr& GetReplicatedTableTrackerStateProvider() const;
 
-    const NZookeeperServer::IZookeeperManagerPtr& GetZookeeperManager() const;
-    NZookeeperMaster::IBootstrap* GetZookeeperBootstrap() const;
-
     NDistributedThrottler::IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         NDistributedThrottler::TDistributedThrottlerConfigPtr config,
         IInvokerPtr invoker,
@@ -267,11 +260,6 @@ protected:
     NDiscoveryServer::IDiscoveryServerPtr DiscoveryServer_;
     NRpc::IChannelFactoryPtr ChannelFactory_;
     TDiskSpaceProfilerPtr DiskSpaceProfiler_;
-
-    std::unique_ptr<NZookeeperMaster::IBootstrapProxy> ZookeeperBootstrapProxy_;
-    std::unique_ptr<NZookeeperMaster::IBootstrap> ZookeeperBootstrap_;
-
-    NZookeeperServer::IZookeeperManagerPtr ZookeeperManager_;
 
     NNodeTrackerClient::INodeChannelFactoryPtr NodeChannelFactory_;
 

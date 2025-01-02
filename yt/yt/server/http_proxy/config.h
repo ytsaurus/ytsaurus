@@ -7,8 +7,6 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/yt/server/lib/zookeeper_proxy/public.h>
-
 #include <yt/yt/server/lib/cypress_registrar/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -315,8 +313,6 @@ public:
     // COMPAT(gritukan): Drop it after migration to tagged configs.
     TString DynamicConfigPath;
     bool UseTaggedDynamicConfig;
-
-    NZookeeperProxy::TZookeeperProxyConfigPtr ZookeeperProxy;
 
     //! Configuration for solomon proxy, which allows collecting merged metrics from other YT components through HTTP proxies.
     TSolomonProxyConfigPtr SolomonProxy;
