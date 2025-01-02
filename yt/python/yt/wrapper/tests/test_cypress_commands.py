@@ -675,6 +675,27 @@ class TestCypressCommands(object):
         with pytest.raises(yt.YtError):
             yt.concatenate([TEST_DIR, tableB], output_table)
 
+    @authors("dmifedorov")
+    def test_concatenate_tables_with_schema_and_append_to_new_table(self):
+        schema = TableSchema()
+        schema.add_column("id", typing.Int64)
+        schema.add_column("value", typing.String)
+
+        table_1 = "//tmp/table_1"
+        table_2 = "//tmp/table_2"
+
+        yt.create("table", table_1, recursive=True, attributes={"schema": schema})
+        yt.create("table", table_2, recursive=True, attributes={"schema": schema})
+
+        yt.write_table(table_1, [{"id": 1, "value": "foo"}])
+        yt.write_table(table_2, [{"id": 2, "value": "bar"}])
+
+        table_dst = yt.TablePath("//tmp/table_concat", append=True)
+        yt.concatenate([table_1, table_2], table_dst)
+
+        assert yt.get_attribute(table_dst.to_yson_string(), "schema") == yt.get_attribute(table_1, "schema")
+
+
     @authors("ostyakov")
     def test_set_recursive(self):
         yt.create("map_node", TEST_DIR + "/node")

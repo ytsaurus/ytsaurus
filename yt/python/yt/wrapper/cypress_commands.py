@@ -287,7 +287,14 @@ class _ConcatenateRetrier(Retrier):
         title = "Python wrapper: concatenate"
         with Transaction(attributes={"title": title},
                          client=self.client):
-            create(self.type, self.destination_path, ignore_existing=True, client=self.client)
+            dst_attributes = {}
+            if self.type == "table":
+                dst_attributes["schema"] = get_attribute(self.source_paths[0], "schema",  client=self.client)
+
+            create(
+                self.type, self.destination_path, attributes=dst_attributes,
+                ignore_existing=True,  client=self.client,
+            )
             params = {"source_paths": self.source_paths,
                       "destination_path": self.destination_path}
             make_request("concatenate", params, client=self.client)
