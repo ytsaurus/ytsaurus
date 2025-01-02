@@ -69,12 +69,15 @@ struct TDiskLocationConfig
 
     //! Block device name.
     TString DeviceName;
+    static inline const TString UnknownDeviceName = "UNKNOWN";
 
     //! Storage device vendor info.
     TString DeviceModel;
+    static inline const TString UnknownDeviceModel = "UNKNOWN";
 
     //! Disk family in this location (HDD, SDD, etc.)
     TString DiskFamily;
+    static inline const TString UnknownDiskFamily = "UNKNOWN";
 
     void ApplyDynamicInplace(const TDiskLocationDynamicConfig& dynamicConfig);
 
