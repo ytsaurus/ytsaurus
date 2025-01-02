@@ -12,6 +12,8 @@
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
+#include <yt/yt/library/profiling/perf/event_counter_profiler.h>
+
 #include <yt/yt/library/program/helpers.h>
 
 #include <yt/yt/library/fusion/service_directory.h>
@@ -79,6 +81,8 @@ void TServerProgramBase::Configure(const TServerProgramConfigPtr& config)
     MlockFileMappings();
 
     ConfigureSingletons(config);
+
+    NProfiling::EnablePerfEventCounterProfiling();
 
     if (config->EnablePortoResourceTracker) {
         NContainers::EnablePortoResourceTracker(config->PodSpec);

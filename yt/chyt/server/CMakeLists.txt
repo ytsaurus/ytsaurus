@@ -53,6 +53,7 @@ target_link_libraries(yt-chyt-server PUBLIC
   yt-library-clickhouse_functions
   yt-library-monitoring
   library-tracing-jaeger
+  library-profiling-perf
   cpp-yt-mlock
   contrib-clickhouse-src
   clickhouse-base-base
@@ -171,6 +172,7 @@ target_link_libraries(yt-chyt-server.global PUBLIC
   yt-library-clickhouse_functions
   yt-library-monitoring
   library-tracing-jaeger
+  library-profiling-perf
   cpp-yt-mlock
   contrib-clickhouse-src
   clickhouse-base-base
