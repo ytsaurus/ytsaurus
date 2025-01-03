@@ -52,6 +52,8 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <yt/yt/core/misc/configurable_singleton_def.h>
+
 namespace NYT::NMasterCache {
 
 using namespace NAdmin;
@@ -271,7 +273,7 @@ private:
         const TMasterCacheDynamicConfigPtr& /*oldConfig*/,
         const TMasterCacheDynamicConfigPtr& newConfig)
     {
-        ReconfigureSingletons(newConfig);
+        TSingletonManager::Reconfigure(newConfig);
     }
 };
 

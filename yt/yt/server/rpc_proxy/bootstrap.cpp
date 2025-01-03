@@ -88,6 +88,8 @@
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 
+#include <yt/yt/core/misc/configurable_singleton_def.h>
+
 namespace NYT::NRpcProxy {
 
 using namespace NAdmin;
@@ -484,7 +486,7 @@ void TBootstrap::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& /*oldConfig*/,
     const TProxyDynamicConfigPtr& newConfig)
 {
-    ReconfigureSingletons(newConfig);
+    TSingletonManager::Reconfigure(newConfig);
 
     TraceSampler_->UpdateConfig(newConfig->Tracing);
 

@@ -61,6 +61,8 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <yt/yt/core/misc/configurable_singleton_def.h>
+
 namespace NYT::NCypressProxy {
 
 using namespace NAdmin;
@@ -355,7 +357,7 @@ private:
         const TCypressProxyDynamicConfigPtr& /*oldConfig*/,
         const TCypressProxyDynamicConfigPtr& newConfig)
     {
-        ReconfigureSingletons(newConfig);
+        TSingletonManager::Reconfigure(newConfig);
 
         ObjectService_->Reconfigure(newConfig->ObjectService);
         ResponseKeeper_->Reconfigure(newConfig->ResponseKeeper);

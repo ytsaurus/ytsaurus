@@ -61,6 +61,7 @@
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
@@ -266,7 +267,7 @@ const NRpc::IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
 
 void TBootstrap::Reconfigure(const TSchedulerConfigPtr& config)
 {
-    ReconfigureSingletons(config);
+    TSingletonManager::Reconfigure(config);
 
     RpcServer_->OnDynamicConfigChanged(config->RpcServer);
 }

@@ -71,6 +71,7 @@
 
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/rpc/bus/server.h>
 
@@ -385,7 +386,7 @@ void TBootstrap::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& /*oldConfig*/,
     const TProxyDynamicConfigPtr& newConfig)
 {
-    ReconfigureSingletons(newConfig);
+    TSingletonManager::Reconfigure(newConfig);
     ReconfigureMemoryLimits(newConfig->MemoryLimits);
 
     DynamicConfig_.Store(newConfig);

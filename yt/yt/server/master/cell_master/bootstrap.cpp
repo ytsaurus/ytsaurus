@@ -181,6 +181,7 @@
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 #include <yt/yt/core/rpc/bus/channel.h>
@@ -1293,7 +1294,7 @@ void TBootstrap::DoFinishDryRun()
 void TBootstrap::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& /*oldConfig*/)
 {
     const auto& config = ConfigManager_->GetConfig();
-    ReconfigureSingletons(config->CellMaster);
+    TSingletonManager::Reconfigure(config->CellMaster);
 
     HydraFacade_->Reconfigure(config->CellMaster);
 }
