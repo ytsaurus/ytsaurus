@@ -60,6 +60,7 @@
 #include <yt/yt/library/profiling/solomon/public.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/rpc/bus/server.h>
 
@@ -344,7 +345,7 @@ private:
         const TQueryTrackerComponentDynamicConfigPtr& oldConfig,
         const TQueryTrackerComponentDynamicConfigPtr& newConfig)
     {
-        ReconfigureSingletons(newConfig);
+        TSingletonManager::Reconfigure(newConfig);
 
         if (AlertManager_) {
             AlertManager_->Reconfigure(oldConfig->AlertManager, newConfig->AlertManager);

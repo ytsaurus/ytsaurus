@@ -58,6 +58,7 @@
 #include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/rpc/bus/server.h>
 
@@ -383,7 +384,7 @@ private:
         const TQueueAgentComponentDynamicConfigPtr& oldConfig,
         const TQueueAgentComponentDynamicConfigPtr& newConfig)
     {
-        ReconfigureSingletons(newConfig);
+        TSingletonManager::Reconfigure(newConfig);
 
         YT_VERIFY(MemberClient_);
         YT_VERIFY(DiscoveryClient_);
