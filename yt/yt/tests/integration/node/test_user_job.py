@@ -29,6 +29,8 @@ import subprocess
 
 import yt_error_codes
 
+from yt_driver_bindings import Driver
+
 from yt_helpers import profiler_factory
 
 import yt.environment.init_operations_archive as init_operations_archive
@@ -39,6 +41,8 @@ from yt.common import update, YtError
 from yt.wrapper.common import generate_uuid
 
 from flaky import flaky
+
+from copy import deepcopy
 
 import pytest
 import time
@@ -2255,11 +2259,17 @@ class TestTemporaryTokens(YTEnvSetup):
         create_user("alice")
         assert not list_user_tokens("alice")
 
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        driver_config["scheduler"]["retry_attempts"] = 1
+        driver = Driver(driver_config)
+
         op_response = run_test_vanilla(
             spec={"max_failed_job_count": 1, "issue_temporary_token": True},
             command="sleep 5",
             return_response=True,
-            authenticated_user="alice")
+            authenticated_user="alice",
+            driver=driver)
 
         wait(lambda: len(list_user_tokens("alice")) == 1)
 
