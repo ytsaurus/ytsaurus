@@ -22,7 +22,7 @@ target_link_libraries(run_codec PUBLIC
 )
 
 target_allocator(run_codec
-  cpp-lfalloc-yt
+  system_allocator
 )
 
 target_link_options(run_codec PRIVATE
