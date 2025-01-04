@@ -787,6 +787,9 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
     registrar.Parameter("ephemeral_pool_name_regex", &TThis::EphemeralPoolNameRegex)
         .Default("[-_a-z0-9:A-Z]+");
 
+    registrar.Parameter("require_specified_operation_pools_existence", &TThis::RequireSpecifiedOperationPoolsExistence)
+        .Default(false);
+
     registrar.Postprocessor([&] (TFairShareStrategyConfig* config) {
         THashMap<int, TStringBuf> priorityToName;
         priorityToName.reserve(std::size(config->TemplatePoolTreeConfigMap));

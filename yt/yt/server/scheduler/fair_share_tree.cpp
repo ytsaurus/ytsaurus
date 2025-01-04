@@ -926,6 +926,15 @@ public:
             .Run(operation, poolName);
     }
 
+    void EnsureOperationPoolExistence(const TString& poolName) const override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        if (!FindPool(poolName)) {
+            THROW_ERROR_EXCEPTION(EErrorCode::OperationLaunchedInNonexistentPool, "Pool %Qv not found", poolName);
+        }
+    }
+
     TError CheckOperationJobResourceLimitsRestrictions(const TSchedulerOperationElementPtr& element) const
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
