@@ -819,6 +819,11 @@ private:
             YT_VERIFY(collocation->GetState() == EReplicationCardCollocationState::Immigrating);
             if (std::ssize(collocation->ReplicationCards()) == collocation->GetSize()) {
                 collocation->SetState(EReplicationCardCollocationState::Normal);
+                // COMPAT(osidorkin)
+                int reign = GetCurrentMutationContext()->Request().Reign;
+                if (reign < static_cast<int>(EChaosReign::NoDetachOnDistributedCollocationAttach)) {
+                    BindReplicationCardCollocationToRtt(collocation);
+                }
             }
         }
 
