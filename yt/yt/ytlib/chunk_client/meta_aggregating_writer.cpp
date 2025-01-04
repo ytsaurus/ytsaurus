@@ -402,7 +402,7 @@ private:
     std::optional<TSamplesExtension> SamplesExt_;
     std::optional<TColumnarStatistics> ColumnarStatistics_;
 
-    void AbsorbFirstMeta(const TDeferredChunkMetaPtr& meta, TChunkId chunkId)
+    void AbsorbFirstMeta(const TDeferredChunkMetaPtr& meta, TChunkId /* chunkId */)
     {
         ChunkMeta_->set_type(meta->type());
         ChunkMeta_->set_format(meta->format());
