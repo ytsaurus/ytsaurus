@@ -636,15 +636,24 @@ public:
         for (const auto& poolTreeDescription : poolTrees) {
             auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
             auto specIt = spec->SchedulingOptionsPerPoolTree.find(poolTreeDescription.Name);
+            auto tree = GetTree(poolTreeDescription.Name);
+            std::optional<TString> poolFromSpec;
             if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
                 treeParams->Weight = specIt->second->Weight ? specIt->second->Weight : spec->Weight;
-                treeParams->Pool = GetTree(poolTreeDescription.Name)->CreatePoolName(specIt->second->Pool ? specIt->second->Pool : spec->Pool, user);
                 treeParams->ResourceLimits = specIt->second->ResourceLimits->IsNonTrivial() ? specIt->second->ResourceLimits : spec->ResourceLimits;
+                poolFromSpec = specIt->second->Pool ? specIt->second->Pool : spec->Pool;
             } else {
                 treeParams->Weight = spec->Weight;
-                treeParams->Pool = GetTree(poolTreeDescription.Name)->CreatePoolName(spec->Pool, user);
                 treeParams->ResourceLimits = spec->ResourceLimits;
+                poolFromSpec = spec->Pool;
             }
+
+            bool requirePoolExistence = spec->RequireSpecifiedPoolsExistence.value_or(Config_->RequireSpecifiedOperationPoolsExistence);
+            if (requirePoolExistence && poolFromSpec && !poolTreeDescription.Tentative && !poolTreeDescription.Probing) {
+                tree->EnsureOperationPoolExistence(poolFromSpec.value());
+            }
+            treeParams->Pool = tree->CreatePoolName(poolFromSpec, user);
+
             treeParams->Tentative = poolTreeDescription.Tentative;
             treeParams->Probing = poolTreeDescription.Probing;
             EmplaceOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, poolTreeDescription.Name, std::move(treeParams));

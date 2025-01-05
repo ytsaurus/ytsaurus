@@ -1211,6 +1211,9 @@ public:
     //! If |false|, scheduler will ignore offloading settings defined for ancestor pools.
     bool AllowOffloading;
 
+    //! If |true|, scheduler will fail the operation if any of specified pools doesn't exist.
+    std::optional<bool> RequireSpecifiedPoolsExistence;
+
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);

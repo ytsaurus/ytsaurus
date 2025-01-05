@@ -2393,6 +2393,31 @@ class TestEphemeralPools(YTEnvSetup):
         assert pool_info["mode"] == "fifo"
         assert pool_info["resource_limits"]["cpu"] == 1.0
 
+    @authors("renadeen")
+    def test_require_specified_pools_existence_flag(self):
+        with raises_yt_error(yt_error_codes.Scheduler.OperationLaunchedInNonexistentPool):
+            run_sleeping_vanilla(spec={"pool": "ephemeral", "require_specified_pools_existence": True})
+
+        # It's OK to launch operation in unspecified ephemeral pool.
+        run_test_vanilla(":", track=True, spec={"require_specified_pools_existence": True})
+
+        # It's OK to launch operation in ephemeral pool under ephemeral hub.
+        create_pool("ephemeral_hub", attributes={"create_ephemeral_subpools": True})
+        run_test_vanilla(":", track=True, spec={"pool": "ephemeral_hub", "require_specified_pools_existence": True})
+
+    @authors("renadeen")
+    def test_require_specified_pools_existence_global_flag(self):
+        update_scheduler_config("require_specified_operation_pools_existence", True)
+        with raises_yt_error(yt_error_codes.Scheduler.OperationLaunchedInNonexistentPool):
+            run_sleeping_vanilla(spec={"pool": "ephemeral"})
+
+        # It's OK to launch operation in unspecified ephemeral pool.
+        run_test_vanilla(":", track=True)
+
+        # It's OK to launch operation in ephemeral pool under ephemeral hub.
+        create_pool("ephemeral_hub", attributes={"create_ephemeral_subpools": True})
+        run_test_vanilla(":", track=True, spec={"pool": "ephemeral_hub"})
+
 
 class TestSchedulerPoolsCommon(YTEnvSetup):
     NUM_MASTERS = 1

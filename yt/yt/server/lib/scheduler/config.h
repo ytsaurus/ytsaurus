@@ -540,6 +540,8 @@ public:
 
     TString EphemeralPoolNameRegex;
 
+    bool RequireSpecifiedOperationPoolsExistence;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyConfig);
 
     static void Register(TRegistrar registrar);

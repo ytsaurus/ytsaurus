@@ -887,6 +887,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("allow_offloading", &TThis::AllowOffloading)
         .Default(true);
 
+    registrar.Parameter("require_specified_pools_existence", &TThis::RequireSpecifiedPoolsExistence)
+        .Default();
+
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             spec->UnavailableChunkTactics == EUnavailableChunkAction::Skip)
