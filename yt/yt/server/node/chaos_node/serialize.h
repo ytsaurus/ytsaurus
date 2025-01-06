@@ -32,6 +32,7 @@ DEFINE_ENUM(EChaosReign,
     ((ClockClusterTagValidation)    (300015)) // osidorkin
     ((CollocationOptions)           (300016)) // akozhikhov
     ((AttachDistributedCollocation) (300017)) // savrus
+    ((NoDetachOnDistributedCollocationAttach)   (300018)) // osidorkin
 );
 
 static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not monotonic");
