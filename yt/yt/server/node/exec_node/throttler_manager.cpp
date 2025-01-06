@@ -29,6 +29,7 @@ using namespace NClusterNode;
 using namespace NConcurrency;
 using namespace NDiscoveryClient;
 using namespace NDistributedThrottler;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,9 +41,17 @@ public:
         NClusterNode::IBootstrap* bootstrap,
         TThrottlerManagerOptions options);
 
-    IThroughputThrottlerPtr GetOrCreateThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName) override;
+    IThroughputThrottlerPtr GetOrCreateThrottler(
+        EExecNodeThrottlerKind kind,
+        EThrottlerTrafficType trafficType,
+        std::optional<TClusterName> remoteClusterName) override;
 
     void Reconfigure(TClusterNodeDynamicConfigPtr dynamicConfig) override;
+
+    const TClusterThrottlersConfigPtr GetClusterThrottlersConfig() const override;
+
+    std::optional<THashMap<TClusterName, TIncomingTrafficUtilization>> GetClusterToIncomingTrafficUtilization(
+        EThrottlerTrafficType trafficType) const override;
 
 private:
     NClusterNode::IBootstrap* const Bootstrap_ = nullptr;
@@ -51,7 +60,7 @@ private:
     const NApi::NNative::IConnectionPtr Connection_;
     const NApi::NNative::IClientPtr Client_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
-    const TClusterNodeConfigPtr ClusterNodeConfig_;
+    const TClusterNodeBootstrapConfigPtr ClusterNodeConfig_;
     const IInvokerPtr Invoker_;
     const NRpc::IServerPtr RpcServer_;
     // Fields from manager options.
@@ -416,6 +425,61 @@ void TThrottlerManager::Reconfigure(TClusterNodeDynamicConfigPtr dynamicConfig)
             RawThrottlers_[kind]->Reconfigure(std::move(config));
         }
     }
+}
+
+const TClusterThrottlersConfigPtr TThrottlerManager::GetClusterThrottlersConfig() const
+{
+    auto guard = Guard(Lock_);
+    return ClusterThrottlersConfig_;
+}
+
+std::optional<THashMap<TClusterName, TThrottlerManager::TIncomingTrafficUtilization>> TThrottlerManager::GetClusterToIncomingTrafficUtilization(EThrottlerTrafficType trafficType) const
+{
+    std::shared_ptr<const THashMap<TThrottlerId, TThrottlerUsage>> throttlerToTotalUsage;
+    {
+        auto guard = Guard(Lock_);
+        if (DistributedThrottlerFactory_) {
+            throttlerToTotalUsage = DistributedThrottlerFactory_->GetThrottlerToTotalUsage();
+        }
+    }
+
+    if (!throttlerToTotalUsage) {
+        // I am not the leader so return nullopt.
+        return std::nullopt;
+    }
+
+    auto config = GetClusterThrottlersConfig();
+
+    // I am the leader so return non null result.
+    THashMap<TClusterName, TThrottlerManager::TIncomingTrafficUtilization> result;
+    for (const auto& [throttlerId, totalUsage] : *throttlerToTotalUsage) {
+        try {
+            auto [type, clusterName] = FromThrottlerId(throttlerId);
+            if (type != trafficType) {
+                continue;
+            }
+
+            auto& trafficUtilization = result[clusterName];
+            if (config) {
+                // Calculate limit without ExtraLimitRatio.
+                trafficUtilization.Limit = std::max(1.0, totalUsage.Limit) / (1 + config->DistributedThrottler->ExtraLimitRatio);
+                trafficUtilization.RateLimitRatioHardThreshold = config->RateLimitRatioHardThreshold;
+                trafficUtilization.RateLimitRatioSoftThreshold = config->RateLimitRatioSoftThreshold;
+                trafficUtilization.MaxEstimatedTimeToReadPendingBytesThreshold = config->MaxEstimatedTimeToReadPendingBytesThreshold.Seconds();
+                trafficUtilization.MinEstimatedTimeToReadPendingBytesThreshold = config->MinEstimatedTimeToReadPendingBytesThreshold.Seconds();
+            } else {
+                trafficUtilization.Limit = std::max(1.0, totalUsage.Limit);
+            }
+
+            trafficUtilization.Rate = totalUsage.Rate;
+            trafficUtilization.PendingBytes = totalUsage.QueueByteSize;
+            trafficUtilization.MaxEstimatedTimeToReadPendingBytes = totalUsage.QueueMaxEstimatedOverrunDuration;
+            trafficUtilization.MinEstimatedTimeToReadPendingBytes = totalUsage.QueueMinEstimatedOverrunDuration;
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Unexpected throttler id %Qv", throttlerId);
+        }
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

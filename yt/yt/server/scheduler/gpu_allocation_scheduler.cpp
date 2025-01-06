@@ -756,7 +756,7 @@ void TGpuAllocationScheduler::RegisterOperation(
     bool isGang,
     std::optional<THashSet<TString>> specifiedSchedulingModules)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     YT_LOG_INFO("Registering operation "
         "(OperationId: %v, IsGang: %v)",
@@ -770,7 +770,7 @@ void TGpuAllocationScheduler::RegisterOperation(
 
 void TGpuAllocationScheduler::UnregisterOperation(TOperationId operationId)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     YT_LOG_INFO("Unregistering operation "
         "(OperationId: %v)",
@@ -785,7 +785,7 @@ void TGpuAllocationScheduler::UnregisterOperation(TOperationId operationId)
 
 void TGpuAllocationScheduler::RegisterNode(TNodeId nodeId, const TFairShareTreeAllocationSchedulerNodeState& node)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     YT_LOG_INFO("Registering node "
         "(NodeId: %v)",
@@ -800,7 +800,7 @@ void TGpuAllocationScheduler::RegisterNode(TNodeId nodeId, const TFairShareTreeA
 
 void TGpuAllocationScheduler::UnregisterNode(TNodeId nodeId)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     YT_LOG_INFO("Unregistering node "
         "(NodeId: %v)",
@@ -817,7 +817,7 @@ void TGpuAllocationScheduler::UnregisterNode(TNodeId nodeId)
 // TODO: More structured logging.
 void TGpuAllocationScheduler::ScheduleAllocations()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     auto now = TInstant::Now();
 
@@ -904,14 +904,14 @@ void TGpuAllocationScheduler::ResetOperationModule(const TGpuSchedulerOperationS
 
 void TGpuAllocationScheduler::UpdateConfig(TGpuAllocationSchedulerConfigPtr config)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     Config_ = std::move(config);
 }
 
 void TGpuAllocationScheduler::UpdateOperationRuntimeAttributes(TOperationId operationId, TOperationRuntimeAttributes attributes)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     auto& operation = GetOrCrash(OperationStates_, operationId);
 
@@ -920,7 +920,7 @@ void TGpuAllocationScheduler::UpdateOperationRuntimeAttributes(TOperationId oper
 
 void TGpuAllocationScheduler::UpdateOperationMinNeededResources(TOperationId operationId, TJobResources minNeededResources)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     auto& operation = GetOrCrash(OperationStates_, operationId);
 
@@ -937,7 +937,7 @@ void TGpuAllocationScheduler::OnAllocationFinished(
     const TGpuAllocationStatePtr& allocation,
     TNodeId nodeId)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     // NB(omgronny): Race with operation unregistering is possible.
     if (!OperationStates_.contains(operationId)) {

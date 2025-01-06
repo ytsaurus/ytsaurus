@@ -12,7 +12,7 @@ from yt_commands import (
     wait_breakpoint, release_breakpoint, with_breakpoint,
     events_on_fs, create, create_pool, create_table,
     ls, get, set, remove, link, exists, create_network_project, create_tmpdir,
-    create_user, make_ace, start_transaction, lock,
+    create_user, make_ace, start_transaction, lock, list_user_tokens,
     write_file, read_table, remote_copy, get_driver,
     write_table, map, abort_op, sort,
     vanilla, run_test_vanilla, abort_job, get_job_spec,
@@ -29,6 +29,8 @@ import subprocess
 
 import yt_error_codes
 
+from yt_driver_bindings import Driver
+
 from yt_helpers import profiler_factory
 
 import yt.environment.init_operations_archive as init_operations_archive
@@ -39,6 +41,8 @@ from yt.common import update, YtError
 from yt.wrapper.common import generate_uuid
 
 from flaky import flaky
+
+from copy import deepcopy
 
 import pytest
 import time
@@ -2087,6 +2091,203 @@ class TestSecureVault(YTEnvSetup):
 
 ##################################################################
 
+class TestTemporaryTokens(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    ENABLE_HTTP_PROXY = True
+    NUM_HTTP_PROXIES = 1
+
+    USE_DYNAMIC_TABLES = True
+
+    DELTA_PROXY_CONFIG = {
+        "auth": {
+            "enable_authentication": True,
+        },
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operations_cleaner": {
+                "enable": True,
+                "hard_retained_operation_count": 0,
+                "clean_delay": 0,
+                "analysis_period": 100,
+                "min_archivation_retry_sleep_delay": 100,
+                "max_archivation_retry_sleep_delay": 110,
+                "max_removal_sleep_delay": 100,
+            },
+        }
+    }
+
+    def setup_method(self, method):
+        super(TestTemporaryTokens, self).setup_method(method)
+        sync_create_cells(1)
+        init_operations_archive.create_tables_latest_version(
+            self.Env.create_native_client(),
+            override_tablet_cell_bundle="default",
+        )
+
+    @authors("achulkov2")
+    def test_basic(self):
+        create_user("alice")
+        assert not list_user_tokens("alice")
+
+        command = with_breakpoint(f"""
+            export YT_PROXY={self.Env.get_proxy_address()};
+            curl -X POST \"http://$YT_PROXY/api/v4/create?path=//tmp/created_from_operation&type=map_node\" \\
+                -H \"Accept: application/json\" -H \"Authorization: OAuth $YT_SECURE_VAULT_YT_TOKEN\" \\
+                >&2;
+            BREAKPOINT;
+        """)
+
+        op = run_test_vanilla(spec={"max_failed_job_count": 1, "issue_temporary_token": True}, command=command, authenticated_user="alice")
+        op_path = op.get_path()
+
+        wait_breakpoint()
+
+        token_node_id = get(op_path + "/@temporary_token_node_id")
+        token_hash = get(f"#{token_node_id}/@key")
+
+        alice_tokens = list_user_tokens("alice", with_metadata=True)
+        assert len(alice_tokens) == 1
+
+        assert token_hash in alice_tokens
+        assert op.id in alice_tokens[token_hash]["description"]
+        assert alice_tokens[token_hash]["effective_expiration"] == {"time": yson.YsonEntity(), "timeout": yson.YsonEntity()}
+
+        assert get("//tmp/created_from_operation/@owner") == "alice"
+
+        release_breakpoint()
+
+        op.track()
+
+        wait(lambda: not exists(op_path))
+
+        assert not list_user_tokens("alice")
+
+    @authors("achulkov2")
+    def test_secure_vault_keys(self):
+        create_user("alice")
+        assert not list_user_tokens("alice")
+
+        command = f"""
+            export YT_PROXY={self.Env.get_proxy_address()};
+            curl -X POST \"http://$YT_PROXY/api/v4/create?path=//tmp/created_from_operation_$YT_SECURE_VAULT_NODE_SUFFIX&type=map_node\" \\
+                -H \"Accept: application/json\" -H \"Authorization: OAuth $YT_SECURE_VAULT_ANOTHER_YT_TOKEN\" \\
+                >&2;
+        """
+
+        op = run_test_vanilla(
+            spec={
+                "max_failed_job_count": 1,
+                "issue_temporary_token": True,
+                "temporary_token_environment_variable_name": "ANOTHER_YT_TOKEN",
+                "secure_vault": {"NODE_SUFFIX": "first"},
+            },
+            command=command,
+            authenticated_user="alice")
+        op.track()
+        assert get("//tmp/created_from_operation_first/@owner") == "alice"
+
+        with raises_yt_error("already exists"):
+            run_test_vanilla(
+                spec={
+                    "max_failed_job_count": 1,
+                    "issue_temporary_token": True,
+                    "temporary_token_environment_variable_name": "ANOTHER_YT_TOKEN",
+                    "secure_vault": {"NODE_SUFFIX": "second", "ANOTHER_YT_TOKEN": "i-am-not-a-token"},
+                },
+                command=command,
+                authenticated_user="alice")
+
+        assert not exists("//tmp/created_from_operation_second")
+
+        wait(lambda: not list_user_tokens("alice"))
+
+    @authors("achulkov2")
+    def test_revive(self):
+        create_user("alice")
+        assert not list_user_tokens("alice")
+
+        command = with_breakpoint(f"""
+            BREAKPOINT;
+            export YT_PROXY={self.Env.get_proxy_address()};
+            curl -X POST \"http://$YT_PROXY/api/v4/create?path=//tmp/created_from_operation&type=map_node\" \\
+                -H \"Accept: application/json\" -H \"Authorization: OAuth $YT_SECURE_VAULT_YT_TOKEN\" \\
+                >&2;
+        """, breakpoint_name="first_breakpoint")
+        command += with_breakpoint("BREAKPOINT;", breakpoint_name="second_breakpoint")
+
+        op = run_test_vanilla(spec={"max_failed_job_count": 1, "issue_temporary_token": True}, command=command, authenticated_user="alice")
+
+        wait_breakpoint("first_breakpoint")
+
+        assert len(list_user_tokens("alice")) == 1
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            time.sleep(2)
+
+        release_breakpoint("first_breakpoint")
+        wait_breakpoint("second_breakpoint")
+
+        # No new token should be created, value should still be in secure vault.
+        assert len(list_user_tokens("alice")) == 1
+        assert get("//tmp/created_from_operation/@owner") == "alice"
+
+        release_breakpoint("second_breakpoint")
+
+        op.track()
+
+        wait(lambda: not exists(op.get_path()))
+
+        # Token should still be removed, token node id is persisted through revival
+        assert not list_user_tokens("alice")
+
+    @authors("achulkov2")
+    def test_token_expiration_timeout(self):
+        update_scheduler_config("testing_options/operation_node_creation_delay", {
+            "duration": 3000,
+            "type": "async",
+        })
+
+        # This should be enough time for the remainder of the test.
+        expiration_timeout = 20000
+        update_scheduler_config("temporary_operation_token_expiration_timeout", expiration_timeout)
+
+        create_user("alice")
+        assert not list_user_tokens("alice")
+
+        driver_config = deepcopy(self.Env.configs["driver"])
+        driver_config["api_version"] = 4
+        driver_config["scheduler"]["retry_attempts"] = 1
+        driver = Driver(driver_config)
+
+        op_response = run_test_vanilla(
+            spec={"max_failed_job_count": 1, "issue_temporary_token": True},
+            command="sleep 5",
+            return_response=True,
+            authenticated_user="alice",
+            driver=driver)
+
+        wait(lambda: len(list_user_tokens("alice")) == 1)
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            pass
+
+        op_response.wait()
+        assert not op_response.is_ok()
+
+        alice_tokens = list_user_tokens("alice", with_metadata=True)
+        assert len(alice_tokens) == 1
+        list(alice_tokens.values())[0]["effective_expiration"]["timeout"] == expiration_timeout
+
+        wait(lambda: not list_user_tokens("alice"))
+
+
+##################################################################
+
 
 class TestUserJobMonitoring(YTEnvSetup):
     USE_DYNAMIC_TABLES = True
@@ -4026,3 +4227,56 @@ class TestJobInputCache(YTEnvSetup):
 
         wait(lambda: block_compressed_cache_size.get() == 0)
         wait(lambda: meta_cache_size.get() == 0)
+
+
+class TestJobStatistics(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    @authors("ngc224")
+    def test_io_statistics(self):
+        create("table", "//tmp/t_input")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        create("table", "//tmp/t_output1")
+        create("table", "//tmp/t_output2")
+
+        script = (
+            b"#!/usr/bin/env python3\n"
+            b"import sys\n"
+            b"import os\n"
+            b"data = sys.stdin.read()\n"
+            b"sys.stdout.write(data)\n"
+            b"with os.fdopen(4, 'w') as f: f.write(data)\n"
+        )
+
+        create("file", "//tmp/script")
+        write_file("//tmp/script", script)
+        set("//tmp/script/@executable", True)
+
+        op = map(
+            command="./script.py",
+            in_="//tmp/t_input",
+            out=["//tmp/t_output1", "//tmp/t_output2"],
+            spec={
+                "mapper": {
+                    "copy_files": True,
+                    "file_paths": [
+                        yson.to_yson_type("//tmp/script", attributes={"file_name": "script.py"}),
+                    ],
+                }
+            },
+            track=True,
+        )
+
+        statistics = op.get_statistics()
+
+        def get_statistics(key, output):
+            return extract_statistic_v2(statistics, f"chunk_writer_statistics.{output}.{key}")
+
+        for output in [0, 1]:
+            assert get_statistics("data_bytes_written_to_disk", output) > 0
+            assert get_statistics("data_io_write_requests", output) > 0
+            assert get_statistics("meta_bytes_written_to_disk", output) > 0
+            assert get_statistics("meta_io_write_requests", output) > 0

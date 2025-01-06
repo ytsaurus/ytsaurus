@@ -30,7 +30,6 @@ namespace NYT::NSecurityServer {
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NDistributedThrottler;
-using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -52,7 +51,7 @@ TRequestTracker::TRequestTracker(
 
 void TRequestTracker::Start()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(DynamicConfigChangedCallback_);
@@ -68,7 +67,7 @@ void TRequestTracker::Start()
 
 void TRequestTracker::Stop()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
@@ -241,7 +240,7 @@ void TRequestTracker::OnUpdateAlivePeerCount()
     const auto& hydraManager = hydraFacade->GetHydraManager();
     auto alivePeerIds = hydraManager->GetAlivePeerIds();
     YT_LOG_DEBUG("Alive peers updated (AlivePeerIds: %v)", alivePeerIds);
-    int peerCount = static_cast<int>(alivePeerIds.size());
+    int peerCount = std::ssize(alivePeerIds);
     if (peerCount != AlivePeerCount_) {
         AlivePeerCount_ = peerCount;
         if (!GetDynamicConfig()->EnableDistributedThrottler) {

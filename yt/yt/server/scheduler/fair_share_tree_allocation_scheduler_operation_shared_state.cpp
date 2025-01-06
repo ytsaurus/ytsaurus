@@ -653,7 +653,7 @@ TJobResources TFairShareTreeAllocationSchedulerOperationSharedState::SetAllocati
     TAllocationProperties* properties,
     const TJobResources& resources)
 {
-    VERIFY_WRITER_SPINLOCK_AFFINITY(AllocationPropertiesMapLock_);
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(AllocationPropertiesMapLock_);
 
     auto delta = resources - properties->ResourceUsage;
     properties->ResourceUsage = resources;

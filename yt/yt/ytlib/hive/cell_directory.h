@@ -114,7 +114,6 @@ struct ICellDirectory
         TCellId cellId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 
-
     //! Similar to #FindChannelByCellId but relies on cell tag rather than full cell id.
     //! Only works for global cells (see #NObjectClient::IsGlobalCellId).
     virtual NRpc::IChannelPtr FindChannelByCellTag(
@@ -131,7 +130,6 @@ struct ICellDirectory
         NObjectClient::TCellTag cellTag,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader) = 0;
 
-
     //! Returns the descriptor for a given cell id (null if the cell is not known).
     virtual TCellDescriptorPtr FindDescriptorByCellId(TCellId cellId) = 0;
 
@@ -143,7 +141,6 @@ struct ICellDirectory
 
     //! Returns peer address for a given cell (null if cell is not known or peer has no address).
     virtual std::optional<std::string> FindPeerAddress(TCellId cellId, int peerId) = 0;
-
 
     //! Returns the list of all registered cells, their versions, and configurations.
     virtual std::vector<TCellInfo> GetRegisteredCells()  = 0;
@@ -173,7 +170,6 @@ struct ICellDirectory
     //! Checks cell versions in #knownCells against the actual state;
     //! requests reconfiguration of outdated cells and unregistartion of stale cells.
     virtual TSynchronizationResult Synchronize(const std::vector<TCellInfo>& knownCells)  = 0;
-
 
     //! Registers a new cell or updates the configuration of an existing cell
     //! (if new configuration has a higher version).

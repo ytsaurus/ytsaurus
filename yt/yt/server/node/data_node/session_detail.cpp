@@ -26,7 +26,8 @@ TSessionBase::TSessionBase(
     const TSessionOptions& options,
     TStoreLocationPtr location,
     TLease lease,
-    TLockedChunkGuard lockedChunkGuard)
+    TLockedChunkGuard lockedChunkGuard,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , SessionId_(sessionId)
@@ -40,6 +41,7 @@ TSessionBase::TSessionBase(
         SessionId_))
     , StartTime_(TInstant::Now())
     , LockedChunkGuard_(std::move(lockedChunkGuard))
+    , WriteBlocksOptions_(std::move(writeBlocksOptions))
 {
     YT_VERIFY(Bootstrap_);
     YT_VERIFY(Location_);
@@ -49,21 +51,21 @@ TSessionBase::TSessionBase(
 
 TChunkId TSessionBase::GetChunkId() const&
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return SessionId_.ChunkId;
 }
 
 TSessionId TSessionBase::GetId() const&
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return SessionId_;
 }
 
 ESessionType TSessionBase::GetType() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     switch (Options_.WorkloadDescriptor.Category) {
         case EWorkloadCategory::SystemRepair:
@@ -82,35 +84,35 @@ TInstant TSessionBase::GetStartTime() const
 
 TMasterEpoch TSessionBase::GetMasterEpoch() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return MasterEpoch_;
 }
 
 const TWorkloadDescriptor& TSessionBase::GetWorkloadDescriptor() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Options_.WorkloadDescriptor;
 }
 
 const TSessionOptions& TSessionBase::GetSessionOptions() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Options_;
 }
 
 const TStoreLocationPtr& TSessionBase::GetStoreLocation() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Location_;
 }
 
 TFuture<void> TSessionBase::Start()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_LOG_DEBUG("Starting session");
 
@@ -119,7 +121,7 @@ TFuture<void> TSessionBase::Start()
             .AsyncVia(SessionInvoker_)
             .Run()
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
-                VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+                YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
                 YT_VERIFY(!Active_);
                 Active_ = true;
@@ -142,7 +144,7 @@ TFuture<void> TSessionBase::Start()
 
 void TSessionBase::Ping()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     // Let's be generous and accept pings in any state.
     TLeaseManager::RenewLease(Lease_);
@@ -150,12 +152,12 @@ void TSessionBase::Ping()
 
 void TSessionBase::Cancel(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
     YT_VERIFY(!error.IsOK());
 
     SessionInvoker_->Invoke(
         BIND([=, this, this_ = MakeStrong(this)] {
-            VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+            YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
             if (Canceled_.load()) {
                 return;
@@ -179,34 +181,34 @@ void TSessionBase::Cancel(const TError& error)
 
 void TSessionBase::OnUnregistered()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     UnregisteredEvent_.Set();
 }
 
 void TSessionBase::UnlockChunk()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = std::move(LockedChunkGuard_);
 }
 
 TFuture<void> TSessionBase::GetUnregisteredEvent()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return UnregisteredEvent_.ToFuture();
 }
 
-TFuture<NChunkClient::NProto::TChunkInfo> TSessionBase::Finish(
+TFuture<ISession::TFinishResult> TSessionBase::Finish(
     const TRefCountedChunkMetaPtr& chunkMeta,
     std::optional<int> blockCount)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return
         BIND([=, this, this_ = MakeStrong(this)] {
-            VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+            YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
             ValidateActive();
 
@@ -227,7 +229,7 @@ TFuture<NIO::TIOCounters> TSessionBase::PutBlocks(
     i64 cumulativeBlockSize,
     bool enableCaching)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return BIND(
         [
@@ -236,7 +238,7 @@ TFuture<NIO::TIOCounters> TSessionBase::PutBlocks(
             this_ = MakeStrong(this),
             blocks = std::move(blocks)
         ] () mutable {
-            VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+            YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
             ValidateActive();
             Ping();
@@ -253,11 +255,11 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TSessionBase::SendBlocks(
     i64 cumulativeBlockSize,
     const TNodeDescriptor& targetDescriptor)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return
         BIND([=, this, this_ = MakeStrong(this)] {
-            VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+            YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
             ValidateActive();
             Ping();
@@ -268,13 +270,13 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TSessionBase::SendBlocks(
         .Run();
 }
 
-TFuture<NIO::TIOCounters> TSessionBase::FlushBlocks(int blockIndex)
+TFuture<ISession::TFlushBlocksResult> TSessionBase::FlushBlocks(int blockIndex)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return
         BIND([=, this, this_ = MakeStrong(this)] {
-            VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+            YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
             ValidateActive();
             Ping();
@@ -287,7 +289,7 @@ TFuture<NIO::TIOCounters> TSessionBase::FlushBlocks(int blockIndex)
 
 void TSessionBase::ValidateActive() const
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     if (!Active_) {
         THROW_ERROR_EXCEPTION("Session is not active");

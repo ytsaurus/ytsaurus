@@ -67,7 +67,7 @@ TEST_F(TIncumbentSchedulerTest, TestScheduleToFollowers)
 
     auto incumbentMap = ScheduleIncumbents(config, peers);
 
-    THashMap<TString, int> peerToCount;
+    THashMap<std::string, int> peerToCount;
     for (auto& address : incumbentMap[EIncumbentType::ChunkReplicator].Addresses) {
         EXPECT_FALSE(address == "3");
         peerToCount[*address]++;
@@ -93,7 +93,7 @@ TEST_F(TIncumbentSchedulerTest, TestOrphanedDistribution)
 
     auto incumbentMap = ScheduleIncumbents(config, peers);
 
-    THashMap<TString, int> peerToCount;
+    THashMap<std::string, int> peerToCount;
     auto shardCount = GetIncumbentShardCount(EIncumbentType::ChunkReplicator);
     for (int peerIndex = 0; peerIndex < shardCount; ++peerIndex) {
         auto stableAddress = stableIncumbentMap[EIncumbentType::ChunkReplicator].Addresses[peerIndex];

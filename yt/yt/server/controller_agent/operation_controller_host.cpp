@@ -17,6 +17,7 @@ using namespace NConcurrency;
 using namespace NScheduler;
 using namespace NYTree;
 using namespace NCoreDump;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -528,6 +529,41 @@ TFuture<void> TOperationControllerHost::UpdateAccountResourceUsageLease(
     return Bootstrap_->GetControllerAgent()->GetMasterConnector()->UpdateAccountResourceUsageLease(
         leaseId,
         diskQuota);
+}
+
+void TOperationControllerHost::SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    const TClusterName& clusterName,
+    const TCallback<void()>& callback)
+{
+    return Bootstrap_->GetControllerAgent()->SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(clusterName, callback);
+}
+
+void TOperationControllerHost::UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    const TClusterName& clusterName,
+    const TCallback<void()>& callback)
+{
+    return Bootstrap_->GetControllerAgent()->UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(clusterName, callback);
+}
+
+std::shared_ptr<const THashMap<TClusterName, bool>> TOperationControllerHost::GetClusterToNetworkBandwidthAvailability() const
+{
+    return Bootstrap_->GetControllerAgent()->GetClusterToNetworkBandwidthAvailability();
+}
+
+bool TOperationControllerHost::IsNetworkBandwidthAvailable(const TClusterName& clusterName) const
+{
+    auto availability = GetClusterToNetworkBandwidthAvailability();
+    if (!availability) {
+        return true;
+    }
+
+    if (auto it = availability->find(clusterName); it != availability->end()) {
+        if (!it->second) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

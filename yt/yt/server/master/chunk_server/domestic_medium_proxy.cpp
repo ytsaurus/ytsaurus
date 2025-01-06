@@ -18,6 +18,7 @@ namespace NYT::NChunkServer {
 using namespace NYTree;
 using namespace NYson;
 using namespace NObjectServer;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,7 +74,7 @@ private:
                 }
 
                 BuildYsonFluently(consumer)
-                    .DoListFor(*medium->DiskFamilyWhitelist(), [] (TFluentList fluent, const TString& diskFamily) {
+                    .DoListFor(*medium->DiskFamilyWhitelist(), [] (TFluentList fluent, const std::string& diskFamily) {
                         fluent.Item().Value(diskFamily);
                     });
                 return true;
@@ -103,7 +104,7 @@ private:
             }
 
             case EInternedAttributeKey::DiskFamilyWhitelist: {
-                auto whitelist = ConvertTo<std::vector<TString>>(value);
+                auto whitelist = ConvertTo<std::vector<std::string>>(value);
                 auto originalSize = whitelist.size();
                 SortUnique(whitelist);
                 if (whitelist.size() != originalSize) {

@@ -13,6 +13,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <yt/yt/ytlib/scheduler/cluster_name.h>
+
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <library/cpp/yt/memory/non_null_ptr.h>
@@ -44,7 +46,7 @@ public:
         NProto::TRspSettleJob>;
     using TCtxSettleJobPtr = TIntrusivePtr<TCtxSettleJob>;
 
-    TJobTracker(TBootstrap* bootstrap, TJobReporterPtr jobReporter);
+    TJobTracker(TBootstrap* bootstrap, NServer::TJobReporterPtr jobReporter);
 
     TFuture<void> Initialize();
     void OnSchedulerConnected(TIncarnationId incarnationId);
@@ -69,7 +71,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    TJobReporterPtr JobReporter_;
+    NServer::TJobReporterPtr JobReporter_;
 
     TJobTrackerConfigPtr Config_;
 
@@ -298,6 +300,7 @@ private:
         TNodeId NodeId;
         TIncarnationId IncarnationId;
         THeartbeatRequest Request;
+        std::shared_ptr<THashMap<NScheduler::TClusterName, bool>> ClusterToNetworkBandwidthAvailability;
     };
 
     struct THeartbeatProcessingResult

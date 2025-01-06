@@ -6,15 +6,17 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TProxyConfig)
+DECLARE_REFCOUNTED_CLASS(TProxyBootstrapConfig)
+DECLARE_REFCOUNTED_CLASS(TProxyProgramConfig)
 DECLARE_REFCOUNTED_CLASS(TProxyDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TProxyMemoryLimits)
 DECLARE_REFCOUNTED_CLASS(TAccessCheckerConfig)
 DECLARE_REFCOUNTED_CLASS(TAccessCheckerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TDiscoveryServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TBundleProxyDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(IBundleDynamicConfigManager)
 
+DECLARE_REFCOUNTED_CLASS(TBootstrap)
+DECLARE_REFCOUNTED_CLASS(IBundleDynamicConfigManager)
 DECLARE_REFCOUNTED_STRUCT(IDynamicConfigManager)
 
 ////////////////////////////////////////////////////////////////////////////////

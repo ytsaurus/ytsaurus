@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/misc/ring_queue.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -41,7 +41,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer
 
 #define RELEASE_QUEUE_H_
 #include "release_queue-inl.h"

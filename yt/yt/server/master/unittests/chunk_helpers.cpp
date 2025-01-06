@@ -29,7 +29,7 @@ TGuid GenerateId(EObjectType type)
     return MakeId(type, TCellTag(0), counter++, 0);
 }
 
-TChunk* TChunkGeneratorBase::CreateChunk(
+TChunk* TChunkGeneratorTestBase::CreateChunk(
     i64 rowCount,
     i64 compressedDataSize,
     i64 uncompressedDataSize,
@@ -65,7 +65,7 @@ TChunk* TChunkGeneratorBase::CreateChunk(
     return ptr;
 }
 
-TChunk* TChunkGeneratorBase::CreateUnconfirmedChunk()
+TChunk* TChunkGeneratorTestBase::CreateUnconfirmedChunk()
 {
     auto chunk = TPoolAllocator::New<TChunk>(GenerateId(EObjectType::Chunk));
     chunk->RefObject();
@@ -75,7 +75,7 @@ TChunk* TChunkGeneratorBase::CreateUnconfirmedChunk()
     return ptr;
 }
 
-TChunk* TChunkGeneratorBase::CreateJournalChunk(bool sealed, bool overlayed)
+TChunk* TChunkGeneratorTestBase::CreateJournalChunk(bool sealed, bool overlayed)
 {
     auto chunk = TPoolAllocator::New<TChunk>(GenerateId(EObjectType::JournalChunk));
     chunk->SetOverlayed(overlayed);
@@ -104,7 +104,7 @@ TChunk* TChunkGeneratorBase::CreateJournalChunk(bool sealed, bool overlayed)
     return ptr;
 }
 
-TChunkList* TChunkGeneratorBase::CreateChunkList(EChunkListKind kind)
+TChunkList* TChunkGeneratorTestBase::CreateChunkList(EChunkListKind kind)
 {
     auto chunkList = TPoolAllocator::New<TChunkList>(GenerateId(EObjectType::ChunkList));
     chunkList->SetKind(kind);
@@ -115,7 +115,7 @@ TChunkList* TChunkGeneratorBase::CreateChunkList(EChunkListKind kind)
     return ptr;
 }
 
-TChunkView* TChunkGeneratorBase::CreateChunkView(
+TChunkView* TChunkGeneratorTestBase::CreateChunkView(
     TChunk* underlyingChunk,
     NTableClient::TLegacyOwningKey lowerLimit,
     NTableClient::TLegacyOwningKey upperLimit)
@@ -135,18 +135,8 @@ TChunkView* TChunkGeneratorBase::CreateChunkView(
     return ptr;
 }
 
-void TChunkGeneratorBase::SetUp()
-{
-    SetupMasterSmartpointers();
-}
-
-void TChunkGeneratorBase::TearDown()
-{
-    ResetMasterSmartpointers();
-}
-
-void TChunkGeneratorBase::ConfirmChunk(
-    TChunk *chunk,
+void TChunkGeneratorTestBase::ConfirmChunk(
+    TChunk* chunk,
     i64 rowCount,
     i64 compressedDataSize,
     i64 uncompressedDataSize,

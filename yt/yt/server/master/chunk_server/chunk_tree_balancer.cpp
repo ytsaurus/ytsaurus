@@ -153,7 +153,7 @@ void TChunkTreeBalancer::AppendChunkTree(
             auto* currentChunkList = currentChunkTree->AsChunkList();
             YT_VERIFY(currentChunkList->GetKind() == EChunkListKind::Static);
             int currentIndex = currentEntry.Index;
-            if (currentIndex < static_cast<int>(currentChunkList->Children().size())) {
+            if (currentIndex < std::ssize(currentChunkList->Children())) {
                 ++currentEntry.Index;
                 stack.push(TEntry(currentChunkList->Children()[currentIndex], 0));
                 continue;

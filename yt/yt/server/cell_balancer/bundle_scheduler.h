@@ -10,42 +10,42 @@ constexpr int DefaultWriteThreadPoolSize = 5;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TBundlesDynamicConfig = THashMap<TString, TBundleDynamicConfigPtr>;
+using TBundlesDynamicConfig = THashMap<std::string, TBundleDynamicConfigPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSpareNodesInfo
 {
-    std::vector<TString> FreeNodes;
-    std::vector<TString> ExternallyDecommissioned;
-    THashMap<TString, std::vector<TString>> UsedByBundle;
-    THashMap<TString, std::vector<TString>> ReleasingByBundle;
+    std::vector<std::string> FreeNodes;
+    std::vector<std::string> ExternallyDecommissioned;
+    THashMap<std::string, std::vector<std::string>> UsedByBundle;
+    THashMap<std::string, std::vector<std::string>> ReleasingByBundle;
 };
 
-using TPerDataCenterSpareNodesInfo = THashMap<TString, TSpareNodesInfo>;
+using TPerDataCenterSpareNodesInfo = THashMap<std::string, TSpareNodesInfo>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSpareProxiesInfo
 {
-    std::vector<TString> FreeProxies;
-    THashMap<TString, std::vector<TString>> UsedByBundle;
+    std::vector<std::string> FreeProxies;
+    THashMap<std::string, std::vector<std::string>> UsedByBundle;
 };
 
-using TPerDataCenterSpareProxiesInfo = THashMap<TString, TSpareProxiesInfo>;
+using TPerDataCenterSpareProxiesInfo = THashMap<std::string, TSpareProxiesInfo>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TInstanceRackInfo
 {
-    THashMap<TString, int> RackToBundleInstances;
-    THashMap<TString, int> RackToSpareInstances;
+    THashMap<std::string, int> RackToBundleInstances;
+    THashMap<std::string, int> RackToSpareInstances;
 
     // Spare instances needed-for-minus one rack guarantee.
     int RequiredSpareNodeCount = 0;
 };
 
-using TDataCenterRackInfo = THashMap<TString, TInstanceRackInfo>;
+using TDataCenterRackInfo = THashMap<std::string, TInstanceRackInfo>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,7 +70,7 @@ struct TDataCenterDisruptedState
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TDataCenterToInstanceMap = THashMap<TString, std::vector<TString>>;
+using TDataCenterToInstanceMap = THashMap<std::string, std::vector<std::string>>;
 
 struct TZoneToInstanceInfo
 {
@@ -96,38 +96,38 @@ struct TSchedulerInputState
     TIndexedEntries<TSystemAccount> SystemAccounts;
     TSystemAccountPtr RootSystemAccount;
 
-    using TBundleToInstanceMapping = THashMap<TString, TDataCenterToInstanceMap>;
+    using TBundleToInstanceMapping = THashMap<std::string, TDataCenterToInstanceMap>;
     TBundleToInstanceMapping BundleNodes;
     TBundleToInstanceMapping BundleProxies;
 
-    THashMap<TString, TString> PodIdToInstanceName;
+    THashMap<std::string, std::string> PodIdToInstanceName;
 
-    using TZoneToInstanceMap = THashMap<TString, TZoneToInstanceInfo>;
+    using TZoneToInstanceMap = THashMap<std::string, TZoneToInstanceInfo>;
     TZoneToInstanceMap ZoneNodes;
     TZoneToInstanceMap ZoneProxies;
 
-    THashMap<TString, TDataCenterRackInfo> ZoneToRacks;
+    THashMap<std::string, TDataCenterRackInfo> ZoneToRacks;
 
     TBundlesDynamicConfig DynamicConfig;
 
-    THashMap<TString, TPerDataCenterSpareNodesInfo> ZoneToSpareNodes;
+    THashMap<std::string, TPerDataCenterSpareNodesInfo> ZoneToSpareNodes;
 
-    THashMap<TString, TPerDataCenterSpareProxiesInfo> ZoneToSpareProxies;
+    THashMap<std::string, TPerDataCenterSpareProxiesInfo> ZoneToSpareProxies;
 
-    THashMap<TString, NBundleControllerClient::TInstanceResourcesPtr> BundleResourceAlive;
-    THashMap<TString, NBundleControllerClient::TInstanceResourcesPtr> BundleResourceAllocated;
-    THashMap<TString, NBundleControllerClient::TInstanceResourcesPtr> BundleResourceTarget;
+    THashMap<std::string, NBundleControllerClient::TInstanceResourcesPtr> BundleResourceAlive;
+    THashMap<std::string, NBundleControllerClient::TInstanceResourcesPtr> BundleResourceAllocated;
+    THashMap<std::string, NBundleControllerClient::TInstanceResourcesPtr> BundleResourceTarget;
 
-    using TInstanceCountBySize = THashMap<TString, int>;
-    THashMap<TString, TInstanceCountBySize> AllocatedNodesBySize;
-    THashMap<TString, TInstanceCountBySize> AliveNodesBySize;
-    THashMap<TString, TInstanceCountBySize> AllocatedProxiesBySize;
-    THashMap<TString, TInstanceCountBySize> AliveProxiesBySize;
+    using TInstanceCountBySize = THashMap<std::string, int>;
+    THashMap<std::string, TInstanceCountBySize> AllocatedNodesBySize;
+    THashMap<std::string, TInstanceCountBySize> AliveNodesBySize;
+    THashMap<std::string, TInstanceCountBySize> AllocatedProxiesBySize;
+    THashMap<std::string, TInstanceCountBySize> AliveProxiesBySize;
 
-    using TQualifiedDCName = std::pair<TString, TString>;
+    using TQualifiedDCName = std::pair<std::string, std::string>;
     THashMap<TQualifiedDCName, TDataCenterDisruptedState> DatacenterDisrupted;
 
-    THashMap<TString, TString> BundleToShortName;
+    THashMap<std::string, std::string> BundleToShortName;
 
     TSysConfigPtr SysConfig;
 };
@@ -142,38 +142,38 @@ struct TSchedulerMutations
     TIndexedEntries<TInstanceAnnotations> ChangeNodeAnnotations;
     TIndexedEntries<TInstanceAnnotations> ChangedProxyAnnotations;
 
-    using TUserTags = THashSet<TString>;
-    THashMap<TString, TUserTags> ChangedNodeUserTags;
+    using TUserTags = THashSet<std::string>;
+    THashMap<std::string, TUserTags> ChangedNodeUserTags;
 
-    THashMap<TString, bool> ChangedDecommissionedFlag;
-    THashMap<TString, bool> ChangedEnableBundleBalancerFlag;
-    THashMap<TString, bool> ChangedMuteTabletCellsCheck;
-    THashMap<TString, bool> ChangedMuteTabletCellSnapshotsCheck;
+    THashMap<std::string, bool> ChangedDecommissionedFlag;
+    THashMap<std::string, bool> ChangedEnableBundleBalancerFlag;
+    THashMap<std::string, bool> ChangedMuteTabletCellsCheck;
+    THashMap<std::string, bool> ChangedMuteTabletCellSnapshotsCheck;
 
-    THashMap<TString, TString> ChangedProxyRole;
-    THashSet<TString> RemovedProxyRole;
+    THashMap<std::string, std::string> ChangedProxyRole;
+    THashSet<std::string> RemovedProxyRole;
 
-    std::vector<TString> CellsToRemove;
+    std::vector<std::string> CellsToRemove;
 
     // Maps bundle name to new tablet cells count to create.
-    THashMap<TString, int> CellsToCreate;
+    THashMap<std::string, int> CellsToCreate;
 
     std::vector<TAlert> AlertsToFire;
 
-    THashMap<TString, TAccountResourcesPtr> LiftedSystemAccountLimit;
-    THashMap<TString, TAccountResourcesPtr> LoweredSystemAccountLimit;
+    THashMap<std::string, TAccountResourcesPtr> LiftedSystemAccountLimit;
+    THashMap<std::string, TAccountResourcesPtr> LoweredSystemAccountLimit;
     TAccountResourcesPtr ChangedRootSystemAccountLimit;
 
     std::optional<TBundlesDynamicConfig> DynamicConfig;
 
-    THashSet<TString> NodesToCleanup;
-    THashSet<TString> ProxiesToCleanup;
+    THashSet<std::string> NodesToCleanup;
+    THashSet<std::string> ProxiesToCleanup;
 
-    THashMap<TString, i64> ChangedTabletStaticMemory;
-    THashMap<TString, TString> ChangedBundleShortName;
+    THashMap<std::string, i64> ChangedTabletStaticMemory;
+    THashMap<std::string, std::string> ChangedBundleShortName;
 
-    THashMap<TString, TString> ChangedNodeTagFilters;
-    THashMap<TString, TBundleConfigPtr> InitializedBundleTargetConfig;
+    THashMap<std::string, std::string> ChangedNodeTagFilters;
+    THashMap<std::string, TBundleConfigPtr> InitializedBundleTargetConfig;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -182,7 +182,7 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetSpareBundleName(const TZoneInfoPtr& zoneInfo);
+std::string GetSpareBundleName(const TZoneInfoPtr& zoneInfo);
 
 void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* mutations);
 
@@ -193,43 +193,43 @@ DEFINE_ENUM(EGracePeriodBehaviour,
     ((Immediately)  (1))
 );
 
-THashMap<TString, THashSet<TString>> GetAliveNodes(
-    const TString& bundleName,
+THashMap<std::string, THashSet<std::string>> GetAliveNodes(
+    const std::string& bundleName,
     const TDataCenterToInstanceMap& bundleNodes,
     const TSchedulerInputState& input,
     const TBundleControllerStatePtr& bundleState,
     EGracePeriodBehaviour gracePeriodBehaviour);
 
-THashMap<TString, THashSet<TString>> GetAliveProxies(
+THashMap<std::string, THashSet<std::string>> GetAliveProxies(
     const TDataCenterToInstanceMap& bundleProxies,
     const TSchedulerInputState& input,
     EGracePeriodBehaviour gracePeriodBehaviour);
 
-TString GetInstancePodIdTemplate(
+std::string GetInstancePodIdTemplate(
     const std::string& cluster,
-    const TString& bundleName,
-    const TString& instanceType,
+    const std::string& bundleName,
+    const std::string& instanceType,
     int index);
 
 int FindNextInstanceId(
-    const std::vector<TString>& instanceNames,
+    const std::vector<std::string>& instanceNames,
     const std::string& cluster,
-    const TString& instanceType);
+    const std::string& instanceType);
 
 TIndexedEntries<TBundleControllerState> MergeBundleStates(
     const TSchedulerInputState& schedulerState,
     const TSchedulerMutations& mutations);
 
-TString GetPodIdForInstance(const TString& name);
+std::string GetPodIdForInstance(const std::string& name);
 
-TString GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr& resource);
+std::string GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr& resource);
 
 // TODO(capone212): remove after
-THashSet<TString> FlattenAliveInstancies(const THashMap<TString, THashSet<TString>>& instancies);
-std::vector<TString> FlattenBundleInstancies(const THashMap<TString,std::vector<TString>>& instancies);
+THashSet<std::string> FlattenAliveInstancies(const THashMap<std::string, THashSet<std::string>>& instancies);
+std::vector<std::string> FlattenBundleInstancies(const THashMap<std::string,std::vector<std::string>>& instancies);
 
-TString GetDrillsNodeTagFilter(const TBundleInfoPtr& bundleInfo, const TString& bundleName);
-TString GetReleasedProxyRole(const TString& rpcProxyRole);
+std::string GetDrillsNodeTagFilter(const TBundleInfoPtr& bundleInfo, const std::string& bundleName);
+std::string GetReleasedProxyRole(const std::string& rpcProxyRole);
 
 ////////////////////////////////////////////////////////////////////////////////
 

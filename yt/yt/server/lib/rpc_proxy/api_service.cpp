@@ -58,6 +58,10 @@
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
+#include <yt/yt/client/signature/generator.h>
+#include <yt/yt/client/signature/signature.h>
+#include <yt/yt/client/signature/validator.h>
+
 #include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
@@ -81,8 +85,12 @@
 #include <yt/yt/core/rpc/stream.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+#include <library/cpp/yt/memory/non_null_ptr.h>
 
 #include <library/cpp/yt/misc/cast.h>
+
+#include <algorithm>
+#include <ranges>
 
 namespace NYT::NRpcProxy {
 
@@ -103,6 +111,7 @@ using namespace NQueueClient;
 using namespace NRpc;
 using namespace NScheduler;
 using namespace NSecurityClient;
+using namespace NSignature;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTracing;
@@ -110,6 +119,7 @@ using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -604,7 +614,9 @@ public:
         NLogging::TLogger logger,
         TProfiler profiler,
         INodeMemoryTrackerPtr memoryTracker,
-        IStickyTransactionPoolPtr stickyTransactionPool)
+        IStickyTransactionPoolPtr stickyTransactionPool,
+        ISignatureValidatorPtr signatureValidator,
+        ISignatureGeneratorPtr signatureGenerator)
         : TServiceBase(
             std::move(workerInvoker),
             GetServiceDescriptor(),
@@ -632,6 +644,8 @@ public:
             ? config->TestingOptions->HeapProfiler
             : nullptr)
         , LookupMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Lookup))
+        , SignatureValidator_(std::move(signatureValidator))
+        , SignatureGenerator_(std::move(signatureGenerator))
         , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
         , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
         , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
@@ -827,7 +841,7 @@ public:
 
     void OnDynamicConfigChanged(const TApiServiceDynamicConfigPtr& config) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto oldConfig = Config_.Acquire();
 
@@ -864,6 +878,9 @@ private:
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
     const IMemoryUsageTrackerPtr LookupMemoryTracker_;
 
+    const ISignatureValidatorPtr SignatureValidator_;
+    const ISignatureGeneratorPtr SignatureGenerator_;
+
     static const TStructuredLoggingMethodDynamicConfigPtr DefaultMethodConfig;
 
     TCounter SelectConsumeDataWeight_;
@@ -871,7 +888,6 @@ private:
 
     TCounter SelectOutputDataWeight_;
     TCounter SelectOutputRowCount_;
-
 
     struct TDetailedProfilingCountersKey
     {
@@ -1606,6 +1622,7 @@ private:
                     if (const auto& unfoldedColumn = indexInfo.UnfoldedColumn) {
                         ToProto(protoIndexInfo->mutable_unfolded_column(), *unfoldedColumn);
                     }
+                    protoIndexInfo->set_index_correspondence(ToProto(indexInfo.Correspondence));
                 }
 
                 context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",
@@ -5852,14 +5869,12 @@ private:
 
     void PatchTableWriterOptions(TNonNullPtr<NApi::TTableWriterOptions> options)
     {
-        auto& ref = *options;
-
         if (ApiServiceConfig_->EnableLargeColumnarStatistics) {
-            ref.Config->EnableLargeColumnarStatistics = true;
+            options->Config->EnableLargeColumnarStatistics = true;
         }
 
         // NB: Input comes directly from user and thus requires additional validation.
-        ref.ValidateAnyIsValidYson = true;
+        options->ValidateAnyIsValidYson = true;
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, WriteTable)
@@ -6009,6 +6024,22 @@ private:
     // DISTRIBUTED TABLE CLIENT
     ////////////////////////////////////////////////////////////////////////////////
 
+    // Signature helpers.
+    template <std::constructible_from<TSignaturePtr> TFinal>
+    TFinal GenerateSignature(TSignaturePtr&& emptySignature) const
+    {
+        // TODO(arkady-e1ppa): When dummy generator/validator are
+        // added, uncomment.
+        // SignatureGenerator_->Sign(emptySignature);
+        return TFinal(std::move(emptySignature));
+    }
+
+    TFuture<bool> ValidateSignature(const TSignaturePtr& /* signedValue */) const
+    {
+        return MakeFuture(true);
+        // return SignatureValidator_->Validate(signedValue);
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartDistributedWriteSession)
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
@@ -6021,13 +6052,27 @@ private:
             "Path: %v",
             path);
 
+        auto signSessionAndCookies = [&, this_ = MakeStrong(this)] (TDistributedWriteSessionWithCookies&& sessionAndCookies) {
+            sessionAndCookies.Session = GenerateSignature<TSignedDistributedWriteSessionPtr>(std::move(sessionAndCookies.Session.Underlying()));
+
+            for (auto& cookie : sessionAndCookies.Cookies) {
+                cookie = GenerateSignature<TSignedWriteFragmentCookiePtr>(std::move(cookie.Underlying()));
+            }
+
+            return std::move(sessionAndCookies);
+        };
+
         ExecuteCall(
             context,
             [=] {
-                return client->StartDistributedWriteSession(path, options);
+                return client->StartDistributedWriteSession(path, options)
+                    .ApplyUnique(BIND(std::move(signSessionAndCookies)));
             },
             [] (const auto& context, const auto& result) {
-                context->Response().set_session(ConvertToYsonString(result).ToString());
+                context->Response().set_signed_session(ConvertToYsonString(result.Session).ToString());
+                for (const auto& cookie : result.Cookies) {
+                    context->Response().add_signed_cookies(ConvertToYsonString(cookie).ToString());
+                }
             });
     }
 
@@ -6035,19 +6080,45 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        TDistributedWriteSessionPtr session;
+        TDistributedWriteSessionWithResults sessionWithResults;
 
         TDistributedWriteSessionFinishOptions options;
-        ParseRequest(&session, &options, *request);
+        ParseRequest(&sessionWithResults, &options, *request);
+
+        auto session = ConvertTo<TDistributedWriteSession>(sessionWithResults.Session.Underlying()->Payload());
 
         context->SetRequestInfo(
-            "Table object id: %v",
-            session->GetPatchInfo().ObjectId);
+            "TableId: %v",
+            session.PatchInfo.ObjectId);
 
         ExecuteCall(
             context,
-            [=] {
-                return client->FinishDistributedWriteSession(session, options);
+            [=, this, options = std::move(options), sessionWithResults = std::move(sessionWithResults), sessionId = session.RootChunkListId] {
+                std::vector<TFuture<bool>> validation;
+                validation.reserve(1 + std::ssize(sessionWithResults.Results));
+                validation.push_back(ValidateSignature(sessionWithResults.Session.Underlying()));
+                for (const auto& signedResult : sessionWithResults.Results) {
+                    auto result = ConvertTo<TWriteFragmentResult>(signedResult.Underlying()->Payload());
+                    if (sessionId != result.SessionId) {
+                        THROW_ERROR_EXCEPTION(
+                            "Found write results with a different session id")
+                            << TErrorAttribute("excepted_session_id", sessionId)
+                            << TErrorAttribute("found_session_id", result.SessionId)
+                            << TErrorAttribute("cookie_id", result.CookieId);
+                    }
+                    validation.push_back(ValidateSignature(signedResult.Underlying()));
+                }
+
+                return AllSucceeded(std::move(validation))
+                    .ApplyUnique(BIND([=, options = std::move(options), sessionWithResults = std::move(sessionWithResults)] (std::vector<bool>&& results) {
+                        auto allValid = std::ranges::all_of(results, [] (bool value) {
+                            return value;
+                        });
+                        THROW_ERROR_EXCEPTION_UNLESS(
+                            allValid,
+                            "Signature validation failed for distributed write session finish");
+                        return client->FinishDistributedWriteSession(std::move(sessionWithResults), options);
+                    }));
             });
     }
 
@@ -6055,29 +6126,42 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
-        PutMethodInfoInTraceContext("participant_write_table");
+        PutMethodInfoInTraceContext("write_table_fragment");
 
-        TFragmentWriteCookiePtr cookie;
+        TSignedWriteFragmentCookiePtr cookie;
 
-        TFragmentTableWriterOptions options;
+        TTableFragmentWriterOptions options;
         ParseRequest(&cookie, &options, *request);
 
         PatchTableWriterOptions(&options);
 
-        context->SetRequestInfo(
-            "Table object id: %v, Main transaction id: %v",
-            cookie->GetPatchInfo().ObjectId,
-            cookie->GetMainTransactionId());
+        auto concreteCookie = ConvertTo<TWriteFragmentCookie>(cookie.Underlying()->Payload());
 
-        auto tableWriter = WaitFor(client->CreateFragmentTableWriter(cookie, options))
+        context->SetRequestInfo(
+            "TableId: %v, Main transaction id: %v",
+            concreteCookie.PatchInfo.ObjectId,
+            concreteCookie.MainTransactionId);
+
+        auto isValid = WaitFor(ValidateSignature(cookie.Underlying()))
+            .ValueOrThrow();
+
+        if (!isValid) {
+            THROW_ERROR_EXCEPTION(
+                "Signature validation failed for write table fragment")
+                    << TErrorAttribute("session_id", concreteCookie.SessionId)
+                    << TErrorAttribute("cookie_id", concreteCookie.CookieId);
+        }
+
+        auto tableWriter = WaitFor(client->CreateTableFragmentWriter(cookie, options))
             .ValueOrThrow();
 
         WriteTableImpl(
             context,
             request,
-            std::move(tableWriter),
-            [&] {
-                response->set_cookie(ConvertToYsonString(cookie).ToString());
+            tableWriter,
+            [&, tableWriter] {
+                auto signedWriteResult = GenerateSignature<TSignedWriteFragmentResultPtr>(tableWriter->GetWriteFragmentResult().Underlying());
+                response->set_signed_write_result(ConvertToYsonString(signedWriteResult).ToString());
             });
     }
 
@@ -6783,7 +6867,7 @@ private:
 
     bool IsUp(const TCtxDiscoverPtr& /*context*/) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ProxyCoordinator_->GetOperableState();
     }
@@ -6807,6 +6891,8 @@ IApiServicePtr CreateApiService(
     NTracing::TSamplerPtr traceSampler,
     NLogging::TLogger logger,
     TProfiler profiler,
+    ISignatureValidatorPtr signatureValidator,
+    ISignatureGeneratorPtr signatureGenerator,
     INodeMemoryTrackerPtr memoryUsageTracker,
     IStickyTransactionPoolPtr stickyTransactionPool)
 {
@@ -6823,7 +6909,9 @@ IApiServicePtr CreateApiService(
         std::move(logger),
         std::move(profiler),
         std::move(memoryUsageTracker),
-        std::move(stickyTransactionPool));
+        std::move(stickyTransactionPool),
+        std::move(signatureValidator),
+        std::move(signatureGenerator));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

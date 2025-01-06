@@ -24,7 +24,7 @@
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 
-#include <yt/yt/core/rpc/service_detail.h>
+#include <yt/yt/core/ytree/ypath_detail.h>
 
 namespace NYT::NCypressProxy {
 

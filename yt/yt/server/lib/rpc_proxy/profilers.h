@@ -12,11 +12,11 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRpcProxyHeapUsageProfiler
+class TProxyHeapUsageProfiler
     : public TRefCounted
 {
 public:
-    TRpcProxyHeapUsageProfiler(
+    TProxyHeapUsageProfiler(
         IInvokerPtr invoker,
         const THeapProfilerConfigPtr& config);
 
@@ -24,7 +24,7 @@ private:
     const NYTProf::IAllocationTagProfilerPtr AllocationTagProfiler_;
 };
 
-DEFINE_REFCOUNTED_TYPE(TRpcProxyHeapUsageProfiler)
+DEFINE_REFCOUNTED_TYPE(TProxyHeapUsageProfiler)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -20,9 +20,8 @@ TGuid GenerateId(NCypressClient::EObjectType type);
 
 NTableClient::TUnversionedOwningRow BuildKey(const TString& yson);
 
-class TChunkGeneratorBase
-    : public ::testing::Test
-    , public TBootstrapMock
+class TChunkGeneratorTestBase
+    : public TBootstrapTestBase
 {
 public:
     TChunk* CreateChunk(
@@ -33,10 +32,6 @@ public:
         NTableClient::TLegacyOwningKey minKey = {},
         NTableClient::TLegacyOwningKey maxKey = {},
         EChunkType chunkType = EChunkType::Table);
-
-    void SetUp() override;
-
-    void TearDown() override;
 
     TChunk* CreateUnconfirmedChunk();
     TChunk* CreateJournalChunk(bool sealed, bool overlayed);
@@ -58,6 +53,8 @@ public:
         NTableClient::TLegacyOwningKey maxKey = {});
 
 private:
+    const TIntrusivePtr<TBootstrapMock> Bootstrap_ = New<TBootstrapMock>();
+
     std::vector<std::unique_ptr<TChunkTree>> CreatedObjects_;
 };
 

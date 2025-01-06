@@ -28,14 +28,14 @@ struct TBundleSensors final
     NProfiling::TGauge LookupRowCacheSize;
     NProfiling::TGauge QuerySize;
 
-    THashMap<TString, NProfiling::TGauge> AliveNodesBySize;
-    THashMap<TString, NProfiling::TGauge> AliveProxiesBySize;
+    THashMap<std::string, NProfiling::TGauge> AliveNodesBySize;
+    THashMap<std::string, NProfiling::TGauge> AliveProxiesBySize;
 
-    THashMap<TString, NProfiling::TGauge> AllocatedNodesBySize;
-    THashMap<TString, NProfiling::TGauge> AllocatedProxiesBySize;
+    THashMap<std::string, NProfiling::TGauge> AllocatedNodesBySize;
+    THashMap<std::string, NProfiling::TGauge> AllocatedProxiesBySize;
 
-    THashMap<TString, NProfiling::TGauge> TargetTabletNodeSize;
-    THashMap<TString, NProfiling::TGauge> TargetRpcProxSize;
+    THashMap<std::string, NProfiling::TGauge> TargetTabletNodeSize;
+    THashMap<std::string, NProfiling::TGauge> TargetRpcProxSize;
 
     NProfiling::TGauge UsingSpareNodeCount;
     NProfiling::TGauge UsingSpareProxyCount;
@@ -65,7 +65,7 @@ struct TBundleSensors final
 
     NProfiling::TTimeGauge BundleCellsDowntime;
 
-    THashMap<TString, NProfiling::TGauge> AssignedBundleNodesPerDC;
+    THashMap<std::string, NProfiling::TGauge> AssignedBundleNodesPerDC;
 };
 
 using TBundleSensorsPtr = TIntrusivePtr<TBundleSensors>;

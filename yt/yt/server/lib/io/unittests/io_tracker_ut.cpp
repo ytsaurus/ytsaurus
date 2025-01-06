@@ -159,7 +159,7 @@ TEST(TIOTrackerTest, Concurrent)
     std::vector<std::atomic<int>> eventsByIter(threadCount);
 
     ioTracker->SubscribeOnRawEventLogged(BIND([&] (const TIOCounters& /*counters*/, const TIOTagList& tags) {
-        eventsByIter[FromString(tags[0].second)] += 1;
+        eventsByIter[FromString(TStringBuf(tags[0].second))] += 1;
     }));
 
     auto threadPool = CreateThreadPool(threadCount, "TrackerTestThread");

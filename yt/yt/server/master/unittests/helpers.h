@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/yt/core/misc/guid.h>
+#include <yt/yt/core/test_framework/framework.h>
 
 namespace NYT {
 
@@ -16,6 +16,19 @@ public:
 
     void SetupMasterSmartpointers();
     void ResetMasterSmartpointers();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBootstrapTestBase
+    : public ::testing::Test
+{
+public:
+    void SetUp() override;
+    void TearDown() override;
+
+private:
+    const TIntrusivePtr<TBootstrapMock> Bootstrap_ = New<TBootstrapMock>();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

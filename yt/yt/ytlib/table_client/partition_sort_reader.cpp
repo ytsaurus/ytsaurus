@@ -139,7 +139,7 @@ public:
             auto sortedIndex = SortedIndexes_[ReadRowCount_];
             auto& rowDescriptor = RowDescriptorBuffer_[sortedIndex];
             YT_VERIFY(rowDescriptor.BlockReader->JumpToRowIndex(rowDescriptor.RowIndex));
-            auto row = rowDescriptor.BlockReader->GetRow(&MemoryPool_, /*remap*/ true);
+            auto row = rowDescriptor.BlockReader->GetRow(&MemoryPool_, /*remapIds*/ true);
             rows.push_back(row);
             dataWeight += GetDataWeight(row);
             ++ReadRowCount_;
@@ -437,7 +437,7 @@ private:
         }
 
         TotalRowCount_ = rowIndex;
-        int bucketCount = static_cast<int>(BucketStart_.size()) - 1;
+        int bucketCount = std::ssize(BucketStart_) - 1;
 
         if (!Approximate_) {
             YT_VERIFY(TotalRowCount_ <= EstimatedRowCount_);
@@ -469,7 +469,7 @@ private:
 
         SortedIndexes_.reserve(TotalRowCount_);
 
-        for (int index = 0; index < static_cast<int>(BucketStart_.size()) - 1; ++index) {
+        for (int index = 0; index < std::ssize(BucketStart_) - 1; ++index) {
             BucketHeap_.push_back(BucketStart_[index]);
         }
 

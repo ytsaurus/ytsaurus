@@ -30,6 +30,8 @@
 #include "shard_map_type_handler.h"
 #include "shard_type_handler.h"
 #include "shard.h"
+// COMPAT(babenko): drop
+#include "virtual.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -77,8 +79,6 @@
 #include <yt/yt/server/master/tablet_server/hunk_storage_node_type_handler.h>
 
 #include <yt/yt/server/master/transaction_server/cypress_integration.h>
-
-#include <yt/yt/server/master/zookeeper_server/cypress_integration.h>
 
 #include <yt/yt/server/lib/hydra/hydra_context.h>
 
@@ -144,7 +144,7 @@ using namespace NTransactionSupervisor;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
-using namespace NZookeeperServer;
+using namespace NServer;
 
 using TYPath = NYPath::TYPath;
 
@@ -847,7 +847,7 @@ private:
     }
 
     std::string DoGetName(const TCypressNode* node) override;
-    TString DoGetPath(const TCypressNode* node) override;
+    NYPath::TYPath DoGetPath(const TCypressNode* node) override;
 
     IObjectProxyPtr DoGetProxy(
         TCypressNode* node,
@@ -1032,7 +1032,7 @@ public:
             std::nullopt,
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::RecursiveResourceUsageCache)))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Default), AutomatonThread);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         RootNodeId_ = MakeWellKnownId(EObjectType::MapNode, multicellManager->GetCellTag());
@@ -1138,7 +1138,15 @@ public:
         RegisterHandler(CreateCellOrchidTypeHandler(Bootstrap_));
         RegisterHandler(CreateEstimatedCreationTimeMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateAccessControlObjectNamespaceMapTypeHandler(Bootstrap_));
-        RegisterHandler(CreateZookeeperShardMapTypeHandler(Bootstrap_));
+        // COMPAT(babenko): drop
+        RegisterHandler(CreateVirtualTypeHandler(
+            bootstrap,
+            EObjectType::ZookeeperShardMap,
+            BIND_NO_PROPAGATE([=] (INodePtr /*owningNode*/) -> IYPathServicePtr {
+                static const auto result = GetEphemeralNodeFactory()->CreateMap();
+                return result;
+            }),
+            EVirtualNodeOptions::RedirectSelf));
 
         RegisterLoader(
             "CypressManager.Keys",
@@ -1250,7 +1258,7 @@ public:
 
     const INodeTypeHandlerPtr& FindHandler(EObjectType type) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (type < TEnumTraits<EObjectType>::GetMinValue() || type > TEnumTraits<EObjectType>::GetMaxValue()) {
             return NullTypeHandler;
@@ -1261,7 +1269,7 @@ public:
 
     const INodeTypeHandlerPtr& GetHandler(EObjectType type) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& handler = FindHandler(type);
         YT_VERIFY(handler);
@@ -1270,7 +1278,7 @@ public:
 
     const INodeTypeHandlerPtr& GetHandler(const TCypressNode* node) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return GetHandler(node->GetType());
     }
@@ -1278,7 +1286,7 @@ public:
 
     TCypressShard* CreateShard(TCypressShardId shardId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto shardHolder = TPoolAllocator::New<TCypressShard>(shardId);
         auto* shard = shardHolder.get();
@@ -1348,7 +1356,7 @@ public:
         TCypressNode* serviceTrunkNode,
         TYPath unresolvedPathSuffix) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return std::make_unique<TNodeFactory>(
             Bootstrap_,
@@ -1365,7 +1373,7 @@ public:
         TNodeId hintId,
         const TCreateNodeContext& context) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(handler);
         YT_VERIFY(context.Account);
         YT_VERIFY(context.InheritedAttributes);
@@ -1392,7 +1400,7 @@ public:
         TNodeId id,
         TCellTag externalCellTag) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto type = TypeFromId(id);
         const auto& handler = GetHandler(type);
@@ -1409,7 +1417,7 @@ public:
         IAttributeDictionary* inheritedAttributes,
         TNodeId hintId = NullObjectId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(sourceNode);
         YT_VERIFY(factory);
         YT_VERIFY(inheritedAttributes);
@@ -1436,7 +1444,7 @@ public:
         ICypressNodeFactory* factory,
         TNodeId sourceNodeId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(context);
         YT_VERIFY(factory);
 
@@ -1674,7 +1682,7 @@ public:
         bool recursive = false,
         bool dontLockForeign = false) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
         YT_VERIFY(request.Mode != ELockMode::None);
         YT_VERIFY(!recursive || request.Key.Kind == ELockKeyKind::None);
@@ -1706,7 +1714,7 @@ public:
         bool recursive,
         bool explicitOnly)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
 
         auto error = CheckUnlock(trunkNode, transaction, recursive, explicitOnly);
@@ -1737,7 +1745,7 @@ public:
         NTransactionServer::TTransaction* transaction,
         bool explicitOnly)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(transaction);
         YT_VERIFY(!transaction->Locks().empty());
 
@@ -2083,7 +2091,7 @@ public:
         bool waitable,
         TLockId lockIdHint) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
         YT_VERIFY(transaction);
         YT_VERIFY(request.Mode != ELockMode::None);
@@ -2163,7 +2171,7 @@ public:
 
     void SetExpirationTime(TCypressNode* node, std::optional<TInstant> time) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto oldExpirationTime = node->TryGetExpirationTime();
 
@@ -2180,7 +2188,7 @@ public:
 
     void MergeExpirationTime(TCypressNode* originatingNode, TCypressNode* branchedNode) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto oldExpirationTime = originatingNode->TryGetExpirationTime();
         originatingNode->MergeExpirationTime(branchedNode);
@@ -2194,7 +2202,7 @@ public:
 
     void SetExpirationTimeout(TCypressNode* node, std::optional<TDuration> timeout) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto oldExpirationTimeout = node->TryGetExpirationTimeout();
 
@@ -2227,7 +2235,7 @@ public:
 
     void MergeExpirationTimeout(TCypressNode* originatingNode, TCypressNode* branchedNode) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto oldExpirationTimeout = originatingNode->TryGetExpirationTimeout();
 
@@ -2258,7 +2266,7 @@ public:
         TTransaction* transaction,
         bool includeRoot) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
 
         TSubtreeNodes result;
@@ -2271,7 +2279,7 @@ public:
         TTransaction* transaction,
         bool includeRoot = true)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TSubtreeNodes result;
         ListSubtreeNodes(
@@ -2308,7 +2316,7 @@ public:
 
     bool IsOrphaned(TCypressNode* trunkNode) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
 
         if (IsSequoiaId(trunkNode->GetId())) {
@@ -2380,7 +2388,7 @@ public:
         const std::string& name,
         TObjectId hintId = NullObjectId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         ValidateAccessControlObjectNamespaceName(name);
 
@@ -2424,7 +2432,7 @@ public:
 
     void ZombifyAccessControlObjectNamespace(TAccessControlObjectNamespace* object) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(!IsObjectAlive(object));
         YT_VERIFY(object->Members().empty());
@@ -2456,7 +2464,7 @@ public:
         const std::string& namespace_,
         TObjectId hintId = NullObjectId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         ValidateAccessControlObjectName(name);
 
@@ -2502,7 +2510,7 @@ public:
 
     void ZombifyAccessControlObject(TAccessControlObject* object) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(!IsObjectAlive(object));
 
@@ -2619,6 +2627,18 @@ public:
         return FromObjectId(portalExit->GetId()) + *optionalSuffix;
     }
 
+    void ValidateNoExternalizedNodesOnRemovedMasters(const THashSet<TCellTag>& removedMasterCellTags) const override
+    {
+        YT_VERIFY(Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
+
+        for (const auto& [_, node] : NodeMap_) {
+            YT_LOG_FATAL_IF(
+                removedMasterCellTags.contains(node->GetExternalCellTag()),
+                "Master cell %v with externalized tables was removed",
+                node->GetExternalCellTag());
+        }
+    }
+
     DEFINE_SIGNAL_OVERRIDE(void(TCypressNode*), NodeCreated);
 
     TFuture<TYsonString> ComputeRecursiveResourceUsage(
@@ -2697,7 +2717,7 @@ private:
 
     void LoadKeys(NCellMaster::TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         NodeMap_.LoadKeys(context);
         LockMap_.LoadKeys(context);
@@ -2708,7 +2728,7 @@ private:
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         NodeMap_.LoadValues(context);
         LockMap_.LoadValues(context);
@@ -2738,7 +2758,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::Clear();
 
@@ -2763,7 +2783,7 @@ private:
 
     void SetZeroState() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TCompositeAutomatonPart::SetZeroState();
 
@@ -2772,7 +2792,7 @@ private:
 
     void OnAfterSnapshotLoaded() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
@@ -2908,7 +2928,7 @@ private:
 
     void OnRecoveryComplete() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnRecoveryComplete();
 
@@ -2917,7 +2937,7 @@ private:
 
     void OnLeaderRecoveryComplete() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnLeaderRecoveryComplete();
 
@@ -2926,7 +2946,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopLeading();
 
@@ -2936,7 +2956,7 @@ private:
 
     void OnStopFollowing() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopFollowing();
         OnStopEpoch();
@@ -2951,7 +2971,7 @@ private:
 
     TCypressNode* RegisterNode(std::unique_ptr<TCypressNode> trunkNodeHolder)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(trunkNodeHolder->IsTrunk());
 
         const auto nodeId = trunkNodeHolder->GetId();
@@ -2987,7 +3007,7 @@ private:
 
     void DestroyNode(TCypressNode* trunkNode)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
 
         const auto& lockingState = trunkNode->LockingState();
@@ -3022,7 +3042,7 @@ private:
 
     void RecreateNodeAsGhost(TCypressNode* trunkNode)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_ASSERT(trunkNode->IsTrunk());
 
         const auto& handler = GetHandler(trunkNode);
@@ -3032,7 +3052,7 @@ private:
 
     void OnTransactionCommitted(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         MergeBranchedNodes(transaction);
         ReleaseLocks(transaction, transaction->GetParent());
@@ -3040,7 +3060,7 @@ private:
 
     void OnTransactionAborted(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(transaction->NestedTransactions().empty());
 
@@ -3947,7 +3967,7 @@ private:
     {
         YT_VERIFY(originatingNode);
         YT_VERIFY(transaction);
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto id = originatingNode->GetId();
 
@@ -4138,7 +4158,7 @@ private:
 
     void HydraUpdateAccessStatistics(NProto::TReqUpdateAccessStatistics* request) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         for (const auto& update : request->updates()) {
             auto nodeId = FromProto<TNodeId>(update.node_id());
@@ -4161,7 +4181,7 @@ private:
 
     void HydraTouchNodes(NProto::TReqTouchNodes* request) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         for (const auto& update : request->updates()) {
             auto nodeId = FromProto<TNodeId>(update.node_id());
@@ -4182,7 +4202,7 @@ private:
 
     void HydraCreateForeignNode(NProto::TReqCreateForeignNode* request) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsSecondaryMaster());
@@ -4231,7 +4251,7 @@ private:
 
     void HydraCloneForeignNode(NProto::TReqCloneForeignNode* request) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsSecondaryMaster());
@@ -4345,7 +4365,7 @@ private:
 
     void HydraRemoveExpiredNodes(NProto::TReqRemoveExpiredNodes* request) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto mutationContext = GetCurrentMutationContext();
@@ -4418,7 +4438,7 @@ private:
 
     void HydraLockForeignNode(NProto::TReqLockForeignNode* request) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsSecondaryMaster());
@@ -4473,7 +4493,7 @@ private:
 
     void HydraUnlockForeignNode(NProto::TReqUnlockForeignNode* request) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsSecondaryMaster());
@@ -4651,7 +4671,7 @@ private:
 
     void ResetCypressNodeReachability()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         for (auto [nodeId, node] : NodeMap_) {
             node->SetReachable(false);
@@ -4734,10 +4754,9 @@ std::string TNodeTypeHandler::DoGetName(const TCypressNode* node)
     return Format("node %v", DoGetPath(node));
 }
 
-TString TNodeTypeHandler::DoGetPath(const TCypressNode* node)
+NYPath::TYPath TNodeTypeHandler::DoGetPath(const TCypressNode* node)
 {
-    auto path = Owner_->GetNodePath(node->GetTrunkNode(), node->GetTransaction());
-    return path;
+    return Owner_->GetNodePath(node->GetTrunkNode(), node->GetTransaction());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

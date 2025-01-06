@@ -13,9 +13,7 @@
 #include <util/generic/string.h>
 #include <util/generic/hash.h>
 
-#include <optional>
-
-namespace NYT {
+namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,6 +23,15 @@ class TClusterThrottlersConfig
 public:
     NDistributedThrottler::TDistributedThrottlerConfigPtr DistributedThrottler;
     THashMap<TString, TClusterLimitsConfigPtr> ClusterLimits;
+    //! Rate might be too high if maximum estimated time required to read pending bytes is higher than this value.
+    TDuration MaxEstimatedTimeToReadPendingBytesThreshold;
+    //! Rate is too high if minimum estimated time required to read pending bytes is higher than this value.
+    TDuration MinEstimatedTimeToReadPendingBytesThreshold;
+    //! Rate is too high if rate limit ratio is higher than this value.
+    double RateLimitRatioHardThreshold;
+    //! Rate might be too high if rate limit ratio is higher than this value.
+    double RateLimitRatioSoftThreshold;
+    //! How often cluster throttlers config is updated.
     TDuration UpdatePeriod;
     bool Enabled;
 
@@ -60,4 +67,4 @@ bool AreClusterThrottlersConfigsEqual(TClusterThrottlersConfigPtr lhs, TClusterT
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

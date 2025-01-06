@@ -1,16 +1,16 @@
 #include "config.h"
 
-#include <yt/yt/server/master/chunk_server/config.h>
-
-#include <yt/yt/server/master/cypress_server/config.h>
-
-#include <yt/yt/server/master/table_server/config.h>
-
 #include <yt/yt/server/master/cell_server/config.h>
 
 #include <yt/yt/server/master/chaos_server/config.h>
 
+#include <yt/yt/server/master/chunk_server/config.h>
+
+#include <yt/yt/server/master/cypress_server/config.h>
+
 #include <yt/yt/server/master/incumbent_server/config.h>
+
+#include <yt/yt/server/master/journal_server/config.h>
 
 #include <yt/yt/server/master/node_tracker_server/config.h>
 
@@ -18,15 +18,15 @@
 
 #include <yt/yt/server/master/security_server/config.h>
 
-#include <yt/yt/server/master/tablet_server/config.h>
-
-#include <yt/yt/server/master/transaction_server/config.h>
-
-#include <yt/yt/server/master/journal_server/config.h>
-
 #include <yt/yt/server/master/sequoia_server/config.h>
 
 #include <yt/yt/server/master/scheduler_pool_server/config.h>
+
+#include <yt/yt/server/master/table_server/config.h>
+
+#include <yt/yt/server/master/tablet_server/config.h>
+
+#include <yt/yt/server/master/transaction_server/config.h>
 
 #include <yt/yt/server/lib/hive/config.h>
 
@@ -158,6 +158,11 @@ void TTestConfig::Register(TRegistrar registrar)
         .DontSerializeDefault();
     registrar.Parameter("discovered_masters_cell_tags", &TThis::DiscoveredMastersCellTags)
         .Default();
+    registrar.Parameter("allow_master_cell_with_empty_role", &TThis::AllowMasterCellWithEmptyRole)
+        .Default(false);
+
+    registrar.Parameter("allow_master_cell_removal", &TThis::AllowMasterCellRemoval)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         for (const auto& edge : config->FrozenHiveEdges) {
@@ -190,9 +195,9 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
-        THashMap<TString, NObjectServer::TCellTag> nameToCellTag;
+        THashMap<std::string, NObjectServer::TCellTag> nameToCellTag;
         for (auto& [cellTag, descriptor] : config->CellDescriptors) {
-            if (descriptor->Roles && None(*descriptor->Roles)) {
+            if (!config->Testing->AllowMasterCellWithEmptyRole && descriptor->Roles && None(*descriptor->Roles)) {
                 THROW_ERROR_EXCEPTION("Cell %v has no roles",
                     cellTag);
             }
@@ -203,7 +208,7 @@ void TDynamicMulticellManagerConfig::Register(TRegistrar registrar)
 
             const auto& cellName = *descriptor->Name;
 
-            NObjectClient::TCellTag cellTagCellName;
+            TCellTag cellTagCellName;
             if (TryFromString(cellName, cellTagCellName)) {
                 THROW_ERROR_EXCEPTION("Invalid cell name %Qv",
                     cellName);
@@ -236,8 +241,10 @@ void TDynamicResponseKeeperConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TCellMasterConfig::Register(TRegistrar registrar)
+void TCellMasterBootstrapConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("expected_localhost_name", &TThis::ExpectedLocalHostName)
+        .Default();
     registrar.Parameter("networks", &TThis::Networks)
         .Default(NNodeTrackerClient::DefaultNetworkPreferences);
     registrar.Parameter("primary_master", &TThis::PrimaryMaster)
@@ -328,6 +335,11 @@ void TCellMasterConfig::Register(TRegistrar registrar)
         }
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCellMasterProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

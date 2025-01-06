@@ -599,15 +599,15 @@ public:
         const TTableWriterOptions& options),
         (path, options))
 
-    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TDistributedWriteSessionPtr>, StartDistributedWriteSession, (
+    DELEGATE_TRANSACTIONAL_METHOD(TFuture<TDistributedWriteSessionWithCookies>, StartDistributedWriteSession, (
         const NYPath::TRichYPath& path,
         const TDistributedWriteSessionStartOptions& options),
         (path, options))
 
     DELEGATE_METHOD(TFuture<void>, FinishDistributedWriteSession, (
-        TDistributedWriteSessionPtr session,
+        const TDistributedWriteSessionWithResults& sessionWithResults,
         const TDistributedWriteSessionFinishOptions& options),
-        (std::move(session), options))
+        (sessionWithResults, options))
 
 #undef DELEGATE_METHOD
 #undef DELEGATE_TRANSACTIONAL_METHOD
@@ -1311,7 +1311,7 @@ private:
 
         TFuture<void> GetReplicationCardFuture()
         {
-            VERIFY_THREAD_AFFINITY_ANY();
+            YT_ASSERT_THREAD_AFFINITY_ANY();
 
             if (!UpstreamReplicaId_ && TableInfo_->ReplicationCardId) {
                 UpstreamReplicaId_ = TableInfo_->UpstreamReplicaId;
@@ -1369,7 +1369,7 @@ private:
 
         TFuture<void> GetHunkStorageInfoFuture()
         {
-            VERIFY_THREAD_AFFINITY_ANY();
+            YT_ASSERT_THREAD_AFFINITY_ANY();
 
             if (!TableInfo_->HunkStorageId) {
                 return VoidFuture;
@@ -1399,7 +1399,7 @@ private:
 
         void OnGotHunkTableMountInfo(const TTableMountInfoPtr& hunkTableInfo)
         {
-            VERIFY_THREAD_AFFINITY_ANY();
+            YT_ASSERT_THREAD_AFFINITY_ANY();
 
             HunkTableInfo_ = hunkTableInfo;
 
@@ -1410,7 +1410,7 @@ private:
 
         TFuture<void> OnGotTableInfo(const TTableMountInfoPtr& tableInfo)
         {
-            VERIFY_THREAD_AFFINITY_ANY();
+            YT_ASSERT_THREAD_AFFINITY_ANY();
 
             TableInfo_ = tableInfo;
 
@@ -1419,7 +1419,7 @@ private:
 
         TFuture<void> OnGotReplicationCard(bool exploreReplicas)
         {
-            VERIFY_THREAD_AFFINITY_ANY();
+            YT_ASSERT_THREAD_AFFINITY_ANY();
 
             std::vector<TFuture<void>> futures;
             CheckPermissions(&futures);
@@ -1432,7 +1432,7 @@ private:
 
         void CheckPermissions(std::vector<TFuture<void>>* futures)
         {
-            VERIFY_THREAD_AFFINITY_ANY();
+            YT_ASSERT_THREAD_AFFINITY_ANY();
 
             auto transaction = Transaction_.Lock();
             if (!transaction) {
@@ -1455,7 +1455,7 @@ private:
 
         void RegisterSyncReplicas(std::vector<TFuture<void>>* futures)
         {
-            VERIFY_THREAD_AFFINITY_ANY();
+            YT_ASSERT_THREAD_AFFINITY_ANY();
 
             auto transaction = Transaction_.Lock();
             if (!transaction) {
@@ -1496,7 +1496,7 @@ private:
             const TTransactionPtr& transaction,
             const TTableReplicaInfoPtrList& syncReplicas)
         {
-            VERIFY_THREAD_AFFINITY_ANY();
+            YT_ASSERT_THREAD_AFFINITY_ANY();
 
             auto registerReplica = [&] (const auto& replicaInfo) {
                 if (replicaInfo->Mode != ETableReplicaMode::Sync) {
@@ -1607,7 +1607,7 @@ private:
 
     TFuture<NApi::ITransactionPtr> GetSyncReplicaTransaction(const TTableReplicaInfoPtr& replicaInfo)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         TPromise<NApi::ITransactionPtr> promise;
         {
@@ -1676,7 +1676,7 @@ private:
 
     void EnqueueModificationRequest(std::unique_ptr<TModificationRequest> request)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (auto sequenceNumber = request->GetSequenceNumber()) {
             if (sequenceNumber->Value < 0) {
@@ -1706,7 +1706,7 @@ private:
         const TReplicationCardPtr& replicationCard,
         bool topmostTransaction)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto it = TablePathToSession_.find(path);
         if (it == TablePathToSession_.end()) {
@@ -1764,8 +1764,8 @@ private:
 
     TFuture<void> DoAbort(TGuard<NThreading::TSpinLock>* guard, const TTransactionAbortOptions& options = {})
     {
-        VERIFY_THREAD_AFFINITY_ANY();
-        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+        YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
         if (State_ == ETransactionState::Aborted) {
             return AbortPromise_.ToFuture();
@@ -2367,14 +2367,14 @@ private:
 
     ICellCommitSessionPtr GetOrCreateCellCommitSession(TCellId cellId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return CellCommitSessionProvider_->GetOrCreateCellCommitSession(cellId);
     }
 
     ICellCommitSessionPtr GetCommitSession(TCellId cellId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return CellCommitSessionProvider_->GetCellCommitSession(cellId);
     }

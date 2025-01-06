@@ -46,6 +46,7 @@ using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
 using namespace NTabletClient;
+using namespace NServer;
 
 using ::ToString;
 

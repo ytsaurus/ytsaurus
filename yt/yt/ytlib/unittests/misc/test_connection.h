@@ -184,7 +184,7 @@ public:
     MOCK_METHOD(const NChaosClient::IBannedReplicaTrackerCachePtr&, GetBannedReplicaTrackerCache, (), (override));
     MOCK_METHOD(std::vector<std::string>, GetDiscoveryServerAddresses, (), (const, override));
     MOCK_METHOD(NDiscoveryClient::IDiscoveryClientPtr, CreateDiscoveryClient, (NDiscoveryClient::TDiscoveryClientConfigPtr, NRpc::IChannelFactoryPtr), (override));
-    MOCK_METHOD(NDiscoveryClient::IMemberClientPtr, CreateMemberClient, (NDiscoveryClient::TMemberClientConfigPtr, NRpc::IChannelFactoryPtr, IInvokerPtr, TString, TString), (override));
+    MOCK_METHOD(NDiscoveryClient::IMemberClientPtr, CreateMemberClient, (NDiscoveryClient::TMemberClientConfigPtr, NRpc::IChannelFactoryPtr, IInvokerPtr, NDiscoveryClient::TMemberId, NDiscoveryClient::TGroupId), (override));
     MOCK_METHOD(NYTree::IYPathServicePtr, GetOrchidService, (), (override));
     MOCK_METHOD(void, Terminate, (), (override));
     MOCK_METHOD(void, InitializeDiscoveryServerAddressPool, (), (override));

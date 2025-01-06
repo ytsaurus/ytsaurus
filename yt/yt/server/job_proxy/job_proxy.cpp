@@ -72,6 +72,7 @@
 
 #include <yt/yt/library/program/program.h>
 #include <yt/yt/library/program/helpers.h>
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
@@ -157,6 +158,7 @@ using namespace NTransactionClient;
 using namespace NStatisticPath;
 using namespace NUserJob;
 using namespace NLogging;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -321,7 +323,7 @@ IThroughputThrottlerPtr TJobProxy::GetUserJobContainerCreationThrottler() const
 
 void TJobProxy::SendHeartbeat()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto job = FindJob();
     if (!job) {
@@ -781,7 +783,9 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
         securityManager,
         New<TSampler>(),
         proxyLogger,
-        TProfiler());
+        TProfiler(),
+        /*signatureValidator*/ nullptr,
+        /*signatureGenerator*/ nullptr);
     GetRpcServer()->RegisterService(std::move(apiService));
     YT_LOG_INFO("RPC proxy API service registered (ThreadCount: %v)", rpcProxyWorkerThreadPoolSize);
 }
@@ -1119,6 +1123,11 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics"_SP, extendedStatistics.ChunkReaderStatistics);
         DumpTimingStatistics(&statistics, "/chunk_reader_statistics"_SP, extendedStatistics.TimingStatistics);
 
+        for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, extendedStatistics.ChunkWriterStatistics.size()); ++index) {
+            auto ypathIndex = TStatisticPathLiteral(ToString(index));
+            DumpChunkWriterStatistics(&statistics, "/chunk_writer_statistics"_SP / ypathIndex, extendedStatistics.ChunkWriterStatistics[index]);
+        }
+
         if (const auto& pipeStatistics = extendedStatistics.PipeStatistics) {
             auto dumpPipeStatistics = [&] (const TStatisticPath& path, const IJob::TStatistics::TPipeStatistics& pipeStatistics) {
                 statistics.AddSample(path / "idle_time"_L, pipeStatistics.ConnectionStatistics.IdleDuration);
@@ -1386,7 +1395,7 @@ TString TJobProxy::GetAuthenticatedUser() const
     return JobSpecHelper_->GetJobSpecExt().authenticated_user();
 }
 
-TString TJobProxy::GetLocalHostName() const
+std::string TJobProxy::GetLocalHostName() const
 {
     return Config_->LocalHostName;
 }

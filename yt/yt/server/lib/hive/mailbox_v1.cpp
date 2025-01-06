@@ -44,7 +44,7 @@ void TMailbox::UpdateLastOutcomingMessageId()
 {
     RuntimeData_->LastOutcomingMessageId.store(
         FirstOutcomingMessageId_ +
-        static_cast<int>(OutcomingMessages_.size()) - 1);
+        std::ssize(OutcomingMessages_) - 1);
 }
 
 bool TMailbox::IsCell() const

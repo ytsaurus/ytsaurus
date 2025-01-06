@@ -368,7 +368,7 @@ void TCGVariables::Clear()
 int TCGVariables::AddLiteralValue(TOwningValue value)
 {
     YT_ASSERT(!LiteralValues_);
-    int index = static_cast<int>(OwningLiteralValues_.size());
+    int index = std::ssize(OwningLiteralValues_);
     OwningLiteralValues_.emplace_back(std::move(value));
     return index;
 }

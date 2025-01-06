@@ -17,6 +17,7 @@ namespace NYT::NAdmin {
 using namespace NRpc;
 using namespace NConcurrency;
 using namespace NLogging;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

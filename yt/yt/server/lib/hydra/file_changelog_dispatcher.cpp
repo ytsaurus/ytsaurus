@@ -75,7 +75,7 @@ public:
 
     TFuture<void> AsyncAppend(TRange<TSharedRef> records, i64 byteSize)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = WriterGuard(SpinLock_);
 
@@ -92,7 +92,7 @@ public:
 
     TFuture<void> AsyncFlush()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = WriterGuard(SpinLock_);
 
@@ -107,7 +107,7 @@ public:
 
     bool HasPendingFlushes()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& config = Changelog_->GetConfig();
 
@@ -134,14 +134,14 @@ public:
 
     bool HasUnflushedRecords()
     {
-        VERIFY_THREAD_AFFINITY(SyncThread);
+        YT_ASSERT_THREAD_AFFINITY(SyncThread);
 
         return !AppendQueue_.empty() || !FlushQueue_.empty();
     }
 
     void Truncate(int recordCount)
     {
-        VERIFY_THREAD_AFFINITY(SyncThread);
+        YT_ASSERT_THREAD_AFFINITY(SyncThread);
 
         YT_VERIFY(!HasUnflushedRecords());
         YT_VERIFY(FlushedRecordCount_ >= recordCount);
@@ -150,7 +150,7 @@ public:
 
     std::vector<TSharedRef> Read(int firstRecordId, int maxRecords, i64 maxBytes)
     {
-        VERIFY_THREAD_AFFINITY(SyncThread);
+        YT_ASSERT_THREAD_AFFINITY(SyncThread);
 
         std::optional<TEventTimerGuard> readIOTimerGuard(ChangelogReadIOTimer_);
 
@@ -234,7 +234,7 @@ public:
 
     void Wakeup()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (ProcessQueueCallbackPending_.load(std::memory_order::relaxed)) {
             return;
@@ -253,7 +253,7 @@ public:
 
     void Process()
     {
-        VERIFY_THREAD_AFFINITY(SyncThread);
+        YT_ASSERT_THREAD_AFFINITY(SyncThread);
 
         ProcessQueueCallbackPending_.store(false);
 
@@ -300,7 +300,7 @@ private:
 
     void SyncFlush()
     {
-        VERIFY_THREAD_AFFINITY(SyncThread);
+        YT_ASSERT_THREAD_AFFINITY(SyncThread);
 
         TPromise<void> flushPromise;
         {

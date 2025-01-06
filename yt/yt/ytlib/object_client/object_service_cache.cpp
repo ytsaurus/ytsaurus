@@ -209,7 +209,7 @@ bool TObjectServiceCache::TCache::IsResurrectionSupported() const
 
 void TObjectServiceCache::TCache::OnAdded(const TObjectServiceCacheEntryPtr& entry)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     TMemoryTrackingAsyncSlruCacheBase::OnAdded(entry);
     if (auto owner = Owner_.Lock()) {
@@ -219,7 +219,7 @@ void TObjectServiceCache::TCache::OnAdded(const TObjectServiceCacheEntryPtr& ent
 
 void TObjectServiceCache::TCache::OnRemoved(const TObjectServiceCacheEntryPtr& entry)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     TMemoryTrackingAsyncSlruCacheBase::OnRemoved(entry);
     if (auto owner = Owner_.Lock()) {
@@ -229,7 +229,7 @@ void TObjectServiceCache::TCache::OnRemoved(const TObjectServiceCacheEntryPtr& e
 
 i64 TObjectServiceCache::TCache::GetWeight(const TObjectServiceCacheEntryPtr& entry) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return entry->GetTotalSpace();
 }
@@ -441,7 +441,7 @@ TCacheProfilingCountersPtr TObjectServiceCache::GetProfilingCounters(const std::
 
 void TObjectServiceCache::OnAdded(const TObjectServiceCacheEntryPtr& entry)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& key = entry->GetKey();
     YT_LOG_DEBUG("Cache entry added (Key: %v, Revision: %x, Success: %v, TotalSpace: %v)",
@@ -453,7 +453,7 @@ void TObjectServiceCache::OnAdded(const TObjectServiceCacheEntryPtr& entry)
 
 void TObjectServiceCache::OnRemoved(const TObjectServiceCacheEntryPtr& entry)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& key = entry->GetKey();
     YT_LOG_DEBUG("Cache entry removed (Key: %v, Revision: %x, Success: %v, TotalSpace: %v)",
@@ -489,7 +489,7 @@ bool TObjectServiceCache::IsExpired(
 
 void TObjectServiceCache::TouchEntry(const TObjectServiceCacheEntryPtr& entry, bool forceRenewTop)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& key = entry->GetKey();
 

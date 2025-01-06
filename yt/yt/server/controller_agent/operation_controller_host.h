@@ -146,7 +146,7 @@ public:
     const NCoreDump::ICoreDumperPtr& GetCoreDumper() override;
     const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() override;
     const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() override;
-    const TJobReporterPtr& GetJobReporter() override;
+    const NServer::TJobReporterPtr& GetJobReporter() override;
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
 
     TJobProfiler* GetJobProfiler() const override;
@@ -173,6 +173,15 @@ public:
     TFuture<void> UpdateAccountResourceUsageLease(
         NSecurityClient::TAccountResourceUsageLeaseId leaseId,
         const NScheduler::TDiskQuota& diskQuota) override;
+
+    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) override;
+    void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) override;
+    std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const override;
+    bool IsNetworkBandwidthAvailable(const NScheduler::TClusterName& clusterName) const override;
 
 private:
     const TOperationId OperationId_;

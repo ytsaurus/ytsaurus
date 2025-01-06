@@ -50,26 +50,26 @@ TControllerAgent::TControllerAgent(
     , CancelableHeartbeatInvoker_(CancelableContext_->CreateInvoker(heartbeatInvoker))
     , MessageOffloadInvoker_(messageOffloadInvoker)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 }
 
 const TAgentId& TControllerAgent::GetId() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Id_;
 }
 
 const NNodeTrackerClient::TAddressMap& TControllerAgent::GetAgentAddresses() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return AgentAddresses_;
 }
 
 const THashSet<TString>& TControllerAgent::GetTags() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Tags_;
 }
@@ -81,21 +81,21 @@ const NRpc::IChannelPtr& TControllerAgent::GetChannel() const
 
 TIncarnationId TControllerAgent::GetIncarnationId() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return NControllerAgent::IncarnationIdFromTransactionId(IncarnationTransaction_->GetId());
 }
 
 TGuard<NThreading::TSpinLock> TControllerAgent::AcquireInnerStateLock()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return TGuard(InnerStateLock_);
 }
 
 void TControllerAgent::SetState(EControllerAgentState newState)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     State_.store(newState);
 }
@@ -107,7 +107,7 @@ EControllerAgentState TControllerAgent::GetState() const
 
 IInvokerPtr TControllerAgent::GetMessageOffloadInvoker() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return MessageOffloadInvoker_;
 }
@@ -241,7 +241,7 @@ void TControllerAgent::SetMemoryStatistics(TControllerAgentMemoryStatistics memo
 
 TFuture<void> TControllerAgent::GetFullHeartbeatProcessed()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (MaybeError_) {
         return MakeFuture(*MaybeError_);
@@ -261,7 +261,7 @@ TFuture<void> TControllerAgent::GetFullHeartbeatProcessed()
 
 void TControllerAgent::OnHeartbeatReceived()
 {
-    VERIFY_INVOKER_AFFINITY(HeartbeatInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(HeartbeatInvoker_);
 
     ++HeartbeatCounter_;
 

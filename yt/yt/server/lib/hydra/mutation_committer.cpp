@@ -82,12 +82,12 @@ TCommitterBase::TCommitterBase(
     YT_VERIFY(DecoratedAutomaton_);
     YT_VERIFY(EpochContext_);
 
-    VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
+    YT_ASSERT_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
 }
 
 TFuture<void> TCommitterBase::ScheduleApplyMutations(std::vector<TPendingMutationPtr> mutations)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     LastOffloadedMutationsFuture_ = BIND(&TDecoratedAutomaton::ApplyMutations, DecoratedAutomaton_)
         .AsyncViaGuarded(
@@ -99,21 +99,21 @@ TFuture<void> TCommitterBase::ScheduleApplyMutations(std::vector<TPendingMutatio
 
 TFuture<void> TCommitterBase::GetLastOffloadedMutationsFuture()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     return LastOffloadedMutationsFuture_;
 }
 
 TFuture<void> TCommitterBase::GetLastLoggedMutationFuture()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     return LastLoggedMutationFuture_;
 }
 
 TErrorOr<IChangelogPtr> TCommitterBase::ExtractNextChangelog(TVersion version)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto changelogId = version.SegmentId;
 
@@ -177,7 +177,7 @@ TErrorOr<IChangelogPtr> TCommitterBase::ExtractNextChangelog(TVersion version)
 
 TError TCommitterBase::PrepareNextChangelog(TVersion version)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_LOG_INFO("Preparing changelog (Version: %v)", version);
 
@@ -203,7 +203,7 @@ TError TCommitterBase::PrepareNextChangelog(TVersion version)
 
 void TCommitterBase::RegisterNextChangelog(int id, TFuture<IChangelogPtr> changelog)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     EmplaceOrCrash(NextChangelogs_, id, changelog);
     YT_LOG_INFO("Changelog registered (ChangelogId: %v)", id);
@@ -211,7 +211,7 @@ void TCommitterBase::RegisterNextChangelog(int id, TFuture<IChangelogPtr> change
 
 void TCommitterBase::CloseChangelog(const IChangelogPtr& changelog)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (!Config_->Get()->CloseChangelogs || !changelog) {
         return;
@@ -289,7 +289,7 @@ TLeaderCommitter::TLeaderCommitter(
 
 TFuture<void> TLeaderCommitter::GetLastMutationFuture()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (MutationQueue_.empty()) {
         return VoidFuture;
@@ -302,7 +302,7 @@ TFuture<void> TLeaderCommitter::GetLastMutationFuture()
 
 void TLeaderCommitter::SerializeMutations()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (RotatingChangelog_) {
         YT_LOG_DEBUG("Skip serializing mutations as changelog is being rotated");
@@ -418,7 +418,7 @@ void TLeaderCommitter::Reconfigure()
 
 void TLeaderCommitter::Start()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     LastRandomSeed_ = DecoratedAutomaton_->GetRandomSeed();
     NextLoggedVersion_ = {Changelog_->GetId(), 0};
@@ -438,7 +438,7 @@ void TLeaderCommitter::Start()
 
 void TLeaderCommitter::Stop()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_UNUSED_FUTURE(SerializeMutationsExecutor_->Stop());
     YT_UNUSED_FUTURE(FlushMutationsExecutor_->Stop());
@@ -481,7 +481,7 @@ void TLeaderCommitter::Stop()
 
 void TLeaderCommitter::FlushMutations()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_LOG_DEBUG("Started flushing mutations");
 
@@ -623,7 +623,7 @@ void TLeaderCommitter::FlushMutations()
 
 void TLeaderCommitter::OnSnapshotResponse(int peerId)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (std::exchange(LastSnapshotInfo_->HasResponse[peerId], true)) {
         return;
@@ -641,7 +641,7 @@ void TLeaderCommitter::OnMutationsAcceptedByFollower(
     i64 mutationDataSize,
     const TInternalHydraServiceProxy::TErrorOrRspAcceptMutationsPtr& rspOrError)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto& peerState = PeerStates_[followerId];
 
@@ -739,7 +739,7 @@ void TLeaderCommitter::OnMutationsAcceptedByFollower(
 
 void TLeaderCommitter::MaybePromoteCommittedSequenceNumber()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     std::vector<i64> loggedNumbers;
     for (int i = 0; i < CellManager_->GetTotalPeerCount(); ++i) {
@@ -780,7 +780,7 @@ void TLeaderCommitter::MaybePromoteCommittedSequenceNumber()
 
 void TLeaderCommitter::MaybeFlushMutations()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (MutationQueue_.empty()) {
         return;
@@ -795,7 +795,7 @@ void TLeaderCommitter::MaybeFlushMutations()
 
 void TLeaderCommitter::DrainQueue()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto popMutationQueue = [&] {
         const auto& mutation = MutationQueue_.front();
@@ -841,7 +841,7 @@ void TLeaderCommitter::DrainQueue()
 
 void TLeaderCommitter::MaybeCheckpoint()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (AcquiringChangelog_ || LastSnapshotInfo_) {
         return;
@@ -869,7 +869,7 @@ void TLeaderCommitter::MaybeCheckpoint()
 
 void TLeaderCommitter::UpdateSnapshotBuildDeadline()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto config = Config_->Get();
     SnapshotBuildDeadline_ =
@@ -880,7 +880,7 @@ void TLeaderCommitter::UpdateSnapshotBuildDeadline()
 
 void TLeaderCommitter::Checkpoint()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_VERIFY(!AcquiringChangelog_);
 
@@ -893,7 +893,7 @@ void TLeaderCommitter::Checkpoint()
 
 void TLeaderCommitter::OnSnapshotsComplete()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_VERIFY(LastSnapshotInfo_);
 
@@ -945,7 +945,7 @@ void TLeaderCommitter::OnSnapshotsComplete()
 
 bool TLeaderCommitter::CanBuildSnapshot() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     // We can be acquiring changelog, it is ok.
     return !LastSnapshotInfo_;
@@ -953,7 +953,7 @@ bool TLeaderCommitter::CanBuildSnapshot() const
 
 TFuture<int> TLeaderCommitter::BuildSnapshot(bool waitForCompletion, bool readOnly)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_VERIFY(!LastSnapshotInfo_);
     LastSnapshotInfo_ = TSnapshotInfo{
@@ -974,7 +974,7 @@ TFuture<int> TLeaderCommitter::BuildSnapshot(bool waitForCompletion, bool readOn
 
 std::optional<TFuture<int>> TLeaderCommitter::GetLastSnapshotFuture(bool waitForCompletion, bool readOnly)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (!LastSnapshotInfo_) {
         return std::nullopt;
@@ -991,7 +991,7 @@ std::optional<TFuture<int>> TLeaderCommitter::GetLastSnapshotFuture(bool waitFor
 
 void TLeaderCommitter::OnLocalSnapshotBuilt(int snapshotId, const TErrorOr<TRemoteSnapshotParams>& rspOrError)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (!LastSnapshotInfo_ || LastSnapshotInfo_->SnapshotId > snapshotId) {
         YT_LOG_INFO("Stale snapshot built locally, ignoring (SnapshotId: %v)", snapshotId);
@@ -1021,7 +1021,7 @@ void TLeaderCommitter::OnLocalSnapshotBuilt(int snapshotId, const TErrorOr<TRemo
 
 void TLeaderCommitter::OnChangelogAcquired(const TErrorOr<IChangelogPtr>& changelogsOrError)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (!changelogsOrError.IsOK()) {
         if (LastSnapshotInfo_) {
@@ -1101,7 +1101,7 @@ void TLeaderCommitter::OnChangelogAcquired(const TErrorOr<IChangelogPtr>& change
 
 void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     std::vector<TSharedRef> recordsData;
     recordsData.reserve(mutationDrafts.size());
@@ -1183,7 +1183,7 @@ void TLeaderCommitter::OnMutationsLogged(
     i64 lastSequenceNumber,
     const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (!error.IsOK()) {
         LoggingFailed_.Fire(TError("Error logging mutations")
@@ -1203,7 +1203,7 @@ void TLeaderCommitter::OnMutationsLogged(
 
 void TLeaderCommitter::OnCommittedSequenceNumberUpdated()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto automatonSequenceNumber = DecoratedAutomaton_->GetSequenceNumber();
     YT_VERIFY(LastOffloadedSequenceNumber_ >= automatonSequenceNumber);
@@ -1238,21 +1238,21 @@ void TLeaderCommitter::OnCommittedSequenceNumberUpdated()
 
 TVersion TLeaderCommitter::GetNextLoggedVersion() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     return NextLoggedVersion_;
 }
 
 i64 TLeaderCommitter::GetLoggedSequenceNumber() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     return PeerStates_[CellManager_->GetSelfPeerId()].LastLoggedSequenceNumber;
 }
 
 i64 TLeaderCommitter::GetLastOffloadedSequenceNumber() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     return LastOffloadedSequenceNumber_;
 }
@@ -1278,14 +1278,14 @@ TFollowerCommitter::TFollowerCommitter(
 
 i64 TFollowerCommitter::GetLoggedSequenceNumber() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     return LastLoggedSequenceNumber_;
 }
 
 void TFollowerCommitter::SetSequenceNumber(i64 number)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_VERIFY(LoggedMutations_.empty());
     LastLoggedSequenceNumber_ = number;
@@ -1299,7 +1299,7 @@ void TFollowerCommitter::SetSequenceNumber(i64 number)
 
 void TFollowerCommitter::BuildMonitoring(TFluentMap fluent)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     fluent
         .Item("last _logged_sequence_number").Value(LastLoggedSequenceNumber_)
@@ -1360,7 +1360,7 @@ bool TFollowerCommitter::AcceptMutations(
     i64 startSequenceNumber,
     const std::vector<TSharedRef>& recordsData)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto expectedSequenceNumber = GetExpectedSequenceNumber();
     YT_LOG_DEBUG("Trying to accept mutations (ExpectedSequenceNumber: %v, StartSequenceNumber: %v, MutationCount: %v)",
@@ -1391,7 +1391,7 @@ bool TFollowerCommitter::AcceptMutations(
 
 void TFollowerCommitter::DoAcceptMutation(const TSharedRef& recordData)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     TSharedRef mutationData;
     DeserializeMutationRecord(recordData, &MutationHeader_, &mutationData);
@@ -1421,14 +1421,14 @@ void TFollowerCommitter::DoAcceptMutation(const TSharedRef& recordData)
 
 i64 TFollowerCommitter::GetExpectedSequenceNumber() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     return LastAcceptedSequenceNumber_ + 1;
 }
 
 void TFollowerCommitter::LogMutations()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     // Logging more than one batch at a time makes it difficult to promote LoggedSequenceNumber_ correctly.
     // (And creates other weird problems.)
@@ -1505,7 +1505,7 @@ void TFollowerCommitter::OnMutationsLogged(
     i64 lastSequenceNumber,
     const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (!error.IsOK()) {
         LoggingFailed_.Fire(TError("Error logging mutations at follower")
@@ -1525,7 +1525,7 @@ void TFollowerCommitter::OnMutationsLogged(
 
 TFuture<TFollowerCommitter::TCommitMutationsResult> TFollowerCommitter::CommitMutations(i64 committedSequenceNumber)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (committedSequenceNumber > CommittedSequenceNumber_) {
         YT_LOG_DEBUG("Committed sequence number promoted (CommittedSequenceNumber: %v -> %v)",
@@ -1568,7 +1568,7 @@ TFuture<TFollowerCommitter::TCommitMutationsResult> TFollowerCommitter::CommitMu
 
 void TFollowerCommitter::Stop()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     for (const auto& [id, changelogFuture] : NextChangelogs_) {
         auto changelogOrError = WaitForFast(changelogFuture);

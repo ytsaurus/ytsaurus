@@ -8,6 +8,7 @@
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
+#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 
 #include <yt/yt/core/concurrency/public.h>
 
@@ -39,6 +40,7 @@ public:
         NChunkClient::TDataSink dataSink,
         NChunkClient::TTrafficMeterPtr trafficMeter,
         NConcurrency::IThroughputThrottlerPtr throttler,
+        NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         i64 sizeLimit = std::numeric_limits<i64>::max());
 
     NChunkClient::TChunkId GetChunkId() const;
@@ -64,6 +66,7 @@ private:
     const NChunkClient::TDataSink DataSink_;
     const NChunkClient::TTrafficMeterPtr TrafficMeter_;
     const NConcurrency::IThroughputThrottlerPtr Throttler_;
+    const NChunkClient::IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
     const i64 SizeLimit_;
 
     bool Open_ = false;

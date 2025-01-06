@@ -11,7 +11,15 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TClusterClockConfig::Register(TRegistrar registrar)
+void TClockHydraManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TClusterClockBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("clock_cell", &TThis::ClockCell)
         .Default();
@@ -29,12 +37,11 @@ void TClusterClockConfig::Register(TRegistrar registrar)
         .Default(InvalidCellTag);
 }
 
-////////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////////
 
-void TClockHydraManagerConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
-        .DefaultNew();
-}
+void TClusterClockProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
+
+/////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NClusterClock

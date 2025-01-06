@@ -3,7 +3,7 @@
 #include <yt/yt/core/net/local_address.h>
 #include <yt/yt/core/net/address.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 using namespace NNodeTrackerClient;
 using namespace NNet;
@@ -30,4 +30,4 @@ TAddressMap GetLocalAddresses(const TNetworkAddressList& addresses, int port)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

@@ -373,7 +373,7 @@ TOverloadController::TMethodsCongestionControllers TOverloadController::CreateCo
         configIndex[std::pair(methodConfig->Service, methodConfig->Method)] = methodConfig;
     }
 
-    auto getConfig = [&configIndex] (const TStringBuf& service, const TStringBuf& method) {
+    auto getConfig = [&configIndex] (TStringBuf service, TStringBuf method) {
         auto it = configIndex.find(std::pair(service, method));
         if (it != configIndex.end()) {
             return it->second;
@@ -424,7 +424,7 @@ void TOverloadController::Adjust()
 
 void TOverloadController::DoAdjust(const THazardPtr<TState>& state)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     auto now = NProfiling::GetCpuInstant();
 

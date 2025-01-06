@@ -52,7 +52,13 @@
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
+
+#include <yt/yt/library/profiling/solomon/public.h>
+
+#include <yt/yt/library/fusion/service_locator.h>
+
 #include <yt/yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/rpc/bus/server.h>
 
@@ -86,6 +92,7 @@ using namespace NCypressElection;
 using namespace NHiveClient;
 using namespace NYson;
 using namespace NQueueClient;
+using namespace NFusion;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,287 +100,355 @@ static constexpr auto& Logger = QueueAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(TQueueAgentServerConfigPtr config, INodePtr configNode)
-    : Config_(std::move(config))
-    , ConfigNode_(std::move(configNode))
-    , DynamicConfig_(New<TQueueAgentServerDynamicConfig>())
+class TBootstrap
+    : public IBootstrap
 {
-    if (Config_->AbortOnUnrecognizedOptions) {
-        AbortOnUnrecognizedOptions(Logger(), Config_);
-    } else {
-        WarnForUnrecognizedOptions(Logger(), Config_);
-    }
-}
-
-TBootstrap::~TBootstrap() = default;
-
-void TBootstrap::Run()
-{
-    ControlQueue_ = New<TActionQueue>("Control");
-    ControlInvoker_ = ControlQueue_->GetInvoker();
-
-    BIND(&TBootstrap::DoRun, this)
-        .AsyncVia(ControlInvoker_)
-        .Run()
-        .Get()
-        .ThrowOnError();
-}
-
-void TBootstrap::DoRun()
-{
-    YT_LOG_INFO(
-        "Starting queue agent process (NativeCluster: %v, User: %v)",
-        Config_->ClusterConnection->Static->ClusterName,
-        Config_->User);
-
-    AgentId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
-    GroupId_ = "/queue_agents";
-
-    NApi::NNative::TConnectionOptions connectionOptions;
-    connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
-    NativeConnection_ = NApi::NNative::CreateConnection(
-        Config_->ClusterConnection,
-        std::move(connectionOptions));
-
-    SetupClusterConnectionDynamicConfigUpdate(
-        NativeConnection_,
-        Config_->ClusterConnectionDynamicConfigPolicy,
-        ConfigNode_->AsMap()->GetChildOrThrow("cluster_connection"),
-        Logger());
-
-    NativeConnection_->GetClusterDirectorySynchronizer()->Start();
-    NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
-
-    NativeAuthenticator_ = NNative::CreateNativeAuthenticator(NativeConnection_);
-
-    auto clientOptions = TClientOptions::FromUser(Config_->User);
-    NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
-
-    NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeClient_);
-
-    DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, NativeClient_, ControlInvoker_);
-    DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
-
-    ClientDirectory_ = New<TClientDirectory>(NativeConnection_->GetClusterDirectory(), clientOptions);
-
-    BusServer_ = CreateBusServer(Config_->BusServer);
-
-    RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
-
-    HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
-
-    if (Config_->CoreDumper) {
-        CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
-    }
-
-    MemberClient_ = NativeConnection_->CreateMemberClient(
-        DynamicConfig_->MemberClient,
-        NativeConnection_->GetChannelFactory(),
-        ControlInvoker_,
-        AgentId_,
-        GroupId_);
-    DiscoveryClient_ = NativeConnection_->CreateDiscoveryClient(
-        DynamicConfig_->DiscoveryClient,
-        NativeConnection_->GetChannelFactory());
-
+public:
+    TBootstrap(
+        TQueueAgentBootstrapConfigPtr config,
+        INodePtr configNode,
+        IServiceLocatorPtr serviceLocator)
+        : Config_(std::move(config))
+        , ConfigNode_(std::move(configNode))
+        , ServiceLocator_(std::move(serviceLocator))
+        , ControlQueue_(New<TActionQueue>("Control"))
+        , ControlInvoker_(ControlQueue_->GetInvoker())
+        , DynamicConfig_(New<TQueueAgentComponentDynamicConfig>())
     {
-        TCypressElectionManagerOptionsPtr options = New<TCypressElectionManagerOptions>();
-        options->GroupName = "QueueAgent";
-        options->MemberName = AgentId_;
-        options->TransactionAttributes = CreateEphemeralAttributes();
-        options->TransactionAttributes->Set("host", AgentId_);
-        ElectionManager_ = CreateCypressElectionManager(NativeClient_, ControlInvoker_, Config_->ElectionManager, std::move(options));
-    }
-
-    DynamicState_ = New<TDynamicState>(Config_->DynamicState, NativeClient_, ClientDirectory_);
-
-    AlertManager_ = CreateAlertManager(QueueAgentLogger(), TProfiler{}, ControlInvoker_);
-
-    QueueAgentShardingManager_ = CreateQueueAgentShardingManager(
-        ControlInvoker_,
-        NativeClient_,
-        CreateAlertCollector(AlertManager_),
-        DynamicState_,
-        MemberClient_,
-        DiscoveryClient_,
-        Config_->QueueAgent->Stage,
-        Config_->DynamicState->Root);
-
-    QueueAgent_ = New<TQueueAgent>(
-        Config_->QueueAgent,
-        NativeConnection_,
-        ClientDirectory_,
-        ControlInvoker_,
-        DynamicState_,
-        ElectionManager_,
-        CreateAlertCollector(AlertManager_),
-        AgentId_);
-
-    CypressSynchronizer_ = CreateCypressSynchronizer(
-        Config_->CypressSynchronizer,
-        ControlInvoker_,
-        DynamicState_,
-        ClientDirectory_,
-        CreateAlertCollector(AlertManager_));
-
-    DynamicConfigManager_->Start();
-
-    NYTree::IMapNodePtr orchidRoot;
-    NMonitoring::Initialize(
-        HttpServer_,
-        Config_->SolomonExporter,
-        &MonitoringManager_,
-        &orchidRoot);
-
-    if (Config_->ExposeConfigInOrchid) {
-        SetNodeByYPath(
-            orchidRoot,
-            "/config",
-            CreateVirtualNode(ConfigNode_));
-        SetNodeByYPath(
-            orchidRoot,
-            "/dynamic_config_manager",
-            CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
-    }
-    if (CoreDumper_) {
-        SetNodeByYPath(
-            orchidRoot,
-            "/core_dumper",
-            CreateVirtualNode(CoreDumper_->CreateOrchidService()));
-    }
-    SetNodeByYPath(
-        orchidRoot,
-        "/alerts",
-        CreateVirtualNode(AlertManager_->GetOrchidService()));
-    SetNodeByYPath(
-        orchidRoot,
-        "/queue_agent_sharding_manager",
-        CreateVirtualNode(QueueAgentShardingManager_->GetOrchidService()));
-    SetNodeByYPath(
-        orchidRoot,
-        "/queue_agent",
-        QueueAgent_->GetOrchidNode());
-    SetNodeByYPath(
-        orchidRoot,
-        "/cypress_synchronizer",
-        CreateVirtualNode(CypressSynchronizer_->GetOrchidService()));
-    SetBuildAttributes(
-        orchidRoot,
-        "queue_agent");
-
-    RpcServer_->RegisterService(CreateAdminService(
-        ControlInvoker_,
-        CoreDumper_,
-        NativeAuthenticator_));
-    RpcServer_->RegisterService(CreateOrchidService(
-        orchidRoot,
-        ControlInvoker_,
-        NativeAuthenticator_));
-
-    YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
-    HttpServer_->Start();
-
-    YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
-    RpcServer_->Configure(Config_->RpcServer);
-    RpcServer_->Start();
-
-    UpdateCypressNode();
-
-    YT_UNUSED_FUTURE(MemberClient_->Start());
-
-    ElectionManager_->SubscribeLeadingStarted(BIND_NO_PROPAGATE(&ICypressSynchronizer::Start, CypressSynchronizer_));
-
-    ElectionManager_->SubscribeLeadingEnded(BIND_NO_PROPAGATE(&ICypressSynchronizer::Stop, CypressSynchronizer_));
-
-    ElectionManager_->Start();
-
-    AlertManager_->Start();
-    QueueAgentShardingManager_->Start();
-    QueueAgent_->Start();
-}
-
-void TBootstrap::UpdateCypressNode()
-{
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-    TCypressRegistrarOptions options{
-        .RootPath = Format("%v/instances/%v", Config_->DynamicState->Root, ToYPathLiteral(AgentId_)),
-        .OrchidRemoteAddresses = TAddressMap{{NNodeTrackerClient::DefaultNetworkName, AgentId_}},
-        .AttributesOnStart = BuildAttributeDictionaryFluently()
-            .Item("annotations").Value(Config_->CypressAnnotations)
-            .Finish(),
-    };
-
-    auto registrar = CreateCypressRegistrar(
-        std::move(options),
-        New<TCypressRegistrarConfig>(),
-        NativeClient_,
-        GetCurrentInvoker());
-
-    while (true) {
-        auto error = WaitFor(registrar->CreateNodes());
-
-        if (error.IsOK()) {
-            break;
+        if (Config_->AbortOnUnrecognizedOptions) {
+            AbortOnUnrecognizedOptions(Logger(), Config_);
         } else {
-            YT_LOG_DEBUG(error, "Error updating Cypress node");
+            WarnForUnrecognizedOptions(Logger(), Config_);
         }
     }
-}
 
-void TBootstrap::OnDynamicConfigChanged(
-    const TQueueAgentServerDynamicConfigPtr& oldConfig,
-    const TQueueAgentServerDynamicConfigPtr& newConfig)
+    void Initialize()
+    {
+        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
+            .AsyncVia(ControlInvoker_)
+            .Run()
+            .Get()
+            .ThrowOnError();
+    }
+
+    TFuture<void> Run() final
+    {
+        return BIND(&TBootstrap::DoRun, MakeStrong(this))
+            .AsyncVia(ControlInvoker_)
+            .Run();
+    }
+
+private:
+    const TQueueAgentBootstrapConfigPtr Config_;
+    const INodePtr ConfigNode_;
+    const IServiceLocatorPtr ServiceLocator_;
+
+    const NConcurrency::TActionQueuePtr ControlQueue_;
+    const IInvokerPtr ControlInvoker_;
+    const TQueueAgentComponentDynamicConfigPtr DynamicConfig_;
+
+    TString AgentId_;
+    TString GroupId_;
+
+    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    NYT::NBus::IBusServerPtr BusServer_;
+    NRpc::IServerPtr RpcServer_;
+    NHttp::IServerPtr HttpServer_;
+
+    NApi::NNative::IConnectionPtr NativeConnection_;
+    NApi::NNative::IClientPtr NativeClient_;
+
+    NRpc::IAuthenticatorPtr NativeAuthenticator_;
+
+    TDynamicConfigManagerPtr DynamicConfigManager_;
+
+    NHiveClient::TClientDirectoryPtr ClientDirectory_;
+
+    NDiscoveryClient::IMemberClientPtr MemberClient_;
+    NDiscoveryClient::IDiscoveryClientPtr DiscoveryClient_;
+    NCypressElection::ICypressElectionManagerPtr ElectionManager_;
+
+    NAlertManager::IAlertManagerPtr AlertManager_;
+
+    NQueueClient::TDynamicStatePtr DynamicState_;
+
+    IQueueAgentShardingManagerPtr QueueAgentShardingManager_;
+    TQueueAgentPtr QueueAgent_;
+
+    ICypressSynchronizerPtr CypressSynchronizer_;
+
+    void DoInitialize()
+    {
+        YT_LOG_INFO(
+            "Starting queue agent process (NativeCluster: %v, User: %v)",
+            Config_->ClusterConnection->Static->ClusterName,
+            Config_->User);
+
+        AgentId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
+        GroupId_ = "/queue_agents";
+
+        NApi::NNative::TConnectionOptions connectionOptions;
+        connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
+        NativeConnection_ = NApi::NNative::CreateConnection(
+            Config_->ClusterConnection,
+            std::move(connectionOptions));
+
+        SetupClusterConnectionDynamicConfigUpdate(
+            NativeConnection_,
+            Config_->ClusterConnectionDynamicConfigPolicy,
+            ConfigNode_->AsMap()->GetChildOrThrow("cluster_connection"),
+            Logger());
+
+        NativeConnection_->GetClusterDirectorySynchronizer()->Start();
+        NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
+
+        NativeAuthenticator_ = NNative::CreateNativeAuthenticator(NativeConnection_);
+
+        auto clientOptions = TClientOptions::FromUser(Config_->User);
+        NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
+
+        NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeClient_);
+
+        DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, NativeClient_, ControlInvoker_);
+        DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
+
+        ClientDirectory_ = New<TClientDirectory>(NativeConnection_->GetClusterDirectory(), clientOptions);
+
+        BusServer_ = CreateBusServer(Config_->BusServer);
+
+        RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
+
+        HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+
+        MemberClient_ = NativeConnection_->CreateMemberClient(
+            DynamicConfig_->MemberClient,
+            NativeConnection_->GetChannelFactory(),
+            ControlInvoker_,
+            AgentId_,
+            GroupId_);
+        DiscoveryClient_ = NativeConnection_->CreateDiscoveryClient(
+            DynamicConfig_->DiscoveryClient,
+            NativeConnection_->GetChannelFactory());
+
+        {
+            TCypressElectionManagerOptionsPtr options = New<TCypressElectionManagerOptions>();
+            options->GroupName = "QueueAgent";
+            options->MemberName = AgentId_;
+            options->TransactionAttributes = CreateEphemeralAttributes();
+            options->TransactionAttributes->Set("host", AgentId_);
+            ElectionManager_ = CreateCypressElectionManager(NativeClient_, ControlInvoker_, Config_->ElectionManager, std::move(options));
+        }
+
+        DynamicState_ = New<TDynamicState>(Config_->DynamicState, NativeClient_, ClientDirectory_);
+
+        AlertManager_ = CreateAlertManager(QueueAgentLogger(), TProfiler{}, ControlInvoker_);
+
+        QueueAgentShardingManager_ = CreateQueueAgentShardingManager(
+            ControlInvoker_,
+            NativeClient_,
+            CreateAlertCollector(AlertManager_),
+            DynamicState_,
+            MemberClient_,
+            DiscoveryClient_,
+            Config_->QueueAgent->Stage,
+            Config_->DynamicState->Root);
+
+        QueueAgent_ = New<TQueueAgent>(
+            Config_->QueueAgent,
+            NativeConnection_,
+            ClientDirectory_,
+            ControlInvoker_,
+            DynamicState_,
+            ElectionManager_,
+            CreateAlertCollector(AlertManager_),
+            AgentId_);
+
+        CypressSynchronizer_ = CreateCypressSynchronizer(
+            Config_->CypressSynchronizer,
+            ControlInvoker_,
+            DynamicState_,
+            ClientDirectory_,
+            CreateAlertCollector(AlertManager_));
+
+        DynamicConfigManager_->Start();
+
+        IMapNodePtr orchidRoot;
+        NMonitoring::Initialize(
+            HttpServer_,
+            ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
+            &MonitoringManager_,
+            &orchidRoot);
+
+        if (Config_->ExposeConfigInOrchid) {
+            SetNodeByYPath(
+                orchidRoot,
+                "/config",
+                CreateVirtualNode(ConfigNode_));
+            SetNodeByYPath(
+                orchidRoot,
+                "/dynamic_config_manager",
+                CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+        }
+        auto coreDumper = ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>();
+        if (coreDumper) {
+            SetNodeByYPath(
+                orchidRoot,
+                "/core_dumper",
+                CreateVirtualNode(coreDumper->CreateOrchidService()));
+        }
+        SetNodeByYPath(
+            orchidRoot,
+            "/alerts",
+            CreateVirtualNode(AlertManager_->GetOrchidService()));
+        SetNodeByYPath(
+            orchidRoot,
+            "/queue_agent_sharding_manager",
+            CreateVirtualNode(QueueAgentShardingManager_->GetOrchidService()));
+        SetNodeByYPath(
+            orchidRoot,
+            "/queue_agent",
+            QueueAgent_->GetOrchidNode());
+        SetNodeByYPath(
+            orchidRoot,
+            "/cypress_synchronizer",
+            CreateVirtualNode(CypressSynchronizer_->GetOrchidService()));
+        SetBuildAttributes(
+            orchidRoot,
+            "queue_agent");
+
+        RpcServer_->RegisterService(CreateAdminService(
+            ControlInvoker_,
+            coreDumper,
+            NativeAuthenticator_));
+        RpcServer_->RegisterService(CreateOrchidService(
+            orchidRoot,
+            ControlInvoker_,
+            NativeAuthenticator_));
+    }
+
+    void DoRun()
+    {
+        YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+        HttpServer_->Start();
+
+        YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+        RpcServer_->Configure(Config_->RpcServer);
+        RpcServer_->Start();
+
+        UpdateCypressNode();
+
+        YT_UNUSED_FUTURE(MemberClient_->Start());
+
+        ElectionManager_->SubscribeLeadingStarted(BIND_NO_PROPAGATE(&ICypressSynchronizer::Start, CypressSynchronizer_));
+
+        ElectionManager_->SubscribeLeadingEnded(BIND_NO_PROPAGATE(&ICypressSynchronizer::Stop, CypressSynchronizer_));
+
+        ElectionManager_->Start();
+
+        AlertManager_->Start();
+        QueueAgentShardingManager_->Start();
+        QueueAgent_->Start();
+    }
+
+    //! Creates instance node with proper annotations and an orchid node at the native cluster.
+    void UpdateCypressNode()
+    {
+        YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
+
+        TCypressRegistrarOptions options{
+            .RootPath = Format("%v/instances/%v", Config_->DynamicState->Root, ToYPathLiteral(AgentId_)),
+            .OrchidRemoteAddresses = TAddressMap{{NNodeTrackerClient::DefaultNetworkName, AgentId_}},
+            .AttributesOnStart = BuildAttributeDictionaryFluently()
+                .Item("annotations").Value(Config_->CypressAnnotations)
+                .Finish(),
+        };
+
+        auto registrar = CreateCypressRegistrar(
+            std::move(options),
+            New<TCypressRegistrarConfig>(),
+            NativeClient_,
+            GetCurrentInvoker());
+
+        while (true) {
+            auto error = WaitFor(registrar->CreateNodes());
+
+            if (error.IsOK()) {
+                break;
+            } else {
+                YT_LOG_DEBUG(error, "Error updating Cypress node");
+            }
+        }
+    }
+
+    void OnDynamicConfigChanged(
+        const TQueueAgentComponentDynamicConfigPtr& oldConfig,
+        const TQueueAgentComponentDynamicConfigPtr& newConfig)
+    {
+        TSingletonManager::Reconfigure(newConfig);
+
+        YT_VERIFY(MemberClient_);
+        YT_VERIFY(DiscoveryClient_);
+        MemberClient_->Reconfigure(newConfig->MemberClient);
+        DiscoveryClient_->Reconfigure(newConfig->DiscoveryClient);
+
+        YT_VERIFY(AlertManager_);
+        YT_VERIFY(QueueAgentShardingManager_);
+        YT_VERIFY(QueueAgent_);
+        YT_VERIFY(CypressSynchronizer_);
+
+        std::vector<TFuture<void>> asyncUpdateComponents{
+            BIND(
+                &IAlertManager::Reconfigure,
+                AlertManager_,
+                oldConfig->AlertManager,
+                newConfig->AlertManager)
+                .AsyncVia(ControlInvoker_)
+                .Run(),
+            BIND(
+                &IQueueAgentShardingManager::OnDynamicConfigChanged,
+                QueueAgentShardingManager_,
+                oldConfig->QueueAgentShardingManager,
+                newConfig->QueueAgentShardingManager)
+                .AsyncVia(ControlInvoker_)
+                .Run(),
+            BIND(
+                &TQueueAgent::OnDynamicConfigChanged,
+                QueueAgent_,
+                oldConfig->QueueAgent,
+                newConfig->QueueAgent)
+                .AsyncVia(ControlInvoker_)
+                .Run(),
+            BIND(
+                &ICypressSynchronizer::OnDynamicConfigChanged,
+                CypressSynchronizer_,
+                oldConfig->CypressSynchronizer,
+                newConfig->CypressSynchronizer)
+                .AsyncVia(ControlInvoker_)
+                .Run(),
+        };
+        WaitFor(AllSucceeded(asyncUpdateComponents))
+            .ThrowOnError();
+
+        YT_LOG_DEBUG(
+            "Updated queue agent server dynamic config (OldConfig: %v, NewConfig: %v)",
+            ConvertToYsonString(oldConfig, EYsonFormat::Text),
+            ConvertToYsonString(newConfig, EYsonFormat::Text));
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+IBootstrapPtr CreateQueueAgentBootstrap(
+    TQueueAgentBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator)
 {
-    ReconfigureSingletons(newConfig);
-
-    YT_VERIFY(MemberClient_);
-    YT_VERIFY(DiscoveryClient_);
-    MemberClient_->Reconfigure(newConfig->MemberClient);
-    DiscoveryClient_->Reconfigure(newConfig->DiscoveryClient);
-
-    YT_VERIFY(AlertManager_);
-    YT_VERIFY(QueueAgentShardingManager_);
-    YT_VERIFY(QueueAgent_);
-    YT_VERIFY(CypressSynchronizer_);
-
-    std::vector<TFuture<void>> asyncUpdateComponents{
-        BIND(
-            &IAlertManager::Reconfigure,
-            AlertManager_,
-            oldConfig->AlertManager,
-            newConfig->AlertManager)
-            .AsyncVia(ControlInvoker_)
-            .Run(),
-        BIND(
-            &IQueueAgentShardingManager::OnDynamicConfigChanged,
-            QueueAgentShardingManager_,
-            oldConfig->QueueAgentShardingManager,
-            newConfig->QueueAgentShardingManager)
-            .AsyncVia(ControlInvoker_)
-            .Run(),
-        BIND(
-            &TQueueAgent::OnDynamicConfigChanged,
-            QueueAgent_,
-            oldConfig->QueueAgent,
-            newConfig->QueueAgent)
-            .AsyncVia(ControlInvoker_)
-            .Run(),
-        BIND(
-            &ICypressSynchronizer::OnDynamicConfigChanged,
-            CypressSynchronizer_,
-            oldConfig->CypressSynchronizer,
-            newConfig->CypressSynchronizer)
-            .AsyncVia(ControlInvoker_)
-            .Run(),
-    };
-    WaitFor(AllSucceeded(asyncUpdateComponents))
-        .ThrowOnError();
-
-    YT_LOG_DEBUG(
-        "Updated queue agent server dynamic config (OldConfig: %v, NewConfig: %v)",
-        ConvertToYsonString(oldConfig, EYsonFormat::Text),
-        ConvertToYsonString(newConfig, EYsonFormat::Text));
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -176,7 +176,7 @@ IHedgingManagerRegistryPtr TTabletContextMock::GetHedgingManagerRegistry() const
     return nullptr;
 }
 
-TString TTabletContextMock::GetLocalHostName() const
+std::string TTabletContextMock::GetLocalHostName() const
 {
     return TString();
 }

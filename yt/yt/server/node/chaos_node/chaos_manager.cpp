@@ -59,6 +59,7 @@ using namespace NTabletClient;
 using namespace NTabletServer;
 using namespace NTabletNode;
 using namespace NTransactionSupervisor;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -107,7 +108,7 @@ public:
             Config_->LeftoverMigrationPeriod))
         , ReplicationCardWatcher_(slot->GetReplicationCardsWatcher())
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
         RegisterLoader(
             "ChaosManager.Keys",
@@ -428,7 +429,7 @@ private:
 
     void SaveKeys(TSaveContext& context) const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         ReplicationCardMap_.SaveKeys(context);
         CollocationMap_.SaveKeys(context);
@@ -436,7 +437,7 @@ private:
 
     void SaveValues(TSaveContext& context) const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Save;
 
@@ -450,7 +451,7 @@ private:
 
     void LoadKeys(TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         ReplicationCardMap_.LoadKeys(context);
         CollocationMap_.LoadKeys(context);
@@ -458,7 +459,7 @@ private:
 
     void LoadValues(TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Load;
 
@@ -473,7 +474,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TChaosAutomatonPart::Clear();
 
@@ -487,7 +488,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TChaosAutomatonPart::OnLeaderActive();
 
@@ -503,7 +504,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TChaosAutomatonPart::OnStopLeading();
 
@@ -519,7 +520,7 @@ private:
 
     void OnRecoveryComplete() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TChaosAutomatonPart::OnRecoveryComplete();
 
@@ -818,6 +819,11 @@ private:
             YT_VERIFY(collocation->GetState() == EReplicationCardCollocationState::Immigrating);
             if (std::ssize(collocation->ReplicationCards()) == collocation->GetSize()) {
                 collocation->SetState(EReplicationCardCollocationState::Normal);
+                // COMPAT(osidorkin)
+                int reign = GetCurrentMutationContext()->Request().Reign;
+                if (reign < static_cast<int>(EChaosReign::NoDetachOnDistributedCollocationAttach)) {
+                    BindReplicationCardCollocationToRtt(collocation);
+                }
             }
         }
 

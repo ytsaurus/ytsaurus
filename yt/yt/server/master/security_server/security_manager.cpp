@@ -569,7 +569,7 @@ public:
 
     void RefreshAccountsForProfiling()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         AccountsForProfiling_.clear();
         for (auto [_, account] : Accounts()) {
@@ -581,7 +581,7 @@ public:
 
     void OnAccountsProfiling()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (!Bootstrap_->IsPrimaryMaster()) {
             return;
@@ -2768,13 +2768,12 @@ public:
 
     TProfilerTagPtr GetUserCpuProfilerTag(TUser* user) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return *CpuProfilerTags_
             .FindOrInsert(
                 user->GetName(),
-                // TODO(babenko): switch to std::string
-                [&] { return New<TProfilerTag>("user", TString(user->GetName())); })
+                [&] { return New<TProfilerTag>("user", user->GetName()); })
             .first;
     }
 
@@ -2843,7 +2842,7 @@ private:
     TAccount* SequoiaAccount_ = nullptr;
 
     NHydra::TEntityMap<TUser> UserMap_;
-    THashMap<TString, TUser*> UserNameMap_;
+    THashMap<std::string, TUser*> UserNameMap_;
 
     TUserId RootUserId_;
     TUser* RootUser_ = nullptr;
@@ -2891,7 +2890,7 @@ private:
     TUser* TabletBalancerUser_ = nullptr;
 
     NHydra::TEntityMap<TGroup> GroupMap_;
-    THashMap<TString, TGroup*> GroupNameMap_;
+    THashMap<std::string, TGroup*> GroupNameMap_;
 
     THashMap<std::string, TSubject*> SubjectAliasMap_;
 
@@ -4075,7 +4074,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnLeaderActive();
 
@@ -4217,26 +4216,34 @@ private:
         }
     }
 
-
     void InitializeAccountStatistics(TAccount* account)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto cellTag = multicellManager->GetCellTag();
+        auto selfCellTag = multicellManager->GetCellTag();
 
         auto& multicellStatistics = account->MulticellStatistics();
-        if (multicellStatistics.find(cellTag) == multicellStatistics.end()) {
-            multicellStatistics[cellTag] = account->ClusterStatistics();
-        }
+        multicellStatistics.emplace(selfCellTag, account->ClusterStatistics());
 
         if (multicellManager->IsPrimaryMaster()) {
-            const auto& secondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
-            for (auto secondaryCellTag : secondaryCellTags) {
+            const auto& registeredSecondaryCellTags = multicellManager->GetRegisteredMasterCellTags();
+            for (auto secondaryCellTag : registeredSecondaryCellTags) {
                 multicellStatistics[secondaryCellTag];
+            }
+
+            const auto& secondaryCellTags = multicellManager->GetSecondaryCellTags();
+            for (auto it = multicellStatistics.begin(); it != multicellStatistics.end();) {
+                auto cellTag = it->first;
+                if (cellTag != selfCellTag && !secondaryCellTags.contains(cellTag)) {
+                    YT_VERIFY(Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
+                    multicellStatistics.erase(it++);
+                } else {
+                    ++it;
+                }
             }
         }
 
-        account->SetLocalStatisticsPtr(&multicellStatistics[cellTag]);
-        account->DetailedMasterMemoryUsage() = multicellStatistics[cellTag].ResourceUsage.DetailedMasterMemory();
+        account->SetLocalStatisticsPtr(&multicellStatistics[selfCellTag]);
+        account->DetailedMasterMemoryUsage() = multicellStatistics[selfCellTag].ResourceUsage.DetailedMasterMemory();
     }
 
     void OnAccountStatisticsGossip()
@@ -4350,7 +4357,7 @@ private:
 
     void HydraUpdateUserActivityStatistics(NProto::TReqUpdateUserActivityStatistics* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         for (const auto& update : request->updates()) {
@@ -4425,7 +4432,7 @@ private:
 
     void OnTransactionFinished(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(transaction->NestedTransactions().empty());
 

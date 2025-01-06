@@ -16,7 +16,7 @@
 
 #include <library/cpp/yt/yson/consumer.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -103,7 +103,7 @@ void DumpGlobalMemoryUsageSnapshot(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer
 
 #define PROFILING_HELPERS_H_
 #include "profiling_helpers-inl.h"

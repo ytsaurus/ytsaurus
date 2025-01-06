@@ -18,6 +18,7 @@ using namespace NCellMaster;
 using namespace NObjectServer;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 using NScheduler::TPoolConfigPtr;
 using NScheduler::TFairShareStrategyTreeConfigPtr;
@@ -212,7 +213,7 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
 
     if (ToUnderlying(context.GetVersion()) != NCellMaster::GetCurrentReign() && !IsRoot_ && Attributes_) {
         // Move attributes from unknown attributes map to known attributes map.
-        TCompactVector<TString, 3> keysToRemove;
+        std::vector<std::string> keysToRemove;
         for (const auto& [key, value] : Attributes_->Attributes()) {
             auto internedKey = TInternedAttributeKey::Lookup(key);
             if (internedKey == InvalidInternedAttribute) {
@@ -233,11 +234,12 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
                             Id_,
                             key,
                             ConvertToYsonString(value, EYsonFormat::Text));
-                        FullConfig_->LoadParameter(key, NYTree::ConvertToNode(value));
+                        // TODO(babenko): switch to std::string
+                        FullConfig_->LoadParameter(TString(key), NYTree::ConvertToNode(value));
                         EmplaceOrCrash(SpecifiedAttributes_, internedKey, std::move(value));
                         keysToRemove.push_back(key);
-                    } catch (const std::exception& e) {
-                        YT_LOG_ALERT(e, "Cannot parse value of pool attribute; the value will be dropped "
+                    } catch (const std::exception& ex) {
+                        YT_LOG_ALERT(ex, "Cannot parse value of pool attribute; the value will be dropped "
                             "(ObjectId: %v, AttributeName: %v, AttributeValue: %v)",
                             Id_,
                             key,
@@ -248,7 +250,7 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
         }
 
         for (const auto& key : keysToRemove) {
-            YT_VERIFY(Attributes_->Remove(key));
+            YT_VERIFY(Attributes_->TryRemove(key));
         }
     }
 }

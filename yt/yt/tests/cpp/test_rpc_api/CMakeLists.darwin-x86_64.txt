@@ -46,6 +46,7 @@ target_link_options(cpp-integration-test-rpc-api PRIVATE
 )
 
 target_sources(cpp-integration-test-rpc-api PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_rpc_api/test_distributed_table_signatures.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_rpc_api/test_rpc_api.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_type_v3.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/tests/cpp/test_api.cpp

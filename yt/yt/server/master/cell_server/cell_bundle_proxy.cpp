@@ -41,6 +41,7 @@ using namespace NObjectServer;
 using namespace NNodeTrackerServer;
 using namespace NSecurityServer;
 using namespace NChunkServer;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -288,7 +289,7 @@ bool TCellBundleProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYso
         }
 
         case EInternedAttributeKey::CellBalancerConfig:
-            cellBundle->CellBalancerConfig() = ConvertTo<TCellBalancerConfigPtr>(value);
+            cellBundle->CellBalancerConfig() = ConvertTo<TCellBalancerBootstrapConfigPtr>(value);
             return true;
 
         default:

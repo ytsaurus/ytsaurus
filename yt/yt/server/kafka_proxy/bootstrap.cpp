@@ -26,13 +26,13 @@
 
 #include <yt/yt/library/auth_server/authentication_manager.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
-
 #include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
 #include <yt/yt/library/program/helpers.h>
+
+#include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -51,6 +51,8 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <yt/yt/core/misc/configurable_singleton_def.h>
+
 namespace NYT::NKafkaProxy {
 
 using namespace NAdmin;
@@ -58,11 +60,12 @@ using namespace NApi;
 using namespace NAuth;
 using namespace NBus;
 using namespace NConcurrency;
-using namespace NCoreDump;
 using namespace NKafka;
 using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NYTree;
+using namespace NFusion;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,8 +77,13 @@ class TBootstrap
     : public IBootstrap
 {
 public:
-    explicit TBootstrap(TKafkaProxyConfigPtr config)
+    TBootstrap(
+        TProxyBootstrapConfigPtr config,
+        INodePtr configNode,
+        IServiceLocatorPtr serviceLocator)
         : Config_(std::move(config))
+        , ConfigNode_(std::move(configNode))
+        , ServiceLocator_(std::move(serviceLocator))
     {
         if (Config_->AbortOnUnrecognizedOptions) {
             AbortOnUnrecognizedOptions(Logger(), Config_);
@@ -84,27 +92,23 @@ public:
         }
     }
 
-    void Initialize() override
+    void Initialize()
     {
-        ControlQueue_ = New<TActionQueue>("Control");
-
-        BIND(&TBootstrap::DoInitialize, this)
+        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
             .Get()
             .ThrowOnError();
     }
 
-    void Run() override
+    TFuture<void> Run() final
     {
-        BIND(&TBootstrap::DoRun, this)
+        return BIND(&TBootstrap::DoRun, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
+            .Run();
     }
 
-    const TKafkaProxyConfigPtr& GetConfig() const override
+    const TProxyBootstrapConfigPtr& GetConfig() const override
     {
         return Config_;
     }
@@ -150,7 +154,11 @@ public:
     }
 
 private:
-    const TKafkaProxyConfigPtr Config_;
+    const TProxyBootstrapConfigPtr Config_;
+    const INodePtr ConfigNode_;
+    const IServiceLocatorPtr ServiceLocator_;
+
+    const TActionQueuePtr ControlQueue_ = New<TActionQueue>("Control");
 
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::NNative::IClientPtr NativeRootClient_;
@@ -165,25 +173,17 @@ private:
 
     NRpc::IServerPtr RpcServer_;
 
-    TActionQueuePtr ControlQueue_;
-
     NHttp::IServerPtr HttpServer_;
 
     IMapNodePtr OrchidRoot_;
     TMonitoringManagerPtr MonitoringManager_;
     ICypressRegistrarPtr CypressRegistrar_;
 
-    NCoreDump::ICoreDumperPtr CoreDumper_;
-
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
     void DoInitialize()
     {
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
-
-        if (Config_->CoreDumper) {
-            CoreDumper_ = CreateCoreDumper(Config_->CoreDumper);
-        }
 
         NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
 
@@ -218,14 +218,14 @@ private:
 
         NMonitoring::Initialize(
             HttpServer_,
-            Config_->SolomonExporter,
+            ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
             &MonitoringManager_,
             &OrchidRoot_);
 
         SetNodeByYPath(
             OrchidRoot_,
             "/config",
-            CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+            CreateVirtualNode(ConfigNode_));
         SetNodeByYPath(
             OrchidRoot_,
             "/dynamic_config_manager",
@@ -280,10 +280,10 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const TKafkaProxyDynamicConfigPtr& /*oldConfig*/,
-        const TKafkaProxyDynamicConfigPtr& newConfig)
+        const TProxyDynamicConfigPtr& /*oldConfig*/,
+        const TProxyDynamicConfigPtr& newConfig)
     {
-        ReconfigureSingletons(newConfig);
+        TSingletonManager::Reconfigure(newConfig);
 
         Poller_->SetThreadCount(newConfig->PollerThreadCount);
         Acceptor_->SetThreadCount(newConfig->AcceptorThreadCount);
@@ -294,9 +294,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(TKafkaProxyConfigPtr config)
+IBootstrapPtr CreateKafkaProxyBootstrap(
+    TProxyBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
 {
-    return std::make_unique<TBootstrap>(std::move(config));
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

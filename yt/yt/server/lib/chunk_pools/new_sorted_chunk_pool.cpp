@@ -124,7 +124,7 @@ public:
             dataSlice->UpperLimit().KeyBound = ShortenKeyBound(dataSlice->UpperLimit().KeyBound, prefixLength, RowBuffer_);
         }
 
-        auto cookie = static_cast<int>(Stripes_.size());
+        auto cookie = std::ssize(Stripes_);
         Stripes_.emplace_back(stripe);
 
         return cookie;

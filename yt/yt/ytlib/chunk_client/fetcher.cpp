@@ -87,7 +87,7 @@ private:
 
     TFuture<void> DoScrapeChunks(const THashSet<TInputChunkPtr>& chunkSpecs)
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Invoker_);
 
         THashSet<TChunkId> chunkIds;
         ChunkMap_.clear();
@@ -294,7 +294,7 @@ void TFetcherBase::PerformFetchingRoundFromNode(NNodeTrackerClient::TNodeId node
 
         auto lastIt = std::next(
             chunkIndexesToFetch.begin(),
-            static_cast<i64>(std::min(static_cast<ui64>(Config_->MaxChunksPerNodeFetch), chunkIndexesToFetch.size())));
+            std::min<i64>(Config_->MaxChunksPerNodeFetch, std::ssize(chunkIndexesToFetch)));
         std::vector<int> chunkIds(chunkIndexesToFetch.begin(), lastIt);
         chunkIndexesToFetch.erase(chunkIndexesToFetch.begin(), lastIt);
         // Fetch another portion of chunks from node.
@@ -339,7 +339,7 @@ void TFetcherBase::PerformFetchingRoundFromNode(NNodeTrackerClient::TNodeId node
 
 void TFetcherBase::StartFetchingRound(const TError& preparationError)
 {
-    VERIFY_SERIALIZED_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(Invoker_);
 
     if (!preparationError.IsOK()) {
         YT_LOG_ERROR(preparationError, "Fetching preparation failed, abort fetching round");

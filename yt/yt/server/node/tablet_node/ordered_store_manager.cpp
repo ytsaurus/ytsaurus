@@ -327,6 +327,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
             tabletSnapshot->PhysicalSchema,
             /*nameTable*/ nullptr,
             chunkWriter,
+            /*writeBlocksOptions*/ {},
             /*dataSink*/ std::nullopt,
             chunkTimestamps,
             blockCache);

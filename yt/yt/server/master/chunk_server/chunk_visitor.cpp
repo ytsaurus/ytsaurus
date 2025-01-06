@@ -124,7 +124,7 @@ private:
         const NChunkClient::TReadLimit& /*endLimit*/,
         const TChunkViewModifier* /*modifier*/) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         switch (chunk->GetChunkType()) {
             case EChunkType::Table:
@@ -169,7 +169,7 @@ private:
 
     void OnSuccess() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto result = BuildYsonStringFluently()
             .BeginMap()

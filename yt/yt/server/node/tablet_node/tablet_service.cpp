@@ -60,6 +60,7 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;

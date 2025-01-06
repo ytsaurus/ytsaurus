@@ -39,7 +39,7 @@ TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& strip
 
 TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr& stripe) const
 {
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
     YT_VERIFY(stripe);
 

@@ -24,6 +24,8 @@
 
 #include <yt/yt/server/lib/io/public.h>
 
+#include <yt/yt/server/lib/misc/bootstrap.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/cell_master_client/public.h>
@@ -44,9 +46,11 @@
 
 #include <yt/yt/library/monitoring/public.h>
 
-#include <yt/yt/ytlib/object_client/public.h>
+#include <yt/yt/library/fusion/public.h>
 
-#include <yt/yt/library/coredumper/public.h>
+#include <yt/yt/library/disk_manager/public.h>
+
+#include <yt/yt/ytlib/object_client/public.h>
 
 #include <yt/yt/core/actions/signal.h>
 
@@ -66,9 +70,8 @@ namespace NYT::NClusterNode {
 
 //! Common base for all node bootstraps.
 struct IBootstrapBase
+    : public virtual TRefCounted
 {
-    virtual ~IBootstrapBase() = default;
-
     // Resource management.
     virtual const INodeMemoryTrackerPtr& GetNodeMemoryUsageTracker() const = 0;
     virtual const TNodeResourceManagerPtr& GetNodeResourceManager() const = 0;
@@ -84,7 +87,7 @@ struct IBootstrapBase
     virtual const NProfiling::TBufferedProducerPtr& GetBufferedProducer() const = 0;
 
     // Config stuff.
-    virtual const TClusterNodeConfigPtr& GetConfig() const = 0;
+    virtual const TClusterNodeBootstrapConfigPtr& GetConfig() const = 0;
     virtual const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const = 0;
     virtual const NCellarNode::TBundleDynamicConfigManagerPtr& GetBundleDynamicConfigManager() const = 0;
 
@@ -162,7 +165,7 @@ struct IBootstrapBase
     virtual const NJobAgent::TJobResourceManagerPtr& GetJobResourceManager() const = 0;
 
     // Restart manager for hot swap functionality.
-    virtual const TRestartManagerPtr& GetRestartManager() const = 0;
+    virtual const NServer::TRestartManagerPtr& GetRestartManager() const = 0;
 
     // Job environment.
     virtual NJobProxy::EJobEnvironmentType GetJobEnvironmentType() const = 0;
@@ -195,14 +198,14 @@ struct IBootstrapBase
 
 struct IBootstrap
     : public IBootstrapBase
+    , public NServer::IDaemonBootstrap
 {
-    virtual void Initialize() = 0;
-    virtual void Run() = 0;
-
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
 
     virtual NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TString& bucket) = 0;
     virtual NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TString& bucket) = 0;
+
+    virtual NDiskManager::IHotswapManagerPtr TryGetHotswapManager() const = 0;
 
     virtual NConcurrency::TRelativeThroughputThrottlerConfigPtr PatchRelativeNetworkThrottlerConfig(
         const NConcurrency::TRelativeThroughputThrottlerConfigPtr& config) const = 0;
@@ -213,9 +216,14 @@ struct IBootstrap
     virtual void CompleteNodeRegistration() = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IBootstrap)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(TClusterNodeConfigPtr config, NYTree::INodePtr configNode);
+IBootstrapPtr CreateNodeBootstrap(
+    TClusterNodeBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -245,7 +253,7 @@ public:
 
     const NProfiling::TBufferedProducerPtr& GetBufferedProducer() const override;
 
-    const TClusterNodeConfigPtr& GetConfig() const override;
+    const TClusterNodeBootstrapConfigPtr& GetConfig() const override;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override;
     const NCellarNode::TBundleDynamicConfigManagerPtr& GetBundleDynamicConfigManager() const override;
 
@@ -302,7 +310,7 @@ public:
 
     const NJobAgent::TJobResourceManagerPtr& GetJobResourceManager() const override;
 
-    const TRestartManagerPtr& GetRestartManager() const override;
+    const NServer::TRestartManagerPtr& GetRestartManager() const override;
 
     NJobProxy::EJobEnvironmentType GetJobEnvironmentType() const override;
 

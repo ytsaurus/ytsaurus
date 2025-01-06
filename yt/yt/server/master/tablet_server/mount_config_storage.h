@@ -19,8 +19,8 @@ class TMountConfigStorage final
     : public NObjectServer::TAttributeSet
 {
 public:
-    void Set(const TString& key, const NYson::TYsonString& value);
-    bool Remove(const TString& key);
+    void Set(const std::string& key, const NYson::TYsonString& value);
+    bool TryRemove(const std::string& key);
 
     void SetSelf(const NYson::TYsonString& value);
     void Clear();
@@ -35,7 +35,7 @@ public:
 
 private:
     // Unwanted base class method intentionally shadowed.
-    void TryInsert(const TString& key, const NYson::TYsonString& value);
+    void TryInsert(const std::string& key, const NYson::TYsonString& value);
 
     void ValidateKey(const std::string& key) const;
 };

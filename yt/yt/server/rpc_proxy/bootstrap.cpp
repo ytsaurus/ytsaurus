@@ -12,6 +12,13 @@
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 #include <yt/yt/server/lib/rpc_proxy/security_manager.h>
 
+#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/key_rotator.h>
+#include <yt/yt/server/lib/signature/signature_generator.h>
+#include <yt/yt/server/lib/signature/signature_validator.h>
+
+#include <yt/yt/server/lib/signature/key_stores/cypress.h>
+
 #include <yt/yt/server/lib/shuffle_server/shuffle_service.h>
 
 #include <yt/yt/server/lib/admin/admin_service.h>
@@ -38,7 +45,9 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
+#include <yt/yt/library/coredumper/public.h>
+
+#include <yt/yt/library/profiling/solomon/public.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/helpers.h>
@@ -52,6 +61,8 @@
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
 #include <yt/yt/library/profiling/solomon/registry.h>
+
+#include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
@@ -77,6 +88,8 @@
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 
+#include <yt/yt/core/misc/configurable_singleton_def.h>
+
 namespace NYT::NRpcProxy {
 
 using namespace NAdmin;
@@ -91,7 +104,10 @@ using namespace NOrchid;
 using namespace NProfiling;
 using namespace NRpc;
 using namespace NShuffleServer;
+using namespace NSignature;
 using namespace NYTree;
+using namespace NFusion;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -99,9 +115,13 @@ static constexpr auto& Logger = RpcProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
+TBootstrap::TBootstrap(
+    TProxyBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
+    , ServiceLocator_(std::move(serviceLocator))
     , ControlQueue_(New<TActionQueue>("Control"))
     , WorkerPool_(CreateThreadPool(Config_->WorkerThreadPoolSize, "Worker"))
     , HttpPoller_(CreateThreadPoolPoller(1, "HttpPoller"))
@@ -119,18 +139,25 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
 TBootstrap::~TBootstrap() = default;
 
-void TBootstrap::Run()
+void TBootstrap::Initialize()
 {
-    BIND(&TBootstrap::DoRun, this)
+    BIND(&TBootstrap::DoInitialize, MakeStrong(this))
         .AsyncVia(ControlQueue_->GetInvoker())
         .Run()
         .Get()
         .ThrowOnError();
 }
 
-void TBootstrap::DoRun()
+TFuture<void> TBootstrap::Run()
 {
-    LocalAddresses_ = NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
+    return BIND(&TBootstrap::DoRun, MakeStrong(this))
+        .AsyncVia(ControlQueue_->GetInvoker())
+        .Run();
+}
+
+void TBootstrap::DoInitialize()
+{
+    LocalAddresses_ = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 
     YT_LOG_INFO("Starting proxy (LocalAddresses: %v)",
         GetValues(LocalAddresses_));
@@ -175,6 +202,31 @@ void TBootstrap::DoRun()
             RootClient_);
     }
 
+    if (Config_->SignatureValidation) {
+        CypressKeyReader_ = New<TCypressKeyReader>(
+            Config_->SignatureValidation->CypressKeyReader,
+            RootClient_);
+        SignatureValidator_ = New<TSignatureValidator>(
+            Config_->SignatureValidation->Validator,
+            CypressKeyReader_);
+    }
+
+    if (Config_->SignatureGeneration) {
+        CypressKeyWriter_ = New<TCypressKeyWriter>(
+            Config_->SignatureGeneration->CypressKeyWriter,
+            RootClient_);
+        SignatureGenerator_ = New<TSignatureGenerator>(
+            Config_->SignatureGeneration->Generator,
+            CypressKeyWriter_);
+        SignatureKeyRotator_ = New<TKeyRotator>(
+            Config_->SignatureGeneration->KeyRotator,
+            GetControlInvoker(),
+            SignatureGenerator_);
+
+        YT_UNUSED_FUTURE(CypressKeyWriter_->Initialize());
+        SignatureKeyRotator_->Start();
+    }
+
     ProxyCoordinator_ = CreateProxyCoordinator();
     TraceSampler_ = New<NTracing::TSampler>();
 
@@ -211,19 +263,19 @@ void TBootstrap::DoRun()
         TvmOnlyRpcServer_ = NRpc::NBus::CreateBusServer(TvmOnlyBusServer_);
     }
 
-    DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
-    BundleDynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, this));
+    // Cycles are fine for bootstrap.
+    DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
+    BundleDynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+}
 
-    if (Config_->CoreDumper) {
-        CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
-    }
-
+void TBootstrap::DoRun()
+{
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
-        Config_->SolomonExporter,
+        ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
     NProfiling::TSolomonRegistry::Get()->SetDynamicTags({NProfiling::TTag{"proxy_role", DefaultRpcProxyRole}});
@@ -246,10 +298,12 @@ void TBootstrap::DoRun()
             "/cluster_connection",
             CreateVirtualNode(Connection_->GetOrchidService()));
     }
-    SetNodeByYPath(
-        orchidRoot,
-        "/disk_monitoring",
-        CreateVirtualNode(NDiskManager::THotswapManager::GetOrchidService()));
+    if (auto hotswapManager = ServiceLocator_->FindService<NDiskManager::IHotswapManagerPtr>()) {
+        SetNodeByYPath(
+            orchidRoot,
+            "/disk_monitoring",
+            CreateVirtualNode(hotswapManager->GetOrchidService()));
+    }
     SetBuildAttributes(
         orchidRoot,
         "proxy");
@@ -281,6 +335,8 @@ void TBootstrap::DoRun()
             TraceSampler_,
             RpcProxyLogger(),
             RpcProxyProfiler(),
+            SignatureValidator_,
+            SignatureGenerator_,
             MemoryUsageTracker_);
     };
 
@@ -341,7 +397,7 @@ void TBootstrap::DoRun()
 
     auto adminService = CreateAdminService(
         GetControlInvoker(),
-        /*coreDumper*/ nullptr,
+        ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
         NativeAuthenticator_);
     RpcServer_->RegisterService(adminService);
     if (TvmOnlyRpcServer_) {
@@ -388,7 +444,7 @@ void TBootstrap::DoRun()
         "/restart_manager",
         CreateVirtualNode(restartManager->GetOrchidService()));
 
-    RpcProxyHeapUsageProfiler_ = New<TRpcProxyHeapUsageProfiler>(
+    RpcProxyHeapUsageProfiler_ = New<TProxyHeapUsageProfiler>(
         GetControlInvoker(),
         Config_->HeapProfiler);
 }
@@ -430,7 +486,7 @@ void TBootstrap::OnDynamicConfigChanged(
     const TProxyDynamicConfigPtr& /*oldConfig*/,
     const TProxyDynamicConfigPtr& newConfig)
 {
-    ReconfigureSingletons(newConfig);
+    TSingletonManager::Reconfigure(newConfig);
 
     TraceSampler_->UpdateConfig(newConfig->Tracing);
 
@@ -458,6 +514,21 @@ const IInvokerPtr& TBootstrap::GetWorkerInvoker() const
 const IInvokerPtr& TBootstrap::GetControlInvoker() const
 {
     return ControlQueue_->GetInvoker();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBootstrapPtr CreateRpcProxyBootstrap(
+    TProxyBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
+{
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

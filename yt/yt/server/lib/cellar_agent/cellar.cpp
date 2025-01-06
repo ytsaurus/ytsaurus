@@ -63,7 +63,7 @@ public:
 
     void Reconfigure(const TCellarDynamicConfigPtr& config) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         SetCellarSize(config->Size.value_or(Config_->Size));
 
@@ -78,28 +78,28 @@ public:
 
     int GetAvailableSlotCount() const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return Occupants_.size() - OccupantCount_;
     }
 
     int GetOccupantCount() const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return OccupantCount_;
     }
 
     const std::vector<ICellarOccupantPtr>& Occupants() const override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return Occupants_;
     }
 
     ICellarOccupantPtr FindOccupant(TCellId id) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(CellIdToOccupantLock_);
         auto it = CellIdToOccupant_.find(id);
@@ -108,7 +108,7 @@ public:
 
     ICellarOccupantPtr GetOccupant(TCellId id) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto occupant = FindOccupant(id);
         YT_VERIFY(occupant);
@@ -117,7 +117,7 @@ public:
 
     void CreateOccupant(const TCreateCellSlotInfo& createInfo) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         int index = GetFreeOccupantIndex();
         auto occupier = CreateOccupier(index);
@@ -145,7 +145,7 @@ public:
         const ICellarOccupantPtr& occupant,
         const TConfigureCellSlotInfo& configureInfo) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         occupant->Configure(configureInfo);
         if (HydraDynamicConfig_) {
@@ -157,7 +157,7 @@ public:
         const ICellarOccupantPtr& occupant,
         const TUpdateCellSlotInfo& updateInfo) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         occupant->UpdateDynamicConfig(updateInfo);
 
@@ -166,11 +166,11 @@ public:
 
     TFuture<void> RemoveOccupant(const ICellarOccupantPtr& occupant) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return occupant->Finalize()
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError&) {
-                VERIFY_THREAD_AFFINITY(ControlThread);
+                YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
                 if (occupant->GetIndex() < std::ssize(Occupants_) && Occupants_[occupant->GetIndex()] == occupant) {
                     Occupants_[occupant->GetIndex()].Reset();
@@ -191,7 +191,7 @@ public:
 
     void RegisterOccupierProvider(ICellarOccupierProviderPtr provider) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (OccupierProvider_) {
             THROW_ERROR_EXCEPTION("Cellar %Qlv already has a provider", Type_);
@@ -204,14 +204,14 @@ public:
 
     IYPathServicePtr GetOrchidService() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return OrchidService_;
     }
 
     void PopulateAlerts(std::vector<TError>* error) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         for (const auto& occupant : Occupants_) {
             if (occupant) {
@@ -295,7 +295,7 @@ private:
 
     int GetFreeOccupantIndex()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         for (int index = 0; index < std::ssize(Occupants_); ++index) {
             if (!Occupants_[index]) {
@@ -308,7 +308,7 @@ private:
 
     ICellarOccupierPtr CreateOccupier(int index)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_DEBUG("Create occupier (CellarType: %v)",
             Type_);
@@ -322,7 +322,7 @@ private:
 
     void SetCellarSize(int cellarSize)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (std::ssize(Occupants_) == cellarSize) {
             return;

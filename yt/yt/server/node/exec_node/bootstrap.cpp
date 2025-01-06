@@ -71,6 +71,7 @@ using namespace NNodeTrackerClient;
 using namespace NProfiling;
 using namespace NYTree;
 using namespace NScheduler;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,8 +93,9 @@ public:
     {
         YT_LOG_INFO("Initializing exec node");
 
+        // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
 
         SlotManager_ = New<TSlotManager>(this);
 
@@ -175,7 +177,9 @@ public:
         SchedulerConnector_->Initialize();
         ControllerAgentConnectorPool_->Initialize();
 
-        SubscribePopulateAlerts(BIND_NO_PROPAGATE(&NDiskManager::THotswapManager::PopulateAlerts));
+        if (auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager()) {
+            SubscribePopulateAlerts(BIND_NO_PROPAGATE(&NDiskManager::IHotswapManager::PopulateAlerts, hotswapManager));
+        }
     }
 
     void Run() override
@@ -191,10 +195,12 @@ public:
             "/exec_node",
             CreateVirtualNode(GetOrchidService(this)));
 
-        SetNodeByYPath(
-            GetOrchidRoot(),
-            "/disk_monitoring",
-            CreateVirtualNode(NDiskManager::THotswapManager::GetOrchidService()));
+        if (auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager()) {
+            SetNodeByYPath(
+                GetOrchidRoot(),
+                "/disk_monitoring",
+                CreateVirtualNode(hotswapManager->GetOrchidService()));
+        }
 
         // COMPAT(pogorelov)
         if (JobProxyLogManager_) {
@@ -358,18 +364,19 @@ private:
 
         JobProxyConfigTemplate_ = New<NJobProxy::TJobProxyInternalConfig>();
 
-        JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->GetSingletonConfig<TFiberManagerConfig>());
+        auto singletonsConfig = TSingletonManager::GetConfig();
+        JobProxyConfigTemplate_->SetSingletonConfig(singletonsConfig->GetSingletonConfig<TFiberManagerConfig>());
 
         {
-            auto config = CloneYsonStruct(GetConfig()->GetSingletonConfig<NNet::TAddressResolverConfig>());
+            auto config = CloneYsonStruct(singletonsConfig->GetSingletonConfig<NNet::TAddressResolverConfig>());
             config->LocalHostNameOverride = NNet::ReadLocalHostName();
             JobProxyConfigTemplate_->SetSingletonConfig(std::move(config));
         }
 
-        JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->GetSingletonConfig<NRpc::TDispatcherConfig>());
-        JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->GetSingletonConfig<NBus::TTcpDispatcherConfig>());
-        JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->TryGetSingletonConfig<NServiceDiscovery::NYP::TServiceDiscoveryConfig>());
-        JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->GetSingletonConfig<NChunkClient::TDispatcherConfig>());
+        JobProxyConfigTemplate_->SetSingletonConfig(singletonsConfig->GetSingletonConfig<NRpc::TDispatcherConfig>());
+        JobProxyConfigTemplate_->SetSingletonConfig(singletonsConfig->GetSingletonConfig<NBus::TTcpDispatcherConfig>());
+        JobProxyConfigTemplate_->SetSingletonConfig(singletonsConfig->TryGetSingletonConfig<NServiceDiscovery::NYP::TServiceDiscoveryConfig>());
+        JobProxyConfigTemplate_->SetSingletonConfig(singletonsConfig->GetSingletonConfig<NChunkClient::TDispatcherConfig>());
         JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyLogging->LogManagerTemplate);
         JobProxyConfigTemplate_->SetSingletonConfig(GetConfig()->ExecNode->JobProxy->JobProxyJaeger);
 
@@ -418,7 +425,7 @@ private:
         const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
-        VERIFY_INVOKER_AFFINITY(GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetControlInvoker());
 
         if (*oldConfig == *newConfig) {
             return;
@@ -487,9 +494,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(NClusterNode::IBootstrap* bootstrap)
+IBootstrapPtr CreateBootstrap(NClusterNode::IBootstrap* bootstrap)
 {
-    return std::make_unique<TBootstrap>(bootstrap);
+    return New<TBootstrap>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

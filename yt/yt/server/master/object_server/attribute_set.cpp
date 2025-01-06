@@ -33,12 +33,12 @@ void TAttributeSet::Load(NCellMaster::TLoadContext& context)
     }
 }
 
-void TAttributeSet::Set(const TString& key, const NYson::TYsonString& value)
+void TAttributeSet::Set(const std::string& key, const NYson::TYsonString& value)
 {
     if (auto it = Attributes_.find(key); it != Attributes_.end()) {
-        MasterMemoryUsage_ -= static_cast<i64>(it->first.size());
+        MasterMemoryUsage_ -= std::ssize(it->first);
         if (it->second) {
-            MasterMemoryUsage_ -= static_cast<i64>(it->second.AsStringBuf().size());
+            MasterMemoryUsage_ -= std::ssize(it->second.AsStringBuf());
         }
     }
     Attributes_[key] = value;
@@ -48,7 +48,7 @@ void TAttributeSet::Set(const TString& key, const NYson::TYsonString& value)
     }
 }
 
-bool TAttributeSet::TryInsert(const TString& key, const NYson::TYsonString& value)
+bool TAttributeSet::TryInsert(const std::string& key, const NYson::TYsonString& value)
 {
     if (Attributes_.find(key) != Attributes_.end()) {
         return false;
@@ -61,24 +61,25 @@ bool TAttributeSet::TryInsert(const TString& key, const NYson::TYsonString& valu
     return true;
 }
 
-bool TAttributeSet::Remove(const TString& key)
+bool TAttributeSet::TryRemove(const std::string& key)
 {
     auto it = Attributes_.find(key);
     if (it == Attributes_.end()) {
         return false;
     }
-    MasterMemoryUsage_ -= static_cast<i64>(it->first.size());
+    MasterMemoryUsage_ -= std::ssize(it->first);
     if (it->second) {
-        MasterMemoryUsage_ -= static_cast<i64>(it->second.AsStringBuf().size());
+        MasterMemoryUsage_ -= std::ssize(it->second.AsStringBuf());
     }
     Attributes_.erase(it);
     return true;
 }
 
-NYson::TYsonString TAttributeSet::Find(TStringBuf key) const {
+NYson::TYsonString TAttributeSet::Find(TStringBuf key) const
+{
     auto it = Attributes_.find(key);
     if (it == Attributes_.end()) {
-        return NYson::TYsonString();
+        return {};
     } else {
         return it->second;
     }

@@ -40,7 +40,13 @@ static const TString GlobalThrottlersAttributeKey = "global_throttlers";
 ////////////////////////////////////////////////////////////////////////////////
 
 // Single member throttler usage.
-using TThrottlerLocalUsage = TThrottlerUsage;
+struct TThrottlerLocalUsage
+{
+    double Rate = 0.0;
+    double Limit = 0.0;
+    i64 QueueByteSize = 0;
+    i64 QueueEstimatedOverrunDuration = 0;
+};
 // Throttler usage collected on the leader over all group members.
 using TThrottlerGlobalUsage = TThrottlerUsage;
 
@@ -255,7 +261,7 @@ private:
             return;
         }
 
-        VERIFY_SPINLOCK_AFFINITY(HistoricUsageAggregatorLock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(HistoricUsageAggregatorLock_);
 
         Initialized_ = true;
 
@@ -489,7 +495,7 @@ public:
         return result;
     }
 
-    std::shared_ptr<THashMap<TThrottlerId, TThrottlerGlobalUsage>> GetThrottlerToTotalUsage() const
+    std::shared_ptr<const THashMap<TThrottlerId, TThrottlerGlobalUsage>> GetThrottlerToTotalUsage() const
     {
         return atomic_load(&ThrottlerToTotalUsage_);
     }
@@ -728,8 +734,11 @@ private:
                         auto& throttlerGlobalUsage = (*newThrottlerToTotalUsage)[throttlerId];
                         throttlerGlobalUsage.Rate += throttlerLocalUsage.Rate;
                         throttlerGlobalUsage.QueueByteSize += throttlerLocalUsage.QueueByteSize;
-                        throttlerGlobalUsage.QueueEstimatedOverrunDuration = std::max(
-                            throttlerGlobalUsage.QueueEstimatedOverrunDuration,
+                        throttlerGlobalUsage.QueueMaxEstimatedOverrunDuration = std::max(
+                            throttlerGlobalUsage.QueueMaxEstimatedOverrunDuration,
+                            throttlerLocalUsage.QueueEstimatedOverrunDuration);
+                        throttlerGlobalUsage.QueueMinEstimatedOverrunDuration = std::min(
+                            throttlerGlobalUsage.QueueMinEstimatedOverrunDuration,
                             throttlerLocalUsage.QueueEstimatedOverrunDuration);
                     }
                 }
@@ -1080,7 +1089,7 @@ private:
 
     void Start()
     {
-        VERIFY_SPINLOCK_AFFINITY(Throttlers_->Lock);
+        YT_ASSERT_SPINLOCK_AFFINITY(Throttlers_->Lock);
 
         YT_UNUSED_FUTURE(MemberClient_->Start());
         Active_ = true;
@@ -1088,7 +1097,7 @@ private:
 
     void Stop()
     {
-        VERIFY_SPINLOCK_AFFINITY(Throttlers_->Lock);
+        YT_ASSERT_SPINLOCK_AFFINITY(Throttlers_->Lock);
 
         Active_ = false;
         YT_UNUSED_FUTURE(MemberClient_->Stop());
@@ -1406,7 +1415,8 @@ private:
                         .Item("rate").Value(rate)
                         .Item("limit").Value(limit)
                         .Item("queue_byte_size").Value(item.second.QueueByteSize)
-                        .Item("queue_estimated_overrun_duration").Value(item.second.QueueEstimatedOverrunDuration)
+                        .Item("queue_max_estimated_overrun_duration").Value(item.second.QueueMaxEstimatedOverrunDuration)
+                        .Item("queue_min_estimated_overrun_duration").Value(item.second.QueueMinEstimatedOverrunDuration)
                     .EndMap();
             });
 

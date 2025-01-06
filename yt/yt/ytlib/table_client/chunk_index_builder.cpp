@@ -132,7 +132,7 @@ private:
 
         int entryIndex = 0;
         for (auto blockLastKey : BlockLastKeys_) {
-            auto nextEntryIndex = std::min(entryIndex + MaxEntryCountInBlock_, static_cast<int>(Entries_.size()));
+            auto nextEntryIndex = std::min<int>(entryIndex + MaxEntryCountInBlock_, std::ssize(Entries_));
             YT_VERIFY(entryIndex != nextEntryIndex);
 
             // May be non-empty for testing purposes.

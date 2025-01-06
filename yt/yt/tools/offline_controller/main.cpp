@@ -43,6 +43,7 @@ using namespace NYT::NControllerAgent;
 using namespace NYT::NEventLog;
 using namespace NYT::NScheduler;
 using namespace NYT::NCoreDump;
+using namespace NYT::NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -331,6 +332,26 @@ public:
     void UpdateRunningAllocationsStatistics(std::vector<TAgentToSchedulerRunningAllocationStatistics> /*runningAllocationStatisticsUpdates*/) override
     {
         YT_UNIMPLEMENTED();
+    }
+
+    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+        const NScheduler::TClusterName&,
+        const TCallback<void()>&) override
+    { }
+
+    void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+        const NScheduler::TClusterName& /* clusterName */,
+        const TCallback<void()>& /* callback */) override
+    { }
+
+    std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const override
+    {
+        return nullptr;
+    }
+
+    bool IsNetworkBandwidthAvailable(const NScheduler::TClusterName& /* clusterName */) const override
+    {
+        return true;
     }
 
 private:

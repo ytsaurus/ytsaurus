@@ -129,7 +129,8 @@ public:
             NameTable_,
             std::move(client),
             /*localHostName*/ TString(), // Locality is not important for CHYT.
-            std::move(transaction)))
+            std::move(transaction),
+            /*writeBlocksOptions*/ {}))
             .ValueOrThrow();
     }
 

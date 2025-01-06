@@ -59,7 +59,7 @@ void TMutationIdempotizer::Load(NCellMaster::TLoadContext& context)
 
 void TMutationIdempotizer::Start()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     YT_VERIFY(!CheckExecutor_);
     CheckExecutor_ = New<TPeriodicExecutor>(
@@ -70,14 +70,14 @@ void TMutationIdempotizer::Start()
 
 void TMutationIdempotizer::Stop()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     CheckExecutor_.Reset();
 }
 
 void TMutationIdempotizer::Clear()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     FinishedMutations_.clear();
     FinishedMutationsByTime_.clear();
@@ -85,7 +85,7 @@ void TMutationIdempotizer::Clear()
 
 bool TMutationIdempotizer::IsMutationApplied(TMutationId id) const
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     if (!Enabled_) {
         return false;
@@ -96,7 +96,7 @@ bool TMutationIdempotizer::IsMutationApplied(TMutationId id) const
 
 void TMutationIdempotizer::SetMutationApplied(TMutationId id)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     if (!Enabled_) {
         return;
@@ -144,7 +144,7 @@ i64 TMutationIdempotizer::RecentlyFinishedMutationCount() const
 
 void TMutationIdempotizer::OnCheck()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     if (!hydraManager->IsActiveLeader()) {

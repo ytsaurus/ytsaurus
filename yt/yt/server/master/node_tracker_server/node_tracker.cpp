@@ -2105,7 +2105,8 @@ private:
         node->InitializeStates(
             multicellManager->GetCellTag(),
             multicellManager->GetSecondaryCellTags(),
-            multicellManager->GetDynamicallyPropagatedMastersCellTags());
+            multicellManager->GetDynamicallyPropagatedMastersCellTags(),
+            Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
     }
 
     void InitializeNodeIOWeights(TNode* node)

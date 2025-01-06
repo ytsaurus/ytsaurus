@@ -46,7 +46,7 @@ TCachedBlobChunk::TCachedBlobChunk(
 
 TCachedBlobChunk::~TCachedBlobChunk()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     DestroyedHandler_.Run();
 }
@@ -78,7 +78,7 @@ TCacheLocation::TCacheLocation(
 
 const IThroughputThrottlerPtr& TCacheLocation::GetInThrottler() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return InThrottler_;
 }
@@ -171,7 +171,7 @@ std::vector<TString> TCacheLocation::GetChunkPartNames(TChunkId chunkId) const
 
 TFuture<void> TCacheLocation::RemoveChunks()
 {
-    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetAuxPoolInvoker());
     YT_LOG_INFO("Location is disabled; unregistering all the chunks in it (LocationId: %v)",
         GetId());
 
@@ -180,7 +180,7 @@ TFuture<void> TCacheLocation::RemoveChunks()
 
 bool TCacheLocation::ScheduleDisable(const TError& reason)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!ChangeState(ELocationState::Disabling, ELocationState::Enabled)) {
         return false;

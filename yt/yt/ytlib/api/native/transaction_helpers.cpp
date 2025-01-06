@@ -17,7 +17,7 @@ void TTransactionSignatureGenerator::RegisterRequest()
 
 void TTransactionSignatureGenerator::RegisterRequests(int count)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
     YT_VERIFY(RequestIndex_ == 0);
 
     RequestCount_ += count;
@@ -25,7 +25,7 @@ void TTransactionSignatureGenerator::RegisterRequests(int count)
 
 TTransactionSignature TTransactionSignatureGenerator::GenerateSignature()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto requestIndex = RequestIndex_.fetch_add(1, std::memory_order::relaxed);
     YT_VERIFY(requestIndex < RequestCount_);

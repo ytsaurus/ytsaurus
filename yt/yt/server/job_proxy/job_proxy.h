@@ -67,7 +67,7 @@ public:
 
     TString GetAuthenticatedUser() const override;
 
-    TString GetLocalHostName() const override;
+    std::string GetLocalHostName() const override;
 
     NRpc::IServerPtr GetRpcServer() const override;
 

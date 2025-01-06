@@ -25,6 +25,7 @@ using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NConcurrency;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -283,7 +284,7 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
     // COMPAT(aleksandra-zh)
     const auto& attributeName = EInternedAttributeKey::ChunkMergerNodeTraversalConcurrency.Unintern();
     if (auto value = FindAttribute(attributeName)) {
-        YT_VERIFY(Attributes_->Remove(attributeName));
+        YT_VERIFY(Attributes_->TryRemove(attributeName));
         YT_LOG_INFO("Dropping custom chunk merger traversal concurrency value (Value: %v, AccountId: %v)",
             *value,
             GetId());

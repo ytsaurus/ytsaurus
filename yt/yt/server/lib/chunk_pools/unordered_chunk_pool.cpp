@@ -219,7 +219,7 @@ public:
         // NB: Cannot estimate MaxBlockSize to fill stat field here.
         stat.ChunkCount = std::max(
             static_cast<i64>(1),
-            static_cast<i64>(FreeStripes_.size()) / GetJobCounter()->GetPending());
+            std::ssize(FreeStripes_) / GetJobCounter()->GetPending());
         stat.DataWeight = std::max(
             static_cast<i64>(1),
             GetDataWeightCounter()->GetPending() / GetJobCounter()->GetPending());
@@ -399,7 +399,7 @@ public:
                 stripe->DataSlices.emplace_back(std::move(currentDataSlice));
                 rowsToAdd -= sliceRowCount;
                 ++sliceIndex;
-                if (sliceIndex == static_cast<int>(dataSlices.size())) {
+                if (sliceIndex == std::ssize(dataSlices)) {
                     break;
                 }
                 currentDataSlice = dataSlices[sliceIndex];

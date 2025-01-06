@@ -53,7 +53,7 @@ template <class T>
 std::vector<NYTree::IAttributeDictionary::TKeyValuePair> TOverlaidAttributeDictionary<T>::ListPairs() const
 {
     THashMap<TString, NYson::TYsonString> result;
-    for (int index  = static_cast<int>(UnderlyingDictionaries_.size()) - 1; index >= 0; --index) {
+    for (int index  = std::ssize(UnderlyingDictionaries_) - 1; index >= 0; --index) {
         const auto& dict = UnderlyingDictionaries_[index];
         if (!dict) {
             continue;

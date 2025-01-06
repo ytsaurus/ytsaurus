@@ -18,13 +18,15 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
+#include <yt/yt/library/profiling/solomon/public.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
 #include <yt/yt/library/program/helpers.h>
+
+#include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -43,6 +45,8 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <yt/yt/core/misc/configurable_singleton_def.h>
+
 namespace NYT::NTcpProxy {
 
 using namespace NAdmin;
@@ -51,6 +55,8 @@ using namespace NCoreDump;
 using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NYTree;
+using namespace NFusion;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,8 +68,14 @@ class TBootstrap
     : public IBootstrap
 {
 public:
-    explicit TBootstrap(TTcpProxyConfigPtr config)
+    TBootstrap(
+        TProxyBootstrapConfigPtr config,
+        INodePtr configNode,
+        IServiceLocatorPtr serviceLocator)
         : Config_(std::move(config))
+        , ConfigNode_(std::move(configNode))
+        , ServiceLocator_(std::move(serviceLocator))
+        , ControlQueue_(New<TActionQueue>("Control"))
     {
         if (Config_->AbortOnUnrecognizedOptions) {
             AbortOnUnrecognizedOptions(Logger(), Config_);
@@ -72,27 +84,23 @@ public:
         }
     }
 
-    void Initialize() override
+    void Initialize()
     {
-        ControlQueue_ = New<TActionQueue>("Control");
-
-        BIND(&TBootstrap::DoInitialize, this)
+        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
             .Get()
             .ThrowOnError();
     }
 
-    void Run() override
+    TFuture<void> Run() override
     {
-        BIND(&TBootstrap::DoRun, this)
+        return BIND(&TBootstrap::DoRun, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
+            .Run();
     }
 
-    const TTcpProxyConfigPtr& GetConfig() const override
+    const TProxyBootstrapConfigPtr& GetConfig() const override
     {
         return Config_;
     }
@@ -138,7 +146,11 @@ public:
     }
 
 private:
-    const TTcpProxyConfigPtr Config_;
+    const TProxyBootstrapConfigPtr Config_;
+    const INodePtr ConfigNode_;
+    const IServiceLocatorPtr ServiceLocator_;
+
+    const TActionQueuePtr ControlQueue_;
 
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::NNative::IClientPtr NativeRootClient_;
@@ -149,8 +161,6 @@ private:
 
     IRouterPtr Router_;
 
-    TActionQueuePtr ControlQueue_;
-
     NBus::IBusServerPtr BusServer_;
     NHttp::IServerPtr HttpServer_;
 
@@ -158,18 +168,12 @@ private:
     TMonitoringManagerPtr MonitoringManager_;
     ICypressRegistrarPtr CypressRegistrar_;
 
-    NCoreDump::ICoreDumperPtr CoreDumper_;
-
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
     void DoInitialize()
     {
         BusServer_ = NBus::CreateBusServer(Config_->BusServer);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
-
-        if (Config_->CoreDumper) {
-            CoreDumper_ = CreateCoreDumper(Config_->CoreDumper);
-        }
 
         NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
         NativeRootClient_ = NativeConnection_->CreateNativeClient({.User = NSecurityClient::RootUserName});
@@ -195,7 +199,7 @@ private:
 
         NMonitoring::Initialize(
             HttpServer_,
-            Config_->SolomonExporter,
+            ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
             &MonitoringManager_,
             &OrchidRoot_);
 
@@ -203,7 +207,7 @@ private:
             SetNodeByYPath(
                 OrchidRoot_,
                 "/config",
-                CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+                CreateVirtualNode(ConfigNode_));
             SetNodeByYPath(
                 OrchidRoot_,
                 "/dynamic_config_manager",
@@ -212,7 +216,7 @@ private:
         SetNodeByYPath(
             OrchidRoot_,
             "/role",
-            CreateVirtualNode(ConvertTo<INodePtr>(Config_->Role)));
+            ConvertTo<INodePtr>(Config_->Role));
         SetBuildAttributes(
             OrchidRoot_,
             "cypress_proxy");
@@ -235,10 +239,10 @@ private:
     }
 
     void OnDynamicConfigChanged(
-        const TTcpProxyDynamicConfigPtr& /*oldConfig*/,
-        const TTcpProxyDynamicConfigPtr& newConfig)
+        const TProxyDynamicConfigPtr& /*oldConfig*/,
+        const TProxyDynamicConfigPtr& newConfig)
     {
-        ReconfigureSingletons(newConfig);
+        TSingletonManager::Reconfigure(newConfig);
 
         Poller_->SetThreadCount(newConfig->PollerThreadCount);
         Acceptor_->SetThreadCount(newConfig->AcceptorThreadCount);
@@ -247,9 +251,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(TTcpProxyConfigPtr config)
+IBootstrapPtr CreateTcpProxyBootstrap(
+    TProxyBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
 {
-    return std::make_unique<TBootstrap>(std::move(config));
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

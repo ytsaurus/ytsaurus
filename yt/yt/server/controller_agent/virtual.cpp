@@ -28,6 +28,7 @@ using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NScheduler;
 using namespace NSecurityClient;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;

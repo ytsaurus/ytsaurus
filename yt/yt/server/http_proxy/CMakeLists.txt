@@ -43,7 +43,6 @@ target_link_libraries(yt-server-http_proxy PUBLIC
   ytserver
   server-lib-chunk_pools
   server-lib-cypress_registrar
-  server-lib-zookeeper_proxy
   server-lib-logging
   library-cpp-cgiparam
   library-cpp-getopt
@@ -71,7 +70,6 @@ target_sources(yt-server-http_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/solomon_proxy.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/zookeeper_bootstrap_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/discovery_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/http_proxy/clickhouse/handler.cpp

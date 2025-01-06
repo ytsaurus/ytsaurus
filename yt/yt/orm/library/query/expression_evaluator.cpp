@@ -99,7 +99,7 @@ TUnversionedValue MakeUnversionedValue(
                 *regularString = NYson::ConvertFromYsonString<TString>(ysonPayload);
                 return MakeUnversionedStringValue(*regularString);
             },
-            [&] (const TStringBuf& stringPayload) {
+            [&] (TStringBuf stringPayload) {
                 return MakeUnversionedStringValue(stringPayload);
             });
     }

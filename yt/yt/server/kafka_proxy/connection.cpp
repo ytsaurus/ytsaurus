@@ -26,13 +26,12 @@ struct TKafkaConnectionTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(nadya73): make a base class with zookeeper connection.
 class TConnection
     : public IConnection
 {
 public:
     TConnection(
-        TKafkaProxyConfigPtr config,
+        TProxyBootstrapConfigPtr config,
         NNet::IConnectionPtr connection,
         IInvokerPtr invoker,
         TRequestHandler requestHandler,
@@ -52,7 +51,7 @@ public:
 
     void Start() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_VERIFY(!Started_.exchange(true));
 
@@ -81,7 +80,7 @@ public:
 
     TConnectionId GetConnectionId() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ConnectionId_;
     }
@@ -89,7 +88,7 @@ public:
 private:
     const TConnectionId ConnectionId_;
 
-    const TKafkaProxyConfigPtr Config_;
+    const TProxyBootstrapConfigPtr Config_;
 
     const NNet::IConnectionPtr Connection_;
     const IPollerPtr Poller_;
@@ -109,7 +108,7 @@ private:
 
     void ArmReader()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (Stopping_) {
             return;
@@ -133,7 +132,7 @@ private:
 
     void OnRead(TErrorOr<size_t> bytesReadOrError)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (Stopping_) {
             return;
@@ -163,7 +162,7 @@ private:
 
     TFuture<void> DoPostMessage(TMessage message)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         if (!PacketEncoder_->Start(
             EPacketType::Message,
@@ -207,7 +206,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IConnectionPtr CreateConnection(
-    TKafkaProxyConfigPtr config,
+    TProxyBootstrapConfigPtr config,
     NNet::IConnectionPtr connection,
     IInvokerPtr invoker,
     TRequestHandler requestHandler,

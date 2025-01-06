@@ -38,7 +38,7 @@ public:
         TChunkId chunkId,
         int mediumIndex) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         // There are two possible places where we can look for a chunk: ChunkStore and ChunkCache.
         if (Bootstrap_->IsDataNode()) {
@@ -66,7 +66,7 @@ public:
         TChunkId chunkId,
         int mediumIndex) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto chunk = FindChunk(chunkId, mediumIndex);
         if (!chunk) {

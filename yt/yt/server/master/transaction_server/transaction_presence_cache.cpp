@@ -52,7 +52,7 @@ TTransactionPresenceCache::TTransactionPresenceCache(TBootstrap* bootstrap)
 
 void TTransactionPresenceCache::Start()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(!EvictionExecutor_);
 
     EvictionExecutor_ = New<TPeriodicExecutor>(
@@ -69,7 +69,7 @@ void TTransactionPresenceCache::Start()
 
 void TTransactionPresenceCache::Stop()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     Started_ = false;
 
@@ -106,7 +106,7 @@ i64 TTransactionPresenceCache::GetSubscribedRemoteTransactionReplicationCount() 
 
 ETransactionPresence TTransactionPresenceCache::GetTransactionPresence(TTransactionId transactionId) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!transactionId) {
         return ETransactionPresence::Replicated;
@@ -133,7 +133,7 @@ ETransactionPresence TTransactionPresenceCache::GetTransactionPresence(TTransact
 
 void TTransactionPresenceCache::SetTransactionReplicated(TTransactionId transactionId)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     ReplicatedTransactions_.Insert(transactionId, ETransactionPresence::Replicated);
     ++ReplicatedTransactionCount_;
@@ -147,7 +147,7 @@ void TTransactionPresenceCache::SetTransactionReplicated(TTransactionId transact
 
 void TTransactionPresenceCache::SetTransactionRecentlyFinished(TTransactionId transactionId)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(Started_);
 
     auto newTransaction = false;
@@ -177,7 +177,7 @@ void TTransactionPresenceCache::SetTransactionRecentlyFinished(TTransactionId tr
 
 void TTransactionPresenceCache::OnEviction()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     if (!Started_) {
         return;
@@ -210,7 +210,7 @@ void TTransactionPresenceCache::OnEviction()
 
 const TTransactionPresenceCacheConfigPtr& TTransactionPresenceCache::GetDynamicConfig()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     return configManager->GetConfig()->TransactionManager->TransactionPresenceCache;
@@ -218,14 +218,14 @@ const TTransactionPresenceCacheConfigPtr& TTransactionPresenceCache::GetDynamicC
 
 void TTransactionPresenceCache::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     EvictionExecutor_->SetPeriod(GetDynamicConfig()->EvictionCheckPeriod);
 }
 
 TFuture<void> TTransactionPresenceCache::SubscribeRemoteTransactionReplicated(TTransactionId transactionId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     switch (GetTransactionPresence(transactionId)) {
         case ETransactionPresence::None:
@@ -283,7 +283,7 @@ TFuture<void> TTransactionPresenceCache::SubscribeRemoteTransactionReplicated(TT
 
 void TTransactionPresenceCache::NotifyRemoteTransactionReplicated(TTransactionId transactionId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     TPromise<void> promise;
     auto& bucket = TransactionReplicationSubscriptions_.GetBucketForKey(transactionId);

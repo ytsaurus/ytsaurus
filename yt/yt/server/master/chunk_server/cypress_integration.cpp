@@ -739,7 +739,7 @@ private:
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto* medium = chunkManager->FindMediumByName(TString(key));
+        auto* medium = chunkManager->FindMediumByName(key);
         if (!IsObjectAlive(medium)) {
             return nullptr;
         }

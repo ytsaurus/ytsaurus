@@ -55,14 +55,14 @@ public:
         , Transaction_(transaction)
         , UserName_(SecurityManager_->GetAuthenticatedUser()->GetName())
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         PushEntry(trunkRootNode);
     }
 
     void Run()
     {
-        VERIFY_THREAD_AFFINITY(Automaton);
+        YT_ASSERT_THREAD_AFFINITY(Automaton);
 
         DoTraverse();
     }
@@ -75,7 +75,7 @@ private:
     const IInvokerPtr Invoker_;
     const ICypressNodeVisitorPtr Visitor_;
     const TEphemeralObjectPtr<TTransaction> Transaction_;
-    const TString UserName_;
+    const std::string UserName_;
 
     TDuration TotalTime_;
 
@@ -134,7 +134,7 @@ private:
 
     void DoTraverse()
     {
-        VERIFY_THREAD_AFFINITY(Automaton);
+        YT_ASSERT_THREAD_AFFINITY(Automaton);
 
         try {
             if (Transaction_ && !IsObjectAlive(Transaction_)) {
@@ -183,7 +183,7 @@ private:
 
     void Finalize()
     {
-        VERIFY_THREAD_AFFINITY(Automaton);
+        YT_ASSERT_THREAD_AFFINITY(Automaton);
 
         auto* user = SecurityManager_->FindUserByName(UserName_, true /*activeLifeStageOnly*/);
         SecurityManager_->ChargeUser(user, {EUserWorkloadType::Read, 0, TotalTime_});

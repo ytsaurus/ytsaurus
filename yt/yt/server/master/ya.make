@@ -416,13 +416,6 @@ SRCS(
     transaction_server/transaction.cpp
 
     transaction_server/proto/transaction_manager.proto
-
-    zookeeper_server/bootstrap_proxy.cpp
-    zookeeper_server/cypress_integration.cpp
-    zookeeper_server/zookeeper_manager.cpp
-    zookeeper_server/zookeeper_shard_proxy.cpp
-    zookeeper_server/zookeeper_shard_type_handler.cpp
-    zookeeper_server/zookeeper_shard.cpp
 )
 
 PEERDIR(
@@ -450,7 +443,6 @@ PEERDIR(
     yt/yt/server/lib/tablet_server
     yt/yt/server/lib/timestamp_server
     yt/yt/server/lib/transaction_supervisor
-    yt/yt/server/lib/zookeeper_master
     yt/yt/server/lib/sequoia
 
     # TODO(max42): eliminate.

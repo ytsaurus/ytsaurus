@@ -45,7 +45,7 @@ public:
 
     virtual void StartTransaction(NSequoiaClient::NProto::TReqStartTransaction* request)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         // There is a common problem: if user got OK response on his request
         // there is no any guarantees that 2PC transaction was actually
@@ -76,12 +76,8 @@ private:
         auto transactionId = FromProto<TGuid>(request->id());
         auto timeout = FromProto<TDuration>(request->timeout());
 
-        TString title = "Sequoia transaction";
-
         auto attributes = FromProto(request->attributes());
-        if (auto maybeTitle = attributes->FindAndRemove<TString>("title"); maybeTitle) {
-            title = *maybeTitle;
-        }
+        auto title = attributes->FindAndRemove<std::string>("title").value_or("Sequoia transaction");
 
         YT_LOG_DEBUG("Staring Sequoia transaction "
             "(TransactionId: %v, Timeout: %v, Title: %v)",

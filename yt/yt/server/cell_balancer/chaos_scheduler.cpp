@@ -13,8 +13,8 @@ using namespace NObjectClient;
 
 static constexpr auto& Logger = BundleControllerLogger;
 
-static const TString BetaAreaName = "beta";
-static const TString DefaultAreaName = "default";
+static const std::string BetaAreaName = "beta";
+static const std::string DefaultAreaName = "default";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,14 +29,14 @@ TObjectId MakeChaosCellId(TCellTag cellTag)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetSystemAccountName(const TString& bundleName)
+std::string GetSystemAccountName(const std::string& bundleName)
 {
     return Format("%v_bundle_system_quotas", bundleName);
 }
 
 void CreateTabletCellBundle(
-    const TString& bundleName,
-    const TString& clusterName,
+    const std::string& bundleName,
+    const std::string& clusterName,
     const TChaosSchedulerInputState& input,
     TChaosSchedulerMutations* mutations)
 {
@@ -70,8 +70,8 @@ void CreateTabletCellBundle(
 }
 
 void SetClockClusterTag(
-    const TString& bundleName,
-    const TString& clusterName,
+    const std::string& bundleName,
+    const std::string& clusterName,
     const TChaosSchedulerInputState& input,
     TChaosSchedulerMutations* mutations)
 {
@@ -106,7 +106,7 @@ void SetClockClusterTag(
     mutations->ForeignBundleCellTagsToSet[clusterName][bundleName] = chaosConfig->ClockClusterTag;
 }
 
-void ProcessTabletCellBundles(const TString& bundleName, const TChaosSchedulerInputState& input, TChaosSchedulerMutations* mutations)
+void ProcessTabletCellBundles(const std::string& bundleName, const TChaosSchedulerInputState& input, TChaosSchedulerMutations* mutations)
 {
     const auto& chaosConfig = input.Config->ChaosConfig;
     for (const auto& clusterName : chaosConfig->TabletCellClusters) {
@@ -134,12 +134,12 @@ void ProcessTabletCellBundles(const TString& bundleName, const TChaosSchedulerIn
 }
 
 void CreateChaosCellBundle(
-    const TString& bundleName,
-    const TString& clusterName,
+    const std::string& bundleName,
+    const std::string& clusterName,
     TChaosSchedulerInputState& input,
     TChaosSchedulerMutations* mutations)
 {
-    static const TString SysAccountName = "sys";
+    static const std::string SysAccountName = "sys";
     const auto& chaosConfig = input.Config->ChaosConfig;
 
     auto attributes = NYTree::BuildAttributeDictionaryFluently()
@@ -176,8 +176,8 @@ void CreateChaosCellBundle(
 }
 
 void CreateBetaArea(
-    const TString& bundleName,
-    const TString& clusterName,
+    const std::string& bundleName,
+    const std::string& clusterName,
     TChaosSchedulerInputState& input,
     TChaosSchedulerMutations* mutations)
 {
@@ -217,7 +217,7 @@ void CreateBetaArea(
 }
 
 void RegisterChaosCells(
-    const TString& bundleName,
+    const std::string& bundleName,
     TChaosSchedulerInputState& input,
     TChaosSchedulerMutations* mutations)
 {
@@ -282,7 +282,7 @@ void RegisterChaosCells(
 }
 
 void RegisterAdditionalChaos(
-    const TString& bundleName,
+    const std::string& bundleName,
     TChaosSchedulerInputState& input,
     TChaosSchedulerMutations* mutations)
 {
@@ -290,13 +290,13 @@ void RegisterAdditionalChaos(
     auto lastCellTag = mutations->ChangedChaosCellTagLast.value_or(registry->CellTagLast);
     auto bundleInfo = GetOrCrash(input.TabletCellBundles, bundleName);
 
-    auto registeredChaosCells = [&] {
+    auto registeredChaosCells = [&] () -> int {
         auto it = input.AdditionalCellTagsByBundle.find(bundleName);
         if (it == input.AdditionalCellTagsByBundle.end()) {
             return 0;
         }
 
-        return static_cast<int>(it->second.size());
+        return std::ssize(it->second);
     }();
 
     auto cellsToRegister = std::max(bundleInfo->TargetConfig->AdditionalChaosCellCount - registeredChaosCells / 2, 0);
@@ -361,8 +361,8 @@ void RegisterAdditionalChaos(
 }
 
 void CreateChaosCells(
-    const TString& bundleName,
-    const TString& clusterName,
+    const std::string& bundleName,
+    const std::string& clusterName,
     TChaosSchedulerInputState& input,
     const std::vector<TCellTagInfoPtr>& cellsByBundle,
     TChaosSchedulerMutations* mutations)
@@ -393,8 +393,8 @@ void CreateChaosCells(
 }
 
 void SetMetadataCellIds(
-    const TString& bundleName,
-    const TString& clusterName,
+    const std::string& bundleName,
+    const std::string& clusterName,
     TChaosSchedulerInputState& input,
     TChaosSchedulerMutations* mutations)
 {
@@ -422,7 +422,7 @@ void SetMetadataCellIds(
     mutations->ForeignMetadataCellIdsToSet[clusterName][bundleName] = std::move(metadataCellIds);
 }
 
-void ProcessChaosCellBundles(const TString& bundleName, TChaosSchedulerInputState& input, TChaosSchedulerMutations* mutations)
+void ProcessChaosCellBundles(const std::string& bundleName, TChaosSchedulerInputState& input, TChaosSchedulerMutations* mutations)
 {
     const auto& chaosConfig = input.Config->ChaosConfig;
     for (const auto& clusterName : chaosConfig->ChaosCellClusters) {

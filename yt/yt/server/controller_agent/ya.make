@@ -38,6 +38,7 @@ PEERDIR(
     yt/yt/library/monitoring
     yt/yt/library/ytprof
     yt/yt/library/server_program
+    yt/yt/library/profiling/solomon
 
     yt/yt/server/lib
     yt/yt/server/lib/chunk_pools
@@ -45,6 +46,8 @@ PEERDIR(
     yt/yt/server/lib/controller_agent
 
     yt/yt/server/controller_agent/controllers
+
+    yt/yt/ytlib
 
     library/cpp/getopt
 

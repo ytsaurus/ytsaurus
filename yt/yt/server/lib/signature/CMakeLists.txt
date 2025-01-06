@@ -12,38 +12,11 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-find_package(linux-headers-generic REQUIRED)
-
-add_subdirectory(unittests)
-
-add_library(server-lib-signature)
-
-
-target_compile_options(server-lib-signature PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
-)
-
-target_link_libraries(server-lib-signature PUBLIC
-  linux-headers-generic::linux-headers-generic
-  contrib-libs-cxxsupp
-  yutil
-  yt-yt-ytlib
-  contrib-libs-libsodium
-  cpp-string_utils-secret_string
-)
-
-target_sources(server-lib-signature PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/crypto.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_info.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_pair.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_rotator.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/signature_generator.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/signature_header.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/signature_preprocess.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/signature_validator.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_stores/cypress.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_stores/stub.cpp
-)
+if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
+  include(CMakeLists.darwin-x86_64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "arm64")
+  include(CMakeLists.darwin-arm64.txt)
+elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
+  include(CMakeLists.linux-x86_64.txt)
+endif()
 

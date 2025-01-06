@@ -346,6 +346,29 @@ class TestYqlPlugin(TestQueriesYqlBase):
         """, [rows, [{"a": 42, "c": "test"}]])
 
 
+class TestDefaultCluster(TestQueriesYqlBase):
+    @authors("mpereskokova")
+    def test_exists_cluster(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t", rows)
+
+        self._test_simple_query("select a + 1 as b from primary.`//tmp/t`;", [{"b": 43}], settings={"cluster": "primary"})
+
+    @authors("mpereskokova")
+    def test_unknown_cluster(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}]
+        })
+        rows = [{"a": 42}]
+        write_table("//tmp/t", rows)
+
+        with raises_yt_error(1):  # Generic error
+            self._run_simple_query("select a + 1 from primary.`//tmp/t`;", settings={"cluster": "unknown_cluster"})
+
+
 class TestAllYqlAgentsOverload(TestQueriesYqlBase):
     YQL_AGENT_DYNAMIC_CONFIG = {"max_simultaneous_queries": 1}
     NUM_YQL_AGENTS = 1

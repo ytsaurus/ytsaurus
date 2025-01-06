@@ -77,7 +77,7 @@ class TTransaction
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, Timeout);
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Title);
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<std::string>, Title);
     DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, ReplicatedToCellTags);
     DEFINE_BYREF_RW_PROPERTY(NObjectClient::TCellTagList, ExternalizedToCellTags);
     DEFINE_BYREF_RW_PROPERTY(THashSet<TTransaction*>, NestedTransactions);

@@ -182,7 +182,7 @@ std::vector<std::vector<TSharedRef>> EncodeErasureJournalRows(
                 buffer.Write(row.Begin(), rowPartSize - sizeof(header));
             } else {
                 i64 rowBeginOffset = partIndex * rowPartSize - sizeof(TErasureRowHeader);
-                i64 rowEndOffset = std::min(static_cast<i64>(row.Size()), rowBeginOffset + rowPartSize);
+                i64 rowEndOffset = std::min(std::ssize(row), rowBeginOffset + rowPartSize);
                 i64 rowCopySize = std::max(rowEndOffset - rowBeginOffset, static_cast<i64>(0));
                 buffer.Write(row.Begin() + rowBeginOffset, rowCopySize);
                 buffer.WritePadding(rowPartSize - rowCopySize);
@@ -202,7 +202,7 @@ std::vector<std::vector<TSharedRef>> EncodeErasureJournalRows(
             ? dataParts[partIndex]
             : parityParts[partIndex - dataPartCount];
         i64 partOffset = 0;
-        for (i64 rowIndex = 0; rowIndex < static_cast<i64>(rows.size()); ++rowIndex) {
+        for (i64 rowIndex = 0; rowIndex < std::ssize(rows); ++rowIndex) {
             i64 rowPartSize = getRowPartSize(rows[rowIndex]);
             partRows.push_back(part.Slice(partOffset, partOffset + rowPartSize));
             partOffset += rowPartSize;
@@ -229,7 +229,7 @@ std::vector<TSharedRef> DecodeErasureJournalRows(
 
     i64 rowCount = Max<i64>();
     for (const auto& encodedRows : encodedRowLists) {
-        rowCount = std::min(rowCount, static_cast<i64>(encodedRows.size()));
+        rowCount = std::min(rowCount, std::ssize(encodedRows));
     }
 
     i64 bufferSize = 0;
@@ -248,7 +248,7 @@ std::vector<TSharedRef> DecodeErasureJournalRows(
         const auto* header = reinterpret_cast<const TErasureRowHeader*>(encodedRowLists[0][rowIndex].Begin());
         YT_VERIFY(header->PaddingSize >= 0);
         i64 bytesRemaining =
-            static_cast<i64>(encodedRowLists[0][rowIndex].size()) * dataPartCount -
+            std::ssize(encodedRowLists[0][rowIndex]) * dataPartCount -
             header->PaddingSize -
             sizeof(TErasureRowHeader);
         char* decodedRowBegin = buffer.GetCurrent();

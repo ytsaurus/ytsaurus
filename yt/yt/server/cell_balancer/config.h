@@ -52,12 +52,12 @@ class TChaosConfig
     : public NYTree::TYsonStruct
 {
 public:
-    std::vector<TString> TabletCellClusters;
-    std::vector<TString> ChaosCellClusters;
+    std::vector<std::string> TabletCellClusters;
+    std::vector<std::string> ChaosCellClusters;
     NObjectClient::TCellTag ClockClusterTag;
 
-    TString AlphaChaosCluster;
-    TString BetaChaosCluster;
+    std::string AlphaChaosCluster;
+    std::string BetaChaosCluster;
 
     REGISTER_YSON_STRUCT(TChaosConfig);
 
@@ -72,7 +72,7 @@ class TBundleControllerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TString Cluster;
+    std::string Cluster;
     TDuration BundleScanPeriod;
     TDuration BundleScanTransactionTimeout;
     TDuration HulkRequestTimeout;
@@ -116,8 +116,7 @@ DEFINE_REFCOUNTED_TYPE(TBundleControllerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellBalancerBootstrapConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
@@ -137,6 +136,20 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TCellBalancerBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCellBalancerProgramConfig
+    : public TCellBalancerBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TCellBalancerProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCellBalancerProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

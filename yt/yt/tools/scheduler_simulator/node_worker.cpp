@@ -36,7 +36,7 @@ TFuture<void> TSimulatorNodeWorker::AsyncRun()
 
 void TSimulatorNodeWorker::Run()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     while (JobAndOperationCounter_->HasUnfinishedOperations()) {
         RunOnce();
@@ -48,7 +48,7 @@ void TSimulatorNodeWorker::Run()
 
 void TSimulatorNodeWorker::RunOnce()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     auto maybeEvent = Events_->PopNodeEvent(Id_);
     if (!maybeEvent) {

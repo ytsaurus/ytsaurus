@@ -2,15 +2,17 @@
 
 #include "private.h"
 
+#include <yt/yt/server/lib/misc/bootstrap.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/library/monitoring/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
-#include <yt/yt/ytlib/transaction_client/public.h>
-
 #include <yt/yt/library/coredumper/public.h>
+
+#include <yt/yt/library/fusion/public.h>
 
 #include <yt/yt/core/bus/public.h>
 
@@ -27,9 +29,13 @@ namespace NYT::NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrap
+    : public NServer::IDaemonBootstrap
 {
 public:
-    TBootstrap(TControllerAgentBootstrapConfigPtr config, NYTree::INodePtr configNode);
+    TBootstrap(
+        TControllerAgentBootstrapConfigPtr config,
+        NYTree::INodePtr configNode,
+        NFusion::IServiceLocatorPtr serviceLocator);
     ~TBootstrap();
 
     const NControllerAgent::TAgentId& GetAgentId() const;
@@ -46,16 +52,19 @@ public:
 
     void OnDynamicConfigChanged(const TControllerAgentConfigPtr& config);
 
-    void Run();
+    void Initialize();
+    TFuture<void> Run() final;
 
 private:
     const TControllerAgentBootstrapConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
+    const NFusion::IServiceLocatorPtr ServiceLocator_;
 
-    NControllerAgent::TAgentId AgentId_;
+    const NConcurrency::TActionQueuePtr ControlQueue_;
+    const NConcurrency::IThreadPoolPtr ConnectionThreadPool_;
+    const NControllerAgent::TAgentId AgentId_;
+
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
-    NConcurrency::TActionQueuePtr ControlQueue_;
-    NConcurrency::IThreadPoolPtr ConnectionThreadPool_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
@@ -65,8 +74,18 @@ private:
     NCoreDump::ICoreDumperPtr CoreDumper_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
+    void DoInitialize();
     void DoRun();
 };
+
+DEFINE_REFCOUNTED_TYPE(TBootstrap)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBootstrapPtr CreateControllerAgentBootstrap(
+    TControllerAgentBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

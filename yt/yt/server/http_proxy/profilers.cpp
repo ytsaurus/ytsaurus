@@ -10,7 +10,7 @@ using namespace NYTProf;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THttpProxyHeapUsageProfiler::THttpProxyHeapUsageProfiler(
+TProxyHeapUsageProfiler::TProxyHeapUsageProfiler(
     IInvokerPtr invoker,
     THeapProfilerConfigPtr config)
     : AllocationTagProfiler_(

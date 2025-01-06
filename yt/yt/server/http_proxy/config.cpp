@@ -4,8 +4,6 @@
 
 #include <yt/yt/server/http_proxy/clickhouse/config.h>
 
-#include <yt/yt/server/lib/zookeeper_proxy/config.h>
-
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
@@ -184,7 +182,7 @@ void TProxyMemoryLimitsConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TProxyConfig::Register(TRegistrar registrar)
+void TProxyBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("port", &TThis::Port)
         .Default(80);
@@ -256,9 +254,6 @@ void TProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_tagged_dynamic_config", &TThis::UseTaggedDynamicConfig)
         .Default(false);
 
-    registrar.Parameter("zookeeper_proxy", &TThis::ZookeeperProxy)
-        .Default();
-
     registrar.Parameter("memory_limits", &TThis::MemoryLimits)
         .DefaultNew();
 
@@ -289,6 +284,11 @@ void TProxyConfig::Register(TRegistrar registrar)
         }
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TProxyProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -25,7 +25,7 @@ class TShortcutSnapshotStore
 public:
     void UpdateShortcut(TReplicationCardId replicationCardId, TShortcutSnapshot snapshot) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto* bucket = GetBucket(replicationCardId);
         auto guard = WriterGuard(bucket->Lock);
@@ -34,7 +34,7 @@ public:
 
     void RemoveShortcut(TReplicationCardId replicationCardId) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto* bucket = GetBucket(replicationCardId);
         auto guard = WriterGuard(bucket->Lock);
@@ -43,7 +43,7 @@ public:
 
     std::optional<TShortcutSnapshot> FindShortcut(TReplicationCardId replicationCardId) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto* bucket = GetBucket(replicationCardId);
         {
@@ -57,7 +57,7 @@ public:
 
     TShortcutSnapshot GetShortcutOrThrow(TReplicationCardId replicationCardId) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto shortcut = FindShortcut(replicationCardId);
         if (!shortcut) {

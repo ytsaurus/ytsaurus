@@ -66,14 +66,14 @@ public:
         , InactivityTimeout_(Options_->InactivityTimeout)
         , Command_(Options_->Command)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         Logger.AddTag("ShellId: %v, ShellIndex: %v", Id_, Index_);
     }
 
     void ResizeWindow(int height, int width) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (CurrentHeight_ != height || CurrentWidth_ != width) {
             SafeSetTtyWindowSize(Reader_->GetHandle(), height, width);
@@ -84,7 +84,7 @@ public:
 
     TFuture<TSharedRef> Poll() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return ConcurrentReader_->Read()
             .WithTimeout(PollTimeout);
@@ -102,7 +102,7 @@ public:
 
     ui64 SendKeys(const TSharedRef& keys, ui64 inputOffset) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (ConsumedOffset_ < inputOffset) {
             // Key sequence from the future is not possible.
@@ -138,7 +138,7 @@ public:
 
     TFuture<void> Shutdown(const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (IsRunning_ && !InactivityCookie_) {
             auto delay = InactivityTimeout_;
@@ -156,7 +156,7 @@ public:
 
     void Terminate(const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (!IsRunning_) {
             return;
@@ -222,7 +222,7 @@ public:
 
     void Spawn()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(!IsRunning_);
         IsRunning_ = true;
@@ -381,7 +381,7 @@ public:
 
     void Spawn()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(!IsRunning_);
         IsRunning_ = true;

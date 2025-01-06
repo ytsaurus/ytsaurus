@@ -23,7 +23,7 @@ class TBundleDynamicConfigManager
 {
 public:
     TBundleDynamicConfigManager(
-        TProxyConfigPtr config,
+        TProxyBootstrapConfigPtr config,
         IProxyCoordinatorPtr proxyCoordinator,
         NApi::NNative::IConnectionPtr connection,
         IInvokerPtr controlInvoker)
@@ -47,13 +47,13 @@ public:
 
     void Initialize() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         ProxyCoordinator_->SubscribeOnProxyRoleChanged(BIND(&TBundleDynamicConfigManager::OnProxyRoleChanged, MakeWeak(this)));
     }
 
 private:
-    const TProxyConfigPtr Config_;
+    const TProxyBootstrapConfigPtr Config_;
     const IProxyCoordinatorPtr ProxyCoordinator_;
 
     std::vector<std::string> BaseTags_;
@@ -62,7 +62,7 @@ private:
 
     std::vector<std::string> GetInstanceTags() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto tags = BaseTags_;
         tags.push_back(ProxyRole_.Load());
@@ -72,7 +72,7 @@ private:
 
     void OnProxyRoleChanged(const std::optional<std::string>& newRole)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         ProxyRole_.Store(newRole.value_or(NApi::DefaultRpcProxyRole));
     }
@@ -81,7 +81,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IBundleDynamicConfigManagerPtr CreateBundleDynamicConfigManager(
-    TProxyConfigPtr config,
+    TProxyBootstrapConfigPtr config,
     IProxyCoordinatorPtr proxyCoordinator,
     NApi::NNative::IConnectionPtr connection,
     IInvokerPtr controlInvoker)

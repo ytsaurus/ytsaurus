@@ -18,6 +18,8 @@
 
 #include <yt/yt/client/table_client/config.h>
 
+#include <yt/yt/core/misc/configurable_singleton_def.h>
+
 #include <yt/yt/core/concurrency/config.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -25,6 +27,10 @@
 #include <yt/yt/core/yson/public.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
+
+#include <yt/yt/library/coredumper/config.h>
+
+#include <yt/yt/library/profiling/solomon/config.h>
 
 #include <yt/yt/library/clickhouse_discovery/config.h>
 
@@ -594,7 +600,7 @@ DEFINE_REFCOUNTED_TYPE(TUserDefinedSqlObjectsStorageConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSystemLogTableExporterConfig
-    : public TArchiveReporterConfig
+    : public NServer::TArchiveReporterConfig
 {
 public:
     //! Max unflushed data size in ArchiveReporter.
@@ -802,9 +808,14 @@ struct TPorts
 };
 
 class TClickHouseServerBootstrapConfig
-    : public TNativeServerConfig
+    : public NServer::TNativeServerBootstrapConfig
+    , public TSingletonsConfig
 {
 public:
+    NCoreDump::TCoreDumperConfigPtr CoreDumper;
+
+    NProfiling::TSolomonExporterConfigPtr SolomonExporter;
+
     TClickHouseConfigPtr ClickHouse;
 
     TYtConfigPtr Yt;

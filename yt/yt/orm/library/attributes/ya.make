@@ -17,8 +17,9 @@ SRCS(
 )
 
 PEERDIR(
-    yt/yt/core
     yt/yt/orm/library/mpl
+
+    yt/yt/core
 )
 
 END()

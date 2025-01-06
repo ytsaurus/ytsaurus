@@ -27,6 +27,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NTransactionServer;
 using namespace NObjectServer;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,7 +161,8 @@ std::vector<TString> TMountConfigAttributeDictionary::ListKeys() const
     auto result = BaseAttributes_->ListKeys();
     for (const auto& [key, value] : storage->Attributes()) {
         if (NDetail::IsOldStyleMountConfigAttribute(key)) {
-            result.push_back(key);
+            // TODO(babenko): migrate to std::string
+            result.push_back(TString(key));
         }
     }
     return result;
@@ -212,7 +214,7 @@ bool TMountConfigAttributeDictionary::Remove(const TString& key)
     if (NDetail::IsOldStyleMountConfigAttribute(key)) {
         auto* lockedTable = LockMountConfigAttribute();
         Owner_->GetTrunkNode()->OnRemountNeeded();
-        return lockedTable->GetMutableMountConfigStorage()->Remove(key);
+        return lockedTable->GetMutableMountConfigStorage()->TryRemove(key);
     }
     return BaseAttributes_->Remove(key);
 }
@@ -266,7 +268,7 @@ std::vector<std::pair<TString, TYsonString>> ExtractOldStyleMountConfigAttribute
     }
 
     for (const auto& [key, value] : result) {
-        attributes->Remove(key);
+        attributes->TryRemove(key);
     }
 
     return result;

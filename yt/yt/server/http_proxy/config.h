@@ -7,8 +7,6 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
-#include <yt/yt/server/lib/zookeeper_proxy/public.h>
-
 #include <yt/yt/server/lib/cypress_registrar/public.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
@@ -26,6 +24,10 @@
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 
 #include <yt/yt/library/profiling/solomon/proxy.h>
+
+#include <yt/yt/library/program/config.h>
+
+#include <yt/yt/library/server_program/config.h>
 
 #include <yt/yt/client/driver/public.h>
 
@@ -139,7 +141,7 @@ class TApiTestingOptions
 public:
     THashMap<TString, TIntrusivePtr<TDelayBeforeCommand>> DelayBeforeCommand;
 
-    THeapProfilerTestingOptionsPtr HeapProfiler;
+    NServer::THeapProfilerTestingOptionsPtr HeapProfiler;
 
     REGISTER_YSON_STRUCT(TApiTestingOptions);
 
@@ -194,7 +196,7 @@ class TApiDynamicConfig
 public:
     TFramingConfigPtr Framing;
 
-    THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
+    THashMap<NFormats::EFormatType, NServer::TFormatConfigPtr> Formats;
 
     bool EnableAllocationTags;
 
@@ -265,9 +267,8 @@ DEFINE_REFCOUNTED_TYPE(TProxyMemoryLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+class TProxyBootstrapConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
     int Port;
@@ -313,19 +314,31 @@ public:
     TString DynamicConfigPath;
     bool UseTaggedDynamicConfig;
 
-    NZookeeperProxy::TZookeeperProxyConfigPtr ZookeeperProxy;
-
     //! Configuration for solomon proxy, which allows collecting merged metrics from other YT components through HTTP proxies.
     TSolomonProxyConfigPtr SolomonProxy;
 
     THeapProfilerConfigPtr HeapProfiler;
 
-    REGISTER_YSON_STRUCT(TProxyConfig);
+    REGISTER_YSON_STRUCT(TProxyBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TProxyConfig)
+DEFINE_REFCOUNTED_TYPE(TProxyBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TProxyProgramConfig
+    : public TProxyBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TProxyProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TProxyProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

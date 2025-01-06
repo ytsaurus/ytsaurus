@@ -108,6 +108,7 @@ using namespace NTabletServer;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1975,6 +1976,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         if (const auto& unfoldedColumn = index->UnfoldedColumn()) {
             ToProto(protoIndexInfo->mutable_unfolded_column(), *unfoldedColumn);
         }
+        protoIndexInfo->set_index_correspondence(ToProto(index->GetTableToIndexCorrespondence()));
     }
 
     if (trunkTable->IsReplicated()) {

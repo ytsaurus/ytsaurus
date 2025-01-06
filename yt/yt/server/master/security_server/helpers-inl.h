@@ -11,9 +11,9 @@ namespace NYT::NSecurityServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
-THashMap<TString, T> CellTagMapToCellNameMap(const THashMap<NObjectClient::TCellTag, T>& map, const NCellMaster::IMulticellManagerPtr& multicellManager)
+THashMap<std::string, T> CellTagMapToCellNameMap(const THashMap<NObjectClient::TCellTag, T>& map, const NCellMaster::IMulticellManagerPtr& multicellManager)
 {
-    THashMap<TString, T> result;
+    THashMap<std::string, T> result;
     for (const auto& [cellTag, value] : map) {
         auto cellName = multicellManager->GetMasterCellName(cellTag);
         YT_VERIFY(result.emplace(cellName, value).second);
@@ -22,7 +22,7 @@ THashMap<TString, T> CellTagMapToCellNameMap(const THashMap<NObjectClient::TCell
 }
 
 template <class T>
-THashMap<NObjectClient::TCellTag, T> CellNameMapToCellTagMapOrThrow(const THashMap<TString, T>& map, const NCellMaster::IMulticellManagerPtr& multicellManager)
+THashMap<NObjectClient::TCellTag, T> CellNameMapToCellTagMapOrThrow(const THashMap<std::string, T>& map, const NCellMaster::IMulticellManagerPtr& multicellManager)
 {
     THashMap<NObjectClient::TCellTag, T> result;
     for (const auto& [cellName, value] : map) {

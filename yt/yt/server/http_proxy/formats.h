@@ -9,7 +9,7 @@ namespace NYT::NHttpProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 NFormats::TFormat InferFormat(
-    const TFormatManager& formatManager,
+    const NServer::TFormatManager& formatManager,
     const TString& ytHeaderName,
     const NFormats::TFormat& ytHeaderFormat,
     const std::optional<TString>& ytHeader,
@@ -19,7 +19,7 @@ NFormats::TFormat InferFormat(
     NFormats::EDataType dataType);
 
 NFormats::TFormat InferHeaderFormat(
-    const TFormatManager& formatManager,
+    const NServer::TFormatManager& formatManager,
     const TString* ytHeader);
 
 TString FormatToMime(const NFormats::TFormat& format);

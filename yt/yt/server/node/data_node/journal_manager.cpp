@@ -589,7 +589,7 @@ public:
                 }
             };
 
-            if (static_cast<i64>(record.Size()) <= config->BigRecordThreshold.value_or(Max<i64>())) {
+            if (std::ssize(record) <= config->BigRecordThreshold.value_or(Max<i64>())) {
                 multiplexedRecord.Header.Type = EMultiplexedRecordType::Append;
                 multiplexedRecord.Data = record;
             } else {
@@ -703,7 +703,7 @@ private:
         const TMultiplexedChangelogConfigPtr& config,
         TRange<TMultiplexedRecord> multiplexedRecords)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         // Construct the multiplexed data record and append it.
         struct TMultiplexedRecordTag { };

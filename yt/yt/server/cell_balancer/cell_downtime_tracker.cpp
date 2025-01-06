@@ -7,7 +7,7 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 // static constexpr auto& Logger = BundleControllerLogger;
-static const TString CellStateLeading = "leading";
+static const std::string CellStateLeading = "leading";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -26,11 +26,11 @@ public:
 
 
 private:
-    THashMap<TString, TInstant> LastLeaderSeenTime_;
+    THashMap<std::string, TInstant> LastLeaderSeenTime_;
 
 
     void CheckBundleDowntime(
-        const TString& bundleName,
+        const std::string& bundleName,
         const TSchedulerInputState& inputState,
         TBundleSensorProvider sensorsProvider)
     {
@@ -56,7 +56,7 @@ private:
     }
 
     std::optional<TInstant> GetCellLeaderSeenTime(
-        const TString& cellId,
+        const std::string& cellId,
         const TSchedulerInputState& inputState) const
     {
         auto it = inputState.TabletCells.find(cellId);

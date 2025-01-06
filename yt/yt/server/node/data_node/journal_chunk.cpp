@@ -72,28 +72,28 @@ TJournalChunk::TJournalChunk(
 
 const TStoreLocationPtr& TJournalChunk::GetStoreLocation() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return StoreLocation_;
 }
 
 void TJournalChunk::SetActive(bool value)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     Active_.store(value);
 }
 
 bool TJournalChunk::IsActive() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Active_.load();
 }
 
 TChunkInfo TJournalChunk::GetInfo() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     TChunkInfo info;
     info.set_sealed(IsSealed());
@@ -105,7 +105,7 @@ TFuture<TRefCountedChunkMetaPtr> TJournalChunk::ReadMeta(
     const TChunkReadOptions& options,
     const std::optional<std::vector<int>>& extensionTags)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto session = New<TReadMetaSession>();
     try {
@@ -134,7 +134,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockSet(
     const std::vector<int>& blockIndexes,
     const TChunkReadOptions& options)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     // Extract the initial contiguous segment of blocks.
     if (blockIndexes.empty()) {
@@ -155,7 +155,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
     int blockCount,
     const TChunkReadOptions& options)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (firstBlockIndex < 0) {
         return MakeFuture<std::vector<TBlock>>(TError("First block index %v is negative",
@@ -226,7 +226,7 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
 
         auto readTime = timer.GetElapsedTime();
         const auto& blocks = blocksOrError.Value();
-        int blocksRead = static_cast<int>(blocks.size());
+        int blocksRead = std::ssize(blocks);
         i64 bytesRead = GetByteSize(blocks);
         session->Options.ChunkReaderStatistics->DataBytesReadFromDisk.fetch_add(bytesRead, std::memory_order::relaxed);
         // TODO(ngc224): propagate proper value in YT-23540
@@ -321,49 +321,49 @@ void TJournalChunk::SyncRemove(bool force)
 
 TFuture<void> TJournalChunk::AsyncRemove()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Context_->JournalDispatcher->RemoveJournal(this, true);
 }
 
 i64 TJournalChunk::GetFlushedRowCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return FlushedRowCount_.load();
 }
 
 void TJournalChunk::UpdateFlushedRowCount(i64 rowCount)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     UpdateMax(FlushedRowCount_, rowCount);
 }
 
 i64 TJournalChunk::GetDataSize() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return DataSize_.load();
 }
 
 void TJournalChunk::UpdateDataSize(i64 dataSize)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     UpdateMax(DataSize_, dataSize);
 }
 
 bool TJournalChunk::IsSealed() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Sealed_.load();
 }
 
 TFuture<void> TJournalChunk::Seal()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Context_->JournalDispatcher->SealJournal(this).Apply(
         BIND([this, this_ = MakeStrong(this)] {
@@ -375,7 +375,7 @@ TFuture<void> TJournalChunk::Seal()
 
 IFileChangelogPtr TJournalChunk::GetChangelog()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
     YT_VERIFY(ReadLockCounter_.load() > 0);
 
     {
@@ -405,7 +405,7 @@ IFileChangelogPtr TJournalChunk::GetChangelog()
 
 void TJournalChunk::ReleaseReader(TWriterGuard<TReaderWriterSpinLock>& writerGuard)
 {
-    VERIFY_WRITER_SPINLOCK_AFFINITY(LifetimeLock_);
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(LifetimeLock_);
     YT_VERIFY(ReadLockCounter_.load() == 0);
 
     if (!Changelog_) {

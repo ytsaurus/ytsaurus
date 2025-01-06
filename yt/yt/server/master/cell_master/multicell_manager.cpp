@@ -16,6 +16,9 @@
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_replicator.h>
 
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/portal_manager.h>
+
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 
@@ -26,6 +29,7 @@
 #include <yt/yt/server/lib/hive/proto/hive_manager.pb.h>
 
 #include <yt/yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/snapshot_load_context.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
 
@@ -112,7 +116,7 @@ public:
 
     void Initialize() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TMulticellManager::OnDynamicConfigChanged, MakeWeak(this)));
@@ -123,42 +127,42 @@ public:
 
     bool IsPrimaryMaster() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->IsPrimaryMaster();
     }
 
     bool IsSecondaryMaster() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->IsSecondaryMaster();
     }
 
     bool IsMulticell() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->IsMulticell();
     }
 
     bool IsDynamicallyPropagatedMaster() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DynamicallyPropagated_.load();
     }
 
     TCellId GetCellId() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetCellId();
     }
 
     TCellId GetCellId(TCellTag cellTag) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return cellTag == PrimaryMasterCellTagSentinel
             ? GetPrimaryCellId()
@@ -167,35 +171,35 @@ public:
 
     TCellTag GetCellTag() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetCellTag();
     }
 
     TCellId GetPrimaryCellId() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetPrimaryCellId();
     }
 
     TCellTag GetPrimaryCellTag() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetPrimaryCellTag();
     }
 
-    const TCellTagList& GetSecondaryCellTags() const override
+    const std::set<TCellTag>& GetSecondaryCellTags() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetSecondaryCellTags();
     }
 
     THashSet<TCellTag> GetDynamicallyPropagatedMastersCellTags() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(DynamicallyPropagatedMastersCellTagsLock_);
         return DynamicallyPropagatedMastersCellTags_;
@@ -208,14 +212,14 @@ public:
 
     int GetCellCount() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return GetSecondaryCellCount() + 1;
     }
 
     int GetSecondaryCellCount() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return std::ssize(GetSecondaryCellTags());
     }
@@ -225,7 +229,7 @@ public:
         TCellTag cellTag,
         bool reliable) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto encapsulatedMessage = BuildHiveMessage(message);
         DoPostMessage(std::move(encapsulatedMessage), TCellTagList{cellTag}, reliable);
@@ -236,7 +240,7 @@ public:
         TRange<TCellTag> cellTags,
         bool reliable) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (cellTags.empty()) {
             return;
@@ -250,7 +254,7 @@ public:
         const TCrossCellMessage& message,
         bool reliable) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsSecondaryMaster());
 
         PostToMaster(message, PrimaryMasterCellTagSentinel, reliable);
@@ -260,7 +264,7 @@ public:
         const TCrossCellMessage& message,
         bool reliable) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsPrimaryMaster());
 
         if (IsMulticell()) {
@@ -302,7 +306,7 @@ public:
 
     EMasterCellRoles GetMasterCellRoles(TCellTag cellTag) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(MasterCellRolesLock_);
 
@@ -312,7 +316,7 @@ public:
 
     TCellTagList GetRoleMasterCells(EMasterCellRole cellRole) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(MasterCellRolesLock_);
 
@@ -321,16 +325,15 @@ public:
 
     int GetRoleMasterCellCount(EMasterCellRole cellRole) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        // NB: no locking here - just accessing atomics.
-
+        // NB: No locking here - just accessing atomics.
         return RoleMasterCellCounts_[cellRole].load();
     }
 
     std::string GetMasterCellName(TCellTag cellTag) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(MasterCellNamesLock_);
 
@@ -339,7 +342,7 @@ public:
 
     std::optional<TCellTag> FindMasterCellTagByName(const std::string& cellName) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = ReaderGuard(MasterCellNamesLock_);
 
@@ -354,16 +357,9 @@ public:
         return RegisteredMasterCellTags_;
     }
 
-    int GetRegisteredMasterCellIndex(TCellTag cellTag) const override
-    {
-        Bootstrap_->VerifyPersistentStateRead();
-
-        return GetMasterEntry(cellTag)->Index;
-    }
-
     TCellTag PickSecondaryChunkHostCell(double bias) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (!IsMulticell()) {
             return InvalidCellTag;
@@ -433,7 +429,7 @@ public:
 
     IChannelPtr GetMasterChannelOrThrow(TCellTag cellTag, EPeerKind peerKind) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto channel = FindMasterChannel(cellTag, peerKind);
         if (!channel) {
@@ -445,7 +441,7 @@ public:
 
     IChannelPtr FindMasterChannel(TCellTag cellTag, EPeerKind peerKind) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto key = std::tuple(cellTag, peerKind);
 
@@ -478,14 +474,14 @@ public:
 
     TMailboxHandle FindPrimaryMasterMailbox() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return PrimaryMasterMailbox_;
     }
 
     TFuture<void> SyncWithUpstream() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         // This shortcut prevents waiting for the (no-op) batcher at primary cell leader.
         // XXX(babenko): tx cells
@@ -572,23 +568,70 @@ private:
 
     void OnAfterSnapshotLoaded() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnAfterSnapshotLoaded();
 
-        RegisteredMasterCellTags_.resize(RegisteredMasterMap_.size());
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        const auto& portalManager = Bootstrap_->GetPortalManager();
 
-        const auto& hiveManager = Bootstrap_->GetHiveManager();
-        for (auto& [cellTag, entry] : RegisteredMasterMap_) {
-            if (!IsValidCellTag(cellTag)) {
-                THROW_ERROR_EXCEPTION("Unknown master cell tag %v", cellTag);
+        std::vector<std::map<TCellTag, TMasterEntry>::iterator> removedMasterCellTagsIterators;
+        THashSet<TCellTag> removedMasterCellTags;
+        for (auto it = RegisteredMasterMap_.begin(); it != RegisteredMasterMap_.end(); ++it) {
+            auto cellTag = it->first;
+            const auto& entry = it->second;
+            if (!IsKnownCellTag(cellTag)) {
+                YT_LOG_FATAL_UNLESS(
+                    GetDynamicConfig()->Testing->AllowMasterCellRemoval,
+                    "Unknown master cell tag %v in saved master entry",
+                    cellTag);
+
+                YT_LOG_FATAL_UNLESS(
+                    GetCurrentSnapshotLoadContext()->ReadOnly,
+                    "Master cell %v was removed without readonly mode",
+                    cellTag);
+
+                YT_LOG_FATAL_IF(
+                    entry.Statistics.chunk_count() > 0,
+                    "Master cell %v with %v chunks was removed",
+                    cellTag,
+                    entry.Statistics.chunk_count());
+
+                auto cellRoles = ComputeMasterCellRolesFromConfig(cellTag);
+                YT_LOG_FATAL_UNLESS(
+                    cellRoles == EMasterCellRoles::None,
+                    "Master cell %v with roles %v was removed",
+                    cellTag,
+                    cellRoles);
+
+                removedMasterCellTagsIterators.emplace_back(it);
+                InsertOrCrash(removedMasterCellTags, cellTag);
             }
+        }
+        if (!removedMasterCellTags.empty()) {
+            cypressManager->ValidateNoExternalizedNodesOnRemovedMasters(removedMasterCellTags);
+            portalManager->ValidateNoNodesBehindRemovedMastersPortal(removedMasterCellTags);
+        }
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+        for (auto iterator : removedMasterCellTagsIterators) {
+            auto cellTag = iterator->first;
+            RegisteredMasterMap_.erase(iterator);
+
+            YT_LOG_INFO("Master cell removed (CellTag: %v)",
+                cellTag);
+        }
+
+        RegisteredMasterCellTags_.resize(RegisteredMasterMap_.size());
+        for (auto& [cellTag, entry] : RegisteredMasterMap_) {
+            YT_LOG_FATAL_IF(
+                entry.Index >= std::ssize(RegisteredMasterCellTags_),
+                "Master cell from the middle of master entry map was removed");
 
             RegisteredMasterCellTags_[entry.Index] = cellTag;
 
             auto cellId = GetCellId(cellTag);
             auto mailbox = hiveManager->GetMailbox(cellId);
-            YT_VERIFY(CellTagToMasterMailbox_.emplace(cellTag, mailbox).second);
+            EmplaceOrCrash(CellTagToMasterMailbox_, cellTag, mailbox);
             if (cellTag == GetPrimaryCellTag()) {
                 PrimaryMasterMailbox_ = mailbox;
             }
@@ -616,7 +659,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::Clear();
 
@@ -624,7 +667,10 @@ private:
         RegisteredMasterCellTags_.clear();
         RegisterState_ = EPrimaryRegisterState::None;
         CellTagToMasterMailbox_.clear();
-        DynamicallyPropagatedMastersCellTags_.clear();
+        {
+            auto guard = WriterGuard(DynamicallyPropagatedMastersCellTagsLock_);
+            DynamicallyPropagatedMastersCellTags_.clear();
+        }
         PrimaryMasterMailbox_ = {};
         LocalCellStatistics_ = {};
         ClusterCellStatisics_ = {};
@@ -660,14 +706,14 @@ private:
 
     void OnRecoveryComplete() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnRecoveryComplete();
     }
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnLeaderActive();
 
@@ -693,7 +739,7 @@ private:
 
     void OnStartLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStartLeading();
 
@@ -702,7 +748,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopLeading();
 
@@ -726,7 +772,7 @@ private:
 
     void OnStartFollowing() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStartFollowing();
 
@@ -735,7 +781,7 @@ private:
 
     void OnStopFollowing() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopFollowing();
 
@@ -761,11 +807,11 @@ private:
 
     void HydraRegisterSecondaryMasterAtPrimary(NProto::TReqRegisterSecondaryMasterAtPrimary* request) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsPrimaryMaster());
 
         auto cellTag = FromProto<TCellTag>(request->cell_tag());
-        if (!IsValidSecondaryCellTag(cellTag)) {
+        if (!IsKnownSecondaryCellTag(cellTag)) {
             YT_LOG_ALERT("Received registration request from an unknown secondary cell, ignored (CellTag: %v)",
                 cellTag);
             return;
@@ -831,7 +877,7 @@ private:
 
     void HydraReplicateDynamicallyPropagatedMasterCellTags(NProto::TReqReplicateDynamicallyPropagatedMasterCellTags* request) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsSecondaryMaster());
 
         if (!EverRegistered_) {
@@ -845,7 +891,7 @@ private:
 
     void HydraOnSecondaryMasterRegisteredAtPrimary(NProto::TRspRegisterSecondaryMasterAtPrimary* response) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsSecondaryMaster());
 
         auto error = FromProto<TError>(response->error());
@@ -863,11 +909,11 @@ private:
 
     void HydraRegisterSecondaryMasterAtSecondary(NProto::TReqRegisterSecondaryMasterAtSecondary* request) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsSecondaryMaster());
 
         auto cellTag = FromProto<TCellTag>(request->cell_tag());
-        if (!IsValidSecondaryCellTag(cellTag)) {
+        if (!IsKnownSecondaryCellTag(cellTag)) {
             YT_LOG_ALERT("Received registration request for an unknown secondary cell, ignored (CellTag: %v)",
                 cellTag);
             return;
@@ -885,7 +931,7 @@ private:
 
     void HydraStartSecondaryMasterRegistration(NProto::TReqStartSecondaryMasterRegistration* /*request*/) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsSecondaryMaster());
 
         if (RegisterState_ != EPrimaryRegisterState::None) {
@@ -905,7 +951,7 @@ private:
 
     void HydraSetCellStatistics(NProto::TReqSetCellStatistics* request) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (IsPrimaryMaster()) {
             auto cellTag = FromProto<TCellTag>(request->cell_tag());
@@ -935,7 +981,7 @@ private:
 
     void HydraSetMulticellStatistics(NProto::TReqSetMulticellStatistics* request) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         // NB: verifying this cell having the 'Cypress node host' role would
         // probably be a bit too fragile.
@@ -962,7 +1008,7 @@ private:
 
     void HydraSyncHiveClocksAtMasters(NProto::TReqSyncHiveClocksAtMasters* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (request->is_reply_from_secondary()) {
             return;
@@ -995,7 +1041,7 @@ private:
         }
     }
 
-    bool IsValidSecondaryCellTag(TCellTag cellTag)
+    bool IsKnownSecondaryCellTag(TCellTag cellTag)
     {
         const auto& config = Bootstrap_->GetConfig();
         for (const auto& cellConfig : config->SecondaryMasters) {
@@ -1006,21 +1052,18 @@ private:
         return false;
     }
 
-    bool IsValidCellTag(TCellTag cellTag)
+    bool IsKnownCellTag(TCellTag cellTag)
     {
         const auto& config = Bootstrap_->GetConfig();
         if (CellTagFromId(config->PrimaryMaster->CellId) == cellTag) {
             return true;
         }
-        if (IsValidSecondaryCellTag(cellTag)) {
-            return true;
-        }
-        return false;
+        return IsKnownSecondaryCellTag(cellTag);
     }
 
     bool IsDiscoveredMasterCell(TCellTag cellTag) const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto guard = ReaderGuard(DynamicallyPropagatedMastersCellTagsLock_);
         return !DynamicallyPropagatedMastersCellTags_.contains(cellTag);
@@ -1028,7 +1071,7 @@ private:
 
     void RegisterMasterMailbox(TCellTag cellTag)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (CellTagToMasterMailbox_.contains(cellTag)) {
@@ -1039,7 +1082,7 @@ private:
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         auto mailbox = hiveManager->GetOrCreateCellMailbox(cellId);
 
-        YT_VERIFY(CellTagToMasterMailbox_.emplace(cellTag, mailbox).second);
+        EmplaceOrCrash(CellTagToMasterMailbox_, cellTag, mailbox);
         if (cellTag == GetPrimaryCellTag()) {
             PrimaryMasterMailbox_ = mailbox;
         }
@@ -1047,7 +1090,7 @@ private:
 
     void RegisterMasterEntry(TCellTag cellTag)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
         YT_VERIFY(FindMasterMailbox(cellTag));
 
@@ -1056,7 +1099,7 @@ private:
         }
 
         YT_VERIFY(RegisteredMasterMap_.size() == RegisteredMasterCellTags_.size());
-        int index = static_cast<int>(RegisteredMasterMap_.size());
+        int index = std::ssize(RegisteredMasterMap_);
         RegisteredMasterCellTags_.push_back(cellTag);
 
         auto [it, inserted] = RegisteredMasterMap_.emplace(cellTag, TMasterEntry());
@@ -1104,7 +1147,7 @@ private:
 
     void OnStartSecondaryMasterRegistration()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsSecondaryMaster());
 
         const auto& worldInitializer = Bootstrap_->GetWorldInitializer();
@@ -1123,7 +1166,7 @@ private:
 
     void OnCellStatisticsGossip()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (!IsLocalMasterCellRegistered()) {
             return;
@@ -1228,7 +1271,7 @@ private:
 
     static TFuture<void> DoSyncWithUpstream(const TWeakPtr<TMulticellManager>& weakThis)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto this_ = weakThis.Lock();
         if (!this_) {
@@ -1240,7 +1283,7 @@ private:
 
     TFuture<void> DoSyncWithUpstreamCore()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
         YT_VERIFY(IsSecondaryMaster());
 
         YT_LOG_DEBUG("Synchronizing with upstream");
@@ -1264,7 +1307,7 @@ private:
 
     void OnUpstreamSyncReached(const NProfiling::TWallTimer& timer, const TError& error)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         THROW_ERROR_EXCEPTION_IF_FAILED(
             error,
@@ -1350,7 +1393,7 @@ private:
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& dynamicConfig = GetDynamicConfig();
         if (CellStatisticsGossipExecutor_) {
@@ -1402,7 +1445,7 @@ private:
             });
 
         for (auto [cellTag, roles] : MasterCellRolesMap_) {
-            if (roles == EMasterCellRoles::None) {
+            if (roles == EMasterCellRoles::None && !GetDynamicConfig()->Testing->AllowMasterCellWithEmptyRole) {
                 alerts.push_back(TError("No roles configured for cell")
                     << TErrorAttribute("cell_tag", cellTag));
             }
@@ -1474,8 +1517,8 @@ private:
 
         auto populateCellName = [&] (TCellTag cellTag) {
             auto name = ComputeMasterCellNameFromConfig(cellTag);
-            YT_VERIFY(MasterCellNameMap_.emplace(cellTag, name).second);
-            YT_VERIFY(NameMasterCellMap_.emplace(name, cellTag).second);
+            EmplaceOrCrash(MasterCellNameMap_, cellTag, name);
+            EmplaceOrCrash(NameMasterCellMap_, name, cellTag);
         };
 
         populateCellName(GetCellTag());
@@ -1520,6 +1563,7 @@ private:
             }
             return *it->second->Roles;
         }
+
         return GetDefaultMasterCellRoles(cellTag);
     }
 

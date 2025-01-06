@@ -54,6 +54,7 @@ using namespace NObjectServer;
 using namespace NSecurityServer;
 using namespace NCypressClient;
 using namespace NConcurrency;
+using namespace NServer;
 
 using NYT::FromProto;
 
@@ -466,7 +467,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(const TFetchItemsSes
             return AllSucceeded(asyncAttributes)
                 .Apply(BIND([=, aliveKeys = std::move(aliveKeys), this_ = MakeStrong(this)] (const std::vector<TYsonString>& attributes) {
                     YT_VERIFY(aliveKeys.size() == attributes.size());
-                    for (int index = 0; index < static_cast<int>(aliveKeys.size()); ++index) {
+                    for (int index = 0; index < std::ssize(aliveKeys); ++index) {
                         if (std::ssize(session->Items) >= session->Limit) {
                             break;
                         }
@@ -489,8 +490,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(
         cellTag,
         /*stickyGroupSizeCache*/ nullptr);
     auto batchReq = proxy.ExecuteBatch();
-    // TODO(babenko): switch to std::string
-    batchReq->SetUser(TString(user->GetName()));
+    batchReq->SetUser(user->GetName());
 
     if (NeedSuppressUpstreamSync()) {
         batchReq->SetSuppressUpstreamSync(true);

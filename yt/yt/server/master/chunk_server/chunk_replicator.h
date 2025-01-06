@@ -224,8 +224,8 @@ private:
     // take care of such a chunks.
     std::array<TChunkRepairQueue, MaxMediumCount> MissingPartChunkRepairQueues_ = {};
     std::array<TChunkRepairQueue, MaxMediumCount> DecommissionedPartChunkRepairQueues_ = {};
-    TDecayingMaxMinBalancer<int, double> MissingPartChunkRepairQueueBalancer_;
-    TDecayingMaxMinBalancer<int, double> DecommissionedPartChunkRepairQueueBalancer_;
+    NServer::TDecayingMaxMinBalancer<int, double> MissingPartChunkRepairQueueBalancer_;
+    NServer::TDecayingMaxMinBalancer<int, double> DecommissionedPartChunkRepairQueueBalancer_;
 
     NConcurrency::TPeriodicExecutorPtr EnabledCheckExecutor_;
 
@@ -398,7 +398,7 @@ private:
 
     TChunkRepairQueue& ChunkRepairQueue(int mediumIndex, EChunkRepairQueue queue);
     std::array<TChunkRepairQueue, MaxMediumCount>& ChunkRepairQueues(EChunkRepairQueue queue);
-    TDecayingMaxMinBalancer<int, double>& ChunkRepairQueueBalancer(EChunkRepairQueue queue);
+    NServer::TDecayingMaxMinBalancer<int, double>& ChunkRepairQueueBalancer(EChunkRepairQueue queue);
 
     TCompactMediumMap<TNodeList> GetChunkConsistentPlacementNodes(
         const TChunk* chunk,

@@ -944,7 +944,7 @@ TSortedDynamicStore::TSortedDynamicStore(
         RowBuffer_->GetPool(),
         RowKeyComparer_))
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     // Reserve the vector to prevent reallocations and thus enable accessing
     // it from arbitrary threads.
@@ -1553,7 +1553,7 @@ int TSortedDynamicStore::GetBlockingLockIndex(
     TLockMask lockMask,
     TTimestamp timestamp)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
     YT_ASSERT(Atomicity_ == EAtomicity::Full);
 
     lockMask.Enrich(ColumnLockCount_);
@@ -1571,7 +1571,7 @@ int TSortedDynamicStore::GetBlockingLockIndex(
 
         // NB: SharedWrite lock implies execution in automaton thread so it is acceptable to access non-atomic fields of lock.
         if (lockType == ELockType::SharedWrite) {
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
+            YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
             if (lock->WriteTransactionPrepareTimestamp == NotPreparedTimestamp) {
                 // If next condition is true then already prepared transactions are also shared write and there is no need to wait for them to commit.
                 continue;
@@ -2297,6 +2297,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
             tableWriterOptions,
             Schema_,
             chunkWriter,
+            /*writeBlocksOptions*/ {},
             /*dataSink*/ std::nullopt);
 
         TRowBatchReadOptions options{

@@ -1,9 +1,9 @@
 #include "bootstrap.h"
+
 #include "config.h"
 #include "job_prober_service.h"
 #include "controller_agent_service.h"
 #include "controller_agent.h"
-#include "job_tracker.h"
 #include "job_tracker_service.h"
 #include "private.h"
 
@@ -35,6 +35,10 @@
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
+#include <yt/yt/library/coredumper/coredumper.h>
+
+#include <yt/yt/library/fusion/service_locator.h>
+
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
@@ -52,11 +56,12 @@
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
+#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/yt/core/misc/proc.h>
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
@@ -86,6 +91,8 @@ using namespace NApi;
 using namespace NNodeTrackerClient;
 using namespace NLogging;
 using namespace NCoreDump;
+using namespace NFusion;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -93,9 +100,18 @@ static constexpr auto& Logger = ControllerAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(TControllerAgentBootstrapConfigPtr config, INodePtr configNode)
+TBootstrap::TBootstrap(
+    TControllerAgentBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
+    , ServiceLocator_(std::move(serviceLocator))
+    , ControlQueue_(New<TActionQueue>("Control"))
+    , ConnectionThreadPool_(CreateThreadPool(
+        Config_->ClusterConnection->Dynamic->ThreadPoolSize,
+        "Connection"))
+    , AgentId_(NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort))
 {
     if (Config_->AbortOnUnrecognizedOptions) {
         AbortOnUnrecognizedOptions(Logger(), Config_);
@@ -106,24 +122,24 @@ TBootstrap::TBootstrap(TControllerAgentBootstrapConfigPtr config, INodePtr confi
 
 TBootstrap::~TBootstrap() = default;
 
-void TBootstrap::Run()
+void TBootstrap::Initialize()
 {
-    ControlQueue_ = New<TActionQueue>("Control");
-    ConnectionThreadPool_ = CreateThreadPool(
-        Config_->ClusterConnection->Dynamic->ThreadPoolSize,
-        "Connection");
-
-    BIND(&TBootstrap::DoRun, this)
+    BIND(&TBootstrap::DoInitialize, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
         .ThrowOnError();
 }
 
-void TBootstrap::DoRun()
+TFuture<void> TBootstrap::Run()
 {
-    AgentId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
+    return BIND(&TBootstrap::DoRun, MakeStrong(this))
+        .AsyncVia(GetControlInvoker())
+        .Run();
+}
 
+void TBootstrap::DoInitialize()
+{
     YT_LOG_INFO("Starting controller agent");
 
     NNative::TConnectionOptions connectionOptions;
@@ -154,14 +170,12 @@ void TBootstrap::DoRun()
 
     ControllerAgent_ = New<TControllerAgent>(Config_->ControllerAgent, ConfigNode_->AsMap()->FindChild("controller_agent"), this);
 
-    if (Config_->CoreDumper) {
-        CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
-    }
+    CoreDumper_ = ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>();
 
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
-        Config_->SolomonExporter,
+        ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
 
@@ -177,11 +191,11 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/controller_agent",
         CreateVirtualNode(ControllerAgent_->CreateOrchidService()->Via(GetControlInvoker())));
-    if (CoreDumper_) {
+    if (auto coreDumper = GetCoreDumper()) {
         SetNodeByYPath(
             orchidRoot,
             "/core_dumper",
-            CreateVirtualNode(CoreDumper_->CreateOrchidService()));
+            CreateVirtualNode(coreDumper->CreateOrchidService()));
     }
     SetBuildAttributes(
         orchidRoot,
@@ -189,7 +203,7 @@ void TBootstrap::DoRun()
 
     RpcServer_->RegisterService(CreateAdminService(
         GetControlInvoker(),
-        CoreDumper_,
+        GetCoreDumper(),
         NativeAuthenticator_));
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
@@ -198,11 +212,14 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateControllerAgentService(this));
     RpcServer_->RegisterService(CreateJobProberService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
+}
 
-    YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+void TBootstrap::DoRun()
+{
+    YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_->Start();
 
-    YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+    YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
     RpcServer_->Configure(Config_->RpcServer);
     RpcServer_->Start();
 }
@@ -224,7 +241,7 @@ const NNative::IClientPtr& TBootstrap::GetClient() const
 
 TAddressMap TBootstrap::GetLocalAddresses() const
 {
-    return NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
+    return NServer::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 }
 
 TNetworkPreferenceList TBootstrap::GetLocalNetworks() const
@@ -266,9 +283,24 @@ const IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
 
 void TBootstrap::OnDynamicConfigChanged(const TControllerAgentConfigPtr& config)
 {
-    ReconfigureSingletons(config);
+    TSingletonManager::Reconfigure(config);
 
     RpcServer_->OnDynamicConfigChanged(config->RpcServer);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBootstrapPtr CreateControllerAgentBootstrap(
+    TControllerAgentBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
+{
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -28,8 +28,8 @@ target_link_libraries(orm-library-attributes PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  yt-yt-core
   orm-library-mpl
+  yt-yt-core
 )
 
 target_sources(orm-library-attributes PRIVATE

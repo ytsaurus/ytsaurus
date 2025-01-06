@@ -76,7 +76,7 @@ class TServer
 {
 public:
     TServer(
-        TKafkaProxyConfigPtr config,
+        TProxyBootstrapConfigPtr config,
         NNative::IConnectionPtr connection,
         IAuthenticationManagerPtr authenticationManager,
         IPollerPtr poller,
@@ -88,7 +88,7 @@ public:
         , Poller_(std::move(poller))
         , Acceptor_(std::move(acceptor))
         , Listener_(std::move(listener))
-        , DynamicConfig_(New<TKafkaProxyDynamicConfig>())
+        , DynamicConfig_(New<TProxyDynamicConfig>())
     {
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoApiVersions, Unretained(this)));
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoMetadata, Unretained(this)));
@@ -121,13 +121,13 @@ public:
         Handlers_[requestType] = std::move(handler);
     }
 
-    void OnDynamicConfigChanged(const TKafkaProxyDynamicConfigPtr& config) override
+    void OnDynamicConfigChanged(const TProxyDynamicConfigPtr& config) override
     {
         DynamicConfig_.Store(config);
     }
 
 private:
-    const TKafkaProxyConfigPtr Config_;
+    const TProxyBootstrapConfigPtr Config_;
 
     const NNative::IConnectionPtr NativeConnection_;
     const NNative::TClientCachePtr AuthenticatedClientCache_;
@@ -137,7 +137,7 @@ private:
     const IPollerPtr Acceptor_;
     const IListenerPtr Listener_;
 
-    TAtomicIntrusivePtr<TKafkaProxyDynamicConfig> DynamicConfig_;
+    TAtomicIntrusivePtr<TProxyDynamicConfig> DynamicConfig_;
 
     std::atomic<bool> Started_ = false;
 
@@ -160,12 +160,12 @@ private:
 
     TEnumIndexedArray<ERequestType, THandler> Handlers_;
 
-    TKafkaProxyDynamicConfigPtr GetDynamicConfig() const
+    TProxyDynamicConfigPtr GetDynamicConfig() const
     {
         return DynamicConfig_.Acquire();
     }
 
-    TString GetLocalHostName() const
+    std::string GetLocalHostName() const
     {
         auto dynamicConfig = GetDynamicConfig();
         return dynamicConfig->LocalHostName ? *dynamicConfig->LocalHostName : NNet::GetLocalHostName();
@@ -235,7 +235,7 @@ private:
 
     void GuardedOnRequest(IConnectionPtr connection, TMessage request)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto response = ProcessRequest(connection, request);
 
@@ -251,7 +251,7 @@ private:
         const IConnectionPtr& connection,
         const TMessage& request)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (request.size() != 1) {
             THROW_ERROR_EXCEPTION("Incoming message has %v parts, expected 1",
@@ -355,7 +355,7 @@ private:
 
     bool UnregisterConnection(TConnectionId connectionId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto guard = WriterGuard(ConnectionMapLock_);
         if (Connections_.erase(connectionId)) {
@@ -942,7 +942,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IServerPtr CreateServer(
-    TKafkaProxyConfigPtr config,
+    TProxyBootstrapConfigPtr config,
     NNative::IConnectionPtr connection,
     IAuthenticationManagerPtr authenticationManager,
     IPollerPtr poller,

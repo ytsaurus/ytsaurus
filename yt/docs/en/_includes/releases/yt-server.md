@@ -1,23 +1,22 @@
-## {{product-name}} server
+## YTsaurus server
+
 
 All main components are released as a docker image.
 
-{% note warning "Important" %}
 
-The k8s operator version must be at least 0.6.0.
 
-{% endnote %}
 
-**Current release:** {{yt-server-version}} (`ytsaurus/ytsaurus:stable-{{yt-server-version}}-relwithdebinfo`)
-
-**All releases:**
+**Releases:**
 
 {% cut "**24.1.0**" %}
 
-**Scheduler and GPU**
+**Release date:** 2024-11-07
 
+
+_To install YTsaurus Server 24.1.0 [update](https://github.com/ytsaurus/ytsaurus-k8s-operator/releases) the k8s-operator to version 0.17.0._
+
+### Scheduler and GPU
 Features and changes:
-
 - Support prioritization of pools during strong guarantee adjustment due to insufficient total cluster resources.
 - Support prioritization of operations during module assignment stage of the GPU scheduling algorithm.
 - Support job resource demand restrictions per pool tree.
@@ -28,93 +27,79 @@ Features and changes:
 - Add configurable input data buffer size in jobs for more efficient interrupts.
 
 Fixes and optimizations:
-
 - Fix exec node heartbeat tracing throughout scheduler and controller agents.
 - Optimize general allocation scheduling algorithm and fair share computation.
 - Optimize scheduler <-> CA and exec node <-> CA heartbeats processing.
 
-**Queue Agent**
-
+### Queue Agent
 Features:
-
 - Treat static queue export the same way as vital consumer during queues trimming, so not exported rows will not be trimmed.
 - Add functionality for banning queue agent instances via cypress attribute.
 - Take cumulative data weight and timestamp from consumer meta for consumer metrics.
 
-Fixes:
 
-- Fix bug in handling of queues/consumers with invalid attributes (e.g. auto_trim_config).
-- Fix alerts visibility from @queue_status attribute.
+Fixes:
+- Fix bug in handling of queues/consumers with invalid attributes (e.g. `auto_trim_config`).
+- Fix alerts visibility from `@queue_status` attribute.
 - Do not ignore consumers higher than queue size.
-- Rename write_registration_table_mapping -> write_replicated_table_mapping in dynamic config.
+- Rename `write_registration_table_mapping` -> `write_replicated_table_mapping` in dynamic config.
 - Take shared lock instead of exclusive lock on static export destination directories.
 
-**Proxy**
-
+### Proxy
 Features:
-
-- Implement queue producer handlers for exactly once pushing in queues (PushQueueProducer, CreateQueueProducerSession).
-- Add queue_consumer and queue_producer object type handler, so they can be created without explicitly schema specification. Example: yt create queue_consumer <path>.
+- Implement queue producer handlers for exactly once pushing in queues (`PushQueueProducer`, `CreateQueueProducerSession`).
+- Add `queue_consumer` and `queue_producer` object type handler, so they can be created without explicitly schema specification. Example: `yt create queue_consumer <path>`.
 - Support retries of cross cell copying.
 - Add float and date types in Arrow format.
-- Add memory tracking for read_table requests.
+- Add memory tracking for `read_table` requests.
 - Drop heavy requests if there is no more memory.
-- Send bytes_out and bytes_in metrics during request execution.
-- Store cumulative_data_weight and timestamp in consumer meta.
-- Rename PullConsumer -> PullQueueConsumer and AdvanceConsumer -> AdvanceQueueConsumer. Old handlers continue to exists - for now for backward compatibility reasons.
+- Send `bytes_out` and `bytes_in` metrics during request execution.
+- Store `cumulative_data_weight` and `timestamp` in consumer meta.
+- Rename `PullConsumer` -> `PullQueueConsumer` and `AdvanceConsumer` -> `AdvanceQueueConsumer`. Old handlers continue to exists for now for backward compatibility reasons.
 
-**CHYT**
-
+CHYT:
 - Add authorization via X-ClickHouse-Key HTTP-header.
 - Add sticky query distribution based on session id/sticky cookie.
 - Add a new "/chyt" http handler for chyt queries ("/query" handler is deprecated but still works for backward compatibility).
 - Add ability to allocate a separate port for the new http handler to support queries without a custom URL path.
 - The clique alias may be specified via "chyt.clique_alias" or "user" parameters (only for new handlers).
-- Make HTTP GET requests read-only for compatibility with ClickHouse (only for new handlers).
+- Make HTTP GET requests read-only for compatibility with ClickHouse  (only for new handlers).
 
 Fixes:
-
 - Fill dictionary encoding index type in Arrow format.
 - Fix null, void and optional composite columns in Arrow format.
-- Fix yt.memory.heap_usage metrics.
+- Fix `yt.memory.heap_usage` metrics.
 
-**Dynamic Tables**
-
+### Dynamic Tables
 Features:
-
 - Secondary Indexes: basic, partial, list, and unique indexes.
 - Optimize queries which group and order by same keys.
 - Balance tablets using load factor (requires standalone tablet balancer).
 - Shared write lock - write to same row from different transactions without blocking.
 - Rpc proxy client balancer based on power of two choices algorithm.
 - Compression dictionary for Hunks and Hash index.
-
-**MapReduce**
-
+  
+### MapReduce
 Features:
-
 - Support input tables from remote clusters in operations.
 - Improve control over how data is split into jobs for ML training applications.
 - Support read by latest timestamp in MapReduce operations over dynamic tables.
 - Disclose less configuration information to a potential attacker.
 
 Fixes:
-
 - Fix teleportation of a single chunk in an unordered pool.
 - Fix agent disconnect on removal of an account.
 - Fix the inference of intermediate schemas for inputs with column filters.
 - Fix controller agent crash on incompatible user statistic paths.
 
 Optimizations:
-
 - Add JobInputCache: in-memory cache on exe nodes, storing data read by multiple jobs running on the same node.
 
-**Master Server**
+### Master Server
 
 Features:
-
-- Tablet cells Hydra persistence data is now primarily stored at the new location //sys/hydra_persistence by default. The duality with the previous location (//sys/tablet_cells) will be resolved in the future releases.
-- Support inheritance of @chunk_merger_mode after copy into directory with set @chunk_merger_mode.
+- Tablet cells Hydra persistence data is now primarily stored at the new location `//sys/hydra_persistence` by default. The duality with the previous location (`//sys/tablet_cells`) will be resolved in the future releases.
+- Support inheritance of `@chunk_merger_mode` after copy into directory with set `@chunk_merger_mode`.
 - Add backoff rescheduling for nodes merged by chunk merger in case of a transient failure to merge them.
 - Add an option to use the two random choices algorithm when allocating write targets.
 - Add the add-maintenance command to CLI.
@@ -123,7 +108,6 @@ Features:
 - Propagate knowledge of new master cells dynamically to other cluster components and shorten downtime when adding new master cells.
 
 Optimizations:
-
 - Reduce master server memory footprint by reducing the size of table nodes.
 - Speed up removal jobs on data nodes.
 - Move exec node tracker service away from automaton thread.
@@ -131,13 +115,12 @@ Optimizations:
 - Offload invoking transaction replication requests from automaton thread.
 
 Fixes:
-
 - Fix nullptr dereferencing in resolution of queue agent and yql agent attributes.
 - Respect medium override in IO engine on node restart.
 - Fix rebalancing mode in table's chunk tree after merging branched tables.
 - Fix sanitizing hostnames in errors for cellar nodes.
 - Fix losing trace context for some callbacks and rpc calls.
-- Fix persistence of @last_seen_time attribute for users.
+- Fix persistence of `@last_seen_time` attribute for users.
 - Fix handling unknown chunk meta extensions by meta aggregating writer.
 - Fix nodes crashing on heartbeat retries when masters are down for a long time.
 - Fix table statistics being inconsistent between native and external cells after copying the table mid statistics update.
@@ -152,129 +135,114 @@ Fixes:
 - Fix an epoch restart-related crash in expiration tracker.
 - In master cell directory, alert on an unknown cell role instead of crashing.
 
-**Misc**
-
+### Misc
 Features:
-
-- Add ability to redirect stdout to stderr in user jobs (redirect_stdout_to_stderr option in operation spec).
+- Add ability to redirect stdout to stderr in user jobs (`redirect_stdout_to_stderr` option in operation spec).
 - Add dynamic table log writer.
 
 {% endcut %}
 
+
 {% cut "**23.2.1**" %}
 
-**Scheduler and GPU**
+**Release date:** 2024-07-31
 
+
+### Scheduler and GPU
 Features:
-
-- Disable writing `//sys/scheduler/event_log` by default.
-- Add lightweight running operations.
-
-Fixes:
-
-- Various optimizations in scheduler
-- Improve total resource usage and limits profiling.
-- Do not account job preparation time in GPU statistics.
-
-**Queue Agent**
+  * Disable writing `//sys/scheduler/event_log` by default.
+  * Add lightweight running operations.
 
 Fixes:
+  * Various optimizations in scheduler
+  * Improve total resource usage and limits profiling.
+  * Do not account job preparation time in GPU statistics.
 
-- Normalize cluster name in queue consumer registration.
+### Queue Agent
+Fixes:
+  * Normalize cluster name in queue consumer registration.
 
-**Proxy**
-
+### Proxy
 Features:
-
-- RPC proxy API for Query Tracker.
-- Changed format and added metadata for issued user tokens.
-- Support rotating TLS certificates for HTTP proxies.
-- Compatibility with recent Query Tracker release.
+  * RPC proxy API for Query Tracker.
+  * Changed format and added metadata for issued user tokens.
+  * Support rotating TLS certificates for HTTP proxies.
+  * Compatibility with recent Query Tracker release.
 
 Fixes:
+  * Do not retry on Read-Only response error.
+  * Fix standalone authentication token revokation.
+  * Fix per-user memory tracking (propagate allocation tags to child context).
+  * Fix arrow format for optional types.
 
-- Do not retry on Read-Only response error.
-- Fix standalone authentication token revokation.
-- Fix per-user memory tracking (propagate allocation tags to child context).
-- Fix arrow format for optional types.
-
-**Dynamic Tables**
-
+### Dynamic Tables
 Features:
-
-- Shared write locks.
-- Increased maximum number of key columns to 128.
-- Implemented array join in {{product-name}} QL.
+  * Shared write locks.
+  * Increased maximum number of key columns to 128.
+  * Implemented array join in YT QL.
 
 Fixes:
-
-- Cap replica lag time for tables that are rarely written to.
-- Fix possible journal record loss during journal session abort.
-- Fix in backup manager.
-- Fix some bugs in chaos dynamic table replication.
-
-**MapReduce**
-
+  * Cap replica lag time for tables that are rarely written to.
+  * Fix possible journal record loss during journal session abort.
+  * Fix in backup manager.
+  * Fix some bugs in chaos dynamic table replication.
+  
+### MapReduce
 Features:
-
-- Combined per-locaiton throttlers limiting total in+out bandwidth.
-- Options in operation spec to force memory limits on user job containers.
-- Use codegen comparator in SimpleSort & PartitionSort if possible.
+  * Combined per-locaiton throttlers limiting total in+out bandwidth.
+  * Options in operation spec to force memory limits on user job containers.
+  * Use codegen comparator in SimpleSort & PartitionSort if possible.
 
 Fixes:
+  * Better profiling tags for job proxy metrics.
+  * Fixes for remote copy with erasure repair.
+  * Fix any_to_composite converter when multiple schemas have similarly named composite columns.
+  * Fixes for partition_table API method.
+  * Fixes in new live preview.
+  * Do not fail jobs with supervisor communication failures.
+  * Multiple retries added in CRI executor/docker image integration.
+  * Cleaned up job memory statistics collection, renamed some statistics.
 
-- Better profiling tags for job proxy metrics.
-- Fixes for remote copy with erasure repair.
-- Fix any_to_composite converter when multiple schemas have similarly named composite columns.
-- Fixes for partition_table API method.
-- Fixes in new live preview.
-- Do not fail jobs with supervisor communication failures.
-- Multiple retries added in CRI executor/docker image integration.
-- Cleaned up job memory statistics collection, renamed some statistics.
-
-**Master Server**
-
+### Master Server
 Features:
-
-- Parallelize and offload virtual map reads.
-- Emergency flag to disable attribute-based access control.
-- Improved performance of transaction commit/abort.
-- Enable snapshot loading by default.
+  * Parallelize and offload virtual map reads.
+  * Emergency flag to disable attribute-based access control.
+  * Improved performance of transaction commit/abort.
+  * Enable snapshot loading by default.
 
 Fixes:
+  * Fixes and optimizations for Sequoia chunk replica management.
+  * Fix multiple possible master crashes.
+  * Fixes for master update with read-only availability.
+  * Fixes for jammed incremental hearbeats and lost replica update on disabled locations.
+  * Fix per-account sensors on new account creation.
 
-- Fixes and optimizations for Sequoia chunk replica management.
-- Fix multiple possible master crashes.
-- Fixes for master update with read-only availability.
-- Fixes for jammed incremental hearbeats and lost replica update on disabled locations.
-- Fix per-account sensors on new account creation.
-
-**Misc**
-
+### Misc
 Features:
-
-- Config exposure via orchid became optional.
-- Support some c-ares options in {{product-name}} config.
-- Support IP addresses in RPC TLS certificate verification.
+  * Config exposure via orchid became optional.
+  * Support some c-ares options in YT config.
+  * Support IP addresses in RPC TLS certificate verification.
 
 Fixes:
+   * Fix connection counter leak in http server.
+   * Track and limit memory used by queued RPC requests.
+   * Better memory tracking for RPC connection buffers.
+   * Fix address resolver configuration.
 
-- Fix connection counter leak in http server.
-- Track and limit memory used by queued RPC requests.
-- Better memory tracking for RPC connection buffers.
-- Fix address resolver configuration.
 
 {% endcut %}
 
+
 {% cut "**23.2.0**" %}
 
-`ytsaurus/ytsaurus:stable-23.2.0-relwithdebinfo`
+**Release date:** 2024-02-29
 
-**Scheduler**
+
+### Scheduler
 
 Many internal changes driven by developing new scheduling mechanics that separate jobs from resource allocations at exec nodes. These changes include modification of the protocol of interaction between schedulers, controller agents and exec nodes, and adding tons of new logic for introducing allocations in exec nodes, controller agents and schedulers.
 
-List of significant changes and fixes:
+List of significant changes and fixes: 
   - Optimize performance of scheduler's Control and NodeShard threads.
   - Optimize performance of the core scheduling algorithm by considering only a subset of operations in most node heartbeats.
   - Optimize operation launch time overhead by not creating debug transaction if neither stderr or core table have been specified.
@@ -292,11 +260,11 @@ List of significant changes and fixes:
   - Hide user tokens in scheduler and job proxy logs.
   - Support configurable max capacity for pipes between job proxy and user job.
 
-**Queue Agent**
+### Queue Agent
 
 Aside small improvements, the most significant features include the ability to configure periodic exports of partitioned data from queues into  static tables and the support for using replicated and chaos dynamic tables as queues and consumers.
 
-Features:
+Features: 
 - Support chaos replicated tables as queues and consumers.
 - Support snapshot exports from queues into static tables.
 - Support queues and consumers that are symbolic links for other queues and consumers.
@@ -308,7 +276,7 @@ Fixes:
 - Fix metrics of read rows data weight via consumer.
 - Fix handling frozen tablets in queue.
 
-**Proxy**
+### Proxy
 Features:
 - Add ability to call `pull_consumer` without specifying `offset`, it will be taken from `consumer` table.
 - Add `advance_consumer` handler for queues.
@@ -317,14 +285,13 @@ Features:
 - Add new per user memory usage monitoring sensors in RPC proxies.
 - Use ACO for RPC proxies permission management.
 - Introduce TCP Proxies for SPYT.
-- Support of OAuth authorisation.
+- Support of OAuth authorization.
 
 Fixes:
 - Fix returning requested system columns in `web_json` format.
 
 
-**Dynamic Tables**
-
+### Dynamic Tables
 Features:
 - DynTables Query language improvments:
     - New range inferrer.
@@ -338,7 +305,7 @@ Features:
 - Store heavy chunk meta in blocks.
 
 
-**MapReduce**
+### MapReduce
 
 Features:
 - RemoteСopy now supports cypress file objects, in addition to tables.
@@ -352,7 +319,7 @@ Enhancements:
 - Improve memory tracking in data nodes (master jobs, blob write sessions, p2p tracking).
 - Rework memory acccounting in controller agents.
 
-**Master Server**
+### Master Server
 
 Noticeable/Potentially Breaking Changes:
   - Read requests are now processed in a multithreaded manner by default.
@@ -378,7 +345,7 @@ Optimizations & Fixes:
 
 Additionally, advancements have been made in the Sequoia project dedicated to scaling master server by offloading certain parts of its state to dynamic tables. (This is far from being production-ready yet.)
 
-**Misc**
+### Misc
 
 Enhancements:
 - Add rpc server config dynamization.
@@ -388,10 +355,6 @@ Enhancements:
 - Add support for --version option in ytserver binaries.
 - Add additional metainformation in yson/json server log format (fiberId, traceId, sourceFile).
 
-{% endcut %}
-
-{% cut "**23.1.0**" %}
-
-`ytsaurus/ytsaurus:stable-23.1.0-relwithdebinfo`
 
 {% endcut %}
+

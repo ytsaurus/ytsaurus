@@ -125,9 +125,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(NClusterNode::IBootstrap* bootstrap)
+IBootstrapPtr CreateBootstrap(NClusterNode::IBootstrap* bootstrap)
 {
-    return std::make_unique<TBootstrap>(bootstrap);
+    return New<TBootstrap>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

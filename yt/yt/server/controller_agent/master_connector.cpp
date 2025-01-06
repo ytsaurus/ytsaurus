@@ -73,6 +73,7 @@ using namespace NFileClient;
 using namespace NSecurityClient;
 using namespace NTransactionClient;
 using namespace NScheduler;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -115,7 +116,7 @@ public:
 
     void RegisterOperation(TOperationId operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(IsConnected());
 
         OperationNodesAndArchiveUpdateExecutor_->AddUpdate(
@@ -125,7 +126,7 @@ public:
 
     void UnregisterOperation(TOperationId operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(IsConnected());
 
         OperationNodesAndArchiveUpdateExecutor_->RemoveUpdate(operationId);
@@ -133,7 +134,7 @@ public:
 
     TFuture<void> UpdateInitializedOperationNode(TOperationId operationId, bool isCleanOperationStart)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return BIND(&TImpl::DoUpdateInitializedOperationNode, MakeStrong(this), operationId, isCleanOperationStart)
             .AsyncVia(CancelableControlInvoker_)
@@ -142,7 +143,7 @@ public:
 
     TFuture<void> UpdateControllerFeatures(TOperationId operationId, const TYsonString& featureYson)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return BIND(&TImpl::DoUpdateControllerFeatures, MakeStrong(this), operationId, featureYson)
             .AsyncVia(CancelableControlInvoker_)
@@ -151,7 +152,7 @@ public:
 
     TFuture<void> FlushOperationNode(TOperationId operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(IsConnected());
 
         YT_LOG_INFO("Flushing operation node (OperationId: %v)",
@@ -166,7 +167,7 @@ public:
         TNodeId tableId,
         const std::vector<TChunkTreeId>& childIds)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(IsConnected());
 
         return BIND(&TImpl::DoAttachToLivePreview, MakeStrong(this))
@@ -185,7 +186,7 @@ public:
 
     TFuture<TOperationSnapshot> DownloadSnapshot(TOperationId operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(IsConnected());
 
         if (!Config_->EnableSnapshotLoading) {
@@ -199,7 +200,7 @@ public:
 
     TFuture<void> RemoveSnapshot(TOperationId operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(IsConnected());
 
         return BIND(&TImpl::DoRemoveSnapshot, MakeStrong(this), operationId)
@@ -209,7 +210,7 @@ public:
 
     void AddChunkTreesToUnstageList(std::vector<TChunkTreeId> chunkTreeIds, bool recursive)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(IsConnected());
 
         CancelableControlInvoker_->Invoke(BIND(&TImpl::DoAddChunkTreesToUnstageList,
@@ -227,7 +228,7 @@ public:
 
     ui64 GetConfigRevision() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         return ConfigRevision_;
     }
 
@@ -238,7 +239,7 @@ public:
 
     const std::vector<TString>& GetTags() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (Tags_) {
             return *Tags_;
@@ -266,7 +267,7 @@ public:
 
     void SetControllerAgentAlert(EControllerAgentAlertType alertType, const TError& alert)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         Alerts_[alertType] = alert;
     }
@@ -346,7 +347,7 @@ private:
 
     void OnSchedulerConnecting()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         // NB: We cannot be sure the previous incarnation did a proper cleanup due to possible
         // fiber cancelation.
@@ -361,7 +362,7 @@ private:
 
     void OnSchedulerConnected(TIncarnationId incarnationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(!OperationNodesAndArchiveUpdateExecutor_);
         OperationNodesAndArchiveUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
@@ -420,7 +421,7 @@ private:
 
     void OnSchedulerDisconnected()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         DoCleanup();
     }
@@ -561,7 +562,7 @@ private:
 
     void RefreshTransactions()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         // Take a snapshot of all known operations.
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
@@ -644,7 +645,7 @@ private:
 
     void DoUpdateInitializedOperationNode(TOperationId operationId, bool isCleanOperationStart)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         auto operation = controllerAgent->GetOperation(operationId);
@@ -684,7 +685,7 @@ private:
 
     void DoUpdateOperationNodeAndArchive(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto operationId = operation->GetId();
 
@@ -729,7 +730,7 @@ private:
 
     TCallback<TFuture<void>()> UpdateOperationNodeAndArchive(TOperationId operationId, TOperationNodeUpdate* update)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         auto operation = controllerAgent->FindOperation(operationId);
@@ -751,7 +752,7 @@ private:
 
     void DoUpdateControllerFeatures(TOperationId operationId, const TYsonString& featureYson)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         auto operation = controllerAgent->FindOperation(operationId);
@@ -822,7 +823,7 @@ private:
 
     void UpdateOperationProgress(TOperationId operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
         auto operation = controllerAgent->FindOperation(operationId);
@@ -962,7 +963,7 @@ private:
         TTransactionId transactionId,
         const std::vector<TLivePreviewRequest>& requests)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (requests.empty()) {
             return;
@@ -1112,7 +1113,7 @@ private:
         TNodeId tableId,
         const std::vector<TChunkTreeId>& childIds)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto* update = OperationNodesAndArchiveUpdateExecutor_->FindUpdate(operationId);
         if (!update) {
@@ -1186,7 +1187,7 @@ private:
 
     void DoRemoveSnapshot(TOperationId operationId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto batchReq = StartObjectBatchRequestWithPrerequisites();
         {
@@ -1204,7 +1205,7 @@ private:
 
     void BuildSnapshot()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (!Config_->EnableSnapshotBuilding) {
             return;
@@ -1262,14 +1263,14 @@ private:
 
     bool IsOperationInFinishedState(const TOperationNodeUpdate* update) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return !Bootstrap_->GetControllerAgent()->FindOperation(update->OperationId);
     }
 
     void OnOperationUpdateFailed(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         Bootstrap_->GetControllerAgent()->Disconnect(TError("Failed to update operation node") << error);
     }
@@ -1284,7 +1285,7 @@ private:
 
     void UnstageChunkTrees()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         for (auto& [cellTag, unstageRequests] : CellTagToUnstageList_) {
             if (unstageRequests.empty()) {
@@ -1321,7 +1322,7 @@ private:
 
     void DoUpdateConfig(TControllerAgentConfigPtr& config)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         Config_ = config;
 
@@ -1434,7 +1435,7 @@ private:
 
     void UpdateIntermediateMediumUsage()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
 
@@ -1552,7 +1553,7 @@ private:
 
     void UpdateAlerts()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(IsConnected());
 
         std::vector<TError> alerts;

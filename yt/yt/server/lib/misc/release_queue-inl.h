@@ -4,7 +4,7 @@
 #include "release_queue.h"
 #endif
 
-namespace NYT {
+namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,4 +53,4 @@ typename TReleaseQueue<T>::TCookie TReleaseQueue<T>::GetHeadCookie() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

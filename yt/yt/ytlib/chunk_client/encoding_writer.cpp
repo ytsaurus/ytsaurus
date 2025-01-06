@@ -1,7 +1,6 @@
 #include "encoding_writer.h"
 #include "private.h"
 #include "block_cache.h"
-#include "chunk_writer.h"
 #include "config.h"
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
@@ -30,11 +29,13 @@ TEncodingWriter::TEncodingWriter(
     TEncodingWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
     IChunkWriterPtr chunkWriter,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     IBlockCachePtr blockCache,
     NLogging::TLogger logger)
     : Config_(std::move(config))
     , Options_(std::move(options))
     , ChunkWriter_(std::move(chunkWriter))
+    , WriteBlocksOptions_(std::move(writeBlocksOptions))
     , BlockCache_(std::move(blockCache))
     , Logger(std::move(logger))
     , SizeSemaphore_(New<TAsyncSemaphore>(Config_->EncodeWindowSize))
@@ -301,7 +302,7 @@ void TEncodingWriter::WritePendingBlock(const TErrorOr<TBlock>& blockOrError)
 
     YT_LOG_DEBUG("Writing pending block (Block: %v)", WrittenBlockIndex_);
 
-    auto isReady = ChunkWriter_->WriteBlock(Config_->WorkloadDescriptor, block);
+    auto isReady = ChunkWriter_->WriteBlock(WriteBlocksOptions_, Config_->WorkloadDescriptor, block);
     ++WrittenBlockIndex_;
 
     auto finally = Finally([&] {

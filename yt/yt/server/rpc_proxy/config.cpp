@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
+#include <yt/yt/server/lib/signature/instance_config.h>
+
 namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -66,7 +68,7 @@ void TAccessCheckerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TProxyConfig::Register(TRegistrar registrar)
+void TProxyBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("grpc_server", &TThis::GrpcServer)
         .Default();
@@ -117,6 +119,11 @@ void TProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
         .DefaultNew();
 
+    registrar.Parameter("signature_generation", &TThis::SignatureGeneration)
+        .Default();
+    registrar.Parameter("signature_validation", &TThis::SignatureValidation)
+        .Default();
+
     registrar.Preprocessor([] (TThis* config) {
         config->DynamicConfigManager->IgnoreConfigAbsence = true;
     });
@@ -147,6 +154,11 @@ void TProxyConfig::Register(TRegistrar registrar)
         config->MemoryLimits->Total = 20_GB;
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TProxyProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

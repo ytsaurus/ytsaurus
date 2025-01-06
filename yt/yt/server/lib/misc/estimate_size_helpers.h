@@ -6,7 +6,7 @@
 
 #include <google/protobuf/message.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,7 +46,7 @@ size_t EstimateSizes(Ts&&...values);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer
 
 #define ESTIMATE_SIZE_HELPERS_INL_H_
 #include "estimate_size_helpers-inl.h"

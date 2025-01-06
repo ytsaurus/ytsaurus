@@ -97,7 +97,7 @@ THashMap<TString, NYson::TYsonString> GetNodeAttributes(
 std::vector<std::pair<TString, NYson::TYsonString>> SortKeyToAttribute(
     const THashMap<TString, NYson::TYsonString>& keyToAttributeMap);
 
-THashSet<TString> ListNodeAttributes(
+THashSet<std::string> ListNodeAttributes(
     const ICypressManagerPtr& cypressManager,
     TCypressNode* trunkNode,
     NTransactionServer::TTransaction* transaction);
@@ -146,12 +146,12 @@ TNodeId MakePortalEntranceNodeId(
 NObjectClient::TObjectId MakeCypressShardId(
     TNodeId rootNodeId);
 
-TString SuggestCypressShardName(TCypressShard* shard);
+std::string SuggestCypressShardName(TCypressShard* shard);
 
 void ValidateCompressionCodec(
     const NYson::TYsonString& value,
     const std::optional<THashSet<NCompression::ECodec>>& configuredForbiddenCodecs,
-    const std::optional<THashMap<TString, TString>>& configuredForbiddenCodecNameToAlias);
+    const std::optional<THashMap<std::string, std::string>>& configuredForbiddenCodecNameToAlias);
 
 void ValidateErasureCodec(
     const NYson::TYsonString& value,

@@ -69,6 +69,7 @@ using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -85,8 +86,6 @@ namespace {
 constexpr auto& Logger = CypressProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_YPATH_CONTEXT_IMPL(ISequoiaServiceContext, TTypedSequoiaServiceContext);
 
 DECLARE_SUPPORTS_METHOD(Get);
 DECLARE_SUPPORTS_METHOD(Set);

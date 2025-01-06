@@ -14,11 +14,11 @@ namespace NYT::NQueueAgent {
  *  Thread affinity: any
  */
 class TDynamicConfigManager
-    : public NDynamicConfig::TDynamicConfigManagerBase<TQueueAgentServerDynamicConfig>
+    : public NDynamicConfig::TDynamicConfigManagerBase<TQueueAgentComponentDynamicConfig>
 {
 public:
     TDynamicConfigManager(
-        const TQueueAgentServerConfigPtr& queueAgentConfig,
+        const TQueueAgentBootstrapConfigPtr& queueAgentConfig,
         NApi::IClientPtr client,
         IInvokerPtr invoker);
 };

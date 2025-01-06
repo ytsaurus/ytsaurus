@@ -1033,6 +1033,14 @@ public:
     //! This flag enables secure vault variables in job shell.
     bool EnableSecureVaultVariablesInJobShell;
 
+    //! If true, scheduler will issue a temporary token for the authenticated user which allows
+    //! accessing the host cluster. This token will be removed after the operation is finished.
+    //! The value of the token will be added to the operation's secure vault with the key defined
+    //! in the option below.
+    bool IssueTemporaryToken;
+    //! Key to be used for adding temporary token to the secure vault. Defaults to YT_TOKEN.
+    TString TemporaryTokenEnvironmentVariableName;
+
     //! Suspend operation in case of jobs failed due to account limit exceeded.
     bool SuspendOperationIfAccountLimitExceeded;
 
@@ -1210,6 +1218,9 @@ public:
 
     //! If |false|, scheduler will ignore offloading settings defined for ancestor pools.
     bool AllowOffloading;
+
+    //! If |true|, scheduler will fail the operation if any of specified pools doesn't exist.
+    std::optional<bool> RequireSpecifiedPoolsExistence;
 
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
@@ -1997,7 +2008,7 @@ public:
     // COMPAT(yuryalekseev)
     bool AllowClusterConnection;
 
-    bool UseRemoteThrottler;
+    bool UseClusterThrottlers;
 
     REGISTER_YSON_STRUCT(TRemoteCopyOperationSpec);
 

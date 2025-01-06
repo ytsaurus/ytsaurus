@@ -52,6 +52,7 @@ using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
 using namespace NCrypto;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -448,7 +449,7 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
                 EInternedAttributeKey::QueueProducerPartitions,
             };
             for (const auto& attribute : producerRelatedAttributes) {
-                Attributes_->Remove(attribute.Unintern());
+                Attributes_->TryRemove(attribute.Unintern());
             }
         }
     }

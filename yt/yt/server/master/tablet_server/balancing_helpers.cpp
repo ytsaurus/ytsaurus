@@ -250,7 +250,7 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
         return {};
     }
 
-    if (static_cast<int>(table->Tablets().size()) + newTabletCount -
+    if (std::ssize(table->Tablets()) + newTabletCount -
         (endIndex - startIndex + 1) >= MaxTabletCount)
     {
         YT_LOG_DEBUG("Tablet balancer will not split tablets since tablet count "
@@ -297,9 +297,9 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
     if (config.MinTabletCount) {
         mergeBudgetByTabletIndex.resize(table->Tablets().size());
 
-        int mergeBudget = std::max(
+        int mergeBudget = std::max<int>(
             0,
-            static_cast<int>(table->Tablets().size()) - *config.MinTabletCount);
+            std::ssize(table->Tablets()) - *config.MinTabletCount);
         std::vector<int> tabletsPendingMerge;
         for (auto* tablet : tablets) {
             if (GetTabletBalancingSize(tablet) < config.MinTabletSize) {

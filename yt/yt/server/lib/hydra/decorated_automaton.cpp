@@ -60,6 +60,7 @@ using namespace NPipes;
 using namespace NProfiling;
 using namespace NRpc;
 using namespace NNet;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -111,7 +112,7 @@ TSystemLockGuard& TSystemLockGuard::operator=(TSystemLockGuard&& other)
 
 void TSystemLockGuard::Release()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (Automaton_) {
         Automaton_->ReleaseSystemLock();
@@ -154,7 +155,7 @@ TUserLockGuard& TUserLockGuard::operator=(TUserLockGuard&& other)
 
 void TUserLockGuard::Release()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (Automaton_) {
         Automaton_->ReleaseUserLock();
@@ -285,7 +286,7 @@ public:
 
     TFuture<TRemoteSnapshotParams> Run()
     {
-        VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(Owner_->AutomatonThread);
 
         try {
             TryAcquireLock();
@@ -445,7 +446,7 @@ private:
 
     TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(Owner_->AutomatonThread);
 
         SnapshotChannel_ = std::make_unique<TCommunicationChannel>(Logger, "Snapshot");
         LogChannel_ = std::make_unique<TCommunicationChannel>(Logger, "Log");
@@ -740,7 +741,7 @@ private:
 
     TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(Owner_->AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(Owner_->AutomatonThread);
 
         SwitchableSnapshotWriter_ = New<TSwitchableSnapshotWriter>(Logger);
 
@@ -765,7 +766,7 @@ private:
 
     void DoRunAsync()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         WaitFor(OpenWriterFuture_)
             .ThrowOnError();
@@ -834,8 +835,8 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     YT_VERIFY(Automaton_);
     YT_VERIFY(ControlInvoker_);
     YT_VERIFY(SnapshotStore_);
-    VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
-    VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
+    YT_ASSERT_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
+    YT_ASSERT_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
 }
 
 void TDecoratedAutomaton::Initialize()
@@ -845,7 +846,7 @@ void TDecoratedAutomaton::Initialize()
 
 void TDecoratedAutomaton::ResetState()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     AutomatonInvoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
         THydraContext hydraContext(
@@ -862,7 +863,7 @@ void TDecoratedAutomaton::ResetState()
 
 void TDecoratedAutomaton::ClearState()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     AutomatonVersion_ = TVersion();
     RandomSeed_ = 0;
@@ -916,21 +917,21 @@ void TDecoratedAutomaton::OnStopFollowing()
 
 IInvokerPtr TDecoratedAutomaton::CreateGuardedUserInvoker(IInvokerPtr underlyingInvoker)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return New<TGuardedUserInvoker>(this, underlyingInvoker);
 }
 
 IInvokerPtr TDecoratedAutomaton::GetDefaultGuardedUserInvoker()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return DefaultGuardedUserInvoker_;
 }
 
 IInvokerPtr TDecoratedAutomaton::GetSystemInvoker()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return SystemInvoker_;
 }
@@ -969,7 +970,7 @@ void TDecoratedAutomaton::LoadSnapshot(
     TInstant timestamp,
     IAsyncZeroCopyInputStreamPtr reader)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     YT_LOG_INFO("Started loading snapshot (SnapshotId: %v, ReadOnly: %v)",
         snapshotId,
@@ -1064,7 +1065,7 @@ void TDecoratedAutomaton::ApplyMutationsDuringRecovery(const std::vector<TShared
 
 TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutationDuringRecovery(const TSharedRef& recordData)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     NHydra::NProto::TMutationHeader header;
     TSharedRef requestData;
@@ -1101,7 +1102,7 @@ TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutati
 
 TFuture<TMutationResponse> TDecoratedAutomaton::TryBeginKeptRequest(const TMutationRequest& request)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_VERIFY(State_ == EPeerState::Leading);
 
@@ -1131,7 +1132,7 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot(
     i64 sequenceNumber,
     bool readOnly)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     // TODO(aleksandra-zh): this should be considered a success.
     if (LastSuccessfulSnapshotId_ >= snapshotId) {
@@ -1177,7 +1178,7 @@ TFuture<TRemoteSnapshotParams> TDecoratedAutomaton::BuildSnapshot(
 
 void TDecoratedAutomaton::ApplyMutations(const std::vector<TPendingMutationPtr>& mutations)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     std::vector<TMutationApplicationResult> results;
     results.reserve(mutations.size());
@@ -1191,7 +1192,7 @@ void TDecoratedAutomaton::ApplyMutations(const std::vector<TPendingMutationPtr>&
 
 void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutationApplicationResult>&& results)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     for (auto& result : results) {
         try {
@@ -1258,7 +1259,7 @@ TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
 TDecoratedAutomaton::TMutationApplicationResult TDecoratedAutomaton::ApplyMutation(
     const TPendingMutationPtr& mutation)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     TForbidContextSwitchGuard contextSwitchGuard;
 
     TMutationContext mutationContext(
@@ -1305,7 +1306,7 @@ void TDecoratedAutomaton::DoApplyMutation(
     TVersion mutationVersion,
     TMutationApplicationResult* result)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     auto automatonVersion = GetAutomatonVersion();
 
@@ -1407,77 +1408,77 @@ void TDecoratedAutomaton::DoApplyMutation(
 
 EPeerState TDecoratedAutomaton::GetState() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return State_;
 }
 
 TEpochContextPtr TDecoratedAutomaton::GetEpochContext() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return EpochContext_.Acquire();
 }
 
 TEpochId TDecoratedAutomaton::GetEpochId() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return EpochContext_.AcquireHazard()->EpochId;
 }
 
 ui64 TDecoratedAutomaton::GetStateHash() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return StateHash_.load();
 }
 
 i64 TDecoratedAutomaton::GetSequenceNumber() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return SequenceNumber_.load();
 }
 
 i64 TDecoratedAutomaton::GetRandomSeed() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return RandomSeed_.load();
 }
 
 int TDecoratedAutomaton::GetLastMutationTerm() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return LastMutationTerm_.load();
 }
 
 i64 TDecoratedAutomaton::GetReliablyAppliedSequenceNumber() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ReliablyAppliedSequenceNumber_.load();
 }
 
 TReachableState TDecoratedAutomaton::GetReachableState() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return {AutomatonVersion_.load().SegmentId, SequenceNumber_.load()};
 }
 
 TVersion TDecoratedAutomaton::GetAutomatonVersion() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return AutomatonVersion_.load();
 }
 
 bool TDecoratedAutomaton::TryAcquireUserLock()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (SystemLock_.load() != 0) {
         return false;
@@ -1492,14 +1493,14 @@ bool TDecoratedAutomaton::TryAcquireUserLock()
 
 void TDecoratedAutomaton::ReleaseUserLock()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     --UserLock_;
 }
 
 void TDecoratedAutomaton::AcquireSystemLock()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     int result = ++SystemLock_;
     while (UserLock_.load() != 0) {
@@ -1511,7 +1512,7 @@ void TDecoratedAutomaton::AcquireSystemLock()
 
 void TDecoratedAutomaton::ReleaseSystemLock()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     int result = --SystemLock_;
     YT_LOG_DEBUG("System lock released (Lock: %v)",
@@ -1550,7 +1551,7 @@ void TDecoratedAutomaton::StopEpoch()
 
 void TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemoteSnapshotParams>& snapshotInfoOrError)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     if (!snapshotInfoOrError.IsOK()) {
         return;
@@ -1598,7 +1599,7 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
 
 bool TDecoratedAutomaton::IsRecovery() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return
         State_ == EPeerState::LeaderRecovery ||
@@ -1607,42 +1608,42 @@ bool TDecoratedAutomaton::IsRecovery() const
 
 bool TDecoratedAutomaton::IsBuildingSnapshotNow() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return BuildingSnapshot_.load();
 }
 
 i64 TDecoratedAutomaton::GetMutationCountSinceLastSnapshot() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return MutationCountSinceLastSnapshot_.load();
 }
 
 i64 TDecoratedAutomaton::GetMutationSizeSinceLastSnapshot() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return MutationSizeSinceLastSnapshot_.load();
 }
 
 int TDecoratedAutomaton::GetLastSuccessfulSnapshotId() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return LastSuccessfulSnapshotId_.load();
 }
 
 bool TDecoratedAutomaton::GetLastSuccessfulSnapshotReadOnly() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return LastSuccessfulSnapshotReadOnly_.load();
 }
 
 bool TDecoratedAutomaton::GetReadOnly() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ReadOnly_.load();
 }

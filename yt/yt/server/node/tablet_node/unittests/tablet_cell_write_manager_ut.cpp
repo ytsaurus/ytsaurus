@@ -577,7 +577,7 @@ protected:
             upperRowIndex,
             columnFilter);
         if (maybeUpperRowIndex) {
-            EXPECT_EQ(upperRowIndex - lowerRowIndex, static_cast<int>(result.size()));
+            EXPECT_EQ(upperRowIndex - lowerRowIndex, std::ssize(result));
         }
 
         for (auto& row : result) {

@@ -21,7 +21,7 @@ void TRouterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTcpProxyConfig::Register(TRegistrar registrar)
+void TProxyBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
@@ -41,6 +41,11 @@ void TTcpProxyConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TProxyProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TRouterDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("routing_table_update_period", &TThis::RoutingTableUpdatePeriod)
@@ -49,7 +54,7 @@ void TRouterDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTcpProxyDynamicConfig::Register(TRegistrar registrar)
+void TProxyDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("poller_thread_count", &TThis::PollerThreadCount)
         .Default(2);

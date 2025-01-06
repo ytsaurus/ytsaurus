@@ -455,7 +455,7 @@ void TUser::LogIfPendingRemoval(const TString& message) const
 
 const IReconfigurableThroughputThrottlerPtr& TUser::GetRequestRateThrottler(EUserWorkloadType workloadType)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     switch (workloadType) {
         case EUserWorkloadType::Read:

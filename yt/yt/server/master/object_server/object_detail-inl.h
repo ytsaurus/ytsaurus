@@ -35,8 +35,7 @@ TFuture<NYson::TYsonString> TNonversionedObjectProxyBase<TObject>::FetchFromShep
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     const auto* user = securityManager->GetAuthenticatedUser();
-    // TODO(babenko): switch to std::string
-    batchReq->SetUser(TString(user->GetName()));
+    batchReq->SetUser(user->GetName());
 
     auto req = NYTree::TYPathProxy::Get(path);
     batchReq->AddRequest(req);
@@ -77,8 +76,7 @@ TFuture<std::vector<T>> TNonversionedObjectProxyBase<TObject>::FetchFromSwarm(NY
             cellTag,
             /*stickyGroupSizeCache*/ nullptr);
         auto batchReq = proxy.ExecuteBatch();
-        // TODO(babenko): switch to std::string
-        batchReq->SetUser(TString(user->GetName()));
+        batchReq->SetUser(user->GetName());
 
         auto attribute = key.Unintern();
         auto path = NObjectClient::FromObjectId(object->GetId()) + "/@" + attribute;

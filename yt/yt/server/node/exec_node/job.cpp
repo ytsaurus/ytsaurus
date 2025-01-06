@@ -153,6 +153,7 @@ using namespace NObjectClient;
 using namespace NStatisticPath;
 using namespace NNbd;
 using namespace NSquashFS;
+using namespace NServer;
 
 using NNodeTrackerClient::TNodeDirectory;
 using NChunkClient::TDataSliceDescriptor;
@@ -349,7 +350,7 @@ TJob::TJob(
     , FinishGuard_(TraceContext_)
     , JobInputCache_(Bootstrap_->GetExecNodeBootstrap()->GetJobInputCache())
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
     YT_VERIFY(JobInputCache_);
 
     YT_LOG_DEBUG("Creating job");
@@ -380,7 +381,7 @@ TJob::~TJob()
 
 TYsonString TJob::BuildArchiveFeatures() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return BuildYsonStringFluently()
         .BeginMap()
@@ -390,7 +391,7 @@ TYsonString TJob::BuildArchiveFeatures() const
 
 void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddresses)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     GuardedAction(
         "DoStart",
@@ -456,7 +457,7 @@ void TJob::DoStart(TErrorOr<std::vector<TNameWithAddress>>&& resolvedNodeAddress
 
 bool TJob::IsStarted() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return Started_;
 }
@@ -469,7 +470,7 @@ void TJob::OnResourcesAcquired() noexcept
 
 void TJob::Start() noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     TCurrentTraceContextGuard guard(TraceContext_);
 
@@ -543,7 +544,7 @@ void TJob::Start() noexcept
 
 void TJob::Abort(TError error, bool graceful)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_LOG_INFO(
         error,
@@ -561,7 +562,7 @@ void TJob::Abort(TError error, bool graceful)
 
 void TJob::OnJobProxySpawned()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     GuardedAction(
         "OnJobProxySpawned",
@@ -581,7 +582,7 @@ void TJob::PrepareArtifact(
     const TString& artifactName,
     const TString& pipePath)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     GuardedAction(
         "PrepareArtifact",
@@ -662,7 +663,7 @@ void TJob::OnArtifactPreparationFailed(
     const TString& artifactPath,
     const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     Y_UNUSED(artifactName);
 
@@ -682,7 +683,7 @@ void TJob::OnArtifactPreparationFailed(
 
 void TJob::OnArtifactsPrepared()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     // Wait for possible errors during node-side artifact preparation.
     WaitFor(AllSucceeded(ArtifactPrepareFutures_))
@@ -700,7 +701,7 @@ void TJob::OnArtifactsPrepared()
 
 void TJob::OnJobPrepared()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     GuardedAction(
         "OnJobPrepared",
@@ -716,13 +717,13 @@ void TJob::OnJobPrepared()
 
 void TJob::Terminate(EJobState finalState, TError error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto doTerminate = [&] {
         auto timeout = CommonConfig_->WaitingForJobCleanupTimeout;
 
         SetJobPhase(EJobPhase::WaitingForCleanup);
-        Finalize(finalState,std::move(error));
+        Finalize(finalState, std::move(error));
 
         YT_LOG_INFO("Waiting for job cleanup (Timeout: %v)", timeout);
         TDelayedExecutor::Submit(
@@ -791,18 +792,15 @@ void TJob::Terminate(EJobState finalState, TError error)
 
 void TJob::Finalize(TError error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     TForbidContextSwitchGuard guard;
 
-    if (!Finalize(
+    Finalize(
         /*finalJobState*/ std::nullopt,
         std::move(error),
         /*jobResultExtension*/ std::nullopt,
-        /*byJobProxyCompletion*/ false))
-    {
-        return;
-    }
+        /*byJobProxyCompletion*/ false);
 
     YT_VERIFY(Error_);
     auto& currentError = *Error_;
@@ -821,7 +819,7 @@ bool TJob::Finalize(
     std::optional<NControllerAgent::NProto::TJobResultExt> jobResultExtension,
     bool byJobProxyCompletion)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     TForbidContextSwitchGuard guard;
 
@@ -861,7 +859,7 @@ bool TJob::Finalize(
 
 void TJob::Finalize(EJobState finalState, TError error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(finalState == EJobState::Aborted || finalState == EJobState::Failed);
 
@@ -874,7 +872,7 @@ void TJob::Finalize(EJobState finalState, TError error)
 
 void TJob::OnJobFinalized()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(Error_);
     auto& currentError = *Error_;
@@ -908,7 +906,7 @@ void TJob::OnJobFinalized()
 
 void TJob::DeduceAndSetFinishedJobState()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(Error_);
     auto& currentError = *Error_;
@@ -931,7 +929,7 @@ void TJob::DeduceAndSetFinishedJobState()
 
 void TJob::OnResultReceived(TJobResult jobResult)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     GuardedAction(
         "OnResultReceived",
@@ -961,7 +959,7 @@ void TJob::OnResultReceived(TJobResult jobResult)
             } else {
                 DoSetResult(
                     std::move(error),
-                    /*jobResultExtension*/ std::nullopt,
+                    std::move(jobResultExtension),
                     /*receivedFromJobProxy*/ true);
             }
         });
@@ -969,42 +967,42 @@ void TJob::OnResultReceived(TJobResult jobResult)
 
 TJobId TJob::GetId() const noexcept
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Id_;
 }
 
 TAllocationId TJob::GetAllocationId() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return AllocationIdFromJobId(Id_);
 }
 
 TOperationId TJob::GetOperationId() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return OperationId_;
 }
 
 IInvokerPtr TJob::GetInvoker() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Invoker_;
 }
 
 const TControllerAgentDescriptor& TJob::GetControllerAgentDescriptor() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return ControllerAgentDescriptor_;
 }
 
 void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor descriptor)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (ControllerAgentDescriptor_ == descriptor) {
         return;
@@ -1025,35 +1023,35 @@ void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor descriptor
 
 EJobType TJob::GetType() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return JobType_;
 }
 
 TJobSpec TJob::GetSpec() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return GuardedJobSpec_.Load();
 }
 
 EJobState TJob::GetState() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return JobState_;
 }
 
 TInstant TJob::GetCreationTime() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return CreationTime_;
 }
 
 NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto getWaitForResourcesDuration = [&] () -> std::optional<TDuration> {
         if (!ResourcesAcquiredTime_) {
@@ -1145,21 +1143,21 @@ NJobAgent::TTimeStatistics TJob::GetTimeStatistics() const
 
 std::optional<TInstant> TJob::GetStartTime() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return StartTime_;
 }
 
 EJobPhase TJob::GetPhase() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return JobPhase_;
 }
 
 int TJob::GetSlotIndex() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto slot = GetUserSlot();
     if (!slot) {
@@ -1171,7 +1169,7 @@ int TJob::GetSlotIndex() const
 
 NClusterNode::TJobResources TJob::GetResourceUsage() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (!ResourceHolder_) {
         THROW_ERROR_EXCEPTION("Job has already released resources");
@@ -1187,14 +1185,14 @@ bool TJob::IsGpuRequested() const
 
 const std::vector<int>& TJob::GetPorts() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return ResourceHolder_->GetPorts();
 }
 
 const TError& TJob::GetJobError() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(Error_);
 
@@ -1203,7 +1201,7 @@ const TError& TJob::GetJobError() const
 
 TJobResult TJob::GetResult() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(Error_);
 
@@ -1224,14 +1222,14 @@ TJobResult TJob::GetResult() const
 
 double TJob::GetProgress() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return Progress_;
 }
 
 void TJob::SetResourceUsage(const NClusterNode::TJobResources& newUsage)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ == EJobPhase::Running) {
         ResourceHolder_->SetBaseResourceUsage(newUsage);
@@ -1240,7 +1238,7 @@ void TJob::SetResourceUsage(const NClusterNode::TJobResources& newUsage)
 
 void TJob::SetProgress(double progress)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ == EJobPhase::Running) {
         Progress_ = progress;
@@ -1249,14 +1247,14 @@ void TJob::SetProgress(double progress)
 
 i64 TJob::GetStderrSize() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return StderrSize_;
 }
 
 void TJob::SetStderrSize(i64 value)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (StderrSize_ != value) {
         StderrSize_ = value;
@@ -1267,21 +1265,21 @@ void TJob::SetStderrSize(i64 value)
 
 void TJob::SetStderr(const TString& value)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     Stderr_ = value;
 }
 
 void TJob::SetFailContext(const TString& value)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     FailContext_ = value;
 }
 
 void TJob::SetHasJobTrace(bool hasJobTrace)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (hasJobTrace == HasJobTrace_) {
         return;
@@ -1295,63 +1293,63 @@ void TJob::SetHasJobTrace(bool hasJobTrace)
 
 void TJob::AddProfile(TJobProfile value)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     Profiles_.push_back(std::move(value));
 }
 
 void TJob::SetCoreInfos(TCoreInfos value)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     CoreInfos_ = std::move(value);
 }
 
 const TChunkCacheStatistics& TJob::GetChunkCacheStatistics() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return ChunkCacheStatistics_;
 }
 
 TYsonString TJob::GetStatistics() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return StatisticsYson_;
 }
 
 TDataStatistics TJob::GetTotalInputDataStatistics() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return TotalInputDataStatistics_;
 }
 
 std::vector<TDataStatistics> TJob::GetOutputDataStatistics() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return OutputDataStatistics_;
 }
 
 TInstant TJob::GetStatisticsLastSendTime() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return StatisticsLastSendTime_;
 }
 
 void TJob::ResetStatisticsLastSendTime()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     StatisticsLastSendTime_ = TInstant::Now();
 }
 
 void TJob::SetStatistics(const TYsonString& statisticsYson)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ != EJobPhase::Running && JobPhase_ != EJobPhase::FinalizingJobProxy) {
         return;
@@ -1396,21 +1394,21 @@ void TJob::UpdateUserJobMonitoring()
 
 void TJob::SetTotalInputDataStatistics(TDataStatistics datastatistics)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     TotalInputDataStatistics_ = std::move(datastatistics);
 }
 
 void TJob::SetOutputDataStatistics(std::vector<TDataStatistics> dataStatistics)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     OutputDataStatistics_ = std::move(dataStatistics);
 }
 
 TBriefJobInfo TJob::GetBriefInfo() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     NClusterNode::TJobResources baseResourceUsage{};
     NClusterNode::TJobResources additionalResourceUsage{};
@@ -1444,7 +1442,7 @@ TBriefJobInfo TJob::GetBriefInfo() const
 
 NYTree::IYPathServicePtr TJob::CreateStaticOrchidService()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto producer = BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
         auto jobInfoOrError = WaitFor(BIND_NO_PROPAGATE(
@@ -1471,7 +1469,7 @@ NYTree::IYPathServicePtr TJob::CreateStaticOrchidService()
 
 NYTree::IYPathServicePtr TJob::CreateJobProxyOrchidService()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     try {
         ValidateJobRunning();
@@ -1493,7 +1491,7 @@ NYTree::IYPathServicePtr TJob::CreateJobProxyOrchidService()
 
 NYTree::IYPathServicePtr TJob::CreateDynamicOrchidService()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return New<NYTree::TCompositeMapService>()
         ->AddChild("job_proxy", CreateJobProxyOrchidService());
@@ -1501,7 +1499,7 @@ NYTree::IYPathServicePtr TJob::CreateDynamicOrchidService()
 
 IYPathServicePtr TJob::GetOrchidService()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return New<TServiceCombiner>(
         std::vector{
@@ -1512,7 +1510,7 @@ IYPathServicePtr TJob::GetOrchidService()
 
 std::vector<TChunkId> TJob::DumpInputContext(TTransactionId transactionId)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
     ValidateJobRunning();
 
     try {
@@ -1525,7 +1523,7 @@ std::vector<TChunkId> TJob::DumpInputContext(TTransactionId transactionId)
 
 std::optional<TGetJobStderrResponse> TJob::GetStderr(const TGetJobStderrOptions& options)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (Stderr_) {
         return TGetJobStderrResponse::MakeJobStderr(TSharedRef::FromString(*Stderr_), options);
@@ -1572,14 +1570,14 @@ std::optional<TGetJobStderrResponse> TJob::GetStderr(const TGetJobStderrOptions&
 
 std::optional<TString> TJob::GetFailContext()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return FailContext_;
 }
 
 const TCoreInfos& TJob::GetCoreInfos()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return CoreInfos_;
 }
@@ -1588,7 +1586,7 @@ TPollJobShellResponse TJob::PollJobShell(
     const TJobShellDescriptor& jobShellDescriptor,
     const TYsonString& parameters)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     try {
         return GetJobProbeOrThrow()->PollJobShell(jobShellDescriptor, parameters);
@@ -1610,7 +1608,7 @@ TPollJobShellResponse TJob::PollJobShell(
 
 void TJob::HandleJobReport(TNodeJobReport&& jobReport)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     Bootstrap_->GetJobReporter()->HandleJobReport(
         jobReport
@@ -1621,7 +1619,7 @@ void TJob::HandleJobReport(TNodeJobReport&& jobReport)
 
 void TJob::ReportSpec()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     HandleJobReport(MakeDefaultJobReport()
         .Spec(JobSpec_));
@@ -1629,7 +1627,7 @@ void TJob::ReportSpec()
 
 void TJob::ReportStderr()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto maybeStderr = GetStderr({});
     if (!maybeStderr) {
@@ -1641,7 +1639,7 @@ void TJob::ReportStderr()
 
 void TJob::ReportFailContext()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (auto failContext = GetFailContext()) {
         HandleJobReport(TNodeJobReport()
@@ -1651,7 +1649,7 @@ void TJob::ReportFailContext()
 
 void TJob::ReportProfile()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     for (const auto& profile : Profiles_) {
         HandleJobReport(TNodeJobReport()
@@ -1665,7 +1663,7 @@ void TJob::DoInterrupt(
     std::optional<TString> preemptionReason,
     const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(interruptionReason != EInterruptReason::None);
 
@@ -1785,7 +1783,7 @@ void TJob::Fail(std::optional<TError> error)
 
 void TJob::DoFail(std::optional<TError> error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ != EJobPhase::Running) {
         if (!error) {
@@ -1827,7 +1825,7 @@ void TJob::RequestGracefulAbort(TError error)
 
 void TJob::DoRequestGracefulAbort(TError error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ != EJobPhase::Running) {
         Terminate(EJobState::Aborted, std::move(error));
@@ -1846,14 +1844,14 @@ void TJob::DoRequestGracefulAbort(TError error)
 
 bool TJob::GetStored() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return Stored_;
 }
 
 void TJob::SetStored()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_LOG_DEBUG("Requested to store job");
 
@@ -1864,7 +1862,7 @@ void TJob::SetStored()
 
 bool TJob::IsGrowingStale(TDuration maxDelay) const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(Stored_);
 
@@ -1873,14 +1871,14 @@ bool TJob::IsGrowingStale(TDuration maxDelay) const
 
 TFuture<void> TJob::GetStoredEvent() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return StoredEvent_;
 }
 
 void TJob::OnEvictedFromAllocation() noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     Allocation_.Reset();
     PrepareResourcesRelease();
@@ -1888,7 +1886,7 @@ void TJob::OnEvictedFromAllocation() noexcept
 
 void TJob::PrepareResourcesRelease() noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     // NB(arkady-e1ppa): In some cases job can
     // be finished (and also enter cleanup phase)
@@ -1902,14 +1900,14 @@ void TJob::PrepareResourcesRelease() noexcept
 
 bool TJob::IsJobProxyCompleted() const noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return JobProxyCompleted_;
 }
 
 bool TJob::IsInterruptible() const noexcept
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Interruptible_;
 }
@@ -1918,7 +1916,7 @@ void TJob::OnJobInterruptionTimeout(
     EInterruptReason interruptionReason,
     const std::optional<TString>& preemptionReason)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto error = TError(NJobProxy::EErrorCode::InterruptionTimeout, "Interruption is timed out")
         << TErrorAttribute("interruption_reason", InterruptionReason_)
@@ -1936,7 +1934,7 @@ void TJob::OnJobInterruptionTimeout(
 
 TControllerAgentConnectorPool::TControllerAgentConnectorPtr TJob::GetControllerAgentConnector() const noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return ControllerAgentConnector_.Lock();
 }
@@ -1992,7 +1990,7 @@ bool TJob::IsFinished() const noexcept
 
 void TJob::SetJobState(EJobState state)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_LOG_DEBUG(
         "Setting new job state (Previous: %v, New: %v)",
@@ -2005,7 +2003,7 @@ void TJob::SetJobState(EJobState state)
 
 void TJob::SetJobPhase(EJobPhase phase)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_LOG_DEBUG(
         "Setting new job phase (Previous: %v, New: %v)",
@@ -2018,7 +2016,7 @@ void TJob::SetJobPhase(EJobPhase phase)
 
 void TJob::ValidateJobRunning() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ != EJobPhase::Running) {
         YT_LOG_DEBUG(
@@ -2076,7 +2074,7 @@ void TJob::ReportJobInterruptionInfo(
     const std::optional<TString>& preemptionReason,
     const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     TJobInterruptionInfo interruptionInfo{
         .InterruptionReason = interruptionReason,
@@ -2098,7 +2096,7 @@ void TJob::ReportJobInterruptionInfo(
 
 void TJob::DoSetResult(TError error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     DoSetResult(std::move(error), /*jobResultExtension*/ std::nullopt, /*receivedFromJobProxy*/ false);
 }
@@ -2108,7 +2106,7 @@ void TJob::DoSetResult(
     std::optional<NControllerAgent::NProto::TJobResultExt> jobResultExtension,
     bool receivedFromJobProxy)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (Error_ && !Error_->IsOK()) {
         YT_LOG_DEBUG(
@@ -2152,7 +2150,7 @@ void TJob::DoSetResult(
 
 bool TJob::HandleFinishingPhase()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     switch (JobPhase_) {
         case EJobPhase::WaitingForCleanup:
@@ -2170,7 +2168,7 @@ bool TJob::HandleFinishingPhase()
 
 void TJob::ValidateJobPhase(EJobPhase expectedPhase) const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ != expectedPhase) {
         YT_LOG_DEBUG(
@@ -2188,7 +2186,7 @@ void TJob::ValidateJobPhase(EJobPhase expectedPhase) const
 // Event handlers.
 void TJob::OnNodeDirectoryPrepared(TErrorOr<std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory>>&& protoNodeDirectoryOrError)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     StartTime_ = TInstant::Now();
 
@@ -2258,7 +2256,7 @@ bool TJob::IsFullHostGpuJob() const
 
 void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr>>& errorOrArtifacts)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     GuardedAction(
         "OnArtifactsDownloaded",
@@ -2280,7 +2278,7 @@ void TJob::OnArtifactsDownloaded(const TErrorOr<std::vector<NDataNode::IChunkPtr
 
 void TJob::RunWithWorkspaceBuilder()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
     std::vector<TDevice> devices = GetGpuDevices();
 
     std::vector<TBind> binds;
@@ -2365,7 +2363,7 @@ void TJob::RunWithWorkspaceBuilder()
 
 void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingResult>& resultOrError)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (auto delay = JobTestingOptions_->DelayBeforeSpawningJobProxy) {
         YT_LOG_DEBUG("Simulate delay before spawning job proxy");
@@ -2395,7 +2393,7 @@ void TJob::OnWorkspacePreparationFinished(const TErrorOr<TJobWorkspaceBuildingRe
 
 void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     ExtraGpuCheckFinishTime_ = TInstant::Now();
 
@@ -2426,7 +2424,9 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
     } else {
         YT_LOG_DEBUG("Extra GPU check command finished");
 
-        Finalize(std::move(initialError));
+        // NB: manually set error back to avoid reset of JobResultExtension.
+        Error_ = std::move(initialError);
+        Finalize(TError());
     }
 
     Cleanup();
@@ -2434,7 +2434,7 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
 
 void TJob::RunJobProxy()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ != EJobPhase::RunningSetupCommands &&
         JobPhase_ != EJobPhase::RunningGpuCheckCommand) {
@@ -2480,7 +2480,7 @@ void TJob::RunJobProxy()
 
 void TJob::OnJobProxyPreparationTimeout()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(JobPhase_ >= EJobPhase::SpawningJobProxy);
 
@@ -2495,7 +2495,7 @@ void TJob::OnJobProxyPreparationTimeout()
 
 void TJob::OnJobPreparationTimeout(TDuration prepareTimeLimit, bool fatal)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ < EJobPhase::Running) {
         auto error = TError(
@@ -2515,7 +2515,7 @@ void TJob::OnJobPreparationTimeout(TDuration prepareTimeLimit, bool fatal)
 
 void TJob::OnWaitingForCleanupTimeout()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ == EJobPhase::WaitingForCleanup) {
         auto timeout = CommonConfig_->WaitingForJobCleanupTimeout;
@@ -2530,7 +2530,7 @@ void TJob::OnWaitingForCleanupTimeout()
 
 IUserSlotPtr TJob::GetUserSlot() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (!ResourceHolder_) {
         return nullptr;
@@ -2543,7 +2543,7 @@ IUserSlotPtr TJob::GetUserSlot() const
 
 std::vector<TGpuSlotPtr> TJob::GetGpuSlots() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     const auto& gpuSlots = ResourceHolder_->GetGpuSlots();
 
@@ -2559,7 +2559,7 @@ std::vector<TGpuSlotPtr> TJob::GetGpuSlots() const
 
 void TJob::OnJobProxyFinished(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_LOG_INFO(error, "Job proxy finished");
 
@@ -2624,7 +2624,7 @@ void TJob::OnJobProxyFinished(const TError& error)
 template <class TSourceTag, class TCallback>
 void TJob::GuardedAction(const TSourceTag& sourceTag, const TCallback& action)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_LOG_DEBUG(
         "Run guarded action (State: %v, Phase: %v, Source: %v)",
@@ -2649,7 +2649,7 @@ void TJob::GuardedAction(const TSourceTag& sourceTag, const TCallback& action)
 
 TFuture<void> TJob::StopJobProxy()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     const auto& slot = GetUserSlot();
 
@@ -2660,7 +2660,7 @@ TFuture<void> TJob::StopJobProxy()
 
 void TJob::Cleanup()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(IsFinished());
 
@@ -2815,7 +2815,7 @@ bool TJob::IsEvicted() const
 // Preparation.
 std::unique_ptr<NNodeTrackerClient::NProto::TNodeDirectory> TJob::PrepareNodeDirectory()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& jobSpecExt = JobSpec_.GetExtension(TJobSpecExt::job_spec_ext);
     if (jobSpecExt.has_input_node_directory()) {
@@ -2911,7 +2911,7 @@ std::vector<NJobProxy::TBindConfigPtr> TJob::GetRootFsBinds()
 
 TJobProxyInternalConfigPtr TJob::CreateConfig()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto proxyInternalConfig = CloneYsonStruct(Bootstrap_->GetJobProxyConfigTemplate());
     auto localDescriptor = Bootstrap_->GetLocalDescriptor();
@@ -3307,7 +3307,7 @@ bool TJob::CanBeAccessedViaVirtualSandbox(const TArtifact& artifact) const
 // Build artifacts.
 void TJob::InitializeArtifacts()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (UserJobSpec_) {
         for (const auto& descriptor : UserJobSpec_->files()) {
@@ -3409,7 +3409,7 @@ void TJob::InitializeArtifacts()
 
 TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     std::vector<TString> workloadDescriptorAnnotations = {
         Format("OperationId: %v", OperationId_),
@@ -3427,7 +3427,7 @@ TArtifactDownloadOptions TJob::MakeArtifactDownloadOptions() const
 // Start async artifacts download.
 TFuture<std::vector<NDataNode::IChunkPtr>> TJob::DownloadArtifacts()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     const auto& chunkCache = Bootstrap_->GetChunkCache();
 
@@ -3504,7 +3504,7 @@ TError TJob::BuildJobProxyError(const TError& spawnError)
 
 std::optional<EAbortReason> TJob::DeduceAbortReason()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(Error_);
 
@@ -3668,7 +3668,7 @@ std::optional<EAbortReason> TJob::DeduceAbortReason()
 
 bool TJob::IsFatalError(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return
         error.FindMatching(NTableClient::EErrorCode::SortOrderViolation) ||
@@ -3699,7 +3699,7 @@ bool TJob::IsFatalError(const TError& error)
 
 void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vector<TGpuSlotPtr>& gpuSlots)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     TGpuStatistics aggregatedGpuStatistics;
     i64 totalGpuMemory = 0;
@@ -3813,7 +3813,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics, const std::vecto
 
 void TJob::EnrichStatisticsWithRdmaDeviceInfo(TStatistics* statistics)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     TRdmaStatistics aggregatedRdmaStatistics;
     auto rdmaDevices = Bootstrap_->GetGpuManager()->GetRdmaDevices();
@@ -3846,7 +3846,7 @@ void TJob::EnrichStatisticsWithArtifactsInfo(TStatistics* statistics)
 
 void TJob::UpdateIOStatistics(const TStatistics& statistics)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto getStat = [&] (i64 oldValue, const TStatisticPath& path) {
         auto iter = statistics.Data().find(path);
@@ -3905,7 +3905,7 @@ void TJob::UpdateArtifactStatistics(i64 compressedDataSize, bool cacheHit)
 
 std::vector<TShellCommandConfigPtr> TJob::GetSetupCommands()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     std::vector<TShellCommandConfigPtr> result;
 
@@ -3928,7 +3928,7 @@ std::vector<TShellCommandConfigPtr> TJob::GetSetupCommands()
 
 NContainers::TRootFS TJob::MakeWritableRootFS()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
     YT_VERIFY(RootVolume_);
 
     NContainers::TRootFS rootFS;
@@ -3951,7 +3951,7 @@ NContainers::TRootFS TJob::MakeWritableRootFS()
 
 TNodeJobReport TJob::MakeDefaultJobReport()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto report = TNodeJobReport()
         .Type(GetType())
@@ -3984,7 +3984,7 @@ TNodeJobReport TJob::MakeDefaultJobReport()
 
 void TJob::InitializeJobProbe()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto probe = CreateJobProbe(GetUserSlot()->GetBusClientConfig());
     {
@@ -3995,7 +3995,7 @@ void TJob::InitializeJobProbe()
 
 void TJob::ResetJobProbe()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     IJobProbePtr probe;
     {
@@ -4006,7 +4006,7 @@ void TJob::ResetJobProbe()
 
 IJobProbePtr TJob::GetJobProbeOrThrow()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(JobProbeLock_);
     if (!JobProbe_) {
@@ -4017,7 +4017,7 @@ IJobProbePtr TJob::GetJobProbeOrThrow()
 
 void TJob::ReportJobProxyProcessFinish(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     std::optional<TDuration> delay;
     if (ResultReceivedTime_) {
@@ -4057,7 +4057,7 @@ bool TJob::NeedGpu()
 // TODO(eshcherbin, ???): Move this monitoring to job proxy and use profiling library directly instead of statistics.
 void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     IMapNodePtr statisticsNode;
     try {
@@ -4115,7 +4115,7 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
 // NB(eshcherbin): When adding new sensors, do not forget to update |GetSupportedGpuMonitoringSensorNames| above.
 void TJob::CollectSensorsFromGpuAndRdmaDeviceInfo(ISensorWriter* writer)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto gpuSlots = GetGpuSlots();
     if (gpuSlots.empty()) {
@@ -4183,21 +4183,21 @@ TFuture<TSharedRef> TJob::DumpSensors()
 
 bool TJob::NeedsGpuCheck() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return UserJobSpec_ && UserJobSpec_->has_gpu_check_binary_path();
 }
 
 i64 TJob::GetJobProxyHeartbeatEpoch() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return JobProxyHearbeatEpoch_;
 }
 
 bool TJob::UpdateJobProxyHearbeatEpoch(i64 epoch)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(epoch >= 0);
     if (JobProxyHearbeatEpoch_ >= epoch) {
@@ -4209,14 +4209,14 @@ bool TJob::UpdateJobProxyHearbeatEpoch(i64 epoch)
 
 const std::vector<NScheduler::TTmpfsVolumeConfigPtr>& TJob::GetTmpfsVolumeInfos() const noexcept
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return TmpfsVolumeInfos_;
 }
 
 bool TJob::HasUserJobSpec() const noexcept
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return HasUserJobSpec_;
 }
@@ -4224,7 +4224,7 @@ bool TJob::HasUserJobSpec() const noexcept
 std::vector<NScheduler::TTmpfsVolumeConfigPtr> TJob::ParseTmpfsVolumeInfos(
     const NControllerAgent::NProto::TUserJobSpec* maybeUserJobSpec)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!maybeUserJobSpec) {
         return {};

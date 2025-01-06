@@ -11,6 +11,8 @@
 
 #include <yt/yt/library/server_program/server_program.h>
 
+#include <yt/yt/library/profiling/solomon/exporter.h>
+
 #include <yt/yt/core/misc/fs.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
@@ -24,7 +26,7 @@ namespace NYT::NCellMaster {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellMasterProgram
-    : public TServerProgram<NCellMaster::TCellMasterConfig>
+    : public TServerProgram<NCellMaster::TCellMasterProgramConfig>
 {
 public:
     TCellMasterProgram()
@@ -90,7 +92,7 @@ public:
             .SetFlag(&PrintCompatibilityInfoFlag_)
             .NoArgument();
 
-        SetMainThreadName("Master");
+        SetMainThreadName("MasterProg");
     }
 
 private:
@@ -119,7 +121,7 @@ private:
 
     bool IsLoadSnapshotMode() const
     {
-        return IsDumpSnapshotMode() || IsValidateSnapshotMode();
+        return IsDumpSnapshotMode() || IsValidateSnapshotMode() || IsExportSnapshotMode();
     }
 
     bool IsExportSnapshotMode() const
@@ -226,9 +228,8 @@ private:
             return;
         }
 
-        auto* bootstrap = new NCellMaster::TBootstrap(GetConfig());
+        auto bootstrap = CreateMasterBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Initialize();
 
         if (IsDryRunMode()) {
             NBus::TTcpDispatcher::Get()->DisableNetworking();
@@ -239,7 +240,7 @@ private:
 
             if (IsExportSnapshotMode()) {
                 // TODO (h0pless): maybe rename this to ExportState
-                ExportSnapshot(bootstrap, ExportConfigPath_);
+                ExportSnapshot(bootstrap.get(), ExportConfigPath_);
             }
 
             if (IsReplayChangelogsMode()) {
@@ -257,7 +258,9 @@ private:
             AbortProcessSilently(EProcessExitCode::OK);
         }
 
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 

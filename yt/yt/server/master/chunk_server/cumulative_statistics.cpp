@@ -149,7 +149,7 @@ void TCumulativeStatistics::Update(int index, const TCumulativeStatisticsEntry& 
     switch (GetImplementationIndex()) {
         case AppendableAlternativeIndex: {
             auto& statistics = AsAppendable();
-            for (int currentIndex = index; currentIndex < static_cast<int>(statistics.size()); ++currentIndex) {
+            for (int currentIndex = index; currentIndex < std::ssize(statistics); ++currentIndex) {
                 statistics[currentIndex] = statistics[currentIndex] + delta;
             }
             break;

@@ -37,7 +37,7 @@ struct TSignatureValidatorTest
     TKeyId KeyId;
     TKeyPair Key;
     TSignatureValidatorConfigPtr Config;
-    TSignatureValidator Validator;
+    TSignatureValidatorPtr Validator;
     TYsonString Payload = TYsonString("MyImportantData"_sb);
 
     TSignatureValidatorTest()
@@ -50,7 +50,7 @@ struct TSignatureValidatorTest
             .ValidAfter = Now() - 10h,
             .ExpiresAt = Now() + 10h})
         , Config(New<TSignatureValidatorConfig>())
-        , Validator(Config, Store)
+        , Validator(New<TSignatureValidator>(Config, Store))
     {
     }
 
@@ -72,7 +72,7 @@ struct TSignatureValidatorTest
 
     bool RunValidate(const TSignaturePtr& signature)
     {
-        return WaitFor(Validator.Validate(signature))
+        return WaitFor(Validator->Validate(signature))
             .ValueOrThrow();
     }
 };

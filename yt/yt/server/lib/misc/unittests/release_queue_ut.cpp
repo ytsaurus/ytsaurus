@@ -6,7 +6,7 @@
 
 #include <optional>
 
-namespace NYT {
+namespace NYT::NServer {
 namespace {
 
 using namespace ::testing;
@@ -101,4 +101,4 @@ TEST_F(TReleaseQueueTest, Correctness2)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT
+} // namespace NYT::NServer

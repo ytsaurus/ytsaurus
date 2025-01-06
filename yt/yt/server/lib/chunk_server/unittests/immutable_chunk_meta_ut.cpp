@@ -67,7 +67,7 @@ TEST(TImmutableChunkMetaTest, ProtoConversion)
 
     int extensionsByteSize = 0;
     for (const auto& extension : protoMeta1.extensions().extensions()) {
-        extensionsByteSize += static_cast<int>(extension.data().size());
+        extensionsByteSize += std::ssize(extension.data());
     }
     EXPECT_EQ(extensionsByteSize, meta->GetExtensionsByteSize());
 

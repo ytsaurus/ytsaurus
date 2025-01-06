@@ -29,6 +29,7 @@ target_link_libraries(yt-server-scheduler PUBLIC
   server-lib-scheduler
   server-lib-transaction_server
   server-lib-controller_agent
+  yt-library-monitoring
   yt-library-numeric
   yt-library-server_program
 )

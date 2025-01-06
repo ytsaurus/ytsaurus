@@ -2297,7 +2297,7 @@ def create_table_collocation(table_ids=None, table_paths=None, **kwargs):
     return execute_command("create", kwargs, parse_yson=True)
 
 
-def create_secondary_index(table_path, index_table_path, kind=None, **kwargs):
+def create_secondary_index(table_path, index_table_path, kind=None, table_to_index_correspondence=None, **kwargs):
     kwargs["type"] = "secondary_index"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
@@ -2305,6 +2305,8 @@ def create_secondary_index(table_path, index_table_path, kind=None, **kwargs):
     kwargs["attributes"]["index_table_path"] = index_table_path
     if kind is not None:
         kwargs["attributes"]["kind"] = kind
+    if table_to_index_correspondence is not None:
+        kwargs["attributes"]["table_to_index_correspondence"] = table_to_index_correspondence
     return execute_command("create", kwargs, parse_yson=True)
 
 
@@ -2433,22 +2435,6 @@ def create_access_control_object(name, namespace, **kwargs):
 
 def update_access_control_object_acl(aco_namespase, aco_name, acl):
     set(f"//sys/access_control_object_namespaces/{aco_namespase}/{aco_name}/principal/@acl", acl)
-
-
-def create_zookeeper_shard(name, root_path, cell_tag=None, **kwargs):
-    kwargs["type"] = "zookeeper_shard"
-    if "attributes" not in kwargs:
-        kwargs["attributes"] = dict()
-    kwargs["attributes"]["name"] = name
-    kwargs["attributes"]["root_path"] = root_path
-    if cell_tag:
-        kwargs["attributes"]["cell_tag"] = cell_tag
-
-    execute_command("create", kwargs)
-
-
-def remove_zookeeper_shard(name, **kwargs):
-    remove("//sys/zookeeper_shards/" + name, **kwargs)
 
 
 #########################################

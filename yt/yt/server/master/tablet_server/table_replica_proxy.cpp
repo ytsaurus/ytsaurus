@@ -31,6 +31,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NCypressServer;
 using namespace NTransactionClient;
+using namespace NServer;
 
 using NYT::FromProto;
 

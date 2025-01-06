@@ -88,8 +88,6 @@ target_sources(unittester-client PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/validate_logical_type_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/wire_protocol_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/ypath_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/zookeeper_bus_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/client/unittests/zookeeper_protocol_ut.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/client/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
 )
 

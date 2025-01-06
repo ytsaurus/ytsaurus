@@ -41,8 +41,6 @@
 
 namespace NYT::NHttpProxy {
 
-static constexpr auto& Logger = HttpProxyLogger;
-
 using namespace NApi;
 using namespace NConcurrency;
 using namespace NTracing;
@@ -54,6 +52,11 @@ using namespace NCypressClient;
 using namespace NNative;
 using namespace NProfiling;
 using namespace NObjectClient;
+using namespace NServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto& Logger = HttpProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,9 +93,9 @@ void TProxyEntry::Register(TRegistrar registrar)
         .Default();
 }
 
-TString TProxyEntry::GetHost() const
+std::string TProxyEntry::GetHost() const
 {
-    return TString{NNet::GetServiceHostName(Endpoint)};
+    return std::string(NNet::GetServiceHostName(Endpoint));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -104,7 +107,7 @@ TCoordinatorProxy::TCoordinatorProxy(const TProxyEntryPtr& proxyEntry)
 ////////////////////////////////////////////////////////////////////////////////
 
 TCoordinator::TCoordinator(
-    TProxyConfigPtr config,
+    TProxyBootstrapConfigPtr config,
     TBootstrap* bootstrap)
     : Config_(config->Coordinator)
     , Sampler_(New<TSampler>())
@@ -228,7 +231,7 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListProxies(std::optional<std::s
     return filtered;
 }
 
-std::vector<TProxyEntryPtr> TCoordinator::ListProxyEntries(std::optional<std::string> roleFilter, bool includeDeadAndBanned)
+std::vector<TProxyEntryPtr> TCoordinator::LisTProxyEntries(std::optional<std::string> roleFilter, bool includeDeadAndBanned)
 {
     std::vector<TProxyEntryPtr> result;
     auto proxies = ListProxies(roleFilter, includeDeadAndBanned);
@@ -326,7 +329,7 @@ void TCoordinator::UpdateReadOnly()
 
 void TCoordinator::UpdateState()
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
     try {
         UpdateReadOnly();
@@ -495,7 +498,7 @@ void THostsHandler::HandleRequest(
     const NHttp::IResponseWriterPtr& rsp)
 {
     auto role = Coordinator_->GetConfig()->DefaultRoleFilter;
-    std::optional<TString> suffix;
+    std::optional<std::string> suffix;
     bool returnJson = true;
 
     {
@@ -519,7 +522,7 @@ void THostsHandler::HandleRequest(
 
     rsp->SetStatus(EStatusCode::OK);
     if (suffix && *suffix == "all") {
-        auto proxies = Coordinator_->ListProxyEntries({}, true);
+        auto proxies = Coordinator_->LisTProxyEntries({}, true);
         ReplyJson(rsp, [&] (NYson::IYsonConsumer* json) {
             BuildYsonFluently(json)
                 .DoListFor(proxies, [&] (auto item, const TProxyEntryPtr& proxy) {
@@ -539,14 +542,14 @@ void THostsHandler::HandleRequest(
         auto formatHostname = [&] (const TProxyEntryPtr& proxy) {
             if (Coordinator_->GetConfig()->ShowPorts) {
                 return proxy->Endpoint;
-            } else if (suffix && suffix->StartsWith("fb")) {
+            } else if (suffix && suffix->starts_with("fb")) {
                 return "fb-" + proxy->GetHost();
             } else {
                 return proxy->GetHost();
             }
         };
 
-        auto proxies = Coordinator_->ListProxyEntries(role);
+        auto proxies = Coordinator_->LisTProxyEntries(role);
         if (returnJson) {
             ReplyJson(rsp, [&] (NYson::IYsonConsumer* json) {
                 BuildYsonFluently(json)

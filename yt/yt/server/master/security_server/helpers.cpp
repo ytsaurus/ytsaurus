@@ -112,7 +112,7 @@ TLimit64 GetOptionalLimit64ChildOrThrow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void LogAcdUpdate(const TString& attribute, const TYPath& path, const TYsonString& value)
+void LogAcdUpdate(const std::string& attribute, const TYPath& path, const TYsonString& value)
 {
     LogStructuredEventFluently(SecurityServerLogger(), ELogLevel::Info)
         .Item("event").Value(EAccessControlEvent::ObjectAcdUpdated)

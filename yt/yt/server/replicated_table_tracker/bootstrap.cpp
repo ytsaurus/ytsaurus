@@ -31,9 +31,13 @@
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
+#include <yt/yt/library/profiling/solomon/public.h>
+
 #include <yt/yt/library/monitoring/http_integration.h>
 
 #include <yt/yt/library/program/build_attributes.h>
+
+#include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
@@ -57,6 +61,7 @@ using namespace NCypressElection;
 using namespace NHttp;
 using namespace NTabletServer;
 using namespace NYTree;
+using namespace NFusion;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -68,24 +73,36 @@ class TBootstrap
     : public IBootstrap
 {
 public:
-    TBootstrap(TReplicatedTableTrackerServerConfigPtr config, INodePtr configNode)
+    TBootstrap(
+        TReplicatedTableTrackerBootstrapConfigPtr config,
+        INodePtr configNode,
+        IServiceLocatorPtr serviceLocator)
         : Config_(std::move(config))
         , ConfigNode_(std::move(configNode))
+        , ServiceLocator_(std::move(serviceLocator))
+        , ControlQueue_(New<TActionQueue>("RttControl"))
+        , ControlInvoker_(ControlQueue_->GetInvoker())
+        , RttHostQueue_(New<TActionQueue>("RttHost"))
+        , RttHostIvoker_(RttHostQueue_->GetInvoker())
     { }
 
-    void Run() override
+    void Initialize()
     {
-        ControlQueue_ = New<TActionQueue>("RttControl");
-        ControlInvoker_ = ControlQueue_->GetInvoker();
-
-        BIND(&TBootstrap::DoRun, this)
+        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
             .AsyncVia(ControlInvoker_)
             .Run()
             .Get()
             .ThrowOnError();
     }
 
-    const TReplicatedTableTrackerServerConfigPtr& GetServerConfig() const override
+    TFuture<void> Run() override
+    {
+        return BIND(&TBootstrap::DoRun, MakeStrong(this))
+            .AsyncVia(ControlInvoker_)
+            .Run();
+    }
+
+    const TReplicatedTableTrackerBootstrapConfigPtr& GetServerConfig() const override
     {
         return Config_;
     }
@@ -106,14 +123,14 @@ public:
     }
 
 private:
-    const TReplicatedTableTrackerServerConfigPtr Config_;
+    const TReplicatedTableTrackerBootstrapConfigPtr Config_;
     const INodePtr ConfigNode_;
+    const IServiceLocatorPtr ServiceLocator_;
 
-    TActionQueuePtr ControlQueue_;
-    IInvokerPtr ControlInvoker_;
-
-    TActionQueuePtr RttHostQueue_;
-    IInvokerPtr RttHostIvoker_;
+    const TActionQueuePtr ControlQueue_;
+    const IInvokerPtr ControlInvoker_;
+    const TActionQueuePtr RttHostQueue_;
+    const IInvokerPtr RttHostIvoker_;
 
     std::string LocalAddress_;
 
@@ -125,8 +142,6 @@ private:
     NHttp::IServerPtr HttpServer_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
-    NCoreDump::ICoreDumperPtr CoreDumper_;
-
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
 
     ICypressElectionManagerPtr ElectionManager_;
@@ -136,8 +151,7 @@ private:
     TReplicatedTableTrackerHostPtr ReplicatedTableTrackerHost_;
     IReplicatedTableTrackerPtr ReplicatedTableTracker_;
 
-
-    void DoRun()
+    void DoInitialize()
     {
         YT_LOG_INFO("Starting replicated table tracker process (ClusterName: %v)",
             Config_->ClusterConnection->Static->ClusterName);
@@ -166,10 +180,6 @@ private:
 
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
-        if (Config_->CoreDumper) {
-            CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
-        }
-
         DynamicConfigManager_ = New<TDynamicConfigManager>(
             Config_->DynamicConfigManager,
             NativeClient_,
@@ -178,10 +188,12 @@ private:
         WaitFor(DynamicConfigManager_->GetConfigLoadedFuture())
             .ThrowOnError();
 
+        auto coreDumper = ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>();
+
         IMapNodePtr orchidRoot;
-        Initialize(
+        NMonitoring::Initialize(
             HttpServer_,
-            Config_->SolomonExporter,
+            ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
             &MonitoringManager_,
             &orchidRoot);
 
@@ -195,11 +207,11 @@ private:
                 "/dynamic_config_manager",
                 CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
         }
-        if (CoreDumper_) {
+        if (coreDumper) {
             SetNodeByYPath(
                 orchidRoot,
                 "/core_dumper",
-                CreateVirtualNode(CoreDumper_->CreateOrchidService()));
+                CreateVirtualNode(coreDumper->CreateOrchidService()));
         }
         SetBuildAttributes(
             orchidRoot,
@@ -207,22 +219,22 @@ private:
 
         RpcServer_->RegisterService(NAdmin::CreateAdminService(
             ControlInvoker_,
-            CoreDumper_,
+            coreDumper,
             NativeAuthenticator_));
         RpcServer_->RegisterService(NOrchid::CreateOrchidService(
             orchidRoot,
             ControlInvoker_,
             NativeAuthenticator_));
+    }
 
+    void DoRun()
+    {
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
 
         YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
         RpcServer_->Configure(Config_->RpcServer);
         RpcServer_->Start();
-
-        RttHostQueue_ = New<TActionQueue>("RttHost");
-        RttHostIvoker_ = RttHostQueue_->GetInvoker();
 
         ReplicatedTableTrackerHost_ = New<TReplicatedTableTrackerHost>(this);
         ReplicatedTableTracker_ = CreateReplicatedTableTracker(
@@ -244,8 +256,9 @@ private:
             Config_->ElectionManager,
             std::move(options));
 
-        ElectionManager_->SubscribeLeadingStarted(BIND_NO_PROPAGATE(&TBootstrap::OnLeadingStarted, this));
-        ElectionManager_->SubscribeLeadingEnded(BIND_NO_PROPAGATE(&TBootstrap::OnLeadingEnded, this));
+        // Cycles are fine for bootstrap.
+        ElectionManager_->SubscribeLeadingStarted(BIND_NO_PROPAGATE(&TBootstrap::OnLeadingStarted, MakeStrong(this)));
+        ElectionManager_->SubscribeLeadingEnded(BIND_NO_PROPAGATE(&TBootstrap::OnLeadingEnded, MakeStrong(this)));
 
         ElectionManager_->Start();
 
@@ -296,11 +309,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(
-    TReplicatedTableTrackerServerConfigPtr config,
-    NYTree::INodePtr configNode)
+IBootstrapPtr CreateReplicatedTableTrackerBootstrap(
+    TReplicatedTableTrackerBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
 {
-    return std::make_unique<TBootstrap>(std::move(config), std::move(configNode));
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

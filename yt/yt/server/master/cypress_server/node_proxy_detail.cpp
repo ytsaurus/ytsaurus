@@ -86,6 +86,7 @@ using namespace NTabletServer;
 using namespace NChaosServer;
 using namespace NCypressClient;
 using namespace NSequoiaServer;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -226,7 +227,7 @@ bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const 
     if (node->GetTransaction()) {
         userAttributes->Set(key, {});
     } else {
-        YT_VERIFY(userAttributes->Remove(key));
+        YT_VERIFY(userAttributes->TryRemove(key));
     }
 
     const auto& securityManager = Proxy_->Bootstrap_->GetSecurityManager();
@@ -3553,7 +3554,7 @@ void TListNodeProxy::AddChild(const INodePtr& child, int beforeIndex /*= -1*/)
     auto* childImpl = LockImpl(trunkChildImpl);
 
     if (beforeIndex < 0) {
-        YT_VERIFY(impl->ChildToIndex().emplace(trunkChildImpl, static_cast<int>(list.size())).second);
+        YT_VERIFY(impl->ChildToIndex().emplace(trunkChildImpl, std::ssize(list)).second);
         list.push_back(trunkChildImpl);
     } else {
         // Update indices.

@@ -434,7 +434,7 @@ public:
 
     TFuture<TTransactionCommitResult> Commit(const TTransactionCommitOptions& options)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         {
             auto guard = Guard(SpinLock_);
@@ -479,7 +479,7 @@ public:
 
     TFuture<void> Abort(const TTransactionAbortOptions& options = TTransactionAbortOptions())
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_DEBUG("Transaction abort requested (TransactionId: %v)",
             Id_);
@@ -494,7 +494,7 @@ public:
 
     TFuture<void> Ping(const TTransactionPingOptions& options = {})
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (Atomicity_ != EAtomicity::Full) {
             return VoidFuture;
@@ -505,7 +505,7 @@ public:
 
     void Detach()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_VERIFY(Atomicity_ == EAtomicity::Full);
 
@@ -521,21 +521,21 @@ public:
 
     ETransactionType GetType() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Type_;
     }
 
     TTransactionId GetId() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Id_;
     }
 
     TTimestamp GetStartTimestamp() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return StartTimestamp_;
     }
@@ -633,14 +633,14 @@ public:
 
     void SubscribeCommitted(const ITransaction::TCommittedHandler& handler)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         Committed_.Subscribe(handler);
     }
 
     void UnsubscribeCommitted(const ITransaction::TCommittedHandler& handler)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         Committed_.Unsubscribe(handler);
     }
@@ -648,14 +648,14 @@ public:
 
     void SubscribeAborted(const ITransaction::TAbortedHandler& handler)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         Aborted_.Subscribe(handler);
     }
 
     void UnsubscribeAborted(const ITransaction::TAbortedHandler& handler)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         Aborted_.Unsubscribe(handler);
     }
@@ -1459,7 +1459,7 @@ private:
         TCellId cellId,
         const TErrorOrRsp& rspOrError)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (rspOrError.IsOK()) {
             YT_LOG_DEBUG("Transaction pinged (TransactionId: %v, CellId: %v)",
@@ -1665,7 +1665,7 @@ private:
 
     void SetAborted(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         {
             auto guard = Guard(SpinLock_);
@@ -1773,7 +1773,7 @@ TFuture<TTransactionPtr> TTransactionManager::TImpl::Start(
     ETransactionType type,
     const TTransactionStartOptions& options)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto transaction = New<TTransaction::TImpl>(this);
     return transaction->Start(type, options).Apply(BIND([=] {
@@ -1785,7 +1785,7 @@ TTransactionPtr TTransactionManager::TImpl::Attach(
     TTransactionId id,
     const TTransactionAttachOptions& options)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto transaction = New<TTransaction::TImpl>(this);
     transaction->Attach(id, options);
@@ -1794,7 +1794,7 @@ TTransactionPtr TTransactionManager::TImpl::Attach(
 
 void TTransactionManager::TImpl::AbortAll()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     std::vector<TIntrusivePtr<TTransaction::TImpl>> transactions;
     {

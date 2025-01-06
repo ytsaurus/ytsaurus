@@ -9,7 +9,6 @@ PEERDIR(
 
 SRCS(
     config.cpp
-    GLOBAL configure_hotswap_manager.cpp
     disk_info_provider.cpp
     disk_manager_proxy_stub.cpp
     hotswap_manager.cpp

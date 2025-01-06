@@ -14,12 +14,12 @@ namespace NYT::NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControllerAgentProgram
-    : public TServerProgram<TControllerAgentBootstrapConfig>
+    : public TServerProgram<TControllerAgentProgramConfig>
 {
 public:
     TControllerAgentProgram()
     {
-        SetMainThreadName("CtrlAgent");
+        SetMainThreadName("CtrlAgentProg");
     }
 
 private:
@@ -28,9 +28,11 @@ private:
         // TODO(babenko): refactor
         ConfigureAllocator({.SnapshotUpdatePeriod = GetConfig()->HeapProfiler->SnapshotUpdatePeriod});
 
-        auto* bootstrap = new TBootstrap(GetConfig(), GetConfigNode());
+        auto bootstrap = CreateControllerAgentBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 };

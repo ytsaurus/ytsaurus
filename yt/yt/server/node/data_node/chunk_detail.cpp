@@ -60,35 +60,35 @@ TChunkBase::~TChunkBase()
 
 TChunkId TChunkBase::GetId() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Id_;
 }
 
 const TChunkLocationPtr& TChunkBase::GetLocation() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Location_;
 }
 
 TString TChunkBase::GetFileName() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Location_->GetChunkPath(Id_);
 }
 
 int TChunkBase::GetVersion() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Version_.load();
 }
 
 int TChunkBase::IncrementVersion()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ++Version_;
 }
@@ -111,7 +111,7 @@ NIO::IIOEngine::TReadRequest TChunkBase::MakeChunkFragmentReadRequest(
 
 void TChunkBase::AcquireReadLock()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     int lockCount;
     {
@@ -133,7 +133,7 @@ void TChunkBase::AcquireReadLock()
 
 void TChunkBase::ReleaseReadLock()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     bool removeNow = false;
     bool scheduleReaderSweep = false;
@@ -165,7 +165,7 @@ void TChunkBase::ReleaseReadLock()
 
 void TChunkBase::AcquireUpdateLock()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     {
         auto guard = WriterGuard(LifetimeLock_);
@@ -190,7 +190,7 @@ void TChunkBase::AcquireUpdateLock()
 
 void TChunkBase::ReleaseUpdateLock()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     bool removeNow = false;
     {
@@ -211,7 +211,7 @@ void TChunkBase::ReleaseUpdateLock()
 
 TFuture<void> TChunkBase::ScheduleRemove()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_LOG_DEBUG("Chunk remove scheduled (ChunkId: %v)",
         Id_);
@@ -242,14 +242,14 @@ TFuture<void> TChunkBase::ScheduleRemove()
 
 bool TChunkBase::IsRemoveScheduled() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return RemoveScheduled_.load();
 }
 
 void TChunkBase::TrySweepReader()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = WriterGuard(LifetimeLock_);
 
@@ -275,7 +275,7 @@ void TChunkBase::TrySweepReader()
 
 void TChunkBase::StartAsyncRemove()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     {
         auto guard = WriterGuard(LifetimeLock_);
@@ -301,7 +301,7 @@ void TChunkBase::StartReadSession(
     const TReadSessionBasePtr& session,
     const TChunkReadOptions& options)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     session->Options = options;
     session->ChunkReadGuard = TChunkReadGuard::Acquire(this);
@@ -309,7 +309,7 @@ void TChunkBase::StartReadSession(
 
 void TChunkBase::ProfileReadBlockSetLatency(const TReadSessionBasePtr& session)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto& performanceCounters = Location_->GetPerformanceCounters();
     performanceCounters.BlobBlockReadLatencies[session->Options.WorkloadDescriptor.Category]
@@ -318,7 +318,7 @@ void TChunkBase::ProfileReadBlockSetLatency(const TReadSessionBasePtr& session)
 
 void TChunkBase::ProfileReadMetaLatency(const TReadSessionBasePtr& session)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto& performanceCounters = Location_->GetPerformanceCounters();
     performanceCounters.BlobChunkMetaReadLatencies[session->Options.WorkloadDescriptor.Category]

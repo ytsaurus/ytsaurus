@@ -763,7 +763,7 @@ public:
         std::optional<TString> predicate,
         std::optional<TString> unfoldedColumnName) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& tableManager = Bootstrap_->GetTableManager();
 
@@ -902,7 +902,7 @@ public:
         ETableCollocationType type,
         THashSet<TTableNode*> collocatedTables) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (collocatedTables.empty()) {
             THROW_ERROR_EXCEPTION("Collocated table set must be non-empty");
@@ -996,7 +996,7 @@ public:
 
     void ZombifyTableCollocation(TTableCollocation* collocation) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         switch (collocation->GetType()) {
             case ETableCollocationType::Replication:
@@ -1024,7 +1024,7 @@ public:
         TTableNode* table,
         TTableCollocation* collocation) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(IsObjectAlive(collocation));
         YT_VERIFY(IsObjectAlive(table));
@@ -1106,7 +1106,7 @@ public:
 
     void RemoveTableFromCollocation(TTableNode* table, TTableCollocation* collocation) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(IsObjectAlive(collocation));
 
@@ -1169,7 +1169,7 @@ public:
 
     void RegisterQueue(TTableNode* node) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (!Queues_.insert(node).second) {
@@ -1181,7 +1181,7 @@ public:
 
     void UnregisterQueue(TTableNode* node) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (!Queues_.erase(node)) {
@@ -1200,7 +1200,7 @@ public:
 
     void RegisterQueueConsumer(TTableNode* node) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (!QueueConsumers_.insert(node).second) {
@@ -1213,7 +1213,7 @@ public:
 
     void UnregisterQueueConsumer(TTableNode* node) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (!QueueConsumers_.erase(node)) {
@@ -1233,7 +1233,7 @@ public:
 
     void RegisterQueueProducer(TTableNode* node) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
         YT_ASSERT(node->IsTrunk());
 
@@ -1247,7 +1247,7 @@ public:
 
     void UnregisterQueueProducer(TTableNode* node) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
         YT_ASSERT(node->IsTrunk());
 
@@ -1461,7 +1461,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnLeaderActive();
 
@@ -1479,7 +1479,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopLeading();
 
@@ -1720,7 +1720,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::Clear();
 
@@ -1740,7 +1740,7 @@ private:
 
     void SetZeroState() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TCompositeAutomatonPart::SetZeroState();
 

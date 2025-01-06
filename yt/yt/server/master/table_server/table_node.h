@@ -83,7 +83,7 @@ private:
         NTabletClient::EBackupMode BackupMode = NTabletClient::EBackupMode::None;
         TError BackupError;
         std::vector<NTabletClient::TTableReplicaBackupDescriptor> ReplicaBackupDescriptors;
-        std::optional<TString> QueueAgentStage;
+        std::optional<std::string> QueueAgentStage;
         bool TreatAsQueueConsumer = false;
         bool IsVitalConsumer = false;
         bool TreatAsQueueProducer = false;

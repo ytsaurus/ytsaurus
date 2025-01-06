@@ -34,6 +34,7 @@ using namespace NHydra;
 using namespace NChaosClient;
 using namespace NTransactionClient;
 using namespace NTransactionSupervisor;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -56,7 +57,7 @@ public:
         , SnapshotStore_(slot->GetShortcutSnapshotStore())
         , OrchidService_(CreateOrchidService())
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
         RegisterLoader(
             "CoordinatorManager.Values",
@@ -187,7 +188,7 @@ private:
 
     void SaveValues(TSaveContext& context) const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Save;
         Save(context, Shortcuts_);
@@ -196,7 +197,7 @@ private:
 
     void LoadValues(TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Load;
         Load(context, Shortcuts_);
@@ -205,7 +206,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TChaosAutomatonPart::Clear();
 
@@ -216,7 +217,7 @@ private:
 
     void OnAfterSnapshotLoaded() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TChaosAutomatonPart::OnAfterSnapshotLoaded();
 

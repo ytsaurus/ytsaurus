@@ -72,6 +72,4 @@ RECURSE(
     transaction_server
     transaction_supervisor
     user_job
-    zookeeper_master
-    zookeeper_proxy
 )

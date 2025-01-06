@@ -27,10 +27,10 @@ struct TIOEvent
     NYson::TYsonString Baggage;
 
     //! Local tags, i.e. all other tags that were not propagated in baggage.
-    THashMap<TString, TString> LocalTags;
+    THashMap<std::string, std::string> LocalTags;
 };
 
-using TIOTagList = TCompactVector<std::pair<TString, TString>, 16>;
+using TIOTagList = TCompactVector<std::pair<std::string, std::string>, 16>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +42,7 @@ struct IIOTracker
     virtual void Enqueue(TIOEvent ioEvent) = 0;
 
     //! Add the IO event to tracker. Baggage will be filled automatically from the current TraceContext.
-    void Enqueue(TIOCounters counters, THashMap<TString, TString> tags);
+    void Enqueue(TIOCounters counters, THashMap<std::string, std::string> tags);
 
     //! Return true if the events can be accepted. Note that the return value of this method is not fully
     //! consistent with Enqueue. For example, IsEnabled() may return false, while Enqueue() will accept

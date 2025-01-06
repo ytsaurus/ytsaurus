@@ -1,4 +1,4 @@
-from .config import get_config, get_option, set_option
+from .config import get_config, get_option, set_option, get_backend_type
 from .common import require, generate_int64, update, get_value
 from .constants import RPC_PACKAGE_INSTALLATION_TEXT, ENABLE_YP_SERVICE_DISCOVERY
 from .errors import create_response_error, YtError
@@ -160,13 +160,14 @@ def get_driver_instance(client):
         yp_service_discovery_config = None
 
         config = get_config(client)
+        backend = get_backend_type(client)
         if config["driver_config"] is not None:
             driver_config = config["driver_config"]
         elif config["driver_config_path"] is not None:
             driver_config, logging_config, address_resolver_config, yp_service_discovery_config = \
                 read_config(config["driver_config_path"])
         else:
-            if config["backend"] == "rpc":
+            if backend == "rpc":
                 if config["proxy"]["url"] is None:
                     raise YtError("For rpc backend driver config or proxy url must be specified")
                 else:
@@ -174,20 +175,20 @@ def get_driver_instance(client):
             else:
                 raise YtError("Driver config is not specified")
 
-        if config["backend"] == "rpc":
+        if backend == "rpc":
             if driver_config.get("connection_type") is None:
                 driver_config = update(
                     {"connection_type": "rpc", "cluster_url": get_proxy_address_url(client=client)},
                     driver_config)
-            elif config["backend"] != driver_config["connection_type"]:
+            elif backend != driver_config["connection_type"]:
                 raise YtError(
                     "Driver connection type and client backend mismatch "
                     "(driver_connection_type: {0}, client_backend: {1})"
-                    .format(driver_config["connection_type"], config["backend"]))
+                    .format(driver_config["connection_type"], backend))
 
         lazy_import_driver_bindings()
         if driver_bindings is None:
-            if config["backend"] == "rpc":
+            if backend == "rpc":
                 raise YtError("Driver class not found, install RPC driver bindings. "
                               "Bindings are shipped as additional package and "
                               "can be installed " + RPC_PACKAGE_INSTALLATION_TEXT)
@@ -211,10 +212,10 @@ def get_driver_instance(client):
             if specified_api_version is not None:
                 driver_config["api_version"] = int(specified_api_version[1:])
 
-        if config["backend"] == "http":
+        if backend == "http":
             connection_type = driver_bindings_type
         else:
-            connection_type = config["backend"]
+            connection_type = backend
 
         set_option("_driver", create_driver(driver_config, connection_type), client=client)
         driver = get_option("_driver", client=client)

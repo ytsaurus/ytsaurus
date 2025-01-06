@@ -111,7 +111,7 @@ template <typename TBundleInstancies, typename TCollection>
 void PopulateInstancies(
     const TBundleInstancies& bundleInstancies,
     const TCollection& instanciesInfo,
-    THashMap<TString, TInstanceInfoPtr>& instancies)
+    THashMap<std::string, TInstanceInfoPtr>& instancies)
 {
     for (const auto& name : bundleInstancies) {
         auto instance = New<TInstanceInfo>();
@@ -130,10 +130,10 @@ void PopulateInstancies(
 
 template <typename TBundleToInstancies, typename TCollection>
 void PopulateInstanciesPerDC(
-    const TString& bundleName,
+    const std::string& bundleName,
     const TBundleToInstancies& bundleToInstancies,
     const TCollection& instanciesInfo,
-    THashMap<TString, TInstanceInfoPtr>& instancies)
+    THashMap<std::string, TInstanceInfoPtr>& instancies)
 {
     auto it = bundleToInstancies.find(bundleName);
     if (it == bundleToInstancies.end()) {
@@ -147,10 +147,10 @@ void PopulateInstanciesPerDC(
 
 template <typename TBundleToInstancies, typename TCollection>
 void PopulateInstanciesPerBundle(
-    const TString& bundleName,
+    const std::string& bundleName,
     const TBundleToInstancies& bundleToInstancies,
     const TCollection& instanciesInfo,
-    THashMap<TString, TInstanceInfoPtr>& instancies)
+    THashMap<std::string, TInstanceInfoPtr>& instancies)
 {
     auto it = bundleToInstancies.find(bundleName);
     if (it == bundleToInstancies.end()) {
@@ -160,7 +160,7 @@ void PopulateInstanciesPerBundle(
     PopulateInstancies(it->second, instanciesInfo, instancies);
 }
 
-static const TString INITIAL_REQUEST_STATE = "REQUEST_CREATED";
+static const std::string INITIAL_REQUEST_STATE = "REQUEST_CREATED";
 
 void PopulateAllocatingInstancies(
     const TIndexedEntries<TAllocationRequestState>& allocationStates,
@@ -188,7 +188,7 @@ void PopulateAllocatingInstancies(
 
 void MarkDeallocatingInstancies(
     const TIndexedEntries<TDeallocationRequestState>& deallocations,
-    THashMap<TString, TInstanceInfoPtr>& allocatedInstancies)
+    THashMap<std::string, TInstanceInfoPtr>& allocatedInstancies)
 {
     for (const auto& [_, deallocationState] : deallocations) {
         auto it = allocatedInstancies.find(deallocationState->InstanceName);

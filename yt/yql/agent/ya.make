@@ -31,6 +31,8 @@ PEERDIR(
 
     yt/yt/library/dynamic_config
     yt/yt/library/skiff_ext
+    yt/yt/library/server_program
+    yt/yt/library/profiling/perf
 
     yt/yt/ytlib
 

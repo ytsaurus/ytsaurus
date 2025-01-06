@@ -746,7 +746,7 @@ message TRemoteCopyJobSpecExt
 
     optional string remote_cluster_name = 8;
 
-    optional bool use_remote_throttler = 9;
+    optional bool use_cluster_throttlers = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

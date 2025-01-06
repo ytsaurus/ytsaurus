@@ -295,7 +295,7 @@ public:
 
     IQueryHandlerPtr StartOrAttachQuery(NRecords::TActiveQuery activeQuery) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return New<TYqlQueryHandler>(
             StateClient_,
@@ -308,7 +308,7 @@ public:
 
     void Reconfigure(const TEngineConfigBasePtr& config) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         Config_ = DynamicPointerCast<TYqlEngineConfig>(config);
     }

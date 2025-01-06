@@ -40,7 +40,7 @@ public:
     { }
 
     TFuture<std::vector<TMemberInfo>> ListMembers(
-        const TString& groupId,
+        const TGroupId& groupId,
         const TListMembersOptions& options) override
     {
         auto guard = ReaderGuard(Lock_);
@@ -56,7 +56,7 @@ public:
             ->Run();
     }
 
-    TFuture<TGroupMeta> GetGroupMeta(const TString& groupId) override
+    TFuture<TGroupMeta> GetGroupMeta(const TGroupId& groupId) override
     {
         auto guard = ReaderGuard(Lock_);
 
@@ -71,7 +71,7 @@ public:
     }
 
     TFuture<TListGroupsResult> ListGroups(
-        const TString& prefix,
+        const TGroupId& prefix,
         const TListGroupsOptions& options) override
     {
         auto guard = ReaderGuard(Lock_);

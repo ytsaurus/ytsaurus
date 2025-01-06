@@ -102,7 +102,7 @@ public:
         TChunkStoreBase* owner,
         std::optional<EWorkloadCategory> workloadCategory) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& Logger = owner->GetLogger();
 
@@ -908,7 +908,7 @@ i64 TChunkStoreBase::GetUncompressedDataSize() const
 
 i64 TChunkStoreBase::GetMemoryUsage() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(SpinLock_);
     i64 result = 0;
@@ -1014,7 +1014,7 @@ void TChunkStoreBase::BuildOrchidYson(TFluentMap fluent)
 
 IDynamicStorePtr TChunkStoreBase::GetBackingStore() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(SpinLock_);
     return BackingStore_;
@@ -1022,7 +1022,7 @@ IDynamicStorePtr TChunkStoreBase::GetBackingStore() const
 
 void TChunkStoreBase::SetBackingStore(IDynamicStorePtr store)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = WriterGuard(SpinLock_);
     std::swap(store, BackingStore_);
@@ -1095,7 +1095,7 @@ void TChunkStoreBase::InvalidateCachedReaders(const TTableSettings& settings)
 TCachedVersionedChunkMetaPtr TChunkStoreBase::FindCachedVersionedChunkMeta(
     bool prepareColumnarMeta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(WeakCachedVersionedChunkMetaEntryLock_);
     if (auto entry = WeakCachedVersionedChunkMetaEntry_.Lock()) {
@@ -1114,7 +1114,7 @@ TFuture<TCachedVersionedChunkMetaPtr> TChunkStoreBase::GetCachedVersionedChunkMe
     const TClientChunkReadOptions& chunkReadOptions,
     bool prepareColumnarMeta)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     NProfiling::TWallTimer metaWaitTimer;
 
@@ -1178,7 +1178,7 @@ TInstant TChunkStoreBase::GetLastCompactionTimestamp() const
 
 EInMemoryMode TChunkStoreBase::GetInMemoryMode() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(SpinLock_);
     return InMemoryMode_;
@@ -1186,7 +1186,7 @@ EInMemoryMode TChunkStoreBase::GetInMemoryMode() const
 
 void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = WriterGuard(SpinLock_);
 
@@ -1218,7 +1218,7 @@ void TChunkStoreBase::SetInMemoryMode(EInMemoryMode mode)
 
 void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = WriterGuard(SpinLock_);
 
@@ -1262,7 +1262,7 @@ TChunkReplicaWithMediumSlimList TChunkStoreBase::GetReplicas(NNodeTrackerClient:
 
 IBlockCachePtr TChunkStoreBase::GetBlockCache()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(SpinLock_);
     return DoGetBlockCache();
@@ -1270,14 +1270,14 @@ IBlockCachePtr TChunkStoreBase::GetBlockCache()
 
 IBlockCachePtr TChunkStoreBase::DoGetBlockCache()
 {
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
     return PreloadedBlockCache_ ? PreloadedBlockCache_ : BlockCache_;
 }
 
 TChunkStatePtr TChunkStoreBase::FindPreloadedChunkState() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(SpinLock_);
 

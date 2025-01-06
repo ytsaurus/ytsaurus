@@ -51,10 +51,10 @@ TChunkListPool::TChunkListPool(
 
 bool TChunkListPool::HasEnough(TCellTag cellTag, int requestedCount)
 {
-    VERIFY_INVOKER_POOL_AFFINITY(ControllerInvokerPool_);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(ControllerInvokerPool_);
 
     auto& data = CellMap_[cellTag];
-    int currentSize = static_cast<int>(data.Ids.size());
+    int currentSize = std::ssize(data.Ids);
     if (currentSize >= requestedCount + Config_->ChunkListWatermarkCount) {
         // Enough chunk lists. Above the watermark even after extraction.
         return true;
@@ -67,7 +67,7 @@ bool TChunkListPool::HasEnough(TCellTag cellTag, int requestedCount)
 
 TChunkListId TChunkListPool::Extract(TCellTag cellTag)
 {
-    VERIFY_INVOKER_POOL_AFFINITY(ControllerInvokerPool_);
+    YT_ASSERT_INVOKER_POOL_AFFINITY(ControllerInvokerPool_);
 
     auto& data = CellMap_[cellTag];
 

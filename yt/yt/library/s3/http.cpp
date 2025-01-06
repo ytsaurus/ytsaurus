@@ -264,7 +264,7 @@ private:
 
     NHttp::IResponsePtr DoMakeRequest(THttpRequest request)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto connection = WaitFor(Dialer_->Dial(Address_))
             .ValueOrThrow();

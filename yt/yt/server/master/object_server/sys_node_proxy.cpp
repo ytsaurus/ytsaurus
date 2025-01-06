@@ -31,6 +31,7 @@ using namespace NTransactionServer;
 using namespace NCellMaster;
 using namespace NCellMasterClient;
 using namespace NObjectClient;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

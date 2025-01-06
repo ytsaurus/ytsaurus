@@ -38,8 +38,6 @@
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/yt/server/master/zookeeper_server/public.h>
-
 #include <yt/yt/server/lib/hive/public.h>
 
 #include <yt/yt/server/lib/hydra/public.h>
@@ -52,7 +50,7 @@
 
 #include <yt/yt/server/lib/discovery_server/public.h>
 
-#include <yt/yt/server/lib/zookeeper_master/public.h>
+#include <yt/yt/server/lib/misc/bootstrap.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -65,8 +63,6 @@
 #include <yt/yt/ytlib/distributed_throttler/public.h>
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
-
-#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -81,14 +77,18 @@ namespace NYT::NCellMaster {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrap
+    : public NServer::IDaemonBootstrap
 {
 public:
     TBootstrap();
-    TBootstrap(TCellMasterConfigPtr config);
+    TBootstrap(
+        TCellMasterBootstrapConfigPtr config,
+        NYTree::INodePtr configNode,
+        NFusion::IServiceLocatorPtr serviceLocator);
 
     ~TBootstrap();
 
-    const TCellMasterConfigPtr& GetConfig() const;
+    const TCellMasterBootstrapConfigPtr& GetConfig() const;
 
     bool IsPrimaryMaster() const;
     bool IsSecondaryMaster() const;
@@ -103,7 +103,7 @@ public:
     NObjectClient::TCellId GetPrimaryCellId() const;
     NObjectClient::TCellTag GetPrimaryCellTag() const;
 
-    const NObjectClient::TCellTagList& GetSecondaryCellTags() const;
+    const std::set<NObjectClient::TCellTag>& GetSecondaryCellTags() const;
     const THashSet<NObjectClient::TCellTag>& GetDynamicallyPropagatedMastersCellTags() const;
 
     const IAlertManagerPtr& GetAlertManager() const;
@@ -162,18 +162,15 @@ public:
     const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const;
     const NTabletServer::IReplicatedTableTrackerStateProviderPtr& GetReplicatedTableTrackerStateProvider() const;
 
-    const NZookeeperServer::IZookeeperManagerPtr& GetZookeeperManager() const;
-    NZookeeperMaster::IBootstrap* GetZookeeperBootstrap() const;
-
     NDistributedThrottler::IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         NDistributedThrottler::TDistributedThrottlerConfigPtr config,
         IInvokerPtr invoker,
-        const TString& groupIdPrefix,
+        const NDiscoveryClient::TGroupId& groupIdPrefix,
         NLogging::TLogger logger,
         NProfiling::TProfiler profiler) const;
 
     void Initialize();
-    void Run();
+    TFuture<void> Run() final;
 
     void LoadSnapshot(const TString& fileName, bool dump);
     void ReplayChangelogs(std::vector<TString> changelogFileNames);
@@ -181,7 +178,13 @@ public:
     void FinishDryRun();
 
 protected:
-    const TCellMasterConfigPtr Config_;
+    const TCellMasterBootstrapConfigPtr Config_;
+    const NYTree::INodePtr ConfigNode_;
+    const NFusion::IServiceLocatorPtr ServiceLocator_;
+
+    const NConcurrency::TActionQueuePtr ControlQueue_;
+    const NConcurrency::TActionQueuePtr SnapshotIOQueue_;
+    const NConcurrency::TActionQueuePtr DiscoveryQueue_;
 
     bool PrimaryMaster_ = false;
     bool SecondaryMaster_ = false;
@@ -191,7 +194,9 @@ protected:
     NObjectClient::TCellTag CellTag_;
     NObjectClient::TCellId PrimaryCellId_;
     NObjectClient::TCellTag PrimaryCellTag_;
-    NObjectClient::TCellTagList SecondaryCellTags_;
+
+    // Strong order if important here.
+    std::set<NObjectClient::TCellTag> SecondaryCellTags_;
 
     IAlertManagerPtr AlertManager_;
     IConfigManagerPtr ConfigManager_;
@@ -252,18 +257,9 @@ protected:
     NHiveClient::ICellDirectoryPtr CellDirectory_;
     NHiveServer::TSimpleAvenueDirectoryPtr AvenueDirectory_;
     NHiveClient::ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
-    NConcurrency::TActionQueuePtr ControlQueue_;
-    NConcurrency::TActionQueuePtr SnapshotIOQueue_;
-    NCoreDump::ICoreDumperPtr CoreDumper_;
-    NConcurrency::TActionQueuePtr DiscoveryQueue_;
     NDiscoveryServer::IDiscoveryServerPtr DiscoveryServer_;
     NRpc::IChannelFactoryPtr ChannelFactory_;
     TDiskSpaceProfilerPtr DiskSpaceProfiler_;
-
-    std::unique_ptr<NZookeeperMaster::IBootstrapProxy> ZookeeperBootstrapProxy_;
-    std::unique_ptr<NZookeeperMaster::IBootstrap> ZookeeperBootstrap_;
-
-    NZookeeperServer::IZookeeperManagerPtr ZookeeperManager_;
 
     NNodeTrackerClient::INodeChannelFactoryPtr NodeChannelFactory_;
 
@@ -288,6 +284,15 @@ protected:
 
     void OnDynamicConfigChanged(const TDynamicClusterConfigPtr& oldConfig);
 };
+
+DEFINE_REFCOUNTED_TYPE(TBootstrap)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBootstrapPtr CreateMasterBootstrap(
+    TCellMasterBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

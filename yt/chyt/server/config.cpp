@@ -668,6 +668,12 @@ void TMemoryConfig::Register(TRegistrar registrar)
 
 void TClickHouseServerBootstrapConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("core_dumper", &TThis::CoreDumper)
+        .Default();
+
+    registrar.Parameter("solomon_exporter", &TThis::SolomonExporter)
+        .DefaultNew();
+
     registrar.Parameter("yt", &TThis::Yt)
         .DefaultNew();
 

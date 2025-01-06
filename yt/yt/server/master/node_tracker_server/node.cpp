@@ -56,6 +56,7 @@ using namespace NNodeTrackerClient::NProto;
 using namespace NCellarClient;
 using namespace NYTree;
 using namespace NProfiling;
+using namespace NServer;
 
 using NHydra::HasMutationContext;
 using NYT::FromProto;
@@ -419,8 +420,9 @@ TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
 
 void TNode::InitializeStates(
     TCellTag selfCellTag,
-    const TCellTagList& secondaryCellTags,
-    const THashSet<TCellTag>& dynamicallyPropagatedMastersCellTags)
+    const std::set<TCellTag>& secondaryCellTags,
+    const THashSet<TCellTag>& dynamicallyPropagatedMastersCellTags,
+    bool allowMasterCellRemoval)
 {
     auto addCell = [&] (TCellTag cellTag) {
         if (!MulticellDescriptors_.contains(cellTag)) {
@@ -441,6 +443,16 @@ void TNode::InitializeStates(
     addCell(selfCellTag);
     for (auto secondaryCellTag : secondaryCellTags) {
         addCell(secondaryCellTag);
+    }
+
+    for (auto it = MulticellDescriptors_.begin(); it != MulticellDescriptors_.end();) {
+        auto cellTag = it->first;
+        if (selfCellTag != cellTag && !secondaryCellTags.contains(cellTag)) {
+            YT_VERIFY(allowMasterCellRemoval);
+            MulticellDescriptors_.erase(it++);
+        } else {
+            ++it;
+        }
     }
 
     LocalDescriptorPtr_ = &MulticellDescriptors_[selfCellTag];
@@ -720,7 +732,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     Load(context, LastGossipState_);
 
     if (context.GetVersion() < EMasterReign::RemoveStuckAttributes && Attributes_) {
-        Attributes_->Remove(EInternedAttributeKey::MaintenanceRequests.Unintern());
+        Attributes_->TryRemove(EInternedAttributeKey::MaintenanceRequests.Unintern());
     }
 
     ComputeDefaultAddress();

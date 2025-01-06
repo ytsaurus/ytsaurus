@@ -11,7 +11,7 @@ namespace NYT::NApi::NNative {
 template <typename TFunction>
 void TListOperationsFilter::ForEachOperationImmutable(TFunction function) const
 {
-    for (int i = 0; i < static_cast<int>(LightOperations_.size()); ++i) {
+    for (int i = 0; i < std::ssize(LightOperations_); ++i) {
         function(i, LightOperations_[i]);
     }
 }
@@ -19,7 +19,7 @@ void TListOperationsFilter::ForEachOperationImmutable(TFunction function) const
 template <typename TFunction>
 void TListOperationsFilter::ForEachOperationMutable(TFunction function)
 {
-    for (int i = 0; i < static_cast<int>(LightOperations_.size()); ++i) {
+    for (int i = 0; i < std::ssize(LightOperations_); ++i) {
         function(i, LightOperations_[i]);
     }
 }

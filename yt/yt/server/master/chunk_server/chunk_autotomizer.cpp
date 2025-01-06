@@ -229,7 +229,7 @@ public:
         , SpeculativeJobWinCounter_(ChunkServerProfiler().Counter("/chunk_autotomizer/speculative_job_wins"))
         , SpeculativeJobLossCounter_(ChunkServerProfiler().Counter("/chunk_autotomizer/speculative_job_losses"))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default),
             AutomatonThread);
 
@@ -252,7 +252,7 @@ public:
 
     void ScheduleJobs(EJobType jobType, IJobSchedulingContext* context) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsMasterJobType(jobType));
 
         if (!IsLeader()) {
@@ -303,7 +303,7 @@ public:
 
     void OnJobWaiting(const TAutotomyJobPtr& job, IJobControllerCallbacks* callbacks) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         // In Chunk Autotomizer we do not distinguish between waiting and running jobs.
@@ -312,7 +312,7 @@ public:
 
     void OnJobRunning(const TAutotomyJobPtr& job, IJobControllerCallbacks* callbacks) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         auto jobTimeout = GetDynamicConfig()->JobTimeout;
@@ -332,7 +332,7 @@ public:
 
     void OnJobCompleted(const TAutotomyJobPtr& job) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         if (!IsChunkRegistered(job->GetBodyChunkId())) {
@@ -368,7 +368,7 @@ public:
 
     void OnJobAborted(const TAutotomyJobPtr& job) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         auto bodyChunkId = job->GetBodyChunkId();
@@ -385,7 +385,7 @@ public:
 
     void OnJobFailed(const TAutotomyJobPtr& job) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         auto bodyChunkId = job->GetBodyChunkId();
@@ -404,7 +404,7 @@ public:
 
     void Initialize() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(&TChunkAutotomizer::OnTransactionFinished, MakeWeak(this)));
@@ -413,7 +413,7 @@ public:
 
     void OnProfiling(TSensorBuffer* buffer) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         buffer->AddGauge("/chunk_autotomizer/registered_chunks", RegisteredChunks_.size());
@@ -422,7 +422,7 @@ public:
 
     bool IsChunkRegistered(TChunkId bodyChunkId) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return RegisteredChunks_.contains(bodyChunkId);
     }
@@ -474,7 +474,7 @@ private:
 
     void HydraAutotomizeChunk(TReqAutotomizeChunk* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         auto bodyChunkId = ::NYT::FromProto<TChunkId>(request->chunk_id());
@@ -497,7 +497,7 @@ private:
 
     void HydraUpdateChunkAutotomizerTransactions(TReqUpdateChunkAutotomizerTransactions* /*request*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         YT_LOG_INFO(
@@ -517,7 +517,7 @@ private:
 
     void HydraUpdateAutotomizerState(TReqUpdateAutotomizerState* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         auto chunksToUnregister = ::NYT::FromProto<std::vector<TChunkId>>(request->chunks_to_unregister());
@@ -556,7 +556,7 @@ private:
 
     void HydraOnChunkAutotomyCompleted(TReqOnChunkAutotomyCompleted* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         auto bodyChunkId = ::NYT::FromProto<TChunkId>(request->body_chunk_id());
@@ -669,7 +669,7 @@ private:
 
     void Load(NCellMaster::TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Load;
 
@@ -696,7 +696,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnLeaderActive();
 
@@ -731,7 +731,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopLeading();
 
@@ -761,7 +761,7 @@ private:
 
     const TDynamicChunkAutotomizerConfigPtr& GetDynamicConfig() const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         return configManager->GetConfig()->ChunkManager->ChunkAutotomizer;
@@ -769,7 +769,7 @@ private:
 
     bool IsEnabled() const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         return configManager->GetConfig()->ChunkManager->EnableChunkAutotomizer;
@@ -777,7 +777,7 @@ private:
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         const auto& config = GetDynamicConfig();
@@ -794,7 +794,7 @@ private:
 
     bool RegisterChunk(TChunkId bodyChunkId, const TChunkSealInfo& chunkSealInfo)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         // Persistent actions.
@@ -831,7 +831,7 @@ private:
 
     bool UnregisterChunk(TChunkId bodyChunkId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         if (!IsChunkRegistered(bodyChunkId)) {
@@ -868,7 +868,7 @@ private:
 
     void UpdateTransactions()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         YT_LOG_DEBUG("Requesting to update chunk autotomizer transactions");
@@ -882,7 +882,7 @@ private:
 
     void OnTransactionFinished(TTransaction* transaction)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
         YT_VERIFY(IsObjectAlive(transaction));
 
@@ -908,7 +908,7 @@ private:
 
     TChunkId AllocateTailChunk(TChunkId bodyChunkId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -959,7 +959,7 @@ private:
 
     void AllocateTailChunks(TChunkId bodyChunkId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         auto* autotomyState = GetChunkAutotomyState(bodyChunkId);
@@ -986,14 +986,14 @@ private:
 
     TChunkAutotomyState* GetChunkAutotomyState(TChunkId bodyChunkId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return &GetOrCrash(RegisteredChunks_, bodyChunkId);
     }
 
     EChunkNonAutotomicityReason GetChunkNonAutotomicityReason(TChunkId bodyChunkId) const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (!IsEnabled()) {
             return EChunkNonAutotomicityReason::AutotomizerIsDisabled;
@@ -1014,14 +1014,14 @@ private:
 
     bool IsChunkAutotomizable(TChunkId bodyChunkId) const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return GetChunkNonAutotomicityReason(bodyChunkId) == EChunkNonAutotomicityReason::None;
     }
 
     void UnstageChunk(TChunkId chunkId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         YT_LOG_DEBUG("Unstaging chunk (ChunkId: %v)", chunkId);
@@ -1031,7 +1031,7 @@ private:
 
     void UnstageChunks()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         TReqExecuteBatch request;
@@ -1056,7 +1056,7 @@ private:
 
     TAutotomyJobPtr FindJob(NChunkServer::TJobId jobId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         if (auto chunkIt = JobIdToBodyChunkId_.find(jobId); chunkIt == JobIdToBodyChunkId_.end()) {
@@ -1074,7 +1074,7 @@ private:
 
     TAutotomyJobPtr GetJob(NChunkServer::TJobId jobId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         auto job = FindJob(jobId);
@@ -1085,7 +1085,7 @@ private:
 
     void RegisterJob(const TAutotomyJobPtr& job)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         auto jobId = job->GetJobId();
@@ -1101,7 +1101,7 @@ private:
 
     bool UnregisterJob(NChunkServer::TJobId jobId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         auto job = FindJob(jobId);
@@ -1123,7 +1123,7 @@ private:
 
     void RefreshChunks()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         auto chunksToTouch = std::min<int>(ChunkRefreshQueue_.size(), GetDynamicConfig()->MaxChunksPerRefresh);
@@ -1174,7 +1174,7 @@ private:
     // In second case we don't want to execute a mutation, so we deny persistent actions like chunk allocation.
     bool TouchChunk(TChunkId bodyChunkId, TReqUpdateAutotomizerState* request = nullptr)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(IsLeader());
 
         const auto& config = GetDynamicConfig();

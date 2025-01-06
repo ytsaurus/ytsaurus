@@ -704,7 +704,7 @@ void TChunkMerger::Initialize()
 
 void TChunkMerger::ScheduleMerge(TObjectId chunkOwnerId)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
 
     if (auto* trunkNode = FindChunkOwner(chunkOwnerId)) {
@@ -714,7 +714,7 @@ void TChunkMerger::ScheduleMerge(TObjectId chunkOwnerId)
 
 bool TChunkMerger::CanRegisterMergeSession(TChunkOwnerBase* trunkChunkOwner)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
 
     YT_VERIFY(trunkChunkOwner->IsTrunk());
@@ -762,7 +762,7 @@ bool TChunkMerger::CanRegisterMergeSession(TChunkOwnerBase* trunkChunkOwner)
 
 void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkChunkOwner)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
 
     YT_VERIFY(trunkChunkOwner->IsTrunk());
@@ -785,7 +785,7 @@ EChunkMergerStatus TChunkMerger::GetNodeChunkMergerStatus(NCypressServer::TNodeI
 
 void TChunkMerger::ScheduleJobs(EJobType jobType, IJobSchedulingContext* context)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(IsMasterJobType(jobType));
 
     if (!IsLeader()) {
@@ -830,7 +830,7 @@ void TChunkMerger::ScheduleJobs(EJobType jobType, IJobSchedulingContext* context
 
 void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     for (const auto& [account, queue] : AccountToNodeQueue_) {
         if (!IsObjectAlive(account)) {
@@ -956,7 +956,7 @@ void TChunkMerger::OnJobFailed(const TMergeJobPtr& job)
 
 void TChunkMerger::OnLeaderActive()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     TMasterAutomatonPart::OnLeaderActive();
 
@@ -1014,7 +1014,7 @@ void TChunkMerger::OnLeaderActive()
 
 void TChunkMerger::OnStopLeading()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     TMasterAutomatonPart::OnStopLeading();
 
@@ -1054,7 +1054,7 @@ void TChunkMerger::OnStopLeading()
 
 void TChunkMerger::Clear()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     TMasterAutomatonPart::Clear();
 
@@ -1069,7 +1069,7 @@ void TChunkMerger::Clear()
 
 void TChunkMerger::ResetTransientState()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     AccountToNodeQueue_ = {};
     JobsAwaitingChunkCreation_ = {};
@@ -1089,14 +1089,14 @@ void TChunkMerger::ResetTransientState()
 
 bool TChunkMerger::IsMergeTransactionAlive() const
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     return IsObjectAlive(TransactionRotator_.GetTransaction());
 }
 
 bool TChunkMerger::CanScheduleMerge(TChunkOwnerBase* chunkOwner) const
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& config = GetDynamicConfig();
     return
@@ -1107,7 +1107,7 @@ bool TChunkMerger::CanScheduleMerge(TChunkOwnerBase* chunkOwner) const
 
 void TChunkMerger::StartMergeTransaction()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(IsLeader());
 
     NProto::TReqStartMergeTransaction request;
@@ -1117,7 +1117,7 @@ void TChunkMerger::StartMergeTransaction()
 
 void TChunkMerger::OnTransactionFinished(TTransaction* transaction)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
 
     auto currentTransactionId = TransactionRotator_.GetTransactionId();
@@ -1132,7 +1132,7 @@ void TChunkMerger::OnTransactionFinished(TTransaction* transaction)
 
 void TChunkMerger::RescheduleMerge(TObjectId nodeId, TAccountId accountId)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
 
     auto [it, _] = NodeToBackoffPeriod_.emplace(nodeId, GetDynamicConfig()->MinBackoffPeriod);
@@ -1177,7 +1177,7 @@ void TChunkMerger::RescheduleMerge(TObjectId nodeId, TAccountId accountId)
 
 void TChunkMerger::RegisterSession(TChunkOwnerBase* chunkOwner)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
 
     if (NodesBeingMerged_.contains(chunkOwner->GetId())) {
@@ -1199,7 +1199,7 @@ void TChunkMerger::RegisterSession(TChunkOwnerBase* chunkOwner)
 
 void TChunkMerger::DoRegisterSession(TChunkOwnerBase* chunkOwner)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
 
     auto nodeId = chunkOwner->GetId();
@@ -1220,7 +1220,7 @@ void TChunkMerger::DoRegisterSession(TChunkOwnerBase* chunkOwner)
 
 void TChunkMerger::RegisterSessionTransient(TChunkOwnerBase* chunkOwner)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(IsLeader());
 
     auto nodeId = chunkOwner->GetId();
@@ -1241,7 +1241,7 @@ void TChunkMerger::RegisterSessionTransient(TChunkOwnerBase* chunkOwner)
 
 void TChunkMerger::RegisterPermanentlyFailedSessionTransient(TObjectId nodeId, TAccountId accountId)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(IsLeader());
 
     SessionsAwaitingFinalization_.push({
@@ -1510,7 +1510,7 @@ bool TChunkMerger::CanAdvanceNodeInMergePipeline()
 
 void TChunkMerger::ProcessTouchedNodes()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(IsLeader());
 
     const auto& config = GetDynamicConfig();
@@ -1587,7 +1587,7 @@ void TChunkMerger::ProcessTouchedNodes()
 
 void TChunkMerger::CreateChunks()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(IsLeader());
 
     if (JobsAwaitingChunkCreation_.empty()) {
@@ -1660,7 +1660,7 @@ void TChunkMerger::CreateChunks()
 
 bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMergeJobInfo& jobInfo)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     auto* chunkOwner = FindChunkOwner(jobInfo.NodeId);
     if (!CanScheduleMerge(chunkOwner)) {
@@ -1780,7 +1780,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
 
 void TChunkMerger::OnJobFinished(const TMergeJobPtr& job)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     YT_VERIFY(job->GetType() == EJobType::MergeChunks);
 
@@ -1826,7 +1826,7 @@ void TChunkMerger::OnJobFinished(const TMergeJobPtr& job)
 
 const TDynamicChunkMergerConfigPtr& TChunkMerger::GetDynamicConfig() const
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     return configManager->GetConfig()->ChunkManager->ChunkMerger;
@@ -1834,7 +1834,7 @@ const TDynamicChunkMergerConfigPtr& TChunkMerger::GetDynamicConfig() const
 
 void TChunkMerger::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& config = GetDynamicConfig();
 
@@ -1887,7 +1887,7 @@ TChunkOwnerBase* TChunkMerger::FindChunkOwner(NCypressServer::TNodeId chunkOwner
 
 void TChunkMerger::DisableChunkMerger()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     try {
         GuardedDisableChunkMerger();
@@ -1898,7 +1898,7 @@ void TChunkMerger::DisableChunkMerger()
 
 void TChunkMerger::GuardedDisableChunkMerger()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetRootClient());
     auto batchReq = proxy.ExecuteBatch();
@@ -2350,7 +2350,7 @@ void TChunkMerger::HydraStartMergeTransaction(NProto::TReqStartMergeTransaction*
 
 void TChunkMerger::HydraRescheduleMerge(NProto::TReqRescheduleMerge* request)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
 
     auto nodeId = FromProto<TObjectId>(request->node_id());

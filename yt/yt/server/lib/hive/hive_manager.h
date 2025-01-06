@@ -7,6 +7,8 @@
 #include <yt/yt/server/lib/hydra/entity_map.h>
 #include <yt/yt/server/lib/hydra/public.h>
 
+#include <yt/yt/ytlib/cell_master_client/public.h>
+
 #include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -88,6 +90,7 @@ struct IHiveManager
     virtual TMailboxHandle GetOrCreateCellMailbox(TCellId cellId) = 0;
 
     virtual bool TryRemoveCellMailbox(TCellId cellId) = 0;
+    virtual bool TryUnregisterCellMailbox(TCellId cellId) = 0;
 
     virtual void RegisterAvenueEndpoint(
         TAvenueEndpointId selfEndpointId,
@@ -142,6 +145,7 @@ DEFINE_REFCOUNTED_TYPE(IHiveManager)
 IHiveManagerPtr CreateHiveManager(
     THiveManagerConfigPtr config,
     NHiveClient::ICellDirectoryPtr cellDirectory,
+    NCellMasterClient::ICellDirectoryPtr masterDirectory,
     IAvenueDirectoryPtr avenueDirectory,
     TCellId selfCellId,
     IInvokerPtr automatonInvoker,

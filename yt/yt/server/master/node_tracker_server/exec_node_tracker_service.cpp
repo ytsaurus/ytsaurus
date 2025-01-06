@@ -50,7 +50,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NExecNodeTrackerClient::NProto, Heartbeat)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto& worldInitializerCache = Bootstrap_->GetWorldInitializerCache();
         WaitForFast(worldInitializerCache->ValidateWorldInitialized())

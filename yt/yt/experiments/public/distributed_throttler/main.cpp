@@ -181,7 +181,7 @@ public:
         {
             auto guard = WriterGuard(UsageLock_);
 
-            YT_VERIFY(static_cast<int>(DesiredUsage_.size()) == ThrottlerFactoryIndex_);
+            YT_VERIFY(std::ssize(DesiredUsage_) == ThrottlerFactoryIndex_);
 
             for (int i = PoppedThrottlerFactoryCount_; i < ThrottlerFactoryIndex_; ++i) {
                 DesiredUsage_[i].push_back(GetDefaultThrottlerUsage(i));
@@ -226,7 +226,7 @@ public:
         YT_VERIFY(realthrottlerIndex >= 0);
 
         for (const auto& factory : ThrottlerFactories_) {
-            YT_VERIFY(realthrottlerIndex < static_cast<int>(factory.Throttlers.size()));
+            YT_VERIFY(realthrottlerIndex < std::ssize(factory.Throttlers));
             factory.Throttlers[realthrottlerIndex]->Reconfigure(ThrottlerConfigs_[throttlerIndex]);
         }
     }
@@ -282,7 +282,7 @@ private:
     void CreateThrottler(int factoryIndex)
     {
         auto realFactoryIndex = factoryIndex - PoppedThrottlerFactoryCount_;
-        YT_VERIFY(realFactoryIndex < static_cast<int>(ThrottlerFactories_.size()));
+        YT_VERIFY(realFactoryIndex < std::ssize(ThrottlerFactories_));
         auto& throttlersFactory = ThrottlerFactories_[realFactoryIndex];
 
         int throttlerIndex = throttlersFactory.Throttlers.size() + PoppedThrottlerCount_;
@@ -291,7 +291,7 @@ private:
         auto throttleRequestActionQueue = New<TActionQueue>(Format("ThrottleRequest %v %v", ThrottlerFactoryIndex_, throttlerIndex));
         ActionQueues_.push_back(throttleRequestActionQueue);
 
-        YT_VERIFY(throttlerIndex < static_cast<int>(ThrottlerConfigs_.size()));
+        YT_VERIFY(throttlerIndex < std::ssize(ThrottlerConfigs_));
         auto throttler = throttlersFactory.Factory->GetOrCreateThrottler(Format("Throttler %v", throttlerIndex), ThrottlerConfigs_[throttlerIndex]);
         throttlersFactory.Throttlers.push_back(throttler);
 

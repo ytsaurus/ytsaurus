@@ -20,7 +20,7 @@ using NQueryTrackerClient::TQueryId;
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueryTrackerLogger, "QueryTracker");
-inline const NProfiling::TProfiler QueryTrackerProfiler = NProfiling::TProfiler("/query_tracker").WithGlobal();
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, QueryTrackerProfiler,  NProfiling::TProfiler("/query_tracker").WithGlobal());
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,11 +38,15 @@ YT_DEFINE_ERROR_ENUM(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(IBootstrap)
+
 DECLARE_REFCOUNTED_CLASS(TQueryTracker)
 DECLARE_REFCOUNTED_CLASS(TQueryTrackerProxy)
+
 DECLARE_REFCOUNTED_CLASS(TQueryTrackerDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TQueryTrackerServerConfig)
-DECLARE_REFCOUNTED_CLASS(TQueryTrackerServerDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TQueryTrackerBootstrapConfig)
+DECLARE_REFCOUNTED_CLASS(TQueryTrackerProgramConfig)
+DECLARE_REFCOUNTED_CLASS(TQueryTrackerComponentDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TQueryTrackerProxyConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)

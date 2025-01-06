@@ -45,6 +45,7 @@ using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 using namespace NApi::NNative::NProto;
 
@@ -116,7 +117,7 @@ public:
 
     void OnSynchronizePortalExits()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (!IsLeader()) {
             return;
@@ -190,7 +191,7 @@ public:
         const IAttributeDictionary& inheritedAttributes,
         const IAttributeDictionary& explicitAttributes) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* trunkNode = node->GetTrunkNode()->As<TPortalEntranceNode>();
         auto* transaction = node->GetTransaction();
@@ -239,7 +240,7 @@ public:
 
     void DestroyEntranceNode(TPortalEntranceNode* trunkNode) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(trunkNode->IsTrunk());
 
         if (EntranceNodes_.erase(trunkNode->GetId()) != 1) {
@@ -257,7 +258,7 @@ public:
 
     void DestroyExitNode(TPortalExitNode* trunkNode) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(trunkNode->IsTrunk());
 
         if (ExitNodes_.erase(trunkNode->GetId()) != 1) {
@@ -283,6 +284,17 @@ public:
         return ExitNodes_;
     }
 
+    void ValidateNoNodesBehindRemovedMastersPortal(const THashSet<TCellTag>& removedMasterCellTags) const override
+    {
+        for (const auto& [_, node] : EntranceNodes_) {
+            YT_LOG_FATAL_IF(
+                removedMasterCellTags.contains(node->GetExitCellTag()),
+                "Master cell %v with node %v behind the portal was removed",
+                node->GetExitCellTag(),
+                node->GetId());
+        }
+    }
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -304,12 +316,12 @@ private:
 
     void LoadKeys(NCellMaster::TLoadContext& /*context*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Load;
         Load(context, EntranceNodes_);
@@ -318,7 +330,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::Clear();
 
@@ -382,7 +394,7 @@ private:
 
     void HydraSynchronizePortalExit(NProto::TReqSynchronizePortalExits* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         int synchronizedPortalsCount = 0;
 
@@ -467,7 +479,7 @@ private:
 
     void HydraCreatePortalExit(NProto::TReqCreatePortalExit* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto entranceNodeId = FromProto<TObjectId>(request->entrance_node_id());
         auto accountId = FromProto<TAccountId>(request->account_id());
@@ -593,7 +605,7 @@ private:
 
     void HydraRemovePortalEntrance(NProto::TReqRemovePortalEntrance* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto entranceNodeId = FromProto<TObjectId>(request->entrance_node_id());
 
@@ -626,7 +638,7 @@ private:
 
     void HydraRemovePortalExit(NProto::TReqRemovePortalExit* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto exitNodeId = FromProto<TObjectId>(request->node_id());
 

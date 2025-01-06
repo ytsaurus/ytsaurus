@@ -11,10 +11,10 @@ static constexpr auto& Logger = BundleControllerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TProxyRoleToBundle = THashMap<TString, TString>;
+using TProxyRoleToBundle = THashMap<std::string, std::string>;
 
 TPerDataCenterSpareProxiesInfo GetSpareProxiesInfo(
-    const TString& zoneName,
+    const std::string& zoneName,
     const TProxyRoleToBundle& proxyRoleToBundle,
     const TSchedulerInputState& input)
 {
@@ -37,7 +37,7 @@ TPerDataCenterSpareProxiesInfo GetSpareProxiesInfo(
         auto& spareProxies = result[dataCenterName];
         for (const auto& spareProxy : aliveProxies) {
             auto proxyInfo = GetOrCrash(input.RpcProxies, spareProxy);
-            TString bundleName;
+            std::string bundleName;
 
             if (auto it = proxyRoleToBundle.find(proxyInfo->Role); it != proxyRoleToBundle.end()) {
                 bundleName = it->second;
@@ -57,7 +57,7 @@ TPerDataCenterSpareProxiesInfo GetSpareProxiesInfo(
 ////////////////////////////////////////////////////////////////////////////////
 
 void TryReleaseSpareProxies(
-    const TString& bundleName,
+    const std::string& bundleName,
     int excessProxyCount,
     TSpareProxiesInfo* spareProxiesInfo,
     TSchedulerMutations* mutations)
@@ -78,8 +78,8 @@ void TryReleaseSpareProxies(
 ////////////////////////////////////////////////////////////////////////////////
 
 void TryAssignSpareProxies(
-    const TString& bundleName,
-    const TString& proxyRole,
+    const std::string& bundleName,
+    const std::string& proxyRole,
     int proxyCount,
     TSpareProxiesInfo* spareProxiesInfo,
     TSchedulerMutations* mutations)
@@ -115,7 +115,7 @@ struct TDataCenterOrderForProxies
     int RequiredRpcProxyAssignmentCount = 0;
 
     // Just dc name alphabetical order for predictability.
-    TString DataCenter;
+    std::string DataCenter;
 
     auto MakeTuple() const
     {
@@ -131,9 +131,9 @@ struct TDataCenterOrderForProxies
 ////////////////////////////////////////////////////////////////////////////////
 
 int GetAvailableLiveRpcProxyCount(
-    const TString& bundleName,
-    const TString& dataCenterName,
-    const THashMap<TString, THashSet<TString>>& perDataCenterAliveProxies,
+    const std::string& bundleName,
+    const std::string& dataCenterName,
+    const THashMap<std::string, THashSet<std::string>>& perDataCenterAliveProxies,
     const TPerDataCenterSpareProxiesInfo& spareProxies)
 {
     int result = 0;
@@ -159,10 +159,10 @@ int GetAvailableLiveRpcProxyCount(
 ////////////////////////////////////////////////////////////////////////////////
 
 int GetAssignedRpcProxyCount(
-    const TString& bundleName,
-    const TString& rpcProxyRole,
-    const TString& dataCenterName,
-    const THashMap<TString, THashSet<TString>>& perDataCenterAliveProxies,
+    const std::string& bundleName,
+    const std::string& rpcProxyRole,
+    const std::string& dataCenterName,
+    const THashMap<std::string, THashSet<std::string>>& perDataCenterAliveProxies,
     const TPerDataCenterSpareProxiesInfo& spareProxies,
     const TSchedulerInputState& input)
 {
@@ -191,10 +191,10 @@ int GetAssignedRpcProxyCount(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashSet<TString> GetDataCentersToPopulate(
-    const TString& bundleName,
-    const TString& rpcProxyRole,
-    const THashMap<TString, THashSet<TString>>& perDataCenterAliveProxies,
+THashSet<std::string> GetDataCentersToPopulate(
+    const std::string& bundleName,
+    const std::string& rpcProxyRole,
+    const THashMap<std::string, THashSet<std::string>>& perDataCenterAliveProxies,
     const TPerDataCenterSpareProxiesInfo& spareProxies,
     const TSchedulerInputState& input)
 {
@@ -251,7 +251,7 @@ THashSet<TString> GetDataCentersToPopulate(
     std::sort(dataCentersOrder.begin(), dataCentersOrder.end());
     dataCentersOrder.resize(activeDataCenterCount);
 
-    THashSet<TString> result;
+    THashSet<std::string> result;
     for (const auto& item : dataCentersOrder) {
         result.insert(item.DataCenter);
     }
@@ -266,11 +266,11 @@ THashSet<TString> GetDataCentersToPopulate(
 ////////////////////////////////////////////////////////////////////////////////
 
 void AssignProxyRoleForDataCenter(
-    const TString& bundleName,
-    const TString& rpcProxyRole,
-    const TString& dataCenterName,
+    const std::string& bundleName,
+    const std::string& rpcProxyRole,
+    const std::string& dataCenterName,
     int requiredRpcProxyCount,
-    const THashSet<TString>& aliveProxies,
+    const THashSet<std::string>& aliveProxies,
     const TSchedulerInputState& input,
     TSpareProxiesInfo* spareProxies,
     TSchedulerMutations* mutations)
@@ -319,7 +319,7 @@ void AssignProxyRoleForDataCenter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetReleasedProxyRole(const TString& rpcProxyRole)
+std::string GetReleasedProxyRole(const std::string& rpcProxyRole)
 {
     return rpcProxyRole + "_released";
 }
@@ -327,10 +327,10 @@ TString GetReleasedProxyRole(const TString& rpcProxyRole)
 ////////////////////////////////////////////////////////////////////////////////
 
 void ReleaseProxyRoleForDataCenter(
-    const TString& bundleName,
-    const TString& rpcProxyRole,
-    const TString& dataCenterName,
-    const THashSet<TString>& aliveProxies,
+    const std::string& bundleName,
+    const std::string& rpcProxyRole,
+    const std::string& dataCenterName,
+    const THashSet<std::string>& aliveProxies,
     const TSchedulerInputState& input,
     TSpareProxiesInfo* spareProxies,
     TSchedulerMutations* mutations)
@@ -366,7 +366,7 @@ void ReleaseProxyRoleForDataCenter(
 ////////////////////////////////////////////////////////////////////////////////
 
 void SetProxyRole(
-    const TString& bundleName,
+    const std::string& bundleName,
     const TDataCenterToInstanceMap& bundleProxies,
     const TSchedulerInputState& input,
     TPerDataCenterSpareProxiesInfo& perDataCenterSpareProxies,

@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, parametrize_external
 from yt_commands import (
     authors, print_debug, raises_yt_error, set_nodes_banned, update_controller_agent_config, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     get, set, exists, insert_rows, alter_table, write_file, read_table, write_table, reduce,
-    erase, sync_create_cells, sync_mount_table, sync_unmount_table,
+    sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_reshard_table, sync_flush_table, check_all_stderrs, assert_statistics, sorted_dicts,
     create_dynamic_table)
 
@@ -708,10 +708,7 @@ class TestSchedulerReduceCommands(YTEnvSetup):
     def test_empty_in(self):
         create("table", "//tmp/in")
 
-        # TODO(panin): replace it with sort of empty input (when it will be fixed)
-        write_table("//tmp/in", {"foo": "bar"}, sorted_by="a")
-        erase("//tmp/in")
-
+        write_table("//tmp/in", [], sorted_by="a")
         create("table", "//tmp/out")
 
         reduce(in_="//tmp/in", out="//tmp/out", reduce_by="a", command="cat")

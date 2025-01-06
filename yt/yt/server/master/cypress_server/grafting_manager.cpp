@@ -34,6 +34,7 @@ using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 using NCypressClient::NProto::TReqCreateRootstock;
 
@@ -85,7 +86,7 @@ public:
         const IAttributeDictionary& inheritedAttributes,
         const IAttributeDictionary& explicitAttributes) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         EmplaceOrCrash(RootstockNodes_, rootstockNode->GetId(), rootstockNode);
@@ -95,7 +96,7 @@ public:
 
     void OnRootstockDestroyed(TRootstockNode* rootstockNode) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         if (RootstockNodes_.erase(rootstockNode->GetId()) != 1) {
@@ -116,7 +117,7 @@ public:
 
     void OnScionDestroyed(TScionNode* scionNode) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         if (ScionNodes_.erase(scionNode->GetId()) != 1) {
@@ -170,12 +171,12 @@ private:
 
     void LoadKeys(NCellMaster::TLoadContext& /*context*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Load;
 
@@ -185,7 +186,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::Clear();
 
@@ -198,7 +199,7 @@ private:
         TReqCreateRootstock* request,
         const NTransactionSupervisor::TTransactionPrepareOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(options.Persistent);
         YT_VERIFY(options.LatePrepare);
 
@@ -229,7 +230,7 @@ private:
         const IAttributeDictionary& inheritedAttributes,
         const IAttributeDictionary& explicitAttributes) noexcept
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         auto* trunkNode = rootstockNode->GetTrunkNode()->As<TRootstockNode>();
@@ -294,7 +295,7 @@ private:
 
     void HydraCreateScion(NProto::TReqCreateScion* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         auto rootstockNodeId = FromProto<TNodeId>(request->rootstock_node_id());

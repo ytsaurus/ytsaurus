@@ -63,5 +63,6 @@ class Scheduler(object):
     JobResourceLimitsRestrictionsViolated = 220
     CannotUseBothAclAndAco = 221
     GangOperationsAllowedOnlyInFifoPools = 222
+    OperationLaunchedInNonexistentPool = 223
     PoolTreeGuaranteesOvercommit = 29000
     PriorityStrongGuaranteeAdjustmentPoolsWithoutDonor = 29002

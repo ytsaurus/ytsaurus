@@ -711,7 +711,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto hunkChunkPayloadWriter = CreateHunkChunkPayloadWriter(
             workloadDescriptor,
             hunkWriterConfig,
-            hunkChunkWriter);
+            hunkChunkWriter,
+            /*underlyingOptions*/ {});
         auto hunkChunkWriterStatistics = CreateHunkChunkWriterStatistics(
             tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
             tabletSnapshot->PhysicalSchema);
@@ -726,6 +727,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 storeWriterOptions,
                 tabletSnapshot->PhysicalSchema,
                 storeChunkWriter,
+                /*writeBlocksOptions*/ {},
                 /*dataSink*/ std::nullopt,
                 blockCache),
             tabletSnapshot->PhysicalSchema,
@@ -1164,7 +1166,7 @@ void TSortedStoreManager::TrySplitPartitionByAddedStores(
 
     const auto& mountConfig = partition->GetTablet()->GetSettings().MountConfig;
 
-    int formerPartitionStoreCount = static_cast<int>(partition->Stores().size()) - static_cast<int>(addedStores.size());
+    int formerPartitionStoreCount = std::ssize(partition->Stores()) - std::ssize(addedStores);
 
     std::vector<TLegacyOwningKey> proposedPivots{partition->GetPivotKey()};
     i64 cumulativeDataSize = 0;

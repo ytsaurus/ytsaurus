@@ -273,7 +273,7 @@ protected:
         // Scan to the right of the current child extracting the maximum
         // segment of unsealed chunks.
         const auto& chunkList = entry.ChunkList;
-        for (int index = entry.ChildIndex; index < static_cast<int>(chunkList->Children().size()); ++index) {
+        for (int index = entry.ChildIndex; index < std::ssize(chunkList->Children()); ++index) {
             auto* child = chunkList->Children()[index];
             if (!IsPhysicalChunkType(child->GetType())) {
                 break;
@@ -1111,9 +1111,9 @@ protected:
             YT_VERIFY(isOrdered);
             childIndex = std::max(
                 childIndex,
-                std::min(
+                std::min<int>(
                     *lowerTabletIndex,
-                    static_cast<int>(chunkList->Children().size())));
+                    std::ssize(chunkList->Children())));
         }
 
         // Row index.
@@ -1738,7 +1738,7 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
-    const TString UserName_;
+    const std::string UserName_;
     const IInvokerPtr Invoker_;
 
     static const IInvokerPtr CreateInvoker(const IHydraFacadePtr& hydraFacade, EAutomatonThreadQueue threadQueue)

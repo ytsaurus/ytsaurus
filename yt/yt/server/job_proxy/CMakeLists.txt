@@ -44,6 +44,7 @@ target_link_libraries(yt-server-job_proxy PUBLIC
   library-query-row_comparer
   library-profiling-solomon
   library-tracing-jaeger
+  yt-library-server_program
 )
 
 target_sources(yt-server-job_proxy PRIVATE

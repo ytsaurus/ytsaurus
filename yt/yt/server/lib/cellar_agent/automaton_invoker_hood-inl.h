@@ -34,7 +34,7 @@ IInvokerPtr TAutomatonInvokerHood<EQueue>::GetAutomatonInvoker(EQueue queue) con
 template <typename EQueue>
 IInvokerPtr TAutomatonInvokerHood<EQueue>::GetEpochAutomatonInvoker(EQueue queue) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return EpochAutomatonInvokers_[queue].Acquire();
 }
@@ -42,7 +42,7 @@ IInvokerPtr TAutomatonInvokerHood<EQueue>::GetEpochAutomatonInvoker(EQueue queue
 template <typename EQueue>
 IInvokerPtr TAutomatonInvokerHood<EQueue>::GetGuardedAutomatonInvoker(EQueue queue) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return GuardedAutomatonInvokers_[queue].Acquire();
 }
@@ -65,7 +65,7 @@ void TAutomatonInvokerHood<EQueue>::InitEpochInvokers(const NHydra::IHydraManage
 template <typename EQueue>
 void TAutomatonInvokerHood<EQueue>::ResetEpochInvokers()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     for (auto& invoker : EpochAutomatonInvokers_) {
         invoker.Store(GetNullInvoker());
@@ -89,7 +89,7 @@ void TAutomatonInvokerHood<EQueue>::InitGuardedInvokers(const NHydra::IHydraMana
 template <typename EQueue>
 void TAutomatonInvokerHood<EQueue>::ResetGuardedInvokers()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     for (auto& invoker : GuardedAutomatonInvokers_) {
         invoker.Store(GetNullInvoker());

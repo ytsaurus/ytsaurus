@@ -2,11 +2,11 @@
 
 #include <yt/yt/library/numeric/fixed_point_number.h>
 
-#include <library/cpp/yt/string/format.h>
-
 #include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/core/ytree/serialize.h>
+
+#include <library/cpp/yt/string/format.h>
 
 namespace NYT {
 

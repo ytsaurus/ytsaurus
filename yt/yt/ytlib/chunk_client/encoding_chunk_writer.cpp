@@ -1,6 +1,5 @@
 #include "encoding_chunk_writer.h"
 
-#include "chunk_writer.h"
 #include "config.h"
 #include "deferred_chunk_meta.h"
 #include "encoding_writer.h"
@@ -19,6 +18,7 @@ TEncodingChunkWriter::TEncodingChunkWriter(
     TEncodingWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
     IChunkWriterPtr chunkWriter,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     IBlockCachePtr blockCache,
     NLogging::TLogger logger)
     : Meta_(New<TMemoryTrackedDeferredChunkMeta>(
@@ -28,10 +28,12 @@ TEncodingChunkWriter::TEncodingChunkWriter(
     , Config_(config)
     , Options_(options)
     , ChunkWriter_(std::move(chunkWriter))
+    , WriteBlocksOptions_(std::move(writeBlocksOptions))
     , EncodingWriter_(New<TEncodingWriter>(
         config,
         options,
         ChunkWriter_,
+        WriteBlocksOptions_,
         blockCache,
         std::move(logger)))
 {
@@ -64,7 +66,7 @@ void TEncodingChunkWriter::WriteBlock(
 
     ++CurrentBlockIndex_;
 
-    LargestBlockSize_ = std::max(LargestBlockSize_, static_cast<i64>(block.Size()));
+    LargestBlockSize_ = std::max(LargestBlockSize_, std::ssize(block));
     EncodingWriter_->WriteBlock(std::move(block), blockType, groupIndex);
 }
 
@@ -82,7 +84,7 @@ void TEncodingChunkWriter::Close()
     }
     SetProtoExtension(Meta_->mutable_extensions(), MiscExt_);
 
-    WaitFor(ChunkWriter_->Close(Config_->WorkloadDescriptor, Meta_))
+    WaitFor(ChunkWriter_->Close(WriteBlocksOptions_, Config_->WorkloadDescriptor, Meta_))
         .ThrowOnError();
 
     Closed_ = true;

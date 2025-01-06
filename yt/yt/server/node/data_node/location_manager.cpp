@@ -26,6 +26,7 @@ using namespace NFS;
 using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -50,6 +51,9 @@ TFuture<void> TLocationManager::FailDiskByName(
     const TString& diskName,
     const TError& error)
 {
+    if (!DiskInfoProvider_) {
+        return MakeFuture<void>(TError("Cannot fail disk: hotswap is not configured"));
+    }
     return DiskInfoProvider_->GetYTDiskInfos()
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TDiskInfo>& diskInfos) {
             for (const auto& diskInfo : diskInfos) {
@@ -107,7 +111,7 @@ void TLocationManager::SetFailedUnlinkedDiskIds(std::vector<TString> diskIds)
 std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
     const std::vector<TDiskInfo>& disks)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     THashMap<std::string, TDiskInfo> diskNameToDisk;
     THashSet<std::string> failedDisks;
@@ -146,22 +150,31 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
 
 TFuture<bool> TLocationManager::GetHotSwapEnabled()
 {
+    if (!DiskInfoProvider_) {
+        return FalseFuture;
+    }
     return DiskInfoProvider_->GetHotSwapEnabled();
 }
 
 TFuture<std::vector<TDiskInfo>> TLocationManager::GetDiskInfos()
 {
+    if (!DiskInfoProvider_) {
+        return MakeFuture<std::vector<TDiskInfo>>({});
+    }
     return DiskInfoProvider_->GetYTDiskInfos();
 }
 
 TFuture<void> TLocationManager::UpdateDiskCache()
 {
+    if (!DiskInfoProvider_) {
+        return VoidFuture;
+    }
     return DiskInfoProvider_->UpdateDiskCache();
 }
 
 std::vector<TGuid> TLocationManager::DoDisableLocations(const THashSet<TGuid>& locationUuids)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     std::vector<TGuid> locationsForDisable;
 
@@ -184,7 +197,7 @@ std::vector<TGuid> TLocationManager::DoDisableLocations(const THashSet<TGuid>& l
 
 std::vector<TGuid> TLocationManager::DoDestroyLocations(bool recoverUnlinkedDisk, const THashSet<TGuid>& locationUuids)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     std::vector<TGuid> locationsForDestroy;
 
@@ -212,7 +225,7 @@ std::vector<TGuid> TLocationManager::DoDestroyLocations(bool recoverUnlinkedDisk
 
 std::vector<TGuid> TLocationManager::DoResurrectLocations(const THashSet<TGuid>& locationUuids)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     std::vector<TGuid> locationsForResurrect;
 
@@ -254,6 +267,9 @@ TFuture<std::vector<TGuid>> TLocationManager::ResurrectChunkLocations(const THas
 
 TFuture<void> TLocationManager::RecoverDisk(const TString& diskId)
 {
+    if (!DiskInfoProvider_) {
+        return MakeFuture<void>(TError("Cannot recover disk: hotswap dispatcher is not configured"));
+    }
     return DiskInfoProvider_->RecoverDisk(diskId);
 }
 
@@ -295,7 +311,7 @@ TLocationHealthChecker::TLocationHealthChecker(
 
 void TLocationHealthChecker::Initialize()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     for (const auto& location : ChunkStore_->Locations()) {
         location->SubscribeDiskCheckFailed(
@@ -330,7 +346,7 @@ void TLocationHealthChecker::OnDiskHealthCheckFailed(
 
 void TLocationHealthChecker::OnLocationsHealthCheck()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     auto hotSwapEnabled = WaitFor(LocationManager_->GetHotSwapEnabled());
 

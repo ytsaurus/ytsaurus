@@ -33,13 +33,17 @@
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
+#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
+
+#include <yt/yt/library/profiling/solomon/public.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
 #include <yt/yt/library/program/helpers.h>
+
+#include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -57,6 +61,8 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 
+#include <yt/yt/core/misc/configurable_singleton_def.h>
+
 namespace NYT::NCypressProxy {
 
 using namespace NAdmin;
@@ -68,6 +74,8 @@ using namespace NNet;
 using namespace NOrchid;
 using namespace NSequoiaClient;
 using namespace NYTree;
+using namespace NFusion;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,8 +87,13 @@ class TBootstrap
     : public IBootstrap
 {
 public:
-    explicit TBootstrap(TCypressProxyConfigPtr config)
+    TBootstrap(
+        TCypressProxyBootstrapConfigPtr config,
+        INodePtr configNode,
+        IServiceLocatorPtr serviceLocator)
         : Config_(std::move(config))
+        , ConfigNode_(std::move(configNode))
+        , ServiceLocator_(std::move(serviceLocator))
     {
         if (Config_->AbortOnUnrecognizedOptions) {
             AbortOnUnrecognizedOptions(Logger(), Config_);
@@ -89,27 +102,23 @@ public:
         }
     }
 
-    void Initialize() override
+    void Initialize()
     {
-        ControlQueue_ = New<TActionQueue>("Control");
-
-        BIND(&TBootstrap::DoInitialize, this)
+        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
             .Get()
             .ThrowOnError();
     }
 
-    void Run() override
+    TFuture<void> Run() override
     {
-        BIND(&TBootstrap::DoRun, this)
+        return BIND(&TBootstrap::DoRun, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
+            .Run();
     }
 
-    const TCypressProxyConfigPtr& GetConfig() const override
+    const TCypressProxyBootstrapConfigPtr& GetConfig() const override
     {
         return Config_;
     }
@@ -203,7 +212,11 @@ public:
     }
 
 private:
-    const TCypressProxyConfigPtr Config_;
+    const TCypressProxyBootstrapConfigPtr Config_;
+    const INodePtr ConfigNode_;
+    const IServiceLocatorPtr ServiceLocator_;
+
+    const TActionQueuePtr ControlQueue_ = New<TActionQueue>("Control");
 
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::NNative::IClientPtr NativeRootClient_;
@@ -218,8 +231,6 @@ private:
 
     ISequoiaResponseKeeperPtr ResponseKeeper_;
 
-    TActionQueuePtr ControlQueue_;
-
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
@@ -229,8 +240,6 @@ private:
     IMapNodePtr OrchidRoot_;
     TMonitoringManagerPtr MonitoringManager_;
     ICypressRegistrarPtr CypressRegistrar_;
-
-    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
@@ -242,10 +251,6 @@ private:
         BusServer_ = NBus::CreateBusServer(Config_->BusServer);
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
-
-        if (Config_->CoreDumper) {
-            CoreDumper_ = CreateCoreDumper(Config_->CoreDumper);
-        }
 
         NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
         NativeRootClient_ = NativeConnection_->CreateNativeClient({.User = NSecurityClient::RootUserName});
@@ -288,7 +293,7 @@ private:
 
         NMonitoring::Initialize(
             HttpServer_,
-            Config_->SolomonExporter,
+            ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
             &MonitoringManager_,
             &OrchidRoot_);
 
@@ -296,7 +301,7 @@ private:
             SetNodeByYPath(
                 OrchidRoot_,
                 "/config",
-                CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+                CreateVirtualNode(ConfigNode_));
             SetNodeByYPath(
                 OrchidRoot_,
                 "/dynamic_config_manager",
@@ -312,7 +317,7 @@ private:
             /*authenticator*/ nullptr));
         RpcServer_->RegisterService(CreateAdminService(
             GetControlInvoker(),
-            CoreDumper_,
+            ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
             /*authenticator*/ nullptr));
 
         SequoiaService_ = CreateSequoiaService(this);
@@ -333,6 +338,7 @@ private:
                     }
                 }));
         }
+
         NativeConnection_->GetClusterDirectorySynchronizer()->Start();
         NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
 
@@ -351,7 +357,7 @@ private:
         const TCypressProxyDynamicConfigPtr& /*oldConfig*/,
         const TCypressProxyDynamicConfigPtr& newConfig)
     {
-        ReconfigureSingletons(newConfig);
+        TSingletonManager::Reconfigure(newConfig);
 
         ObjectService_->Reconfigure(newConfig->ObjectService);
         ResponseKeeper_->Reconfigure(newConfig->ResponseKeeper);
@@ -360,9 +366,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(TCypressProxyConfigPtr config)
+IBootstrapPtr CreateCypressProxyBootstrap(
+    TCypressProxyBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
 {
-    return std::make_unique<TBootstrap>(std::move(config));
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

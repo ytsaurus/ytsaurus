@@ -39,7 +39,7 @@ public:
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Periodic),
             BIND(&TAlertManager::UpdateAlerts, MakeWeak(this))))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
         RegisterLoader(
             "AlertManager",
@@ -55,14 +55,14 @@ public:
 
     void Initialize() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         Bootstrap_->GetConfigManager()->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TAlertManager::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void RegisterAlertSource(TAlertSource alertSource) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         AlertSources_.push_back(alertSource);
     }
@@ -90,7 +90,7 @@ private:
 
     void HydraSetCellAlerts(TReqSetCellAlerts* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         YT_VERIFY(multicellManager->IsPrimaryMaster());
@@ -115,7 +115,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnLeaderActive();
 
@@ -124,7 +124,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopLeading();
 
@@ -133,7 +133,7 @@ private:
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         UpdateAlertsExecutor_->SetPeriod(
             Bootstrap_->GetConfigManager()->GetConfig()->CellMaster->AlertUpdatePeriod);
@@ -141,7 +141,7 @@ private:
 
     void Load(TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Load;
 
@@ -160,7 +160,7 @@ private:
 
     void UpdateAlerts()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_LOG_DEBUG("Updating master alerts");
 

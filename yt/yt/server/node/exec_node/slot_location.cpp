@@ -56,6 +56,7 @@ using namespace NDataNode;
 using namespace NProfiling;
 using namespace NRpc;
 using namespace NFS;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -124,7 +125,7 @@ TFuture<void> TSlotLocation::Initialize()
 
 void TSlotLocation::DoInitialize()
 {
-    VERIFY_INVOKER_AFFINITY(HeavyInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(HeavyInvoker_);
 
     YT_LOG_INFO("Location initialization started");
 
@@ -414,15 +415,14 @@ struct TSlotLocationIOTags
     int SlotIndex;
 };
 
-static THashMap<TString, TString> BuildSandboxCopyTags(
-    const char* direction,
+static THashMap<std::string, std::string> BuildSandboxCopyTags(
+    const std::string& direction,
     const NDataNode::TChunkLocationPtr& location,
     const std::optional<TSlotLocationIOTags>& slotLocationTags)
 {
-    THashMap<TString, TString> result{
+    THashMap<std::string, std::string> result{
         {FormatIOTag(EAggregateIOTag::Direction), direction},
-        // TODO(babenko): switch to std::string
-        {FormatIOTag(EAggregateIOTag::User), ToString(GetCurrentAuthenticationIdentity().User)},
+        {FormatIOTag(EAggregateIOTag::User), GetCurrentAuthenticationIdentity().User},
     };
     if (location) {
         result[FormatIOTag(ERawIOTag::LocationId)] = location->GetId();
@@ -432,7 +432,7 @@ static THashMap<TString, TString> BuildSandboxCopyTags(
     }
     if (slotLocationTags) {
         result[FormatIOTag(EAggregateIOTag::LocationType)] = "slot";
-        result[FormatIOTag(ERawIOTag::SlotIndex)] = ToString(slotLocationTags->SlotIndex);
+        result[FormatIOTag(ERawIOTag::SlotIndex)] = std::to_string(slotLocationTags->SlotIndex);
     }
     return result;
 }

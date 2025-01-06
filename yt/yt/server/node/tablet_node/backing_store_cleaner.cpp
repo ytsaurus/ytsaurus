@@ -94,7 +94,7 @@ private:
 
     void EnsureBundleDataCreated(const ITabletSlotPtr& slot)
     {
-        VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
         if (NameToBundleData_.contains(slot->GetTabletCellBundleName())) {
             return;
@@ -214,7 +214,7 @@ private:
                 }
             }
 
-            auto retentionTime = storeIndex == static_cast<int>(stores.size())
+            auto retentionTime = storeIndex == std::ssize(stores)
                 ? TDuration::Zero()
                 : now - stores[storeIndex].CreationTime;
             GetCounters(bundleName)->RetentionTime.Update(retentionTime);

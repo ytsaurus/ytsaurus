@@ -333,7 +333,8 @@ protected:
             config,
             options,
             Schema,
-            memoryWriter);
+            memoryWriter,
+            /*writeBlocksOptions*/ {});
 
         int startIndex = 0;
         TChunkedMemoryPool memoryPool;
@@ -797,7 +798,8 @@ protected:
             config,
             options,
             writeSchema,
-            memoryWriter);
+            memoryWriter,
+            /*writeBlocksOptions*/ {});
 
         Y_UNUSED(chunkWriter->Write(initialRows));
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
@@ -1626,13 +1628,14 @@ protected:
             config,
             options,
             writeSchema,
-            memoryWriter);
+            memoryWriter,
+            /*writeBlocksOptions*/ {});
 
         Y_UNUSED(chunkWriter->Write(InitialRows_));
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
 
-        for (auto& block : memoryWriter->GetBlocks()) {
-            EXPECT_LE(block.Size(), static_cast<size_t>(config->BlockSize + overhead));
+        for (const auto& block : memoryWriter->GetBlocks()) {
+            EXPECT_LE(block.Size(), config->BlockSize + overhead);
         }
     }
 };

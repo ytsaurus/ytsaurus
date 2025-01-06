@@ -2,9 +2,7 @@
 
 #include <yt/yt/server/lib/misc/max_min_balancer.h>
 
-#include <iostream>
-
-namespace NYT {
+namespace NYT::NServer {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -130,4 +128,4 @@ TEST(TMaxMinBalancerTest, TakeWinnerIf)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT
+} // namespace NYT::NServer

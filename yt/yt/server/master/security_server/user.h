@@ -120,7 +120,7 @@ public:
 
 private:
     std::optional<int> Default_;
-    THashMap<TString, int> PerCell_;
+    THashMap<std::string, int> PerCell_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSerializableUserRequestLimitsOptions)
@@ -143,7 +143,7 @@ public:
 
 private:
     int Default_;
-    THashMap<TString, int> PerCell_;
+    THashMap<std::string, int> PerCell_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSerializableUserQueueSizeLimitsOptions)

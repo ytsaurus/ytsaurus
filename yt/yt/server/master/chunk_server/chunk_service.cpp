@@ -208,21 +208,21 @@ private:
 
     const TDynamicChunkServiceConfigPtr& GetDynamicConfig() const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return Bootstrap_->GetConfigManager()->GetConfig()->ChunkService;
     }
 
     bool AreCypressTransactionsInSequoiaEnabled() const noexcept
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return EnableCypressTransactionsInSequoia_.load(std::memory_order::acquire);
     }
 
     void OnDynamicConfigChanged(const TDynamicClusterConfigPtr& oldConfig)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
         const auto& sequoiaManagerConfig = config->SequoiaManager;
@@ -286,11 +286,10 @@ private:
 
     void OnUserRequestThrottlerConfigChanged(TUser* user)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        // TODO(babenko): switch to std::string
-        CreateChunkRequestQueueProvider_->ReconfigureQueue(TString(user->GetName()));
-        ExecuteBatchRequestQueueProvider_->ReconfigureQueue(TString(user->GetName()));
+        CreateChunkRequestQueueProvider_->ReconfigureQueue(user->GetName());
+        ExecuteBatchRequestQueueProvider_->ReconfigureQueue(user->GetName());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, LocateChunks)
@@ -588,7 +587,7 @@ private:
                     &allocatedNodes,
                     preferredHostName);
 
-                for (int index = 0; index < static_cast<int>(targets.size()); ++index) {
+                for (int index = 0; index < std::ssize(targets); ++index) {
                     auto* target = targets[index];
                     builder.Add(target);
                     auto replica = TNodePtrWithReplicaAndMediumIndex(target, GenericChunkReplicaIndex, medium->GetIndex());

@@ -375,7 +375,7 @@ private:
                 } else {
                     // Synthesize a fake pivot key.
                     TUnversionedOwningRowBuilder builder(1);
-                    int tabletIndex = static_cast<int>(tableInfo->Tablets.size());
+                    int tabletIndex = std::ssize(tableInfo->Tablets);
                     builder.AddValue(MakeUnversionedInt64Value(tabletIndex));
                     tabletInfo->PivotKey = builder.FinishRow();
                 }
@@ -411,6 +411,9 @@ private:
                     .Kind = FromProto<ESecondaryIndexKind>(protoIndexInfo.index_kind()),
                     .Predicate = YT_PROTO_OPTIONAL(protoIndexInfo, predicate),
                     .UnfoldedColumn = YT_PROTO_OPTIONAL(protoIndexInfo, unfolded_column),
+                    .Correspondence = protoIndexInfo.has_index_correspondence()
+                        ? FromProto<ETableToIndexCorrespondence>(protoIndexInfo.index_correspondence())
+                        : ETableToIndexCorrespondence::Unknown,
                 };
                 tableInfo->Indices.push_back(indexInfo);
             }
@@ -423,7 +426,7 @@ private:
 
                 auto tabletCount = tableInfo->IsChaosReplicated()
                     ? rsp->tablet_count()
-                    : static_cast<int>(tableInfo->Tablets.size());
+                    : std::ssize(tableInfo->Tablets);
                 tableInfo->UpperCapBound = MakeUnversionedOwningRow(tabletCount);
             }
 

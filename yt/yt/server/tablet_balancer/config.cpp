@@ -128,7 +128,7 @@ void TActionManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTabletBalancerServerConfig::Register(TRegistrar registrar)
+void TTabletBalancerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
@@ -154,6 +154,11 @@ void TTabletBalancerServerConfig::Register(TRegistrar registrar)
         }
     });
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TTabletBalancerProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

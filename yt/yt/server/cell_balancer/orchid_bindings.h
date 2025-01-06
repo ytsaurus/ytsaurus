@@ -20,10 +20,10 @@ struct TInstanceInfo
 {
     NBundleControllerClient::TInstanceResourcesPtr Resource;
 
-    TString PodId;
-    TString YPCluster;
+    std::string PodId;
+    std::string YPCluster;
 
-    std::optional<TString> DataCenter;
+    std::optional<std::string> DataCenter;
     std::optional<bool> Removing;
 
     REGISTER_YSON_STRUCT(TInstanceInfo);
@@ -38,8 +38,8 @@ DEFINE_REFCOUNTED_TYPE(TInstanceInfo)
 struct TAlert
     : public NYTree::TYsonStruct
 {
-    TString Id;
-    TString Description;
+    std::string Id;
+    std::string Description;
 
     REGISTER_YSON_STRUCT(TAlert);
 
@@ -53,8 +53,8 @@ DEFINE_REFCOUNTED_TYPE(TAlert)
 struct TAllocatingInstanceInfo
     : public NYTree::TYsonStruct
 {
-    TString HulkRequestState;
-    TString HulkRequestLink;
+    std::string HulkRequestState;
+    std::string HulkRequestLink;
     TInstanceInfoPtr InstanceInfo;
 
     REGISTER_YSON_STRUCT(TAllocatingInstanceInfo);
@@ -74,14 +74,14 @@ struct TBundleInfo
     NBundleControllerClient::TInstanceResourcesPtr ResourceAlive;
     NBundleControllerClient::TInstanceResourcesPtr ResourceTarget;
 
-    THashMap<TString, TInstanceInfoPtr> AllocatedTabletNodes;
-    THashMap<TString, TInstanceInfoPtr> AllocatedRpcProxies;
+    THashMap<std::string, TInstanceInfoPtr> AllocatedTabletNodes;
+    THashMap<std::string, TInstanceInfoPtr> AllocatedRpcProxies;
 
-    THashMap<TString, TAllocatingInstanceInfoPtr> AllocatingTabletNodes;
-    THashMap<TString, TAllocatingInstanceInfoPtr> AllocatingRpcProxies;
+    THashMap<std::string, TAllocatingInstanceInfoPtr> AllocatingTabletNodes;
+    THashMap<std::string, TAllocatingInstanceInfoPtr> AllocatingRpcProxies;
 
-    THashMap<TString, TInstanceInfoPtr> AssignedSpareTabletNodes;
-    THashMap<TString, TInstanceInfoPtr> AssignedSpareRpcProxies;
+    THashMap<std::string, TInstanceInfoPtr> AssignedSpareTabletNodes;
+    THashMap<std::string, TInstanceInfoPtr> AssignedSpareRpcProxies;
 
     int RemovingCellCount;
     int AllocatingTabletNodeCount;
@@ -98,15 +98,15 @@ struct TBundleInfo
 
 DEFINE_REFCOUNTED_TYPE(TBundleInfo)
 
-using TBundlesInfo = THashMap<TString, TBundleInfoPtr>;
+using TBundlesInfo = THashMap<std::string, TBundleInfoPtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDataCenterRacksInfo
     : public NYTree::TYsonStruct
 {
-    THashMap<TString, int> RackToBundleNodes;
-    THashMap<TString, int> RackToSpareNodes;
+    THashMap<std::string, int> RackToBundleNodes;
+    THashMap<std::string, int> RackToSpareNodes;
     int RequiredSpareNodeCount;
 
     REGISTER_YSON_STRUCT(TDataCenterRacksInfo);
@@ -116,8 +116,8 @@ struct TDataCenterRacksInfo
 
 DEFINE_REFCOUNTED_TYPE(TDataCenterRacksInfo)
 
-using TDataCenterRackInfo = THashMap<TString, TDataCenterRacksInfoPtr>;
-using TZonesRacksInfo = THashMap<TString, TDataCenterRackInfo>;
+using TDataCenterRackInfo = THashMap<std::string, TDataCenterRacksInfoPtr>;
+using TZonesRacksInfo = THashMap<std::string, TDataCenterRackInfo>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

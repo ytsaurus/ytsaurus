@@ -24,6 +24,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 using namespace NDiscoveryClient;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,7 +35,7 @@ class TGroupNode
 {
 public:
     TGroupNode(
-        TString key,
+        std::string key,
         TYPath path,
         TWeakPtr<TGroupNode> parent)
         : Key_(std::move(key))
@@ -42,30 +43,30 @@ public:
         , Parent_(std::move(parent))
     { }
 
-    TGroupNodePtr FindChild(const TString& key)
+    TGroupNodePtr FindChild(const std::string& key)
     {
         auto it = KeyToChild_.find(key);
         return it == KeyToChild_.end() ? nullptr : it->second;
     }
 
-    const THashMap<TString, TGroupNodePtr>& GetChildren()
+    const THashMap<std::string, TGroupNodePtr>& GetChildren()
     {
         return KeyToChild_;
     }
 
-    void AddChild(const TString& key, const TGroupNodePtr& child)
+    void AddChild(const std::string& key, const TGroupNodePtr& child)
     {
         YT_VERIFY(KeyToChild_.emplace(key, child).second);
     }
 
-    void RemoveChild(const TString& key)
+    void RemoveChild(const std::string& key)
     {
         YT_VERIFY(KeyToChild_.erase(key) > 0);
     }
 
     int GetChildCount()
     {
-        return static_cast<int>(KeyToChild_.size());
+        return std::ssize(KeyToChild_);
     }
 
     const TGroupPtr& GetGroup()
@@ -86,12 +87,12 @@ public:
         Group_ = std::move(group);
     }
 
-    const TString& GetKey()
+    const std::string& GetKey()
     {
         return Key_;
     }
 
-    const TString& GetPath()
+    const TYPath& GetPath()
     {
         return Path_;
     }
@@ -102,12 +103,12 @@ public:
     }
 
 private:
-    const TString Key_;
+    const std::string Key_;
     const TYPath Path_;
     const TWeakPtr<TGroupNode> Parent_;
 
     TGroupPtr Group_;
-    THashMap<TString, TGroupNodePtr> KeyToChild_;
+    THashMap<std::string, TGroupNodePtr> KeyToChild_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TGroupNode)
@@ -134,7 +135,7 @@ int GetNodeCount(const TGroupNodePtr& node)
     return node->GetChildCount();
 }
 
-TString GetNodePath(const TGroupNodePtr& node)
+TString GetNodePathDiagnostic(const TGroupNodePtr& node)
 {
     const auto& path = node->GetPath();
     return path.empty() ? "root node" : Format("node %v", path);
@@ -399,7 +400,7 @@ class TGroupTree::TImpl
 public:
     explicit TImpl(NLogging::TLogger logger)
         : Root_(New<TGroupNode>(
-            /*key*/ TString(),
+            /*key*/ std::string(),
             /*path*/ TYPath(),
             /*parent*/ nullptr))
         , Logger(std::move(logger))
@@ -466,7 +467,7 @@ public:
             THROW_ERROR_EXCEPTION(
                 NYTree::EErrorCode::ResolveError,
                 "There is no group at %v",
-                GetNodePath(node));
+                GetNodePathDiagnostic(node));
         }
 
         // list /group_id/@members
@@ -862,7 +863,7 @@ public:
             };
 
             NYPath::TTokenizer tokenizer(id);
-            TString key;
+            std::string key;
             auto currentNode = Root_;
             int currentDepth = 0;
             const auto& config = groupManagerInfo.Config;
@@ -958,7 +959,7 @@ private:
 
     std::pair<TGroupNodePtr, TYPath> ResolvePath(const TYPath& path)
     {
-        VERIFY_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
         NYPath::TTokenizer tokenizer(path);
         auto currentNode = Root_;
@@ -1016,7 +1017,7 @@ private:
 
     void RemovePath(TGroupId path, TGroupNodePtr node)
     {
-        VERIFY_WRITER_SPINLOCK_AFFINITY(Lock_);
+        YT_ASSERT_WRITER_SPINLOCK_AFFINITY(Lock_);
 
         while (node != Root_ && node->GetChildCount() == 0 && GetMemberCount(node) == 0) {
             YT_VERIFY(IdToNode_.erase(path) > 0);

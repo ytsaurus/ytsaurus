@@ -45,7 +45,7 @@ void CheckCumulativeStatistics(TChunkList* chunkList)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkListCumulativeStatisticsTest
-    : public TChunkGeneratorBase
+    : public TChunkGeneratorTestBase
 { };
 
 TEST_F(TChunkListCumulativeStatisticsTest, CannotAttachSealedAfterUnsealed1)

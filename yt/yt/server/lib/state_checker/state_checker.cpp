@@ -68,7 +68,7 @@ private:
 
     void DoCheckState()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         YT_LOG_DEBUG("Started checking component state");
         auto logFinally = Finally([&] {

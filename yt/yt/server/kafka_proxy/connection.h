@@ -2,13 +2,13 @@
 
 #include "public.h"
 
-#include <library/cpp/yt/memory/ref.h>
-
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/net/public.h>
+
+#include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NKafkaProxy {
 
@@ -50,7 +50,7 @@ DEFINE_REFCOUNTED_TYPE(IConnection)
 ////////////////////////////////////////////////////////////////////////////////
 
 IConnectionPtr CreateConnection(
-    TKafkaProxyConfigPtr config,
+    TProxyBootstrapConfigPtr config,
     NNet::IConnectionPtr connection,
     IInvokerPtr invoker,
     TRequestHandler requestHandler,

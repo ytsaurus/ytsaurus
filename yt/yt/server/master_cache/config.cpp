@@ -16,7 +16,7 @@ namespace NYT::NMasterCache {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMasterCacheConfig::Register(TRegistrar registrar)
+void TMasterCacheBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
@@ -36,6 +36,11 @@ void TMasterCacheConfig::Register(TRegistrar registrar)
     registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
         .DefaultNew();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMasterCacheProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

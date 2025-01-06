@@ -227,7 +227,7 @@ TEST_P(TOrderedDynamicStoreReadTest, Read)
     int upperIndex = std::get<2>(GetParam());
     int adjustedUpperIndex = std::max(std::min(upperIndex, count), 0);
     auto rows = ReadRows(0, lowerIndex, upperIndex, TColumnFilter({2}));
-    EXPECT_EQ(adjustedUpperIndex - adjustedLowerIndex, static_cast<int>(rows.size()));
+    EXPECT_EQ(adjustedUpperIndex - adjustedLowerIndex, std::ssize(rows));
     for (int index = 0; index < std::ssize(rows); ++index) {
         EXPECT_TRUE(AreQueryRowsEqual(rows[index], Format("a=%v", index + adjustedLowerIndex)));
     }

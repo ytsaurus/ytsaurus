@@ -16,7 +16,7 @@ namespace NYT::NKafkaProxy {
  *  Thread affinity: any
  */
 class TDynamicConfigManager
-    : public NDynamicConfig::TDynamicConfigManagerBase<TKafkaProxyDynamicConfig>
+    : public NDynamicConfig::TDynamicConfigManagerBase<TProxyDynamicConfig>
 {
 public:
     explicit TDynamicConfigManager(IBootstrap* bootstrap);

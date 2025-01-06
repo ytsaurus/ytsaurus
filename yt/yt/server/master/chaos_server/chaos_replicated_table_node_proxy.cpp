@@ -58,6 +58,7 @@ using namespace NTabletClient;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -169,8 +170,8 @@ private:
     {
         auto client = connection->CreateClient(TClientOptions::FromUser(NSecurityClient::ReplicatorUserName));
         auto tableMountInfoFuture = client->GetTableMountCache()->GetTableInfo(path);
-        return tableMountInfoFuture.Apply(BIND([] (const TTableMountInfoPtr& tableMountInfo) {
-            return static_cast<int>(tableMountInfo->Tablets.size());
+        return tableMountInfoFuture.Apply(BIND([] (const TTableMountInfoPtr& tableMountInfo) -> int {
+            return std::ssize(tableMountInfo->Tablets);
         }));
     }
 };
@@ -395,7 +396,7 @@ private:
                 }
 
                 auto* lockedTable = LockThisImpl();
-                lockedTable->SetQueueAgentStage(ConvertTo<TString>(value));
+                lockedTable->SetQueueAgentStage(ConvertTo<std::string>(value));
 
                 SetModified(EModificationType::Attributes);
 

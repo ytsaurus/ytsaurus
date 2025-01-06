@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -69,7 +69,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer
 
 #define UPDATE_EXECUTOR_INL_H_
 #include "update_executor-inl.h"

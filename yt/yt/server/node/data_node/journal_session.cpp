@@ -26,7 +26,7 @@ using namespace NIO;
 
 TFuture<void> TJournalSession::DoStart()
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     const auto& dispatcher = Bootstrap_->GetJournalDispatcher();
     auto changelogFuture = dispatcher->CreateJournal(
@@ -36,7 +36,7 @@ TFuture<void> TJournalSession::DoStart()
         Options_.WorkloadDescriptor);
 
     return changelogFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const IFileChangelogPtr& changelog) {
-        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
         Changelog_ = changelog;
         Chunk_ = New<TJournalChunk>(
@@ -53,7 +53,7 @@ TFuture<void> TJournalSession::DoStart()
 
 void TJournalSession::DoCancel(const TError& /*error*/)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     OnFinished();
 }
@@ -86,17 +86,17 @@ i64 TJournalSession::GetIntermediateEmptyBlockCount() const
     return 0;
 }
 
-TFuture<TChunkInfo> TJournalSession::DoFinish(
+TFuture<ISession::TFinishResult> TJournalSession::DoFinish(
     const TRefCountedChunkMetaPtr& /*chunkMeta*/,
     std::optional<int> blockCount)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     auto result = Changelog_->Finish();
 
     if (blockCount) {
         if (*blockCount != Changelog_->GetRecordCount()) {
-            return MakeFuture<TChunkInfo>(TError("Block count mismatch in journal session %v: expected %v, got %v",
+            return MakeFuture<TFinishResult>(TError("Block count mismatch in journal session %v: expected %v, got %v",
                 SessionId_,
                 Changelog_->GetRecordCount(),
                 *blockCount));
@@ -113,7 +113,11 @@ TFuture<TChunkInfo> TJournalSession::DoFinish(
         TChunkInfo info;
         info.set_disk_space(Chunk_->GetDataSize());
         info.set_sealed(Chunk_->IsSealed());
-        return info;
+
+        return TFinishResult {
+            .ChunkInfo = std::move(info),
+            .ChunkWriterStatistics = WriteBlocksOptions_.ClientOptions.ChunkWriterStatistics,
+        };
     }).AsyncVia(SessionInvoker_));
 }
 
@@ -123,7 +127,7 @@ TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
     i64 /*cumulativeBlockSize*/,
     bool /*enableCaching*/)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     int recordCount = Changelog_->GetRecordCount();
 
@@ -145,7 +149,7 @@ TFuture<NIO::TIOCounters> TJournalSession::DoPutBlocks(
     std::vector<TSharedRef> records;
     records.reserve(blocks.size() - recordCount + startBlockIndex);
     for (int index = recordCount - startBlockIndex;
-         index < static_cast<int>(blocks.size());
+         index < std::ssize(blocks);
          ++index)
     {
         records.push_back(blocks[index].Data);
@@ -179,14 +183,14 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TJournalSession::DoSendBlocks(
     i64 /*cumulativeBlockSize*/,
     const TNodeDescriptor& /*target*/)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     THROW_ERROR_EXCEPTION("Sending blocks is not supported for journal chunks");
 }
 
-TFuture<TIOCounters> TJournalSession::DoFlushBlocks(int blockIndex)
+TFuture<ISession::TFlushBlocksResult> TJournalSession::DoFlushBlocks(int blockIndex)
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     int recordCount = Changelog_->GetRecordCount();
 
@@ -209,16 +213,19 @@ TFuture<TIOCounters> TJournalSession::DoFlushBlocks(int blockIndex)
             // See YT-21626 for the details.
             ValidateActive();
 
-            return TIOCounters{
-                .Bytes = newDataSize - oldDataSize,
-                .IORequests = oldDataSize == newDataSize ? 0 : 1,
+            return TFlushBlocksResult {
+                .IOCounters = TIOCounters{
+                    .Bytes = newDataSize - oldDataSize,
+                    .IORequests = oldDataSize == newDataSize ? 0 : 1,
+                },
+                .ChunkWriterStatistics = New<NChunkClient::TChunkWriterStatistics>(),
             };
         }).AsyncVia(SessionInvoker_));
 }
 
 void TJournalSession::OnFinished()
 {
-    VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(SessionInvoker_);
 
     if (Chunk_ && Changelog_) {
         Chunk_->UpdateFlushedRowCount(Changelog_->GetRecordCount());

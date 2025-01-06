@@ -293,6 +293,7 @@ public:
     {
         return {
             .ChunkReaderStatistics = ReadBlocksOptions_.ClientOptions.ChunkReaderStatistics,
+            .ChunkWriterStatistics = {WriteBlocksOptions_.ClientOptions.ChunkWriterStatistics},
             .TotalInputStatistics = {
                 .DataStatistics = DataStatistics_,
             },
@@ -332,6 +333,7 @@ private:
     const TAsyncSemaphorePtr CopySemaphore_;
 
     IChunkReader::TReadBlocksOptions ReadBlocksOptions_;
+    IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
 
     std::vector<TFuture<void>> ChunkFinalizationResults_;
 
@@ -581,7 +583,10 @@ private:
                                         partIndex);
                                 })));
                 } else {
-                    closeReplicaWriterResults.push_back(writer->Close(ReaderConfig_->WorkloadDescriptor, chunkMeta));
+                    closeReplicaWriterResults.push_back(writer->Close(
+                        WriteBlocksOptions_,
+                        ReaderConfig_->WorkloadDescriptor,
+                        chunkMeta));
                 }
             }
 
@@ -596,7 +601,10 @@ private:
             std::vector<TFuture<void>> closeReplicaWriterResults;
             closeReplicaWriterResults.reserve(writers.size());
             for (const auto& writer : writers) {
-                closeReplicaWriterResults.push_back(writer->Close(ReaderConfig_->WorkloadDescriptor, chunkMeta));
+                closeReplicaWriterResults.push_back(writer->Close(
+                    WriteBlocksOptions_,
+                    ReaderConfig_->WorkloadDescriptor,
+                    chunkMeta));
             }
             WaitFor(AllSucceeded(closeReplicaWriterResults))
                 .ThrowOnError();
@@ -807,7 +815,8 @@ private:
             erasedPartIndices,
             std::move(repairPartReaders),
             erasedPartWriters,
-            ReadBlocksOptions_))
+            ReadBlocksOptions_,
+            WriteBlocksOptions_))
             .ThrowOnError();
 
         for (int index = 0; index < std::ssize(erasedPartIndices); ++index) {
@@ -826,7 +835,7 @@ private:
         TChunkReplicaWithLocationList writtenReplicas;
 
         i64 diskSpace = 0;
-        for (int index = 0; index < static_cast<int>(writers.size()); ++index) {
+        for (int index = 0; index < std::ssize(writers); ++index) {
             diskSpace += writers[index]->GetChunkInfo().disk_space();
             auto replicas = writers[index]->GetWrittenChunkReplicasInfo().Replicas;
             if (replicas.empty()) {
@@ -911,7 +920,7 @@ private:
     {
         TCurrentTraceContextGuard guard(OutputTraceContext_);
 
-        WaitFor(writer->Close(ReaderConfig_->WorkloadDescriptor, chunkMeta))
+        WaitFor(writer->Close(WriteBlocksOptions_, ReaderConfig_->WorkloadDescriptor, chunkMeta))
             .ThrowOnError();
         TChunkInfo chunkInfo = writer->GetChunkInfo();
         auto writtenReplicas = writer->GetWrittenChunkReplicasInfo().Replicas;
@@ -1018,7 +1027,7 @@ private:
             THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error opening writer");
         }
 
-        int blockCount = static_cast<int>(blockSizes.size());
+        int blockCount = std::ssize(blockSizes);
 
         int blockIndex = 0;
         while (blockIndex < blockCount) {
@@ -1039,7 +1048,7 @@ private:
                 endBlockIndex += 1;
             }
 
-            if (RemoteCopyJobSpecExt_.use_remote_throttler()) {
+            if (RemoteCopyJobSpecExt_.use_cluster_throttlers()) {
                 ReadBlocksOptions_.EstimatedSize = sizeToRead;
             }
 
@@ -1063,7 +1072,7 @@ private:
             {
                 TCurrentTraceContextGuard guard(OutputTraceContext_);
 
-                if (!writer->WriteBlocks(ReaderConfig_->WorkloadDescriptor, blocks)) {
+                if (!writer->WriteBlocks(WriteBlocksOptions_, ReaderConfig_->WorkloadDescriptor, blocks)) {
                     auto result = WaitFor(writer->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error writing block");
                 }
@@ -1112,12 +1121,12 @@ private:
 
     TChunkReaderHostPtr MakeChunkReaderHost()
     {
-        YT_LOG_DEBUG("Creating chunk reader host (RemoteClusterName: %v, UseRemoteThrottler: %v)",
+        YT_LOG_DEBUG("Creating chunk reader host (RemoteClusterName: %v, UseClusterThrottlers: %v)",
             RemoteCopyJobSpecExt_.remote_cluster_name(),
-            RemoteCopyJobSpecExt_.use_remote_throttler());
+            RemoteCopyJobSpecExt_.use_cluster_throttlers());
 
         auto clusterName = LocalClusterName;
-        if (RemoteCopyJobSpecExt_.has_remote_cluster_name() && RemoteCopyJobSpecExt_.use_remote_throttler()) {
+        if (RemoteCopyJobSpecExt_.has_remote_cluster_name() && RemoteCopyJobSpecExt_.use_cluster_throttlers()) {
             clusterName = TClusterName(RemoteCopyJobSpecExt_.remote_cluster_name());
         }
 

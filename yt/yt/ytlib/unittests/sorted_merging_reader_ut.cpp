@@ -464,7 +464,7 @@ TEST_F(TSortedMergingReaderTest, SortedMergingReaderSingleTable)
 
     std::vector<TResultStorage> resultStorage;
     auto rows = ReadAll(createReader, &resultStorage);
-    for (int interruptRowCount = 0; interruptRowCount < static_cast<int>(rows.size()); ++interruptRowCount) {
+    for (int interruptRowCount = 0; interruptRowCount < std::ssize(rows); ++interruptRowCount) {
         int rowsPerRead = 1;
         auto lastRow = interruptRowCount != 0 ? rows[interruptRowCount - 1] : TString("");
         ReadAndCheckResult(

@@ -46,7 +46,7 @@ TMutablePIValueRange CapturePIValueRange(
     YT_ASSERT(destinationAddressSpace == EAddressSpace::WebAssembly);
     YT_ASSERT(captureValues);
 
-    int length = static_cast<int>(values.Size());
+    int length = std::ssize(values);
 
     auto* captured = std::bit_cast<TPIValue*>(context->AllocateAligned(values.Size() * sizeof(TPIValue), destinationAddressSpace));
 

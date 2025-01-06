@@ -52,7 +52,7 @@ class THydraFacade::TImpl
 {
 public:
     TImpl(
-        TClusterClockConfigPtr config,
+        TClusterClockBootstrapConfigPtr config,
         TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
@@ -177,7 +177,7 @@ public:
     }
 
 private:
-    const TClusterClockConfigPtr Config_;
+    const TClusterClockBootstrapConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
     IElectionManagerPtr ElectionManager_;
@@ -211,7 +211,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 THydraFacade::THydraFacade(
-    TClusterClockConfigPtr config,
+    TClusterClockBootstrapConfigPtr config,
     TBootstrap* bootstrap)
     : Impl_(New<TImpl>(config, bootstrap))
 { }

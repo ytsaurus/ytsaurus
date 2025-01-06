@@ -12,6 +12,7 @@ from yt_commands import (
 
 from yt.test_helpers import assert_items_equal
 
+from copy import deepcopy
 import pytest
 import yt_error_codes
 
@@ -133,9 +134,15 @@ class TestSecondaryIndexBase(DynamicTablesBase):
         table_path="//tmp/table",
         index_table_path="//tmp/index_table",
         kind="full_sync",
+        table_to_index_correspondence="bijective",
         **kwargs
     ):
-        index_id = create_secondary_index(table_path, index_table_path, kind, **kwargs)
+        index_id = create_secondary_index(
+            table_path,
+            index_table_path,
+            kind,
+            table_to_index_correspondence,
+            **kwargs)
         return index_id, None
 
     def _create_basic_tables(
@@ -150,7 +157,7 @@ class TestSecondaryIndexBase(DynamicTablesBase):
     ):
         table_id = self._create_table(table_path, table_schema)
         index_table_id = self._create_table(index_table_path, index_schema)
-        index_id, _ = self._create_secondary_index(table_path, index_table_path, kind, **kwargs)
+        index_id, _ = self._create_secondary_index(table_path, index_table_path, kind, "bijective", **kwargs)
 
         if mount:
             self._sync_create_cells()
@@ -219,10 +226,11 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
         table_path="//tmp/table",
         index_table_path="//tmp/index_table",
         kind="full_sync",
+        table_to_index_correspondence="bijective",
         **kwargs
     ):
         collocation_id = create_table_collocation(table_paths=[table_path, index_table_path])
-        index_id = create_secondary_index(table_path, index_table_path, kind, **kwargs)
+        index_id = create_secondary_index(table_path, index_table_path, kind, table_to_index_correspondence, **kwargs)
         return index_id, collocation_id
 
     def _create_basic_tables(
@@ -331,15 +339,23 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
 
     @authors("sabdenovch")
     def test_predicate_and_locks(self):
-        self._create_table(
-            "//tmp/table",
-            PRIMARY_SCHEMA + [{"name": "predicatedValue", "type": "int64", "lock": "someLock"}])
+        schema = deepcopy(PRIMARY_SCHEMA + [{"name": "predicatedValue", "type": "int64", "lock": "someLock"}])
+        self._create_table("//tmp/table", schema)
         self._create_table("//tmp/index", INDEX_ON_VALUE_SCHEMA)
 
         with raises_yt_error():
             self._create_secondary_index("//tmp/table", "//tmp/index", "full_sync", attributes={
-                "predicate": "predicatedValue >= 0"}
-            )
+                "predicate": "predicatedValue >= 0",
+            })
+
+        schema[2]["lock"] = "someLock"
+        schema[3]["lock"] = "someLock"
+        alter_table("//tmp/table", schema=schema)
+        index_id = create_secondary_index("//tmp/table", "//tmp/index", "full_sync", attributes={
+            "predicate": "predicatedValue >= 0",
+        })
+
+        assert get(f"#{index_id}/@predicate") == "predicatedValue >= 0"
 
     @authors("sabdenovch")
     @pytest.mark.parametrize("kind_and_schemas", (
@@ -536,7 +552,7 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
     @authors("sabdenovch")
     @pytest.mark.parametrize("table_schema", (PRIMARY_SCHEMA, PRIMARY_SCHEMA_WITH_EXPRESSION))
     @pytest.mark.parametrize("index_table_schema", (INDEX_ON_VALUE_SCHEMA, INDEX_ON_VALUE_SCHEMA_WITH_EXPRESSION))
-    def test_secondary_index_different_evaluated_columns(self, table_schema, index_table_schema):
+    def test_different_evaluated_columns(self, table_schema, index_table_schema):
         self._create_table("//tmp/table", table_schema)
         self._create_table("//tmp/index_table", index_table_schema)
         self._sync_create_cells()
@@ -550,6 +566,34 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
             sorted_dicts(select_rows("keyA, keyB from [//tmp/table]")),
             sorted_dicts(select_rows("keyA, keyB from [//tmp/table] with index [//tmp/index_table]")),
         )
+
+    @authors("sabdenovch")
+    def test_correspondence(self):
+        self._create_table("//tmp/table", PRIMARY_SCHEMA)
+        self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
+        self._sync_create_cells()
+        index_id, _ = self._create_secondary_index(table_to_index_correspondence=None)
+
+        assert get(f"#{index_id}/@table_to_index_correspondence") == "invalid"
+
+        self._mount("//tmp/table", "//tmp/index_table")
+
+        table_rows = [{"keyA": 0, "keyB": "alpha", "valueA": 100}]
+        insert_rows("//tmp/index_table", [{"keyA": 0, "keyB": "alpha", "valueA": 200}])
+
+        with raises_yt_error("Cannot use index"):
+            select_rows("* from [//tmp/table] WITH INDEX [//tmp/index_table]")
+
+        sync_unmount_table("//tmp/table")
+        set(f"#{index_id}/@table_to_index_correspondence", "bijective")
+        sync_mount_table("//tmp/table")
+        insert_rows("//tmp/table", table_rows)
+        assert len(select_rows("* from [//tmp/table] WITH INDEX [//tmp/index_table]")) == 2
+
+        sync_unmount_table("//tmp/table")
+        set(f"#{index_id}/@table_to_index_correspondence", "injective")
+        sync_mount_table("//tmp/table")
+        assert len(select_rows("* from [//tmp/table] WITH INDEX [//tmp/index_table]")) == 1
 
 
 ##################################################################
@@ -672,7 +716,11 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
             collocation_id = get("//tmp/table/@replication_collocation_id")
             set("//tmp/index_table_auxiliary/@replication_collocation_id", collocation_id)
 
-        create_secondary_index("//tmp/table", "//tmp/index_table_auxiliary", kind="full_sync")
+        create_secondary_index(
+            "//tmp/table",
+            "//tmp/index_table_auxiliary",
+            kind="full_sync",
+            table_to_index_correspondence="bijective")
 
         self._sync_create_cells(1)
         self._mount("//tmp/table", "//tmp/index_table", "//tmp/index_table_auxiliary")

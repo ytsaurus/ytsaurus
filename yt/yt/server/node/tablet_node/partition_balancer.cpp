@@ -344,7 +344,7 @@ private:
         try {
             auto rowBuffer = New<TRowBuffer>(TPartitionSamplesTag());
             auto samples = GetPartitionSamples(rowBuffer, slot, partition, config->MaxPartitioningSampleCount);
-            int sampleCount = static_cast<int>(samples.size());
+            int sampleCount = std::ssize(samples);
             int minSampleCount = std::max(config->MinPartitioningSampleCount, splitFactor);
             if (sampleCount < minSampleCount) {
                 structuredLogger->LogEvent("abort_partition_split")

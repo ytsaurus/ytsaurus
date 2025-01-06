@@ -103,6 +103,7 @@ using namespace NTabletClient;
 using namespace NTabletNode;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 using NChunkClient::NProto::TMiscExt;
 using NYT::ToProto;

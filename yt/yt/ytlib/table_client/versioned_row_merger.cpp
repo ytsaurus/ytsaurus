@@ -93,7 +93,7 @@ public:
 
         ColumnIdToIndex_.resize(columnCount, std::numeric_limits<int>::max());
 
-        for (int index = 0; index < static_cast<int>(ColumnIds_.size()); ++index) {
+        for (int index = 0; index < std::ssize(ColumnIds_); ++index) {
             int id = ColumnIds_[index];
             if (id >= KeyColumnCount_) {
                 ColumnIdToIndex_[id] = index;

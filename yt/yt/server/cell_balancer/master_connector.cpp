@@ -46,7 +46,7 @@ public:
 
     void Start()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_DEBUG("Stating master connector");
 
@@ -59,7 +59,7 @@ private:
 
     void StartConnecting(bool immediate)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         TDelayedExecutor::Submit(
             BIND(&TMasterConnector::DoStartConnecting, MakeStrong(this))
@@ -69,7 +69,7 @@ private:
 
     void DoStartConnecting()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         YT_LOG_INFO("Connecting to master");
 
@@ -82,7 +82,7 @@ private:
 
     void OnConnected(const TError& error) noexcept
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         if (!error.IsOK()) {
             YT_LOG_WARNING(error, "Error connecting to master");

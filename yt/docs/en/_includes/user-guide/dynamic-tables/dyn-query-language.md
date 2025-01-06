@@ -143,6 +143,22 @@ When using LIMIT without ORDER BY, please note that LIMIT will be applied to the
 
 {% endnote %}
 
+#### Queries with pagination
+
+If you need to sequentially read a bigger part of the table, use pagination. Do not use queries with an ascending `OFFSET` for pagination — this results in a quadratic table scan algorithm.
+
+Queries with pagination should look like this:
+```sql
+select k0, k1, k2
+from `//t`
+where (k0, k1, k2) >= (1, 2, 3)
+order by k0, k1, k2
+limit 10000
+```
+Here, `k0, k1, k2` is the primary table key.
+The tuple `(1, 2, 3)` is used as a cursor, and you need to update its value.
+Use `LIMIT` to adjust the read volume.
+
 ## Expression syntax { #expression_syntax }
 
 ```sql
@@ -358,7 +374,9 @@ The query language provides a set of functions for extracting data:
 2. `list_contains(list, value) :: any -> (string | int64 | uint64 | boolean) -> boolean`
     Searches for `value` in the `list` YSON list of the `any` type. The searched `value` must have a scalar type. The list does not have to be homogeneous, meaning that it can contain values of different types. The comparison is type-sensitive.
 3. `list_has_intersection(list, list) :: any -> any -> boolean`
-    Takes two YSON lists as input and returns `true` if they contain at least one common element. The lists must be homogeneous.
+    Takes two YSON lists as input and returns `true` if they contain at least one common element.
+    The lists must be homogeneous.
+    This function is supported on clusters version 24.2 or higher.
 4. `any_to_yson_string(yson) :: any -> string`
     Converts a value of the `any` type into a string containing its binary [YSON](../../../user-guide/storage/yson.md) representation.
 5. `yson_length(yson) :: any -> int64`

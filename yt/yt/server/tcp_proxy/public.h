@@ -12,10 +12,11 @@ constexpr TStringBuf TcpProxiesRoutesPath = "//sys/tcp_proxies/routes";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IBootstrap;
+DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
-DECLARE_REFCOUNTED_CLASS(TTcpProxyConfig)
-DECLARE_REFCOUNTED_CLASS(TTcpProxyDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TProxyBootstrapConfig)
+DECLARE_REFCOUNTED_CLASS(TProxyProgramConfig)
+DECLARE_REFCOUNTED_CLASS(TProxyDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TRouterConfig)
 DECLARE_REFCOUNTED_CLASS(TRouterDynamicConfig)
 

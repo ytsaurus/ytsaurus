@@ -54,11 +54,11 @@ public:
 private:
     NCellBalancer::IBootstrap* const Bootstrap_;
 
-    inline static const TString BundleAttributeTargetConfig = "bundle_controller_target_config";
-    inline static const TString BundleAttributeZone = "zone";
-    inline static const TString BundleAttributeResourceQuota = "resource_quota";
+    inline static const std::string BundleAttributeTargetConfig = "bundle_controller_target_config";
+    inline static const std::string BundleAttributeZone = "zone";
+    inline static const std::string BundleAttributeResourceQuota = "resource_quota";
 
-    NBundleControllerClient::TBundleTargetConfigPtr GetBundleConfig(const TString& bundleName, std::optional<TDuration> timeout)
+    NBundleControllerClient::TBundleTargetConfigPtr GetBundleConfig(const std::string& bundleName, std::optional<TDuration> timeout)
     {
         auto path = Format("%v/%v/@%v", TabletCellBundlesPath, NYPath::ToYPathLiteral(bundleName), BundleAttributeTargetConfig);
 
@@ -73,7 +73,7 @@ private:
         return NYTree::ConvertTo<NBundleControllerClient::TBundleTargetConfigPtr>(yson);
     }
 
-    NBundleControllerClient::TBundleConfigConstraintsPtr GetBundleConstraints(const TString& bundleName, std::optional<TDuration> timeout)
+    NBundleControllerClient::TBundleConfigConstraintsPtr GetBundleConstraints(const std::string& bundleName, std::optional<TDuration> timeout)
     {
         NApi::TGetNodeOptions getOptions;
         getOptions.Timeout = timeout;
@@ -83,7 +83,7 @@ private:
             ->GetClient()
             ->GetNode(zoneNamePath, getOptions))
             .ValueOrThrow();
-        TString zoneName = NYTree::ConvertTo<TString>(zoneNameYson);
+        std::string zoneName = NYTree::ConvertTo<std::string>(zoneNameYson);
 
         auto zoneInfoPath = Format("%v/%v/@", ZoneBundlesPath, NYPath::ToYPathLiteral(zoneName));
         auto zoneInfoYson = NConcurrency::WaitFor(Bootstrap_
@@ -107,7 +107,7 @@ private:
         return result;
     }
 
-    NBundleControllerClient::TBundleResourceQuotaPtr GetResourceQuota(const TString& bundleName, std::optional<TDuration> timeout)
+    NBundleControllerClient::TBundleResourceQuotaPtr GetResourceQuota(const std::string& bundleName, std::optional<TDuration> timeout)
     {
         NApi::TGetNodeOptions getOptions;
         getOptions.Timeout = timeout;
@@ -129,7 +129,7 @@ private:
     void VerifyInstanceSize(
         const std::vector<NBundleControllerClient::TInstanceSizePtr>& availableSizes,
         const NBundleControllerClient::TInstanceResourcesPtr& instanceSize,
-        const TString& instanceType)
+        const std::string& instanceType)
     {
         if (instanceSize) {
             return;
@@ -146,7 +146,7 @@ private:
         }
     }
 
-    void ValidateInputConfig(const TString& bundleName, const NBundleControllerClient::TBundleTargetConfigPtr& bundleConfig, std::optional<TDuration> timeout) {
+    void ValidateInputConfig(const std::string& bundleName, const NBundleControllerClient::TBundleTargetConfigPtr& bundleConfig, std::optional<TDuration> timeout) {
         auto resourceQuota = GetResourceQuota(bundleName, timeout);
         auto bundleConstraints = GetBundleConstraints(bundleName, timeout);
 
@@ -210,7 +210,7 @@ private:
         // TODO(capone212): multi-dc logic
     }
 
-    void SetBundleConfig(const TString& bundleName, NBundleControllerClient::TBundleTargetConfigPtr& config, std::optional<TDuration> timeout)
+    void SetBundleConfig(const std::string& bundleName, NBundleControllerClient::TBundleTargetConfigPtr& config, std::optional<TDuration> timeout)
     {
         auto path = Format("%v/%v/@%v", TabletCellBundlesPath, NYPath::ToYPathLiteral(bundleName), BundleAttributeTargetConfig);
 

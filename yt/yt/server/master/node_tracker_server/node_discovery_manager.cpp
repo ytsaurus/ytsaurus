@@ -151,7 +151,7 @@ void TNodeDiscoveryManager::UpdateNodeList()
         selectedNodeSet.erase(it);
     }
 
-    int nodesToReplaceCount = Config_->PeerCount - static_cast<int>(selectedNodeSet.size());
+    int nodesToReplaceCount = Config_->PeerCount - std::ssize(selectedNodeSet);
     if (nodesToReplaceCount == 0) {
         YT_LOG_INFO("No new nodes needed");
     } else {
@@ -178,7 +178,7 @@ void TNodeDiscoveryManager::UpdateNodeList()
 
     updateSelectedNodeSet(Config_->MaxPeersPerRack);
 
-    int rackCount = static_cast<int>(nodeCountPerRack.size());
+    int rackCount = std::ssize(nodeCountPerRack);
     if (nodesToReplaceCount > 0 && rackCount > 0) {
         YT_LOG_WARNING("There is not enough alive nodes satisfying rack awareness (MaxPeersPerRack: %v, NewNodesCount: %v, NeededNodesCount: %v)",
             Config_->MaxPeersPerRack,
@@ -189,7 +189,7 @@ void TNodeDiscoveryManager::UpdateNodeList()
         updateSelectedNodeSet(Config_->PeerCount);
     }
 
-    if (static_cast<int>(selectedNodeSet.size()) < Config_->PeerCount) {
+    if (std::ssize(selectedNodeSet) < Config_->PeerCount) {
         YT_LOG_WARNING("Failed to find enough alive nodes satisfying node tag filter (Filter: %v)",
             Config_->NodeTagFilter.GetFormula());
     }

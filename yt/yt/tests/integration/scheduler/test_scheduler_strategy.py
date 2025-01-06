@@ -1713,7 +1713,7 @@ class TestSchedulerStuckOperations(YTEnvSetup):
             "operation_stuck_check": {
                 "period": 100,
                 "safe_timeout": 5000,
-                "min_schedule_job_attempts": 10,
+                "min_schedule_allocation_attempts": 10,
                 "limiting_ancestor_safe_timeout": 5000,
             },
         }
@@ -1740,7 +1740,7 @@ class TestSchedulerStuckOperations(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_pool_tree_config_path("default") + "/enable_limiting_ancestor_check"))
 
     @authors("ignat")
-    def test_hanging_operations(self):
+    def test_stuck_operation(self):
         ops = []
         for node in ls("//sys/cluster_nodes"):
             op = run_test_vanilla(
@@ -2410,6 +2410,31 @@ class TestEphemeralPools(YTEnvSetup):
         assert pool_info["parent"] == "default_for_u"
         assert pool_info["mode"] == "fifo"
         assert pool_info["resource_limits"]["cpu"] == 1.0
+
+    @authors("renadeen")
+    def test_require_specified_pools_existence_flag(self):
+        with raises_yt_error(yt_error_codes.Scheduler.OperationLaunchedInNonexistentPool):
+            run_sleeping_vanilla(spec={"pool": "ephemeral", "require_specified_pools_existence": True})
+
+        # It's OK to launch operation in unspecified ephemeral pool.
+        run_test_vanilla(":", track=True, spec={"require_specified_pools_existence": True})
+
+        # It's OK to launch operation in ephemeral pool under ephemeral hub.
+        create_pool("ephemeral_hub", attributes={"create_ephemeral_subpools": True})
+        run_test_vanilla(":", track=True, spec={"pool": "ephemeral_hub", "require_specified_pools_existence": True})
+
+    @authors("renadeen")
+    def test_require_specified_pools_existence_global_flag(self):
+        update_scheduler_config("require_specified_operation_pools_existence", True)
+        with raises_yt_error(yt_error_codes.Scheduler.OperationLaunchedInNonexistentPool):
+            run_sleeping_vanilla(spec={"pool": "ephemeral"})
+
+        # It's OK to launch operation in unspecified ephemeral pool.
+        run_test_vanilla(":", track=True)
+
+        # It's OK to launch operation in ephemeral pool under ephemeral hub.
+        create_pool("ephemeral_hub", attributes={"create_ephemeral_subpools": True})
+        run_test_vanilla(":", track=True, spec={"pool": "ephemeral_hub"})
 
 
 class TestSchedulerPoolsCommon(YTEnvSetup):

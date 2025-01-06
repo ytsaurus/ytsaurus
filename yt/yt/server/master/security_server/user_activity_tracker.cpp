@@ -39,7 +39,7 @@ public:
 
     void Start() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_VERIFY(!FlushExecutor_);
         FlushExecutor_ = New<TPeriodicExecutor>(
@@ -54,7 +54,7 @@ public:
 
     void Stop() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
@@ -102,7 +102,7 @@ private:
 
     void OnFlush()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
         if (!hydraManager->IsActive()) {

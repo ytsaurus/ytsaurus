@@ -34,7 +34,7 @@ public:
 
     void Initialize() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         Bootstrap_->SubscribePopulateAlerts(BIND_NO_PROPAGATE(&TCellarManager::PopulateAlerts, MakeWeak(this)));
 
@@ -47,7 +47,7 @@ public:
 
     ICellarPtr GetCellar(ECellarType type) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto cellar = FindCellar(type);
         YT_VERIFY(cellar);
@@ -56,7 +56,7 @@ public:
 
     ICellarPtr FindCellar(ECellarType type) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (auto it = Cellars_.find(type)) {
             return it->second;
@@ -67,7 +67,7 @@ public:
 
     void Reconfigure(TCellarManagerDynamicConfigPtr config) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         // TODO(savrus) Remove when reconfiguration is deployed and verified.
         YT_LOG_DEBUG("Reconfiguring cellar manager (NewConfig: %v)",
@@ -101,7 +101,7 @@ private:
 
     void PopulateAlerts(std::vector<TError>* alerts)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         for (const auto& [cellarType, cellar] : Cellars_) {
             cellar->PopulateAlerts(alerts);

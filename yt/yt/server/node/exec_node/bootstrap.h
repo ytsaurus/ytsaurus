@@ -34,7 +34,7 @@ struct IBootstrap
 
     virtual const TSlotManagerPtr& GetSlotManager() const = 0;
 
-    virtual const TJobReporterPtr& GetJobReporter() const = 0;
+    virtual const NServer::TJobReporterPtr& GetJobReporter() const = 0;
 
     virtual const NJobProxy::TJobProxyInternalConfigPtr& GetJobProxyConfigTemplate() const = 0;
 
@@ -65,9 +65,11 @@ struct IBootstrap
     virtual void UpdateNodeProfilingTags(std::vector<NProfiling::TTag> dynamicTags) const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IBootstrap)
+
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(NClusterNode::IBootstrap* bootstrap);
+IBootstrapPtr CreateBootstrap(NClusterNode::IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

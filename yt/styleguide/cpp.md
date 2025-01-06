@@ -23,7 +23,7 @@ For the code from the directories above, as well as any other C++ code in our re
 
 ## General
 
-We use C++20. As soon as the most of our toolchains supoprt C++23, we aim to switch to it.
+We use C++20. As soon as the most of our toolchains support C++23, we aim to switch to it.
 
 As of today, we do not provide clang-format/clang-tidy configuration due to significant complications while trying to express our coding style in terms of these tools. Still, it may happen in the future; there is an issue #75 for that.
 
@@ -551,7 +551,7 @@ YT_LOG_DEBUG("Tables fetched (tableCount: %v)", tableCount);
 
 ### Errors
 
-All error and exception text must be written as if they were dedicated to an end user. They must also be written in a gramatically correct English; typically they also do not contain dots, having semicolons instead.
+All error and exception text must be written as if they were dedicated to an end user. They must also be written in a grammatically correct English; typically they also do not contain dots, having semicolons instead.
 
 In contrast to the log messages, variable parts of an error are encouraged to be in included directly in the error text. In general, we assume that the end user will read the error text and will not read the attributes of an error.
 
@@ -602,7 +602,7 @@ for (int tableIndex = 0; tableIndex < tableCount; ++tableIndex) {
 
 Well-known acronyms are ok (e.g. TCP, IP, IO, MPSC, CH for ClickHouse). YT is not an acronym, but works like a two-letter acronym.
 
- Two-letter acronyms are treated as acronyms (e.g. both letters are capitalized or not captialized simultaneously), three-letter acronyms are treated as words (e.g. only the first letter is capitalized).
+ Two-letter acronyms are treated as acronyms (e.g. both letters are capitalized or not capitalized simultaneously), three-letter acronyms are treated as words (e.g. only the first letter is capitalized).
 
 ```cpp
 namespace NYT;

@@ -19,6 +19,8 @@ YT_DEFINE_STRONG_TYPEDEF(TOwnerId, std::string)
 DECLARE_REFCOUNTED_STRUCT(TKeyRotatorConfig)
 DECLARE_REFCOUNTED_STRUCT(TSignatureGeneratorConfig)
 DECLARE_REFCOUNTED_STRUCT(TSignatureValidatorConfig)
+DECLARE_REFCOUNTED_STRUCT(TSignatureGenerationConfig)
+DECLARE_REFCOUNTED_STRUCT(TSignatureValidationConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

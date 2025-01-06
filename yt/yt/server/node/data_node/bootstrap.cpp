@@ -47,6 +47,7 @@ using namespace NCypressClient;
 using namespace NQueryClient;
 using namespace NDiskManager;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,8 +82,9 @@ public:
     {
         YT_LOG_INFO("Initializing data node");
 
+        // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
 
         auto dynamicConfig = GetDynamicConfigManager()->GetConfig()->DataNode;
 
@@ -246,11 +248,12 @@ public:
             DataNodeLogger().WithTag("IOMeter"));
         JobController_->Initialize();
 
+        auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager();
         LocationManager_ = New<TLocationManager>(
             this,
             ChunkStore_,
             GetControlInvoker(),
-            NDiskManager::THotswapManager::GetDiskInfoProvider());
+            hotswapManager ? hotswapManager->GetDiskInfoProvider() : nullptr);
         LocationHealthChecker_ = CreateLocationHealthChecker(
             ChunkStore_,
             LocationManager_,
@@ -259,7 +262,9 @@ public:
         LocationHealthChecker_->Initialize();
         MasterConnector_->Initialize();
 
-        SubscribePopulateAlerts(BIND(&NDiskManager::THotswapManager::PopulateAlerts));
+        if (hotswapManager) {
+            SubscribePopulateAlerts(BIND(&IHotswapManager::PopulateAlerts, hotswapManager));
+        }
     }
 
     void Run() override
@@ -273,10 +278,12 @@ public:
             GetOrchidRoot(),
             "/data_node",
             CreateVirtualNode(GetOrchidService(this)));
-        SetNodeByYPath(
-            GetOrchidRoot(),
-            "/disk_monitoring",
-            CreateVirtualNode(NDiskManager::THotswapManager::GetOrchidService()));
+        if (auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager()) {
+            SetNodeByYPath(
+                GetOrchidRoot(),
+                "/disk_monitoring",
+                CreateVirtualNode(hotswapManager->GetOrchidService()));
+        }
 
         P2PDistributor_->Start();
 
@@ -497,9 +504,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(NClusterNode::IBootstrap* bootstrap)
+IBootstrapPtr CreateBootstrap(NClusterNode::IBootstrap* bootstrap)
 {
-    return std::make_unique<TBootstrap>(bootstrap);
+    return New<TBootstrap>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

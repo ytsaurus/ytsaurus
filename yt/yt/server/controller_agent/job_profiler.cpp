@@ -43,7 +43,7 @@ TJobProfiler::TJobProfiler()
 
 void TJobProfiler::ProfileStartedJob(const TJoblet& joblet)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
     auto jobType = joblet.JobType;
     auto treeId = joblet.TreeId;
 
@@ -78,7 +78,7 @@ void TJobProfiler::DoProfileStartedJob(EJobType jobType, TString treeId)
 
 void TJobProfiler::ProfileRunningJob(const NControllers::TJoblet& joblet)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_VERIFY(joblet.IsStarted());
 
@@ -113,7 +113,7 @@ void TJobProfiler::DoProfileRunningJob(EJobType jobType, TString treeId)
 
 void TJobProfiler::ProfileRevivedJob(const NControllers::TJoblet& joblet)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (!joblet.JobState) {
         return;
@@ -144,7 +144,7 @@ void TJobProfiler::DoProfileRevivedJob(EJobType jobType, TString treeId, EJobSta
 
 void TJobProfiler::ProfileCompletedJob(const TJoblet& joblet, const TCompletedJobSummary& jobSummary)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto interruptionReason = jobSummary.InterruptionReason;
 
@@ -192,7 +192,7 @@ void TJobProfiler::DoProfileCompletedJob(
 
 void TJobProfiler::ProfileFailedJob(const TJoblet& joblet, [[maybe_unused]] const TFailedJobSummary& jobSummary)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto jobType = joblet.JobType;
     auto treeId = joblet.TreeId;
@@ -235,7 +235,7 @@ void TJobProfiler::DoProfileFailedJob(
 
 void TJobProfiler::ProfileAbortedJob(const TJoblet& joblet, const TAbortedJobSummary& jobSummary)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto abortReason = jobSummary.AbortReason;
     // Job error may be missing if the job summary is synthetic.

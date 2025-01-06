@@ -6,8 +6,6 @@
 
 #include <yt/yt/server/lib/job_agent/structs.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
-
 #include <yt/yt/ytlib/controller_agent/public.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
@@ -25,7 +23,7 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/property.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -159,4 +157,4 @@ struct TExecAttributes
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

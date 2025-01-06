@@ -66,6 +66,7 @@ using namespace NConcurrency;
 using namespace NProfiling;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NServer;
 
 using NYT::FromProto;
 
@@ -1278,7 +1279,7 @@ void TLookupSession::AddTabletRequest(
 
 TFuture<std::vector<TSharedRef>> TLookupSession::Run()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     if (TabletRequests_.empty()) {
         return MakeFuture<std::vector<TSharedRef>>({});
@@ -1330,7 +1331,7 @@ TFuture<std::vector<TSharedRef>> TLookupSession::Run()
 
 TFuture<TSharedRef> TLookupSession::RunTabletRequest(int requestIndex)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     TFuture<TSharedRef> future;
     try {
@@ -1369,7 +1370,7 @@ TFuture<TSharedRef> TLookupSession::OnTabletLookupAttemptFailed(
     int requestIndex,
     const TError& error)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     YT_VERIFY(!error.IsOK());
 
@@ -1416,7 +1417,7 @@ TFuture<TSharedRef> TLookupSession::OnTabletLookupFailed(TTabletId tabletId, TEr
 std::vector<TSharedRef> TLookupSession::ProcessResults(
     std::vector<TErrorOr<TSharedRef>>&& resultOrErrors)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     // NB: No trace context is available in dtor so we have to fetch cpu time here.
     if (const auto* traceContext = NTracing::TryGetCurrentTraceContext()) {
@@ -1574,7 +1575,7 @@ TFuture<TSharedRef> DoRunTabletLookupSession(
 TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
     const TLookupSessionPtr& lookupSession)
 {
-    VERIFY_INVOKER_AFFINITY(lookupSession->Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(lookupSession->Invoker_);
 
     auto tabletSnapshot = lookupSession->SnapshotStore_->GetTabletSnapshotOrThrow(
         TabletId,
@@ -1807,7 +1808,7 @@ TTabletLookupSession<TPipeline>::TTabletLookupSession(
 template <class TPipeline>
 auto TTabletLookupSession<TPipeline>::Run() -> TFuture<typename decltype(TPipeline::TAdapter::ResultPromise_)::TValueType>
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     // Synchronously fetch store meta and create store readers.
     // However, may impose a WaitFor call during waiting on locks and during slow path obtaining chunk meta for ext-memory.
@@ -1891,7 +1892,7 @@ TStoreSessionList TTabletLookupSession<TPipeline>::CreateStoreSessions(
     const std::vector<ISortedStorePtr>& stores,
     const TSharedRange<TLegacyKey>& keys)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     TStoreSessionList sessions;
     sessions.reserve(stores.size());
@@ -1984,7 +1985,7 @@ TPartitionSession TTabletLookupSession<TPipeline>::CreatePartitionSession(
 template <class TPipeline>
 void TTabletLookupSession<TPipeline>::LookupInPartitions(const TError& error)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     if (ResultPromise_.IsSet()) {
         return;
@@ -2028,7 +2029,7 @@ void TTabletLookupSession<TPipeline>::LookupInPartitions(const TError& error)
 template <class TPipeline>
 bool TTabletLookupSession<TPipeline>::LookupInCurrentPartition()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     auto& partitionSession = PartitionSessions_[CurrentPartitionSessionIndex_];
     if (!partitionSession.SessionStarted) {
@@ -2054,7 +2055,7 @@ bool TTabletLookupSession<TPipeline>::LookupInCurrentPartition()
 template <class TPipeline>
 bool TTabletLookupSession<TPipeline>::DoLookupInCurrentPartition()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     auto& partitionSession = PartitionSessions_[CurrentPartitionSessionIndex_];
 
@@ -2117,7 +2118,7 @@ bool TTabletLookupSession<TPipeline>::DoLookupInCurrentPartition()
 template <class TPipeline>
 void TTabletLookupSession<TPipeline>::OnStoreSessionsPrepared()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     auto& partitionSession = PartitionSessions_[CurrentPartitionSessionIndex_];
 
@@ -2151,7 +2152,7 @@ void TTabletLookupSession<TPipeline>::LookupFromStoreSessions(
 template <class TPipeline>
 void TTabletLookupSession<TPipeline>::FinishSession(const TError& error)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     if (!error.IsOK()) {
         ResultPromise_.TrySet(error);

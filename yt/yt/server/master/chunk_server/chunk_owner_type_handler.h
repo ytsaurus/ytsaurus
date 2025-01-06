@@ -26,7 +26,7 @@ public:
 
     NYTree::ENodeType GetNodeType() const override;
 
-    bool IsSupportedInheritableAttribute(const TString& key) const override;
+    bool IsSupportedInheritableAttribute(const std::string& key) const override;
 
     bool HasBranchedChangesImpl(TChunkOwner* originatingNode, TChunkOwner* branchedNode) override;
 

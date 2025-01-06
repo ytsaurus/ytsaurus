@@ -2,8 +2,6 @@
 #include "udf/short_invalid_ir.h"
 #include "udf/long_invalid_ir.h"
 
-#include <library/cpp/resource/resource.h>
-
 #include <yt/yt/library/query/base/callbacks.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_preparer.h>
@@ -35,6 +33,8 @@
 #include <yt/yt/core/misc/range_formatters.h>
 
 #include <yt/yt/core/ytree/convert.h>
+
+#include <library/cpp/resource/resource.h>
 
 #include <util/system/sanitizers.h>
 

@@ -3,7 +3,7 @@
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/yson/string.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,4 +44,4 @@ size_t EstimateSize(const ::google::protobuf::Message& value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

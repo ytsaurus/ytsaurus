@@ -6,6 +6,7 @@ namespace NYT::NMaintenanceTrackerServer {
 
 using namespace NCellMaster;
 using namespace NCypressServer;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -21,7 +22,7 @@ void TClusterProxyNode::Load(TLoadContext& context)
     TMaintenanceTarget::Load(context);
 
     if (context.GetVersion() < EMasterReign::RemoveStuckAttributes && TObject::Attributes_) {
-        TObject::Attributes_->Remove(EInternedAttributeKey::MaintenanceRequests.Unintern());
+        TObject::Attributes_->TryRemove(EInternedAttributeKey::MaintenanceRequests.Unintern());
     }
 }
 

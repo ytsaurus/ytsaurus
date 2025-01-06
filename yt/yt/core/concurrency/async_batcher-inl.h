@@ -25,7 +25,7 @@ TAsyncBatcher<T>::TAsyncBatcher(TCallback<TFuture<T>()> provider, TDuration batc
 template <class T>
 TFuture<T> TAsyncBatcher<T>::Run()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(Lock_);
     auto promise = PendingPromise_;
@@ -69,7 +69,7 @@ void TAsyncBatcher<T>::Cancel(const TError& error)
 template <class T>
 void TAsyncBatcher<T>::OnDeadlineReached()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(Lock_);
 
@@ -83,7 +83,7 @@ void TAsyncBatcher<T>::OnDeadlineReached()
 template <class T>
 void TAsyncBatcher<T>::DoRun(TGuard<NThreading::TSpinLock>& guard)
 {
-    VERIFY_SPINLOCK_AFFINITY(Lock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(Lock_);
 
     DeadlineReached_ = false;
 
@@ -102,7 +102,7 @@ void TAsyncBatcher<T>::DoRun(TGuard<NThreading::TSpinLock>& guard)
 template <class T>
 void TAsyncBatcher<T>::OnResult(const TErrorOr<T>& result)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(Lock_);
     auto activePromise = std::move(ActivePromise_);

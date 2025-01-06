@@ -18,13 +18,13 @@ namespace NYT::NSecurityServer {
 void ValidateDiskSpace(i64 diskSpace);
 
 template <class T>
-THashMap<TString, T> CellTagMapToCellNameMap(
+THashMap<std::string, T> CellTagMapToCellNameMap(
     const THashMap<NObjectClient::TCellTag, T>& map,
     const NCellMaster::IMulticellManagerPtr& multicellManager);
 
 template <class T>
 THashMap<NObjectClient::TCellTag, T> CellNameMapToCellTagMapOrThrow(
-    const THashMap<TString, T>& map,
+    const THashMap<std::string, T>& map,
     const NCellMaster::IMulticellManagerPtr& multicellManager);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,7 +48,7 @@ TLimit64 GetOptionalLimit64ChildOrThrow(
 ////////////////////////////////////////////////////////////////////////////////
 
 void LogAcdUpdate(
-    const TString& attribute,
+    const std::string& attribute,
     const NYPath::TYPath& path,
     const NYson::TYsonString& value);
 

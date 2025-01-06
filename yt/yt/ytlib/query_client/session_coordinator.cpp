@@ -88,7 +88,7 @@ private:
 
     void SendPing()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto req = Proxy_.PingDistributedSession();
         ToProto(req->mutable_session_id(), Context_->SessionId);
@@ -100,7 +100,7 @@ private:
 
     void OnSessionPinged(const TQueryServiceProxy::TErrorOrRspPingDistributedSessionPtr& rspOrError)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto coordinator = Coordinator_.Lock();
         if (!coordinator) {
@@ -124,7 +124,7 @@ private:
 
     std::vector<TString> GrabPropagatedAddresses()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         THashSet<TString> addressesSet;
         {
@@ -140,7 +140,7 @@ private:
 
     void RegisterPropagatedAddresses(std::vector<TString> addresses)
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto guard = Guard(PropagateSpinLock_);
 

@@ -17,10 +17,6 @@ find_package(linux-headers-generic REQUIRED)
 add_library(contrib-libs-libunwind)
 
 
-target_compile_options(contrib-libs-libunwind PUBLIC
-  -D_libunwind_
-)
-
 target_compile_options(contrib-libs-libunwind PRIVATE
   -fno-exceptions
   -fno-rtti

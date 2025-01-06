@@ -14,6 +14,7 @@ SRCS(
 PEERDIR(
     yt/yt/library/server_program
     yt/yt/library/monitoring
+    yt/yt/library/profiling/solomon
 
     yt/yt/server/lib
     yt/yt/server/lib/hydra

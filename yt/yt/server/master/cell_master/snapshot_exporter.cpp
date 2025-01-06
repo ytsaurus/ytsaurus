@@ -382,7 +382,7 @@ void ExportSnapshot(TBootstrap* bootstrap, const TString& configPath)
         }
     }
 
-    BIND(&DoExportSnapshot, bootstrap, config, searchedAttributes, searchedTypes)
+    BIND(&DoExportSnapshot, Unretained(bootstrap), config, searchedAttributes, searchedTypes)
         .AsyncVia(bootstrap->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
         .Run()
         .Get()

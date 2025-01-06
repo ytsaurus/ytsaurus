@@ -267,7 +267,7 @@ private:
         const TBundleDynamicConfigPtr& /*oldConfig*/,
         const TBundleDynamicConfigPtr& newConfig)
     {
-        VERIFY_INVOKER_AFFINITY(AutomationInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(AutomationInvoker_);
 
         // In order to apply new parameters we have to just call GetOrCreateThrottler with a new config.
 
@@ -306,7 +306,7 @@ public:
         , Logger(TabletNodeLogger())
         , SlotIndex_(slotIndex)
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
 
         ResetEpochInvokers();
         ResetGuardedInvokers();
@@ -314,7 +314,7 @@ public:
 
     void SetOccupant(ICellarOccupantPtr occupant) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(!Occupant_);
 
         Occupant_ = std::move(occupant);
@@ -323,42 +323,42 @@ public:
 
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return THood::GetAutomatonInvoker(queue);
     }
 
     IInvokerPtr GetOccupierAutomatonInvoker() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return GetAutomatonInvoker(EAutomatonThreadQueue::Default);
     }
 
     IInvokerPtr GetMutationAutomatonInvoker() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return GetAutomatonInvoker(EAutomatonThreadQueue::Mutation);
     }
 
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return THood::GetEpochAutomatonInvoker(queue);
     }
 
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue = EAutomatonThreadQueue::Default) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return THood::GetGuardedAutomatonInvoker(queue);
     }
 
     const IInvokerPtr& GetAsyncSnapshotInvoker() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return SnapshotQueue_->GetInvoker();
     }
@@ -370,14 +370,14 @@ public:
 
     TCellId GetCellId() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetCellId();
     }
 
     EPeerState GetAutomatonState() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto hydraManager = GetHydraManager();
         return hydraManager ? hydraManager->GetAutomatonState() : EPeerState::None;
@@ -385,7 +385,7 @@ public:
 
     int GetAutomatonTerm() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto hydraManager = GetHydraManager();
         return hydraManager ? hydraManager->GetAutomatonTerm() : InvalidTerm;
@@ -393,28 +393,28 @@ public:
 
     const TString& GetTabletCellBundleName() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetCellBundleName();
     }
 
     IDistributedHydraManagerPtr GetHydraManager() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetHydraManager();
     }
 
     ISimpleHydraManagerPtr GetSimpleHydraManager() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetHydraManager();
     }
 
     const TCompositeAutomatonPtr& GetAutomaton() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return Occupant_->GetAutomaton();
     }
@@ -558,7 +558,7 @@ public:
 
     TCompositeAutomatonPtr CreateAutomaton() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto automation = New<TTabletAutomaton>(this);
 
@@ -576,14 +576,14 @@ public:
 
     TCellTag GetNativeCellTag() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
     }
 
     const NNative::IConnectionPtr& GetNativeConnection() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetClient()->GetNativeConnection();
     }
@@ -591,7 +591,7 @@ public:
 
     TFuture<TTabletCellMemoryStatistics> GetMemoryStatistics() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return BIND(&TTabletSlot::DoGetMemoryStatistics, MakeStrong(this))
             .AsyncVia(GetAutomatonInvoker())
@@ -600,7 +600,7 @@ public:
 
     TTabletCellMemoryStatistics DoGetMemoryStatistics()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return TTabletCellMemoryStatistics{
             .CellId = GetCellId(),
@@ -611,7 +611,7 @@ public:
 
     TTimestamp GetLatestTimestamp() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_
             ->GetTimestampProvider()
@@ -620,7 +620,7 @@ public:
 
     void Configure(IDistributedHydraManagerPtr hydraManager) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         hydraManager->SubscribeStartLeading(BIND_NO_PROPAGATE(&TTabletSlot::OnStartEpoch, MakeWeak(this)));
         hydraManager->SubscribeStartFollowing(BIND_NO_PROPAGATE(&TTabletSlot::OnStartEpoch, MakeWeak(this)));
@@ -710,7 +710,7 @@ public:
 
     void Stop() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         snapshotStore->UnregisterTabletSnapshots(this);
@@ -721,7 +721,7 @@ public:
 
     void Finalize() override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         TabletManager_->Finalize();
         TabletManager_.Reset();
@@ -742,14 +742,14 @@ public:
 
     ECellarType GetCellarType() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return CellarType;
     }
 
     TCompositeMapServicePtr PopulateOrchidService(TCompositeMapServicePtr orchid) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return orchid
             ->AddChild("life_stage", IYPathService::FromMethod(
@@ -763,28 +763,28 @@ public:
 
     const TRuntimeTabletCellDataPtr& GetRuntimeData() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return RuntimeData_;
     }
 
     double GetUsedCpu(double cpuPerTabletSlot) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return GetDynamicOptions()->CpuPerTabletSlot.value_or(cpuPerTabletSlot);
     }
 
     TDynamicTabletCellOptionsPtr GetDynamicOptions() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetDynamicOptions();
     }
 
     TTabletCellOptionsPtr GetOptions() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_->GetOptions();
     }
@@ -832,14 +832,14 @@ public:
 
     ICompressionDictionaryManagerPtr GetCompressionDictionaryManager() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Bootstrap_->GetCompressionDictionaryManager();
     }
 
     i64 EstimateChangelogMediumBytes(i64 payload) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Occupant_->EstimateChangelogMediumBytes(payload);
     }
@@ -882,14 +882,14 @@ private:
 
     void OnStartEpoch()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         InitEpochInvokers(GetHydraManager());
     }
 
     void OnStopEpoch()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         ResetEpochInvokers();
     }
@@ -906,7 +906,7 @@ private:
 
     bool IsTabletEpochActive() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return TabletEpochActive_.load();
     }
@@ -923,7 +923,7 @@ private:
 
     IReconfigurableThroughputThrottlerPtr GetChangelogMediumWriteThrottler() const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(MediumThrottlerManager_);
 
         auto options = GetOptions();
@@ -934,7 +934,7 @@ private:
 
     IReconfigurableThroughputThrottlerPtr GetMediumWriteThrottler(const TString& mediumName) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(MediumThrottlerManager_);
 
         return MediumThrottlerManager_->GetMediumWriteThrottler(mediumName);
@@ -942,7 +942,7 @@ private:
 
     IReconfigurableThroughputThrottlerPtr GetMediumReadThrottler(const TString& mediumName) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(MediumThrottlerManager_);
 
         return MediumThrottlerManager_->GetMediumReadThrottler(mediumName);

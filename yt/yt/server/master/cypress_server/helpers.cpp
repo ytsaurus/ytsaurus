@@ -254,7 +254,7 @@ TCypressNode* FindListNodeChild(
 
     const auto& indexToChild = trunkNode->IndexToChild();
     int index = ParseListIndex(key);
-    auto adjustedIndex = TryAdjustListIndex(index, static_cast<int>(indexToChild.size()));
+    auto adjustedIndex = TryAdjustListIndex(index, std::ssize(indexToChild));
     if (!adjustedIndex) {
         return nullptr;
     }
@@ -271,7 +271,7 @@ TCypressNode* GetListNodeChildOrThrow(
 
     const auto& indexToChild = trunkNode->IndexToChild();
     int index = ParseListIndex(key);
-    auto adjustedIndex = TryAdjustListIndex(index, static_cast<int>(indexToChild.size()));
+    auto adjustedIndex = TryAdjustListIndex(index, std::ssize(indexToChild));
     if (!adjustedIndex) {
         THROW_ERROR_EXCEPTION(
             NYTree::EErrorCode::ResolveError,
@@ -328,14 +328,14 @@ THashMap<TString, NYson::TYsonString> GetNodeAttributes(
     return result;
 }
 
-THashSet<TString> ListNodeAttributes(
+THashSet<std::string> ListNodeAttributes(
     const ICypressManagerPtr& cypressManager,
     TCypressNode* trunkNode,
     TTransaction* transaction)
 {
     auto originators = cypressManager->GetNodeReverseOriginators(transaction, trunkNode);
 
-    THashSet<TString> result;
+    THashSet<std::string> result;
     for (const auto* node : originators) {
         const auto* userAttributes = node->GetAttributes();
         if (userAttributes) {
@@ -501,7 +501,7 @@ TCypressShardId MakeCypressShardId(
     return ReplaceTypeInId(rootNodeId, EObjectType::CypressShard);
 }
 
-TString SuggestCypressShardName(TCypressShard* shard)
+std::string SuggestCypressShardName(TCypressShard* shard)
 {
     const auto* root = shard->GetRoot();
     switch (root->GetType()) {
@@ -519,7 +519,7 @@ TString SuggestCypressShardName(TCypressShard* shard)
 void ValidateCompressionCodec(
     const NYson::TYsonString& value,
     const std::optional<THashSet<NCompression::ECodec>>& configuredForbiddenCodecs,
-    const std::optional<THashMap<TString, TString>>& configuredForbiddenCodecNameToAlias)
+    const std::optional<THashMap<std::string, std::string>>& configuredForbiddenCodecNameToAlias)
 {
     if (NCellMaster::IsSubordinateMutation()) {
         return;
@@ -536,7 +536,7 @@ void ValidateCompressionCodec(
     auto deprecatedCodecNameToAlias = configuredForbiddenCodecNameToAlias
         ? *configuredForbiddenCodecNameToAlias
         : NCompression::GetForbiddenCodecNameToAlias();
-    auto codecName = ConvertTo<TString>(value);
+    auto codecName = ConvertTo<std::string>(value);
     auto it = deprecatedCodecNameToAlias.find(codecName);
     if (deprecatedCodecNameToAlias.find(codecName) != deprecatedCodecNameToAlias.end()) {
         auto& [_, alias] = *it;

@@ -41,7 +41,7 @@ private:
 
     std::vector<std::string> GetInstanceTags() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto tags = BaseTags_;
         tags.push_back(ProxyRole_.Load());
@@ -51,7 +51,7 @@ private:
 
     void OnProxyRoleChanged(const std::string& newRole)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         ProxyRole_.Store(newRole);
     }

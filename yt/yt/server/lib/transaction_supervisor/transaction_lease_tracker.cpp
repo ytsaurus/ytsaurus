@@ -88,7 +88,7 @@ public:
 
     void Start() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         for (auto& shard : Shards_) {
             shard.Requests.Enqueue(TStartRequest{});
@@ -99,7 +99,7 @@ public:
 
     void Stop() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         for (auto& shard : Shards_) {
             shard.Requests.Enqueue(TStopRequest{});
@@ -115,7 +115,7 @@ public:
         std::optional<TInstant> deadline,
         TTransactionLeaseExpirationHandler expirationHandler) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         ShardFromTransactionId(transactionId)->Requests.Enqueue(TRegisterRequest{
             .TransactionId = transactionId,
@@ -128,7 +128,7 @@ public:
 
     void UnregisterTransaction(TTransactionId transactionId) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         ShardFromTransactionId(transactionId)->Requests.Enqueue(TUnregisterRequest{
             .TransactionId = transactionId,
@@ -137,7 +137,7 @@ public:
 
     void SetTimeout(TTransactionId transactionId, TDuration timeout) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         ShardFromTransactionId(transactionId)->Requests.Enqueue(TSetTimeoutRequest{
             .TransactionId = transactionId,
@@ -147,7 +147,7 @@ public:
 
     TFuture<void> PingTransaction(TTransactionId transactionId, bool pingAncestors = false) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto promise = NewPromise<void>();
         auto future = promise.ToFuture();

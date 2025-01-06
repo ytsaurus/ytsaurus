@@ -809,7 +809,7 @@ std::vector<TOperation> TListOperationsFilter::BuildOperations(const THashSet<TS
 
 i64 TListOperationsFilter::GetCount() const
 {
-    return static_cast<i64>(LightOperations_.size());
+    return std::ssize(LightOperations_);
 }
 
 void TListOperationsFilter::ParseResponses(std::vector<TYsonString> operationsResponses)
@@ -868,7 +868,7 @@ void TListOperationsFilter::ParseResponses(std::vector<TYsonString> operationsRe
 
 TListOperationsFilter::TParseResult TListOperationsFilter::ParseOperationsYson(TYsonString operationsYson) const
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     std::vector<TLightOperation> operations;
 

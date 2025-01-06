@@ -90,6 +90,8 @@
 
 #include <yt/yt/server/lib/hydra/snapshot.h>
 
+#include <yt/yt/server/lib/misc/bootstrap.h>
+
 #ifdef __linux__
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/instance_limits_tracker.h>
@@ -97,7 +99,9 @@
 #include <yt/yt/library/containers/container_devices_checker.h>
 #endif
 
-#include <yt/yt/library/coredumper/coredumper.h>
+#include <yt/yt/library/fusion/service_locator.h>
+
+#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/helpers.h>
@@ -173,6 +177,7 @@
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
@@ -198,6 +203,7 @@ using namespace NCellMasterClient;
 using namespace NChaosNode;
 using namespace NChunkClient;
 using namespace NContainers;
+using namespace NFusion;
 using namespace NNodeTrackerClient;
 using namespace NConcurrency;
 using namespace NDataNode;
@@ -224,10 +230,11 @@ using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NThreading;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Bootstrap");
+static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "NodeBoot");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -242,41 +249,45 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs), ReadyToUpdateHeartbeatStream);
 
 public:
-    TBootstrap(TClusterNodeConfigPtr config, INodePtr configNode)
+    TBootstrap(
+        TClusterNodeBootstrapConfigPtr config,
+        INodePtr configNode,
+        IServiceLocatorPtr serviceLocator)
         : Config_(std::move(config))
         , ConfigNode_(std::move(configNode))
-    { }
-
-    // IBootstrap implementation.
-    void Initialize() override
-    {
-        ControlActionQueue_ = New<TActionQueue>("Control");
-
-        JobActionQueue_ = New<TActionQueue>("Job");
-        JobInvoker_ = CreateWatchdogInvoker(
+        , ServiceLocator_(std::move(serviceLocator))
+        , ControlActionQueue_(New<TActionQueue>("Control"))
+        , JobActionQueue_(New<TActionQueue>("Job"))
+        , JobInvoker_(CreateWatchdogInvoker(
             JobActionQueue_->GetInvoker(),
             ClusterNodeLogger(),
-            TDuration::MilliSeconds(500));
+            TDuration::MilliSeconds(500)))
+    { }
 
-        BIND(&TBootstrap::DoInitialize, this)
+    void Initialize()
+    {
+        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
             .Run()
             .Get()
             .ThrowOnError();
     }
 
-    void Run() override
+    TFuture<void> Run() final
     {
-        BIND(&TBootstrap::DoRun, this)
+        return BIND(&TBootstrap::DoRun, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
+            .Run();
     }
 
     const IMasterConnectorPtr& GetMasterConnector() const override
     {
         return MasterConnector_;
+    }
+
+    NDiskManager::IHotswapManagerPtr TryGetHotswapManager() const override
+    {
+        return ServiceLocator_->FindService<NDiskManager::IHotswapManagerPtr>();
     }
 
     TRelativeThroughputThrottlerConfigPtr PatchRelativeNetworkThrottlerConfig(
@@ -347,7 +358,7 @@ public:
         return BufferedProducer_;
     }
 
-    const TClusterNodeConfigPtr& GetConfig() const override
+    const TClusterNodeBootstrapConfigPtr& GetConfig() const override
     {
         return Config_;
     }
@@ -653,19 +664,19 @@ public:
     }
 
 private:
-    const TClusterNodeConfigPtr Config_;
+    const TClusterNodeBootstrapConfigPtr Config_;
     const INodePtr ConfigNode_;
+    const IServiceLocatorPtr ServiceLocator_;
 
-    TActionQueuePtr ControlActionQueue_;
-    TActionQueuePtr JobActionQueue_;
-    IInvokerPtr JobInvoker_;
+    const TActionQueuePtr ControlActionQueue_;
+    const TActionQueuePtr JobActionQueue_;
+    const IInvokerPtr JobInvoker_;
+
     IThreadPoolPtr ConnectionThreadPool_;
     IThreadPoolPtr StorageLightThreadPool_;
     IThreadPoolPtr StorageHeavyThreadPool_;
     IPrioritizedInvokerPtr StorageHeavyInvoker_;
     TActionQueuePtr MasterCacheQueue_;
-
-    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     TMonitoringManagerPtr MonitoringManager_;
 
@@ -742,6 +753,7 @@ private:
     TError UnrecognizedOptionsAlert_;
 
     TObjectServiceCachePtr ObjectServiceCache_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachingObjectServicesLock_);
     THashMap<TCellTag, ICachingObjectServicePtr> CachingObjectServices_;
     THashMap<TCellTag, IServicePtr> ProxyingChunkServices_;
 
@@ -754,11 +766,11 @@ private:
 
     THashSet<ENodeFlavor> Flavors_;
 
-    std::unique_ptr<NCellarNode::IBootstrap> CellarNodeBootstrap_;
-    std::unique_ptr<NChaosNode::IBootstrap> ChaosNodeBootstrap_;
-    std::unique_ptr<NExecNode::IBootstrap> ExecNodeBootstrap_;
-    std::unique_ptr<NDataNode::IBootstrap> DataNodeBootstrap_;
-    std::unique_ptr<NTabletNode::IBootstrap> TabletNodeBootstrap_;
+    NCellarNode::IBootstrapPtr CellarNodeBootstrap_;
+    NChaosNode::IBootstrapPtr ChaosNodeBootstrap_;
+    NExecNode::IBootstrapPtr ExecNodeBootstrap_;
+    NDataNode::IBootstrapPtr DataNodeBootstrap_;
+    NTabletNode::IBootstrapPtr TabletNodeBootstrap_;
 
     bool Decommissioned_ = false;
 
@@ -807,7 +819,9 @@ private:
             Config_->ClusterConnection,
             std::move(connectionOptions));
 
-        Connection_->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(BIND_NO_PROPAGATE(&TBootstrap::OnMasterCellDirectoryChanged, this));
+        // Cycles are fine for bootstrap.
+        Connection_->GetMasterCellDirectory()->SubscribeCellDirectoryChanged(
+            BIND_NO_PROPAGATE(&TBootstrap::OnMasterCellDirectoryChanged, MakeStrong(this)));
 
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
@@ -910,18 +924,22 @@ private:
         MasterConnector_ = NClusterNode::CreateMasterConnector(
             this,
             localRpcAddresses,
-            NYT::GetLocalAddresses(Config_->Addresses, Config_->SkynetHttpPort),
-            NYT::GetLocalAddresses(Config_->Addresses, Config_->MonitoringPort),
+            NServer::GetLocalAddresses(Config_->Addresses, Config_->SkynetHttpPort),
+            NServer::GetLocalAddresses(Config_->Addresses, Config_->MonitoringPort),
             Config_->Tags);
-        MasterConnector_->SubscribePopulateAlerts(BIND_NO_PROPAGATE(&TBootstrap::PopulateAlerts, this));
-        MasterConnector_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TBootstrap::OnMasterConnected, this));
-        MasterConnector_->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TBootstrap::OnMasterDisconnected, this));
+
+        // Cycles are fine for bootstrap.
+        MasterConnector_->SubscribePopulateAlerts(BIND_NO_PROPAGATE(&TBootstrap::PopulateAlerts, MakeStrong(this)));
+        MasterConnector_->SubscribeMasterConnected(BIND_NO_PROPAGATE(&TBootstrap::OnMasterConnected, MakeStrong(this)));
+        MasterConnector_->SubscribeMasterDisconnected(BIND_NO_PROPAGATE(&TBootstrap::OnMasterDisconnected, MakeStrong(this)));
 
         DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
-        DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
+        // Cycles are fine for bootstrap.
+        DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
 
         BundleDynamicConfigManager_ = New<NCellarNode::TBundleDynamicConfigManager>(this);
-        BundleDynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, this));
+        // Cycles are fine for bootstrap.
+        BundleDynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
 
         IOTracker_ = CreateIOTracker(DynamicConfigManager_->GetConfig()->IOTracker);
 
@@ -947,10 +965,6 @@ private:
         NetworkStatistics_ = std::make_unique<TNetworkStatistics>(Config_->DataNode);
 
         NodeResourceManager_ = New<TNodeResourceManager>(this);
-
-        if (Config_->CoreDumper) {
-            CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
-        }
 
         auto localAddress = GetDefaultAddress(localRpcAddresses);
 
@@ -983,9 +997,12 @@ private:
             Logger(),
             ClusterNodeProfiler().WithPrefix("/object_service_cache"));
 
-        InitCachingObjectService(PrimaryMaster_->CellId);
-        for (const auto& [_, masterConfig] : SecondaryMasterConnectionConfigs_) {
-            InitCachingObjectService(masterConfig->CellId);
+        {
+            auto guard = WriterGuard(CachingObjectServicesLock_);
+            InitCachingObjectService(PrimaryMaster_->CellId);
+            for (const auto& [_, masterConfig] : SecondaryMasterConnectionConfigs_) {
+                InitCachingObjectService(masterConfig->CellId);
+            }
         }
 
         // NB: Data Node master connector is required for chunk cache.
@@ -1009,7 +1026,10 @@ private:
             TabletNodeBootstrap_ = NTabletNode::CreateBootstrap(this);
         }
 
-        RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_, NativeAuthenticator_));
+        RpcServer_->RegisterService(CreateAdminService(
+            GetControlInvoker(),
+            ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
+            NativeAuthenticator_));
 
     #ifdef __linux__
         auto topLevelPortoConfig = Config_->PortoEnvironment;
@@ -1022,7 +1042,8 @@ private:
                     : execNodePortoConfig->PortoExecutor,
                 "limits_tracker");
 
-            portoExecutor->SubscribeFailed(BIND([=, this] (const TError& error) {
+            // Cycles are fine for bootstrap.
+            portoExecutor->SubscribeFailed(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
                 YT_LOG_ERROR(error, "Porto executor failed");
                 ExecNodeBootstrap_->GetSlotManager()->OnPortoExecutorFailed(error);
             }));
@@ -1044,7 +1065,8 @@ private:
                     GetControlInvoker(),
                     *Config_->InstanceLimitsUpdatePeriod);
 
-                InstanceLimitsTracker_->SubscribeLimitsUpdated(BIND([this] (const NContainers::TInstanceLimits& limits) {
+                // Cylces are fine for bootstrap.
+                InstanceLimitsTracker_->SubscribeLimitsUpdated(BIND([this, this_ = MakeStrong(this)] (const NContainers::TInstanceLimits& limits) {
                     NodeResourceManager_->OnInstanceLimitsUpdated(limits);
 
                     auto config = GetDynamicConfigManager()->GetConfig();
@@ -1117,7 +1139,7 @@ private:
 
         NMonitoring::Initialize(
             HttpServer_,
-            Config_->SolomonExporter,
+            ServiceLocator_->GetServiceOrThrow<TSolomonExporterPtr>(),
             &MonitoringManager_,
             &OrchidRoot_);
 
@@ -1215,10 +1237,6 @@ private:
             GetControlInvoker(),
             NativeAuthenticator_));
 
-        YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
-
-        YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
-
         if (IsCellarNode()) {
             CellarNodeBootstrap_->Run();
         }
@@ -1239,7 +1257,10 @@ private:
             TabletNodeBootstrap_->Run();
         }
 
+        YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
         RpcServer_->Start();
+
+        YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
 
 #ifdef __linux__
@@ -1253,11 +1274,17 @@ private:
         YT_LOG_INFO("Node started successfully");
     }
 
+    void DoStart()
+    {
+        DoInitialize();
+        DoRun();
+    }
+
     IYPathServicePtr GetSecondaryMasterConnectionConfigsOrchidService()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return IYPathService::FromProducer(BIND([this] (NYson::IYsonConsumer* consumer) {
+        return IYPathService::FromProducer(BIND([this, this_ = MakeStrong(this)] (NYson::IYsonConsumer* consumer) {
             auto secondaryMasterConnectionConfigs = IsConnected()
                 ? GetSecondaryMasterConnectionConfigs()
                 : TSecondaryMasterConnectionConfigs();
@@ -1301,7 +1328,7 @@ private:
 
     void CompleteNodeRegistration() override
     {
-        VERIFY_INVOKER_AFFINITY(GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetControlInvoker());
 
         if (DynamicConfigManager_->GetConfigLoadedFuture().IsSet()) {
             return;
@@ -1402,7 +1429,7 @@ private:
         const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
-        ReconfigureSingletons(newConfig);
+        TSingletonManager::Reconfigure(newConfig);
 
         StorageHeavyThreadPool_->SetThreadCount(
             newConfig->DataNode->StorageHeavyThreadCount.value_or(Config_->DataNode->StorageHeavyThreadCount));
@@ -1424,7 +1451,7 @@ private:
         RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
         ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
-        for (const auto& [_, service] : CachingObjectServices_) {
+        for (const auto& [_, service] : GetCachingObjectServices()) {
             service->Reconfigure(newConfig->CachingObjectService);
         }
 
@@ -1475,6 +1502,17 @@ private:
     {
         PopulateAlerts_.Fire(alerts);
 
+        PopulateTotalMemoryAlerts(alerts);
+
+        PopulatePerCategoryMemoryAlerts(alerts);
+
+        if (!UnrecognizedOptionsAlert_.IsOK()) {
+            alerts->push_back(UnrecognizedOptionsAlert_);
+        }
+    }
+
+    void PopulateTotalMemoryAlerts(std::vector<TError>* alerts)
+    {
         // NB: Don't expect IsXXXExceeded helpers to be atomic.
         auto totalUsed = NodeMemoryUsageTracker_->GetTotalUsed();
         auto totalLimit = NodeMemoryUsageTracker_->GetTotalLimit();
@@ -1488,7 +1526,10 @@ private:
                 << TErrorAttribute("used", totalUsed)
                 << TErrorAttribute("limit", totalLimit));
         }
+    }
 
+    void PopulatePerCategoryMemoryAlerts(std::vector<TError>* alerts)
+    {
         for (auto category : TEnumTraits<EMemoryCategory>::GetDomainValues()) {
             auto used = NodeMemoryUsageTracker_->GetUsed(category);
             auto limit = NodeMemoryUsageTracker_->GetLimit(category);
@@ -1499,17 +1540,13 @@ private:
                     << TErrorAttribute("limit", limit));
             }
         }
-
-        if (!UnrecognizedOptionsAlert_.IsOK()) {
-            alerts->push_back(UnrecognizedOptionsAlert_);
-        }
     }
 
     void OnMasterConnected(TNodeId nodeId)
     {
         MasterConnected_.Fire(nodeId);
 
-        for (const auto& [_, cachingObjectService] : CachingObjectServices_) {
+        for (const auto& [_, cachingObjectService] : GetCachingObjectServices()) {
             RpcServer_->RegisterService(cachingObjectService);
         }
     }
@@ -1518,13 +1555,21 @@ private:
     {
         MasterDisconnected_.Fire();
 
-        for (const auto& [_, cachingObjectService] : CachingObjectServices_) {
+        for (const auto& [_, cachingObjectService] : GetCachingObjectServices()) {
             RpcServer_->UnregisterService(cachingObjectService);
         }
     }
 
+    THashMap<TCellTag, ICachingObjectServicePtr> GetCachingObjectServices()
+    {
+        auto guard = ReaderGuard(CachingObjectServicesLock_);
+        return CachingObjectServices_;
+    }
+
     void InitCachingObjectService(TCellId cellId)
     {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(CachingObjectServicesLock_);
+
         auto cachingObjectService = CreateCachingObjectService(
             Config_->CachingObjectService,
             MasterCacheQueue_->GetInvoker(),
@@ -1558,12 +1603,14 @@ private:
         const TSecondaryMasterConnectionConfigs& changedSecondaryMasterConfigs,
         const THashSet<TCellTag>& removedSecondaryMasterCellTags)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_ALERT_UNLESS(
             removedSecondaryMasterCellTags.empty(),
             "Some cells disappeared in received configuration of secondary masters (RemovedCellTags: %v)",
             removedSecondaryMasterCellTags);
+
+        const auto& hiveCellDirectory = Connection_->GetCellDirectory();
 
         THashSet<TCellTag> newSecondaryMasterCellTags;
         THashSet<TCellTag> changedSecondaryMasterCellTags;
@@ -1573,7 +1620,7 @@ private:
         auto addMasterCell = [&] (const auto& masterConfig) {
             InitCachingObjectService(masterConfig->CellId);
             InitProxyingChunkService(masterConfig);
-            Connection_->GetCellDirectory()->ReconfigureCell(masterConfig);
+            hiveCellDirectory->ReconfigureCell(masterConfig);
         };
 
         auto reconfigureMasterCell = [&] (const auto& masterConfig) {
@@ -1584,9 +1631,12 @@ private:
             InitProxyingChunkService(masterConfig);
         };
 
-        for (const auto& [cellTag, masterConfig] : newSecondaryMasterConfigs) {
-            addMasterCell(masterConfig);
-            InsertOrCrash(newSecondaryMasterCellTags, cellTag);
+        {
+            auto guard = WriterGuard(CachingObjectServicesLock_);
+            for (const auto& [cellTag, masterConfig] : newSecondaryMasterConfigs) {
+                addMasterCell(masterConfig);
+                InsertOrCrash(newSecondaryMasterCellTags, cellTag);
+            }
         }
 
         for (const auto& [cellTag, masterConfig] : changedSecondaryMasterConfigs) {
@@ -1642,9 +1692,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(TClusterNodeConfigPtr config, NYTree::INodePtr configNode)
+IBootstrapPtr CreateNodeBootstrap(
+    TClusterNodeBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
 {
-    return std::make_unique<TBootstrap>(std::move(config), std::move(configNode));
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1652,24 +1710,25 @@ std::unique_ptr<IBootstrap> CreateBootstrap(TClusterNodeConfigPtr config, NYTree
 TBootstrapBase::TBootstrapBase(IBootstrapBase* bootstrap)
     : Bootstrap_(bootstrap)
 {
+    // Cycles are fine for bootstrap.
     Bootstrap_->SubscribeMasterConnected(
-        BIND_NO_PROPAGATE([this] (TNodeId nodeId) {
+        BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (TNodeId nodeId) {
             MasterConnected_.Fire(nodeId);
         }));
     Bootstrap_->SubscribeMasterDisconnected(
-        BIND_NO_PROPAGATE([this] {
+        BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] {
             MasterDisconnected_.Fire();
         }));
     Bootstrap_->SubscribePopulateAlerts(
-        BIND_NO_PROPAGATE([this] (std::vector<TError>* alerts) {
+        BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (std::vector<TError>* alerts) {
             PopulateAlerts_.Fire(alerts);
         }));
     Bootstrap_->SubscribeSecondaryMasterCellListChanged(
-        BIND_NO_PROPAGATE([this] (const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs) {
+        BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs) {
             SecondaryMasterCellListChanged_.Fire(newSecondaryMasterConfigs);
         }));
     Bootstrap_->SubscribeReadyToUpdateHeartbeatStream(
-        BIND_NO_PROPAGATE([this] (const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs) {
+        BIND_NO_PROPAGATE([this, this_ = MakeStrong(this)] (const TSecondaryMasterConnectionConfigs& newSecondaryMasterConfigs) {
             ReadyToUpdateHeartbeatStream_.Fire(newSecondaryMasterConfigs);
         }));
 }
@@ -1709,7 +1768,7 @@ const TBufferedProducerPtr& TBootstrapBase::GetBufferedProducer() const
     return Bootstrap_->GetBufferedProducer();
 }
 
-const TClusterNodeConfigPtr& TBootstrapBase::GetConfig() const
+const TClusterNodeBootstrapConfigPtr& TBootstrapBase::GetConfig() const
 {
     return Bootstrap_->GetConfig();
 }

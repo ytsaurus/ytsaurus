@@ -10,21 +10,22 @@ namespace NYT::NMasterCache {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterCacheProgram
-    : public TServerProgram<TMasterCacheConfig>
+    : public TServerProgram<TMasterCacheProgramConfig>
 {
 public:
     TMasterCacheProgram()
     {
-        SetMainThreadName("MasterCache");
+        SetMainThreadName("MasterCacheProg");
     }
 
 protected:
     void DoStart() final
     {
-        auto* bootstrap = CreateBootstrap(GetConfig()).release();
+        auto bootstrap = CreateMasterCacheBootstrap(GetConfig(), GetConfigNode(), GetServiceLocator());
         DoNotOptimizeAway(bootstrap);
-        bootstrap->Initialize();
-        bootstrap->Run();
+        bootstrap->Run()
+            .Get()
+            .ThrowOnError();
         SleepForever();
     }
 };

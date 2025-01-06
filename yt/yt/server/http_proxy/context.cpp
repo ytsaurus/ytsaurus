@@ -55,6 +55,7 @@ using namespace NScheduler;
 using namespace NTracing;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

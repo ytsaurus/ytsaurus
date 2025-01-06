@@ -261,7 +261,7 @@ private:
 
     i64 GetWeight(const TAsyncBlockCacheEntryPtr& entry) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return entry->CachedBlock().Size();
     }

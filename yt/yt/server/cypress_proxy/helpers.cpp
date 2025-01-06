@@ -15,6 +15,8 @@
 
 #include <yt/yt/core/yson/attribute_consumer.h>
 
+#include <yt/yt/core/ytree/ypath_detail.h>
+
 #include <library/cpp/yt/misc/variant.h>
 
 namespace NYT::NCypressProxy {
@@ -179,11 +181,15 @@ void ThrowNoSuchChild(const TAbsoluteYPath& existingPath, TStringBuf missingPath
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::optional<TParsedReqCreate> TryParseReqCreate(ISequoiaServiceContextPtr context)
+std::optional<TParsedReqCreate> TryParseReqCreate(const ISequoiaServiceContextPtr& context)
 {
     YT_VERIFY(context->GetRequestHeader().method() == "Create");
 
-    auto typedContext = New<TTypedSequoiaServiceContext<TReqCreate, TRspCreate>>(
+    auto typedContext = New<NRpc::TGenericTypedServiceContext<
+        IServiceContext,
+        TServiceContextWrapper,
+        TReqCreate,
+        TRspCreate>>(
         std::move(context),
         THandlerInvocationOptions{});
 

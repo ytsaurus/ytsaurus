@@ -29,12 +29,14 @@ from flaky import flaky
 import pytest
 
 from copy import deepcopy
-from random import shuffle
+from random import shuffle, randint
 import builtins
 import time
 import yt_error_codes
 
 import os.path
+
+from typing import Any
 
 ##################################################################
 
@@ -1268,11 +1270,8 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
         },
     }
 
-    USER = 0
-
     def _get_user(self):
-        self.USER += 1
-        return f"u{self.USER}"
+        return f"u{randint(100000, 999999)}"
 
     @authors("ni-stoiko")
     @pytest.mark.timeout(120)
@@ -1358,3 +1357,68 @@ class TestRpcProxyNullApiTestingOptions(TestRpcProxyHeapUsageStatisticsBase):
     @authors("ni-stoiko")
     def test_null_api_testing_options(self):
         self.prepare_allocation("rpc_proxies", "user")
+
+
+class TestRpcProxySignaturesBase(TestRpcProxyBase):
+    DELTA_RPC_PROXY_CONFIG = {
+        "signature_validation": {
+            "cypress_key_reader": dict(),
+            "validator": dict(),
+        },
+        "signature_generation": {
+            "cypress_key_writer": {
+                "owner": "test-rpc-proxy",
+            },
+            "generator": dict(),
+        },
+    }
+
+    # NB(pavook): to avoid key owner collision.
+    NUM_RPC_PROXIES = 1
+
+    OWNERS_PATH = "//sys/public_keys/by_owner"
+    KEYS_PATH = f"{OWNERS_PATH}/test-rpc-proxy"
+
+
+def deep_update(source: dict[Any, Any], overrides: dict[Any, Any]) -> dict[Any, Any]:
+    """
+    Update a nested dictionary.
+    """
+    result = source.copy()
+    for key, value in overrides.items():
+        if isinstance(value, dict) and value:
+            returned = deep_update(source.get(key, {}), value)
+            result[key] = returned
+        else:
+            result[key] = value
+    return result
+
+
+class TestRpcProxySignaturesKeyCreation(TestRpcProxySignaturesBase):
+    DELTA_RPC_PROXY_CONFIG = deep_update(TestRpcProxySignaturesBase.DELTA_RPC_PROXY_CONFIG, {
+        "signature_generation": {
+            "key_rotator": {
+                "key_rotation_interval": "2h",
+            },
+        },
+    })
+
+    @authors("pavook")
+    @pytest.mark.timeout(60)
+    def test_public_key_appears(self):
+        wait(lambda: len(ls(self.KEYS_PATH)) == 1)
+
+
+class TestRpcProxySignaturesKeyRotation(TestRpcProxySignaturesBase):
+    DELTA_RPC_PROXY_CONFIG = deep_update(TestRpcProxySignaturesBase.DELTA_RPC_PROXY_CONFIG, {
+        "signature_generation": {
+            "key_rotator": {
+                "key_rotation_interval": "200ms",
+            },
+        },
+    })
+
+    @authors("pavook")
+    @pytest.mark.timeout(60)
+    def test_public_key_rotates(self):
+        wait(lambda: len(ls(self.KEYS_PATH)) > 1)

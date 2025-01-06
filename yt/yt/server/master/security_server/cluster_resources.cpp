@@ -186,7 +186,7 @@ void TClusterResources::Load(NCellMaster::TLoadContext& context)
 void TClusterResources::Save(NCypressServer::TSerializeNodeContext& context) const
 {
     using NYT::Save;
-    Save(context, static_cast<int>(DiskSpace_.size()));
+    Save<int>(context, std::ssize(DiskSpace_));
     for (auto [mediumIndex, space] : DiskSpace_) {
         Save(context, space);
         Save(context, mediumIndex);

@@ -18,6 +18,7 @@ using namespace NYson;
 using namespace NObjectServer;
 using namespace NTransactionServer;
 using namespace NCellMaster;
+using namespace NServer;
 
 using NYPath::TTokenizer;
 using NYPath::ETokenType;

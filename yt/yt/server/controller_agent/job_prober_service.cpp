@@ -59,7 +59,7 @@ private:
 
     void ValidateAgentIncarnation(TIncarnationId incarnationId)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         const auto& controllerAgent = Bootstrap_->GetControllerAgent();
 
@@ -69,7 +69,7 @@ private:
 
     TOperationPtr GetOperation(TOperationId operationId)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         auto operation = Bootstrap_
             ->GetControllerAgent()
@@ -87,7 +87,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, AbandonJob)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
 
@@ -116,7 +116,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, InterruptJob)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
 
@@ -147,7 +147,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetJobShellDescriptor)
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         auto incarnationId = FromProto<TIncarnationId>(request->incarnation_id());
 

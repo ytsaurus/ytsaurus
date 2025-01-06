@@ -132,7 +132,7 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
         StaticConfig_->Testing->TestGpuInfoUpdatePeriod))
     , GpuInfoProvider_(CreateGpuInfoProvider(StaticConfig_->GpuInfoSource))
 {
-    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+    YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
     if (!StaticConfig_->Enable) {
         return;
@@ -226,7 +226,7 @@ void TGpuManager::OnDynamicConfigChanged(
     const TGpuManagerDynamicConfigPtr& /*oldNodeConfig*/,
     const TGpuManagerDynamicConfigPtr& newConfig)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     YT_ASSERT(newConfig);
 
@@ -248,28 +248,28 @@ void TGpuManager::OnDynamicConfigChanged(
 
 bool TGpuManager::ShouldTestResource() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return StaticConfig_->Testing->TestResource;
 }
 
 bool TGpuManager::ShouldTestExtraGpuCheckCommandFailure() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return StaticConfig_->Testing->TestExtraGpuCheckCommandFailure;
 }
 
 bool TGpuManager::ShouldTestLayers() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return StaticConfig_->Testing->TestLayers;
 }
 
 bool TGpuManager::ShouldTestSetupCommands() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return StaticConfig_->Testing->TestSetupCommands;
 }
@@ -291,7 +291,7 @@ THashMap<TString, TString> TGpuManager::GetCudaToolkitMinDriverVersion() const
 
 void TGpuManager::OnHealthCheck()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (TInstant::Now() < BannedDeadline_) {
         return;
@@ -402,7 +402,7 @@ void TGpuManager::OnHealthCheck()
 
 void TGpuManager::OnFetchDriverLayerInfo()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     try {
         auto fetchedArtifactKey = FetchLayerArtifactKeyIfRevisionChanged(
@@ -424,7 +424,7 @@ void TGpuManager::OnFetchDriverLayerInfo()
 
 void TGpuManager::OnRdmaDeviceInfoUpdate()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     try {
         auto timeout = DynamicConfig_.Acquire()->RdmaDeviceInfoUpdateTimeout;
@@ -451,14 +451,14 @@ void TGpuManager::OnTestGpuInfoUpdate()
 
 bool TGpuManager::IsDriverLayerMissing() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return DriverLayerPath_ && !DriverLayerKey_;
 }
 
 int TGpuManager::GetTotalGpuCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
     return !Enabled_ || IsDriverLayerMissing() ? 0 : HealthyGpuInfoMap_.size();
@@ -466,7 +466,7 @@ int TGpuManager::GetTotalGpuCount() const
 
 int TGpuManager::GetFreeGpuCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
     return !Enabled_ || IsDriverLayerMissing() ? 0 : FreeSlots_.size();
@@ -474,7 +474,7 @@ int TGpuManager::GetFreeGpuCount() const
 
 int TGpuManager::GetUsedGpuCount() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
     return !Enabled_ || IsDriverLayerMissing() ? 0 : (HealthyGpuInfoMap_.size() - FreeSlots_.size());
@@ -482,14 +482,14 @@ int TGpuManager::GetUsedGpuCount() const
 
 bool TGpuManager::HasGpuDevices() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return HasGpuDevices_;
 }
 
 THashMap<int, TGpuInfo> TGpuManager::GetGpuInfoMap() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
     return HealthyGpuInfoMap_;
@@ -497,14 +497,14 @@ THashMap<int, TGpuInfo> TGpuManager::GetGpuInfoMap() const
 
 const std::vector<TString>& TGpuManager::GetGpuDevices() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return GpuDevices_;
 }
 
 std::vector<TRdmaDeviceInfo> TGpuManager::GetRdmaDevices() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
     return RdmaDevices_;
@@ -530,7 +530,7 @@ void TGpuManager::ReleaseGpuSlot(int deviceIndex)
 
 NYTree::IYPathServicePtr TGpuManager::GetOrchidService() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return IYPathService::FromProducer(BIND_NO_PROPAGATE(
         &TGpuManager::BuildOrchid,
@@ -539,7 +539,7 @@ NYTree::IYPathServicePtr TGpuManager::GetOrchidService() const
 
 void TGpuManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     BuildYsonFluently(consumer).BeginMap()
         .Item("gpu_infos").Value(GetGpuInfoMap())
@@ -548,7 +548,7 @@ void TGpuManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
 
 TErrorOr<TGpuSlotPtr> TGpuManager::AcquireGpuSlot()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
 
@@ -568,7 +568,7 @@ TErrorOr<TGpuSlotPtr> TGpuManager::AcquireGpuSlot()
 
 TErrorOr<std::vector<TGpuSlotPtr>> TGpuManager::AcquireGpuSlots(int slotCount)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
 
@@ -634,7 +634,7 @@ TErrorOr<std::vector<TGpuSlotPtr>> TGpuManager::AcquireGpuSlots(int slotCount)
 
 std::vector<TShellCommandConfigPtr> TGpuManager::GetSetupCommands()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto dynamicConfig = DynamicConfig_.Acquire();
     if (dynamicConfig->JobSetupCommand) {
@@ -646,7 +646,7 @@ std::vector<TShellCommandConfigPtr> TGpuManager::GetSetupCommands()
 
 std::vector<TArtifactKey> TGpuManager::GetToppingLayers()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = Guard(SpinLock_);
     if (DriverLayerKey_) {
@@ -662,7 +662,7 @@ std::vector<TArtifactKey> TGpuManager::GetToppingLayers()
 
 void TGpuManager::VerifyCudaToolkitDriverVersion(const TString& toolkitVersion)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto cudaToolkitMinDriverVersion = GetCudaToolkitMinDriverVersion();
     auto it = cudaToolkitMinDriverVersion.find(toolkitVersion);

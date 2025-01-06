@@ -7,7 +7,11 @@
 #include <yt/yt/server/lib/admin/admin_service.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
+
+#include <yt/yt/library/profiling/solomon/public.h>
+
 #include <yt/yt/library/program/build_attributes.h>
+#include <yt/yt/library/program/config.h>
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -33,7 +37,7 @@
 
 #include <yt/yt/core/http/server.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
+#include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/core/net/local_address.h>
 
@@ -52,6 +56,7 @@ using namespace NNodeTrackerClient;
 using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
+using namespace NFusion;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,9 +68,15 @@ class TBootstrap
     : public IBootstrap
 {
 public:
-    TBootstrap(TTabletBalancerServerConfigPtr config, INodePtr configNode)
+    TBootstrap(
+        TTabletBalancerBootstrapConfigPtr config,
+        INodePtr configNode,
+        IServiceLocatorPtr serviceLocator)
         : Config_(std::move(config))
         , ConfigNode_(std::move(configNode))
+        , ServiceLocator_(std::move(serviceLocator))
+        , ControlQueue_(New<TActionQueue>("Control"))
+        , ControlInvoker_(ControlQueue_->GetInvoker())
     {
         if (Config_->AbortOnUnrecognizedOptions) {
             AbortOnUnrecognizedOptions(Logger(), Config_);
@@ -74,61 +85,66 @@ public:
         }
     }
 
-    void Run() override
+    void Initialize()
     {
-        ControlQueue_ = New<TActionQueue>("Control");
-        ControlInvoker_ = ControlQueue_->GetInvoker();
-
-        BIND(&TBootstrap::DoRun, this)
+        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
             .AsyncVia(ControlInvoker_)
             .Run()
             .Get()
             .ThrowOnError();
     }
 
+    TFuture<void> Run() final
+    {
+        return BIND(&TBootstrap::DoRun, MakeStrong(this))
+            .AsyncVia(ControlQueue_->GetInvoker())
+            .Run();
+    }
+
     const NNative::IClientPtr& GetClient() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return Client_;
     }
 
     const ICypressElectionManagerPtr& GetElectionManager() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ElectionManager_;
     }
 
     const IInvokerPtr& GetControlInvoker() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ControlInvoker_;
     }
 
     const TDynamicConfigManagerPtr& GetDynamicConfigManager() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DynamicConfigManager_;
     }
 
 private:
-    const TTabletBalancerServerConfigPtr Config_;
+    const TTabletBalancerBootstrapConfigPtr Config_;
     const INodePtr ConfigNode_;
+    const IServiceLocatorPtr ServiceLocator_;
+
+    const TActionQueuePtr ControlQueue_;
+    const IInvokerPtr ControlInvoker_;
 
     ITabletBalancerPtr TabletBalancer_;
 
     std::string LocalAddress_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
-    TActionQueuePtr ControlQueue_;
-    IInvokerPtr ControlInvoker_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
-    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     NNative::IConnectionPtr Connection_;
     NNative::IClientPtr Client_;
@@ -139,12 +155,13 @@ private:
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
+    void DoInitialize();
     void DoRun();
 
     void RegisterInstance();
 };
 
-void TBootstrap::DoRun()
+void TBootstrap::DoInitialize()
 {
     YT_LOG_INFO("Starting tablet balancer process (ClusterName: %v)",
         Config_->ClusterConnection->Static->ClusterName);
@@ -171,10 +188,6 @@ void TBootstrap::DoRun()
 
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
-    if (Config_->CoreDumper) {
-        CoreDumper_ = CreateCoreDumper(Config_->CoreDumper);
-    }
-
     DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, this);
     DynamicConfigManager_->Start();
 
@@ -184,17 +197,18 @@ void TBootstrap::DoRun()
         ControlInvoker_);
 
     IMapNodePtr orchidRoot;
-    Initialize(
+    NMonitoring::Initialize(
         HttpServer_,
-        Config_->SolomonExporter,
+        ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
 
-    if (CoreDumper_) {
+    auto coreDumper = ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>();
+    if (coreDumper) {
         SetNodeByYPath(
             orchidRoot,
             "/core_dumper",
-            CreateVirtualNode(CoreDumper_->CreateOrchidService()));
+            CreateVirtualNode(coreDumper->CreateOrchidService()));
     }
 
     SetNodeByYPath(
@@ -218,13 +232,16 @@ void TBootstrap::DoRun()
 
     RpcServer_->RegisterService(NAdmin::CreateAdminService(
         ControlInvoker_,
-        CoreDumper_,
+        coreDumper,
         NativeAuthenticator_));
     RpcServer_->RegisterService(NOrchid::CreateOrchidService(
         orchidRoot,
         ControlInvoker_,
         NativeAuthenticator_));
+}
 
+void TBootstrap::DoRun()
+{
     YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_->Start();
 
@@ -280,9 +297,17 @@ void TBootstrap::RegisterInstance()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(TTabletBalancerServerConfigPtr config, INodePtr configNode)
+IBootstrapPtr CreateTabletBalancerBootstrap(
+    TTabletBalancerBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
 {
-    return std::make_unique<TBootstrap>(std::move(config), std::move(configNode));
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

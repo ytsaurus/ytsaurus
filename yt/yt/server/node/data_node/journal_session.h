@@ -41,9 +41,9 @@ private:
         int blockCount,
         i64 cumulativeBlockSize,
         const NNodeTrackerClient::TNodeDescriptor& target) override;
-    TFuture<NIO::TIOCounters> DoFlushBlocks(int blockIndex) override;
+    TFuture<TFlushBlocksResult> DoFlushBlocks(int blockIndex) override;
     void DoCancel(const TError& error) override;
-    TFuture<NChunkClient::NProto::TChunkInfo> DoFinish(
+    TFuture<TFinishResult> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) override;
 

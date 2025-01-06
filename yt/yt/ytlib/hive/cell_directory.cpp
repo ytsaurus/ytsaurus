@@ -604,7 +604,6 @@ private:
     THashMap<TCellTag, TEntry*> CellTagToEntry_;
     THashSet<TCellId> UnregisteredCellIds_;
 
-
     void InitChannel(TEntry* entry)
     {
         THashMap<std::string, std::string> addressToAlienCluster;

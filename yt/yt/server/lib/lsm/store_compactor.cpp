@@ -259,7 +259,7 @@ private:
         } else {
             // For critical partitions, this is equivalent to MOSC-OSC; for unconstrained -- includes extra slack.
             const int edenOverlappingStoreCount = tablet->GetEdenOverlappingStoreCount();
-            const int partitionStoreCount = static_cast<int>(partition->Stores().size());
+            const int partitionStoreCount = std::ssize(partition->Stores());
             request.Slack = std::max(0, overlappingStoreLimit - edenOverlappingStoreCount - partitionStoreCount);
             if (tablet->GetCriticalPartitionCount() == 1 &&
                 edenOverlappingStoreCount + partitionStoreCount == overlappingStoreCount)

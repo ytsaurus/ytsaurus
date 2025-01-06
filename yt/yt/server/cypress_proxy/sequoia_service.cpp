@@ -35,6 +35,7 @@ using namespace NObjectClient;
 using namespace NRpc;
 using namespace NSequoiaClient;
 using namespace NYTree;
+using namespace NServer;
 
 using NYT::FromProto;
 
@@ -45,7 +46,7 @@ class TSequoiaServiceContext
     , public ISequoiaServiceContext
 {
 public:
-    TSequoiaServiceContext(TSharedRefArray requestMessage)
+    explicit TSequoiaServiceContext(TSharedRefArray requestMessage)
         : TServiceContextBase(
             std::move(requestMessage),
             TMemoryUsageTrackerGuard(),
@@ -53,6 +54,22 @@ public:
             CypressProxyLogger(),
             ELogLevel::Debug)
     { }
+
+    // TODO(babenko): these three methods is a temporary workaround
+    void SetRequestHeader(std::unique_ptr<NRpc::NProto::TRequestHeader> /*header*/) override
+    {
+        YT_ABORT();
+    }
+
+    void SetReadRequestComplexityLimiter(const TReadRequestComplexityLimiterPtr& /*limiter*/) final
+    {
+        YT_ABORT();
+    }
+
+    TReadRequestComplexityLimiterPtr GetReadRequestComplexityLimiter() final
+    {
+        YT_ABORT();
+    }
 
 private:
     // TODO(danilalexeev)
@@ -160,14 +177,6 @@ ISequoiaServiceContextPtr CreateSequoiaServiceContext(TSharedRefArray requestMes
 {
     return New<TSequoiaServiceContext>(std::move(requestMessage));
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSequoiaServiceContextWrapper::TSequoiaServiceContextWrapper(
-    ISequoiaServiceContextPtr underlyingContext)
-    : TServiceContextWrapper(underlyingContext)
-    , UnderlyingContext_(std::move(underlyingContext))
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

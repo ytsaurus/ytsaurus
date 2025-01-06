@@ -56,7 +56,7 @@ public:
         NYTree::IAttributeDictionary* inheritedAttributes,
         NYTree::IAttributeDictionary* explicitAttributes) override;
 
-    virtual bool IsSupportedInheritableAttribute(const TString& /*key*/) const;
+    virtual bool IsSupportedInheritableAttribute(const std::string& /*key*/) const;
 
     NObjectServer::TAcdList ListAcds(TCypressNode* trunkNode) const override;
 

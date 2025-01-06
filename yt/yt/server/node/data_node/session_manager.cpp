@@ -125,7 +125,7 @@ IYPathServicePtr TSessionManager::GetOrchidService()
 
 void TSessionManager::Initialize()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     Bootstrap_->SubscribeMasterDisconnected(
         BIND_NO_PROPAGATE(&TSessionManager::OnMasterDisconnected, MakeWeak(this)));
@@ -136,7 +136,7 @@ void TSessionManager::Initialize()
 
 ISessionPtr TSessionManager::FindSession(TSessionId sessionId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(SessionMapLock_);
     if (sessionId.MediumIndex == AllMediaIndex) {
@@ -150,7 +150,7 @@ ISessionPtr TSessionManager::FindSession(TSessionId sessionId)
 
 ISessionPtr TSessionManager::GetSessionOrThrow(TSessionId sessionId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto session = FindSession(sessionId);
     if (!session) {
@@ -166,7 +166,7 @@ ISessionPtr TSessionManager::StartSession(
     TSessionId sessionId,
     const TSessionOptions& options)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto chunkCellTag = CellTagFromId(sessionId.ChunkId);
     const auto& clusterNodeMasterConnector = Bootstrap_->GetClusterNodeBootstrap()->GetMasterConnector();
@@ -225,7 +225,7 @@ ISessionPtr TSessionManager::CreateSession(
     TSessionId sessionId,
     const TSessionOptions& options)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     auto [location, lockedChunkGuard] = chunkStore->AcquireNewChunkLocation(sessionId, options);
@@ -246,7 +246,8 @@ ISessionPtr TSessionManager::CreateSession(
                 options,
                 location,
                 lease,
-                std::move(lockedChunkGuard));
+                std::move(lockedChunkGuard),
+                /*writeBlocksOptions*/ IChunkWriter::TWriteBlocksOptions{});
             break;
 
         case EObjectType::JournalChunk:
@@ -258,7 +259,8 @@ ISessionPtr TSessionManager::CreateSession(
                 options,
                 location,
                 lease,
-                std::move(lockedChunkGuard));
+                std::move(lockedChunkGuard),
+                /*writeBlocksOptions*/ IChunkWriter::TWriteBlocksOptions{});
             break;
 
         default:
@@ -269,7 +271,7 @@ ISessionPtr TSessionManager::CreateSession(
 
 void TSessionManager::OnSessionLeaseExpired(TSessionId sessionId)
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetStorageLightInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetStorageLightInvoker());
 
     auto session = FindSession(sessionId);
     if (!session) {
@@ -284,7 +286,7 @@ void TSessionManager::OnSessionLeaseExpired(TSessionId sessionId)
 
 void TSessionManager::OnSessionFinished(const TWeakPtr<ISession>& weakSession, const TError& /*error*/)
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetStorageLightInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetStorageLightInvoker());
 
     auto session = weakSession.Lock();
     if (!session) {
@@ -302,7 +304,7 @@ void TSessionManager::OnSessionFinished(const TWeakPtr<ISession>& weakSession, c
 
 int TSessionManager::GetSessionCount(ESessionType type)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     int result = 0;
     const auto& chunkStore = Bootstrap_->GetChunkStore();
@@ -314,21 +316,21 @@ int TSessionManager::GetSessionCount(ESessionType type)
 
 bool TSessionManager::GetDisableWriteSessions()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return DisableWriteSessions_.load();
 }
 
 void TSessionManager::SetDisableWriteSessions(bool value)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     DisableWriteSessions_.store(value);
 }
 
 void TSessionManager::RegisterSession(const ISessionPtr& session)
 {
-    VERIFY_SPINLOCK_AFFINITY(SessionMapLock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(SessionMapLock_);
 
     EmplaceOrCrash(SessionMap_, session->GetId(), session);
     EmplaceOrCrash(ChunkMap_, session->GetId().ChunkId, session);
@@ -344,7 +346,7 @@ void TSessionManager::RegisterSession(const ISessionPtr& session)
 
 void TSessionManager::UnregisterSession(const ISessionPtr& session)
 {
-    VERIFY_SPINLOCK_AFFINITY(SessionMapLock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(SessionMapLock_);
 
     EraseOrCrash(SessionMap_, session->GetId());
     EraseOrCrash(ChunkMap_, session->GetId().ChunkId);
@@ -362,7 +364,7 @@ void TSessionManager::UnregisterSession(const ISessionPtr& session)
 
 void TSessionManager::OnMasterDisconnected()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     THashMap<TSessionId, ISessionPtr> sessionMap;
     {
@@ -388,7 +390,7 @@ void TSessionManager::OnChunkRemovalScheduled(const IChunkPtr& chunk)
 
 void TSessionManager::CancelLocationSessions(const TChunkLocationPtr& location)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     THashMap<TSessionId, ISessionPtr> sessionMap;
     {
@@ -405,7 +407,7 @@ void TSessionManager::CancelLocationSessions(const TChunkLocationPtr& location)
 
 bool TSessionManager::CanPassSessionOutOfTurn(TSessionId sessionId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto count = Config_->MaxOutOfTurnSessions;
     if (count == 0) {

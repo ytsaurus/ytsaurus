@@ -29,6 +29,8 @@
 #include <yt/yt/library/program/config.h>
 #include <yt/yt/library/program/helpers.h>
 
+#include <yt/yt/library/coredumper/coredumper.h>
+
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
 #include <yt/yt/core/bus/server.h>
@@ -42,8 +44,8 @@
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/rpc/bus/server.h>
 
@@ -245,7 +247,7 @@ void TBootstrap::UpdateCypressNode()
 
 void TBootstrap::GuardedUpdateCypressNode()
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
     auto instancePath = Format("%v/instances/%v", Config_->Root, ToYPathLiteral(AgentId_));
 
@@ -289,7 +291,7 @@ void TBootstrap::OnDynamicConfigChanged(
     const TYqlAgentServerDynamicConfigPtr& oldConfig,
     const TYqlAgentServerDynamicConfigPtr& newConfig)
 {
-    ReconfigureSingletons(newConfig);
+    TSingletonManager::Reconfigure(newConfig);
 
     YT_VERIFY(YqlAgent_);
 

@@ -35,6 +35,7 @@ using namespace NSecurityServer;
 using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

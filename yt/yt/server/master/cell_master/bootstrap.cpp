@@ -30,9 +30,6 @@
 
 #include <yt/yt/server/master/maintenance_tracker_server/maintenance_tracker.h>
 
-#include <yt/yt/server/master/zookeeper_server/bootstrap_proxy.h>
-#include <yt/yt/server/master/zookeeper_server/zookeeper_manager.h>
-
 #include <yt/yt/server/lib/hive/avenue_directory.h>
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
@@ -57,9 +54,6 @@
 
 #include <yt/yt/server/lib/discovery_server/config.h>
 #include <yt/yt/server/lib/discovery_server/discovery_server.h>
-
-#include <yt/yt/server/lib/zookeeper_master/bootstrap.h>
-#include <yt/yt/server/lib/zookeeper_master/bootstrap_proxy.h>
 
 #include <yt/yt/server/master/journal_server/journal_manager.h>
 #include <yt/yt/server/master/journal_server/journal_node.h>
@@ -121,6 +115,8 @@
 
 #include <yt/yt/server/lib/transaction_server/timestamp_proxy_service.h>
 
+#include <yt/yt/server/lib/misc/bootstrap.h>
+
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
@@ -143,9 +139,17 @@
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
+#include <yt/yt/library/profiling/solomon/exporter.h>
+
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/discovery_client/config.h>
+
+#include <yt/yt/library/coredumper/coredumper.h>
+
+#include <yt/yt/library/profiling/producer.h>
+
+#include <yt/yt/library/fusion/service_locator.h>
 
 #include <yt/yt/ytlib/distributed_throttler/distributed_throttler.h>
 
@@ -161,6 +165,8 @@
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
+#include <yt/yt/library/program/config.h>
+
 #include <yt/yt/core/bus/server.h>
 
 #include <yt/yt/core/bus/tcp/config.h>
@@ -172,10 +178,10 @@
 
 #include <yt/yt/core/http/server.h>
 
-#include <yt/yt/library/coredumper/coredumper.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
+#include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 #include <yt/yt/core/rpc/bus/channel.h>
@@ -190,8 +196,6 @@
 #include <yt/yt/core/ytree/ypath_client.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
-#include <yt/yt/library/profiling/producer.h>
-
 namespace NYT::NCellMaster {
 
 using namespace NAdmin;
@@ -201,6 +205,7 @@ using namespace NCellarClient;
 using namespace NCellServer;
 using namespace NChaosServer;
 using namespace NChunkServer;
+using namespace NFusion;
 using namespace NConcurrency;
 using namespace NCypressServer;
 using namespace NDiscoveryServer;
@@ -233,22 +238,28 @@ using namespace NTransactionClient;
 using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
 using namespace NYTree;
-using namespace NZookeeperMaster;
-using namespace NZookeeperServer;
 
 using NTransactionServer::ITransactionManagerPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "Bootstrap");
-static YT_DEFINE_GLOBAL(const NLogging::TLogger, DryRunLogger, "DryRun");
+static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "MasterBoot");
+static YT_DEFINE_GLOBAL(const NLogging::TLogger, DryRunLogger, "MasterDryRun");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TBootstrap::TBootstrap() = default;
 
-TBootstrap::TBootstrap(TCellMasterConfigPtr config)
+TBootstrap::TBootstrap(
+    TCellMasterBootstrapConfigPtr config,
+    INodePtr configNode,
+    IServiceLocatorPtr serviceLocator)
     : Config_(std::move(config))
+    , ConfigNode_(std::move(configNode))
+    , ServiceLocator_(std::move(serviceLocator))
+    , ControlQueue_(New<TActionQueue>("Control"))
+    , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
+    , DiscoveryQueue_(New<TActionQueue>("Discovery"))
 {
     if (Config_->AbortOnUnrecognizedOptions) {
         AbortOnUnrecognizedOptions(Logger(), Config_);
@@ -259,7 +270,7 @@ TBootstrap::TBootstrap(TCellMasterConfigPtr config)
 
 TBootstrap::~TBootstrap() = default;
 
-const TCellMasterConfigPtr& TBootstrap::GetConfig() const
+const TCellMasterBootstrapConfigPtr& TBootstrap::GetConfig() const
 {
     return Config_;
 }
@@ -304,7 +315,7 @@ TCellTag TBootstrap::GetPrimaryCellTag() const
     return PrimaryCellTag_;
 }
 
-const TCellTagList& TBootstrap::GetSecondaryCellTags() const
+const std::set<TCellTag>& TBootstrap::GetSecondaryCellTags() const
 {
     return SecondaryCellTags_;
 }
@@ -584,20 +595,10 @@ const NRpc::IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
     return NativeAuthenticator_;
 }
 
-const NZookeeperServer::IZookeeperManagerPtr& TBootstrap::GetZookeeperManager() const
-{
-    return ZookeeperManager_;
-}
-
-NZookeeperMaster::IBootstrap* TBootstrap::GetZookeeperBootstrap() const
-{
-    return ZookeeperBootstrap_.get();
-}
-
 NDistributedThrottler::IDistributedThrottlerFactoryPtr TBootstrap::CreateDistributedThrottlerFactory(
     TDistributedThrottlerConfigPtr config,
     IInvokerPtr invoker,
-    const TString& groupIdPrefix,
+    const NDiscoveryClient::TGroupId& groupIdPrefix,
     NLogging::TLogger logger,
     NProfiling::TProfiler profiler) const
 {
@@ -617,30 +618,25 @@ NDistributedThrottler::IDistributedThrottlerFactoryPtr TBootstrap::CreateDistrib
 
 void TBootstrap::Initialize()
 {
-    ControlQueue_ = New<TActionQueue>("Control");
-    SnapshotIOQueue_ = New<TActionQueue>("SnapshotIO");
-
-    BIND(&TBootstrap::DoInitialize, this)
+    BIND(&TBootstrap::DoInitialize, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
         .ThrowOnError();
 }
 
-void TBootstrap::Run()
+TFuture<void> TBootstrap::Run()
 {
-    BIND(&TBootstrap::DoRun, this)
+    return BIND(&TBootstrap::DoRun, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
-        .Run()
-        .Get()
-        .ThrowOnError();
+        .Run();
 }
 
 void TBootstrap::LoadSnapshot(
     const TString& fileName,
     bool dump)
 {
-    BIND(&TBootstrap::DoLoadSnapshot, this, fileName, dump)
+    BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, dump)
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
@@ -649,7 +645,7 @@ void TBootstrap::LoadSnapshot(
 
 void TBootstrap::ReplayChangelogs(std::vector<TString> changelogFileNames)
 {
-    BIND(&TBootstrap::DoReplayChangelogs, this, Passed(std::move(changelogFileNames)))
+    BIND(&TBootstrap::DoReplayChangelogs, MakeStrong(this), Passed(std::move(changelogFileNames)))
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
@@ -658,7 +654,7 @@ void TBootstrap::ReplayChangelogs(std::vector<TString> changelogFileNames)
 
 void TBootstrap::BuildSnapshot()
 {
-    BIND(&TBootstrap::DoBuildSnapshot, this)
+    BIND(&TBootstrap::DoBuildSnapshot, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
@@ -667,7 +663,7 @@ void TBootstrap::BuildSnapshot()
 
 void TBootstrap::FinishDryRun()
 {
-    BIND(&TBootstrap::DoFinishDryRun, this)
+    BIND(&TBootstrap::DoFinishDryRun, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
@@ -686,7 +682,7 @@ class TDiskSpaceProfiler
     : public NProfiling::ISensorProducer
 {
 public:
-    explicit TDiskSpaceProfiler(TCellMasterConfigPtr config)
+    explicit TDiskSpaceProfiler(TCellMasterBootstrapConfigPtr config)
         : Config_(std::move(config))
     { }
 
@@ -710,7 +706,7 @@ public:
     }
 
 private:
-    TCellMasterConfigPtr Config_;
+    const TCellMasterBootstrapConfigPtr Config_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiskSpaceProfiler)
@@ -726,16 +722,16 @@ void TBootstrap::DoInitialize()
 
     // Override value always takes priority.
     // If expected local host name is not set we just skip host name validation.
-    auto addressResolverConfig = Config_->GetSingletonConfig<NNet::TAddressResolverConfig>();
+    auto addressResolverConfig = TSingletonManager::GetConfig()->GetSingletonConfig<NNet::TAddressResolverConfig>();
     auto expectedLocalHostName = addressResolverConfig->LocalHostNameOverride.value_or(
-        addressResolverConfig->ExpectedLocalHostName.value_or(actualLocalHostName));
+        Config_->ExpectedLocalHostName.value_or(actualLocalHostName));
 
     if (Config_->DryRun->EnableHostNameValidation &&
         expectedLocalHostName != actualLocalHostName)
     {
         THROW_ERROR_EXCEPTION("Local address differs from expected address specified in config")
             << TErrorAttribute("local_address", actualLocalHostName)
-            << TErrorAttribute("localhost_name", addressResolverConfig->ExpectedLocalHostName)
+            << TErrorAttribute("localhost_name", Config_->ExpectedLocalHostName)
             << TErrorAttribute("localhost_name_override", addressResolverConfig->LocalHostNameOverride);
     }
 
@@ -775,7 +771,7 @@ void TBootstrap::DoInitialize()
     PrimaryCellTag_ = CellTagFromId(PrimaryCellId_);
 
     for (const auto& cellConfig : Config_->SecondaryMasters) {
-        SecondaryCellTags_.push_back(CellTagFromId(cellConfig->CellId));
+        SecondaryCellTags_.insert(CellTagFromId(cellConfig->CellId));
     }
 
     if (PrimaryMaster_) {
@@ -833,10 +829,6 @@ void TBootstrap::DoInitialize()
 
     AvenueDirectory_ = New<TSimpleAvenueDirectory>();
 
-    if (Config_->CoreDumper) {
-        CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
-    }
-
     auto busServer = CreateBusServer(Config_->BusServer);
 
     RpcServer_ = NRpc::NBus::CreateBusServer(busServer);
@@ -872,10 +864,13 @@ void TBootstrap::DoInitialize()
     AlertManager_ = CreateAlertManager(this);
 
     ConfigManager_ = CreateConfigManager(this);
-    ConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
+    // Cycles are fine for bootstrap.
+    ConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
 
     EpochHistoryManager_ = CreateEpochHistoryManager(this);
 
+    // NB: It is important to register multicell manager's automaton part before node tracker's,
+    // because its state depend on proper list of master cells.
     MulticellManager_ = CreateMulticellManager(this);
 
     WorldInitializer_ = CreateWorldInitializer(this);
@@ -887,6 +882,7 @@ void TBootstrap::DoInitialize()
     HiveManager_ = CreateHiveManager(
         Config_->HiveManager,
         CellDirectory_,
+        ClusterConnection_->GetMasterCellDirectory(),
         AvenueDirectory_,
         CellId_,
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::HiveManager),
@@ -899,8 +895,7 @@ void TBootstrap::DoInitialize()
     addresses.reserve(localCellConfig->Peers.size());
     for (const auto& peer : localCellConfig->Peers) {
         if (peer->Address) {
-            // TODO(babenko): switch to std::string
-            addresses.push_back(std::string(*peer->Address));
+            addresses.push_back(*peer->Address);
         }
     }
 
@@ -964,11 +959,6 @@ void TBootstrap::DoInitialize()
 
     ObjectService_ = CreateObjectService(Config_->ObjectService, this);
 
-    ZookeeperBootstrapProxy_ = CreateZookeeperBootstrapProxy(this);
-    ZookeeperBootstrap_ = CreateBootstrap(ZookeeperBootstrapProxy_.get());
-
-    ZookeeperManager_ = CreateZookeeperManager(this);
-
     GroundUpdateQueueManager_ = CreateGroundUpdateQueueManager(this);
 
     InitializeTimestampProvider();
@@ -1021,8 +1011,6 @@ void TBootstrap::DoInitialize()
     BackupManager_->Initialize();
     ChaosManager_->Initialize();
     SchedulerPoolManager_->Initialize();
-    ZookeeperBootstrap_->Initialize();
-    ZookeeperManager_->Initialize();
     GroundUpdateQueueManager_->Initialize();
     GraftingManager_->Initialize();
     SequoiaActionsExecutor_->Initialize();
@@ -1071,7 +1059,6 @@ void TBootstrap::DoInitialize()
         std::move(transactionParticipantProviders),
         NativeAuthenticator_);
 
-    DiscoveryQueue_ = New<TActionQueue>("Discovery");
     auto discoveryServerConfig = New<TDiscoveryServerConfig>();
     discoveryServerConfig->ServerAddresses = std::move(addresses);
     DiscoveryServer_ = CreateDiscoveryServer(
@@ -1099,7 +1086,10 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(ObjectService_);
     RpcServer_->RegisterService(CreateJobTrackerService(this));
     RpcServer_->RegisterService(CreateChunkService(this));
-    RpcServer_->RegisterService(CreateAdminService(GetControlInvoker(), CoreDumper_, NativeAuthenticator_));
+    RpcServer_->RegisterService(CreateAdminService(
+        GetControlInvoker(),
+        ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>(),
+        NativeAuthenticator_));
     RpcServer_->RegisterService(CreateTransactionService(this));
     RpcServer_->RegisterService(CreateCypressTransactionService(this));
     RpcServer_->RegisterService(CreateMasterChaosService(this));
@@ -1164,13 +1154,13 @@ void TBootstrap::DoRun()
 
     HydraFacade_->Initialize();
 
-    YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
+    YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
         HttpServer_,
-        Config_->SolomonExporter,
+        ServiceLocator_->GetServiceOrThrow<TSolomonExporterPtr>(),
         &MonitoringManager_,
         &orchidRoot);
 
@@ -1185,7 +1175,7 @@ void TBootstrap::DoRun()
         SetNodeByYPath(
             orchidRoot,
             "/config",
-            CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+            CreateVirtualNode(ConfigNode_));
     }
     SetNodeByYPath(
         orchidRoot,
@@ -1225,7 +1215,7 @@ void TBootstrap::DoRun()
 
     HttpServer_->Start();
 
-    YT_LOG_INFO("Listening for RPC requests on port %v", Config_->RpcPort);
+    YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
     RpcServer_->RegisterService(CreateOrchidService(orchidRoot, GetControlInvoker(), NativeAuthenticator_));
     RpcServer_->Start();
 }
@@ -1304,9 +1294,24 @@ void TBootstrap::DoFinishDryRun()
 void TBootstrap::OnDynamicConfigChanged(const TDynamicClusterConfigPtr& /*oldConfig*/)
 {
     const auto& config = ConfigManager_->GetConfig();
-    ReconfigureSingletons(config->CellMaster);
+    TSingletonManager::Reconfigure(config->CellMaster);
 
     HydraFacade_->Reconfigure(config->CellMaster);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBootstrapPtr CreateMasterBootstrap(
+    TCellMasterBootstrapConfigPtr config,
+    INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator)
+{
+    auto bootstrap = New<TBootstrap>(
+        std::move(config),
+        std::move(configNode),
+        std::move(serviceLocator));
+    bootstrap->Initialize();
+    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

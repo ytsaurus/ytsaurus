@@ -15,6 +15,8 @@
 #include <yt/yt/core/ytree/public.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <yt/yt/core/misc/configurable_singleton_def.h>
+
 #include <util/system/user.h>
 
 namespace NYT::NSchedulerSimulator {
@@ -131,7 +133,8 @@ public:
 };
 
 class TSchedulerSimulatorConfig
-    : public TServerConfig
+    : public NServer::TServerBootstrapConfig
+    , public TSingletonsConfig
 {
 public:
     int HeartbeatPeriod;

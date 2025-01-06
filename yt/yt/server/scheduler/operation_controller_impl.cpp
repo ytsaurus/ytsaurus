@@ -66,7 +66,7 @@ TOperationControllerImpl::TOperationControllerImpl(
 
 void TOperationControllerImpl::AssignAgent(const TControllerAgentPtr& agent, TControllerEpoch epoch)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto guard = Guard(SpinLock_);
 
@@ -85,7 +85,7 @@ void TOperationControllerImpl::AssignAgent(const TControllerAgentPtr& agent, TCo
 
 bool TOperationControllerImpl::RevokeAgent()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto guard = Guard(SpinLock_);
 
@@ -111,7 +111,7 @@ bool TOperationControllerImpl::RevokeAgent()
 
 TControllerAgentPtr TOperationControllerImpl::FindAgent() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return Agent_.Lock();
 }
@@ -123,7 +123,7 @@ TControllerEpoch TOperationControllerImpl::GetEpoch() const
 
 TFuture<TOperationControllerInitializeResult> TOperationControllerImpl::Initialize(const std::optional<TOperationTransactions>& transactions)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(IncarnationId_);
 
     auto agent = Agent_.Lock();
@@ -177,7 +177,7 @@ TFuture<TOperationControllerInitializeResult> TOperationControllerImpl::Initiali
 
 TFuture<TOperationControllerPrepareResult> TOperationControllerImpl::Prepare()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(IncarnationId_);
 
     auto agent = Agent_.Lock();
@@ -217,7 +217,7 @@ TFuture<TOperationControllerPrepareResult> TOperationControllerImpl::Prepare()
 
 TFuture<TOperationControllerMaterializeResult> TOperationControllerImpl::Materialize()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(IncarnationId_);
 
     auto agent = Agent_.Lock();
@@ -257,7 +257,7 @@ TFuture<TOperationControllerMaterializeResult> TOperationControllerImpl::Materia
 
 TFuture<TOperationControllerReviveResult> TOperationControllerImpl::Revive()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(IncarnationId_);
 
     auto agent = Agent_.Lock();
@@ -308,7 +308,7 @@ TFuture<TOperationControllerReviveResult> TOperationControllerImpl::Revive()
 
 TFuture<TOperationControllerCommitResult> TOperationControllerImpl::Commit()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(IncarnationId_);
 
     auto agent = Agent_.Lock();
@@ -348,7 +348,7 @@ TFuture<TOperationControllerCommitResult> TOperationControllerImpl::Commit()
 
 TFuture<void> TOperationControllerImpl::Terminate(EOperationState finalState)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_LOG_INFO("Terminating operation controller");
 
@@ -371,7 +371,7 @@ TFuture<void> TOperationControllerImpl::Terminate(EOperationState finalState)
 
 TFuture<void> TOperationControllerImpl::Complete()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(IncarnationId_);
 
     auto req = ControllerAgentTrackerProxy_->CompleteOperation();
@@ -382,7 +382,7 @@ TFuture<void> TOperationControllerImpl::Complete()
 
 TFuture<void> TOperationControllerImpl::Register(const TOperationPtr& operation)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto agent = Agent_.Lock();
     // Called synchronously just after assigning agent.
@@ -419,7 +419,7 @@ TFuture<void> TOperationControllerImpl::Register(const TOperationPtr& operation)
 
 TFuture<TOperationControllerUnregisterResult> TOperationControllerImpl::Unregister()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (!IncarnationId_) {
         YT_LOG_INFO("Operation has no agent assigned; unregister request ignored");
@@ -439,7 +439,7 @@ TFuture<TOperationControllerUnregisterResult> TOperationControllerImpl::Unregist
 
 TFuture<void> TOperationControllerImpl::UpdateRuntimeParameters(TOperationRuntimeParametersUpdatePtr update)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
     if (!IncarnationId_) {
         return VoidFuture;
     }
@@ -458,7 +458,7 @@ void TOperationControllerImpl::OnAllocationAborted(
     EAbortReason abortReason,
     TControllerEpoch allocationEpoch)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     if (ShouldSkipAllocationAbortEvent(allocationId, allocationEpoch)) {
         return;
@@ -487,14 +487,14 @@ void TOperationControllerImpl::OnAllocationAborted(
     bool scheduled,
     EAbortReason abortReason)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     OnAllocationAborted(allocation->GetId(), error, scheduled, abortReason, allocation->GetControllerEpoch());
 }
 
 void TOperationControllerImpl::OnAllocationFinished(const TAllocationPtr& allocation)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto allocationId = allocation->GetId();
 
@@ -520,7 +520,7 @@ void TOperationControllerImpl::OnNonscheduledAllocationAborted(
     EAbortReason abortReason,
     TControllerEpoch allocationEpoch)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     OnAllocationAborted(allocationId, TError{}, false, abortReason, allocationEpoch);
 }
@@ -634,7 +634,7 @@ void TOperationControllerImpl::SetControllerRuntimeData(const TControllerRuntime
 
 TFuture<void> TOperationControllerImpl::GetFullHeartbeatProcessed()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto agent = Agent_.Lock();
     if (!agent) {
@@ -651,7 +651,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
     const TString& poolPath,
     const TFairShareStrategyTreeConfigPtr& treeConfig)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto nodeId = context->GetNodeDescriptor()->Id;
     auto cellTag = Bootstrap_->GetClient()->GetNativeConnection()->GetPrimaryMasterCellTag();
@@ -722,7 +722,7 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
 
 void TOperationControllerImpl::UpdateMinNeededAllocationResources()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     EnqueueOperationEvent({
         .EventType = ESchedulerToAgentOperationEventType::UpdateMinNeededAllocationResources,
@@ -733,21 +733,21 @@ void TOperationControllerImpl::UpdateMinNeededAllocationResources()
 
 TCompositeNeededResources TOperationControllerImpl::GetNeededResources() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     return ControllerRuntimeData_->GetNeededResources();
 }
 
 TJobResourcesWithQuotaList TOperationControllerImpl::GetMinNeededAllocationResources() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     return ControllerRuntimeData_->MinNeededResources();
 }
 
 TJobResourcesWithQuotaList TOperationControllerImpl::GetInitialMinNeededAllocationResources() const
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     return InitialMinNeededResources_;
 }

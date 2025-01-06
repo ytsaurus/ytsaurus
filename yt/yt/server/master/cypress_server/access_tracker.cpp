@@ -44,7 +44,7 @@ TAccessTracker::TAccessTracker(NCellMaster::TBootstrap* bootstrap)
 
 void TAccessTracker::Start()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     YT_VERIFY(!FlushExecutor_);
     FlushExecutor_ = New<TPeriodicExecutor>(
@@ -59,7 +59,7 @@ void TAccessTracker::Start()
 
 void TAccessTracker::Stop()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
@@ -150,7 +150,7 @@ void TAccessTracker::Reset()
 
 void TAccessTracker::OnFlush()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
     if (!hydraManager->IsActive()) {

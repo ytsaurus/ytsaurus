@@ -1,5 +1,6 @@
 RECURSE(
     dynamic_tables
+    generate_release_notes
 )
 
 IF (NOT OPENSOURCE)

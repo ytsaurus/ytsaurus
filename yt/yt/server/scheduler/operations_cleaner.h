@@ -11,9 +11,18 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TArchiveOperationRequest
+struct TRemoveOperationRequest
 {
     TOperationId Id;
+    //! It is guaranteed that all dependent nodes will be successfully
+    //! removed before the operation node is removed itself.
+    std::vector<NCypressClient::TNodeId> DependentNodeIds;
+};
+
+struct TArchiveOperationRequest
+    : public TRemoveOperationRequest
+{
+    // Id is present in TRemoveOperationRequest.
     TInstant StartTime;
     TInstant FinishTime;
     EOperationState State;
@@ -79,7 +88,7 @@ public:
     void SubmitForArchivation(TArchiveOperationRequest request);
     void SubmitForArchivation(std::vector<TOperationId> operations);
 
-    void SubmitForRemoval(std::vector<TOperationId> operations);
+    void SubmitForRemoval(std::vector<TRemoveOperationRequest> requests);
 
     void UpdateConfig(const TOperationsCleanerConfigPtr& config);
 
@@ -102,7 +111,6 @@ public:
 
     TArchiveOperationRequest InitializeRequestFromOperation(const TOperationPtr& operation);
     TArchiveOperationRequest InitializeRequestFromAttributes(const NYTree::IAttributeDictionary& attributes);
-
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;

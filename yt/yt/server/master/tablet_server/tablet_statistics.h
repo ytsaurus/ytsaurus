@@ -117,7 +117,7 @@ public:
 
 private:
     i64 DiskSpace_ = 0;
-    THashMap<TString, i64> DiskSpacePerMediumMap_;
+    THashMap<std::string, i64> DiskSpacePerMediumMap_;
 };
 
 class TSerializableTabletStatisticsBase

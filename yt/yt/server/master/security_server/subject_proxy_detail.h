@@ -36,13 +36,13 @@ protected:
     {
         TBase::ListSystemAttributes(descriptors);
 
-        descriptors->push_back(NYTree::ISystemAttributeProvider::TAttributeDescriptor(EInternedAttributeKey::Name)
+        descriptors->push_back(NYTree::ISystemAttributeProvider::TAttributeDescriptor(NServer::EInternedAttributeKey::Name)
             .SetWritable(true)
             .SetReplicated(true)
             .SetMandatory(true));
-        descriptors->push_back(EInternedAttributeKey::MemberOf);
-        descriptors->push_back(EInternedAttributeKey::MemberOfClosure);
-        descriptors->push_back(NYTree::ISystemAttributeProvider::TAttributeDescriptor(EInternedAttributeKey::Aliases)
+        descriptors->push_back(NServer::EInternedAttributeKey::MemberOf);
+        descriptors->push_back(NServer::EInternedAttributeKey::MemberOfClosure);
+        descriptors->push_back(NYTree::ISystemAttributeProvider::TAttributeDescriptor(NServer::EInternedAttributeKey::Aliases)
             .SetWritable(true)
             .SetReplicated(true));
     }
@@ -52,12 +52,12 @@ protected:
         const auto* subject = this->GetThisImpl();
 
         switch (key) {
-            case EInternedAttributeKey::Name:
+            case NServer::EInternedAttributeKey::Name:
                 NYTree::BuildYsonFluently(consumer)
                     .Value(subject->GetName());
                 return true;
 
-            case EInternedAttributeKey::MemberOf:
+            case NServer::EInternedAttributeKey::MemberOf:
                 NYTree::BuildYsonFluently(consumer)
                     .DoListFor(subject->MemberOf(), [] (NYTree::TFluentList fluent, TGroup* group) {
                         fluent
@@ -65,14 +65,14 @@ protected:
                     });
                 return true;
 
-            case EInternedAttributeKey::MemberOfClosure:
+            case NServer::EInternedAttributeKey::MemberOfClosure:
                 NYTree::BuildYsonFluently(consumer)
                     .DoListFor(subject->RecursiveMemberOf(), [] (NYTree::TFluentList fluent, TGroup* group) {
                         fluent
                             .Item().Value(group->GetName());
                     });
                 return true;
-            case EInternedAttributeKey::Aliases:
+            case NServer::EInternedAttributeKey::Aliases:
                 NYTree::BuildYsonFluently(consumer)
                     .DoListFor(subject->Aliases(), [] (NYTree::TFluentList fluent, const std::string& alias) {
                         fluent
@@ -93,12 +93,12 @@ protected:
         const auto& securityManager = this->Bootstrap_->GetSecurityManager();
 
         switch (key) {
-            case EInternedAttributeKey::Name: {
+            case NServer::EInternedAttributeKey::Name: {
                 auto newName = NYTree::ConvertTo<std::string>(value);
                 securityManager->RenameSubject(subject, newName);
                 return true;
             }
-            case EInternedAttributeKey::Aliases: {
+            case NServer::EInternedAttributeKey::Aliases: {
                 auto newAliases = NYTree::ConvertTo<std::vector<std::string>>(value);
                 securityManager->SetSubjectAliases(subject, newAliases);
                 return true;

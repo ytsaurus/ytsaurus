@@ -879,7 +879,7 @@ private:
                 readSize = Min(readSize, *Config_->SimulatedMaxBytesPerRead);
             }
             Sensors_->RegisterReadBytes(readSize);
-            auto bufferSize = static_cast<i64>(subrequestState.Buffer.Size());
+            auto bufferSize = std::ssize(subrequestState.Buffer);
             subrequest.Offset += readSize;
             if (bufferSize == readSize) {
                 YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Read subrequest fully succeeded (Request: %p/%v, Size: %v)",
@@ -929,7 +929,7 @@ private:
 
         do {
             auto& buffer = request->WriteRequest.Buffers[request->CurrentWriteSubrequestIndex];
-            auto bufferSize = static_cast<i64>(buffer.Size());
+            auto bufferSize = std::ssize(buffer);
             if (bufferSize <= writtenSize) {
                 YT_LOG_DEBUG_IF(EnableIOUringLogging_, "Write subrequest fully succeeded (Request: %p/%v, Size: %v)",
                     request,
@@ -1557,14 +1557,14 @@ private:
 
     void ReconfigureQueue()
     {
-        VERIFY_INVOKER_AFFINITY(ReconfigureInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(ReconfigureInvoker_);
 
         RequestQueue_->Reconfigure(std::ssize(Threads_));
     }
 
     void DoReconfigure()
     {
-        VERIFY_INVOKER_AFFINITY(ReconfigureInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(ReconfigureInvoker_);
 
         ResizeThreads();
     }
@@ -1672,7 +1672,7 @@ public:
             sessionId);
     }
 
-    TFuture<void> Write(
+    TFuture<TWriteResponse> Write(
         TWriteRequest request,
         EWorkloadCategory category,
         TSessionId sessionId) override
@@ -1699,7 +1699,14 @@ public:
 
         ThreadPool_->SubmitRequests(uringRequests, category, sessionId);
 
-        return AllSucceeded(std::move(futures));
+        TWriteResponse response{
+            .IOWriteRequests = std::ssize(uringRequests),
+        };
+
+        return AllSucceeded(std::move(futures))
+            .Apply(BIND([response = std::move(response)] () mutable {
+                return std::move(response);
+            }));
     }
 
     TFuture<void> FlushFile(

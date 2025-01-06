@@ -35,7 +35,7 @@ IQueueAgentShardingManagerPtr CreateQueueAgentShardingManager(
     NQueueClient::TDynamicStatePtr dynamicState,
     NDiscoveryClient::IMemberClientPtr memberClient,
     NDiscoveryClient::IDiscoveryClientPtr discoveryClient,
-    TString queueAgentStage,
+    std::string queueAgentStage,
     NYPath::TYPath dynamicStateRoot);
 
 ////////////////////////////////////////////////////////////////////////////////

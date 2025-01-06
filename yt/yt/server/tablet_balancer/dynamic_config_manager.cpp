@@ -11,7 +11,7 @@ using namespace NDynamicConfig;
 ////////////////////////////////////////////////////////////////////////////////
 
 TDynamicConfigManager::TDynamicConfigManager(
-    const TTabletBalancerServerConfigPtr& config,
+    const TTabletBalancerBootstrapConfigPtr& config,
     const IBootstrap* bootstrap)
     : TDynamicConfigManagerBase<TTabletBalancerDynamicConfig>(
         TDynamicConfigManagerOptions{

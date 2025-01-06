@@ -268,7 +268,7 @@ void TMasterConnectorConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TClusterNodeConfig::Register(TRegistrar registrar)
+void TClusterNodeBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("orchid_cache_update_period", &TThis::OrchidCacheUpdatePeriod)
         .Default(TDuration::Seconds(5));
@@ -440,18 +440,13 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
             config->MasterConnector->SyncDirectoriesOnConnect = config->DataNode->SyncDirectoriesOnConnect;
         }
 
-        auto dispatcherConfig = config->GetSingletonConfig<NBus::TTcpDispatcherConfig>();
-        if (!dispatcherConfig->NetworkBandwidth) {
-            dispatcherConfig->NetworkBandwidth = config->NetworkBandwidth;
-        }
-
         if (!config->Rack && config->DataCenter) {
             THROW_ERROR_EXCEPTION("\"data_center\" should be defined with \"rack\"");
         }
     });
 }
 
-NHttp::TServerConfigPtr TClusterNodeConfig::CreateSkynetHttpServerConfig()
+NHttp::TServerConfigPtr TClusterNodeBootstrapConfig::CreateSkynetHttpServerConfig()
 {
     auto config = New<NHttp::TServerConfig>();
     config->Port = SkynetHttpPort;
@@ -459,6 +454,23 @@ NHttp::TServerConfigPtr TClusterNodeConfig::CreateSkynetHttpServerConfig()
     config->BindRetryBackoff = BusServer->BindRetryBackoff;
     config->ServerName = "HttpSky";
     return config;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TClusterNodeProgramConfig::Register(TRegistrar registrar)
+{
+    registrar.Postprocessor([] (TThis* config) {
+        auto dispatcherConfig = config->GetSingletonConfig<NBus::TTcpDispatcherConfig>();
+        if (!dispatcherConfig->NetworkBandwidth) {
+            dispatcherConfig->NetworkBandwidth = config->NetworkBandwidth;
+        }
+
+        auto tcpDispatcherConfig = config->GetSingletonConfig<NBus::TTcpDispatcherConfig>();
+        if (!tcpDispatcherConfig->NetworkBandwidth) {
+            tcpDispatcherConfig->NetworkBandwidth = config->NetworkBandwidth;
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -509,7 +521,6 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .Default(1.0);
     registrar.Parameter("memory_limit_exceeded_for_category_threshold", &TThis::MemoryLimitExceededForCategoryThreshold)
         .Default(1.1);
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -523,7 +534,6 @@ void TChunkReplicaCacheDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 void TTopLevelPortoEnvironmentConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("porto_executor", &TThis::PortoExecutor)
@@ -533,6 +543,5 @@ void TTopLevelPortoEnvironmentConfig::Register(TRegistrar registrar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
 
 } // namespace NYT::NClusterNode

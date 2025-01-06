@@ -21,7 +21,6 @@ SRCS(
     program.cpp
     public.cpp
     solomon_proxy.cpp
-    zookeeper_bootstrap_proxy.cpp
 
     clickhouse/config.cpp
     clickhouse/discovery_cache.cpp
@@ -45,7 +44,6 @@ PEERDIR(
     yt/yt/server/lib
     yt/yt/server/lib/chunk_pools
     yt/yt/server/lib/cypress_registrar
-    yt/yt/server/lib/zookeeper_proxy
     yt/yt/server/lib/logging
     library/cpp/cgiparam
     library/cpp/getopt

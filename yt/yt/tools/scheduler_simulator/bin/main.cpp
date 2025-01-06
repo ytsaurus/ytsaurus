@@ -273,7 +273,7 @@ protected:
             NYTree::IMapNodePtr orchidRoot;
             NMonitoring::Initialize(
                 httpServer,
-                config->SolomonExporter,
+                NProfiling::TSolomonExporterPtr(),
                 &monitoringManager,
                 &orchidRoot);
 

@@ -277,7 +277,7 @@ protected:
 
         void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
-            VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+            YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             jobSpec->CopyFrom(Controller_->JobSpecTemplate_);
             BuildInputOutputJobSpec(joblet, jobSpec);
@@ -1103,7 +1103,7 @@ public:
     void CustomPrepare() override
     {
         int teleportOutputCount = 0;
-        for (int index = 0; index < static_cast<int>(OutputTables_.size()); ++index) {
+        for (int index = 0; index < std::ssize(OutputTables_); ++index) {
             if (OutputTables_[index]->Path.GetTeleport()) {
                 ++teleportOutputCount;
                 OutputTeleportTableIndex_ = index;

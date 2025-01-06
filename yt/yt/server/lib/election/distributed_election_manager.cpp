@@ -149,7 +149,7 @@ public:
 
     void Run()
     {
-        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(Owner_->ControlThread);
         SendPingsExecutor_->Start();
     }
 
@@ -163,7 +163,7 @@ private:
 
     void SendPings()
     {
-        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(Owner_->ControlThread);
 
         const auto& cellManager = Owner_->CellManager_;
         for (auto id = TotalPeerCount_; id < cellManager->GetTotalPeerCount(); ++id) {
@@ -174,7 +174,7 @@ private:
 
     void SendPing(int peerId)
     {
-        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (peerId == Owner_->CellManager_->GetSelfPeerId()) {
             return;
@@ -201,7 +201,7 @@ private:
 
     void SchedulePing(int id)
     {
-        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(Owner_->ControlThread);
 
         TDelayedExecutor::Submit(
             BIND(&TFollowerPinger::SendPing, MakeWeak(this), id)
@@ -211,7 +211,7 @@ private:
 
     void OnPingResponse(int id, const TElectionServiceProxy::TErrorOrRspPingFollowerPtr& rspOrError)
     {
-        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(Owner_->ControlThread);
         YT_VERIFY(Owner_->State_ == EPeerState::Leading);
 
         if (id >= TotalPeerCount_) {
@@ -339,7 +339,7 @@ public:
 
     void Run()
     {
-        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(Owner_->ControlThread);
         YT_VERIFY(Owner_->State_ == EPeerState::Voting);
 
         const auto& cellManager = Owner_->CellManager_;
@@ -434,7 +434,7 @@ private:
 
     void OnResponse(int id, const TElectionServiceProxy::TErrorOrRspGetStatusPtr& rspOrError)
     {
-        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (Finished_) {
             return;
@@ -532,7 +532,7 @@ private:
 
     void OnComplete(const TError&)
     {
-        VERIFY_THREAD_AFFINITY(Owner_->ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(Owner_->ControlThread);
 
         if (Finished_) {
             return;
@@ -596,7 +596,7 @@ TDistributedElectionManager::TDistributedElectionManager(
     YT_VERIFY(Config_);
     YT_VERIFY(ControlInvoker_);
     YT_VERIFY(ElectionCallbacks_);
-    VERIFY_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
+    YT_ASSERT_INVOKER_THREAD_AFFINITY(ControlInvoker_, ControlThread);
 
     RegisterMethod(RPC_SERVICE_METHOD_DESC(PingFollower));
     RegisterMethod(RPC_SERVICE_METHOD_DESC(GetStatus));
@@ -605,7 +605,7 @@ TDistributedElectionManager::TDistributedElectionManager(
 
 void TDistributedElectionManager::Initialize()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     RpcServer_->RegisterService(this);
 
@@ -614,7 +614,7 @@ void TDistributedElectionManager::Initialize()
 
 void TDistributedElectionManager::Finalize()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_LOG_INFO("Election instance is finalizing");
 
@@ -625,7 +625,7 @@ void TDistributedElectionManager::Finalize()
 
 void TDistributedElectionManager::Participate()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     switch (State_) {
         case EPeerState::Stopped:
@@ -652,7 +652,7 @@ void TDistributedElectionManager::Participate()
 
 TFuture<void> TDistributedElectionManager::Abandon(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     switch (State_) {
         case EPeerState::Stopped:
@@ -674,7 +674,7 @@ TFuture<void> TDistributedElectionManager::Abandon(const TError& error)
 
 void TDistributedElectionManager::ReconfigureCell(TCellManagerPtr cellManager)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(cellManager);
     YT_VERIFY(CellManager_->GetCellId() == cellManager->GetCellId());
 
@@ -686,11 +686,11 @@ void TDistributedElectionManager::ReconfigureCell(TCellManagerPtr cellManager)
 
 TYsonProducer TDistributedElectionManager::GetMonitoringProducer()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return
         IYPathService::FromProducer(BIND([=, this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
-            VERIFY_THREAD_AFFINITY(ControlThread);
+            YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
             BuildYsonFluently(consumer)
                 .BeginMap()
@@ -720,21 +720,21 @@ TYsonProducer TDistributedElectionManager::GetMonitoringProducer()
 
 TPeerIdSet TDistributedElectionManager::GetAlivePeerIds()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     return AlivePeerIds_;
 }
 
 TCellManagerPtr TDistributedElectionManager::GetCellManager()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     return CellManager_;
 }
 
 void TDistributedElectionManager::Reset()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     SetState(EPeerState::Stopped);
 
@@ -750,7 +750,7 @@ void TDistributedElectionManager::Reset()
 
 void TDistributedElectionManager::CancelContext()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (EpochContext_) {
         EpochContext_->CancelableContext->Cancel(TError("Election epoch canceled"));
@@ -760,7 +760,7 @@ void TDistributedElectionManager::CancelContext()
 
 void TDistributedElectionManager::OnLeaderPingLeaseExpired()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     YT_VERIFY(State_ == EPeerState::Following);
     YT_UNUSED_FUTURE(StopFollowing(TError("No recurrent ping from leader within timeout")));
@@ -791,7 +791,7 @@ bool TDistributedElectionManager::IsVotingPeer(int peerId) const
 
 void TDistributedElectionManager::ContinueVoting(int voteId, TEpochId voteEpoch)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     SetState(EPeerState::Voting);
     VoteId_ = voteId;
@@ -806,7 +806,7 @@ void TDistributedElectionManager::ContinueVoting(int voteId, TEpochId voteEpoch)
 
 void TDistributedElectionManager::StartVoting()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     CancelContext();
 
@@ -833,7 +833,7 @@ void TDistributedElectionManager::StartVoting()
 
 void TDistributedElectionManager::StartVotingRound()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(State_ == EPeerState::Voting);
 
     auto round = New<TVotingRound>(this);
@@ -845,7 +845,7 @@ void TDistributedElectionManager::StartVotingRound()
 
 TFuture<void> TDistributedElectionManager::StartLeading()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     SetState(EPeerState::Leading);
     YT_VERIFY(VoteId_ == CellManager_->GetSelfPeerId());
@@ -878,7 +878,7 @@ TFuture<void> TDistributedElectionManager::StartFollowing(
     int leaderId,
     TEpochId epochId)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     SetState(EPeerState::Following);
     VoteId_ = leaderId;
@@ -902,7 +902,7 @@ TFuture<void> TDistributedElectionManager::StartFollowing(
 
 TFuture<void> TDistributedElectionManager::StopLeading(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(State_ == EPeerState::Leading);
 
     YT_LOG_INFO(error, "Stopped leading (EpochId: %v)",
@@ -921,7 +921,7 @@ TFuture<void> TDistributedElectionManager::StopLeading(const TError& error)
 
 TFuture<void> TDistributedElectionManager::StopFollowing(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(State_ == EPeerState::Following);
 
     YT_LOG_INFO(error, "Stopped following (LeaderId: %v, EpochId: %v)",
@@ -938,7 +938,7 @@ TFuture<void> TDistributedElectionManager::StopFollowing(const TError& error)
 
 TFuture<void> TDistributedElectionManager::StopVoting(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(State_ == EPeerState::Voting);
 
     YT_LOG_INFO(error, "Voting stopped (EpochId: %v)",
@@ -954,7 +954,7 @@ TFuture<void> TDistributedElectionManager::StopVoting(const TError& error)
 
 TFuture<void> TDistributedElectionManager::Discombobulate(i64 leaderSequenceNumber)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(State_ == EPeerState::Following);
 
     if (EpochContext_->Discombobulated) {
@@ -976,7 +976,7 @@ TFuture<void> TDistributedElectionManager::Discombobulate(i64 leaderSequenceNumb
 
 void TDistributedElectionManager::InitEpochContext(int leaderId, TEpochId epochId)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     EpochContext_->LeaderId = leaderId;
     EpochContext_->EpochId = epochId;
@@ -985,7 +985,7 @@ void TDistributedElectionManager::InitEpochContext(int leaderId, TEpochId epochI
 
 void TDistributedElectionManager::SetState(EPeerState newState)
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     if (newState == State_)
         return;
@@ -1000,7 +1000,7 @@ void TDistributedElectionManager::SetState(EPeerState newState)
 DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, PingFollower)
 {
     Y_UNUSED(response);
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     auto epochId = FromProto<TEpochId>(request->epoch_id());
     auto leaderId = request->leader_id();
@@ -1041,7 +1041,7 @@ DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, PingFollower)
 DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, GetStatus)
 {
     Y_UNUSED(request);
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     context->SetRequestInfo();
 
@@ -1071,7 +1071,7 @@ DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, GetStatus)
 DEFINE_RPC_SERVICE_METHOD(TDistributedElectionManager, Discombobulate)
 {
     Y_UNUSED(request, response);
-    VERIFY_THREAD_AFFINITY(ControlThread);
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
     i64 leaderSequenceNumber = request->sequence_number();
     context->SetRequestInfo("LeaderSequenceNumber: %v", leaderSequenceNumber);

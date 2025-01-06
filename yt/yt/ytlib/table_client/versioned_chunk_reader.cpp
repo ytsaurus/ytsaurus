@@ -2092,7 +2092,7 @@ TFuture<TSharedRef> TVersionedRowsetReader::ReadRowset()
 
 void TVersionedRowsetReader::DoReadRowset(const TError& error)
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     if (RowsetPromise_.IsSet()) {
         return;

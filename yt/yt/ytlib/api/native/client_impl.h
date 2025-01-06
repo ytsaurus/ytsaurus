@@ -1506,17 +1506,17 @@ private:
     // Distributed table client
     //
 
-    TFuture<TDistributedWriteSessionPtr> StartDistributedWriteSession(
+    TFuture<TDistributedWriteSessionWithCookies> StartDistributedWriteSession(
         const NYPath::TRichYPath& path,
         const TDistributedWriteSessionStartOptions& options) override;
 
     TFuture<void> FinishDistributedWriteSession(
-        TDistributedWriteSessionPtr session,
+        const TDistributedWriteSessionWithResults& sessionWithResults,
         const TDistributedWriteSessionFinishOptions& options) override;
 
-    TFuture<ITableWriterPtr> CreateFragmentTableWriter(
-        const TFragmentWriteCookiePtr& cookie,
-        const TFragmentTableWriterOptions& options) override;
+    TFuture<ITableFragmentWriterPtr> CreateTableFragmentWriter(
+        const TSignedWriteFragmentCookiePtr& cookie,
+        const TTableFragmentWriterOptions& options) override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

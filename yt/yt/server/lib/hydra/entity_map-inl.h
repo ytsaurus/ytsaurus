@@ -206,7 +206,7 @@ TEntityMap<TValue, TTraits>::~TEntityMap()
 template <class TValue, class TTraits>
 TValue* TEntityMap<TValue, TTraits>::Insert(const TKey& key, std::unique_ptr<TValue> valueHolder)
 {
-    VERIFY_THREAD_AFFINITY(this->UserThread);
+    YT_ASSERT_THREAD_AFFINITY(this->UserThread);
 
     auto* value = valueHolder.release();
     YT_ASSERT(value);
@@ -220,7 +220,7 @@ TValue* TEntityMap<TValue, TTraits>::Insert(const TKey& key, std::unique_ptr<TVa
 template <class TValue, class TTraits>
 void TEntityMap<TValue, TTraits>::Remove(const TKey& key)
 {
-    VERIFY_THREAD_AFFINITY(this->UserThread);
+    YT_ASSERT_THREAD_AFFINITY(this->UserThread);
 
     YT_VERIFY(TryRemove(key));
 }
@@ -228,7 +228,7 @@ void TEntityMap<TValue, TTraits>::Remove(const TKey& key)
 template <class TValue, class TTraits>
 bool TEntityMap<TValue, TTraits>::TryRemove(const TKey& key)
 {
-    VERIFY_THREAD_AFFINITY(this->UserThread);
+    YT_ASSERT_THREAD_AFFINITY(this->UserThread);
 
     auto it = this->Map_.find(key);
     if (it == this->Map_.end()) {
@@ -245,7 +245,7 @@ bool TEntityMap<TValue, TTraits>::TryRemove(const TKey& key)
 template <class TValue, class TTraits>
 std::unique_ptr<TValue> TEntityMap<TValue, TTraits>::Release(const TKey& key)
 {
-    VERIFY_THREAD_AFFINITY(this->UserThread);
+    YT_ASSERT_THREAD_AFFINITY(this->UserThread);
 
     auto it = this->Map_.find(key);
     YT_ASSERT(it != this->Map_.end());
@@ -259,7 +259,7 @@ std::unique_ptr<TValue> TEntityMap<TValue, TTraits>::Release(const TKey& key)
 template <class TValue, class TTraits>
 void TEntityMap<TValue, TTraits>::Clear()
 {
-    VERIFY_THREAD_AFFINITY(this->UserThread);
+    YT_ASSERT_THREAD_AFFINITY(this->UserThread);
 
     DoClear();
 }
@@ -447,7 +447,7 @@ template <class TValue, class TTraits>
 template <class TContext>
 void TEntityMap<TValue, TTraits>::LoadKeys(TContext& context)
 {
-    VERIFY_THREAD_AFFINITY(this->UserThread);
+    YT_ASSERT_THREAD_AFFINITY(this->UserThread);
 
     Clear();
 
@@ -493,7 +493,7 @@ template <class TValue, class TTraits>
 template <class TContext>
 void TEntityMap<TValue, TTraits>::LoadValues(TContext& context, std::optional<int> firstBatchEntityCount)
 {
-    VERIFY_THREAD_AFFINITY(this->UserThread);
+    YT_ASSERT_THREAD_AFFINITY(this->UserThread);
 
     YT_VERIFY(LoadKeys_.size() == LoadValues_.size());
 
@@ -546,7 +546,7 @@ template <class TValue, class TTraits>
 template <class TContext>
 void TEntityMap<TValue, TTraits>::LoadValuesParallel(TContext& context)
 {
-    VERIFY_THREAD_AFFINITY(this->UserThread);
+    YT_ASSERT_THREAD_AFFINITY(this->UserThread);
 
     YT_VERIFY(LoadKeys_.size() == LoadValues_.size());
 

@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/api/native/public.h>
+#include <yt/yt/server/lib/misc/bootstrap.h>
 
-#include <yt/yt/library/monitoring/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
-#include <yt/yt/library/coredumper/public.h>
+#include <yt/yt/library/monitoring/public.h>
 
 #include <yt/yt/core/bus/public.h>
 
@@ -27,9 +27,13 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrap
+    : public NServer::IDaemonBootstrap
 {
 public:
-    TBootstrap(TSchedulerBootstrapConfigPtr config, NYTree::INodePtr configNode);
+    TBootstrap(
+        TSchedulerBootstrapConfigPtr config,
+        NYTree::INodePtr configNode,
+        NFusion::IServiceLocatorPtr serviceLocator);
     ~TBootstrap();
 
     const TSchedulerBootstrapConfigPtr& GetConfig() const;
@@ -42,16 +46,18 @@ public:
     const TControllerAgentTrackerPtr& GetControllerAgentTracker() const;
     const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const;
 
-    void OnDynamicConfigChanged(const TSchedulerConfigPtr& config);
+    void Reconfigure(const TSchedulerConfigPtr& config);
 
-    void Run();
+    void Initialize();
+    TFuture<void> Run() final;
 
 private:
     const TSchedulerBootstrapConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
+    const NFusion::IServiceLocatorPtr ServiceLocator_;
+    const NConcurrency::IEnumIndexedFairShareActionQueuePtr<EControlQueue> ControlQueue_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
-    NConcurrency::IEnumIndexedFairShareActionQueuePtr<EControlQueue> ControlQueue_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
@@ -59,12 +65,21 @@ private:
     NApi::NNative::IClientPtr Client_;
     TSchedulerPtr Scheduler_;
     TControllerAgentTrackerPtr ControllerAgentTracker_;
-    NCoreDump::ICoreDumperPtr CoreDumper_;
     mutable THashMap<NObjectClient::TCellTag, NApi::NNative::IClientPtr> RemoteClients_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
+    void DoInitialize();
     void DoRun();
 };
+
+DEFINE_REFCOUNTED_TYPE(TBootstrap)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBootstrapPtr CreateSchedulerBootstrap(
+    TSchedulerBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

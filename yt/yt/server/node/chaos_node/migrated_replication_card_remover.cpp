@@ -50,7 +50,7 @@ public:
             BIND(&TMigratedReplicationCardRemover::PeriodicMigratedReplicationCardsRemoval, MakeWeak(this)),
             config->RemovePeriod))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
     }
 
     void Start() override
@@ -75,7 +75,7 @@ private:
 
     void Save(TSaveContext& context) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Save;
         Save(context, MigratedReplicationCardsToRemove_);
@@ -83,7 +83,7 @@ private:
 
     void Load(TLoadContext& context) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         using NYT::Load;
         Load(context, MigratedReplicationCardsToRemove_);
@@ -91,20 +91,20 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         MigratedReplicationCardsToRemove_.clear();
     }
 
     void EnqueueRemoval(TReplicationCardId migratedReplicationCardId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         MigratedReplicationCardsToRemove_.insert(migratedReplicationCardId);
     }
 
     void ConfirmRemoval(TReplicationCardId migratedReplicationCardId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         MigratedReplicationCardsToRemove_.erase(migratedReplicationCardId);
     }
 

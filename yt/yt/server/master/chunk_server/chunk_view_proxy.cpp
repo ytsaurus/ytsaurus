@@ -16,6 +16,7 @@ namespace NYT::NChunkServer {
 using namespace NObjectServer;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

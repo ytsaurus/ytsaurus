@@ -63,8 +63,9 @@ DECLARE_REFCOUNTED_CLASS(TCypressSynchronizerDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(IQueueAgentShardingManager)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentShardingManagerDynamicConfig)
 
-DECLARE_REFCOUNTED_CLASS(TQueueAgentServerConfig)
-DECLARE_REFCOUNTED_CLASS(TQueueAgentServerDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TQueueAgentBootstrapConfig)
+DECLARE_REFCOUNTED_CLASS(TQueueAgentProgramConfig)
+DECLARE_REFCOUNTED_CLASS(TQueueAgentComponentDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
@@ -128,10 +129,12 @@ DEFINE_ENUM(EConsumerPartitionDisposition,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const TString NoneQueueAgentStage = "none";
+inline const std::string NoneQueueAgentStage = "none";
 inline const TString NoneObjectType = "none";
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
 DECLARE_REFCOUNTED_CLASS(TQueueTabletExportProgress)
 DECLARE_REFCOUNTED_CLASS(TQueueExportProgress)

@@ -90,6 +90,7 @@ using namespace NTabletServer;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -358,7 +359,7 @@ public:
 
     void Run()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (FetchContext_.Ranges.empty()) {
             ReplySuccess();
@@ -1350,7 +1351,11 @@ void TChunkOwnerNodeProxy::SetVital(bool vital)
     OnStorageParametersUpdated();
 }
 
-TString TChunkOwnerNodeProxy::DoSetReplication(TChunkReplication* replicationStorage, const TChunkReplication& replication, int mediumIndex) {
+std::string TChunkOwnerNodeProxy::DoSetReplication(
+    TChunkReplication* replicationStorage,
+    const TChunkReplication& replication,
+    int mediumIndex)
+{
     auto* node = GetThisImpl<TChunkOwnerBase>();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 

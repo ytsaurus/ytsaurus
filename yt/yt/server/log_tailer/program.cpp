@@ -52,6 +52,8 @@ protected:
 
         TBootstrap bootstrap(std::move(config));
         bootstrap.Run();
+
+        Sleep(TDuration::Max());
     }
 
 private:

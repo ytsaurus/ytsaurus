@@ -108,8 +108,8 @@ using TRefCountedColumnarStatisticsSubresponsePtr = TIntrusivePtr<TRefCountedCol
 
 namespace {
 
-THashMap<TString, TString> MakeWriteIOTags(
-    TString method,
+THashMap<std::string, std::string> MakeWriteIOTags(
+    const std::string& method,
     const ISessionPtr& session,
     const IServiceContextPtr& context)
 {
@@ -121,28 +121,26 @@ THashMap<TString, TString> MakeWriteIOTags(
         {FormatIOTag(EAggregateIOTag::LocationType), FormatEnum(location->GetType())},
         {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
-        // TODO(babenko): switch to std::string
-        {FormatIOTag(EAggregateIOTag::User), TString(context->GetAuthenticationIdentity().User)},
+        {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
         {FormatIOTag(EAggregateIOTag::Direction), "write"},
         {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(session->GetChunkId()).Id)},
     };
 }
 
-THashMap<TString, TString> MakeReadIOTags(
-    TString method,
+THashMap<std::string, std::string> MakeReadIOTags(
+    const std::string& method,
     const TChunkLocationPtr& location,
     const IServiceContextPtr& context,
     const TChunkId& chunkId,
     TGuid readSessionId = TGuid())
 {
-    THashMap<TString, TString> result{
+    THashMap<std::string, std::string> result{
         {FormatIOTag(EAggregateIOTag::DataNodeMethod), std::move(method)},
         {FormatIOTag(ERawIOTag::LocationId), ToString(location->GetId())},
         {FormatIOTag(EAggregateIOTag::LocationType), FormatEnum(location->GetType())},
         {FormatIOTag(EAggregateIOTag::Medium), location->GetMediumName()},
         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
-        // TODO(babenko): switch to std::string
-        {FormatIOTag(EAggregateIOTag::User), TString(context->GetAuthenticationIdentity().User)},
+        {FormatIOTag(EAggregateIOTag::User), context->GetAuthenticationIdentity().User},
         {FormatIOTag(EAggregateIOTag::Direction), "read"},
     };
     if (chunkId) {
@@ -353,12 +351,19 @@ private:
             ? New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta()))
             : nullptr;
         session->Finish(meta, blockCount)
-            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TChunkInfo>& chunkInfoOrError) {
-                if (!chunkInfoOrError.IsOK()) {
-                    context->Reply(chunkInfoOrError);
+            .Subscribe(BIND([
+                =,
+                this,
+                this_ = MakeStrong(this)
+            ] (const TErrorOr<ISession::TFinishResult>& resultOrError) {
+                if (!resultOrError.IsOK()) {
+                    context->Reply(resultOrError);
                     return;
                 }
-                const auto& chunkInfo = chunkInfoOrError.Value();
+
+                const auto& result = resultOrError.Value();
+                const auto& chunkInfo = result.ChunkInfo;
+                const auto& chunkWriterStatistics = result.ChunkWriterStatistics;
 
                 // Log IO events for blob chunks only. We don't enable logging for journal chunks here, since
                 // they flush the data to disk in FlushBlocks(), not in FinishChunk().
@@ -371,6 +376,8 @@ private:
                 }
 
                 *response->mutable_chunk_info() = chunkInfo;
+                ToProto(response->mutable_chunk_writer_statistics(), chunkWriterStatistics);
+
                 context->Reply();
             }));
     }
@@ -425,7 +432,7 @@ private:
     {
         auto sessionId = FromProto<TSessionId>(request->session_id());
         int firstBlockIndex = request->first_block_index();
-        int blockCount = static_cast<int>(request->Attachments().size());
+        int blockCount = std::ssize(request->Attachments());
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
         bool populateCache = request->populate_cache();
         bool flushBlocks = request->flush_blocks();
@@ -470,44 +477,56 @@ private:
             cumulativeBlockSize,
             populateCache);
 
+        auto voidResult = result.AsVoid();
+
         // Flush blocks if needed.
         if (flushBlocks) {
-            result = result
+            voidResult = result
                 .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOCounters& putCounters) mutable {
                     response->mutable_statistics()->set_data_bytes_written_to_medium(putCounters.Bytes);
                     response->mutable_statistics()->set_io_requests(putCounters.IORequests);
 
                     auto result = session->FlushBlocks(lastBlockIndex);
-                    result.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TIOCounters>& result) {
-                        if (!result.IsOK()) {
-                            return;
-                        }
-                        // Log IO events for journal chunks only. We don't enable logging for blob chunks here, since they flush
-                        // the data to disk in FinishChunk().
-                        const auto& ioTracker = Bootstrap_->GetIOTracker();
-                        const auto& counters = result.ValueOrThrow();
-                        bool isJournalChunk = IsJournalChunkId(DecodeChunkId(session->GetChunkId()).Id);
-                        if (isJournalChunk && counters.Bytes > 0 && ioTracker->IsEnabled()) {
-                            ioTracker->Enqueue(
-                                counters,
-                                MakeWriteIOTags("FlushBlocks", session, context));
-                        }
-                    }));
-                    return result;
+                    return result
+                        .Apply(BIND([
+                            =,
+                            this,
+                            this_ = MakeStrong(this)
+                        ] (const TErrorOr<ISession::TFlushBlocksResult>& resultOrError) {
+                            if (!resultOrError.IsOK()) {
+                                return;
+                            }
+                            const auto& result = resultOrError.Value();
+                            const auto& counters = result.IOCounters;
+                            const auto& chunkWriterStatistics = result.ChunkWriterStatistics;
+
+                            const auto& ioTracker = Bootstrap_->GetIOTracker();
+
+                            // Log IO events for journal chunks only. We don't enable logging for blob chunks here, since they flush
+                            // the data to disk in FinishChunk().
+                            bool isJournalChunk = IsJournalChunkId(DecodeChunkId(session->GetChunkId()).Id);
+                            if (isJournalChunk && counters.Bytes > 0 && ioTracker->IsEnabled()) {
+                                ioTracker->Enqueue(
+                                    counters,
+                                    MakeWriteIOTags("FlushBlocks", session, context));
+                            }
+
+                            ToProto(response->mutable_chunk_writer_statistics(), chunkWriterStatistics);
+                        }));
                 }));
         } else {
             // Remains to wait on throttlers, hence mark as complete.
             context->SetComplete();
         }
 
-        result.Subscribe(BIND([=] (const TError& error) {
+        voidResult.Subscribe(BIND([=] (const TError& error) {
             if (!error.IsOK()) {
                 return;
             }
             location->GetPerformanceCounters().PutBlocksWallTime.Record(timer.GetElapsedTime());
         }));
 
-        context->ReplyFrom(result.AsVoid(), Bootstrap_->GetStorageLightInvoker());
+        context->ReplyFrom(voidResult, Bootstrap_->GetStorageLightInvoker());
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SendBlocks)
@@ -562,20 +581,32 @@ private:
         auto result = session->FlushBlocks(blockIndex);
 
         response->set_close_demanded(location->IsSick() || sessionManager->GetDisableWriteSessions());
-        result.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TIOCounters>& result) {
-            if (result.IsOK()) {
-                // Log IO events for journal chunks only. We don't enable logging for blob chunks here, since they flush
-                // the data to disk in FinishChunk(), not in FlushBlocks().
-                const auto& ioTracker = Bootstrap_->GetIOTracker();
-                const auto& counters = result.Value();
-                if (IsJournalChunkId(DecodeChunkId(session->GetChunkId()).Id) && counters.Bytes > 0 && ioTracker->IsEnabled()) {
-                    ioTracker->Enqueue(
-                        counters,
-                        MakeWriteIOTags("FlushBlocks", session, context));
-                }
+        auto voidResult = result.Apply(BIND([
+            =,
+            this,
+            this_ = MakeStrong(this)
+        ] (const TErrorOr<ISession::TFlushBlocksResult>& resultOrError) {
+            if (!resultOrError.IsOK()) {
+                return;
             }
+
+            // Log IO events for journal chunks only. We don't enable logging for blob chunks here, since they flush
+            // the data to disk in FinishChunk(), not in FlushBlocks().
+            const auto& result = resultOrError.Value();
+            const auto& counters = result.IOCounters;
+            const auto& chunkWriterStatistics = result.ChunkWriterStatistics;
+
+            const auto& ioTracker = Bootstrap_->GetIOTracker();
+            if (IsJournalChunkId(DecodeChunkId(session->GetChunkId()).Id) && counters.Bytes > 0 && ioTracker->IsEnabled()) {
+                ioTracker->Enqueue(
+                    counters,
+                    MakeWriteIOTags("FlushBlocks", session, context));
+            }
+
+            ToProto(response->mutable_chunk_writer_statistics(), chunkWriterStatistics);
         }));
-        context->ReplyFrom(result.AsVoid());
+
+        context->ReplyFrom(voidResult);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdateP2PBlocks)
@@ -917,8 +948,7 @@ private:
 
             ioTracker->Enqueue(
                 TIOCounters{.Bytes = bytesReadFromDisk, .IORequests = ioRequests},
-                // TODO(babenko): migrate to std::string
-                MakeReadIOTags(TString(context->GetMethod()), chunk->GetLocation(), context, chunk->GetId()));
+                MakeReadIOTags(context->GetMethod(), chunk->GetLocation(), context, chunk->GetId()));
         }
 
         ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
@@ -2140,8 +2170,8 @@ private:
 
         // Don't return more than requested.
         std::random_shuffle(samples.begin(), samples.end());
-        auto count = std::min(
-            static_cast<int>(samples.size()),
+        auto count = std::min<int>(
+            std::ssize(samples),
             sampleRequest.sample_count());
         samples.erase(samples.begin() + count, samples.end());
 

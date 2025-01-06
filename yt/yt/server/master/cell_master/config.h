@@ -187,7 +187,7 @@ class TTestConfig
     : public NYTree::TYsonStruct
 {
 public:
-    // NB: Temporary field to test dynamic reconfiguration of master cell cluster on nodes.
+    // NB: Temporary field to test dynamic propagation of master cells to nodes.
     TMasterCellDirectoryConfigPtr MasterCellDirectoryOverride;
     THashSet<NObjectClient::TCellTag> DiscoveredMastersCellTags;
 
@@ -205,6 +205,9 @@ public:
     *  in essence by reproducing a quirk #2.
     */
     std::vector<std::vector<NObjectClient::TCellTag>> FrozenHiveEdges;
+
+    bool AllowMasterCellRemoval;
+    bool AllowMasterCellWithEmptyRole;
 
     REGISTER_YSON_STRUCT(TTestConfig);
 
@@ -261,11 +264,13 @@ DEFINE_REFCOUNTED_TYPE(TDynamicResponseKeeperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellMasterConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+class TCellMasterBootstrapConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
+    //! Used to check that master is being initialized from a correct container.
+    std::optional<std::string> ExpectedLocalHostName;
+
     NNodeTrackerClient::TNetworkPreferenceList Networks;
 
     NElection::TCellConfigPtr PrimaryMaster;
@@ -328,12 +333,26 @@ public:
 
     bool DisableNodeConnections;
 
-    REGISTER_YSON_STRUCT(TCellMasterConfig);
+    REGISTER_YSON_STRUCT(TCellMasterBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TCellMasterConfig)
+DEFINE_REFCOUNTED_TYPE(TCellMasterBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TCellMasterProgramConfig
+    : public TCellMasterBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TCellMasterProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCellMasterProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -364,7 +383,7 @@ class TDynamicQueueAgentServerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TString DefaultQueueAgentStage;
+    std::string DefaultQueueAgentStage;
 
     REGISTER_YSON_STRUCT(TDynamicQueueAgentServerConfig);
 

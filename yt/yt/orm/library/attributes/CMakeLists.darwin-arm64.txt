@@ -25,8 +25,8 @@ target_compile_options(orm-library-attributes PRIVATE
 target_link_libraries(orm-library-attributes PUBLIC
   contrib-libs-cxxsupp
   yutil
-  yt-yt-core
   orm-library-mpl
+  yt-yt-core
 )
 
 target_sources(orm-library-attributes PRIVATE

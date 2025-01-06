@@ -60,7 +60,7 @@ public:
     {
         YT_VERIFY(Bootstrap_);
 
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
         Profiler_.AddProducer("", ActiveJobCountBuffer_);
     }
@@ -88,7 +88,7 @@ public:
 
     std::vector<TMasterJobBasePtr> GetJobs() const
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         std::vector<TMasterJobBasePtr> result;
         result.reserve(GetActiveJobCount());
@@ -104,7 +104,7 @@ public:
 
     std::vector<TMasterJobBasePtr> GetJobs(const std::string& jobTrackerAddress) const
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto jobMapIterator = JobMaps_.find(jobTrackerAddress);
         if (jobMapIterator == JobMaps_.end()) {
@@ -128,7 +128,7 @@ public:
         const std::string& jobTrackerAddress,
         const TReqHeartbeatPtr& request) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return
             BIND(&TJobController::DoPrepareHeartbeatRequest, MakeStrong(this))
@@ -140,7 +140,7 @@ public:
         const std::string& jobTrackerAddress,
         const TRspHeartbeatPtr& response) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return BIND(&TJobController::DoProcessHeartbeatResponse, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetJobInvoker())
@@ -149,7 +149,7 @@ public:
 
     TMasterJobBasePtr FindJob(const std::string& jobTrackerAddress, NChunkServer::TJobId jobId) const
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto jobMapIt = JobMaps_.find(jobTrackerAddress);
         if (jobMapIt == JobMaps_.end()) {
@@ -164,7 +164,7 @@ public:
 
     void ScheduleStartJobs() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         if (std::exchange(StartJobsScheduled_, true)) {
             return;
@@ -177,7 +177,7 @@ public:
 
     int GetActiveJobCount() const
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         int totalJobCount = 0;
         for (const auto& [jobTrackerAddress, jobMap] : JobMaps_) {
@@ -189,7 +189,7 @@ public:
 
     IYPathServicePtr GetOrchidService() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return IYPathService::FromProducer(BIND_NO_PROPAGATE(
             &TJobController::BuildOrchid,
@@ -200,7 +200,7 @@ public:
     void OnDynamicConfigChanged(
         const TJobControllerDynamicConfigPtr& newConfig) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_VERIFY(newConfig);
 
@@ -238,14 +238,14 @@ private:
 
     void OnResourceReleased()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ScheduleStartJobs();
     }
 
     void StartWaitingJobs()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto resourceAcquiringContext = JobResourceManager_->GetResourceAcquiringContext();
 
@@ -275,7 +275,7 @@ private:
         const TJobResources& resourceLimits,
         TJobSpec&& jobSpec)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto jobType = FromProto<EJobType>(jobSpec.type());
         YT_LOG_FATAL_IF(
@@ -311,7 +311,7 @@ private:
         const TMasterJobBasePtr& job,
         const TDuration waitingJobTimeout)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         EmplaceOrCrash(JobMaps_[jobTrackerAddress], jobId, job);
 
@@ -329,7 +329,7 @@ private:
 
     void OnWaitingJobTimeout(const TWeakPtr<TMasterJobBase>& weakJob, TDuration waitingJobTimeout)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto job = weakJob.Lock();
         if (!job) {
@@ -344,7 +344,7 @@ private:
 
     void OnJobFinished(const TWeakPtr<TMasterJobBase>& weakJob)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto job = weakJob.Lock();
         if (!job) {
@@ -370,7 +370,7 @@ private:
 
     TCounter* GetJobFinalStateCounter(EJobState state)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto it = JobFinalStateCounters_.find(state);
         if (it == JobFinalStateCounters_.end()) {
@@ -387,7 +387,7 @@ private:
 
     void ScheduleHeartbeat(const TMasterJobBasePtr& job)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         const auto* bootstrap = Bootstrap_->GetDataNodeBootstrap();
         const auto& masterConnector = bootstrap->GetMasterConnector();
@@ -408,7 +408,7 @@ private:
         const std::string& jobTrackerAddress,
         const TReqHeartbeatPtr& request)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         request->set_node_id(ToProto(Bootstrap_->GetNodeId()));
         ToProto(request->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
@@ -451,7 +451,7 @@ private:
         const std::string& jobTrackerAddress,
         const TRspHeartbeatPtr& response)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         for (const auto& protoJobToRemove : response->jobs_to_remove()) {
             auto jobToRemove = FromProto<TJobToRemove>(protoJobToRemove);
@@ -512,7 +512,7 @@ private:
 
     void AbortJob(const TMasterJobBasePtr& job)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_INFO("Aborting job (JobId: %v)",
             job->GetId());
@@ -524,7 +524,7 @@ private:
 
     void RemoveJob(TMasterJobBasePtr job)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_FATAL_UNLESS(
             IsJobFinished(job->GetState()),
@@ -547,7 +547,7 @@ private:
 
     void OnProfiling()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         ActiveJobCountBuffer_->Update([this] (ISensorWriter* writer) {
             TWithTagGuard tagGuard(writer, "origin", FormatEnum(EJobOrigin::Master));
@@ -557,7 +557,7 @@ private:
 
     static void BuildJobsInfo(const std::vector<TBriefJobInfo>& jobsInfo, TFluentAny fluent)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         fluent.DoMapFor(
             jobsInfo,
@@ -568,7 +568,7 @@ private:
 
     auto DoGetStateSnapshot() const
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         std::vector<TBriefJobInfo> jobsInfo;
         jobsInfo.reserve(GetActiveJobCount());
@@ -584,7 +584,7 @@ private:
 
     auto GetStateSnapshot() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto snapshotOrError = WaitFor(BIND(
             &TJobController::DoGetStateSnapshot,
@@ -602,7 +602,7 @@ private:
 
     void BuildOrchid(IYsonConsumer* consumer) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto jobsInfo = GetStateSnapshot();
 

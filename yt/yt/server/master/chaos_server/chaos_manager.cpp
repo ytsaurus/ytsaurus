@@ -65,7 +65,7 @@ public:
         , AlienClusterRegistry_(New<TAlienClusterRegistry>())
         , AlienCellSynchronizer_(CreateAlienCellSynchronizer(bootstrap))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
         RegisterLoader(
@@ -289,7 +289,7 @@ private:
 
     void RegisterQueue(TChaosReplicatedTableNode* node) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (!Queues_.insert(node).second) {
@@ -301,7 +301,7 @@ private:
 
     void UnregisterQueue(TChaosReplicatedTableNode* node) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (!Queues_.erase(node)) {
@@ -313,7 +313,7 @@ private:
 
     void RegisterQueueConsumer(TChaosReplicatedTableNode* node) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (!Consumers_.insert(node).second) {
@@ -325,7 +325,7 @@ private:
 
     void UnregisterQueueConsumer(TChaosReplicatedTableNode* node) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (!Consumers_.erase(node)) {
@@ -337,7 +337,7 @@ private:
 
     void RegisterQueueProducer(TChaosReplicatedTableNode* node) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (!Producers_.insert(node).second) {
@@ -349,7 +349,7 @@ private:
 
     void UnregisterQueueProducer(TChaosReplicatedTableNode* node) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (!Producers_.erase(node)) {
@@ -568,12 +568,12 @@ private:
 
     void LoadKeys(NCellMaster::TLoadContext& /*context*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         Load(context, *AlienClusterRegistry_);
 
@@ -602,7 +602,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::Clear();
 
@@ -616,7 +616,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnLeaderActive();
 
@@ -628,7 +628,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMasterAutomatonPart::OnStopLeading();
 

@@ -711,6 +711,12 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("enable_secure_vault_variables_in_job_shell", &TThis::EnableSecureVaultVariablesInJobShell)
         .Default(true);
 
+    registrar.Parameter("issue_temporary_token", &TThis::IssueTemporaryToken)
+        .Default(false);
+
+    registrar.Parameter("temporary_token_environment_variable_name", &TThis::TemporaryTokenEnvironmentVariableName)
+        .Default("YT_TOKEN");
+
     registrar.Parameter("suspend_operation_if_account_limit_exceeded", &TThis::SuspendOperationIfAccountLimitExceeded)
         .Default(false);
 
@@ -889,6 +895,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("allow_offloading", &TThis::AllowOffloading)
         .Default(true);
 
+    registrar.Parameter("require_specified_pools_existence", &TThis::RequireSpecifiedPoolsExistence)
+        .Default();
+
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             spec->UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -899,6 +908,16 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         if (spec->SecureVault) {
             for (const auto& name : spec->SecureVault->GetKeys()) {
                 NControllerAgent::ValidateEnvironmentVariableName(name);
+            }
+        }
+
+        if (spec->IssueTemporaryToken) {
+            NControllerAgent::ValidateEnvironmentVariableName(spec->TemporaryTokenEnvironmentVariableName);
+
+            if (spec->SecureVault && spec->SecureVault->FindChild(spec->TemporaryTokenEnvironmentVariableName)) {
+                THROW_ERROR_EXCEPTION(
+                    "Temporary token environment variable %Qv already exists in secure vault",
+                    spec->TemporaryTokenEnvironmentVariableName);
             }
         }
 
@@ -2054,7 +2073,7 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("allow_cluster_connection", &TThis::AllowClusterConnection)
         .Default(true);
-    registrar.Parameter("use_remote_throttler", &TThis::UseRemoteThrottler)
+    registrar.Parameter("use_cluster_throttlers", &TThis::UseClusterThrottlers)
         .Default(false);
 
     registrar.Preprocessor([] (TRemoteCopyOperationSpec* spec) {

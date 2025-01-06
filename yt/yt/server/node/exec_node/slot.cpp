@@ -83,7 +83,7 @@ public:
 
     void ResetState() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         bool wasEnabled = IsEnabled_.exchange(false);
 
@@ -95,7 +95,7 @@ public:
 
     TFuture<void> CleanProcesses() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
@@ -113,7 +113,7 @@ public:
 
     void CleanSandbox() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
@@ -124,7 +124,7 @@ public:
 
     void CancelPreparation() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
@@ -133,7 +133,7 @@ public:
 
     void Prepare() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
@@ -146,7 +146,7 @@ public:
         TJobId jobId,
         TOperationId operationId) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
@@ -196,7 +196,7 @@ public:
         const TString& linkName,
         bool executable) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
@@ -223,7 +223,7 @@ public:
         const TString& bindPath,
         bool executable) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
@@ -250,7 +250,7 @@ public:
         const TFile& destinationFile,
         const NDataNode::TChunkLocationPtr& sourceLocation) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
@@ -276,7 +276,7 @@ public:
         const std::function<void(IOutputStream*)>& producer,
         const TFile& destinationFile) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
@@ -306,7 +306,7 @@ public:
         const TArtifactDownloadOptions& downloadOptions,
         const TUserSandboxOptions& options) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
@@ -375,7 +375,7 @@ public:
         const TUserSandboxOptions& options,
         bool ignoreQuota) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
@@ -399,7 +399,7 @@ public:
         const std::optional<std::vector<TDevice>>& devices,
         int startIndex) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
@@ -427,7 +427,7 @@ public:
         const TString& artifactPath,
         const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
@@ -444,7 +444,7 @@ public:
         IInvokerPtr invoker,
         TJobWorkspaceBuildingContext context) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         VerifyEnabled();
 
@@ -507,7 +507,7 @@ private:
 
     void VerifyEnabled() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_LOG_FATAL_UNLESS(IsEnabled_.load(), "Accessing disabled UserSlot");
     }
@@ -515,7 +515,7 @@ private:
     template <class TName, CCallableReturningFuture TCallback>
     auto RunPreparationAction(const TName& actionName, bool uncancelable, const TCallback& action) -> decltype(action())
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         using TTypedFuture = decltype(action());
         using TUnderlyingReturnType = typename TFutureTraits<TTypedFuture>::TUnderlying;

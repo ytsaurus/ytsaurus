@@ -17,6 +17,8 @@
 #include <yt/yt/server/lib/hydra/mutation.h>
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 
+#include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/hive_service_proxy.h>
 
@@ -73,6 +75,7 @@ public:
     THiveManager(
         THiveManagerConfigPtr config,
         ICellDirectoryPtr cellDirectory,
+        NCellMasterClient::ICellDirectoryPtr masterDirectory,
         IAvenueDirectoryPtr avenueDirectory,
         TCellId selfCellId,
         IInvokerPtr automatonInvoker,
@@ -97,6 +100,7 @@ public:
         , SelfCellId_(selfCellId)
         , Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
+        , MasterDirectory_(std::move(masterDirectory))
         , AvenueDirectory_(std::move(avenueDirectory))
         , AutomatonInvoker_(std::move(automatonInvoker))
         , GuardedAutomatonInvoker_(hydraManager->CreateGuardedAutomatonInvoker(AutomatonInvoker_))
@@ -157,31 +161,31 @@ public:
 
     IServicePtr GetRpcService() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return this;
     }
 
     IYPathServicePtr GetOrchidService() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return OrchidService_;
     }
 
     TCellId GetSelfCellId() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return SelfCellId_;
     }
 
     TMailboxHandle CreateCellMailbox(TCellId cellId, bool allowResurrection = false) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
-        if (RemovedCellIds_.erase(cellId) != 0 && !allowResurrection) {
+        if (UnregisteredCellIds_.erase(cellId) != 0 && !allowResurrection) {
             YT_LOG_ALERT("Mailbox has been resurrected (SelfCellId: %v, CellId: %v)",
                 SelfCellId_,
                 cellId);
@@ -209,7 +213,7 @@ public:
 
     TMailboxHandle FindMailbox(TEndpointId endpointId) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (IsAvenueEndpointType(TypeFromId(endpointId))) {
             return AsUntyped(AvenueMailboxMap_.Find(endpointId));
@@ -220,7 +224,7 @@ public:
 
     TMailboxHandle GetMailbox(TEndpointId endpointId) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto mailbox = FindMailbox(endpointId);
         YT_VERIFY(mailbox);
@@ -229,7 +233,7 @@ public:
 
     TMailboxHandle GetOrCreateCellMailbox(TCellId cellId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto* mailbox = CellMailboxMap_.Find(cellId);
@@ -241,7 +245,7 @@ public:
 
     TMailboxHandle GetMailboxOrThrow(TEndpointId endpointId) const override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto mailbox = FindMailbox(endpointId);
         if (!mailbox) {
@@ -254,7 +258,7 @@ public:
 
     void FreezeEdges(std::vector<THiveEdge> edgesToFreeze) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         FrozenEdges_.Transform([&] (auto& frozenEdges) {
             if (!frozenEdges.empty()) {
@@ -275,24 +279,50 @@ public:
 
     bool TryRemoveCellMailbox(TCellId cellId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        if (!CellMailboxMap_.Contains(cellId)) {
+            return false;
+        }
+
+        RemoveCellMailbox(cellId);
+
+        YT_LOG_INFO("Mailbox removed (SrcCellId: %v, DstCellId: %v)",
+            SelfCellId_,
+            cellId);
+
+        return true;
+    }
+
+    bool TryUnregisterCellMailbox(TCellId cellId) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (!CellMailboxMap_.Contains(cellId)) {
             return false;
         }
 
-        auto mailboxHolder = CellMailboxMap_.Release(cellId);
+        RemoveCellMailbox(cellId);
 
-        if (!RemovedCellIds_.insert(cellId).second) {
-            YT_LOG_ALERT("Mailbox is already removed (SrcCellId: %v, DstCellId: %v)",
+        if (!UnregisteredCellIds_.insert(cellId).second) {
+            YT_LOG_ALERT("Mailbox is already unregistered (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 cellId);
         }
 
-        YT_LOG_INFO("Mailbox removed (SrcCellId: %v, DstCellId: %v)",
+        YT_LOG_INFO("Mailbox unregistered (SrcCellId: %v, DstCellId: %v)",
             SelfCellId_,
             cellId);
+
+        return true;
+    }
+
+    void RemoveCellMailbox(TCellId cellId)
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        auto mailboxHolder = CellMailboxMap_.Release(cellId);
 
         if (!IsRecovery()) {
             RuntimeData_.Transform([&] (auto& runtimeData) {
@@ -300,7 +330,7 @@ public:
             });
 
             BackgroundInvoker_->Invoke(BIND([this, this_ = MakeStrong(this), cellRuntimeData = mailboxHolder->GetRuntimeData()] {
-                VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+                YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
                 // Following updates will change the map so we make a copy.
                 auto registeredAvenues = cellRuntimeData->RegisteredAvenues;
@@ -309,15 +339,13 @@ public:
                 }
             }));
         }
-
-        return true;
     }
 
     void RegisterAvenueEndpoint(
         TAvenueEndpointId selfEndpointId,
         TPersistentMailboxStateCookie&& cookie) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto otherEndpointId = GetSiblingAvenueEndpointId(selfEndpointId);
@@ -354,7 +382,7 @@ public:
             });
 
             BackgroundInvoker_->Invoke(BIND([this, this_ = MakeStrong(this), avenueRuntimeData] {
-                VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+                YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
                 UpdateAvenueCellConnection(avenueRuntimeData);
             }));
@@ -365,7 +393,7 @@ public:
         TAvenueEndpointId selfEndpointId,
         bool allowDestructionInMessageToSelf) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto otherEndpointId = GetSiblingAvenueEndpointId(selfEndpointId);
@@ -398,7 +426,7 @@ public:
 
     TPersistentMailboxStateCookie DoUnregisterAvenueEndpoint(TAvenueMailbox* mailbox)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto otherEndpointId = mailbox->GetEndpointId();
         auto selfEndpointId = GetSiblingAvenueEndpointId(otherEndpointId);
@@ -409,7 +437,7 @@ public:
             });
 
             BackgroundInvoker_->Invoke(BIND([this, this_ = MakeStrong(this), avenueRuntimeData = mailbox->GetRuntimeData()] {
-                VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+                YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
                 UpdateAvenueCellConnection(avenueRuntimeData, /*cellRuntimeData*/ nullptr);
             }));
@@ -435,14 +463,14 @@ public:
 
     void PostMessage(TMailboxHandle mailbox, const TSerializedMessagePtr& message, bool reliable) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         PostMessage(std::array{mailbox}, message, reliable);
     }
 
     void PostMessage(TRange<TMailboxHandle> mailboxes, const TSerializedMessagePtr& message, bool reliable) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (reliable) {
             ReliablePostMessage(mailboxes, message);
@@ -453,21 +481,21 @@ public:
 
     void PostMessage(TMailboxHandle mailbox, const ::google::protobuf::MessageLite& message, bool reliable) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         PostMessage(mailbox, SerializeOutcomingMessage(message), reliable);
     }
 
     void PostMessage(TRange<TMailboxHandle> mailboxes, const ::google::protobuf::MessageLite& message, bool reliable) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         PostMessage(mailboxes, SerializeOutcomingMessage(message), reliable);
     }
 
     TFuture<void> SyncWith(TCellId cellId, bool enableBatching) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (cellId == SelfCellId_) {
             return VoidFuture;
@@ -495,6 +523,7 @@ private:
     const TCellId SelfCellId_;
     const THiveManagerConfigPtr Config_;
     const ICellDirectoryPtr CellDirectory_;
+    const NCellMasterClient::ICellDirectoryPtr MasterDirectory_;
     const IAvenueDirectoryPtr AvenueDirectory_;
     const IInvokerPtr AutomatonInvoker_;
     const IInvokerPtr GuardedAutomatonInvoker_;
@@ -520,7 +549,7 @@ private:
 
     NThreading::TAtomicObject<THiveRuntimeData> RuntimeData_;
 
-    THashSet<TCellId> RemovedCellIds_;
+    THashSet<TCellId> UnregisteredCellIds_;
 
     NThreading::TAtomicObject<std::vector<THiveEdge>> FrozenEdges_;
 
@@ -532,7 +561,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, Ping)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
 
@@ -559,7 +588,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, SyncCells)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         context->SetRequestInfo();
 
@@ -595,7 +624,7 @@ private:
         const NHiveClient::NProto::TReqPostMessages* request,
         NHiveClient::NProto::TRspPostMessages* response)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         auto srcEndpointId = FromProto<TCellId>(request->src_endpoint_id());
         auto firstMessageId = request->first_message_id();
@@ -641,7 +670,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, PostMessages)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         auto srcCellId = FromProto<TCellId>(request->src_endpoint_id());
         auto firstMessageId = request->first_message_id();
@@ -704,7 +733,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, SendMessages)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         int messageCount = request->messages_size();
@@ -729,7 +758,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, SyncWithOthers)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto srcCellIds = FromProto<std::vector<TCellId>>(request->src_cell_ids());
 
@@ -748,7 +777,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NHiveClient::NProto, GetConsistentState)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto requestTime = request->has_logical_time()
             ? std::optional<TLogicalTime>(request->logical_time())
@@ -773,7 +802,7 @@ private:
 
     void HydraAcknowledgeMessages(NHiveServer::NProto::TReqAcknowledgeMessages* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = FromProto<TCellId>(request->cell_id());
         auto* mailbox = AsTyped(FindMailbox(cellId));
@@ -785,7 +814,7 @@ private:
             BackgroundInvoker_->Invoke(
                 BIND([this, this_ = MakeStrong(this), runtimeData = mailbox->GetRuntimeData()] {
                     Y_UNUSED(this);
-                    VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+                    YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
                     runtimeData->AcknowledgeInProgress = false;
                 }));
@@ -823,7 +852,7 @@ private:
         if (IsLeader() && mailbox->IsAvenue()) {
             BackgroundInvoker_->Invoke(
                 BIND([this, this_ = MakeStrong(this), avenueRuntimeData = mailbox->AsAvenue()->GetRuntimeData()] {
-                    VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+                    YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
                     UpdateAvenueCellActiveness(avenueRuntimeData);
                 }));
@@ -832,11 +861,11 @@ private:
 
     void HydraPostMessages(NHiveClient::NProto::TReqPostMessages* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto srcCellId = FromProto<TCellId>(request->src_endpoint_id());
 
-        ValidateCellNotRemoved(srcCellId);
+        ValidateCellNotUnregistered(srcCellId);
 
         auto firstMessageId = request->first_message_id();
         auto* mailbox = AsTyped(FindMailbox(srcCellId));
@@ -871,7 +900,7 @@ private:
         NHiveClient::NProto::TReqSendMessages* request,
         NHiveClient::NProto::TRspSendMessages* /*response*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto srcCellId = FromProto<TCellId>(request->src_cell_id());
         auto* mailbox = AsTyped(GetMailboxOrThrow(srcCellId))->AsCell();
@@ -880,11 +909,11 @@ private:
 
     void HydraRegisterMailbox(NHiveServer::NProto::TReqRegisterMailbox* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = FromProto<TCellId>(request->cell_id());
-        if (RemovedCellIds_.contains(cellId) != 0) {
-            YT_LOG_INFO("Mailbox is already removed (SrcCellId: %v, DstCellId: %v)",
+        if (UnregisteredCellIds_.contains(cellId)) {
+            YT_LOG_INFO("Mailbox is already unregistered (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 cellId);
             return;
@@ -895,16 +924,15 @@ private:
 
     void HydraUnregisterMailbox(NHiveServer::NProto::TReqUnregisterMailbox* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto cellId = FromProto<TCellId>(request->cell_id());
-        Y_UNUSED(TryRemoveCellMailbox(cellId));
+        Y_UNUSED(TryUnregisterCellMailbox(cellId));
     }
 
-
-    NRpc::IChannelPtr FindMailboxChannel(const TCellMailboxRuntimeDataPtr& runtimeData)
+    IChannelPtr FindMailboxChannel(const TCellMailboxRuntimeDataPtr& runtimeData)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         auto now = GetCpuInstant();
         if (runtimeData->CachedChannel && now < runtimeData->CachedChannelDeadline) {
@@ -924,7 +952,7 @@ private:
 
     void ReliablePostMessage(TRange<TMailboxHandle> mailboxes, const TSerializedMessagePtr& message)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         TStringBuilder logMessageBuilder;
@@ -964,7 +992,7 @@ private:
             if (IsLeader()) {
                 if (mailbox->IsAvenue()) {
                     BackgroundInvoker_->Invoke(BIND([this, this_ = MakeStrong(this), avenueRuntimeData = mailbox->AsAvenue()->GetRuntimeData()] {
-                        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+                        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
                         UpdateAvenueCellActiveness(avenueRuntimeData);
                         if (auto cellRuntimeData = avenueRuntimeData->Cell.Lock()) {
@@ -973,7 +1001,7 @@ private:
                     }));
                 } else {
                     BackgroundInvoker_->Invoke(BIND([this, this_ = MakeStrong(this), cellRuntimeData = mailbox->AsCell()->GetRuntimeData()] {
-                        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+                        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
                         SchedulePostCellOutcomingMessages(cellRuntimeData);
                     }));
@@ -991,7 +1019,7 @@ private:
 
     void UnreliablePostMessage(TRange<TMailboxHandle> mailboxes, const TSerializedMessagePtr& message)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(!HasHydraContext());
 
         TStringBuilder logMessageBuilder;
@@ -1033,7 +1061,7 @@ private:
         const std::vector<TCellMailboxRuntimeDataPtr>& cellRuntimeDatas,
         const TSerializedMessagePtr& message)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         auto traceContext = MakeStrong(TryGetCurrentTraceContext());
         for (const auto& cellRuntimeData : cellRuntimeDatas) {
@@ -1067,20 +1095,18 @@ private:
         }
     }
 
-
     bool IsEdgeFrozen(const THiveEdge& edge)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return FrozenEdges_.Read([&] (const auto& frozenEdges) {
             return std::find(frozenEdges.begin(), frozenEdges.end(), edge) != frozenEdges.end();
         });
     }
 
-
     void SetMailboxConnected(const TCellMailboxRuntimeDataPtr& cellRuntimeData)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         if (cellRuntimeData->Connected.load()) {
             return;
@@ -1111,7 +1137,7 @@ private:
 
     void MaybeDisconnectMailboxOnError(const TCellMailboxRuntimeDataPtr& cellRuntimeData, const TError& error)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         if (error.FindMatching(NHydra::EErrorCode::ReadOnly)) {
             return;
@@ -1122,7 +1148,7 @@ private:
 
     void SetMailboxDisconnected(TEndpointId endpointId, const TError& error)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         if (auto cellRuntimeData = FindCellMailboxRuntimeData(endpointId, /*throwIfUnavailable*/ false)) {
             SetMailboxDisconnected(cellRuntimeData, error);
@@ -1131,7 +1157,7 @@ private:
 
     void SetMailboxDisconnected(const TCellMailboxRuntimeDataPtr& cellRuntimeData, const TError& error)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         if (!cellRuntimeData->Connected.exchange(false)) {
             return;
@@ -1170,10 +1196,9 @@ private:
         TDelayedExecutor::CancelAndClear(cellRuntimeData->IdlePostCookie);
     }
 
-
     TCellMailboxRuntimeDataPtr CreateMailboxRuntimeData(TCellMailbox* mailbox)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(!IsRecovery());
 
         auto synchronizationBatcher = New<TAsyncBatcher<void>>(
@@ -1191,7 +1216,7 @@ private:
 
     TAvenueMailboxRuntimeDataPtr CreateMailboxRuntimeData(TAvenueMailbox* mailbox)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(!IsRecovery());
 
         auto avenueRuntimeData = New<TAvenueMailboxRuntimeData>(
@@ -1202,12 +1227,28 @@ private:
         return avenueRuntimeData;
     }
 
-
     void InitializeRuntimeData()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         THiveRuntimeData newRuntimeData{.Available = true};
+        auto secondaryMasterCellIds = MasterDirectory_->GetSecondaryMasterCellIds();
+        std::vector<TCellId> secondaryMasterCellsForRemoval;
+        secondaryMasterCellsForRemoval.reserve(secondaryMasterCellIds.size());
+        for (const auto& [cellId, _] : CellMailboxMap_) {
+            if (TypeFromId(cellId) == EObjectType::MasterCell) {
+                if (!secondaryMasterCellIds.contains(cellId) && cellId != MasterDirectory_->GetPrimaryMasterCellId()) {
+                    secondaryMasterCellsForRemoval.push_back(cellId);
+                }
+            }
+        }
+
+        // NB: Avenues are not removed here, since we can delete only cells without chunks and tablets on it, so without avenue channels to tablets.
+        for (auto cellId : secondaryMasterCellsForRemoval) {
+            if (Config_->AllowedForRemovalMasterCells.contains(CellTagFromId(cellId))) {
+                CellMailboxMap_.Release(cellId);
+            }
+        }
 
         for (auto [cellId, mailbox] : CellMailboxMap_) {
             auto cellRuntimeData = CreateMailboxRuntimeData(mailbox);
@@ -1225,7 +1266,7 @@ private:
 
         BackgroundInvoker_->Invoke(
             BIND([this, this_ = MakeStrong(this), avenueRuntimeDataList = std::move(avenueRuntimeDataList)] {
-                VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+                YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
                 for (const auto& avenueRuntimeData : avenueRuntimeDataList) {
                     UpdateAvenueCellConnection(avenueRuntimeData);
@@ -1242,7 +1283,7 @@ private:
 
     void FinalizeRuntimeData()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         // Prevent stale background activities from seeing any more updates to persistent state.
         for (auto [_, mailbox] : CellMailboxMap_) {
@@ -1256,7 +1297,7 @@ private:
 
         BackgroundInvoker_->Invoke(
             BIND([this, this_ = MakeStrong(this), oldRuntimeData = std::move(oldRuntimeData)] {
-                VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+                YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
                 auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
                 for (const auto& [_, cellRuntimeData] : oldRuntimeData.CellIdToCellRuntimeData) {
@@ -1267,21 +1308,19 @@ private:
         ReadOnlyCheckExecutor_.Reset();
     }
 
-
-    void ValidateCellNotRemoved(TCellId cellId)
+    void ValidateCellNotUnregistered(TCellId cellId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        if (RemovedCellIds_.contains(cellId)) {
-            THROW_ERROR_EXCEPTION("Cell %v is removed",
+        if (UnregisteredCellIds_.contains(cellId)) {
+            THROW_ERROR_EXCEPTION("Cell %v is unregistered",
                 cellId);
         }
     }
 
-
     void StartPeriodicPings()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         std::vector<TCellMailboxRuntimeDataPtr> cellRuntimeDataList;
         for (auto [_, mailbox] : CellMailboxMap_) {
@@ -1290,7 +1329,7 @@ private:
 
         BackgroundInvoker_->Invoke(
             BIND_NO_PROPAGATE([this, this_ = MakeStrong(this), cellRuntimeDataList = std::move(cellRuntimeDataList)] {
-                VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+                YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
                 for (const auto& cellRuntimeData : cellRuntimeDataList) {
                     RunPeriodicCellCheck(cellRuntimeData);
@@ -1300,7 +1339,7 @@ private:
 
     void SchedulePeriodicCellCheck(const TCellMailboxRuntimeDataPtr& cellRuntimeData)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         TDelayedExecutor::Submit(
             BIND_NO_PROPAGATE(&THiveManager::RunPeriodicCellCheckThunk, MakeWeak(this), MakeWeak(cellRuntimeData))
@@ -1310,7 +1349,7 @@ private:
 
     void RunPeriodicCellCheckThunk(const TWeakPtr<TCellMailboxRuntimeData>& weakCellRuntimeData)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         if (auto cellRuntimeData = weakCellRuntimeData.Lock()) {
             RunPeriodicCellCheck(cellRuntimeData);
@@ -1319,7 +1358,7 @@ private:
 
     void RunPeriodicCellCheck(const TCellMailboxRuntimeDataPtr& cellRuntimeData)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         auto cellId = cellRuntimeData->EndpointId;
         if (IsActiveLeader() && CellDirectory_->IsCellUnregistered(cellId)) {
@@ -1367,7 +1406,7 @@ private:
         const TWeakPtr<TCellMailboxRuntimeData>& weakCellRuntimeData,
         const THiveServiceProxy::TErrorOrRspPingPtr& rspOrError)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         auto cellRuntimeData = weakCellRuntimeData.Lock();
         if (!cellRuntimeData) {
@@ -1397,10 +1436,9 @@ private:
         SetMailboxConnected(cellRuntimeData);
     }
 
-
     void CheckRuntimeDataAvailability(const THiveRuntimeData& runtimeData, bool throwIfUnavailable)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (throwIfUnavailable && !runtimeData.Available) {
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Peer is not active");
@@ -1409,7 +1447,7 @@ private:
 
     TCellMailboxRuntimeDataPtr FindCellMailboxRuntimeData(TCellId cellId, bool throwIfUnavailable)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return RuntimeData_.Read([&] (const auto& runtimeData) {
             CheckRuntimeDataAvailability(runtimeData, throwIfUnavailable);
@@ -1419,7 +1457,7 @@ private:
 
     TAvenueMailboxRuntimeDataPtr FindAvenueMailboxRuntimeData(TEndpointId endpointId, bool throwIfUnavailable)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return RuntimeData_.Read([&] (const auto& runtimeData) {
             CheckRuntimeDataAvailability(runtimeData, throwIfUnavailable);
@@ -1429,7 +1467,7 @@ private:
 
     TMailboxRuntimeDataPtr FindMailboxRuntimeData(TEndpointId endpointId, bool throwIfUnavailable)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         if (IsAvenueEndpointType(TypeFromId(endpointId))) {
             return FindAvenueMailboxRuntimeData(endpointId, throwIfUnavailable);
@@ -1438,10 +1476,9 @@ private:
         }
     }
 
-
     static TFuture<void> DoSyncWithThunk(const TWeakPtr<THiveManager>& weakThis, TCellId cellId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto this_ = weakThis.Lock();
         if (!this_) {
@@ -1453,7 +1490,7 @@ private:
 
     TFuture<void> DoSyncWith(TCellId cellId)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         try {
             auto channel = CellDirectory_->FindChannelByCellId(cellId, EPeerKind::Leader);
@@ -1505,7 +1542,7 @@ private:
         TCellId cellId,
         const THiveServiceProxy::TErrorOrRspPingPtr& rspOrError)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         try {
             auto cellRuntimeData = FindCellMailboxRuntimeData(cellId, /*throwIfUnavailable*/ true);
@@ -1573,7 +1610,7 @@ private:
 
     void FlushSyncRequests(const TCellMailboxRuntimeDataPtr& cellRuntimeData)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         auto nextPersistentIncomingMessageId = cellRuntimeData->PersistentState->GetNextPersistentIncomingMessageId();
         while (!cellRuntimeData->SyncRequests.empty()) {
@@ -1595,7 +1632,7 @@ private:
 
     void SchedulePostAvenueOutcomingMessages(const TAvenueMailboxRuntimeDataPtr& avenueRuntimeData)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         auto cellRuntimeData = avenueRuntimeData->Cell.Lock();
         if (!cellRuntimeData) {
@@ -1607,7 +1644,7 @@ private:
 
     void SchedulePostCellOutcomingMessages(const TCellMailboxRuntimeDataPtr& cellRuntimeData)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         if (!cellRuntimeData->IsLeader) {
             return;
@@ -1623,7 +1660,7 @@ private:
                     return;
                 }
 
-                VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+                YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
                 auto cellRuntimeData = weakCellRuntimeData.Lock();
                 if (!cellRuntimeData) {
@@ -1644,7 +1681,7 @@ private:
 
     void PostOutcomingMessagesThunk(const TWeakPtr<TCellMailboxRuntimeData>& weakCellRuntimeData, bool allowIdle)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         if (auto cellRuntimeData = weakCellRuntimeData.Lock()) {
             PostOutcomingMessages(cellRuntimeData, allowIdle);
@@ -1653,7 +1690,7 @@ private:
 
     void PostOutcomingMessages(const TCellMailboxRuntimeDataPtr& cellRuntimeData, bool allowIdle)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         if (!cellRuntimeData->IsLeader) {
             return;
@@ -1834,7 +1871,7 @@ private:
         const std::vector<TAvenuePostInfo>& avenuePostInfos,
         const THiveServiceProxy::TErrorOrRspPostMessagesPtr& rspOrError)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         auto cellRuntimeData = weakCellRuntimeData.Lock();
         if (!cellRuntimeData) {
@@ -1855,7 +1892,7 @@ private:
         TAvenueEndpointId dstEndpointId = {},
         std::optional<int> avenueSubrequestIndex = {})
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         TAvenueMailboxRuntimeDataPtr avenueRuntimeData;
         if (avenueSubrequestIndex) {
@@ -1937,7 +1974,7 @@ private:
         const TWeakPtr<TCellMailboxRuntimeData>& weakCellRuntimeData,
         const THiveServiceProxy::TErrorOrRspSendMessagesPtr& rspOrError)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         auto cellRuntimeData = weakCellRuntimeData.Lock();
         if (!cellRuntimeData) {
@@ -1959,10 +1996,9 @@ private:
             dstCellId);
     }
 
-
     std::unique_ptr<TMutation> CreateAcknowledgeMessagesMutation(const NHiveServer::NProto::TReqAcknowledgeMessages& req)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return CreateMutation(
             HydraManager_,
@@ -1973,7 +2009,7 @@ private:
 
     std::unique_ptr<TMutation> CreatePostMessagesMutation(const NHiveClient::NProto::TReqPostMessages& request)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return CreateMutation(
             HydraManager_,
@@ -1984,7 +2020,7 @@ private:
 
     std::unique_ptr<TMutation> CreateSendMessagesMutation(const TCtxSendMessagesPtr& context)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
         return CreateMutation(
             HydraManager_,
             context,
@@ -1994,7 +2030,7 @@ private:
 
     std::unique_ptr<TMutation> CreateRegisterMailboxMutation(const NHiveServer::NProto::TReqRegisterMailbox& req)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return CreateMutation(
             HydraManager_,
@@ -2005,7 +2041,7 @@ private:
 
     std::unique_ptr<TMutation> CreateUnregisterMailboxMutation(const NHiveServer::NProto::TReqUnregisterMailbox& req)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return CreateMutation(
             HydraManager_,
@@ -2014,13 +2050,12 @@ private:
             this);
     }
 
-
     bool CheckRequestedMessageIdAgainstMailbox(
         const TMailboxRuntimeDataPtr& runtimeData,
         const TMessageIdRange& outcomingMessageIdRange,
         TMessageId requestedMessageId)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         if (requestedMessageId < outcomingMessageIdRange.Begin) {
             YT_LOG_WARNING("Destination is out of sync: requested to receive already truncated messages (%v, "
@@ -2053,7 +2088,7 @@ private:
         const TMessageIdRange& outcomingMessageIdRange,
         TMessageId nextPersistentIncomingMessageId)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         if (!CheckRequestedMessageIdAgainstMailbox(runtimeData, outcomingMessageIdRange, nextPersistentIncomingMessageId)) {
             return false;
@@ -2088,7 +2123,7 @@ private:
         const TMessageIdRange& outcomingMessageIdRange,
         TMessageId nextTransientIncomingMessageId)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         if (!CheckRequestedMessageIdAgainstMailbox(runtimeData, outcomingMessageIdRange, nextTransientIncomingMessageId)) {
             return false;
@@ -2102,10 +2137,9 @@ private:
         return true;
     }
 
-
     void ApplyReliableIncomingMessages(TMailbox* mailbox, const NHiveClient::NProto::TReqPostMessages* req)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         for (int index = 0; index < req->messages_size(); ++index) {
             if (mailbox->IsAvenue()) {
@@ -2125,7 +2159,7 @@ private:
 
     void ApplyReliableIncomingMessage(TMailbox* mailbox, TMessageId messageId, const TEncapsulatedMessage& message)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto nextPersistentIncomingMessageId = mailbox->GetPersistentState()->GetNextPersistentIncomingMessageId();
         if (messageId != nextPersistentIncomingMessageId) {
@@ -2168,7 +2202,7 @@ private:
 
     void ApplyUnreliableIncomingMessages(TCellMailbox* mailbox, const NHiveClient::NProto::TReqSendMessages* req)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         for (const auto& message : req->messages()) {
             ApplyUnreliableIncomingMessage(mailbox, message);
@@ -2177,7 +2211,7 @@ private:
 
     void ApplyUnreliableIncomingMessage(TCellMailbox* mailbox, const TEncapsulatedMessage& message)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_LOG_DEBUG("Applying unreliable incoming message (SrcCellId: %v, DstCellId: %v, MutationType: %v)",
             mailbox->GetCellId(),
@@ -2188,7 +2222,7 @@ private:
 
     void ApplyMessage(const TEncapsulatedMessage& message, TEndpointId endpointId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TMutationRequest request{
             .Reign = GetCurrentMutationContext()->Request().Reign,
@@ -2204,10 +2238,9 @@ private:
         static_cast<IAutomaton*>(Automaton_)->ApplyMutation(&mutationContext);
     }
 
-
     void OnAvenueDirectoryEndpointUpdated(TAvenueEndpointId endpointId, TCellId cellId)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         if (auto avenueRuntimeData = FindAvenueMailboxRuntimeData(endpointId, /*throwIfUnavailable*/ false)) {
             auto cellRuntimeData = FindCellMailboxRuntimeData(cellId, /*throwIfUnavailable*/ false);
@@ -2217,7 +2250,7 @@ private:
 
     void UpdateAvenueCellConnection(const TAvenueMailboxRuntimeDataPtr& avenueRuntimeData)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         auto cellId = AvenueDirectory_->FindCellIdByEndpointId(avenueRuntimeData->EndpointId);
         auto cellRuntimeData = cellId ? FindCellMailboxRuntimeData(cellId, /*throwIfUnavailable*/ false) : nullptr;
@@ -2228,7 +2261,7 @@ private:
         const TAvenueMailboxRuntimeDataPtr& avenueRuntimeData,
         const TCellMailboxRuntimeDataPtr& cellRuntimeData)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         auto formerCellRuntimeData = avenueRuntimeData->Cell.Lock();
         if (cellRuntimeData == formerCellRuntimeData) {
@@ -2275,7 +2308,7 @@ private:
 
     void UpdateAvenueCellActiveness(const TAvenueMailboxRuntimeDataPtr& avenueRuntimeData)
     {
-        VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+        YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
         auto cellRuntimeData = avenueRuntimeData->Cell.Lock();
         if (!cellRuntimeData) {
@@ -2302,24 +2335,23 @@ private:
         }
     }
 
-
     TString FormatIncomingMailboxEndpoints(TEndpointId endpointId) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return FormatMailboxEndpoints(endpointId, /*outgoing*/ false);
     }
 
     TString FormatOutgoingMailboxEndpoints(TEndpointId endpointId) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return FormatMailboxEndpoints(endpointId, /*outgoing*/ true);
     }
 
     TString FormatMailboxEndpoints(TEndpointId endpointId, bool outgoing) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto type = TypeFromId(endpointId);
         if (IsCellType(type)) {
@@ -2345,10 +2377,9 @@ private:
         }
     }
 
-
     void OnReadOnlyCheck()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (!HydraManager_->GetReadOnly()) {
             return;
@@ -2362,7 +2393,7 @@ private:
 
         BackgroundInvoker_->Invoke(
             BIND([this, this_ = MakeStrong(this), cellRuntimeDatas = std::move(cellRuntimeDatas)] {
-                VERIFY_INVOKER_AFFINITY(BackgroundInvoker_);
+                YT_ASSERT_INVOKER_AFFINITY(BackgroundInvoker_);
 
                 YT_LOG_DEBUG("Hydra is read-only; canceling all synchronization requests");
                 auto error = TError(NHydra::EErrorCode::ReadOnly, "Cannot synchronize with remote instance since Hydra is read-only");
@@ -2371,7 +2402,6 @@ private:
                 }
             }));
     }
-
 
     void OnLeaderRecoveryComplete() override
     {
@@ -2407,7 +2437,6 @@ private:
         FinalizeRuntimeData();
     }
 
-
     bool ValidateSnapshotVersion(int version) override
     {
         return version == 5 ||
@@ -2421,14 +2450,13 @@ private:
         return 7;
     }
 
-
     void Clear() override
     {
         TCompositeAutomatonPart::Clear();
 
         CellMailboxMap_.Clear();
         AvenueMailboxMap_.Clear();
-        RemovedCellIds_.clear();
+        UnregisteredCellIds_.clear();
 
         RuntimeData_.Store(THiveRuntimeData{});
     }
@@ -2443,7 +2471,7 @@ private:
     {
         CellMailboxMap_.SaveValues(context);
         AvenueMailboxMap_.SaveValues(context);
-        Save(context, RemovedCellIds_);
+        Save(context, UnregisteredCellIds_);
         Save(context, *LamportClock_);
     }
 
@@ -2463,30 +2491,30 @@ private:
         if (context.GetVersion() >= 6) {
             AvenueMailboxMap_.LoadValues(context);
         }
-        Load(context, RemovedCellIds_);
+        Load(context, UnregisteredCellIds_);
         // COMPAT(danilalexeev)
         if (context.GetVersion() >= 7) {
             Load(context, *LamportClock_);
         }
     }
 
-    int GetRemovedCellIdCount() const
+    int GetUnregisteredCellIdCount() const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        return std::ssize(RemovedCellIds_);
+        return std::ssize(UnregisteredCellIds_);
     }
 
     TLogicalTime GetLamportTimestamp() const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         return LamportClock_->GetTime();
     }
 
     IYPathServicePtr CreateOrchidService()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto automatonInvoker = HydraManager_->CreateGuardedAutomatonInvoker(AutomatonInvoker_);
         return New<TCompositeMapService>()
@@ -2496,8 +2524,8 @@ private:
             ->AddChild("avenue_mailboxes", New<TMailboxOrchidService<TAvenueMailboxRuntimeData, &THiveRuntimeData::EndpointIdToAvenueRuntimeData>>(
                 MakeWeak(this))
                 ->Via(BackgroundInvoker_))
-            ->AddChild("removed_cell_count", IYPathService::FromMethod(
-                &THiveManager::GetRemovedCellIdCount,
+            ->AddChild("unregistered_cell_count", IYPathService::FromMethod(
+                &THiveManager::GetUnregisteredCellIdCount,
                 MakeWeak(this))
                 ->Via(automatonInvoker))
             ->AddChild("lamport_timestamp", IYPathService::FromMethod(
@@ -2522,7 +2550,7 @@ private:
 
         std::vector<std::string> GetKeys(i64 limit) const override
         {
-            VERIFY_THREAD_AFFINITY_ANY();
+            YT_ASSERT_THREAD_AFFINITY_ANY();
 
             auto owner = Owner_.Lock();
             if (!owner) {
@@ -2546,7 +2574,7 @@ private:
 
         i64 GetSize() const override
         {
-            VERIFY_THREAD_AFFINITY_ANY();
+            YT_ASSERT_THREAD_AFFINITY_ANY();
 
             auto owner = Owner_.Lock();
             if (!owner) {
@@ -2561,7 +2589,7 @@ private:
 
         IYPathServicePtr FindItemService(const std::string& key) const override
         {
-            VERIFY_THREAD_AFFINITY_ANY();
+            YT_ASSERT_THREAD_AFFINITY_ANY();
 
             TEndpointId id;
             if (!TEndpointId::FromString(key, &id)) {
@@ -2573,7 +2601,7 @@ private:
                 return nullptr;
             }
 
-            VERIFY_INVOKER_AFFINITY(owner->BackgroundInvoker_);
+            YT_ASSERT_INVOKER_AFFINITY(owner->BackgroundInvoker_);
 
             return owner->RuntimeData_.Read([&] (const auto& runtimeData) -> INodePtr {
                 const auto& runtimeDataMap = runtimeData.*RuntimeDataMap;
@@ -2637,7 +2665,6 @@ private:
             });
     }
 
-
     static TMailbox* AsTyped(TMailboxHandle handle)
     {
         return static_cast<TMailbox*>(handle.Underlying());
@@ -2654,6 +2681,7 @@ private:
 IHiveManagerPtr CreateHiveManager(
     THiveManagerConfigPtr config,
     ICellDirectoryPtr cellDirectory,
+    NCellMasterClient::ICellDirectoryPtr masterDirectory,
     IAvenueDirectoryPtr avenueDirectory,
     TCellId selfCellId,
     IInvokerPtr automatonInvoker,
@@ -2665,6 +2693,7 @@ IHiveManagerPtr CreateHiveManager(
     return New<THiveManager>(
         std::move(config),
         std::move(cellDirectory),
+        std::move(masterDirectory),
         std::move(avenueDirectory),
         selfCellId,
         std::move(automatonInvoker),

@@ -146,7 +146,7 @@ private:
         std::vector<TReplicatedTableMappingTableRow> ReplicatedTableMappingRows;
 
         // NB: Must provide a strong exception-safety guarantee.
-        void AppendObject(const TObject& object, const IAttributeDictionaryPtr& attributes, const TString& chaosReplicatedTableQueueAgentStage)
+        void AppendObject(const TObject& object, const IAttributeDictionaryPtr& attributes, const std::string& chaosReplicatedTableQueueAgentStage)
         {
             auto fillChaosReplicatedTableQueueAgentStage = [=] (auto& row) {
                 if (row.ObjectType && *row.ObjectType == EObjectType::ChaosReplicatedTable && !row.QueueAgentStage) {
@@ -210,7 +210,7 @@ private:
         void AppendObjectWithErrorAndBasicAttributes(
             const TObject& object,
             const IAttributeDictionaryPtr& attributes,
-            const TString& chaosReplicatedTableQueueAgentStage,
+            const std::string& chaosReplicatedTableQueueAgentStage,
             const TError& error,
             const NLogging::TLogger& logger)
         {
@@ -233,7 +233,7 @@ private:
                 if (row.QueueAgentStage) {
                     return;
                 }
-                if (row.ObjectType && *row.ObjectType == EObjectType::ChaosReplicatedTable && chaosReplicatedTableQueueAgentStage) {
+                if (row.ObjectType && *row.ObjectType == EObjectType::ChaosReplicatedTable && !chaosReplicatedTableQueueAgentStage.empty()) {
                     row.QueueAgentStage = chaosReplicatedTableQueueAgentStage;
                 }
             };
@@ -821,7 +821,7 @@ public:
     //! and updates the corresponding rows in the dynamic state.
     void Pass()
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("CypressSynchronizer"));
 
@@ -866,7 +866,7 @@ public:
         const TCypressSynchronizerDynamicConfigPtr& oldConfig,
         const TCypressSynchronizerDynamicConfigPtr& newConfig) override
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         DynamicConfig_ = newConfig;
 
@@ -899,7 +899,7 @@ private:
 
     void BuildOrchid(NYson::IYsonConsumer* consumer) const
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         BuildYsonFluently(consumer).BeginMap()
             .Item("active").Value(Active_)

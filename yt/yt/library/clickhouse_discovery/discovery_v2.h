@@ -13,7 +13,7 @@ IDiscoveryPtr CreateDiscoveryV2(
     NApi::NNative::IConnectionPtr connection,
     NRpc::IChannelFactoryPtr channelFactory,
     IInvokerPtr invoker,
-    std::vector<TString> extraAttributes,
+    std::vector<std::string> extraAttributes,
     NLogging::TLogger logger = {},
     NProfiling::TProfiler profiler = {});
 

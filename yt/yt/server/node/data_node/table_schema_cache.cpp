@@ -77,7 +77,7 @@ i64 TCachedTableSchemaWrapper::GetWeight() const
 
 bool TCachedTableSchemaWrapper::CheckSchemaSet()
 {
-    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
     return static_cast<bool>(TableSchema_);
 }

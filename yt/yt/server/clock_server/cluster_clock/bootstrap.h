@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/timestamp_server/public.h>
 
+#include <yt/yt/server/lib/misc/bootstrap.h>
+
 #include <yt/yt/ytlib/election/public.h>
 
 #include <yt/yt/library/monitoring/public.h>
@@ -14,7 +16,7 @@
 
 #include <yt/yt/client/object_client/public.h>
 
-#include <yt/yt/library/coredumper/public.h>
+#include <yt/yt/library/fusion/public.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
@@ -33,12 +35,16 @@ namespace NYT::NClusterClock {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TBootstrap
+    : public NServer::IDaemonBootstrap
 {
 public:
-    TBootstrap(TClusterClockConfigPtr config, NYTree::INodePtr configNode);
+    TBootstrap(
+        TClusterClockBootstrapConfigPtr config,
+        NYTree::INodePtr configNode,
+        NFusion::IServiceLocatorPtr serviceLocator);
     ~TBootstrap();
 
-    const TClusterClockConfigPtr& GetConfig() const;
+    const TClusterClockBootstrapConfigPtr& GetConfig() const;
 
     NObjectClient::TCellId GetCellId() const;
     NObjectClient::TCellId GetCellId(NObjectClient::TCellTag cellTag) const;
@@ -55,12 +61,13 @@ public:
     const IInvokerPtr& GetSnapshotIOInvoker() const;
 
     void Initialize();
-    void Run();
-    void TryLoadSnapshot(const TString& fileName, bool dump);
+    TFuture<void> Run() final;
+    void LoadSnapshot(const TString& fileName, bool dump);
 
 private:
-    const TClusterClockConfigPtr Config_;
+    const TClusterClockBootstrapConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
+    const NFusion::IServiceLocatorPtr ServiceLocator_;
 
     NObjectClient::TCellId CellId_;
     NObjectClient::TCellTag CellTag_;
@@ -75,7 +82,6 @@ private:
     THydraFacadePtr HydraFacade_;
     NConcurrency::TActionQueuePtr ControlQueue_;
     NConcurrency::TActionQueuePtr SnapshotIOQueue_;
-    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     void DoInitialize();
     void DoRun();
@@ -83,6 +89,15 @@ private:
 
     NYTree::IYPathServicePtr CreateCellOrchidService() const;
 };
+
+DEFINE_REFCOUNTED_TYPE(TBootstrap)
+
+////////////////////////////////////////////////////////////////////////////////
+
+TBootstrapPtr CreateClusterClockBootstrap(
+    TClusterClockBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

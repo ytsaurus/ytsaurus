@@ -8,18 +8,18 @@ namespace NYT::NCellServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellBalancerConfig
+class TCellBalancerBootstrapConfig
     : public NYTree::TYsonStruct
 {
 public:
     bool EnableTabletCellSmoothing;
 
-    REGISTER_YSON_STRUCT(TCellBalancerConfig);
+    REGISTER_YSON_STRUCT(TCellBalancerBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TCellBalancerConfig)
+DEFINE_REFCOUNTED_TYPE(TCellBalancerBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

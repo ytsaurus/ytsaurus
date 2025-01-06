@@ -11,14 +11,14 @@ namespace NYT::NTableServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Return the stage stored in the node if it is set and the per-cluster default if it is null.
-TString GetEffectiveQueueAgentStage(
+std::string GetEffectiveQueueAgentStage(
     NCellMaster::TBootstrap* bootstrap,
-    const std::optional<TString>& queueAgentStage);
+    const std::optional<std::string>& queueAgentStage);
 
 //! For use with EInternedAttributeKey::[Queue/Consumer][Status/Partitions].
 TFuture<NYson::TYsonString> GetQueueAgentAttributeAsync(
     NCellMaster::TBootstrap* bootstrap,
-    const std::optional<TString>& queueAgentStage,
+    const std::optional<std::string>& queueAgentStage,
     const NYPath::TYPath& path,
     NYTree::TInternedAttributeKey key);
 

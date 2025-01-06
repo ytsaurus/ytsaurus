@@ -50,7 +50,7 @@ public:
         TDynamicStatePtr dynamicState,
         IMemberClientPtr memberClient,
         IDiscoveryClientPtr discoveryClient,
-        TString queueAgentStage,
+        std::string queueAgentStage,
         TYPath dynamicStateRoot)
         : DynamicConfig_(New<TQueueAgentShardingManagerDynamicConfig>())
         , Client_(std::move(client))
@@ -84,7 +84,7 @@ public:
         const TQueueAgentShardingManagerDynamicConfigPtr& oldConfig,
         const TQueueAgentShardingManagerDynamicConfigPtr& newConfig) override
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         DynamicConfig_.Exchange(newConfig);
 
@@ -107,7 +107,7 @@ private:
     const TDynamicStatePtr DynamicState_;
     const IMemberClientPtr MemberClient_;
     const IDiscoveryClientPtr DiscoveryClient_;
-    const TString QueueAgentStage_;
+    const std::string QueueAgentStage_;
     const TYPath DynamicStateRoot_;
     const TPeriodicExecutorPtr PassExecutor_;
     const IYPathServicePtr OrchidService_;
@@ -125,7 +125,7 @@ private:
 
     void BuildOrchid(NYson::IYsonConsumer* consumer) const
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         BuildYsonFluently(consumer).BeginMap()
             .Item("active").Value(Active_)
@@ -137,7 +137,7 @@ private:
 
     void Pass()
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         PassInstant_ = TInstant::Now();
         ++PassIndex_;
@@ -169,7 +169,7 @@ private:
 
     //! Picks host using rendezvous hashing.
     //! The probability of host reassignment in case of any small host set changes is low.
-    static TString PickHost(const TCrossClusterReference& object, const std::vector<TMemberInfo>& queueAgents)
+    static std::string PickHost(const TCrossClusterReference& object, const std::vector<TMemberInfo>& queueAgents)
     {
         YT_VERIFY(!queueAgents.empty());
 
@@ -230,7 +230,7 @@ private:
 
     void GuardedPass()
     {
-        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
+        YT_ASSERT_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueAgentShardingManager"));
 
@@ -381,7 +381,7 @@ IQueueAgentShardingManagerPtr CreateQueueAgentShardingManager(
     TDynamicStatePtr dynamicState,
     IMemberClientPtr memberClient,
     IDiscoveryClientPtr discoveryClient,
-    TString queueAgentStage,
+    std::string queueAgentStage,
     TYPath dynamicStateRoot)
 {
     return New<TQueueAgentShardingManager>(

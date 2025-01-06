@@ -47,7 +47,7 @@ protected:
 
     TProxyBasePtr ResolveNameOrThrow(const std::string& name) override;
 
-    std::optional<TString> GetMaybePoolTreeName(const TSchedulerPool* schedulerPool);
+    std::optional<std::string> GetMaybePoolTreeName(const TSchedulerPool* schedulerPool);
 
     void ValidateChildNameAvailability(const std::string& newChildName) override;
     void ValidateAfterAttachChild(const std::string& key, const TProxyBasePtr& childProxy) override;

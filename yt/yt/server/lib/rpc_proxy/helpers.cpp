@@ -12,7 +12,7 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PutMethodInfoInTraceContext(const TStringBuf& methodName)
+void PutMethodInfoInTraceContext(TStringBuf methodName)
 {
     if (auto* traceContext = TryGetCurrentTraceContext()) {
         auto baggage = traceContext->UnpackOrCreateBaggage();

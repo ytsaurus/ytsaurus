@@ -53,6 +53,7 @@ target_link_libraries(ytserver-all PUBLIC
   yt-server-timestamp_provider
   yt-server-tools
   yt-server-replicated_table_tracker
+  yt-server-multidaemon
   yt-library-oom
 )
 

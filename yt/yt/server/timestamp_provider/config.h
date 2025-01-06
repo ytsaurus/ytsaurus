@@ -12,9 +12,8 @@ namespace NYT::NTimestampProvider {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTimestampProviderConfig
-    : public TServerConfig
-    , public TServerProgramConfig
+class TTimestampProviderBootstrapConfig
+    : public NServer::TServerBootstrapConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
@@ -26,12 +25,26 @@ public:
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
     std::vector<NTransactionClient::TAlienTimestampProviderConfigPtr> AlienProviders;
 
-    REGISTER_YSON_STRUCT(TTimestampProviderConfig);
+    REGISTER_YSON_STRUCT(TTimestampProviderBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TTimestampProviderConfig)
+DEFINE_REFCOUNTED_TYPE(TTimestampProviderBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTimestampProviderProgramConfig
+    : public TTimestampProviderBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TTimestampProviderProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTimestampProviderProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

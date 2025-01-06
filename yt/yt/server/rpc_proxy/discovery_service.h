@@ -15,7 +15,7 @@ namespace NYT::NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 NRpc::IServicePtr CreateDiscoveryService(
-    TProxyConfigPtr config,
+    TProxyBootstrapConfigPtr config,
     IProxyCoordinatorPtr proxyCoordinator,
     NApi::NNative::IConnectionPtr connection,
     IInvokerPtr controlInvoker,

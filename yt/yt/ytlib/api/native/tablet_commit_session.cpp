@@ -191,7 +191,7 @@ private:
 
     void InvokeNextBatch(TCommitContextPtr commitContext)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto batchIndex = commitContext->BatchIndex;
 

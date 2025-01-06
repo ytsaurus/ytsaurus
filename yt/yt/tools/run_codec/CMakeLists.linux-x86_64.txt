@@ -26,7 +26,8 @@ target_link_libraries(run_codec PUBLIC
 )
 
 target_allocator(run_codec
-  cpp-lfalloc-yt
+  cpp-malloc-tcmalloc
+  libs-tcmalloc-no_percpu_cache
 )
 
 target_link_options(run_codec PRIVATE

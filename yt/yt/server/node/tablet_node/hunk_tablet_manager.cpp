@@ -68,7 +68,7 @@ public:
         , OrphanedTabletMap_(TEntityMapTraits(this))
         , OrchidService_(TOrchidService::Create(MakeWeak(this), Slot_->GetGuardedAutomatonInvoker()))
     {
-        VERIFY_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Slot_->GetAutomatonInvoker(), AutomatonThread);
 
         RegisterLoader(
             "HunkTabletManager.Keys",
@@ -227,7 +227,7 @@ private:
 
     void OnLeaderActive() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::OnLeaderActive();
 
@@ -241,7 +241,7 @@ private:
 
     void OnStopLeading() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::OnStopLeading();
 
@@ -259,35 +259,35 @@ private:
 
     void LoadKeys(TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TabletMap_.LoadKeys(context);
     }
 
     void LoadValues(TLoadContext& context)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TabletMap_.LoadValues(context);
     }
 
     void SaveKeys(TSaveContext& context) const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TabletMap_.SaveKeys(context);
     }
 
     void SaveValues(TSaveContext& context) const
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TabletMap_.SaveValues(context);
     }
 
     void OnAfterSnapshotLoaded() noexcept override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::OnAfterSnapshotLoaded();
 
@@ -302,7 +302,7 @@ private:
 
     void Clear() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         TTabletAutomatonPart::Clear();
 
@@ -312,7 +312,7 @@ private:
 
     void HydraMountHunkTablet(NProto::TReqMountHunkTablet* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -363,7 +363,7 @@ private:
 
     void HydraUnmountHunkTablet(NProto::TReqUnmountHunkTablet* request)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -396,7 +396,7 @@ private:
         TReqUpdateHunkTabletStores* request,
         const TTransactionPrepareOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
         YT_VERIFY(options.Persistent);
 
@@ -442,7 +442,7 @@ private:
         TReqUpdateHunkTabletStores* request,
         const TTransactionCommitOptions& /*options*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -524,7 +524,7 @@ private:
         TReqUpdateHunkTabletStores* request,
         const TTransactionAbortOptions& /*options*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -574,7 +574,7 @@ private:
         NTabletClient::NProto::TReqToggleHunkTabletStoreLock* request,
         const TTransactionPrepareOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
         YT_VERIFY(options.Persistent);
 
@@ -617,7 +617,7 @@ private:
         NTabletClient::NProto::TReqToggleHunkTabletStoreLock* request,
         const TTransactionCommitOptions& /*options*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -684,7 +684,7 @@ private:
         NTabletClient::NProto::TReqToggleHunkTabletStoreLock* request,
         const TTransactionAbortOptions& /*options*/)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -721,7 +721,7 @@ private:
 
     void CheckUnmounted(THunkTablet* tablet)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasHydraContext());
 
         if (IsInUnmountWorkflow(tablet->GetState()) && tablet->IsReadyToUnmount()) {
@@ -772,7 +772,7 @@ private:
 
     void ScanAllTablets()
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         for (auto [tabletId, tablet] : TabletMap_) {
             ScheduleScanTablet(tabletId);

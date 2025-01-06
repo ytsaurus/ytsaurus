@@ -37,6 +37,7 @@ using namespace NNodeTrackerClient;
 using namespace NTracing;
 using namespace NYTree;
 using namespace NYson;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -113,14 +114,14 @@ public:
 
     i64 GetSize() const override
     {
-        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
         return std::ssize(JobTracker_->RegisteredNodes_);
     }
 
     std::vector<std::string> GetKeys(i64 limit) const override
     {
-        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
         std::vector<std::string> keys;
         keys.reserve(std::min(limit, GetSize()));
@@ -137,7 +138,7 @@ public:
 
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
-        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
         auto nodeIdIt = JobTracker_->NodeAddressToNodeId_.find(key);
         if (nodeIdIt == std::end(JobTracker_->NodeAddressToNodeId_)) {
@@ -230,7 +231,7 @@ public:
 
     i64 GetSize() const override
     {
-        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
         i64 size = 0;
 
@@ -243,7 +244,7 @@ public:
 
     std::vector<std::string> GetKeys(i64 limit) const override
     {
-        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
         std::vector<std::string> keys;
         keys.reserve(std::min(limit, GetSize()));
@@ -263,7 +264,7 @@ public:
 
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
-        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
         auto allocationId = TAllocationId(TGuid::FromString(key));
 
@@ -334,7 +335,7 @@ public:
 
     i64 GetSize() const override
     {
-        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
         i64 size = 0;
 
@@ -350,7 +351,7 @@ public:
 
     std::vector<std::string> GetKeys(i64 limit) const override
     {
-        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
         std::vector<std::string> keys;
         keys.reserve(std::min(limit, GetSize()));
@@ -393,7 +394,7 @@ public:
 
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
-        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
         auto jobId = TJobId(TGuid::FromString(key));
 
@@ -478,14 +479,14 @@ public:
 
     i64 GetSize() const override
     {
-        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
         return std::ssize(JobTracker_->RegisteredOperations_);
     }
 
     std::vector<std::string> GetKeys(i64 limit) const override
     {
-        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
         std::vector<std::string> keys;
         keys.reserve(std::min(limit, GetSize()));
@@ -502,7 +503,7 @@ public:
 
     IYPathServicePtr FindItemService(const std::string& key) const override
     {
-        VERIFY_INVOKER_AFFINITY(JobTracker_->GetInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(JobTracker_->GetInvoker());
 
         auto operationId = TOperationId(TGuid::FromString(key));
         auto operationInfoIt = JobTracker_->RegisteredOperations_.find(operationId);
@@ -836,7 +837,7 @@ TJobTracker::TJobTracker(TBootstrap* bootstrap, TJobReporterPtr jobReporter)
 
 TFuture<void> TJobTracker::Initialize()
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
     auto cancelableInvoker = Bootstrap_->GetControllerAgent()->CreateCancelableInvoker(
         GetInvoker());
@@ -852,7 +853,7 @@ TFuture<void> TJobTracker::Initialize()
 
 void TJobTracker::OnSchedulerConnected(TIncarnationId incarnationId)
 {
-    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
     GetCancelableInvoker()->Invoke(BIND(
         &TJobTracker::SetIncarnationId,
@@ -862,7 +863,7 @@ void TJobTracker::OnSchedulerConnected(TIncarnationId incarnationId)
 
 void TJobTracker::Cleanup()
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     GetInvoker()->Invoke(BIND(
         &TJobTracker::DoCleanup,
@@ -871,7 +872,7 @@ void TJobTracker::Cleanup()
 
 void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto* request = &context->Request();
 
@@ -890,6 +891,19 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
         THROW_ERROR_EXCEPTION(
             NControllerAgent::EErrorCode::AgentDisconnected,
             "Controller agent disconnected");
+    }
+
+    std::shared_ptr<THashMap<TClusterName, bool>> clusterToNetworkBandwidthAvailability;
+    if (request->has_cluster_network_bandwidth_availability()) {
+        // Create non nullptr clusterToNetworkBandwidthAvailability for leader's heartbeat.
+        clusterToNetworkBandwidthAvailability = std::make_shared<THashMap<TClusterName, bool>>();
+        for (const auto& availability : request->cluster_network_bandwidth_availability().availability()) {
+            const auto& clusterName = availability.cluster_name();
+            (*clusterToNetworkBandwidthAvailability)[TClusterName(clusterName)] = availability.is_available();
+        }
+
+        YT_LOG_DEBUG("Received cluster network bandwidth availability from leader (NetworkAvailability: %v)",
+            *clusterToNetworkBandwidthAvailability);
     }
 
     ProfileHeartbeatRequest(request);
@@ -929,6 +943,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
             .AllocationIdsRunningOnNode = std::move(allocationIdsRunningOnNode),
             .UnconfirmedJobIds = std::move(unconfirmedJobs),
         },
+        .ClusterToNetworkBandwidthAvailability = std::move(clusterToNetworkBandwidthAvailability),
     };
 
     BIND(
@@ -952,7 +967,7 @@ void TJobTracker::ProcessHeartbeat(const TJobTracker::TCtxHeartbeatPtr& context)
 
 void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto* request = &context->Request();
     auto* response = &context->Response();
@@ -1111,7 +1126,7 @@ TJobTrackerOperationHandlerPtr TJobTracker::RegisterOperation(
     TOperationId operationId,
     TWeakPtr<IOperationController> operationController)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto cancelableInvoker = GetCancelableInvoker();
 
@@ -1127,7 +1142,7 @@ TJobTrackerOperationHandlerPtr TJobTracker::RegisterOperation(
 void TJobTracker::UnregisterOperation(
     TOperationId operationId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     GetCancelableInvoker()->Invoke(BIND(
         &TJobTracker::DoUnregisterOperation,
@@ -1137,7 +1152,7 @@ void TJobTracker::UnregisterOperation(
 
 void TJobTracker::UpdateExecNodes(TRefCountedExecNodeDescriptorMapPtr newExecNodes)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     GetCancelableInvoker()->Invoke(BIND(
         &TJobTracker::DoUpdateExecNodes,
@@ -1147,7 +1162,7 @@ void TJobTracker::UpdateExecNodes(TRefCountedExecNodeDescriptorMapPtr newExecNod
 
 void TJobTracker::UpdateConfig(const TControllerAgentConfigPtr& config)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     GetInvoker()->Invoke(BIND(
         &TJobTracker::DoUpdateConfig,
@@ -1157,14 +1172,14 @@ void TJobTracker::UpdateConfig(const TControllerAgentConfigPtr& config)
 
 NYTree::IYPathServicePtr TJobTracker::GetOrchidService() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return OrchidService_;
 }
 
 IInvokerPtr TJobTracker::GetHeavyInvoker() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ThreadPool_->GetInvoker();
 }
@@ -1203,7 +1218,7 @@ void TJobTracker::AccountEnqueuedControllerEvent(int delta)
 
 void TJobTracker::ProfileHeartbeatProperties(const THeartbeatCounters& heartbeatCounters)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     ReceivedRunningJobCount_.Increment(heartbeatCounters.RunningJobCount);
     ReceivedStaleRunningJobCount_.Increment(heartbeatCounters.StaleRunningJobCount);
@@ -1234,21 +1249,21 @@ void TJobTracker::TOperationUpdatesProcessingContext::AddAllocationEvent(TSchedu
 
 IInvokerPtr TJobTracker::GetInvoker() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return JobTrackerQueue_->GetInvoker();
 }
 
 IInvokerPtr TJobTracker::TryGetCancelableInvoker() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return CancelableInvoker_.Acquire();
 }
 
 IInvokerPtr TJobTracker::GetCancelableInvoker() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto invoker = TryGetCancelableInvoker();
     YT_VERIFY(invoker);
@@ -1258,7 +1273,7 @@ IInvokerPtr TJobTracker::GetCancelableInvoker() const
 
 IInvokerPtr TJobTracker::GetCancelableInvokerOrThrow() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto invoker = TryGetCancelableInvoker();
     THROW_ERROR_EXCEPTION_IF(
@@ -1271,7 +1286,7 @@ IInvokerPtr TJobTracker::GetCancelableInvokerOrThrow() const
 
 NYTree::IYPathServicePtr TJobTracker::CreateOrchidService() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto service = New<TCompositeMapService>();
 
@@ -1288,7 +1303,7 @@ NYTree::IYPathServicePtr TJobTracker::CreateOrchidService() const
 
 void TJobTracker::DoUpdateConfig(const TControllerAgentConfigPtr& config)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     Config_ = config->JobTracker;
     JobEventsControllerQueue_ = config->JobEventsControllerQueue;
@@ -1298,7 +1313,7 @@ void TJobTracker::DoUpdateConfig(const TControllerAgentConfigPtr& config)
 
 void TJobTracker::DoUpdateExecNodes(TRefCountedExecNodeDescriptorMapPtr newExecNodes)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     std::swap(newExecNodes, ExecNodes_);
 
@@ -1309,7 +1324,7 @@ void TJobTracker::DoUpdateExecNodes(TRefCountedExecNodeDescriptorMapPtr newExecN
 TJobTracker::THeartbeatProcessingResult TJobTracker::DoProcessHeartbeat(
     THeartbeatProcessingContext heartbeatProcessingContext)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     THROW_ERROR_EXCEPTION_IF(
         !IncarnationId_,
@@ -1355,6 +1370,11 @@ TJobTracker::THeartbeatProcessingResult TJobTracker::DoProcessHeartbeat(
         GetPtr(heartbeatProcessingContext),
         GetPtr(heartbeatProcessingResult));
 
+    if (heartbeatProcessingContext.ClusterToNetworkBandwidthAvailability) {
+        Bootstrap_->GetControllerAgent()->UpdateClusterToNetworkBandwidthAvailability(
+            heartbeatProcessingContext.ClusterToNetworkBandwidthAvailability);
+    }
+
     heartbeatProcessingResult.Context = std::move(heartbeatProcessingContext);
 
     ProcessOperationContexts(std::move(operationIdToUpdatesProcessingContext));
@@ -1368,7 +1388,7 @@ void TJobTracker::DoProcessUnconfirmedJobsInHeartbeat(
     TNonNullPtr<THeartbeatProcessingContext> heartbeatProcessingContext,
     TNonNullPtr<THeartbeatProcessingResult> heartbeatProcessingResult)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto& heartbeatCounters = heartbeatProcessingResult->Counters;
     auto& nodeJobs = nodeInfo->Jobs;
@@ -1429,7 +1449,7 @@ THashSet<TJobId> TJobTracker::DoProcessAbortedAndReleasedJobsInHeartbeat(
     TNonNullPtr<THeartbeatProcessingContext> heartbeatProcessingContext,
     TNonNullPtr<THeartbeatProcessingResult> heartbeatProcessingResult)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto* response = &heartbeatProcessingContext->RpcContext->Response();
     auto& heartbeatCounters = heartbeatProcessingResult->Counters;
@@ -1487,7 +1507,7 @@ void TJobTracker::DoProcessJobInfosInHeartbeat(
     TNonNullPtr<THeartbeatProcessingContext> heartbeatProcessingContext,
     TNonNullPtr<THeartbeatProcessingResult> heartbeatProcessingResult)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto* response = &heartbeatProcessingContext->RpcContext->Response();
     auto& heartbeatCounters = heartbeatProcessingResult->Counters;
@@ -1595,7 +1615,7 @@ void TJobTracker::DoProcessAllocationsInHeartbeat(
     TNonNullPtr<THeartbeatProcessingContext> heartbeatProcessingContext,
     TNonNullPtr<THeartbeatProcessingResult> heartbeatProcessingResult)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto* response = &heartbeatProcessingContext->RpcContext->Response();
     auto& heartbeatCounters = heartbeatProcessingResult->Counters;
@@ -1868,7 +1888,7 @@ bool TJobTracker::HandleRunningJobInfo(
     TNonNullPtr<THeartbeatCounters> heartbeatCounters,
     bool shouldSkipRunningJobEvents)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto& allocation = allocationIt->second;
 
@@ -1958,7 +1978,7 @@ bool TJobTracker::HandleFinishedJobInfo(
     const NLogging::TLogger& Logger,
     TNonNullPtr<THeartbeatCounters> heartbeatCounters)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto newJobStage = JobStageFromJobState((*jobSummary)->State);
     auto jobId = (*jobSummary)->Id;
@@ -1995,7 +2015,7 @@ void TJobTracker::ProcessInterruptionRequest(
     const NLogging::TLogger& Logger,
     TNonNullPtr<THeartbeatCounters> heartbeatCounters)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     YT_LOG_INFO(
         "Request node to interrupt job (InterruptionReason: %v, InterruptionTimeout: %v)",
@@ -2017,7 +2037,7 @@ void TJobTracker::ProcessGracefulAbortRequest(
     const NLogging::TLogger& Logger,
     TNonNullPtr<THeartbeatCounters> heartbeatCounters)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     YT_LOG_INFO("Request node to gracefully abort job");
 
@@ -2041,7 +2061,7 @@ void TJobTracker::DoRegisterOperation(
     TOperationId operationId,
     TWeakPtr<IOperationController> operationController)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     YT_LOG_INFO(
         "Registering operation (OperationId: %v)",
@@ -2059,7 +2079,7 @@ void TJobTracker::DoRegisterOperation(
 
 void TJobTracker::DoUnregisterOperation(TOperationId operationId)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     YT_LOG_INFO(
         "Unregistering operation (OperationId: %v)",
@@ -2091,7 +2111,7 @@ void TJobTracker::DoUnregisterOperation(TOperationId operationId)
 
 void TJobTracker::DoRegisterAllocation(TStartedAllocationInfo allocationInfo, TOperationId operationId)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto nodeId = NodeIdFromAllocationId(allocationInfo.AllocationId);
     auto& nodeInfo = GetOrRegisterNode(nodeId, allocationInfo.NodeAddress);
@@ -2114,7 +2134,7 @@ void TJobTracker::DoRegisterAllocation(TStartedAllocationInfo allocationInfo, TO
 
 void TJobTracker::DoRegisterJob(TStartedJobInfo jobInfo, TOperationId operationId)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto nodeId = NodeIdFromJobId(jobInfo.JobId);
     auto* node = FindNodeInfo(nodeId);
@@ -2174,7 +2194,7 @@ void TJobTracker::DoRevive(
     TOperationId operationId,
     std::vector<TStartedAllocationInfo> allocations)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     TForbidContextSwitchGuard guard;
 
@@ -2244,7 +2264,7 @@ void TJobTracker::DoReleaseJobs(
     TOperationId operationId,
     const std::vector<TJobToRelease>& jobs)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (empty(jobs)) {
         return;
@@ -2327,7 +2347,7 @@ void TJobTracker::RequestJobAbortion(
     EAbortReason reason,
     bool requestNewJob)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto nodeId = NodeIdFromJobId(jobId);
 
@@ -2411,7 +2431,7 @@ std::optional<TJobTracker::TAllocationInfo> TJobTracker::EraseAllocationIfNeeded
     THashMap<TAllocationId, TAllocationInfo>::iterator allocationIt,
     TOperationInfo* operationInfo)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto& [allocationId, allocation] = *allocationIt;
 
@@ -2446,7 +2466,7 @@ void TJobTracker::TryRequestJobAction(
     TAction action,
     TStringBuf actionName)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto nodeId = NodeIdFromJobId(jobId);
 
@@ -2513,7 +2533,7 @@ void TJobTracker::DoRequestJobInterruption(
     NScheduler::EInterruptReason reason,
     TDuration timeout)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     Visit(
         requestedActionInfo,
@@ -2562,7 +2582,7 @@ void TJobTracker::RequestJobGracefulAbort(
     TOperationId operationId,
     EAbortReason reason)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     TryRequestJobAction(
         jobId,
@@ -2579,7 +2599,7 @@ void TJobTracker::DoRequestJobGracefulAbort(
     TOperationId operationId,
     EAbortReason reason)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     Visit(
         requestedActionInfo,
@@ -2603,7 +2623,7 @@ void TJobTracker::DoRequestJobGracefulAbort(
 
 void TJobTracker::ReportUnknownJobInArchive(TJobId jobId, TOperationId operationId, const std::string& nodeAddress)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     JobReporter_->HandleJobReport(
         TControllerJobReport()
@@ -2615,7 +2635,7 @@ void TJobTracker::ReportUnknownJobInArchive(TJobId jobId, TOperationId operation
 
 TJobTracker::TNodeInfo& TJobTracker::GetOrRegisterNode(TNodeId nodeId, const std::string& nodeAddress)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (auto nodeIt = RegisteredNodes_.find(nodeId); nodeIt != std::end(RegisteredNodes_)) {
         return nodeIt->second;
@@ -2626,7 +2646,7 @@ TJobTracker::TNodeInfo& TJobTracker::GetOrRegisterNode(TNodeId nodeId, const std
 
 TJobTracker::TNodeInfo& TJobTracker::RegisterNode(TNodeId nodeId, const std::string& nodeAddress)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto registrationId = TGuid::Create();
 
@@ -2671,7 +2691,7 @@ TJobTracker::TNodeInfo& TJobTracker::RegisterNode(TNodeId nodeId, const std::str
 
 TJobTracker::TNodeInfo& TJobTracker::UpdateOrRegisterNode(TNodeId nodeId, const std::string& nodeAddress)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (auto nodeIt = RegisteredNodes_.find(nodeId); nodeIt == std::end(RegisteredNodes_)) {
         return RegisterNode(nodeId, nodeAddress);
@@ -2703,7 +2723,7 @@ TJobTracker::TNodeInfo& TJobTracker::UpdateOrRegisterNode(TNodeId nodeId, const 
 
 void TJobTracker::UnregisterNode(TNodeId nodeId, const std::string& nodeAddress, TGuid maybeNodeRegistrationId)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     TForbidContextSwitchGuard guard;
 
@@ -2847,7 +2867,7 @@ void TJobTracker::ProcessAllocationEvents(
     std::vector<TFinishedAllocationSummary> finishedAllocations,
     std::vector<TAbortedAllocationSummary> abortedAllocations)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (std::empty(abortedAllocations) && std::empty(finishedAllocations)) {
         return;
@@ -2921,7 +2941,7 @@ void TJobTracker::ProcessAllocationEvent(
     const TProcessEventCallback& skipAllocationEvent,
     const NLogging::TLogger& Logger)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto allocationId = allocationEvent.Id;
     auto nodeId = NodeIdFromAllocationId(allocationId);
@@ -2961,7 +2981,7 @@ void TJobTracker::ProcessFinishedAllocations(
     std::vector<TFinishedAllocationSummary> finishedAllocations,
     TOperationUpdatesProcessingContext& operationUpdatesProcessingContext)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     const auto& Logger = operationUpdatesProcessingContext.OperationLogger;
 
@@ -3002,7 +3022,7 @@ void TJobTracker::ProcessAbortedAllocations(
     std::vector<TAbortedAllocationSummary> abortedAllocations,
     TOperationUpdatesProcessingContext& operationUpdatesProcessingContext)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     const auto& Logger = operationUpdatesProcessingContext.OperationLogger;
 
@@ -3045,7 +3065,7 @@ void TJobTracker::ProcessAbortedAllocations(
 
 const std::string& TJobTracker::GetNodeAddressForLogging(TNodeId nodeId)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     if (auto nodeIt = ExecNodes_->find(nodeId); nodeIt == std::end(*ExecNodes_)) {
         static const std::string NotReceivedAddress{"<address not received>"};
@@ -3057,7 +3077,7 @@ const std::string& TJobTracker::GetNodeAddressForLogging(TNodeId nodeId)
 
 void TJobTracker::AbortUnconfirmedJobs(TOperationId operationId, std::vector<TJobId> jobs)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     auto operationIt = RegisteredOperations_.find(operationId);
     if (operationIt == end(RegisteredOperations_)) {
@@ -3134,7 +3154,7 @@ void TJobTracker::AbortUnconfirmedJobs(TOperationId operationId, std::vector<TJo
 
 void TJobTracker::ProcessOperationContext(TOperationUpdatesProcessingContext context)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     const auto& Logger = context.OperationLogger;
 
@@ -3225,7 +3245,7 @@ void TJobTracker::ProcessOperationContext(TOperationUpdatesProcessingContext con
 
 void TJobTracker::ProcessOperationContexts(THashMap<TOperationId, TOperationUpdatesProcessingContext> contexts)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     for (auto& [operationId, operationUpdatesProcessingContext] : contexts) {
         ProcessOperationContext(std::move(operationUpdatesProcessingContext));
@@ -3234,7 +3254,7 @@ void TJobTracker::ProcessOperationContexts(THashMap<TOperationId, TOperationUpda
 
 void TJobTracker::DoInitialize(IInvokerPtr cancelableInvoker)
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     YT_LOG_INFO("Initialize state");
 
@@ -3243,7 +3263,7 @@ void TJobTracker::DoInitialize(IInvokerPtr cancelableInvoker)
 
 void TJobTracker::SetIncarnationId(TIncarnationId incarnationId)
 {
-    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
     YT_VERIFY(!IncarnationId_);
 
@@ -3254,7 +3274,7 @@ void TJobTracker::SetIncarnationId(TIncarnationId incarnationId)
 
 void TJobTracker::DoCleanup()
 {
-    VERIFY_INVOKER_AFFINITY(GetInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     YT_LOG_INFO("Cleanup state");
 
@@ -3292,7 +3312,7 @@ TJobTrackerOperationHandler::TJobTrackerOperationHandler(
 
 void TJobTrackerOperationHandler::RegisterAllocation(TStartedAllocationInfo allocationInfo)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = TCurrentTraceContextGuard(TraceContext_);
 
@@ -3305,7 +3325,7 @@ void TJobTrackerOperationHandler::RegisterAllocation(TStartedAllocationInfo allo
 
 void TJobTrackerOperationHandler::RegisterJob(TStartedJobInfo jobInfo)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = TCurrentTraceContextGuard(TraceContext_);
 
@@ -3318,7 +3338,7 @@ void TJobTrackerOperationHandler::RegisterJob(TStartedJobInfo jobInfo)
 
 void TJobTrackerOperationHandler::Revive(std::vector<TStartedAllocationInfo> allocations)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = TCurrentTraceContextGuard(TraceContext_);
 
@@ -3331,7 +3351,7 @@ void TJobTrackerOperationHandler::Revive(std::vector<TStartedAllocationInfo> all
 
 void TJobTrackerOperationHandler::ReleaseJobs(std::vector<TJobToRelease> jobs)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = TCurrentTraceContextGuard(TraceContext_);
 
@@ -3347,7 +3367,7 @@ void TJobTrackerOperationHandler::RequestJobAbortion(
     EAbortReason reason,
     bool requestNewJob)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = TCurrentTraceContextGuard(TraceContext_);
 
@@ -3365,7 +3385,7 @@ void TJobTrackerOperationHandler::RequestJobInterruption(
     EInterruptReason reason,
     TDuration timeout)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = TCurrentTraceContextGuard(TraceContext_);
 
@@ -3382,7 +3402,7 @@ void TJobTrackerOperationHandler::RequestJobGracefulAbort(
     TJobId jobId,
     EAbortReason reason)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = TCurrentTraceContextGuard(TraceContext_);
 

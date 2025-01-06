@@ -28,6 +28,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NTransactionServer;
 using namespace NCellMaster;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,7 +67,7 @@ public:
 
         if (firstUnsealedChunk->GetOverlayed()) {
             auto firstUnsealedChunkIndex = GetChildIndex(chunkList, firstUnsealedChunk);
-            for (int index = firstUnsealedChunkIndex; index < static_cast<int>(chunkList->Children().size()); ++index) {
+            for (int index = firstUnsealedChunkIndex; index < std::ssize(chunkList->Children()); ++index) {
                 auto* chunk = chunkList->Children()[index]->As<TChunk>();
                 ChunkDescriptors_.push_back(TChunkDescriptor{
                     .ChunkId = chunk->GetId(),
@@ -76,7 +77,7 @@ public:
                     .ReplicaDescriptors = GetChunkReplicaDescriptors(chunk)
                 });
             }
-            CurrentChunkIndex_ = static_cast<int>(ChunkDescriptors_.size()) - 1;
+            CurrentChunkIndex_ = std::ssize(ChunkDescriptors_) - 1;
             RequestChunkInfo();
         } else {
             YT_VERIFY(chunkList->Children().back() == firstUnsealedChunk);

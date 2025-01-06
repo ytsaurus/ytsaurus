@@ -34,7 +34,8 @@ TBlobTableWriter::TBlobTableWriter(
     const std::optional<NChunkClient::TDataSink>& dataSink,
     TChunkListId chunkListId,
     TTrafficMeterPtr trafficMeter,
-    IThroughputThrottlerPtr throttler)
+    IThroughputThrottlerPtr throttler,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
     : PartSize_(blobTableWriterConfig->MaxPartSize)
     , Logger(TableClientLogger().WithTag("TransactionId: %v, ChunkListId: %v",
         transactionId,
@@ -74,6 +75,7 @@ TBlobTableWriter::TBlobTableWriter(
         transactionId,
         schemaId,
         dataSink,
+        std::move(writeBlocksOptions),
         chunkListId,
         TChunkTimestamps(),
         trafficMeter,

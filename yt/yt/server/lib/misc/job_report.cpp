@@ -6,11 +6,10 @@
 
 #include <yt/yt/core/misc/statistics.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 using namespace NYTree;
 using namespace NYson;
-using namespace NCoreDump;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -151,4 +150,4 @@ void TExecAttributes::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

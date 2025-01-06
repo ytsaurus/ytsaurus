@@ -278,7 +278,7 @@ public:
 private:
     //! Media are sorted by name at serialization. This is by no means required,
     //! we're just being nice here.
-    std::map<TString, TReplicationPolicy> Entries_;
+    std::map<std::string, TReplicationPolicy> Entries_;
 
     friend void Serialize(TReplicationPolicy serializer, NYson::IYsonConsumer* consumer);
     friend void Deserialize(TReplicationPolicy& serializer, NYTree::INodePtr node);
@@ -461,8 +461,8 @@ public:
 private:
     struct TEntry
     {
-        TString Account;
-        TString Medium;
+        std::string Account;
+        std::string Medium;
         TReplicationPolicy ReplicationPolicy;
         bool Committed;
     };

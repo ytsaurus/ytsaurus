@@ -16,6 +16,7 @@ namespace NYT::NCypressServer {
 using namespace NYson;
 using namespace NYTree;
 using namespace NObjectServer;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

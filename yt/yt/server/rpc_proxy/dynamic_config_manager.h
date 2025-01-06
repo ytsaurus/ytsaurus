@@ -29,7 +29,7 @@ DEFINE_REFCOUNTED_TYPE(IDynamicConfigManager)
 ////////////////////////////////////////////////////////////////////////////////
 
 IDynamicConfigManagerPtr CreateDynamicConfigManager(
-    TProxyConfigPtr config,
+    TProxyBootstrapConfigPtr config,
     IProxyCoordinatorPtr proxyCoordinator,
     NApi::NNative::IConnectionPtr connection,
     IInvokerPtr controlInvoker);

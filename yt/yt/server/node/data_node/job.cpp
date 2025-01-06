@@ -158,12 +158,12 @@ TMasterJobBase::TMasterJobBase(
     , NodeDirectory_(Bootstrap_->GetNodeDirectory())
     , StartTime_(TInstant::Now())
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 }
 
 void TMasterJobBase::Start()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_VERIFY(!std::exchange(Started_, true));
 
@@ -175,7 +175,7 @@ void TMasterJobBase::Start()
         .Run();
     JobFuture_
         .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& result) {
-            VERIFY_THREAD_AFFINITY(JobThread);
+            YT_ASSERT_THREAD_AFFINITY(JobThread);
 
             if (result.IsOK()) {
                 SetCompleted();
@@ -189,14 +189,14 @@ void TMasterJobBase::Start()
 
 bool TMasterJobBase::IsStarted() const noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return Started_;
 }
 
 void TMasterJobBase::Abort(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     switch (JobState_) {
         case EJobState::Waiting:
@@ -215,63 +215,63 @@ void TMasterJobBase::Abort(const TError& error)
 
 const TResourceHolderPtr& TMasterJobBase::GetResourceHolder() const noexcept
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return ResourceHolder_;
 }
 
 NChunkServer::TJobId TMasterJobBase::GetId() const noexcept
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return JobId_;
 }
 
 EJobType TMasterJobBase::GetType() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return FromProto<EJobType>(JobSpec_.type());
 }
 
 bool TMasterJobBase::IsUrgent() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return JobSpec_.urgent();
 }
 
 const std::string& TMasterJobBase::GetJobTrackerAddress() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return JobTrackerAddress_;
 }
 
 EJobState TMasterJobBase::GetState() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return JobState_;
 }
 
 TJobResources TMasterJobBase::GetResourceUsage() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return ResourceHolder_->GetResourceUsage();
 }
 
 TJobResult TMasterJobBase::GetResult() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     return Result_;
 }
 
 TInstant TMasterJobBase::GetStartTime() const
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return StartTime_;
 }
@@ -279,7 +279,7 @@ TInstant TMasterJobBase::GetStartTime() const
 
 TBriefJobInfo TMasterJobBase::GetBriefInfo() const
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto [
         baseResourceUsage,
@@ -299,7 +299,7 @@ TBriefJobInfo TMasterJobBase::GetBriefInfo() const
 
 TFuture<void> TMasterJobBase::GuardedRun()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     auto context = TTraceContext::NewRoot(Format("%vJob.Run", GetType()));
     TCurrentTraceContextGuard guard(context);
@@ -315,7 +315,7 @@ TFuture<void> TMasterJobBase::GuardedRun()
 
 void TMasterJobBase::SetCompleted()
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_LOG_INFO("Job completed");
     DoSetFinished(EJobState::Completed, TError());
@@ -323,7 +323,7 @@ void TMasterJobBase::SetCompleted()
 
 void TMasterJobBase::SetFailed(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_LOG_ERROR(error, "Job failed");
     DoSetFinished(EJobState::Failed, error);
@@ -331,7 +331,7 @@ void TMasterJobBase::SetFailed(const TError& error)
 
 void TMasterJobBase::SetAborted(const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     YT_LOG_INFO(error, "Job aborted");
     DoSetFinished(EJobState::Aborted, error);
@@ -339,14 +339,14 @@ void TMasterJobBase::SetAborted(const TError& error)
 
 IChunkPtr TMasterJobBase::FindLocalChunk(TChunkId chunkId, int mediumIndex)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     return chunkStore->FindChunk(chunkId, mediumIndex);
 }
 IChunkPtr TMasterJobBase::FindLocalChunk(TChunkId chunkId, TChunkLocationUuid locationUuid)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     return chunkStore->FindChunk(chunkId, locationUuid);
@@ -354,14 +354,14 @@ IChunkPtr TMasterJobBase::FindLocalChunk(TChunkId chunkId, TChunkLocationUuid lo
 
 IChunkPtr TMasterJobBase::GetLocalChunkOrThrow(TChunkId chunkId, int mediumIndex)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     return chunkStore->GetChunkOrThrow(chunkId, mediumIndex);
 }
 IChunkPtr TMasterJobBase::GetLocalChunkOrThrow(TChunkId chunkId, TChunkLocationUuid locationUuid)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     const auto& chunkStore = Bootstrap_->GetChunkStore();
     return chunkStore->GetChunkOrThrow(chunkId, locationUuid);
@@ -371,7 +371,7 @@ void TMasterJobBase::DoSetFinished(
     EJobState finalState,
     const TError& error)
 {
-    VERIFY_THREAD_AFFINITY(JobThread);
+    YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobState_ != EJobState::Running && JobState_ != EJobState::Waiting) {
         return;
@@ -430,7 +430,7 @@ private:
 
     TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return BIND(&TChunkRemovalJob::Execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetMasterJobInvoker())
@@ -439,7 +439,7 @@ private:
 
     TFuture<void> Execute()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         auto chunkIsDead = JobSpecExt_.chunk_is_dead();
 
@@ -519,7 +519,7 @@ private:
 
     TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return BIND(&TChunkReplicationJob::Execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetMasterJobInvoker())
@@ -528,7 +528,7 @@ private:
 
     void Execute()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         int sourceMediumIndex = JobSpecExt_.source_medium_index();
         auto targetReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas());
@@ -560,6 +560,8 @@ private:
         chunkReadOptions.BlockCache = DynamicConfig_->UseBlockCache ? Bootstrap_->GetBlockCache() : GetNullBlockCache();
         chunkReadOptions.ChunkReaderStatistics = New<TChunkReaderStatistics>();
         chunkReadOptions.MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker();
+
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions;
 
         TRefCountedChunkMetaPtr meta;
         {
@@ -642,9 +644,9 @@ private:
 
             YT_LOG_DEBUG("Enqueuing blocks for replication (Blocks: %v-%v)",
                 currentBlockIndex,
-                currentBlockIndex + static_cast<int>(writeBlocks.size()) - 1);
+                currentBlockIndex + std::ssize(writeBlocks) - 1);
 
-            auto writeResult = writer->WriteBlocks(workloadDescriptor, writeBlocks);
+            auto writeResult = writer->WriteBlocks(writeBlocksOptions, workloadDescriptor, writeBlocks);
             if (!writeResult) {
                 WaitFor(writer->GetReadyEvent())
                     .ThrowOnError();
@@ -661,7 +663,7 @@ private:
             auto deferredMeta = New<TDeferredChunkMeta>();
             deferredMeta->MergeFrom(*meta);
 
-            WaitFor(writer->Close(workloadDescriptor, deferredMeta))
+            WaitFor(writer->Close(writeBlocksOptions, workloadDescriptor, deferredMeta))
                 .ThrowOnError();
 
             YT_LOG_DEBUG("Writer closed");
@@ -813,7 +815,8 @@ private:
         NErasure::ICodec* codec,
         NErasure::TPartIndexList erasedPartIndexes,
         IChunkReader::TReadBlocksOptions readBlocksOptions,
-        std::vector<IChunkWriterPtr> writers)
+        std::vector<IChunkWriterPtr> writers,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
     {
         auto readerConfig = DynamicConfig_->Reader;
         auto stripedErasure = JobSpecExt_.striped_erasure_chunk();
@@ -839,6 +842,7 @@ private:
                 readers,
                 BIND(&TChunkRepairJob::CreateWriter, MakeStrong(this)),
                 readBlocksOptions,
+                std::move(writeBlocksOptions),
                 Logger,
                 Sensors_.AdaptivelyRepairedChunksCounter);
 
@@ -887,20 +891,22 @@ private:
                 std::move(readers),
                 std::move(writers),
                 std::move(memoryManagerHolder),
-                std::move(readBlocksOptions));
+                std::move(readBlocksOptions),
+                std::move(writeBlocksOptions));
         } else {
             return RepairErasedParts(
                 codec,
                 std::move(erasedPartIndexes),
                 std::move(readers),
                 std::move(writers),
-                std::move(readBlocksOptions));
+                std::move(readBlocksOptions),
+                std::move(writeBlocksOptions));
         }
     }
 
     TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return BIND(&TChunkRepairJob::Execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetMasterJobInvoker())
@@ -909,7 +915,7 @@ private:
 
     void Execute()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         auto codecId = FromProto<NErasure::ECodec>(JobSpecExt_.erasure_codec());
         auto* codec = NErasure::GetCodec(codecId);
@@ -940,6 +946,8 @@ private:
             },
         };
 
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions;
+
         NErasure::TPartIndexList sourcePartIndexes;
         for (auto replica : SourceReplicas_) {
             sourcePartIndexes.push_back(replica.GetReplicaIndex());
@@ -966,7 +974,8 @@ private:
                         codec,
                         std::move(erasedPartIndexes),
                         std::move(readBlocksOptions),
-                        std::move(writers));
+                        std::move(writers),
+                        std::move(writeBlocksOptions));
                     break;
                 }
 
@@ -984,6 +993,7 @@ private:
                         readers,
                         writers,
                         readBlocksOptions.ClientOptions,
+                        writeBlocksOptions,
                         Logger);
                     break;
                 }
@@ -1045,7 +1055,7 @@ private:
 
     TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return BIND(&TSealChunkJob::Execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetMasterJobInvoker())
@@ -1054,7 +1064,7 @@ private:
 
     void Execute()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         auto codecId = FromProto<NErasure::ECodec>(JobSpecExt_.codec_id());
         int mediumIndex = JobSpecExt_.medium_index();
@@ -1411,7 +1421,7 @@ private:
 
     TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return BIND(&TChunkMergeJob::Execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetMasterJobInvoker())
@@ -1420,7 +1430,7 @@ private:
 
     void Execute()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
 
@@ -1542,7 +1552,7 @@ private:
 
     void MergeShallow()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto confirmingWriter = CreateWriter();
 
@@ -1556,6 +1566,8 @@ private:
         options->MaxHeavyColumns = MaxHeavyColumns_;
         options->MaxBlockCount = MaxBlockCount_;
         options->MemoryUsageTracker = DynamicConfig_->TrackWriterMemory ? MemoryUsageTracker_ : GetNullMemoryUsageTracker();
+
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions;
 
         auto writer = CreateMetaAggregatingWriter(
             confirmingWriter,
@@ -1614,7 +1626,11 @@ private:
 
                 memoryGuard.Release();
 
-                if (!writer->WriteBlocks(chunkReadContext.Options.ClientOptions.WorkloadDescriptor, blocks)) {
+                if (!writer->WriteBlocks(
+                    writeBlocksOptions,
+                    chunkReadContext.Options.ClientOptions.WorkloadDescriptor,
+                    blocks))
+                {
                     auto writeResult = WaitFor(writer->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(writeResult, "Error writing block");
                 }
@@ -1624,10 +1640,10 @@ private:
         }
 
         if (JobSpecExt_.validate_chunk_meta_extensions()) {
-            ChunkMetaValidationError_ = ValidateChunkMeta(writer);
+            ChunkMetaValidationError_ = FinalizeAndValidateChunkMeta(writer);
         }
 
-        WaitFor(writer->Close())
+        WaitFor(writer->Close(writeBlocksOptions))
             .ThrowOnError();
 
         if (JobSpecExt_.validate_shallow_merge()) {
@@ -1639,7 +1655,7 @@ private:
 
     void MergeDeep()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto confirmingWriter = CreateWriter();
 
@@ -1677,6 +1693,7 @@ private:
             Schema_,
             /*nameTable*/ nullptr,
             confirmingWriter,
+            /*writeBlocksOptions*/ {},
             /*dataSink*/ std::nullopt,
             {minTs, maxTs});
 
@@ -1788,7 +1805,7 @@ private:
         return deferredChunkMeta;
     }
 
-    TError ValidateChunkMeta(const IMetaAggregatingWriterPtr& writer)
+    TError FinalizeAndValidateChunkMeta(const IMetaAggregatingWriterPtr& writer)
     {
         if (DynamicConfig_->FailChunkMetaValidation) {
             return TError("Testing error");
@@ -2052,7 +2069,7 @@ private:
 
     TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return BIND(&TChunkReincarnationJob::Execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetMasterJobInvoker())
@@ -2061,7 +2078,7 @@ private:
 
     void Execute()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         if (IsTestingFailureNeeded()) {
             THROW_ERROR_EXCEPTION("Testing failure");
@@ -2100,6 +2117,8 @@ private:
                 {Format("Reincarnate chunk %v", OldChunkId_)}),
             .MemoryUsageTracker = Bootstrap_->GetSystemJobsMemoryUsageTracker(),
         };
+
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions;
 
         auto oldChunkMeta = New<TDeferredChunkMeta>();
         {
@@ -2165,6 +2184,7 @@ private:
                 std::move(readerOptions),
                 std::move(remoteReader),
                 std::move(confirmingWriter),
+                std::move(writeBlocksOptions),
                 std::move(oldChunkState));
         } else {
             ReincarnateUnversionedChunk(
@@ -2172,6 +2192,7 @@ private:
                 std::move(remoteReader),
                 std::move(readerOptions),
                 std::move(confirmingWriter),
+                std::move(writeBlocksOptions),
                 std::move(columnarMeta),
                 std::move(oldChunkState));
         }
@@ -2209,6 +2230,7 @@ private:
         TClientChunkReadOptions readerOptions,
         IChunkReaderPtr remoteReader,
         IChunkWriterPtr confirmingWriter,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         TChunkStatePtr oldChunkState)
     {
         IVersionedReaderPtr reader;
@@ -2250,7 +2272,8 @@ private:
             New<TChunkWriterConfig>(),
             CreateChunkWriterOptions(oldChunkMeta),
             oldChunkState->TableSchema,
-            confirmingWriter);
+            confirmingWriter,
+            writeBlocksOptions);
 
         while (auto batch = ReadRowBatch(reader)) {
             if (!writer->Write(batch->MaterializeRows())) {
@@ -2270,6 +2293,7 @@ private:
         IChunkReaderPtr remoteReader,
         TClientChunkReadOptions readerOptions,
         IChunkWriterPtr confirmingWriter,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         TColumnarChunkMetaPtr columnarMeta,
         TChunkStatePtr oldChunkState)
     {
@@ -2303,6 +2327,7 @@ private:
             columnarMeta->ChunkSchema(),
             columnarMeta->ChunkNameTable(),
             confirmingWriter,
+            writeBlocksOptions,
             /*dataSink*/ std::nullopt,
             chunkTimestamps);
 
@@ -2408,7 +2433,7 @@ private:
 
     TFuture<void> DoRun() override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return BIND(&TAutotomizeChunkJob::Execute, MakeStrong(this))
             .AsyncVia(Bootstrap_->GetMasterJobInvoker())
@@ -2417,7 +2442,7 @@ private:
 
     void Execute()
     {
-        VERIFY_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetMasterJobInvoker());
 
         if (DynamicConfig_->FailJobs) {
             THROW_ERROR_EXCEPTION("Testing failure");
@@ -2800,6 +2825,8 @@ private:
         std::vector<TFuture<void>> replicaFutures;
         replicaFutures.reserve(writers.size());
 
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions;
+
         TWorkloadDescriptor workloadDescriptor;
         workloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
 
@@ -2827,11 +2854,11 @@ private:
                 for (const auto& row : part) {
                     blocks.push_back(TBlock(row));
                 }
-                chunkWriter->WriteBlocks(workloadDescriptor, blocks);
+                chunkWriter->WriteBlocks(writeBlocksOptions, workloadDescriptor, blocks);
 
                 YT_LOG_DEBUG("Closing writer");
 
-                WaitFor(chunkWriter->Close(workloadDescriptor))
+                WaitFor(chunkWriter->Close(writeBlocksOptions, workloadDescriptor))
                     .ThrowOnError();
 
                 YT_LOG_DEBUG("Writer closed");

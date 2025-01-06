@@ -99,6 +99,7 @@ using namespace NProfiling;
 using namespace NTracing;
 using namespace NLsm;
 using namespace NHydra;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -347,6 +348,7 @@ protected:
     const ITransactionPtr Transaction_;
     const bool ResultsInEden_;
     const TClientChunkReadOptions ChunkReadOptions_;
+    const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
     const NLogging::TLogger Logger;
 
     TTabletStoreWriterConfigPtr StoreWriterConfig_;
@@ -368,12 +370,14 @@ protected:
         ITransactionPtr transaction,
         bool resultsInEden,
         TClientChunkReadOptions chunkReadOptions,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         NLogging::TLogger logger)
         : Bootstrap_(bootstrap)
         , TabletSnapshot_(std::move(tabletSnapshot))
         , Transaction_(std::move(transaction))
         , ResultsInEden_(resultsInEden)
         , ChunkReadOptions_(std::move(chunkReadOptions))
+        , WriteBlocksOptions_(std::move(writeBlocksOptions))
         , Logger(std::move(logger))
     { }
 
@@ -472,7 +476,8 @@ private:
         HunkChunkPayloadWriter_ = CreateHunkChunkPayloadWriter(
             TWorkloadDescriptor(ChunkReadOptions_.WorkloadDescriptor.Category),
             HunkWriterConfig_,
-            HunkChunkWriter_);
+            HunkChunkWriter_,
+            WriteBlocksOptions_);
         if (TabletSnapshot_->PhysicalSchema->HasHunkColumns()) {
             WaitFor(HunkChunkPayloadWriter_->Open())
                 .ThrowOnError();
@@ -562,6 +567,7 @@ private:
                 StoreWriterOptions_,
                 TabletSnapshot_->PhysicalSchema,
                 std::move(underlyingWriter),
+                WriteBlocksOptions_,
                 /*dataSink*/ std::nullopt,
                 BlockCache_),
             TabletSnapshot_->PhysicalSchema,
@@ -628,6 +634,7 @@ public:
         TTabletSnapshotPtr tabletSnapshot,
         ITransactionPtr transaction,
         TClientChunkReadOptions chunkReadOptions,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         NLogging::TLogger logger)
         : TStoreCompactionSessionBase(
             bootstrap,
@@ -635,6 +642,7 @@ public:
             std::move(transaction),
             /*resultsInEden*/ false,
             std::move(chunkReadOptions),
+            std::move(writeBlocksOptions),
             std::move(logger))
     { }
 
@@ -824,6 +832,7 @@ public:
         TPartition* partition,
         ITransactionPtr transaction,
         TClientChunkReadOptions chunkReadOptions,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         NLogging::TLogger logger)
         : TStoreCompactionSessionBase(
             bootstrap,
@@ -831,6 +840,7 @@ public:
             std::move(transaction),
             /*resultsInEden*/ partition->IsEden(),
             std::move(chunkReadOptions),
+            std::move(writeBlocksOptions),
             std::move(logger))
     { }
 
@@ -1611,6 +1621,7 @@ private:
                 tabletSnapshot,
                 transaction,
                 chunkReadOptions,
+                IChunkWriter::TWriteBlocksOptions(),
                 Logger);
 
             auto partitioningResultFuture =
@@ -2019,6 +2030,7 @@ private:
                 partition,
                 transaction,
                 chunkReadOptions,
+                IChunkWriter::TWriteBlocksOptions(),
                 Logger);
 
             auto compactionResultFuture =

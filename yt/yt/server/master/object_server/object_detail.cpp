@@ -82,6 +82,7 @@ using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NTableServer;
 using namespace NTransactionServer;
+using namespace NServer;
 
 using NSecurityClient::ESecurityAction;
 
@@ -835,10 +836,10 @@ void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
     }
 }
 
-void TObjectProxyBase::ValidateCustomAttributeRemoval(const TString& /*key*/)
+void TObjectProxyBase::ValidateCustomAttributeRemoval(const std::string& /*key*/)
 { }
 
-void TObjectProxyBase::GuardedValidateCustomAttributeRemoval(const TString& key)
+void TObjectProxyBase::GuardedValidateCustomAttributeRemoval(const std::string& key)
 {
     try {
         ValidateCustomAttributeRemoval(key);
@@ -1037,7 +1038,8 @@ std::vector<TString> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDi
         for (const auto& [key, value] : attributes->Attributes()) {
             // Attribute cannot be empty (i.e. deleted) in null transaction.
             YT_ASSERT(value);
-            keys.push_back(key);
+            // TODO(babenko): migrate to std::string
+            keys.push_back(TString(key));
         }
     }
     return keys;
@@ -1107,7 +1109,7 @@ bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove
 
     // Attribute cannot be empty (i.e. deleted) in null transaction.
     YT_ASSERT(it->second);
-    attributes->Remove(key);
+    attributes->TryRemove(key);
     if (attributes->Attributes().empty()) {
         object->ClearAttributes();
     }

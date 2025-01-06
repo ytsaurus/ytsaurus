@@ -843,7 +843,7 @@ protected:
 
         void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
-            VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+            YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             if (IsRoot()) {
                 jobSpec->CopyFrom(Controller_->RootPartitionJobSpecTemplate);
@@ -1176,7 +1176,7 @@ protected:
 
         void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
-            VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+            YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             if (IsFinalSort_) {
                 jobSpec->CopyFrom(Controller_->FinalSortJobSpecTemplate);
@@ -1846,7 +1846,7 @@ protected:
 
         void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
-            VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+            YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             jobSpec->CopyFrom(Controller_->SortedMergeJobSpecTemplate);
             auto comparator = GetComparator(Controller_->Spec->SortBy);
@@ -2013,7 +2013,7 @@ protected:
 
         void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
         {
-            VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
+            YT_ASSERT_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
             jobSpec->CopyFrom(Controller_->UnorderedMergeJobSpecTemplate);
             AddSequentialInputSpec(jobSpec, joblet);
@@ -3640,10 +3640,10 @@ private:
         auto stat = AggregateStatistics(statistics).front();
 
         i64 outputBufferSize = std::min(
-            PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(GetFinalPartitions().size()),
+            PartitionJobIOConfig->TableWriter->BlockSize * std::ssize(GetFinalPartitions()),
             stat.DataWeight);
 
-        outputBufferSize += THorizontalBlockWriter::MaxReserveSize * static_cast<i64>(GetFinalPartitions().size());
+        outputBufferSize += THorizontalBlockWriter::MaxReserveSize * std::ssize(GetFinalPartitions());
 
         outputBufferSize = std::min(
             outputBufferSize,
@@ -4576,9 +4576,9 @@ private:
     {
         auto stat = AggregateStatistics(statistics).front();
 
-        i64 reserveSize = THorizontalBlockWriter::MaxReserveSize * static_cast<i64>(GetFinalPartitions().size());
+        i64 reserveSize = THorizontalBlockWriter::MaxReserveSize * std::ssize(GetFinalPartitions());
         i64 bufferSize = std::min(
-            reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * static_cast<i64>(GetFinalPartitions().size()),
+            reserveSize + PartitionJobIOConfig->TableWriter->BlockSize * std::ssize(GetFinalPartitions()),
             PartitionJobIOConfig->TableWriter->MaxBufferSize);
 
         TExtendedJobResources result;

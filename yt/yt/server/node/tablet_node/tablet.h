@@ -365,7 +365,7 @@ struct ITabletContext
         const NTabletNode::NProto::TAddHunkChunkDescriptor* descriptor) const = 0;
     virtual ITransactionManagerPtr GetTransactionManager() const = 0;
     virtual NRpc::IServerPtr GetLocalRpcServer() const = 0;
-    virtual TString GetLocalHostName() const = 0;
+    virtual std::string GetLocalHostName() const = 0;
     virtual NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const = 0;
     virtual INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() const = 0;
     virtual NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const = 0;
@@ -682,7 +682,7 @@ public:
 
     ETabletState GetPersistentState() const;
 
-    const NApi::NNative::IClientPtr GetClient() const;
+    NApi::NNative::IClientPtr GetClient() const;
 
     const TTableSettings& GetSettings() const;
     void SetSettings(TTableSettings settings);

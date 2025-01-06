@@ -67,7 +67,6 @@ target_link_libraries(yt-server-master PUBLIC
   server-lib-tablet_server
   server-lib-timestamp_server
   server-lib-transaction_supervisor
-  server-lib-zookeeper_master
   server-lib-sequoia
   server-lib-scheduler
   server-lib-controller_agent
@@ -445,12 +444,6 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/transaction_server/transaction.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/zookeeper_server/bootstrap_proxy.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/zookeeper_server/cypress_integration.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/zookeeper_server/zookeeper_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/zookeeper_server/zookeeper_shard_proxy.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/zookeeper_server/zookeeper_shard_type_handler.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/zookeeper_server/zookeeper_shard.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/alert_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/epoch_history_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/multicell_manager.pb.h

@@ -4,7 +4,7 @@
 #include "update_executor.h"
 #endif
 
-namespace NYT {
+namespace NYT::NServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -48,7 +48,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::SetPeriod(TDuration period)
 template <class TKey, class TUpdateParameters>
 TUpdateParameters* TUpdateExecutor<TKey, TUpdateParameters>::AddUpdate(const TKey& key, const TUpdateParameters& parameters)
 {
-    VERIFY_THREAD_AFFINITY(UpdateThread);
+    YT_ASSERT_THREAD_AFFINITY(UpdateThread);
 
     auto pair = Updates_.emplace(key, TUpdateRecord(key, parameters));
     YT_VERIFY(pair.second);
@@ -59,7 +59,7 @@ TUpdateParameters* TUpdateExecutor<TKey, TUpdateParameters>::AddUpdate(const TKe
 template <class TKey, class TUpdateParameters>
 void TUpdateExecutor<TKey, TUpdateParameters>::RemoveUpdate(const TKey& key)
 {
-    VERIFY_THREAD_AFFINITY(UpdateThread);
+    YT_ASSERT_THREAD_AFFINITY(UpdateThread);
 
     YT_VERIFY(Updates_.erase(key) == 1);
     YT_LOG_DEBUG("Item removed from periodic updates (Key: %v)", key);
@@ -68,7 +68,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::RemoveUpdate(const TKey& key)
 template <class TKey, class TUpdateParameters>
 TUpdateParameters* TUpdateExecutor<TKey, TUpdateParameters>::FindUpdate(const TKey& key)
 {
-    VERIFY_THREAD_AFFINITY(UpdateThread);
+    YT_ASSERT_THREAD_AFFINITY(UpdateThread);
 
     auto* result = FindUpdateRecord(key);
     return result ? &result->UpdateParameters : nullptr;
@@ -77,7 +77,7 @@ TUpdateParameters* TUpdateExecutor<TKey, TUpdateParameters>::FindUpdate(const TK
 template <class TKey, class TUpdateParameters>
 TUpdateParameters* TUpdateExecutor<TKey, TUpdateParameters>::GetUpdate(const TKey& key)
 {
-    VERIFY_THREAD_AFFINITY(UpdateThread);
+    YT_ASSERT_THREAD_AFFINITY(UpdateThread);
 
     auto* result = FindUpdate(key);
     YT_VERIFY(result);
@@ -87,7 +87,7 @@ TUpdateParameters* TUpdateExecutor<TKey, TUpdateParameters>::GetUpdate(const TKe
 template <class TKey, class TUpdateParameters>
 void TUpdateExecutor<TKey, TUpdateParameters>::Clear()
 {
-    VERIFY_THREAD_AFFINITY(UpdateThread);
+    YT_ASSERT_THREAD_AFFINITY(UpdateThread);
 
     Updates_.clear();
 }
@@ -95,7 +95,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::Clear()
 template <class TKey, class TUpdateParameters>
 void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates()
 {
-    VERIFY_THREAD_AFFINITY(UpdateThread);
+    YT_ASSERT_THREAD_AFFINITY(UpdateThread);
 
     YT_LOG_INFO("Updating items (Count: %v)", Updates_.size());
 
@@ -130,7 +130,7 @@ void TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdates()
 template <class TKey, class TUpdateParameters>
 TFuture<void> TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdate(const TKey& key)
 {
-    VERIFY_THREAD_AFFINITY(UpdateThread);
+    YT_ASSERT_THREAD_AFFINITY(UpdateThread);
 
     auto* updateRecord = FindUpdateRecord(key);
     if (!updateRecord) {
@@ -142,7 +142,7 @@ TFuture<void> TUpdateExecutor<TKey, TUpdateParameters>::ExecuteUpdate(const TKey
 template <class TKey, class TUpdateParameters>
 typename TUpdateExecutor<TKey, TUpdateParameters>::TUpdateRecord* TUpdateExecutor<TKey, TUpdateParameters>::FindUpdateRecord(const TKey& key)
 {
-    VERIFY_THREAD_AFFINITY(UpdateThread);
+    YT_ASSERT_THREAD_AFFINITY(UpdateThread);
 
     auto it = Updates_.find(key);
     return it == Updates_.end() ? nullptr : &it->second;
@@ -171,7 +171,7 @@ TCallback<TFuture<void>()> TUpdateExecutor<TKey, TUpdateParameters>::CreateUpdat
 template <class TKey, class TUpdateParameters>
 TFuture<void> TUpdateExecutor<TKey, TUpdateParameters>::DoExecuteUpdate(TUpdateRecord* updateRecord)
 {
-    VERIFY_THREAD_AFFINITY(UpdateThread);
+    YT_ASSERT_THREAD_AFFINITY(UpdateThread);
 
     auto callback = CreateUpdateAction(updateRecord->Key, &updateRecord->UpdateParameters);
     if (!callback) {
@@ -183,4 +183,4 @@ TFuture<void> TUpdateExecutor<TKey, TUpdateParameters>::DoExecuteUpdate(TUpdateR
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

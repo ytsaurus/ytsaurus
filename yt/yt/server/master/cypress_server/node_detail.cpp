@@ -40,6 +40,7 @@ using namespace NTabletServer;
 using namespace NTransactionServer;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,7 +77,7 @@ void TNontemplateCypressNodeTypeHandlerBase::FillAttributes(
     objectManager->FillAttributes(trunkNode, *combinedAttributes);
 }
 
-bool TNontemplateCypressNodeTypeHandlerBase::IsSupportedInheritableAttribute(const TString&) const
+bool TNontemplateCypressNodeTypeHandlerBase::IsSupportedInheritableAttribute(const std::string& /*key*/) const
 {
     // NB: most node types don't inherit attributes. That would lead to
     // a lot of pseudo-user attributes.
@@ -1942,7 +1943,7 @@ void TListNodeTypeHandler::DoClone(
     const auto& objectManager = GetBootstrap()->GetObjectManager();
     const auto& indexToChild = sourceNode->IndexToChild();
 
-    for (int index = 0; index < static_cast<int>(indexToChild.size()); ++index) {
+    for (int index = 0; index < std::ssize(indexToChild); ++index) {
         auto* childNode = indexToChild[index];
         auto* clonedChildNode = factory->CloneNode(childNode, mode, inheritedAttributes);
         auto* clonedChildTrunkNode = clonedChildNode->GetTrunkNode();

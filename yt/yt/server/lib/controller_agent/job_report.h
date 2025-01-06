@@ -7,7 +7,7 @@ namespace NYT::NControllerAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControllerJobReport
-    : public TJobReport
+    : public NServer::TJobReport
 {
 public:
     TControllerJobReport OperationId(TOperationId operationId);

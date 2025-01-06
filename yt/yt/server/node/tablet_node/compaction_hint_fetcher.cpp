@@ -120,7 +120,7 @@ TCompactionHintFetcher::TCompactionHintFetcher(
     , ThrottledRequestCount_(Profiler_.Counter("/throttled_request_count"))
     , StoresQueue_(this, Profiler_.Gauge("/queue_size"))
 {
-    VERIFY_INVOKER_THREAD_AFFINITY(Invoker_, AutomatonThread);
+    YT_ASSERT_INVOKER_THREAD_AFFINITY(Invoker_, AutomatonThread);
     FetchingExecutor_->Start();
 }
 
@@ -128,7 +128,7 @@ void TCompactionHintFetcher::FetchStoreInfos(
     TTablet* tablet,
     const std::optional<TRange<IStorePtr>>& stores)
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     if (!tablet || !IsFetchableTablet(*tablet)) {
         return;
@@ -196,7 +196,7 @@ bool TCompactionHintFetcher::IsValidStoreState(const IStorePtr& store)
 
 void TCompactionHintFetcher::GetStoresFromQueueAndMakeRequest()
 {
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     if (StoresQueue_.Empty()) {
         return;

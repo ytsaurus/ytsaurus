@@ -24,7 +24,11 @@ PEERDIR(
     yt/python/yt/environment/components/yql_agent
 )
 
+IF (SANITIZER_TYPE == "address" OR SANITIZER_TYPE == "memory")
+    TAG(ya:not_autocheck) 
+ENDIF()
+
 FORK_SUBTESTS()
-SPLIT_FACTOR(2)
+SPLIT_FACTOR(4)
 
 END()

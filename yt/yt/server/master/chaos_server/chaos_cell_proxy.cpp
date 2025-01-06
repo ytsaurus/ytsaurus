@@ -25,6 +25,7 @@ using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NCellServer;
 using namespace NYTree;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 

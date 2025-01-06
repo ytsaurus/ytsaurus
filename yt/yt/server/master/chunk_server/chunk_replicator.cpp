@@ -93,6 +93,7 @@ using namespace NObjectServer;
 using namespace NChunkServer::NProto;
 using namespace NCellMaster;
 using namespace NTransactionClient;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -1664,7 +1665,7 @@ bool TChunkReplicator::TryScheduleRepairJob(
     if (!codec->CanRepair(erasedPartIndexes)) {
         // Can't repair without decommissioned replicas. Use them.
         auto guaranteedRepairablePartCount = codec->GetGuaranteedRepairablePartCount();
-        YT_VERIFY(guaranteedRepairablePartCount < static_cast<int>(erasedPartIndexes.size()));
+        YT_VERIFY(guaranteedRepairablePartCount < std::ssize(erasedPartIndexes));
 
         // Reorder the parts so that the actually erased ones go first and then the decommissioned ones.
         std::partition(
@@ -2891,10 +2892,11 @@ void TChunkReplicator::OnCheckEnabledSecondary()
 
     auto [enabledRsp, faultyStorageDCsRsp] = WaitFor(proxy.ExecuteAll(
         TYPathProxy::Get("//sys/@chunk_replicator_enabled"),
-        TYPathProxy::Get("//sys/@faulty_storage_data_centers"))).ValueOrThrow();
+        TYPathProxy::Get("//sys/@faulty_storage_data_centers")))
+        .ValueOrThrow();
 
     auto enabled = ConvertTo<bool>(TYsonString(enabledRsp->value()));
-    auto faultyStorageDCs = ConvertTo<THashSet<TString>>(TYsonString(faultyStorageDCsRsp->value()));
+    auto faultyStorageDCs = ConvertTo<THashSet<std::string>>(TYsonString(faultyStorageDCsRsp->value()));
     if (!Enabled_ || enabled != *Enabled_) {
         if (enabled) {
             YT_LOG_INFO("Chunk replicator enabled at primary master");

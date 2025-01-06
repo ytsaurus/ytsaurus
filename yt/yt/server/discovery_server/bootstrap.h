@@ -4,19 +4,24 @@
 
 #include <yt/yt/server/lib/discovery_server/public.h>
 
+#include <yt/yt/server/lib/misc/bootstrap.h>
+
 namespace NYT::NClusterDiscoveryServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IBootstrap
-{
-    virtual ~IBootstrap() = default;
+    : public NServer::IDaemonBootstrap
+{ };
 
-    virtual void Initialize() = 0;
-    virtual void Run() = 0;
-};
+DEFINE_REFCOUNTED_TYPE(IBootstrap)
 
-std::unique_ptr<IBootstrap> CreateBootstrap(TClusterDiscoveryServerConfigPtr config);
+////////////////////////////////////////////////////////////////////////////////
+
+IBootstrapPtr CreateDiscoveryServerBootstrap(
+    TDiscoveryServerBootstrapConfigPtr config,
+    NYTree::INodePtr configNode,
+    NFusion::IServiceLocatorPtr serviceLocator);
 
 ////////////////////////////////////////////////////////////////////////////////
 

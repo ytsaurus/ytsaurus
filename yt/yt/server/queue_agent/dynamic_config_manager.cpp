@@ -9,10 +9,10 @@ using namespace NDynamicConfig;
 ////////////////////////////////////////////////////////////////////////////////
 
 TDynamicConfigManager::TDynamicConfigManager(
-    const TQueueAgentServerConfigPtr& queueAgentConfig,
+    const TQueueAgentBootstrapConfigPtr& queueAgentConfig,
     NApi::IClientPtr client,
     IInvokerPtr invoker)
-    : TDynamicConfigManagerBase<TQueueAgentServerDynamicConfig>(
+    : TDynamicConfigManagerBase<TQueueAgentComponentDynamicConfig>(
         TDynamicConfigManagerOptions{
             .ConfigPath = queueAgentConfig->DynamicConfigPath,
             .Name = "QueueAgent",

@@ -25,7 +25,7 @@ using namespace NConcurrency;
 template <class T>
 TFuture<T> TDiskLocation::RegisterAction(TCallback<TFuture<T>()> action)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto readerAcquired = StateChangingLock_.TryAcquireReader();
 

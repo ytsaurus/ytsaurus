@@ -6,6 +6,7 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 
 #include <yt/yt/ytlib/controller_agent/public.h>
 
@@ -99,6 +100,8 @@ protected:
 
     std::atomic<bool> Initialized_ = false;
     std::atomic<bool> Interrupted_ = false;
+
+    NChunkClient::IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
 
     NTableClient::ISchemalessMultiChunkReaderPtr DoInitializeReader(
         NTableClient::TNameTablePtr nameTable,

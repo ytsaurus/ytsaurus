@@ -112,9 +112,8 @@ DEFINE_REFCOUNTED_TYPE(TActionManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletBalancerServerConfig
-    : public TNativeServerConfig
-    , public TServerProgramConfig
+class TTabletBalancerBootstrapConfig
+    : public NServer::TNativeServerBootstrapConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
@@ -130,12 +129,26 @@ public:
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
     TString DynamicConfigPath;
 
-    REGISTER_YSON_STRUCT(TTabletBalancerServerConfig);
+    REGISTER_YSON_STRUCT(TTabletBalancerBootstrapConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TTabletBalancerServerConfig)
+DEFINE_REFCOUNTED_TYPE(TTabletBalancerBootstrapConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTabletBalancerProgramConfig
+    : public TTabletBalancerBootstrapConfig
+    , public TServerProgramConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TTabletBalancerProgramConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletBalancerProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

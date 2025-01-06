@@ -19,6 +19,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag, NObjectClient::NotReplicatedCellTagSentinel);
     DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, Predicate);
     DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, UnfoldedColumn);
+    DEFINE_BYVAL_RW_PROPERTY(ETableToIndexCorrespondence, TableToIndexCorrespondence, ETableToIndexCorrespondence::Invalid);
 
 public:
     using TObject::TObject;

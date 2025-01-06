@@ -214,7 +214,7 @@ struct IOperationControllerHost
     virtual const NCoreDump::ICoreDumperPtr& GetCoreDumper() = 0;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
-    virtual const TJobReporterPtr& GetJobReporter() = 0;
+    virtual const NServer::TJobReporterPtr& GetJobReporter() = 0;
     virtual const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() = 0;
 
     virtual TJobProfiler* GetJobProfiler() const = 0;
@@ -240,6 +240,15 @@ struct IOperationControllerHost
     virtual TFuture<void> UpdateAccountResourceUsageLease(
         NSecurityClient::TAccountResourceUsageLeaseId leaseId,
         const NScheduler::TDiskQuota& diskQuota) = 0;
+
+    virtual void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) = 0;
+    virtual void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) = 0;
+    virtual std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const = 0;
+    virtual bool IsNetworkBandwidthAvailable(const NScheduler::TClusterName& clusterName) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerHost)
@@ -472,7 +481,7 @@ struct IOperationController
     virtual bool ShouldSkipRunningJobEvents() const noexcept = 0;
 
     //! Produces allocations on heap for testing and returns container.
-    virtual std::vector<TTestAllocationGuard> TestHeap() const = 0;
+    virtual std::vector<NServer::TTestAllocationGuard> TestHeap() const = 0;
 
     //! Returns the total resources that are additionally needed.
     /*!

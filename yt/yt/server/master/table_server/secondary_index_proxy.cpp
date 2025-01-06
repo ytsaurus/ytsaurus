@@ -1,3 +1,4 @@
+#include "private.h"
 #include "secondary_index_proxy.h"
 #include "secondary_index.h"
 
@@ -18,6 +19,11 @@ using namespace NCellMaster;
 using namespace NObjectServer;
 using namespace NYson;
 using namespace NYTree;
+using namespace NServer;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto& Logger = TableServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -44,6 +50,11 @@ private:
         attributes->push_back(EInternedAttributeKey::IndexTableId);
         attributes->push_back(EInternedAttributeKey::IndexTablePath);
         attributes->push_back(EInternedAttributeKey::Kind);
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TableToIndexCorrespondence)
+            .SetWritable(true)
+            .SetReplicated(true));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::UnfoldedColumn)
+            .SetPresent(secondaryIndex->UnfoldedColumn().has_value()));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::Predicate)
             .SetPresent(secondaryIndex->Predicate().has_value()));
 
@@ -91,11 +102,70 @@ private:
                 }
                 return false;
 
+            case EInternedAttributeKey::UnfoldedColumn:
+                if (secondaryIndex->UnfoldedColumn()) {
+                    BuildYsonFluently(consumer)
+                        .Value(*secondaryIndex->UnfoldedColumn());
+                    return true;
+                }
+                return false;
+
+            case EInternedAttributeKey::TableToIndexCorrespondence:
+                BuildYsonFluently(consumer)
+                    .Value(secondaryIndex->GetTableToIndexCorrespondence());
+                return true;
+
             default:
                 break;
         }
 
         return TBase::GetBuiltinAttribute(key, consumer);
+    }
+
+    bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value, bool force) override
+    {
+        auto* secondaryIndex = GetThisImpl();
+
+        switch (key) {
+            case EInternedAttributeKey::TableToIndexCorrespondence: {
+                const auto& tableManager = Bootstrap_->GetTableManager();
+
+                auto* table = tableManager->FindTableNode(secondaryIndex->GetTableId());
+
+                YT_LOG_ALERT_IF(!table, "Failed to find indexed table of secondary index (TableId: %v, IndexId: %v)",
+                    secondaryIndex->GetTableId(),
+                    secondaryIndex->GetId());
+
+                THROW_ERROR_EXCEPTION_IF(!table, "Failed to find table %v of secondary index %v",
+                    secondaryIndex->GetTableId(),
+                    secondaryIndex->GetId());
+
+                table->ValidateAllTabletsUnmounted("Indexed table must be unmounted before index correspondence is changed");
+
+                auto newCorrespondence = ConvertTo<ETableToIndexCorrespondence>(value);
+
+                THROW_ERROR_EXCEPTION_IF(newCorrespondence == ETableToIndexCorrespondence::Unknown,
+                    "Cannot set secondary index correspondence to table to %Qlv",
+                    ETableToIndexCorrespondence::Unknown);
+
+                if (newCorrespondence == ETableToIndexCorrespondence::Injective &&
+                    secondaryIndex->GetKind() == ESecondaryIndexKind::Unique)
+                {
+                    THROW_ERROR_EXCEPTION("Secondary indices of %Qlv kind cannot have %Qlv correspondence",
+                        ESecondaryIndexKind::Unique,
+                        ETableToIndexCorrespondence::Injective);
+                }
+
+                secondaryIndex->SetTableToIndexCorrespondence(newCorrespondence);
+
+                return true;
+            }
+
+            default:
+                break;
+        }
+
+        return TBase::SetBuiltinAttribute(key, value, force);
     }
 };
 

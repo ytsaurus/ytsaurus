@@ -224,7 +224,7 @@ public:
 
     void SetCumulativeBlockSize(i64 cumulativeBlockSize);
 
-    void ScheduleProcess();
+    void ScheduleProcess(const IChunkWriter::TWriteBlocksOptions& options);
 
     void SetFlushing();
 
@@ -253,11 +253,14 @@ private:
     i64 Size_ = 0;
     i64 CumulativeBlockSize_ = 0;
 
-    void PutGroup(const TReplicationWriterPtr& writer);
-    void SendGroup(const TReplicationWriterPtr& writer, const std::vector<TNodePtr>& srcNodes);
+    void PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::TWriteBlocksOptions& options);
+    void SendGroup(
+        const TReplicationWriterPtr& writer,
+        const IChunkWriter::TWriteBlocksOptions& options,
+        const std::vector<TNodePtr>& srcNodes);
     bool ShouldThrottle(const std::string& address, const TReplicationWriterPtr& writer) const;
 
-    void Process();
+    void Process(const IChunkWriter::TWriteBlocksOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TGroup)
@@ -301,7 +304,7 @@ public:
 
     ~TReplicationWriter()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         // Just a quick check.
         if (State_.load() == EReplicationWriterState::Closed) {
@@ -320,12 +323,16 @@ public:
             .Run();
     }
 
-    bool WriteBlock(const TWorkloadDescriptor& workloadDescriptor, const TBlock& block) override
+    bool WriteBlock(
+        const IChunkWriter::TWriteBlocksOptions& options,
+        const TWorkloadDescriptor& workloadDescriptor,
+        const TBlock& block) override
     {
-        return WriteBlocks(workloadDescriptor, {block});
+        return WriteBlocks(options, workloadDescriptor, {block});
     }
 
     bool WriteBlocks(
+        const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& /*workloadDescriptor*/,
         const std::vector<TBlock>& blocks) override
     {
@@ -337,7 +344,7 @@ public:
 
         WindowSlots_->Acquire(GetByteSize(blocks));
         TDispatcher::Get()->GetWriterInvoker()->Invoke(
-            BIND(&TReplicationWriter::AddBlocks, MakeWeak(this), blocks));
+            BIND(&TReplicationWriter::AddBlocks, MakeWeak(this), options, blocks));
 
         return WindowSlots_->IsReady();
     }
@@ -354,6 +361,7 @@ public:
     }
 
     TFuture<void> Close(
+        const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const TDeferredChunkMetaPtr& chunkMeta) override
     {
@@ -375,28 +383,28 @@ public:
         YT_LOG_DEBUG("Requesting writer to close");
 
         TDispatcher::Get()->GetWriterInvoker()->Invoke(
-            BIND(&TReplicationWriter::DoClose, MakeWeak(this), workloadDescriptor));
+            BIND(&TReplicationWriter::DoClose, MakeWeak(this), options, workloadDescriptor));
 
         return ClosePromise_.ToFuture();
     }
 
     const TChunkInfo& GetChunkInfo() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ChunkInfo_;
     }
 
     const TDataStatistics& GetDataStatistics() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_ABORT();
     }
 
     TWrittenChunkReplicasInfo GetWrittenChunkReplicasInfo() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         TWrittenChunkReplicasInfo result;
         for (const auto& node : Nodes_) {
@@ -409,14 +417,14 @@ public:
 
     TChunkId GetChunkId() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return SessionId_.ChunkId;
     }
 
     NErasure::ECodec GetErasureCodecId() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return NErasure::ECodec::None;
     }
@@ -548,9 +556,9 @@ private:
         }
     }
 
-    void DoClose(const TWorkloadDescriptor& /*workloadDescriptor*/)
+    void DoClose(const IChunkWriter::TWriteBlocksOptions& options, const TWorkloadDescriptor& /*workloadDescriptor*/)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
         YT_VERIFY(!CloseRequested_);
 
         YT_LOG_DEBUG("Writer close requested");
@@ -561,19 +569,19 @@ private:
 
         if (CurrentGroup_ && CurrentGroup_->GetSize() > 0) {
             CurrentGroup_->SetCumulativeBlockSize(CumulativeBlockSize_);
-            FlushCurrentGroup();
+            FlushCurrentGroup(options);
         }
 
         CloseRequested_ = true;
 
         if (Window_.empty()) {
-            CloseSessions();
+            CloseSessions(options);
         }
     }
 
     TChunkReplicaWithMediumList AllocateTargets()
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
         if (!Options_->AllowAllocatingNewTargetNodes) {
             THROW_ERROR_EXCEPTION(
@@ -595,7 +603,7 @@ private:
         }
         AllocateWriteTargetsTimestamp_ = TInstant::Now();
 
-        int activeTargets = static_cast<int>(Nodes_.size());
+        int activeTargets = std::ssize(Nodes_);
 
         std::vector<std::string> forbiddenAddresses;
         forbiddenAddresses.reserve(Nodes_.size() + BannedNodeAddresses_.size());
@@ -629,7 +637,7 @@ private:
 
     void StartSessions(const TChunkReplicaWithMediumList& targets, bool disableSendBlocks)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
         std::vector<TFuture<void>> asyncResults;
         for (auto target : targets) {
@@ -650,9 +658,9 @@ private:
         }
     }
 
-    void FlushCurrentGroup()
+    void FlushCurrentGroup(const IChunkWriter::TWriteBlocksOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
         YT_VERIFY(!CloseRequested_);
 
         if (StateError_.IsSet()) {
@@ -665,14 +673,14 @@ private:
 
         Window_.push_back(CurrentGroup_);
         CurrentGroup_->ReorderBlocks(&BlockReorderer_);
-        CurrentGroup_->ScheduleProcess();
+        CurrentGroup_->ScheduleProcess(options);
         CurrentGroup_.Reset();
     }
 
 
     void OnNodeFailed(const TNodePtr& node, const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
         // Finished flag may have been set in case of reordering of the responses.
         if (!node->IsAlive() || node->IsFinished()) {
@@ -709,9 +717,9 @@ private:
         }
     }
 
-    void ShiftWindow()
+    void ShiftWindow(const IChunkWriter::TWriteBlocksOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
         if (StateError_.IsSet()) {
             YT_VERIFY(Window_.empty());
@@ -739,7 +747,7 @@ private:
 
         for (const auto& node : Nodes_) {
             asyncResults.push_back(
-                BIND(&TReplicationWriter::FlushBlocks, MakeWeak(this), node, lastFlushableBlock)
+                BIND(&TReplicationWriter::FlushBlocks, MakeWeak(this), options, node, lastFlushableBlock)
                     .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
                     .Run());
         }
@@ -747,13 +755,14 @@ private:
             BIND(
                 &TReplicationWriter::OnWindowShifted,
                 MakeWeak(this),
+                options,
                 lastFlushableBlock)
                 .Via(TDispatcher::Get()->GetWriterInvoker()));
     }
 
-    void OnWindowShifted(int blockIndex, const TError& error)
+    void OnWindowShifted(const IChunkWriter::TWriteBlocksOptions& options, int blockIndex, const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
         if (!error.IsOK()) {
             YT_LOG_WARNING(error, "Chunk writer failed");
@@ -785,13 +794,13 @@ private:
         }
 
         if (!StateError_.IsSet() && CloseRequested_) {
-            CloseSessions();
+            CloseSessions(options);
         }
     }
 
-    void FlushBlocks(const TNodePtr& node, int blockIndex)
+    void FlushBlocks(const IChunkWriter::TWriteBlocksOptions& options, const TNodePtr& node, int blockIndex)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
         if (!node->IsAlive()) {
             return;
@@ -826,10 +835,12 @@ private:
             DemandClose();
         }
 
+        UpdateFromProto(&options.ClientOptions.ChunkWriterStatistics, rsp->chunk_writer_statistics());
+
         if (CloseRequested_ && blockIndex + 1 == BlockCount_) {
             // We flushed the last block in chunk.
 
-            BIND(&TReplicationWriter::FinishChunk, MakeWeak(this), node)
+            BIND(&TReplicationWriter::FinishChunk, MakeWeak(this), options, node)
                 .Via(TDispatcher::Get()->GetWriterInvoker())
                 .Run();
         }
@@ -837,7 +848,7 @@ private:
 
     void StartChunk(TChunkReplicaWithMedium target, bool disableSendBlocks)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
         YT_VERIFY(IsErasureChunkPartId(SessionId_.ChunkId) || target.GetReplicaIndex() == GenericChunkReplicaIndex);
 
         const auto& nodeDirectory = Client_->GetNativeConnection()->GetNodeDirectory();
@@ -953,23 +964,23 @@ private:
         }
     }
 
-    void CloseSessions()
+    void CloseSessions(const IChunkWriter::TWriteBlocksOptions& options)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
         YT_VERIFY(CloseRequested_);
 
         YT_LOG_INFO("Closing writer");
 
         for (const auto& node : Nodes_) {
-            BIND(&TReplicationWriter::FinishChunk, MakeWeak(this), node)
+            BIND(&TReplicationWriter::FinishChunk, MakeWeak(this), options, node)
                 .Via(TDispatcher::Get()->GetWriterInvoker())
                 .Run();
         }
     }
 
-    void FinishChunk(const TNodePtr& node)
+    void FinishChunk(const IChunkWriter::TWriteBlocksOptions& options, const TNodePtr& node)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
 
         if (!node->IsAlive() || node->IsClosing()) {
             return;
@@ -1014,6 +1025,8 @@ private:
             node->GetDefaultAddress(),
             chunkInfo.disk_space());
 
+        UpdateFromProto(&options.ClientOptions.ChunkWriterStatistics, rsp->chunk_writer_statistics());
+
         node->SetFinished();
         YT_UNUSED_FUTURE(node->StopPing());
         UnregisterCandidateNode(node->GetChannel());
@@ -1049,7 +1062,7 @@ private:
 
     TFuture<void> CancelWriter(bool wait = false)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         std::vector<TFuture<void>> cancelFutures;
         auto nodes = ExtractCandidateNodes();
@@ -1065,9 +1078,9 @@ private:
         return AllSucceeded(std::move(cancelFutures));
     }
 
-    void AddBlocks(const std::vector<TBlock>& blocks)
+    void AddBlocks(const IChunkWriter::TWriteBlocksOptions& options, const std::vector<TBlock>& blocks)
     {
-        VERIFY_THREAD_AFFINITY(WriterThread);
+        YT_ASSERT_THREAD_AFFINITY(WriterThread);
         YT_VERIFY(!CloseRequested_);
 
         if (StateError_.IsSet()) {
@@ -1094,7 +1107,7 @@ private:
 
             if (CurrentGroup_->GetSize() >= Config_->GroupSize) {
                 CurrentGroup_->SetCumulativeBlockSize(CumulativeBlockSize_);
-                FlushCurrentGroup();
+                FlushCurrentGroup(options);
             }
         }
 
@@ -1183,7 +1196,7 @@ bool TGroup::IsWritten() const
     auto writer = Writer_.Lock();
     YT_VERIFY(writer);
 
-    VERIFY_THREAD_AFFINITY(writer->WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
 
     for (int nodeIndex = 0; nodeIndex < std::ssize(SentTo_); ++nodeIndex) {
         if (writer->Nodes_[nodeIndex]->IsAlive() && !SentTo_[nodeIndex]) {
@@ -1198,9 +1211,9 @@ bool TGroup::ShouldThrottle(const std::string& address, const TReplicationWriter
     return !IsAddressLocal(address) || writer->Config_->EnableLocalThrottling;
 }
 
-void TGroup::PutGroup(const TReplicationWriterPtr& writer)
+void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::TWriteBlocksOptions& options)
 {
-    VERIFY_THREAD_AFFINITY(writer->WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
 
     std::vector<TNodePtr> selectedNodes;
     for (int index = 0; index < std::ssize(writer->Nodes_); ++index) {
@@ -1293,12 +1306,15 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer)
         }
     }
 
-    ScheduleProcess();
+    ScheduleProcess(options);
 }
 
-void TGroup::SendGroup(const TReplicationWriterPtr& writer, const std::vector<TNodePtr>& srcNodes)
+void TGroup::SendGroup(
+    const TReplicationWriterPtr& writer,
+    const IChunkWriter::TWriteBlocksOptions& options,
+    const std::vector<TNodePtr>& srcNodes)
 {
-    VERIFY_THREAD_AFFINITY(writer->WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
 
     std::vector<TNodePtr> dstNodes;
     for (int index = 0; index < std::ssize(SentTo_); ++index) {
@@ -1359,7 +1375,7 @@ void TGroup::SendGroup(const TReplicationWriterPtr& writer, const std::vector<TN
         }
     }
 
-    ScheduleProcess();
+    ScheduleProcess(options);
 }
 
 bool TGroup::IsFlushing() const
@@ -1367,7 +1383,7 @@ bool TGroup::IsFlushing() const
     auto writer = Writer_.Lock();
     YT_VERIFY(writer);
 
-    VERIFY_THREAD_AFFINITY(writer->WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
 
     return Flushing_;
 }
@@ -1377,7 +1393,7 @@ void TGroup::SetFlushing()
     auto writer = Writer_.Lock();
     YT_VERIFY(writer);
 
-    VERIFY_THREAD_AFFINITY(writer->WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
 
     Flushing_ = true;
 }
@@ -1392,20 +1408,20 @@ void TGroup::SetCumulativeBlockSize(i64 cumulativeBlockSize)
     CumulativeBlockSize_ = cumulativeBlockSize;
 }
 
-void TGroup::ScheduleProcess()
+void TGroup::ScheduleProcess(const IChunkWriter::TWriteBlocksOptions& options)
 {
     TDispatcher::Get()->GetWriterInvoker()->Invoke(
-        BIND(&TGroup::Process, MakeWeak(this)));
+        BIND(&TGroup::Process, MakeWeak(this), options));
 }
 
-void TGroup::Process()
+void TGroup::Process(const IChunkWriter::TWriteBlocksOptions& options)
 {
     auto writer = Writer_.Lock();
     if (!writer) {
         return;
     }
 
-    VERIFY_THREAD_AFFINITY(writer->WriterThread);
+    YT_ASSERT_THREAD_AFFINITY(writer->WriterThread);
 
     if (writer->StateError_.IsSet()) {
         return;
@@ -1436,11 +1452,11 @@ void TGroup::Process()
     }
 
     if (!emptyNodeFound) {
-        writer->ShiftWindow();
+        writer->ShiftWindow(options);
     } else if (nodesWithBlocks.empty()) {
-        PutGroup(writer);
+        PutGroup(writer, options);
     } else {
-        SendGroup(writer, nodesWithBlocks);
+        SendGroup(writer, options, nodesWithBlocks);
     }
 }
 

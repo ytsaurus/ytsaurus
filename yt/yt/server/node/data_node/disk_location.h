@@ -29,7 +29,7 @@ class TDiskLocation
 {
 public:
     TDiskLocation(
-        TDiskLocationConfigPtr config,
+        NServer::TDiskLocationConfigPtr config,
         TString id,
         const NLogging::TLogger& logger);
 
@@ -37,10 +37,10 @@ public:
     const TString& GetId() const;
 
     //! Returns the runtime configuration.
-    TDiskLocationConfigPtr GetRuntimeConfig() const;
+    NServer::TDiskLocationConfigPtr GetRuntimeConfig() const;
 
     //! Updates the runtime configuration.
-    void Reconfigure(TDiskLocationConfigPtr config);
+    void Reconfigure(NServer::TDiskLocationConfigPtr config);
 
     //! Returns |true| iff the location is enabled.
     bool IsEnabled() const;
@@ -77,9 +77,9 @@ protected:
         std::optional<ELocationState> expectedState = std::nullopt);
 
 private:
-    const TDiskLocationConfigPtr StaticConfig_;
+    const NServer::TDiskLocationConfigPtr StaticConfig_;
 
-    TAtomicIntrusivePtr<TDiskLocationConfig> RuntimeConfig_;
+    TAtomicIntrusivePtr<NServer::TDiskLocationConfig> RuntimeConfig_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

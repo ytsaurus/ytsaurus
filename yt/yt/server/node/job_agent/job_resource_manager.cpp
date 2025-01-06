@@ -120,7 +120,7 @@ public:
         , FreeMemoryWatermarkIsIncreasedGauge_(Profiler_.Gauge("/free_memory_watermark_is_increased"))
     {
         YT_VERIFY(StaticConfig_);
-        VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
         Profiler_.AddProducer("/resource_limits", ResourceLimitsBuffer_);
 
         Profiler_.AddProducer(
@@ -174,7 +174,7 @@ public:
         const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         ProfilingExecutor_->SetPeriod(
             newConfig->JobResourceManager->ProfilingPeriod);
@@ -201,7 +201,7 @@ public:
 
     void OnProfiling()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto doProfile = [this] (ISensorWriter* writer, EResourcesState state) {
             NProfiling::TWithTagGuard withTags{writer};
@@ -236,21 +236,21 @@ public:
 
     TJobResourceManagerDynamicConfigPtr GetDynamicConfig() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return DynamicConfig_.Acquire();
     }
 
     void SetActualVcpu(TJobResources& resources) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         resources.VCpu = static_cast<double>(NVectorHdrf::TCpuResource(resources.Cpu * GetCpuToVCpuFactor()));
     }
 
     TJobResources GetResourceLimits() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         TJobResources result;
         auto resourceLimitsOverrides = ComputeEffectiveResourceLimitsOverrides();
@@ -328,7 +328,7 @@ public:
 
     TJobResources GetResourceUsage(std::initializer_list<EResourcesState> statesToInclude) const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         bool acquiredIncluded = false;
         TJobResources resourceUsage = ZeroJobResources();
@@ -377,7 +377,7 @@ public:
 
     bool CheckMemoryOverdraft(const TJobResources& delta) override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         // Only "cpu" and "user_memory" can be increased.
         // Network decreases by design. Cpu increasing is handled in AdjustResources.
@@ -402,7 +402,7 @@ public:
 
     i64 GetFreeMemoryWatermark() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto dynamicConfig = GetDynamicConfig();
 
@@ -414,7 +414,7 @@ public:
 
     TDiskResources GetDiskResources() const override
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         if (Bootstrap_->IsExecNode()) {
             const auto& slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
@@ -426,7 +426,7 @@ public:
 
     void SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         ResourceLimitsOverrides_.Store(resourceLimits);
 
@@ -463,7 +463,7 @@ public:
 
     double GetCpuToVCpuFactor() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto dynamicConfig = DynamicConfig_.Acquire();
         if (dynamicConfig->EnableCpuToVCpuFactor) {
@@ -555,7 +555,7 @@ public:
 
     void OnResourceAcquiringStarted()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_VERIFY(!std::exchange(HasActiveResourceAcquiring_, true));
 
@@ -564,7 +564,7 @@ public:
 
     void OnResourceAcquiringFinished()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_VERIFY(std::exchange(HasActiveResourceAcquiring_, false));
 
@@ -576,7 +576,7 @@ public:
 
     void OnResourceHolderRegistered(const TLogger& Logger, const TResourceHolder* resourceHolder)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TJobResources pendingResources;
         TJobResources acquiredResources;
@@ -606,7 +606,7 @@ public:
 
     bool TryReserveResources(const TLogger& Logger, const TJobResources& resources)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TJobResources pendingResources;
         TJobResources acquiredResources;
@@ -658,7 +658,7 @@ public:
         std::vector<int>&& ports,
         TJobResources resources)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         const auto& Logger = resourceHolder->GetLogger();
 
@@ -697,7 +697,7 @@ public:
 
     void PrepareResourcesRelease(const TLogger& Logger, EResourcesState observed, const TJobResources& resources)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_VERIFY(observed != EResourcesState::Releasing && observed != EResourcesState::Released);
 
@@ -734,7 +734,7 @@ public:
 
     bool AcquireResourcesFor(const TResourceHolderPtr& resourceHolder)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         // COMPAT(pogorelov): Use InitialResourceDemand_ when UpdateResourceDemand is removed.
         // const auto neededResources = resourceHolder->InitialResourceDemand_;
@@ -908,7 +908,7 @@ public:
         EResourcesState currentState,
         bool resourceHolderStarted)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_VERIFY(resourceHolderStarted || ports.empty());
 
@@ -979,7 +979,7 @@ public:
         const TJobResources& resourceDelta,
         EResourcesState state)
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         YT_VERIFY(state != EResourcesState::Pending && state != EResourcesState::Released);
 
@@ -1064,7 +1064,7 @@ public:
 
     int GetPendingResourceHolderCount() final
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto guard = ReaderGuard(ResourcesLock_);
         return PendingResourceHolderCount_;
@@ -1077,7 +1077,7 @@ public:
 
     IYPathServicePtr GetOrchidService() const override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return IYPathService::FromProducer(BIND_NO_PROPAGATE(
             &TJobResourceManager::TImpl::BuildOrchid,
@@ -1086,7 +1086,7 @@ public:
 
     void RegisterResourceHolder(const TLogger& Logger, const TResourceHolder* resourceHolder)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         OnResourceHolderRegistered(Logger, resourceHolder);
 
@@ -1095,7 +1095,7 @@ public:
 
     void UnregisterResourceHolder(TResourceHolder* resourceHolder)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         EraseOrCrash(ResourceHolders_, resourceHolder);
     }
@@ -1171,7 +1171,7 @@ private:
 
     TJobResourceManagerInfo BuildResourceManagerInfo() const
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         TJobResources pendingResources;
         TJobResources acquiredResources;
@@ -1207,7 +1207,7 @@ private:
 
     auto BuildResourceHoldersInfo() const
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         std::vector<TResourceHolder::TResourceHolderInfo> result;
         result.reserve(std::size(ResourceHolders_));
@@ -1221,7 +1221,7 @@ private:
 
     auto DoGetStateSnapshot() const
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         return std::tuple(
             BuildResourceManagerInfo(),
@@ -1230,7 +1230,7 @@ private:
 
     auto GetStateSnapshot() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto infoOrError = WaitFor(BIND(
             &TJobResourceManager::TImpl::DoGetStateSnapshot,
@@ -1248,7 +1248,7 @@ private:
 
     void BuildOrchid(IYsonConsumer* consumer) const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto [
             jobResourceManagerInfo,
@@ -1280,7 +1280,7 @@ private:
 
     void DoReleasePorts(const TLogger& Logger, const std::vector<int>& ports)
     {
-        VERIFY_WRITER_SPINLOCK_AFFINITY(ResourcesLock_);
+        YT_ASSERT_WRITER_SPINLOCK_AFFINITY(ResourcesLock_);
 
         YT_LOG_INFO_UNLESS(
             ports.empty(),
@@ -1293,7 +1293,7 @@ private:
 
     std::vector<int> GetFreePorts() const
     {
-        VERIFY_SPINLOCK_AFFINITY(ResourcesLock_);
+        YT_ASSERT_SPINLOCK_AFFINITY(ResourcesLock_);
 
         return std::vector<int>(begin(FreePorts_), end(FreePorts_));
     }
@@ -1308,7 +1308,7 @@ private:
 
     void CheckReservedMappedMemory()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         YT_LOG_INFO("Check mapped memory usage");
 
@@ -1343,7 +1343,7 @@ private:
 
     void CheckMemoryPressure()
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         try {
             auto currentFaultCount = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager()->GetMajorPageFaultCount();
@@ -1403,7 +1403,7 @@ private:
         const TJobResources& usedResources,
         const TJobResources& totalResources)
     {
-        VERIFY_THREAD_AFFINITY(JobThread);
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         auto spareResources = CalculateSpareResources(totalResources, usedResources);
         // Allow replication/repair/merge data size overcommit.
@@ -1945,14 +1945,14 @@ EResourcesState TResourceHolder::GetState() const noexcept
 
 TJobResources TResourceHolder::TotalResourceUsage() const noexcept
 {
-    VERIFY_SPINLOCK_AFFINITY(ResourcesLock_);
+    YT_ASSERT_SPINLOCK_AFFINITY(ResourcesLock_);
 
     return BaseResourceUsage_ + AdditionalResourceUsage_;
 }
 
 TResourceHolder::TResourceHolderInfo TResourceHolder::BuildResourceHolderInfo() const noexcept
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto [
         baseResourceUsage,
@@ -1974,7 +1974,7 @@ bool TResourceHolder::DoSetResourceUsage(
     TStringBuf argumentName,
     TResourceUsageUpdater resourceUsageUpdater)
 {
-    VERIFY_WRITER_SPINLOCK_AFFINITY(ResourcesLock_);
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(ResourcesLock_);
 
     YT_LOG_DEBUG(
         "Setting resources to holder (CurrentState: %v, %v: %v)",

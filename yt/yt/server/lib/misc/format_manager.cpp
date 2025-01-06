@@ -9,7 +9,7 @@
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/fluent.h>
 
-namespace NYT {
+namespace NYT::NServer {
 
 using namespace NFormats;
 using namespace NScheduler;
@@ -60,7 +60,7 @@ void TFormatManager::ValidateAndPatchOperationSpec(
             return;
         }
         const auto& filePathNodes = filePathsNode->AsList()->GetChildren();
-        for (int i = 0; i < static_cast<int>(filePathNodes.size()); ++i) {
+        for (int i = 0; i < std::ssize(filePathNodes); ++i) {
             const auto& filePathNode = filePathNodes[i];
             auto formatNode = filePathNode->MutableAttributes()->Find<INodePtr>("format");
             if (!formatNode) {
@@ -163,4 +163,4 @@ TFormat TFormatManager::ConvertToFormat(const INodePtr& formatNode, TString orig
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NServer

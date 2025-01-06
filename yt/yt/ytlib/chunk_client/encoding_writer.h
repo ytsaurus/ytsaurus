@@ -1,6 +1,7 @@
 #pragma once
 
 #include "block.h"
+#include "chunk_writer.h"
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
@@ -28,6 +29,7 @@ public:
         TEncodingWriterConfigPtr config,
         TEncodingWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         IBlockCachePtr blockCache,
         NLogging::TLogger logger);
 
@@ -52,6 +54,7 @@ private:
     const TEncodingWriterConfigPtr Config_;
     const TEncodingWriterOptionsPtr Options_;
     const IChunkWriterPtr ChunkWriter_;
+    const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
     const IBlockCachePtr BlockCache_;
 
     const NLogging::TLogger Logger;

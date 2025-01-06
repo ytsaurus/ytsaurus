@@ -72,7 +72,7 @@ struct TQueueTableRow
     std::optional<bool> Sorted;
     TQueueAutoTrimConfig AutoTrimConfig;
     std::optional<THashMap<TString, TQueueStaticExportConfig>> StaticExportConfig;
-    std::optional<TString> QueueAgentStage;
+    std::optional<std::string> QueueAgentStage;
     std::optional<NObjectClient::TObjectId> ObjectId;
     std::optional<bool> QueueAgentBanned;
 
@@ -112,7 +112,7 @@ struct TConsumerTableRow
     std::optional<NObjectClient::EObjectType> ObjectType;
     std::optional<bool> TreatAsQueueConsumer;
     std::optional<NTableClient::TTableSchema> Schema;
-    std::optional<TString> QueueAgentStage;
+    std::optional<std::string> QueueAgentStage;
     std::optional<bool> QueueAgentBanned;
 
     std::optional<TError> SynchronizationError;
@@ -145,7 +145,7 @@ DEFINE_REFCOUNTED_TYPE(TConsumerTable)
 struct TQueueAgentObjectMappingTableRow
 {
     TCrossClusterReference Object;
-    TString QueueAgentHost;
+    std::string QueueAgentHost;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

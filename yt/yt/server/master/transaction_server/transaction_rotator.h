@@ -14,9 +14,9 @@ namespace NYT::NTransactionServer {
 class TTransactionRotator
 {
 public:
-    explicit TTransactionRotator(
+    TTransactionRotator(
         NCellMaster::TBootstrap* bootstrap,
-        TString transactionTitle);
+        std::string transactionTitle);
 
     //! Commits previous transaction if needed. Starts new transaction.
     void Rotate();
@@ -42,7 +42,7 @@ private:
 
     NCellMaster::TBootstrap* const Bootstrap_;
 
-    const TString TransactionTitle_;
+    const std::string TransactionTitle_;
 
     using TTransactionWeakPtr =
         NObjectServer::TWeakObjectPtr<NTransactionServer::TTransaction>;

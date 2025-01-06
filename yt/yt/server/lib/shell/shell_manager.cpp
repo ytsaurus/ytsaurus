@@ -48,6 +48,7 @@ using namespace NTools;
 using namespace NYTree;
 using namespace NYson;
 using namespace NFS;
+using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,7 +98,7 @@ public:
         const TJobShellDescriptor& jobShellDescriptor,
         const TYsonString& serializedParameters) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         TShellParameters parameters;
         IShellPtr shell;
@@ -225,7 +226,7 @@ public:
 
     void Terminate(const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO("Shell manager is terminating");
 
@@ -239,7 +240,7 @@ public:
 
     TFuture<void> GracefulShutdown(const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO("Shell manager is shutting down");
 
@@ -426,7 +427,7 @@ public:
 
     void Terminate(const TError& error) override
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO("Shell manager is terminating");
         Terminated_ = true;

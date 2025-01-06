@@ -8,10 +8,10 @@
 
 #include <util/generic/bitops.h>
 
-#include <library/cpp/histogram/hdr/histogram.h>
-
 #include <yt/yt/core/profiling/timing.h>
 #include <yt/yt/core/profiling/tscp.h>
+
+#include <library/cpp/histogram/hdr/histogram.h>
 
 #include <numeric>
 
@@ -333,7 +333,7 @@ private:
 
     void OnModelCreationRound()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto model = Model_->ReleaseSizes();
 
@@ -346,7 +346,7 @@ private:
 
     void OnLatenciesReportingRound()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         auto latencies = Model_->ReleaseLatencies();
 
@@ -400,7 +400,7 @@ public:
         return future;
     }
 
-    TFuture<void> Write(
+    TFuture<TWriteResponse> Write(
         TWriteRequest request,
         EWorkloadCategory category,
         TSessionId sessionId) override

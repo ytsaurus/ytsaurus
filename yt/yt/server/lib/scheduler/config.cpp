@@ -787,6 +787,9 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
     registrar.Parameter("ephemeral_pool_name_regex", &TThis::EphemeralPoolNameRegex)
         .Default("[-_a-z0-9:A-Z]+");
 
+    registrar.Parameter("require_specified_operation_pools_existence", &TThis::RequireSpecifiedOperationPoolsExistence)
+        .Default(false);
+
     registrar.Postprocessor([&] (TFairShareStrategyConfig* config) {
         THashMap<int, TStringBuf> priorityToName;
         priorityToName.reserve(std::size(config->TemplatePoolTreeConfigMap));
@@ -838,6 +841,8 @@ void TTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("finish_operation_transition_delay", &TThis::FinishOperationTransitionDelay)
         .Default();
     registrar.Parameter("node_heartbeat_processing_delay", &TThis::NodeHeartbeatProcessingDelay)
+        .Default();
+    registrar.Parameter("operation_node_creation_delay", &TThis::OperationNodeCreationDelay)
         .Default();
     registrar.Parameter("secure_vault_creation_delay", &TThis::SecureVaultCreationDelay)
         .Default();
@@ -1282,11 +1287,14 @@ void TSchedulerConfig::Register(TRegistrar registrar)
     registrar.Parameter("operation_spec_tree_size_limit", &TThis::OperationSpecTreeSizeLimit)
         .Default(std::numeric_limits<int>::max());
 
-    registrar.Preprocessor([&] (TSchedulerConfig* config) {
+    registrar.Parameter("temporary_operation_token_expiration_timeout", &TThis::TemporaryOperationTokenExpirationTimeout)
+        .Default(TDuration::Days(7));
+
+    registrar.Preprocessor([&] (TThis* config) {
         config->OperationServiceResponseKeeper->EnableWarmup = false;
     });
 
-    registrar.Postprocessor([&] (TSchedulerConfig* config) {
+    registrar.Postprocessor([&] (TThis* config) {
         if (config->SoftConcurrentHeartbeatLimit > config->HardConcurrentHeartbeatLimit) {
             THROW_ERROR_EXCEPTION("\"soft_limit\" must be less than or equal to \"hard_limit\"")
                 << TErrorAttribute("soft_limit", config->SoftConcurrentHeartbeatLimit)
@@ -1320,6 +1328,11 @@ void TSchedulerBootstrapConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSchedulerProgramConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

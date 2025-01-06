@@ -471,7 +471,7 @@ class YTInstance(object):
             return
 
         logger.info("Preparing directories")
-        dirs = self._prepare_directories()
+        self._directories = self._prepare_directories()
 
         if self.yt_config.enable_tls:
             logger.info("Preparing certificates")
@@ -479,7 +479,7 @@ class YTInstance(object):
 
         logger.info("Preparing configs")
         cluster_configuration = build_configs(
-            self.yt_config, ports_generator, dirs, self.logs_path, self._binary_to_version)
+            self.yt_config, ports_generator, self._directories, self.logs_path, self._binary_to_version)
 
         modify_cluster_configuration(self.yt_config, cluster_configuration)
 

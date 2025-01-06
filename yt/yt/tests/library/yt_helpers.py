@@ -230,7 +230,7 @@ def read_structured_log_single_entry(path, row_filter, from_barrier=None, to_bar
     return lines[0]
 
 
-def wait_no_peers_in_read_only(driver=None):
+def wait_no_peers_in_read_only(driver=None, secondary_cell_tags=None):
     def no_peers_in_read_only(monitoring_prefix, master_list):
         for master in master_list:
             monitoring = get(
@@ -259,7 +259,9 @@ def wait_no_peers_in_read_only(driver=None):
         suppress_upstream_sync=True,
         driver=driver,
     )
-    for cell_tag in secondary_masters:
+    if secondary_cell_tags is None:
+        secondary_cell_tags = secondary_masters.keys()
+    for cell_tag in secondary_cell_tags:
         addresses = list(secondary_masters[cell_tag].keys())
         wait(lambda: no_peers_in_read_only("//sys/secondary_masters/{}".format(cell_tag), addresses))
 

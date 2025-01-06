@@ -77,6 +77,7 @@ using namespace NTracing;
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NYPath;
+using namespace NServer;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -85,7 +86,7 @@ using NYT::ToProto;
 
 static constexpr auto& Logger = ClickHouseYtLogger;
 
-static const std::vector<TString> DiscoveryAttributes{
+static const std::vector<std::string> DiscoveryAttributes{
     "host",
     "rpc_port",
     "monitoring_port",
@@ -233,7 +234,7 @@ public:
 
     void Start()
     {
-        VERIFY_INVOKER_AFFINITY(GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetControlInvoker());
 
         YT_VERIFY(getContext());
 

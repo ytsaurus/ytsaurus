@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/signature/public.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/misc/public.h>
@@ -45,6 +47,8 @@ IApiServicePtr CreateApiService(
     NTracing::TSamplerPtr traceSampler,
     NLogging::TLogger logger,
     NProfiling::TProfiler profiler,
+    NSignature::ISignatureValidatorPtr validator,
+    NSignature::ISignatureGeneratorPtr generator,
     INodeMemoryTrackerPtr memoryUsageTracker = {},
     NApi::IStickyTransactionPoolPtr stickyTransactionPool = {});
 

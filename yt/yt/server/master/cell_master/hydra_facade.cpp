@@ -86,7 +86,7 @@ public:
         AutomatonQueue_ = CreateEnumIndexedFairShareActionQueue<EAutomatonThreadQueue>(
             "Automaton",
             GetAutomatonThreadBuckets());
-        VERIFY_INVOKER_THREAD_AFFINITY(AutomatonQueue_->GetInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
+        YT_ASSERT_INVOKER_THREAD_AFFINITY(AutomatonQueue_->GetInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
 
         NObjectServer::SetupMasterBootstrap(bootstrap);
 
@@ -240,7 +240,7 @@ public:
 
     void BlockAutomaton() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_ASSERT(!AutomatonBlocked_);
         AutomatonBlocked_ = true;
@@ -250,7 +250,7 @@ public:
 
     void UnblockAutomaton() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         YT_ASSERT(AutomatonBlocked_);
         AutomatonBlocked_ = false;
@@ -260,7 +260,7 @@ public:
 
     bool IsAutomatonLocked() override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return AutomatonBlocked_;
     }
@@ -273,7 +273,7 @@ public:
             YT_VERIFY(automatonThreadId != NThreading::InvalidThreadId);
             YT_VERIFY(GetCurrentThreadId() != automatonThreadId);
         } else {
-            VERIFY_THREAD_AFFINITY(AutomatonThread);
+            YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         }
 #endif
     }
@@ -315,7 +315,7 @@ public:
         TCallback<std::unique_ptr<TMutation>()> mutationBuilder,
         TCallback<void(const NHydra::TMutationResponse& response)> replyCallback) override
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         auto epochId = GetCurrentEpochId();
 
@@ -364,7 +364,7 @@ public:
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    const TCellMasterConfigPtr Config_;
+    const TCellMasterBootstrapConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
     IElectionManagerPtr ElectionManager_;

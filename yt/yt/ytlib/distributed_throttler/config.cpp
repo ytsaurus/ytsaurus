@@ -33,7 +33,9 @@ void TDistributedThrottlerConfig::Register(TRegistrar registrar)
     registrar.Parameter("mode", &TThis::Mode)
         .Default(EDistributedThrottlerMode::Adaptive);
     registrar.Parameter("extra_limit_ratio", &TThis::ExtraLimitRatio)
-        .Default(0.1);
+        .Default(0.1)
+        .LessThanOrEqual(1.0)
+        .GreaterThanOrEqual(0);
     registrar.Parameter("adjusted_ema_halflife", &TThis::AdjustedEmaHalflife)
         .Default(TAdjustedExponentialMovingAverage::DefaultHalflife);
 

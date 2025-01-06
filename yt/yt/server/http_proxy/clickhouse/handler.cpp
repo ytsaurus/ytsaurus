@@ -232,13 +232,13 @@ private:
     TString Token_;
     TString User_;
     TString InstanceId_;
-    TString InstanceHost_;
+    std::string InstanceHost_;
     TString InstanceHttpPort_;
     TCachedDiscoveryPtr Discovery_;
     TClickHouseHandlerPtr Handler_;
     NRpc::IChannelFactoryPtr ChannelFactory_;
 
-    static const inline std::vector<TString> DiscoveryAttributes_ = std::vector<TString>{
+    static const inline std::vector<std::string> DiscoveryAttributes_ = std::vector<std::string>{
         "host",
         "http_port",
         "job_cookie",
@@ -1350,7 +1350,7 @@ void TClickHouseHandler::HandleRequest(
 
 void TClickHouseHandler::AdjustQueryCount(const std::string& user, int delta)
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    YT_ASSERT_INVOKER_AFFINITY(ControlInvoker_);
 
     auto entry = UserToRunningQueryCount_.FindOrInsert(user, [&] {
         auto gauge = ClickHouseProxyProfiler()

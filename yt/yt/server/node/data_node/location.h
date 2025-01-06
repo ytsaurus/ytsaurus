@@ -498,7 +498,7 @@ protected:
     NThreading::TAtomicObject<TError> LocationDisabledAlert_;
     NThreading::TAtomicObject<TError> LocationDiskFailedAlert_;
 
-    TDiskHealthCheckerPtr HealthChecker_;
+    NServer::TDiskHealthCheckerPtr HealthChecker_;
 
     mutable std::atomic<i64> AvailableSpace_ = 0;
     std::atomic<i64> UsedSpace_ = 0;

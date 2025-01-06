@@ -1,5 +1,4 @@
 #include "queue_static_table_exporter.h"
-#include "private.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/chunk_teleporter.h>
@@ -820,7 +819,7 @@ NQueueClient::TQueueStaticExportConfig TQueueExporter::GetConfig()
 
 void TQueueExporter::Export()
 {
-    VERIFY_INVOKER_AFFINITY(Invoker_);
+    YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     // XXX(apachee): Rename this and TQueueExporter to QueueStaticTableExporter and TQueueStaticTableExporter respectively?
     auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueExporterIteration"));

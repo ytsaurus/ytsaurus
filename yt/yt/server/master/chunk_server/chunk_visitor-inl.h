@@ -56,7 +56,7 @@ private:
         const NChunkClient::TReadLimit& /*endLimit*/,
         const TChunkViewModifier* /*modifier*/) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto maybeKey = KeyExtractor_(chunk);
         TKey key;
@@ -93,7 +93,7 @@ private:
 
     void OnSuccess() override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto result = NYTree::BuildYsonStringFluently()
             .DoMapFor(StatisticsMap_, [this] (NYTree::TFluentMap fluent, const typename TStatisticsMap::value_type& pair) {

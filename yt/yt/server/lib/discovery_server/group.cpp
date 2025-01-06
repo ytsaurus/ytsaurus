@@ -63,7 +63,7 @@ TMemberPtr TGroup::AddOrUpdateMember(
 
 TMemberPtr TGroup::AddMember(const TMemberInfo& memberInfo, TDuration leaseTimeout)
 {
-    VERIFY_WRITER_SPINLOCK_AFFINITY(MembersLock_);
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(MembersLock_);
 
     auto onMemberLeaseExpired = BIND([=, this, weakThis = MakeWeak(this), memberId = memberInfo.Id] {
         auto this_ = weakThis.Lock();
@@ -120,7 +120,7 @@ void TGroup::UpdateMemberInfo(const TMemberPtr& member, const TMemberInfo& membe
 
 TMemberPtr TGroup::UpdateMember(const TMemberInfo& memberInfo, TDuration leaseTimeout)
 {
-    VERIFY_WRITER_SPINLOCK_AFFINITY(MembersLock_);
+    YT_ASSERT_WRITER_SPINLOCK_AFFINITY(MembersLock_);
 
     auto it = IdToMember_.find(memberInfo.Id);
     if (it == IdToMember_.end()) {
@@ -185,7 +185,7 @@ const TGroupId& TGroup::GetId()
 int TGroup::GetMemberCount()
 {
     auto guard = ReaderGuard(MembersLock_);
-    return static_cast<int>(Members_.size());
+    return std::ssize(Members_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

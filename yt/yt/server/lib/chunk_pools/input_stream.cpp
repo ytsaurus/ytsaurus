@@ -85,7 +85,7 @@ TInputStreamDirectory::TInputStreamDirectory(
 
 const TInputStreamDescriptor& TInputStreamDirectory::GetDescriptor(int inputStreamIndex) const
 {
-    if (0 <= inputStreamIndex && inputStreamIndex < static_cast<int>(Descriptors_.size())) {
+    if (0 <= inputStreamIndex && inputStreamIndex < std::ssize(Descriptors_)) {
         return Descriptors_[inputStreamIndex];
     } else {
         return DefaultDescriptor_;

@@ -32,11 +32,11 @@
 #include <yt/yt/server/node/cellar_node/bundle_dynamic_config_manager.h>
 #include <yt/yt/server/node/cellar_node/config.h>
 
-#include <yt/yt/server/node/data_node/bootstrap.h>
-
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
+
+#include <yt/yt/server/node/data_node/bootstrap.h>
 
 #include <yt/yt/server/node/query_agent/config.h>
 #include <yt/yt/server/node/query_agent/query_service.h>
@@ -182,11 +182,11 @@ public:
     {
         YT_LOG_INFO("Initializing tablet node");
 
+        // Cycles are fine for bootstrap.
         GetDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, this));
-
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeStrong(this)));
         GetBundleDynamicConfigManager()
-            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, this));
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnBundleDynamicConfigChanged, MakeStrong(this)));
 
         MasterConnector_ = CreateMasterConnector(this);
 
@@ -325,7 +325,9 @@ public:
         SlotManager_->Initialize();
         MasterConnector_->Initialize();
 
-        SubscribePopulateAlerts(BIND_NO_PROPAGATE(&NDiskManager::THotswapManager::PopulateAlerts));
+        if (auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager()) {
+            SubscribePopulateAlerts(BIND_NO_PROPAGATE(&NDiskManager::IHotswapManager::PopulateAlerts, hotswapManager));
+        }
     }
 
     void InitializeOverloadController()
@@ -363,10 +365,12 @@ public:
             GetOrchidRoot(),
             "/tablet_node_thread_pools",
             CreateVirtualNode(CreateThreadPoolsOrchidService()));
-        SetNodeByYPath(
-            GetOrchidRoot(),
-            "/disk_monitoring",
-            CreateVirtualNode(NDiskManager::THotswapManager::GetOrchidService()));
+        if (auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager()) {
+            SetNodeByYPath(
+                GetOrchidRoot(),
+                "/disk_monitoring",
+                CreateVirtualNode(hotswapManager->GetOrchidService()));
+        }
 
         StoreFlusher_->Start();
         StoreTrimmer_->Start();
@@ -385,15 +389,15 @@ public:
 
     NYTree::IYPathServicePtr CreateThreadPoolsOrchidService()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return IYPathService::FromProducer(BIND(&TBootstrap::BuildThreadPoolsOrchid, this))
+        return IYPathService::FromProducer(BIND(&TBootstrap::BuildThreadPoolsOrchid, MakeStrong(this)))
             ->Via(GetControlInvoker());
     }
 
     void BuildThreadPoolsOrchid(IYsonConsumer* consumer)
     {
-        VERIFY_INVOKER_AFFINITY(GetControlInvoker());
+        YT_ASSERT_INVOKER_AFFINITY(GetControlInvoker());
 
         BuildYsonFluently(consumer)
             .BeginMap()
@@ -679,9 +683,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IBootstrap> CreateBootstrap(NClusterNode::IBootstrap* bootstrap)
+IBootstrapPtr CreateBootstrap(NClusterNode::IBootstrap* bootstrap)
 {
-    return std::make_unique<TBootstrap>(bootstrap);
+    return New<TBootstrap>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

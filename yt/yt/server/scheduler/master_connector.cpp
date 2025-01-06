@@ -72,6 +72,7 @@ using namespace NApi;
 using namespace NSecurityClient;
 using namespace NConcurrency;
 using namespace NTransactionServer;
+using namespace NServer;
 
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::GetDefaultAddress;
@@ -108,7 +109,7 @@ public:
 
     void Start()
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         Bootstrap_
             ->GetClient()
@@ -122,35 +123,35 @@ public:
 
     EMasterConnectorState GetState() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return State_.load();
     }
 
     TInstant GetConnectionTime() const
     {
-        VERIFY_THREAD_AFFINITY_ANY();
+        YT_ASSERT_THREAD_AFFINITY_ANY();
 
         return ConnectionTime_.load();
     }
 
     const NApi::ITransactionPtr& GetLockTransaction() const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return LockTransaction_;
     }
 
     void Disconnect(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         DoDisconnect(error);
     }
 
     const IInvokerPtr& GetCancelableControlInvoker(EControlQueue queue) const
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
@@ -159,7 +160,7 @@ public:
 
     void RegisterOperation(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         OperationNodesUpdateExecutor_->AddUpdate(operation->GetId(), TOperationNodeUpdate(operation));
@@ -167,7 +168,7 @@ public:
 
     void UnregisterOperation(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         OperationNodesUpdateExecutor_->RemoveUpdate(operation->GetId());
@@ -193,9 +194,39 @@ public:
         return NYson::ConvertToYsonStringNestingLimited(value, GetYsonNestingLevelLimit());
     }
 
-    void DoCreateOperationNode(TOperationPtr operation)
+    TFuture<TIssueTokenResult> DoIssueTemporaryOperationToken(TOperationPtr operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
+
+        YT_LOG_DEBUG(
+            "Issuing temporary operation token (OperationId: %v, User: %v)",
+            operation->GetId(),
+            operation->GetAuthenticatedUser());
+
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("operation_id", operation->GetId());
+        attributes->Set("responsible", "scheduler");
+
+        TIssueTemporaryTokenOptions options;
+        options.ExpirationTimeout = Config_->TemporaryOperationTokenExpirationTimeout;
+        options.Description = Format("Temporary token for operation %v", operation->GetId());
+
+        return Bootstrap_->GetClient()->IssueTemporaryToken(operation->GetAuthenticatedUser(), std::move(attributes), options);
+    }
+
+    TFuture<void> ClearTokenExpirationTimeout(TNodeId tokenNodeId)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        // Force is not necessary when removing attributes.
+        TRemoveNodeOptions options;
+        return Bootstrap_->GetClient()->RemoveNode(Format("%v/@expiration_timeout", FromObjectId(tokenNodeId)), options);
+    }
+
+    void DoCreateOperationNode(TOperationPtr operation)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         auto operationId = operation->GetId();
@@ -204,7 +235,13 @@ public:
             YT_LOG_INFO("Creating operation node (OperationId: %v)",
                 operationId);
 
+            if (operation->Spec()->IssueTemporaryToken) {
+                YT_VERIFY(operation->GetTemporaryTokenNodeId());
+            }
+
             {
+                MaybeDelay(Config_->TestingOptions->OperationNodeCreationDelay);
+
                 auto batchReq = StartObjectBatchRequest();
                 bool enableHeavyRuntimeParameters = Config_->EnableHeavyRuntimeParameters;
 
@@ -221,6 +258,11 @@ public:
                         })
                         .Item("acl").Value(MakeOperationArtifactAcl(operation->BaseAcl()))
                         .Item("has_secure_vault").Value(static_cast<bool>(operation->GetSecureVault()))
+                        .DoIf(static_cast<bool>(operation->GetTemporaryTokenNodeId()), [&] (auto fluent) {
+                            fluent
+                                .Item("temporary_token_node_id").Value(*operation->GetTemporaryTokenNodeId());
+                        })
+                        .Item("need_to_clear_temporary_token_expiration_timeout").Value(operation->Spec()->IssueTemporaryToken)
                     .EndAttributes()
                     .BeginMap().EndMap();
                 ValidateYson(operationYson, GetYsonNestingLevelLimit());
@@ -260,6 +302,32 @@ public:
 
                 GetCumulativeError(batchRspOrError)
                     .ThrowOnError();
+            }
+
+            if (operation->Spec()->IssueTemporaryToken) {
+                YT_LOG_DEBUG(
+                    "Removing expiration timeout from issued operation token (TokenNodeId: %v, User: %v, OperationId: %v)",
+                    operation->GetTemporaryTokenNodeId(),
+                    operation->GetAuthenticatedUser(),
+                    operationId);
+
+                WaitFor(ClearTokenExpirationTimeout(*operation->GetTemporaryTokenNodeId()))
+                    .ThrowOnError();
+
+                YT_LOG_DEBUG(
+                    "Persisting temporary token expiration timeout removal in operation node (OperationId: %v, User: %v)",
+                    operationId,
+                    operation->GetAuthenticatedUser());
+
+                WaitFor(Bootstrap_->GetClient()->SetNode(
+                    Format("%v/@need_to_clear_temporary_token_expiration_timeout", GetOperationPath(operationId)),
+                    ConvertToYsonString(false)))
+                    .ThrowOnError();
+
+                YT_LOG_INFO("Finalized temporary operation token (OperationId: %v, TokenNodeId: %v, User: %v)",
+                    operationId,
+                    operation->GetTemporaryTokenNodeId(),
+                    operation->GetAuthenticatedUser());
             }
         } catch (const std::exception& ex) {
             auto error = TError("Error creating operation node %v", operationId)
@@ -332,9 +400,19 @@ public:
         return error.IsOK();
     }
 
-    TFuture<void> CreateOperationNode(TOperationPtr operation)
+    TFuture<TIssueTokenResult> IssueTemporaryOperationToken(const TOperationPtr& operation)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
+
+        return BIND(&TImpl::DoIssueTemporaryOperationToken, MakeStrong(this), operation)
+            .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
+            .Run();
+    }
+
+    TFuture<void> CreateOperationNode(TOperationPtr operation)
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         return BIND(&TImpl::DoCreateOperationNode, MakeStrong(this), operation)
@@ -344,7 +422,7 @@ public:
 
     TFuture<void> UpdateInitializedOperationNode(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         auto operationId = operation->GetId();
@@ -385,7 +463,7 @@ public:
 
     TFuture<void> FlushOperationNode(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         YT_LOG_INFO("Flushing operation node (OperationId: %v)",
@@ -396,7 +474,7 @@ public:
 
     TFuture<void> FetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         return BIND(&TImpl::DoFetchOperationRevivalDescriptors, MakeStrong(this))
@@ -406,7 +484,7 @@ public:
 
     TFuture<TYsonString> GetOperationNodeProgressAttributes(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
@@ -459,7 +537,7 @@ public:
 
     void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         GetCancelableControlInvoker(EControlQueue::MasterConnector)
@@ -468,7 +546,7 @@ public:
 
     void StorePersistentStrategyState(const TPersistentStrategyStatePtr& persistentStrategyState)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         if (StoringStrategyState_) {
@@ -523,7 +601,7 @@ public:
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant time)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         return BIND(&TImpl::DoUpdateLastMeteringLogTime, MakeStrong(this))
             .AsyncVia(GetCancelableControlInvoker(EControlQueue::MasterConnector))
@@ -532,7 +610,7 @@ public:
 
     void SetSchedulerAlert(ESchedulerAlertType alertType, const TError& alert)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto savedAlert = alert;
         savedAlert <<= TErrorAttribute("alert_type", alertType);
@@ -544,7 +622,7 @@ public:
         TWatcherHandler handler,
         std::optional<ESchedulerAlertType> alertType)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         CommonWatcherRecords_.push_back(TWatcherRecord{requester, handler, alertType});
     }
@@ -557,7 +635,7 @@ public:
         std::optional<ESchedulerAlertType> alertType,
         std::optional<TWatcherLockOptions> lockOptions)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         CustomWatcherRecords_[type] = TCustomWatcherRecord{
             TWatcherRecord{
@@ -573,7 +651,7 @@ public:
 
     void UpdateConfig(const TSchedulerConfigPtr& config)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (State_ == EMasterConnectorState::Connected &&
             Config_->LockTransactionTimeout != config->LockTransactionTimeout)
@@ -676,7 +754,7 @@ private:
 
     void RandomDisconnect()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (Config_->TestingOptions->EnableRandomMasterDisconnection) {
             DoDisconnect(TError("Disconnecting scheduler due to enabled random disconnection"));
@@ -693,7 +771,7 @@ private:
 
     void DoStartConnecting()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         if (State_ != EMasterConnectorState::Disconnected) {
             return;
@@ -747,7 +825,7 @@ private:
 
     void OnConnected(const TError& error) noexcept
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ == EMasterConnectorState::Connecting);
 
         if (!error.IsOK()) {
@@ -777,7 +855,7 @@ private:
 
     void OnLockTransactionAborted(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         Disconnect(TError("Lock transaction aborted")
             << error);
@@ -1002,7 +1080,7 @@ private:
         struct TProcessedOperationsBatch final
         {
             std::vector<TOperationPtr> Operations;
-            std::vector<TOperationId> IncompleteOperationIds;
+            std::vector<TRemoveOperationRequest> IncompleteOperationRemoveRequests;
         };
 
         TProcessedOperationsBatch ProcessOperationsBatch(
@@ -1017,6 +1095,12 @@ private:
 
             for (const auto& rspValues : rspValuesChunk) {
                 auto attributesNode = ConvertToAttributes(rspValues.AttributesYson);
+
+                // We need to collect these nodes from attributes manually, because we might fail operations before re-creating the actual operation object.
+                std::vector<TNodeId> dependentNodeIds;
+                if (auto temporaryTokenNodeId = attributesNode->Find<TNodeId>("temporary_token_node_id")) {
+                    dependentNodeIds.push_back(*temporaryTokenNodeId);
+                }
 
                 IMapNodePtr secureVault;
 
@@ -1035,7 +1119,20 @@ private:
                     }
                 } else if (attributesNode->Get<bool>("has_secure_vault", false)) {
                     YT_LOG_INFO("Operation secure vault is missing; operation skipped (OperationId: %v)", rspValues.OperationId);
-                    result.IncompleteOperationIds.push_back(rspValues.OperationId);
+                    result.IncompleteOperationRemoveRequests.push_back(TRemoveOperationRequest{
+                        .Id = rspValues.OperationId,
+                        .DependentNodeIds = std::move(dependentNodeIds),
+                    });
+                    continue;
+                }
+
+                if (attributesNode->Get<bool>("need_to_clear_temporary_token_expiration_timeout", false)) {
+                    YT_LOG_INFO("Operation temporary token has non-null expiration timeout; operation skipped (OperationId: %v)",
+                        rspValues.OperationId);
+                    result.IncompleteOperationRemoveRequests.push_back(TRemoveOperationRequest{
+                        .Id = rspValues.OperationId,
+                        .DependentNodeIds = std::move(dependentNodeIds),
+                    });
                     continue;
                 }
 
@@ -1092,10 +1189,12 @@ private:
                 "alerts",
                 "provided_spec",
                 "has_secure_vault",
+                "temporary_token_node_id",
+                "need_to_clear_temporary_token_expiration_timeout",
             };
-            const int operationsCount = static_cast<int>(OperationIds_.size());
+            const int operationsCount = std::ssize(OperationIds_);
 
-            std::vector<TOperationId> operationIdsToRemove;
+            std::vector<TRemoveOperationRequest> operationRemovalRequests;
 
             YT_LOG_INFO("Fetching attributes and secure vaults for unfinished operations (UnfinishedOperationCount: %v)",
                 operationsCount);
@@ -1202,8 +1301,8 @@ private:
                     for (auto& operation : processedBatch.Operations) {
                         Result_.Operations.push_back(std::move(operation));
                     }
-                    for (auto operationId : processedBatch.IncompleteOperationIds) {
-                        operationIdsToRemove.push_back(operationId);
+                    for (auto operationId : processedBatch.IncompleteOperationRemoveRequests) {
+                        operationRemovalRequests.push_back(operationId);
                     }
                 }
             }
@@ -1229,7 +1328,7 @@ private:
                 });
 
             auto operationsCleaner = Owner_->Bootstrap_->GetScheduler()->GetOperationsCleaner();
-            operationsCleaner->SubmitForRemoval(std::move(operationIdsToRemove));
+            operationsCleaner->SubmitForRemoval(std::move(operationRemovalRequests));
 
             YT_LOG_INFO("Operation objects created from attributes");
         }
@@ -1286,6 +1385,7 @@ private:
                 std::move(preprocessedSpec.TrimmedAnnotations),
                 std::move(preprocessedSpec.BriefVanillaTaskSpecs),
                 secureVault,
+                attributes.Find<TNodeId>("temporary_token_node_id"),
                 runtimeParameters,
                 std::move(baseAcl),
                 user,
@@ -1488,7 +1588,7 @@ private:
 
     void DoFetchOperationRevivalDescriptors(const std::vector<TOperationPtr>& operations)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO("Fetching operation revival descriptors (OperationCount: %v)",
             operations.size());
@@ -1658,7 +1758,7 @@ private:
 
     void DoCleanup()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         LockTransaction_.Reset();
 
@@ -1677,7 +1777,7 @@ private:
 
     void DoDisconnect(const TError& error) noexcept
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         TForbidContextSwitchGuard contextSwitchGuard;
 
@@ -1732,7 +1832,7 @@ private:
 
     void OnOperationUpdateFailed(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(!error.IsOK());
 
@@ -1741,7 +1841,7 @@ private:
 
     void DoUpdateOperationNode(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         try {
             operation->SetShouldFlush(false);
@@ -1850,7 +1950,7 @@ private:
 
     TCallback<TFuture<void>()> UpdateOperationNode(TOperationId /*operationId*/, TOperationNodeUpdate* update)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         // If operation is starting the node of operation may be missing.
         if (update->Operation->GetState() == EOperationState::Starting) {
@@ -1871,7 +1971,7 @@ private:
         const TOperationPtr& operation,
         const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto operationId = operation->GetId();
         auto error = GetCumulativeError(batchRspOrError);
@@ -1911,7 +2011,7 @@ private:
 
     void ExecuteCustomWatcherUpdate(const TCustomWatcherRecord& watcher, bool strictMode)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_DEBUG("Making custom watcher request (WatcherType: %v)", watcher.WatcherType);
 
@@ -1967,7 +2067,7 @@ private:
 
     void UpdateWatchers()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ == EMasterConnectorState::Connected);
 
         YT_LOG_DEBUG("Making common watcher requests");
@@ -1983,7 +2083,7 @@ private:
 
     void OnCommonWatchersUpdated(const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ == EMasterConnectorState::Connected);
 
         YT_LOG_DEBUG("Updating common watchers");
@@ -2032,7 +2132,7 @@ private:
 
     void UpdateAlerts()
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         std::vector<TError> alerts;
         for (auto alertType : TEnumTraits<ESchedulerAlertType>::GetDomainValues()) {
@@ -2054,14 +2154,14 @@ private:
 
     void OnClusterDirectorySynchronized(const TError& error)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         SetSchedulerAlert(ESchedulerAlertType::SyncClusterDirectory, error);
     }
 
     void UpdateLockTransactionTimeout(TDuration timeout)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(LockTransaction_);
         auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
@@ -2135,6 +2235,11 @@ void TMasterConnector::RegisterOperation(const TOperationPtr& operation)
 void TMasterConnector::UnregisterOperation(const TOperationPtr& operation)
 {
     Impl_->UnregisterOperation(operation);
+}
+
+TFuture<TIssueTokenResult> TMasterConnector::IssueTemporaryOperationToken(const TOperationPtr& operation)
+{
+    return Impl_->IssueTemporaryOperationToken(operation);
 }
 
 TFuture<void> TMasterConnector::CreateOperationNode(const TOperationPtr& operation)

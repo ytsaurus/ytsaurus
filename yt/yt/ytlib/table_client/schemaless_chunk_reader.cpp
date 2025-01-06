@@ -428,7 +428,7 @@ protected:
                 ToProto(chunkLowerLimit->mutable_key_bound_prefix(), firstUnreadKey.AsOwningRow());
                 chunkLowerLimit->set_key_bound_is_inclusive(true);
             }
-            i64 rowCount = std::max(1l, chunk.row_count_override() - RowCount_ + static_cast<i64>(unreadRows.Size()));
+            i64 rowCount = std::max(1l, chunk.row_count_override() - RowCount_ + std::ssize(unreadRows));
             rowCount = std::min(rowCount, upperRowIndex - rowIndex);
             chunk.set_row_count_override(rowCount);
             i64 chunkDataWeight = misc.has_data_weight() ? misc.data_weight() : misc.uncompressed_data_size();
@@ -851,7 +851,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
         }
 
         if (SampleRow(GetTableRowIndex())) {
-            auto row = BlockReader_->GetRow(&MemoryPool_, /*remap*/ false);
+            auto row = BlockReader_->GetRow(&MemoryPool_, /*remapIds*/ false);
             auto prefixToRemapSize = row.GetCount();
             AddExtraValues(row, GetTableRowIndex());
             FinalizeRow(row, prefixToRemapSize);
@@ -1358,7 +1358,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
             }
 
             if (key == BlockReader_->GetLegacyKey()) {
-                auto row = BlockReader_->GetRow(&MemoryPool_, /*remap*/ false);
+                auto row = BlockReader_->GetRow(&MemoryPool_, /*remapIds*/ false);
                 FinalizeRow(row, row.GetCount());
                 rows.push_back(row);
                 dataWeight += GetDataWeight(row);
@@ -1461,7 +1461,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessKeyRangesChunkReader::Read(const TR
             }
 
             if (!skipRow) {
-                auto row = BlockReader_->GetRow(&MemoryPool_, /*remap*/ false);
+                auto row = BlockReader_->GetRow(&MemoryPool_, /*remapIds*/ false);
                 auto prefixToRemapSize = row.GetCount();
                 AddExtraValues(row, GetTableRowIndex());
                 FinalizeRow(row, prefixToRemapSize);
