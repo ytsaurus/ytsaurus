@@ -313,5 +313,5 @@ jobs:
           else
             SCRIPT_FLAGS="${SCRIPT_FLAGS} --build-python-udfs no"
           fi
-          INSIDE_WORKFLOW='true'
+          export INSIDE_WORKFLOW="true"
           ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
