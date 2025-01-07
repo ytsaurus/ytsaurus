@@ -160,6 +160,12 @@ public:
         const TOperationId& operationId,
         const TResumeOperationOptions& options = {}) override;
 
+    TListOperationsResult ListOperations(const TListOperationsOptions& options = {}) override;
+
+    void UpdateOperationParameters(
+        const TOperationId& operationId,
+        const TUpdateOperationParametersOptions& options = {}) override;
+
     // File cache
 
     TMaybe<TYPath> GetFileFromCache(

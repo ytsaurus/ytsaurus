@@ -419,6 +419,51 @@ void TRpcRawClient::ResumeOperation(
     WaitFor(future).ThrowOnError();
 }
 
+TListOperationsResult TRpcRawClient::ListOperations(const TListOperationsOptions& options)
+{
+    auto future = Client_->ListOperations(SerializeOptionsForListOperations(options));
+    auto listOperationsResult = WaitFor(future).ValueOrThrow();
+
+    TListOperationsResult result;
+    result.Operations.reserve(listOperationsResult.Operations.size());
+    for (const auto& operation : listOperationsResult.Operations) {
+        result.Operations.push_back(ParseOperationAttributes(operation));
+    }
+    if (listOperationsResult.PoolCounts) {
+        result.PoolCounts = *listOperationsResult.PoolCounts;
+    }
+    if (listOperationsResult.UserCounts) {
+        result.UserCounts = *listOperationsResult.UserCounts;
+    }
+    if (listOperationsResult.StateCounts) {
+        result.StateCounts.ConstructInPlace();
+        for (const auto& key : TEnumTraits<NScheduler::EOperationState>::GetDomainValues()) {
+            (*result.StateCounts)[ToString(key)] = (*listOperationsResult.StateCounts)[key];
+        }
+    }
+    if (listOperationsResult.TypeCounts) {
+        result.TypeCounts.ConstructInPlace();
+        for (const auto& key : TEnumTraits<NScheduler::EOperationType>::GetDomainValues()) {
+            (*result.TypeCounts)[EOperationType(key)] = (*listOperationsResult.TypeCounts)[key];
+        }
+    }
+    if (listOperationsResult.FailedJobsCount) {
+        result.WithFailedJobsCount = *listOperationsResult.FailedJobsCount;
+    }
+    result.Incomplete = listOperationsResult.Incomplete;
+    return result;
+}
+
+void TRpcRawClient::UpdateOperationParameters(
+    const TOperationId& operationId,
+    const TUpdateOperationParametersOptions& options)
+{
+    auto future = Client_->UpdateOperationParameters(
+        NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
+        SerializeParametersForUpdateOperationParameters(options));
+    WaitFor(future).ThrowOnError();
+}
+
 TMaybe<TYPath> TRpcRawClient::GetFileFromCache(
     const TTransactionId& transactionId,
     const TString& md5Signature,
