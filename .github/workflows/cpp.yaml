@@ -109,7 +109,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
       build-ytsaurus: true
-      build-chyt: ${{ github.ref_name == 'members/ilyaibraev/switch-to-bazel-1' }}
+      build-chyt: ${{ github.ref_name == 'members/ilyaibraev/switch-to-bazel-3' }}
       build-python: true
       update-remote-cache: true
     secrets:
@@ -128,8 +128,8 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
       publish-ytsaurus: true
-      publish-chyt: ${{ github.ref_name == 'members/ilyaibraev/switch-to-bazel-1' }}
-      publish-strawberry: ${{ github.ref_name == 'members/ilyaibraev/switch-to-bazel-1' }}
+      publish-chyt: ${{ github.ref_name == 'members/ilyaibraev/switch-to-bazel-3' }}
+      publish-strawberry: ${{ github.ref_name == 'members/ilyaibraev/switch-to-bazel-3' }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
     secrets:
@@ -147,7 +147,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
-      build-query-tracker: ${{ github.ref_name == 'members/ilyaibraev/switch-to-bazel-1' }}
+      build-query-tracker: ${{ github.ref_name == 'members/ilyaibraev/switch-to-bazel-3' }}
       build-python: true
       update-remote-cache: true
     secrets:
@@ -164,7 +164,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'members/ilyaibraev/switch-to-bazel-1' }}
+      publish-query-tracker: ${{ github.ref_name == 'members/ilyaibraev/switch-to-bazel-3' }}
       publish-local: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
@@ -184,7 +184,7 @@ jobs:
 
   systest:
     name: systest
-    if: github.ref_name == 'members/ilyaibraev/switch-to-bazel-1'
+    if: github.ref_name == 'members/ilyaibraev/switch-to-bazel-3'
     needs:
       - start-vm
       - tag
