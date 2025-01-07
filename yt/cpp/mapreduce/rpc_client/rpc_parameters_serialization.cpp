@@ -77,6 +77,16 @@ NCypressClient::ELockMode ToApiLockMode(ELockMode mode)
     YT_ABORT();
 }
 
+NApi::EOperationSortDirection ToApiOperationSortDirection(ECursorDirection direction) {
+    switch (direction) {
+        case ECursorDirection::Past:
+            return NApi::EOperationSortDirection::Past;
+        case NYT::ECursorDirection::Future:
+            return NApi::EOperationSortDirection::Future;
+    }
+    YT_ABORT();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Generates a new mutation ID based on the given conditions.
@@ -370,6 +380,93 @@ NApi::TSuspendOperationOptions SerializeOptionsForSuspendOperation(const TSuspen
         result.AbortRunningJobs = *options.AbortRunningJobs_;
     }
     return result;
+}
+
+NApi::TListOperationsOptions SerializeOptionsForListOperations(const TListOperationsOptions& options)
+{
+    NApi::TListOperationsOptions result;
+    if (options.FromTime_) {
+        result.FromTime = *options.FromTime_;
+    }
+    if (options.ToTime_) {
+        result.ToTime = *options.ToTime_;
+    }
+    if (options.CursorTime_) {
+        result.CursorTime = *options.CursorTime_;
+    }
+    if (options.CursorDirection_) {
+        result.CursorDirection = ToApiOperationSortDirection(*options.CursorDirection_);
+    }
+    if (options.Pool_) {
+        result.Pool = *options.Pool_;
+    }
+    if (options.Filter_) {
+        result.SubstrFilter = *options.Filter_;
+    }
+    if (options.User_) {
+        result.UserFilter = *options.User_;
+    }
+    if (options.State_) {
+        result.StateFilter = FromString<NScheduler::EOperationState>(*options.State_);
+    }
+    if (options.Type_) {
+        result.TypeFilter = NScheduler::EOperationType(*options.Type_);
+    }
+    if (options.WithFailedJobs_) {
+        result.WithFailedJobs = *options.WithFailedJobs_;
+    }
+    if (options.IncludeArchive_) {
+        result.IncludeArchive = *options.IncludeArchive_;
+    }
+    if (options.IncludeCounters_) {
+        result.IncludeCounters = *options.IncludeCounters_;
+    }
+    if (options.Limit_) {
+        result.Limit = *options.Limit_;
+    }
+    return result;
+}
+
+NYson::TYsonString SerializeParametersForUpdateOperationParameters(const TUpdateOperationParametersOptions& options)
+{
+    TNode result;
+    if (options.Pool_) {
+        result["pool"] = *options.Pool_;
+    }
+    if (options.Weight_) {
+        result["weight"] = *options.Weight_;
+    }
+    if (options.SchedulingOptionsPerPoolTree_) {
+        result["scheduling_options_per_pool_tree"] = TNode::CreateMap();
+        for (const auto& [poolTree, schedulingOptions] : options.SchedulingOptionsPerPoolTree_->Options_) {
+            auto schedulingOptionsNode = TNode::CreateMap();
+            if (schedulingOptions.Pool_) {
+                schedulingOptionsNode["pool"] = *schedulingOptions.Pool_;
+            }
+            if (schedulingOptions.Weight_) {
+                schedulingOptionsNode["weight"] = *schedulingOptions.Weight_;
+            }
+            if (schedulingOptions.ResourceLimits_) {
+                auto resourceLimitsNode = TNode::CreateMap();
+                const auto& resourceLimits = *schedulingOptions.ResourceLimits_;
+                if (resourceLimits.UserSlots_) {
+                    resourceLimitsNode["user_slots"] = *resourceLimits.UserSlots_;
+                }
+                if (resourceLimits.Memory_) {
+                    resourceLimitsNode["memory"] = *resourceLimits.Memory_;
+                }
+                if (resourceLimits.Cpu_) {
+                    resourceLimitsNode["cpu"] = *resourceLimits.Cpu_;
+                }
+                if (resourceLimits.Network_) {
+                    resourceLimitsNode["network"] = *resourceLimits.Network_;
+                }
+                schedulingOptionsNode["resource_limits"] = std::move(resourceLimitsNode);
+            }
+            result["scheduling_options_per_pool_tree"][poolTree] = std::move(schedulingOptionsNode);
+        }
+    }
+    return NYson::TYsonString(NodeToYsonString(result, NYson::EYsonFormat::Binary));
 }
 
 NApi::TGetFileFromCacheOptions SerializeOptionsForGetFileFromCache(

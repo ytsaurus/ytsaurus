@@ -94,6 +94,10 @@ NApi::TGetOperationOptions SerializeOptionsForGetOperation(const TGetOperationOp
 
 NApi::TSuspendOperationOptions SerializeOptionsForSuspendOperation(const TSuspendOperationOptions& options);
 
+NApi::TListOperationsOptions SerializeOptionsForListOperations(const TListOperationsOptions& options);
+
+NYson::TYsonString SerializeParametersForUpdateOperationParameters(const TUpdateOperationParametersOptions& options);
+
 NApi::TGetFileFromCacheOptions SerializeOptionsForGetFileFromCache(
     const TTransactionId& transactionId,
     const TYPath& cachePath,
