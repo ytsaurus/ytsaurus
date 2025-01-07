@@ -37,7 +37,6 @@ void TRpcRawClient::Set(
     const TNode& value,
     const TSetOptions& options)
 {
-    auto newOptions = SerializeOptionsForSet(mutationId, transactionId, options);
     auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
     auto ysonValue = NYson::TYsonString(NodeToYsonString(value, NYson::EYsonFormat::Binary));
     auto future = Client_->SetNode(newPath, ysonValue, SerializeOptionsForSet(mutationId, transactionId, options));
