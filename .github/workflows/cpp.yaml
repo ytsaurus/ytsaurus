@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - members/ilyaibraev/switch-to-bazel-1
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -94,7 +95,8 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-strawberry: true
     secrets:
-      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
   build-cmake:
@@ -107,10 +109,12 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
       build-ytsaurus: true
-      build-chyt: ${{ github.ref_name == 'main' }}
+      build-chyt: ${{ github.ref_name == 'members/ilyaibraev/switch-to-bazel-1' }}
       build-python: true
+      update-remote-cache: true
     secrets:
-      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
   docker-cmake:
@@ -124,8 +128,8 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
       publish-ytsaurus: true
-      publish-chyt: ${{ github.ref_name == 'main' }}
-      publish-strawberry: ${{ github.ref_name == 'main' }}
+      publish-chyt: ${{ github.ref_name == 'members/ilyaibraev/switch-to-bazel-1' }}
+      publish-strawberry: ${{ github.ref_name == 'members/ilyaibraev/switch-to-bazel-1' }}
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
     secrets:
@@ -143,10 +147,12 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
-      build-query-tracker: ${{ github.ref_name == 'main' }}
+      build-query-tracker: ${{ github.ref_name == 'members/ilyaibraev/switch-to-bazel-1' }}
       build-python: true
+      update-remote-cache: true
     secrets:
-      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
   docker-ya-make:
@@ -158,7 +164,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'main' }}
+      publish-query-tracker: ${{ github.ref_name == 'members/ilyaibraev/switch-to-bazel-1' }}
       publish-local: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
@@ -178,7 +184,7 @@ jobs:
 
   systest:
     name: systest
-    if: github.ref_name == 'main'
+    if: github.ref_name == 'members/ilyaibraev/switch-to-bazel-1'
     needs:
       - start-vm
       - tag
@@ -225,24 +231,24 @@ jobs:
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
 
-  send-notifications:
-    name: Send notifications
-    needs:
-      - stop-vm
-    runs-on: ubuntu-latest
-    if: ${{ failure() }}
-    steps:
-      - name: Send telegram message
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          disable_web_page_preview: true
-          format: markdown
-          message: |
-            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
-            Git ${{github.ref_type}}: *${{github.ref_name}}*.
-            Commit:
-            ```
-            ${{github.event.head_commit.message}}
-            ```
+  # send-notifications:
+  #   name: Send notifications
+  #   needs:
+  #     - stop-vm
+  #   runs-on: ubuntu-latest
+  #   if: ${{ failure() }}
+  #   steps:
+  #     - name: Send telegram message
+  #       uses: appleboy/telegram-action@master
+  #       with:
+  #         to: ${{ secrets.TELEGRAM_CHAT_ID }}
+  #         token: ${{ secrets.TELEGRAM_TOKEN }}
+  #         disable_web_page_preview: true
+  #         format: markdown
+  #         message: |
+  #           Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
+  #           Git ${{github.ref_type}}: *${{github.ref_name}}*.
+  #           Commit:
+  #           ```
+  #           ${{github.event.head_commit.message}}
+  #           ```

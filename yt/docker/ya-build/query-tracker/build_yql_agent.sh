@@ -6,7 +6,11 @@
 # YTSAURUS_SOURCE_PATH - path to the ytsaurus source root. Needed to build yql agent.
 # YDB_SOURCE_PATH - path to the ydb source root. Needed to build everything else.
 # YQL_BUILD_PATH - path to the build directory. All artifacts will be placed here.
+# INSIDE_WORKFLOW - if `true`, then `ya make` will also be launched without `--bazel-remote-put`.
 # BUILD_FLAGS - flags to pass to ya make when building.
+
+# Due to --bazel-remote-put disables build dump, we need to run ya make without --bazel-remote-put also.
+BUILD_FLAGS_WITHOUT_PUT="${BUILD_FLAGS// --bazel-remote-put/}"
 
 set -eux
 shopt -s expand_aliases
@@ -48,9 +52,15 @@ mkdir -p $YQL_BUILD_PATH
 
 # Build yql agent binary.
 ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/agent/bin
+if [ "$INSIDE_WORKFLOW" == "true" ]; then
+    ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS_WITHOUT_PUT} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/agent/bin
+fi
 
 # Build mrjob binary.
 ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/tools/mrjob
+if [ "$INSIDE_WORKFLOW" == "true" ]; then
+    ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS_WITHOUT_PUT} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/tools/mrjob
+fi
 
 # Build required binaries and libraries.
 for path in "ydb/library/yql/yt/dynamic" \
@@ -59,6 +69,9 @@ for path in "ydb/library/yql/yt/dynamic" \
             "yql/essentials/udfs/logs/dsv"
 do
     ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/$path
+    if [ "$INSIDE_WORKFLOW" == "true" ]; then
+        ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS_WITHOUT_PUT} --ignore-recurses --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/$path
+    fi
 done
 
 # Build common yql udfs.
@@ -87,7 +100,10 @@ for udf_name in compress_base \
                 yson2
 do
     ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses -DSTRIP=yes --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}
-    strip --remove-section=.gnu_debuglink ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}/*.so
+    if [ "$INSIDE_WORKFLOW" == "true" ]; then
+        ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS_WITHOUT_PUT} --ignore-recurses -DSTRIP=yes --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}
+    fi
+    strip --remove-section=.gnu_debuglink ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}/*.so | true
 done
 
 if [ "$build_python_udfs" == "yes" ]; then
@@ -99,6 +115,7 @@ if [ "$build_python_udfs" == "yes" ]; then
     --env YDB_SOURCE_PATH=/ydb \
     --env YQL_BUILD_PATH=/yql_build \
     --env "BUILD_FLAGS=$BUILD_FLAGS" \
+    --env "INSIDE_WORKFLOW=$INSIDE_WORKFLOW" \
     mirror.gcr.io/ubuntu:focal \
     /bin/bash -c \
     "apt update && \

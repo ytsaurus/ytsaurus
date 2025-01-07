@@ -44,7 +44,9 @@ on:
         type: boolean
 
     secrets:
-      YA_YT_TOKEN:
+      BUILD_CACHE_BAZEL_USERNAME:
+        required: true
+      BUILD_CACHE_BAZEL_PASSWORD:
         required: true
 
 jobs:
@@ -108,7 +110,11 @@ jobs:
 
           ccache --set-config base_dir="$(realpath ..)"
           ccache --set-config remote_only=true
-          ccache --set-config remote_storage="${{ vars.CCACHE_REMOTE_STORAGE }}"
+          ccache --set-config remote_storage="http://${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}:${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}@${{ vars.BUILD_CACHE_BAZEL_HOST }}|layout=bazel"
+
+          if [ "${{ inputs.update-remote-cache }}" == "false" ]; then
+            ccache --set-config read_only=true
+          fi
 
       - name: Configure YQL agent (${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
@@ -140,7 +146,11 @@ jobs:
 
           ccache --set-config base_dir="$(realpath ..)"
           ccache --set-config remote_only=true
-          ccache --set-config remote_storage="${{ vars.CCACHE_REMOTE_STORAGE }}"
+          ccache --set-config remote_storage="http://${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}:${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}@${{ vars.BUILD_CACHE_BAZEL_HOST }}|layout=bazel"
+
+          if [ "${{ inputs.update-remote-cache }}" == "false" ]; then
+            ccache --set-config read_only=true
+          fi
 
       - name: Build Python packages (cmake, ${{ matrix.build-type }})
         if: ${{ inputs.build-python }}
@@ -207,8 +217,6 @@ jobs:
     needs: venv
     runs-on: ${{ inputs.runs-on-value }}
     timeout-minutes: 480
-    env:
-      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
     if: ${{ inputs.cpp-build-system == 'ya-make' }}
     strategy:
       matrix:
@@ -217,10 +225,10 @@ jobs:
       - name: Calculate variables
         id: vars
         run: |
-          BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --yt-dir=//home/devtools/cache --yt-proxy=${{ vars.CI_YT_PROXY }} --yt-store --yt-store-threads 8"
+          BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --bazel-remote-store --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }}"
 
           if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-            BUILD_FLAGS="${BUILD_FLAGS} --yt-put --yt-max-store-size=2500000000000 --yt-store-refresh-on-read"
+            BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-put --bazel-remote-username=${{ secrets.BUILD_CACHE_BAZEL_USERNAME }} --bazel-remote-password=${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}"
           fi
 
           STRIP_VALUE=no
@@ -254,9 +262,15 @@ jobs:
           cd ${build_dir}
 
           BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=yes -DUSE_ARCADIA_PYTHON=no -DUSE_LOCAL_PYTHON -DPYTHON_CONFIG=python3.11-config -DPYTHON_BIN=python3.11"
+          BUILD_FLAGS_WITHOUT_PUT="${BUILD_FLAGS// --bazel-remote-put/}"
+
           ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
           ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
           ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
+
+          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS_WITHOUT_PUT} ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
+          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS_WITHOUT_PUT} ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
+          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS_WITHOUT_PUT} ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
 
           if [ "${{ inputs.skip-python-packages }}" == "false" ]; then
             cd ../ytsaurus
@@ -271,9 +285,13 @@ jobs:
           cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 
           BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
+          BUILD_FLAGS_WITHOUT_PUT="${BUILD_FLAGS// --bazel-remote-put/}"
 
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
+
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS_WITHOUT_PUT} --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS_WITHOUT_PUT} --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
 
       - name: Build YQL agent (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
@@ -287,7 +305,7 @@ jobs:
           export YTSAURUS_SOURCE_PATH="$(realpath $(pwd)/../ytsaurus/ytsaurus)"
           export YDB_SOURCE_PATH="$(realpath $(pwd)/../ytsaurus/ydb)"
           export YQL_BUILD_PATH="."
-          export BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }} --no-bazel-remote-store"
+          export BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
 
           SCRIPT_FLAGS=""
           if [ "${{ inputs.build-yql-python-udfs }}" == "true" ]; then
@@ -295,10 +313,5 @@ jobs:
           else
             SCRIPT_FLAGS="${SCRIPT_FLAGS} --build-python-udfs no"
           fi
-
+          export INSIDE_WORKFLOW="true"
           ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
-
-      - name: Clear cache extra space (ya-make, ${{ matrix.build-type }})
-        if: ${{ inputs.update-remote-cache }}
-        run: |
-          ../ytsaurus/ytsaurus/ya gc dist_cache --yt-proxy=${{ vars.CI_YT_PROXY }} --yt-dir=//home/devtools/cache --yt-max-store-size=1500000000000 --yt-put >> $GITHUB_OUTPUT
