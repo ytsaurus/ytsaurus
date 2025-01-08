@@ -4,6 +4,8 @@
 
 #include <yt/cpp/mapreduce/common/helpers.h>
 
+#include <yt/yt/client/api/file_reader.h>
+
 #include <library/cpp/yson/node/node_io.h>
 
 namespace NYT::NDetail {
@@ -461,6 +463,16 @@ void TRpcRawClient::UpdateOperationParameters(
         NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
         SerializeParametersForUpdateOperationParameters(options));
     WaitFor(future).ThrowOnError();
+}
+
+std::unique_ptr<IInputStream> TRpcRawClient::ReadFile(
+    const TTransactionId& transactionId,
+    const TRichYPath& path,
+    const TFileReaderOptions& options)
+{
+    auto future = Client_->CreateFileReader(path.Path_, SerializeOptionsForReadFile(transactionId, options));
+    auto reader = WaitFor(future).ValueOrThrow();
+    return CreateSyncAdapter(CreateCopyingAdapter(reader));
 }
 
 TMaybe<TYPath> TRpcRawClient::GetFileFromCache(
