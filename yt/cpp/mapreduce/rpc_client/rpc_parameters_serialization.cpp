@@ -5,6 +5,8 @@
 #include <yt/cpp/mapreduce/interface/errors.h>
 #include <yt/cpp/mapreduce/interface/operation.h>
 
+#include <yt/yt/client/api/config.h>
+
 #include <library/cpp/yson/node/node_io.h>
 
 namespace NYT::NDetail {
@@ -467,6 +469,23 @@ NYson::TYsonString SerializeParametersForUpdateOperationParameters(const TUpdate
         }
     }
     return NYson::TYsonString(NodeToYsonString(result, NYson::EYsonFormat::Binary));
+}
+
+NApi::TFileReaderOptions SerializeOptionsForReadFile(
+    const TTransactionId& transactionId,
+    const TFileReaderOptions& options)
+{
+    NApi::TFileReaderOptions result;
+    SetTransactionId(&result, transactionId);
+    result.Offset = options.Offset_;
+    if (options.Length_) {
+        result.Length = *options.Length_;
+    }
+    if (options.Config_) {
+        result.Config = ConvertTo<NApi::TFileReaderConfigPtr>(
+            NYson::TYsonString(NodeToYsonString(*options.Config_, NYson::EYsonFormat::Binary)));
+    }
+    return result;
 }
 
 NApi::TGetFileFromCacheOptions SerializeOptionsForGetFileFromCache(

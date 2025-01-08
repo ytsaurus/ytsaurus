@@ -98,6 +98,10 @@ NApi::TListOperationsOptions SerializeOptionsForListOperations(const TListOperat
 
 NYson::TYsonString SerializeParametersForUpdateOperationParameters(const TUpdateOperationParametersOptions& options);
 
+NApi::TFileReaderOptions SerializeOptionsForReadFile(
+    const TTransactionId& transactionId,
+    const TFileReaderOptions& options);
+
 NApi::TGetFileFromCacheOptions SerializeOptionsForGetFileFromCache(
     const TTransactionId& transactionId,
     const TYPath& cachePath,

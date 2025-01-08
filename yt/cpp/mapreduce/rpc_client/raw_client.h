@@ -166,6 +166,13 @@ public:
         const TOperationId& operationId,
         const TUpdateOperationParametersOptions& options = {}) override;
 
+    // Files
+
+    std::unique_ptr<IInputStream> ReadFile(
+        const TTransactionId& transactionId,
+        const TRichYPath& path,
+        const TFileReaderOptions& options = {}) override;
+
     // File cache
 
     TMaybe<TYPath> GetFileFromCache(
