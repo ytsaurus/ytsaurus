@@ -220,6 +220,17 @@ public:
         const TYPath& path,
         const TRemountTableOptions& options = {}) override;
 
+    void ReshardTableByTabletCount(
+        TMutationId& mutationId,
+        const TYPath& path,
+        i64 tabletCount,
+        const TReshardTableOptions& options = {}) override;
+
+    void AlterTableReplica(
+        TMutationId& mutationId,
+        const TReplicaId& replicaId,
+        const TAlterTableReplicaOptions& options = {}) override;
+
     void FreezeTable(
         const TYPath& path,
         const TFreezeTableOptions& options = {}) override;

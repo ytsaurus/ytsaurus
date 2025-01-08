@@ -664,6 +664,28 @@ void TRpcRawClient::RemountTable(
     WaitFor(future).ThrowOnError();
 }
 
+void TRpcRawClient::ReshardTableByTabletCount(
+    TMutationId& mutationId,
+    const TYPath& path,
+    i64 tabletCount,
+    const TReshardTableOptions& options)
+{
+    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto future = Client_->ReshardTable(newPath, tabletCount, SerializeOptionsForReshardTable(mutationId, options));
+    WaitFor(future).ThrowOnError();
+}
+
+void TRpcRawClient::AlterTableReplica(
+    TMutationId& mutationId,
+    const TReplicaId& replicaId,
+    const TAlterTableReplicaOptions& options)
+{
+    auto future = Client_->AlterTableReplica(
+        YtGuidFromUtilGuid(replicaId),
+        SerializeOptionsForAlterTableReplica(mutationId, options));
+    WaitFor(future).ThrowOnError();
+}
+
 void TRpcRawClient::FreezeTable(
     const TYPath& path,
     const TFreezeTableOptions& options)
