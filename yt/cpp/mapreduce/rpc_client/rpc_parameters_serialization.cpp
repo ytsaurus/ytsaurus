@@ -113,6 +113,46 @@ NYTree::EPermission ToApiPermission(EPermission permission)
     YT_ABORT();
 }
 
+NApi::EJobSortField ToApiJobSortField(EJobSortField field)
+{
+    switch (field) {
+        case EJobSortField::Type:
+            return NApi::EJobSortField::Type;
+        case EJobSortField::State:
+            return NApi::EJobSortField::State;
+        case EJobSortField::StartTime:
+            return NApi::EJobSortField::StartTime;
+        case EJobSortField::FinishTime:
+            return NApi::EJobSortField::FinishTime;
+        case EJobSortField::Address:
+            return NApi::EJobSortField::Address;
+        case EJobSortField::Duration:
+            return NApi::EJobSortField::Duration;
+        case EJobSortField::Progress:
+            return NApi::EJobSortField::Progress;
+        case EJobSortField::Id:
+            return NApi::EJobSortField::Id;
+        case EJobSortField::TaskName:
+            return NApi::EJobSortField::TaskName;
+    }
+    YT_ABORT();
+}
+
+NApi::EDataSource ToApiDataSource(EListJobsDataSource source)
+{
+    switch (source) {
+        case EListJobsDataSource::Runtime:
+            return NApi::EDataSource::Runtime;
+        case EListJobsDataSource::Archive:
+            return NApi::EDataSource::Archive;
+        case EListJobsDataSource::Auto:
+            return NApi::EDataSource::Auto;
+        case EListJobsDataSource::Manual:
+            return NApi::EDataSource::Manual;
+    }
+    YT_ABORT();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Generates a new mutation ID based on the given conditions.
@@ -493,6 +533,66 @@ NYson::TYsonString SerializeParametersForUpdateOperationParameters(const TUpdate
         }
     }
     return NYson::TYsonString(NodeToYsonString(result, NYson::EYsonFormat::Binary));
+}
+
+NApi::TListJobsOptions SerializeOptionsForListJobs(const TListJobsOptions& options)
+{
+    NApi::TListJobsOptions result;
+    if (options.Type_) {
+        result.Type = FromString<NJobTrackerClient::EJobType>(ToString(*options.Type_));
+    }
+    if (options.State_) {
+        result.State = FromString<NJobTrackerClient::EJobState>(ToString(*options.State_));
+    }
+    if (options.Address_) {
+        result.Address = *options.Address_;
+    }
+    if (options.WithStderr_) {
+        result.WithStderr = *options.WithStderr_;
+    }
+    if (options.WithSpec_) {
+        result.WithSpec = *options.WithSpec_;
+    }
+    if (options.WithFailContext_) {
+        result.WithFailContext = *options.WithFailContext_;
+    }
+    if (options.WithMonitoringDescriptor_) {
+        result.WithMonitoringDescriptor = *options.WithMonitoringDescriptor_;
+    }
+    if (options.FromTime_) {
+        result.FromTime = *options.FromTime_;
+    }
+    if (options.ToTime_) {
+        result.ToTime = *options.ToTime_;
+    }
+    if (options.ContinuationToken_) {
+        result.ContinuationToken = *options.ContinuationToken_;
+    }
+    if (options.SortField_) {
+        result.SortField = ToApiJobSortField(*options.SortField_);
+    }
+    if (options.SortOrder_) {
+        result.SortOrder = NApi::EJobSortDirection(*options.SortOrder_);
+    }
+    if (options.DataSource_) {
+        result.DataSource = ToApiDataSource(*options.DataSource_);
+    }
+    if (options.IncludeCypress_) {
+        result.IncludeCypress = *options.IncludeCypress_;
+    }
+    if (options.IncludeControllerAgent_) {
+        result.IncludeControllerAgent = *options.IncludeControllerAgent_;
+    }
+    if (options.IncludeArchive_) {
+        result.IncludeArchive = *options.IncludeArchive_;
+    }
+    if (options.Limit_) {
+        result.Limit = *options.Limit_;
+    }
+    if (options.Offset_) {
+        result.Offset = *options.Offset_;
+    }
+    return result;
 }
 
 NApi::TGetJobTraceOptions SerializeOptionsForGetJobTrace(const TGetJobTraceOptions& options)
