@@ -32,19 +32,18 @@ def run_check(yt_client, logger, options, states):
 
         if not op_resp.is_ok():
             error = yt.YtResponseError(op_resp.get_error())
-            if not error.is_resolve_error():
-                raise error
-            else:
-                logger.warning("Got error resolving %s: %s", operation, error)
+            if error.is_resolve_error():
+                logger.warning("Error resolving path for operation (operation_id: %s, error: %s)", operation, error)
                 continue
+            else:
+                raise error
 
-        assert op_resp.is_ok()
         result = op_resp.get_result()
         try:
             events = result["events"]
             last_successful_snapshot_time = result["progress"]["last_successful_snapshot_time"]
-        except KeyError as e:
-            logger.warning("Failed to get operation info for %s: %s", operation, e)
+        except KeyError as err:
+            logger.warning("Error getting operation info (operation_id: %s, error: %s)", operation, err)
             continue
 
         last_successful_snapshot_time = date_string_to_datetime(last_successful_snapshot_time)
@@ -67,7 +66,6 @@ def run_check(yt_client, logger, options, states):
 
     logger.info("Number of long running operations without built snapshots: %d", len(operations_without_snapshots))
     if operations_without_snapshots:
-        print(operations_without_snapshots)
         for operation, last_successful_snapshot_time in operations_without_snapshots[:10]:
             dt = last_successful_snapshot_time.strftime(YT_DATETIME_FORMAT_STRING)
             logger.info("  Operation %s had its last snapshot built at %s", operation, dt)
