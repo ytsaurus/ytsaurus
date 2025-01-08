@@ -15,6 +15,7 @@ env:
 jobs:
   start-vm:
     name: Start VM
+    if: github.repository == 'ytsaurus/ytsaurus'
     runs-on: trampoline
     outputs:
       label: ${{ steps.start-yc-runner.outputs.label }}
@@ -95,7 +96,7 @@ jobs:
       - start-vm
       - build
     runs-on: trampoline
-    if: ${{ always() }}
+    if: ${{ always() && github.repository == 'ytsaurus/ytsaurus' }}
     steps:
       - name: Stop YC runner
         uses: yc-actions/yc-github-runner@v1
@@ -111,7 +112,7 @@ jobs:
     needs:
       - stop-vm
     runs-on: ubuntu-latest
-    if: ${{ failure() }}
+    if: ${{ failure() && github.repository == 'ytsaurus/ytsaurus' }}
     steps:
       - name: Send telegram message
         uses: appleboy/telegram-action@master

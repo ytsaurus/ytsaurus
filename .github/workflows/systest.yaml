@@ -11,6 +11,7 @@ jobs:
   start-vm:
     name: Start VM
     runs-on: trampoline
+    if: github.repository == 'ytsaurus/ytsaurus'
     outputs:
       label: ${{ steps.start-yc-runner.outputs.label }}
       instance-id: ${{ steps.start-yc-runner.outputs.instance-id }}
@@ -91,7 +92,7 @@ jobs:
       - check
       - shutdown-cluster
     runs-on: trampoline
-    if: ${{ always() }}
+    if: ${{ always() && github.repository == 'ytsaurus/ytsaurus' }}
     steps:
       - name: Stop YC runner
         uses: yc-actions/yc-github-runner@v1
