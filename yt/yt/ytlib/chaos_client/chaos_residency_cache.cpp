@@ -291,26 +291,55 @@ public:
                 ObjectId_);
         }
 
-        const auto& cellDirectory = connection->GetCellDirectory();
-        auto channel = WaitForFast(EnsureChaosCellChannel(connection, CellTag_))
-            .ValueOrThrow();
-        if (channel) {
-            auto proxy = TChaosNodeServiceProxy(channel);
-            auto req = proxy.FindReplicationCard();
-            ToProto(req->mutable_replication_card_id(), ObjectId_);
+        auto channelFuture = EnsureChaosCellChannel(connection, CellTag_);
+        auto checkLastSeenResidencyFuture = channelFuture.IsSet()
+            ? CheckLastSeenResidency(ObjectId_, CellTag_, std::move(channelFuture.GetUnique().ValueOrDefault(nullptr)))
+            : channelFuture.ApplyUnique(BIND(TGetSession::CheckLastSeenResidency, ObjectId_, CellTag_));
+        auto fullLookupFuture = checkLastSeenResidencyFuture.ApplyUnique(BIND(
+            [
+                this,
+                this_ = MakeStrong(this),
+                connection = std::move(connection)
+            ] (TErrorOr<TCellTag>&& sameResidency)
+            {
+                auto sameResidencyValue = sameResidency.ValueOrDefault(InvalidCellTag);
+                if (sameResidencyValue != InvalidCellTag) {
+                    return MakeFuture(sameResidencyValue);
+                }
 
-            auto rspOrError = WaitFor(req->Invoke());
-
-            if (rspOrError.IsOK()) {
-                return CellTag_;
+                return LookForCardOnAllChaosCells(connection->GetCellDirectory());
             }
-        }
+        ));
 
-        return WaitFor(LookForCardOnAllChaosCells(cellDirectory)).ValueOrThrow();
+        return WaitFor(fullLookupFuture).ValueOrThrow();
     }
 
 private:
     const TIntrusivePtr<TChaosResidencyMasterCache> Owner_;
+
+    static TFuture<TCellTag> CheckLastSeenResidency(
+        const TObjectId& objectId,
+        TCellTag cellTag,
+        IChannelPtr&& channel)
+    {
+        if (!channel) {
+            return MakeFuture(InvalidCellTag);
+        }
+
+        auto proxy = TChaosNodeServiceProxy(channel);
+        auto req = proxy.FindReplicationCard();
+        ToProto(req->mutable_replication_card_id(), objectId);
+
+        return req->Invoke()
+            .ApplyUnique(BIND(
+                [
+                    cellTag = cellTag
+                ] (TErrorOr<TChaosNodeServiceProxy::TRspFindReplicationCardPtr>&& rspOrError)
+                {
+                    return rspOrError.IsOK() ? cellTag : InvalidCellTag;
+                }
+            ));
+    }
 
     TFuture<TCellTag> LookForCardOnAllChaosCells(const NHiveClient::ICellDirectoryPtr& cellDirectory)
     {
