@@ -173,6 +173,10 @@ public:
         const TJobId& jobId,
         const TGetJobOptions& options = {}) override;
 
+    TListJobsResult ListJobs(
+        const TOperationId& operationId,
+        const TListJobsOptions& options = {}) override;
+
     std::vector<TJobTraceEvent> GetJobTrace(
         const TOperationId& operationId,
         const TGetJobTraceOptions& options = {}) override;

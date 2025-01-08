@@ -494,6 +494,92 @@ NYson::TYsonString TRpcRawClient::GetJob(
     return result;
 }
 
+TJobAttributes ParseJobAttributes(const NApi::TJob& job)
+{
+    TJobAttributes result;
+    result.Id = UtilGuidFromYtGuid(job.Id.Underlying());
+    result.Type = FromString<EJobType>(ToString(*job.Type));
+    result.State = FromString<EJobState>(ToString(*job.GetState()));
+    if (job.Address) {
+        result.Address = *job.Address;
+    }
+    if (job.TaskName) {
+        result.TaskName = *job.TaskName;
+    }
+    if (job.StartTime) {
+        result.StartTime = *job.StartTime;
+    }
+    if (job.FinishTime) {
+        result.FinishTime = *job.FinishTime;
+    }
+    if (job.Progress) {
+        result.Progress = *job.Progress;
+    }
+    if (job.StderrSize) {
+        result.StderrSize = *job.StderrSize;
+    }
+    if (job.Error) {
+        result.Error.ConstructInPlace(NodeFromYsonString(job.Error.AsStringBuf()));
+    }
+    if (job.BriefStatistics) {
+        result.BriefStatistics = NodeFromYsonString(job.BriefStatistics.AsStringBuf());
+    }
+    if (job.InputPaths) {
+        auto inputPathNodesList = NodeFromYsonString(job.InputPaths.AsStringBuf()).AsList();
+        result.InputPaths.ConstructInPlace();
+        result.InputPaths->reserve(inputPathNodesList.size());
+        for (const auto& inputPathNode : inputPathNodesList) {
+            TRichYPath path;
+            Deserialize(path, inputPathNode);
+            result.InputPaths->emplace_back(std::move(path));
+        }
+    }
+    if (job.CoreInfos) {
+        auto coreInfoNodesList = NodeFromYsonString(job.CoreInfos.AsStringBuf()).AsList();
+        result.CoreInfos.ConstructInPlace();
+        result.CoreInfos->reserve(coreInfoNodesList.size());
+        for (const auto& coreInfoNode : coreInfoNodesList) {
+            TCoreInfo coreInfo;
+            coreInfo.ProcessId = coreInfoNode["process_id"].AsInt64();
+            coreInfo.ExecutableName = coreInfoNode["executable_name"].AsString();
+            if (coreInfoNode.HasKey("size")) {
+                coreInfo.Size = coreInfoNode["size"].AsUint64();
+            }
+            if (coreInfoNode.HasKey("error")) {
+                coreInfo.Error.ConstructInPlace(coreInfoNode["error"]);
+            }
+            result.CoreInfos->emplace_back(std::move(coreInfo));
+        }
+    }
+    return result;
+}
+
+TListJobsResult TRpcRawClient::ListJobs(
+    const TOperationId& operationId,
+    const TListJobsOptions& options)
+{
+    auto future = Client_->ListJobs(
+        NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
+        SerializeOptionsForListJobs(options));
+    auto listJobsResult = WaitFor(future).ValueOrThrow();
+
+    TListJobsResult result;
+    result.Jobs.reserve(listJobsResult.Jobs.size());
+    for (const auto& job : listJobsResult.Jobs) {
+        result.Jobs.push_back(ParseJobAttributes(job));
+    }
+    if (listJobsResult.CypressJobCount) {
+        result.CypressJobCount = *listJobsResult.CypressJobCount;
+    }
+    if (listJobsResult.ControllerAgentJobCount) {
+        result.ControllerAgentJobCount = *listJobsResult.ControllerAgentJobCount;
+    }
+    if (listJobsResult.ArchiveJobCount) {
+        result.ArchiveJobCount = *listJobsResult.ArchiveJobCount;
+    }
+    return result;
+}
+
 std::vector<TJobTraceEvent> TRpcRawClient::GetJobTrace(
     const TOperationId& operationId,
     const TGetJobTraceOptions& options)
