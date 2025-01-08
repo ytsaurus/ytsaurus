@@ -465,6 +465,42 @@ void TRpcRawClient::UpdateOperationParameters(
     WaitFor(future).ThrowOnError();
 }
 
+NYson::TYsonString TRpcRawClient::GetJob(
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobOptions& /*options*/)
+{
+    auto future = Client_->GetJob(
+        NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
+        NJobTrackerClient::TJobId(YtGuidFromUtilGuid(jobId)));
+    auto result = WaitFor(future).ValueOrThrow();
+    return result;
+}
+
+std::vector<TJobTraceEvent> TRpcRawClient::GetJobTrace(
+    const TOperationId& operationId,
+    const TGetJobTraceOptions& options)
+{
+    auto future = Client_->GetJobTrace(
+        NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
+        SerializeOptionsForGetJobTrace(options));
+    auto jobTraceEvents = WaitFor(future).ValueOrThrow();
+
+    std::vector<TJobTraceEvent> result;
+    result.reserve(jobTraceEvents.size());
+    for (const auto& event : jobTraceEvents) {
+        result.push_back(TJobTraceEvent{
+            .OperationId = UtilGuidFromYtGuid(event.OperationId.Underlying()),
+            .JobId = UtilGuidFromYtGuid(event.JobId.Underlying()),
+            .TraceId = UtilGuidFromYtGuid(event.TraceId.Underlying()),
+            .EventIndex = event.EventIndex,
+            .Event = event.Event,
+            .EventTime = event.EventTime,
+        });
+    }
+    return result;
+}
+
 std::unique_ptr<IInputStream> TRpcRawClient::ReadFile(
     const TTransactionId& transactionId,
     const TRichYPath& path,

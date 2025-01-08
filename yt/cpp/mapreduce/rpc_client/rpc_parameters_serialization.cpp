@@ -79,11 +79,12 @@ NCypressClient::ELockMode ToApiLockMode(ELockMode mode)
     YT_ABORT();
 }
 
-NApi::EOperationSortDirection ToApiOperationSortDirection(ECursorDirection direction) {
+NApi::EOperationSortDirection ToApiOperationSortDirection(ECursorDirection direction)
+{
     switch (direction) {
         case ECursorDirection::Past:
             return NApi::EOperationSortDirection::Past;
-        case NYT::ECursorDirection::Future:
+        case ECursorDirection::Future:
             return NApi::EOperationSortDirection::Future;
     }
     YT_ABORT();
@@ -469,6 +470,30 @@ NYson::TYsonString SerializeParametersForUpdateOperationParameters(const TUpdate
         }
     }
     return NYson::TYsonString(NodeToYsonString(result, NYson::EYsonFormat::Binary));
+}
+
+NApi::TGetJobTraceOptions SerializeOptionsForGetJobTrace(const TGetJobTraceOptions& options)
+{
+    NApi::TGetJobTraceOptions result;
+    if (options.JobId_) {
+        result.JobId = NJobTrackerClient::TJobId(YtGuidFromUtilGuid(*options.JobId_));
+    }
+    if (options.TraceId_) {
+        result.TraceId = NScheduler::TJobTraceId(YtGuidFromUtilGuid(*options.TraceId_));
+    }
+    if (options.FromTime_) {
+        result.FromTime = *options.FromTime_;
+    }
+    if (options.ToTime_) {
+        result.ToTime = *options.ToTime_;
+    }
+    if (options.FromEventIndex_) {
+        result.FromEventIndex = *options.FromEventIndex_;
+    }
+    if (options.ToEventIndex_) {
+        result.ToEventIndex = *options.ToEventIndex_;
+    }
+    return result;
 }
 
 NApi::TFileReaderOptions SerializeOptionsForReadFile(

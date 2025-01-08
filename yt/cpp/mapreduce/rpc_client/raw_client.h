@@ -166,6 +166,17 @@ public:
         const TOperationId& operationId,
         const TUpdateOperationParametersOptions& options = {}) override;
 
+    // Jobs
+
+    NYson::TYsonString GetJob(
+        const TOperationId& operationId,
+        const TJobId& jobId,
+        const TGetJobOptions& options = {}) override;
+
+    std::vector<TJobTraceEvent> GetJobTrace(
+        const TOperationId& operationId,
+        const TGetJobTraceOptions& options = {}) override;
+
     // Files
 
     std::unique_ptr<IInputStream> ReadFile(

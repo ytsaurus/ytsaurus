@@ -98,6 +98,8 @@ NApi::TListOperationsOptions SerializeOptionsForListOperations(const TListOperat
 
 NYson::TYsonString SerializeParametersForUpdateOperationParameters(const TUpdateOperationParametersOptions& options);
 
+NApi::TGetJobTraceOptions SerializeOptionsForGetJobTrace(const TGetJobTraceOptions& options);
+
 NApi::TFileReaderOptions SerializeOptionsForReadFile(
     const TTransactionId& transactionId,
     const TFileReaderOptions& options);
