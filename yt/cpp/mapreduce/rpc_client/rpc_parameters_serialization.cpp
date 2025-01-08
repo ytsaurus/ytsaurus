@@ -90,6 +90,29 @@ NApi::EOperationSortDirection ToApiOperationSortDirection(ECursorDirection direc
     YT_ABORT();
 }
 
+NYTree::EPermission ToApiPermission(EPermission permission)
+{
+    switch (permission) {
+        case EPermission::Read:
+            return NYTree::EPermission::Read;
+        case EPermission::Write:
+            return NYTree::EPermission::Write;
+        case EPermission::Use:
+            return NYTree::EPermission::Use;
+        case EPermission::Administer:
+            return NYTree::EPermission::Administer;
+        case EPermission::Create:
+            return NYTree::EPermission::Create;
+        case EPermission::Remove:
+            return NYTree::EPermission::Remove;
+        case EPermission::Mount:
+            return NYTree::EPermission::Mount;
+        case EPermission::Manage:
+            return NYTree::EPermission::Manage;
+    }
+    YT_ABORT();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Generates a new mutation ID based on the given conditions.
@@ -608,6 +631,15 @@ NApi::TUnfreezeTableOptions SerializeOptionsForUnfreezeTable(const TUnfreezeTabl
     }
     if (options.LastTabletIndex_) {
         result.LastTabletIndex = *options.LastTabletIndex_;
+    }
+    return result;
+}
+
+NApi::TCheckPermissionOptions SerializeOptionsForCheckPermission(const TCheckPermissionOptions& options)
+{
+    NApi::TCheckPermissionOptions result;
+    if (options.Columns_) {
+        result.Columns = std::vector<std::string>(options.Columns_.begin(), options.Columns_.end());
     }
     return result;
 }
