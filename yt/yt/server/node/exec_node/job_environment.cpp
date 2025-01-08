@@ -1104,6 +1104,78 @@ public:
             ImageCache_);
     }
 
+    TFuture<std::vector<TShellCommandOutput>> RunSetupCommands(
+        int slotIndex,
+        ESlotType slotType,
+        TJobId jobId,
+        const std::vector<TShellCommandConfigPtr>& commands,
+        const TRootFS& rootFS,
+        const std::string& /*user*/,
+        const std::optional<std::vector<TDevice>>& /*devices*/,
+        int startIndex) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(JobThread);
+
+        YT_VERIFY(slotType == ESlotType::Common);
+
+        auto spec = New<NCri::TCriContainerSpec>();
+
+        // Run setup using default docker image for job workspace.
+        spec->Image.Image = ConcreteConfig_->JobProxyImage;
+
+        spec->Labels[YTJobIdLabel] = ToString(jobId);
+
+        // NB: If nvidia container runtime is used, empty list of devices
+        // should be set explicitly to avoid binding all devices to job container.
+        if (Bootstrap_->GetGpuManager()->HasGpuDevices()) {
+            spec->Environment["NVIDIA_VISIBLE_DEVICES"] = "";
+        }
+
+        // Add bind mounts required for user job.
+        for (const auto& bind : rootFS.Binds) {
+            spec->BindMounts.push_back(NCri::TCriBindMount{
+                .ContainerPath = bind.TargetPath,
+                .HostPath = bind.SourcePath,
+                .ReadOnly = bind.ReadOnly,
+            });
+        }
+
+        const auto& cpusetCpu = SlotCpusetCpus_[slotIndex];
+        if (cpusetCpu != EmptyCpuSet) {
+            spec->Resources.CpusetCpus = cpusetCpu;
+        }
+
+        std::vector<TFuture<void>> results;
+        results.reserve(std::ssize(commands));
+        for (int index = 0; index < std::ssize(commands); ++index) {
+            spec->Name = Format("setup-command-%v", startIndex + index);
+
+            const auto& command = commands[index];
+            auto process = Executor_->CreateProcess(
+                command->Path,
+                spec,
+                PodDescriptors_[slotIndex],
+                PodSpecs_[slotIndex]);
+            process->AddArguments(command->Args);
+            process->SetWorkingDirectory("/slot/home");
+
+            results.push_back(
+                BIND([=] {
+                    return process->Spawn();
+                })
+                .AsyncVia(ActionQueue_->GetInvoker())
+                .Run());
+        }
+
+        return AllSucceeded(std::move(results))
+            .Apply(BIND([this, this_ = MakeStrong(this), slotIndex](const TError& error) {
+                Executor_->CleanPodSandbox(PodDescriptors_[slotIndex]);
+                error.ThrowOnError();
+                return std::vector<TShellCommandOutput>{};
+            })
+            .AsyncVia(ActionQueue_->GetInvoker()));
+    }
+
 private:
     static constexpr TStringBuf SlotPodPrefix = "yt_slot_";
     static constexpr TStringBuf LocalBinDir = "/usr/local/bin";
