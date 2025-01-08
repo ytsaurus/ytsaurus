@@ -130,6 +130,14 @@ NApi::TRemountTableOptions SerializeOptionsForRemountTable(
     TMutationId& mutationId,
     const TRemountTableOptions& options);
 
+NApi::TReshardTableOptions SerializeOptionsForReshardTable(
+    TMutationId& mutationId,
+    const TReshardTableOptions& options);
+
+NApi::TAlterTableReplicaOptions SerializeOptionsForAlterTableReplica(
+    TMutationId& mutationId,
+    const TAlterTableReplicaOptions& options);
+
 NApi::TFreezeTableOptions SerializeOptionsForFreezeTable(const TFreezeTableOptions& options);
 
 NApi::TUnfreezeTableOptions SerializeOptionsForUnfreezeTable(const TUnfreezeTableOptions& options);

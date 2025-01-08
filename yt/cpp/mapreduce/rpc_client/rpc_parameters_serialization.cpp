@@ -711,6 +711,36 @@ NApi::TRemountTableOptions SerializeOptionsForRemountTable(
     return result;
 }
 
+NApi::TReshardTableOptions SerializeOptionsForReshardTable(
+    TMutationId& mutationId,
+    const TReshardTableOptions& options)
+{
+    NApi::TReshardTableOptions result;
+    SetMutationId(&result, &mutationId);
+    if (options.FirstTabletIndex_) {
+        result.FirstTabletIndex = *options.FirstTabletIndex_;
+    }
+    if (options.LastTabletIndex_) {
+        result.LastTabletIndex = *options.LastTabletIndex_;
+    }
+    return result;
+}
+
+NApi::TAlterTableReplicaOptions SerializeOptionsForAlterTableReplica(
+    TMutationId& mutationId,
+    const TAlterTableReplicaOptions& options)
+{
+    NApi::TAlterTableReplicaOptions result;
+    SetMutationId(&result, &mutationId);
+    if (options.Enabled_) {
+        result.Enabled = *options.Enabled_;
+    }
+    if (options.Mode_) {
+        result.Mode = NTabletClient::ETableReplicaMode(*options.Mode_);
+    }
+    return result;
+}
+
 NApi::TFreezeTableOptions SerializeOptionsForFreezeTable(const TFreezeTableOptions& options)
 {
     NApi::TFreezeTableOptions result;
