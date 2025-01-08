@@ -6,11 +6,28 @@
 
 #include <yt/yt/client/api/file_reader.h>
 
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
+
 #include <library/cpp/yson/node/node_io.h>
 
 namespace NYT::NDetail {
 
 using namespace NYT::NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+ESecurityAction FromApiSecurityAction(NSecurityClient::ESecurityAction action)
+{
+    switch (action) {
+        case NSecurityClient::ESecurityAction::Undefined:
+            break;
+        case NSecurityClient::ESecurityAction::Allow:
+            return ESecurityAction::Allow;
+        case NSecurityClient::ESecurityAction::Deny:
+            return ESecurityAction::Deny;
+    }
+    YT_ABORT();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -575,6 +592,71 @@ void TRpcRawClient::UnfreezeTable(
 {
     auto future = Client_->UnfreezeTable(path, SerializeOptionsForUnfreezeTable(options));
     WaitFor(future).ThrowOnError();
+}
+
+TCheckPermissionResponse ParseCheckPermissionResponse(const NApi::TCheckPermissionResponse& response)
+{
+    auto parseSingleResult = [] (const NApi::TCheckPermissionResult& result) {
+        TCheckPermissionResult parsed;
+        parsed.Action = FromApiSecurityAction(result.Action);
+        parsed.ObjectId = UtilGuidFromYtGuid(result.ObjectId);
+        if (result.ObjectName) {
+            parsed.ObjectName = *result.ObjectName;
+        }
+        parsed.SubjectId = UtilGuidFromYtGuid(result.SubjectId);
+        if (result.SubjectName) {
+            parsed.SubjectName = *result.SubjectName;
+        }
+        return parsed;
+    };
+
+    TCheckPermissionResponse result;
+    static_cast<TCheckPermissionResult&>(result) = parseSingleResult(response);
+    if (auto columns = response.Columns) {
+        result.Columns.reserve(columns->size());
+        for (const auto& column : *columns) {
+            result.Columns.push_back(parseSingleResult(column));
+        }
+    }
+    return result;
+}
+
+TCheckPermissionResponse TRpcRawClient::CheckPermission(
+    const TString& user,
+    EPermission permission,
+    const TYPath& path,
+    const TCheckPermissionOptions& options)
+{
+    auto future = Client_->CheckPermission(user, path, ToApiPermission(permission), SerializeOptionsForCheckPermission(options));
+    auto result = WaitFor(future).ValueOrThrow();
+    return ParseCheckPermissionResponse(result);
+}
+
+TVector<TTabletInfo> TRpcRawClient::GetTabletInfos(
+    const TYPath& path,
+    const TVector<int>& tabletIndexes,
+    const TGetTabletInfosOptions& /*options*/)
+{
+    auto future = Client_->GetTabletInfos(path, tabletIndexes);
+    auto tabletInfos = WaitFor(future).ValueOrThrow();
+
+    TVector<TTabletInfo> result;
+    result.reserve(tabletInfos.size());
+    for (const auto& info : tabletInfos) {
+        result.push_back(TTabletInfo{
+            .TotalRowCount = info.TotalRowCount,
+            .TrimmedRowCount = info.TrimmedRowCount,
+            .BarrierTimestamp = info.BarrierTimestamp,
+        });
+    }
+    return result;
+}
+
+ui64 TRpcRawClient::GenerateTimestamp()
+{
+    auto future = Client_->GetTimestampProvider()->GenerateTimestamps();
+    auto result = WaitFor(future).ValueOrThrow();
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

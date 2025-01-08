@@ -224,6 +224,21 @@ public:
         const TYPath& path,
         const TUnfreezeTableOptions& options = {}) override;
 
+    // Misc
+
+    TCheckPermissionResponse CheckPermission(
+        const TString& user,
+        EPermission permission,
+        const TYPath& path,
+        const TCheckPermissionOptions& options = {}) override;
+
+    TVector<TTabletInfo> GetTabletInfos(
+        const TYPath& path,
+        const TVector<int>& tabletIndexes,
+        const TGetTabletInfosOptions& options = {}) override;
+
+    ui64 GenerateTimestamp() override;
+
 private:
     const NApi::IClientPtr Client_;
     const TClientContext Context_;

@@ -17,6 +17,8 @@ NObjectClient::EObjectType ToApiObjectType(ENodeType type);
 
 NCypressClient::ELockMode ToApiLockMode(ELockMode mode);
 
+NYTree::EPermission ToApiPermission(EPermission permission);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NApi::TGetNodeOptions SerializeOptionsForGet(
@@ -129,6 +131,8 @@ NApi::TRemountTableOptions SerializeOptionsForRemountTable(
 NApi::TFreezeTableOptions SerializeOptionsForFreezeTable(const TFreezeTableOptions& options);
 
 NApi::TUnfreezeTableOptions SerializeOptionsForUnfreezeTable(const TUnfreezeTableOptions& options);
+
+NApi::TCheckPermissionOptions SerializeOptionsForCheckPermission(const TCheckPermissionOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
