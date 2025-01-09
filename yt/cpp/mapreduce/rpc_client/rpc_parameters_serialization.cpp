@@ -389,7 +389,7 @@ NApi::TTransactionStartOptions SerializeOptionsForStartTransaction(
     }
 
     auto attributes = NYTree::ConvertToAttributes(
-        NYson::TYsonString(NodeToYsonString(*options.Attributes_, NYson::EYsonFormat::Binary)));
+        NYson::TYsonString(NodeToYsonString(options.Attributes_.GetOrElse(TNode::CreateMap()), NYson::EYsonFormat::Binary)));
     if (options.Title_) {
         attributes->Set("title", *options.Title_);
     } else if (!attributes->Contains("title")) {
