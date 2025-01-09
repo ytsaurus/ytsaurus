@@ -7,8 +7,8 @@ message TThrottlerData
     required string id = 1;
     required double usage_rate = 2;
     optional double limit = 3;
-    optional int64 queue_byte_size = 4;
-    optional int64 queue_estimated_overrun_duration = 5;
+    optional int64 queue_total_amount = 4;
+    optional int64 estimated_overdraft_duration = 5;
 }
 
 message TThrottlerLimit

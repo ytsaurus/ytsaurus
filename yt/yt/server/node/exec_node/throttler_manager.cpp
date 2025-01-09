@@ -465,16 +465,16 @@ std::optional<THashMap<TClusterName, TThrottlerManager::TIncomingTrafficUtilizat
                 trafficUtilization.Limit = std::max(1.0, totalUsage.Limit) / (1 + config->DistributedThrottler->ExtraLimitRatio);
                 trafficUtilization.RateLimitRatioHardThreshold = config->RateLimitRatioHardThreshold;
                 trafficUtilization.RateLimitRatioSoftThreshold = config->RateLimitRatioSoftThreshold;
-                trafficUtilization.MaxEstimatedTimeToReadPendingBytesThreshold = config->MaxEstimatedTimeToReadPendingBytesThreshold.Seconds();
-                trafficUtilization.MinEstimatedTimeToReadPendingBytesThreshold = config->MinEstimatedTimeToReadPendingBytesThreshold.Seconds();
+                trafficUtilization.MaxEstimatedTimeToReadPendingBytesThreshold = config->MaxEstimatedTimeToReadPendingBytesThreshold;
+                trafficUtilization.MinEstimatedTimeToReadPendingBytesThreshold = config->MinEstimatedTimeToReadPendingBytesThreshold;
             } else {
                 trafficUtilization.Limit = std::max(1.0, totalUsage.Limit);
             }
 
             trafficUtilization.Rate = totalUsage.Rate;
-            trafficUtilization.PendingBytes = totalUsage.QueueByteSize;
-            trafficUtilization.MaxEstimatedTimeToReadPendingBytes = totalUsage.QueueMaxEstimatedOverrunDuration;
-            trafficUtilization.MinEstimatedTimeToReadPendingBytes = totalUsage.QueueMinEstimatedOverrunDuration;
+            trafficUtilization.PendingBytes = totalUsage.QueueTotalAmount;
+            trafficUtilization.MaxEstimatedTimeToReadPendingBytes = totalUsage.MaxEstimatedOverdraftDuration;
+            trafficUtilization.MinEstimatedTimeToReadPendingBytes = totalUsage.MinEstimatedOverdraftDuration;
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Unexpected throttler id %Qv", throttlerId);
         }
