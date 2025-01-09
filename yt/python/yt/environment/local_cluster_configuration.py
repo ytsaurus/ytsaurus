@@ -312,7 +312,9 @@ def modify_cluster_configuration(yt_config, cluster_configuration):
 
             if yt_config.delta_master_config:
                 update_inplace(config, yt_config.delta_master_config)
-            _update_address_resolver(config)
+
+            if not yt_config.enable_multidaemon:
+                _update_address_resolver(config)
 
     for config in itervalues(cluster_configuration["driver"]):
         if yt_config.optimize_config:
@@ -330,7 +332,8 @@ def modify_cluster_configuration(yt_config, cluster_configuration):
         if yt_config.delta_scheduler_config:
             update_inplace(config, yt_config.delta_scheduler_config)
 
-        _update_address_resolver(config)
+        if not yt_config.enable_multidaemon:
+            _update_address_resolver(config)
 
     for config in cluster_configuration["controller_agent"]:
         if yt_config.optimize_config:
@@ -339,19 +342,22 @@ def modify_cluster_configuration(yt_config, cluster_configuration):
         if yt_config.delta_controller_agent_config:
             update_inplace(config, yt_config.delta_controller_agent_config)
 
-        _update_address_resolver(config)
+        if not yt_config.enable_multidaemon:
+            _update_address_resolver(config)
 
     for config in cluster_configuration["queue_agent"]:
         if yt_config.delta_queue_agent_config:
             update_inplace(config, yt_config.delta_queue_agent_config)
 
-        _update_address_resolver(config)
+        if not yt_config.enable_multidaemon:
+            _update_address_resolver(config)
 
     for config in cluster_configuration["kafka_proxy"]:
         if yt_config.delta_kafka_proxy_config:
             update_inplace(config, yt_config.delta_kafka_proxy_config)
 
-        _update_address_resolver(config)
+        if not yt_config.enable_multidaemon:
+            _update_address_resolver(config)
 
     for config in cluster_configuration["node"]:
         if yt_config.optimize_config:
@@ -365,25 +371,32 @@ def modify_cluster_configuration(yt_config, cluster_configuration):
         if yt_config.delta_node_config:
             update_inplace(config, yt_config.delta_node_config)
 
-        _update_address_resolver(config)
+        if not yt_config.enable_multidaemon:
+            _update_address_resolver(config)
 
     for config in cluster_configuration["http_proxy"]:
         if yt_config.delta_http_proxy_config:
             update_inplace(config, yt_config.delta_http_proxy_config)
 
-        _update_address_resolver(config)
+        if not yt_config.enable_multidaemon:
+            _update_address_resolver(config)
 
     for config in cluster_configuration["rpc_proxy"]:
         if yt_config.delta_rpc_proxy_config:
             update_inplace(config, yt_config.delta_rpc_proxy_config)
 
-        _update_address_resolver(config)
+        if not yt_config.enable_multidaemon:
+            _update_address_resolver(config)
 
-    if config in cluster_configuration["master_cache"]:
+    for config in cluster_configuration["master_cache"]:
         if yt_config.delta_master_cache_config:
             update_inplace(config, yt_config.delta_master_cache_config)
 
-        _update_address_resolver(config)
+        if not yt_config.enable_multidaemon:
+            _update_address_resolver(config)
+
+    if yt_config.enable_multidaemon:
+        _update_address_resolver(cluster_configuration["multi"])
 
     if yt_config.optimize_config:
         _remove_none_fields(cluster_configuration)

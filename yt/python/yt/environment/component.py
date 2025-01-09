@@ -1,4 +1,4 @@
-from .configs_provider import init_singletons, init_jaeger_collector, _init_logging
+from .configs_provider import init_singletons, init_cypress_annotations, init_jaeger_collector, _init_logging
 
 from yt.common import update_inplace
 
@@ -85,17 +85,19 @@ class YTServerComponentBase:
         for index in range(count):
             config = self.get_default_config()
 
-            init_singletons(config, yt_config, index)
+            init_singletons(config, yt_config)
+            init_cypress_annotations(config, index)
 
             init_jaeger_collector(config, self.LOWERCASE_NAME, {self.LOWERCASE_NAME + "_index": str(index)})
 
             config["cluster_connection"] = cluster_connection
             config["rpc_port"] = next(ports_generator)
             config["monitoring_port"] = next(ports_generator)
-            config["logging"] = _init_logging(logs_dir,
-                                              self.DASHED_NAME + "-" + str(index),
-                                              yt_config,
-                                              has_structured_logs=False)
+            _init_logging(logs_dir,
+                          self.DASHED_NAME + "-" + str(index),
+                          config.setdefault("logging", {}),
+                          yt_config,
+                          has_structured_logs=False)
 
             if yt_config.address_resolver_config:
                 update_inplace(config, {"address_resolver": yt_config.address_resolver_config})

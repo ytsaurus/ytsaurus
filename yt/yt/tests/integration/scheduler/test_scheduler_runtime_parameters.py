@@ -599,7 +599,13 @@ class TestOperationDetailedLogs(YTEnvSetup):
     }
 
     def get_scheduled_allocation_log_entries(self):
-        scheduler_debug_logs_filename = self.Env.configs["scheduler"][0]["logging"]["writers"]["debug"]["file_name"]
+        writers = self.Env.configs["scheduler"][0]["logging"]["writers"]
+        scheduler_debug_logs_filename = None
+        for writer_name in writers:
+            if "debug" in writer_name:
+                scheduler_debug_logs_filename = writers[writer_name]["file_name"]
+                break
+        assert scheduler_debug_logs_filename is not None
 
         if scheduler_debug_logs_filename.endswith(".zst"):
             compressed_file = open(scheduler_debug_logs_filename, "rb")

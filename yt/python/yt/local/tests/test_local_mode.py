@@ -114,7 +114,7 @@ class YtLocalBinary(object):
             key = key.replace("_", "-")
             if value is True:
                 command.extend(["--" + key])
-            else:
+            elif value is not False:
                 command.extend(["--" + key, str(value)])
 
             command.extend(["--enable-debug-logging", "--fqdn", "localhost"])
@@ -140,6 +140,7 @@ def _get_id(test_name):
     return test_name + "_" + "".join(random.choice(collection) for _ in range(5))
 
 
+@pytest.mark.parametrize("enable_multidaemon", [False, True])
 class TestLocalMode(object):
     @classmethod
     def setup_class(cls):
@@ -158,13 +159,19 @@ class TestLocalMode(object):
         else:
             os.environ["PATH"] = cls.env_path
 
-    def test_logging(self):
-        master_count = 3
-        node_count = 2
+    def test_logging(self, enable_multidaemon):
+        if enable_multidaemon:
+            # Several master peers are not supported in multidaemon.
+            master_count = 1
+            # Several nodes  are not supported in multidaemon.
+            node_count = 1
+        else:
+            master_count = 3
+            node_count = 2
         scheduler_count = 4
 
         with local_yt(id=_get_id("test_logging"), master_count=master_count, node_count=node_count,
-                      scheduler_count=scheduler_count, http_proxy_count=1) as lyt:
+                      scheduler_count=scheduler_count, http_proxy_count=1, enable_multidaemon=enable_multidaemon) as lyt:
             path = lyt.path
             logs_path = lyt.logs_path
 
@@ -183,15 +190,22 @@ class TestLocalMode(object):
         assert os.path.exists(os.path.join(logs_path, "http-proxy-0.log"))
         assert os.path.exists(os.path.join(path, "stderrs"))
 
-    def test_user_configs_path(self):
-        master_count = 3
-        node_count = 2
+    def test_user_configs_path(self, enable_multidaemon):
+        if enable_multidaemon:
+            # Several master peers are not supported in multidaemon.
+            master_count = 1
+            # Several nodes are not supported in multidaemon.
+            node_count = 1
+        else:
+            node_count = 2
+            master_count = 3
+
         scheduler_count = 4
         http_proxy_count = 5
         rpc_proxy_count = 6
         with local_yt(id=_get_id("test_user_configs_path"), master_count=master_count,
                       node_count=node_count, scheduler_count=scheduler_count,
-                      http_proxy_count=http_proxy_count, rpc_proxy_count=rpc_proxy_count) as lyt:
+                      http_proxy_count=http_proxy_count, rpc_proxy_count=rpc_proxy_count, enable_multidaemon=enable_multidaemon) as lyt:
             configs_path = lyt.configs_path
 
         assert os.path.exists(configs_path)
@@ -211,7 +225,7 @@ class TestLocalMode(object):
                 name = "{}-{}.yson".format(component, index)
                 assert os.path.exists(os.path.join(configs_path, name))
 
-    def test_watcher(self):
+    def test_watcher(self, enable_multidaemon):
         # YT-19646: temporary disable this test in OS.
         # Wait for YT-19347 to investigate this problem.
         # if yatest_common is None and not which("logrotate"):
@@ -223,7 +237,7 @@ class TestLocalMode(object):
             "logs_rotate_interval": 1,
             "logs_rotate_max_part_count": 5
         }
-        with local_yt(id=_get_id("test_watcher"), watcher_config=watcher_config) as environment:
+        with local_yt(id=_get_id("test_watcher"), watcher_config=watcher_config, enable_multidaemon=enable_multidaemon) as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = YtClient(proxy="localhost:{0}".format(proxy_port))
 
@@ -244,10 +258,11 @@ class TestLocalMode(object):
             presented += os.path.exists(os.path.join(logs_path, "http-proxy-0.debug.log.{0}.gz".format(file_index)))
         assert presented in (3, 4), "Log paths: {}".format(", ".join(os.listdir(logs_path)))
 
-    def test_commands_sanity(self):
-        with local_yt(id=_get_id("test_commands_sanity")) as environment:
+    def test_commands_sanity(self, enable_multidaemon):
+        with local_yt(id=_get_id("test_commands_sanity"), enable_multidaemon=enable_multidaemon) as environment:
             pids = _read_pids_file(environment.id)
-            assert len(pids) == 6
+            expected_pid_count = 2 if enable_multidaemon else 6
+            assert len(pids) == expected_pid_count
             # Should not delete running instance
             with pytest.raises(yt.YtError):
                 delete(environment.id)
@@ -258,35 +273,50 @@ class TestLocalMode(object):
         delete(environment.id)
         assert not _is_exists(environment)
 
-    def test_start(self):
+    def test_start(self, enable_multidaemon):
         with pytest.raises(yt.YtError):
-            start(master_count=0)
+            start(master_count=0, enable_multidaemon=enable_multidaemon)
 
-        with local_yt(id=_get_id("test_start_masters_and_proxy"), master_count=3,
-                      node_count=0, scheduler_count=0, controller_agent_count=0) as environment:
-            assert len(_read_pids_file(environment.id)) == 5
-            assert len(environment.configs["master"]) == 3
+        if enable_multidaemon:
+            # Several master peers are not supported in multidaemon.
+            master_count = 1
+        else:
+            master_count = 3
+
+        with local_yt(id=_get_id("test_start_masters_and_proxy"), master_count=master_count,
+                      node_count=0, scheduler_count=0, controller_agent_count=0, enable_multidaemon=enable_multidaemon) as environment:
+            expected_pid_count = 2 if enable_multidaemon else 5
+            assert len(_read_pids_file(environment.id)) == expected_pid_count
+            assert len(environment.configs["master"]) == master_count
+
+        if enable_multidaemon:
+            # Several nodes are not supported in multidaemon.
+            node_count = 1
+        else:
+            node_count = 5
 
         with local_yt(id=_get_id("test_start_no_proxy_many_schedulers"),
-                      node_count=5, scheduler_count=2, http_proxy_count=0) as environment:
-            assert len(environment.configs["node"]) == 5
+                      node_count=node_count, scheduler_count=2, http_proxy_count=0, enable_multidaemon=enable_multidaemon) as environment:
+            assert len(environment.configs["node"]) == node_count
             assert len(environment.configs["scheduler"]) == 2
             assert len(environment.configs["master"]) == 1
             assert len(environment.configs["http_proxy"]) == 0
             assert len(environment.configs["controller_agent"]) == 1
-            assert len(_read_pids_file(environment.id)) == 10
+            expected_pid_count = 2 if enable_multidaemon else 10
+            assert len(_read_pids_file(environment.id)) == expected_pid_count
             with pytest.raises(yt.YtError):
                 environment.get_proxy_address()
 
-        with local_yt(id=_get_id("test_start_with_one_node"), node_count=1) as environment:
-            assert len(_read_pids_file(environment.id)) == 6
+        with local_yt(id=_get_id("test_start_with_one_node"), node_count=1, enable_multidaemon=enable_multidaemon) as environment:
+            expected_pid_count = 2 if enable_multidaemon else 6
+            assert len(_read_pids_file(environment.id)) == expected_pid_count
 
         with local_yt(id=_get_id("test_start_masters_only"), node_count=0,
-                      scheduler_count=0, controller_agent_count=0, http_proxy_count=0) as environment:
+                      scheduler_count=0, controller_agent_count=0, http_proxy_count=0, enable_multidaemon=enable_multidaemon) as environment:
             assert len(_read_pids_file(environment.id)) == 2
 
-    def test_use_local_yt(self):
-        with local_yt(id=_get_id("test_use_local_yt")) as environment:
+    def test_use_local_yt(self, enable_multidaemon):
+        with local_yt(id=_get_id("test_use_local_yt"), enable_multidaemon=enable_multidaemon) as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = YtClient(proxy="localhost:{0}".format(proxy_port))
             client.config["tabular_data_format"] = yt.format.DsvFormat()
@@ -309,8 +339,8 @@ class TestLocalMode(object):
 
             assert set(client.search("//test")) == set(["//test", "//test/folder", table])
 
-    def test_use_context_manager(self):
-        with yt_local.LocalYt(id=_get_id("test_use_context_manager"), fqdn="localhost") as client:
+    def test_use_context_manager(self, enable_multidaemon):
+        with yt_local.LocalYt(id=_get_id("test_use_context_manager"), fqdn="localhost", enable_multidaemon=enable_multidaemon) as client:
             client.config["tabular_data_format"] = yt.format.DsvFormat()
             client.mkdir("//test")
 
@@ -334,10 +364,10 @@ class TestLocalMode(object):
         with yt_local.LocalYt(path=os.path.join(get_tests_sandbox(), "test_path"), fqdn="localhost", enable_debug_logging=True):
             pass
 
-    def test_local_cypress_synchronization(self):
+    def test_local_cypress_synchronization(self, enable_multidaemon):
         local_cypress_path = os.path.join(_get_tests_location(), "local_cypress_tree")
         with local_yt(id=_get_id("test_local_cypress_synchronization"),
-                      local_cypress_dir=local_cypress_path) as environment:
+                      local_cypress_dir=local_cypress_path, enable_multidaemon=enable_multidaemon) as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = YtClient(proxy="localhost:{0}".format(proxy_port))
             assert list(client.read_table("//table")) == [{"x": "1", "y": "1"}]
@@ -362,26 +392,26 @@ class TestLocalMode(object):
             assert client.read_file("//file").read() == b"Test file.\n"
             assert client.get_attribute("//file", "myattr") == 4
 
-    def test_preserve_state(self):
-        with local_yt(id=_get_id("test_preserve_state")) as environment:
+    def test_preserve_state(self, enable_multidaemon):
+        with local_yt(id=_get_id("test_preserve_state"), enable_multidaemon=enable_multidaemon) as environment:
             client = environment.create_client()
             client.write_table("//home/my_table", [{"x": 1, "y": 2, "z": 3}])
 
-        with local_yt(id=environment.id) as environment:
+        with local_yt(id=environment.id, enable_multidaemon=enable_multidaemon) as environment:
             client = environment.create_client()
             assert list(client.read_table("//home/my_table")) == [{"x": 1, "y": 2, "z": 3}]
 
-    def test_preserve_state_with_tmpfs(self):
+    def test_preserve_state_with_tmpfs(self, enable_multidaemon):
         kwargs = dict(tmpfs_path=os.path.join(get_tests_sandbox(), "tmpfs"))
-        with local_yt(id=_get_id("test_preserve_state"), **kwargs) as environment:
+        with local_yt(id=_get_id("test_preserve_state"), enable_multidaemon=enable_multidaemon, **kwargs) as environment:
             client = environment.create_client()
             client.write_table("//home/my_table", [{"x": 1, "y": 2, "z": 3}])
 
-        with local_yt(id=environment.id, **kwargs) as environment:
+        with local_yt(id=environment.id, enable_multidaemon=enable_multidaemon, **kwargs) as environment:
             client = environment.create_client()
             assert list(client.read_table("//home/my_table")) == [{"x": 1, "y": 2, "z": 3}]
 
-    def test_config_patches_path(self):
+    def test_config_patches_path(self, enable_multidaemon):
         patch = {"test_key": "test_value"}
         try:
             with tempfile.NamedTemporaryFile(dir=get_tests_sandbox(), delete=False) as yson_file:
@@ -394,7 +424,8 @@ class TestLocalMode(object):
                           scheduler_config=yson_file.name,
                           proxy_config=yson_file.name,
                           rpc_proxy_config=yson_file.name,
-                          watcher_config=yson_file.name) as environment:
+                          watcher_config=yson_file.name,
+                          enable_multidaemon=enable_multidaemon) as environment:
                 for service in ["master", "node", "scheduler", "http_proxy", "rpc_proxy", "watcher"]:
                     if service == "watcher":
                         configs = [environment.watcher_config]
@@ -406,7 +437,7 @@ class TestLocalMode(object):
         finally:
             remove_file(yson_file.name, force=True)
 
-    def test_config_patches_value(self):
+    def test_config_patches_value(self, enable_multidaemon):
         patch = {"test_key": "test_value"}
         with local_yt(id=_get_id("test_configs_patches"),
                       rpc_proxy_count=1,
@@ -415,7 +446,8 @@ class TestLocalMode(object):
                       scheduler_config=patch,
                       proxy_config=patch,
                       rpc_proxy_config=patch,
-                      watcher_config=patch) as environment:
+                      watcher_config=patch,
+                      enable_multidaemon=enable_multidaemon) as environment:
             for service in ["master", "node", "scheduler", "http_proxy", "rpc_proxy", "watcher"]:
                 if service == "watcher":
                     configs = [environment.watcher_config]
@@ -425,7 +457,7 @@ class TestLocalMode(object):
                 for config in configs:
                     assert config["test_key"] == "test_value"
 
-    def test_yt_local_binary(self):
+    def test_yt_local_binary(self, enable_multidaemon):
         env_id = self.yt_local("start", id=_get_id("test_yt_local_binary_simple"))
         try:
             client = YtClient(proxy=self.yt_local("get_proxy", env_id))
@@ -433,18 +465,28 @@ class TestLocalMode(object):
         finally:
             self.yt_local("stop", env_id)
 
+        if enable_multidaemon:
+            # Several master peers are not supported in multidaemon.
+            master_count = 1
+            # Several nodes  are not supported in multidaemon.
+            node_count = 1
+        else:
+            master_count = 3
+            node_count = 5
+
         env_id = self.yt_local(
             "start",
-            master_count=3,
-            node_count=5,
+            master_count=master_count,
+            node_count=node_count,
             scheduler_count=2,
+            enable_multidaemon=enable_multidaemon,
             id=_get_id("test_yt_local_binary_with_counts_specified"))
 
         try:
             client = YtClient(proxy=self.yt_local("get_proxy", env_id))
-            assert len(client.list("//sys/cluster_nodes")) == 5
+            assert len(client.list("//sys/cluster_nodes")) == node_count
             assert len(client.list("//sys/scheduler/instances")) == 2
-            assert len(client.list("//sys/primary_masters")) == 3
+            assert len(client.list("//sys/primary_masters")) == master_count
         finally:
             self.yt_local("stop", env_id, "--delete")
 
@@ -463,6 +505,7 @@ class TestLocalMode(object):
                 scheduler_config=config.name,
                 master_count=1,
                 master_config=config.name,
+                enable_multidaemon=enable_multidaemon,
                 id=_get_id("test_yt_local_binary_config_patches"))
 
             try:
@@ -479,27 +522,27 @@ class TestLocalMode(object):
             remove_file(node_config.name, force=True)
             remove_file(config.name, force=True)
 
-    def test_yt_local_binary_config_patches(self):
+    def test_yt_local_binary_config_patches(self, enable_multidaemon):
         patch = {"scheduler": {"cluster_info_logging_period": 1234}}
         try:
             with tempfile.NamedTemporaryFile(dir=get_tests_sandbox(), delete=False) as yson_file:
                 yson.dump(patch, yson_file)
 
-            env_id = self.yt_local("start", id=_get_id("test_yt_local_binary_with_configs"), scheduler_config=yson_file.name)
+            env_id = self.yt_local("start", id=_get_id("test_yt_local_binary_with_configs"), scheduler_config=yson_file.name, enable_multidaemon=enable_multidaemon)
             try:
                 client = YtClient(proxy=self.yt_local("get_proxy", env_id))
                 assert client.get("//sys/scheduler/orchid/scheduler/config/cluster_info_logging_period") == 1234
             finally:
                 self.yt_local("stop", env_id)
 
-            env_id = self.yt_local("start", id=_get_id("test_yt_local_binary_with_configs"), scheduler_config_path=yson_file.name)
+            env_id = self.yt_local("start", id=_get_id("test_yt_local_binary_with_configs"), scheduler_config_path=yson_file.name, enable_multidaemon=enable_multidaemon)
             try:
                 client = YtClient(proxy=self.yt_local("get_proxy", env_id))
                 assert client.get("//sys/scheduler/orchid/scheduler/config/cluster_info_logging_period") == 1234
             finally:
                 self.yt_local("stop", env_id)
 
-            env_id = self.yt_local("start", id=_get_id("test_yt_local_binary_with_configs"), scheduler_config=yson._dumps_to_native_str(patch))
+            env_id = self.yt_local("start", id=_get_id("test_yt_local_binary_with_configs"), scheduler_config=yson._dumps_to_native_str(patch), enable_multidaemon=enable_multidaemon)
             try:
                 client = YtClient(proxy=self.yt_local("get_proxy", env_id))
                 assert client.get("//sys/scheduler/orchid/scheduler/config/cluster_info_logging_period") == 1234
@@ -509,16 +552,17 @@ class TestLocalMode(object):
         finally:
             remove_file(yson_file.name, force=True)
 
-    def test_tablet_cell_initialization(self):
+    def test_tablet_cell_initialization(self, enable_multidaemon):
         with local_yt(wait_tablet_cell_initialization=True,
-                      id=_get_id("test_tablet_cell_initialization")) as environment:
+                      id=_get_id("test_tablet_cell_initialization"),
+                      enable_multidaemon=enable_multidaemon) as environment:
             client = environment.create_client()
             tablet_cells = client.list("//sys/tablet_cells")
             assert len(tablet_cells) == 1
             assert client.get("//sys/tablet_cells/{0}/@health".format(tablet_cells[0])) == "good"
 
-    def test_rpc_proxy_is_starting(self):
-        with local_yt(id=_get_id("test_rpc_proxy_is_starting"), rpc_proxy_count=1) as environment:
+    def test_rpc_proxy_is_starting(self, enable_multidaemon):
+        with local_yt(id=_get_id("test_rpc_proxy_is_starting"), rpc_proxy_count=1, enable_multidaemon=enable_multidaemon) as environment:
             client = environment.create_client()
 
             for _ in range(6):
@@ -530,11 +574,11 @@ class TestLocalMode(object):
                 assert False, "RPC proxy failed to start in 30 seconds"
 
     @pytest.mark.skipif(True, reason="st/YT-6227")
-    def test_all_processes_are_killed(self):
+    def test_all_processes_are_killed(self, enable_multidaemon):
         for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGKILL):
             env_id = generate_uuid()
             process = self.yt_local.run_async("start", sync=True, id=env_id,
-                                              sync_mode_sleep_timeout=1)
+                                              sync_mode_sleep_timeout=1, enable_multidaemon=enable_multidaemon)
             _wait_instance_to_become_ready(process, env_id)
 
             pids = _read_pids_file(env_id)
@@ -556,39 +600,39 @@ class TestLocalMode(object):
 
                 time.sleep(1.0)
 
-    def test_ytserver_all(self):
+    def test_ytserver_all(self, enable_multidaemon):
         ytserver_all_path = search_binary_path("ytserver-all", binary_root=get_build_root())
         assert ytserver_all_path
 
-        with local_yt(id=_get_id("ytserver_all"), ytserver_all_path=ytserver_all_path) as environment:
+        with local_yt(id=_get_id("ytserver_all"), ytserver_all_path=ytserver_all_path, enable_multidaemon=enable_multidaemon) as environment:
             client = environment.create_client()
             client.get("/")
             client.write_table("//tmp/test_table", [{"a": "b"}])
             client.run_map("cat", "//tmp/test_table", "//tmp/test_table", format=yt.JsonFormat())
 
     @pytest.mark.skipif("yatest_common is None")
-    def test_ports(self):
+    def test_ports(self, enable_multidaemon):
         from yatest.common.network import PortManager
         with PortManager() as port_manager:
             http_proxy_port = port_manager.get_port()
             rpc_proxy_port = port_manager.get_port()
-            with local_yt(id=_get_id("test_ports"), rpc_proxy_count=1, http_proxy_ports=[http_proxy_port], rpc_proxy_ports=[rpc_proxy_port]) as environment:
+            with local_yt(id=_get_id("test_ports"), rpc_proxy_count=1, http_proxy_ports=[http_proxy_port], rpc_proxy_ports=[rpc_proxy_port], enable_multidaemon=enable_multidaemon) as environment:
                 assert environment.configs["http_proxy"][0]["port"] == http_proxy_port
                 assert environment.configs["rpc_proxy"][0]["rpc_port"] == rpc_proxy_port
 
-    def test_structured_logging(self):
-        with local_yt(id=_get_id("test_structured_logging"), enable_structured_logging=True) as environment:
+    def test_structured_logging(self, enable_multidaemon):
+        with local_yt(id=_get_id("test_structured_logging"), enable_structured_logging=True, enable_multidaemon=enable_multidaemon) as environment:
             client = environment.create_client()
             client.get("/")
             wait(lambda: os.path.exists(os.path.join(environment.logs_path, "http-proxy-0.json.log")))
 
-    def test_one_node_configuration(self):
+    def test_one_node_configuration(self, enable_multidaemon):
         row_count = 100
 
         def mapper(row):
             yield {"key": row["key"] + 1}
 
-        with local_yt(id=_get_id("one_node_configuration"), node_count=1) as environment:
+        with local_yt(id=_get_id("one_node_configuration"), node_count=1, enable_multidaemon=enable_multidaemon) as environment:
             client = environment.create_client()
             if yatest_common is None:
                 client.config["pickling"]["python_binary"] = sys.executable
@@ -604,15 +648,16 @@ class TestLocalMode(object):
             result_rows = [{"key": index + 1} for index in range(row_count)]
             assert list(client.read_table("//tmp/output_table")) == result_rows
 
-    def test_components(self):
-        with local_yt(id=_get_id("test_components"), components=[{"name": "query_tracker"}]) as environment:
+    def test_components(self, enable_multidaemon):
+        with local_yt(id=_get_id("test_components"), components=[{"name": "query_tracker"}], enable_multidaemon=enable_multidaemon) as environment:
             client = environment.create_client()
             assert client.list_queries()["queries"] == []
 
-    def test_auth(self):
+    def test_auth(self, enable_multidaemon):
         with local_yt(
                 id=_get_id("test_auth"),
-                enable_auth=True, create_admin_user=True, native_client_supported=True
+                enable_auth=True, create_admin_user=True, native_client_supported=True,
+                enable_multidaemon=enable_multidaemon
         ) as environment:
             proxy_port = environment.get_proxy_address().rsplit(":", 1)[1]
             client = YtClient(proxy="localhost:{0}".format(proxy_port))
