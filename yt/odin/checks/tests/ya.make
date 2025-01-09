@@ -15,6 +15,7 @@ TEST_SRCS(
     test_master_alerts.py
     test_master_chunk_management.py
     test_oauth_health.py
+    test_operations_snapshots.py
     test_quorum_health.py
     test_register_watcher.py
     test_scheduler_uptime.py
@@ -54,6 +55,7 @@ DEPENDS(
     yt/odin/checks/bin/master_alerts
     yt/odin/checks/bin/master_chunk_management
     yt/odin/checks/bin/oauth_health
+    yt/odin/checks/bin/operations_snapshots
     yt/odin/checks/bin/quorum_health
     yt/odin/checks/bin/register_watcher
     yt/odin/checks/bin/scheduler_uptime

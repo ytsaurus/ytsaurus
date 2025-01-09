@@ -1,18 +1,9 @@
-from yt_odin_checks.lib.check_runner import main
+from datetime import datetime
 
 from yt.common import date_string_to_datetime, YT_DATETIME_FORMAT_STRING
 import yt.wrapper as yt
 
-from datetime import datetime
-
-
-def process_response(rsp):
-    if rsp.is_ok():
-        return rsp.get_result()
-
-    error = yt.YtResponseError(rsp.get_error())
-    if not error.is_resolve_error():
-        raise error
+from yt_odin_checks.lib.check_runner import main
 
 
 def run_check(yt_client, logger, options, states):
@@ -23,22 +14,36 @@ def run_check(yt_client, logger, options, states):
     batch_client = yt.create_batch_client(client=yt_client, max_batch_size=100)
 
     for operation in operations:
-        # TODO(asaitgalin): Migrate to new operations storage scheme.
-        op_path = "//sys/operations/" + operation
-        responses[(operation, "events")] = batch_client.get(op_path + "/@events")
-        responses[(operation, "last_successful_snapshot_time")] = \
-            batch_client.get(op_path + "/@progress/last_successful_snapshot_time")
+        args = {"attributes": ["events", "progress"]}
+        if operation.startswith("*"):
+            args["operation_alias"] = operation
+            args["include_scheduler"] = True
+        else:
+            args["operation_id"] = operation
+
+        responses[operation] = batch_client.get_operation(**args)
 
     batch_client.commit_batch()
 
     operations_without_snapshots = []
 
     for operation in operations:
-        events = process_response(responses[(operation, "events")])
-        last_successful_snapshot_time = process_response(
-            responses[(operation, "last_successful_snapshot_time")])
+        op_resp = responses[operation]
 
-        if events is None or last_successful_snapshot_time is None:
+        if not op_resp.is_ok():
+            error = yt.YtResponseError(op_resp.get_error())
+            if error.is_resolve_error():
+                logger.warning("Error resolving path for operation (operation_id: %s, error: %s)", operation, error)
+                continue
+            else:
+                raise error
+
+        result = op_resp.get_result()
+        try:
+            events = result["events"]
+            last_successful_snapshot_time = result["progress"]["last_successful_snapshot_time"]
+        except KeyError as err:
+            logger.warning("Error getting operation info (operation_id: %s, error: %s)", operation, err)
             continue
 
         last_successful_snapshot_time = date_string_to_datetime(last_successful_snapshot_time)
@@ -62,10 +67,7 @@ def run_check(yt_client, logger, options, states):
     logger.info("Number of long running operations without built snapshots: %d", len(operations_without_snapshots))
     if operations_without_snapshots:
         for operation, last_successful_snapshot_time in operations_without_snapshots[:10]:
-            dt = datetime \
-                .utcfromtimestamp(last_successful_snapshot_time) \
-                .strftime(YT_DATETIME_FORMAT_STRING)
-
+            dt = last_successful_snapshot_time.strftime(YT_DATETIME_FORMAT_STRING)
             logger.info("  Operation %s had its last snapshot built at %s", operation, dt)
 
         return states.UNAVAILABLE_STATE
