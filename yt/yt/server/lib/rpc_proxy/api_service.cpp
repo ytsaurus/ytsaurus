@@ -4497,7 +4497,10 @@ private:
         TListQueueConsumerRegistrationsOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("QueuePath: %v, ConsumerPath: %v", queuePath, consumerPath);
+        context->SetRequestInfo(
+            "QueuePath: %v, ConsumerPath: %v",
+            queuePath,
+            consumerPath);
 
         ExecuteCall(
             context,
@@ -4534,7 +4537,7 @@ private:
         TCreateQueueProducerSessionOptions options;
         SetTimeoutOptions(&options, context.Get());
         if (request->has_user_meta()) {
-            options.UserMeta = ConvertTo<INodePtr>(TYsonString(FromProto<TString>(request->user_meta())));
+            options.UserMeta = ConvertToNode(TYsonStringBuf(request->user_meta()));
         }
 
         context->SetRequestInfo(

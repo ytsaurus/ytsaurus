@@ -2906,7 +2906,8 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
     // XXX(apachee): Maybe everything should be moved in queue_client.
 
     const auto& tableMountCache = GetTableMountCache();
-    auto producerTableInfo = WaitFor(tableMountCache->GetTableInfo(producerPath.GetPath())).ValueOrThrow();
+    auto producerTableInfo = WaitFor(tableMountCache->GetTableInfo(producerPath.GetPath()))
+        .ValueOrThrow();
     CheckWritePermission(producerPath.GetPath(), producerTableInfo, Options_, Connection_);
 
     auto queueCluster = Connection_->GetClusterName();
@@ -2924,7 +2925,7 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
         // TODO(babenko): switch to std::string
         .QueueCluster = TString(*queueCluster),
         .QueuePath = queuePath.GetPath(),
-        .SessionId = sessionId.Underlying(),
+        .SessionId = sessionId,
     };
 
     auto keys = FromRecordKeys(TRange(std::array{sessionKey}));
@@ -2944,10 +2945,12 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
     // If rows is empty, then create new session.
     if (!records.empty()) {
         const auto& record = records[0];
-        YT_LOG_DEBUG("Fetched previous queue producer session info (SequenceNumber: %v, Epoch: %v)", record.SequenceNumber, record.Epoch);
+        YT_LOG_DEBUG("Fetched previous queue producer session info (SequenceNumber: %v, Epoch: %v)",
+            record.SequenceNumber,
+            record.Epoch);
 
         lastSequenceNumber = TQueueProducerSequenceNumber(record.SequenceNumber);
-        epoch = TQueueProducerEpoch(record.Epoch + 1);
+        epoch = TQueueProducerEpoch(record.Epoch.Underlying() + 1);
         if (!responseUserMeta && record.UserMeta) {
             responseUserMeta = ConvertTo<INodePtr>(*record.UserMeta);
         }
@@ -2957,8 +2960,8 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
 
     NQueueClient::NRecords::TQueueProducerSessionPartial resultRecord{
         .Key = sessionKey,
-        .SequenceNumber = lastSequenceNumber.Underlying(),
-        .Epoch = epoch.Underlying(),
+        .SequenceNumber = lastSequenceNumber,
+        .Epoch = epoch,
     };
     if (options.UserMeta) {
         resultRecord.UserMeta = ConvertToYsonString(options.UserMeta);
@@ -2970,7 +2973,9 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
     WaitFor(transaction->Commit())
         .ValueOrThrow();
 
-    YT_LOG_DEBUG("Created queue producer session (SequenceNumber: %v, Epoch: %v)", lastSequenceNumber, epoch);
+    YT_LOG_DEBUG("Created queue producer session (SequenceNumber: %v, Epoch: %v)",
+        lastSequenceNumber,
+        epoch);
 
     return TCreateQueueProducerSessionResult{
         .SequenceNumber = lastSequenceNumber,
@@ -2991,7 +2996,8 @@ void TClient::DoRemoveQueueProducerSession(
     // XXX(apachee): Maybe everything should be moved in queue_client.
 
     const auto& tableMountCache = GetTableMountCache();
-    auto producerTableInfo = WaitFor(tableMountCache->GetTableInfo(producerPath.GetPath())).ValueOrThrow();
+    auto producerTableInfo = WaitFor(tableMountCache->GetTableInfo(producerPath.GetPath()))
+        .ValueOrThrow();
     CheckWritePermission(producerPath.GetPath(), producerTableInfo, Options_, Connection_);
 
     IClientPtr client = MakeStrong(this);
@@ -3002,8 +3008,6 @@ void TClient::DoRemoveQueueProducerSession(
             "cluster connection was not properly configured with a cluster name");
     }
 
-    // FIXME(apachee): Check permissions.
-
     auto transaction = WaitFor(client->StartTransaction(NTransactionClient::ETransactionType::Tablet))
         .ValueOrThrow();
 
@@ -3013,7 +3017,7 @@ void TClient::DoRemoveQueueProducerSession(
         // TODO(babenko): switch to std::string
         .QueueCluster = TString(*queueCluster),
         .QueuePath = queuePath.GetPath(),
-        .SessionId = sessionId.Underlying(),
+        .SessionId = sessionId,
     };
 
     auto keys = FromRecordKeys(TRange(std::array{sessionKey}));

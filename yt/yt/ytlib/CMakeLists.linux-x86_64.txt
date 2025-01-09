@@ -1378,6 +1378,8 @@ add_custom_command(
   --output-cpp
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/queue_client/records/queue_producer_session.record.cpp
   --output-include
+  yt/yt/client/queue_client/public.h
+  --output-include
   yt/yt/core/yson/string.h
 )
 

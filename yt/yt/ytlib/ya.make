@@ -661,6 +661,7 @@ GENERATE_YT_RECORD(
 GENERATE_YT_RECORD(
     queue_client/records/queue_producer_session.yaml
     OUTPUT_INCLUDES
+    yt/yt/client/queue_client/public.h
     yt/yt/core/yson/string.h
 )
 

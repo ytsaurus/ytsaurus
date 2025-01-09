@@ -214,7 +214,7 @@ private:
             const TError& error,
             const NLogging::TLogger& logger)
         {
-            auto Logger = logger;
+            const auto& Logger = logger;
 
             auto fillFromAttribute = [&] <typename TTo> (TStringBuf attribute, std::optional<TTo>& attributeField) {
                 try {
