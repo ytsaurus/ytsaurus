@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/core/ytree/yson_struct.h>
+#include <library/cpp/yt/memory/ref_counted.h>
 
 namespace NYT::NSquashFS {
 

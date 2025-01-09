@@ -97,7 +97,7 @@ public:
     bool EnablePwritev;
     bool FlushAfterWrite;
     bool AsyncFlushAfterWrite;
-    bool UseSyncOnCloseWithWrite;
+    bool EnableSyncOnCloseWithWrite;
 
     // Request size in bytes.
     i64 DesiredRequestSize;
@@ -124,8 +124,8 @@ public:
             .Default(false);
         registrar.Parameter("async_flush_after_write", &TThis::AsyncFlushAfterWrite)
             .Default(false);
-        registrar.Parameter("use_sync_on_close_with_write", &TThis::UseSyncOnCloseWithWrite)
-            .Default(true);
+        registrar.Parameter("enable_sync_on_close_with_write", &TThis::EnableSyncOnCloseWithWrite)
+            .Default(false);
 
         registrar.Parameter("desired_request_size", &TThis::DesiredRequestSize)
             .GreaterThanOrEqual(4_KB)
@@ -347,7 +347,7 @@ public:
     {
         YT_ASSERT(request.Handle);
 
-        bool useSyncOnClose = Config_.Acquire()->UseSyncOnCloseWithWrite;
+        bool useSyncOnClose = Config_.Acquire()->EnableSyncOnCloseWithWrite;
 
         if (!useSyncOnClose) {
             request.Flush = false;

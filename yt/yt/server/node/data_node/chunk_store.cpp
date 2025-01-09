@@ -97,9 +97,7 @@ public:
 
     void RemoveChunkFromCache(TChunkId chunkId) override
     {
-        auto blockCache = Bootstrap_->GetBlockCache();
-
-        if (blockCache) {
+        if (auto blockCache = Bootstrap_->GetBlockCache()) {
             blockCache->RemoveChunkBlocks(chunkId);
         }
     }

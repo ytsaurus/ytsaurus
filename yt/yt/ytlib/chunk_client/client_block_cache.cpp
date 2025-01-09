@@ -360,13 +360,10 @@ public:
     {
         auto cleanupCaches = [&] (const auto& caches) {
             for (const auto& [type, cache] : caches) {
-                THashSet<TBlockId> removedBlocks = {};
-
                 if (cache) {
                     auto blocks = cache->GetCachedBlocksByChunkId(chunkId);
                     for (const auto& blockInfo : blocks) {
                         auto blockId = TBlockId{chunkId, blockInfo.BlockIndex};
-                        removedBlocks.insert(blockId);
                         cache->RemoveBlock(blockId);
                     }
                 }
