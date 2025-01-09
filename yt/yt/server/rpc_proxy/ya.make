@@ -10,6 +10,7 @@ SRCS(
     dynamic_config_manager.cpp
     bundle_dynamic_config_manager.cpp
     program.cpp
+    query_corpus_reporter.cpp
 )
 
 PEERDIR(

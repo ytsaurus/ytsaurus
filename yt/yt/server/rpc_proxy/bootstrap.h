@@ -97,7 +97,10 @@ private:
     NSignature::TSignatureGeneratorPtr SignatureGenerator_;
     NSignature::TKeyRotatorPtr SignatureKeyRotator_;
 
+    IQueryCorpusReporterPtr QueryCorpusReporter_;
+
     void DoInitialize();
+
     void DoRun();
 
     void OnDynamicConfigChanged(

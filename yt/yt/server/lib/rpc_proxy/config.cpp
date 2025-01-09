@@ -48,6 +48,28 @@ void TStructuredLoggingTopicDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQueryCorpusReporterConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("max_batch_size", &TThis::MaxBatchSize)
+        .Default(1'000)
+        .GreaterThan(0);
+    registrar.Parameter("period", &TThis::Period)
+        .Default(TDuration::Seconds(10));
+    registrar.Parameter("splay", &TThis::Splay)
+        .Default(TDuration::MilliSeconds(5));
+    registrar.Parameter("jitter", &TThis::Jitter)
+        .Default(0.2)
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1);
+    registrar.Parameter("report_backoff_time", &TThis::ReportBackoffTime)
+        .Default(TDuration::Seconds(30));
+    registrar.Parameter("table_path", &TThis::TablePath);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TApiTestingOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
@@ -113,6 +135,8 @@ void TApiServiceDynamicConfig::Register(TRegistrar registrar)
         .Default(10_KB);
     registrar.Parameter("structured_logging_query_truncation_size", &TThis::StructuredLoggingQueryTruncationSize)
         .Default(256);
+    registrar.Parameter("query_corpus_reporter", &TThis::QueryCorpusReporter)
+        .DefaultNew();
     registrar.Parameter("formats", &TThis::Formats)
         .Default();
     registrar.Parameter("enable_allocation_tags", &TThis::EnableAllocationTags)

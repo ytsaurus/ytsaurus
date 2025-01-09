@@ -50,7 +50,8 @@ IApiServicePtr CreateApiService(
     NSignature::ISignatureValidatorPtr validator,
     NSignature::ISignatureGeneratorPtr generator,
     INodeMemoryTrackerPtr memoryUsageTracker = {},
-    NApi::IStickyTransactionPoolPtr stickyTransactionPool = {});
+    NApi::IStickyTransactionPoolPtr stickyTransactionPool = {},
+    IQueryCorpusReporterPtr queryCorpusReporter = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

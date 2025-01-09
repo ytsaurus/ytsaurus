@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include "private.h"
 #include "proxy_coordinator.h"
+#include "query_corpus_reporter.h"
 #include "security_manager.h"
 
 #include <yt/yt/server/lib/misc/format_manager.h>
@@ -616,7 +617,8 @@ public:
         INodeMemoryTrackerPtr memoryTracker,
         IStickyTransactionPoolPtr stickyTransactionPool,
         ISignatureValidatorPtr signatureValidator,
-        ISignatureGeneratorPtr signatureGenerator)
+        ISignatureGeneratorPtr signatureGenerator,
+        IQueryCorpusReporterPtr queryCorpusReporter)
         : TServiceBase(
             std::move(workerInvoker),
             GetServiceDescriptor(),
@@ -650,6 +652,7 @@ public:
         , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
         , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
         , SelectOutputRowCount_(Profiler_.Counter("/select_output/row_count"))
+        , QueryCorpusReporter_(std::move(queryCorpusReporter))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
 
@@ -888,6 +891,8 @@ private:
 
     TCounter SelectOutputDataWeight_;
     TCounter SelectOutputRowCount_;
+
+    IQueryCorpusReporterPtr QueryCorpusReporter_;
 
     struct TDetailedProfilingCountersKey
     {
@@ -3979,6 +3984,10 @@ private:
                 SelectConsumeRowCount_.Increment(result.Statistics.RowsRead);
                 SelectOutputDataWeight_.Increment(GetDataWeight(rows));
                 SelectOutputRowCount_.Increment(rows.Size());
+
+                if (QueryCorpusReporter_) {
+                    QueryCorpusReporter_->AddQuery(query);
+                }
             });
     }
 
@@ -6897,7 +6906,8 @@ IApiServicePtr CreateApiService(
     ISignatureValidatorPtr signatureValidator,
     ISignatureGeneratorPtr signatureGenerator,
     INodeMemoryTrackerPtr memoryUsageTracker,
-    IStickyTransactionPoolPtr stickyTransactionPool)
+    IStickyTransactionPoolPtr stickyTransactionPool,
+    IQueryCorpusReporterPtr queryCorpusReporter)
 {
     return New<TApiService>(
         std::move(config),
@@ -6914,7 +6924,8 @@ IApiServicePtr CreateApiService(
         std::move(memoryUsageTracker),
         std::move(stickyTransactionPool),
         std::move(signatureValidator),
-        std::move(signatureGenerator));
+        std::move(signatureGenerator),
+        std::move(queryCorpusReporter));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

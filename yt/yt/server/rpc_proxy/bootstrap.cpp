@@ -6,6 +6,7 @@
 #include "discovery_service.h"
 #include "dynamic_config_manager.h"
 #include "private.h"
+#include "query_corpus_reporter.h"
 
 #include <yt/yt/server/lib/rpc_proxy/api_service.h>
 #include <yt/yt/server/lib/rpc_proxy/profilers.h>
@@ -322,6 +323,8 @@ void TBootstrap::DoRun()
         Connection_,
         Logger());
 
+    QueryCorpusReporter_ = MakeQueryCorpusReporter(RootClient_);
+
     auto createApiService = [&] (const NAuth::IAuthenticationManagerPtr& authenticationManager) {
         return CreateApiService(
             Config_->ApiService,
@@ -337,7 +340,9 @@ void TBootstrap::DoRun()
             RpcProxyProfiler(),
             SignatureValidator_,
             SignatureGenerator_,
-            MemoryUsageTracker_);
+            MemoryUsageTracker_,
+            /*stickyTransactionPool*/ {},
+            QueryCorpusReporter_);
     };
 
     ApiService_ = createApiService(AuthenticationManager_);
@@ -370,6 +375,8 @@ void TBootstrap::DoRun()
     YT_LOG_INFO("Waiting for dynamic config");
     WaitFor(DynamicConfigManager_->GetConfigLoadedFuture())
         .ThrowOnError();
+
+    QueryCorpusReporter_->Reconfigure(DynamicConfigManager_->GetConfig()->Api->QueryCorpusReporter);
 
     if (Config_->DiscoveryService->Enable) {
         DiscoveryService_ = CreateDiscoveryService(
@@ -493,6 +500,8 @@ void TBootstrap::OnDynamicConfigChanged(
     ApiService_->OnDynamicConfigChanged(newConfig->Api);
 
     RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
+
+    QueryCorpusReporter_->Reconfigure(newConfig->Api->QueryCorpusReporter);
 
     ReconfigureMemoryLimits(newConfig->MemoryLimits);
 
