@@ -92,8 +92,7 @@ ADDINCL(
     contrib/clickhouse/contrib/libdivide-cmake
     contrib/clickhouse/includes/configs
     contrib/clickhouse/src/Storages/System/InformationSchema
-    contrib/libs/apache/avro
-    contrib/libs/apache/avro/api
+    contrib/libs/apache/avro/include/avro
     contrib/libs/croaring/include/roaring
     contrib/libs/double-conversion
     contrib/libs/fastops

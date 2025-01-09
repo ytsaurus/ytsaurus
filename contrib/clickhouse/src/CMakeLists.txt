@@ -63,8 +63,7 @@ target_include_directories(contrib-clickhouse-src PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/contrib/libdivide-cmake
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/includes/configs
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/InformationSchema
-  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro
-  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro/api
+  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro/include/avro
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/include/roaring
   ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops
@@ -1771,8 +1770,7 @@ target_include_directories(contrib-clickhouse-src.global PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/contrib/libdivide-cmake
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/includes/configs
   ${PROJECT_SOURCE_DIR}/contrib/clickhouse/src/Storages/System/InformationSchema
-  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro
-  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro/api
+  ${PROJECT_SOURCE_DIR}/contrib/libs/apache/avro/include/avro
   ${PROJECT_SOURCE_DIR}/contrib/libs/croaring/include/roaring
   ${PROJECT_SOURCE_DIR}/contrib/libs/double-conversion
   ${PROJECT_SOURCE_DIR}/contrib/libs/fastops

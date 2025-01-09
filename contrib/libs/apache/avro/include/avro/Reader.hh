@@ -84,7 +84,7 @@ public:
         union {
             double d;
             uint64_t i;
-        } v = { 0 };
+        } v = {0};
         reader_.read(v.i);
         val = v.d;
     }
@@ -176,15 +176,15 @@ private:
         return encoded;
     }
 
-    int64_t readSize() {
+    size_t readSize() {
         uint64_t encoded = readVarInt();
-        int64_t size = decodeZigzag64(encoded);
+        auto size = static_cast<size_t>(decodeZigzag64(encoded));
         return size;
     }
 
-    int64_t readCount() {
+    size_t readCount() {
         validator_.checkTypeExpected(AVRO_LONG);
-        int64_t count = readSize();
+        size_t count = readSize();
         validator_.setCount(count);
         return count;
     }
