@@ -225,6 +225,30 @@ void TRpcRawClient::Unlock(
     WaitFor(future).ThrowOnError();
 }
 
+void TRpcRawClient::Concatenate(
+    const TTransactionId& transactionId,
+    const TVector<TRichYPath>& sourcePaths,
+    const TRichYPath& destinationPath,
+    const TConcatenateOptions& options)
+{
+    std::vector<NYPath::TRichYPath> newSourcePaths;
+    for (const auto& sourcePath : sourcePaths) {
+        auto newSourcePath = ToApiRichPath(sourcePath);
+        newSourcePath.SetPath(AddPathPrefix(newSourcePath.GetPath(), Context_.Config->Prefix));
+        newSourcePaths.emplace_back(std::move(newSourcePath));
+    }
+
+    auto newDestinationPath = ToApiRichPath(destinationPath);
+    newDestinationPath.SetPath(AddPathPrefix(newDestinationPath.GetPath(), Context_.Config->Prefix));
+    if (options.Append_) {
+        newDestinationPath.SetAppend(*options.Append_);
+    }
+
+    TMutationId mutationId;
+    auto future = Client_->ConcatenateNodes(newSourcePaths, newDestinationPath, SerializeOptionsForConcatenate(mutationId, transactionId, options));
+    WaitFor(future).ThrowOnError();
+}
+
 TTransactionId TRpcRawClient::StartTransaction(
     TMutationId& mutationId,
     const TTransactionId& parentId,
