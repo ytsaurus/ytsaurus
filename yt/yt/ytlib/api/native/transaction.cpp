@@ -1882,7 +1882,7 @@ private:
         NQueueClient::NRecords::TQueueProducerSessionKey sessionKey{
             .QueueCluster = TString(*cluster),
             .QueuePath = queuePath.GetPath(),
-            .SessionId = sessionId.Underlying(),
+            .SessionId = sessionId,
         };
 
         auto keys = FromRecordKeys(TRange(std::array{sessionKey}));
@@ -1902,14 +1902,14 @@ private:
         const auto& session = sessions[0];
 
         THROW_ERROR_EXCEPTION_IF(
-            session.Epoch > epoch.Underlying(),
+            session.Epoch > epoch,
             NQueueClient::EErrorCode::ZombieEpoch,
             "Received session epoch %v is less than the actual %v epoch, probably it is a zombie",
             epoch,
             session.Epoch);
 
         THROW_ERROR_EXCEPTION_IF(
-            session.Epoch < epoch.Underlying(),
+            session.Epoch < epoch,
             NQueueClient::EErrorCode::InvalidEpoch,
             "Received epoch %v is greater than the actual %v epoch",
             epoch,
@@ -1953,8 +1953,8 @@ private:
 
         NQueueClient::NRecords::TQueueProducerSessionPartial updatedSession{
             .Key = sessionKey,
-            .SequenceNumber = validateResult.LastSequenceNumber.Underlying(),
-            .Epoch = epoch.Underlying(),
+            .SequenceNumber = validateResult.LastSequenceNumber,
+            .Epoch = epoch,
         };
         if (options.UserMeta) {
             updatedSession.UserMeta = ConvertToYsonString(options.UserMeta);
