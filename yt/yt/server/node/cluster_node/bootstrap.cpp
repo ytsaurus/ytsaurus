@@ -1568,7 +1568,7 @@ private:
 
     void InitCachingObjectService(TCellId cellId)
     {
-        VERIFY_WRITER_SPINLOCK_AFFINITY(CachingObjectServicesLock_);
+        YT_ASSERT_WRITER_SPINLOCK_AFFINITY(CachingObjectServicesLock_);
 
         auto cachingObjectService = CreateCachingObjectService(
             Config_->CachingObjectService,
