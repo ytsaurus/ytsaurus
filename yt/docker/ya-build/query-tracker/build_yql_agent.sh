@@ -6,17 +6,7 @@
 # YTSAURUS_SOURCE_PATH - path to the ytsaurus source root. Needed to build yql agent.
 # YDB_SOURCE_PATH - path to the ydb source root. Needed to build everything else.
 # YQL_BUILD_PATH - path to the build directory. All artifacts will be placed here.
-# UPDATE_REMOTE_CACHE - if `true`, then `ya make` will also be launched without `--bazel-remote-put`.
 # BUILD_FLAGS - flags to pass to ya make when building.
-
-# Due to --bazel-remote-put disables build dump, we need to run ya make without --bazel-remote-put also.
-BUILD_FLAGS_WITHOUT_PUT="${BUILD_FLAGS// --bazel-remote-put/}"
-
-# if UPDATE_REMOTE_CACHE is true and BUILD_FLAGS_WITHOUT_PUT without --bazel-remote-put, throw exceprion
-if [ "$UPDATE_REMOTE_CACHE" == "true" ] && [ "$BUILD_FLAGS" == "$BUILD_FLAGS_WITHOUT_PUT" ]; then
-  echo "WARNING: UPDATE_REMOTE_CACHE is true but --bazel-remote-put is not set in BUILD_FLAGS. Disabling UPDATE_REMOTE_CACHE."
-  export UPDATE_REMOTE_CACHE="false"
-fi
 
 set -eux
 shopt -s expand_aliases
@@ -58,15 +48,9 @@ mkdir -p $YQL_BUILD_PATH
 
 # Build yql agent binary.
 ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/agent/bin
-if [ "$UPDATE_REMOTE_CACHE" == "true" ]; then
-    ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS_WITHOUT_PUT} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/agent/bin
-fi
 
 # Build mrjob binary.
 ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/tools/mrjob
-if [ "$UPDATE_REMOTE_CACHE" == "true" ]; then
-    ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS_WITHOUT_PUT} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/tools/mrjob
-fi
 
 # Build required binaries and libraries.
 for path in "ydb/library/yql/yt/dynamic" \
@@ -75,9 +59,6 @@ for path in "ydb/library/yql/yt/dynamic" \
             "yql/essentials/udfs/logs/dsv"
 do
     ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/$path
-    if [ "$UPDATE_REMOTE_CACHE" == "true" ]; then
-        ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS_WITHOUT_PUT} --ignore-recurses --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/$path
-    fi
 done
 
 # Build common yql udfs.
@@ -106,10 +87,9 @@ for udf_name in compress_base \
                 yson2
 do
     ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses -DSTRIP=yes --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}
-    if [ "$UPDATE_REMOTE_CACHE" == "true" ]; then
-        ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS_WITHOUT_PUT} --ignore-recurses -DSTRIP=yes --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}
+    if [[ "$BUILD_FLAGS" != *"--bazel-remote-put"* ]]; then
+        strip --remove-section=.gnu_debuglink ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}/*.so
     fi
-    strip --remove-section=.gnu_debuglink ${YDB_SOURCE_PATH}/yql/essentials/udfs/common/${udf_name}/*.so | true
 done
 
 if [ "$build_python_udfs" == "yes" ]; then

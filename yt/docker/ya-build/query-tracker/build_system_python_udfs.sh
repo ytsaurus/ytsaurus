@@ -6,17 +6,7 @@
 # Required environment variables:
 # YDB_SOURCE_PATH - path to the ydb source root.
 # YQL_BUILD_PATH - path to the build directory. All artifacts will be placed here.
-# UPDATE_REMOTE_CACHE - if `true`, then `ya make` will also be launched without `--bazel-remote-put`.
 # BUILD_FLAGS - flags to pass to ya make when building.
-
-# Due to --bazel-remote-put disables build dump, we need to run ya make without --bazel-remote-put also.
-BUILD_FLAGS_WITHOUT_PUT="${BUILD_FLAGS// --bazel-remote-put/}"
-
-# if UPDATE_REMOTE_CACHE is true and BUILD_FLAGS_WITHOUT_PUT without --bazel-remote-put, throw exceprion
-if [ "$UPDATE_REMOTE_CACHE" == "true" ] && [ "$BUILD_FLAGS" == "$BUILD_FLAGS_WITHOUT_PUT" ]; then
-  echo "WARNING: UPDATE_REMOTE_CACHE is true but --bazel-remote-put is not set in BUILD_FLAGS. Disabling UPDATE_REMOTE_CACHE."
-  export UPDATE_REMOTE_CACHE="false"
-fi
 
 set -eux
 shopt -s expand_aliases
@@ -49,9 +39,7 @@ do
 
   python3 $YDB_SOURCE_PATH/ya make $YDB_SOURCE_PATH/yql/essentials/udfs/common/python/system_python/${udf_name} \
     -T ${BUILD_FLAGS} --ignore-recurses -DSTRIP=yes -DUSE_ARCADIA_PYTHON=no -DUSE_LOCAL_PYTHON -DPYTHON_CONFIG=${python_name}-config -DPYTHON_BIN=${python_name} --output $YQL_BUILD_PATH
-  if [ "$UPDATE_REMOTE_CACHE" == "true" ]; then
-    python3 $YDB_SOURCE_PATH/ya make $YDB_SOURCE_PATH/yql/essentials/udfs/common/python/system_python/${udf_name} \
-      -T ${BUILD_FLAGS_WITHOUT_PUT} --ignore-recurses -DSTRIP=yes -DUSE_ARCADIA_PYTHON=no -DUSE_LOCAL_PYTHON -DPYTHON_CONFIG=${python_name}-config -DPYTHON_BIN=${python_name} --output $YQL_BUILD_PATH
+  if [[ "$BUILD_FLAGS" != *"--bazel-remote-put"* ]]; then
+    strip --remove-section=.gnu_debuglink $YQL_BUILD_PATH/yql/essentials/udfs/common/python/system_python/${udf_name}/libsystem${udf_name}_udf.so
   fi
-  strip --remove-section=.gnu_debuglink $YQL_BUILD_PATH/yql/essentials/udfs/common/python/system_python/${udf_name}/libsystem${udf_name}_udf.so
 done

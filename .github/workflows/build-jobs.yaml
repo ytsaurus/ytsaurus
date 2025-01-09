@@ -227,10 +227,6 @@ jobs:
         run: |
           BUILD_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation --bazel-remote-store --bazel-remote-base-uri=http://${{ vars.BUILD_CACHE_BAZEL_HOST }}"
 
-          if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-            BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-put --bazel-remote-username=${{ secrets.BUILD_CACHE_BAZEL_USERNAME }} --bazel-remote-password=${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}"
-          fi
-
           STRIP_VALUE=no
           BUILD_TYPE=profile
           if [ "${{ matrix.build-type }}" == "release" ]; then
@@ -264,13 +260,15 @@ jobs:
           BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=yes -DUSE_ARCADIA_PYTHON=no -DUSE_LOCAL_PYTHON -DPYTHON_CONFIG=python3.11-config -DPYTHON_BIN=python3.11"
           BUILD_FLAGS_WITHOUT_PUT="${BUILD_FLAGS// --bazel-remote-put/}"
 
+          if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
+            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
+            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
+            ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} --bazel-remote-put ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
+          fi
+
           ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
           ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
           ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS} ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
-
-          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS_WITHOUT_PUT} ../ytsaurus/ytsaurus/yt/yt/python/yson_shared
-          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS_WITHOUT_PUT} ../ytsaurus/ytsaurus/yt/yt/python/driver/native_shared
-          ../ytsaurus/ytsaurus/ya make --output=. ${BUILD_FLAGS_WITHOUT_PUT} ../ytsaurus/ytsaurus/yt/yt/python/driver/rpc_shared
 
           if [ "${{ inputs.skip-python-packages }}" == "false" ]; then
             cd ../ytsaurus
@@ -287,11 +285,13 @@ jobs:
           BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
           BUILD_FLAGS_WITHOUT_PUT="${BUILD_FLAGS// --bazel-remote-put/}"
 
+          if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --bazel-remote-put --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
+          fi
+
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
-
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS_WITHOUT_PUT} --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS_WITHOUT_PUT} --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
 
       - name: Build YQL agent (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
@@ -314,4 +314,8 @@ jobs:
             SCRIPT_FLAGS="${SCRIPT_FLAGS} --build-python-udfs no"
           fi
 
-          UPDATE_REMOTE_CACHE="true" ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
+          if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
+            BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-put" ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
+          fi
+          
+          ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
