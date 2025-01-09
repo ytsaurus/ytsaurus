@@ -624,7 +624,7 @@ void TBlobChunkBase::DoReadBlockSet(const TReadBlockSetSessionPtr& session)
                 collapseRight();
             } else if (rightBlock <= previousEntry->BlockIndex) {
                 collapseLeft();
-            }else if (cachedBlockIndexes.contains(rightBlock)) {
+            } else if (cachedBlockIndexes.contains(rightBlock)) {
                 collapseRight();
             } else if (cachedBlockIndexes.contains(leftBlock)) {
                 collapseLeft();
