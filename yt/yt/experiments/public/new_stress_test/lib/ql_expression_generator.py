@@ -4,6 +4,7 @@ from dataclasses import dataclass
 import enum
 import random
 
+from copy import deepcopy
 from typing import List, Tuple, Union, Any
 
 ################################################################################
@@ -102,6 +103,14 @@ class ListShelf():
 
 ################################################################################
 
+def deoptionalize(ty_pe: TType) -> TType:
+    while (ty_pe.get("type_v3", {}).get("type_name", None) == "optional"):
+        ty_pe = ty_pe["type_v3"]["item"]
+    if "type" in ty_pe and not ty_pe.get("required", False):
+        ty_pe = deepcopy(ty_pe)
+        ty_pe["required"] = True
+    return ty_pe
+
 DEFAULT_GRAILS = {
     "int64": NumericGrail(-2**63, 2**63, 1000, yson.YsonInt64),
     "uint64": NumericGrail(0, 2**64 - 1, 1000, yson.YsonUint64),
@@ -163,6 +172,7 @@ class RegOptions:
     max_depth: int = 5
     forbid_throwing: bool = False
     forbidden_kinds: tuple = tuple()
+    forbid_null: bool = False
 
 ################################################################################
 
@@ -246,6 +256,8 @@ class Literal(IExpression):
 
     @staticmethod
     def make_random(schema: TSchema, desired_type: TType, depth: int, options: RegOptions):
+        if options.forbid_null:
+            desired_type = deoptionalize(desired_type)
         return Literal(Treasury().raid(desired_type).drink(), desired_type)
 
     @staticmethod
@@ -599,7 +611,10 @@ class In(IExpression):
         assert is_compatible(desired_type, BOOLEAN)
         arg_type = random.choice(SCALAR_TYPES)
 
-        expr = make_random_expression(schema, arg_type, depth + 1, options)
+        expression_options = deepcopy(options)
+        expression_options.forbid_null = True
+
+        expr = make_random_expression(schema, arg_type, depth + 1, expression_options)
         value_count = random.randint(1, 5)
         values = [Literal.make_random(schema, arg_type, depth + 1, options) for _ in range(value_count)]
         return In(expr, values)
