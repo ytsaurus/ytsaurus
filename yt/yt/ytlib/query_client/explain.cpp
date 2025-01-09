@@ -27,19 +27,27 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TExplainQueryRangeInferrerTag
+{ };
+
 void GetReadRangesInfo(
     TFluentMap fluent,
     NApi::NNative::IConnectionPtr connection,
     const TConstQueryPtr query,
     const TDataSource& dataSource,
-    const NApi::TExplainQueryOptions& options)
+    const NApi::TExplainQueryOptions& options,
+    const IMemoryChunkProviderPtr& memoryChunkProvider)
 {
     const auto& keyColumns = query->GetKeyColumns();
     const auto& predicate = query->WhereClause;
 
-    auto rowBuffer = New<TRowBuffer>();
+    auto rowBuffer = New<TRowBuffer>(TExplainQueryRangeInferrerTag(), memoryChunkProvider);
 
-    TConstraintsHolder constraints(keyColumns.size());
+    auto constraints = TConstraintsHolder(
+        keyColumns.size(),
+        GetRefCountedTypeCookie<TExplainQueryRangeInferrerTag>(),
+        memoryChunkProvider);
+
     auto constraintRef = constraints.ExtractFromExpression(
         predicate,
         keyColumns,
@@ -62,6 +70,7 @@ void GetReadRangesInfo(
         dataSource,
         queryOptions,
         rowBuffer,
+        memoryChunkProvider,
         Logger);
 
     auto tableId = dataSource.ObjectId;
@@ -179,7 +188,8 @@ NYson::TYsonString BuildExplainQueryYson(
     NApi::NNative::IConnectionPtr connection,
     const std::unique_ptr<TPlanFragment>& fragment,
     TStringBuf udfRegistryPath,
-    const NApi::TExplainQueryOptions& options)
+    const NApi::TExplainQueryOptions& options,
+    const IMemoryChunkProviderPtr& memoryChunkProvider)
 {
     const auto& query = fragment->Query;
     const TDataSource& dataSource = fragment->DataSource;
@@ -190,7 +200,7 @@ NYson::TYsonString BuildExplainQueryYson(
         .Item("query")
         .DoMap([&] (auto fluent) {
             GetQueryInfo(fluent, query);
-            GetReadRangesInfo(fluent, connection, query, dataSource, options);
+            GetReadRangesInfo(fluent, connection, query, dataSource, options, memoryChunkProvider);
         })
         .Do([&] (TFluentMap fluent) {
             auto [frontQuery, bottomQuery] = GetDistributedQueryPattern(query);

@@ -32,6 +32,7 @@ std::pair<TDataSource, TConstQueryPtr> InferRanges(
     const TDataSource& dataSource,
     const TQueryOptions& options,
     TRowBufferPtr rowBuffer,
+    const IMemoryChunkProviderPtr& memoryChunkProvider,
     const NLogging::TLogger& Logger);
 
 std::vector<std::pair<TDataSource, TString>> CoordinateDataSources(

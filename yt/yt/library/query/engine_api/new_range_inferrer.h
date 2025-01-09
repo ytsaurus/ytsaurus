@@ -24,7 +24,8 @@ TSharedRange<TRowRange> CreateNewRangeInferrer(
     const TKeyColumns& keyColumns,
     const IColumnEvaluatorCachePtr& evaluatorCache,
     const TConstConstraintExtractorMapPtr& constraintExtractors,
-    const TQueryOptions& options);
+    const TQueryOptions& options,
+    const IMemoryChunkProviderPtr& memoryChunkProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

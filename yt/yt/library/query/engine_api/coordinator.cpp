@@ -21,6 +21,7 @@ Y_WEAK TSharedRange<TRowRange> GetPrunedRanges(
     const IColumnEvaluatorCachePtr& /*evaluatorCache*/,
     const TConstRangeExtractorMapPtr& /*rangeExtractors*/,
     const TQueryOptions& /*options*/,
+    const IMemoryChunkProviderPtr& /*memoryChunkProvider*/,
     TGuid /*queryId*/)
 {
     // Proper implementation resides in yt/yt/library/query/engine/coordinator.cpp.
@@ -34,7 +35,8 @@ Y_WEAK TSharedRange<TRowRange> GetPrunedRanges(
     const TRowBufferPtr& /*rowBuffer*/,
     const IColumnEvaluatorCachePtr& /*evaluatorCache*/,
     const TConstRangeExtractorMapPtr& /*rangeExtractors*/,
-    const TQueryOptions& /*options*/)
+    const TQueryOptions& /*options*/,
+    const IMemoryChunkProviderPtr& /*memoryChunkProvider*/)
 {
     // Proper implementation resides in yt/yt/library/query/engine/coordinator.cpp.
     YT_ABORT();

@@ -16,6 +16,24 @@ TColumnConstraint UniversalInterval{MinBound, MaxBound};
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TColumnConstraints::TColumnConstraints(
+    TRefCountedTypeCookie cookie,
+    IMemoryChunkProviderPtr memoryChunkProvider)
+    : TVectorOverMemoryChunkProvider<TConstraint>(cookie, memoryChunkProvider)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TConstraintsHolder::TConstraintsHolder(
+    ui32 columnCount,
+    TRefCountedTypeCookie cookie,
+    IMemoryChunkProviderPtr memoryChunkProvider)
+{
+    for (ui32 i = 0; i < columnCount; ++i) {
+        this->emplace_back(cookie, memoryChunkProvider);
+    }
+}
+
 TConstraintRef TConstraintsHolder::Append(std::initializer_list<TConstraint> constraints, ui32 keyPartIndex)
 {
     auto& columnConstraints = (*this)[keyPartIndex];
@@ -26,7 +44,7 @@ TConstraintRef TConstraintsHolder::Append(std::initializer_list<TConstraint> con
     result.StartIndex = columnConstraints.size();
     result.EndIndex = result.StartIndex + constraints.size();
 
-    columnConstraints.insert(columnConstraints.end(), constraints.begin(), constraints.end());
+    columnConstraints.Append(std::move(constraints));
 
     return result;
 }
@@ -319,7 +337,8 @@ TString ToString(const TConstraintsHolder& constraints, TConstraintRef root)
                     return;
                 }
 
-                for (const auto& item : TRange(constraints[ref.ColumnId]).Slice(ref.StartIndex, ref.EndIndex)) {
+                auto refConstraints = constraints[ref.ColumnId].Slice(ref.StartIndex, ref.EndIndex);
+                for (const auto& item : refConstraints) {
                     result.AppendString("\n");
                     addOffset(ref.ColumnId);
                     TColumnConstraint columnConstraint{item.GetLowerBound(), item.GetUpperBound()};
@@ -359,8 +378,7 @@ ui64 TReadRangesGenerator::EstimateExpansion(TConstraintRef constraintRef, ui32 
         return 1;
     }
 
-    auto intervals = TRange(Constraints_[columnId])
-        .Slice(constraintRef.StartIndex, constraintRef.EndIndex);
+    auto intervals = Constraints_[columnId].Slice(constraintRef.StartIndex, constraintRef.EndIndex);
 
     ui64 result = 0;
     for (const auto& item : intervals) {

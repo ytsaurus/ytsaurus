@@ -261,6 +261,7 @@ std::pair<TDataSource, TConstQueryPtr> InferRanges(
     const TDataSource& dataSource,
     const TQueryOptions& options,
     TRowBufferPtr rowBuffer,
+    const IMemoryChunkProviderPtr& memoryChunkProvider,
     const NLogging::TLogger& Logger)
 {
     auto tableId = dataSource.ObjectId;
@@ -278,7 +279,8 @@ std::pair<TDataSource, TConstQueryPtr> InferRanges(
             rowBuffer,
             columnEvaluatorCache,
             GetBuiltinRangeExtractors(),
-            options);
+            options,
+            memoryChunkProvider);
 
         YT_LOG_DEBUG("Ranges are inferred (RangeCount: %v, TableId: %v)",
             ranges.Size(),
@@ -474,6 +476,7 @@ public:
             dataSource,
             options,
             rowBuffer,
+            MemoryChunkProvider_,
             Logger);
 
         auto tableId = dataSource.ObjectId;

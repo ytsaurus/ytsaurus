@@ -1310,7 +1310,8 @@ protected:
             rowBuffer,
             ColumnEvaluatorCache_,
             RangeExtractorMap_,
-            options);
+            options,
+            GetDefaultMemoryChunkProvider());
 
         EXPECT_EQ(prunedRanges.size(), subqueriesCount);
     }

@@ -940,7 +940,8 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
     const TKeyColumns& keyColumns,
     const IColumnEvaluatorCachePtr& evaluatorCache,
     const TConstConstraintExtractorMapPtr& constraintExtractors,
-    const TQueryOptions& options)
+    const TQueryOptions& options,
+    const IMemoryChunkProviderPtr& memoryChunkProvider)
 {
     auto buffer = New<TRowBuffer>(TRangeInferrerBufferTag());
     auto keySize = schema->GetKeyColumnCount();
@@ -962,7 +963,7 @@ TSharedRange<TRowRange> CreateNewHeavyRangeInferrer(
     auto keyTypes = GetKeyTypes(schema);
     TComputedColumnsEvaluator keyEvaluator(std::move(computedColumnInfos), keyTypes, options.VerboseLogging);
 
-    TConstraintsHolder constraints(keyColumns.size());
+    auto constraints = TConstraintsHolder(keyColumns.size(), GetRefCountedTypeCookie<TRangeInferrerBufferTag>(), memoryChunkProvider);
     auto constraintRef = constraints.ExtractFromExpression(predicate, keyColumns, buffer, constraintExtractors);
 
     YT_LOG_DEBUG_IF(
@@ -1026,10 +1027,11 @@ TSharedRange<TRowRange> CreateNewLightRangeInferrer(
     TConstExpressionPtr predicate,
     const TKeyColumns& keyColumns,
     const TConstConstraintExtractorMapPtr& constraintExtractors,
-    const TQueryOptions& options)
+    const TQueryOptions& options,
+    const IMemoryChunkProviderPtr& memoryChunkProvider)
 {
     auto buffer = New<TRowBuffer>(TRangeInferrerBufferTag());
-    TConstraintsHolder constraints(keyColumns.size());
+    auto constraints = TConstraintsHolder(keyColumns.size(), GetRefCountedTypeCookie<TRangeInferrerBufferTag>(), memoryChunkProvider);
     auto constraintRef = constraints.ExtractFromExpression(predicate, keyColumns, buffer, constraintExtractors);
 
     YT_LOG_DEBUG_IF(
@@ -1119,7 +1121,8 @@ TSharedRange<TRowRange> CreateNewRangeInferrer(
     const TKeyColumns& keyColumns,
     const IColumnEvaluatorCachePtr& evaluatorCache,
     const TConstConstraintExtractorMapPtr& constraintExtractors,
-    const TQueryOptions& options)
+    const TQueryOptions& options,
+    const IMemoryChunkProviderPtr& memoryChunkProvider)
 {
     return schema->HasMaterializedComputedColumns()
         ? CreateNewHeavyRangeInferrer(
@@ -1128,12 +1131,14 @@ TSharedRange<TRowRange> CreateNewRangeInferrer(
             keyColumns,
             evaluatorCache,
             constraintExtractors,
-            options)
+            options,
+            memoryChunkProvider)
         : CreateNewLightRangeInferrer(
             predicate,
             keyColumns,
             constraintExtractors,
-            options);
+            options,
+            memoryChunkProvider);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

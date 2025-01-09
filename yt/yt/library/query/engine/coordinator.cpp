@@ -64,6 +64,7 @@ TSharedRange<TRowRange> GetPrunedRanges(
     const IColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options,
+    const IMemoryChunkProviderPtr& memoryChunkProvider,
     TGuid queryId)
 {
     auto Logger = MakeQueryLogger(queryId);
@@ -79,7 +80,8 @@ TSharedRange<TRowRange> GetPrunedRanges(
             keyColumns,
             evaluatorCache,
             GetBuiltinConstraintExtractors(),
-            options);
+            options,
+            memoryChunkProvider);
     } else {
         result = CreateRangeInferrer(
             predicate,
@@ -112,7 +114,8 @@ TSharedRange<TRowRange> GetPrunedRanges(
     const TRowBufferPtr& rowBuffer,
     const IColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
-    const TQueryOptions& options)
+    const TQueryOptions& options,
+    const IMemoryChunkProviderPtr& memoryChunkProvider)
 {
     return GetPrunedRanges(
         query->WhereClause,
@@ -124,6 +127,7 @@ TSharedRange<TRowRange> GetPrunedRanges(
         evaluatorCache,
         rangeExtractors,
         options,
+        memoryChunkProvider,
         query->Id);
 }
 
