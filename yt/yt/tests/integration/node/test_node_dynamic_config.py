@@ -388,8 +388,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
                     used_slot_count += 1
         return used_slot_count
 
-    def _check_tablet_node_rct(self, address):
-        used_slot_count = self._get_used_cellar_slot_count(address)
+    def _check_tablet_node_rct(self, address, used_slot_count):
         wait_for_node_alive_object_counts(
             address,
             {
@@ -404,10 +403,6 @@ class TestNodeDynamicConfig(YTEnvSetup):
                 "NYT::NHydra::TRemoteSnapshotStore" : used_slot_count,
                 "NYT::NApi::NNative::TJournalWriter" : used_slot_count,
             })
-
-    def _check_tablet_nodes_rct(self):
-        for address in ls("//sys/cluster_nodes"):
-            self._check_tablet_node_rct(address)
 
     def _healthy_cell_count(self):
         result = 0
@@ -475,7 +470,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
     @authors("gritukan", "savrus")
     @pytest.mark.parametrize("config_node", ["tablet", "cellar"])
     def test_dynamic_tablet_slot_count(self, config_node):
-        _, config = self._init_zero_slot_nodes(config_node)
+        node, config = self._init_zero_slot_nodes(config_node)
 
         for slot_count in [2, 0, 7, 3, 1, 0, 2, 4]:
             if config_node == "cellar":
@@ -483,23 +478,24 @@ class TestNodeDynamicConfig(YTEnvSetup):
             else:
                 config["nodeA"]["tablet_node"]["slots"] = slot_count
             set("//sys/cluster_nodes/@config", config)
-            wait(lambda: self._healthy_cell_count() == min(5, slot_count))
-            self._check_tablet_nodes_rct()
+            used_slot_count = min(5, slot_count)
+            wait(lambda: self._healthy_cell_count() == used_slot_count)
+            self._check_tablet_node_rct(node, used_slot_count)
 
     @authors("capone212")
     @pytest.mark.parametrize("config_node", ["tablet", "cellar"])
     def test_bundle_dynamic_config(self, config_node):
-        node_with_tag_NodeA, _ = self._init_zero_slot_nodes(config_node)
+        node, _ = self._init_zero_slot_nodes(config_node)
 
         def get_orchid_memory_limits(category):
             return get(
                 "//sys/tablet_nodes/{0}/orchid/node_resource_manager/memory_limit_per_category/{1}"
-                .format(node_with_tag_NodeA, category))
+                .format(node, category))
 
         def get_thread_pool_size(pool_name):
             return get(
                 "//sys/tablet_nodes/{0}/orchid/tablet_node_thread_pools/{1}_thread_pool_size"
-                .format(node_with_tag_NodeA, pool_name))
+                .format(node, pool_name))
 
         bundle_dynamic_config = {
             "nodeA": {
@@ -529,8 +525,9 @@ class TestNodeDynamicConfig(YTEnvSetup):
             bundle_dynamic_config["nodeA"]["memory_limits"]["tablet_dynamic"] = patch.tablet_dynamic
 
             set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
-            wait(lambda: self._healthy_cell_count() == min(5, patch.slot_count))
-            self._check_tablet_nodes_rct()
+            used_slot_count = min(5, patch.slot_count)
+            wait(lambda: self._healthy_cell_count() == used_slot_count)
+            self._check_tablet_node_rct(node, used_slot_count)
             wait(lambda: get_orchid_memory_limits("tablet_static") == patch.tablet_static)
             wait(lambda: get_orchid_memory_limits("tablet_dynamic") == patch.tablet_dynamic)
             wait(lambda: get_thread_pool_size("tablet_lookup") == patch.lookup_threads)
@@ -539,12 +536,12 @@ class TestNodeDynamicConfig(YTEnvSetup):
     @authors("capone212")
     @pytest.mark.parametrize("config_node", ["tablet", "cellar"])
     def test_bundle_dynamic_config_caches(self, config_node):
-        node_with_tag_NodeA, _ = self._init_zero_slot_nodes(config_node)
+        node, _ = self._init_zero_slot_nodes(config_node)
 
         def get_orchid_memory_limits(category):
             return get(
                 "//sys/tablet_nodes/{0}/orchid/node_resource_manager/memory_limit_per_category/{1}"
-                .format(node_with_tag_NodeA, category))
+                .format(node, category))
 
         bundle_dynamic_config = {
             "nodeA": {
