@@ -98,7 +98,7 @@ TValidatePushQueueProducerRowsResult ValidatePushQueueProducerRows(
                 rowSequenceNumber->Underlying() < 0,
                 NQueueClient::EErrorCode::InvalidRowSequenceNumbers,
                 "Sequence number %v cannot be negative",
-                rowSequenceNumber->Underlying());
+                rowSequenceNumber);
 
             updateLastSequenceNumber(*rowSequenceNumber);
         } else {

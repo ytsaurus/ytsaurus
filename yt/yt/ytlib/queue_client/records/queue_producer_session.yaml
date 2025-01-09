@@ -18,20 +18,20 @@ types:
         required: True
 
       - cpp_name: SessionId
-        cpp_type: TString
+        cpp_type: TQueueProducerSessionId
         column_name: session_id
         column_type: String
         sort_order: Ascending
         required: True
 
       - cpp_name: SequenceNumber
-        cpp_type: i64
+        cpp_type: TQueueProducerSequenceNumber
         column_name: sequence_number
         column_type: Int64
         required: True
 
       - cpp_name: Epoch
-        cpp_type: i64
+        cpp_type: TQueueProducerEpoch
         column_name: epoch
         column_type: Int64
         required: True

@@ -101,7 +101,7 @@ public:
 private:
     using TQueueAgentShardingManagerDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TQueueAgentShardingManagerDynamicConfig>;
     TQueueAgentShardingManagerDynamicConfigAtomicPtr DynamicConfig_;
-    IClientPtr Client_;
+    const IClientPtr Client_;
     const IInvokerPtr ControlInvoker_;
     const IAlertCollectorPtr AlertCollector_;
     const TDynamicStatePtr DynamicState_;
@@ -222,7 +222,7 @@ private:
                 if (attributes.Get<bool>(BannedQueueAgentInstanceAttributeName)) {
                     BannedQueueAgentInstances_.insert(instance->GetValue<TString>());
                 }
-            } catch (std::exception& ex) {
+            } catch (const std::exception&) {
                 // NB(apachee): Ignore if attribute is missing, or if its value is not bool.
             }
         }
