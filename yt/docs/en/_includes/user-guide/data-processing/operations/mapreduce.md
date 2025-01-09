@@ -110,7 +110,9 @@ The reduce phase has a special data processing stage for dealing with large keys
 
 `Reduce_combiner` is triggered if the partition size exceeds `data_size_per_sort_job`. The amount of data in `reduce_combiner` equals `data_size_per_sort_job`. The default value for `data_size_per_sort_job` is set in the scheduler configuration, but can be overridden via an operation's specification (in bytes).
 
-You can also force-start `reduce_combiner` by setting `force_reduce_combiners` to `true`. `Reduce_combiner` receives a sorted stream of records as input (like a regular reducer). There are several restrictions on the `reduce_combiner` output:
+You can also force-start `reduce_combiner` by setting `force_reduce_combiners` to `true`. `Reduce_combiner` receives a sorted stream of records as input (like a regular reducer). However, these records do not necessarily form a contiguous range in `sort_by` order. If two given records got into the `reduce_combiner` job, there may be records between them (in `sort_by` order) that did not get into this job.
+
+There are several restrictions on the `reduce_combiner` output:
 
 * output must be sorted.
 * `reduce_combiner` must not change keys — columns indicated in the `sort_by` field of the specification (if not indicated, `reduce_by`).
