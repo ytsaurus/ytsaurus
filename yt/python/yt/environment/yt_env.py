@@ -243,7 +243,7 @@ class YTInstance(object):
                 programs = ["master", "clock", "node", "job-proxy", "exec", "cell-balancer",
                             "proxy", "http-proxy", "tools", "scheduler", "discovery",
                             "controller-agent", "timestamp-provider", "master-cache",
-                            "tablet-balancer", "replicated-table-tracker", "queue-agent", "kafka-proxy"]
+                            "tablet-balancer", "replicated-table-tracker", "queue-agent", "kafka-proxy", "multi"]
                 for program in programs:
                     os.symlink(os.path.abspath(self.ytserver_all_path), os.path.join(self.bin_path, "ytserver-" + program))
 
@@ -488,6 +488,8 @@ class YTInstance(object):
 
         self._cluster_configuration = cluster_configuration
 
+        self._prepare_multi(cluster_configuration["multi"])
+
         if self.yt_config.master_count + self.yt_config.secondary_cell_count > 0:
             self._prepare_masters(cluster_configuration["master"])
         if self.yt_config.clock_count > 0:
@@ -566,11 +568,22 @@ class YTInstance(object):
             logger.warning("Cannot start YT instance without masters")
             return
 
+        if self.yt_config.enable_multidaemon and (
+                self.yt_config.defer_node_start
+                or self.yt_config.defer_scheduler_start
+                or self.yt_config.defer_secondary_cell_start
+                or self.yt_config.defer_chaos_node_start
+                or self.yt_config.defer_controller_agent_start):
+            raise YtError("Defer components start is not supported in multidaemon mode")
+
         self.pids_file = open(self.pids_filename, "wt")
         try:
             self._configure_driver_logging()
             self._configure_yt_tracing()
             self._configure_yp_service_discovery()
+
+            if self.yt_config.enable_multidaemon:
+                self.start_multi()
 
             if self.yt_config.http_proxy_count > 0:
                 self.start_http_proxy(sync=False)
@@ -719,16 +732,21 @@ class YTInstance(object):
             self.kill_service("watcher")
             killed_services.add("watcher")
 
-        for name in ["http_proxy", "node", "chaos_node", "scheduler", "controller_agent", "master",
-                     "rpc_proxy", "timestamp_provider", "master_caches", "cell_balancer",
-                     "tablet_balancer", "cypress_proxy", "replicated_table_tracker", "queue_agent", "kafka_proxy"]:
+        if self.yt_config.enable_multidaemon:
+            components = ["multi"]
+        else:
+            components = ["http_proxy", "node", "chaos_node", "scheduler", "controller_agent", "master",
+                          "rpc_proxy", "timestamp_provider", "master_caches", "cell_balancer",
+                          "tablet_balancer", "cypress_proxy", "replicated_table_tracker", "queue_agent", "kafka_proxy", "multi"]
+        for name in components:
             if name in self.configs:
-                self.kill_service(name)
+                self.kill_service(name, skip_multidaemon_check=True)
                 killed_services.add(name)
 
-        for name in self.configs:
-            if name not in killed_services:
-                self.kill_service(name)
+        if not self.yt_config.enable_multidaemon:
+            for name in self.configs:
+                if name not in killed_services:
+                    self.kill_service(name, skip_multidaemon_check=True)
 
         self.pids_file.close()
         remove_file(self.pids_filename, force=True)
@@ -962,8 +980,11 @@ class YTInstance(object):
     def kill_replicated_table_trackers(self, indexes=None):
         self.kill_service("replicated_table_tracker", indexes=indexes)
 
-    def kill_service(self, name, indexes=None):
+    def kill_service(self, name, indexes=None, skip_multidaemon_check=False):
         with self._lock:
+            if self.yt_config.enable_multidaemon and name != "watcher" and not skip_multidaemon_check:
+                raise YtError("Failed to kill specific component because it was run inside multidaemon")
+
             logger.info("Killing %s", name)
             processes = self._service_processes[name]
             for index, process in enumerate(processes):
@@ -1256,7 +1277,33 @@ class YTInstance(object):
     def _run_builtin_yt_component(self, component, name=None, config_option=None, custom_paths=None):
         if name is None:
             name = component
+
+        if self.yt_config.enable_multidaemon:
+            logger.info("Skip starting %s process as it was run before as multidaemon", name)
+            return
+
         self.run_yt_component(component, self.config_paths[name], name=name, config_option=config_option, custom_paths=custom_paths)
+
+    def _prepare_multi(self, multi_config, force_overwrite=False):
+        name = "multi"
+        if force_overwrite:
+            self.configs[name] = []
+            self.config_paths[name] = []
+            self._service_processes[name] = []
+
+        config_name = "multi.yson"
+        config_path = os.path.join(self.configs_path, config_name)
+        if self._load_existing_environment and not force_overwrite:
+            if not os.path.isfile(config_path):
+                raise YtError("Multi config {0} not found".format(config_path))
+            config = read_config(config_path)
+        else:
+            config = multi_config
+            write_config(config, config_path)
+
+        self.configs[name].append(config)
+        self.config_paths[name].append(config_path)
+        self._service_processes[name].append(None)
 
     def _get_master_name(self, master_name, cell_index):
         if cell_index == 0:
@@ -1958,7 +2005,8 @@ class YTInstance(object):
 
         config_path = os.path.join(self.configs_path, "driver-logging.yson")
 
-        config = _init_logging(self.logs_path, "driver", self.yt_config)
+        config = {}
+        _init_logging(self.logs_path, "driver", config, self.yt_config)
         if modify_driver_logging_config_func:
             modify_driver_logging_config_func(config)
         write_config(config, config_path)
@@ -2031,6 +2079,10 @@ class YTInstance(object):
                     raise YtError("Rpc client config {0} not found".format(rpc_client_config_path))
             else:
                 write_config(rpc_client_config, rpc_client_config_path)
+
+    def start_multi(self):
+        name = "multi"
+        self.run_yt_component(name, self.config_paths[name], name=name)
 
     def start_http_proxy(self, sync=True):
         self._run_builtin_yt_component("http-proxy", name="http_proxy")
@@ -2225,11 +2277,21 @@ class YTInstance(object):
         log_paths = []
         if self.yt_config.enable_debug_logging:
             def extract_debug_log_paths(service, config, result):
-                log_config_path = "logging/writers/debug/file_name"
-                result.append(get_value_from_config(config, log_config_path, service))
+                writers_paths = ["logging/writers"]
                 if service == "node":
-                    job_proxy_log_config_path = "exec_node/job_proxy/job_proxy_logging/log_manager_template/writers/debug/file_name"
-                    result.append(get_value_from_config(config, job_proxy_log_config_path, service))
+                    writers_paths.append("exec_node/job_proxy/job_proxy_logging/log_manager_template/writers")
+
+                for writers_path in writers_paths:
+                    try:
+                        writers = get_value_from_config(config, writers_path, service)
+                    except YtError:
+                        logger.info("There is no %s in %s config", writers_path, service)
+                        continue
+                    debug_writer_names = [writer_name for writer_name in writers if writer_name.startswith("debug")]
+                    for writer_name in debug_writer_names:
+                        writer = writers[writer_name]
+                        if "file_name" in writer:
+                            result.append(writer["file_name"])
 
             extract_debug_log_paths("driver", {"logging": self.configs["driver_logging"]}, log_paths)
 

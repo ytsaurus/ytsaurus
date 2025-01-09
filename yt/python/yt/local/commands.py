@@ -179,6 +179,7 @@ def start(master_count=1,
           components=None,
           enable_auth=False,
           create_admin_user=False,
+          enable_multidaemon=False,
           address_resolver_config=None):
     require(master_count >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
@@ -289,6 +290,7 @@ def start(master_count=1,
         enable_auth=enable_auth,
         create_admin_user=create_admin_user,
         address_resolver_config=address_resolver_config,
+        enable_multidaemon=enable_multidaemon,
     )
 
     environment = YTInstance(

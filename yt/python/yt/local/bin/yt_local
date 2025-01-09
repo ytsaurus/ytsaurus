@@ -252,6 +252,9 @@ def add_start_subparser(subparsers):
 
     parser.add_argument("--address-resolver-config", action=ParseStructuredArgument, help="Config of address resolver which will be used in all configs")
 
+    parser.add_argument("--enable-multidaemon", action="store_true", default=False,
+                        help="Run all components as multidaemon")
+
     # Compatibility options
     parser.add_argument("--masters-count", type=int, help=argparse.SUPPRESS)
     parser.add_argument("--nodes-count", type=int, help=argparse.SUPPRESS)

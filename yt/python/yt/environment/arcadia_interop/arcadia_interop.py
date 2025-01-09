@@ -42,6 +42,7 @@ ALL_COMPONENTS = [
     "query-tracker",
     "kafka-proxy",
     "replicated-table-tracker",
+    "multi",
 ]
 
 

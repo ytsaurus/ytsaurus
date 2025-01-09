@@ -40,13 +40,25 @@ def _get_timestamp_provider_peer_configs(yt_config,
 
 
 def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version):
+    multidaemon_config = {
+        "logging": {
+            "rules": [],
+            "writers": {},
+        },
+        "daemons": {},
+    }
+    init_singletons(multidaemon_config, yt_config)
+    init_jaeger_collector(multidaemon_config, "multi", process_tags={})
+
     discovery_configs = _build_discovery_server_configs(
         yt_config,
+        multidaemon_config,
         ports_generator,
         logs_dir)
 
     clock_configs, clock_connection_config = _build_clock_configs(
         yt_config,
+        multidaemon_config,
         dirs["clock"],
         dirs["clock_tmpfs"],
         ports_generator,
@@ -60,6 +72,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
 
     master_configs, master_connection_configs = _build_master_configs(
         yt_config,
+        multidaemon_config,
         dirs["master"],
         dirs["master_tmpfs"],
         clock_connection_config,
@@ -71,6 +84,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
 
     timestamp_provider_configs, timestamp_provider_addresses = _build_timestamp_provider_configs(
         yt_config,
+        multidaemon_config,
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
         ports_generator,
@@ -78,6 +92,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
 
     master_cache_configs, master_cache_addresses = _build_master_cache_configs(
         yt_config,
+        multidaemon_config,
         master_connection_configs,
         clock_connection_config,
         discovery_configs,
@@ -88,6 +103,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
 
     cell_balancer_configs, cell_balancer_addresses = _build_cell_balancer_configs(
         yt_config,
+        multidaemon_config,
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
         discovery_configs,
@@ -99,6 +115,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
     )
 
     node_configs, node_addresses = _build_node_configs(
+        multidaemon_config,
         dirs["node"],
         dirs["node_tmpfs"],
         deepcopy(master_connection_configs),
@@ -112,6 +129,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         yt_config)
 
     chaos_node_configs = _build_chaos_node_configs(
+        multidaemon_config,
         dirs["chaos_node"],
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
@@ -124,6 +142,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         yt_config)
 
     queue_agent_configs = _build_queue_agent_configs(
+        multidaemon_config,
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
         discovery_configs,
@@ -136,6 +155,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         yt_config)
 
     kafka_proxy_configs = _build_kafka_proxy_configs(
+        multidaemon_config,
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
         discovery_configs,
@@ -147,6 +167,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         yt_config)
 
     scheduler_configs = _build_scheduler_configs(
+        multidaemon_config,
         dirs["scheduler"],
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
@@ -159,6 +180,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         yt_config)
 
     controller_agent_configs = _build_controller_agent_configs(
+        multidaemon_config,
         dirs["controller_agent"],
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
@@ -171,6 +193,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         yt_config)
 
     http_proxy_configs = _build_http_proxy_config(
+        multidaemon_config,
         dirs["http_proxy"],
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
@@ -189,6 +212,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
         http_proxy_url = "{0}:{1}".format(yt_config.fqdn, http_proxy_configs[0]["port"])
 
     rpc_proxy_configs = _build_rpc_proxy_configs(
+        multidaemon_config,
         logs_dir,
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
@@ -225,6 +249,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
 
     tablet_balancer_configs, tablet_balancer_addresses = _build_tablet_balancer_configs(
         yt_config,
+        multidaemon_config,
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
         discovery_configs,
@@ -237,6 +262,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
 
     cypress_proxy_configs = _build_cypress_proxy_configs(
         yt_config,
+        multidaemon_config,
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
         discovery_configs,
@@ -249,6 +275,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
 
     replicated_table_tracker_configs = _build_replicated_table_tracker_configs(
         yt_config,
+        multidaemon_config,
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
         discovery_configs,
@@ -289,12 +316,14 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir, binary_to_version)
             master_cache_addresses,
             cypress_proxy_rpc_ports,
             queue_agent_rpc_ports),
+        "multi": multidaemon_config,
     }
 
     return cluster_configuration
 
 
 def _build_master_configs(yt_config,
+                          multidaemon_config_output,
                           master_dirs,
                           master_tmpfs_dirs,
                           clock_connection_config,
@@ -361,12 +390,23 @@ def _build_master_configs(yt_config,
         for master_index in xrange(yt_config.master_count):
             config = default_config.get_master_config()
 
-            init_singletons(config, yt_config, master_index)
+            if not yt_config.enable_multidaemon:
+                init_singletons(config, yt_config)
 
-            init_jaeger_collector(config, "master", {
+            singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+            init_jaeger_collector(singletons_config, "master", {
                 "cell_role": "primary" if cell_index == 0 else "secondary",
                 "master_index": str(master_index),
             })
+
+            _init_logging(logs_dir,
+                          "master-{0}-{1}".format(cell_index, master_index),
+                          singletons_config.setdefault("logging", {}),
+                          yt_config,
+                          log_errors_to_stderr=True,
+                          has_structured_logs=True)
+
+            init_cypress_annotations(config, master_index)
 
             set_at(config, "hydra_manager", _get_hydra_manager_config(), merge=True)
 
@@ -402,14 +442,12 @@ def _build_master_configs(yt_config,
                 set_at(config, "changelogs/path",
                        os.path.join(master_tmpfs_dirs[cell_index][master_index], "changelogs"))
 
-            config["logging"] = _init_logging(logs_dir,
-                                              "master-{0}-{1}".format(cell_index, master_index),
-                                              yt_config,
-                                              log_errors_to_stderr=True,
-                                              has_structured_logs=True)
-
             config["cluster_connection"] = cluster_connection_config
 
+            multidaemon_config_output["daemons"][f"master_{cell_index}_{master_index}"] = {
+                "type": "master",
+                "config": config,
+            }
             cell_configs.append(config)
 
         configs[cell_tags[cell_index]] = cell_configs
@@ -430,7 +468,7 @@ def _allocate_queue_agent_rpc_ports(yt_config, ports_generator):
     return rpc_ports
 
 
-def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generator, logs_dir):
+def _build_clock_configs(yt_config, multidaemon_config_output, clock_dirs, clock_tmpfs_dirs, ports_generator, logs_dir):
     cell_tag = 1000
     random_part = random.randint(0, 2 ** 32 - 1)
     cell_id = canonize_uuid("%x-ffffffff-%x0259-ffffffff" % (random_part, int(cell_tag)))
@@ -461,11 +499,20 @@ def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generato
     for clock_index in xrange(yt_config.clock_count):
         config = default_config.get_clock_config()
 
-        init_singletons(config, yt_config, clock_index)
+        if not yt_config.enable_multidaemon:
+            init_singletons(config, yt_config)
 
-        init_jaeger_collector(config, "clock", {
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        init_jaeger_collector(singletons_config, "clock", {
             "clock_index": str(clock_index)
         })
+        _init_logging(logs_dir,
+                      "clock-{0}".format(clock_index),
+                      singletons_config.setdefault("logging", {}),
+                      yt_config,
+                      log_errors_to_stderr=True)
+
+        init_cypress_annotations(config, clock_index)
 
         set_at(config, "hydra_manager", _get_hydra_manager_config(), merge=True)
 
@@ -485,10 +532,10 @@ def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generato
             set_at(config, "changelogs/path",
                    os.path.join(clock_tmpfs_dirs[clock_index], "changelogs"))
 
-        config["logging"] = _init_logging(logs_dir,
-                                          "clock-{0}".format(clock_index),
-                                          yt_config,
-                                          log_errors_to_stderr=True)
+        multidaemon_config_output["daemons"][f"clock_{clock_index}"] = {
+            "type": "clock",
+            "config": config,
+        }
 
         instance_configs.append(config)
 
@@ -498,7 +545,7 @@ def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generato
     return configs, connection_config
 
 
-def _build_discovery_server_configs(yt_config, ports_generator, logs_dir):
+def _build_discovery_server_configs(yt_config, multidaemon_config_output, ports_generator, logs_dir):
     server_addresses = []
     ports = []
 
@@ -516,18 +563,27 @@ def _build_discovery_server_configs(yt_config, ports_generator, logs_dir):
 
         config = {}
         config["discovery_server"] = discovery_server_config
-        config["logging"] = _init_logging(logs_dir,
-                                          "discovery-" + str(i),
-                                          yt_config,
-                                          log_errors_to_stderr=True)
+
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        _init_logging(logs_dir,
+                      "discovery-" + str(i),
+                      singletons_config.setdefault("logging", {}),
+                      yt_config,
+                      log_errors_to_stderr=True)
 
         config["rpc_port"], config["monitoring_port"] = ports[i]
+
+        multidaemon_config_output["daemons"][f"discovery_{i}"] = {
+            "type": "discovery",
+            "config": config,
+        }
         configs.append(config)
 
     return configs
 
 
-def _build_queue_agent_configs(master_connection_configs,
+def _build_queue_agent_configs(multidaemon_config_output,
+                               master_connection_configs,
                                clock_connection_config,
                                discovery_configs,
                                timestamp_provider_addresses,
@@ -538,18 +594,23 @@ def _build_queue_agent_configs(master_connection_configs,
                                logs_dir,
                                yt_config):
     configs = []
-    for i in xrange(yt_config.queue_agent_count):
+    for index in xrange(yt_config.queue_agent_count):
         config = default_config.get_queue_agent_config()
 
-        init_singletons(config, yt_config, i)
+        if not yt_config.enable_multidaemon:
+            init_singletons(config, yt_config)
 
-        init_jaeger_collector(config, "queue_agent", {
-            "queue_agent_index": str(i)
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        init_jaeger_collector(singletons_config, "queue_agent", {
+            "queue_agent_index": str(index)
         })
+        _init_logging(logs_dir,
+                      "queue-agent-" + str(index),
+                      singletons_config.setdefault("logging", {}),
+                      yt_config)
 
-        config["logging"] = _init_logging(logs_dir,
-                                          "queue-agent-" + str(i),
-                                          yt_config)
+        init_cypress_annotations(config, index)
+
         config["cluster_connection"] = \
             _build_cluster_connection_config(
                 yt_config,
@@ -560,17 +621,22 @@ def _build_queue_agent_configs(master_connection_configs,
                 master_cache_addresses,
                 cypress_proxy_rpc_ports)
 
-        config["rpc_port"] = rpc_ports[i]
+        config["rpc_port"] = rpc_ports[index]
         config["monitoring_port"] = next(ports_generator)
 
         set_at(config, "queue_agent/stage", "production")
 
+        multidaemon_config_output["daemons"][f"queue_agent_{index}"] = {
+            "type": "queue_agent",
+            "config": config,
+        }
         configs.append(config)
 
     return configs
 
 
-def _build_kafka_proxy_configs(master_connection_configs,
+def _build_kafka_proxy_configs(multidaemon_config_output,
+                               master_connection_configs,
                                clock_connection_config,
                                discovery_configs,
                                timestamp_provider_addresses,
@@ -580,21 +646,27 @@ def _build_kafka_proxy_configs(master_connection_configs,
                                logs_dir,
                                yt_config):
     configs = []
-    for i in xrange(yt_config.kafka_proxy_count):
+    for index in xrange(yt_config.kafka_proxy_count):
         config = default_config.get_kafka_proxy_config()
 
         config["port"] = next(ports_generator)
         config["rpc_port"] = next(ports_generator)
 
-        init_singletons(config, yt_config, i)
+        if not yt_config.enable_multidaemon:
+            init_singletons(config, yt_config)
 
-        init_jaeger_collector(config, "kafka_proxy", {
-            "kafka_proxy_index": str(i)
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        init_jaeger_collector(singletons_config, "kafka_proxy", {
+            "kafka_proxy_index": str(index)
         })
 
-        config["logging"] = _init_logging(logs_dir,
-                                          "kafka-proxy-" + str(i),
-                                          yt_config)
+        _init_logging(logs_dir,
+                      "kafka-proxy-" + str(index),
+                      singletons_config.setdefault("logging", {}),
+                      yt_config)
+
+        init_cypress_annotations(config, index)
+
         config["cluster_connection"] = \
             _build_cluster_connection_config(
                 yt_config,
@@ -607,12 +679,17 @@ def _build_kafka_proxy_configs(master_connection_configs,
 
         config["monitoring_port"] = next(ports_generator)
 
+        multidaemon_config_output["daemons"][f"kafka_proxy_{index}"] = {
+            "type": "kafka_proxy",
+            "config": config,
+        }
         configs.append(config)
 
     return configs
 
 
 def _build_timestamp_provider_configs(yt_config,
+                                      multidaemon_config_output,
                                       master_connection_configs,
                                       clock_connection_config,
                                       ports_generator,
@@ -623,11 +700,20 @@ def _build_timestamp_provider_configs(yt_config,
     for index in xrange(yt_config.timestamp_provider_count):
         config = default_config.get_timestamp_provider_config()
 
-        init_singletons(config, yt_config, index)
+        if not yt_config.enable_multidaemon:
+            init_singletons(config, yt_config)
 
-        init_jaeger_collector(config, "timestamp_provider", {
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        init_jaeger_collector(singletons_config, "timestamp_provider", {
             "timestamp_provider_index": str(index)
         })
+        _init_logging(logs_dir,
+                      "timestamp-provider-" + str(index),
+                      singletons_config.setdefault("logging", {}),
+                      yt_config,
+                      log_errors_to_stderr=True)
+
+        init_cypress_annotations(config, index)
 
         # COMPAT(aleksandra-zh)
         set_at(config, "timestamp_provider/addresses",
@@ -637,11 +723,11 @@ def _build_timestamp_provider_configs(yt_config,
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
-        config["logging"] = _init_logging(logs_dir,
-                                          "timestamp-provider-" + str(index),
-                                          yt_config,
-                                          log_errors_to_stderr=True)
 
+        multidaemon_config_output["daemons"][f"timestamp_provider_{index}"] = {
+            "type": "timestamp_provider",
+            "config": config,
+        }
         configs.append(config)
         addresses.append("{}:{}".format(yt_config.fqdn, config["rpc_port"]))
 
@@ -649,6 +735,7 @@ def _build_timestamp_provider_configs(yt_config,
 
 
 def _build_cell_balancer_configs(yt_config,
+                                 multidaemon_config_output,
                                  master_connection_configs,
                                  clock_connection_config,
                                  discovery_configs,
@@ -663,11 +750,20 @@ def _build_cell_balancer_configs(yt_config,
     for index in xrange(yt_config.cell_balancer_count):
         config = default_config.get_cell_balancer_config()
 
-        init_singletons(config, yt_config, index)
+        if not yt_config.enable_multidaemon:
+            init_singletons(config, yt_config)
 
-        init_jaeger_collector(config, "cell_balancer", {
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        init_jaeger_collector(singletons_config, "cell_balancer", {
             "cell_balancer_index": str(index)
         })
+        _init_logging(logs_dir,
+                      "cell-balancer-" + str(index),
+                      singletons_config.setdefault("logging", {}),
+                      yt_config,
+                      log_errors_to_stderr=True)
+
+        init_cypress_annotations(config, index)
 
         config["cluster_connection"] = \
             _build_cluster_connection_config(
@@ -682,10 +778,6 @@ def _build_cell_balancer_configs(yt_config,
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
-        config["logging"] = _init_logging(logs_dir,
-                                          "cell-balancer-" + str(index),
-                                          yt_config,
-                                          log_errors_to_stderr=True)
 
         config["enable_bundle_controller"] = yt_config.enable_bundle_controller
 
@@ -702,6 +794,10 @@ def _build_cell_balancer_configs(yt_config,
                 "bundle_scan_period" : "100ms",
             }
 
+        multidaemon_config_output["daemons"][f"cell_balancer_{index}"] = {
+            "type": "cell_balancer",
+            "config": config,
+        }
         configs.append(config)
         addresses.append("{}:{}".format(yt_config.fqdn, config["rpc_port"]))
 
@@ -709,6 +805,7 @@ def _build_cell_balancer_configs(yt_config,
 
 
 def _build_master_cache_configs(yt_config,
+                                multidaemon_config_output,
                                 master_connection_configs,
                                 clock_connection_config,
                                 discovery_configs,
@@ -722,9 +819,18 @@ def _build_master_cache_configs(yt_config,
     for index in xrange(yt_config.master_cache_count):
         config = default_config.get_master_cache_config()
 
-        init_singletons(config, yt_config, index)
+        if not yt_config.enable_multidaemon:
+            init_singletons(config, yt_config)
 
-        init_jaeger_collector(config, "master_cache", {"master_cache_index": str(index)})
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        init_jaeger_collector(singletons_config, "master_cache", {"master_cache_index": str(index)})
+        _init_logging(logs_dir,
+                      "master-cache-" + str(index),
+                      singletons_config.setdefault("logging", {}),
+                      yt_config,
+                      has_structured_logs=True)
+
+        init_cypress_annotations(config, index)
 
         config["cluster_connection"] = \
             _build_cluster_connection_config(
@@ -739,18 +845,19 @@ def _build_master_cache_configs(yt_config,
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
-        config["logging"] = _init_logging(logs_dir,
-                                          "master-cache-" + str(index),
-                                          yt_config,
-                                          has_structured_logs=True)
 
+        multidaemon_config_output["daemons"][f"master_cache_{index}"] = {
+            "type": "master_cache",
+            "config": config,
+        }
         configs.append(config)
         addresses.append("{}:{}".format(yt_config.fqdn, config["rpc_port"]))
 
     return configs, addresses
 
 
-def _build_scheduler_configs(scheduler_dirs,
+def _build_scheduler_configs(multidaemon_config_output,
+                             scheduler_dirs,
                              master_connection_configs,
                              clock_connection_config,
                              discovery_configs,
@@ -765,9 +872,18 @@ def _build_scheduler_configs(scheduler_dirs,
     for index in xrange(yt_config.scheduler_count):
         config = default_config.get_scheduler_config()
 
-        init_singletons(config, yt_config, index)
+        if not yt_config.enable_multidaemon:
+            init_singletons(config, yt_config)
 
-        init_jaeger_collector(config, "scheduler", {"scheduler_index": str(index)})
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        init_jaeger_collector(singletons_config, "scheduler", {"scheduler_index": str(index)})
+        _init_logging(logs_dir,
+                      "scheduler-" + str(index),
+                      singletons_config.setdefault("logging", {}),
+                      yt_config,
+                      has_structured_logs=True)
+
+        init_cypress_annotations(config, index)
 
         config["cluster_connection"] = \
             _build_cluster_connection_config(
@@ -782,17 +898,18 @@ def _build_scheduler_configs(scheduler_dirs,
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
-        config["logging"] = _init_logging(logs_dir,
-                                          "scheduler-" + str(index),
-                                          yt_config,
-                                          has_structured_logs=True)
 
+        multidaemon_config_output["daemons"][f"scheduler_{index}"] = {
+            "type": "scheduler",
+            "config": config,
+        }
         configs.append(config)
 
     return configs
 
 
-def _build_controller_agent_configs(controller_agent_dirs,
+def _build_controller_agent_configs(multidaemon_config_output,
+                                    controller_agent_dirs,
                                     master_connection_configs,
                                     clock_connection_config,
                                     discovery_configs,
@@ -807,9 +924,18 @@ def _build_controller_agent_configs(controller_agent_dirs,
     for index in xrange(yt_config.controller_agent_count):
         config = default_config.get_controller_agent_config()
 
-        init_singletons(config, yt_config, index)
+        if not yt_config.enable_multidaemon:
+            init_singletons(config, yt_config)
 
-        init_jaeger_collector(config, "controller_agent", {"controller_agent_index": str(index)})
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        init_jaeger_collector(singletons_config, "controller_agent", {"controller_agent_index": str(index)})
+        _init_logging(logs_dir,
+                      "controller-agent-" + str(index),
+                      singletons_config.setdefault("logging", {}),
+                      yt_config,
+                      has_structured_logs=True)
+
+        init_cypress_annotations(config, index)
 
         config["cluster_connection"] = \
             _build_cluster_connection_config(
@@ -824,17 +950,18 @@ def _build_controller_agent_configs(controller_agent_dirs,
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
-        config["logging"] = _init_logging(logs_dir,
-                                          "controller-agent-" + str(index),
-                                          yt_config,
-                                          has_structured_logs=True)
 
+        multidaemon_config_output["daemons"][f"controller_agent_{index}"] = {
+            "type": "controller_agent",
+            "config": config,
+        }
         configs.append(config)
 
     return configs
 
 
-def _build_node_configs(node_dirs,
+def _build_node_configs(multidaemon_config_output,
+                        node_dirs,
                         node_tmpfs_dirs,
                         master_connection_configs,
                         clock_connection_config,
@@ -851,9 +978,23 @@ def _build_node_configs(node_dirs,
     for index in xrange(yt_config.node_count):
         config = default_config.get_node_config()
 
-        init_singletons(config, yt_config, index)
+        if not yt_config.enable_multidaemon:
+            init_singletons(config, yt_config)
 
-        init_jaeger_collector(config, "node", {"node_index": str(index)})
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        jaeger_process_tags = {"node_index": str(index)}
+        init_jaeger_collector(singletons_config, "node", jaeger_process_tags)
+
+        _init_logging(
+            logs_dir,
+            "node-{0}".format(index),
+            singletons_config.setdefault("logging", {}),
+            yt_config,
+            has_structured_logs=True)
+
+        init_job_proxy_jaeger_collector(config, jaeger_process_tags)
+
+        init_cypress_annotations(config, index)
 
         config["addresses"] = [
             ("interconnect", yt_config.fqdn),
@@ -968,8 +1109,6 @@ def _build_node_configs(node_dirs,
 
         set_at(config, "data_node/volume_manager/layer_locations", [layer_location_config])
 
-        config["logging"] = _init_logging(logs_dir, "node-{0}".format(index), yt_config, has_structured_logs=True)
-
         log_name = "job_proxy-{0}".format(index)
 
         set_at(
@@ -980,13 +1119,17 @@ def _build_node_configs(node_dirs,
         set_at(
             config,
             "exec_node/job_proxy/job_proxy_logging/log_manager_template",
-            _init_logging(
-                logs_dir,
-                log_name,
-                yt_config,
-                # TODO(pogorelov): Support compression in DumpJobProxyLog.
-                enable_log_compression=(yt_config.job_proxy_logging["mode"] == "simple"),
-            ),
+            {}
+        )
+
+        _init_logging(
+            logs_dir,
+            log_name,
+            config["exec_node"]["job_proxy"]["job_proxy_logging"]["log_manager_template"],
+            yt_config,
+            # TODO(pogorelov): Support compression in DumpJobProxyLog.
+            enable_log_compression=(yt_config.job_proxy_logging["mode"] == "simple"),
+            use_name_in_writer_name=False,
         )
 
         # COMPAT
@@ -1060,10 +1203,16 @@ def _build_node_configs(node_dirs,
             ports = [next(ports_generator) for _ in xrange(yt_config.node_port_set_size)]
             set_at(config, "job_resource_manager/port_set", ports)
 
+        multidaemon_config_output["daemons"][f"node_{index}"] = {
+            "type": "node",
+            "config": config,
+        }
+
     return configs, addresses
 
 
-def _build_chaos_node_configs(chaos_node_dirs,
+def _build_chaos_node_configs(multidaemon_config_output,
+                              chaos_node_dirs,
                               master_connection_configs,
                               clock_connection_config,
                               discovery_configs,
@@ -1078,9 +1227,18 @@ def _build_chaos_node_configs(chaos_node_dirs,
     for index in xrange(yt_config.chaos_node_count):
         config = default_config.get_chaos_node_config()
 
-        init_singletons(config, yt_config, index)
+        if not yt_config.enable_multidaemon:
+            init_singletons(config, yt_config)
 
-        init_jaeger_collector(config, "chaos_node", {"chaos_node_index": str(index)})
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        init_jaeger_collector(singletons_config, "chaos_node", {"chaos_node_index": str(index)})
+        _init_logging(
+            logs_dir,
+            "chaos-node-{0}".format(index),
+            singletons_config.setdefault("logging", {}),
+            yt_config)
+
+        init_cypress_annotations(config, index)
 
         config["addresses"] = [
             ("interconnect", yt_config.fqdn),
@@ -1114,13 +1272,17 @@ def _build_chaos_node_configs(chaos_node_dirs,
         set_at(config, "cellar_node/cellar_manager/cellars/chaos/occupant/hydra_manager/restart_backoff_time", 100)
         set_at(config, "cellar_node/cellar_manager/cellars/chaos/occupant/response_keeper", _get_response_keeper_config())
 
-        config["logging"] = _init_logging(logs_dir, "chaos-node-{0}".format(index), yt_config)
+        multidaemon_config_output["daemons"][f"chaos_node_{index}"] = {
+            "type": "node",
+            "config": config,
+        }
         configs.append(config)
 
     return configs
 
 
-def _build_http_proxy_config(proxy_dir,
+def _build_http_proxy_config(multidaemon_config_output,
+                             proxy_dir,
                              master_connection_configs,
                              clock_connection_config,
                              discovery_configs,
@@ -1160,12 +1322,20 @@ def _build_http_proxy_config(proxy_dir,
 
         fqdn = "{0}:{1}".format(yt_config.fqdn, config["port"])
         set_at(config, "coordinator/public_fqdn", fqdn)
-        init_singletons(config, yt_config, index)
 
+        if not yt_config.enable_multidaemon:
+            init_singletons(config, yt_config)
+
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
         init_jaeger_collector(config, "http_proxy", {"http_proxy_index": str(index)})
+        _init_logging(
+            logs_dir,
+            "http-proxy-{}".format(index),
+            singletons_config.setdefault("logging", {}),
+            yt_config,
+            has_structured_logs=True)
 
-        config["logging"] = _init_logging(logs_dir, "http-proxy-{}".format(index), yt_config,
-                                          has_structured_logs=True)
+        init_cypress_annotations(config, index)
 
         config["driver"] = deepcopy(driver_config)
         config["cluster_connection"] = deepcopy(cluster_connection)
@@ -1202,11 +1372,16 @@ def _build_http_proxy_config(proxy_dir,
                 },
             })
 
-        proxy_configs.append(config)
-
         if yt_config.enable_auth:
             set_at(config, "auth/enable_authentication", True)
             set_at(config, "auth/require_authentication", True)
+
+        multidaemon_config_output["daemons"][f"http_proxy_{index}"] = {
+            "type": "http_proxy",
+            "config": config,
+        }
+
+        proxy_configs.append(config)
 
     return proxy_configs
 
@@ -1319,7 +1494,8 @@ def _build_rpc_driver_config(rpc_proxy_addresses, http_proxy_url):
     return config
 
 
-def _build_rpc_proxy_configs(logs_dir,
+def _build_rpc_proxy_configs(multidaemon_config_output,
+                             logs_dir,
                              master_connection_configs,
                              clock_connection_config,
                              discovery_configs,
@@ -1330,7 +1506,7 @@ def _build_rpc_proxy_configs(logs_dir,
                              yt_config):
     configs = []
 
-    for rpc_proxy_index in xrange(yt_config.rpc_proxy_count):
+    for index in xrange(yt_config.rpc_proxy_count):
         grpc_server_config = {
             "addresses": [
                 {
@@ -1367,10 +1543,19 @@ def _build_rpc_proxy_configs(logs_dir,
                 "tracing_mode": "force",
             }
         }
-        init_singletons(config, yt_config, rpc_proxy_index)
 
-        init_jaeger_collector(config, "rpc_proxy", {"rpc_proxy_index": str(rpc_proxy_index)})
+        if not yt_config.enable_multidaemon:
+            init_singletons(config, yt_config)
 
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        init_jaeger_collector(singletons_config, "rpc_proxy", {"rpc_proxy_index": str(index)})
+        _init_logging(
+            logs_dir,
+            "rpc-proxy-{}".format(index),
+            singletons_config.setdefault("logging", {}),
+            yt_config)
+
+        init_cypress_annotations(config, index)
         config["cluster_connection"] = _build_cluster_connection_config(
             yt_config,
             master_connection_configs,
@@ -1379,13 +1564,16 @@ def _build_rpc_proxy_configs(logs_dir,
             timestamp_provider_addresses,
             master_cache_addresses,
             cypress_proxy_rpc_ports)
-        config["logging"] = _init_logging(logs_dir, "rpc-proxy-{}".format(rpc_proxy_index), yt_config)
 
         config["rpc_port"] = \
-            yt_config.rpc_proxy_ports[rpc_proxy_index] if yt_config.rpc_proxy_ports else next(ports_generator)
+            yt_config.rpc_proxy_ports[index] if yt_config.rpc_proxy_ports else next(ports_generator)
         if yt_config.enable_tvm_only_proxies:
             config["tvm_only_rpc_port"] = next(ports_generator)
 
+        multidaemon_config_output["daemons"][f"rpc_proxy_{index}"] = {
+            "type": "rpc_proxy",
+            "config": config,
+        }
         configs.append(config)
 
     return configs
@@ -1594,6 +1782,7 @@ def _build_cluster_connection_config(yt_config,
 
 
 def _build_tablet_balancer_configs(yt_config,
+                                   multidaemon_config_output,
                                    master_connection_configs,
                                    clock_connection_config,
                                    discovery_configs,
@@ -1608,9 +1797,18 @@ def _build_tablet_balancer_configs(yt_config,
     for index in xrange(yt_config.tablet_balancer_count):
         config = default_config.get_tablet_balancer_config()
 
-        init_singletons(config, yt_config, index)
+        if not yt_config.enable_multidaemon:
+            init_singletons(config, yt_config)
 
-        init_jaeger_collector(config, "tablet_balancer", {"tablet_balancer_index": str(index)})
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        init_jaeger_collector(singletons_config, "tablet_balancer", {"tablet_balancer_index": str(index)})
+        _init_logging(logs_dir,
+                      "tablet-balancer-" + str(index),
+                      singletons_config.setdefault("logging", {}),
+                      yt_config,
+                      has_structured_logs=True)
+
+        init_cypress_annotations(config, index)
 
         config["cluster_connection"] = \
             _build_cluster_connection_config(
@@ -1624,11 +1822,11 @@ def _build_tablet_balancer_configs(yt_config,
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
-        config["logging"] = _init_logging(logs_dir,
-                                          "tablet-balancer-" + str(index),
-                                          yt_config,
-                                          has_structured_logs=True)
 
+        multidaemon_config_output["daemons"][f"tablet_balancer_{index}"] = {
+            "type": "tablet_balancer",
+            "config": config,
+        }
         configs.append(config)
         addresses.append("{}:{}".format(yt_config.fqdn, config["rpc_port"]))
 
@@ -1636,6 +1834,7 @@ def _build_tablet_balancer_configs(yt_config,
 
 
 def _build_replicated_table_tracker_configs(yt_config,
+                                            multidaemon_config_output,
                                             master_connection_configs,
                                             clock_connection_config,
                                             discovery_configs,
@@ -1649,9 +1848,18 @@ def _build_replicated_table_tracker_configs(yt_config,
     for index in xrange(yt_config.replicated_table_tracker_count):
         config = default_config.get_replicated_table_tracker_config()
 
-        init_singletons(config, yt_config, index)
+        if not yt_config.enable_multidaemon:
+            init_singletons(config, yt_config)
 
-        init_jaeger_collector(config, "replicated_table_tracker", {"replicated_table_tracker_index": str(index)})
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        init_jaeger_collector(singletons_config, "replicated_table_tracker", {"replicated_table_tracker_index": str(index)})
+        _init_logging(logs_dir,
+                      "replicated-table-tracker-" + str(index),
+                      singletons_config.setdefault("logging", {}),
+                      yt_config,
+                      has_structured_logs=True)
+
+        init_cypress_annotations(config, index)
 
         config["cluster_connection"] = \
             _build_cluster_connection_config(
@@ -1665,11 +1873,11 @@ def _build_replicated_table_tracker_configs(yt_config,
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
-        config["logging"] = _init_logging(logs_dir,
-                                          "replicated-table-tracker-" + str(index),
-                                          yt_config,
-                                          has_structured_logs=True)
 
+        multidaemon_config_output["daemons"][f"replicated_table_tracker_{index}"] = {
+            "type": "replicated_table_tracker",
+            "config": config,
+        }
         configs.append(config)
 
     return configs
@@ -1686,6 +1894,7 @@ def _allocate_cypress_proxy_rpc_ports(yt_config, ports_generator):
 
 
 def _build_cypress_proxy_configs(yt_config,
+                                 multidaemon_config_output,
                                  master_connection_configs,
                                  clock_connection_config,
                                  discovery_configs,
@@ -1699,9 +1908,18 @@ def _build_cypress_proxy_configs(yt_config,
     for index in xrange(yt_config.cypress_proxy_count):
         config = default_config.get_cypress_proxy_config()
 
-        init_singletons(config, yt_config, index)
+        if not yt_config.enable_multidaemon:
+            init_singletons(config, yt_config)
 
-        init_jaeger_collector(config, "cypress_proxy", {"cypress_proxy_index": str(index)})
+        singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
+        init_jaeger_collector(singletons_config, "cypress_proxy", {"cypress_proxy_index": str(index)})
+        _init_logging(logs_dir,
+                      "cypress-proxy-" + str(index),
+                      singletons_config.setdefault("logging", {}),
+                      yt_config,
+                      has_structured_logs=True)
+
+        init_cypress_annotations(config, index)
 
         config["cluster_connection"] = \
             _build_cluster_connection_config(
@@ -1715,40 +1933,52 @@ def _build_cypress_proxy_configs(yt_config,
 
         config["rpc_port"] = cypress_proxy_rpc_ports[index]
         config["monitoring_port"] = next(ports_generator)
-        config["logging"] = _init_logging(logs_dir,
-                                          "cypress-proxy-" + str(index),
-                                          yt_config,
-                                          has_structured_logs=True)
 
+        multidaemon_config_output["daemons"][f"cypress_proxy_{index}"] = {
+            "type": "cypress_proxy",
+            "config": config,
+        }
         configs.append(config)
 
     return configs
 
 
-def _init_logging(path, name, yt_config,
+def _init_logging(path, name, logging_config, yt_config,
                   log_errors_to_stderr=False,
                   has_structured_logs=False,
-                  enable_log_compression=None):
+                  enable_log_compression=None,
+                  use_name_in_writer_name=True):
     if enable_log_compression is None:
         enable_log_compression = yt_config.enable_log_compression
     return init_logging(
         path,
         name,
+        logging_config,
         enable_debug_logging=yt_config.enable_debug_logging,
         enable_log_compression=enable_log_compression,
         log_compression_method=yt_config.log_compression_method,
         enable_structured_logging=yt_config.enable_structured_logging and has_structured_logs,
-        log_errors_to_stderr=log_errors_to_stderr)
+        log_errors_to_stderr=log_errors_to_stderr,
+        use_name_in_writer_name=use_name_in_writer_name)
 
 
 def init_logging(path, name,
+                 logging_config=None,
                  enable_debug_logging=False,
                  enable_log_compression=False,
                  log_compression_method="gzip",
                  enable_structured_logging=False,
-                 log_errors_to_stderr=False,
                  abort_on_alert=None,
-                 compression_thread_count=None):
+                 log_errors_to_stderr=False,
+                 use_name_in_writer_name=True):
+    def _get_writer_name(writer_name):
+        if use_name_in_writer_name:
+            return f"{writer_name}-{name}"
+        return writer_name
+
+    if logging_config is None:
+        logging_config = {}
+
     if enable_log_compression and log_compression_method == "zstd":
         suffix = ".zst"
         compression_options = {
@@ -1767,79 +1997,83 @@ def init_logging(path, name,
 
     if abort_on_alert is None:
         abort_on_alert = True
-    if compression_thread_count is None:
-        compression_thread_count = 4
 
-    config = {
-        "abort_on_alert": abort_on_alert,
-        "compression_thread_count": compression_thread_count,
-        "rules": [
-            {
-                "min_level": "info",
-                "writers": ["info"],
-                "family": "plain_text",
-            },
-        ],
-        "writers": {
-            "info": {
-                "type": "file",
-                "file_name": "{path}/{name}.log".format(path=path, name=name) + suffix,
-            }
-        }
+    if "abort_on_alert" not in logging_config:
+        logging_config["abort_on_alert"] = abort_on_alert
+
+    if "compression_thread_count" not in logging_config:
+        logging_config["compression_thread_count"] = 4
+
+    # Info logs.
+    writer_name = _get_writer_name("info")
+    logging_config.setdefault("rules", []).append({
+        "min_level": "info",
+        "writers": [writer_name],
+        "family": "plain_text",
+    })
+    logging_config.setdefault("writers", {})[writer_name] = {
+        "type": "file",
+        "file_name": "{path}/{name}.log".format(path=path, name=name) + suffix,
     }
-    config["writers"]["info"].update(compression_options)
+    logging_config["writers"][writer_name].update(compression_options)
 
+    # Stderr.
     if log_errors_to_stderr:
-        config["rules"].append(
+        writer_name = _get_writer_name("stderr")
+        logging_config["rules"].append(
             {
                 "min_level": "error",
-                "writers": ["stderr"],
+                "writers": [writer_name],
                 "family": "plain_text",
             }
         )
-        config["writers"]["stderr"] = {
+        logging_config["writers"][writer_name] = {
             "type": "stderr",
         }
 
+    # Debug logs.
     if enable_debug_logging:
-        config["rules"].append({
+        writer_name = _get_writer_name("debug")
+        logging_config["rules"].append({
             "min_level": "debug",
             "family": "plain_text",
             "exclude_categories": ["Bus", "Concurrency"],
-            "writers": ["debug"],
+            "writers": [writer_name],
         })
-        config["writers"]["debug"] = {
+        logging_config["writers"][writer_name] = {
             "type": "file",
             "file_name": "{path}/{name}.debug.log".format(path=path, name=name) + suffix,
         }
-        config["writers"]["debug"].update(compression_options)
+        logging_config["writers"][writer_name].update(compression_options)
 
     if "YT_ENABLE_TRACE_LOGGING" in os.environ:
-        config["rules"].append({
+        writer_name = _get_writer_name("trace")
+        logging_config["rules"].append({
             "min_level": "trace",
             "family": "plain_text",
             "exclude_categories": ["Bus"],
-            "writers": ["trace"],
+            "writers": [writer_name],
         })
-        config["writers"]["trace"] = {
+        logging_config["writers"][writer_name] = {
             "type": "file",
             "file_name": "{path}/{name}.trace.log".format(path=path, name=name) + suffix,
         }
-        config["writers"]["trace"].update(compression_options)
+        logging_config["writers"][writer_name].update(compression_options)
 
     if enable_structured_logging:
-        config["rules"].append({
+        writer_name = _get_writer_name("json")
+        logging_config["rules"].append({
             "min_level": "debug",
-            "writers": ["json"],
+            "writers": [writer_name],
             "family": "structured",
         })
-        config["writers"]["json"] = {
+        logging_config["writers"][writer_name] = {
             "type": "file",
             "file_name": "{path}/{name}.json.log".format(path=path, name=name),
             "accepted_message_format": "structured",
         }
 
-    return config
+    return logging_config
 
 
 def set_at(config, path, value, merge=False):
@@ -1871,7 +2105,11 @@ def init_chunk_client_dispatcher(config):
     })
 
 
-def init_singletons(config, yt_config, index):
+def init_cypress_annotations(config, index):
+    set_at(config, "cypress_annotations/yt_env_index", index)
+
+
+def init_singletons(config, yt_config):
     set_at(config, "stockpile", {
         "thread_count": 0,
     })
@@ -1892,7 +2130,6 @@ def init_singletons(config, yt_config, index):
     })
     set_at(config, "address_resolver/localhost_fqdn", yt_config.fqdn)
     set_at(config, "solomon_exporter/grid_step", 1000)
-    set_at(config, "cypress_annotations/yt_env_index", index)
     set_at(config, "enable_ref_counted_tracker_profiling", yt_config.enable_resource_tracking)
     # COMPAT(babenko): drop in 25.1
     set_at(config, "enable_resource_tracker", yt_config.enable_resource_tracking)
@@ -1922,22 +2159,27 @@ def init_singletons(config, yt_config, index):
 
 def init_jaeger_collector(config, name, process_tags):
     if "JAEGER_COLLECTOR" in os.environ:
-        set_at(config, "jaeger", {
-            "service_name": name,
-            "flush_period": 100,
-            "collector_channel_config": {"address": os.environ["JAEGER_COLLECTOR"]},
-            "enable_pid_tag": True,
-            "process_tags": process_tags,
-        })
-
-        if name == "node":
-            set_at(config, "exec_node/job_proxy/job_proxy_jaeger", {
-                "service_name": "job_proxy",
+        if "jaeger" not in config:
+            set_at(config, "jaeger", {
+                "service_name": name,
                 "flush_period": 100,
                 "collector_channel_config": {"address": os.environ["JAEGER_COLLECTOR"]},
                 "enable_pid_tag": True,
                 "process_tags": process_tags,
             })
+        else:
+            set_at(config, "jaeger/process_tags", process_tags)
+
+
+def init_job_proxy_jaeger_collector(config, process_tags):
+    if "JAEGER_COLLECTOR" in os.environ:
+        set_at(config, "exec_node/job_proxy/job_proxy_jaeger", {
+            "service_name": "job_proxy",
+            "flush_period": 100,
+            "collector_channel_config": {"address": os.environ["JAEGER_COLLECTOR"]},
+            "enable_pid_tag": True,
+            "process_tags": process_tags,
+        })
 
 
 def _get_hydra_manager_config():
