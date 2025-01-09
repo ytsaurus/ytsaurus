@@ -16,6 +16,21 @@ namespace NYT::NDistributedThrottler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TThrottlerId = TString;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TThrottlerUsage
+{
+    double Rate = 0.0;
+    double Limit = 0.0;
+    i64 QueueTotalAmount = 0;
+    TDuration MaxEstimatedOverdraftDuration = TDuration::Zero();
+    TDuration MinEstimatedOverdraftDuration = TDuration::Max();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IDistributedThrottlerFactory
     : public virtual TRefCounted
 {

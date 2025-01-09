@@ -35,11 +35,11 @@ public:
         // Total (across all exe nodes) pending bytes to be read.
         i64 PendingBytes = 0;
         // Maximum (across all exe nodes) estimated time required to read pending bytes.
-        i64 MaxEstimatedTimeToReadPendingBytes = 0;
-        i64 MaxEstimatedTimeToReadPendingBytesThreshold = std::numeric_limits<i64>::max();
+        TDuration MaxEstimatedTimeToReadPendingBytes = TDuration::Zero();
+        TDuration MaxEstimatedTimeToReadPendingBytesThreshold = TDuration::Max();
         // Minimum (across all exe nodes) estimated time required to read pending bytes.
-        i64 MinEstimatedTimeToReadPendingBytes = std::numeric_limits<i64>::max();
-        i64 MinEstimatedTimeToReadPendingBytesThreshold = std::numeric_limits<i64>::max();
+        TDuration MinEstimatedTimeToReadPendingBytes = TDuration::Max();
+        TDuration MinEstimatedTimeToReadPendingBytesThreshold = TDuration::Max();
     };
 
     virtual NConcurrency::IThroughputThrottlerPtr GetOrCreateThrottler(
