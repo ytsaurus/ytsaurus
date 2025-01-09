@@ -814,7 +814,7 @@ bool TTableSchema::IsCGComparatorApplicable() const
 
     auto keyTypes = GetKeyColumnTypes();
     return std::none_of(keyTypes.begin(), keyTypes.end(), [] (auto type) {
-        return type == EValueType::Any;
+        return type == EValueType::Any || type == EValueType::Null;
     });
 }
 
