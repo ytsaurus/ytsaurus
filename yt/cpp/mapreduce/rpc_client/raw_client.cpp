@@ -720,7 +720,8 @@ TYPath TRpcRawClient::PutFileToCache(
     const TYPath& cachePath,
     const TPutFileToCacheOptions& options)
 {
-    auto future = Client_->PutFileToCache(filePath, md5Signature, SerializeOptionsForPutFileToCache(transactionId, cachePath, options));
+    auto newFilePath = AddPathPrefix(filePath, Context_.Config->Prefix);
+    auto future = Client_->PutFileToCache(newFilePath, md5Signature, SerializeOptionsForPutFileToCache(transactionId, cachePath, options));
     auto result = WaitFor(future).ValueOrThrow();
     return result.Path;
 }
@@ -730,7 +731,8 @@ void TRpcRawClient::MountTable(
     const TYPath& path,
     const TMountTableOptions& options)
 {
-    auto future = Client_->MountTable(path, SerializeOptionsForMountTable(mutationId, options));
+    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto future = Client_->MountTable(newPath, SerializeOptionsForMountTable(mutationId, options));
     WaitFor(future).ThrowOnError();
 }
 
@@ -739,7 +741,8 @@ void TRpcRawClient::UnmountTable(
     const TYPath& path,
     const TUnmountTableOptions& options)
 {
-    auto future = Client_->UnmountTable(path, SerializeOptionsForUnmountTable(mutationId, options));
+    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto future = Client_->UnmountTable(newPath, SerializeOptionsForUnmountTable(mutationId, options));
     WaitFor(future).ThrowOnError();
 }
 
@@ -748,7 +751,8 @@ void TRpcRawClient::RemountTable(
     const TYPath& path,
     const TRemountTableOptions& options)
 {
-    auto future = Client_->RemountTable(path, SerializeOptionsForRemountTable(mutationId, options));
+    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto future = Client_->RemountTable(newPath, SerializeOptionsForRemountTable(mutationId, options));
     WaitFor(future).ThrowOnError();
 }
 
@@ -778,7 +782,8 @@ void TRpcRawClient::FreezeTable(
     const TYPath& path,
     const TFreezeTableOptions& options)
 {
-    auto future = Client_->FreezeTable(path, SerializeOptionsForFreezeTable(options));
+    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto future = Client_->FreezeTable(newPath, SerializeOptionsForFreezeTable(options));
     WaitFor(future).ThrowOnError();
 }
 
@@ -786,7 +791,8 @@ void TRpcRawClient::UnfreezeTable(
     const TYPath& path,
     const TUnfreezeTableOptions& options)
 {
-    auto future = Client_->UnfreezeTable(path, SerializeOptionsForUnfreezeTable(options));
+    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto future = Client_->UnfreezeTable(newPath, SerializeOptionsForUnfreezeTable(options));
     WaitFor(future).ThrowOnError();
 }
 
@@ -823,7 +829,8 @@ TCheckPermissionResponse TRpcRawClient::CheckPermission(
     const TYPath& path,
     const TCheckPermissionOptions& options)
 {
-    auto future = Client_->CheckPermission(user, path, ToApiPermission(permission), SerializeOptionsForCheckPermission(options));
+    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto future = Client_->CheckPermission(user, newPath, ToApiPermission(permission), SerializeOptionsForCheckPermission(options));
     auto result = WaitFor(future).ValueOrThrow();
     return ParseCheckPermissionResponse(result);
 }
@@ -833,7 +840,8 @@ TVector<TTabletInfo> TRpcRawClient::GetTabletInfos(
     const TVector<int>& tabletIndexes,
     const TGetTabletInfosOptions& /*options*/)
 {
-    auto future = Client_->GetTabletInfos(path, tabletIndexes);
+    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto future = Client_->GetTabletInfos(newPath, tabletIndexes);
     auto tabletInfos = WaitFor(future).ValueOrThrow();
 
     TVector<TTabletInfo> result;
