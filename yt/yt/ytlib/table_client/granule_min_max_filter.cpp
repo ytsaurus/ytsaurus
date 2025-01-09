@@ -139,7 +139,12 @@ IGranuleFilterPtr CreateGranuleMinMaxFilter(const TConstQueryPtr& query)
     }
 
     auto rowBuffer = New<TRowBuffer>(TGranuleMinMaxFilterQueryConstraintsTag());
-    auto queryConstraintsHolder = TConstraintsHolder(schemaColumns.size());
+
+    auto queryConstraintsHolder = TConstraintsHolder(
+        schemaColumns.size(),
+        GetRefCountedTypeCookie<TGranuleMinMaxFilterQueryConstraintsTag>(),
+        GetDefaultMemoryChunkProvider());
+
     auto queryConstraint = TConstraintRef();
     {
         auto keyColumns = TKeyColumns();

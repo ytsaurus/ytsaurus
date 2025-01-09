@@ -429,7 +429,8 @@ Y_WEAK TSharedRange<TRowRange> CreateNewRangeInferrer(
     const TKeyColumns& /*keyColumns*/,
     const IColumnEvaluatorCachePtr& /*evaluatorCache*/,
     const TConstConstraintExtractorMapPtr& /*constraintExtractors*/,
-    const TQueryOptions& /*options*/)
+    const TQueryOptions& /*options*/,
+    const IMemoryChunkProviderPtr& /*memoryChunkProvider*/)
 {
     // Proper implementation resides in yt/yt/library/query/engine/new_range_inferrer.cpp.
     YT_ABORT();

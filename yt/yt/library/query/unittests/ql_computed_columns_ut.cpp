@@ -58,7 +58,8 @@ protected:
             rowBuffer,
             ColumnEvaluatorCache_,
             GetBuiltinRangeExtractors(),
-            options);
+            options,
+            GetDefaultMemoryChunkProvider());
     }
 
     TSharedRange<TRowRange> CoordinateForeign(const TString& source)
@@ -89,7 +90,8 @@ protected:
             rowBuffer,
             ColumnEvaluatorCache_,
             GetBuiltinRangeExtractors(),
-            options);
+            options,
+            GetDefaultMemoryChunkProvider());
     }
 
     void SetSchema(const TTableSchema& schema)

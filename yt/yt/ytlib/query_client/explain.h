@@ -18,7 +18,8 @@ NYson::TYsonString BuildExplainQueryYson(
     NApi::NNative::IConnectionPtr connection,
     const std::unique_ptr<TPlanFragment>& fragment,
     TStringBuf udfRegistryPath,
-    const NApi::TExplainQueryOptions& options);
+    const NApi::TExplainQueryOptions& options,
+    const IMemoryChunkProviderPtr& memoryChunkProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

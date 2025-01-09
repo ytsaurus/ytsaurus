@@ -216,6 +216,9 @@ std::vector<TRowRange> GetRangesFromConstraints(
     return resultRanges;
 }
 
+struct TRangeInferrerTestBufferTag
+{ };
+
 std::vector<TRowRange> GetRangesFromExpression(
     TRowBufferPtr buffer,
     const TKeyColumns& keyColumns,
@@ -223,7 +226,7 @@ std::vector<TRowRange> GetRangesFromExpression(
     const TKeyRange& keyRange,
     ui64 rangeCountLimit = std::numeric_limits<ui64>::max())
 {
-    TConstraintsHolder constraints(keyColumns.size());
+    auto constraints = TConstraintsHolder(keyColumns.size(), GetRefCountedTypeCookie<TRangeInferrerTestBufferTag>(), GetDefaultMemoryChunkProvider());
     auto constraintRef = constraints.ExtractFromExpression(predicate, keyColumns, buffer);
 
     constraintRef = constraints.Intersect(
@@ -1400,6 +1403,7 @@ TEST_P(TInferRangesTest, Stress)
             columnEvaluatorCache,
             GetBuiltinRangeExtractors(),
             options,
+            GetDefaultMemoryChunkProvider(),
             {});
 
         Y_UNUSED(inferredRanges);

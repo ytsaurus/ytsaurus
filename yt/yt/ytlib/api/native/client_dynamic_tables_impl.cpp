@@ -134,6 +134,7 @@ using namespace NYTree;
 
 const TString UpstreamReplicaIdAttributeName = "upstream_replica_id";
 constexpr i64 MinPullDataSize = 1_KB;
+constexpr size_t ExplainQueryMemoryLimit = 3_GB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1784,7 +1785,12 @@ NYson::TYsonString TClient::DoExplainQuery(
         *parsedQuery,
         QueryMemoryTracker_);
 
-    return BuildExplainQueryYson(GetNativeConnection(), fragment, udfRegistryPath, options);
+    auto memoryChunkProvider = MemoryProvider_->GetProvider(
+        ToString(TReadSessionId::Create()),
+        ExplainQueryMemoryLimit,
+        QueryMemoryTracker_);
+
+    return BuildExplainQueryYson(GetNativeConnection(), fragment, udfRegistryPath, options, memoryChunkProvider);
 }
 
 template <class T>

@@ -24,6 +24,7 @@ TSharedRange<TRowRange> GetPrunedRanges(
     const IColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options,
+    const IMemoryChunkProviderPtr& memoryChunkProvider,
     TGuid queryId = {});
 
 TSharedRange<TRowRange> GetPrunedRanges(
@@ -33,7 +34,8 @@ TSharedRange<TRowRange> GetPrunedRanges(
     const TRowBufferPtr& rowBuffer,
     const IColumnEvaluatorCachePtr& evaluatorCache,
     const TConstRangeExtractorMapPtr& rangeExtractors,
-    const TQueryOptions& options);
+    const TQueryOptions& options,
+    const IMemoryChunkProviderPtr& memoryChunkProvider);
 
 struct TEvaluateResult
 {

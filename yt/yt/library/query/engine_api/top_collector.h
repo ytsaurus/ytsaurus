@@ -2,42 +2,9 @@
 
 #include "evaluation_helpers.h"
 
-#include <library/cpp/yt/memory/chunked_memory_pool_allocator.h>
+#include <yt/yt/library/query/base/vector_over_memory_chunk_provider.h>
 
 namespace NYT::NQueryClient {
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <typename T>
-    requires std::is_trivially_copyable_v<T>
-class TVectorOverMemoryChunkProvider
-{
-public:
-    TVectorOverMemoryChunkProvider(
-        TRefCountedTypeCookie cookie,
-        IMemoryChunkProviderPtr memoryChunkProvider);
-
-    void PushBack(T value);
-    i64 Size() const;
-
-    T& operator[](i64 index);
-    const T& operator[](i64 index) const;
-
-    T* Begin();
-    T* End();
-
-    bool Empty() const;
-
-private:
-    static inline constexpr i64 MinCapacity = 1024;
-
-    i64 Capacity() const;
-
-    i64 Size_ = 0;
-    const IMemoryChunkProviderPtr Provider_;
-    TRefCountedTypeCookie Cookie_;
-    std::unique_ptr<TAllocationHolder> DataHolder_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -156,7 +123,3 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueryClient
-
-#define TOP_COLLECTOR_INL_H
-#include "top_collector-inl.h"
-#undef TOP_COLLECTOR_INL_H

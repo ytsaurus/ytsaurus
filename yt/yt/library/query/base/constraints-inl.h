@@ -105,8 +105,7 @@ void TReadRangesGenerator::GenerateReadRanges(TConstraintRef constraintRef, cons
         return;
     }
 
-    auto intervals = TRange(Constraints_[columnId])
-        .Slice(constraintRef.StartIndex, constraintRef.EndIndex);
+    auto intervals = Constraints_[columnId].Slice(constraintRef.StartIndex, constraintRef.EndIndex);
 
     if (columnId >= keyWidthLimit) {
         Row_[columnId] = TColumnConstraint{intervals.Front().GetLowerBound(), intervals.Back().GetUpperBound()};

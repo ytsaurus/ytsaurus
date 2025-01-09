@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "vector_over_memory_chunk_provider.h"
 
 #include <yt/yt/library/query/engine_api/public.h>
 
@@ -81,17 +82,22 @@ struct TColumnConstraint
 };
 
 struct TColumnConstraints
-    : public std::vector<TConstraint>
-{ };
+    : public TVectorOverMemoryChunkProvider<TConstraint>
+{
+    TColumnConstraints(
+        TRefCountedTypeCookie cookie,
+        IMemoryChunkProviderPtr memoryChunkProvider);
+};
 
 extern TColumnConstraint UniversalInterval;
 
 struct TConstraintsHolder
     : public std::vector<TColumnConstraints>
 {
-    explicit TConstraintsHolder(ui32 columnCount)
-        : std::vector<TColumnConstraints>(columnCount)
-    { }
+    TConstraintsHolder(
+        ui32 columnCount,
+        TRefCountedTypeCookie cookie,
+        IMemoryChunkProviderPtr memoryChunkProvider);
 
     TConstraintRef Append(std::initializer_list<TConstraint> constraints, ui32 keyPartIndex);
 
