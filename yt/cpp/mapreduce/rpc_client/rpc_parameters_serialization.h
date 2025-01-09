@@ -9,6 +9,8 @@ namespace NYT::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NYPath::TRichYPath ToApiRichPath(const TRichYPath& path);
+
 TGuid YtGuidFromUtilGuid(TGUID guid);
 
 TGUID UtilGuidFromYtGuid(TGuid guid);
@@ -77,6 +79,11 @@ NApi::TUnlockNodeOptions SerializeOptionsForUnlock(
     TMutationId& mutationId,
     const TTransactionId& transactionId,
     const TUnlockOptions& options);
+
+NApi::TConcatenateNodesOptions SerializeOptionsForConcatenate(
+    TMutationId& mutationId,
+    const TTransactionId& transactionId,
+    const TConcatenateOptions& options);
 
 NApi::TTransactionStartOptions SerializeOptionsForStartTransaction(
     TMutationId& mutationId,

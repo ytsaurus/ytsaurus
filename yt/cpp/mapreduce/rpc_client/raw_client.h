@@ -109,6 +109,12 @@ public:
         const TYPath& path,
         const TUnlockOptions& options = {}) override;
 
+    void Concatenate(
+        const TTransactionId& transactionId,
+        const TVector<TRichYPath>& sourcePaths,
+        const TRichYPath& destinationPath,
+        const TConcatenateOptions& options = {}) override;
+
     // Transactions
 
     TTransactionId StartTransaction(

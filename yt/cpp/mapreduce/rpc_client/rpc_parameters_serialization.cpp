@@ -13,6 +13,14 @@ namespace NYT::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NYPath::TRichYPath ToApiRichPath(const TRichYPath& path)
+{
+    NYPath::TRichYPath richPath;
+    auto pathNode = NYson::TYsonString(NodeToYsonString(PathToNode(path), NYson::EYsonFormat::Binary));
+    Deserialize(richPath, NYTree::ConvertToNode(pathNode));
+    return richPath;
+}
+
 TGuid YtGuidFromUtilGuid(TGUID guid)
 {
     return {guid.dw[3], guid.dw[2], guid.dw[1], guid.dw[0]};
@@ -364,6 +372,17 @@ NApi::TUnlockNodeOptions SerializeOptionsForUnlock(
     const TUnlockOptions& /*options*/)
 {
     NApi::TUnlockNodeOptions result;
+    SetMutationId(&result, &mutationId);
+    SetTransactionId(&result, transactionId);
+    return result;
+}
+
+NApi::TConcatenateNodesOptions SerializeOptionsForConcatenate(
+    TMutationId& mutationId,
+    const TTransactionId& transactionId,
+    const TConcatenateOptions& /*options*/)
+{
+    NApi::TConcatenateNodesOptions result;
     SetMutationId(&result, &mutationId);
     SetTransactionId(&result, transactionId);
     return result;
