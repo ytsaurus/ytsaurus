@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <yt/yt/core/concurrency/config.h>
+
 #include <yt/yt/core/misc/public.h>
 
 namespace NYT::NRpcProxy {
@@ -71,6 +73,26 @@ DEFINE_REFCOUNTED_TYPE(TStructuredLoggingTopicDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TQueryCorpusReporterConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enable;
+    int MaxBatchSize;
+    TDuration Period;
+    TDuration Splay;
+    double Jitter;
+    TDuration ReportBackoffTime;
+    NYPath::TYPath TablePath;
+
+    REGISTER_YSON_STRUCT(TQueryCorpusReporterConfig);
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueryCorpusReporterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TApiTestingOptions
     : public NYTree::TYsonStruct
 {
@@ -131,6 +153,8 @@ public:
     //! Maximum size of the query in SelectRows request.
     //! Queries exceeding this limit will be truncated.
     i64 StructuredLoggingQueryTruncationSize;
+
+    TQueryCorpusReporterConfigPtr QueryCorpusReporter;
 
     THashMap<NFormats::EFormatType, NServer::TFormatConfigPtr> Formats;
 

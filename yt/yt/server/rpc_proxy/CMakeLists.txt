@@ -54,5 +54,6 @@ target_sources(yt-server-rpc_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/bundle_dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/program.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/rpc_proxy/query_corpus_reporter.cpp
 )
 

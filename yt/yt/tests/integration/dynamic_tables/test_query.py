@@ -7,7 +7,7 @@ from yt_dynamic_tables_base import DynamicTablesBase
 from yt_helpers import profiler_factory
 
 from yt_commands import (
-    authors, create_dynamic_table, wait, create, ls, get, move, create_user, make_ace,
+    authors, create_dynamic_table, wait, create, ls, get, set, move, create_user, make_ace,
     insert_rows, raises_yt_error, select_rows, delete_rows, sorted_dicts, generate_uuid,
     write_local_file, reshard_table, sync_create_cells, sync_mount_table, sync_unmount_table, sync_flush_table,
     WaitFailed, create_table_replica, sync_enable_table_replica)
@@ -2468,6 +2468,47 @@ class TestQueryRpcProxy(TestQuery):
             export_summary_as_max=True,
             verbose=False,
             default=0) > 0
+
+    @authors("dtorilov")
+    def test_ql_corpus(self):
+        sync_create_cells(1)
+
+        self._create_table(
+            "//tmp/queue",
+            [
+                {"name": "query", "type": "string"},
+            ],
+            [],
+            "scan",
+        )
+
+        set("//sys/rpc_proxies/@config", {})
+        set("//sys/rpc_proxies/@config/api", {})
+        set("//sys/rpc_proxies/@config/api/query_corpus_reporter", {"period": 1, "splay": 0, "jitter": 0, "table_path": "//tmp/queue", "enable": True})
+
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "v", "type": "int64"},
+            ],
+            [],
+            "scan",
+        )
+
+        queries = {
+            "0 from [//tmp/t]",
+            "42 from [//tmp/t]",
+            "k + 42 from [//tmp/t] where k > 0",
+        }
+
+        for query in queries:
+            select_rows(query)
+
+        time.sleep(1)
+
+        corpus = builtins.set(map(lambda x : x['query'], select_rows("query from [//tmp/queue]")))
+        assert corpus == queries
 
 
 class TestSelectWithRowCache(TestLookupCache):
