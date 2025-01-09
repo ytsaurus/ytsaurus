@@ -15,12 +15,12 @@ namespace NYT::NDetail {
 
 TGuid YtGuidFromUtilGuid(TGUID guid)
 {
-    return {guid.dw[0], guid.dw[1], guid.dw[2], guid.dw[3]};
+    return {guid.dw[3], guid.dw[2], guid.dw[1], guid.dw[0]};
 }
 
 TGUID UtilGuidFromYtGuid(TGuid guid)
 {
-    return {guid.Parts32[0], guid.Parts32[1], guid.Parts32[2], guid.Parts32[3]};
+    return {guid.Parts32[3], guid.Parts32[2], guid.Parts32[1], guid.Parts32[0]};
 }
 
 NObjectClient::EObjectType ToApiObjectType(ENodeType type)

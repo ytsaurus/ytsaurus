@@ -580,6 +580,94 @@ TListJobsResult TRpcRawClient::ListJobs(
     return result;
 }
 
+class TRpcResponseStream
+    : public IFileReader
+{
+public:
+    TRpcResponseStream(std::unique_ptr<IInputStream> stream)
+        : Underlying_(std::move(stream))
+    { }
+
+private:
+    size_t DoRead(void *buf, size_t len) override
+    {
+        return Underlying_->Read(buf, len);
+    }
+
+    size_t DoSkip(size_t len) override
+    {
+        return Underlying_->Skip(len);
+    }
+
+private:
+    std::unique_ptr<IInputStream> Underlying_;
+};
+
+class TFixedStringStream
+    : public IInputStream
+{
+public:
+    TFixedStringStream(TSharedRef data)
+        : Data_(data)
+    { }
+
+private:
+    size_t DoRead(void *buf, size_t len) override
+    {
+        len = std::min(len, Data_.size() - Position_);
+        memcpy(buf, Data_.data() + Position_, len);
+        Position_ += len;
+        return len;
+    }
+
+    size_t DoSkip(size_t len) override
+    {
+        len = std::min(len, Data_.size() - Position_);
+        Position_ += len;
+        return len;
+    }
+
+private:
+    TSharedRef Data_;
+    size_t Position_{0};
+};
+
+IFileReaderPtr TRpcRawClient::GetJobInput(
+    const TJobId& jobId,
+    const TGetJobInputOptions& /*options*/)
+{
+    auto future = Client_->GetJobInput(NJobTrackerClient::TJobId(YtGuidFromUtilGuid(jobId)));
+    auto result = WaitFor(future).ValueOrThrow();
+    auto stream = CreateSyncAdapter(CreateCopyingAdapter(result));
+    return MakeIntrusive<TRpcResponseStream>(std::move(stream));
+}
+
+IFileReaderPtr TRpcRawClient::GetJobFailContext(
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobFailContextOptions& /*options*/)
+{
+    auto future = Client_->GetJobFailContext(
+        NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
+        NJobTrackerClient::TJobId(YtGuidFromUtilGuid(jobId)));
+    auto result = WaitFor(future).ValueOrThrow();
+    std::unique_ptr<IInputStream> stream(new TFixedStringStream(std::move(result)));
+    return MakeIntrusive<TRpcResponseStream>(std::move(stream));
+}
+
+IFileReaderPtr TRpcRawClient::GetJobStderr(
+    const TOperationId& operationId,
+    const TJobId& jobId,
+    const TGetJobStderrOptions& /*options*/)
+{
+    auto future = Client_->GetJobStderr(
+        NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
+        NJobTrackerClient::TJobId(YtGuidFromUtilGuid(jobId)));
+    auto result = WaitFor(future).ValueOrThrow();
+    std::unique_ptr<IInputStream> stream(new TFixedStringStream(std::move(result.Data)));
+    return MakeIntrusive<TRpcResponseStream>(std::move(stream));
+}
+
 std::vector<TJobTraceEvent> TRpcRawClient::GetJobTrace(
     const TOperationId& operationId,
     const TGetJobTraceOptions& options)
