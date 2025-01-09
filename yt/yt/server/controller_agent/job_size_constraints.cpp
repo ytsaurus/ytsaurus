@@ -486,9 +486,17 @@ public:
             }
             JobCount_ = DivCeil(InputDataWeight_, dataWeightPerJob);
         } else {
-            i64 dataWeightPerJob = dataSizeHint == EDataSizePerMergeJobHint::DesiredChunkSize
-                ? Spec_->JobIO->TableWriter->DesiredChunkSize / compressionRatio
-                : Options_->DataWeightPerJob;
+            i64 dataWeightPerJob;
+            switch (dataSizeHint) {
+                case EDataSizePerMergeJobHint::DesiredChunkSize:
+                    dataWeightPerJob = Spec_->JobIO->TableWriter->DesiredChunkSize / compressionRatio;
+                    break;
+                case EDataSizePerMergeJobHint::OperationOptions:
+                    dataWeightPerJob = Options_->DataWeightPerJob;
+                    break;
+                default:
+                    YT_ABORT();
+            }
 
             if (dataWeightPerJob / dataWeightRatio > Options_->DataWeightPerJob) {
                 // This means that compression ration w.r.t data weight is very small,
