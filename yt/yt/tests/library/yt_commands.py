@@ -3451,6 +3451,18 @@ def update_controller_agent_config(path, value, wait_for_orchid=True):
             wait(lambda: get("{}/{}".format(orchid_config_path, path), default=None) == value)
 
 
+@contextlib.contextmanager
+def remember_controller_agent_config():
+    old_config = get("//sys/controller_agents/config")
+    try:
+        yield
+    finally:
+        set("//sys/controller_agents/config", old_config)
+        for agent in ls("//sys/controller_agents/instances"):
+            orchid_config_path = "//sys/controller_agents/instances/{}/orchid/controller_agent/config".format(agent)
+            wait(lambda: is_subdict(old_config, get(orchid_config_path)))
+
+
 # TODO(eshcherbin): Rename to update_scheduler_config_option,
 # and add a new update_scheduler_config helper for updating several options at once.
 def update_scheduler_config(path, value, wait_for_orchid=True):

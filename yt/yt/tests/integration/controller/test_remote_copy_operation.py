@@ -15,7 +15,7 @@ from yt_commands import (
     multicell_sleep, set_node_banned, set_nodes_banned, set_all_nodes_banned, sorted_dicts,
     raises_yt_error, get_driver, ls, disable_write_sessions_on_node,
     create_pool, update_pool_tree_config_option,
-    update_controller_agent_config,
+    update_controller_agent_config, remember_controller_agent_config,
     write_file, wait_for_nodes, read_file, get_singular_chunk_id)
 
 from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_component_old
@@ -994,12 +994,12 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    def _create_inout_files(self, chunks, **remote_attributes):
+    def _create_inout_files(self, chunks, content=b"remote_text", **remote_attributes):
         create("file", "//tmp/in.txt", attributes=remote_attributes, driver=self.remote_driver)
         create("file", "//tmp/out.txt")
 
         for _ in range(chunks):
-            write_file("<append=%true>//tmp/in.txt", b"remote_text.", driver=self.remote_driver)
+            write_file("<append=%true>//tmp/in.txt", content, driver=self.remote_driver)
 
         assert get("//tmp/in.txt/@chunk_count", driver=self.remote_driver) == chunks
 
@@ -1024,6 +1024,30 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         assert read_file("//tmp/out.txt") == remote_content
         assert get("//tmp/out.txt/@chunk_count") == chunks
+
+    @authors("coteeq")
+    def test_copy_file_data_weight_per_job(self):
+        skip_if_component_old(self.Env, (24, 2), "controller-agent")
+        n_chunks = 3
+        self._create_inout_files(n_chunks, content=b"content" * 100)
+
+        remote_content = read_file("//tmp/in.txt", driver=self.remote_driver)
+
+        with remember_controller_agent_config():
+            update_controller_agent_config("remote_copy_operation_options/data_weight_per_job", 500)
+            op = remote_copy(
+                in_="//tmp/in.txt",
+                out="//tmp/out.txt",
+                spec={
+                    "cluster_name": self.REMOTE_CLUSTER_NAME,
+                }
+            )
+
+        jobs_count = op.get_statistics()["data"]["input"]["data_weight"][0]["summary"]["count"]
+        assert jobs_count == n_chunks
+
+        assert read_file("//tmp/out.txt") == remote_content
+        assert get("//tmp/out.txt/@chunk_count") == n_chunks
 
     @authors("coteeq")
     def test_copy_file_create_destination(self):

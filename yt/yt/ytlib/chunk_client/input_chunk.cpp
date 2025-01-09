@@ -323,11 +323,17 @@ i64 TInputChunk::GetDataWeight() const
 
 i64 TInputChunk::GetUncompressedDataSize() const
 {
+    if (IsFile()) {
+        return TotalUncompressedDataSize_;
+    }
     return ApplySelectivityFactors(TotalUncompressedDataSize_, /*applyColumnarSelectivityToNonColumnarFormats*/ false);
 }
 
 i64 TInputChunk::GetCompressedDataSize() const
 {
+    if (IsFile()) {
+        return CompressedDataSize_;
+    }
     return ApplySelectivityFactors(CompressedDataSize_, /*applyColumnarSelectivityToNonColumnarFormats*/ false);
 }
 

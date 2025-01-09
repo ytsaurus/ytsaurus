@@ -459,7 +459,8 @@ public:
         double dataWeightRatio,
         double compressionRatio,
         int mergeInputTableCount,
-        int mergePrimaryInputTableCount)
+        int mergePrimaryInputTableCount,
+        EDataSizePerMergeJobHint dataSizeHint)
         : TJobSizeConstraintsBase(
             inputDataWeight,
             inputDataWeight,
@@ -485,7 +486,9 @@ public:
             }
             JobCount_ = DivCeil(InputDataWeight_, dataWeightPerJob);
         } else {
-            i64 dataWeightPerJob = Spec_->JobIO->TableWriter->DesiredChunkSize / compressionRatio;
+            i64 dataWeightPerJob = dataSizeHint == EDataSizePerMergeJobHint::DesiredChunkSize
+                ? Spec_->JobIO->TableWriter->DesiredChunkSize / compressionRatio
+                : Options_->DataWeightPerJob;
 
             if (dataWeightPerJob / dataWeightRatio > Options_->DataWeightPerJob) {
                 // This means that compression ration w.r.t data weight is very small,
@@ -806,7 +809,8 @@ IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
     double dataWeightRatio,
     double compressionRatio,
     int mergeInputTableCount,
-    int mergePrimaryInputTableCount)
+    int mergePrimaryInputTableCount,
+    EDataSizePerMergeJobHint dataSizeHint)
 {
     return New<TMergeJobSizeConstraints>(
         spec,
@@ -817,7 +821,8 @@ IJobSizeConstraintsPtr CreateMergeJobSizeConstraints(
         dataWeightRatio,
         compressionRatio,
         mergeInputTableCount,
-        mergePrimaryInputTableCount);
+        mergePrimaryInputTableCount,
+        dataSizeHint);
 }
 
 IJobSizeConstraintsPtr CreateSimpleSortJobSizeConstraints(

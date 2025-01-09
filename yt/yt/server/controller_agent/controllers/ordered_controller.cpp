@@ -371,7 +371,10 @@ protected:
         switch (OperationType) {
             case EOperationType::Merge:
             case EOperationType::Erase:
-            case EOperationType::RemoteCopy:
+            case EOperationType::RemoteCopy: {
+                auto dataSizeHint = OperationType == EOperationType::RemoteCopy
+                    ? EDataSizePerMergeJobHint::OperationOptions
+                    : EDataSizePerMergeJobHint::DesiredChunkSize;
                 JobSizeConstraints_ = CreateMergeJobSizeConstraints(
                     Spec_,
                     Options_,
@@ -379,9 +382,12 @@ protected:
                     TotalEstimatedInputChunkCount,
                     PrimaryInputDataWeight,
                     DataWeightRatio,
-                    InputCompressionRatio);
+                    InputCompressionRatio,
+                    /*inputTableCount*/ 1,
+                    /*primaryInputTableCount*/ 1,
+                    dataSizeHint);
                 break;
-
+            }
             case EOperationType::Map:
                 JobSizeConstraints_ = CreateUserJobSizeConstraints(
                     Spec_,
