@@ -343,3 +343,4 @@ def build_secondary_index(proxy, table, index_table, kind, predicate, dry_run, o
         if secondary_index_id:
             logging.info(f"\n\t\tRemoving secondary index link {secondary_index_id}")
             client.remove(f"#{secondary_index_id}")
+        raise
