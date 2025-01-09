@@ -15,12 +15,11 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(EChaosReign,
-    ((SaneTxActionAbort)                        (300013)) // kvk1920
-    ((SaneTxActionAbortFix)                     (300014)) // kvk1920
     ((ClockClusterTagValidation)                (300015)) // osidorkin
     ((CollocationOptions)                       (300016)) // akozhikhov
     ((AttachDistributedCollocation)             (300017)) // savrus
     ((NoDetachOnDistributedCollocationAttach)   (300018)) // osidorkin
+    // 25.1 starts here
 );
 
 static_assert(TEnumTraits<EChaosReign>::IsMonotonic, "Chaos reign enum is not monotonic");
