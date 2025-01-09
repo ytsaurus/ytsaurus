@@ -101,7 +101,6 @@ if [ "$build_python_udfs" == "yes" ]; then
     --env YDB_SOURCE_PATH=/ydb \
     --env YQL_BUILD_PATH=/yql_build \
     --env "BUILD_FLAGS=$BUILD_FLAGS" \
-    --env "UPDATE_REMOTE_CACHE=$UPDATE_REMOTE_CACHE" \
     mirror.gcr.io/ubuntu:focal \
     /bin/bash -c \
     "apt update && \
