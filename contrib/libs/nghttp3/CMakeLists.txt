@@ -21,6 +21,7 @@ target_compile_options(contrib-libs-nghttp3 PRIVATE
   -DBUILDING_NGHTTP3
   -DHAVE_CONFIG_H
   -DNGHTTP3_STATICLIB
+  -Dsfparse_parser_dict=nghttp3_sfparse_parser_dict
   $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
 )
 
@@ -34,7 +35,6 @@ target_include_directories(contrib-libs-nghttp3 PRIVATE
 
 target_link_libraries(contrib-libs-nghttp3 PUBLIC
   linux-headers-generic::linux-headers-generic
-  contrib-libs-nghttp2
 )
 
 target_sources(contrib-libs-nghttp3 PRIVATE
@@ -66,5 +66,6 @@ target_sources(contrib-libs-nghttp3 PRIVATE
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_unreachable.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_vec.c
   ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/nghttp3_version.c
+  ${PROJECT_SOURCE_DIR}/contrib/libs/nghttp3/lib/sfparse/sfparse.c
 )
 
