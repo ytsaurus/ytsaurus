@@ -1483,8 +1483,9 @@ private:
                     replicationCardId,
                     replicationCard->GetState());
             }
+
             if (auto* collocation = replicationCard->GetCollocation()) {
-                collocations.insert(replicationCard->GetCollocation());
+                collocations.insert(collocation);
             }
         }
 
@@ -1735,7 +1736,7 @@ private:
         replicationCard->Migration().ImmigrationTime = GetCurrentMutationContext()->GetTimestamp();
         replicationCard->SetMigrationToken(migrationToken);
 
-        if (auto* collocation = replicationCard->GetCollocation()) {
+        if (replicationCard->GetCollocation()) {
             UpdateReplicationCardCollocation(
                 replicationCard,
                 /*collocation*/ nullptr,
