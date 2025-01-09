@@ -1274,5 +1274,65 @@ class TestGangManager(YTEnvSetup):
 
         op.track()
 
+    @authors("pogorelov")
+    def test_interruption_signal(self):
+        restarted_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "operation_incarnation_changed"},
+        )
+
+        exit_code = 17
+        command = f"""(trap "exit {exit_code}" SIGINT; BREAKPOINT)"""
+
+        op = vanilla(
+            track=False,
+            spec={
+                "tasks": {
+                    "tasks_a": {
+                        "job_count": 3,
+                        "command": with_breakpoint(command),
+                        "interruption_signal": "SIGINT",
+                        "restart_exit_code": exit_code,
+                        "gang_manager": {},
+                    }
+                },
+            },
+        )
+        first_job_ids = wait_breakpoint(job_count=3)
+        job_id_to_interrupt = first_job_ids[0]
+
+        print_debug(f"First job ids are {first_job_ids}, interrupting job {job_id_to_interrupt}")
+
+        try:
+            interrupt_job(job_id_to_interrupt, interrupt_timeout=600000)
+        except YtError as e:
+            # Sometimes job proxy may finish before it manages to send Interrupt reply.
+            # This is not an error.
+            socket_was_closed_error_code = 100
+            assert e.contains_code(socket_was_closed_error_code)
+
+        wait(lambda: restarted_job_profiler.get_job_count_delta() == 2)
+
+        assert op.get_job_count("lost") == 1
+        # assert op.get_job_count("completed") == 1
+
+        for job_id in first_job_ids:
+            release_breakpoint(job_id=job_id)
+
+        second_job_ids = wait_breakpoint(job_count=3)
+
+        print_debug(f"Second job ids are {second_job_ids}")
+
+        assert len(set(first_job_ids) & set(second_job_ids)) == 0
+
+        first_allocation_ids = set([get_allocation_id_from_job_id(job_id) for job_id in first_job_ids])
+        second_allocation_ids = set([get_allocation_id_from_job_id(job_id) for job_id in second_job_ids])
+
+        assert len(first_allocation_ids & second_allocation_ids) == 2
+
+        release_breakpoint()
+
+        op.track()
+
 
 ##################################################################
