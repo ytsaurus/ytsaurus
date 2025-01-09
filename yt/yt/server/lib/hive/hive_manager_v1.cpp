@@ -309,7 +309,7 @@ public:
 
     bool TryUnregisterCellMailbox(TCellId cellId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto* mailbox = CellMailboxMap_.Find(cellId);
         if (!mailbox) {

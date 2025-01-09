@@ -928,7 +928,7 @@ public:
 
     void EnsureOperationPoolExistence(const TString& poolName) const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (!FindPool(poolName)) {
             THROW_ERROR_EXCEPTION(EErrorCode::OperationLaunchedInNonexistentPool, "Pool %Qv not found", poolName);

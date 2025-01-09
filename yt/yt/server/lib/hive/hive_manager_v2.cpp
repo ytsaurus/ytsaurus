@@ -320,7 +320,7 @@ public:
 
     void RemoveCellMailbox(TCellId cellId)
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto mailboxHolder = CellMailboxMap_.Release(cellId);
 

@@ -196,7 +196,7 @@ public:
 
     TFuture<TIssueTokenResult> DoIssueTemporaryOperationToken(TOperationPtr operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         YT_LOG_DEBUG(
@@ -217,7 +217,7 @@ public:
 
     TFuture<void> ClearTokenExpirationTimeout(TNodeId tokenNodeId)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         // Force is not necessary when removing attributes.
         TRemoveNodeOptions options;
@@ -402,7 +402,7 @@ public:
 
     TFuture<TIssueTokenResult> IssueTemporaryOperationToken(const TOperationPtr& operation)
     {
-        VERIFY_THREAD_AFFINITY(ControlThread);
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
 
         return BIND(&TImpl::DoIssueTemporaryOperationToken, MakeStrong(this), operation)
