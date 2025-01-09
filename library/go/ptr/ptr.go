@@ -67,18 +67,11 @@ func T[T any](v T) *T { return &v }
 
 // TOrNil returns pointer to provided value or nil if value is empty
 func TOrNil[T comparable](v T) *T {
-	if IsZero(v) {
+	if isZero(v) {
 		return nil
 	}
 
 	return &v
-}
-
-// IsZero returns if provided value is empty value for the T
-func IsZero[T comparable](v T) bool {
-	var t T
-
-	return v == t
 }
 
 // From returns value from pointer
@@ -88,4 +81,11 @@ func From[T any](v *T) T {
 	}
 
 	return *v
+}
+
+// isZero checks if provided value is empty value for the T
+func isZero[T comparable](v T) bool {
+	var t T
+
+	return v == t
 }
