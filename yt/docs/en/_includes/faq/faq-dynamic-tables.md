@@ -3,7 +3,7 @@
 #### **Q: When working with dynamic tables from Python API or C++ API, I get the "Sticky transaction 1935-3cb03-4040001-e8723e5a is not found" error, what should I do?**
 
 **A:** The answer depends on how the transactions are used. If a master transaction is used, then this is a pointless action and you must set the query outside the transaction. To do this, you can either create a separate client or explicitly specify that the query must be run under a null transaction (`with client.Transaction(transaction_id="0-0-0-0"): ...`).
-Full use of tablet transactions in Python API is only possible via RPC-proxy (`yt.config['backend'] = 'rpc'`). Use of tablet transactions via HTTP is currently not supported. {% if audience == "internal" %}You might want to send an email to "yt@" and describe your case.{% endif %}
+Full use of tablet transactions in Python API is only possible via RPC-proxy (`yt.config['backend'] = 'rpc'`). Use of tablet transactions over HTTP is currently not supported.{% if audience == "internal" %} You might want to send an email to "yt@" and describe your specific scenario.{% endif %}
 
 ------
 #### **Q: When writing to a dynamic table, the "Node is out of tablet memory; all writes disabled" or "Active store is overflown, all writes disabled" error occurs. What does it mean and how should I deal with it?**
@@ -50,6 +50,8 @@ Full use of tablet transactions in Python API is only possible via RPC-proxy (`y
 
 **A:** The message is specific to a table with the `in_memory_mode` parameter at other than `none`. Such a table is always in memory in a mounted state. In order to read from such a table, all data must be loaded into memory. If the table was recently mounted, the tablet was moved to a different cell, or the {{product-name}} process restarted, the data is no longer in memory, which will generate this type of error. You need to wait for the background process to load data into memory.
 
+Tablets can move to other cells as a result of [automatic sharding](../../user-guide/dynamic-tables/tablet-balancing.md). You can see these moves on the "Tablet balancer moves" graph on the bundle's page. If you want, you can set a different schedule for automatic sharding. Your new schedule must allow the table to continue sustaining your load.
+
 ------
 #### **Q: In tablet_errors, I see the "Too many write timestamps in a versioned row" or "Too many delete timestamps in a versioned row" error**
 
@@ -78,8 +80,9 @@ There are a few problems with the first option. The problem is that queries are 
 
 ------
 #### **Q: I get the "No healthy tablet cells in bundle" error after creating a bundle**
-**A:** If this error occurs after you create a bundle, check whether you [allocated](../../user-guide/dynamic-tables/dynamic-tables-resources#upravlenie-instansami) instances within the bundle. You can find them in the "Instances" tab of the bundle's page.
+**A:** If this error occurs after you create a bundle, first check whether you [allocated](../../user-guide/dynamic-tables/dynamic-tables-resources#upravlenie-instansami) instances within the bundle. You can find them in the "Instances" tab on the bundle's page.
 {% endif %}
+
 ------
 #### **Q: How do I clear a replicated table using a CLI?**
 
@@ -106,8 +109,15 @@ If you don't require strict consistency, you can [weaken](../../user-guide/dynam
 ------
 #### **Q: When writing to a dynamic table, I get the "Row lock conflict due to concurrent ... write" error**
 
-**A:** This error occurs due to write conflicts – you try to write to a row that is locked by a concurrent transaction (this can be a write operation or an explicit lock). In some cases, the system may indicate the conflicting transaction. For example, for write-write conflicts, the error attributes include the transaction ID.
+**A:** This error occurs due to write conflicts – you're trying to write to a row that is locked by a concurrent transaction (this can be a write operation or an explicit lock). In some cases, the system may indicate the conflicting transaction. For example, for write-write conflicts, the error attributes include the transaction ID.
 
-In general, to eliminate conflicts caused by writing to the same key from multiple locations, you need to revise your logic for writing to dynamic tables.
+In general, to eliminate conflicts caused by writing to the same key from multiple sources, you need to revise your logic for writing to dynamic tables.
 
 In some scenarios, weakening [guarantees](../../user-guide/dynamic-tables/transactions#conflicts) may help. For example, you can use `atomicity=none` mode or shared write lock mode. Before you weaken the guarantees, be sure to read the documentation to find out whether the side effects can impact you.
+
+------
+#### **Q: When writing to a dynamic table, I get the "No working in-sync replicas found for table" error**
+
+**A:** This error occurs when reading from a replicated or chaotic table if there is no replica to read from. The replica must meet the following criteria:
+1. It must contain fairly recent data. If a timestamp is specified when reading, the replica must contain data up to that timestamp. If a timestamp is not specified, reads must be made from an *actually synchronous* replica: a one that has `mode=sync` and definitely contains older data. For more information, see [guarantees of replicated dynamic tables](../../user-guide/dynamic-tables/replicated-dynamic-tables#garantii).
+2. It must be a working replica. If the client has recently got an error from a replica, next time it will try to access a different replica. The replicas you cannot read data from are listed in the `banned_replicas` attribute of the error in question.
