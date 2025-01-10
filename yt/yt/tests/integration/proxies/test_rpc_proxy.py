@@ -697,8 +697,11 @@ class TestRpcProxyClientRetries(TestRpcProxyBase):
 
     DELTA_RPC_DRIVER_CONFIG = {
         "enable_retries": True,
-        "retry_backoff_time": 100,
-        "retry_attempts": 15,
+        "enable_exponential_retry_backoffs": True,
+        "retry_backoff": {
+            "invocation_count": 5,
+            "min_backoff": 100,
+        },
         "retry_timeout": 2000,
         "default_total_streaming_timeout": 1000,
         "proxy_list_update_period": 1000,

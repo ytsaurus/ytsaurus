@@ -80,9 +80,11 @@
             "enable_master_cache_discovery" = %false;
             "soft_backoff_time" = 100;
             "cell_id" = "478008c4-ffffffff-a0259-ffffffff";
-            "retry_attempts" = 100;
             "rpc_timeout" = 25000;
-            "retry_backoff_time" = 100;
+            "enable_exponential_retry_backoffs" = %true;
+            "retry_backoff" = {
+                "min_backoff" = 100;
+            };
         };
         "cell_directory_synchronizer" = {
             "sync_period" = 500;

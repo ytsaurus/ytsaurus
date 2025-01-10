@@ -170,12 +170,14 @@ class TestMountConfig(DynamicTablesBase):
         })
         set("//sys/@config/tablet_manager/io_config_patch/hunk_writer_config", {
             "node_channel": {
-                "retry_backoff_time": 12345,
+                "retry_backoff": {
+                    "invocation_count": 12345
+                },
             },
         })
 
         # Check that the last config is applied.
-        wait(lambda: _get_orchid("/hunk_writer_config/node_channel/retry_backoff_time") == 12345)
+        wait(lambda: _get_orchid("/hunk_writer_config/node_channel/retry_backoff/invocation_count") == 12345)
 
         assert _get_orchid("/config/replication_throttler") == {"limit": 1234.0, "period": 5000}
         assert _get_orchid("/config/relative_replication_throttler/ratio") == 5.0
