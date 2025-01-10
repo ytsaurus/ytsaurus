@@ -371,7 +371,7 @@ void TraverseSelectedSubtree(
 {
     SortRecordsByTransactionDepth(&records, transactionDepths);
 
-    std::stack<TRange<NRecords::TPathToNodeId>> currentAncestors;
+    TStack<TRange<NRecords::TPathToNodeId>> currentAncestors;
     auto it = records.begin();
     while (it != records.end()) {
         // Find records related to the next path.
