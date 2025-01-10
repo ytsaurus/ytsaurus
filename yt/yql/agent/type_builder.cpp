@@ -308,7 +308,7 @@ void TTypeBuilder::OnEndTagged()
     Push(TaggedLogicalType(tag, std::move(type)));
 }
 
-void TTypeBuilder::OnPg(TStringBuf name, TStringBuf category)
+void TTypeBuilder::OnPg(TStringBuf /*name*/, TStringBuf /*category*/)
 {
     Push(OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)));
 }
