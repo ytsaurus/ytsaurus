@@ -16,6 +16,10 @@ using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, "GranuleMinMaxFilterTest");
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGranuleMinMaxFilterTestBase
     : public ::testing::Test
 { };
@@ -116,7 +120,7 @@ TEST_P(TGranuleMinMaxFilterSimpleTest, All)
     bool expected = std::get<2>(param);
 
     auto query = PrepareJobQuery(queryString, Schema_, DefaultFetchFunctions);
-    auto filter = CreateGranuleMinMaxFilter(query);
+    auto filter = CreateGranuleMinMaxFilter(query, Logger());
     auto statistics = MakeStatistics(data);
 
     EXPECT_EQ(expected, filter->CanSkip(statistics, granuleNameTable));
@@ -156,7 +160,7 @@ TEST_F(TGranuleMinMaxFilterHugeTest, First)
     };
 
     auto query = PrepareJobQuery("* where v0 in (1, 2, 3, 4) or v1 in (5)", schema, DefaultFetchFunctions);
-    auto filter = CreateGranuleMinMaxFilter(query);
+    auto filter = CreateGranuleMinMaxFilter(query, Logger());
 
     auto granuleNameTable = TNameTable::FromSchema(*schema);
 
