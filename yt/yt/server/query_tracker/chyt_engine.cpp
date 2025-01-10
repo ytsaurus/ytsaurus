@@ -140,6 +140,7 @@ private:
 
     TFuture<TExecuteQueryResponse> AsyncQueryResult_;
     std::atomic<bool> Cancelled_ = false;
+    bool IsProgressImplemented_ = true;
 
     static const inline std::vector<std::string> DiscoveryAttributes_ = std::vector<std::string>{
         "host",
@@ -257,7 +258,8 @@ private:
         CheckPermission();
         InitializeInstances();
 
-        TQueryServiceProxy proxy(GetChannelForRandomInstance());
+        auto instanceChannel = GetChannelForRandomInstance();
+        TQueryServiceProxy proxy(instanceChannel);
         auto req = proxy.ExecuteQuery();
 
         SetAuthenticationIdentity(req, TAuthenticationIdentity(User_));
@@ -282,7 +284,7 @@ private:
 
         auto progressPollerExecutor = New<TPeriodicExecutor>(
             GetCurrentInvoker(),
-            BIND(&TChytQueryHandler::PollQueryProgress, MakeStrong(this), proxy),
+            BIND(&TChytQueryHandler::PollQueryProgress, MakeStrong(this), proxy, instanceChannel->GetEndpointDescription()),
             Config_->ProgressPollPeriod);
         progressPollerExecutor->Start();
 
@@ -293,15 +295,26 @@ private:
         return result.ValueOrThrow();
     }
 
-    void PollQueryProgress(TQueryServiceProxy coordinator)
+    void PollQueryProgress(TQueryServiceProxy coordinator, std::string endpoint)
     {
+        if (!IsProgressImplemented_) {
+            return;
+        }
+
         auto req = coordinator.GetQueryProgress();
         SetAuthenticationIdentity(req, TAuthenticationIdentity(User_));
         ToProto(req->mutable_query_id(), QueryId_);
 
-        auto progress = WaitFor(req->Invoke()).ValueOrThrow();
-
-        SetProgress(progress->progress());
+        auto errorOrProgress = WaitFor(req->Invoke());
+        if (errorOrProgress.IsOK()) {
+            SetProgress(errorOrProgress.Value()->progress());
+        } else {
+            if (errorOrProgress.FindMatching(NRpc::EErrorCode::NoSuchMethod)) {
+                IsProgressImplemented_ = false;
+                return;
+            }
+            YT_LOG_ERROR(errorOrProgress, "Failed to get progress from coordinator (InstanceEndpoint: %v)", endpoint);
+        }
     }
 
     TYsonString ProgressValuesToYsonString(const NClickHouseServer::NProto::TProgressValues& values)
