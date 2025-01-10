@@ -27,6 +27,8 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/fs.h>
 
+#include <yt/yt/core/phoenix/type_def.h>
+
 #include <util/string/split.h>
 
 #include <util/folder/path.h>
@@ -2848,27 +2850,27 @@ void TOffloadingPoolSettingsConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMapOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationSpecBase);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSimpleOperationSpecBase);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationSpecBase);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TStrategyOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedOperationSpecBase);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUserJobSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMandatoryUserJobSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TOptionalUserJobSpec);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaTaskSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TEraseOperationSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TMapOperationSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TMapReduceOperationSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TMergeOperationSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TSortedOperationSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TReduceOperationSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TOperationSpecBase);
+PHOENIX_DEFINE_OPAQUE_TYPE(TOrderedMergeOperationSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TRemoteCopyOperationSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TSimpleOperationSpecBase);
+PHOENIX_DEFINE_OPAQUE_TYPE(TSortedMergeOperationSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TSortOperationSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TSortOperationSpecBase);
+PHOENIX_DEFINE_OPAQUE_TYPE(TStrategyOperationSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TUnorderedMergeOperationSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TUnorderedOperationSpecBase);
+PHOENIX_DEFINE_OPAQUE_TYPE(TVanillaOperationSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TUserJobSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TMandatoryUserJobSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TOptionalUserJobSpec);
+PHOENIX_DEFINE_OPAQUE_TYPE(TVanillaTaskSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

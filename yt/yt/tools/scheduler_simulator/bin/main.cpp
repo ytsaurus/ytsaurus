@@ -30,7 +30,8 @@
 #include <yt/yt/core/http/server.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/phoenix.h>
+
+#include <yt/yt/core/phoenix/context.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -50,7 +51,7 @@ using namespace NSchedulerSimulator;
 using namespace NNodeTrackerClient;
 using namespace NYTree;
 using namespace NYson;
-using namespace NPhoenix;
+using namespace NPhoenix2;
 using namespace NJobTrackerClient;
 using namespace NScheduler;
 using namespace NControllerAgent;

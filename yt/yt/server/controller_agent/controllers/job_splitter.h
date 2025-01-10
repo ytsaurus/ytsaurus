@@ -6,7 +6,7 @@
 
 #include <yt/yt/ytlib/controller_agent/persistence.h>
 
-#include <yt/yt/core/misc/phoenix.h>
+#include <yt/yt/core/phoenix/context.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -22,7 +22,6 @@ DEFINE_ENUM(EJobSplitterVerdict,
 
 struct IJobSplitter
     : public IPersistent
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
     virtual void OnJobStarted(
         TJobId jobId,

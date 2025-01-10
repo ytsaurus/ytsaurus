@@ -179,28 +179,6 @@ public:
         PrimaryInputDataWeight_ = primaryInputDataWeight;
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        using NYT::Persist;
-
-        Persist(context, Options_);
-        Persist(context, Spec_);
-        Persist(context, InputDataWeight_);
-        Persist(context, PrimaryInputDataWeight_);
-        Persist(context, ForeignInputDataWeight_);
-        Persist(context, InitialInputDataWeight_);
-        Persist(context, InitialPrimaryInputDataWeight_);
-        Persist(context, InputChunkCount_);
-        Persist(context, JobCount_);
-        Persist(context, InputRowCount_);
-        Persist(context, Logger);
-        Persist(context, MergeInputTableCount_);
-        Persist(context, MergePrimaryInputTableCount_);
-        Persist(context, SamplingDataWeightPerJob_);
-        Persist(context, SamplingPrimaryDataWeightPerJob_);
-        Persist(context, SamplingConfig_);
-    }
-
 protected:
     i64 InputDataWeight_ = -1;
     i64 PrimaryInputDataWeight_ = -1;
@@ -259,7 +237,31 @@ private:
             SamplingDataWeightPerJob_,
             SamplingPrimaryDataWeightPerJob_);
     }
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJobSizeConstraintsBase, 0x1272e58a);
 };
+
+void TJobSizeConstraintsBase::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, Options_)();
+    PHOENIX_REGISTER_FIELD(2, Spec_)();
+    PHOENIX_REGISTER_FIELD(3, InputDataWeight_)();
+    PHOENIX_REGISTER_FIELD(4, PrimaryInputDataWeight_)();
+    PHOENIX_REGISTER_FIELD(5, ForeignInputDataWeight_)();
+    PHOENIX_REGISTER_FIELD(6, InitialInputDataWeight_)();
+    PHOENIX_REGISTER_FIELD(7, InitialPrimaryInputDataWeight_)();
+    PHOENIX_REGISTER_FIELD(8, InputChunkCount_)();
+    PHOENIX_REGISTER_FIELD(9, JobCount_)();
+    PHOENIX_REGISTER_FIELD(10, InputRowCount_)();
+    PHOENIX_REGISTER_FIELD(11, Logger)();
+    PHOENIX_REGISTER_FIELD(12, MergeInputTableCount_)();
+    PHOENIX_REGISTER_FIELD(13, MergePrimaryInputTableCount_)();
+    PHOENIX_REGISTER_FIELD(14, SamplingDataWeightPerJob_)();
+    PHOENIX_REGISTER_FIELD(15, SamplingPrimaryDataWeightPerJob_)();
+    PHOENIX_REGISTER_FIELD(16, SamplingConfig_)();
+}
+
+PHOENIX_DEFINE_TYPE(TJobSizeConstraintsBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -402,20 +404,7 @@ public:
         return TJobSizeConstraintsBase::GetSortedOperationInputSliceDataWeight();
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        TJobSizeConstraintsBase::Persist(context);
-
-        using NYT::Persist;
-
-        Persist(context, Spec_);
-        Persist(context, Options_);
-        Persist(context, SortedOperation_);
-    }
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TUserJobSizeConstraints, 0xb45cfe0d);
-
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
     bool SortedOperation_;
@@ -436,9 +425,21 @@ private:
 
         return GetForeignDataRatio() < SmallForeignRatio;
     }
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TUserJobSizeConstraints, 0xb45cfe0d);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUserJobSizeConstraints);
+void TUserJobSizeConstraints::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TJobSizeConstraintsBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Spec_)();
+    PHOENIX_REGISTER_FIELD(2, Options_)();
+    PHOENIX_REGISTER_FIELD(3, SortedOperation_)();
+}
+
+PHOENIX_DEFINE_TYPE(TUserJobSizeConstraints);
+
 DEFINE_REFCOUNTED_TYPE(TUserJobSizeConstraints)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -568,24 +569,23 @@ public:
         return TJobSizeConstraintsBase::GetSortedOperationInputSliceDataWeight();
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        TJobSizeConstraintsBase::Persist(context);
-
-        using NYT::Persist;
-
-        Persist(context, Spec_);
-        Persist(context, Options_);
-    }
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TMergeJobSizeConstraints, 0x3f1caf80);
-
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TMergeJobSizeConstraints, 0x3f1caf80);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMergeJobSizeConstraints);
+void TMergeJobSizeConstraints::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TJobSizeConstraintsBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Spec_)();
+    PHOENIX_REGISTER_FIELD(2, Options_)();
+}
+
+PHOENIX_DEFINE_TYPE(TMergeJobSizeConstraints);
+
 DEFINE_REFCOUNTED_TYPE(TMergeJobSizeConstraints)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -642,24 +642,23 @@ public:
         return std::numeric_limits<i64>::max() / 4;
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        TJobSizeConstraintsBase::Persist(context);
-
-        using NYT::Persist;
-
-        Persist(context, Spec_);
-        Persist(context, Options_);
-    }
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TSimpleSortJobSizeConstraints, 0xef270530);
-
     TSortOperationSpecBasePtr Spec_;
     TSortOperationOptionsBasePtr Options_;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSimpleSortJobSizeConstraints, 0xef270530);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSimpleSortJobSizeConstraints);
+void TSimpleSortJobSizeConstraints::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TJobSizeConstraintsBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Spec_)();
+    PHOENIX_REGISTER_FIELD(2, Options_)();
+}
+
+PHOENIX_DEFINE_TYPE(TSimpleSortJobSizeConstraints);
+
 DEFINE_REFCOUNTED_TYPE(TSimpleSortJobSizeConstraints)
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -757,24 +756,23 @@ public:
         return Options_->MaxDataSlicesPerJob;
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        TJobSizeConstraintsBase::Persist(context);
-
-        using NYT::Persist;
-
-        Persist(context, Spec_);
-        Persist(context, Options_);
-    }
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionJobSizeConstraints, 0xeea00714);
-
     TSortOperationSpecBasePtr Spec_;
     TSortOperationOptionsBasePtr Options_;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TPartitionJobSizeConstraints, 0xeea00714);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TPartitionJobSizeConstraints);
+void TPartitionJobSizeConstraints::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TJobSizeConstraintsBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Spec_)();
+    PHOENIX_REGISTER_FIELD(2, Options_)();
+}
+
+PHOENIX_DEFINE_TYPE(TPartitionJobSizeConstraints);
+
 DEFINE_REFCOUNTED_TYPE(TPartitionJobSizeConstraints)
 
 ////////////////////////////////////////////////////////////////////////////////

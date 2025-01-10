@@ -111,18 +111,6 @@ public:
             return ChunkPool_;
         }
 
-        void Persist(const TPersistenceContext& context) override
-        {
-            TTask::Persist(context);
-
-            using NYT::Persist;
-            Persist(context, Controller_);
-            Persist(context, ChunkPool_);
-            Persist(context, TotalOutputRowCount_);
-
-            ChunkPool_->SubscribeChunkTeleported(BIND(&TUnorderedTaskBase::OnChunkTeleported, MakeWeak(this)));
-        }
-
         TUserJobSpecPtr GetUserJobSpec() const override
         {
             return Controller_->GetUserJobSpec();
@@ -231,10 +219,12 @@ public:
             YT_VERIFY(GetJobType() == EJobType::UnorderedMerge);
             Controller_->RegisterTeleportChunk(std::move(teleportChunk), /*key*/ 0, /*tableIndex*/ 0);
         }
+
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TUnorderedTaskBase, 0x38f1471a);
     };
 
-    INHERIT_DYNAMIC_PHOENIX_TYPE(TUnorderedTaskBase, TUnorderedTask, 0x8ab75ee7);
-    INHERIT_DYNAMIC_PHOENIX_TYPE_TEMPLATED(TAutoMergeableOutputMixin, TAutoMergeableUnorderedTask, 0x9a9bcee3, TUnorderedTaskBase);
+    PHOENIX_INHERIT_POLYMORPHIC_TYPE(TUnorderedTaskBase, TUnorderedTask, 0x8ab75ee7);
+    PHOENIX_INHERIT_POLYMORPHIC_TEMPLATE_TYPE(TAutoMergeableOutputMixin, TAutoMergeableUnorderedTask, 0x9a9bcee3, TUnorderedTaskBase);
 
     using TUnorderedTaskPtr = TIntrusivePtr<TUnorderedTaskBase>;
 
@@ -253,19 +243,6 @@ public:
         , Spec(spec)
         , Options(options)
     { }
-
-    // Persistence.
-    void Persist(const TPersistenceContext& context) override
-    {
-        TOperationControllerBase::Persist(context);
-
-        using NYT::Persist;
-        Persist(context, Spec);
-        Persist(context, JobIOConfig);
-        Persist(context, JobSpecTemplate);
-        Persist(context, JobSizeConstraints_);
-        Persist(context, UnorderedTask_);
-    }
 
 protected:
     TUnorderedOperationSpecBasePtr Spec;
@@ -544,10 +521,56 @@ protected:
     }
 
     PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TUnorderedControllerBase, 0xf95cf935);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedControllerBase::TUnorderedTask);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedControllerBase::TAutoMergeableUnorderedTask);
+void TUnorderedControllerBase::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TOperationControllerBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Spec)();
+    PHOENIX_REGISTER_FIELD(2, JobIOConfig)();
+    PHOENIX_REGISTER_FIELD(3, JobSpecTemplate)();
+    PHOENIX_REGISTER_FIELD(4, JobSizeConstraints_)();
+    PHOENIX_REGISTER_FIELD(5, UnorderedTask_)();
+}
+
+PHOENIX_DEFINE_TYPE(TUnorderedControllerBase);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUnorderedControllerBase::TUnorderedTaskBase::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TTask>();
+
+    PHOENIX_REGISTER_FIELD(1, Controller_)();
+    PHOENIX_REGISTER_FIELD(2, ChunkPool_)();
+    PHOENIX_REGISTER_FIELD(3, TotalOutputRowCount_)();
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->ChunkPool_->SubscribeChunkTeleported(BIND(&TUnorderedTaskBase::OnChunkTeleported, MakeWeak(this_)));
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TUnorderedControllerBase::TUnorderedTaskBase);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUnorderedControllerBase::TUnorderedTask::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TUnorderedTaskBase>();
+}
+
+PHOENIX_DEFINE_TYPE(TUnorderedControllerBase::TUnorderedTask);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TUnorderedControllerBase::TAutoMergeableUnorderedTask::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TAutoMergeableOutputMixin>();
+}
+
+PHOENIX_DEFINE_TYPE(TUnorderedControllerBase::TAutoMergeableUnorderedTask);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -580,16 +603,6 @@ public:
             .EndMap();
     }
 
-    // Persistence.
-    void Persist(const TPersistenceContext& context) override
-    {
-        TUnorderedControllerBase::Persist(context);
-
-        using NYT::Persist;
-        Persist(context, Spec);
-        Persist(context, StartRowIndex);
-    }
-
 protected:
     TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
     {
@@ -602,8 +615,6 @@ protected:
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TMapController, 0xbac5fd82);
-
     TMapOperationSpecPtr Spec;
     TMapOperationOptionsPtr Options;
 
@@ -720,9 +731,19 @@ private:
     {
         return TError();
     }
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TMapController, 0xbac5fd82);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMapController);
+void TMapController::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TUnorderedControllerBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Spec)();
+    PHOENIX_REGISTER_FIELD(2, StartRowIndex)();
+}
+
+PHOENIX_DEFINE_TYPE(TMapController);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -780,8 +801,6 @@ protected:
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController, 0x9a17a41f);
-
     TUnorderedMergeOperationSpecPtr Spec;
 
     // Custom bits of preparation pipeline.
@@ -902,9 +921,16 @@ private:
 
         TUnorderedControllerBase::OnOperationCompleted(interrupted);
     }
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TUnorderedMergeController, 0x9a17a41f);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeController);
+void TUnorderedMergeController::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TUnorderedControllerBase>();
+}
+
+PHOENIX_DEFINE_TYPE(TUnorderedMergeController);
 
 ////////////////////////////////////////////////////////////////////////////////
 

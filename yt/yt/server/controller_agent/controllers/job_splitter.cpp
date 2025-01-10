@@ -20,7 +20,7 @@ using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
 using namespace NScheduler;
-using namespace NPhoenix;
+using namespace NPhoenix2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -252,25 +252,7 @@ public:
             .Item("can_launch_speculative_jobs").Value(CanLaunchSpeculativeJobs_);
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        using NYT::Persist;
-
-        Persist(context, Config_);
-        Persist(context, CanSplitJobs_);
-        Persist(context, CanLaunchSpeculativeJobs_);
-        Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, RunningJobs_);
-        Persist(context, JobTimeTracker_);
-        Persist(context, MaxRunningJobCount_);
-        Persist(context, Logger);
-        Persist(context, SuccessJobPrepareDurationSum_);
-        Persist(context, SuccessJobCount_);
-        Persist(context, ChunkPool_);
-    }
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TJobSplitter, 0x1ddf34ff);
-
     class TJobTimeTracker
     {
     public:
@@ -348,23 +330,14 @@ private:
                 .Item("next_update_time").Value(NextUpdateTime_);
         }
 
-        void Persist(const TPersistenceContext& context)
-        {
-            using NYT::Persist;
-
-            Persist(context, Config_);
-            Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, JobIdToCompletionTime_);
-            Persist<TSetSerializer<TDefaultSerializer, TUnsortedTag>>(context, LongJobSet_);
-            Persist(context, NextUpdateTime_);
-            Persist(context, MedianCompletionTime_);
-        }
-
     private:
         TJobSplitterConfigPtr Config_;
         THashMap<TJobId, TInstant> JobIdToCompletionTime_;
         THashSet<TJobId> LongJobSet_;
         TInstant NextUpdateTime_;
         TInstant MedianCompletionTime_ = GetInstant();
+
+        PHOENIX_DECLARE_TYPE(TJobTimeTracker, 0x90a609eb);
     };
 
     class TRunningJob
@@ -441,25 +414,6 @@ private:
             return IsInterruptible_ && Owner_->ChunkPool_->IsSplittable(Cookie_);
         }
 
-        void Persist(const TPersistenceContext& context)
-        {
-            using NYT::Persist;
-
-            Persist(context, Owner_);
-            Persist(context, TotalRowCount_);
-            Persist(context, TotalDataWeight_);
-            Persist(context, PrepareWithoutDownloadDuration_);
-            Persist(context, ExecDuration_);
-            Persist(context, RemainingDuration_);
-            Persist(context, CompletionTime_);
-            Persist(context, RowCount_);
-            Persist(context, SecondsPerRow_);
-            Persist(context, Cookie_);
-            Persist(context, IsInterruptible_);
-            Persist(context, SplitDeadline_);
-            Persist(context, PrepareDuration_);
-        }
-
         DEFINE_BYVAL_RO_PROPERTY(i64, RowCount, 0);
         DEFINE_BYVAL_RO_PROPERTY(i64, TotalRowCount, 1);
         DEFINE_BYVAL_RO_PROPERTY(i64, TotalDataWeight, 1);
@@ -477,6 +431,8 @@ private:
         TOutputCookie Cookie_;
         TInstant CompletionTime_;
         double SecondsPerRow_ = 0;
+
+        PHOENIX_DECLARE_TYPE(TRunningJob, 0xe019abe5);
     };
 
     TJobSplitterConfigPtr Config_;
@@ -514,9 +470,63 @@ private:
             ? TDuration::Zero()
             : SuccessJobPrepareDurationSum_ / SuccessJobCount_;
     }
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TJobSplitter, 0x1ddf34ff);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TJobSplitter);
+void TJobSplitter::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, Config_)();
+    PHOENIX_REGISTER_FIELD(2, CanSplitJobs_)();
+    PHOENIX_REGISTER_FIELD(3, CanLaunchSpeculativeJobs_)();
+    PHOENIX_REGISTER_FIELD(4, RunningJobs_)
+        .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>()();
+    PHOENIX_REGISTER_FIELD(5, JobTimeTracker_)();
+    PHOENIX_REGISTER_FIELD(6, MaxRunningJobCount_)();
+    PHOENIX_REGISTER_FIELD(7, Logger)();
+    PHOENIX_REGISTER_FIELD(8, SuccessJobPrepareDurationSum_)();
+    PHOENIX_REGISTER_FIELD(9, SuccessJobCount_)();
+    PHOENIX_REGISTER_FIELD(10, ChunkPool_)();
+}
+
+PHOENIX_DEFINE_TYPE(TJobSplitter);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TJobSplitter::TJobTimeTracker::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, Config_)();
+    PHOENIX_REGISTER_FIELD(2, JobIdToCompletionTime_)
+        .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>()();
+    PHOENIX_REGISTER_FIELD(3, LongJobSet_)
+        .template Serializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>()();
+    PHOENIX_REGISTER_FIELD(4, NextUpdateTime_)();
+    PHOENIX_REGISTER_FIELD(5, MedianCompletionTime_)();
+}
+
+PHOENIX_DEFINE_TYPE(TJobSplitter::TJobTimeTracker);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TJobSplitter::TRunningJob::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, Owner_)();
+    PHOENIX_REGISTER_FIELD(2, TotalRowCount_)();
+    PHOENIX_REGISTER_FIELD(3, TotalDataWeight_)();
+    PHOENIX_REGISTER_FIELD(4, PrepareWithoutDownloadDuration_)();
+    PHOENIX_REGISTER_FIELD(5, ExecDuration_)();
+    PHOENIX_REGISTER_FIELD(6, RemainingDuration_)();
+    PHOENIX_REGISTER_FIELD(7, CompletionTime_)();
+    PHOENIX_REGISTER_FIELD(8, RowCount_)();
+    PHOENIX_REGISTER_FIELD(9, SecondsPerRow_)();
+    PHOENIX_REGISTER_FIELD(10, Cookie_)();
+    PHOENIX_REGISTER_FIELD(11, IsInterruptible_)();
+    PHOENIX_REGISTER_FIELD(12, SplitDeadline_)();
+    PHOENIX_REGISTER_FIELD(13, PrepareDuration_)();
+}
+
+PHOENIX_DEFINE_TYPE(TJobSplitter::TRunningJob);
 
 ////////////////////////////////////////////////////////////////////////////////
 

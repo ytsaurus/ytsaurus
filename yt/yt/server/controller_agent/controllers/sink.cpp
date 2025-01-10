@@ -100,15 +100,13 @@ bool TSink::IsFinished() const
     return false;
 }
 
-void TSink::Persist(const TPersistenceContext& context)
+void TSink::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Controller_);
-    Persist(context, OutputTableIndex_);
+    PHOENIX_REGISTER_FIELD(1, Controller_)();
+    PHOENIX_REGISTER_FIELD(2, OutputTableIndex_)();
 }
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSink);
+PHOENIX_DEFINE_TYPE(TSink);
 
 ////////////////////////////////////////////////////////////////////////////////
 

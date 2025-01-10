@@ -3,7 +3,7 @@
 namespace NYT::NChunkPools {
 
 using namespace NTableClient;
-using namespace NPhoenix;
+using namespace NPhoenix2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,25 +17,20 @@ IChunkSliceFetcherPtr TMockChunkSliceFetcherFactory::CreateChunkSliceFetcher()
     return Fetchers_->at(CurrentIndex_++);
 }
 
-void TMockChunkSliceFetcherFactory::Persist(const TPersistenceContext& context)
+void TMockChunkSliceFetcherFactory::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
     // NB: this is a very bad way to persist pointers, but it is ok for unittests.
-    if (context.IsSave()) {
-        auto fetchersAddress = reinterpret_cast<intptr_t>(Fetchers_);
-        Persist(context, fetchersAddress);
-    } else {
-        intptr_t fetchersAddress;
-        Persist(context, fetchersAddress);
-        Fetchers_ = reinterpret_cast<std::vector<TStrictMockChunkSliceFetcherPtr>*>(fetchersAddress);
-    }
-    Persist(context, CurrentIndex_);
+    registrar.template VirtualField<1>("FetchersAddress_", [] (TThis* this_, auto& context) {
+        auto fetchersAddress = Load<intptr_t>(context);
+        this_->Fetchers_ = reinterpret_cast<std::vector<TStrictMockChunkSliceFetcherPtr>*>(fetchersAddress);
+    }, [] (const TThis* this_, auto& context) {
+        auto fetchersAddress = reinterpret_cast<intptr_t>(this_->Fetchers_);
+        NYT::Save(context, fetchersAddress);
+    })();
+    PHOENIX_REGISTER_FIELD(2, CurrentIndex_)();
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMockChunkSliceFetcherFactory);
+PHOENIX_DEFINE_TYPE(TMockChunkSliceFetcherFactory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

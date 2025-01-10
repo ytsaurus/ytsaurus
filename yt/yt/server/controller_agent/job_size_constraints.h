@@ -6,8 +6,6 @@
 
 #include <yt/yt/ytlib/scheduler/public.h>
 
-#include <yt/yt/core/misc/phoenix.h>
-
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -21,7 +21,8 @@
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
-#include <yt/yt/core/misc/phoenix.h>
+#include <yt/yt/core/phoenix/type_decl.h>
+#include <yt/yt/core/phoenix/type_def.h>
 
 #include <yt/yt/core/logging/logger_owner.h>
 

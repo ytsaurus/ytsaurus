@@ -28,24 +28,22 @@ TTentativeTreeEligibility::TTentativeTreeEligibility()
     , Logger(ControllerAgentLogger())
 { }
 
-void TTentativeTreeEligibility::Persist(const TPersistenceContext& context)
+void TTentativeTreeEligibility::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
+    PHOENIX_REGISTER_FIELD(1, NonTentativeTreeDuration_)();
 
-    Persist(context, NonTentativeTreeDuration_);
+    PHOENIX_REGISTER_FIELD(2, Durations_)();
 
-    Persist(context, Durations_);
+    PHOENIX_REGISTER_FIELD(3, SampleJobCount_)();
+    PHOENIX_REGISTER_FIELD(4, MaxTentativeTreeJobDurationRatio_)();
+    PHOENIX_REGISTER_FIELD(5, MinJobDuration_)();
 
-    Persist(context, SampleJobCount_);
-    Persist(context, MaxTentativeTreeJobDurationRatio_);
-    Persist(context, MinJobDuration_);
+    PHOENIX_REGISTER_FIELD(6, StartedJobsPerPoolTree_)();
+    PHOENIX_REGISTER_FIELD(7, LastStartJobTimePerPoolTree_)();
+    PHOENIX_REGISTER_FIELD(8, FinishedJobsPerStatePerPoolTree_)();
+    PHOENIX_REGISTER_FIELD(9, BannedTrees_)();
 
-    Persist(context, StartedJobsPerPoolTree_);
-    Persist(context, LastStartJobTimePerPoolTree_);
-    Persist(context, FinishedJobsPerStatePerPoolTree_);
-    Persist(context, BannedTrees_);
-
-    Persist(context, Logger);
+    PHOENIX_REGISTER_FIELD(10, Logger)();
 }
 
 bool TTentativeTreeEligibility::CanScheduleJob(
@@ -228,6 +226,8 @@ bool TTentativeTreeEligibility::IsTreeBanned(const TString& treeId) const
 {
     return BannedTrees_.contains(treeId);
 }
+
+PHOENIX_DEFINE_TYPE(TTentativeTreeEligibility);
 
 ////////////////////////////////////////////////////////////////////////////////
 

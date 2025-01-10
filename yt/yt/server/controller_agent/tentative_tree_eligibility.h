@@ -33,8 +33,6 @@ public:
     // For persistence only.
     TTentativeTreeEligibility();
 
-    void Persist(const TPersistenceContext& context);
-
     bool CanScheduleJob(const TString& treeId, bool tentative);
 
     void OnJobStarted(const TString& treeId, bool tentative);
@@ -91,6 +89,8 @@ private:
 
     void BanTree(const TString& treeId);
     bool IsTreeBanned(const TString& treeId) const;
+
+    PHOENIX_DECLARE_TYPE(TTentativeTreeEligibility, 0xf8113e3d);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

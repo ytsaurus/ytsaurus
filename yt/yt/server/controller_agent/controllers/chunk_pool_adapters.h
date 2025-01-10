@@ -12,7 +12,6 @@ namespace NYT::NControllerAgent::NControllers {
 
 class TChunkPoolInputAdapterBase
     : public virtual NChunkPools::IPersistentChunkPoolInput
-    , public virtual NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     TChunkPoolInputAdapterBase() = default;
@@ -33,18 +32,17 @@ public:
 
     bool IsFinished() const override;
 
-    void Persist(const TPersistenceContext& context) override;
-
 protected:
     // NB: Underlying input is owned by the owner of the adapter.
     NChunkPools::IPersistentChunkPoolInputPtr UnderlyingInput_;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TChunkPoolInputAdapterBase, 0xfdab51a9);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChunkPoolOutputAdapterBase
     : public virtual NChunkPools::IPersistentChunkPoolOutput
-    , public virtual NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     //! Used only for persistence.
@@ -78,8 +76,6 @@ public:
 
     bool IsSplittable(NChunkPools::TOutputCookie cookie) const override;
 
-    void Persist(const TPersistenceContext& context) override;
-
     DECLARE_SIGNAL_OVERRIDE(void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported);
 
     DECLARE_SIGNAL_OVERRIDE(void(), Completed);
@@ -87,6 +83,8 @@ public:
 
 protected:
     NChunkPools::IPersistentChunkPoolOutputPtr UnderlyingOutput_;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TChunkPoolOutputAdapterBase, 0xfaeae6aa);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,7 +100,7 @@ public:
 
     explicit TChunkPoolAdapterBase(NChunkPools::IPersistentChunkPoolPtr underlyingPool);
 
-    void Persist(const TPersistenceContext& context) override;
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TChunkPoolAdapterBase, 0x61d3d5b0);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

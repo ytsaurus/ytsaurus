@@ -1058,82 +1058,85 @@ i64 TTask::GetInputDataSliceCount() const
     return GetChunkPoolOutput()->GetDataSliceCounter()->GetTotal();
 }
 
-void TTask::Persist(const TPersistenceContext& context)
+void TTask::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, TaskHost_);
+    PHOENIX_REGISTER_FIELD(1, TaskHost_)();
 
-    Persist(context, CachedPendingJobCount_);
-    Persist(context, CachedTotalJobCount_);
+    PHOENIX_REGISTER_FIELD(2, CachedPendingJobCount_)();
+    PHOENIX_REGISTER_FIELD(3, CachedTotalJobCount_)();
 
-    Persist(context, CachedTotalNeededResources_);
-    Persist(context, CachedMinNeededResources_);
+    PHOENIX_REGISTER_FIELD(4, CachedTotalNeededResources_)();
+    PHOENIX_REGISTER_FIELD(5, CachedMinNeededResources_)();
 
-    Persist(context, CompletedFired_);
+    PHOENIX_REGISTER_FIELD(6, CompletedFired_)();
 
-    Persist<
-        TMapSerializer<
-            TTupleSerializer<TCookieAndPool, 2>,
-            TDefaultSerializer,
-            TUnsortedTag
-        >
-    >(context, LostJobCookieMap_);
-
-    Persist(context, OutputStreamDescriptors_);
-    Persist(context, InputStreamDescriptors_);
-
-    Persist(context, InputVertex_);
-
-    Persist(context, TentativeTreeEligibility_);
-
-    Persist(context, UserJobMemoryDigest_);
-    Persist(context, JobProxyMemoryDigest_);
-
-    Persist(context, JobSplitter_);
-
-    Persist(context, InputChunkMapping_);
-
-    Persist(context, TaskJobIndexGenerator_);
-
-    Persist(context, SpeculativeJobManager_);
-    Persist(context, ProbingJobManager_);
-
-    Persist(context, ExperimentJobManager_);
-    if (TaskHost_->GetSpec()->JobExperiment) {
-        ExperimentJobManager_.SetJobExperiment(TaskHost_->GetJobExperiment());
-    }
-
-    Persist(context, StartTime_);
-    Persist(context, CompletionTime_);
-
-    Persist(context, EstimatedInputDataWeightHistogram_);
-    Persist(context, InputDataWeightHistogram_);
-
-    Persist(context, InputReadRangeRegistry_);
-
-    Persist(context, IsInput_);
-
-    Persist(context, ResourceOverdraftedOutputCookieToState_);
-
-    Persist(context, Logger);
-
-    Persist(context, ReadyTimer_);
-    Persist(context, ExhaustTimer_);
-
-    Persist(context, AggregatedFinishedJobStatistics_);
-
-    Persist(context, UserJobMemoryMultiplier_);
-    Persist(context, JobProxyMemoryMultiplier_);
-
-    if (context.GetVersion() >= ESnapshotVersion::JobDeterminismValidation) {
-        Persist<
+    PHOENIX_REGISTER_FIELD(7, LostJobCookieMap_)
+        .template Serializer<
             TMapSerializer<
                 TTupleSerializer<TCookieAndPool, 2>,
                 TDefaultSerializer,
                 TUnsortedTag
             >
-        >(context, JobOutputHash_);
-    }
+        >()();
+
+    PHOENIX_REGISTER_FIELD(8, OutputStreamDescriptors_)();
+    PHOENIX_REGISTER_FIELD(9, InputStreamDescriptors_)();
+
+    PHOENIX_REGISTER_FIELD(10, InputVertex_)();
+
+    PHOENIX_REGISTER_FIELD(11, TentativeTreeEligibility_)();
+
+    PHOENIX_REGISTER_FIELD(12, UserJobMemoryDigest_)();
+    PHOENIX_REGISTER_FIELD(13, JobProxyMemoryDigest_)();
+
+    PHOENIX_REGISTER_FIELD(14, JobSplitter_)();
+
+    PHOENIX_REGISTER_FIELD(15, InputChunkMapping_)();
+
+    PHOENIX_REGISTER_FIELD(16, TaskJobIndexGenerator_)();
+
+    PHOENIX_REGISTER_FIELD(17, SpeculativeJobManager_)();
+    PHOENIX_REGISTER_FIELD(18, ProbingJobManager_)();
+    PHOENIX_REGISTER_FIELD(19, ExperimentJobManager_)();
+
+    PHOENIX_REGISTER_FIELD(20, StartTime_)();
+    PHOENIX_REGISTER_FIELD(21, CompletionTime_)();
+
+    PHOENIX_REGISTER_FIELD(22, EstimatedInputDataWeightHistogram_)();
+    PHOENIX_REGISTER_FIELD(23, InputDataWeightHistogram_)();
+
+    PHOENIX_REGISTER_FIELD(24, InputReadRangeRegistry_)();
+
+    PHOENIX_REGISTER_FIELD(25, IsInput_)();
+
+    PHOENIX_REGISTER_FIELD(26, ResourceOverdraftedOutputCookieToState_)();
+
+    PHOENIX_REGISTER_FIELD(27, Logger)();
+
+    PHOENIX_REGISTER_FIELD(28, ReadyTimer_)();
+    PHOENIX_REGISTER_FIELD(29, ExhaustTimer_)();
+
+    PHOENIX_REGISTER_FIELD(30, AggregatedFinishedJobStatistics_)();
+
+    PHOENIX_REGISTER_FIELD(31, UserJobMemoryMultiplier_)();
+    PHOENIX_REGISTER_FIELD(32, JobProxyMemoryMultiplier_)();
+
+    PHOENIX_REGISTER_FIELD(33, JobOutputHash_)
+        .template Serializer<
+            TMapSerializer<
+                TTupleSerializer<TCookieAndPool, 2>,
+                TDefaultSerializer,
+                TUnsortedTag
+            >
+        >()
+        .SinceVersion(ESnapshotVersion::JobDeterminismValidation)();
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        // COMPAT(galtsev)
+        if (this_->TaskHost_->GetSpec()->JobExperiment) {
+            this_->ExperimentJobManager_.SetJobExperiment(this_->TaskHost_->GetJobExperiment());
+        }
+    });
 }
 
 void TTask::OnJobStarted(TJobletPtr joblet)
@@ -2470,17 +2473,19 @@ void TTask::UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, cons
     }
 }
 
+PHOENIX_DEFINE_TYPE(TTask);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTask::TResourceOverdraftState::Persist(const TPersistenceContext& context)
+void TTask::TResourceOverdraftState::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, UserJobStatus);
-    Persist(context, JobProxyStatus);
-    Persist(context, DedicatedUserJobMemoryReserveFactor);
-    Persist(context, DedicatedJobProxyMemoryReserveFactor);
+    PHOENIX_REGISTER_FIELD(1, UserJobStatus)();
+    PHOENIX_REGISTER_FIELD(2, JobProxyStatus)();
+    PHOENIX_REGISTER_FIELD(3, DedicatedUserJobMemoryReserveFactor)();
+    PHOENIX_REGISTER_FIELD(4, DedicatedJobProxyMemoryReserveFactor)();
 }
+
+PHOENIX_DEFINE_TYPE(TTask::TResourceOverdraftState);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -102,32 +102,6 @@ public:
         , Options_(options)
     { }
 
-    // Persistence.
-
-    void Persist(const TPersistenceContext& context) override
-    {
-        TOperationControllerBase::Persist(context);
-
-        using NYT::Persist;
-        Persist(context, Spec_);
-        Persist(context, Options_);
-        Persist(context, JobIOConfig_);
-        Persist(context, JobSpecTemplate_);
-        Persist(context, JobSizeConstraints_);
-        Persist(context, InputSliceDataWeight_);
-        // COMPAT(alexelexa)
-        if (context.GetVersion() >= ESnapshotVersion::MultipleOrderedTasks) {
-            Persist(context, OrderedTasks_);
-        } else {
-            YT_VERIFY(context.IsLoad());
-            TOrderedTaskPtr task;
-            Persist(context, task);
-            OrderedTasks_.push_back(std::move(task));
-        }
-        Persist(context, OrderedOutputRequired_);
-        Persist(context, IsExplicitJobCount_);
-    }
-
 protected:
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
@@ -166,18 +140,6 @@ protected:
             return ChunkPool_;
         }
 
-        void Persist(const TPersistenceContext& context) override
-        {
-            TTask::Persist(context);
-
-            using NYT::Persist;
-            Persist(context, Controller_);
-            Persist(context, ChunkPool_);
-            Persist(context, TotalOutputRowCount_);
-
-            ChunkPool_->SubscribeChunkTeleported(BIND(&TOrderedTask::OnChunkTeleported, MakeWeak(this)));
-        }
-
         i64 GetTotalOutputRowCount() const
         {
             return TotalOutputRowCount_;
@@ -202,8 +164,6 @@ protected:
         }
 
     private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedTask, 0xaba78384);
-
         TOrderedControllerBase* Controller_;
 
         IPersistentChunkPoolPtr ChunkPool_;
@@ -314,6 +274,8 @@ protected:
                 2 * Controller_->Options_->MaxOutputTablesTimesJobsCount > totalJobCount * std::ssize(Controller_->GetOutputTablePaths()) &&
                 2 * Controller_->Options_->MaxJobCount > totalJobCount;
         }
+
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOrderedTask, 0xaba78384);
     };
 
     using TOrderedTaskPtr = TIntrusivePtr<TOrderedTask>;
@@ -546,9 +508,51 @@ protected:
     }
 
     PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOrderedControllerBase, 0xfefb7805);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedControllerBase::TOrderedTask);
+void TOrderedControllerBase::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TOperationControllerBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Spec_)();
+    PHOENIX_REGISTER_FIELD(2, Options_)();
+    PHOENIX_REGISTER_FIELD(3, JobIOConfig_)();
+    PHOENIX_REGISTER_FIELD(4, JobSpecTemplate_)();
+    PHOENIX_REGISTER_FIELD(5, JobSizeConstraints_)();
+    PHOENIX_REGISTER_FIELD(6, InputSliceDataWeight_)();
+
+    // COMPAT(alexelexa)
+    registrar.template VirtualField<7>("Task_", [] (TThis* this_, auto& context) {
+        auto task = Load<TOrderedTaskPtr>(context);
+        this_->OrderedTasks_.push_back(std::move(task));
+    })
+        .BeforeVersion(ESnapshotVersion::MultipleOrderedTasks)();
+    PHOENIX_REGISTER_FIELD(8, OrderedTasks_)
+        .SinceVersion(ESnapshotVersion::MultipleOrderedTasks)();
+
+    PHOENIX_REGISTER_FIELD(9, OrderedOutputRequired_)();
+    PHOENIX_REGISTER_FIELD(10, IsExplicitJobCount_)();
+}
+
+PHOENIX_DEFINE_TYPE(TOrderedControllerBase);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TOrderedControllerBase::TOrderedTask::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TTask>();
+
+    PHOENIX_REGISTER_FIELD(1, Controller_)();
+    PHOENIX_REGISTER_FIELD(2, ChunkPool_)();
+    PHOENIX_REGISTER_FIELD(3, TotalOutputRowCount_)();
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->ChunkPool_->SubscribeChunkTeleported(BIND(&TOrderedTask::OnChunkTeleported, MakeWeak(this_)));
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TOrderedControllerBase::TOrderedTask);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -571,18 +575,7 @@ public:
         , Spec_(spec)
     { }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        TOrderedControllerBase::Persist(context);
-
-        using NYT::Persist;
-
-        Persist(context, Spec_);
-    }
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController, 0xe7098bca);
-
     TOrderedMergeOperationSpecPtr Spec_;
 
     bool IsRowCountPreserved() const override
@@ -734,9 +727,18 @@ private:
 
         TOrderedControllerBase::OnOperationCompleted(interrupted);
     }
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOrderedMergeController, 0xe7098bca);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeController);
+void TOrderedMergeController::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TOrderedControllerBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Spec_)();
+}
+
+PHOENIX_DEFINE_TYPE(TOrderedMergeController);
 
 IOperationControllerPtr CreateOrderedMergeController(
     TControllerAgentConfigPtr config,
@@ -770,19 +772,7 @@ public:
         , Options_(options)
     { }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        TOrderedControllerBase::Persist(context);
-
-        using NYT::Persist;
-        Persist(context, Spec_);
-        Persist(context, Options_);
-        Persist(context, StartRowIndex_);
-    }
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController, 0x3be901ca);
-
     i64 StartRowIndex_ = 0;
 
     TMapOperationSpecPtr Spec_;
@@ -935,9 +925,20 @@ private:
     {
         return Spec_;
     }
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOrderedMapController, 0x3be901ca);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMapController);
+void TOrderedMapController::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TOrderedControllerBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Spec_)();
+    PHOENIX_REGISTER_FIELD(2, Options_)();
+    PHOENIX_REGISTER_FIELD(3, StartRowIndex_)();
+}
+
+PHOENIX_DEFINE_TYPE(TOrderedMapController);
 
 IOperationControllerPtr CreateOrderedMapController(
     TControllerAgentConfigPtr config,
@@ -970,17 +971,7 @@ public:
         , Spec_(spec)
     { }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        TOrderedControllerBase::Persist(context);
-
-        using NYT::Persist;
-        Persist(context, Spec_);
-    }
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TEraseController, 0xfbb39ac0);
-
     TEraseOperationSpecPtr Spec_;
 
     TStringBuf GetDataWeightParameterNameForJob(EJobType /*jobType*/) const override
@@ -1151,9 +1142,18 @@ private:
     {
         return Spec_;
     }
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TEraseController, 0xfbb39ac0);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseController);
+void TEraseController::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TOrderedControllerBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Spec_)();
+}
+
+PHOENIX_DEFINE_TYPE(TEraseController);
 
 IOperationControllerPtr CreateEraseController(
     TControllerAgentConfigPtr config,
@@ -1222,25 +1222,6 @@ public:
         }
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        TOrderedControllerBase::Persist(context);
-        using NYT::Persist;
-
-        Persist(context, Spec_);
-        Persist(context, Options_);
-        Persist<TAttributeDictionarySerializer>(context, InputTableAttributes_);
-        if (InputTableAttributes_ && InputTableAttributes_->ListKeys().empty()) {
-            YT_VERIFY(context.IsLoad());
-            InputTableAttributes_.Reset();
-        }
-        Persist(context, Networks_);
-        // COMPAT(alexelexa)
-        if (context.GetVersion() >= ESnapshotVersion::RemoteCopyDynamicTableWithHunks) {
-            Persist(context, HunkChunkIdMapping_);
-        }
-    }
-
 protected:
     class TRemoteCopyTaskBase;
     using TRemoteCopyTaskBasePtr = TIntrusivePtr<TRemoteCopyTaskBase>;
@@ -1261,17 +1242,6 @@ protected:
             , Controller_(controller)
             , IsInitializationCompleted_(false)
         { }
-
-        void Persist(const TPersistenceContext& context) override
-        {
-            TOrderedTask::Persist(context);
-
-            using NYT::Persist;
-            Persist(context, Controller_);
-            Persist(context, Dependencies_);
-            Persist(context, Dependents_);
-            Persist(context, IsInitializationCompleted_);
-        }
 
         void FinishInitialization()
         {
@@ -1386,6 +1356,8 @@ protected:
 
         virtual void ValidateAllDataHaveBeenCopied()
         { }
+
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TRemoteCopyTaskBase, 0x5859dab3);
     };
 
     class TRemoteCopyTask
@@ -1401,7 +1373,8 @@ protected:
         { }
 
     private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyTask, 0xaba78385);
+
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TRemoteCopyTask, 0xaba78385);
     };
 
     using TRemoteCopyTaskPtr = TIntrusivePtr<TRemoteCopyTask>;
@@ -1439,17 +1412,15 @@ protected:
         }
 
     private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyHunkTask, 0xaba78386);
-
         void ValidateAllDataHaveBeenCopied() override
         {
             Controller_->ValidateHunkChunksConsistency();
         }
+
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TRemoteCopyHunkTask, 0xaba78386);
     };
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController, 0xaa8829a9);
-
     TRemoteCopyOperationSpecPtr Spec_;
     TRemoteCopyOperationOptionsPtr Options_;
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks_;
@@ -2011,11 +1982,66 @@ private:
     }
 
     PHOENIX_DECLARE_FRIEND();
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TRemoteCopyController, 0xaa8829a9);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController::TRemoteCopyTask);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyController::TRemoteCopyHunkTask);
+void TRemoteCopyController::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TOrderedControllerBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Spec_)();
+    PHOENIX_REGISTER_FIELD(2, Options_)();
+    PHOENIX_REGISTER_FIELD(3, InputTableAttributes_)
+        .template Serializer<TAttributeDictionarySerializer>()();
+    PHOENIX_REGISTER_FIELD(4, Networks_)();
+    // COMPAT(alexelexa)
+    PHOENIX_REGISTER_FIELD(5, HunkChunkIdMapping_)
+        .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks)();
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        if (this_->InputTableAttributes_ && this_->InputTableAttributes_->ListKeys().empty()) {
+            this_->InputTableAttributes_.Reset();
+        }
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TRemoteCopyController);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TRemoteCopyController::TRemoteCopyTaskBase::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TOrderedTask>();
+
+    PHOENIX_REGISTER_FIELD(1, Controller_)();
+    PHOENIX_REGISTER_FIELD(2, Dependencies_)();
+    PHOENIX_REGISTER_FIELD(3, Dependents_)();
+    PHOENIX_REGISTER_FIELD(4, IsInitializationCompleted_)();
+}
+
+PHOENIX_DEFINE_TYPE(TRemoteCopyController::TRemoteCopyTaskBase);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TRemoteCopyController::TRemoteCopyTask::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TRemoteCopyTaskBase>();
+}
+
+PHOENIX_DEFINE_TYPE(TRemoteCopyController::TRemoteCopyTask);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TRemoteCopyController::TRemoteCopyHunkTask::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TRemoteCopyTaskBase>();
+}
+
+PHOENIX_DEFINE_TYPE(TRemoteCopyController::TRemoteCopyHunkTask);
+
+////////////////////////////////////////////////////////////////////////////////
 
 IOperationControllerPtr CreateRemoteCopyController(
     TControllerAgentConfigPtr config,

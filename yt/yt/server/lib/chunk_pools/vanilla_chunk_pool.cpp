@@ -6,7 +6,7 @@
 
 #include <yt/yt/ytlib/controller_agent/serialize.h>
 
-#include <yt/yt/core/misc/phoenix.h>
+#include <yt/yt/core/phoenix/type_decl.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
 

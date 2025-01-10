@@ -16,13 +16,13 @@ using namespace NCypressClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TLivePreviewTableBase::Persist(const TPersistenceContext& context)
+void TLivePreviewTableBase::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, LivePreviewTableId);
-    Persist(context, LivePreviewTableName);
+    PHOENIX_REGISTER_FIELD(1, LivePreviewTableId)();
+    PHOENIX_REGISTER_FIELD(2, LivePreviewTableName)();
 }
+
+PHOENIX_DEFINE_TYPE(TLivePreviewTableBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -31,14 +31,16 @@ bool TTableBase::IsFile() const
     return Type == EObjectType::File;
 }
 
-void TTableBase::Persist(const TPersistenceContext &context)
+void TTableBase::RegisterMetadata(auto&& registrar)
 {
-    TUserObject::Persist(context);
+    registrar.template BaseType<TUserObject>();
 
-    using NYT::Persist;
-    Persist<TNonNullableIntrusivePtrSerializer<>>(context, Schema);
-    Persist(context, SchemaId);
+    PHOENIX_REGISTER_FIELD(1, Schema)
+        .template Serializer<TNonNullableIntrusivePtrSerializer<>>()();
+    PHOENIX_REGISTER_FIELD(2, SchemaId)();
 }
+
+PHOENIX_DEFINE_TYPE(TTableBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -104,24 +106,23 @@ bool TInputTable::SupportsTeleportation() const
     return true;
 }
 
-void TInputTable::Persist(const TPersistenceContext& context)
+void TInputTable::RegisterMetadata(auto&& registrar)
 {
-    TTableBase::Persist(context);
+    registrar.template BaseType<TTableBase>();
 
-    using NYT::Persist;
-    Persist(context, Chunks);
+    PHOENIX_REGISTER_FIELD(1, Chunks)();
     // COMPAT(alexelexa)
-    if (context.GetVersion() >= ESnapshotVersion::RemoteCopyDynamicTableWithHunks) {
-        Persist(context, HunkChunks);
-    }
-    Persist(context, Comparator);
-    Persist(context, SchemaMode);
-    Persist(context, Dynamic);
+    PHOENIX_REGISTER_FIELD(2, HunkChunks)
+        .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks)();
+    PHOENIX_REGISTER_FIELD(3, Comparator)();
+    PHOENIX_REGISTER_FIELD(4, SchemaMode)();
+    PHOENIX_REGISTER_FIELD(5, Dynamic)();
     // COMPAT(coteeq)
-    if (context.GetVersion() >= ESnapshotVersion::RemoteInputForOperations) {
-        Persist(context, ClusterName);
-    }
+    PHOENIX_REGISTER_FIELD(6, ClusterName)
+        .SinceVersion(ESnapshotVersion::RemoteInputForOperations)();
 }
+
+PHOENIX_DEFINE_TYPE(TInputTable);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -148,42 +149,38 @@ bool TOutputTable::IsDebugTable() const
         OutputType == EOutputTableType::Core;
 }
 
-void TOutputTable::Persist(const TPersistenceContext& context)
+void TOutputTable::RegisterMetadata(auto&& registrar)
 {
-    TTableBase::Persist(context);
-    TLivePreviewTableBase::Persist(context);
+    registrar.template BaseType<TTableBase>();
+    registrar.template BaseType<TLivePreviewTableBase>();
 
-    using NYT::Persist;
-    Persist(context, TableUploadOptions);
-    Persist(context, TableWriterOptions);
-    Persist(context, OutputType);
-    if (context.GetVersion() < ESnapshotVersion::DropOriginalTableSchemaRevision) {
-        NHydra::TRevision originalTableSchemaRevision;
-        Persist(context, originalTableSchemaRevision);
-    }
-    Persist(context, Type);
-    Persist(context, DataStatistics);
+    PHOENIX_REGISTER_FIELD(1, TableUploadOptions)();
+    PHOENIX_REGISTER_FIELD(2, TableWriterOptions)();
+    PHOENIX_REGISTER_FIELD(3, OutputType)();
+    registrar.template VirtualField<4>("OriginalTableSchemaRevision_", [] (TThis* /*this_*/, auto& context) {
+        Load<NHydra::TRevision>(context);
+    })
+        .BeforeVersion(ESnapshotVersion::DropOriginalTableSchemaRevision)();
+    PHOENIX_REGISTER_FIELD(5, Type)();
+    PHOENIX_REGISTER_FIELD(6, DataStatistics)();
     // NB: Scheduler snapshots need not be stable.
-    Persist(context, OutputChunkTreeIds);
+    PHOENIX_REGISTER_FIELD(7, OutputChunkTreeIds)();
     // COMPAT(alexelexa)
-    if (context.GetVersion() >= ESnapshotVersion::RemoteCopyDynamicTableWithHunks) {
-        Persist(context, OutputHunkChunkListId);
-    }
-    Persist(context, EffectiveAcl);
-    Persist(context, WriterConfig);
-    Persist(context, Dynamic);
-    Persist(context, PivotKeys);
-    Persist(context, TabletChunkListIds);
+    PHOENIX_REGISTER_FIELD(8, OutputHunkChunkListId)
+        .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks)();
+    PHOENIX_REGISTER_FIELD(9, EffectiveAcl)();
+    PHOENIX_REGISTER_FIELD(10, WriterConfig)();
+    PHOENIX_REGISTER_FIELD(11, Dynamic)();
+    PHOENIX_REGISTER_FIELD(12, PivotKeys)();
+    PHOENIX_REGISTER_FIELD(13, TabletChunkListIds)();
     // COMPAT(alexelexa)
-    if (context.GetVersion() >= ESnapshotVersion::RemoteCopyDynamicTableWithHunks) {
-        Persist(context, TabletHunkChunkListIds);
-    }
-    Persist(context, OutputChunks);
+    PHOENIX_REGISTER_FIELD(14, TabletHunkChunkListIds)
+        .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks)();
+    PHOENIX_REGISTER_FIELD(15, OutputChunks)();
     // COMPAT(alexelexa)
-    if (context.GetVersion() >= ESnapshotVersion::RemoteCopyDynamicTableWithHunks) {
-        Persist(context, OutputHunkChunks);
-    }
-    Persist(context, TableIndex);
+    PHOENIX_REGISTER_FIELD(16, OutputHunkChunks)
+        .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks)();
+    PHOENIX_REGISTER_FIELD(17, TableIndex)();
 }
 
 TOutputStreamDescriptorPtr TOutputTable::GetStreamDescriptorTemplate(int tableIndex)
@@ -205,12 +202,16 @@ TOutputStreamDescriptorPtr TOutputTable::GetStreamDescriptorTemplate(int tableIn
     return descriptor;
 }
 
+PHOENIX_DEFINE_TYPE(TOutputTable);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-void TIntermediateTable::Persist(const TPersistenceContext& context)
+void TIntermediateTable::RegisterMetadata(auto&& registrar)
 {
-    TLivePreviewTableBase::Persist(context);
+    registrar.template BaseType<TLivePreviewTableBase>();
 }
+
+PHOENIX_DEFINE_TYPE(TIntermediateTable);
 
 ////////////////////////////////////////////////////////////////////////////////
 

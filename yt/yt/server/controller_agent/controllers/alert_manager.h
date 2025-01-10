@@ -38,8 +38,6 @@ struct IAlertManagerHost
 
     virtual TDiagnosableInvokerPool::TInvokerStatistics GetInvokerStatistics(
         EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
-
-    virtual void Persist(const TPersistenceContext& context) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IAlertManagerHost)

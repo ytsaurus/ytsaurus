@@ -94,18 +94,16 @@ TError TLayerJobExperiment::GetAlert(const TOperationSpecBasePtr& operationSpec)
         << TErrorAttribute("base_layer_path", operationSpec->JobExperiment->BaseLayerPath);
 }
 
-void TLayerJobExperiment::Persist(const TPersistenceContext& context)
+void TLayerJobExperiment::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
+    PHOENIX_REGISTER_FIELD(1, DefaultBaseLayerPath_)();
+    PHOENIX_REGISTER_FIELD(2, BaseLayer_)();
+    PHOENIX_REGISTER_FIELD(3, EnableBypassArtifactCache_)();
 
-    Persist(context, DefaultBaseLayerPath_);
-    Persist(context, BaseLayer_);
-    Persist(context, EnableBypassArtifactCache_);
-
-    Persist(context, Logger);
+    PHOENIX_REGISTER_FIELD(4, Logger)();
 }
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TLayerJobExperiment);
+PHOENIX_DEFINE_TYPE(TLayerJobExperiment);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -170,19 +168,17 @@ TError TMtnJobExperiment::GetAlert(const TOperationSpecBasePtr& operationSpec) c
         << TErrorAttribute("network_project", operationSpec->JobExperiment->NetworkProject);
 }
 
-void TMtnJobExperiment::Persist(const TPersistenceContext& context)
+void TMtnJobExperiment::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
+    PHOENIX_REGISTER_FIELD(1, NetworkProject_)();
+    PHOENIX_REGISTER_FIELD(2, ProjectId_)();
+    PHOENIX_REGISTER_FIELD(3, EnableNat64_)();
+    PHOENIX_REGISTER_FIELD(4, DisableNetwork_)();
 
-    Persist(context, NetworkProject_);
-    Persist(context, ProjectId_);
-    Persist(context, EnableNat64_);
-    Persist(context, DisableNetwork_);
-
-    Persist(context, Logger);
+    PHOENIX_REGISTER_FIELD(5, Logger)();
 }
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMtnJobExperiment);
+PHOENIX_DEFINE_TYPE(TMtnJobExperiment);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -398,21 +394,21 @@ void TExperimentJobManager::GenerateAlertIfNeeded(
     }
 }
 
-void TExperimentJobManager::Persist(const TPersistenceContext& context)
+void TExperimentJobManager::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
+    registrar.template BaseType<TCompetitiveJobManagerBase>();
 
-    TCompetitiveJobManagerBase::Persist(context);
-
-    Persist(context, OperationSpec_);
-    Persist(context, FailedControlJobCount_);
-    Persist(context, SucceededTreatmentJobCount_);
-    Persist(context, FailedTreatmentJobCount_);
-    Persist(context, FailedTreatmentJob_);
-    Persist(context, FailedControlJob_);
-    Persist(context, LostJobs_);
-    Persist(context, ExperimentStatus_);
+    PHOENIX_REGISTER_FIELD(1, OperationSpec_)();
+    PHOENIX_REGISTER_FIELD(2, FailedControlJobCount_)();
+    PHOENIX_REGISTER_FIELD(3, SucceededTreatmentJobCount_)();
+    PHOENIX_REGISTER_FIELD(4, FailedTreatmentJobCount_)();
+    PHOENIX_REGISTER_FIELD(5, FailedTreatmentJob_)();
+    PHOENIX_REGISTER_FIELD(6, FailedControlJob_)();
+    PHOENIX_REGISTER_FIELD(7, LostJobs_)();
+    PHOENIX_REGISTER_FIELD(8, ExperimentStatus_)();
 }
+
+PHOENIX_DEFINE_TYPE(TExperimentJobManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

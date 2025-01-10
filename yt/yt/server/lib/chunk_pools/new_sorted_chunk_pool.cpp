@@ -21,10 +21,11 @@
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
-#include <yt/yt/core/misc/phoenix.h>
-
 #include <yt/yt/core/logging/logger_owner.h>
 #include <yt/yt/core/logging/serializable_logger.h>
+
+#include <yt/yt/core/phoenix/type_decl.h>
+#include <yt/yt/core/phoenix/type_def.h>
 
 #include <library/cpp/yt/memory/ref_tracked.h>
 

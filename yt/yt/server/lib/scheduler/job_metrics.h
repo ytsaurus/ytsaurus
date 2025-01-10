@@ -6,9 +6,10 @@
 
 #include <yt/yt/ytlib/controller_agent/public.h>
 
-#include <yt/yt/core/misc/phoenix.h>
 #include <yt/yt/core/misc/public.h>
 #include <yt/yt/core/misc/statistic_path.h>
+
+#include <yt/yt/core/phoenix/context.h>
 
 #include <yt/yt/library/profiling/producer.h>
 
@@ -112,7 +113,7 @@ public:
 
     void Profile(NProfiling::ISensorWriter* writer) const;
 
-    void Persist(const NPhoenix::TPersistenceContext& context);
+    void Persist(const NPhoenix2::TPersistenceContext& context);
 
 private:
 

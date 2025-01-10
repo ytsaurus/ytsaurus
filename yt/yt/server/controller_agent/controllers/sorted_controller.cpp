@@ -91,24 +91,6 @@ public:
         , Options_(std::move(options))
     { }
 
-    // Persistence.
-
-    void Persist(const TPersistenceContext& context) override
-    {
-        TOperationControllerBase::Persist(context);
-
-        using NYT::Persist;
-        Persist(context, Spec_);
-        Persist(context, Options_);
-        Persist(context, JobIOConfig_);
-        Persist(context, JobSpecTemplate_);
-        Persist(context, JobSizeConstraints_);
-        Persist(context, InputSliceDataWeight_);
-        Persist(context, SortedTask_);
-        Persist(context, PrimarySortColumns_);
-        Persist(context, ForeignSortColumns_);
-    }
-
 protected:
     TSimpleOperationSpecBasePtr Spec_;
     TSimpleOperationOptionsPtr Options_;
@@ -174,19 +156,6 @@ protected:
         IPersistentChunkPoolOutputPtr GetChunkPoolOutput() const override
         {
             return ChunkPool_;
-        }
-
-        void Persist(const TPersistenceContext& context) override
-        {
-            TTask::Persist(context);
-
-            using NYT::Persist;
-            Persist(context, Controller_);
-            Persist(context, ChunkPool_);
-            Persist(context, TotalOutputRowCount_);
-            Persist(context, UseNewSortedPool_);
-
-            ChunkPool_->SubscribeChunkTeleported(BIND(&TSortedTaskBase::OnChunkTeleported, MakeWeak(this)));
         }
 
         void OnTaskCompleted() override
@@ -337,10 +306,12 @@ protected:
                 2 * Controller_->Options_->MaxOutputTablesTimesJobsCount > totalJobCount * std::ssize(Controller_->GetOutputTablePaths()) &&
                 2 * Controller_->Options_->MaxJobCount > totalJobCount;
         }
+
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSortedTaskBase, 0x8a383966);
     };
 
-    INHERIT_DYNAMIC_PHOENIX_TYPE(TSortedTaskBase, TSortedTask, 0xbbe534a7);
-    INHERIT_DYNAMIC_PHOENIX_TYPE_TEMPLATED(TAutoMergeableOutputMixin, TAutoMergeableSortedTask, 0x1233fa99, TSortedTaskBase);
+    PHOENIX_INHERIT_POLYMORPHIC_TYPE(TSortedTaskBase, TSortedTask, 0xbbe534a7);
+    PHOENIX_INHERIT_POLYMORPHIC_TEMPLATE_TYPE(TAutoMergeableOutputMixin, TAutoMergeableSortedTask, 0x1233fa99, TSortedTaskBase);
 
     using TSortedTaskPtr = TIntrusivePtr<TSortedTaskBase>;
 
@@ -675,17 +646,10 @@ protected:
             return Controller_->CreateChunkSliceFetcher();
         }
 
-        void Persist(const TPersistenceContext& context) override
-        {
-            using NYT::Persist;
-
-            Persist(context, Controller_);
-        }
-
     private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TChunkSliceFetcherFactory, 0x23cad49e);
-
         TSortedControllerBase* Controller_;
+
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TChunkSliceFetcherFactory, 0x23cad49e);
     };
 
     virtual IChunkSliceFetcherFactoryPtr CreateChunkSliceFetcherFactory()
@@ -753,11 +717,66 @@ private:
     }
 
     PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSortedControllerBase, 0xfcd195bc);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedControllerBase::TSortedTask);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedControllerBase::TAutoMergeableSortedTask);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedControllerBase::TChunkSliceFetcherFactory);
+void TSortedControllerBase::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TOperationControllerBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Spec_)();
+    PHOENIX_REGISTER_FIELD(2, Options_)();
+    PHOENIX_REGISTER_FIELD(3, JobIOConfig_)();
+    PHOENIX_REGISTER_FIELD(4, JobSpecTemplate_)();
+    PHOENIX_REGISTER_FIELD(5, JobSizeConstraints_)();
+    PHOENIX_REGISTER_FIELD(6, InputSliceDataWeight_)();
+    PHOENIX_REGISTER_FIELD(7, SortedTask_)();
+    PHOENIX_REGISTER_FIELD(8, PrimarySortColumns_)();
+    PHOENIX_REGISTER_FIELD(9, ForeignSortColumns_)();
+}
+
+PHOENIX_DEFINE_TYPE(TSortedControllerBase);
+
+void TSortedControllerBase::TSortedTask::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TSortedTaskBase>();
+}
+
+PHOENIX_DEFINE_TYPE(TSortedControllerBase::TSortedTask);
+
+void TSortedControllerBase::TAutoMergeableSortedTask::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TAutoMergeableOutputMixin>();
+}
+
+PHOENIX_DEFINE_TYPE(TSortedControllerBase::TAutoMergeableSortedTask);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSortedControllerBase::TSortedTaskBase::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TTask>();
+
+    PHOENIX_REGISTER_FIELD(1, Controller_)();
+    PHOENIX_REGISTER_FIELD(2, ChunkPool_)();
+    PHOENIX_REGISTER_FIELD(3, TotalOutputRowCount_)();
+    PHOENIX_REGISTER_FIELD(4, UseNewSortedPool_)();
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->ChunkPool_->SubscribeChunkTeleported(BIND(&TSortedTaskBase::OnChunkTeleported, MakeWeak(this_)));
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TSortedControllerBase::TSortedTaskBase);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSortedControllerBase::TChunkSliceFetcherFactory::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, Controller_)();
+}
+
+PHOENIX_DEFINE_TYPE(TSortedControllerBase::TChunkSliceFetcherFactory);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -966,12 +985,17 @@ protected:
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController, 0xf3b791ca);
-
     TSortedMergeOperationSpecPtr Spec_;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSortedMergeController, 0xf3b791ca);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeController);
+void TSortedMergeController::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TSortedControllerBase>();
+}
+
+PHOENIX_DEFINE_TYPE(TSortedMergeController);
 
 IOperationControllerPtr CreateSortedMergeController(
     TControllerAgentConfigPtr config,
@@ -1320,8 +1344,6 @@ public:
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceController, 0x4fc44a45);
-
     TReduceOperationSpecPtr Spec_;
     TReduceOperationOptionsPtr Options_;
 
@@ -1363,9 +1385,16 @@ private:
     {
         return TError();
     }
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TReduceController, 0x4fc44a45);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceController);
+void TReduceController::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TSortedControllerBase>();
+}
+
+PHOENIX_DEFINE_TYPE(TReduceController);
 
 IOperationControllerPtr CreateReduceController(
     TControllerAgentConfigPtr config,

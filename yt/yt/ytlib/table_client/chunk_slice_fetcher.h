@@ -11,8 +11,6 @@
 
 #include <yt/yt/client/table_client/comparator.h>
 
-#include <yt/yt/core/misc/phoenix.h>
-
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -129,75 +129,6 @@ public:
         , SimpleSort(false)
     { }
 
-    // Persistence.
-    void Persist(const TPersistenceContext& context) override
-    {
-        TOperationControllerBase::Persist(context);
-
-        using NYT::Persist;
-
-        Persist(context, Spec);
-
-        Persist(context, CompletedPartitionCount);
-        Persist(context, PartitionJobCounter);
-        Persist(context, SortedMergeJobCounter);
-        Persist(context, UnorderedMergeJobCounter);
-        Persist(context, IntermediateSortJobCounter);
-        Persist(context, FinalSortJobCounter);
-        Persist(context, SortDataWeightCounter);
-
-        Persist(context, SortStartThresholdReached);
-        Persist(context, MergeStartThresholdReached);
-
-        Persist(context, TotalOutputRowCount);
-
-        Persist(context, SimpleSort);
-        Persist(context, PartitionsByLevels);
-        Persist(context, PartitionTreeDepth);
-        Persist(context, PartitionCount);
-        Persist(context, MaxPartitionFactor);
-
-        Persist(context, AssignedPartitionsByNodeId);
-        Persist(context, PartitionsLocalityByNodeId);
-
-        Persist(context, RootPartitionJobSpecTemplate);
-        Persist(context, PartitionJobSpecTemplate);
-        Persist(context, IntermediateSortJobSpecTemplate);
-        Persist(context, FinalSortJobSpecTemplate);
-        Persist(context, SortedMergeJobSpecTemplate);
-        Persist(context, UnorderedMergeJobSpecTemplate);
-
-        Persist(context, RootPartitionJobIOConfig);
-        Persist(context, PartitionJobIOConfig);
-        Persist(context, IntermediateSortJobIOConfig);
-        Persist(context, FinalSortJobIOConfig);
-        Persist(context, SortedMergeJobIOConfig);
-        Persist(context, UnorderedMergeJobIOConfig);
-
-        Persist(context, RootPartitionPoolJobSizeConstraints);
-        Persist(context, RootPartitionPool);
-        Persist(context, SimpleSortPool);
-
-        Persist(context, ShuffleMultiChunkPoolInputs);
-        Persist(context, ShuffleMultiInputChunkMappings);
-
-        Persist(context, *IntermediateChunkSchema_);
-        Persist<TVectorSerializer<TNonNullableIntrusivePtrSerializer<>>>(context, IntermediateStreamSchemas_);
-
-        Persist(context, PartitionTasks);
-        Persist(context, SimpleSortTask);
-        Persist(context, IntermediateSortTask);
-        Persist(context, FinalSortTask);
-        Persist(context, UnorderedMergeTask);
-        Persist(context, SortedMergeTask);
-
-        Persist(context, SwitchedToSlowIntermediateMedium);
-
-        if (context.IsLoad()) {
-            SetupPartitioningCompletedCallbacks();
-        }
-    }
-
     std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction() override
     {
         if (GetFastIntermediateMediumLimit() > 0 && !SwitchedToSlowIntermediateMedium) {
@@ -465,40 +396,11 @@ protected:
             }
         }
 
-        void Persist(const TPersistenceContext& context)
-        {
-            using NYT::Persist;
-
-            Persist(context, Controller);
-
-            Persist(context, Level);
-            Persist(context, Index);
-            Persist(context, ParentPartitionTag);
-
-            Persist(context, Children);
-
-            Persist(context, LowerBound);
-
-            Persist(context, Completed);
-
-            Persist(context, PartitioningCompleted);
-
-            Persist(context, CachedSortedMergeNeeded);
-
-            Persist(context, Maniac);
-
-            Persist(context, AssignedNodeId);
-
-            Persist(context, ShuffleChunkPool);
-            Persist(context, ShuffleChunkPoolInput);
-            Persist(context, ChunkPoolOutput);
-
-            Persist(context, Logger);
-        }
-
     private:
         //! The node assigned to this partition, #InvalidNodeId if none.
         TNodeId AssignedNodeId = InvalidNodeId;
+
+        PHOENIX_DECLARE_TYPE(TPartition, 0xec5290d7);
     };
 
     using TPartitionPtr = TIntrusivePtr<TPartition>;
@@ -713,27 +615,6 @@ protected:
             return Controller_->GetPartitionJobType(IsRoot());
         }
 
-        void Persist(const TPersistenceContext& context) override
-        {
-            TTask::Persist(context);
-
-            using NYT::Persist;
-            Persist(context, Controller_);
-            Persist(context, DataBalancer_);
-            Persist(context, Level_);
-            Persist(context, ShuffleMultiChunkOutput_);
-            if (context.GetVersion() < ESnapshotVersion::DropLegacyWirePartitionKeys) {
-                std::vector<std::optional<TString>> wirePartitionKeys;
-                Persist(context, wirePartitionKeys);
-            }
-            Persist(context, WirePartitionLowerBoundPrefixes_);
-            Persist(context, PartitionLowerBoundInclusivenesses_);
-
-            if (context.IsLoad() && DataBalancer_) {
-                DataBalancer_->OnExecNodesUpdated(Controller_->GetOnlineExecNodeDescriptors());
-            }
-        }
-
         void OnExecNodesUpdated()
         {
             if (DataBalancer_) {
@@ -753,8 +634,6 @@ protected:
         }
 
     private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TPartitionTask, 0x63a4c761);
-
         TSortControllerBase* Controller_ = nullptr;
 
         TDataBalancerPtr DataBalancer_;
@@ -1048,6 +927,8 @@ protected:
         {
             return false;
         }
+
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TPartitionTask, 0x63a4c761);
     };
 
     //! Base class implementing sort phase for sort operations
@@ -1106,16 +987,6 @@ protected:
         bool IsSimpleTask() const override
         {
             return false;
-        }
-
-        void Persist(const TPersistenceContext& context) override
-        {
-            TTask::Persist(context);
-
-            using NYT::Persist;
-            Persist(context, Controller_);
-            Persist(context, IsFinalSort_);
-            Persist(context, CurrentInputStreamIndex_);
         }
 
         void OnStripeRegistrationFailed(
@@ -1301,6 +1172,8 @@ protected:
 
     private:
         int CurrentInputStreamIndex_ = 0;
+
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSortTaskBase, 0x184a5af8);
     };
 
     //! Implements partition sort for sort operations and
@@ -1394,18 +1267,7 @@ protected:
             MultiChunkPoolOutput_->Finalize();
         }
 
-        void Persist(const TPersistenceContext& context) override
-        {
-            TSortTaskBase::Persist(context);
-
-            using NYT::Persist;
-            Persist(context, MultiChunkPoolOutput_);
-            Persist(context, Partitions_);
-        }
-
     private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TSortTask, 0x4f9a6cd9);
-
         IMultiChunkPoolOutputPtr MultiChunkPoolOutput_;
 
         std::vector<TPartitionPtr> Partitions_;
@@ -1492,6 +1354,8 @@ protected:
                 }
             }
         }
+
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSortTask, 0x4f9a6cd9);
     };
 
     //! Implements simple sort phase for sort operations.
@@ -1579,18 +1443,10 @@ protected:
             return cookie;
         }
 
-        void Persist(const TPersistenceContext& context) override
-        {
-            TSortTaskBase::Persist(context);
-
-            using NYT::Persist;
-            Persist(context, Partition_);
-        }
-
     private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TSimpleSortTask, 0xb32d4f02);
-
         TPartition* Partition_;
+
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSimpleSortTask, 0xb32d4f02);
     };
 
     //! Implements sorted merge phase for sort operations and
@@ -1666,21 +1522,6 @@ protected:
         IPersistentChunkPoolInputPtr GetChunkPoolInput() const override
         {
             return ChunkPoolInput_;
-        }
-
-        void Persist(const TPersistenceContext& context) override
-        {
-            TTask::Persist(context);
-
-            using NYT::Persist;
-            Persist(context, Controller_);
-            Persist(context, Partitions_);
-            Persist(context, MultiChunkPool_);
-            Persist(context, ChunkPoolInput_);
-            Persist(context, SortedMergeChunkPools_);
-            Persist<TVectorSerializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>>(context, ActiveJoblets_);
-            Persist<TVectorSerializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>>(context, InvalidatedJoblets_);
-            Persist(context, JobOutputs_);
         }
 
         TUserJobSpecPtr GetUserJobSpec() const override
@@ -1784,8 +1625,6 @@ protected:
         }
 
     private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeTask, 0x4ab19c75);
-
         TSortControllerBase* Controller_;
 
         std::vector<TPartitionPtr> Partitions_;
@@ -1806,16 +1645,7 @@ protected:
             TJobletPtr Joblet;
             TCompletedJobSummary JobSummary;
 
-            void Persist(const TPersistenceContext& context)
-            {
-                using NYT::Persist;
-
-                // TODO(max42): this place seems to be the only occurrence of job summary persistence.
-                // Do we really need this?
-
-                Persist(context, Joblet);
-                Persist(context, JobSummary);
-            }
+            PHOENIX_DECLARE_TYPE(TJobOutput, 0xf2f35a40);
         };
 
         //! Partition index -> list of job outputs.
@@ -1905,6 +1735,9 @@ protected:
                 Controller_->OnFinalPartitionCompleted(partition);
             }
         }
+
+        PHOENIX_DECLARE_FRIEND();
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSortedMergeTask, 0x4ab19c75);
     };
 
     //! Implements unordered merge of maniac partitions for sort operation.
@@ -1974,19 +1807,7 @@ protected:
             MultiChunkPoolOutput_->Finalize();
         }
 
-        void Persist(const TPersistenceContext& context) override
-        {
-            TTask::Persist(context);
-
-            using NYT::Persist;
-            Persist(context, Controller_);
-            Persist(context, MultiChunkPoolOutput_);
-            Persist(context, Partitions_);
-        }
-
     private:
-        DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeTask, 0xbba17c0f);
-
         TSortControllerBase* Controller_;
 
         IMultiChunkPoolOutputPtr MultiChunkPoolOutput_;
@@ -2073,6 +1894,8 @@ protected:
         {
             return false;
         }
+
+        PHOENIX_DECLARE_POLYMORPHIC_TYPE(TUnorderedMergeTask, 0xbba17c0f);
     };
 
     // Partition tree helpers.
@@ -3118,13 +2941,222 @@ protected:
     virtual TSortColumns GetSortedMergeSortColumns() const = 0;
 
     PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSortControllerBase, 0x4f7dcb2f);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TPartitionTask);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TSortTask);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TSimpleSortTask);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TSortedMergeTask);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortControllerBase::TUnorderedMergeTask);
+void TSortControllerBase::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TOperationControllerBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Spec)();
+
+    PHOENIX_REGISTER_FIELD(2, CompletedPartitionCount)();
+    PHOENIX_REGISTER_FIELD(3, PartitionJobCounter)();
+    PHOENIX_REGISTER_FIELD(4, SortedMergeJobCounter)();
+    PHOENIX_REGISTER_FIELD(5, UnorderedMergeJobCounter)();
+    PHOENIX_REGISTER_FIELD(6, IntermediateSortJobCounter)();
+    PHOENIX_REGISTER_FIELD(7, FinalSortJobCounter)();
+    PHOENIX_REGISTER_FIELD(8, SortDataWeightCounter)();
+
+    PHOENIX_REGISTER_FIELD(9, SortStartThresholdReached)();
+    PHOENIX_REGISTER_FIELD(10, MergeStartThresholdReached)();
+
+    PHOENIX_REGISTER_FIELD(11, TotalOutputRowCount)();
+
+    PHOENIX_REGISTER_FIELD(12, SimpleSort)();
+    PHOENIX_REGISTER_FIELD(13, PartitionsByLevels)();
+    PHOENIX_REGISTER_FIELD(14, PartitionTreeDepth)();
+    PHOENIX_REGISTER_FIELD(15, PartitionCount)();
+    PHOENIX_REGISTER_FIELD(16, MaxPartitionFactor)();
+
+    PHOENIX_REGISTER_FIELD(17, AssignedPartitionsByNodeId)();
+    PHOENIX_REGISTER_FIELD(18, PartitionsLocalityByNodeId)();
+
+    PHOENIX_REGISTER_FIELD(19, RootPartitionJobSpecTemplate)();
+    PHOENIX_REGISTER_FIELD(20, PartitionJobSpecTemplate)();
+    PHOENIX_REGISTER_FIELD(21, IntermediateSortJobSpecTemplate)();
+    PHOENIX_REGISTER_FIELD(22, FinalSortJobSpecTemplate)();
+    PHOENIX_REGISTER_FIELD(23, SortedMergeJobSpecTemplate)();
+    PHOENIX_REGISTER_FIELD(24, UnorderedMergeJobSpecTemplate)();
+
+    PHOENIX_REGISTER_FIELD(25, RootPartitionJobIOConfig)();
+    PHOENIX_REGISTER_FIELD(26, PartitionJobIOConfig)();
+    PHOENIX_REGISTER_FIELD(27, IntermediateSortJobIOConfig)();
+    PHOENIX_REGISTER_FIELD(28, FinalSortJobIOConfig)();
+    PHOENIX_REGISTER_FIELD(29, SortedMergeJobIOConfig)();
+    PHOENIX_REGISTER_FIELD(30, UnorderedMergeJobIOConfig)();
+
+    PHOENIX_REGISTER_FIELD(31, RootPartitionPoolJobSizeConstraints)();
+    PHOENIX_REGISTER_FIELD(32, RootPartitionPool)();
+    PHOENIX_REGISTER_FIELD(33, SimpleSortPool)();
+
+    PHOENIX_REGISTER_FIELD(34, ShuffleMultiChunkPoolInputs)();
+    PHOENIX_REGISTER_FIELD(35, ShuffleMultiInputChunkMappings)();
+
+    registrar.template VirtualField<36>("IntermediateChunkSchema_", [] (TThis* this_, auto& context) {
+        NYT::Load(context, *this_->IntermediateChunkSchema_);
+    }, [] (const TThis* this_, auto& context) {
+        NYT::Save(context, *this_->IntermediateChunkSchema_);
+    })();
+    PHOENIX_REGISTER_FIELD(37, IntermediateStreamSchemas_)
+        .template Serializer<TVectorSerializer<TNonNullableIntrusivePtrSerializer<>>>()();
+
+    PHOENIX_REGISTER_FIELD(38, PartitionTasks)();
+    PHOENIX_REGISTER_FIELD(39, SimpleSortTask)();
+    PHOENIX_REGISTER_FIELD(40, IntermediateSortTask)();
+    PHOENIX_REGISTER_FIELD(41, FinalSortTask)();
+    PHOENIX_REGISTER_FIELD(42, UnorderedMergeTask)();
+    PHOENIX_REGISTER_FIELD(43, SortedMergeTask)();
+
+    PHOENIX_REGISTER_FIELD(44, SwitchedToSlowIntermediateMedium)();
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->SetupPartitioningCompletedCallbacks();
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TSortControllerBase);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSortControllerBase::TPartition::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, Controller)();
+
+    PHOENIX_REGISTER_FIELD(2, Level)();
+    PHOENIX_REGISTER_FIELD(3, Index)();
+    PHOENIX_REGISTER_FIELD(4, ParentPartitionTag)();
+
+    PHOENIX_REGISTER_FIELD(5, Children)();
+
+    PHOENIX_REGISTER_FIELD(6, LowerBound)();
+
+    PHOENIX_REGISTER_FIELD(7, Completed)();
+
+    PHOENIX_REGISTER_FIELD(8, PartitioningCompleted)();
+
+    PHOENIX_REGISTER_FIELD(9, CachedSortedMergeNeeded)();
+
+    PHOENIX_REGISTER_FIELD(10, Maniac)();
+
+    PHOENIX_REGISTER_FIELD(11, AssignedNodeId)();
+
+    PHOENIX_REGISTER_FIELD(12, ShuffleChunkPool)();
+    PHOENIX_REGISTER_FIELD(13, ShuffleChunkPoolInput)();
+    PHOENIX_REGISTER_FIELD(14, ChunkPoolOutput)();
+
+    PHOENIX_REGISTER_FIELD(15, Logger)();
+}
+
+PHOENIX_DEFINE_TYPE(TSortControllerBase::TPartition);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSortControllerBase::TPartitionTask::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TTask>();
+
+    PHOENIX_REGISTER_FIELD(1, Controller_)();
+    PHOENIX_REGISTER_FIELD(2, DataBalancer_)();
+    PHOENIX_REGISTER_FIELD(3, Level_)();
+    PHOENIX_REGISTER_FIELD(4, ShuffleMultiChunkOutput_)();
+    registrar.template VirtualField<5>("WirePartitionKeys_", [] (TThis* /*this_*/, auto& context) {
+        Load<std::vector<std::optional<TString>>>(context);
+    })
+        .BeforeVersion(ESnapshotVersion::DropLegacyWirePartitionKeys)();
+    PHOENIX_REGISTER_FIELD(6, WirePartitionLowerBoundPrefixes_)();
+    PHOENIX_REGISTER_FIELD(7, PartitionLowerBoundInclusivenesses_)();
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        if (this_->DataBalancer_) {
+            this_->DataBalancer_->OnExecNodesUpdated(this_->Controller_->GetOnlineExecNodeDescriptors());
+        }
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TSortControllerBase::TPartitionTask);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSortControllerBase::TSortTaskBase::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TTask>();
+
+    PHOENIX_REGISTER_FIELD(1, Controller_)();
+    PHOENIX_REGISTER_FIELD(2, IsFinalSort_)();
+    PHOENIX_REGISTER_FIELD(3, CurrentInputStreamIndex_)();
+}
+
+PHOENIX_DEFINE_TYPE(TSortControllerBase::TSortTaskBase);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSortControllerBase::TSortTask::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TSortTaskBase>();
+
+    PHOENIX_REGISTER_FIELD(1, MultiChunkPoolOutput_)();
+    PHOENIX_REGISTER_FIELD(2, Partitions_)();
+}
+
+PHOENIX_DEFINE_TYPE(TSortControllerBase::TSortTask);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSortControllerBase::TSimpleSortTask::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TSortTaskBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Partition_)();
+}
+
+PHOENIX_DEFINE_TYPE(TSortControllerBase::TSimpleSortTask);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSortControllerBase::TSortedMergeTask::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TTask>();
+
+    PHOENIX_REGISTER_FIELD(1, Controller_)();
+    PHOENIX_REGISTER_FIELD(2, Partitions_)();
+    PHOENIX_REGISTER_FIELD(3, MultiChunkPool_)();
+    PHOENIX_REGISTER_FIELD(4, ChunkPoolInput_)();
+    PHOENIX_REGISTER_FIELD(5, SortedMergeChunkPools_)();
+    PHOENIX_REGISTER_FIELD(6, ActiveJoblets_)
+        .template Serializer<TVectorSerializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>>()();
+    PHOENIX_REGISTER_FIELD(7, InvalidatedJoblets_)
+        .template Serializer<TVectorSerializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>>()();
+    PHOENIX_REGISTER_FIELD(8, JobOutputs_)();
+}
+
+PHOENIX_DEFINE_TYPE(TSortControllerBase::TSortedMergeTask);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSortControllerBase::TSortedMergeTask::TJobOutput::RegisterMetadata(auto&& registrar)
+{
+    // TODO(max42): this place seems to be the only occurrence of job summary persistence.
+    // Do we really need this?
+
+    PHOENIX_REGISTER_FIELD(1, Joblet)();
+    PHOENIX_REGISTER_FIELD(2, JobSummary)();
+}
+
+PHOENIX_DEFINE_TYPE(TSortControllerBase::TSortedMergeTask::TJobOutput);
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSortControllerBase::TUnorderedMergeTask::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TTask>();
+
+    PHOENIX_REGISTER_FIELD(1, Controller_)();
+    PHOENIX_REGISTER_FIELD(2, MultiChunkPoolOutput_)();
+    PHOENIX_REGISTER_FIELD(3, Partitions_)();
+}
+
+PHOENIX_DEFINE_TYPE(TSortControllerBase::TUnorderedMergeTask);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -3166,8 +3198,6 @@ protected:
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortController, 0xbca37afe);
-
     TSortOperationSpecPtr Spec;
 
     // Custom bits of preparation pipeline.
@@ -3810,9 +3840,16 @@ private:
     {
         return Spec;
     }
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSortController, 0xbca37afe);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortController);
+void TSortController::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TSortControllerBase>();
+}
+
+PHOENIX_DEFINE_TYPE(TSortController);
 
 IOperationControllerPtr CreateSortController(
     TControllerAgentConfigPtr config,
@@ -3866,16 +3903,6 @@ public:
             });
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        TSortControllerBase::Persist(context);
-
-        using NYT::Persist;
-
-        Persist(context, MapperSinkEdges_);
-        Persist(context, ReducerSinkEdges_);
-    }
-
     void InitStreamDescriptors()
     {
         const auto& streamDescriptors = GetStandardStreamDescriptors();
@@ -3923,8 +3950,6 @@ protected:
     }
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceController, 0xca7286bd);
-
     TMapReduceOperationSpecPtr Spec;
 
     // Mapper stream descriptors are for the data that is written from mappers directly to the first
@@ -4775,9 +4800,19 @@ private:
         return BuildDataSinkDirectoryFromOutputTables(
             std::vector<TOutputTablePtr>(OutputTables_.begin() + Spec->MapperOutputTableCount, OutputTables_.end()));
     }
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TMapReduceController, 0xca7286bd);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceController);
+void TMapReduceController::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TSortControllerBase>();
+
+    PHOENIX_REGISTER_FIELD(1, MapperSinkEdges_)();
+    PHOENIX_REGISTER_FIELD(2, ReducerSinkEdges_)();
+}
+
+PHOENIX_DEFINE_TYPE(TMapReduceController);
 
 IOperationControllerPtr CreateMapReduceController(
     TControllerAgentConfigPtr config,

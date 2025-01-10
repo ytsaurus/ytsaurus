@@ -110,8 +110,6 @@ target_sources(unittester-core-misc PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/mpl_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/pattern_formatter_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/persistent_queue_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/phoenix_ut.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/phoenix_compatibility_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/pool_allocator_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/proc_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/misc/unittests/random_ut.cpp
