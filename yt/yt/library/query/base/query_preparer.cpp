@@ -76,7 +76,8 @@ void ExtractFunctionNames(
         ExtractFunctionNames(likeExpr->EscapeCharacter, functions);
     } else if (expr->As<NAst::TLiteralExpression>()) {
     } else if (expr->As<NAst::TReferenceExpression>()) {
-    } else if (expr->As<NAst::TAliasExpression>()) {
+    } else if (auto aliasExpr = expr->As<NAst::TAliasExpression>()) {
+        ExtractFunctionNames(aliasExpr->Expression, functions);
     } else {
         YT_ABORT();
     }
@@ -1225,41 +1226,32 @@ struct TBaseColumn
     TLogicalTypePtr LogicalType;
 };
 
+struct TTable
+{
+    const TTableSchema& Schema;
+    std::optional<TString> Alias;
+    std::vector<TColumnDescriptor>* Mapping = nullptr;
+};
+
+struct TColumnEntry
+{
+    TBaseColumn Column;
+
+    size_t LastTableIndex;
+    size_t OriginTableIndex;
+};
+
 class TBuilderContextBase
 {
-private:
-    struct TTable
-    {
-        const TTableSchema& Schema;
-        std::optional<TString> Alias;
-        std::vector<TColumnDescriptor>* Mapping = nullptr;
-    };
-
-    // TODO: Enrich TMappedSchema with alias and keep here pointers to TMappedSchema.
-    std::vector<TTable> Tables_;
-
-protected:
-    // TODO: Combine in Structure? Move out?
-    const TNamedItemList* GroupItems_ = nullptr;
-    TAggregateItemList* AggregateItems_ = nullptr;
-
-    bool AfterGroupBy_ = false;
-
 public:
-    struct TColumnEntry
-    {
-        TBaseColumn Column;
-
-        size_t LastTableIndex;
-        size_t OriginTableIndex;
-    };
-
     //! Lookup is a cache of resolved columns.
-    THashMap<
+    using TLookup = THashMap<
         NAst::TReference,
         TColumnEntry,
         NAst::TCompositeAgnosticReferenceHasher,
-        NAst::TCompositeAgnosticReferenceEqComparer> Lookup;
+        NAst::TCompositeAgnosticReferenceEqComparer>;
+
+    DEFINE_BYREF_RO_PROPERTY(TLookup, Lookup);
 
     TBuilderContextBase(
         const TTableSchema& schema,
@@ -1280,8 +1272,8 @@ public:
 
         std::move(other.Tables_.begin(), other.Tables_.end(), std::back_inserter(Tables_));
 
-        for (const auto& [reference, entry] : other.Lookup) {
-            auto [it, emplaced] = Lookup.emplace(
+        for (const auto& [reference, entry] : other.Lookup()) {
+            auto [it, emplaced] = Lookup_.emplace(
                 reference,
                 TColumnEntry{
                     entry.Column,
@@ -1313,6 +1305,69 @@ public:
         AfterGroupBy_ = true;
     }
 
+    static const std::optional<TBaseColumn> FindColumn(const TNamedItemList& schema, const std::string& name)
+    {
+        for (int index = 0; index < std::ssize(schema); ++index) {
+            if (schema[index].Name == name) {
+                return TBaseColumn(name, schema[index].Expression->LogicalType);
+            }
+        }
+        return std::nullopt;
+    }
+
+    std::optional<TBaseColumn> GetColumnPtr(const NAst::TReference& reference)
+    {
+        if (AfterGroupBy_) {
+            // Search other way after group by.
+            if (reference.TableName) {
+                return std::nullopt;
+            }
+
+            return FindColumn(*GroupItems_, reference.ColumnName);
+        }
+
+        size_t lastTableIndex = Tables_.size() - 1;
+
+        auto found = Lookup_.find(reference);
+        if (found != Lookup_.end()) {
+            // Provide column from max table index till end.
+
+            size_t nextTableIndex = std::max(found->second.OriginTableIndex, found->second.LastTableIndex) + 1;
+
+            CheckNoOtherColumn(reference, nextTableIndex);
+
+            // Update LastTableIndex after check.
+            found->second.LastTableIndex = lastTableIndex;
+
+            return found->second.Column;
+        } else if (auto [table, type] = ResolveColumn(reference); table) {
+            auto formattedName = NAst::InferColumnName(reference);
+            auto column = TBaseColumn(formattedName, type);
+
+            auto emplaced = Lookup_.emplace(
+                reference,
+                TColumnEntry{
+                    column,
+                    lastTableIndex,
+                    size_t(table - Tables_.data())});
+
+            YT_VERIFY(emplaced.second);
+            return column;
+        } else {
+            return std::nullopt;
+        }
+    }
+
+protected:
+    // TODO: Combine in Structure? Move out?
+    const TNamedItemList* GroupItems_ = nullptr;
+    // TODO: Enrich TMappedSchema with alias and keep here pointers to TMappedSchema.
+    std::vector<TTable> Tables_;
+    TAggregateItemList* AggregateItems_ = nullptr;
+
+    bool AfterGroupBy_ = false;
+
+private:
     void CheckNoOtherColumn(const NAst::TReference& reference, size_t startTableIndex) const
     {
         for (int index = startTableIndex; index < std::ssize(Tables_); ++index) {
@@ -1358,60 +1413,9 @@ public:
 
         return {result, type};
     }
-
-    static const std::optional<TBaseColumn> FindColumn(const TNamedItemList& schema, const std::string& name)
-    {
-        for (int index = 0; index < std::ssize(schema); ++index) {
-            if (schema[index].Name == name) {
-                return TBaseColumn(name, schema[index].Expression->LogicalType);
-            }
-        }
-        return std::nullopt;
-    }
-
-    std::optional<TBaseColumn> GetColumnPtr(const NAst::TReference& reference)
-    {
-        if (AfterGroupBy_) {
-            // Search other way after group by.
-            if (reference.TableName) {
-                return std::nullopt;
-            }
-
-            return FindColumn(*GroupItems_, reference.ColumnName);
-        }
-
-        size_t lastTableIndex = Tables_.size() - 1;
-
-        auto found = Lookup.find(reference);
-        if (found != Lookup.end()) {
-            // Provide column from max table index till end.
-
-            size_t nextTableIndex = std::max(found->second.OriginTableIndex, found->second.LastTableIndex) + 1;
-
-            CheckNoOtherColumn(reference, nextTableIndex);
-
-            // Update LastTableIndex after check.
-            found->second.LastTableIndex = lastTableIndex;
-
-            return found->second.Column;
-        } else if (auto [table, type] = ResolveColumn(reference); table) {
-            auto formattedName = NAst::InferColumnName(reference);
-            auto column = TBaseColumn(formattedName, type);
-
-            auto emplaced = Lookup.emplace(
-                reference,
-                TColumnEntry{
-                    column,
-                    lastTableIndex,
-                    size_t(table - Tables_.data())});
-
-            YT_VERIFY(emplaced.second);
-            return column;
-        } else {
-            return std::nullopt;
-        }
-    }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 using TExpressionGenerator = std::function<TConstExpressionPtr(EValueType)>;
 
@@ -1426,15 +1430,8 @@ struct TBuilderCtx
     : public TBuilderContextBase
 {
 public:
-    const TString& Source;
-    const TConstTypeInferrerMapPtr Functions;
-    const NAst::TAliasMap& AliasMap;
-
-private:
-    std::set<std::string> UsedAliases_;
-    int Depth_ = 0;
-
-    THashMap<std::pair<TString, EValueType>, TConstExpressionPtr> AggregateLookup_;
+    DEFINE_BYVAL_RO_PROPERTY(TStringBuf, Source);
+    DEFINE_BYREF_RO_PROPERTY(TConstTypeInferrerMapPtr, Functions);
 
 public:
     TBuilderCtx(
@@ -1445,9 +1442,9 @@ public:
         std::optional<TString> alias,
         std::vector<TColumnDescriptor>* mapping)
         : TBuilderContextBase(schema, alias, mapping)
-        , Source(source)
-        , Functions(functions)
-        , AliasMap(aliasMap)
+        , Source_(source)
+        , Functions_(functions)
+        , AliasMap_(aliasMap)
     { }
 
     // TODO(lukyan): Move ProvideAggregateColumn and GetAggregateColumnPtr to TBuilderCtxBase and provide callback
@@ -1456,107 +1453,28 @@ public:
         const std::string& name,
         const TAggregateTypeInferrer* aggregateItem,
         const NAst::TExpression* argument,
-        const TString& subexpressionName)
-    {
-        YT_VERIFY(AfterGroupBy_);
-
-        // TODO(lukyan): Use guard.
-        AfterGroupBy_ = false;
-        auto untypedOperand = OnExpression(argument);
-        AfterGroupBy_ = true;
-
-        TTypeSet constraint;
-        std::optional<EValueType> stateType;
-        std::optional<EValueType> resultType;
-
-        aggregateItem->GetNormalizedConstraints(&constraint, &stateType, &resultType, name);
-
-        TTypeSet resultTypes;
-        TTypeSet genericAssignments = constraint;
-
-        if (!Unify(&genericAssignments, untypedOperand.FeasibleTypes)) {
-            THROW_ERROR_EXCEPTION("Type mismatch in function %Qv: expected %v, actual %v",
-                name,
-                genericAssignments,
-                untypedOperand.FeasibleTypes)
-                << TErrorAttribute("source", subexpressionName);
-        }
-
-        if (resultType) {
-            resultTypes = TTypeSet({*resultType});
-        } else {
-            resultTypes = genericAssignments;
-        }
-
-        return std::pair(resultTypes, [=, this] (EValueType type) {
-            EValueType argType;
-            if (resultType) {
-                YT_VERIFY(!genericAssignments.IsEmpty());
-                argType = GetFrontWithCheck(genericAssignments, argument->GetSource(Source));
-            } else {
-                argType = type;
-            }
-
-            EValueType effectiveStateType;
-            if (stateType) {
-                effectiveStateType = *stateType;
-            } else {
-                effectiveStateType = argType;
-            }
-
-            auto typedOperand = untypedOperand.Generator(argType);
-
-            typedOperand = TCastEliminator().Visit(typedOperand);
-            typedOperand = TExpressionSimplifier().Visit(typedOperand);
-            typedOperand = TNotExpressionPropagator().Visit(typedOperand);
-
-            AggregateItems_->emplace_back(
-                std::vector<TConstExpressionPtr>{typedOperand},
-                name,
-                subexpressionName,
-                effectiveStateType,
-                type);
-
-            return typedOperand;
-        });
-    }
+        const TString& subexpressionName);
 
     TUntypedExpression GetAggregateColumnPtr(
         const std::string& functionName,
         const TAggregateTypeInferrer* aggregateItem,
         const NAst::TExpression* argument,
-        const TString& subexpressionName)
-    {
-        if (!AfterGroupBy_) {
-            THROW_ERROR_EXCEPTION("Misuse of aggregate function %Qv", functionName);
-        }
-
-        auto typer = ProvideAggregateColumn(
-            functionName,
-            aggregateItem,
-            argument,
-            subexpressionName);
-
-        TExpressionGenerator generator = [=, this] (EValueType type) -> TConstExpressionPtr {
-            auto key = std::pair(subexpressionName, type);
-            auto found = AggregateLookup_.find(key);
-            if (found != AggregateLookup_.end()) {
-                return found->second;
-            } else {
-                auto argExpression = typer.second(type);
-                auto expr = New<TReferenceExpression>(
-                    MakeLogicalType(GetLogicalType(type), /*required*/ false),
-                    subexpressionName);
-                YT_VERIFY(AggregateLookup_.emplace(key, expr).second);
-                return expr;
-            }
-        };
-
-        return TUntypedExpression{.FeasibleTypes=typer.first, .Generator=std::move(generator), .IsConstant=false};
-    }
+        const TString& subexpressionName);
 
     TUntypedExpression OnExpression(
         const NAst::TExpression* expr);
+
+    TConstExpressionPtr BuildTypedExpression(
+        const NAst::TExpression* expr,
+        TTypeSet feasibleTypes = TTypeSet({
+            EValueType::Null,
+            EValueType::Int64,
+            EValueType::Uint64,
+            EValueType::Double,
+            EValueType::Boolean,
+            EValueType::String,
+            EValueType::Any,
+            EValueType::Composite}));
 
 private:
     struct ResolveNestedTypesResult
@@ -1565,6 +1483,12 @@ private:
         TLogicalTypePtr IntermediateType;
         TLogicalTypePtr ResultType;
     };
+
+    const NAst::TAliasMap& AliasMap_;
+    std::set<std::string> UsedAliases_;
+    int Depth_ = 0;
+
+    THashMap<std::pair<TString, EValueType>, TConstExpressionPtr> AggregateLookup_;
 
     ResolveNestedTypesResult ResolveNestedTypes(
         const TLogicalTypePtr& type,
@@ -1620,40 +1544,112 @@ private:
 
     TUntypedExpression OnLikeOp(
         const NAst::TLikeExpression* likeExpr);
+};
 
-public:
-    TConstExpressionPtr BuildTypedExpression(
-        const NAst::TExpression* expr,
-        TTypeSet feasibleTypes = TTypeSet({
-            EValueType::Null,
-            EValueType::Int64,
-            EValueType::Uint64,
-            EValueType::Double,
-            EValueType::Boolean,
-            EValueType::String,
-            EValueType::Any,
-            EValueType::Composite}))
-    {
-        auto expressionTyper = OnExpression(expr);
-        YT_VERIFY(!expressionTyper.FeasibleTypes.IsEmpty());
+// TODO(lukyan): Move ProvideAggregateColumn and GetAggregateColumnPtr to TBuilderCtxBase and provide callback
+// OnExpression or split into two functions (GetAggregate and SetAggregate).
+std::pair<TTypeSet, std::function<TConstExpressionPtr(EValueType)>> TBuilderCtx::ProvideAggregateColumn(
+    const std::string& name,
+    const TAggregateTypeInferrer* aggregateItem,
+    const NAst::TExpression* argument,
+    const TString& subexpressionName)
+{
+    YT_VERIFY(AfterGroupBy_);
 
-        if (!Unify(&feasibleTypes, expressionTyper.FeasibleTypes)) {
-            THROW_ERROR_EXCEPTION("Type mismatch in expression: expected %Qv, got %Qv",
-                feasibleTypes,
-                expressionTyper.FeasibleTypes)
-                << TErrorAttribute("source", expr->GetSource(Source));
-        }
+    // TODO(lukyan): Use guard.
+    AfterGroupBy_ = false;
+    auto untypedOperand = OnExpression(argument);
+    AfterGroupBy_ = true;
 
-        auto result = expressionTyper.Generator(
-            GetFrontWithCheck(feasibleTypes, expr->GetSource(Source)));
+    TTypeSet constraint;
+    std::optional<EValueType> stateType;
+    std::optional<EValueType> resultType;
 
-        result = TCastEliminator().Visit(result);
-        result = TExpressionSimplifier().Visit(result);
-        result = TNotExpressionPropagator().Visit(result);
-        return result;
+    aggregateItem->GetNormalizedConstraints(&constraint, &stateType, &resultType, name);
+
+    TTypeSet resultTypes;
+    TTypeSet genericAssignments = constraint;
+
+    if (!Unify(&genericAssignments, untypedOperand.FeasibleTypes)) {
+        THROW_ERROR_EXCEPTION("Type mismatch in function %Qv: expected %v, actual %v",
+            name,
+            genericAssignments,
+            untypedOperand.FeasibleTypes)
+            << TErrorAttribute("source", subexpressionName);
     }
 
-};
+    if (resultType) {
+        resultTypes = TTypeSet({*resultType});
+    } else {
+        resultTypes = genericAssignments;
+    }
+
+    return std::pair(resultTypes, [=, this] (EValueType type) {
+        EValueType argType;
+        if (resultType) {
+            YT_VERIFY(!genericAssignments.IsEmpty());
+            argType = GetFrontWithCheck(genericAssignments, argument->GetSource(Source_));
+        } else {
+            argType = type;
+        }
+
+        EValueType effectiveStateType;
+        if (stateType) {
+            effectiveStateType = *stateType;
+        } else {
+            effectiveStateType = argType;
+        }
+
+        auto typedOperand = untypedOperand.Generator(argType);
+
+        typedOperand = TCastEliminator().Visit(typedOperand);
+        typedOperand = TExpressionSimplifier().Visit(typedOperand);
+        typedOperand = TNotExpressionPropagator().Visit(typedOperand);
+
+        AggregateItems_->emplace_back(
+            std::vector<TConstExpressionPtr>{typedOperand},
+            name,
+            subexpressionName,
+            effectiveStateType,
+            type);
+
+        return typedOperand;
+    });
+}
+
+TUntypedExpression TBuilderCtx::GetAggregateColumnPtr(
+    const std::string& functionName,
+    const TAggregateTypeInferrer* aggregateItem,
+    const NAst::TExpression* argument,
+    const TString& subexpressionName)
+{
+    if (!AfterGroupBy_) {
+        THROW_ERROR_EXCEPTION("Misuse of aggregate function %Qv", functionName);
+    }
+
+    auto typer = ProvideAggregateColumn(
+        functionName,
+        aggregateItem,
+        argument,
+        subexpressionName);
+
+    TExpressionGenerator generator = [=, this] (EValueType type) -> TConstExpressionPtr {
+        auto key = std::pair(subexpressionName, type);
+        auto found = AggregateLookup_.find(key);
+        if (found != AggregateLookup_.end()) {
+            return found->second;
+        } else {
+            auto argExpression = typer.second(type);
+            auto expr = New<TReferenceExpression>(
+                MakeLogicalType(GetLogicalType(type), /*required*/ false),
+                subexpressionName);
+            YT_VERIFY(AggregateLookup_.emplace(key, expr).second);
+            return expr;
+        }
+    };
+
+    return TUntypedExpression{.FeasibleTypes=typer.first, .Generator=std::move(generator), .IsConstant=false};
+}
 
 TUntypedExpression TBuilderCtx::OnExpression(
     const NAst::TExpression* expr)
@@ -1703,6 +1699,29 @@ TUntypedExpression TBuilderCtx::OnExpression(
     }
 
     YT_ABORT();
+}
+
+TConstExpressionPtr TBuilderCtx::BuildTypedExpression(
+    const NAst::TExpression* expr,
+    TTypeSet feasibleTypes)
+{
+    auto expressionTyper = OnExpression(expr);
+    YT_VERIFY(!expressionTyper.FeasibleTypes.IsEmpty());
+
+    if (!Unify(&feasibleTypes, expressionTyper.FeasibleTypes)) {
+        THROW_ERROR_EXCEPTION("Type mismatch in expression: expected %Qv, got %Qv",
+            feasibleTypes,
+            expressionTyper.FeasibleTypes)
+            << TErrorAttribute("source", expr->GetSource(Source_));
+    }
+
+    auto result = expressionTyper.Generator(
+        GetFrontWithCheck(feasibleTypes, expr->GetSource(Source_)));
+
+    result = TCastEliminator().Visit(result);
+    result = TExpressionSimplifier().Visit(result);
+    result = TNotExpressionPropagator().Visit(result);
+    return result;
 }
 
 TBuilderCtx::ResolveNestedTypesResult TBuilderCtx::ResolveNestedTypes(
@@ -1857,9 +1876,9 @@ TUntypedExpression TBuilderCtx::OnReference(const NAst::TReference& reference)
 
     if (!reference.TableName) {
         const auto& columnName = reference.ColumnName;
-        auto found = AliasMap.find(columnName);
+        auto found = AliasMap_.find(columnName);
 
-        if (found != AliasMap.end()) {
+        if (found != AliasMap_.end()) {
             // try InferName(found, expand aliases = true)
 
             if (UsedAliases_.insert(columnName).second) {
@@ -1885,7 +1904,7 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
     auto functionName = functionExpr->FunctionName;
     functionName.to_lower();
 
-    const auto& descriptor = Functions->GetFunction(functionName);
+    const auto& descriptor = Functions_->GetFunction(functionName);
 
     // TODO(lukyan): Merge TAggregateFunctionTypeInferrer and TAggregateTypeInferrer.
 
@@ -1924,7 +1943,7 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
             &genericAssignments,
             formalArguments,
             functionName,
-            functionExpr->GetSource(Source));
+            functionExpr->GetSource(Source_));
 
         auto resultTypes = genericAssignments[resultConstraintIndex];
 
@@ -1937,7 +1956,7 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
             operandTypers = std::move(operandTypers),
             genericAssignments = std::move(genericAssignments),
             formalArguments = std::move(formalArguments),
-            source = functionExpr->GetSource(Source)
+            source = functionExpr->GetSource(Source_)
         ] (EValueType type) mutable -> TConstExpressionPtr {
             auto key = std::pair(subexpressionName, type);
             auto foundCached = AggregateLookup_.find(key);
@@ -1996,7 +2015,7 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
             return aggregateColumn;
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error creating aggregate")
-                << TErrorAttribute("source", functionExpr->GetSource(Source))
+                << TErrorAttribute("source", functionExpr->GetSource(Source_))
                 << ex;
         }
     } else if (const auto* regularFunction = descriptor->As<TFunctionTypeInferrer>()) {
@@ -2016,14 +2035,14 @@ TUntypedExpression TBuilderCtx::OnFunction(const NAst::TFunctionExpression* func
             argTypes,
             &genericAssignments,
             functionName,
-            functionExpr->GetSource(Source));
+            functionExpr->GetSource(Source_));
 
         TExpressionGenerator generator = [
             functionName,
             regularFunction,
             operandTypers,
             genericAssignments,
-            source = functionExpr->GetSource(Source)
+            source = functionExpr->GetSource(Source_)
         ] (EValueType type) mutable {
             auto effectiveTypes = RefineFunctionTypes(
                 regularFunction,
@@ -2062,7 +2081,7 @@ TUntypedExpression TBuilderCtx::OnUnaryOp(const NAst::TUnaryOpExpression* unaryE
         unaryExpr->Opcode,
         untypedOperand.FeasibleTypes,
         &genericAssignments,
-        unaryExpr->Operand.front()->GetSource(Source));
+        unaryExpr->Operand.front()->GetSource(Source_));
 
     if (untypedOperand.IsConstant) {
         auto value = untypedOperand.Generator(untypedOperand.FeasibleTypes.GetFront());
@@ -2080,7 +2099,7 @@ TUntypedExpression TBuilderCtx::OnUnaryOp(const NAst::TUnaryOpExpression* unaryE
         op = unaryExpr->Opcode,
         untypedOperand,
         genericAssignments,
-        opSource = unaryExpr->Operand.front()->GetSource(Source)
+        opSource = unaryExpr->Operand.front()->GetSource(Source_)
     ] (EValueType type) mutable {
         auto argType = RefineUnaryExprTypes(
             op,
@@ -2101,8 +2120,8 @@ TUntypedExpression TBuilderCtx::MakeBinaryExpr(
 {
     TTypeSet genericAssignments;
 
-    auto lhsSource = offset ? binaryExpr->Lhs[*offset]->GetSource(Source) : "";
-    auto rhsSource = offset ? binaryExpr->Rhs[*offset]->GetSource(Source) : "";
+    auto lhsSource = offset ? binaryExpr->Lhs[*offset]->GetSource(Source_) : "";
+    auto rhsSource = offset ? binaryExpr->Rhs[*offset]->GetSource(Source_) : "";
 
     auto resultTypes = InferBinaryExprTypes(
         op,
@@ -2132,7 +2151,7 @@ TUntypedExpression TBuilderCtx::MakeBinaryExpr(
         genericAssignments,
         lhsSource,
         rhsSource,
-        source = binaryExpr->GetSource(Source)
+        source = binaryExpr->GetSource(Source_)
     ] (EValueType type) mutable {
         auto argTypes = RefineBinaryExprTypes(
             op,
@@ -2222,7 +2241,7 @@ TUntypedExpression TBuilderCtx::OnBinaryOp(
             THROW_ERROR_EXCEPTION("Tuples of same size are expected but got %v vs %v",
                 binaryExpr->Lhs.size(),
                 binaryExpr->Rhs.size())
-                << TErrorAttribute("source", binaryExpr->GetSource(Source));
+                << TErrorAttribute("source", binaryExpr->GetSource(Source_));
         }
 
         int keySize = binaryExpr->Lhs.size();
@@ -2257,7 +2276,7 @@ void TBuilderCtx::InferArgumentTypes(
     for (const auto& argument : expressions) {
         auto untypedArgument = OnExpression(argument);
 
-        auto argType = GetFrontWithCheck(untypedArgument.FeasibleTypes, argument->GetSource(Source));
+        auto argType = GetFrontWithCheck(untypedArgument.FeasibleTypes, argument->GetSource(Source_));
         auto typedArgument = untypedArgument.Generator(argType);
 
         typedArguments->push_back(typedArgument);
@@ -2279,14 +2298,14 @@ TUntypedExpression TBuilderCtx::OnInOp(
     std::vector<TConstExpressionPtr> typedArguments;
     std::vector<EValueType> argTypes;
 
-    auto source = inExpr->GetSource(Source);
+    auto source = inExpr->GetSource(Source_);
 
     InferArgumentTypes(
         &typedArguments,
         &argTypes,
         inExpr->Expr,
         "IN",
-        inExpr->GetSource(Source));
+        inExpr->GetSource(Source_));
 
     for (auto type : argTypes) {
         if (IsAnyOrComposite(type)) {
@@ -2311,7 +2330,7 @@ TUntypedExpression TBuilderCtx::OnBetweenOp(
     std::vector<TConstExpressionPtr> typedArguments;
     std::vector<EValueType> argTypes;
 
-    auto source = betweenExpr->GetSource(Source);
+    auto source = betweenExpr->GetSource(Source_);
 
     InferArgumentTypes(
         &typedArguments,
@@ -2336,7 +2355,7 @@ TUntypedExpression TBuilderCtx::OnTransformOp(
     std::vector<TConstExpressionPtr> typedArguments;
     std::vector<EValueType> argTypes;
 
-    auto source = transformExpr->GetSource(Source);
+    auto source = transformExpr->GetSource(Source_);
 
     InferArgumentTypes(
         &typedArguments,
@@ -2461,7 +2480,7 @@ TUntypedExpression TBuilderCtx::OnTransformOp(
 
 TUntypedExpression TBuilderCtx::OnCaseOp(const NAst::TCaseExpression* caseExpr)
 {
-    auto source = caseExpr->GetSource(Source);
+    auto source = caseExpr->GetSource(Source_);
 
     TUntypedExpression untypedOperand;
     TTypeSet operandTypes;
@@ -2604,7 +2623,7 @@ TUntypedExpression TBuilderCtx::OnCaseOp(const NAst::TCaseExpression* caseExpr)
 
 TUntypedExpression TBuilderCtx::OnLikeOp(const NAst::TLikeExpression* likeExpr)
 {
-    auto source = likeExpr->GetSource(Source);
+    auto source = likeExpr->GetSource(Source_);
 
     if (likeExpr->Opcode == EStringMatchOp::Regex && likeExpr->EscapeCharacter) {
         THROW_ERROR_EXCEPTION("ESCAPE should not be used together with REGEXP (RLIKE)")
@@ -2674,7 +2693,7 @@ TConstExpressionPtr BuildPredicate(
     EValueType expectedType(EValueType::Boolean);
     if (actualType != expectedType) {
         THROW_ERROR_EXCEPTION("%v is not a boolean expression", name)
-            << TErrorAttribute("source", expressionAst.front()->GetSource(builder.Source))
+            << TErrorAttribute("source", expressionAst.front()->GetSource(builder.GetSource()))
             << TErrorAttribute("actual_type", actualType)
             << TErrorAttribute("expected_type", expectedType);
     }
@@ -2772,7 +2791,7 @@ void PrepareQuery(
 
             // Call PrepareExpression to extract references only.
             THashSet<std::string> references;
-            PrepareExpression(*expression, *query->Schema.Original, builder.Functions, &references);
+            PrepareExpression(*expression, *query->Schema.Original, builder.Functions(), &references);
 
             auto canEvaluate = true;
             for (const auto& reference : references) {
@@ -3515,7 +3534,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     PrepareQuery(query, ast, builder);
 
     // Must be filled after builder.Finish()
-    for (const auto& [reference, entry] : builder.Lookup) {
+    for (const auto& [reference, entry] : builder.Lookup()) {
         auto formattedName = NAst::InferColumnName(reference);
 
         for (size_t index = entry.OriginTableIndex; index < entry.LastTableIndex; ++index) {
