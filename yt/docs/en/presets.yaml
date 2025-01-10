@@ -10,3 +10,4 @@ public:
     production-cluster: <cluster-name>
     mr-clusters: <cluster-name>
     package-name: ytsaurus-client
+    pool-tree: default
