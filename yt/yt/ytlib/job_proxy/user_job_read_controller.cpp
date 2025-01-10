@@ -526,7 +526,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
             auto enableChunkFilter = inputQuerySpec.options().enable_chunk_filter();
 
             if (enableChunkFilter && query->WhereClause) {
-                chunkReadOptions.GranuleFilter = CreateGranuleMinMaxFilter(query);
+                chunkReadOptions.GranuleFilter = CreateGranuleMinMaxFilter(query, Logger);
             }
         }
         return New<TUserJobReadController>(

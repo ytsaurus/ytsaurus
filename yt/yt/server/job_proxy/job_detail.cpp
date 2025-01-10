@@ -222,7 +222,7 @@ void TSimpleJobBase::Initialize()
         auto enableChunkFilter = inputQuerySpec.options().enable_chunk_filter();
 
         if (enableChunkFilter && query->WhereClause) {
-            ChunkReadOptions_.GranuleFilter = CreateGranuleMinMaxFilter(query);
+            ChunkReadOptions_.GranuleFilter = CreateGranuleMinMaxFilter(query, Logger());
         }
     }
 }

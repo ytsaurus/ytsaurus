@@ -18,10 +18,6 @@ using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const NLogging::TLogger Logger("GranuleMinMaxFilter");
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TGranuleMinMaxFilter
     : public IGranuleFilter
 {
@@ -31,12 +27,14 @@ public:
         std::vector<int> relevantKeyPartIndices,
         TConstraintRef queryConstraint,
         TConstraintsHolder queryConstraintsHolder,
-        TRowBufferPtr rowBuffer)
+        TRowBufferPtr rowBuffer,
+        NLogging::TLogger logger)
         : Schema_(std::move(schema))
         , RelevantKeyPartIndices_(std::move(relevantKeyPartIndices))
         , QueryConstraint_(std::move(queryConstraint))
         , QueryConstraintsHolder_(std::move(queryConstraintsHolder))
         , RowBuffer_(std::move(rowBuffer))
+        , Logger(std::move(logger))
     { }
 
     ~TGranuleMinMaxFilter()
@@ -108,6 +106,8 @@ private:
     const TConstraintsHolder QueryConstraintsHolder_;
     const TRowBufferPtr RowBuffer_;
 
+    NLogging::TLogger Logger;
+
     mutable std::atomic<ui64> SeenGranules_ = 0;
     mutable std::atomic<ui64> SkippedGranules_ = 0;
     mutable std::atomic<ui64> TotalTimeSpentMilliSeconds_ = 0;
@@ -118,7 +118,7 @@ private:
 struct TGranuleMinMaxFilterQueryConstraintsTag
 { };
 
-IGranuleFilterPtr CreateGranuleMinMaxFilter(const TConstQueryPtr& query)
+IGranuleFilterPtr CreateGranuleMinMaxFilter(const TConstQueryPtr& query, NLogging::TLogger logger)
 {
     auto schema = query->GetReadSchema();
     auto& schemaColumns = schema->Columns();
@@ -164,7 +164,8 @@ IGranuleFilterPtr CreateGranuleMinMaxFilter(const TConstQueryPtr& query)
         std::move(relevantKeyPartIndices),
         std::move(queryConstraint),
         std::move(queryConstraintsHolder),
-        std::move(rowBuffer));
+        std::move(rowBuffer),
+        std::move(logger));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
