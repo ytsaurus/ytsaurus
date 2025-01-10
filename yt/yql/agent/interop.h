@@ -27,7 +27,7 @@ struct TYqlRowset
     bool Incomplete = false;
 };
 
-TYqlRowset BuildRowset(
+TYqlRowset BuildRowsetFromSkiff(
     const NHiveClient::TClientDirectoryPtr& clientDirectory,
     const NYTree::INodePtr& resultNode,
     int resultIndex,

@@ -115,7 +115,7 @@ TEST(TYqlAgentBuildRowsetTest, SkiffFormat)
             .EndList()
         .EndMap());
 
-    auto yqlRowset = BuildRowset(
+    auto yqlRowset = BuildRowsetFromSkiff(
         clientDirectory,
         resultNode,
         /*resultIndex*/ 0,
