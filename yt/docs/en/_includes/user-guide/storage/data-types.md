@@ -63,11 +63,15 @@ The table lists the supported types and their representation in the `type`/`type
 | a proper UTF8 sequence | `utf8` | `utf8` |
 | a string that contains a valid [JSON](https://en.wikipedia.org/wiki/JSON) | `json` | `json` |
 | [UUID](https://en.wikipedia.org/wiki/Universally_unique_identifier), a random 16-byte sequence (stored in binary representation) | `uuid` | `uuid` |
-| an integer in the range `[0, 49673 - 1]` <br> represents the number of days from the Unix epoch; <br> is the represented data range: `[1970-01-01, 2105-12-31]` | `date` | `date` |
-| an integer in the range `[0, 49673 * 86400 - 1]`, <br> represents the number of seconds since the Unix epoch; <br> is the represented time interval: `[1970-01-01T00:00:00Z, 2105-12-31T23:59:59Z]` | `datetime` | `datetime` |
-| an integer in the range `[0, 49673 * 86400 * 10^6 - 1]`, <br> represents the number of microseconds since the Unix epoch; <br> is the represented time interval: `[1970-01-01T00:00:00Z, 2105-12-31T23:59:59.999999Z]` | `timestamp` | `timestamp` |
-| an integer in the range `[- 49673 * 86400 * 10^6 + 1, 49673 * 86400 * 10^6 - 1]`, <br> represents the number of microseconds between two timestamps | `interval` | `interval` |
-| a random YSON structure, <br> is physically represented by a byte sequence, <br> cannot have `required=%true` | `any` | `yson` (different from `type`) |
+| an integer in the range `[-53375809, 53375808 - 1]`, <br> represents the number of days from the Unix epoch; <br> the representable time range is about 145,000 years into the past and into the future <br> see the section about [temporal types](#temporal_types) | `date32` | `date32` |
+| an integer in the range `[-53375809 * 86400, 53375808 * 86400 - 1]`, <br> represents the number of seconds from the Unix epoch; <br> the representable time range is about 145,000 years into the past and into the future <br> see the section about [temporal types](#temporal_types) | `datetime64` | `datetime64` |
+| an integer in the range `[-53375809 * 86400 * 10^6, 53375808 * 86400 * 10^6 - 1]`, <br> represents the number of microseconds from the Unix epoch; <br> the representable time range is about 145,000 years into the past and into the future <br> see the section about [temporal types](#temporal_types) | `timestamp64` | `timestamp64` |
+| an integer in the range `[-9223339708800000000, 9223339708800000000]`, <br> represents the number of microseconds between two `timestamp64` timestamps <br> see the section about [temporal types](#temporal_types) | `interval64` | `interval64` |
+| an integer in the range `[0, 49673 - 1]`, <br> represents the number of days from the Unix epoch; <br> representable date range: `[1970-01-01, 2105-12-31]`  <br> see the section about [temporal types](#temporal_types) | `date` | `date` |
+| an integer in the range `[0, 49673 * 86400 - 1]`, <br> represents the number of seconds from the Unix epoch; <br> representable time range: `[1970-01-01T00:00:00Z, 2105-12-31T23:59:59Z]`  <br> see the section about [temporal types](#temporal_types) | `datetime` | `datetime` |
+| an integer in the range `[0, 49673 * 86400 * 10^6 - 1]`, <br> represents the number of microseconds from the Unix epoch; <br> representable time range: `[1970-01-01T00:00:00Z, 2105-12-31T23:59:59.999999Z]`  <br> see the section about [temporal types](#temporal_types) | `timestamp` | `timestamp` |
+| an integer in the range `[- 49673 * 86400 * 10^6 + 1, 49673 * 86400 * 10^6 - 1]`, <br> represents the number of microseconds between two `timestamp` timestamps <br> see the section about [temporal types](#temporal_types) | `interval` | `interval` |
+| An arbitrary YSON structure<br> that is physically represented as a byte sequence, <br> cannot have a `required=%true` attribute | `any` | `yson` (different from `type`) |
 | a system singular type that can only contain `null` <br> (creating a separate column with this type makes no sense; <br> we don't expect to see this type in user tables, <br> but it's useful for YQL integration) | `null` | `null` |
 | a singular type that can only contain `null`; this type is different from `null` <br> (creating a separate column with this type makes no sense; <br> we don't expect to see this type in user tables, <br> but it's useful for YQL integration) | `void` | `void` |
 
@@ -83,6 +87,12 @@ type_v3=bool
 type_v3=yson
 ```
 
+### Temporal types { #temporal_types }
+
+Temporal types in {{product-name}} are categorized into two groups. Historically, the first ones to appear in the system were `date`, `datetime`, `timestamp`, and `interval`. They are used to represent times from the beginning of 1970 to the end of 2105. They were followed by `date32`, `datetime64`, `timestamp64`, and `interval64`. These types can be used to represent times over a wider range, about 145,000 into the past and into the future. We recommend using the latter types, because they have a wider range of values.
+
+The Gregorian calendar should be used for all of the temporal types. When dealing with values in the distant past, note that {{product-name}} in no way accounts for the [transition to the Gregorian calendar](https://en.wikipedia.org/wiki/Adoption_of_the_Gregorian_calendar), which occurred in different countries at different times: YT assumes that the Gregorian calendar has always been in use.
+
 ### Decimal { #schema_decimal }
 
 The values of type `decimal(p, s)` are real numbers with the specified precision.
@@ -97,7 +107,7 @@ Schema example:
 
 ```
 type_v3={
-    type_name=`decimal`
+    type_name=decimal;
     precision=10;
     scale=2;
 }
@@ -136,7 +146,7 @@ The integer representations of the special values of `nan`, `+inf`, `-inf` for t
 
 {% note info "Please note" %}
 
-Only decimals with precision up to 35 are currently supported when working with YQL.
+Only `decimals` with a `precision` of no more than 35 are currently supported when working with YQL.
 
 {% endnote %}
 
