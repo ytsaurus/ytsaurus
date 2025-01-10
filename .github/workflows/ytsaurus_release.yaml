@@ -60,7 +60,8 @@ jobs:
       build-strawberry: true
       build-ytsaurus: true
     secrets:
-      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
   tag:
@@ -130,4 +131,3 @@ jobs:
             ```
             ${{github.event.head_commit.message}}
             ```
-

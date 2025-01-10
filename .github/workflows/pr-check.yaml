@@ -7,8 +7,6 @@ on:
         type: string
 
     secrets:
-      YA_YT_TOKEN:
-        required: true
       YC_SA_JSON_CREDENTIALS:
         required: true
       GH_PERSONAL_ACCESS_TOKEN:
@@ -17,6 +15,10 @@ on:
         required: true
       YC_VM_SSH_PUBLIC_KEY:
         required: true
+      BUILD_CACHE_BAZEL_USERNAME:
+        required: false
+      BUILD_CACHE_BAZEL_PASSWORD:
+        required: false
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -92,7 +94,8 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-strawberry: true
     secrets:
-      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
   build-cmake:
@@ -108,7 +111,8 @@ jobs:
       build-chyt: ${{ github.ref_name == 'main' }}
       build-python: true
     secrets:
-      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
   build-ya-make:
@@ -124,7 +128,8 @@ jobs:
       build-query-tracker: ${{ github.ref_name == 'main' }}
       build-python: true
     secrets:
-      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
   stop-vm:
