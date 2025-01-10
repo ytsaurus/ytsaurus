@@ -443,11 +443,15 @@ NApi::TStartOperationOptions SerializeOptionsForStartOperation(
     return result;
 }
 
-NApi::TGetOperationOptions SerializeOptionsForGetOperation(const TGetOperationOptions& options)
+NApi::TGetOperationOptions SerializeOptionsForGetOperation(const TGetOperationOptions& options, bool useAlias)
 {
     NApi::TGetOperationOptions result;
     if (options.IncludeRuntime_) {
         result.IncludeRuntime = *options.IncludeRuntime_;
+    } else if (useAlias) {
+        // Getting operation by operation alias requires enabling this option.
+        // So enable it unless user explicitly set it.
+        result.IncludeRuntime = true;
     }
     if (options.AttributeFilter_) {
         result.Attributes = THashSet<TString>();

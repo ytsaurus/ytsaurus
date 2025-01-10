@@ -291,7 +291,7 @@ TOperationId TRpcRawClient::StartOperation(
 {
     auto future = Client_->StartOperation(
         NScheduler::EOperationType(type),
-        NYson::TYsonString(NodeToYsonString(spec)),
+        NYson::TYsonString(NodeToYsonString(spec, NYson::EYsonFormat::Binary)),
         SerializeOptionsForStartOperation(mutationId, transactionId));
     auto result = WaitFor(future).ValueOrThrow();
     return UtilGuidFromYtGuid(result.Underlying());
@@ -331,13 +331,9 @@ TOperationAttributes ParseOperationAttributes(const NApi::TOperation& operation)
         auto briefProgressNode = NodeFromYsonString(operation.BriefProgress.AsStringBuf());
         if (briefProgressNode.HasKey("jobs")) {
             result.BriefProgress.ConstructInPlace();
-            static auto load = [] (const TNode& item) {
-                // Backward compatibility with old YT versions
-                return item.IsInt64() ? item.AsInt64() : item["total"].AsInt64();
-            };
             const auto& jobs = briefProgressNode["jobs"];
-            result.BriefProgress->Aborted = load(jobs["aborted"]);
-            result.BriefProgress->Completed = load(jobs["completed"]);
+            result.BriefProgress->Aborted = jobs["aborted"].AsInt64();
+            result.BriefProgress->Completed = jobs["completed"].AsInt64();
             result.BriefProgress->Running = jobs["running"].AsInt64();
             result.BriefProgress->Total = jobs["total"].AsInt64();
             result.BriefProgress->Failed = jobs["failed"].AsInt64();
@@ -411,7 +407,7 @@ TOperationAttributes TRpcRawClient::GetOperation(
 {
     auto future = Client_->GetOperation(
         NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
-        SerializeOptionsForGetOperation(options));
+        SerializeOptionsForGetOperation(options, /*useAlias*/ false));
     auto result = WaitFor(future).ValueOrThrow();
     return ParseOperationAttributes(result);
 }
@@ -420,7 +416,7 @@ TOperationAttributes TRpcRawClient::GetOperation(
     const TString& alias,
     const TGetOperationOptions& options)
 {
-    auto future = Client_->GetOperation(alias, SerializeOptionsForGetOperation(options));
+    auto future = Client_->GetOperation(alias, SerializeOptionsForGetOperation(options, /*useAlias*/ true));
     auto result = WaitFor(future).ValueOrThrow();
     return ParseOperationAttributes(result);
 }
@@ -472,10 +468,10 @@ TListOperationsResult TRpcRawClient::ListOperations(const TListOperationsOptions
         result.Operations.push_back(ParseOperationAttributes(operation));
     }
     if (listOperationsResult.PoolCounts) {
-        result.PoolCounts = *listOperationsResult.PoolCounts;
+        result.PoolCounts = std::move(*listOperationsResult.PoolCounts);
     }
     if (listOperationsResult.UserCounts) {
-        result.UserCounts = *listOperationsResult.UserCounts;
+        result.UserCounts = std::move(*listOperationsResult.UserCounts);
     }
     if (listOperationsResult.StateCounts) {
         result.StateCounts.ConstructInPlace();

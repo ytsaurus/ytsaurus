@@ -99,7 +99,7 @@ NApi::TStartOperationOptions SerializeOptionsForStartOperation(
     TMutationId& mutationId,
     const TTransactionId& transactionId);
 
-NApi::TGetOperationOptions SerializeOptionsForGetOperation(const TGetOperationOptions& options);
+NApi::TGetOperationOptions SerializeOptionsForGetOperation(const TGetOperationOptions& options, bool useAlias);
 
 NApi::TSuspendOperationOptions SerializeOptionsForSuspendOperation(const TSuspendOperationOptions& options);
 
