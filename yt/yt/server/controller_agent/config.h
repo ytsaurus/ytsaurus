@@ -70,6 +70,8 @@ public:
     //! If this option is set, controller agent sleeps for this duration before finishing handshake.
     std::optional<TDuration> DelayInHandshake;
 
+    bool AbortOutputTransactionAfterCompletionTransactionCommit;
+
     REGISTER_YSON_STRUCT(TTestingOptions);
 
     static void Register(TRegistrar registrar);

@@ -49,6 +49,11 @@ void TTestingOptions::Register(TRegistrar registrar)
 
     registrar.Parameter("delay_in_handshake", &TThis::DelayInHandshake)
         .Default();
+
+    registrar.Parameter(
+        "abort_output_transaction_after_completion_transaction_commit",
+        &TThis::AbortOutputTransactionAfterCompletionTransactionCommit)
+        .Default(false);
 }
 
 void TLowGpuPowerUsageOnWindowConfig::Register(TRegistrar registrar)
