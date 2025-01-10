@@ -42,6 +42,10 @@ class TestOperationsPickling(object):
             "PYTHONPATH": os.environ.get("PYTHONPATH", ""),
         }
 
+    @authors("ermolovd")
+    def test_foo(self):
+        assert True
+
     @authors("asaitgalin")
     @add_failed_operation_stderrs_to_error_message
     def test_pickling(self):
