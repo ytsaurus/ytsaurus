@@ -1,0 +1,38 @@
+name: Generate Release Notes In Documentation
+
+on:
+  release:
+    types: [created, updated]
+
+permissions:
+  pull-requests: write
+  contents: write
+
+jobs:
+  generate-notes:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Generate release notes
+        run: |
+          ./ya make -r yt/yt/scripts/generate_release_notes
+          ./yt/yt/scripts/generate_release_notes/generate_release_notes -o "yt/docs/en/_includes/releases" -o "yt/docs/ru/_includes/releases"
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: Update Release Notes
+          branch: members/ci/update-release-notes-${{ github.event.release.tag_name }}
+          base: main
+          title: "Update Release Notes"
+          body: |
+            Update release notes in the documentation.
