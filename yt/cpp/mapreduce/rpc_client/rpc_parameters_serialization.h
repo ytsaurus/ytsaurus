@@ -151,6 +151,14 @@ NApi::TUnfreezeTableOptions SerializeOptionsForUnfreezeTable(const TUnfreezeTabl
 
 NApi::TCheckPermissionOptions SerializeOptionsForCheckPermission(const TCheckPermissionOptions& options);
 
+NApi::TGetColumnarStatisticsOptions SerializeOptionsForGetTableColumnarStatistics(
+    const TTransactionId& transactionId,
+    const TGetTableColumnarStatisticsOptions& options);
+
+NApi::TPartitionTablesOptions SerializeOptionsForGetTablePartitions(
+    const TTransactionId& transactionId,
+    const TGetTablePartitionsOptions& options);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDetail

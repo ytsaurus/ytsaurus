@@ -161,6 +161,17 @@ NApi::EDataSource ToApiDataSource(EListJobsDataSource source)
     YT_ABORT();
 }
 
+NTableClient::ETablePartitionMode ToApiTablePartitionMode(ETablePartitionMode mode)
+{
+    switch (mode) {
+        case ETablePartitionMode::Unordered:
+            return NTableClient::ETablePartitionMode::Unordered;
+        case ETablePartitionMode::Ordered:
+            return NTableClient::ETablePartitionMode::Ordered;
+    }
+    YT_ABORT();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Generates a new mutation ID based on the given conditions.
@@ -794,6 +805,33 @@ NApi::TCheckPermissionOptions SerializeOptionsForCheckPermission(const TCheckPer
     if (options.Columns_) {
         result.Columns = std::vector<std::string>(options.Columns_.begin(), options.Columns_.end());
     }
+    return result;
+}
+
+NApi::TGetColumnarStatisticsOptions SerializeOptionsForGetTableColumnarStatistics(
+    const TTransactionId& transactionId,
+    const TGetTableColumnarStatisticsOptions& options)
+{
+    NApi::TGetColumnarStatisticsOptions result;
+    SetTransactionId(&result, transactionId);
+    if (options.FetcherMode_) {
+        result.FetcherMode = NTableClient::EColumnarStatisticsFetcherMode(*options.FetcherMode_);
+    }
+    return result;
+}
+
+NApi::TPartitionTablesOptions SerializeOptionsForGetTablePartitions(
+    const TTransactionId& transactionId,
+    const TGetTablePartitionsOptions& options)
+{
+    NApi::TPartitionTablesOptions result;
+    SetTransactionId(&result, transactionId);
+    result.PartitionMode = ToApiTablePartitionMode(options.PartitionMode_);
+    result.DataWeightPerPartition = options.DataWeightPerPartition_;
+    if (options.MaxPartitionCount_) {
+        result.MaxPartitionCount = *options.MaxPartitionCount_;
+    }
+    result.AdjustDataWeightPerPartition = options.AdjustDataWeightPerPartition_;
     return result;
 }
 
