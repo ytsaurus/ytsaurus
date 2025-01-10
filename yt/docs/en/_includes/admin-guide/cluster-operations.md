@@ -89,7 +89,7 @@ It provides several standard examples of how to work with pools using the CLI.
 
 <small>Listing 1 — Viewing pools</small>
 ```bash
-yt get //sys/pool_trees/physical
+yt get //sys/pool_trees/{{pool-tree}}
 {
     "project-root" = {
         "project-subpool1" = {
@@ -107,7 +107,7 @@ yt get //sys/pool_trees/physical
 <small>Listing 2 — Creating a nested pool</small>
 
 ```bash
-yt create scheduler_pool --attributes='{pool_tree=physical;name=project-subpool1;parent_name=project-root}'
+yt create scheduler_pool --attributes='{pool_tree={{pool-tree}};name=project-subpool1;parent_name=project-root}'
 ```
 
 You can additionally pass pool-specific attributes. These attributes will be validated and if the validation fails, the object will not be created.
@@ -121,10 +121,10 @@ You can additionally pass pool-specific attributes. These attributes will be val
 
 ```bash
 # Setting the weight
-yt set //sys/pool_trees/physical/project-root/project-subpool1/@weight 10
+yt set //sys/pool_trees/{{pool-tree}}/project-root/project-subpool1/@weight 10
 
 # Forbid starting operations in the pool
-yt set //sys/pool_trees/physical/project-root/@forbid_immediate_operations '%true'
+yt set //sys/pool_trees/{{pool-tree}}/project-root/@forbid_immediate_operations '%true'
 ```
 {% endcut %}
 
@@ -135,7 +135,7 @@ Specifying guaranteed resources of the pool (it is possible only if the parent p
 <small>Listing 4 — Initial guarantee specification</small>
 
 ```bash
-yt set //sys/pool_trees/physical/project-root/project-subpool1/@strong_guarantee_resources '{cpu=50}'
+yt set //sys/pool_trees/{{pool-tree}}/project-root/project-subpool1/@strong_guarantee_resources '{cpu=50}'
 ```
 
 To change guarantee that already set specify concrete resource type:
@@ -143,7 +143,7 @@ To change guarantee that already set specify concrete resource type:
 <small>Listing 5 — Changing a guarantee</small>
 
 ```bash
-yt set //sys/pool_trees/physical/project-root/project-subpool1/@strong_guarantee_resources/cpu 100
+yt set //sys/pool_trees/{{pool-tree}}/project-root/project-subpool1/@strong_guarantee_resources/cpu 100
 ```
 
 {% endcut %}

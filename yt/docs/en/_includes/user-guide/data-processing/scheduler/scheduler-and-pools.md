@@ -38,9 +38,9 @@ Each pool tree has the `default_parent_pool` attribute, which specifies the defa
 Example of the setting for running an operation in two trees with indication of the pool in one of them:
 
 ```
-pool_trees = [physical; cloud];
+pool_trees = [{{pool-tree}}; cloud];
 scheduling_options_per_pool_tree = {
-    physical = {
+    {{pool-tree}} = {
         pool = cool_pool;
     }
 }

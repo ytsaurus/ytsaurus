@@ -109,7 +109,7 @@ $ yt set //sys/pools/root-pool/burst/@integral-guarantees/resource_flow "{cpu=10
 <small>Листинг 4</small>
 
 ```bash
-yt get //sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/physical/fair_share_info/pools/pool_name/integral_pool_capacity
+yt get //sys/scheduler/orchid/scheduler/scheduling_info_per_pool_tree/{{pool-tree}}/fair_share_info/pools/pool_name/integral_pool_capacity
 ```
 
 {% note warning "Внимание" %}

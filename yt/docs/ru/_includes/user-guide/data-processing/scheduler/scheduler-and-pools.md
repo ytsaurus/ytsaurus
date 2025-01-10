@@ -38,9 +38,9 @@
 Пример настройки для запуска операции в двух деревьях с указанием пула в одном из них:
 
 ```
-pool_trees = [physical; cloud];
+pool_trees = [{{pool-tree}}; cloud];
 scheduling_options_per_pool_tree = {
-    physical = {
+    {{pool-tree}} = {
         pool = cool_pool;
     }
 }
