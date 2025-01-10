@@ -1127,10 +1127,15 @@ private:
 
         auto clusterName = LocalClusterName;
         if (RemoteCopyJobSpecExt_.has_remote_cluster_name() && RemoteCopyJobSpecExt_.use_cluster_throttlers()) {
-            clusterName = TClusterName(RemoteCopyJobSpecExt_.remote_cluster_name());
+            clusterName = FromProto<TClusterName>(RemoteCopyJobSpecExt_.remote_cluster_name());
         }
 
-        auto bandwidthThrottlerFactory = BIND([this, this_ = MakeWeak(this)](const TClusterName& clusterName) {
+        auto bandwidthThrottlerFactory = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) {
+            auto thisLocked = weakThis.Lock();
+            if (!thisLocked) {
+                return IThroughputThrottlerPtr();
+            }
+
             return Host_->GetInBandwidthThrottler(clusterName);
         });
 

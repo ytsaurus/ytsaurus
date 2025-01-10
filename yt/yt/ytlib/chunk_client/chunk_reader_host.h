@@ -27,7 +27,7 @@ struct TChunkReaderHost
         NConcurrency::IThroughputThrottlerPtr rpsThrottler,
         NConcurrency::IThroughputThrottlerPtr mediumThrottler,
         TTrafficMeterPtr trafficMeter,
-        std::optional<TCallback<NConcurrency::IThroughputThrottlerPtr(const NScheduler::TClusterName& clusterName)>> bandwidthThrottlerFactory = std::nullopt);
+        TCallback<NConcurrency::IThroughputThrottlerPtr(const NScheduler::TClusterName& clusterName)> bandwidthThrottlerFactory = {});
 
     const NApi::NNative::IClientPtr Client;
 
@@ -44,7 +44,7 @@ struct TChunkReaderHost
 
     const TTrafficMeterPtr TrafficMeter;
 
-    const std::optional<TCallback<NConcurrency::IThroughputThrottlerPtr(const NScheduler::TClusterName& clusterName)>> BandwidthThrottlerFactory;
+    const TCallback<NConcurrency::IThroughputThrottlerPtr(const NScheduler::TClusterName& clusterName)> BandwidthThrottlerFactory;
 
     static TChunkReaderHostPtr FromClient(
         NApi::NNative::IClientPtr client,

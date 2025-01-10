@@ -284,6 +284,8 @@ TTrafficMeterPtr TJobProxy::GetTrafficMeter() const
 
 IThroughputThrottlerPtr TJobProxy::GetInBandwidthThrottler(const TClusterName& clusterName) const
 {
+    auto guard = Guard(InBandwidthThrottlersSpinLock_);
+
     auto it = InBandwidthThrottlers_.find(clusterName);
     if (it == InBandwidthThrottlers_.end()) {
         NConcurrency::IThroughputThrottlerPtr throttler;
@@ -1535,7 +1537,12 @@ NApi::NNative::IClientPtr TJobProxy::GetClient() const
 
 TChunkReaderHostPtr TJobProxy::GetChunkReaderHost() const
 {
-    auto bandwidthThrottlerFactory = BIND([this, this_ = MakeWeak(this)](const TClusterName& clusterName) {
+    auto bandwidthThrottlerFactory = BIND([this, weakThis = MakeWeak(this)] (const TClusterName& clusterName) {
+        auto thisLocked = weakThis.Lock();
+        if (!thisLocked) {
+            return IThroughputThrottlerPtr();
+        }
+
         return GetInBandwidthThrottler(clusterName);
     });
 

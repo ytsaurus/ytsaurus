@@ -369,7 +369,7 @@ private:
         auto amount = request->amount();
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto jobId = FromProto<TJobId>(request->job_id());
-        auto remoteClusterName = request->has_remote_cluster_name() ? std::make_optional<TClusterName>(request->remote_cluster_name()) : std::nullopt;
+        auto remoteClusterName = YT_PROTO_OPTIONAL(*request, remote_cluster_name, TClusterName);
 
         context->SetRequestInfo("ThrottlerType: %v, Amount: %v, JobId: %v, WorkloadDescriptor: %v, RemoteClusterName: %v",
             throttlerType,
