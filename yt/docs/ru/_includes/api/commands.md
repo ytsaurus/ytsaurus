@@ -2340,7 +2340,7 @@ PARAMETERS { "operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4" }
 Пример:
 
 ```bash
-PARAMETERS {"operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "parameters" = {"pool" = "username"; "scheduling_options_per_pool_tree" = {"physical" = {"weight" = 2; "resource_limits" = { "user_slots" = 1; "cpu" = 0.5; "network" = 10; "memory" = 1000000000}}}}}
+PARAMETERS {"operation_id" = "33ab3f-bf1df917-b35fe9ed-c70a4bf4"; "parameters" = {"pool" = "username"; "scheduling_options_per_pool_tree" = {"{{pool-tree}}" = {"weight" = 2; "resource_limits" = { "user_slots" = 1; "cpu" = 0.5; "network" = 10; "memory" = 1000000000}}}}}
 ```
 
 ## Работа с джобами
