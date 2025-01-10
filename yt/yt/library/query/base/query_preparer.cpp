@@ -2626,10 +2626,10 @@ TUntypedExpression TBuilderCtx::OnLikeOp(const NAst::TLikeExpression* likeExpr)
 
         auto untypedExpression = OnExpression(expression.front());
         if (!Unify(&stringTypes, untypedExpression.FeasibleTypes)) {
-                THROW_ERROR_EXCEPTION("Types mismatch in %v", name)
-                    << TErrorAttribute("source", source)
-                    << TErrorAttribute("actual_type", ToString(untypedExpression.FeasibleTypes))
-                    << TErrorAttribute("expected_type", ToString(stringTypes));
+            THROW_ERROR_EXCEPTION("Types mismatch in %v", name)
+                << TErrorAttribute("source", source)
+                << TErrorAttribute("actual_type", ToString(untypedExpression.FeasibleTypes))
+                << TErrorAttribute("expected_type", ToString(stringTypes));
         }
 
         return untypedExpression.Generator(EValueType::String);

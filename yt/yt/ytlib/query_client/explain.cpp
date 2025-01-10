@@ -1,4 +1,3 @@
-
 #include "explain.h"
 
 #include <yt/yt/library/query/base/functions.h>
