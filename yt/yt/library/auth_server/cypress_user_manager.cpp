@@ -9,6 +9,7 @@
 
 namespace NYT::NAuth {
 
+using namespace NYPath;
 using namespace NYTree;
 using namespace NObjectClient;
 
@@ -48,7 +49,7 @@ public:
     {
         YT_LOG_DEBUG("Checking if user exists (Name: %v)", name);
 
-        return Client_->NodeExists("//sys/users/" + name);
+        return Client_->NodeExists("//sys/users/" + ToYPathLiteral(name));
     }
 
 private:
@@ -82,7 +83,7 @@ public:
     { }
 
 private:
-    ICypressUserManagerPtr CypressUserManager_;
+    const ICypressUserManagerPtr CypressUserManager_;
 
     TFuture<TObjectId> DoGet(
         const TString& name,
@@ -110,7 +111,7 @@ public:
     { }
 
 private:
-    ICypressUserManagerPtr CypressUserManager_;
+    const ICypressUserManagerPtr CypressUserManager_;
 
     TFuture<bool> DoGet(
         const TString& name,
@@ -148,8 +149,8 @@ public:
     }
 
 private:
-    TCypressUserManagerCreateUserCachePtr CreateUserCache_;
-    TCypressUserManagerCheckUserExistsCachePtr CheckUserExistsCache_;
+    const TCypressUserManagerCreateUserCachePtr CreateUserCache_;
+    const TCypressUserManagerCheckUserExistsCachePtr CheckUserExistsCache_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
