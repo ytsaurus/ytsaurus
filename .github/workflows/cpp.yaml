@@ -94,7 +94,8 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       build-strawberry: true
     secrets:
-      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
   build-cmake:
@@ -109,8 +110,10 @@ jobs:
       build-ytsaurus: true
       build-chyt: ${{ github.ref_name == 'main' }}
       build-python: true
+      update-remote-cache: true
     secrets:
-      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
   docker-cmake:
@@ -145,8 +148,10 @@ jobs:
       build-ytsaurus: true
       build-query-tracker: ${{ github.ref_name == 'main' }}
       build-python: true
+      update-remote-cache: true
     secrets:
-      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
+      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
   docker-ya-make:
