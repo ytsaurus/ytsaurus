@@ -1089,7 +1089,6 @@
   "contrib/restricted/boost/exception/CMakeLists.darwin-x86_64.txt":"",
   "contrib/restricted/boost/exception/CMakeLists.linux-x86_64.txt":"",
   "contrib/restricted/boost/exception/CMakeLists.txt":"",
-  "contrib/restricted/boost/format/CMakeLists.txt":"",
   "contrib/restricted/boost/function/CMakeLists.darwin-arm64.txt":"",
   "contrib/restricted/boost/function/CMakeLists.darwin-x86_64.txt":"",
   "contrib/restricted/boost/function/CMakeLists.linux-x86_64.txt":"",
