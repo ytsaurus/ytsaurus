@@ -86,9 +86,11 @@
             ];
             "enable_master_cache_discovery" = %false;
             "soft_backoff_time" = 100;
-            "retry_attempts" = 100;
             "rpc_timeout" = 25000;
-            "retry_backoff_time" = 100;
+            "enable_exponential_retry_backoffs" = %true;
+            "retry_backoff" = {
+                "min_backoff" = 100;
+            };
         };
         "permission_cache" = {
             "expire_after_successful_update_time" = 0;
@@ -189,9 +191,11 @@
         ];
         "enable_master_cache_discovery" = %false;
         "soft_backoff_time" = 100;
-        "retry_attempts" = 100;
         "rpc_timeout" = 25000;
-        "retry_backoff_time" = 100;
+        "enable_exponential_retry_backoffs" = %true;
+        "retry_backoff" = {
+            "min_backoff" = 100;
+        };
     };
     "hive_manager" = {
         "idle_post_period" = 1000;

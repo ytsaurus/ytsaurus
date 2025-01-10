@@ -1665,7 +1665,10 @@ def _build_cluster_connection_config(yt_config,
             "refresh_time": 0,
         },
         "scheduler": {
-            "retry_backoff_time": 100,
+            "enable_exponential_retry_backoffs": True,
+            "retry_backoff": {
+                "min_backoff": 10,
+            },
             # COMPAT(pogorelov)
             "use_scheduler_job_prober_service": False,
         },
@@ -1746,8 +1749,11 @@ def _build_cluster_connection_config(yt_config,
             "addresses": master_cache_addresses,
         }
         cluster_connection["chaos_cell_channel"] = {
-            "retry_backoff_time": 500,
-            "retry_attempts": 10,
+            "enable_exponential_retry_backoffs": True,
+            "retry_backoff": {
+                "invocation_count": 10,
+                "min_backoff": 50,
+            },
             "rpc_acknowledge_timeout": 100,
         }
         cluster_connection["chaos_residency_cache"] = {
@@ -2215,8 +2221,10 @@ def _get_balancing_channel_config():
 
 def _get_retrying_channel_config():
     return {
-        "retry_backoff_time": 100,
-        "retry_attempts": 100
+        "enable_exponential_retry_backoffs": True,
+        "retry_backoff": {
+            "min_backoff": 100,
+        },
     }
 
 
