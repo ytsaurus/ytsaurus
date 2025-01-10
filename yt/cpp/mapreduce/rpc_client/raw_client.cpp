@@ -8,6 +8,8 @@
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
+#include <library/cpp/iterator/enumerate.h>
+
 #include <library/cpp/yson/node/node_io.h>
 
 namespace NYT::NDetail {
@@ -872,6 +874,86 @@ TVector<TTabletInfo> TRpcRawClient::GetTabletInfos(
             .TrimmedRowCount = info.TrimmedRowCount,
             .BarrierTimestamp = info.BarrierTimestamp,
         });
+    }
+    return result;
+}
+
+TVector<TTableColumnarStatistics> TRpcRawClient::GetTableColumnarStatistics(
+    const TTransactionId& transactionId,
+    const TVector<TRichYPath>& paths,
+    const TGetTableColumnarStatisticsOptions& options)
+{
+    std::vector<NYPath::TRichYPath> newPaths(paths.size());
+    std::transform(paths.begin(), paths.end(), newPaths.begin(), ToApiRichPath);
+
+    auto future = Client_->GetColumnarStatistics(newPaths, SerializeOptionsForGetTableColumnarStatistics(transactionId, options));
+    auto tableColumnarStatistics = WaitFor(future).ValueOrThrow();
+
+    YT_VERIFY(newPaths.size() == tableColumnarStatistics.size());
+    for (int index = 0; index < std::ssize(tableColumnarStatistics); ++index) {
+        YT_VERIFY(std::ssize(*newPaths[index].GetColumns()) == tableColumnarStatistics[index].GetColumnCount());
+    }
+
+    TVector<TTableColumnarStatistics> result;
+    result.reserve(tableColumnarStatistics.size());
+
+    for (const auto& [tableIdx, entry] : Enumerate(tableColumnarStatistics)) {
+        TTableColumnarStatistics statistics;
+        if (auto columns = newPaths[tableIdx].GetColumns()) {
+            for (const auto& [columnIdx, columnName] : Enumerate(*columns)) {
+                statistics.ColumnDataWeight[columnName] = entry.ColumnDataWeights[columnIdx];
+                if (entry.HasLargeStatistics()) {
+                    statistics.ColumnEstimatedUniqueCounts[columnName] = entry.LargeStatistics.ColumnHyperLogLogDigests[columnIdx].EstimateCardinality();
+                }
+            }
+        }
+
+        statistics.LegacyChunksDataWeight = entry.LegacyChunkDataWeight;
+        if (entry.TimestampTotalWeight) {
+            statistics.TimestampTotalWeight = *entry.TimestampTotalWeight;
+        }
+
+        result.emplace_back(std::move(statistics));
+    }
+    return result;
+}
+
+TMultiTablePartitions TRpcRawClient::GetTablePartitions(
+    const TTransactionId& transactionId,
+    const TVector<TRichYPath>& paths,
+    const TGetTablePartitionsOptions& options)
+{
+    std::vector<NYPath::TRichYPath> newPaths(paths.size());
+    std::transform(paths.begin(), paths.end(), newPaths.begin(), ToApiRichPath);
+
+    auto future = Client_->PartitionTables(newPaths, SerializeOptionsForGetTablePartitions(transactionId, options));
+    auto multiTablePartitions = WaitFor(future).ValueOrThrow();
+
+    TMultiTablePartitions result;
+    result.Partitions.reserve(multiTablePartitions.Partitions.size());
+
+    for (const auto& entry : multiTablePartitions.Partitions) {
+        TMultiTablePartition partition;
+        partition.TableRanges.reserve(entry.TableRanges.size());
+
+        for (const auto& tableRange : entry.TableRanges) {
+            TNode tableRangeNode;
+            TNodeBuilder builder(&tableRangeNode);
+            Serialize(tableRange, &builder);
+
+            TRichYPath actualTableRange;
+            Deserialize(actualTableRange, tableRangeNode);
+            partition.TableRanges.emplace_back(std::move(actualTableRange));
+        }
+
+        const auto& statistics = entry.AggregateStatistics;
+        partition.AggregateStatistics = TMultiTablePartition::TStatistics{
+            .ChunkCount = statistics.ChunkCount,
+            .DataWeight = statistics.DataWeight,
+            .RowCount = statistics.RowCount,
+        };
+
+        result.Partitions.emplace_back(std::move(partition));
     }
     return result;
 }

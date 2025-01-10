@@ -272,6 +272,16 @@ public:
         const TVector<int>& tabletIndexes,
         const TGetTabletInfosOptions& options = {}) override;
 
+    TVector<TTableColumnarStatistics> GetTableColumnarStatistics(
+        const TTransactionId& transactionId,
+        const TVector<TRichYPath>& paths,
+        const TGetTableColumnarStatisticsOptions& options = {}) override;
+
+    TMultiTablePartitions GetTablePartitions(
+        const TTransactionId& transactionId,
+        const TVector<TRichYPath>& paths,
+        const TGetTablePartitionsOptions& options = {}) override;
+
     ui64 GenerateTimestamp() override;
 
 private:
