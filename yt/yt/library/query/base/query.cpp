@@ -182,6 +182,41 @@ TTransformExpression::TTransformExpression(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TCaseExpression::TCaseExpression(EValueType type)
+    : TExpression(type)
+{ }
+
+TCaseExpression::TCaseExpression(
+    EValueType type,
+    TConstExpressionPtr optionalOperand,
+    std::vector<TWhenThenExpressionPtr> whenThenExpressions,
+    TConstExpressionPtr defaultExpression)
+    : TExpression(type)
+    , OptionalOperand(std::move(optionalOperand))
+    , WhenThenExpressions(std::move(whenThenExpressions))
+    , DefaultExpression(std::move(defaultExpression))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLikeExpression::TLikeExpression(EValueType type)
+    : TExpression(type)
+{ }
+
+TLikeExpression::TLikeExpression(
+    TConstExpressionPtr text,
+    EStringMatchOp opcode,
+    TConstExpressionPtr pattern,
+    TConstExpressionPtr escapeCharacter)
+    : TExpression(EValueType::Boolean)
+    , Text(std::move(text))
+    , Opcode(opcode)
+    , Pattern(std::move(pattern))
+    , EscapeCharacter(std::move(escapeCharacter))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCompositeMemberAccessorPath::AppendStructMember(TStructMemberAccessor name, int position)
 {
     NestedTypes.push_back(ELogicalMetatype::Struct);
@@ -354,6 +389,13 @@ TTableSchemaPtr TProjectClause::GetTableSchema() const
 
     return New<TTableSchema>(std::move(result));
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TWhenThenExpression::TWhenThenExpression(TConstExpressionPtr condition, TConstExpressionPtr result)
+    : Condition(std::move(condition))
+    , Result(std::move(result))
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
