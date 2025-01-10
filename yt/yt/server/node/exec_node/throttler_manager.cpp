@@ -78,7 +78,7 @@ private:
         IThroughputThrottlerPtr Throttler;
         TThroughputThrottlerConfigPtr ThrottlerConfig;
     };
-    TMap<TThrottlerId, TThroughputThrottlerData> DistributedThrottlersHolder_;
+    std::map<TThrottlerId, TThroughputThrottlerData> DistributedThrottlersHolder_;
     TEnumIndexedArray<EExecNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> RawThrottlers_;
     TEnumIndexedArray<EExecNodeThrottlerKind, IThroughputThrottlerPtr> Throttlers_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
@@ -137,7 +137,7 @@ std::pair<EThrottlerTrafficType, TClusterName> TThrottlerManager::FromThrottlerI
             return {trafficType, TClusterName(throttlerId.substr(trafficTypeString.size()))};
         }
     }
-    THROW_ERROR_EXCEPTION("Invalid throttler id: %Qv", throttlerId);
+    THROW_ERROR_EXCEPTION("Invalid throttler id %Qv", throttlerId);
 }
 
 void TThrottlerManager::UpdateDistributedThrottlers()
@@ -222,7 +222,7 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
         newConfig = ConvertTo<TClusterThrottlersConfigPtr>(newConfigYson);
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to parse cluster throttlers config (Config: %v)",
-            newConfigYson);
+            NYson::ConvertToYsonString(newConfigYson, NYson::EYsonFormat::Text));
         auto guard = Guard(Lock_);
         DistributedThrottlersHolder_.clear();
         DistributedThrottlerFactory_.Reset();
@@ -232,11 +232,11 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
     auto guard = Guard(Lock_);
 
     if (AreClusterThrottlersConfigsEqual(ClusterThrottlersConfig_, newConfig)) {
-        YT_LOG_DEBUG("The new cluster throttlers config is the same as the old one");
+        YT_LOG_DEBUG("New cluster throttlers config is the same as the old one");
         return;
     }
 
-    YT_LOG_DEBUG("The new cluster throttlers config is different from the old one");
+    YT_LOG_DEBUG("New cluster throttlers config is different from the old one");
 
     ClusterThrottlersConfig_ = std::move(newConfig);
 
@@ -294,7 +294,7 @@ IThroughputThrottlerPtr TThrottlerManager::GetOrCreateDistributedThrottler(EExec
 
     auto it = ClusterThrottlersConfig_->ClusterLimits.find(remoteClusterName->Underlying());
     if (it == ClusterThrottlersConfig_->ClusterLimits.end()) {
-        YT_LOG_WARNING("Couldn't find remote cluster in cluster limits (ClusterName: %v)",
+        YT_LOG_WARNING("Could not find remote cluster in cluster limits (ClusterName: %v)",
             remoteClusterName->Underlying());
         return nullptr;
     }

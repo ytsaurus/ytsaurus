@@ -61,7 +61,7 @@ DEFINE_REFCOUNTED_TYPE(TClusterLimitsConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Get //sys/cluster_throttlers configuration file as YSON.
-TFuture<NYT::NYson::TYsonString> GetClusterThrottlersYson(NApi::NNative::IClientPtr client);
+TFuture<NYT::NYson::TYsonString> GetClusterThrottlersYson(const NApi::NNative::IClientPtr& client);
 //! Return true if two configs are the same.
 bool AreClusterThrottlersConfigsEqual(TClusterThrottlersConfigPtr lhs, TClusterThrottlersConfigPtr rhs);
 

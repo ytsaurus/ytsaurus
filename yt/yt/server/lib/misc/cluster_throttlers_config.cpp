@@ -49,7 +49,7 @@ void TClusterLimitsConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TYsonString> GetClusterThrottlersYson(NNative::IClientPtr client)
+TFuture<TYsonString> GetClusterThrottlersYson(const NNative::IClientPtr& client)
 {
     TGetNodeOptions options;
     options.ReadFrom = EMasterChannelKind::Cache;

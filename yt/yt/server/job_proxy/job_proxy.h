@@ -163,6 +163,8 @@ private:
     NChunkClient::TTrafficMeterPtr TrafficMeter_;
 
     mutable THashMap<NScheduler::TClusterName, NConcurrency::IThroughputThrottlerPtr> InBandwidthThrottlers_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, InBandwidthThrottlersSpinLock_);
+
     NConcurrency::IThroughputThrottlerPtr OutBandwidthThrottler_;
     NConcurrency::IThroughputThrottlerPtr OutRpsThrottler_;
     NConcurrency::IThroughputThrottlerPtr UserJobContainerCreationThrottler_;

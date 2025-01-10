@@ -46,7 +46,7 @@ public:
         request->set_amount(amount);
         ToProto(request->mutable_job_id(), jobId);
         if (RemoteClusterName_) {
-            request->set_remote_cluster_name(RemoteClusterName_->Underlying());
+            request->set_remote_cluster_name(ToProto(*RemoteClusterName_));
         }
 
         request->Invoke().Subscribe(BIND(&TThrottlingSession::OnThrottlingResponse, MakeStrong(this)));
@@ -251,8 +251,8 @@ public:
     }
 
 private:
-    std::optional<TClusterName> ClusterName_;
-    TIntrusivePtr<TJobBandwidthThrottler> Throttler_;
+    const std::optional<TClusterName> ClusterName_;
+    const TIntrusivePtr<TJobBandwidthThrottler> Throttler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

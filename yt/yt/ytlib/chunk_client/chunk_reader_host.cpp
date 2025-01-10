@@ -25,7 +25,7 @@ TChunkReaderHost::TChunkReaderHost(
     NConcurrency::IThroughputThrottlerPtr rpsThrottler,
     NConcurrency::IThroughputThrottlerPtr mediumThrottler,
     TTrafficMeterPtr trafficMeter,
-    std::optional<TCallback<NConcurrency::IThroughputThrottlerPtr(const NScheduler::TClusterName& clusterName)>> bandwidthThrottlerFactory)
+    TCallback<NConcurrency::IThroughputThrottlerPtr(const TClusterName& clusterName)> bandwidthThrottlerFactory)
     : Client(std::move(client))
     , LocalDescriptor(std::move(localDescriptor))
     , BlockCache(std::move(blockCache))
@@ -69,7 +69,7 @@ TChunkReaderHostPtr TChunkReaderHost::CreateHostForCluster(const TClusterName& c
                 ->CreateNativeClient(Client->GetOptions());
     }
 
-    auto bandwidthThrottler = BandwidthThrottlerFactory ? (*BandwidthThrottlerFactory)(clusterName) : BandwidthThrottler;
+    auto bandwidthThrottler = BandwidthThrottlerFactory ? BandwidthThrottlerFactory(clusterName) : BandwidthThrottler;
 
     return New<TChunkReaderHost>(
         std::move(client),
