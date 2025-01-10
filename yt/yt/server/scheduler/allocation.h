@@ -15,7 +15,6 @@
 
 #include <yt/yt/core/misc/codicil.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/phoenix.h>
 
 #include <yt/yt/core/yson/consumer.h>
 

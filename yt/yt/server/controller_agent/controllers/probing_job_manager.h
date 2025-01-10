@@ -23,6 +23,7 @@ class TProbingJobManager
 public:
     //! Used only for persistence.
     TProbingJobManager();
+    TProbingJobManager& operator=(const TProbingJobManager& other);
 
     TProbingJobManager(
         ICompetitiveJobManagerHost* host,
@@ -39,8 +40,6 @@ public:
 
     void UpdatePendingJobCount(TCompositePendingJobCount* pendingJobCount) const;
 
-    void Persist(const TPersistenceContext& context);
-
 private:
     std::optional<double> ProbingRatio_;
     std::optional<TString> ProbingPoolTree_;
@@ -52,6 +51,8 @@ private:
         const TJobletPtr& joblet,
         const std::function<void(TProgressCounterGuard*)>& updateJobCounter,
         NJobTrackerClient::EJobState state) override;
+
+    PHOENIX_DECLARE_TYPE(TProbingJobManager, 0x5137fadd);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

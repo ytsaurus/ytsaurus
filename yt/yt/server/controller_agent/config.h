@@ -34,7 +34,8 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-#include <yt/yt/core/misc/phoenix.h>
+#include <yt/yt/core/phoenix/polymorphic.h>
+#include <yt/yt/core/phoenix/type_decl.h>
 
 namespace NYT::NControllerAgent {
 
@@ -309,11 +310,8 @@ DEFINE_REFCOUNTED_TYPE(TUserJobOptions)
 
 class TOperationOptions
     : public NYTree::TYsonStruct
-    , public virtual NPhoenix::TDynamicTag
+    , public virtual NPhoenix2::TPolymorphicBase
 {
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TOperationOptions, 0x6d2a0bdd);
-
 public:
     NYTree::INodePtr SpecTemplate;
 
@@ -366,6 +364,9 @@ public:
     REGISTER_YSON_STRUCT(TOperationOptions);
 
     static void Register(TRegistrar registrar);
+
+private:
+    PHOENIX_DECLARE_OPAQUE_TYPE(TOperationOptions, 0x6d2a0bdd);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOperationOptions)
@@ -375,9 +376,6 @@ DEFINE_REFCOUNTED_TYPE(TOperationOptions)
 class TSimpleOperationOptions
     : public TOperationOptions
 {
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TSimpleOperationOptions, 0x875251fa);
-
 public:
     int MaxJobCount;
     i64 DataWeightPerJob;
@@ -385,6 +383,9 @@ public:
     REGISTER_YSON_STRUCT(TSimpleOperationOptions);
 
     static void Register(TRegistrar registrar);
+
+private:
+    PHOENIX_DECLARE_OPAQUE_TYPE(TSimpleOperationOptions, 0x875251fa);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSimpleOperationOptions)
@@ -394,15 +395,15 @@ DEFINE_REFCOUNTED_TYPE(TSimpleOperationOptions)
 class TMapOperationOptions
     : public TSimpleOperationOptions
 {
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TMapOperationOptions, 0x5d08252b);
-
 public:
     NChunkPools::TJobSizeAdjusterConfigPtr JobSizeAdjuster;
 
     REGISTER_YSON_STRUCT(TMapOperationOptions);
 
     static void Register(TRegistrar registrar);
+
+private:
+    PHOENIX_DECLARE_OPAQUE_TYPE(TMapOperationOptions, 0x5d08252b);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMapOperationOptions)
@@ -418,7 +419,7 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationOptions, 0x28332598);
+    PHOENIX_DECLARE_OPAQUE_TYPE(TUnorderedMergeOperationOptions, 0x28332598);
 };
 
 DEFINE_REFCOUNTED_TYPE(TUnorderedMergeOperationOptions)
@@ -434,7 +435,7 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationOptions, 0xc71863e6);
+    PHOENIX_DECLARE_OPAQUE_TYPE(TOrderedMergeOperationOptions, 0xc71863e6);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOrderedMergeOperationOptions)
@@ -450,7 +451,7 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationOptions, 0x9089b24a);
+    PHOENIX_DECLARE_OPAQUE_TYPE(TSortedMergeOperationOptions, 0x9089b24a);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortedMergeOperationOptions)
@@ -466,8 +467,7 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TReduceOperationOptions, 0x91371bf5);
-
+    PHOENIX_DECLARE_OPAQUE_TYPE(TReduceOperationOptions, 0x91371bf5);
 };
 
 DEFINE_REFCOUNTED_TYPE(TReduceOperationOptions)
@@ -483,7 +483,7 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TEraseOperationOptions, 0x73cb9f3b);
+    PHOENIX_DECLARE_OPAQUE_TYPE(TEraseOperationOptions, 0x73cb9f3b);
 };
 
 DEFINE_REFCOUNTED_TYPE(TEraseOperationOptions)
@@ -493,9 +493,6 @@ DEFINE_REFCOUNTED_TYPE(TEraseOperationOptions)
 class TSortOperationOptionsBase
     : public TOperationOptions
 {
-private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptionsBase, 0x1f448453);
-
 public:
     int MaxPartitionJobCount;
     int MaxPartitionCount;
@@ -513,6 +510,9 @@ public:
     REGISTER_YSON_STRUCT(TSortOperationOptionsBase);
 
     static void Register(TRegistrar registrar);
+
+private:
+    PHOENIX_DECLARE_OPAQUE_TYPE(TSortOperationOptionsBase, 0x1f448453);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortOperationOptionsBase)
@@ -528,7 +528,7 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptions, 0xc11251c0);
+    PHOENIX_DECLARE_OPAQUE_TYPE(TSortOperationOptions, 0xc11251c0);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSortOperationOptions)
@@ -544,7 +544,7 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationOptions, 0x91e3968d);
+    PHOENIX_DECLARE_OPAQUE_TYPE(TMapReduceOperationOptions, 0x91e3968d);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMapReduceOperationOptions)
@@ -563,7 +563,7 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationOptions, 0xf3893dc8);
+    PHOENIX_DECLARE_OPAQUE_TYPE(TRemoteCopyOperationOptions, 0xf3893dc8);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteCopyOperationOptions)
@@ -602,7 +602,7 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationOptions, 0x93998ffa);
+    PHOENIX_DECLARE_OPAQUE_TYPE(TVanillaOperationOptions, 0x93998ffa);
 };
 
 DEFINE_REFCOUNTED_TYPE(TVanillaOperationOptions)
@@ -627,7 +627,7 @@ public:
     static void Register(TRegistrar registrar);
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TZombieOperationOrchidsConfig, 0xbeadbead);
+    PHOENIX_DECLARE_OPAQUE_TYPE(TZombieOperationOrchidsConfig, 0xbeadbead);
 };
 
 DEFINE_REFCOUNTED_TYPE(TZombieOperationOrchidsConfig)

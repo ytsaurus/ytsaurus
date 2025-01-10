@@ -306,8 +306,6 @@ public:
 
     NYson::TYsonString GetSuspiciousJobsYson() const override;
 
-    void Persist(const TPersistenceContext& context) override;
-
     TOperationControllerBase(
         TOperationSpecBasePtr spec,
         TControllerAgentConfigPtr config,
@@ -1082,8 +1080,6 @@ protected:
     void ResetJobIndexGenerator();
 
 private:
-    using TThis = TOperationControllerBase;
-
     NScheduler::TPoolTreeControllerSettingsMap PoolTreeControllerSettingsMap_;
     std::optional<std::vector<TString>> OffloadingPoolTrees_;
 
@@ -1305,7 +1301,7 @@ private:
         TDataFlowGraph::TVertexDescriptor VertexDescriptor;
         int LivePreviewIndex = -1;
 
-        void Persist(const TPersistenceContext& context);
+        PHOENIX_DECLARE_TYPE(TLivePreviewChunkDescriptor, 0x9c27bce6);
     };
 
     THashMap<NChunkClient::TInputChunkPtr, TLivePreviewChunkDescriptor> LivePreviewChunks_;
@@ -1316,7 +1312,7 @@ private:
         NSecurityClient::TAccountResourceUsageLeaseId LeaseId;
         NScheduler::TDiskQuota DiskQuota;
 
-        void Persist(const TPersistenceContext& context);
+        PHOENIX_DECLARE_TYPE(TResourceUsageLeaseInfo, 0xcbbf64d9);
     };
     THashMap<TString, TResourceUsageLeaseInfo> AccountResourceUsageLeaseMap_;
 
@@ -1523,6 +1519,9 @@ private:
     int GetMaxJobFailCountForExitCode(std::optional<int> maybeExitCode);
     bool IsJobsFailToleranceExceeded(std::optional<int> maybeExitCode);
     void UpdateFailedJobsExitCodeCounters(std::optional<int> maybeExitCode);
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOperationControllerBase, 0x6715254c);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

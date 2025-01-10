@@ -9,7 +9,6 @@ namespace NYT::NControllerAgent::NControllers {
 //! Helper class that implements IPersistentChunkPoolInput interface for output tables.
 class TSink
     : public NChunkPools::IPersistentChunkPoolInput
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     //! Used only for persistence.
@@ -27,13 +26,11 @@ public:
     void Finish() override;
     bool IsFinished() const override;
 
-    void Persist(const TPersistenceContext& context) override;
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TSink, 0x7fb74a90);
-
     TOperationControllerBase* Controller_;
     int OutputTableIndex_ = -1;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSink, 0x7fb74a90);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -49,14 +49,13 @@ void TAvgSummary<T>::AddSample(T sample)
 }
 
 template <class T>
-void TAvgSummary<T>::Persist(const TPersistenceContext& context)
+void TAvgSummary<T>::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Sum_);
-    Persist(context, Count_);
-    if (context.IsLoad()) {
-        Avg_ = CalcAvg();
-    }
+    PHOENIX_REGISTER_FIELD(1, Sum_)();
+    PHOENIX_REGISTER_FIELD(2, Count_)();
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->Avg_ = this_->CalcAvg();
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

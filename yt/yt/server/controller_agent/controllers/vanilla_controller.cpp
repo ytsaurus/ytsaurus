@@ -39,11 +39,13 @@ class TVanillaController;
 class TGangManager
 {
 public:
+    //! Used only for persistence.
+    TGangManager() = default;
+    TGangManager& operator=(const TGangManager& other) = default;
+
     TGangManager(
         TVanillaController* controller,
         const TVanillaOperationOptionsPtr& config);
-
-    void Persist(const TPersistenceContext& context);
 
     const TOperationIncarnation& GetCurrentIncanation() const noexcept;
 
@@ -61,6 +63,8 @@ private:
 
     bool IsEnabled() const noexcept;
     TOperationIncarnation GenerateNewIncarnation();
+
+    PHOENIX_DECLARE_TYPE(TGangManager, 0xa01a5a9b);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,8 +82,6 @@ public:
 
     //! Used only for persistence.
     TVanillaTask() = default;
-
-    void Persist(const TPersistenceContext& context) override;
 
     TString GetTitle() const override;
 
@@ -112,8 +114,6 @@ public:
     int GetTargetJobCount() const noexcept;
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaTask, 0x55e9aacd);
-
     TVanillaTaskSpecPtr Spec_;
     TString Name_;
 
@@ -127,9 +127,11 @@ private:
     TJobSplitterConfigPtr GetJobSplitterConfig() const override;
 
     void InitJobSpecTemplate();
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TVanillaTask, 0x55e9aacd);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaTask);
+PHOENIX_DEFINE_TYPE(TVanillaTask);
 DEFINE_REFCOUNTED_TYPE(TVanillaTask)
 DECLARE_REFCOUNTED_CLASS(TVanillaTask)
 
@@ -148,8 +150,6 @@ public:
 
     //! Used only for persistence.
     TVanillaController() = default;
-
-    void Persist(const TPersistenceContext& context) override;
 
     void CustomMaterialize() override;
 
@@ -216,8 +216,6 @@ public:
     void OnOperationIncarnationChanged(bool operationIsReviving);
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TVanillaController, 0x99fa99ae);
-
     TVanillaOperationSpecPtr Spec_;
     TVanillaOperationOptionsPtr Options_;
 
@@ -236,9 +234,11 @@ private:
     void BuildControllerInfoYson(NYTree::TFluentMap fluent) const final;
 
     void TrySwitchToNewOperationIncarnation(bool operationIsReviving);
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TVanillaController, 0x99fa99ae);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaController);
+PHOENIX_DEFINE_TYPE(TVanillaController);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -256,20 +256,17 @@ TGangManager::TGangManager(
         Enabled_);
 }
 
-void TGangManager::Persist(const TPersistenceContext& context)
+void TGangManager::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, Enabled_);
+    PHOENIX_REGISTER_FIELD(1, Enabled_)();
 
     // COMPAT(pogorelov): Remove after all CAs are 25.1.
-    if (context.GetVersion() < ESnapshotVersion::OperationIncarnationIsStrongTypedef) {
-        TString incarnationStr;
-        Persist(context, incarnationStr);
-        Incarnation_ = TOperationIncarnation(std::move(incarnationStr));
-    } else {
-        Persist(context, Incarnation_);
-    }
+    PHOENIX_REGISTER_FIELD(2, Incarnation_)
+        .SinceVersion(ESnapshotVersion::OperationIncarnationIsStrongTypedef)
+        .WhenMissing([] (TThis* this_, auto& context) {
+            auto incarnationStr = Load<TString>(context);
+            this_->Incarnation_ = TOperationIncarnation(std::move(incarnationStr));
+        })();
 }
 
 const TOperationIncarnation& TGangManager::GetCurrentIncanation() const noexcept
@@ -327,6 +324,8 @@ TOperationIncarnation TGangManager::GenerateNewIncarnation()
     return TOperationIncarnation(ToString(TGuid::Create()));
 }
 
+PHOENIX_DEFINE_TYPE(TGangManager);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TVanillaTask::TVanillaTask(
@@ -341,15 +340,14 @@ TVanillaTask::TVanillaTask(
     , VanillaChunkPool_(CreateVanillaChunkPool({Spec_->JobCount, Spec_->RestartCompletedJobs, Logger}))
 { }
 
-void TVanillaTask::Persist(const TPersistenceContext& context)
+void TVanillaTask::RegisterMetadata(auto&& registrar)
 {
-    TTask::Persist(context);
+    registrar.template BaseType<TTask>();
 
-    using NYT::Persist;
-    Persist(context, Spec_);
-    Persist(context, Name_);
-    Persist(context, VanillaChunkPool_);
-    Persist(context, JobSpecTemplate_);
+    PHOENIX_REGISTER_FIELD(1, Spec_)();
+    PHOENIX_REGISTER_FIELD(2, Name_)();
+    PHOENIX_REGISTER_FIELD(3, VanillaChunkPool_)();
+    PHOENIX_REGISTER_FIELD(4, JobSpecTemplate_)();
 }
 
 TString TVanillaTask::GetTitle() const
@@ -508,19 +506,17 @@ TVanillaController::TVanillaController(
     , GangManager_(this, GetConfig()->VanillaOperationOptions)
 { }
 
-void TVanillaController::Persist(const TPersistenceContext& context)
+void TVanillaController::RegisterMetadata(auto&& registrar)
 {
-    TOperationControllerBase::Persist(context);
+    registrar.template BaseType<TOperationControllerBase>();
 
-    using NYT::Persist;
-    Persist(context, Spec_);
-    Persist(context, Options_);
-    Persist(context, Tasks_);
-    Persist(context, TaskOutputTables_);
+    PHOENIX_REGISTER_FIELD(1, Spec_)();
+    PHOENIX_REGISTER_FIELD(2, Options_)();
+    PHOENIX_REGISTER_FIELD(3, Tasks_)();
+    PHOENIX_REGISTER_FIELD(4, TaskOutputTables_)();
 
-    if (context.GetVersion() >= ESnapshotVersion::IntroduceGangManager) {
-        Persist(context, GangManager_);
-    }
+    PHOENIX_REGISTER_FIELD(5, GangManager_)
+        .SinceVersion(ESnapshotVersion::IntroduceGangManager)();
 }
 
 void TVanillaController::CustomMaterialize()

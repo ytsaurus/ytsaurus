@@ -32,7 +32,6 @@ namespace NYT::NControllerAgent::NControllers {
 struct ITaskHost
     : public virtual TRefCounted
     , public virtual IPersistent
-    , public NPhoenix::TFactoryTag<NPhoenix::TNullFactory>
 {
     virtual IInvokerPtr GetCancelableInvoker(EOperationControllerQueue queue = EOperationControllerQueue::Default) const = 0;
     virtual IInvokerPtr GetJobSpecBuildInvoker() const = 0;
@@ -121,8 +120,6 @@ struct ITaskHost
     virtual TExtendedJobResources GetAutoMergeResources(
         const NTableClient::TChunkStripeStatisticsVector& statistics) const = 0;
     virtual TAutoMergeDirector* GetAutoMergeDirector() = 0;
-
-    void Persist(const TPersistenceContext& context) override = 0;
 
     virtual const std::vector<TOutputStreamDescriptorPtr>& GetStandardStreamDescriptors() const = 0;
 

@@ -50,7 +50,6 @@ DEFINE_REFCOUNTED_TYPE(TJobExperimentBase);
 //! An experiment that tries to run operation's jobs with the given base layer.
 class TLayerJobExperiment
     : public TJobExperimentBase
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     TLayerJobExperiment();
@@ -72,15 +71,13 @@ public:
     NScheduler::EOperationAlertType GetAlertType() const override;
     TError GetAlert(const TOperationSpecBasePtr& operationSpec) const override;
 
-    void Persist(const TPersistenceContext& context) override;
-
 private:
     TString DefaultBaseLayerPath_;
     TUserFile BaseLayer_;
     NLogging::TSerializableLogger Logger;
     bool EnableBypassArtifactCache_;
 
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TLayerJobExperiment, 0x54698f9d);
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TLayerJobExperiment, 0x54698f9d);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -88,7 +85,6 @@ private:
 //! An experiment that tries to run operation's jobs in the network of the given MTN project.
 class TMtnJobExperiment
     : public TJobExperimentBase
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     TMtnJobExperiment();
@@ -110,8 +106,6 @@ public:
     NScheduler::EOperationAlertType GetAlertType() const override;
     TError GetAlert(const TOperationSpecBasePtr& operationSpec) const override;
 
-    void Persist(const TPersistenceContext& context) override;
-
 private:
     TString NetworkProject_;
     NLogging::TSerializableLogger Logger;
@@ -119,7 +113,7 @@ private:
     bool EnableNat64_;
     bool DisableNetwork_;
 
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TMtnJobExperiment, 0x05b35208);
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TMtnJobExperiment, 0x05b35208);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -165,8 +159,6 @@ public:
         ITaskHost* taskHost,
         const TDataFlowGraph::TVertexDescriptor& taskName) const;
 
-    void Persist(const TPersistenceContext& context);
-
 private:
     NJobTrackerClient::TJobId FailedTreatmentJob_;
     NJobTrackerClient::TJobId FailedControlJob_;
@@ -184,6 +176,8 @@ private:
         NJobTrackerClient::EJobState state) override;
 
     bool IsTreatmentRequired() const;
+
+    PHOENIX_DECLARE_TYPE(TExperimentJobManager, 0xccfb1980);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

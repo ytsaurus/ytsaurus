@@ -1375,19 +1375,19 @@ void TControllerAgentProgramConfig::Register(TRegistrar /*registrar*/)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TEraseOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMapOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TMapReduceOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TOrderedMergeOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TReduceOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TRemoteCopyOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSimpleOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortedMergeOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TSortOperationOptionsBase);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TUnorderedMergeOperationOptions);
-DEFINE_DYNAMIC_PHOENIX_TYPE(TVanillaOperationOptions);
+PHOENIX_DEFINE_OPAQUE_TYPE(TEraseOperationOptions);
+PHOENIX_DEFINE_OPAQUE_TYPE(TMapOperationOptions);
+PHOENIX_DEFINE_OPAQUE_TYPE(TMapReduceOperationOptions);
+PHOENIX_DEFINE_OPAQUE_TYPE(TOperationOptions);
+PHOENIX_DEFINE_OPAQUE_TYPE(TOrderedMergeOperationOptions);
+PHOENIX_DEFINE_OPAQUE_TYPE(TReduceOperationOptions);
+PHOENIX_DEFINE_OPAQUE_TYPE(TRemoteCopyOperationOptions);
+PHOENIX_DEFINE_OPAQUE_TYPE(TSimpleOperationOptions);
+PHOENIX_DEFINE_OPAQUE_TYPE(TSortedMergeOperationOptions);
+PHOENIX_DEFINE_OPAQUE_TYPE(TSortOperationOptions);
+PHOENIX_DEFINE_OPAQUE_TYPE(TSortOperationOptionsBase);
+PHOENIX_DEFINE_OPAQUE_TYPE(TUnorderedMergeOperationOptions);
+PHOENIX_DEFINE_OPAQUE_TYPE(TVanillaOperationOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 

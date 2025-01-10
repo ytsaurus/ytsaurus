@@ -20,26 +20,25 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NChunkClient;
-using namespace NPhoenix;
+using namespace NPhoenix2;
 using namespace NScheduler;
 using namespace NJobTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TBriefJobStatistics::Persist(const TPersistenceContext& context)
+void TBriefJobStatistics::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Timestamp);
-    Persist(context, ProcessedInputRowCount);
-    Persist(context, ProcessedInputUncompressedDataSize);
-    Persist(context, ProcessedInputCompressedDataSize);
-    Persist(context, ProcessedInputDataWeight);
-    Persist(context, ProcessedOutputRowCount);
-    Persist(context, ProcessedOutputUncompressedDataSize);
-    Persist(context, ProcessedOutputCompressedDataSize);
-    Persist(context, InputPipeIdleTime);
-    Persist(context, OutputPipeIdleTime);
-    Persist(context, JobProxyCpuUsage);
+    PHOENIX_REGISTER_FIELD(1, Timestamp)();
+    PHOENIX_REGISTER_FIELD(2, ProcessedInputRowCount)();
+    PHOENIX_REGISTER_FIELD(3, ProcessedInputUncompressedDataSize)();
+    PHOENIX_REGISTER_FIELD(4, ProcessedInputCompressedDataSize)();
+    PHOENIX_REGISTER_FIELD(5, ProcessedInputDataWeight)();
+    PHOENIX_REGISTER_FIELD(6, ProcessedOutputRowCount)();
+    PHOENIX_REGISTER_FIELD(7, ProcessedOutputUncompressedDataSize)();
+    PHOENIX_REGISTER_FIELD(8, ProcessedOutputCompressedDataSize)();
+    PHOENIX_REGISTER_FIELD(9, InputPipeIdleTime)();
+    PHOENIX_REGISTER_FIELD(10, OutputPipeIdleTime)();
+    PHOENIX_REGISTER_FIELD(11, JobProxyCpuUsage)();
 }
 
 void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, IYsonConsumer* consumer)
@@ -85,6 +84,8 @@ void FormatValue(TStringBuilderBase* builder, const TBriefJobStatisticsPtr& brie
         briefStatistics->JobProxyCpuUsage,
         briefStatistics->Timestamp);
 }
+
+PHOENIX_DEFINE_TYPE(TBriefJobStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -290,15 +291,14 @@ void TScheduleAllocationStatistics::SetMovingAverageWindowSize(int movingAverage
     SuccessfulDurationMovingAverage_.SetWindowSize(movingAverageWindowSize);
 }
 
-void TScheduleAllocationStatistics::Persist(const TPersistenceContext& context)
+void TScheduleAllocationStatistics::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-    Persist(context, Failed_);
-    Persist(context, TotalDuration_);
-    Persist(context, Count_);
+    PHOENIX_REGISTER_FIELD(1, Failed_)();
+    PHOENIX_REGISTER_FIELD(2, TotalDuration_)();
+    PHOENIX_REGISTER_FIELD(3, Count_)();
 }
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TScheduleAllocationStatistics);
+PHOENIX_DEFINE_TYPE(TScheduleAllocationStatistics);
 
 ////////////////////////////////////////////////////////////////////////////////
 

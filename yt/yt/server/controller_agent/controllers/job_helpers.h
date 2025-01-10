@@ -10,7 +10,7 @@
 
 #include <yt/yt/core/misc/moving_average.h>
 
-#include <yt/yt/core/misc/phoenix.h>
+#include <yt/yt/core/phoenix/context.h>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -35,7 +35,7 @@ struct TBriefJobStatistics
     std::optional<i64> OutputPipeIdleTime = std::nullopt;
     std::optional<i64> JobProxyCpuUsage = std::nullopt;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TBriefJobStatistics, 0x29bad63c);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBriefJobStatistics)
@@ -90,9 +90,7 @@ public:
 
     void SetMovingAverageWindowSize(int movingAverageWindowSize);
 
-    void Persist(const TPersistenceContext& context);
-
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TScheduleAllocationStatistics, 0x1ba9c7e0);
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TScheduleAllocationStatistics, 0x1ba9c7e0);
 };
 
 DEFINE_REFCOUNTED_TYPE(TScheduleAllocationStatistics)

@@ -39,11 +39,7 @@ public:
 
     void SetShouldScheduleJob(bool shouldScheduleJob);
 
-    void Persist(const TPersistenceContext& context) override;
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeChunkPoolAdapter, 0x54ab375c);
-
     TAutoMergeTask* Task_;
     std::vector<int> CookieChunkCount_;
 
@@ -56,6 +52,8 @@ private:
     void SetupCallbacks();
 
     void UpdatePendingJobCount();
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TAutoMergeChunkPoolAdapter, 0x54ab375c);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -103,8 +101,6 @@ public:
 
     bool IsCompleted() const override;
 
-    void Persist(const TPersistenceContext& context) override;
-
 protected:
     TExtendedJobResources GetMinNeededResourcesHeavy() const override;
 
@@ -126,8 +122,6 @@ protected:
 
 private:
     using TJobSpec = NControllerAgent::NProto::TJobSpec;
-
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask, 0x4ef99f1a);
 
     std::vector<TIntrusivePtr<TAutoMergeChunkPoolAdapter>> ChunkPools_;
 
@@ -153,6 +147,8 @@ private:
     TDataFlowGraph::TVertexDescriptor GetVertexDescriptorForMergeType(EMergeJobType type) const;
     EMergeJobType GetMergeTypeFromJobType(EJobType jobType) const;
     EMergeJobType GetCurrentMergeType() const;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TAutoMergeTask, 0x4ef99f1a);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAutoMergeTask)

@@ -94,21 +94,19 @@ void TAutoMergeChunkPoolAdapter::SetShouldScheduleJob(bool shouldScheduleJob)
     UpdatePendingJobCount();
 }
 
-void TAutoMergeChunkPoolAdapter::Persist(const TPersistenceContext& context)
+void TAutoMergeChunkPoolAdapter::RegisterMetadata(auto&& registrar)
 {
-    TChunkPoolAdapterBase::Persist(context);
+    registrar.template BaseType<TChunkPoolAdapterBase>();
 
-    using NYT::Persist;
+    PHOENIX_REGISTER_FIELD(1, Task_)();
+    PHOENIX_REGISTER_FIELD(2, CookieChunkCount_)();
+    PHOENIX_REGISTER_FIELD(3, PoolIndex_)();
+    PHOENIX_REGISTER_FIELD(4, ShouldScheduleJob_)();
+    PHOENIX_REGISTER_FIELD(5, JobCounter_)();
 
-    Persist(context, Task_);
-    Persist(context, CookieChunkCount_);
-    Persist(context, PoolIndex_);
-    Persist(context, ShouldScheduleJob_);
-    Persist(context, JobCounter_);
-
-    if (context.IsLoad()) {
-        SetupCallbacks();
-    }
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->SetupCallbacks();
+    });
 }
 
 void TAutoMergeChunkPoolAdapter::SetupCallbacks()
@@ -133,7 +131,7 @@ void TAutoMergeChunkPoolAdapter::UpdatePendingJobCount()
     JobCounter_->SetBlocked(blockedJobCount);
 }
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeChunkPoolAdapter);
+PHOENIX_DEFINE_TYPE(TAutoMergeChunkPoolAdapter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -431,19 +429,19 @@ bool TAutoMergeTask::IsCompleted() const
     return TaskHost_->GetAutoMergeDirector()->IsTaskCompleted() && TTask::IsCompleted();
 }
 
-void TAutoMergeTask::Persist(const TPersistenceContext& context)
+void TAutoMergeTask::RegisterMetadata(auto&& registrar)
 {
-    TTask::Persist(context);
+    registrar.template BaseType<TTask>();
 
-    using NYT::Persist;
+    PHOENIX_REGISTER_FIELD(1, ChunkPools_)();
+    PHOENIX_REGISTER_FIELD(2, ChunkPool_)();
+    PHOENIX_REGISTER_FIELD(3, CurrentChunkCounts_)();
+    PHOENIX_REGISTER_FIELD(4, JobSpecTemplates_)();
+    PHOENIX_REGISTER_FIELD(5, EnableShallowMerge_)();
 
-    Persist(context, ChunkPools_);
-    Persist(context, ChunkPool_);
-    Persist(context, CurrentChunkCounts_);
-    Persist(context, JobSpecTemplates_);
-    Persist(context, EnableShallowMerge_);
-
-    ChunkPool_->SubscribeChunkTeleported(BIND(&TAutoMergeTask::OnChunkTeleported, MakeWeak(this)));
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->ChunkPool_->SubscribeChunkTeleported(BIND(&TAutoMergeTask::OnChunkTeleported, MakeWeak(this_)));
+    });
 }
 
 void TAutoMergeTask::OnChunkTeleported(TInputChunkPtr teleportChunk, std::any tag)
@@ -547,7 +545,7 @@ void TAutoMergeTask::InitAutoMergeJobSpecTemplates()
     }
 }
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask);
+PHOENIX_DEFINE_TYPE(TAutoMergeTask);
 
 ////////////////////////////////////////////////////////////////////////////////
 

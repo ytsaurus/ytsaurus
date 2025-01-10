@@ -20,6 +20,13 @@ TProbingJobManager::TProbingJobManager()
     , RandomGenerator_(RandomDevice_())
 { }
 
+TProbingJobManager& TProbingJobManager::operator=(const TProbingJobManager& other)
+{
+    ProbingRatio_ = other.ProbingRatio_;
+    ProbingPoolTree_ = other.ProbingPoolTree_;
+    return *this;
+}
+
 TProbingJobManager::TProbingJobManager(
     ICompetitiveJobManagerHost* host,
     NLogging::TLogger logger,
@@ -124,15 +131,15 @@ void TProbingJobManager::UpdatePendingJobCount(TCompositePendingJobCount* pendin
     }
 }
 
-void TProbingJobManager::Persist(const TPersistenceContext& context)
+void TProbingJobManager::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
+    registrar.template BaseType<TCompetitiveJobManagerBase>();
 
-    TCompetitiveJobManagerBase::Persist(context);
-
-    Persist(context, ProbingRatio_);
-    Persist(context, ProbingPoolTree_);
+    PHOENIX_REGISTER_FIELD(1, ProbingRatio_)();
+    PHOENIX_REGISTER_FIELD(2, ProbingPoolTree_)();
 }
+
+PHOENIX_DEFINE_TYPE(TProbingJobManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/scheduler/public.h>
 
-#include <yt/yt/core/misc/phoenix.h>
+#include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/core/ytree/node.h>
 

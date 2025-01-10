@@ -200,8 +200,6 @@ public:
 
     std::vector<std::optional<i64>> GetMaximumUsedTmpfsSizes() const;
 
-    void Persist(const TPersistenceContext& context) override;
-
     virtual NScheduler::TUserJobSpecPtr GetUserJobSpec() const;
     bool HasUserJob() const;
 
@@ -296,6 +294,8 @@ protected:
     std::unique_ptr<IJobSplitter> JobSplitter_;
 
     NChunkPools::TInputChunkMappingPtr InputChunkMapping_;
+
+    NScheduler::TCompositeNeededResources CachedTotalNeededResources_;
 
     virtual std::optional<EScheduleFailReason> GetScheduleFailReason(const TSchedulingContext& context);
 
@@ -416,14 +416,11 @@ protected:
     virtual TJobSplitterConfigPtr GetJobSplitterConfig() const = 0;
 
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TTask, 0x81ab3cd3);
-
     TCompositePendingJobCount CachedPendingJobCount_;
     int CachedTotalJobCount_;
 
     std::vector<std::optional<i64>> MaximumUsedTmpfsSizes_;
 
-    NScheduler::TCompositeNeededResources CachedTotalNeededResources_;
     mutable std::optional<TExtendedJobResources> CachedMinNeededResources_;
 
     bool CompletedFired_ = false;
@@ -470,7 +467,8 @@ private:
         TJobId LastJobId;
         double DedicatedUserJobMemoryReserveFactor = 0;
         double DedicatedJobProxyMemoryReserveFactor = 0;
-        void Persist(const TPersistenceContext& context);
+
+        PHOENIX_DECLARE_TYPE(TResourceOverdraftState, 0x239e76cf);
     };
 
     //! If job is aborted because of resource overdraft, its output cookie is put into this set.
@@ -528,6 +526,9 @@ private:
     NYTree::INodePtr BuildStatisticsNode() const;
 
     void CheckAndProcessOperationCompletedInScheduleJob();
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TTask, 0x81ab3cd3);
 };
 
 DEFINE_REFCOUNTED_TYPE(TTask)

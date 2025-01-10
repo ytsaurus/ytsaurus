@@ -16,7 +16,6 @@ using NScheduler::TUserJobSpecPtr;
 
 class TAlertManager
     : public IAlertManager
-    , public NPhoenix::TFactoryTag<NPhoenix::TSimpleFactory>
 {
 public:
     TAlertManager() = default;
@@ -73,13 +72,7 @@ private:
         TInstant Time;
         i64 Value;
 
-        void Persist(const TStreamPersistenceContext& context)
-        {
-            using NYT::Persist;
-
-            Persist(context, Time);
-            Persist(context, Value);
-        }
+        PHOENIX_DECLARE_TYPE(TGpuPowerUsageRecord, 0x67ef02c2);
     };
 
     THashMap<TString, std::deque<TGpuPowerUsageRecord>> AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_;
@@ -813,28 +806,37 @@ private:
         }
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        using NYT::Persist;
-
-        Persist(context, Host_);
-        Persist(context, Logger);
-        Persist(context, AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_);
-
-        if (context.IsLoad()) {
-            Config_ = Host_->GetConfig()->AlertManager;
-            AnalyzeExecutor_ = New<TPeriodicExecutor>(
-                Host_->GetCancelableInvoker(EOperationControllerQueue::Default),
-                BIND(&TAlertManager::Analyze, MakeWeak(this)),
-                Config_->Period);
-        }
-    }
-
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TAlertManager, 0xf4e8bb36);
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TAlertManager, 0xf4e8bb36);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TAlertManager);
+void TAlertManager::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, Host_)();
+    PHOENIX_REGISTER_FIELD(2, Logger)();
+    PHOENIX_REGISTER_FIELD(3, AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_)();
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        this_->Config_ = this_->Host_->GetConfig()->AlertManager;
+        this_->AnalyzeExecutor_ = New<TPeriodicExecutor>(
+            this_->Host_->GetCancelableInvoker(EOperationControllerQueue::Default),
+            BIND(&TAlertManager::Analyze, MakeWeak(this_)),
+            this_->Config_->Period);
+    });
+}
+
+PHOENIX_DEFINE_TYPE(TAlertManager);
 DEFINE_REFCOUNTED_TYPE(TAlertManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TAlertManager::TGpuPowerUsageRecord::RegisterMetadata(auto&& registrar)
+{
+    PHOENIX_REGISTER_FIELD(1, Time)();
+    PHOENIX_REGISTER_FIELD(2, Value)();
+}
+
+PHOENIX_DEFINE_TYPE(TAlertManager::TGpuPowerUsageRecord);
 
 ////////////////////////////////////////////////////////////////////////////////
 

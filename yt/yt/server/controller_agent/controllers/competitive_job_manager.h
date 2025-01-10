@@ -69,8 +69,6 @@ public:
 
     TProgressCounterPtr GetProgressCounter() const;
 
-    void Persist(const TPersistenceContext& context);
-
 protected:
     struct TCompetition
         : public TRefCounted
@@ -82,9 +80,9 @@ protected:
         TProgressCounterGuard ProgressCounterGuard;
         bool IsNonTrivial = false;
 
-        void Persist(const TPersistenceContext& context);
-
         TJobId GetCompetitorFor(TJobId jobId);
+
+        PHOENIX_DECLARE_TYPE(TCompetition, 0x9f237b57);
     };
 
     using TCompetitionPtr = TIntrusivePtr<TCompetition>;
@@ -119,6 +117,9 @@ private:
         const TJobletPtr& joblet,
         const std::function<void(TProgressCounterGuard*)>& updateJobCounter,
         NJobTrackerClient::EJobState state) = 0;
+
+    PHOENIX_DECLARE_FRIEND();
+    PHOENIX_DECLARE_TYPE(TCompetitiveJobManagerBase, 0x7f9f0ccb);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

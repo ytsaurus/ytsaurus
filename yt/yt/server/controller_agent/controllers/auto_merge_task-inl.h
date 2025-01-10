@@ -5,6 +5,7 @@
 #endif
 
 #include "job_info.h"
+#include "task.h"
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -109,15 +110,6 @@ public:
         return this->GetUserJobSpec()->Deterministic;
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        TUnderlyingTask::Persist(context);
-
-        using NYT::Persist;
-
-        Persist(context, LastChunkCount_);
-    }
-
 private:
     // NB: this field is intentionally transient (otherwise automerge can stuck after loading from snapshot).
     bool CanScheduleJob_ = true;
@@ -134,7 +126,19 @@ private:
             this->TaskHost_->UpdateTask(this);
         }
     }
+
+    PHOENIX_DECLARE_POLYMORPHIC_TEMPLATE_TYPE(TAutoMergeableOutputMixin, 0x82605380);
 };
+
+template <class TUnderlyingTask>
+void TAutoMergeableOutputMixin<TUnderlyingTask>::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TUnderlyingTask>();
+
+    PHOENIX_REGISTER_FIELD(1, LastChunkCount_)();
+}
+
+PHOENIX_DEFINE_TEMPLATE_TYPE(TAutoMergeableOutputMixin, TTask);
 
 ////////////////////////////////////////////////////////////////////////////////
 

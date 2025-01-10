@@ -66,23 +66,26 @@ TUserFile::TUserFile(
     , Layer(layer)
 { }
 
-void TUserFile::Persist(const TPersistenceContext& context)
+void TUserFile::RegisterMetadata(auto&& registrar)
 {
-    TUserObject::Persist(context);
+    registrar.template BaseType<TUserObject>();
 
-    using NYT::Persist;
-    Persist<TAttributeDictionarySerializer>(context, Attributes);
-    Persist(context, FileName);
-    Persist(context, ChunkSpecs);
-    Persist(context, Type);
-    Persist(context, Executable);
-    Persist(context, Format);
-    Persist<TNonNullableIntrusivePtrSerializer<>>(context, Schema);
-    Persist(context, Dynamic);
-    Persist(context, Layer);
-    Persist(context, Filesystem);
-    Persist(context, AccessMethod);
+    PHOENIX_REGISTER_FIELD(1, Attributes)
+        .template Serializer<TAttributeDictionarySerializer>()();
+    PHOENIX_REGISTER_FIELD(2, FileName)();
+    PHOENIX_REGISTER_FIELD(3, ChunkSpecs)();
+    PHOENIX_REGISTER_FIELD(4, Type)();
+    PHOENIX_REGISTER_FIELD(5, Executable)();
+    PHOENIX_REGISTER_FIELD(6, Format)();
+    PHOENIX_REGISTER_FIELD(7, Schema)
+        .template Serializer<TNonNullableIntrusivePtrSerializer<>>()();
+    PHOENIX_REGISTER_FIELD(8, Dynamic)();
+    PHOENIX_REGISTER_FIELD(9, Layer)();
+    PHOENIX_REGISTER_FIELD(10, Filesystem)();
+    PHOENIX_REGISTER_FIELD(11, AccessMethod)();
 }
+
+PHOENIX_DEFINE_TYPE(TUserFile);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -468,6 +471,10 @@ TDiskQuota CreateDiskQuota(
     }
     return NScheduler::CreateDiskQuota(*diskRequestConfig->MediumIndex, diskRequestConfig->DiskSpace);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+PHOENIX_DEFINE_TEMPLATE_TYPE(TAvgSummary, int);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 
-#include <yt/yt/core/misc/phoenix.h>
+#include <yt/yt/core/phoenix/context.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
@@ -48,14 +48,12 @@ public:
 
     NTableClient::IChunkSliceFetcherPtr CreateChunkSliceFetcher() override;
 
-    void Persist(const TPersistenceContext& context) override;
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TMockChunkSliceFetcherFactory, 0x4fa8873b);
-
     std::vector<NTableClient::TStrictMockChunkSliceFetcherPtr>* Fetchers_ = nullptr;
 
     int CurrentIndex_ = 0;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TMockChunkSliceFetcherFactory, 0x4fa8873b);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

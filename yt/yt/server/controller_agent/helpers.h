@@ -49,7 +49,7 @@ struct TUserFile
     // This field is used only during file size validation only for table chunks with column selectors.
     std::vector<NChunkClient::TInputChunkPtr> Chunks;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TUserFile, 0x3ba6ea91);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,10 +97,10 @@ public:
 
     void AddSample(T sample);
 
-    void Persist(const TPersistenceContext& context);
-
 private:
     std::optional<T> CalcAvg();
+
+    PHOENIX_DECLARE_TEMPLATE_TYPE(TAvgSummary, 0x77455ee9);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

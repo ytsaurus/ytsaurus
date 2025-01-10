@@ -39,7 +39,7 @@ struct TLivePreviewTableBase
     NCypressClient::TNodeId LivePreviewTableId;
     TString LivePreviewTableName;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TLivePreviewTableBase, 0xcc71c8d6);
 };
 
 // Base class for TInputTable and TOutputTable.
@@ -53,7 +53,7 @@ struct TTableBase
 
     bool IsFile() const;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TTableBase, 0xc863d38f);
 };
 
 struct TInputTable
@@ -91,7 +91,7 @@ struct TInputTable
     //! |Teleportable| to get effective value.
     bool SupportsTeleportation() const;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TInputTable, 0xd9d35083);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputTable)
@@ -155,7 +155,7 @@ struct TOutputTable
 
     bool IsDebugTable() const;
 
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TOutputTable, 0x56fd1f6b);
 };
 
 DEFINE_REFCOUNTED_TYPE(TOutputTable)
@@ -164,7 +164,7 @@ struct TIntermediateTable
     : public TLivePreviewTableBase
     , public TRefCounted
 {
-    void Persist(const TPersistenceContext& context);
+    PHOENIX_DECLARE_TYPE(TIntermediateTable, 0x1a4e35b3);
 };
 
 DEFINE_REFCOUNTED_TYPE(TIntermediateTable)

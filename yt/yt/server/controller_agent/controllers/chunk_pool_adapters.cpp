@@ -51,12 +51,12 @@ bool TChunkPoolInputAdapterBase::IsFinished() const
     return UnderlyingInput_->IsFinished();
 }
 
-void TChunkPoolInputAdapterBase::Persist(const TPersistenceContext& context)
+void TChunkPoolInputAdapterBase::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, UnderlyingInput_);
+    PHOENIX_REGISTER_FIELD(1, UnderlyingInput_)();
 }
+
+PHOENIX_DEFINE_TYPE(TChunkPoolInputAdapterBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -144,16 +144,16 @@ bool TChunkPoolOutputAdapterBase::IsSplittable(NChunkPools::TOutputCookie cookie
     return UnderlyingOutput_->IsSplittable(cookie);
 }
 
-void TChunkPoolOutputAdapterBase::Persist(const TPersistenceContext& context)
+void TChunkPoolOutputAdapterBase::RegisterMetadata(auto&& registrar)
 {
-    using NYT::Persist;
-
-    Persist(context, UnderlyingOutput_);
+    PHOENIX_REGISTER_FIELD(1, UnderlyingOutput_)();
 }
 
 DELEGATE_SIGNAL(TChunkPoolOutputAdapterBase, void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported, *UnderlyingOutput_);
 DELEGATE_SIGNAL(TChunkPoolOutputAdapterBase, void(), Completed, *UnderlyingOutput_);
 DELEGATE_SIGNAL(TChunkPoolOutputAdapterBase, void(), Uncompleted, *UnderlyingOutput_);
+
+PHOENIX_DEFINE_TYPE(TChunkPoolOutputAdapterBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -162,11 +162,13 @@ TChunkPoolAdapterBase::TChunkPoolAdapterBase(IPersistentChunkPoolPtr underlyingP
     , TChunkPoolOutputAdapterBase(underlyingPool)
 { }
 
-void TChunkPoolAdapterBase::Persist(const TPersistenceContext& context)
+void TChunkPoolAdapterBase::RegisterMetadata(auto&& registrar)
 {
-    TChunkPoolInputAdapterBase::Persist(context);
-    TChunkPoolOutputAdapterBase::Persist(context);
+    registrar.template BaseType<TChunkPoolInputAdapterBase>();
+    registrar.template BaseType<TChunkPoolOutputAdapterBase>();
 }
+
+PHOENIX_DEFINE_TYPE(TChunkPoolAdapterBase);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,22 +198,20 @@ public:
         return AddWithKey(stripe, TChunkStripeKey());
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        TChunkPoolInputAdapterBase::Persist(context);
-
-        using NYT::Persist;
-
-        Persist(context, TaskHost_);
-    }
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TIntermediateLivePreviewAdapter, 0x1241741a);
-
     ITaskHost* TaskHost_ = nullptr;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TIntermediateLivePreviewAdapter, 0x1241741a);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TIntermediateLivePreviewAdapter);
+void TIntermediateLivePreviewAdapter::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TChunkPoolInputAdapterBase>();
+
+    PHOENIX_REGISTER_FIELD(1, TaskHost_)();
+}
+
+PHOENIX_DEFINE_TYPE(TIntermediateLivePreviewAdapter);
 
 IPersistentChunkPoolInputPtr CreateIntermediateLivePreviewAdapter(
     IPersistentChunkPoolInputPtr chunkPoolInput,
@@ -245,22 +245,20 @@ public:
         return AddWithKey(stripe, TChunkStripeKey());
     }
 
-    void Persist(const TPersistenceContext& context) override
-    {
-        TChunkPoolInputAdapterBase::Persist(context);
-
-        using NYT::Persist;
-
-        Persist(context, Task_);
-    }
-
 private:
-    DECLARE_DYNAMIC_PHOENIX_TYPE(TTaskUpdatingAdapter, 0x1fe32cba);
-
     TTask* Task_ = nullptr;
+
+    PHOENIX_DECLARE_POLYMORPHIC_TYPE(TTaskUpdatingAdapter, 0x1fe32cba);
 };
 
-DEFINE_DYNAMIC_PHOENIX_TYPE(TTaskUpdatingAdapter);
+void TTaskUpdatingAdapter::RegisterMetadata(auto&& registrar)
+{
+    registrar.template BaseType<TChunkPoolInputAdapterBase>();
+
+    PHOENIX_REGISTER_FIELD(1, Task_)();
+}
+
+PHOENIX_DEFINE_TYPE(TTaskUpdatingAdapter);
 
 IPersistentChunkPoolInputPtr CreateTaskUpdatingAdapter(
     IPersistentChunkPoolInputPtr chunkPoolInput,
