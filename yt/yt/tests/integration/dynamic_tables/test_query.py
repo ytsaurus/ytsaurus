@@ -135,8 +135,12 @@ class TestQuery(DynamicTablesBase):
         sync_create_cells(1)
         self._sample_data(path="//tmp/t")
         response_parameters = {}
-        select_rows("* from [//tmp/t]", response_parameters=response_parameters, enable_statistics=True)
+        select_rows(
+            "sum(1) from [//tmp/t] group by b with totals limit 10",
+            response_parameters=response_parameters,
+            enable_statistics=True)
         assert "read_time" in response_parameters
+        assert "total_grouped_row_count" in response_parameters
 
     @authors("lukyan")
     def test_full_scan(self):
