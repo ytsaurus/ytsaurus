@@ -3651,6 +3651,11 @@ private:
         return lock;
     }
 
+    // NB: that this function does _not_ remove nodes from
+    // #transaction->LockedNodes(). It's a caller responsibility since almost
+    // always this function is caled on transaction finish and it's cheaper to
+    // clear whole map |LockedNodes()| at once then removing every given locked
+    // node from it.
     void DoReleaseLocks(
         TTransaction* transaction,
         bool promote,
@@ -3722,6 +3727,7 @@ private:
             }
         }
 
+        transaction->LockedNodes().erase(trunkNode);
         DoReleaseLocks(transaction, /*promote*/ false, locks, lockedNodes);
     }
 
@@ -4647,6 +4653,8 @@ private:
             YT_LOG_DEBUG("Manual node unbranching failed; no such node %Qv", versionedId);
             return;
         }
+
+        YT_LOG_DEBUG("Manually unlocking and merging Cypress node (NodeId: %v)", versionedId);
         auto* trunkNode = currentNode->GetTrunkNode();
 
         while (currentNode && currentNode != trunkNode) {
