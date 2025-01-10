@@ -122,7 +122,7 @@ private:
         auto result = New<NBundleControllerClient::TBundleResourceQuota>();
         result->Vcpu = cypressResourceQuota->Vcpu();
         result->Memory = cypressResourceQuota->Memory;
-        result->Network = cypressResourceQuota->NetworkBitsPerSecond();
+        result->NetworkBytes = cypressResourceQuota->Network;
         return result;
     }
 
@@ -156,7 +156,7 @@ private:
         // Checking for total resource usage
         i64 targetMemory = bundleConfig->RpcProxyCount.value_or(0) * bundleConfig->RpcProxyResourceGuarantee->Memory + bundleConfig->TabletNodeCount.value_or(0) * bundleConfig->TabletNodeResourceGuarantee->Memory;
         i64 targetVcpu = bundleConfig->RpcProxyCount.value_or(0) * bundleConfig->RpcProxyResourceGuarantee->Vcpu + bundleConfig->TabletNodeCount.value_or(0) * bundleConfig->TabletNodeResourceGuarantee->Vcpu;
-        i64 targetNetwork = bundleConfig->RpcProxyCount.value_or(0) * bundleConfig->RpcProxyResourceGuarantee->Net.value_or(0) + bundleConfig->TabletNodeCount.value_or(0) * bundleConfig->TabletNodeResourceGuarantee->Net.value_or(0);
+        i64 targetNetwork = bundleConfig->RpcProxyCount.value_or(0) * bundleConfig->RpcProxyResourceGuarantee->NetBytes.value_or(0) + bundleConfig->TabletNodeCount.value_or(0) * bundleConfig->TabletNodeResourceGuarantee->NetBytes.value_or(0);
 
         if (targetMemory > resourceQuota->Memory) {
             THROW_ERROR_EXCEPTION("Cannot allocate new instance: memory quota is exhausted")
@@ -170,10 +170,10 @@ private:
                 << TErrorAttribute("quota_vcpu", resourceQuota->Vcpu);
         }
 
-        if (targetNetwork > resourceQuota->Network) {
+        if (targetNetwork > resourceQuota->NetworkBytes) {
             THROW_ERROR_EXCEPTION("Cannot allocate new instance: network quota is exhausted")
                 << TErrorAttribute("target_network", targetNetwork)
-                << TErrorAttribute("quota_network", resourceQuota->Network);
+                << TErrorAttribute("quota_network", resourceQuota->NetworkBytes);
         }
 
         // Checking memory categories oversubscription

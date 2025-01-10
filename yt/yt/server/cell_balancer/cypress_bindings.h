@@ -123,7 +123,6 @@ struct TResourceQuota
     i64 Network;
 
     int Vcpu() const;
-    i64 NetworkBitsPerSecond() const;
 
     REGISTER_YSON_STRUCT(TResourceQuota);
 
@@ -153,7 +152,8 @@ struct THulkInstanceResources
 {
     int Vcpu;
     i64 MemoryMb;
-    std::optional<int> NetworkBandwidth;
+    // Bytes per second.
+    std::optional<i64> NetworkBandwidth;
 
     THulkInstanceResources& operator=(const NBundleControllerClient::TInstanceResources& resources);
 
