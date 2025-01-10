@@ -2188,6 +2188,11 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
         if (parentTransactionId) {
             ManuallyMergeBranchedCypressNode(operationCypressNodeId, *parentTransactionId);
         }
+
+        if (Config->TestingOptions->AbortOutputTransactionAfterCompletionTransactionCommit) {
+            WaitFor(OutputTransaction->Abort({.Force = true}))
+                .ThrowOnError();
+        }
     }
 
     CommitFinished = true;
