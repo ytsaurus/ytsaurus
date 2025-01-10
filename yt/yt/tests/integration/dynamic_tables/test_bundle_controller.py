@@ -73,6 +73,7 @@ class TestBundleController(YTEnvSetup):
                 "resource_guarantee": {
                     "memory": 21474836480,
                     "net": 1090519040,
+                    "net_bytes": 1090519040 // 8,
                     "vcpu": 10000
                 }
             },
@@ -80,6 +81,7 @@ class TestBundleController(YTEnvSetup):
                 "resource_guarantee": {
                     "memory": 21474836480,
                     "net": 545259520,
+                    "net_bytes": 545259520 // 8,
                     "vcpu": 4000
                 }
             }
@@ -200,12 +202,14 @@ class TestBundleController(YTEnvSetup):
         set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/rpc_proxy_resource_guarantee", {
             "memory": 21474836480,
             "net": 1090519040,
+            "net_bytes": 1090519040 // 8,
             "type": "medium",
             "vcpu": 10000})
 
         set("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/tablet_node_resource_guarantee", {
             "memory": 107374182400,
             "net": 5368709120,
+            "net_bytes": 5368709120 // 8,
             "type": "cpu_intensive",
             "vcpu": 28000})
 
@@ -260,6 +264,7 @@ class TestBundleController(YTEnvSetup):
         config["bundle_config"]["rpc_proxy_resource_guarantee"] = {
             "memory": get("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/rpc_proxy_resource_guarantee/memory"),
             "net": get("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/rpc_proxy_resource_guarantee/net"),
+            "net_bytes": get("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/rpc_proxy_resource_guarantee/net_bytes"),
             "type": get("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/rpc_proxy_resource_guarantee/type"),
             "vcpu": get("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/rpc_proxy_resource_guarantee/vcpu"),
         }
@@ -267,6 +272,7 @@ class TestBundleController(YTEnvSetup):
         config["bundle_config"]["tablet_node_resource_guarantee"] = {
             "memory": get("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/tablet_node_resource_guarantee/memory"),
             "net": get("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/tablet_node_resource_guarantee/net"),
+            "net_bytes": get("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/tablet_node_resource_guarantee/net_bytes"),
             "type": get("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/tablet_node_resource_guarantee/type"),
             "vcpu": get("//sys/tablet_cell_bundles/default/@bundle_controller_target_config/tablet_node_resource_guarantee/vcpu"),
         }
@@ -357,12 +363,14 @@ class TestBundleController(YTEnvSetup):
         expected_config["bundle_config"]["rpc_proxy_resource_guarantee"] = {
             "memory": 21474836480,
             "net": 545259520,
+            "net_bytes": 545259520 // 8,
             "type": "small",
             "vcpu": 4000,
         }
         expected_config["bundle_config"]["tablet_node_resource_guarantee"] = {
             "memory": 21474836480,
             "net": 104857600,
+            "net_bytes": 104857600 // 8,
             "vcpu": 4000,
             "type": "tiny",
         }
@@ -392,12 +400,14 @@ class TestBundleController(YTEnvSetup):
                 "rpc_proxy_resource_guarantee": {
                     "memory": 21474836480,
                     "net": 545259520,
+                    # "net_bytes" is not specified explicitly
                     "type": "small",
                     "vcpu": 4000
                 },
                 "tablet_node_resource_guarantee": {
                     "memory": 107374182400,
                     "net": 2684354560,
+                    # "net_bytes" is not specified explicitly
                     "type": "medium",
                     "vcpu": 14000
                 }
@@ -410,13 +420,52 @@ class TestBundleController(YTEnvSetup):
 
         expected_config["bundle_config"]["rpc_proxy_resource_guarantee"]["memory"] = 21474836480
         expected_config["bundle_config"]["rpc_proxy_resource_guarantee"]["net"] = 545259520
+        expected_config["bundle_config"]["rpc_proxy_resource_guarantee"]["net_bytes"] = 545259520 // 8
         expected_config["bundle_config"]["rpc_proxy_resource_guarantee"]["type"] = "small"
         expected_config["bundle_config"]["rpc_proxy_resource_guarantee"]["vcpu"] = 4000
 
         expected_config["bundle_config"]["tablet_node_resource_guarantee"]["memory"] = 107374182400
         expected_config["bundle_config"]["tablet_node_resource_guarantee"]["net"] = 2684354560
+        expected_config["bundle_config"]["tablet_node_resource_guarantee"]["net_bytes"] = 2684354560 // 8
         expected_config["bundle_config"]["tablet_node_resource_guarantee"]["type"] = "medium"
         expected_config["bundle_config"]["tablet_node_resource_guarantee"]["vcpu"] = 14000
+
+        self._set_bundle_config(update_config)
+        config = self._get_cypress_config("default")
+        self._check_configs(expected_config, config)
+
+        update_config = {
+            "bundle_name": "default",
+            "bundle_config": {
+                "cpu_limits": {
+                    "query_thread_pool_size": 4,
+                },
+                "memory_limits": {
+                    "compressed_block_cache": 8589934592,
+                    "lookup_row_cache": 0,
+                    "tablet_static": 42949672960,
+                },
+                "rpc_proxy_resource_guarantee": {
+                    "memory": 21474836480,
+                    "net_bytes": 198029589,
+                    # "net": 198029589 * 8,
+                    "type": "small",
+                    "vcpu": 4000
+                },
+                "tablet_node_resource_guarantee": {
+                    "memory": 107374182400,
+                    "net_bytes": 92947848,
+                    # "net": 92947848 * 8,
+                    "type": "medium",
+                    "vcpu": 14000
+                }
+            }
+        }
+
+        expected_config["bundle_config"]["rpc_proxy_resource_guarantee"]["net_bytes"] = 198029589
+        expected_config["bundle_config"]["rpc_proxy_resource_guarantee"]["net"] = 198029589 * 8
+        expected_config["bundle_config"]["tablet_node_resource_guarantee"]["net_bytes"] = 92947848
+        expected_config["bundle_config"]["tablet_node_resource_guarantee"]["net"] = 92947848 * 8
 
         self._set_bundle_config(update_config)
         config = self._get_cypress_config("default")
@@ -438,6 +487,7 @@ class TestBundleController(YTEnvSetup):
                     "resource_guarantee": {
                         "memory": 21474836480,
                         "net": 545259520,
+                        "net_bytes": 545259520 // 8,
                         "type": "small",
                         "vcpu": 4000
                     }
@@ -449,6 +499,7 @@ class TestBundleController(YTEnvSetup):
                     "resource_guarantee": {
                         "memory": 21474836480,
                         "net": 1090519040,
+                        "net_bytes": 1090519040 // 8,
                         "type": "medium",
                         "vcpu": 10000
                     }
@@ -475,6 +526,7 @@ class TestBundleController(YTEnvSetup):
                     "resource_guarantee": {
                         "memory": 53687091200,
                         "net": 1342177280,
+                        "net_bytes": 1342177280 // 8,
                         "type": "small",
                         "vcpu": 7000
                     }
@@ -498,6 +550,7 @@ class TestBundleController(YTEnvSetup):
                     "resource_guarantee": {
                         "memory": 21474836480,
                         "net": 104857600,
+                        "net_bytes": 104857600 // 8,
                         "type": "tiny",
                         "vcpu": 4000
                     }
@@ -521,6 +574,7 @@ class TestBundleController(YTEnvSetup):
                     "resource_guarantee": {
                         "memory": 107374182400,
                         "net": 2684354560,
+                        "net_bytes": 2684354560 // 8,
                         "type": "medium",
                         "vcpu": 14000
                     }
@@ -543,6 +597,7 @@ class TestBundleController(YTEnvSetup):
                     "resource_guarantee": {
                         "memory": 107374182400,
                         "net": 5368709120,
+                        "net_bytes": 5368709120 // 8,
                         "type": "cpu_intensive",
                         "vcpu": 28000
                     }
@@ -552,7 +607,8 @@ class TestBundleController(YTEnvSetup):
         expected_config["resource_quota"] = {
             "vcpu": 100000,
             "memory": 750323855360,
-            "network": 0
+            "network": 0,
+            "network_bytes": 0,
         }
 
         # check get query

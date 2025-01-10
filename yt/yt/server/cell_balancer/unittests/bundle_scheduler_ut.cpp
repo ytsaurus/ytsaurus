@@ -91,7 +91,7 @@ TBundleInfoPtr SetBundleInfo(
     config->TabletNodeResourceGuarantee = New<NBundleControllerClient::TInstanceResources>();
     config->TabletNodeResourceGuarantee->Vcpu = 9999;
     config->TabletNodeResourceGuarantee->Memory = 88_GB;
-    config->TabletNodeResourceGuarantee->Net = 1_GB;
+    config->TabletNodeResourceGuarantee->NetBytes = 1_GB / 8;
     config->RpcProxyResourceGuarantee->Vcpu = 1111;
     config->RpcProxyResourceGuarantee->Memory = 18_GB;
     config->CpuLimits->WriteThreadPoolSize = writeThreadCount;
@@ -119,7 +119,7 @@ TSchedulerInputState GenerateSimpleInputContext(int nodeCount, int writeThreadCo
         auto defaultTabNode = New<NBundleControllerClient::TInstanceSize>();
         defaultTabNode->ResourceGuarantee->Vcpu = 9999;
         defaultTabNode->ResourceGuarantee->Memory = 88_GB;
-        defaultTabNode->ResourceGuarantee->Net = 1_GB;
+        defaultTabNode->ResourceGuarantee->NetBytes = 1_GB / 8;
         zoneInfo->TabletNodeSizes["default"] = defaultTabNode;
     }
 
@@ -146,7 +146,7 @@ TSchedulerInputState GenerateMultiDCInputContext(int nodeCount, int writeThreadC
         auto defaultTabNode = New<NBundleControllerClient::TInstanceSize>();
         defaultTabNode->ResourceGuarantee->Vcpu = 9999;
         defaultTabNode->ResourceGuarantee->Memory = 88_GB;
-        defaultTabNode->ResourceGuarantee->Net = 1_GB;
+        defaultTabNode->ResourceGuarantee->NetBytes = 1_GB / 8;
         zoneInfo->TabletNodeSizes["default"] = defaultTabNode;
 
         for (int i = 1; i <= 3; ++i) {
@@ -849,7 +849,7 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackCompleted)
         EXPECT_EQ(annotations->NannyService, Format("nanny-tablet-nodes-%v", dataCenterName));
         EXPECT_EQ(annotations->Resource->Vcpu, 9999);
         EXPECT_EQ(annotations->Resource->Memory, static_cast<i64>(88_GB));
-        EXPECT_EQ(annotations->Resource->Net, std::optional<i64>(1_GB));
+        EXPECT_EQ(annotations->Resource->NetBytes, std::optional<i64>(1_GB / 8));
         EXPECT_TRUE(annotations->Allocated);
         EXPECT_FALSE(annotations->DeallocatedAt);
 
@@ -2275,7 +2275,7 @@ TEST_P(TBundleSchedulerTest, ReAllocateOutdatedNetworkLimits)
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
     for (auto& [_, nodeInfo] : input.TabletNodes) {
-        nodeInfo->Annotations->Resource->Net = *nodeInfo->Annotations->Resource->Net / 2;
+        nodeInfo->Annotations->Resource->NetBytes = *nodeInfo->Annotations->Resource->NetBytes / 2;
         EXPECT_TRUE(nodeInfo->Annotations->Resource->Vcpu);
     }
 
@@ -2307,7 +2307,7 @@ TEST_P(TBundleSchedulerTest, DoNotReAllocateOutdatedNetworkLimitsIfDisabled)
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
     for (auto& [_, nodeInfo] : input.TabletNodes) {
-        nodeInfo->Annotations->Resource->Net = nodeInfo->Annotations->Resource->Net.value_or(1024) / 2;
+        nodeInfo->Annotations->Resource->NetBytes = nodeInfo->Annotations->Resource->NetBytes.value_or(1024 / 8) / 2;
     }
 
     mutations = TSchedulerMutations{};
@@ -2366,7 +2366,7 @@ TEST_P(TBundleSchedulerTest, ReAllocateOutdatedNetworkProxies)
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
     for (auto& [_, proxyInfo] : input.RpcProxies) {
-        proxyInfo->Annotations->Resource->Net = 1024;
+        proxyInfo->Annotations->Resource->NetBytes = 1024 / 8;
     }
 
     mutations = TSchedulerMutations{};

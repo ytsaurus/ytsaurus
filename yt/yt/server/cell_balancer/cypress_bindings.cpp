@@ -42,11 +42,6 @@ int TResourceQuota::Vcpu() const
     return static_cast<int>(Cpu * VFactor);
 }
 
-i64 TResourceQuota::NetworkBitsPerSecond() const
-{
-    return Network * 8;
-}
-
 void THulkInstanceResources::Register(TRegistrar registrar)
 {
     registrar.Parameter("vcpu", &TThis::Vcpu)
@@ -61,21 +56,16 @@ THulkInstanceResources& THulkInstanceResources::operator=(const NBundleControlle
 {
     Vcpu = resources.Vcpu;
     MemoryMb = resources.Memory / 1_MB;
-
-    if (resources.Net) {
-        NetworkBandwidth = *resources.Net / 8;
-    }
+    NetworkBandwidth = resources.NetBytes;
 
     return *this;
 }
 
-void ConvertToInstanceResources(NBundleControllerClient::TInstanceResources& resources, const THulkInstanceResources& hulkResources) {
+void ConvertToInstanceResources(NBundleControllerClient::TInstanceResources& resources, const THulkInstanceResources& hulkResources)
+{
     resources.Vcpu = hulkResources.Vcpu;
     resources.Memory = hulkResources.MemoryMb * 1_MB;
-
-    if (hulkResources.NetworkBandwidth) {
-        resources.Net = *hulkResources.NetworkBandwidth * 8;
-    }
+    resources.NetBytes = hulkResources.NetworkBandwidth;
 }
 
 void TBundleConfig::Register(TRegistrar registrar)

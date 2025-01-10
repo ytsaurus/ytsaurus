@@ -200,7 +200,7 @@ private:
         }
 
         // In order to support clusters without network limits enabled we check network quotas only if they are explicitly set for bundle.
-        if (quota->NetworkBitsPerSecond() > 0 && usage->Net.value_or(0) > quota->NetworkBitsPerSecond()) {
+        if (quota->Network > 0 && usage->NetBytes.value_or(0) > quota->Network) {
             return true;
         }
 
@@ -262,27 +262,27 @@ private:
 
         const auto& resourceUsage = GetOrCrash(input.BundleResourceTarget, bundleName);
         if (instanceCountToAllocate > 0 && IsResourceUsageExceeded(resourceUsage, bundleInfo->ResourceQuota)) {
-            YT_LOG_WARNING("Bundle resource usage exceeded quota (Bundle: %v, ResourceQuota: {Vcpu: %v, Memory: %v, Network: %v}, ResourceUsage: {Vcpu: %v, Memory: %v, Network: %v})",
+            YT_LOG_WARNING("Bundle resource usage exceeded quota (Bundle: %v, ResourceQuota: {Vcpu: %v, Memory: %v, NetworkBytes: %v}, ResourceUsage: {Vcpu: %v, Memory: %v, NetworkBytes: %v})",
                 bundleName,
                 bundleInfo->ResourceQuota->Vcpu(),
                 bundleInfo->ResourceQuota->Memory,
-                bundleInfo->ResourceQuota->NetworkBitsPerSecond(),
+                bundleInfo->ResourceQuota->Network,
                 resourceUsage->Vcpu,
                 resourceUsage->Memory,
-                resourceUsage->Net);
+                resourceUsage->NetBytes);
 
             mutations->AlertsToFire.push_back(TAlert{
                 .Id = "bundle_resource_quota_exceeded",
                 .BundleName = bundleName,
-                .Description = Format("Cannot allocate new %v instance for bundle %v. ResourceQuota: {Vcpu: %v, Memory: %v, Network: %v}, ResourceUsage: {Vcpu: %v, Memory: %v, Network: %v}",
+                .Description = Format("Cannot allocate new %v instance for bundle %v. ResourceQuota: {Vcpu: %v, Memory: %v, NetworkBytes: %v}, ResourceUsage: {Vcpu: %v, Memory: %v, NetworkBytes: %v}",
                     adapter->GetInstanceType(),
                     bundleName,
                     bundleInfo->ResourceQuota->Vcpu(),
                     bundleInfo->ResourceQuota->Memory,
-                    bundleInfo->ResourceQuota->NetworkBitsPerSecond(),
+                    bundleInfo->ResourceQuota->Network,
                     resourceUsage->Vcpu,
                     resourceUsage->Memory,
-                    resourceUsage->Net)
+                    resourceUsage->NetBytes)
             });
             return;
         }
@@ -1103,7 +1103,7 @@ void CalculateResourceUsage(TSchedulerInputState& input)
             auto targetResource = New<NBundleControllerClient::TInstanceResources>();
             targetResource->Vcpu = nodeGuarantee->Vcpu * targetConfig->TabletNodeCount + proxyGuarantee->Vcpu * targetConfig->RpcProxyCount;
             targetResource->Memory = nodeGuarantee->Memory * targetConfig->TabletNodeCount + proxyGuarantee->Memory * targetConfig->RpcProxyCount;
-            targetResource->Net = nodeGuarantee->Net.value_or(0) * targetConfig->TabletNodeCount + proxyGuarantee->Net.value_or(0) * targetConfig->RpcProxyCount;
+            targetResource->NetBytes = nodeGuarantee->NetBytes.value_or(0) * targetConfig->TabletNodeCount + proxyGuarantee->NetBytes.value_or(0) * targetConfig->RpcProxyCount;
 
             targetResources[bundleName] = targetResource;
         }
@@ -2849,19 +2849,19 @@ void TrimNetworkInfo(TSchedulerInputState* input)
         }
 
         const auto& targetConfig = bundleInfo->TargetConfig;
-        targetConfig->TabletNodeResourceGuarantee->Net.reset();
-        targetConfig->RpcProxyResourceGuarantee->Net.reset();
+        targetConfig->TabletNodeResourceGuarantee->ResetNet();
+        targetConfig->RpcProxyResourceGuarantee->ResetNet();
     }
 
     for (const auto& [_, nodeInfo] : input->TabletNodes) {
         if (nodeInfo->Annotations && nodeInfo->Annotations->Resource) {
-            nodeInfo->Annotations->Resource->Net.reset();
+            nodeInfo->Annotations->Resource->ResetNet();
         }
     }
 
     for (const auto& [_, proxyInfo] : input->RpcProxies) {
         if (proxyInfo->Annotations && proxyInfo->Annotations->Resource) {
-            proxyInfo->Annotations->Resource->Net.reset();
+            proxyInfo->Annotations->Resource->ResetNet();
         }
     }
 
@@ -2871,8 +2871,8 @@ void TrimNetworkInfo(TSchedulerInputState* input)
         }
 
         const auto& spareTargetConfig = zoneInfo->SpareTargetConfig;
-        spareTargetConfig->TabletNodeResourceGuarantee->Net.reset();
-        spareTargetConfig->RpcProxyResourceGuarantee->Net.reset();
+        spareTargetConfig->TabletNodeResourceGuarantee->ResetNet();
+        spareTargetConfig->RpcProxyResourceGuarantee->ResetNet();
     }
 }
 
