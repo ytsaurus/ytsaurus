@@ -199,7 +199,7 @@ class TestOAuth(TestOAuthBase):
     def test_http_proxy_oauth_server_error(self):
         assert self._check_deny(cookie="retry_token")
 
-    @authors("achulkov2")
+    @authors("achulkov2", "nadya73")
     def test_login_transformation(self):
         def check_user(user, expected_login):
             rsp = self._check_allow(token="good_token", user=user)
@@ -213,22 +213,22 @@ class TestOAuth(TestOAuthBase):
         check_user("fourth@fourth-company.com", "fourth@fourth-company.com")
         check_user("fifth", "fifth")
 
-    @authors("aleksandr.gaev")
+    @authors("aleksandr.gaev", "nadya73")
     def test_cache_invalidation_bad_then_good_token(self):
         assert self._check_deny(token="bad_then_good_token")
         self._wait_allow(token="bad_then_good_token")
 
-    @authors("aleksandr.gaev")
+    @authors("aleksandr.gaev", "nadya73")
     def test_cache_invalidation_bad_then_good_cookie(self):
         assert self._check_deny(cookie="bad_then_good_token")
         self._wait_allow(cookie="bad_then_good_token")
 
-    @authors("aleksandr.gaev")
+    @authors("aleksandr.gaev", "nadya73")
     def test_cache_invalidation_good_then_bad_token(self):
         assert self._check_allow(token="good_then_bad_token")
         wait(lambda: self._check_deny(token="good_then_bad_token"))
 
-    @authors("aleksandr.gaev")
+    @authors("aleksandr.gaev", "nadya73")
     def test_cache_invalidation_good_then_bad_cookie(self):
         assert self._check_allow(cookie="good_then_bad_token")
         wait(lambda: self._check_deny(cookie="good_then_bad_token"))
@@ -254,7 +254,7 @@ class TestOAuthWithDisabledUserCreation(TestOAuthBase):
         },
     }
 
-    @authors("aleksandr.gaev")
+    @authors("aleksandr.gaev", "nadya73")
     def test_unknown_user(self):
         assert self._check_deny(token="bad_token", user="unknown_user")
         assert self._check_deny(cookie="bad_token", user="unknown_user")
@@ -262,7 +262,7 @@ class TestOAuthWithDisabledUserCreation(TestOAuthBase):
         assert self._check_deny(token="good_token", user="unknown_user")
         assert self._check_deny(cookie="good_token", user="unknown_user")
 
-    @authors("aleksandr.gaev")
+    @authors("aleksandr.gaev", "nadya73")
     def test_known_user(self):
         create_user("known_user")
 
@@ -279,7 +279,7 @@ class TestOAuthWithDisabledUserCreation(TestOAuthBase):
         assert data["login"] == "known_user"
         assert data["realm"] == "oauth:cookie"
 
-    @authors("aleksandr.gaev")
+    @authors("aleksandr.gaev", "nadya73")
     def test_user_cache_invalidation(self):
         assert self._check_deny(token="bad_token", user="new_user")
         assert self._check_deny(cookie="bad_token", user="new_user")

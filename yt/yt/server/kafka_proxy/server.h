@@ -38,7 +38,7 @@ struct IServer
     template <class TRequest, class TResponse>
     void RegisterTypedHandler(TTypedHandler<TRequest, TResponse> handler);
 
-    // Update kafka proxy dynamic config.
+    // Update Kafka proxy dynamic config.
     virtual void OnDynamicConfigChanged(const TProxyDynamicConfigPtr& config) = 0;
 };
 

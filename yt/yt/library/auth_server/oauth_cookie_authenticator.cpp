@@ -109,7 +109,7 @@ private:
         } else {
             auto result = WaitFor(UserManager_->CheckUserExists(userInfo.Login));
             if (!result.IsOK()) {
-                auto error = TError("Failed to verify if user exists")
+                auto error = TError("Failed to check if user exists")
                     << TErrorAttribute("name", userInfo.Login)
                     << std::move(result);
                 YT_LOG_WARNING(error);
