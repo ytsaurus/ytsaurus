@@ -102,8 +102,8 @@ bool TSink::IsFinished() const
 
 void TSink::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Controller_)();
-    PHOENIX_REGISTER_FIELD(2, OutputTableIndex_)();
+    PHOENIX_REGISTER_FIELD(1, Controller_);
+    PHOENIX_REGISTER_FIELD(2, OutputTableIndex_);
 }
 
 PHOENIX_DEFINE_TYPE(TSink);

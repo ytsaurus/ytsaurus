@@ -135,8 +135,8 @@ void TProbingJobManager::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TCompetitiveJobManagerBase>();
 
-    PHOENIX_REGISTER_FIELD(1, ProbingRatio_)();
-    PHOENIX_REGISTER_FIELD(2, ProbingPoolTree_)();
+    PHOENIX_REGISTER_FIELD(1, ProbingRatio_);
+    PHOENIX_REGISTER_FIELD(2, ProbingPoolTree_);
 }
 
 PHOENIX_DEFINE_TYPE(TProbingJobManager);

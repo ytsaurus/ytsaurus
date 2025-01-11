@@ -258,15 +258,15 @@ TGangManager::TGangManager(
 
 void TGangManager::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Enabled_)();
+    PHOENIX_REGISTER_FIELD(1, Enabled_);
 
     // COMPAT(pogorelov): Remove after all CAs are 25.1.
-    PHOENIX_REGISTER_FIELD(2, Incarnation_)
+    PHOENIX_REGISTER_FIELD(2, Incarnation_,
         .SinceVersion(ESnapshotVersion::OperationIncarnationIsStrongTypedef)
         .WhenMissing([] (TThis* this_, auto& context) {
             auto incarnationStr = Load<TString>(context);
             this_->Incarnation_ = TOperationIncarnation(std::move(incarnationStr));
-        })();
+        }));
 }
 
 const TOperationIncarnation& TGangManager::GetCurrentIncanation() const noexcept
@@ -344,10 +344,10 @@ void TVanillaTask::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TTask>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec_)();
-    PHOENIX_REGISTER_FIELD(2, Name_)();
-    PHOENIX_REGISTER_FIELD(3, VanillaChunkPool_)();
-    PHOENIX_REGISTER_FIELD(4, JobSpecTemplate_)();
+    PHOENIX_REGISTER_FIELD(1, Spec_);
+    PHOENIX_REGISTER_FIELD(2, Name_);
+    PHOENIX_REGISTER_FIELD(3, VanillaChunkPool_);
+    PHOENIX_REGISTER_FIELD(4, JobSpecTemplate_);
 }
 
 TString TVanillaTask::GetTitle() const
@@ -510,13 +510,13 @@ void TVanillaController::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TOperationControllerBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec_)();
-    PHOENIX_REGISTER_FIELD(2, Options_)();
-    PHOENIX_REGISTER_FIELD(3, Tasks_)();
-    PHOENIX_REGISTER_FIELD(4, TaskOutputTables_)();
+    PHOENIX_REGISTER_FIELD(1, Spec_);
+    PHOENIX_REGISTER_FIELD(2, Options_);
+    PHOENIX_REGISTER_FIELD(3, Tasks_);
+    PHOENIX_REGISTER_FIELD(4, TaskOutputTables_);
 
-    PHOENIX_REGISTER_FIELD(5, GangManager_)
-        .SinceVersion(ESnapshotVersion::IntroduceGangManager)();
+    PHOENIX_REGISTER_FIELD(5, GangManager_,
+        .SinceVersion(ESnapshotVersion::IntroduceGangManager));
 }
 
 void TVanillaController::CustomMaterialize()

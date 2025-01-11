@@ -102,18 +102,18 @@ i64 TLegacyDataSlice::GetMaxBlockSize() const
 
 void TLegacyDataSlice::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, IsLegacy)();
-    PHOENIX_REGISTER_FIELD(2, LegacyLowerLimit_)();
-    PHOENIX_REGISTER_FIELD(3, LegacyUpperLimit_)();
-    PHOENIX_REGISTER_FIELD(4, LowerLimit_)();
-    PHOENIX_REGISTER_FIELD(5, UpperLimit_)();
-    PHOENIX_REGISTER_FIELD(6, ChunkSlices)();
-    PHOENIX_REGISTER_FIELD(7, Type)();
-    PHOENIX_REGISTER_FIELD(8, Tag)();
-    PHOENIX_REGISTER_FIELD(9, InputStreamIndex_)();
-    PHOENIX_REGISTER_FIELD(10, VirtualRowIndex)();
-    PHOENIX_REGISTER_FIELD(11, ReadRangeIndex)();
-    PHOENIX_REGISTER_FIELD(12, IsTeleportable)();
+    PHOENIX_REGISTER_FIELD(1, IsLegacy);
+    PHOENIX_REGISTER_FIELD(2, LegacyLowerLimit_);
+    PHOENIX_REGISTER_FIELD(3, LegacyUpperLimit_);
+    PHOENIX_REGISTER_FIELD(4, LowerLimit_);
+    PHOENIX_REGISTER_FIELD(5, UpperLimit_);
+    PHOENIX_REGISTER_FIELD(6, ChunkSlices);
+    PHOENIX_REGISTER_FIELD(7, Type);
+    PHOENIX_REGISTER_FIELD(8, Tag);
+    PHOENIX_REGISTER_FIELD(9, InputStreamIndex_);
+    PHOENIX_REGISTER_FIELD(10, VirtualRowIndex);
+    PHOENIX_REGISTER_FIELD(11, ReadRangeIndex);
+    PHOENIX_REGISTER_FIELD(12, IsTeleportable);
 }
 
 int TLegacyDataSlice::GetTableIndex() const

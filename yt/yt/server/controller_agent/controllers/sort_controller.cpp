@@ -2948,67 +2948,67 @@ void TSortControllerBase::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TOperationControllerBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec)();
+    PHOENIX_REGISTER_FIELD(1, Spec);
 
-    PHOENIX_REGISTER_FIELD(2, CompletedPartitionCount)();
-    PHOENIX_REGISTER_FIELD(3, PartitionJobCounter)();
-    PHOENIX_REGISTER_FIELD(4, SortedMergeJobCounter)();
-    PHOENIX_REGISTER_FIELD(5, UnorderedMergeJobCounter)();
-    PHOENIX_REGISTER_FIELD(6, IntermediateSortJobCounter)();
-    PHOENIX_REGISTER_FIELD(7, FinalSortJobCounter)();
-    PHOENIX_REGISTER_FIELD(8, SortDataWeightCounter)();
+    PHOENIX_REGISTER_FIELD(2, CompletedPartitionCount);
+    PHOENIX_REGISTER_FIELD(3, PartitionJobCounter);
+    PHOENIX_REGISTER_FIELD(4, SortedMergeJobCounter);
+    PHOENIX_REGISTER_FIELD(5, UnorderedMergeJobCounter);
+    PHOENIX_REGISTER_FIELD(6, IntermediateSortJobCounter);
+    PHOENIX_REGISTER_FIELD(7, FinalSortJobCounter);
+    PHOENIX_REGISTER_FIELD(8, SortDataWeightCounter);
 
-    PHOENIX_REGISTER_FIELD(9, SortStartThresholdReached)();
-    PHOENIX_REGISTER_FIELD(10, MergeStartThresholdReached)();
+    PHOENIX_REGISTER_FIELD(9, SortStartThresholdReached);
+    PHOENIX_REGISTER_FIELD(10, MergeStartThresholdReached);
 
-    PHOENIX_REGISTER_FIELD(11, TotalOutputRowCount)();
+    PHOENIX_REGISTER_FIELD(11, TotalOutputRowCount);
 
-    PHOENIX_REGISTER_FIELD(12, SimpleSort)();
-    PHOENIX_REGISTER_FIELD(13, PartitionsByLevels)();
-    PHOENIX_REGISTER_FIELD(14, PartitionTreeDepth)();
-    PHOENIX_REGISTER_FIELD(15, PartitionCount)();
-    PHOENIX_REGISTER_FIELD(16, MaxPartitionFactor)();
+    PHOENIX_REGISTER_FIELD(12, SimpleSort);
+    PHOENIX_REGISTER_FIELD(13, PartitionsByLevels);
+    PHOENIX_REGISTER_FIELD(14, PartitionTreeDepth);
+    PHOENIX_REGISTER_FIELD(15, PartitionCount);
+    PHOENIX_REGISTER_FIELD(16, MaxPartitionFactor);
 
-    PHOENIX_REGISTER_FIELD(17, AssignedPartitionsByNodeId)();
-    PHOENIX_REGISTER_FIELD(18, PartitionsLocalityByNodeId)();
+    PHOENIX_REGISTER_FIELD(17, AssignedPartitionsByNodeId);
+    PHOENIX_REGISTER_FIELD(18, PartitionsLocalityByNodeId);
 
-    PHOENIX_REGISTER_FIELD(19, RootPartitionJobSpecTemplate)();
-    PHOENIX_REGISTER_FIELD(20, PartitionJobSpecTemplate)();
-    PHOENIX_REGISTER_FIELD(21, IntermediateSortJobSpecTemplate)();
-    PHOENIX_REGISTER_FIELD(22, FinalSortJobSpecTemplate)();
-    PHOENIX_REGISTER_FIELD(23, SortedMergeJobSpecTemplate)();
-    PHOENIX_REGISTER_FIELD(24, UnorderedMergeJobSpecTemplate)();
+    PHOENIX_REGISTER_FIELD(19, RootPartitionJobSpecTemplate);
+    PHOENIX_REGISTER_FIELD(20, PartitionJobSpecTemplate);
+    PHOENIX_REGISTER_FIELD(21, IntermediateSortJobSpecTemplate);
+    PHOENIX_REGISTER_FIELD(22, FinalSortJobSpecTemplate);
+    PHOENIX_REGISTER_FIELD(23, SortedMergeJobSpecTemplate);
+    PHOENIX_REGISTER_FIELD(24, UnorderedMergeJobSpecTemplate);
 
-    PHOENIX_REGISTER_FIELD(25, RootPartitionJobIOConfig)();
-    PHOENIX_REGISTER_FIELD(26, PartitionJobIOConfig)();
-    PHOENIX_REGISTER_FIELD(27, IntermediateSortJobIOConfig)();
-    PHOENIX_REGISTER_FIELD(28, FinalSortJobIOConfig)();
-    PHOENIX_REGISTER_FIELD(29, SortedMergeJobIOConfig)();
-    PHOENIX_REGISTER_FIELD(30, UnorderedMergeJobIOConfig)();
+    PHOENIX_REGISTER_FIELD(25, RootPartitionJobIOConfig);
+    PHOENIX_REGISTER_FIELD(26, PartitionJobIOConfig);
+    PHOENIX_REGISTER_FIELD(27, IntermediateSortJobIOConfig);
+    PHOENIX_REGISTER_FIELD(28, FinalSortJobIOConfig);
+    PHOENIX_REGISTER_FIELD(29, SortedMergeJobIOConfig);
+    PHOENIX_REGISTER_FIELD(30, UnorderedMergeJobIOConfig);
 
-    PHOENIX_REGISTER_FIELD(31, RootPartitionPoolJobSizeConstraints)();
-    PHOENIX_REGISTER_FIELD(32, RootPartitionPool)();
-    PHOENIX_REGISTER_FIELD(33, SimpleSortPool)();
+    PHOENIX_REGISTER_FIELD(31, RootPartitionPoolJobSizeConstraints);
+    PHOENIX_REGISTER_FIELD(32, RootPartitionPool);
+    PHOENIX_REGISTER_FIELD(33, SimpleSortPool);
 
-    PHOENIX_REGISTER_FIELD(34, ShuffleMultiChunkPoolInputs)();
-    PHOENIX_REGISTER_FIELD(35, ShuffleMultiInputChunkMappings)();
+    PHOENIX_REGISTER_FIELD(34, ShuffleMultiChunkPoolInputs);
+    PHOENIX_REGISTER_FIELD(35, ShuffleMultiInputChunkMappings);
 
     registrar.template VirtualField<36>("IntermediateChunkSchema_", [] (TThis* this_, auto& context) {
         NYT::Load(context, *this_->IntermediateChunkSchema_);
     }, [] (const TThis* this_, auto& context) {
         NYT::Save(context, *this_->IntermediateChunkSchema_);
     })();
-    PHOENIX_REGISTER_FIELD(37, IntermediateStreamSchemas_)
-        .template Serializer<TVectorSerializer<TNonNullableIntrusivePtrSerializer<>>>()();
+    PHOENIX_REGISTER_FIELD(37, IntermediateStreamSchemas_,
+        .template Serializer<TVectorSerializer<TNonNullableIntrusivePtrSerializer<>>>());
 
-    PHOENIX_REGISTER_FIELD(38, PartitionTasks)();
-    PHOENIX_REGISTER_FIELD(39, SimpleSortTask)();
-    PHOENIX_REGISTER_FIELD(40, IntermediateSortTask)();
-    PHOENIX_REGISTER_FIELD(41, FinalSortTask)();
-    PHOENIX_REGISTER_FIELD(42, UnorderedMergeTask)();
-    PHOENIX_REGISTER_FIELD(43, SortedMergeTask)();
+    PHOENIX_REGISTER_FIELD(38, PartitionTasks);
+    PHOENIX_REGISTER_FIELD(39, SimpleSortTask);
+    PHOENIX_REGISTER_FIELD(40, IntermediateSortTask);
+    PHOENIX_REGISTER_FIELD(41, FinalSortTask);
+    PHOENIX_REGISTER_FIELD(42, UnorderedMergeTask);
+    PHOENIX_REGISTER_FIELD(43, SortedMergeTask);
 
-    PHOENIX_REGISTER_FIELD(44, SwitchedToSlowIntermediateMedium)();
+    PHOENIX_REGISTER_FIELD(44, SwitchedToSlowIntermediateMedium);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         this_->SetupPartitioningCompletedCallbacks();
@@ -3021,31 +3021,31 @@ PHOENIX_DEFINE_TYPE(TSortControllerBase);
 
 void TSortControllerBase::TPartition::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Controller)();
+    PHOENIX_REGISTER_FIELD(1, Controller);
 
-    PHOENIX_REGISTER_FIELD(2, Level)();
-    PHOENIX_REGISTER_FIELD(3, Index)();
-    PHOENIX_REGISTER_FIELD(4, ParentPartitionTag)();
+    PHOENIX_REGISTER_FIELD(2, Level);
+    PHOENIX_REGISTER_FIELD(3, Index);
+    PHOENIX_REGISTER_FIELD(4, ParentPartitionTag);
 
-    PHOENIX_REGISTER_FIELD(5, Children)();
+    PHOENIX_REGISTER_FIELD(5, Children);
 
-    PHOENIX_REGISTER_FIELD(6, LowerBound)();
+    PHOENIX_REGISTER_FIELD(6, LowerBound);
 
-    PHOENIX_REGISTER_FIELD(7, Completed)();
+    PHOENIX_REGISTER_FIELD(7, Completed);
 
-    PHOENIX_REGISTER_FIELD(8, PartitioningCompleted)();
+    PHOENIX_REGISTER_FIELD(8, PartitioningCompleted);
 
-    PHOENIX_REGISTER_FIELD(9, CachedSortedMergeNeeded)();
+    PHOENIX_REGISTER_FIELD(9, CachedSortedMergeNeeded);
 
-    PHOENIX_REGISTER_FIELD(10, Maniac)();
+    PHOENIX_REGISTER_FIELD(10, Maniac);
 
-    PHOENIX_REGISTER_FIELD(11, AssignedNodeId)();
+    PHOENIX_REGISTER_FIELD(11, AssignedNodeId);
 
-    PHOENIX_REGISTER_FIELD(12, ShuffleChunkPool)();
-    PHOENIX_REGISTER_FIELD(13, ShuffleChunkPoolInput)();
-    PHOENIX_REGISTER_FIELD(14, ChunkPoolOutput)();
+    PHOENIX_REGISTER_FIELD(12, ShuffleChunkPool);
+    PHOENIX_REGISTER_FIELD(13, ShuffleChunkPoolInput);
+    PHOENIX_REGISTER_FIELD(14, ChunkPoolOutput);
 
-    PHOENIX_REGISTER_FIELD(15, Logger)();
+    PHOENIX_REGISTER_FIELD(15, Logger);
 }
 
 PHOENIX_DEFINE_TYPE(TSortControllerBase::TPartition);
@@ -3056,16 +3056,16 @@ void TSortControllerBase::TPartitionTask::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TTask>();
 
-    PHOENIX_REGISTER_FIELD(1, Controller_)();
-    PHOENIX_REGISTER_FIELD(2, DataBalancer_)();
-    PHOENIX_REGISTER_FIELD(3, Level_)();
-    PHOENIX_REGISTER_FIELD(4, ShuffleMultiChunkOutput_)();
+    PHOENIX_REGISTER_FIELD(1, Controller_);
+    PHOENIX_REGISTER_FIELD(2, DataBalancer_);
+    PHOENIX_REGISTER_FIELD(3, Level_);
+    PHOENIX_REGISTER_FIELD(4, ShuffleMultiChunkOutput_);
     registrar.template VirtualField<5>("WirePartitionKeys_", [] (TThis* /*this_*/, auto& context) {
         Load<std::vector<std::optional<TString>>>(context);
     })
         .BeforeVersion(ESnapshotVersion::DropLegacyWirePartitionKeys)();
-    PHOENIX_REGISTER_FIELD(6, WirePartitionLowerBoundPrefixes_)();
-    PHOENIX_REGISTER_FIELD(7, PartitionLowerBoundInclusivenesses_)();
+    PHOENIX_REGISTER_FIELD(6, WirePartitionLowerBoundPrefixes_);
+    PHOENIX_REGISTER_FIELD(7, PartitionLowerBoundInclusivenesses_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         if (this_->DataBalancer_) {
@@ -3082,9 +3082,9 @@ void TSortControllerBase::TSortTaskBase::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TTask>();
 
-    PHOENIX_REGISTER_FIELD(1, Controller_)();
-    PHOENIX_REGISTER_FIELD(2, IsFinalSort_)();
-    PHOENIX_REGISTER_FIELD(3, CurrentInputStreamIndex_)();
+    PHOENIX_REGISTER_FIELD(1, Controller_);
+    PHOENIX_REGISTER_FIELD(2, IsFinalSort_);
+    PHOENIX_REGISTER_FIELD(3, CurrentInputStreamIndex_);
 }
 
 PHOENIX_DEFINE_TYPE(TSortControllerBase::TSortTaskBase);
@@ -3095,8 +3095,8 @@ void TSortControllerBase::TSortTask::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TSortTaskBase>();
 
-    PHOENIX_REGISTER_FIELD(1, MultiChunkPoolOutput_)();
-    PHOENIX_REGISTER_FIELD(2, Partitions_)();
+    PHOENIX_REGISTER_FIELD(1, MultiChunkPoolOutput_);
+    PHOENIX_REGISTER_FIELD(2, Partitions_);
 }
 
 PHOENIX_DEFINE_TYPE(TSortControllerBase::TSortTask);
@@ -3107,7 +3107,7 @@ void TSortControllerBase::TSimpleSortTask::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TSortTaskBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Partition_)();
+    PHOENIX_REGISTER_FIELD(1, Partition_);
 }
 
 PHOENIX_DEFINE_TYPE(TSortControllerBase::TSimpleSortTask);
@@ -3118,16 +3118,16 @@ void TSortControllerBase::TSortedMergeTask::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TTask>();
 
-    PHOENIX_REGISTER_FIELD(1, Controller_)();
-    PHOENIX_REGISTER_FIELD(2, Partitions_)();
-    PHOENIX_REGISTER_FIELD(3, MultiChunkPool_)();
-    PHOENIX_REGISTER_FIELD(4, ChunkPoolInput_)();
-    PHOENIX_REGISTER_FIELD(5, SortedMergeChunkPools_)();
-    PHOENIX_REGISTER_FIELD(6, ActiveJoblets_)
-        .template Serializer<TVectorSerializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>>()();
-    PHOENIX_REGISTER_FIELD(7, InvalidatedJoblets_)
-        .template Serializer<TVectorSerializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>>()();
-    PHOENIX_REGISTER_FIELD(8, JobOutputs_)();
+    PHOENIX_REGISTER_FIELD(1, Controller_);
+    PHOENIX_REGISTER_FIELD(2, Partitions_);
+    PHOENIX_REGISTER_FIELD(3, MultiChunkPool_);
+    PHOENIX_REGISTER_FIELD(4, ChunkPoolInput_);
+    PHOENIX_REGISTER_FIELD(5, SortedMergeChunkPools_);
+    PHOENIX_REGISTER_FIELD(6, ActiveJoblets_,
+        .template Serializer<TVectorSerializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>>());
+    PHOENIX_REGISTER_FIELD(7, InvalidatedJoblets_,
+        .template Serializer<TVectorSerializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>>());
+    PHOENIX_REGISTER_FIELD(8, JobOutputs_);
 }
 
 PHOENIX_DEFINE_TYPE(TSortControllerBase::TSortedMergeTask);
@@ -3139,8 +3139,8 @@ void TSortControllerBase::TSortedMergeTask::TJobOutput::RegisterMetadata(auto&& 
     // TODO(max42): this place seems to be the only occurrence of job summary persistence.
     // Do we really need this?
 
-    PHOENIX_REGISTER_FIELD(1, Joblet)();
-    PHOENIX_REGISTER_FIELD(2, JobSummary)();
+    PHOENIX_REGISTER_FIELD(1, Joblet);
+    PHOENIX_REGISTER_FIELD(2, JobSummary);
 }
 
 PHOENIX_DEFINE_TYPE(TSortControllerBase::TSortedMergeTask::TJobOutput);
@@ -3151,9 +3151,9 @@ void TSortControllerBase::TUnorderedMergeTask::RegisterMetadata(auto&& registrar
 {
     registrar.template BaseType<TTask>();
 
-    PHOENIX_REGISTER_FIELD(1, Controller_)();
-    PHOENIX_REGISTER_FIELD(2, MultiChunkPoolOutput_)();
-    PHOENIX_REGISTER_FIELD(3, Partitions_)();
+    PHOENIX_REGISTER_FIELD(1, Controller_);
+    PHOENIX_REGISTER_FIELD(2, MultiChunkPoolOutput_);
+    PHOENIX_REGISTER_FIELD(3, Partitions_);
 }
 
 PHOENIX_DEFINE_TYPE(TSortControllerBase::TUnorderedMergeTask);
@@ -4808,8 +4808,8 @@ void TMapReduceController::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TSortControllerBase>();
 
-    PHOENIX_REGISTER_FIELD(1, MapperSinkEdges_)();
-    PHOENIX_REGISTER_FIELD(2, ReducerSinkEdges_)();
+    PHOENIX_REGISTER_FIELD(1, MapperSinkEdges_);
+    PHOENIX_REGISTER_FIELD(2, ReducerSinkEdges_);
 }
 
 PHOENIX_DEFINE_TYPE(TMapReduceController);

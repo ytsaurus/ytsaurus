@@ -10492,21 +10492,21 @@ void TOperationControllerBase::ValidateOutputSchemaComputedColumnsCompatibility(
 
 void TOperationControllerBase::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, SnapshotIndex_)();
-    PHOENIX_REGISTER_FIELD(2, TotalEstimatedInputChunkCount)();
-    PHOENIX_REGISTER_FIELD(3, TotalEstimatedInputUncompressedDataSize)();
-    PHOENIX_REGISTER_FIELD(4, TotalEstimatedInputRowCount)();
-    PHOENIX_REGISTER_FIELD(5, TotalEstimatedInputValueCount)();
-    PHOENIX_REGISTER_FIELD(6, TotalEstimatedInputCompressedDataSize)();
-    PHOENIX_REGISTER_FIELD(7, TotalEstimatedInputDataWeight)();
-    PHOENIX_REGISTER_FIELD(8, UnavailableIntermediateChunkCount)();
+    PHOENIX_REGISTER_FIELD(1, SnapshotIndex_);
+    PHOENIX_REGISTER_FIELD(2, TotalEstimatedInputChunkCount);
+    PHOENIX_REGISTER_FIELD(3, TotalEstimatedInputUncompressedDataSize);
+    PHOENIX_REGISTER_FIELD(4, TotalEstimatedInputRowCount);
+    PHOENIX_REGISTER_FIELD(5, TotalEstimatedInputValueCount);
+    PHOENIX_REGISTER_FIELD(6, TotalEstimatedInputCompressedDataSize);
+    PHOENIX_REGISTER_FIELD(7, TotalEstimatedInputDataWeight);
+    PHOENIX_REGISTER_FIELD(8, UnavailableIntermediateChunkCount);
 
     // COMPAT(yuryalekseev)
-    PHOENIX_REGISTER_FIELD(9, TeleportedOutputRowCount)
-        .SinceVersion(ESnapshotVersion::TeleportedOutputRowCount)();
+    PHOENIX_REGISTER_FIELD(9, TeleportedOutputRowCount,
+        .SinceVersion(ESnapshotVersion::TeleportedOutputRowCount));
 
     // COMPAT(coteeq)
-    PHOENIX_REGISTER_FIELD(10, InputManager)
+    PHOENIX_REGISTER_FIELD(10, InputManager,
         .SinceVersion(ESnapshotVersion::InputManagerIntroduction)
         .WhenMissing([] (TThis* this_, auto& context) {
             this_->InputManager->PrepareToBeLoadedFromAncientVersion();
@@ -10514,32 +10514,32 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
             this_->InputManager->LoadInputNodeDirectory(context);
             this_->OutputNodeDirectory_ = this_->InputManager->GetNodeDirectory(LocalClusterName);
             this_->InputManager->LoadInputTables(context);
-        })();
-    PHOENIX_REGISTER_FIELD(11, OutputNodeDirectory_)
+        }));
+    PHOENIX_REGISTER_FIELD(11, OutputNodeDirectory_,
         .SinceVersion(ESnapshotVersion::OutputNodeDirectory)
         .WhenMissing([] (TThis* this_, auto& /*context*/) {
             this_->OutputNodeDirectory_ = this_->InputManager->GetNodeDirectory(LocalClusterName);
-        })();
-    PHOENIX_REGISTER_FIELD(12, InputStreamDirectory_)();
-    PHOENIX_REGISTER_FIELD(13, OutputTables_)();
-    PHOENIX_REGISTER_FIELD(14, StderrTable_)();
-    PHOENIX_REGISTER_FIELD(15, CoreTable_)();
-    PHOENIX_REGISTER_FIELD(16, OutputNodeDirectory_)
-        .SinceVersion(ESnapshotVersion::RemoteInputForOperations)();
-    PHOENIX_REGISTER_FIELD(17, IntermediateTable)();
-    PHOENIX_REGISTER_FIELD(18, UserJobFiles_)
-        .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>()();
-    PHOENIX_REGISTER_FIELD(19, LivePreviewChunks_)
-        .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>()();
-    PHOENIX_REGISTER_FIELD(20, Tasks)();
+        }));
+    PHOENIX_REGISTER_FIELD(12, InputStreamDirectory_);
+    PHOENIX_REGISTER_FIELD(13, OutputTables_);
+    PHOENIX_REGISTER_FIELD(14, StderrTable_);
+    PHOENIX_REGISTER_FIELD(15, CoreTable_);
+    PHOENIX_REGISTER_FIELD(16, OutputNodeDirectory_,
+        .SinceVersion(ESnapshotVersion::RemoteInputForOperations));
+    PHOENIX_REGISTER_FIELD(17, IntermediateTable);
+    PHOENIX_REGISTER_FIELD(18, UserJobFiles_,
+        .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>());
+    PHOENIX_REGISTER_FIELD(19, LivePreviewChunks_,
+        .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>());
+    PHOENIX_REGISTER_FIELD(20, Tasks);
     registrar
         .template VirtualField<21>("InputChunkMap_", [] (TThis* this_, auto& context) {
             this_->InputManager->LoadInputChunkMap(context);
         })
         .BeforeVersion(ESnapshotVersion::InputManagerIntroduction)();
-    PHOENIX_REGISTER_FIELD(22, IntermediateOutputCellTagList)();
-    PHOENIX_REGISTER_FIELD(23, CellTagToRequiredOutputChunkListCount_)();
-    PHOENIX_REGISTER_FIELD(24, CellTagToRequiredDebugChunkListCount_)();
+    PHOENIX_REGISTER_FIELD(22, IntermediateOutputCellTagList);
+    PHOENIX_REGISTER_FIELD(23, CellTagToRequiredOutputChunkListCount_);
+    PHOENIX_REGISTER_FIELD(24, CellTagToRequiredDebugChunkListCount_);
     registrar.template VirtualField<25>("PendingJobCount_", [] (TThis* this_, auto& context) {
         auto pendingJobCount = Load<TCompositePendingJobCount>(context);
         this_->CachedPendingJobCount.Store(pendingJobCount);
@@ -10547,11 +10547,11 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
         auto pendingJobCount = this_->CachedPendingJobCount.Load();
         NYT::Save(context, pendingJobCount);
     })();
-    PHOENIX_REGISTER_FIELD(26, CachedNeededResources)();
-    PHOENIX_REGISTER_FIELD(27, ChunkOriginMap)();
+    PHOENIX_REGISTER_FIELD(26, CachedNeededResources);
+    PHOENIX_REGISTER_FIELD(27, ChunkOriginMap);
 
     // COMPAT(pogorelov)
-    PHOENIX_REGISTER_FIELD(28, AllocationMap_)
+    PHOENIX_REGISTER_FIELD(28, AllocationMap_,
         .SinceVersion(ESnapshotVersion::AllocationMap)
         .WhenMissing([] (TThis* this_, auto& /*context*/) {
             THashMap<TAllocationId, TJobletPtr> jobletMap;
@@ -10582,84 +10582,84 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
                     std::move(allocation));
             }
             this_->RunningJobCount_ = size(jobletMap);
-        })();
-    PHOENIX_REGISTER_FIELD(29, RunningJobCount_)
-        .SinceVersion(ESnapshotVersion::AllocationMap)();
+        }));
+    PHOENIX_REGISTER_FIELD(29, RunningJobCount_,
+        .SinceVersion(ESnapshotVersion::AllocationMap));
 
-    PHOENIX_REGISTER_FIELD(30, JobIndexGenerator)();
-    PHOENIX_REGISTER_FIELD(31, AggregatedFinishedJobStatistics_)();
-    PHOENIX_REGISTER_FIELD(32, ScheduleAllocationStatistics_)();
-    PHOENIX_REGISTER_FIELD(33, RowCountLimitTableIndex)();
-    PHOENIX_REGISTER_FIELD(34, RowCountLimit)();
-    PHOENIX_REGISTER_FIELD(35, EstimatedInputDataSizeHistogram_)();
-    PHOENIX_REGISTER_FIELD(36, InputDataSizeHistogram_)();
-    PHOENIX_REGISTER_FIELD(37, RetainedJobWithStderrCount_)();
-    PHOENIX_REGISTER_FIELD(38, RetainedJobsCoreInfoCount_)();
-    PHOENIX_REGISTER_FIELD(39, RetainedJobCount_)();
-    PHOENIX_REGISTER_FIELD(40, JobSpecCompletedArchiveCount_)();
-    PHOENIX_REGISTER_FIELD(41, FailedJobCount_)();
-    PHOENIX_REGISTER_FIELD(42, Sink_)();
-    PHOENIX_REGISTER_FIELD(43, AutoMergeTask_)();
-    PHOENIX_REGISTER_FIELD(44, AutoMergeDirector_)
-        .template Serializer<TUniquePtrSerializer<>>()();
-    PHOENIX_REGISTER_FIELD(45, DataFlowGraph_)();
+    PHOENIX_REGISTER_FIELD(30, JobIndexGenerator);
+    PHOENIX_REGISTER_FIELD(31, AggregatedFinishedJobStatistics_);
+    PHOENIX_REGISTER_FIELD(32, ScheduleAllocationStatistics_);
+    PHOENIX_REGISTER_FIELD(33, RowCountLimitTableIndex);
+    PHOENIX_REGISTER_FIELD(34, RowCountLimit);
+    PHOENIX_REGISTER_FIELD(35, EstimatedInputDataSizeHistogram_);
+    PHOENIX_REGISTER_FIELD(36, InputDataSizeHistogram_);
+    PHOENIX_REGISTER_FIELD(37, RetainedJobWithStderrCount_);
+    PHOENIX_REGISTER_FIELD(38, RetainedJobsCoreInfoCount_);
+    PHOENIX_REGISTER_FIELD(39, RetainedJobCount_);
+    PHOENIX_REGISTER_FIELD(40, JobSpecCompletedArchiveCount_);
+    PHOENIX_REGISTER_FIELD(41, FailedJobCount_);
+    PHOENIX_REGISTER_FIELD(42, Sink_);
+    PHOENIX_REGISTER_FIELD(43, AutoMergeTask_);
+    PHOENIX_REGISTER_FIELD(44, AutoMergeDirector_,
+        .template Serializer<TUniquePtrSerializer<>>());
+    PHOENIX_REGISTER_FIELD(45, DataFlowGraph_);
     // COMPAT(galtsev)
     registrar.template VirtualField<46>("LivePreviews_", [] (TThis* this_, auto& context) {
         NYT::Load(context, *this_->LivePreviews_);
     }, [] (const TThis* this_, auto& context) {
         NYT::Save(context, *this_->LivePreviews_);
     })();
-    PHOENIX_REGISTER_FIELD(47, AvailableExecNodesObserved_)();
-    PHOENIX_REGISTER_FIELD(48, BannedNodeIds_)();
-    PHOENIX_REGISTER_FIELD(49, PathToOutputTable_)();
-    PHOENIX_REGISTER_FIELD(50, Acl)();
+    PHOENIX_REGISTER_FIELD(47, AvailableExecNodesObserved_);
+    PHOENIX_REGISTER_FIELD(48, BannedNodeIds_);
+    PHOENIX_REGISTER_FIELD(49, PathToOutputTable_);
+    PHOENIX_REGISTER_FIELD(50, Acl);
     // COMPAT(omgronny)
-    PHOENIX_REGISTER_FIELD(51, AcoName)
-        .SinceVersion(ESnapshotVersion::AcoName)();
-    PHOENIX_REGISTER_FIELD(52, BannedTreeIds_)();
+    PHOENIX_REGISTER_FIELD(51, AcoName,
+        .SinceVersion(ESnapshotVersion::AcoName));
+    PHOENIX_REGISTER_FIELD(52, BannedTreeIds_);
     registrar
         .template VirtualField<53>("PathToInputTables_", [] (TThis* this_, auto& context) {
             this_->InputManager->LoadPathToInputTables(context);
         })
         .BeforeVersion(ESnapshotVersion::InputManagerIntroduction)();
-    PHOENIX_REGISTER_FIELD(54, JobMetricsDeltaPerTree_)();
-    PHOENIX_REGISTER_FIELD(55, TotalTimePerTree_)();
-    PHOENIX_REGISTER_FIELD(56, CompletedRowCount_)();
-    PHOENIX_REGISTER_FIELD(57, AutoMergeEnabled_)();
+    PHOENIX_REGISTER_FIELD(54, JobMetricsDeltaPerTree_);
+    PHOENIX_REGISTER_FIELD(55, TotalTimePerTree_);
+    PHOENIX_REGISTER_FIELD(56, CompletedRowCount_);
+    PHOENIX_REGISTER_FIELD(57, AutoMergeEnabled_);
     registrar
         .template VirtualField<58>("InputHasOrderedDynamicStores_", [] (TThis* this_, auto& context) {
             this_->InputManager->LoadInputHasOrderedDynamicStores(context);
         })
         .BeforeVersion(ESnapshotVersion::InputManagerIntroduction)();
-    PHOENIX_REGISTER_FIELD(59, StandardStreamDescriptors_)();
-    PHOENIX_REGISTER_FIELD(60, MainResourceConsumptionPerTree_)();
-    PHOENIX_REGISTER_FIELD(61, EnableMasterResourceUsageAccounting_)();
-    PHOENIX_REGISTER_FIELD(62, AccountResourceUsageLeaseMap_)();
-    PHOENIX_REGISTER_FIELD(63, TotalJobCounter_)();
+    PHOENIX_REGISTER_FIELD(59, StandardStreamDescriptors_);
+    PHOENIX_REGISTER_FIELD(60, MainResourceConsumptionPerTree_);
+    PHOENIX_REGISTER_FIELD(61, EnableMasterResourceUsageAccounting_);
+    PHOENIX_REGISTER_FIELD(62, AccountResourceUsageLeaseMap_);
+    PHOENIX_REGISTER_FIELD(63, TotalJobCounter_);
 
-    PHOENIX_REGISTER_FIELD(64, AlertManager_)();
+    PHOENIX_REGISTER_FIELD(64, AlertManager_);
 
-    PHOENIX_REGISTER_FIELD(65, FastIntermediateMediumLimit_)();
+    PHOENIX_REGISTER_FIELD(65, FastIntermediateMediumLimit_);
 
-    PHOENIX_REGISTER_FIELD(66, BaseLayer_)();
-    PHOENIX_REGISTER_FIELD(67, JobExperiment_)();
+    PHOENIX_REGISTER_FIELD(66, BaseLayer_);
+    PHOENIX_REGISTER_FIELD(67, JobExperiment_);
 
-    PHOENIX_REGISTER_FIELD(68, InitialMinNeededResources_)();
-    PHOENIX_REGISTER_FIELD(69, JobAbortsUntilOperationFailure_)();
+    PHOENIX_REGISTER_FIELD(68, InitialMinNeededResources_);
+    PHOENIX_REGISTER_FIELD(69, JobAbortsUntilOperationFailure_);
 
-    PHOENIX_REGISTER_FIELD(70, MonitoredUserJobCount_)
-        .SinceVersion(ESnapshotVersion::PersistMonitoringCounts)();
-    PHOENIX_REGISTER_FIELD(71, MonitoredUserJobAttemptCount_)
-        .SinceVersion(ESnapshotVersion::PersistMonitoringCounts)();
-    PHOENIX_REGISTER_FIELD(72, RegisteredMonitoringDescriptorCount_)
-        .SinceVersion(ESnapshotVersion::PersistMonitoringCounts)();
+    PHOENIX_REGISTER_FIELD(70, MonitoredUserJobCount_,
+        .SinceVersion(ESnapshotVersion::PersistMonitoringCounts));
+    PHOENIX_REGISTER_FIELD(71, MonitoredUserJobAttemptCount_,
+        .SinceVersion(ESnapshotVersion::PersistMonitoringCounts));
+    PHOENIX_REGISTER_FIELD(72, RegisteredMonitoringDescriptorCount_,
+        .SinceVersion(ESnapshotVersion::PersistMonitoringCounts));
 
-    PHOENIX_REGISTER_FIELD(73, UnknownExitCodeFailCount_)
-        .SinceVersion(ESnapshotVersion::JobFailTolerance)();
-    PHOENIX_REGISTER_FIELD(74, NoExitCodeFailCount_)
-        .SinceVersion(ESnapshotVersion::JobFailTolerance)();
-    PHOENIX_REGISTER_FIELD(75, FailCountsPerKnownExitCode_)
-        .SinceVersion(ESnapshotVersion::JobFailTolerance)();
+    PHOENIX_REGISTER_FIELD(73, UnknownExitCodeFailCount_,
+        .SinceVersion(ESnapshotVersion::JobFailTolerance));
+    PHOENIX_REGISTER_FIELD(74, NoExitCodeFailCount_,
+        .SinceVersion(ESnapshotVersion::JobFailTolerance));
+    PHOENIX_REGISTER_FIELD(75, FailCountsPerKnownExitCode_,
+        .SinceVersion(ESnapshotVersion::JobFailTolerance));
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.
@@ -10795,14 +10795,14 @@ const TDataFlowGraphPtr& TOperationControllerBase::GetDataFlowGraph() const
 
 void TOperationControllerBase::TLivePreviewChunkDescriptor::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, VertexDescriptor)();
-    PHOENIX_REGISTER_FIELD(2, LivePreviewIndex)();
+    PHOENIX_REGISTER_FIELD(1, VertexDescriptor);
+    PHOENIX_REGISTER_FIELD(2, LivePreviewIndex);
 }
 
 void TOperationControllerBase::TResourceUsageLeaseInfo::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, LeaseId)();
-    PHOENIX_REGISTER_FIELD(2, DiskQuota)();
+    PHOENIX_REGISTER_FIELD(1, LeaseId);
+    PHOENIX_REGISTER_FIELD(2, DiskQuota);
 }
 
 void TOperationControllerBase::RegisterLivePreviewChunk(

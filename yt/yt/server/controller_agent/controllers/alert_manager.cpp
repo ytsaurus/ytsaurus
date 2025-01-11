@@ -812,9 +812,9 @@ private:
 
 void TAlertManager::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Host_)();
-    PHOENIX_REGISTER_FIELD(2, Logger)();
-    PHOENIX_REGISTER_FIELD(3, AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_)();
+    PHOENIX_REGISTER_FIELD(1, Host_);
+    PHOENIX_REGISTER_FIELD(2, Logger);
+    PHOENIX_REGISTER_FIELD(3, AnalyzeGpuPowerUsageOnWindowVertexDescriptorToRecords_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         this_->Config_ = this_->Host_->GetConfig()->AlertManager;
@@ -832,8 +832,8 @@ DEFINE_REFCOUNTED_TYPE(TAlertManager)
 
 void TAlertManager::TGpuPowerUsageRecord::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Time)();
-    PHOENIX_REGISTER_FIELD(2, Value)();
+    PHOENIX_REGISTER_FIELD(1, Time);
+    PHOENIX_REGISTER_FIELD(2, Value);
 }
 
 PHOENIX_DEFINE_TYPE(TAlertManager::TGpuPowerUsageRecord);

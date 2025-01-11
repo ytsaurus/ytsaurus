@@ -236,15 +236,15 @@ TCompetitiveJobManagerBase::TCompetitionPtr TCompetitiveJobManagerBase::FindComp
 
 void TCompetitiveJobManagerBase::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Host_)();
-    PHOENIX_REGISTER_FIELD(2, CookieToCompetition_)();
-    PHOENIX_REGISTER_FIELD(3, CompetitionCandidates_)();
-    PHOENIX_REGISTER_FIELD(4, PendingDataWeight_)();
-    PHOENIX_REGISTER_FIELD(5, JobCounter_)();
-    PHOENIX_REGISTER_FIELD(6, MaxCompetitiveJobCount_)();
-    PHOENIX_REGISTER_FIELD(7, CompetitionType_)();
-    PHOENIX_REGISTER_FIELD(8, Logger)();
-    PHOENIX_REGISTER_FIELD(9, BannedCookies_)();
+    PHOENIX_REGISTER_FIELD(1, Host_);
+    PHOENIX_REGISTER_FIELD(2, CookieToCompetition_);
+    PHOENIX_REGISTER_FIELD(3, CompetitionCandidates_);
+    PHOENIX_REGISTER_FIELD(4, PendingDataWeight_);
+    PHOENIX_REGISTER_FIELD(5, JobCounter_);
+    PHOENIX_REGISTER_FIELD(6, MaxCompetitiveJobCount_);
+    PHOENIX_REGISTER_FIELD(7, CompetitionType_);
+    PHOENIX_REGISTER_FIELD(8, Logger);
+    PHOENIX_REGISTER_FIELD(9, BannedCookies_);
 }
 
 PHOENIX_DEFINE_TYPE(TCompetitiveJobManagerBase);
@@ -253,12 +253,12 @@ PHOENIX_DEFINE_TYPE(TCompetitiveJobManagerBase);
 
 void TCompetitiveJobManagerBase::TCompetition::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Status)();
-    PHOENIX_REGISTER_FIELD(2, Competitors)();
-    PHOENIX_REGISTER_FIELD(3, JobCompetitionId)();
-    PHOENIX_REGISTER_FIELD(4, PendingDataWeight)();
-    PHOENIX_REGISTER_FIELD(5, ProgressCounterGuard)();
-    PHOENIX_REGISTER_FIELD(6, IsNonTrivial)();
+    PHOENIX_REGISTER_FIELD(1, Status);
+    PHOENIX_REGISTER_FIELD(2, Competitors);
+    PHOENIX_REGISTER_FIELD(3, JobCompetitionId);
+    PHOENIX_REGISTER_FIELD(4, PendingDataWeight);
+    PHOENIX_REGISTER_FIELD(5, ProgressCounterGuard);
+    PHOENIX_REGISTER_FIELD(6, IsNonTrivial);
 }
 
 TJobId TCompetitiveJobManagerBase::TCompetition::GetCompetitorFor(TJobId jobId)

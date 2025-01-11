@@ -102,17 +102,17 @@ TJobSummary::TJobSummary(NProto::TJobStatus* status)
 
 void TJobSummary::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Result)();
-    PHOENIX_REGISTER_FIELD(2, Error)();
-    PHOENIX_REGISTER_FIELD(3, Id)();
-    PHOENIX_REGISTER_FIELD(4, State)();
-    PHOENIX_REGISTER_FIELD(5, FinishTime)();
-    PHOENIX_REGISTER_FIELD(6, ReleaseFlags)();
-    PHOENIX_REGISTER_FIELD(7, Phase)();
-    PHOENIX_REGISTER_FIELD(8, TimeStatistics)();
-    PHOENIX_REGISTER_FIELD(9, TotalInputDataStatistics)();
-    PHOENIX_REGISTER_FIELD(10, OutputDataStatistics)();
-    PHOENIX_REGISTER_FIELD(11, TotalOutputDataStatistics)();
+    PHOENIX_REGISTER_FIELD(1, Result);
+    PHOENIX_REGISTER_FIELD(2, Error);
+    PHOENIX_REGISTER_FIELD(3, Id);
+    PHOENIX_REGISTER_FIELD(4, State);
+    PHOENIX_REGISTER_FIELD(5, FinishTime);
+    PHOENIX_REGISTER_FIELD(6, ReleaseFlags);
+    PHOENIX_REGISTER_FIELD(7, Phase);
+    PHOENIX_REGISTER_FIELD(8, TimeStatistics);
+    PHOENIX_REGISTER_FIELD(9, TotalInputDataStatistics);
+    PHOENIX_REGISTER_FIELD(10, OutputDataStatistics);
+    PHOENIX_REGISTER_FIELD(11, TotalOutputDataStatistics);
 }
 
 NProto::TJobResult& TJobSummary::GetJobResult()
@@ -192,9 +192,9 @@ void TCompletedJobSummary::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TJobSummary>();
 
-    PHOENIX_REGISTER_FIELD(1, Abandoned)();
-    PHOENIX_REGISTER_FIELD(2, InterruptionReason)();
-    PHOENIX_REGISTER_FIELD(3, SplitJobCount)();
+    PHOENIX_REGISTER_FIELD(1, Abandoned);
+    PHOENIX_REGISTER_FIELD(2, InterruptionReason);
+    PHOENIX_REGISTER_FIELD(3, SplitJobCount);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // TODO(max42): now we persist only those completed job summaries that correspond

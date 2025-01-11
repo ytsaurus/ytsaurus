@@ -226,17 +226,17 @@ bool TProgressCounter::RemoveParent(TProgressCounterPtr parent)
 
 void TProgressCounter::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Running_)();
-    PHOENIX_REGISTER_FIELD(2, Completed_)();
-    PHOENIX_REGISTER_FIELD(3, Failed_)();
-    PHOENIX_REGISTER_FIELD(4, Pending_)();
-    PHOENIX_REGISTER_FIELD(5, Suspended_)();
-    PHOENIX_REGISTER_FIELD(6, Aborted_)();
-    PHOENIX_REGISTER_FIELD(7, Lost_)();
-    PHOENIX_REGISTER_FIELD(8, Invalidated_)();
-    PHOENIX_REGISTER_FIELD(9, Uncategorized_)();
-    PHOENIX_REGISTER_FIELD(10, Blocked_)();
-    PHOENIX_REGISTER_FIELD(11, Parents_)();
+    PHOENIX_REGISTER_FIELD(1, Running_);
+    PHOENIX_REGISTER_FIELD(2, Completed_);
+    PHOENIX_REGISTER_FIELD(3, Failed_);
+    PHOENIX_REGISTER_FIELD(4, Pending_);
+    PHOENIX_REGISTER_FIELD(5, Suspended_);
+    PHOENIX_REGISTER_FIELD(6, Aborted_);
+    PHOENIX_REGISTER_FIELD(7, Lost_);
+    PHOENIX_REGISTER_FIELD(8, Invalidated_);
+    PHOENIX_REGISTER_FIELD(9, Uncategorized_);
+    PHOENIX_REGISTER_FIELD(10, Blocked_);
+    PHOENIX_REGISTER_FIELD(11, Parents_);
 }
 
 void TProgressCounter::Propagate(TProgressCounterPtr parent, int multiplier)
@@ -398,10 +398,10 @@ void TProgressCounterGuard::OnLost()
 
 void TProgressCounterGuard::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, ProgressCounter_)();
-    PHOENIX_REGISTER_FIELD(2, Value_)();
-    PHOENIX_REGISTER_FIELD(3, Category_)();
-    PHOENIX_REGISTER_FIELD(4, InterruptReason_)();
+    PHOENIX_REGISTER_FIELD(1, ProgressCounter_);
+    PHOENIX_REGISTER_FIELD(2, Value_);
+    PHOENIX_REGISTER_FIELD(3, Category_);
+    PHOENIX_REGISTER_FIELD(4, InterruptReason_);
 }
 
 void TProgressCounterGuard::UpdateProgressCounter(i64 multiplier)

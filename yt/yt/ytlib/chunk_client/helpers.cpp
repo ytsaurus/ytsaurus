@@ -877,16 +877,16 @@ TString TUserObject::GetObjectIdPathIfAvailable() const
 
 void TUserObject::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Path)();
-    PHOENIX_REGISTER_FIELD(2, ObjectId)();
-    PHOENIX_REGISTER_FIELD(3, ExternalCellTag)();
-    PHOENIX_REGISTER_FIELD(4, ExternalTransactionId)();
-    PHOENIX_REGISTER_FIELD(5, Type)();
-    PHOENIX_REGISTER_FIELD(6, TransactionId)();
-    PHOENIX_REGISTER_FIELD(7, OmittedInaccessibleColumns)();
-    PHOENIX_REGISTER_FIELD(8, SecurityTags)();
-    PHOENIX_REGISTER_FIELD(9, ChunkCount)();
-    PHOENIX_REGISTER_FIELD(10, Account)();
+    PHOENIX_REGISTER_FIELD(1, Path);
+    PHOENIX_REGISTER_FIELD(2, ObjectId);
+    PHOENIX_REGISTER_FIELD(3, ExternalCellTag);
+    PHOENIX_REGISTER_FIELD(4, ExternalTransactionId);
+    PHOENIX_REGISTER_FIELD(5, Type);
+    PHOENIX_REGISTER_FIELD(6, TransactionId);
+    PHOENIX_REGISTER_FIELD(7, OmittedInaccessibleColumns);
+    PHOENIX_REGISTER_FIELD(8, SecurityTags);
+    PHOENIX_REGISTER_FIELD(9, ChunkCount);
+    PHOENIX_REGISTER_FIELD(10, Account);
 }
 
 PHOENIX_DEFINE_TYPE(TUserObject);

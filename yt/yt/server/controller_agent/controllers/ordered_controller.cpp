@@ -515,12 +515,12 @@ void TOrderedControllerBase::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TOperationControllerBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec_)();
-    PHOENIX_REGISTER_FIELD(2, Options_)();
-    PHOENIX_REGISTER_FIELD(3, JobIOConfig_)();
-    PHOENIX_REGISTER_FIELD(4, JobSpecTemplate_)();
-    PHOENIX_REGISTER_FIELD(5, JobSizeConstraints_)();
-    PHOENIX_REGISTER_FIELD(6, InputSliceDataWeight_)();
+    PHOENIX_REGISTER_FIELD(1, Spec_);
+    PHOENIX_REGISTER_FIELD(2, Options_);
+    PHOENIX_REGISTER_FIELD(3, JobIOConfig_);
+    PHOENIX_REGISTER_FIELD(4, JobSpecTemplate_);
+    PHOENIX_REGISTER_FIELD(5, JobSizeConstraints_);
+    PHOENIX_REGISTER_FIELD(6, InputSliceDataWeight_);
 
     // COMPAT(alexelexa)
     registrar.template VirtualField<7>("Task_", [] (TThis* this_, auto& context) {
@@ -528,11 +528,11 @@ void TOrderedControllerBase::RegisterMetadata(auto&& registrar)
         this_->OrderedTasks_.push_back(std::move(task));
     })
         .BeforeVersion(ESnapshotVersion::MultipleOrderedTasks)();
-    PHOENIX_REGISTER_FIELD(8, OrderedTasks_)
-        .SinceVersion(ESnapshotVersion::MultipleOrderedTasks)();
+    PHOENIX_REGISTER_FIELD(8, OrderedTasks_,
+        .SinceVersion(ESnapshotVersion::MultipleOrderedTasks));
 
-    PHOENIX_REGISTER_FIELD(9, OrderedOutputRequired_)();
-    PHOENIX_REGISTER_FIELD(10, IsExplicitJobCount_)();
+    PHOENIX_REGISTER_FIELD(9, OrderedOutputRequired_);
+    PHOENIX_REGISTER_FIELD(10, IsExplicitJobCount_);
 }
 
 PHOENIX_DEFINE_TYPE(TOrderedControllerBase);
@@ -543,9 +543,9 @@ void TOrderedControllerBase::TOrderedTask::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TTask>();
 
-    PHOENIX_REGISTER_FIELD(1, Controller_)();
-    PHOENIX_REGISTER_FIELD(2, ChunkPool_)();
-    PHOENIX_REGISTER_FIELD(3, TotalOutputRowCount_)();
+    PHOENIX_REGISTER_FIELD(1, Controller_);
+    PHOENIX_REGISTER_FIELD(2, ChunkPool_);
+    PHOENIX_REGISTER_FIELD(3, TotalOutputRowCount_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         this_->ChunkPool_->SubscribeChunkTeleported(BIND(&TOrderedTask::OnChunkTeleported, MakeWeak(this_)));
@@ -735,7 +735,7 @@ void TOrderedMergeController::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TOrderedControllerBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec_)();
+    PHOENIX_REGISTER_FIELD(1, Spec_);
 }
 
 PHOENIX_DEFINE_TYPE(TOrderedMergeController);
@@ -933,9 +933,9 @@ void TOrderedMapController::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TOrderedControllerBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec_)();
-    PHOENIX_REGISTER_FIELD(2, Options_)();
-    PHOENIX_REGISTER_FIELD(3, StartRowIndex_)();
+    PHOENIX_REGISTER_FIELD(1, Spec_);
+    PHOENIX_REGISTER_FIELD(2, Options_);
+    PHOENIX_REGISTER_FIELD(3, StartRowIndex_);
 }
 
 PHOENIX_DEFINE_TYPE(TOrderedMapController);
@@ -1150,7 +1150,7 @@ void TEraseController::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TOrderedControllerBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec_)();
+    PHOENIX_REGISTER_FIELD(1, Spec_);
 }
 
 PHOENIX_DEFINE_TYPE(TEraseController);
@@ -1991,14 +1991,14 @@ void TRemoteCopyController::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TOrderedControllerBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec_)();
-    PHOENIX_REGISTER_FIELD(2, Options_)();
-    PHOENIX_REGISTER_FIELD(3, InputTableAttributes_)
-        .template Serializer<TAttributeDictionarySerializer>()();
-    PHOENIX_REGISTER_FIELD(4, Networks_)();
+    PHOENIX_REGISTER_FIELD(1, Spec_);
+    PHOENIX_REGISTER_FIELD(2, Options_);
+    PHOENIX_REGISTER_FIELD(3, InputTableAttributes_,
+        .template Serializer<TAttributeDictionarySerializer>());
+    PHOENIX_REGISTER_FIELD(4, Networks_);
     // COMPAT(alexelexa)
-    PHOENIX_REGISTER_FIELD(5, HunkChunkIdMapping_)
-        .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks)();
+    PHOENIX_REGISTER_FIELD(5, HunkChunkIdMapping_,
+        .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         if (this_->InputTableAttributes_ && this_->InputTableAttributes_->ListKeys().empty()) {
@@ -2015,10 +2015,10 @@ void TRemoteCopyController::TRemoteCopyTaskBase::RegisterMetadata(auto&& registr
 {
     registrar.template BaseType<TOrderedTask>();
 
-    PHOENIX_REGISTER_FIELD(1, Controller_)();
-    PHOENIX_REGISTER_FIELD(2, Dependencies_)();
-    PHOENIX_REGISTER_FIELD(3, Dependents_)();
-    PHOENIX_REGISTER_FIELD(4, IsInitializationCompleted_)();
+    PHOENIX_REGISTER_FIELD(1, Controller_);
+    PHOENIX_REGISTER_FIELD(2, Dependencies_);
+    PHOENIX_REGISTER_FIELD(3, Dependents_);
+    PHOENIX_REGISTER_FIELD(4, IsInitializationCompleted_);
 }
 
 PHOENIX_DEFINE_TYPE(TRemoteCopyController::TRemoteCopyTaskBase);

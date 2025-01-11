@@ -152,9 +152,9 @@ private:
 
 void TPartitionTablesJobSizeConstraints::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, InputDataWeight_)();
-    PHOENIX_REGISTER_FIELD(2, DataWeightPerPartition_)();
-    PHOENIX_REGISTER_FIELD(3, MaxPartitionCount_)();
+    PHOENIX_REGISTER_FIELD(1, InputDataWeight_);
+    PHOENIX_REGISTER_FIELD(2, DataWeightPerPartition_);
+    PHOENIX_REGISTER_FIELD(3, MaxPartitionCount_);
 }
 
 PHOENIX_DEFINE_TYPE(TPartitionTablesJobSizeConstraints);

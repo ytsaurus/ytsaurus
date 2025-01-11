@@ -724,15 +724,15 @@ void TSortedControllerBase::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TOperationControllerBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec_)();
-    PHOENIX_REGISTER_FIELD(2, Options_)();
-    PHOENIX_REGISTER_FIELD(3, JobIOConfig_)();
-    PHOENIX_REGISTER_FIELD(4, JobSpecTemplate_)();
-    PHOENIX_REGISTER_FIELD(5, JobSizeConstraints_)();
-    PHOENIX_REGISTER_FIELD(6, InputSliceDataWeight_)();
-    PHOENIX_REGISTER_FIELD(7, SortedTask_)();
-    PHOENIX_REGISTER_FIELD(8, PrimarySortColumns_)();
-    PHOENIX_REGISTER_FIELD(9, ForeignSortColumns_)();
+    PHOENIX_REGISTER_FIELD(1, Spec_);
+    PHOENIX_REGISTER_FIELD(2, Options_);
+    PHOENIX_REGISTER_FIELD(3, JobIOConfig_);
+    PHOENIX_REGISTER_FIELD(4, JobSpecTemplate_);
+    PHOENIX_REGISTER_FIELD(5, JobSizeConstraints_);
+    PHOENIX_REGISTER_FIELD(6, InputSliceDataWeight_);
+    PHOENIX_REGISTER_FIELD(7, SortedTask_);
+    PHOENIX_REGISTER_FIELD(8, PrimarySortColumns_);
+    PHOENIX_REGISTER_FIELD(9, ForeignSortColumns_);
 }
 
 PHOENIX_DEFINE_TYPE(TSortedControllerBase);
@@ -757,10 +757,10 @@ void TSortedControllerBase::TSortedTaskBase::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TTask>();
 
-    PHOENIX_REGISTER_FIELD(1, Controller_)();
-    PHOENIX_REGISTER_FIELD(2, ChunkPool_)();
-    PHOENIX_REGISTER_FIELD(3, TotalOutputRowCount_)();
-    PHOENIX_REGISTER_FIELD(4, UseNewSortedPool_)();
+    PHOENIX_REGISTER_FIELD(1, Controller_);
+    PHOENIX_REGISTER_FIELD(2, ChunkPool_);
+    PHOENIX_REGISTER_FIELD(3, TotalOutputRowCount_);
+    PHOENIX_REGISTER_FIELD(4, UseNewSortedPool_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         this_->ChunkPool_->SubscribeChunkTeleported(BIND(&TSortedTaskBase::OnChunkTeleported, MakeWeak(this_)));
@@ -773,7 +773,7 @@ PHOENIX_DEFINE_TYPE(TSortedControllerBase::TSortedTaskBase);
 
 void TSortedControllerBase::TChunkSliceFetcherFactory::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Controller_)();
+    PHOENIX_REGISTER_FIELD(1, Controller_);
 }
 
 PHOENIX_DEFINE_TYPE(TSortedControllerBase::TChunkSliceFetcherFactory);

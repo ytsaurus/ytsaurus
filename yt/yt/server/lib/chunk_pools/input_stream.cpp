@@ -39,11 +39,11 @@ bool TInputStreamDescriptor::IsUnversioned() const
 
 void TInputStreamDescriptor::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, IsTeleportable_)();
-    PHOENIX_REGISTER_FIELD(2, IsPrimary_)();
-    PHOENIX_REGISTER_FIELD(3, IsVersioned_)();
-    PHOENIX_REGISTER_FIELD(4, TableIndex_)();
-    PHOENIX_REGISTER_FIELD(5, RangeIndex_)();
+    PHOENIX_REGISTER_FIELD(1, IsTeleportable_);
+    PHOENIX_REGISTER_FIELD(2, IsPrimary_);
+    PHOENIX_REGISTER_FIELD(3, IsVersioned_);
+    PHOENIX_REGISTER_FIELD(4, TableIndex_);
+    PHOENIX_REGISTER_FIELD(5, RangeIndex_);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TInputStreamDescriptor& descriptor, TStringBuf /*spec*/)
@@ -106,8 +106,8 @@ int TInputStreamDirectory::GetInputStreamIndex(int tableIndex, int rangeIndex) c
 
 void TInputStreamDirectory::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Descriptors_)();
-    PHOENIX_REGISTER_FIELD(2, DefaultDescriptor_)();
+    PHOENIX_REGISTER_FIELD(1, Descriptors_);
+    PHOENIX_REGISTER_FIELD(2, DefaultDescriptor_);
 }
 
 PHOENIX_DEFINE_TYPE(TInputStreamDirectory);

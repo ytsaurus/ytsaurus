@@ -70,19 +70,19 @@ void TUserFile::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TUserObject>();
 
-    PHOENIX_REGISTER_FIELD(1, Attributes)
-        .template Serializer<TAttributeDictionarySerializer>()();
-    PHOENIX_REGISTER_FIELD(2, FileName)();
-    PHOENIX_REGISTER_FIELD(3, ChunkSpecs)();
-    PHOENIX_REGISTER_FIELD(4, Type)();
-    PHOENIX_REGISTER_FIELD(5, Executable)();
-    PHOENIX_REGISTER_FIELD(6, Format)();
-    PHOENIX_REGISTER_FIELD(7, Schema)
-        .template Serializer<TNonNullableIntrusivePtrSerializer<>>()();
-    PHOENIX_REGISTER_FIELD(8, Dynamic)();
-    PHOENIX_REGISTER_FIELD(9, Layer)();
-    PHOENIX_REGISTER_FIELD(10, Filesystem)();
-    PHOENIX_REGISTER_FIELD(11, AccessMethod)();
+    PHOENIX_REGISTER_FIELD(1, Attributes,
+        .template Serializer<TAttributeDictionarySerializer>());
+    PHOENIX_REGISTER_FIELD(2, FileName);
+    PHOENIX_REGISTER_FIELD(3, ChunkSpecs);
+    PHOENIX_REGISTER_FIELD(4, Type);
+    PHOENIX_REGISTER_FIELD(5, Executable);
+    PHOENIX_REGISTER_FIELD(6, Format);
+    PHOENIX_REGISTER_FIELD(7, Schema,
+        .template Serializer<TNonNullableIntrusivePtrSerializer<>>());
+    PHOENIX_REGISTER_FIELD(8, Dynamic);
+    PHOENIX_REGISTER_FIELD(9, Layer);
+    PHOENIX_REGISTER_FIELD(10, Filesystem);
+    PHOENIX_REGISTER_FIELD(11, AccessMethod);
 }
 
 PHOENIX_DEFINE_TYPE(TUserFile);

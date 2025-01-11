@@ -120,10 +120,10 @@ void TSuspendableStripe::Reset(TChunkStripePtr stripe)
 
 void TSuspendableStripe::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Stripe_)();
-    PHOENIX_REGISTER_FIELD(2, Teleport_)();
-    PHOENIX_REGISTER_FIELD(3, SuspendedStripeCount_)();
-    PHOENIX_REGISTER_FIELD(4, Statistics_)();
+    PHOENIX_REGISTER_FIELD(1, Stripe_);
+    PHOENIX_REGISTER_FIELD(2, Teleport_);
+    PHOENIX_REGISTER_FIELD(3, SuspendedStripeCount_);
+    PHOENIX_REGISTER_FIELD(4, Statistics_);
 }
 
 PHOENIX_DEFINE_TYPE(TSuspendableStripe);

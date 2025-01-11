@@ -38,13 +38,13 @@ using namespace NScheduler;
 
 void TOrderedChunkPoolOptions::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, MaxTotalSliceCount)();
-    PHOENIX_REGISTER_FIELD(2, MinTeleportChunkSize)();
-    PHOENIX_REGISTER_FIELD(3, JobSizeConstraints)();
-    PHOENIX_REGISTER_FIELD(4, SupportLocality)();
-    PHOENIX_REGISTER_FIELD(5, EnablePeriodicYielder)();
-    PHOENIX_REGISTER_FIELD(6, ShouldSliceByRowIndices)();
-    PHOENIX_REGISTER_FIELD(7, Logger)();
+    PHOENIX_REGISTER_FIELD(1, MaxTotalSliceCount);
+    PHOENIX_REGISTER_FIELD(2, MinTeleportChunkSize);
+    PHOENIX_REGISTER_FIELD(3, JobSizeConstraints);
+    PHOENIX_REGISTER_FIELD(4, SupportLocality);
+    PHOENIX_REGISTER_FIELD(5, EnablePeriodicYielder);
+    PHOENIX_REGISTER_FIELD(6, ShouldSliceByRowIndices);
+    PHOENIX_REGISTER_FIELD(7, Logger);
 }
 
 PHOENIX_DEFINE_TYPE(TOrderedChunkPoolOptions);
@@ -621,20 +621,20 @@ void TOrderedChunkPool::RegisterMetadata(auto&& registrar)
     registrar.template BaseType<TJobSplittingBase>();
     // TLoggerOwner is persisted by TJobSplittingBase.
 
-    PHOENIX_REGISTER_FIELD(1, InputStreamDirectory_)();
-    PHOENIX_REGISTER_FIELD(2, MinTeleportChunkSize_)();
-    PHOENIX_REGISTER_FIELD(3, Stripes_)();
-    PHOENIX_REGISTER_FIELD(4, JobSizeConstraints_)();
-    PHOENIX_REGISTER_FIELD(5, Sampler_)();
-    PHOENIX_REGISTER_FIELD(6, SupportLocality_)();
-    PHOENIX_REGISTER_FIELD(7, MaxTotalSliceCount_)();
-    PHOENIX_REGISTER_FIELD(8, ShouldSliceByRowIndices_)();
-    PHOENIX_REGISTER_FIELD(9, EnablePeriodicYielder_)();
-    PHOENIX_REGISTER_FIELD(10, OutputOrder_)();
-    PHOENIX_REGISTER_FIELD(11, JobIndex_)();
-    PHOENIX_REGISTER_FIELD(12, BuiltJobCount_)();
-    PHOENIX_REGISTER_FIELD(13, SingleJob_)();
-    PHOENIX_REGISTER_FIELD(14, IsCompleted_)();
+    PHOENIX_REGISTER_FIELD(1, InputStreamDirectory_);
+    PHOENIX_REGISTER_FIELD(2, MinTeleportChunkSize_);
+    PHOENIX_REGISTER_FIELD(3, Stripes_);
+    PHOENIX_REGISTER_FIELD(4, JobSizeConstraints_);
+    PHOENIX_REGISTER_FIELD(5, Sampler_);
+    PHOENIX_REGISTER_FIELD(6, SupportLocality_);
+    PHOENIX_REGISTER_FIELD(7, MaxTotalSliceCount_);
+    PHOENIX_REGISTER_FIELD(8, ShouldSliceByRowIndices_);
+    PHOENIX_REGISTER_FIELD(9, EnablePeriodicYielder_);
+    PHOENIX_REGISTER_FIELD(10, OutputOrder_);
+    PHOENIX_REGISTER_FIELD(11, JobIndex_);
+    PHOENIX_REGISTER_FIELD(12, BuiltJobCount_);
+    PHOENIX_REGISTER_FIELD(13, SingleJob_);
+    PHOENIX_REGISTER_FIELD(14, IsCompleted_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);
