@@ -15,17 +15,16 @@ using namespace NYT::NApi::NNative;
 class TAlienClusterClientCache
     : public IAlienClusterClientCache
     , public TAlienClusterClientCacheBase
-
 {
 public:
     TAlienClusterClientCache(
         NApi::NNative::IConnectionPtr localConnection,
         NYT::NApi::TClientOptions clientOptions,
         TDuration evictionPeriod)
-    : TAlienClusterClientCacheBase(evictionPeriod)
-    , LocalConnection_(std::move(localConnection))
-    , LocalClient_(LocalConnection_->CreateNativeClient(clientOptions))
-    , ClientOptions_(std::move(clientOptions))
+        : TAlienClusterClientCacheBase(evictionPeriod)
+        , LocalConnection_(std::move(localConnection))
+        , LocalClient_(LocalConnection_->CreateNativeClient(clientOptions))
+        , ClientOptions_(std::move(clientOptions))
     { }
 
     NApi::NNative::IClientPtr GetClient(const std::string& clusterName) override
