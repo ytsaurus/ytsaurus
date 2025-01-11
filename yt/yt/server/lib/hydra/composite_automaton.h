@@ -149,9 +149,6 @@ public:
 
 protected:
     bool SerializationDumpEnabled_ = false;
-    bool EnableTotalWriteCountReport_ = false;
-    i64 LowerWriteCountDumpLimit_ = 0;
-    i64 UpperWriteCountDumpLimit_ = std::numeric_limits<i64>::max();
 
     const NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler_;

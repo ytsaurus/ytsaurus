@@ -984,7 +984,7 @@ void TChunkLocation::DecreaseUsedMemory(
 }
 
 void TChunkLocation::UpdateUsedMemory(
-    EIODirection direction,
+        EIODirection direction,
     EIOCategory category,
     i64 delta)
 {
