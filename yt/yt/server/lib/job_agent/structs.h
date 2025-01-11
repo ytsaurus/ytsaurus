@@ -14,9 +14,9 @@
 
 namespace NYT::NJobAgent {
 
-using NPhoenix2::TLoadContext;
-using NPhoenix2::TSaveContext;
-using NPhoenix2::TPersistenceContext;
+using NPhoenix::TLoadContext;
+using NPhoenix::TSaveContext;
+using NPhoenix::TPersistenceContext;
 
 ////////////////////////////////////////////////////////////////////////////////
 

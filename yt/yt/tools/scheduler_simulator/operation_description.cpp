@@ -6,7 +6,7 @@ namespace NYT::NSchedulerSimulator {
 
 using namespace NYTree;
 using namespace NYson;
-using namespace NPhoenix2;
+using namespace NPhoenix;
 using namespace NScheduler;
 using namespace NControllerAgent;
 

@@ -416,7 +416,7 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyPackingConfig)
 class TStrategyOperationSpec
     : public TSchedulableConfig
     , public TCommonPreemptionConfig
-    , public virtual NPhoenix2::TPolymorphicBase
+    , public virtual NPhoenix::TPolymorphicBase
 {
 public:
     std::optional<TString> Pool;
@@ -1252,7 +1252,7 @@ DEFINE_REFCOUNTED_TYPE(TTaskOutputStreamConfig)
 
 class TUserJobSpec
     : public NYTree::TYsonStruct
-    , public virtual NPhoenix2::TPolymorphicBase
+    , public virtual NPhoenix::TPolymorphicBase
 {
 public:
     TString Command;

@@ -39,7 +39,7 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 using TPersistenceContext = TCustomPersistenceContext<TSaveContext, TLoadContext, ESnapshotVersion>;
-using IPersistent = NPhoenix2::ICustomPersistent<TSaveContext, TLoadContext>;
+using IPersistent = NPhoenix::ICustomPersistent<TSaveContext, TLoadContext>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

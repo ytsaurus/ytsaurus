@@ -18,7 +18,7 @@ namespace NYT::NScheduler {
 using namespace NProfiling;
 using namespace NJobAgent;
 using namespace NJobTrackerClient;
-using namespace NPhoenix2;
+using namespace NPhoenix;
 using namespace NYTree;
 using namespace NStatisticPath;
 

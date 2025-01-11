@@ -113,7 +113,7 @@ public:
 
     void Profile(NProfiling::ISensorWriter* writer) const;
 
-    void Persist(const NPhoenix2::TPersistenceContext& context);
+    void Persist(const NPhoenix::TPersistenceContext& context);
 
 private:
 

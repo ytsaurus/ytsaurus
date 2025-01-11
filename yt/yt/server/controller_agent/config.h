@@ -310,7 +310,7 @@ DEFINE_REFCOUNTED_TYPE(TUserJobOptions)
 
 class TOperationOptions
     : public NYTree::TYsonStruct
-    , public virtual NPhoenix2::TPolymorphicBase
+    , public virtual NPhoenix::TPolymorphicBase
 {
 public:
     NYTree::INodePtr SpecTemplate;

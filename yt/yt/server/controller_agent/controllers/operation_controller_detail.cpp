@@ -2069,7 +2069,7 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
         RowBuffer,
         static_cast<ESnapshotVersion>(snapshot.Version));
 
-    NPhoenix2::NDetail::TSerializer::InplaceLoad(context, this);
+    NPhoenix::NDetail::TSerializer::InplaceLoad(context, this);
 
     for (const auto& task : Tasks) {
         task->Initialize();

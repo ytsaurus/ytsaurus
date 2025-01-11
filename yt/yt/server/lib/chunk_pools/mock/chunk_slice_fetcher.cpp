@@ -3,7 +3,7 @@
 namespace NYT::NChunkPools {
 
 using namespace NTableClient;
-using namespace NPhoenix2;
+using namespace NPhoenix;
 
 ////////////////////////////////////////////////////////////////////////////////
 
