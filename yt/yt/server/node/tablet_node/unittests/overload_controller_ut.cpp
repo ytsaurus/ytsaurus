@@ -19,8 +19,9 @@ class TMockInvoker
     : public IInvoker
 {
 public:
-    TWaitTimeObserver WaitTimeObserver;
+    DEFINE_SIGNAL_OVERRIDE(TWaitTimeObserver::TSignature, WaitTimeObserved);
 
+public:
     void Invoke(TClosure /*callback*/) override
     { }
 
@@ -42,9 +43,9 @@ public:
         return {};
     }
 
-    void RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver) override
+    void FireWaitTimeObserved(TDuration waitTime)
     {
-        WaitTimeObserver = waitTimeObserver;
+        WaitTimeObserved_.Fire(waitTime);
     }
 };
 
@@ -59,7 +60,7 @@ struct TMethodInfo
 
 using TMethodInfoList = std::vector<TMethodInfo>;
 
-static const TDuration MeanWaitTimeThreshold = TDuration::MilliSeconds(20);
+constexpr auto MeanWaitTimeThreshold = TDuration::MilliSeconds(20);
 
 TOverloadControllerConfigPtr CreateConfig(const THashMap<TString, TMethodInfoList>& schema)
 {
@@ -113,7 +114,7 @@ TEST(TOverloadControllerTest, TestOverloadsRequests)
 
     // Simulate overload
     for (int i = 0; i < 5000; ++i) {
-        mockInvoker->WaitTimeObserver(MeanWaitTimeThreshold * 2);
+        mockInvoker->FireWaitTimeObserved(MeanWaitTimeThreshold * 2);
     }
 
     // Check overload incoming requests
@@ -157,12 +158,12 @@ TEST(TOverloadControllerTest, TestNoOverloads)
 
     // Simulate overload
     for (int i = 0; i < 5000; ++i) {
-        mockInvoker->WaitTimeObserver(MeanWaitTimeThreshold / 2);
+        mockInvoker->FireWaitTimeObserved(MeanWaitTimeThreshold / 2);
     }
 
     for (int i = 0; i < 10000; ++i) {
         EXPECT_FALSE(ShouldThrottleCall(controller->GetCongestionState("MockService", "MockMethod")));
-        mockInvoker->WaitTimeObserver(MeanWaitTimeThreshold / 2);
+        mockInvoker->FireWaitTimeObserved(MeanWaitTimeThreshold / 2);
 
         Sleep(TDuration::MicroSeconds(10));
     }
@@ -171,14 +172,14 @@ TEST(TOverloadControllerTest, TestNoOverloads)
 TEST(TOverloadControllerTest, TestTwoInvokersSameMethod)
 {
     auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
-    auto mockInvoker = New<TMockInvoker>();
+    auto mockInvoker1 = New<TMockInvoker>();
     auto mockInvoker2 = New<TMockInvoker>();
 
-    controller->TrackInvoker("Mock", mockInvoker);
+    controller->TrackInvoker("Mock1", mockInvoker1);
     controller->TrackInvoker("Mock2", mockInvoker2);
 
     auto config = CreateConfig({
-        {"Mock", {{"MockService", "MockMethod"}}},
+        {"Mock1", {{"MockService", "MockMethod"}}},
         {"Mock2", {{"MockService", "MockMethod"}}},
     });
     config->LoadAdjustingPeriod = TDuration::MilliSeconds(1);
@@ -188,8 +189,8 @@ TEST(TOverloadControllerTest, TestTwoInvokersSameMethod)
 
     // Simulate overload
     for (int i = 0; i < 5000; ++i) {
-        mockInvoker->WaitTimeObserver(MeanWaitTimeThreshold * 2);
-        mockInvoker2->WaitTimeObserver(MeanWaitTimeThreshold / 2);
+        mockInvoker1->FireWaitTimeObserved(MeanWaitTimeThreshold * 2);
+        mockInvoker2->FireWaitTimeObserved(MeanWaitTimeThreshold / 2);
     }
 
     // Check overloading incoming requests
@@ -233,13 +234,13 @@ TEST(TOverloadControllerTest, TestCongestionWindow)
 
     // Simulate overload
     for (int i = 0; i < 5000; ++i) {
-        mockInvoker->WaitTimeObserver(MeanWaitTimeThreshold * 2);
+        mockInvoker->FireWaitTimeObserved(MeanWaitTimeThreshold * 2);
     }
 
     // Check overload incoming requests
     int remainsCount = 1000;
     while (remainsCount > 0) {
-        mockInvoker->WaitTimeObserver(MeanWaitTimeThreshold * 2);
+        mockInvoker->FireWaitTimeObserved(MeanWaitTimeThreshold * 2);
         {
             auto window2 = controller->GetCongestionState("MockService", "MockMethod2");
             EXPECT_EQ(window2.MaxWindow, window2.CurrentWindow);
@@ -272,10 +273,10 @@ TEST(TOverloadControllerTest, TestCongestionWindow)
 TEST(TOverloadControllerTest, TestCongestionWindowTwoTrackers)
 {
     auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
-    auto mockInvoker = New<TMockInvoker>();
+    auto mockInvoker1 = New<TMockInvoker>();
     auto mockInvoker2 = New<TMockInvoker>();
 
-    controller->TrackInvoker("Mock", mockInvoker);
+    controller->TrackInvoker("Mock", mockInvoker1);
     controller->TrackInvoker("Mock2", mockInvoker2);
 
     auto config = CreateConfig({
@@ -288,8 +289,8 @@ TEST(TOverloadControllerTest, TestCongestionWindowTwoTrackers)
 
     // Simulate overload
     for (int i = 0; i < 5000; ++i) {
-        mockInvoker->WaitTimeObserver(MeanWaitTimeThreshold * 2);
-        mockInvoker2->WaitTimeObserver(MeanWaitTimeThreshold * 2);
+        mockInvoker1->FireWaitTimeObserved(MeanWaitTimeThreshold * 2);
+        mockInvoker2->FireWaitTimeObserved(MeanWaitTimeThreshold * 2);
     }
 
     // Check overload incoming requests
@@ -311,8 +312,8 @@ TEST(TOverloadControllerTest, TestCongestionWindowTwoTrackers)
 TEST(TOverloadControllerTest, TestCongestionWindowTwoInstancies)
 {
     auto controller = New<TOverloadController>(New<TOverloadControllerConfig>());
-    auto tracker1 = controller->CreateGenericWaitTimeTracker("Mock", "Mock.1");
-    auto tracker2 = controller->CreateGenericWaitTimeTracker("Mock", "Mock.2");
+    auto observer1 = controller->CreateGenericWaitTimeObserver("Mock", "Mock.1");
+    auto observer2 = controller->CreateGenericWaitTimeObserver("Mock", "Mock.2");
 
     auto config = CreateConfig({
         {"Mock", {{"MockService", "MockMethod", 0.3}}},
@@ -323,7 +324,7 @@ TEST(TOverloadControllerTest, TestCongestionWindowTwoInstancies)
 
     // Simulate overload
     for (int i = 0; i < 5000; ++i) {
-        tracker1(MeanWaitTimeThreshold * 2);
+        observer1(MeanWaitTimeThreshold * 2);
     }
 
     // Check overload incoming requests
@@ -343,8 +344,8 @@ TEST(TOverloadControllerTest, TestCongestionWindowTwoInstancies)
     Sleep(TDuration::MicroSeconds(10));
 
     for (int i = 0; i < 5000; ++i) {
-        tracker1(MeanWaitTimeThreshold * 2);
-        tracker2(MeanWaitTimeThreshold * 2);
+        observer1(MeanWaitTimeThreshold * 2);
+        observer2(MeanWaitTimeThreshold * 2);
     }
 
     remainsCount = 10;
@@ -362,8 +363,8 @@ TEST(TOverloadControllerTest, TestCongestionWindowTwoInstancies)
 
     Sleep(TDuration::MicroSeconds(10));
     for (int i = 0; i < 5000; ++i) {
-        tracker1(MeanWaitTimeThreshold / 2);
-        tracker2(MeanWaitTimeThreshold * 2);
+        observer1(MeanWaitTimeThreshold / 2);
+        observer2(MeanWaitTimeThreshold * 2);
     }
 
     remainsCount = 10;
@@ -390,10 +391,10 @@ void ExecuteWaitTimeTest(const TExecutorPtr& executor, const IInvokerPtr& invoke
     TDuration totalWaitTime;
     int actionsCount = 0;
 
-    executor->RegisterWaitTimeObserver([&] (TDuration waitTime) {
+    executor->SubscribeWaitTimeObserved(BIND([&] (TDuration waitTime) {
         totalWaitTime += waitTime;
         ++actionsCount;
-    });
+    }));
 
     std::vector<TFuture<void>> futures;
     for (int i = 0; i < DesiredActionsCount; ++i) {

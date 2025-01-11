@@ -305,21 +305,21 @@ void TOverloadController::Start()
 
 void TOverloadController::TrackInvoker(TStringBuf name, const IInvokerPtr& invoker)
 {
-    invoker->RegisterWaitTimeObserver(CreateGenericWaitTimeTracker(name));
+    invoker->SubscribeWaitTimeObserved(CreateGenericWaitTimeObserver(name));
 }
 
 void TOverloadController::TrackFSHThreadPool(TStringBuf name, const NConcurrency::ITwoLevelFairShareThreadPoolPtr& threadPool)
 {
-    threadPool->RegisterWaitTimeObserver(CreateGenericWaitTimeTracker(name));
+    threadPool->SubscribeWaitTimeObserved(CreateGenericWaitTimeObserver(name));
 }
 
-TOverloadController::TWaitTimeObserver TOverloadController::CreateGenericWaitTimeTracker(TStringBuf trackerType, std::optional<TStringBuf> id)
+IInvoker::TWaitTimeObserver TOverloadController::CreateGenericWaitTimeObserver(TStringBuf trackerType, std::optional<TStringBuf> id)
 {
     auto tracker = CreateGenericTracker<TMeanWaitTimeTracker>(std::move(trackerType), std::move(id));
 
-    return [tracker] (TDuration waitTime) {
+    return BIND([tracker] (TDuration waitTime) {
         tracker->Record(waitTime);
-    };
+    });
 }
 
 template <typename TTracker>

@@ -227,8 +227,8 @@ protected:
             .Item("bytes").Value(event.Counters.Bytes)
             .Item("io_requests").Value(event.Counters.IORequests);
 
-        if (!OnEventLogged_.Empty()) {
-            TIOTagList tags = event.AggregatingTags.Tags;
+        if (!OnEventLogged_.IsEmpty()) {
+            auto tags = event.AggregatingTags.Tags;
             tags.insert(
                 tags.end(),
                 event.NonAggregatingTags.Tags.begin(),
@@ -361,7 +361,7 @@ private:
                 .Item("bytes").Value(counters.Bytes)
                 .Item("io_requests").Value(counters.IORequests);
 
-            if (!OnEventLogged_.Empty()) {
+            if (!OnEventLogged_.IsEmpty()) {
                 auto allTags = key.InlineTags.Tags;
                 if (key.NestedTags) {
                     allTags.insert(allTags.end(), key.NestedTags->Tags.begin(), key.NestedTags->Tags.end());

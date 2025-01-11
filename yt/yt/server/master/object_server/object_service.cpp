@@ -64,6 +64,7 @@
 #include <yt/yt/core/misc/mpsc_stack.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
+#include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/concurrency/quantized_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -289,17 +290,43 @@ private:
     public:
         TLocalReadInvoker(
             IFairSchedulerPtr<TClosure> sessionScheduler,
-            const std::string& user);
+            const std::string& user)
+            : SessionScheduler_(std::move(sessionScheduler))
+            , User_(user)
+        { }
 
-        void Invoke(TClosure callback) final;
-        void Invoke(TMutableRange<TClosure> callbacks) final;
+        void Invoke(TClosure callback) final
+        {
+            SessionScheduler_->Enqueue(std::move(callback), User_);
+        }
 
-        NThreading::TThreadId GetThreadId() const final;
-        bool CheckAffinity(const IInvokerPtr& invoker) const final;
+        void Invoke(TMutableRange<TClosure> callbacks) final
+        {
+            for (auto&& callback : callbacks) {
+                Invoke(std::move(callback));
+            }
+        }
 
-        bool IsSerialized() const final;
+        NThreading::TThreadId GetThreadId() const final
+        {
+            return NThreading::InvalidThreadId;
+        }
 
-        void RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver) final;
+        bool CheckAffinity(const IInvokerPtr& /*invoker*/) const final
+        {
+            return true;
+        }
+
+        bool IsSerialized() const final
+        {
+            return false;
+        }
+
+        void SubscribeWaitTimeObserved(const TWaitTimeObserver& /*callback*/) final
+        { }
+
+        void UnsubscribeWaitTimeObserved(const TWaitTimeObserver& /*callback*/) final
+        { }
 
     private:
         const IFairSchedulerPtr<TClosure> SessionScheduler_;
@@ -2313,45 +2340,6 @@ TCallback<void()> TObjectService::TLocalReadCallbackProvider::ExtractCallback()
     auto optionalTask = Scheduler_->TryDequeue();
     return optionalTask ? *optionalTask : TClosure();
 }
-
-////////////////////////////////////////////////////////////////////////////////
-
-TObjectService::TLocalReadInvoker::TLocalReadInvoker(
-    IFairSchedulerPtr<TClosure> sessionScheduler,
-    const std::string& user)
-    : SessionScheduler_(std::move(sessionScheduler))
-    , User_(user)
-{ }
-
-void TObjectService::TLocalReadInvoker::Invoke(TClosure callback)
-{
-    SessionScheduler_->Enqueue(std::move(callback), User_);
-}
-
-void TObjectService::TLocalReadInvoker::Invoke(TMutableRange<TClosure> callbacks)
-{
-    for (auto&& callback : callbacks) {
-        Invoke(std::move(callback));
-    }
-}
-
-NThreading::TThreadId TObjectService::TLocalReadInvoker::GetThreadId() const
-{
-    return NThreading::InvalidThreadId;
-}
-
-bool TObjectService::TLocalReadInvoker::CheckAffinity(const IInvokerPtr& /*invoker*/) const
-{
-    return true;
-}
-
-bool TObjectService::TLocalReadInvoker::IsSerialized() const
-{
-    return false;
-}
-
-void TObjectService::TLocalReadInvoker::RegisterWaitTimeObserver(IInvoker::TWaitTimeObserver /*waitTimeObserver*/)
-{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

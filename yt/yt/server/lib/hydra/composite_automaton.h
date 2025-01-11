@@ -4,6 +4,9 @@
 
 #include <yt/yt/core/logging/log.h>
 
+#include <yt/yt/core/actions/invoker.h>
+#include <yt/yt/core/actions/signal.h>
+
 #include <yt/yt/core/test_framework/testing_tag.h>
 
 #include <yt/yt/library/profiling/sensor.h>
@@ -144,8 +147,7 @@ public:
 
     void CheckInvariants() override;
 
-    using TWaitTimeObserver = std::function<void(TDuration)>;
-    void RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver);
+    DECLARE_SIGNAL(IInvoker::TWaitTimeObserver::TSignature, WaitTimeObserved);
 
 protected:
     bool SerializationDumpEnabled_ = false;
@@ -153,9 +155,6 @@ protected:
     const NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler_;
 
-    TWaitTimeObserver WaitTimeObserver_;
-
-protected:
     TCompositeAutomaton(
         IInvokerPtr asyncSnapshotInvoker,
         TCellId cellId);
@@ -243,7 +242,8 @@ private:
 
     NProfiling::TEventTimer MutationWaitTimer_;
 
-private:
+    TCallbackList<IInvoker::TWaitTimeObserver::TSignature> WaitTimeObserved_;
+
     void DoSaveSnapshot(
         NConcurrency::IAsyncOutputStreamPtr writer,
         NLogging::TLogger logger,
