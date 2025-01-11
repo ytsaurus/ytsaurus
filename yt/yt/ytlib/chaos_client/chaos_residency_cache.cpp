@@ -169,7 +169,7 @@ public:
                 TGuid::Create()))
     { }
 
-    virtual TCellTag Run() = 0;
+    virtual TFuture<TCellTag> Run() = 0;
 
 protected:
     const TObjectId ObjectId_;
@@ -282,7 +282,7 @@ public:
         , Owner_(owner)
     { }
 
-    TCellTag Run() override
+    TFuture<TCellTag> Run() override
     {
         auto connection = Owner_->Connection_.Lock();
         if (!connection) {
@@ -311,7 +311,7 @@ public:
             }
         ));
 
-        return WaitFor(fullLookupFuture).ValueOrThrow();
+        return fullLookupFuture;
     }
 
 private:
@@ -463,7 +463,7 @@ public:
         , ForceRefresh_(forceRefresh)
     { }
 
-    TCellTag Run() override
+    TFuture<TCellTag> Run() override
     {
         auto proxy = TChaosNodeServiceProxy(Owner_->ChaosCacheChannel_);
         auto req = proxy.GetReplicationCardResidency();
@@ -477,7 +477,7 @@ public:
             req->Header().MutableExtension(NRpc::NProto::TBalancingExt::balancing_ext));
 
         YT_LOG_DEBUG("Requesting master cache");
-        return WaitFor(req->Invoke().ApplyUnique(BIND(
+        return req->Invoke().ApplyUnique(BIND(
             [
                 type = Type_,
                 objectId = ObjectId_
@@ -491,7 +491,7 @@ public:
             }
 
             return FromProto<TCellTag>(resultOrError.Value()->replication_card_cell_tag());
-        }))).ValueOrThrow();
+        }));
     }
 
 private:
