@@ -20,7 +20,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NYPath;
 using namespace NChunkClient;
-using namespace NPhoenix2;
+using namespace NPhoenix;
 using namespace NScheduler;
 using namespace NJobTrackerClient;
 

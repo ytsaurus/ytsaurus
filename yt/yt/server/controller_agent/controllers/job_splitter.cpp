@@ -20,7 +20,7 @@ using namespace NProfiling;
 using namespace NYTree;
 using namespace NYson;
 using namespace NScheduler;
-using namespace NPhoenix2;
+using namespace NPhoenix;
 
 ////////////////////////////////////////////////////////////////////////////////
 
