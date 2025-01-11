@@ -73,7 +73,7 @@ public:
     TFuture<void> Fetch() override;
 
     //! Set cancelable context for the fetcher.
-    //! NB: if invoker is cancelable, do not ever forget to provide its cancelable context;
+    //! NB: If invoker is cancelable, do not ever forget to provide its cancelable context;
     //! otherwise internal promise inside fetcher may never be set and WaitFor on the fetch future
     //! will never succeed, leading to fiber leak (refer to YT-11643 for example).
     void SetCancelableContext(TCancelableContextPtr cancelableContext) override;

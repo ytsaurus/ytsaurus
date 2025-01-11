@@ -445,7 +445,7 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
         assert self.pool_and_operation_info_count >= 5
         assert self.nodes_info_count >= 5
 
-        # NB: some explanation of possible non-zero error count:
+        # NB: Some explanation of possible non-zero error count:
         # 1. Scheduler simulator are running by 2 (default value) thread in this test.
         # 2. One thread may simulate job start, while another thread perform logging.
         # 3. Update of usage_ratio goes from bottom to up, some at some point we can have non-zero resource usage

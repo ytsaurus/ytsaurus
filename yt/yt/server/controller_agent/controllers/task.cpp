@@ -1257,7 +1257,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
         TaskHost_->RegisterCores(joblet, jobSummary);
     } else {
         auto& chunkListIds = joblet->ChunkListIds;
-        // NB: we should release these chunk lists only when information about this job being abandoned
+        // NB: We should release these chunk lists only when information about this job being abandoned
         // gets to the snapshot; otherwise it may revive in different scheduler and continue writing
         // to the released chunk list.
         TaskHost_->ReleaseChunkTrees(chunkListIds, true /*recursive*/, true /*waitForSnapshot*/);
@@ -1369,7 +1369,7 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
 
     TentativeTreeEligibility_.OnJobFinished(jobSummary, joblet->TreeId, joblet->TreeIsTentative, &result.NewlyBannedTrees);
 
-    // NB: when job is aborted, you can never be sure that this is forever. Like in marriage. In future life (after
+    // NB: When job is aborted, you can never be sure that this is forever. Like in marriage. In future life (after
     // revival) it may become completed, and you will bite your elbows if you unstage its chunk lists too early (e.g.
     // job is aborted due to node gone offline, but after revival it happily comes back and job successfully completes).
     // So better keep it simple and wait for the snapshot.
@@ -1832,7 +1832,7 @@ void TTask::OnJobResourceOverdraft(TJobletPtr joblet, const TAbortedJobSummary& 
         ? userJobMaxMemory > joblet->UserJobMemoryReserve
         : false;
 
-    // NB: in case of outdated statistics we suppose that memory overdraft happened
+    // NB: In case of outdated statistics we suppose that memory overdraft happened
     // for the process with smallest gap between max memory and reserved memory.
     if (!hasJobProxyMemoryOverdraft && !hasUserJobMemoryOverdraft) {
         YT_LOG_DEBUG(
@@ -2148,7 +2148,7 @@ void TTask::RegisterStripe(
 
         auto lostIt = LostJobCookieMap_.find(outputCookie);
         if (lostIt == LostJobCookieMap_.end()) {
-            // NB: if job is not restarted, we should not add its output for the
+            // NB: If job is not restarted, we should not add its output for the
             // second time to the destination pools that did not trigger the replay.
             if (!joblet->Restarted) {
                 inputCookie = destinationPool->AddWithKey(stripe, key);

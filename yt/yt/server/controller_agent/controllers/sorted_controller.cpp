@@ -577,7 +577,7 @@ protected:
 
     void PrepareOutputTables() override
     {
-        // NB: we need to do this after locking input tables but before preparing output tables.
+        // NB: We need to do this after locking input tables but before preparing output tables.
         AdjustSortColumns();
     }
 
@@ -1164,7 +1164,7 @@ public:
             THROW_ERROR_EXCEPTION("It is required to specify join_by when using foreign tables");
         }
 
-        // NB: base class call method is called at the end since InitTeleportableInputTables()
+        // NB: Base class call method is called at the end since InitTeleportableInputTables()
         // relies on OutputTeleportTableIndex_ being set.
         TSortedControllerBase::CustomPrepare();
     }

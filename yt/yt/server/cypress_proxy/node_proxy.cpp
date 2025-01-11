@@ -365,7 +365,7 @@ protected:
             } catch (const std::exception& ex) {
                 auto useResponseKeeper = mutationId && responseKeeper->GetDynamicConfig()->Enable;
                 if (useResponseKeeper) {
-                    // NB: if commit failed, then some error related to dynamic tables occured and client will receive it,
+                    // NB: If commit failed, then some error related to dynamic tables occured and client will receive it,
                     // so we should save this error in case of retries on client side.
                     auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(Bootstrap_->GetSequoiaClient()))
                         .ValueOrThrow();
@@ -391,7 +391,7 @@ protected:
         TNodeId TargetParentId;
         //! This node is used to determine Sequoia tx coordinator.
         /*!
-         *  NB: it's not the same as |TargetParentId|. Let's consider recursive
+         *  NB: It's not the same as |TargetParentId|. Let's consider recursive
          *  creation "create map_node //a/b/c --recursive" where "//a" is
          *  already exists. In this case //a is attachment point and //a/b is
          *  target's parent.
@@ -853,7 +853,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Copy)
         ThrowNoSuchChild(sourceRootPath, unresolvedSuffixTokens[0]);
     }
 
-    // NB: from now on, all links are resolved and no path contains links
+    // NB: From now on, all links are resolved and no path contains links
     // so we can just compare paths here.
     if (Path_ == sourceRootPath) {
         THROW_ERROR_EXCEPTION("Cannot copy or move a node to itself");
@@ -1074,7 +1074,7 @@ private:
         : public NYson::TForwardingYsonConsumer
     {
     public:
-        // NB: if #subtreePath is "//a/b/c" then #parentId is ID of "//a/b".
+        // NB: If #subtreePath is "//a/b/c" then #parentId is ID of "//a/b".
         explicit TTreeBuilder(
             TSequoiaSession* session,
             TAbsoluteYPath subtreePath,

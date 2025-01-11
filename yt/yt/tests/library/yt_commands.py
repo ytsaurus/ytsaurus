@@ -498,7 +498,7 @@ def execute_command(
         error = YtResponseError(response.error())
         if verbose_error:
             print_debug(str(error))
-            # NB: we want to see inner errors in teamcity.
+            # NB: We want to see inner errors in teamcity.
         raise error
     if isinstance(output_stream, BytesIO):
         result = output_stream.getvalue()
@@ -2524,7 +2524,7 @@ def set_account_disk_space_limit(account, limit, medium="default"):
     )
 
 
-# NB: does not check master_memory yet!
+# NB: Does not check master_memory yet!
 def cluster_resources_equal(a, b):
     if (a.get("disk_space", 0) != b.get("disk_space", 0)
             or a.get("chunk_count", 0) != b.get("chunk_count", 0)

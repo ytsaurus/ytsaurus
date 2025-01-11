@@ -542,7 +542,7 @@ protected:
 
         void FinishInput() override
         {
-            // NB: we try to use the value as close to the total data weight of all extracted stripe lists as possible.
+            // NB: We try to use the value as close to the total data weight of all extracted stripe lists as possible.
             // In particular, we do not use Controller->TotalEstimatedInputDataWeight here.
             auto totalDataWeight = GetChunkPoolOutput()->GetDataWeightCounter()->GetTotal();
             if (Controller_->Spec->EnablePartitionedDataBalancing &&
@@ -787,7 +787,7 @@ protected:
                 }
             }
 
-            // NB: this should be done not only in OnTaskCompleted:
+            // NB: This should be done not only in OnTaskCompleted:
             // 1) jobs may run after the task has been completed;
             // 2) ShuffleStartThreshold can be less than one.
             // Kick-start sort and unordered merge tasks.
@@ -906,7 +906,7 @@ protected:
                 }
             }
 
-            // NB: this is required at least to mark tasks completed, when there are no pending jobs.
+            // NB: This is required at least to mark tasks completed, when there are no pending jobs.
             // This couldn't have been done earlier since we've just finished populating shuffle pool.
             Controller_->CheckSortStartThreshold();
             Controller_->CheckMergeStartThreshold();
@@ -1095,7 +1095,7 @@ protected:
                 auto stripe = BuildIntermediateChunkStripe(jobResultExt.mutable_output_chunk_specs());
 
                 for (const auto& dataSlice : stripe->DataSlices) {
-                    // NB: intermediate sort uses sort_by as a prefix, while pool expects reduce_by as a prefix.
+                    // NB: Intermediate sort uses sort_by as a prefix, while pool expects reduce_by as a prefix.
                     auto keyColumnCount = Controller_->GetSortedMergeSortColumns().size();
                     SetLimitsFromShortenedBoundaryKeys(dataSlice, keyColumnCount, Controller_->RowBuffer);
                     // Transform data slice to legacy if legacy sorted pool is used in sorted merge.

@@ -1413,7 +1413,7 @@ void TNontemplateCypressNodeProxyBase::SetModified(EModificationType modificatio
 
     cypressManager->SetModified(CachedNode_, modificationType);
 
-    // NB: not calling base class method here.
+    // NB: Not calling base class method here.
 }
 
 void TNontemplateCypressNodeProxyBase::SetAccessed()

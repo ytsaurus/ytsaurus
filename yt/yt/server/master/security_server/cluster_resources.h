@@ -40,7 +40,7 @@ public:
     i64 GetMediumDiskSpace(int mediumIndex) const;
 
     //! Increases medium disk space by a given amount.
-    //! NB: the amount may be negative.
+    //! NB: The amount may be negative.
     void AddToMediumDiskSpace(int mediumIndex, i64 diskSpaceDelta);
 
     //! Completely empties disk space counts for all media.
@@ -137,7 +137,7 @@ TRichClusterResources  operator +  (const TRichClusterResources& lhs, const TRic
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: this serialization requires access to chunk and multicell managers and
+// NB: This serialization requires access to chunk and multicell managers and
 // cannot be easily integrated into yson serialization framework.
 
 void SerializeClusterResources(

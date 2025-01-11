@@ -943,7 +943,7 @@ TEST_F(TSortedChunkPoolTest, SortedMergeAllKindOfTeleports)
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     // Yes/No (non-trivial lower limit).
-    // NB: chunkB12 may not be teleported because it has non-trivial read limits.
+    // NB: ChunkB12 may not be teleported because it has non-trivial read limits.
     // _[==]_____
     // ___===[==]
     auto chunkA12 = CreateChunk(BuildRow({12, 1, 0}), BuildRow({12, 1, 4}), 0);
@@ -1565,7 +1565,7 @@ TEST_F(TSortedChunkPoolTest, SortedReduceAllKindOfTeleports)
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     // Yes/No (non-trivial lower limit).
-    // NB: chunkB12 may not be teleported because it has non-trivial read limits.
+    // NB: ChunkB12 may not be teleported because it has non-trivial read limits.
     // _[==]_____
     // ___===[==]
     auto chunkA12 = CreateChunk(BuildRow({12, 1, 0}), BuildRow({12, 1, 4}), 0);

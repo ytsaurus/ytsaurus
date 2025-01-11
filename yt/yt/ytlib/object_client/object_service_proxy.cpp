@@ -474,7 +474,7 @@ void TObjectServiceProxy::TReqExecuteBatch::OnSubbatchResponse(const TErrorOr<TR
         } else if (rsp->IsResponseUncertain(i)) {
             fullResponse->SetResponseUncertain(globalIndex);
         } else {
-            // NB: now, master reports for every subresponse if it was executed,
+            // NB: Now, master reports for every subresponse if it was executed,
             // not executer or uncertain. But there are tricky request races
             // because of which sometimes non-executed subrequests are actually
             // were executed. It leads to "Duplicate request is not marked as

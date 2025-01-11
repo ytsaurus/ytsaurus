@@ -2800,7 +2800,7 @@ private:
 
     void RequestMeta()
     {
-        // NB: strong ref here is the only reference that keeps session alive.
+        // NB: Strong ref here is the only reference that keeps session alive.
         SessionInvoker_->Invoke(
             BIND(&TGetMetaSession::DoRequestMeta, MakeStrong(this)));
     }

@@ -218,7 +218,7 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
         // NB: Typically missing at followers.
         shard->ExpiredNodes.erase(trunkNode);
 
-        // NB: time(out) iterators differ on the leader and followers. Avoid relying
+        // NB: Time(out) iterators differ on the leader and followers. Avoid relying
         // on them when updating persistent state. The use of |TInstant::Now()| is ok.
         RegisterNodeExpirationTime(trunkNode, TInstant::Now() + GetDynamicConfig()->ExpirationBackoffTime);
     }

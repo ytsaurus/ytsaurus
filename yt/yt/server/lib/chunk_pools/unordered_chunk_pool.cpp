@@ -757,7 +757,7 @@ private:
                     auto locality = chunkSlice->GetLocality(replica.GetReplicaIndex());
                     if (locality > 0) {
                         auto& entry = NodeIdToEntry_[replica.GetNodeId()];
-                        // NB: do not check that stripe is unique, it may have already been inserted,
+                        // NB: Do not check that stripe is unique, it may have already been inserted,
                         // since different replicas may reside on the same node during rebalancing.
                         entry.StripeIndexes.insert(stripeIndex);
                         entry.Locality += locality;

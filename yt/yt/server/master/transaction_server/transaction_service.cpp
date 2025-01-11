@@ -55,7 +55,7 @@ private:
     {
         ValidatePeer(EPeerKind::Leader);
 
-        // NB: no upstream sync should be necessary here.
+        // NB: No upstream sync should be necessary here.
 
         auto parentId = FromProto<TTransactionId>(request->parent_id());
         auto timeout = FromProto<TDuration>(request->timeout());
@@ -127,7 +127,7 @@ private:
     {
         ValidatePeer(EPeerKind::Leader);
 
-        // NB: no sync with upstream should be necessary here.
+        // NB: No sync with upstream should be necessary here.
 
         auto transactionIds = FromProto<std::vector<TTransactionId>>(request->transaction_ids());
         auto destinationCellTag = request->destination_cell_tag();

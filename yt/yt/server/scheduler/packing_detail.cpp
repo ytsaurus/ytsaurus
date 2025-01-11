@@ -111,7 +111,7 @@ double PackingMetric(
     const TJobResources& totalResourceLimits,
     const TFairShareStrategyPackingConfigPtr& config)
 {
-    // NB: this function must be thread-safe.
+    // NB: This function must be thread-safe.
 
     auto getMetricFunction = [] (EPackingMetricType metricType) {
         switch (metricType) {

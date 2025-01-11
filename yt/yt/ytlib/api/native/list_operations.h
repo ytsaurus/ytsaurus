@@ -64,7 +64,7 @@ public:
     void MergeFrom(const TListOperationsCountingFilter& otherFilter);
 
 private:
-    // NB: we have to use pointer instead of reference since
+    // NB: We have to use pointer instead of reference since
     // default constructor is needed in this class.
     const TListOperationsOptions* Options_ = nullptr;
 };

@@ -141,7 +141,7 @@ TNodeShard::TNodeShard(
     , Host_(host)
     , ManagerHost_(managerHost)
     , Bootstrap_(bootstrap)
-    // NB: we intentionally use ':' separator here, since we believe that all node shard
+    // NB: We intentionally use ':' separator here, since we believe that all node shard
     // threads are equally loaded.
     , ActionQueue_(New<TActionQueue>(Format("NodeShard:%v", id)))
     , CachedExecNodeDescriptorsRefresher_(New<TPeriodicExecutor>(

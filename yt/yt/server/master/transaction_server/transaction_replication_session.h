@@ -146,7 +146,7 @@ public:
      *
      *  May throw if called in between epochs.
      *
-     *  NB: this is an all-in-one method. Alternatively, one might consider
+     *  NB: This is an all-in-one method. Alternatively, one might consider
      *  going step-by-step using the individual methods below.
      */
     TFuture<void> Run(bool syncWithUpstream);

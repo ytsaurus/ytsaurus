@@ -326,7 +326,7 @@ protected:
         auto readyEvent = BIND(&TSortedMergingReaderBase::DoOpen, MakeStrong(this), options)
             .AsyncVia(TDispatcher::Get()->GetReaderInvoker())
             .Run();
-        // NB: we don't combine completion error here, because reader opening must not be interrupted.
+        // NB: We don't combine completion error here, because reader opening must not be interrupted.
         // Otherwise, race condition may occur between reading in DoOpen and GetInterruptDescriptor.
         SetReadyEvent(readyEvent, /*combineWithShortcut*/ false);
     }

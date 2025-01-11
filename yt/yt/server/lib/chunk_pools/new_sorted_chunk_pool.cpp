@@ -139,7 +139,7 @@ public:
 
         TChunkPoolInputBase::Finish();
 
-        // NB: this method accounts all the stripes that were suspended before
+        // NB: This method accounts all the stripes that were suspended before
         // the chunk pool was finished. It should be called only once.
         SetupSuspendedStripes();
 
@@ -387,7 +387,7 @@ private:
         // 1) it is unversioned;
         // 2) it is complete (i.e. does not contain non-trivial read limits);
         // 3a) if enable_key_guarantee = %false: no other key (belonging to the different input chunk) lies in the interval (minKey, maxKey);
-        // 3b) if enable_key_guarantee = %true: no other key lies in the segment [minKey, maxKey] (NB: if some other chunk shares endpoint
+        // 3b) if enable_key_guarantee = %true: no other key lies in the segment [minKey, maxKey] (NB: If some other chunk shares endpoint
         //     with our chunk, our chunk can not be teleported since all instances of each key must be either teleported or
         //     be processed in the same job).
         //

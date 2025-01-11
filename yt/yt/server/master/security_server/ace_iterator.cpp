@@ -410,7 +410,7 @@ bool TTagFilteringAceIterator::ShouldAdvance() const
     auto underlyingValue = *Underlying_;
     const auto& optionalTagFilter = underlyingValue.Ace->SubjectTagFilter;
 
-    // NB: tags should be |nullptr| only when tag filtering is disabled.
+    // NB: Tags should be |nullptr| only when tag filtering is disabled.
     // If this element has tag filter with the action "deny", then the act of disabling said tag filter
     // will deny some users who should have access to the object.
     if (!Tags_) {

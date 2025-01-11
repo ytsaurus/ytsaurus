@@ -1711,7 +1711,7 @@ echo {v = 2} >&7
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_reduce_on_static_table_shorter_key(self, optimize_for):
         # Similar to previous test, but for static table.
-        # NB: this test never worked before 21.1.
+        # NB: This test never worked before 21.1.
         if self.Env.get_component_version("ytserver-job-proxy").abi <= (20, 3):
             pytest.skip("This test does not work until everything is at least 21.1")
 

@@ -208,7 +208,7 @@ public:
             }
 
             switch (reqCreate->Type) {
-                // NB: for rootstock resolve cannot be performed on Сypress
+                // NB: For rootstock resolve cannot be performed on Сypress
                 // proxy, but the transaction has to be started there. We assume
                 // path is correct, if this is not the case - prepare in 2PC
                 // will fail and the error will be propagated to the user.

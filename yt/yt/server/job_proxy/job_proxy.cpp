@@ -353,7 +353,7 @@ void TJobProxy::SendHeartbeat()
 void TJobProxy::OnHeartbeatResponse(const TError& error)
 {
     if (!error.IsOK()) {
-        // NB: user process is not killed here.
+        // NB: User process is not killed here.
         // Good user processes are supposed to die themselves
         // when io pipes are closed.
         // Bad processes will die at container shutdown.
@@ -1630,7 +1630,7 @@ void TJobProxy::CheckMemoryUsage()
     const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
     if (jobSpecExt.has_user_job_spec()) {
         const auto& userJobSpec = jobSpecExt.user_job_spec();
-        // NB: if job proxy is not prepared yet we cannot report actual statistics by heartbeat in abort.
+        // NB: If job proxy is not prepared yet we cannot report actual statistics by heartbeat in abort.
         if (Config_->AlwaysAbortOnMemoryReserveOverdraft && Prepared_) {
             bool overdraft = false;
             if (UserJobCurrentMemoryUsage_ > userJobSpec.memory_reserve()) {

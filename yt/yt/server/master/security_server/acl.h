@@ -34,7 +34,7 @@ struct TAccessControlEntry
         EPermissionSet permissions,
         EAceInheritanceMode inheritanceMode = EAceInheritanceMode::ObjectAndDescendants);
 
-    // NB: two ACEs being equal does not necessarily imply their complete
+    // NB: Two ACEs being equal does not necessarily imply their complete
     // interchangeability. For one, the comparison has to ignore the order of
     // subjects for determinism. Moreover, subjects being linked or unlinked to
     // objects has no bearing on comparison.

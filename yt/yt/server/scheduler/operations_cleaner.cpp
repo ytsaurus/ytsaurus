@@ -1914,7 +1914,7 @@ private:
         // so we request it here.
         FetchBriefProgressFromArchive(operations);
 
-        // NB: needed for us to store the latest operation for each alias in operation_aliases archive table.
+        // NB: Needed for us to store the latest operation for each alias in operation_aliases archive table.
         std::sort(operations.begin(), operations.end(), [] (const auto& lhs, const auto& rhs) {
             return lhs.FinishTime < rhs.FinishTime;
         });

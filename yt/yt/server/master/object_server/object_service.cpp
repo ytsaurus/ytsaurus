@@ -948,7 +948,7 @@ private:
                 "Cannot synchronize with cells when read-only mode is active");
         }
 
-        // NB: we always have to wait all current prepared transactions to
+        // NB: We always have to wait all current prepared transactions to
         // observe side effects of Sequoia transactions.
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
         std::vector<TFuture<void>> additionalFutures = {
@@ -1330,7 +1330,7 @@ private:
 
         auto future = StartSync(ESyncPhase::Three);
         if (future.IsSet()) {
-            // NB: sync-phase-three is usually no-op, so this is the common case.
+            // NB: Sync-phase-three is usually no-op, so this is the common case.
             OnSyncPhaseThreeCompleted(future.Get());
         } else {
             future.Subscribe(
@@ -1888,7 +1888,7 @@ private:
                     Reschedule();
                 };
 
-                // NB: non-owning capture of this session object. Should be fine,
+                // NB: Non-owning capture of this session object. Should be fine,
                 // since reply lock will prevent this session from being destroyed.
                 subrequest->RemoteTransactionReplicationFuture
                     .WithTimeout(timeLeft)
@@ -1901,7 +1901,7 @@ private:
             if (subrequest->MutationResponseFuture.IsSet()) {
                 OnMutationCommitted(subrequest, subrequest->MutationResponseFuture.Get());
             } else {
-                // NB: non-owning capture of this session object. Should be fine,
+                // NB: Non-owning capture of this session object. Should be fine,
                 // since reply lock will prevent this session from being destroyed.
                 subrequest->MutationResponseFuture
                     .Subscribe(BIND(&TExecuteSession::OnMutationCommitted, MakeStrong(this), subrequest));

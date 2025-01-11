@@ -652,7 +652,7 @@ i64 GetChunkReaderMemoryEstimate(const NProto::TChunkSpec& chunkSpec, TMultiChun
     // Misc may be cleared out by the scheduler (e.g. for partition chunks).
     auto miscExt = FindProtoExtension<NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
     if (miscExt) {
-        // NB: data weight is upper bound on the uncompressed data size.
+        // NB: Data weight is upper bound on the uncompressed data size.
         i64 currentSize = GetChunkDataWeight(chunkSpec);
 
         // Block used by upper level chunk reader.

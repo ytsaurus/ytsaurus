@@ -324,7 +324,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMerge(
     //
     // 2) To ensure proper resource accounting. This is necessary (A) for all
     // topmost commits (since committed and uncommitted resources are tracked
-    // separately) and (B) for nested commits when replication changes (NB: node
+    // separately) and (B) for nested commits when replication changes (NB: Node
     // accounts cannot be changed within transactions and are therefore
     // irrelevant).
     //

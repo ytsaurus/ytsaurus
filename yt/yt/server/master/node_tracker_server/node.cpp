@@ -680,7 +680,7 @@ void TNode::Load(NCellMaster::TLoadContext& context)
 
     // COMPAT(kvk1920): should be replaced with |Load(context, ChunkLocations_)|
     // after 24.2.
-    // NB: in most places Load<TChunkLocation*> means loading of either real or
+    // NB: In most places Load<TChunkLocation*> means loading of either real or
     // imaginary location. But not here. This is the only place where we are
     // loading |TRealChunkLocation*|.
     TVectorSerializer<TRealChunkLocationPtrSerializer>::Load(context, ChunkLocations_);
@@ -1148,13 +1148,13 @@ void TNode::SetDisableWriteSessionsReportedByNode(bool value)
 
 bool TNode::IsValidWriteTarget() const
 {
-    // NB: this may be called in mutations so be sure to only rely on persistent state.
+    // NB: This may be called in mutations so be sure to only rely on persistent state.
     return WasValidWriteTarget(EWriteTargetValidityChange::None);
 }
 
 bool TNode::WasValidWriteTarget(EWriteTargetValidityChange reason) const
 {
-    // NB: this may be called in mutations so be sure to only rely on persistent state.
+    // NB: This may be called in mutations so be sure to only rely on persistent state.
     auto reportedDataNodeHeartbeat = ReportedDataNodeHeartbeat();
     auto decommissioned = IsDecommissioned();
     auto disableWriteSessions = AreWriteSessionsDisabled();

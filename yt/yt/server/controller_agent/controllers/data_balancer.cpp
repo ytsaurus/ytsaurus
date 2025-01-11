@@ -47,7 +47,7 @@ bool TDataBalancer::CanScheduleJob(const TJobNodeDescriptor& descriptor, i64 dat
 {
     auto& node = GetOrRegisterNode(descriptor);
     auto limit = GetNodeDataWeightLimit(node);
-    // NB: we do not add dataWeight here as it may block us when there is not so much data and lots of nodes.
+    // NB: We do not add dataWeight here as it may block us when there is not so much data and lots of nodes.
     if (node.DataWeight <= limit) {
         return true;
     } else {

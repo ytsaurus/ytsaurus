@@ -506,7 +506,7 @@ private:
 
             auto schema = FromProto<NTableClient::TTableSchema>(entry.schema());
 
-            // NB: schema lifetime is managed by cross-cell copy transaction.
+            // NB: Schema lifetime is managed by cross-cell copy transaction.
             auto masterTableSchema = tableManager->GetOrCreateNativeMasterTableSchema(schema, transaction);
 
             auto* rspEntry = response->add_updated_schema_id_mapping();
@@ -659,7 +659,7 @@ private:
             objectIds);
 
         ValidateVectorizedRead(templateMethod, objectIds);
-        // NB: no need to sync with TX coordinator here, since this request is designed to be used in conjunction with batch request
+        // NB: No need to sync with TX coordinator here, since this request is designed to be used in conjunction with batch request
         // and the latter handles all needed syncs.
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionId

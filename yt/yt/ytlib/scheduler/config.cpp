@@ -2079,7 +2079,7 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Preprocessor([] (TRemoteCopyOperationSpec* spec) {
-        // NB: in remote copy operation chunks are never decompressed,
+        // NB: In remote copy operation chunks are never decompressed,
         // so the data weight does not affect anything.
         spec->MaxDataWeightPerJob = std::numeric_limits<i64>::max();
     });

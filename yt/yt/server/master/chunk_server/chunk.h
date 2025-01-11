@@ -258,7 +258,7 @@ public:
     //! Returns chunk's replication aggregated from local and external values.
     //! For semantics of aggregation, see #TChunkReplication::operator|=().
     /*!
-     *  NB: by default only COMMITTED OWNERS affect this. If the chunk has no
+     *  NB: By default only COMMITTED OWNERS affect this. If the chunk has no
      *  committed owners, then non-committed ones are taken into account.
      *
      *  If there're no owners at all, the returned value is the most recent

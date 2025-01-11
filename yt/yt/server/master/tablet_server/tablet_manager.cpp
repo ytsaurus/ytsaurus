@@ -1567,7 +1567,7 @@ public:
 
             table->MutableTablets().clear();
 
-            // NB: security manager has already been informed when node's account was reset.
+            // NB: Security manager has already been informed when node's account was reset.
         }
 
         if (table->GetType() == EObjectType::ReplicatedTable) {
@@ -3978,7 +3978,7 @@ private:
         {
             auto req = PrepareMountRequestStem(tablet, serializedTableSettings);
             auto& reqReplicatable = *req.mutable_replicatable_content();
-            // NB: essential content must be filled in PrepareMountRequestStem.
+            // NB: Essential content must be filled in PrepareMountRequestStem.
 
             MaybeSetTabletAvenueEndpointId(tablet, cell->GetId(), &req);
 
@@ -4985,7 +4985,7 @@ private:
                 UnbindTabletAction(action);
                 action->SetTabletCellBundle(nullptr);
 
-                // NB: this is not a part of the compat and should be kept during cleanup.
+                // NB: This is not a part of the compat and should be kept during cleanup.
                 continue;
             }
 

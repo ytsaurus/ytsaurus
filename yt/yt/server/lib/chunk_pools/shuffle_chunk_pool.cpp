@@ -100,7 +100,7 @@ public:
                 YT_VERIFY(partitionsExt->row_counts(index) <= RowCountThreshold_);
                 Outputs_[index]->AddStripe(
                     elementaryIndex,
-                    // NB: currently uncompressed data size and data weight for partition chunks are roughly
+                    // NB: Currently uncompressed data size and data weight for partition chunks are roughly
                     // equal, since we use horizontal chunk format.
                     uncompressedDataSizes[index],
                     rowCounts[index]);
@@ -176,7 +176,7 @@ public:
 private:
     using ERunState = EShuffleChunkPoolRunState;
 
-    // NB: sort job cannot handle more than numeric_limits<i32>::max() rows.
+    // NB: Sort job cannot handle more than numeric_limits<i32>::max() rows.
     static const i64 RowCountThreshold_ = std::numeric_limits<i32>::max();
 
     class TOutput
@@ -273,7 +273,7 @@ private:
 
             auto& stat = result.front();
 
-            // NB: cannot estimate MaxBlockSize here.
+            // NB: Cannot estimate MaxBlockSize here.
             stat.ChunkCount = run.GetSliceCount();
             stat.DataWeight = run.DataWeight;
             stat.RowCount = run.RowCount;
@@ -321,7 +321,7 @@ private:
                 list->TotalChunkCount += stripe->GetChunkCount();
             }
 
-            // NB: never ever make TotalDataWeight and TotalBoostFactor approximate.
+            // NB: Never ever make TotalDataWeight and TotalBoostFactor approximate.
             // Otherwise sort data size and row counters will be severely corrupted
             list->TotalDataWeight = run.DataWeight;
             list->TotalRowCount = run.RowCount;

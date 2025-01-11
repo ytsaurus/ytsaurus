@@ -187,7 +187,7 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
             switch (chunk->GetChunkFormat()) {
                 case EChunkFormat::TableUnversionedSchemalessHorizontal:
                 case EChunkFormat::TableUnversionedColumnar:
-                    // NB: we should add total row count to the column data weights because otherwise for the empty column list
+                    // NB: We should add total row count to the column data weights because otherwise for the empty column list
                     // there will be zero data weight which does not allow unordered pool to work properly.
                     totalColumnDataWeight += chunk->GetTotalRowCount();
                     break;

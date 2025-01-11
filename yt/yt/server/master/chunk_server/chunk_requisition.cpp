@@ -356,7 +356,7 @@ void FromProto(
     for (const auto& entry : protoRequisition.entries()) {
         auto* account = securityManager->FindAccount(FromProto<NSecurityServer::TAccountId>(entry.account_id()));
 
-        // NB: an account may be removed between replicator sending a requisition and chunk manager receiving it.
+        // NB: An account may be removed between replicator sending a requisition and chunk manager receiving it.
         if (!IsObjectAlive(account)) {
             continue;
         }

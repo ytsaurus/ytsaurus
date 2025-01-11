@@ -268,7 +268,7 @@ public:
         // Replicate Cypress Tx
         // Coordinator: TReqMarkCypressTransactionsReplicatedToCell, prepare
         // Participant: TReqMaterializeCypressTransactionReplicas, prepare
-        // NB: since there is no permission checking nor any validation on tx
+        // NB: Since there is no permission checking nor any validation on tx
         // replication we could do everything in tx action's commit.
         RegisterTransactionActionHandlers<NProto::TReqMarkCypressTransactionsReplicatedToCells>({
             .Commit = BIND_NO_PROPAGATE(
@@ -458,7 +458,7 @@ public:
         }
 
         // COMPAT(h0pless): Replace this with ThrowErrorException when CTxS will be used by all clients.
-        // NB: upload transaction can be nested to both system and Cypress transaction.
+        // NB: Upload transaction can be nested to both system and Cypress transaction.
         if (enableDedicatedTypesForSystemTransactions && parent && !IsUploadTransactionType(transactionObjectType)) {
             auto parentType = TypeFromId(parent->GetId());
 
@@ -734,7 +734,7 @@ public:
             TTransactionAbortOptions options{
                 .Force = true,
             };
-            // NB: disable replication via Hive as the commit sent above will
+            // NB: Disable replication via Hive as the commit sent above will
             // abort them implicitly.
             AbortTransaction(
                 nestedTransaction,
@@ -882,7 +882,7 @@ public:
                 .Force = true,
             };
 
-            // NB: it's not necessary to replicate every nested transaction's
+            // NB: It's not necessary to replicate every nested transaction's
             // abort since it will be aborted during ancestor's abort anyway.
             AbortTransaction(
                 nestedTransaction,
@@ -1048,7 +1048,7 @@ public:
                     cellTags);
             }
 
-            // NB: technically, an externalized transaction *is* foreign, with its native cell being this one.
+            // NB: Technically, an externalized transaction *is* foreign, with its native cell being this one.
             // And it *is* coordinated by this cell, even though there's no corresponding 'native' object.
 
             PostForeignTransactionStart(
@@ -1076,7 +1076,7 @@ public:
             return transaction->GetId();
         }
 
-        // NB: the value of this property is the same among all relative
+        // NB: The value of this property is the same among all relative
         // transactions.
         auto externalizationEnabled = IsCypressTransactionType(transaction->GetType())
             ? !transaction->IsNative() || transaction->IsNativeTxExternalizationEnabled()
@@ -2585,7 +2585,7 @@ private:
 
     void HydraNoteNoSuchTransaction(NProto::TReqNoteNoSuchTransaction* request)
     {
-        // NB: this has no effect on the persistent state, but it does notify
+        // NB: This has no effect on the persistent state, but it does notify
         // transient subscribers and does cache transaction absence.
         auto transactionId = FromProto<TTransactionId>(request->id());
         CacheTransactionFinished(transactionId);
@@ -3140,7 +3140,7 @@ private:
                         // Poor man's retry.
                         // TODO(kvk1920): implement transaction abort tracker
                         // and use it here.
-                        // NB: we don't need parent id here since it is used
+                        // NB: We don't need parent id here since it is used
                         // only to ping ancestors.
                         LeaseTracker_->UnregisterTransaction(transactionId);
                         LeaseTracker_->RegisterTransaction(

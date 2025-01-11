@@ -1711,7 +1711,7 @@ private:
             }
 
             if (!IsSuitableFormat(chunk->GetChunkFormat())) {
-                // NB: avoid too many log messages when versioned chunks are
+                // NB: Avoid too many log messages when versioned chunks are
                 // skipped.
                 auto shouldLogWrongFormat = !config->SkipVersionedChunks || config->EnableVerboseLogging;
                 YT_LOG_DEBUG_IF(
@@ -2285,7 +2285,7 @@ private:
             foreignCells.push_back(cellTag);
         }
 
-        // NB: the only purpose of this transaction is to export chunks.
+        // NB: The only purpose of this transaction is to export chunks.
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->StartSystemTransaction(
             /*replicatedToCellTags*/ foreignCells,

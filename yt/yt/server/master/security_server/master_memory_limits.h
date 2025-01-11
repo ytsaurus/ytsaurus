@@ -53,7 +53,7 @@ struct TMasterMemoryLimits
 
 void FormatValue(TStringBuilderBase* builder, const TMasterMemoryLimits& limits, TStringBuf /*spec*/);
 
-// NB: this serialization requires access to multicell manager and cannot be
+// NB: This serialization requires access to multicell manager and cannot be
 // easily integrated into yson serialization framework.
 
 void SerializeMasterMemoryLimits(

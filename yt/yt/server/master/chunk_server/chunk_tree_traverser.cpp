@@ -772,7 +772,7 @@ protected:
                         childLowerLimit.KeyBound() = GetLowerKeyBoundOrThrow(child, Comparator_.GetLength());
                         childUpperLimit.KeyBound() = GetUpperKeyBoundOrThrow(child, Comparator_.GetLength());
 
-                        // NB: tablet children are NOT sorted by keys, so we should not perform pruning in
+                        // NB: Tablet children are NOT sorted by keys, so we should not perform pruning in
                         // any of two branches below, full scan is intended.
 
                         if (entry->UpperLimit.KeyBound() && Comparator_.IsRangeEmpty(childLowerLimit.KeyBound(), entry->UpperLimit.KeyBound())) {
@@ -978,7 +978,7 @@ protected:
 
     static bool IsSealedChild(const TChunkTree* child)
     {
-        // NB: nulls are possible in ordered tablets.
+        // NB: Nulls are possible in ordered tablets.
         if (!child) {
             return true;
         }

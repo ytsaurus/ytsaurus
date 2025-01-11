@@ -37,7 +37,7 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
 
     // It is _not_ just a fast path. The reason of this early return is to avoid
     // nested transaction action check inside |TTransactionActionGuard|.
-    // NB: this early return _cannot_ be moved several lines upper because we
+    // NB: This early return _cannot_ be moved several lines upper because we
     // have to set prepared action count to zero.
     if (transaction->Actions().empty()) {
         return;

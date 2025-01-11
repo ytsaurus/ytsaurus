@@ -294,7 +294,7 @@ void TVersionedBuiltinAttribute<T>::Merge(const TVersionedBuiltinAttribute& from
         }
     } else if (!from.IsNull()) {
         Set(TVersionedBuiltinAttributeTraits<T>::FromRaw(from.Unbox()));
-    } // NB: null attributes are ignored.
+    } // NB: Null attributes are ignored.
 }
 
 template <class T>

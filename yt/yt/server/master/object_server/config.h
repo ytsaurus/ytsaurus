@@ -105,7 +105,7 @@ public:
 
     //! The amount of time remaining to a batch request timeout when the object
     //! service shall try and send partial (subbatch) response.
-    //! NB: this will have no effect if the request's timeout is shorter than this.
+    //! NB: This will have no effect if the request's timeout is shorter than this.
     TDuration TimeoutBackoffLeadTime;
 
     //! Default timeout for ObjectService::Execute (if a client has not provided one).

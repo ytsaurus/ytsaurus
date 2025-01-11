@@ -430,7 +430,7 @@ TMasterChunkSpecFetcherPtr TInputManager::CreateChunkSpecFetcher(
                 }
                 req->add_extension_tags(TProtoExtensionTag<THunkChunkRefsExt>::Value);
             }
-            // NB: we always fetch parity replicas since
+            // NB: We always fetch parity replicas since
             // erasure reader can repair data on flight.
             req->set_fetch_parity_replicas(true);
             AddCellTagToSyncWith(req, table->ObjectId);

@@ -145,7 +145,7 @@ template <class T>
 
     auto* user = securityManager->GetUserByNameOrThrow(userName, true /*activeLifeStageOnly*/);
 
-    // NB: this may throw, and it's OK.
+    // NB: This may throw, and it's OK.
     auto checkResponse = doCheckPermission(user, permission, std::move(checkOptions));
 
     const auto& objectManager = bootstrap->GetObjectManager();

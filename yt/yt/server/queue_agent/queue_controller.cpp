@@ -1246,7 +1246,7 @@ private:
                     partitionContext.Update({.PartitionError = replicaPartitionSnapshot->Error});
                 } else {
                     for (const auto& [consumerRef, consumerSubSnapshot] : VitalConsumerSubSnapshots) {
-                        // NB: there is no guarantee that consumer snapshot consists of the same number of partitions.
+                        // NB: There is no guarantee that consumer snapshot consists of the same number of partitions.
                         if (partitionIndex < std::ssize(consumerSubSnapshot->PartitionSnapshots)) {
                             const auto& consumerPartitionSubSnapshot = consumerSubSnapshot->PartitionSnapshots[partitionIndex];
                             if (!consumerPartitionSubSnapshot->Error.IsOK()) {

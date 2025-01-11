@@ -758,7 +758,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         _validate_read(18, 18)
         _validate_read(18, 20)
 
-        # NB: chunks are physically removed from the chunk list in portions of at least 17 pcs.
+        # NB: Chunks are physically removed from the chunk list in portions of at least 17 pcs.
         _trim_chunks(17)
         wait(lambda: len(get("//tmp/t/@chunk_ids")) == 20 - 17)
         sync_flush_table("//tmp/t")

@@ -109,7 +109,7 @@ void TTransactionReplicationSessionBase::Initialize()
 
     LocalTransactionIds_ = AllTransactionIds_;
 
-    // NB: by default all transactions are treated as local. Next steps
+    // NB: By default all transactions are treated as local. Next steps
     // segregate mirrored to Sequoia and remote transactions from local ones.
 
     SegregateMirroredTransactions();
@@ -123,7 +123,7 @@ void TTransactionReplicationSessionBase::Reset(std::vector<TTransactionId> trans
     auto oldTransactionIdCount =
         LocalTransactionIds_.size() + RemoteTransactionIds_.size() + MirroredTransactionIds_.size();
 
-    // NB: the whole point of having a dedicated Reset method is this optimization.
+    // NB: The whole point of having a dedicated Reset method is this optimization.
     if (oldTransactionIdCount == newTransactionIds.size() &&
         IsSubsequenceOf(LocalTransactionIds_, newTransactionIds) &&
         IsSubsequenceOf(RemoteTransactionIds_, newTransactionIds) &&
@@ -205,7 +205,7 @@ bool TTransactionReplicationSessionBase::IsMirroredToSequoia(TTransactionId tran
 
 void TTransactionReplicationSessionBase::SegregateMirroredTransactions()
 {
-    // NB: it's not fast path: when mirroring to Sequoia is disabled there is no
+    // NB: It's not fast path: when mirroring to Sequoia is disabled there is no
     // way for function IsMirroredToSequoia() to work correctly. See comment
     // near MirroringToSequoiaEnabled_.
     if (!MirroringToSequoiaEnabled_) {
@@ -418,7 +418,7 @@ TFuture<void> TTransactionReplicationSessionWithoutBoomerangs::Run(bool syncWith
         additionalFutures.push_back(asyncResult.AsVoid());
     }
 
-    // NB: we always have to wait all current prepared transactions to observe
+    // NB: We always have to wait all current prepared transactions to observe
     // side effects of Sequoia transactions.
     return syncSession->Sync(cellTags, std::move(additionalFutures))
         .Apply(BIND([this, this_ = MakeStrong(this), syncSession = std::move(syncSession), asyncResult = std::move(asyncResult)] {
@@ -546,7 +546,7 @@ TFuture<void> TTransactionReplicationSessionWithBoomerangs::Run(bool syncWithUps
     const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
     auto preparedTransactionsFinished = transactionSupervisor->WaitUntilPreparedTransactionsFinished();
 
-    // NB: we always have to wait all current prepared transactions to observe
+    // NB: We always have to wait all current prepared transactions to observe
     // side effects of Sequoia transactions.
     auto syncFuture = syncSession->Sync(cellTags, std::move(preparedTransactionsFinished));
     auto automatonInvoker = Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionManager);
@@ -651,7 +651,7 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
 
     auto asyncResults = DoInvokeReplicationRequests();
     YT_VERIFY(!asyncResults.NonMirrored.empty());
-    // NB: this loop is just for logging.
+    // NB: This loop is just for logging.
     for (auto requestIndex = 0; requestIndex < std::ssize(asyncResults.NonMirrored); ++requestIndex) {
         auto& future = asyncResults.NonMirrored[requestIndex];
         future.Subscribe(BIND([requestIndex, this, this_ = MakeStrong(this)] (const TErrorOr<TRspReplicateTransactionsPtr>& rspOrError)
@@ -686,7 +686,7 @@ TFuture<TMutationResponse> TTransactionReplicationSessionWithBoomerangs::InvokeR
     YT_LOG_DEBUG("Request is awaiting boomerang mutation to be applied (MutationId: %v)",
         Mutation_->GetMutationId());
 
-    // NB: the actual responses are irrelevant, because boomerang arrival
+    // NB: The actual responses are irrelevant, because boomerang arrival
     // implicitly signifies a sync with corresponding cell. Absence of errors,
     // on the other hand, is crucial.
     auto result = AllSucceeded(std::vector{AllSucceeded(std::move(asyncResults.NonMirrored)).AsVoid(), asyncResults.Mirrored})

@@ -279,7 +279,7 @@ public:
         auto guard = LockSequoiaTxRegistry();
         auto it = SequoiaTxRegistry_.find(id);
 
-        // NB: if tx prepare is failed on some of participants coordinator may
+        // NB: If tx prepare is failed on some of participants coordinator may
         // send abort to all participants (including itself). In case of late
         // prepare coordinator will receive only abort without prepare.
         if (it == SequoiaTxRegistry_.end()) {
@@ -906,7 +906,7 @@ private:
                 return;
             }
 
-            // NB: cellIdsToSyncWithBeforePrepare is only respected by participants, not the coordinator.
+            // NB: CellIdsToSyncWithBeforePrepare is only respected by participants, not the coordinator.
             auto readyEvent = owner->TransactionManager_->GetReadyToPrepareTransactionCommit(
                 prerequisiteTransactionIds,
                 /*cellIdsToSyncWith*/ {});

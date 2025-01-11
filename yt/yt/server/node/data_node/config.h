@@ -89,7 +89,7 @@ public:
     //! (If not initialized then indicates to occupy all available space on drive).
     std::optional<i64> Quota;
 
-    // NB: actually registered as parameter by subclasses (because default value
+    // NB: Actually registered as parameter by subclasses (because default value
     // is subclass-specific).
     TString MediumName;
 

@@ -1991,7 +1991,7 @@ private:
                 .Item("current_timestamp").Value(currentTimestamp)
                 .Item("reason").Value(task->Info->Reason)
                 .Item("trace_id").Value(traceId)
-                // NB: deducible.
+                // NB: Deducible.
                 .Item("major_timestamp").Value(majorTimestamp)
                 .Item("retained_timestamp").Value(retainedTimestamp);
 

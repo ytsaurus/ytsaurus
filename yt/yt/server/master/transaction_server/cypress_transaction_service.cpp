@@ -67,7 +67,7 @@ private:
     {
         ValidatePeer(EPeerKind::Leader);
 
-        // NB: no upstream sync should be necessary here.
+        // NB: No upstream sync should be necessary here.
 
         auto title = request->has_title() ? std::optional(request->title()) : std::nullopt;
         auto parentId = FromProto<TTransactionId>(request->parent_id());

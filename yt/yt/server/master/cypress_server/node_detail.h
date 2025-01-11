@@ -414,7 +414,7 @@ protected:
 
     virtual void DoMerge(TImpl* /*originatingNode*/, TImpl* /*branchedNode*/)
     {
-        // NB: some subclasses (namely, the journal type handler) don't
+        // NB: Some subclasses (namely, the journal type handler) don't
         // chain-call base class method. So it's probably not a good idea to put
         // any code here. (Hint: put it in MergeCore{Pro,Epi}logue instead.)
     }
@@ -636,10 +636,10 @@ DEFINE_ENUM(ENodeMaterializationReason,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: the list of inheritable attributes doesn't include the "account"
+// NB: The list of inheritable attributes doesn't include the "account"
 // attribute because that's already present on every Cypress node.
 
-// NB: although both Vital and ReplicationFactor can be deduced from Media, it's
+// NB: Although both Vital and ReplicationFactor can be deduced from Media, it's
 // important to be able to specify just the ReplicationFactor (or the Vital
 // flag) while leaving Media null.
 

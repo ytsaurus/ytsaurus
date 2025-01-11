@@ -88,7 +88,7 @@ template <class TObject>
 TObject* FindMapObjectLCA(TObject* lhs, TObject* rhs);
 
 //! Calculates the subtree size for this object and all its descendants.
-//! NB: called one per root after loading a snapshot.
+//! NB: Called one per root after loading a snapshot.
 template <class TSelf>
 void RecomputeSubtreeSize(TNonversionedMapObjectBase<TSelf>* mapObject, bool validateMatch);
 

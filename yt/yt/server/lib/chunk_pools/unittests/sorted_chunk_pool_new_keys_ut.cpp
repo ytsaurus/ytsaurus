@@ -357,7 +357,7 @@ protected:
             }
         }
 
-        // NB: we assume that all chunks in our test suite have boundary keys of proper lengths.
+        // NB: We assume that all chunks in our test suite have boundary keys of proper lengths.
         // In real life this is not true, but in not so distant future we are going to introduce
         // abstract data slice which will hopefully hide this fact from chunk pool.
 
@@ -1211,7 +1211,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedMergeAllKindsOfTeleports)
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     // Yes/No (non-trivial lower limit).
-    // NB: chunkB12 may not be teleported because it has non-trivial read limits.
+    // NB: ChunkB12 may not be teleported because it has non-trivial read limits.
     // _[==]_____
     // ___===[==]
     auto chunkA12 = CreateChunk(BuildRow({12, 1, 0}), BuildRow({12, 1, 4}), 0);
@@ -1768,7 +1768,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, SortedReduceAllKindsOfTeleports)
     // ++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
 
     // Yes/No (non-trivial lower limit).
-    // NB: chunkB12 may not be teleported because it has non-trivial read limits.
+    // NB: ChunkB12 may not be teleported because it has non-trivial read limits.
     // _[==]_____
     // ___===[==]
     auto chunkA12 = CreateChunk(BuildRow({12, 1, 0}), BuildRow({12, 1, 4}), 0);

@@ -227,7 +227,7 @@ protected:
 
     virtual void RemoveCreatedObjects();
 
-    //! NB: in case of failure, the implementation must not leave any unattended objects.
+    //! NB: In case of failure, the implementation must not leave any unattended objects.
     virtual TObject* DoCreateObject(NYTree::IAttributeDictionary* attributes) = 0;
 
     void LogEvent(const TFactoryEvent& event);

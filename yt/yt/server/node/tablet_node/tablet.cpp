@@ -843,7 +843,7 @@ TObjectId TTablet::GenerateId(EObjectType type)
     // COMPAT(ifsmirnov)
     const auto* mutationContext = TryGetCurrentMutationContext();
 
-    // NB: no mutation context in tests.
+    // NB: No mutation context in tests.
     if (!mutationContext ||
         mutationContext->Request().Reign >= static_cast<int>(ETabletReign::TabletIdGenerator))
     {

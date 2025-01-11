@@ -243,7 +243,7 @@ public:
     {
         const std::string Key;
         const NYPath::TYPath Path;
-        // NB: shouldn't be used for non-Sequoia (e.g. Cypress link) nodes.
+        // NB: Shouldn't be used for non-Sequoia (e.g. Cypress link) nodes.
         const TNodeId ParentId;
 
         TImmutableSequoiaProperties(std::string key, NYPath::TYPath path, TNodeId parentId);

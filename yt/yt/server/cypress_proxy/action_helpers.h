@@ -48,7 +48,7 @@ TFuture<std::vector<NSequoiaClient::NRecords::TPathToNodeId>> SelectSubtree(
 //! Creates chain of map-nodes under transaction #parentId.TransactionId.
 //! Returns bottommost node ID (created or not).
 /*!
- *  NB: in case of empty #nodeKeys this function just returns #parentId.
+ *  NB: In case of empty #nodeKeys this function just returns #parentId.
  */
 NCypressClient::TNodeId CreateIntermediateMapNodes(
     const NSequoiaClient::TAbsoluteYPath& parentPath,
@@ -60,7 +60,7 @@ NCypressClient::TNodeId CreateIntermediateMapNodes(
 
 //! Copies subtree.
 /*!
- *  NB: all links in subtree have to be passed in this function via
+ *  NB: All links in subtree have to be passed in this function via
  *  #subtreeLinks in order to copy their target paths.
  */
 NCypressClient::TNodeId CopySubtree(

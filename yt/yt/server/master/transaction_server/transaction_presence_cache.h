@@ -80,7 +80,7 @@ public:
     //! Returns the number of transactions that are awaited to be replicated here by some
     //! subscribers.
     /*!
-     *  NB: this is the number of *transactions*, not subscribers.
+     *  NB: This is the number of *transactions*, not subscribers.
      *
      *  Thread affinity: AutomatonThread
      */

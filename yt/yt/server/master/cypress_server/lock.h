@@ -118,10 +118,10 @@ struct TCypressNodeLockingState
     std::list<TLock*> AcquiredLocks;
     std::list<TLock*> PendingLocks;
 
-    // NB: iterators to these containers are stored in corresponding TLock objects.
+    // NB: Iterators to these containers are stored in corresponding TLock objects.
     // They must not be invalidated unless the record itself is erased. Keep this
     // in mind when changing container types.
-    // NB: deterministic order for both keys and values is required here, hence std::set.
+    // NB: Deterministic order for both keys and values is required here, hence std::set.
     std::set<
         std::pair<NTransactionServer::TTransaction*, TLock*>,
         TTransactionLockPairComparator

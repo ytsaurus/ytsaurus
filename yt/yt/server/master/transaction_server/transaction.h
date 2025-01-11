@@ -59,7 +59,7 @@ public:
 
     void InsertOrCrash(NCypressServer::TCypressNode* node);
 
-    // NB: erasure of node obtained with |GetAnyNode()| is a bit faster.
+    // NB: Erasure of node obtained with |GetAnyNode()| is a bit faster.
     void EraseOrCrash(NCypressServer::TCypressNode* node);
 
     void Persist(const NCellMaster::TPersistenceContext& context);
@@ -138,7 +138,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSequoiaClient::NProto::TWriteSet, SequoiaWriteSet);
     DEFINE_BYVAL_RW_PROPERTY(NRpc::TAuthenticationIdentity, AuthenticationIdentity, NRpc::GetRootAuthenticationIdentity());
 
-    // NB: this field is transient.
+    // NB: This field is transient.
     DEFINE_BYVAL_RW_PROPERTY(NTracing::TTraceContextPtr, TraceContext);
 
 public:
@@ -158,7 +158,7 @@ public:
 
     //! Walks up parent links and returns the topmost ancestor.
     /*!
-     *  NB: complexity is O(number of intermediate ancestors).
+     *  NB: Complexity is O(number of intermediate ancestors).
      */
     TTransaction* GetTopmostTransaction();
     const TTransaction* GetTopmostTransaction() const;

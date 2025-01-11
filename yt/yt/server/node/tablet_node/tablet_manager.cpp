@@ -4031,7 +4031,7 @@ private:
         const ::google::protobuf::MessageLite& message,
         bool forceCellMailbox = false) override
     {
-        // Used in tests only. NB: synchronous sleep is required since we don't expect
+        // Used in tests only. NB: Synchronous sleep is required since we don't expect
         // context switches here.
         if (auto sleepDuration = Config_->SleepBeforePostToMaster) {
             Sleep(*sleepDuration);

@@ -27,7 +27,7 @@ public:
     void SetMediumDiskSpace(int mediumIndex, TLimit64 diskSpace) &;
 
     //! Increases medium disk space by a given amount.
-    //! NB: the amount may be negative.
+    //! NB: The amount may be negative.
     void AddToMediumDiskSpace(int mediumIndex, i64 diskSpaceDelta);
 
     bool IsViolatedBy(const TClusterResourceLimits& rhs) const noexcept;
@@ -112,7 +112,7 @@ private:
     TViolatedMasterMemoryLimits MasterMemory_;
 };
 
-// NB: this serialization requires access to chunk and multicell managers and
+// NB: This serialization requires access to chunk and multicell managers and
 // cannot be easily integrated into yson serialization framework.
 
 void SerializeClusterResourceLimits(

@@ -1180,7 +1180,7 @@ private:
         auto proxy = Owner_->MakeSupervisorProxy(std::move(coordinatorChannel), Owner_->GetCommitRetryChecker());
         auto req = proxy.CommitTransaction();
         req->SetUser(Owner_->User_);
-        // NB: the server side only supports these for simple (non-distributed) commits, but set them anyway.
+        // NB: The server side only supports these for simple (non-distributed) commits, but set them anyway.
         // COMPAT(h0pless): It should be safe to remove prerequisites here when CTxS will be used on masters.
         SetPrerequisites(req, options);
         ToProto(req->mutable_transaction_id(), Id_);

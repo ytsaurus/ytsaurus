@@ -83,7 +83,7 @@ public:
 
     //! Compares two chunk views not considering read range.
     //! Returns -1, 0 or 1.
-    //! NB: comparison is deterministic.
+    //! NB: Comparison is deterministic.
     friend int CompareButForReadRange(const TChunkView* lhs, const TChunkView* rhs);
 };
 

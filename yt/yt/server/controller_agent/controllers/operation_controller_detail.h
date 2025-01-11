@@ -625,7 +625,7 @@ protected:
 
     std::vector<std::vector<char>> TestingAllocationVector_;
 
-    // NB: these values are accessed from BuildJobSpecProto invoker queue, ScheduleAllocation invoker queue and from control invoker.
+    // NB: These values are accessed from BuildJobSpecProto invoker queue, ScheduleAllocation invoker queue and from control invoker.
     // Slight discrepancy in their values due to concurrent modification and access is OK.
     // These values are transient.
     std::atomic<int> BuildingJobSpecCount_ = {0};

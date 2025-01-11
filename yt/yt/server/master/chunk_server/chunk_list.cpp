@@ -224,7 +224,7 @@ bool TChunkList::IsSealed() const
         return true;
     }
     const auto* lastChild = Children_.back();
-    // NB: nulls are possible in ordered tablets.
+    // NB: Nulls are possible in ordered tablets.
     return !lastChild || lastChild->IsSealed();
 }
 

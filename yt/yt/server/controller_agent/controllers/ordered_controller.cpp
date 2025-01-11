@@ -1040,7 +1040,7 @@ private:
             std::vector<TReadRange> complementaryRanges;
             const auto& range = ranges[0];
             if (range.LowerLimit().HasIndependentSelectors() || range.UpperLimit().HasIndependentSelectors()) {
-                // NB: without this check we may erase wider range than requested by user.
+                // NB: Without this check we may erase wider range than requested by user.
                 THROW_ERROR_EXCEPTION("Erase operation does not support read limits with several independent selectors");
             }
 

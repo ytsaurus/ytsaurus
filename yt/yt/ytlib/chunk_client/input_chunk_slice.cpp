@@ -912,7 +912,7 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
         auto chunkMinKeyBound = TKeyBound::MakeUniversal(/*isUpper*/ false);
         auto chunkMaxKeyBound = TKeyBound::MakeUniversal(/*isUpper*/ true);
 
-        // NB: for dynamic table data slices involving dynamic stores boundary keys may contain sentinels.
+        // NB: For dynamic table data slices involving dynamic stores boundary keys may contain sentinels.
         // But we do not prune limits for them anyway.
         if (const auto& boundaryKeys = inputSlice->GetInputChunk()->BoundaryKeys();
             boundaryKeys && dataSourceType == EDataSourceType::UnversionedTable)
@@ -921,7 +921,7 @@ void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkSlicePtr& inputSlic
             chunkMaxKeyBound = TKeyBound::FromRow(boundaryKeys->MaxKey, /*isInclusive*/ true, /*isUpper*/ true);
         }
 
-        // NB: we prune non-trivial key bounds only if comparator is passed.
+        // NB: We prune non-trivial key bounds only if comparator is passed.
         // In particular, sorted controller always passes comparator. In the rest
         // of cases we do not prune it but it will not trigger YT-14023 as key lengths
         // will be proper (due to marvelous coincedence).

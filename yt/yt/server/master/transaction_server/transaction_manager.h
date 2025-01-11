@@ -52,7 +52,7 @@ struct ITransactionManager
 
     //! Starts Cypress transaction which is not mirrored to Sequoia.
     /*!
-     *  NB: such transaction should be finished with either
+     *  NB: Such transaction should be finished with either
      *  CommitMasterTransaction() or AbortMasterTransaction().
      */
     virtual TTransaction* StartNonMirroredCypressTransaction(

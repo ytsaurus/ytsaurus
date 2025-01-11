@@ -65,7 +65,7 @@ TFuture<void> CommitCypressTransaction(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: the common case is the lazy replication from transaction coordinator
+// NB: The common case is the lazy replication from transaction coordinator
 // which is initiated on foreign cell. In this case destination cell is the only
 // destination, thus typical count is 1.
 constexpr int TypicalTransactionReplicationDestinationCellCount = 1;

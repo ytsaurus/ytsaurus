@@ -224,7 +224,7 @@ private:
 
         tablet->GetStructuredLogger()->LogEvent("schedule_partition_split")
             .Item("partition_id").Value(partition->GetId())
-            // NB: deducible.
+            // NB: Deducible.
             .Item("split_factor").Value(request.SplitFactor);
 
         tablet->GetTableProfiler()->GetLsmCounters()->ProfilePartitionSplit();

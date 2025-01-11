@@ -46,7 +46,7 @@ public:
     int GetAutomatonTerm() const override;
     TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr config) override;
 
-    // NB: semantics for these signals is not properly reproduced. Only the
+    // NB: Semantics for these signals is not properly reproduced. Only the
     // parts necessary for tablet write manager are introduced.
 
     DEFINE_SIGNAL_OVERRIDE(void(), StartLeading);

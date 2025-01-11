@@ -997,7 +997,7 @@ protected:
     {
         YT_LOG_DEBUG("Committing transaction");
 
-        // NB: failing to commit still means we shouldn't try to abort.
+        // NB: Failing to commit still means we shouldn't try to abort.
         TransactionCommitted_ = true;
         auto error = WaitFor(Transaction_->Commit(options));
         THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error committing transaction");

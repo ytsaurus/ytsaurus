@@ -193,7 +193,7 @@ std::optional<TParsedReqCreate> TryParseReqCreate(const ISequoiaServiceContextPt
         std::move(context),
         THandlerInvocationOptions{});
 
-    // NB: this replies to underlying context on error.
+    // NB: This replies to underlying context on error.
     if (!typedContext->DeserializeRequest()) {
         return std::nullopt;
     }
@@ -289,7 +289,7 @@ std::string BuildMultipleTransactionSelectCondition(TRange<TTransactionId> trans
 {
     YT_VERIFY(!transactionIds.Empty());
 
-    // NB: null GUIDs may be stored as null instead of "0-0-0-0".
+    // NB: Null GUIDs may be stored as null instead of "0-0-0-0".
     auto formatTransactionId = [] (TStringBuilderBase* builder, TTransactionId transactionId) {
         if (!transactionId) {
             builder->AppendString("null, ");

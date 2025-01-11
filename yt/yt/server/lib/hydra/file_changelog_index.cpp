@@ -280,7 +280,7 @@ void TFileChangelogIndex::AppendRecord(int recordIndex, std::pair<i64, i64> rang
         ChunkList_.push_back(std::move(chunk));
     }
 
-    // NB: no synchronization needed since we're the only writer.
+    // NB: No synchronization needed since we're the only writer.
     auto& chunk = ChunkList_[chunkIndex];
     chunk[perChunkIndex].Offset = range.first;
 

@@ -101,7 +101,7 @@ struct IPortoExecutor
     virtual TFuture<int> PollContainer(const TString& container) = 0;
 
     // Returns future with exit code of finished process.
-    // NB: temporarily broken, see https://st.yandex-team.ru/PORTO-846 for details.
+    // NB: Temporarily broken, see https://st.yandex-team.ru/PORTO-846 for details.
     virtual TFuture<int> WaitContainer(const TString& container) = 0;
 
     virtual TFuture<TString> CreateVolume(

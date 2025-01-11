@@ -528,7 +528,7 @@ class TestMedia(YTEnvSetup):
         set("//sys/@config/chunk_manager/enable_chunk_replicator", False, recursive=True)
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))
 
-        # NB: banning just the nodes with replicas is sufficient but racy: there
+        # NB: Banning just the nodes with replicas is sufficient but racy: there
         # could be a straggler replication job. It's possible to account for it
         # but it's simpler to just ban everything.
         set_all_nodes_banned(True, wait_for_master=False)

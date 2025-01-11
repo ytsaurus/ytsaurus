@@ -121,7 +121,7 @@ public:
         YT_VERIFY(!Finished);
         TChunkPoolInputBase::Finish();
 
-        // NB: this method accounts all the stripes that were suspended before
+        // NB: This method accounts all the stripes that were suspended before
         // the chunk pool was finished. It should be called only once.
         SetupSuspendedStripes();
 

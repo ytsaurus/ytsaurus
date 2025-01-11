@@ -365,7 +365,7 @@ private:
         auto chunkSlice = sliceRequest.DataSlice->ChunkSlices[0];
 
         SlicesByChunkIndex_[chunkIndex].push_back(chunkSlice);
-        // NB: we cannot infer limits from boundary keys here since chunk may actually be a dynamic store.
+        // NB: We cannot infer limits from boundary keys here since chunk may actually be a dynamic store.
         SliceCount_++;
     }
 };

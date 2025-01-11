@@ -100,14 +100,14 @@ public:
 
     //! Fired when node rack changes.
     /*!
-     *  NB: a node's rack may also change when its host changes. This signal is
+     *  NB: A node's rack may also change when its host changes. This signal is
      *  also fired in those cases.
      */
     DECLARE_INTERFACE_SIGNAL(void(TNode* node, TRack* oldRack), NodeRackChanged);
 
     //! Fired for all nodes in a rack when that rack's DC changes.
     /*!
-     *  NB: a node's DC may also change when its rack or host changes. This signal is
+     *  NB: A node's DC may also change when its rack or host changes. This signal is
      *  not fired in those cases.
      */
     DECLARE_INTERFACE_SIGNAL(void(TNode* node, TDataCenter* oldDataCenter), NodeDataCenterChanged);

@@ -299,7 +299,7 @@ void ValidateChunkReplication(
 
 struct TRequisitionEntry
 {
-    // NB: the requisition registry only weak-refs accounts. This means that
+    // NB: The requisition registry only weak-refs accounts. This means that
     // #IsObjectAlive() checks are a must. Entries with dead accounts may be
     // safely ignored for accounting purposes but not for the purposes of
     // hashing and comparisons.
@@ -309,7 +309,7 @@ struct TRequisitionEntry
     // The 'committed' flag is necessary in order to decide which quota usage to
     // charge to (committed or uncommitted).
     //
-    // NB: when accounting is involved, this flag is tricky: a combination of
+    // NB: When accounting is involved, this flag is tricky: a combination of
     // two entries: "committed, RF == 5" and "not committed, RF == 3" (accounts
     // and media being equal) should be charged to the committed quota only. On
     // the other hand, a combination of "committed, RF == 3" and "not committed,
@@ -428,7 +428,7 @@ private:
 
     void NormalizeEntries();
 
-    // NB: does not normalize entries.
+    // NB: Does not normalize entries.
     void AddEntry(
         NSecurityServer::TAccount* account,
         int mediumIndex,
@@ -541,7 +541,7 @@ public:
     //! Returns specified requisition's index or null if no such requisition is registered.
     std::optional<TChunkRequisitionIndex> Find(const TChunkRequisition& requisition) const;
 
-    // NB: even though items are refcounted, items with zero RC may be
+    // NB: Even though items are refcounted, items with zero RC may be
     // intermittently present in the registry.
     void Ref(TChunkRequisitionIndex index);
     void Unref(
@@ -582,7 +582,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: used only for Orchid and thus doesn't support deserialization.
+// NB: Used only for Orchid and thus doesn't support deserialization.
 class TSerializableChunkRequisitionRegistry
 {
 public:

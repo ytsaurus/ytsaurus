@@ -110,7 +110,7 @@ public:
     void Load(NCellMaster::TLoadContext& context);
 
     // COMPAT(kvk1920): remove after 24.2.
-    // NB: see comment for TSerializerTraits<NChunkServer::TChunkLocation*, C>.
+    // NB: See comment for TSerializerTraits<NChunkServer::TChunkLocation*, C>.
     static TChunkLocation* LoadPtr(NCellMaster::TLoadContext& context);
     static TNode* SkipImaginaryChunkLocation(NCellMaster::TLoadContext& context);
 
@@ -172,7 +172,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 // COMPAT(kvk1920): remove after 24.2.
-// NB: in most cases pointer to |TChunkLocation| could be either real or
+// NB: In most cases pointer to |TChunkLocation| could be either real or
 // imaginary but there are rare cases when we know exact type of location. In
 // those cases use |TChunkLocation::LoadPtr()|.
 template <class C>

@@ -845,7 +845,7 @@ class OperationReviveBase(YTEnvSetup):
         op.track()
         assert read_table("//tmp/out") == [{"foo": "bar"}] * 2
 
-    # NB: we hope that we check aborting state before operation comes to aborted state but
+    # NB: We hope that we check aborting state before operation comes to aborted state but
     # we cannot guarantee that this happen.
     @authors("ignat")
     @flaky(max_runs=3)
@@ -899,7 +899,7 @@ class OperationReviveBase(YTEnvSetup):
         # Should not crash.
         time.sleep(3)
 
-    # NB: we hope that complete finish first phase before we kill scheduler.
+    # NB: We hope that complete finish first phase before we kill scheduler.
     # But we cannot guarantee that this happen.
     @authors("kvk1920", "ignat")
     @flaky(max_runs=3)
@@ -967,7 +967,7 @@ class OperationReviveBase(YTEnvSetup):
 
         assert get(op.get_path() + "/@committed")
 
-    # NB: test rely on timings and can flap if we hang at some point.
+    # NB: Test rely on timings and can flap if we hang at some point.
     @authors("ignat")
     @flaky(max_runs=3)
     @pytest.mark.parametrize("stage", ["stage" + str(index) for index in range(1, 8)])

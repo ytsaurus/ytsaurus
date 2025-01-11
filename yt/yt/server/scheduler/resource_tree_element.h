@@ -57,7 +57,7 @@ private:
 
     std::atomic<bool> ResourceLimitsSpecified_ = false;
 
-    // NB: all usages of this field must be in TResourceTree.
+    // NB: All usages of this field must be in TResourceTree.
     TResourceTreeElementPtr Parent_;
 
     // Element is considered as initialized after first AttachParent.

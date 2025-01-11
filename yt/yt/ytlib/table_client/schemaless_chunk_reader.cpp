@@ -175,7 +175,7 @@ static TReaderVirtualValues InitializeVirtualColumns(
                 SimpleLogicalType(ESimpleLogicalValueType::Int64));
         }
 
-        // NB: table index should not always be virtual column, sometimes it is stored
+        // NB: Table index should not always be virtual column, sometimes it is stored
         // alongside row in chunk (e.g. for intermediate chunks in schemaful Map-Reduce).
         if (options->EnableTableIndex && chunkSpec.has_table_index()) {
             virtualValues.AddValue(MakeUnversionedInt64Value(

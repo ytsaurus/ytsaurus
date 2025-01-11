@@ -88,7 +88,7 @@ DEFINE_REFCOUNTED_TYPE(TDataFlowGraph)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: store all the fields for TStreamDescriptor in a non-refcounted
+// NB: Store all the fields for TStreamDescriptor in a non-refcounted
 // TStreamDescriptor base to copy all the fields in Clone() function at once.
 struct TStreamDescriptorBase
 {

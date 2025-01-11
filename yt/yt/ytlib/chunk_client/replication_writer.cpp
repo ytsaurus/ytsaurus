@@ -995,7 +995,7 @@ private:
         req->SetTimeout(Config_->NodeRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId_);
 
-        // NB: if we are under erasure writer, he already have called #Finalize() on chunkMeta.
+        // NB: If we are under erasure writer, he already have called #Finalize() on chunkMeta.
         // In particular, there might be parallel part writers, so in this case we should
         // not modify chunk meta in any way to avoid races.
         // But if we are immediately under confirming writer, we should finalize meta in order

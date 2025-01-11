@@ -152,7 +152,7 @@ private:
         TCompactVector<int, UpperReplicaCountBound> ReplicationIndexes;
 
         //! Decommissioned replicas whose removal is advised.
-        // NB: there's no actual need to have medium index in context of this
+        // NB: There's no actual need to have medium index in context of this
         // per-medium class. This is just for convenience.
         TChunkLocationPtrWithReplicaIndexList DecommissionedRemovalReplicas;
 

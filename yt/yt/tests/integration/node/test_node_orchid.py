@@ -43,7 +43,7 @@ class TestJobControllerOrchid(YTEnvSetup):
             "table",
             input_table,
             attributes={
-                "replication_factor": 1,  # NB: we have only 1 node
+                "replication_factor": 1,  # NB: We have only 1 node
             })
         create(
             "table",
@@ -94,7 +94,7 @@ class TestJobControllerOrchid(YTEnvSetup):
             "table",
             input_table,
             attributes={
-                "replication_factor": 1,  # NB: we have only 1 node
+                "replication_factor": 1,  # NB: We have only 1 node
             })
         create(
             "table",

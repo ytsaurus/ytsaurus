@@ -591,7 +591,7 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         for (auto* account : AccountsForProfiling_) {
-            // NB: account should always stay in the same bucket. If the bucket changes, then the previous bucket will continue
+            // NB: Account should always stay in the same bucket. If the bucket changes, then the previous bucket will continue
             // to report outdated values. The worst part is that outdated and current values will get added up.
             // On the other note, the distribution is not quite uniform, but it does not matter here.
             auto bufferIndex = account->GetProfilingBucketIndex() % std::ssize(buffers);
@@ -1071,7 +1071,7 @@ public:
         const auto zeroResourceLimits = TClusterResourceLimits::Zero();
 
         TCompactVector<std::optional<TAccountModificationGuard>, 4> backup;
-        // NB: std::vector destruction order is unspecified.
+        // NB: Std::vector destruction order is unspecified.
         auto destroyModificationGuards = Finally([&] {
             for (auto it = backup.rbegin(); it != backup.rend(); ++it) {
                 it->reset();
@@ -1255,7 +1255,7 @@ public:
 
         auto nodeType = node->GetType();
         if (IsSchemafulType(nodeType)) {
-            // NB: this may also be a replicated table.
+            // NB: This may also be a replicated table.
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             const auto& handler = cypressManager->FindHandler(nodeType);
             if (auto* schema = handler->FindSchema(node)) {
@@ -1288,7 +1288,7 @@ public:
 
         auto nodeType = node->GetType();
         if (accountChanged && IsSchemafulType(nodeType)) {
-            // NB: this may also be a replicated table.
+            // NB: This may also be a replicated table.
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             const auto& handler = cypressManager->FindHandler(nodeType);
             if (auto* schema = handler->FindSchema(node)) {

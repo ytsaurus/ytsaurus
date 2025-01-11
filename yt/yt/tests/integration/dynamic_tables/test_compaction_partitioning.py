@@ -344,7 +344,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             max_data_ttl=15000,
             min_data_versions=0,
             max_data_versions=1,
-            # NB: compressed size of each chunk is 38.
+            # NB: Compressed size of each chunk is 38.
             min_partition_data_size=60,
             desired_partition_data_size=75,
             max_partition_data_size=90,

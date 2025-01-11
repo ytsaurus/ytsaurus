@@ -303,7 +303,7 @@ private:
                 };
 
                 if (peers) {
-                    // NB: to avoid race, peers' map nodes must be created first.
+                    // NB: To avoid race, peers' map nodes must be created first.
                     auto batchReq = proxy.ExecuteBatch();
                     for (int peerId = 0; peerId < peers->GetChildCount(); ++peerId) {
                         auto peer = peers->GetChildOrThrow(peerId)->AsMap();

@@ -202,7 +202,7 @@ TEST_F(TSequoiaTest, TestRowLockConflict)
         })) {
             ++nodeExistsCount;
         } else {
-            // NB: in case of "socket closed" error all suite hangs. It's better
+            // NB: In case of "socket closed" error all suite hangs. It's better
             // just crash it on unexcepted error.
             YT_LOG_FATAL(error, "Unexpected error");
         }

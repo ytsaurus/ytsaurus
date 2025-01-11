@@ -386,7 +386,7 @@ public:
             YT_VERIFY(persistent);
         }
 
-        // NB: forwarding must happen after transaction actions are run because
+        // NB: Forwarding must happen after transaction actions are run because
         // prepare may fail locally.
         ForwardTransactionIfExternalized(
             transaction,

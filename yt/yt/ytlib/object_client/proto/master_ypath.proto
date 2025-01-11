@@ -200,7 +200,7 @@ message TRspMaterializeNode
 
 message TReqVectorizedRead
 {
-    // NB: template request should be passed via attachments.
+    // NB: Template request should be passed via attachments.
     required int32 template_request_part_count = 1;
     repeated NYT.NProto.TGuid object_ids = 2;
 }

@@ -219,7 +219,7 @@ TReleaseAcquireGilGuard::TReleaseAcquireGilGuard()
 
 TReleaseAcquireGilGuard::~TReleaseAcquireGilGuard()
 {
-    // NB: this check is outdated, but it worth to remember about it.
+    // NB: This check is outdated, but it worth to remember about it.
     // Now the problem is solved by waiting that all threads leave this guard in BeforeShutdown.
     //
     // See YT-13246 for details.
