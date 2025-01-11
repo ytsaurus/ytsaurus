@@ -243,22 +243,22 @@ private:
 
 void TJobSizeConstraintsBase::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Options_)();
-    PHOENIX_REGISTER_FIELD(2, Spec_)();
-    PHOENIX_REGISTER_FIELD(3, InputDataWeight_)();
-    PHOENIX_REGISTER_FIELD(4, PrimaryInputDataWeight_)();
-    PHOENIX_REGISTER_FIELD(5, ForeignInputDataWeight_)();
-    PHOENIX_REGISTER_FIELD(6, InitialInputDataWeight_)();
-    PHOENIX_REGISTER_FIELD(7, InitialPrimaryInputDataWeight_)();
-    PHOENIX_REGISTER_FIELD(8, InputChunkCount_)();
-    PHOENIX_REGISTER_FIELD(9, JobCount_)();
-    PHOENIX_REGISTER_FIELD(10, InputRowCount_)();
-    PHOENIX_REGISTER_FIELD(11, Logger)();
-    PHOENIX_REGISTER_FIELD(12, MergeInputTableCount_)();
-    PHOENIX_REGISTER_FIELD(13, MergePrimaryInputTableCount_)();
-    PHOENIX_REGISTER_FIELD(14, SamplingDataWeightPerJob_)();
-    PHOENIX_REGISTER_FIELD(15, SamplingPrimaryDataWeightPerJob_)();
-    PHOENIX_REGISTER_FIELD(16, SamplingConfig_)();
+    PHOENIX_REGISTER_FIELD(1, Options_);
+    PHOENIX_REGISTER_FIELD(2, Spec_);
+    PHOENIX_REGISTER_FIELD(3, InputDataWeight_);
+    PHOENIX_REGISTER_FIELD(4, PrimaryInputDataWeight_);
+    PHOENIX_REGISTER_FIELD(5, ForeignInputDataWeight_);
+    PHOENIX_REGISTER_FIELD(6, InitialInputDataWeight_);
+    PHOENIX_REGISTER_FIELD(7, InitialPrimaryInputDataWeight_);
+    PHOENIX_REGISTER_FIELD(8, InputChunkCount_);
+    PHOENIX_REGISTER_FIELD(9, JobCount_);
+    PHOENIX_REGISTER_FIELD(10, InputRowCount_);
+    PHOENIX_REGISTER_FIELD(11, Logger);
+    PHOENIX_REGISTER_FIELD(12, MergeInputTableCount_);
+    PHOENIX_REGISTER_FIELD(13, MergePrimaryInputTableCount_);
+    PHOENIX_REGISTER_FIELD(14, SamplingDataWeightPerJob_);
+    PHOENIX_REGISTER_FIELD(15, SamplingPrimaryDataWeightPerJob_);
+    PHOENIX_REGISTER_FIELD(16, SamplingConfig_);
 }
 
 PHOENIX_DEFINE_TYPE(TJobSizeConstraintsBase);
@@ -433,9 +433,9 @@ void TUserJobSizeConstraints::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TJobSizeConstraintsBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec_)();
-    PHOENIX_REGISTER_FIELD(2, Options_)();
-    PHOENIX_REGISTER_FIELD(3, SortedOperation_)();
+    PHOENIX_REGISTER_FIELD(1, Spec_);
+    PHOENIX_REGISTER_FIELD(2, Options_);
+    PHOENIX_REGISTER_FIELD(3, SortedOperation_);
 }
 
 PHOENIX_DEFINE_TYPE(TUserJobSizeConstraints);
@@ -580,8 +580,8 @@ void TMergeJobSizeConstraints::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TJobSizeConstraintsBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec_)();
-    PHOENIX_REGISTER_FIELD(2, Options_)();
+    PHOENIX_REGISTER_FIELD(1, Spec_);
+    PHOENIX_REGISTER_FIELD(2, Options_);
 }
 
 PHOENIX_DEFINE_TYPE(TMergeJobSizeConstraints);
@@ -653,8 +653,8 @@ void TSimpleSortJobSizeConstraints::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TJobSizeConstraintsBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec_)();
-    PHOENIX_REGISTER_FIELD(2, Options_)();
+    PHOENIX_REGISTER_FIELD(1, Spec_);
+    PHOENIX_REGISTER_FIELD(2, Options_);
 }
 
 PHOENIX_DEFINE_TYPE(TSimpleSortJobSizeConstraints);
@@ -767,8 +767,8 @@ void TPartitionJobSizeConstraints::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TJobSizeConstraintsBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec_)();
-    PHOENIX_REGISTER_FIELD(2, Options_)();
+    PHOENIX_REGISTER_FIELD(1, Spec_);
+    PHOENIX_REGISTER_FIELD(2, Options_);
 }
 
 PHOENIX_DEFINE_TYPE(TPartitionJobSizeConstraints);

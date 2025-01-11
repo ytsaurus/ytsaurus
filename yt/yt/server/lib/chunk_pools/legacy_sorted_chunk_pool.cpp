@@ -745,22 +745,22 @@ void TLegacySortedChunkPool::RegisterMetadata(auto&& registrar)
     registrar.template BaseType<TJobSplittingBase>();
     // TLoggerOwner is persisted by TJobSplittingBase.
 
-    PHOENIX_REGISTER_FIELD(1, SortedJobOptions_)();
-    PHOENIX_REGISTER_FIELD(2, ChunkSliceFetcherFactory_)();
-    PHOENIX_REGISTER_FIELD(3, EnableKeyGuarantee_)();
-    PHOENIX_REGISTER_FIELD(4, InputStreamDirectory_)();
-    PHOENIX_REGISTER_FIELD(5, PrimaryPrefixLength_)();
-    PHOENIX_REGISTER_FIELD(6, ForeignPrefixLength_)();
-    PHOENIX_REGISTER_FIELD(7, ShouldSlicePrimaryTableByKeys_)();
-    PHOENIX_REGISTER_FIELD(8, SliceForeignChunks_)();
-    PHOENIX_REGISTER_FIELD(9, MinTeleportChunkSize_)();
-    PHOENIX_REGISTER_FIELD(10, Stripes_)();
-    PHOENIX_REGISTER_FIELD(11, JobSizeConstraints_)();
-    PHOENIX_REGISTER_FIELD(12, TeleportChunkSampler_)();
-    PHOENIX_REGISTER_FIELD(13, SupportLocality_)();
-    PHOENIX_REGISTER_FIELD(14, TeleportChunks_)();
-    PHOENIX_REGISTER_FIELD(15, IsCompleted_)();
-    PHOENIX_REGISTER_FIELD(16, ReturnNewDataSlices_)();
+    PHOENIX_REGISTER_FIELD(1, SortedJobOptions_);
+    PHOENIX_REGISTER_FIELD(2, ChunkSliceFetcherFactory_);
+    PHOENIX_REGISTER_FIELD(3, EnableKeyGuarantee_);
+    PHOENIX_REGISTER_FIELD(4, InputStreamDirectory_);
+    PHOENIX_REGISTER_FIELD(5, PrimaryPrefixLength_);
+    PHOENIX_REGISTER_FIELD(6, ForeignPrefixLength_);
+    PHOENIX_REGISTER_FIELD(7, ShouldSlicePrimaryTableByKeys_);
+    PHOENIX_REGISTER_FIELD(8, SliceForeignChunks_);
+    PHOENIX_REGISTER_FIELD(9, MinTeleportChunkSize_);
+    PHOENIX_REGISTER_FIELD(10, Stripes_);
+    PHOENIX_REGISTER_FIELD(11, JobSizeConstraints_);
+    PHOENIX_REGISTER_FIELD(12, TeleportChunkSampler_);
+    PHOENIX_REGISTER_FIELD(13, SupportLocality_);
+    PHOENIX_REGISTER_FIELD(14, TeleportChunks_);
+    PHOENIX_REGISTER_FIELD(15, IsCompleted_);
+    PHOENIX_REGISTER_FIELD(16, ReturnNewDataSlices_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // TODO(max42): Why is it here?

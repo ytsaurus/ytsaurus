@@ -528,11 +528,11 @@ void TUnorderedControllerBase::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TOperationControllerBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec)();
-    PHOENIX_REGISTER_FIELD(2, JobIOConfig)();
-    PHOENIX_REGISTER_FIELD(3, JobSpecTemplate)();
-    PHOENIX_REGISTER_FIELD(4, JobSizeConstraints_)();
-    PHOENIX_REGISTER_FIELD(5, UnorderedTask_)();
+    PHOENIX_REGISTER_FIELD(1, Spec);
+    PHOENIX_REGISTER_FIELD(2, JobIOConfig);
+    PHOENIX_REGISTER_FIELD(3, JobSpecTemplate);
+    PHOENIX_REGISTER_FIELD(4, JobSizeConstraints_);
+    PHOENIX_REGISTER_FIELD(5, UnorderedTask_);
 }
 
 PHOENIX_DEFINE_TYPE(TUnorderedControllerBase);
@@ -543,9 +543,9 @@ void TUnorderedControllerBase::TUnorderedTaskBase::RegisterMetadata(auto&& regis
 {
     registrar.template BaseType<TTask>();
 
-    PHOENIX_REGISTER_FIELD(1, Controller_)();
-    PHOENIX_REGISTER_FIELD(2, ChunkPool_)();
-    PHOENIX_REGISTER_FIELD(3, TotalOutputRowCount_)();
+    PHOENIX_REGISTER_FIELD(1, Controller_);
+    PHOENIX_REGISTER_FIELD(2, ChunkPool_);
+    PHOENIX_REGISTER_FIELD(3, TotalOutputRowCount_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         this_->ChunkPool_->SubscribeChunkTeleported(BIND(&TUnorderedTaskBase::OnChunkTeleported, MakeWeak(this_)));
@@ -739,8 +739,8 @@ void TMapController::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TUnorderedControllerBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Spec)();
-    PHOENIX_REGISTER_FIELD(2, StartRowIndex)();
+    PHOENIX_REGISTER_FIELD(1, Spec);
+    PHOENIX_REGISTER_FIELD(2, StartRowIndex);
 }
 
 PHOENIX_DEFINE_TYPE(TMapController);

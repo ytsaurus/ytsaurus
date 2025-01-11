@@ -98,11 +98,11 @@ void TAutoMergeChunkPoolAdapter::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TChunkPoolAdapterBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Task_)();
-    PHOENIX_REGISTER_FIELD(2, CookieChunkCount_)();
-    PHOENIX_REGISTER_FIELD(3, PoolIndex_)();
-    PHOENIX_REGISTER_FIELD(4, ShouldScheduleJob_)();
-    PHOENIX_REGISTER_FIELD(5, JobCounter_)();
+    PHOENIX_REGISTER_FIELD(1, Task_);
+    PHOENIX_REGISTER_FIELD(2, CookieChunkCount_);
+    PHOENIX_REGISTER_FIELD(3, PoolIndex_);
+    PHOENIX_REGISTER_FIELD(4, ShouldScheduleJob_);
+    PHOENIX_REGISTER_FIELD(5, JobCounter_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         this_->SetupCallbacks();
@@ -433,11 +433,11 @@ void TAutoMergeTask::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TTask>();
 
-    PHOENIX_REGISTER_FIELD(1, ChunkPools_)();
-    PHOENIX_REGISTER_FIELD(2, ChunkPool_)();
-    PHOENIX_REGISTER_FIELD(3, CurrentChunkCounts_)();
-    PHOENIX_REGISTER_FIELD(4, JobSpecTemplates_)();
-    PHOENIX_REGISTER_FIELD(5, EnableShallowMerge_)();
+    PHOENIX_REGISTER_FIELD(1, ChunkPools_);
+    PHOENIX_REGISTER_FIELD(2, ChunkPool_);
+    PHOENIX_REGISTER_FIELD(3, CurrentChunkCounts_);
+    PHOENIX_REGISTER_FIELD(4, JobSpecTemplates_);
+    PHOENIX_REGISTER_FIELD(5, EnableShallowMerge_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         this_->ChunkPool_->SubscribeChunkTeleported(BIND(&TAutoMergeTask::OnChunkTeleported, MakeWeak(this_)));

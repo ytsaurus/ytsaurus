@@ -96,11 +96,11 @@ TError TLayerJobExperiment::GetAlert(const TOperationSpecBasePtr& operationSpec)
 
 void TLayerJobExperiment::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, DefaultBaseLayerPath_)();
-    PHOENIX_REGISTER_FIELD(2, BaseLayer_)();
-    PHOENIX_REGISTER_FIELD(3, EnableBypassArtifactCache_)();
+    PHOENIX_REGISTER_FIELD(1, DefaultBaseLayerPath_);
+    PHOENIX_REGISTER_FIELD(2, BaseLayer_);
+    PHOENIX_REGISTER_FIELD(3, EnableBypassArtifactCache_);
 
-    PHOENIX_REGISTER_FIELD(4, Logger)();
+    PHOENIX_REGISTER_FIELD(4, Logger);
 }
 
 PHOENIX_DEFINE_TYPE(TLayerJobExperiment);
@@ -170,12 +170,12 @@ TError TMtnJobExperiment::GetAlert(const TOperationSpecBasePtr& operationSpec) c
 
 void TMtnJobExperiment::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, NetworkProject_)();
-    PHOENIX_REGISTER_FIELD(2, ProjectId_)();
-    PHOENIX_REGISTER_FIELD(3, EnableNat64_)();
-    PHOENIX_REGISTER_FIELD(4, DisableNetwork_)();
+    PHOENIX_REGISTER_FIELD(1, NetworkProject_);
+    PHOENIX_REGISTER_FIELD(2, ProjectId_);
+    PHOENIX_REGISTER_FIELD(3, EnableNat64_);
+    PHOENIX_REGISTER_FIELD(4, DisableNetwork_);
 
-    PHOENIX_REGISTER_FIELD(5, Logger)();
+    PHOENIX_REGISTER_FIELD(5, Logger);
 }
 
 PHOENIX_DEFINE_TYPE(TMtnJobExperiment);
@@ -398,14 +398,14 @@ void TExperimentJobManager::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TCompetitiveJobManagerBase>();
 
-    PHOENIX_REGISTER_FIELD(1, OperationSpec_)();
-    PHOENIX_REGISTER_FIELD(2, FailedControlJobCount_)();
-    PHOENIX_REGISTER_FIELD(3, SucceededTreatmentJobCount_)();
-    PHOENIX_REGISTER_FIELD(4, FailedTreatmentJobCount_)();
-    PHOENIX_REGISTER_FIELD(5, FailedTreatmentJob_)();
-    PHOENIX_REGISTER_FIELD(6, FailedControlJob_)();
-    PHOENIX_REGISTER_FIELD(7, LostJobs_)();
-    PHOENIX_REGISTER_FIELD(8, ExperimentStatus_)();
+    PHOENIX_REGISTER_FIELD(1, OperationSpec_);
+    PHOENIX_REGISTER_FIELD(2, FailedControlJobCount_);
+    PHOENIX_REGISTER_FIELD(3, SucceededTreatmentJobCount_);
+    PHOENIX_REGISTER_FIELD(4, FailedTreatmentJobCount_);
+    PHOENIX_REGISTER_FIELD(5, FailedTreatmentJob_);
+    PHOENIX_REGISTER_FIELD(6, FailedControlJob_);
+    PHOENIX_REGISTER_FIELD(7, LostJobs_);
+    PHOENIX_REGISTER_FIELD(8, ExperimentStatus_);
 }
 
 PHOENIX_DEFINE_TYPE(TExperimentJobManager);

@@ -477,17 +477,17 @@ private:
 
 void TJobSplitter::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Config_)();
-    PHOENIX_REGISTER_FIELD(2, CanSplitJobs_)();
-    PHOENIX_REGISTER_FIELD(3, CanLaunchSpeculativeJobs_)();
-    PHOENIX_REGISTER_FIELD(4, RunningJobs_)
-        .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>()();
-    PHOENIX_REGISTER_FIELD(5, JobTimeTracker_)();
-    PHOENIX_REGISTER_FIELD(6, MaxRunningJobCount_)();
-    PHOENIX_REGISTER_FIELD(7, Logger)();
-    PHOENIX_REGISTER_FIELD(8, SuccessJobPrepareDurationSum_)();
-    PHOENIX_REGISTER_FIELD(9, SuccessJobCount_)();
-    PHOENIX_REGISTER_FIELD(10, ChunkPool_)();
+    PHOENIX_REGISTER_FIELD(1, Config_);
+    PHOENIX_REGISTER_FIELD(2, CanSplitJobs_);
+    PHOENIX_REGISTER_FIELD(3, CanLaunchSpeculativeJobs_);
+    PHOENIX_REGISTER_FIELD(4, RunningJobs_,
+        .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>());
+    PHOENIX_REGISTER_FIELD(5, JobTimeTracker_);
+    PHOENIX_REGISTER_FIELD(6, MaxRunningJobCount_);
+    PHOENIX_REGISTER_FIELD(7, Logger);
+    PHOENIX_REGISTER_FIELD(8, SuccessJobPrepareDurationSum_);
+    PHOENIX_REGISTER_FIELD(9, SuccessJobCount_);
+    PHOENIX_REGISTER_FIELD(10, ChunkPool_);
 }
 
 PHOENIX_DEFINE_TYPE(TJobSplitter);
@@ -496,13 +496,13 @@ PHOENIX_DEFINE_TYPE(TJobSplitter);
 
 void TJobSplitter::TJobTimeTracker::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Config_)();
-    PHOENIX_REGISTER_FIELD(2, JobIdToCompletionTime_)
-        .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>()();
-    PHOENIX_REGISTER_FIELD(3, LongJobSet_)
-        .template Serializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>()();
-    PHOENIX_REGISTER_FIELD(4, NextUpdateTime_)();
-    PHOENIX_REGISTER_FIELD(5, MedianCompletionTime_)();
+    PHOENIX_REGISTER_FIELD(1, Config_);
+    PHOENIX_REGISTER_FIELD(2, JobIdToCompletionTime_,
+        .template Serializer<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>());
+    PHOENIX_REGISTER_FIELD(3, LongJobSet_,
+        .template Serializer<TSetSerializer<TDefaultSerializer, TUnsortedTag>>());
+    PHOENIX_REGISTER_FIELD(4, NextUpdateTime_);
+    PHOENIX_REGISTER_FIELD(5, MedianCompletionTime_);
 }
 
 PHOENIX_DEFINE_TYPE(TJobSplitter::TJobTimeTracker);
@@ -511,19 +511,19 @@ PHOENIX_DEFINE_TYPE(TJobSplitter::TJobTimeTracker);
 
 void TJobSplitter::TRunningJob::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Owner_)();
-    PHOENIX_REGISTER_FIELD(2, TotalRowCount_)();
-    PHOENIX_REGISTER_FIELD(3, TotalDataWeight_)();
-    PHOENIX_REGISTER_FIELD(4, PrepareWithoutDownloadDuration_)();
-    PHOENIX_REGISTER_FIELD(5, ExecDuration_)();
-    PHOENIX_REGISTER_FIELD(6, RemainingDuration_)();
-    PHOENIX_REGISTER_FIELD(7, CompletionTime_)();
-    PHOENIX_REGISTER_FIELD(8, RowCount_)();
-    PHOENIX_REGISTER_FIELD(9, SecondsPerRow_)();
-    PHOENIX_REGISTER_FIELD(10, Cookie_)();
-    PHOENIX_REGISTER_FIELD(11, IsInterruptible_)();
-    PHOENIX_REGISTER_FIELD(12, SplitDeadline_)();
-    PHOENIX_REGISTER_FIELD(13, PrepareDuration_)();
+    PHOENIX_REGISTER_FIELD(1, Owner_);
+    PHOENIX_REGISTER_FIELD(2, TotalRowCount_);
+    PHOENIX_REGISTER_FIELD(3, TotalDataWeight_);
+    PHOENIX_REGISTER_FIELD(4, PrepareWithoutDownloadDuration_);
+    PHOENIX_REGISTER_FIELD(5, ExecDuration_);
+    PHOENIX_REGISTER_FIELD(6, RemainingDuration_);
+    PHOENIX_REGISTER_FIELD(7, CompletionTime_);
+    PHOENIX_REGISTER_FIELD(8, RowCount_);
+    PHOENIX_REGISTER_FIELD(9, SecondsPerRow_);
+    PHOENIX_REGISTER_FIELD(10, Cookie_);
+    PHOENIX_REGISTER_FIELD(11, IsInterruptible_);
+    PHOENIX_REGISTER_FIELD(12, SplitDeadline_);
+    PHOENIX_REGISTER_FIELD(13, PrepareDuration_);
 }
 
 PHOENIX_DEFINE_TYPE(TJobSplitter::TRunningJob);

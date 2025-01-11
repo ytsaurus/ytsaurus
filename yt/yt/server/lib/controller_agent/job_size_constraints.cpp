@@ -191,31 +191,31 @@ private:
 
 void TExplicitJobSizeConstraints::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, CanAdjustDataWeightPerJob_)();
-    PHOENIX_REGISTER_FIELD(2, IsExplicitJobCount_)();
-    PHOENIX_REGISTER_FIELD(3, JobCount_)();
-    PHOENIX_REGISTER_FIELD(4, DataWeightPerJob_)();
-    PHOENIX_REGISTER_FIELD(5, PrimaryDataWeightPerJob_)();
-    PHOENIX_REGISTER_FIELD(6, MaxDataSlicesPerJob_)();
-    PHOENIX_REGISTER_FIELD(7, MaxDataWeightPerJob_)();
-    PHOENIX_REGISTER_FIELD(8, MaxPrimaryDataWeightPerJob_)();
-    PHOENIX_REGISTER_FIELD(9, InputSliceDataWeight_)();
-    PHOENIX_REGISTER_FIELD(10, InputSliceRowCount_)();
-    PHOENIX_REGISTER_FIELD(11, BatchRowCount_)
-        .SinceVersion(ESnapshotVersion::BatchRowCount_24_1)();
-    PHOENIX_REGISTER_FIELD(12, ForeignSliceDataWeight_)();
-    PHOENIX_REGISTER_FIELD(13, SamplingRate_)();
-    PHOENIX_REGISTER_FIELD(14, SamplingDataWeightPerJob_)();
-    PHOENIX_REGISTER_FIELD(15, SamplingPrimaryDataWeightPerJob_)();
-    PHOENIX_REGISTER_FIELD(16, MaxBuildRetryCount_)();
-    PHOENIX_REGISTER_FIELD(17, DataWeightPerJobRetryFactor_)();
+    PHOENIX_REGISTER_FIELD(1, CanAdjustDataWeightPerJob_);
+    PHOENIX_REGISTER_FIELD(2, IsExplicitJobCount_);
+    PHOENIX_REGISTER_FIELD(3, JobCount_);
+    PHOENIX_REGISTER_FIELD(4, DataWeightPerJob_);
+    PHOENIX_REGISTER_FIELD(5, PrimaryDataWeightPerJob_);
+    PHOENIX_REGISTER_FIELD(6, MaxDataSlicesPerJob_);
+    PHOENIX_REGISTER_FIELD(7, MaxDataWeightPerJob_);
+    PHOENIX_REGISTER_FIELD(8, MaxPrimaryDataWeightPerJob_);
+    PHOENIX_REGISTER_FIELD(9, InputSliceDataWeight_);
+    PHOENIX_REGISTER_FIELD(10, InputSliceRowCount_);
+    PHOENIX_REGISTER_FIELD(11, BatchRowCount_,
+        .SinceVersion(ESnapshotVersion::BatchRowCount_24_1));
+    PHOENIX_REGISTER_FIELD(12, ForeignSliceDataWeight_);
+    PHOENIX_REGISTER_FIELD(13, SamplingRate_);
+    PHOENIX_REGISTER_FIELD(14, SamplingDataWeightPerJob_);
+    PHOENIX_REGISTER_FIELD(15, SamplingPrimaryDataWeightPerJob_);
+    PHOENIX_REGISTER_FIELD(16, MaxBuildRetryCount_);
+    PHOENIX_REGISTER_FIELD(17, DataWeightPerJobRetryFactor_);
 
     // COMPAT(galtsev)
-    PHOENIX_REGISTER_FIELD(18, ForceAllowJobInterruption_)
+    PHOENIX_REGISTER_FIELD(18, ForceAllowJobInterruption_,
         .SinceVersion(ESnapshotVersion::ForceAllowJobInterruption)
         .WhenMissing([] (TThis* this_, auto& /*context*/) {
             this_->ForceAllowJobInterruption_ = false;
-        })();
+        }));
 
     // COMPAT(max42): remove this after YT-10666 (and put YT_VERIFY about job having non-empty
     // input somewhere in controller).

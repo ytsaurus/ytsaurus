@@ -51,8 +51,8 @@ void TAvgSummary<T>::AddSample(T sample)
 template <class T>
 void TAvgSummary<T>::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Sum_)();
-    PHOENIX_REGISTER_FIELD(2, Count_)();
+    PHOENIX_REGISTER_FIELD(1, Sum_);
+    PHOENIX_REGISTER_FIELD(2, Count_);
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         this_->Avg_ = this_->CalcAvg();
     });

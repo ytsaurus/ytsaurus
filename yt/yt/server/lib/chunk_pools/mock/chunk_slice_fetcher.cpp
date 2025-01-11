@@ -27,7 +27,7 @@ void TMockChunkSliceFetcherFactory::RegisterMetadata(auto&& registrar)
         auto fetchersAddress = reinterpret_cast<intptr_t>(this_->Fetchers_);
         NYT::Save(context, fetchersAddress);
     })();
-    PHOENIX_REGISTER_FIELD(2, CurrentIndex_)();
+    PHOENIX_REGISTER_FIELD(2, CurrentIndex_);
 }
 
 PHOENIX_DEFINE_TYPE(TMockChunkSliceFetcherFactory);

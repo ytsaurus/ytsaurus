@@ -901,30 +901,30 @@ void TUnorderedChunkPool::RegisterMetadata(auto&& registrar)
     registrar.template BaseType<TChunkPoolOutputWithCountersBase>();
     registrar.template BaseType<TLoggerOwner>();
 
-    PHOENIX_REGISTER_FIELD(1, InputCookieToInternalCookies_)();
-    PHOENIX_REGISTER_FIELD(2, Stripes_)();
-    PHOENIX_REGISTER_FIELD(3, InputCookieIsSuspended_)();
-    PHOENIX_REGISTER_FIELD(4, JobSizeConstraints_)();
-    PHOENIX_REGISTER_FIELD(5, Sampler_)();
-    PHOENIX_REGISTER_FIELD(6, JobSizeAdjuster_)();
-    PHOENIX_REGISTER_FIELD(7, FreeStripes_)();
-    PHOENIX_REGISTER_FIELD(8, ExtractedStripes_)();
-    PHOENIX_REGISTER_FIELD(9, MaxBlockSize_)();
-    PHOENIX_REGISTER_FIELD(10, NodeIdToEntry_)();
-    PHOENIX_REGISTER_FIELD(11, OutputCookieGenerator_)();
-    PHOENIX_REGISTER_FIELD(12, Mode_)();
-    PHOENIX_REGISTER_FIELD(13, MinTeleportChunkSize_)();
-    PHOENIX_REGISTER_FIELD(14, MinTeleportChunkDataWeight_)();
-    PHOENIX_REGISTER_FIELD(15, SliceErasureChunksByParts_)();
-    PHOENIX_REGISTER_FIELD(16, InputStreamDirectory_)();
-    PHOENIX_REGISTER_FIELD(17, JobManager_)();
-    PHOENIX_REGISTER_FIELD(18, FreeJobCounter_)();
-    PHOENIX_REGISTER_FIELD(19, FreeDataWeightCounter_)();
-    PHOENIX_REGISTER_FIELD(20, FreeRowCounter_)();
-    PHOENIX_REGISTER_FIELD(21, IsCompleted_)();
+    PHOENIX_REGISTER_FIELD(1, InputCookieToInternalCookies_);
+    PHOENIX_REGISTER_FIELD(2, Stripes_);
+    PHOENIX_REGISTER_FIELD(3, InputCookieIsSuspended_);
+    PHOENIX_REGISTER_FIELD(4, JobSizeConstraints_);
+    PHOENIX_REGISTER_FIELD(5, Sampler_);
+    PHOENIX_REGISTER_FIELD(6, JobSizeAdjuster_);
+    PHOENIX_REGISTER_FIELD(7, FreeStripes_);
+    PHOENIX_REGISTER_FIELD(8, ExtractedStripes_);
+    PHOENIX_REGISTER_FIELD(9, MaxBlockSize_);
+    PHOENIX_REGISTER_FIELD(10, NodeIdToEntry_);
+    PHOENIX_REGISTER_FIELD(11, OutputCookieGenerator_);
+    PHOENIX_REGISTER_FIELD(12, Mode_);
+    PHOENIX_REGISTER_FIELD(13, MinTeleportChunkSize_);
+    PHOENIX_REGISTER_FIELD(14, MinTeleportChunkDataWeight_);
+    PHOENIX_REGISTER_FIELD(15, SliceErasureChunksByParts_);
+    PHOENIX_REGISTER_FIELD(16, InputStreamDirectory_);
+    PHOENIX_REGISTER_FIELD(17, JobManager_);
+    PHOENIX_REGISTER_FIELD(18, FreeJobCounter_);
+    PHOENIX_REGISTER_FIELD(19, FreeDataWeightCounter_);
+    PHOENIX_REGISTER_FIELD(20, FreeRowCounter_);
+    PHOENIX_REGISTER_FIELD(21, IsCompleted_);
 
-    PHOENIX_REGISTER_FIELD(22, SingleChunkTeleportStrategy_)
-        .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy)();
+    PHOENIX_REGISTER_FIELD(22, SingleChunkTeleportStrategy_,
+        .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy));
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         ValidateLogger(this_->Logger);
@@ -937,8 +937,8 @@ PHOENIX_DEFINE_TYPE(TUnorderedChunkPool);
 
 void TUnorderedChunkPool::TLocalityEntry::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Locality)();
-    PHOENIX_REGISTER_FIELD(2, StripeIndexes)();
+    PHOENIX_REGISTER_FIELD(1, Locality);
+    PHOENIX_REGISTER_FIELD(2, StripeIndexes);
 }
 
 PHOENIX_DEFINE_TYPE(TUnorderedChunkPool::TLocalityEntry);
@@ -947,16 +947,16 @@ PHOENIX_DEFINE_TYPE(TUnorderedChunkPool::TLocalityEntry);
 
 void TUnorderedChunkPoolOptions::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Mode)();
-    PHOENIX_REGISTER_FIELD(2, JobSizeAdjusterConfig)();
-    PHOENIX_REGISTER_FIELD(3, JobSizeConstraints)();
-    PHOENIX_REGISTER_FIELD(4, MinTeleportChunkSize)();
-    PHOENIX_REGISTER_FIELD(5, MinTeleportChunkDataWeight)();
-    PHOENIX_REGISTER_FIELD(6, SliceErasureChunksByParts)();
-    PHOENIX_REGISTER_FIELD(7, Logger)();
+    PHOENIX_REGISTER_FIELD(1, Mode);
+    PHOENIX_REGISTER_FIELD(2, JobSizeAdjusterConfig);
+    PHOENIX_REGISTER_FIELD(3, JobSizeConstraints);
+    PHOENIX_REGISTER_FIELD(4, MinTeleportChunkSize);
+    PHOENIX_REGISTER_FIELD(5, MinTeleportChunkDataWeight);
+    PHOENIX_REGISTER_FIELD(6, SliceErasureChunksByParts);
+    PHOENIX_REGISTER_FIELD(7, Logger);
 
-    PHOENIX_REGISTER_FIELD(8, SingleChunkTeleportStrategy)
-        .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy)();
+    PHOENIX_REGISTER_FIELD(8, SingleChunkTeleportStrategy,
+        .SinceVersion(ESnapshotVersion::SingleChunkTeleportStrategy));
 }
 
 PHOENIX_DEFINE_TYPE(TUnorderedChunkPoolOptions);

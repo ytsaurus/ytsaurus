@@ -28,17 +28,17 @@ using namespace NJobTrackerClient;
 
 void TBriefJobStatistics::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Timestamp)();
-    PHOENIX_REGISTER_FIELD(2, ProcessedInputRowCount)();
-    PHOENIX_REGISTER_FIELD(3, ProcessedInputUncompressedDataSize)();
-    PHOENIX_REGISTER_FIELD(4, ProcessedInputCompressedDataSize)();
-    PHOENIX_REGISTER_FIELD(5, ProcessedInputDataWeight)();
-    PHOENIX_REGISTER_FIELD(6, ProcessedOutputRowCount)();
-    PHOENIX_REGISTER_FIELD(7, ProcessedOutputUncompressedDataSize)();
-    PHOENIX_REGISTER_FIELD(8, ProcessedOutputCompressedDataSize)();
-    PHOENIX_REGISTER_FIELD(9, InputPipeIdleTime)();
-    PHOENIX_REGISTER_FIELD(10, OutputPipeIdleTime)();
-    PHOENIX_REGISTER_FIELD(11, JobProxyCpuUsage)();
+    PHOENIX_REGISTER_FIELD(1, Timestamp);
+    PHOENIX_REGISTER_FIELD(2, ProcessedInputRowCount);
+    PHOENIX_REGISTER_FIELD(3, ProcessedInputUncompressedDataSize);
+    PHOENIX_REGISTER_FIELD(4, ProcessedInputCompressedDataSize);
+    PHOENIX_REGISTER_FIELD(5, ProcessedInputDataWeight);
+    PHOENIX_REGISTER_FIELD(6, ProcessedOutputRowCount);
+    PHOENIX_REGISTER_FIELD(7, ProcessedOutputUncompressedDataSize);
+    PHOENIX_REGISTER_FIELD(8, ProcessedOutputCompressedDataSize);
+    PHOENIX_REGISTER_FIELD(9, InputPipeIdleTime);
+    PHOENIX_REGISTER_FIELD(10, OutputPipeIdleTime);
+    PHOENIX_REGISTER_FIELD(11, JobProxyCpuUsage);
 }
 
 void Serialize(const TBriefJobStatisticsPtr& briefJobStatistics, IYsonConsumer* consumer)
@@ -293,9 +293,9 @@ void TScheduleAllocationStatistics::SetMovingAverageWindowSize(int movingAverage
 
 void TScheduleAllocationStatistics::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Failed_)();
-    PHOENIX_REGISTER_FIELD(2, TotalDuration_)();
-    PHOENIX_REGISTER_FIELD(3, Count_)();
+    PHOENIX_REGISTER_FIELD(1, Failed_);
+    PHOENIX_REGISTER_FIELD(2, TotalDuration_);
+    PHOENIX_REGISTER_FIELD(3, Count_);
 }
 
 PHOENIX_DEFINE_TYPE(TScheduleAllocationStatistics);

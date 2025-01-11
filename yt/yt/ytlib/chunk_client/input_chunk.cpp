@@ -221,23 +221,23 @@ void TInputChunk::RegisterMetadata(auto&& registrar)
         NYT::Save(context, *static_cast<const TInputChunkBase*>(this_));
     })();
 
-    PHOENIX_REGISTER_FIELD(2, LowerLimit_)
-        .template Serializer<TUniquePtrSerializer<>>()();
-    PHOENIX_REGISTER_FIELD(3, UpperLimit_)
-        .template Serializer<TUniquePtrSerializer<>>()();
-    PHOENIX_REGISTER_FIELD(4, BoundaryKeys_)
-        .template Serializer<TUniquePtrSerializer<>>()();
-    PHOENIX_REGISTER_FIELD(5, PartitionsExt_)
-        .template Serializer<TUniquePtrSerializer<>>()();
-    PHOENIX_REGISTER_FIELD(6, HeavyColumnarStatisticsExt_)
-        .template Serializer<TUniquePtrSerializer<>>()();
+    PHOENIX_REGISTER_FIELD(2, LowerLimit_,
+        .template Serializer<TUniquePtrSerializer<>>());
+    PHOENIX_REGISTER_FIELD(3, UpperLimit_,
+        .template Serializer<TUniquePtrSerializer<>>());
+    PHOENIX_REGISTER_FIELD(4, BoundaryKeys_,
+        .template Serializer<TUniquePtrSerializer<>>());
+    PHOENIX_REGISTER_FIELD(5, PartitionsExt_,
+        .template Serializer<TUniquePtrSerializer<>>());
+    PHOENIX_REGISTER_FIELD(6, HeavyColumnarStatisticsExt_,
+        .template Serializer<TUniquePtrSerializer<>>());
     // COMPAT(achulkov2)
-    PHOENIX_REGISTER_FIELD(7, BlockSelectivityFactor_)
-        .SinceVersion(static_cast<int>(NControllerAgent::ESnapshotVersion::ChunkSliceStatistics))();
+    PHOENIX_REGISTER_FIELD(7, BlockSelectivityFactor_,
+        .SinceVersion(static_cast<int>(NControllerAgent::ESnapshotVersion::ChunkSliceStatistics)));
     // COMPAT(alexelexa)
-    PHOENIX_REGISTER_FIELD(8, HunkChunkRefsExt_)
+    PHOENIX_REGISTER_FIELD(8, HunkChunkRefsExt_,
         .SinceVersion(static_cast<int>(NControllerAgent::ESnapshotVersion::RemoteCopyDynamicTableWithHunks))
-        .template Serializer<TUniquePtrSerializer<>>()();
+        .template Serializer<TUniquePtrSerializer<>>());
 }
 
 size_t TInputChunk::SpaceUsed() const

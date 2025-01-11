@@ -55,7 +55,7 @@ void TChunkPoolInputBase::Reset(TCookie /*cookie*/, TChunkStripePtr /*stripe*/, 
 void TChunkPoolInputBase::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<IPersistentChunkPoolInput>();
-    PHOENIX_REGISTER_FIELD(1, Finished)();
+    PHOENIX_REGISTER_FIELD(1, Finished);
 }
 
 PHOENIX_DEFINE_TYPE(TChunkPoolInputBase);
@@ -103,10 +103,10 @@ const TProgressCounterPtr& TChunkPoolOutputWithCountersBase::GetDataSliceCounter
 
 void TChunkPoolOutputWithCountersBase::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, JobCounter)();
-    PHOENIX_REGISTER_FIELD(2, DataWeightCounter)();
-    PHOENIX_REGISTER_FIELD(3, RowCounter)();
-    PHOENIX_REGISTER_FIELD(4, DataSliceCounter)();
+    PHOENIX_REGISTER_FIELD(1, JobCounter);
+    PHOENIX_REGISTER_FIELD(2, DataWeightCounter);
+    PHOENIX_REGISTER_FIELD(3, RowCounter);
+    PHOENIX_REGISTER_FIELD(4, DataSliceCounter);
 }
 
 PHOENIX_DEFINE_TYPE(TChunkPoolOutputWithCountersBase);
@@ -376,11 +376,11 @@ void TJobSplittingBase::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TLoggerOwner>();
 
-    PHOENIX_REGISTER_FIELD(1, CookieToChildCookies_)();
-    PHOENIX_REGISTER_FIELD(2, CookieToEmptyChildCount_)();
-    PHOENIX_REGISTER_FIELD(3, CookieToParentCookie_)();
-    PHOENIX_REGISTER_FIELD(4, CookieIsSplittable_)();
-    PHOENIX_REGISTER_FIELD(5, CookieShouldBeSplitProperly_)();
+    PHOENIX_REGISTER_FIELD(1, CookieToChildCookies_);
+    PHOENIX_REGISTER_FIELD(2, CookieToEmptyChildCount_);
+    PHOENIX_REGISTER_FIELD(3, CookieToParentCookie_);
+    PHOENIX_REGISTER_FIELD(4, CookieIsSplittable_);
+    PHOENIX_REGISTER_FIELD(5, CookieShouldBeSplitProperly_);
 }
 
 PHOENIX_DEFINE_TYPE(TJobSplittingBase);

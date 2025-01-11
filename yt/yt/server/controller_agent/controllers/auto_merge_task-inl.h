@@ -135,7 +135,7 @@ void TAutoMergeableOutputMixin<TUnderlyingTask>::RegisterMetadata(auto&& registr
 {
     registrar.template BaseType<TUnderlyingTask>();
 
-    PHOENIX_REGISTER_FIELD(1, LastChunkCount_)();
+    PHOENIX_REGISTER_FIELD(1, LastChunkCount_);
 }
 
 PHOENIX_DEFINE_TEMPLATE_TYPE(TAutoMergeableOutputMixin, TTask);

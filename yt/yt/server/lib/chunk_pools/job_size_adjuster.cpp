@@ -116,15 +116,15 @@ private:
 
 void TJobSizeAdjuster::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, DataWeightPerJob_)();
-    PHOENIX_REGISTER_FIELD(2, MinJobTime_)();
-    PHOENIX_REGISTER_FIELD(3, MaxJobTime_)();
-    PHOENIX_REGISTER_FIELD(4, ExecToPrepareTimeRatio_)();
-    PHOENIX_REGISTER_FIELD(5, Statistics_)();
+    PHOENIX_REGISTER_FIELD(1, DataWeightPerJob_);
+    PHOENIX_REGISTER_FIELD(2, MinJobTime_);
+    PHOENIX_REGISTER_FIELD(3, MaxJobTime_);
+    PHOENIX_REGISTER_FIELD(4, ExecToPrepareTimeRatio_);
+    PHOENIX_REGISTER_FIELD(5, Statistics_);
 
     // COMPAT(coteeq)
-    PHOENIX_REGISTER_FIELD(6, EnableJobShrinking_)
-        .SinceVersion(ESnapshotVersion::DisableShrinkingJobs)();
+    PHOENIX_REGISTER_FIELD(6, EnableJobShrinking_,
+        .SinceVersion(ESnapshotVersion::DisableShrinkingJobs));
 }
 
 PHOENIX_DEFINE_TYPE(TJobSizeAdjuster);
@@ -133,11 +133,11 @@ PHOENIX_DEFINE_TYPE(TJobSizeAdjuster);
 
 void TJobSizeAdjuster::TStatistics::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Count_)();
-    PHOENIX_REGISTER_FIELD(2, TotalPrepareTime_)();
-    PHOENIX_REGISTER_FIELD(3, TotalExecTime_)();
-    PHOENIX_REGISTER_FIELD(4, TotalDataWeight_)();
-    PHOENIX_REGISTER_FIELD(5, MaxDataWeight_)();
+    PHOENIX_REGISTER_FIELD(1, Count_);
+    PHOENIX_REGISTER_FIELD(2, TotalPrepareTime_);
+    PHOENIX_REGISTER_FIELD(3, TotalExecTime_);
+    PHOENIX_REGISTER_FIELD(4, TotalDataWeight_);
+    PHOENIX_REGISTER_FIELD(5, MaxDataWeight_);
 }
 
 PHOENIX_DEFINE_TYPE(TJobSizeAdjuster::TStatistics);

@@ -18,8 +18,8 @@ using namespace NCypressClient;
 
 void TLivePreviewTableBase::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, LivePreviewTableId)();
-    PHOENIX_REGISTER_FIELD(2, LivePreviewTableName)();
+    PHOENIX_REGISTER_FIELD(1, LivePreviewTableId);
+    PHOENIX_REGISTER_FIELD(2, LivePreviewTableName);
 }
 
 PHOENIX_DEFINE_TYPE(TLivePreviewTableBase);
@@ -35,9 +35,9 @@ void TTableBase::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TUserObject>();
 
-    PHOENIX_REGISTER_FIELD(1, Schema)
-        .template Serializer<TNonNullableIntrusivePtrSerializer<>>()();
-    PHOENIX_REGISTER_FIELD(2, SchemaId)();
+    PHOENIX_REGISTER_FIELD(1, Schema,
+        .template Serializer<TNonNullableIntrusivePtrSerializer<>>());
+    PHOENIX_REGISTER_FIELD(2, SchemaId);
 }
 
 PHOENIX_DEFINE_TYPE(TTableBase);
@@ -110,16 +110,16 @@ void TInputTable::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TTableBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Chunks)();
+    PHOENIX_REGISTER_FIELD(1, Chunks);
     // COMPAT(alexelexa)
-    PHOENIX_REGISTER_FIELD(2, HunkChunks)
-        .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks)();
-    PHOENIX_REGISTER_FIELD(3, Comparator)();
-    PHOENIX_REGISTER_FIELD(4, SchemaMode)();
-    PHOENIX_REGISTER_FIELD(5, Dynamic)();
+    PHOENIX_REGISTER_FIELD(2, HunkChunks,
+        .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks));
+    PHOENIX_REGISTER_FIELD(3, Comparator);
+    PHOENIX_REGISTER_FIELD(4, SchemaMode);
+    PHOENIX_REGISTER_FIELD(5, Dynamic);
     // COMPAT(coteeq)
-    PHOENIX_REGISTER_FIELD(6, ClusterName)
-        .SinceVersion(ESnapshotVersion::RemoteInputForOperations)();
+    PHOENIX_REGISTER_FIELD(6, ClusterName,
+        .SinceVersion(ESnapshotVersion::RemoteInputForOperations));
 }
 
 PHOENIX_DEFINE_TYPE(TInputTable);
@@ -154,33 +154,33 @@ void TOutputTable::RegisterMetadata(auto&& registrar)
     registrar.template BaseType<TTableBase>();
     registrar.template BaseType<TLivePreviewTableBase>();
 
-    PHOENIX_REGISTER_FIELD(1, TableUploadOptions)();
-    PHOENIX_REGISTER_FIELD(2, TableWriterOptions)();
-    PHOENIX_REGISTER_FIELD(3, OutputType)();
+    PHOENIX_REGISTER_FIELD(1, TableUploadOptions);
+    PHOENIX_REGISTER_FIELD(2, TableWriterOptions);
+    PHOENIX_REGISTER_FIELD(3, OutputType);
     registrar.template VirtualField<4>("OriginalTableSchemaRevision_", [] (TThis* /*this_*/, auto& context) {
         Load<NHydra::TRevision>(context);
     })
         .BeforeVersion(ESnapshotVersion::DropOriginalTableSchemaRevision)();
-    PHOENIX_REGISTER_FIELD(5, Type)();
-    PHOENIX_REGISTER_FIELD(6, DataStatistics)();
+    PHOENIX_REGISTER_FIELD(5, Type);
+    PHOENIX_REGISTER_FIELD(6, DataStatistics);
     // NB: Scheduler snapshots need not be stable.
-    PHOENIX_REGISTER_FIELD(7, OutputChunkTreeIds)();
+    PHOENIX_REGISTER_FIELD(7, OutputChunkTreeIds);
     // COMPAT(alexelexa)
-    PHOENIX_REGISTER_FIELD(8, OutputHunkChunkListId)
-        .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks)();
-    PHOENIX_REGISTER_FIELD(9, EffectiveAcl)();
-    PHOENIX_REGISTER_FIELD(10, WriterConfig)();
-    PHOENIX_REGISTER_FIELD(11, Dynamic)();
-    PHOENIX_REGISTER_FIELD(12, PivotKeys)();
-    PHOENIX_REGISTER_FIELD(13, TabletChunkListIds)();
+    PHOENIX_REGISTER_FIELD(8, OutputHunkChunkListId,
+        .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks));
+    PHOENIX_REGISTER_FIELD(9, EffectiveAcl);
+    PHOENIX_REGISTER_FIELD(10, WriterConfig);
+    PHOENIX_REGISTER_FIELD(11, Dynamic);
+    PHOENIX_REGISTER_FIELD(12, PivotKeys);
+    PHOENIX_REGISTER_FIELD(13, TabletChunkListIds);
     // COMPAT(alexelexa)
-    PHOENIX_REGISTER_FIELD(14, TabletHunkChunkListIds)
-        .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks)();
-    PHOENIX_REGISTER_FIELD(15, OutputChunks)();
+    PHOENIX_REGISTER_FIELD(14, TabletHunkChunkListIds,
+        .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks));
+    PHOENIX_REGISTER_FIELD(15, OutputChunks);
     // COMPAT(alexelexa)
-    PHOENIX_REGISTER_FIELD(16, OutputHunkChunks)
-        .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks)();
-    PHOENIX_REGISTER_FIELD(17, TableIndex)();
+    PHOENIX_REGISTER_FIELD(16, OutputHunkChunks,
+        .SinceVersion(ESnapshotVersion::RemoteCopyDynamicTableWithHunks));
+    PHOENIX_REGISTER_FIELD(17, TableIndex);
 }
 
 TOutputStreamDescriptorPtr TOutputTable::GetStreamDescriptorTemplate(int tableIndex)

@@ -30,20 +30,20 @@ TTentativeTreeEligibility::TTentativeTreeEligibility()
 
 void TTentativeTreeEligibility::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, NonTentativeTreeDuration_)();
+    PHOENIX_REGISTER_FIELD(1, NonTentativeTreeDuration_);
 
-    PHOENIX_REGISTER_FIELD(2, Durations_)();
+    PHOENIX_REGISTER_FIELD(2, Durations_);
 
-    PHOENIX_REGISTER_FIELD(3, SampleJobCount_)();
-    PHOENIX_REGISTER_FIELD(4, MaxTentativeTreeJobDurationRatio_)();
-    PHOENIX_REGISTER_FIELD(5, MinJobDuration_)();
+    PHOENIX_REGISTER_FIELD(3, SampleJobCount_);
+    PHOENIX_REGISTER_FIELD(4, MaxTentativeTreeJobDurationRatio_);
+    PHOENIX_REGISTER_FIELD(5, MinJobDuration_);
 
-    PHOENIX_REGISTER_FIELD(6, StartedJobsPerPoolTree_)();
-    PHOENIX_REGISTER_FIELD(7, LastStartJobTimePerPoolTree_)();
-    PHOENIX_REGISTER_FIELD(8, FinishedJobsPerStatePerPoolTree_)();
-    PHOENIX_REGISTER_FIELD(9, BannedTrees_)();
+    PHOENIX_REGISTER_FIELD(6, StartedJobsPerPoolTree_);
+    PHOENIX_REGISTER_FIELD(7, LastStartJobTimePerPoolTree_);
+    PHOENIX_REGISTER_FIELD(8, FinishedJobsPerStatePerPoolTree_);
+    PHOENIX_REGISTER_FIELD(9, BannedTrees_);
 
-    PHOENIX_REGISTER_FIELD(10, Logger)();
+    PHOENIX_REGISTER_FIELD(10, Logger);
 }
 
 bool TTentativeTreeEligibility::CanScheduleJob(

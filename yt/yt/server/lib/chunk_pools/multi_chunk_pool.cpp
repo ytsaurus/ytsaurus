@@ -146,10 +146,10 @@ protected:
 
 void TMultiChunkPoolInput::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, UnderlyingPools_)();
-    PHOENIX_REGISTER_FIELD(2, Cookies_)
-        .template Serializer<TVectorSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>>>()();
-    PHOENIX_REGISTER_FIELD(3, IsFinished_)();
+    PHOENIX_REGISTER_FIELD(1, UnderlyingPools_);
+    PHOENIX_REGISTER_FIELD(2, Cookies_,
+        .template Serializer<TVectorSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>>>());
+    PHOENIX_REGISTER_FIELD(3, IsFinished_);
 }
 
 PHOENIX_DEFINE_TYPE(TMultiChunkPoolInput);
@@ -504,19 +504,19 @@ protected:
 
 void TMultiChunkPoolOutput::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, UnderlyingPools_)();
-    PHOENIX_REGISTER_FIELD(2, ActivePoolCount_)();
-    PHOENIX_REGISTER_FIELD(3, JobCounter_)();
-    PHOENIX_REGISTER_FIELD(4, DataWeightCounter_)();
-    PHOENIX_REGISTER_FIELD(5, RowCounter_)();
-    PHOENIX_REGISTER_FIELD(6, DataSliceCounter_)();
-    PHOENIX_REGISTER_FIELD(7, Cookies_)
-        .template Serializer<TVectorSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>>>()();
-    PHOENIX_REGISTER_FIELD(8, CookieDescriptorToExternalCookie_)
-        .template Serializer<TMapSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>, TDefaultSerializer, TUnsortedTag>>()();
-    PHOENIX_REGISTER_FIELD(9, BlockedPools_)();
-    PHOENIX_REGISTER_FIELD(10, Finalized_)();
-    PHOENIX_REGISTER_FIELD(11, IsCompleted_)();
+    PHOENIX_REGISTER_FIELD(1, UnderlyingPools_);
+    PHOENIX_REGISTER_FIELD(2, ActivePoolCount_);
+    PHOENIX_REGISTER_FIELD(3, JobCounter_);
+    PHOENIX_REGISTER_FIELD(4, DataWeightCounter_);
+    PHOENIX_REGISTER_FIELD(5, RowCounter_);
+    PHOENIX_REGISTER_FIELD(6, DataSliceCounter_);
+    PHOENIX_REGISTER_FIELD(7, Cookies_,
+        .template Serializer<TVectorSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>>>());
+    PHOENIX_REGISTER_FIELD(8, CookieDescriptorToExternalCookie_,
+        .template Serializer<TMapSerializer<TTupleSerializer<std::pair<int, TCookie>, 2>, TDefaultSerializer, TUnsortedTag>>());
+    PHOENIX_REGISTER_FIELD(9, BlockedPools_);
+    PHOENIX_REGISTER_FIELD(10, Finalized_);
+    PHOENIX_REGISTER_FIELD(11, IsCompleted_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // NB(gritukan): It seems hard to persist list iterators, so we do not persist statistics

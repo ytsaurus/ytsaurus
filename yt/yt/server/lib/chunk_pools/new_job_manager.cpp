@@ -237,23 +237,23 @@ bool TNewJobManager::TJob::IsInvalidated() const
 
 void TNewJobManager::TJob::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, State_)();
-    PHOENIX_REGISTER_FIELD(2, IsBarrier_)();
-    PHOENIX_REGISTER_FIELD(3, DataWeight_)();
-    PHOENIX_REGISTER_FIELD(4, RowCount_)();
-    PHOENIX_REGISTER_FIELD(5, LowerBound_)();
-    PHOENIX_REGISTER_FIELD(6, UpperBound_)();
-    PHOENIX_REGISTER_FIELD(7, StripeList_)();
-    PHOENIX_REGISTER_FIELD(8, InputCookies_)();
-    PHOENIX_REGISTER_FIELD(9, Owner_)();
-    PHOENIX_REGISTER_FIELD(10, SuspendedStripeCount_)();
-    PHOENIX_REGISTER_FIELD(11, Cookie_)();
-    PHOENIX_REGISTER_FIELD(12, Invalidated_)();
-    PHOENIX_REGISTER_FIELD(13, Removed_)();
-    PHOENIX_REGISTER_FIELD(14, DataWeightProgressCounterGuard_)();
-    PHOENIX_REGISTER_FIELD(15, RowProgressCounterGuard_)();
-    PHOENIX_REGISTER_FIELD(16, JobProgressCounterGuard_)();
-    PHOENIX_REGISTER_FIELD(17, InterruptReason_)();
+    PHOENIX_REGISTER_FIELD(1, State_);
+    PHOENIX_REGISTER_FIELD(2, IsBarrier_);
+    PHOENIX_REGISTER_FIELD(3, DataWeight_);
+    PHOENIX_REGISTER_FIELD(4, RowCount_);
+    PHOENIX_REGISTER_FIELD(5, LowerBound_);
+    PHOENIX_REGISTER_FIELD(6, UpperBound_);
+    PHOENIX_REGISTER_FIELD(7, StripeList_);
+    PHOENIX_REGISTER_FIELD(8, InputCookies_);
+    PHOENIX_REGISTER_FIELD(9, Owner_);
+    PHOENIX_REGISTER_FIELD(10, SuspendedStripeCount_);
+    PHOENIX_REGISTER_FIELD(11, Cookie_);
+    PHOENIX_REGISTER_FIELD(12, Invalidated_);
+    PHOENIX_REGISTER_FIELD(13, Removed_);
+    PHOENIX_REGISTER_FIELD(14, DataWeightProgressCounterGuard_);
+    PHOENIX_REGISTER_FIELD(15, RowProgressCounterGuard_);
+    PHOENIX_REGISTER_FIELD(16, JobProgressCounterGuard_);
+    PHOENIX_REGISTER_FIELD(17, InterruptReason_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // We must add ourselves to the job pool.
@@ -534,15 +534,15 @@ std::vector<TLegacyDataSlicePtr> TNewJobManager::ReleaseForeignSlices(IChunkPool
 
 void TNewJobManager::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, DataWeightCounter_)();
-    PHOENIX_REGISTER_FIELD(2, RowCounter_)();
-    PHOENIX_REGISTER_FIELD(3, JobCounter_)();
-    PHOENIX_REGISTER_FIELD(4, DataSliceCounter_)();
-    PHOENIX_REGISTER_FIELD(5, InputCookieToAffectedOutputCookies_)();
-    PHOENIX_REGISTER_FIELD(6, FirstValidJobIndex_)();
-    PHOENIX_REGISTER_FIELD(7, SuspendedInputCookies_)();
-    PHOENIX_REGISTER_FIELD(8, Jobs_)();
-    PHOENIX_REGISTER_FIELD(9, Logger)();
+    PHOENIX_REGISTER_FIELD(1, DataWeightCounter_);
+    PHOENIX_REGISTER_FIELD(2, RowCounter_);
+    PHOENIX_REGISTER_FIELD(3, JobCounter_);
+    PHOENIX_REGISTER_FIELD(4, DataSliceCounter_);
+    PHOENIX_REGISTER_FIELD(5, InputCookieToAffectedOutputCookies_);
+    PHOENIX_REGISTER_FIELD(6, FirstValidJobIndex_);
+    PHOENIX_REGISTER_FIELD(7, SuspendedInputCookies_);
+    PHOENIX_REGISTER_FIELD(8, Jobs_);
+    PHOENIX_REGISTER_FIELD(9, Logger);
 }
 
 TChunkStripeStatisticsVector TNewJobManager::GetApproximateStripeStatistics() const

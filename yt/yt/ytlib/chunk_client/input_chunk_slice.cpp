@@ -108,8 +108,8 @@ void TLegacyInputSliceLimit::MergeUpperLimit(const TLegacyInputSliceLimit& limit
 
 void TLegacyInputSliceLimit::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, RowIndex)();
-    PHOENIX_REGISTER_FIELD(2, Key)();
+    PHOENIX_REGISTER_FIELD(1, RowIndex);
+    PHOENIX_REGISTER_FIELD(2, Key);
 }
 
 void FormatValue(TStringBuilderBase* builder, const TLegacyInputSliceLimit& limit, TStringBuf /*spec*/)
@@ -222,8 +222,8 @@ bool TInputSliceLimit::IsTrivial() const
 
 void TInputSliceLimit::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, RowIndex)();
-    PHOENIX_REGISTER_FIELD(2, KeyBound)();
+    PHOENIX_REGISTER_FIELD(1, RowIndex);
+    PHOENIX_REGISTER_FIELD(2, KeyBound);
 }
 
 void Serialize(const TInputSliceLimit& limit, IYsonConsumer* consumer)
@@ -720,17 +720,17 @@ void TInputChunkSlice::TransformToNewKeyless()
 
 void TInputChunkSlice::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, InputChunk_)();
-    PHOENIX_REGISTER_FIELD(2, LegacyLowerLimit_)();
-    PHOENIX_REGISTER_FIELD(3, LegacyUpperLimit_)();
-    PHOENIX_REGISTER_FIELD(4, LowerLimit_)();
-    PHOENIX_REGISTER_FIELD(5, UpperLimit_)();
-    PHOENIX_REGISTER_FIELD(6, IsLegacy)();
-    PHOENIX_REGISTER_FIELD(7, PartIndex_)();
-    PHOENIX_REGISTER_FIELD(8, SizeOverridden_)();
-    PHOENIX_REGISTER_FIELD(9, RowCount_)();
-    PHOENIX_REGISTER_FIELD(10, DataWeight_)();
-    PHOENIX_REGISTER_FIELD(11, SliceIndex_)();
+    PHOENIX_REGISTER_FIELD(1, InputChunk_);
+    PHOENIX_REGISTER_FIELD(2, LegacyLowerLimit_);
+    PHOENIX_REGISTER_FIELD(3, LegacyUpperLimit_);
+    PHOENIX_REGISTER_FIELD(4, LowerLimit_);
+    PHOENIX_REGISTER_FIELD(5, UpperLimit_);
+    PHOENIX_REGISTER_FIELD(6, IsLegacy);
+    PHOENIX_REGISTER_FIELD(7, PartIndex_);
+    PHOENIX_REGISTER_FIELD(8, SizeOverridden_);
+    PHOENIX_REGISTER_FIELD(9, RowCount_);
+    PHOENIX_REGISTER_FIELD(10, DataWeight_);
+    PHOENIX_REGISTER_FIELD(11, SliceIndex_);
 }
 
 PHOENIX_DEFINE_TYPE(TInputChunkSlice);

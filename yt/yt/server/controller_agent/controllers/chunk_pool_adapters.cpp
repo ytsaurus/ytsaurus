@@ -53,7 +53,7 @@ bool TChunkPoolInputAdapterBase::IsFinished() const
 
 void TChunkPoolInputAdapterBase::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, UnderlyingInput_)();
+    PHOENIX_REGISTER_FIELD(1, UnderlyingInput_);
 }
 
 PHOENIX_DEFINE_TYPE(TChunkPoolInputAdapterBase);
@@ -146,7 +146,7 @@ bool TChunkPoolOutputAdapterBase::IsSplittable(NChunkPools::TOutputCookie cookie
 
 void TChunkPoolOutputAdapterBase::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, UnderlyingOutput_)();
+    PHOENIX_REGISTER_FIELD(1, UnderlyingOutput_);
 }
 
 DELEGATE_SIGNAL(TChunkPoolOutputAdapterBase, void(NChunkClient::TInputChunkPtr, std::any tag), ChunkTeleported, *UnderlyingOutput_);
@@ -208,7 +208,7 @@ void TIntermediateLivePreviewAdapter::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TChunkPoolInputAdapterBase>();
 
-    PHOENIX_REGISTER_FIELD(1, TaskHost_)();
+    PHOENIX_REGISTER_FIELD(1, TaskHost_);
 }
 
 PHOENIX_DEFINE_TYPE(TIntermediateLivePreviewAdapter);
@@ -255,7 +255,7 @@ void TTaskUpdatingAdapter::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TChunkPoolInputAdapterBase>();
 
-    PHOENIX_REGISTER_FIELD(1, Task_)();
+    PHOENIX_REGISTER_FIELD(1, Task_);
 }
 
 PHOENIX_DEFINE_TYPE(TTaskUpdatingAdapter);

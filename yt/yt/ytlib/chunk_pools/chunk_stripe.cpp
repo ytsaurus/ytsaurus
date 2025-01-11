@@ -78,13 +78,13 @@ int TChunkStripe::GetInputStreamIndex() const
 
 void TChunkStripe::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, DataSlices)();
-    PHOENIX_REGISTER_FIELD(2, WaitingChunkCount)();
-    PHOENIX_REGISTER_FIELD(3, Foreign)();
-    PHOENIX_REGISTER_FIELD(4, Solid)();
-    PHOENIX_REGISTER_FIELD(5, ChunkListId)();
-    PHOENIX_REGISTER_FIELD(6, BoundaryKeys)();
-    PHOENIX_REGISTER_FIELD(7, PartitionTag)();
+    PHOENIX_REGISTER_FIELD(1, DataSlices);
+    PHOENIX_REGISTER_FIELD(2, WaitingChunkCount);
+    PHOENIX_REGISTER_FIELD(3, Foreign);
+    PHOENIX_REGISTER_FIELD(4, Solid);
+    PHOENIX_REGISTER_FIELD(5, ChunkListId);
+    PHOENIX_REGISTER_FIELD(6, BoundaryKeys);
+    PHOENIX_REGISTER_FIELD(7, PartitionTag);
 }
 
 PHOENIX_DEFINE_TYPE(TChunkStripe);
@@ -133,15 +133,15 @@ void TChunkStripeList::AddStripe(TChunkStripePtr stripe)
 
 void TChunkStripeList::RegisterMetadata(auto&& registrar)
 {
-    PHOENIX_REGISTER_FIELD(1, Stripes)();
-    PHOENIX_REGISTER_FIELD(2, PartitionTag)();
-    PHOENIX_REGISTER_FIELD(3, IsApproximate)();
-    PHOENIX_REGISTER_FIELD(4, TotalDataWeight)();
-    PHOENIX_REGISTER_FIELD(5, LocalDataWeight)();
-    PHOENIX_REGISTER_FIELD(6, TotalRowCount)();
-    PHOENIX_REGISTER_FIELD(7, TotalValueCount)();
-    PHOENIX_REGISTER_FIELD(8, TotalChunkCount)();
-    PHOENIX_REGISTER_FIELD(9, LocalChunkCount)();
+    PHOENIX_REGISTER_FIELD(1, Stripes);
+    PHOENIX_REGISTER_FIELD(2, PartitionTag);
+    PHOENIX_REGISTER_FIELD(3, IsApproximate);
+    PHOENIX_REGISTER_FIELD(4, TotalDataWeight);
+    PHOENIX_REGISTER_FIELD(5, LocalDataWeight);
+    PHOENIX_REGISTER_FIELD(6, TotalRowCount);
+    PHOENIX_REGISTER_FIELD(7, TotalValueCount);
+    PHOENIX_REGISTER_FIELD(8, TotalChunkCount);
+    PHOENIX_REGISTER_FIELD(9, LocalChunkCount);
 }
 
 const TChunkStripeListPtr NullStripeList = New<TChunkStripeList>();
