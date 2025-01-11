@@ -24,8 +24,7 @@ DEFINE_REFCOUNTED_TYPE(IAlienClusterClientCache)
 IAlienClusterClientCachePtr CreateAlienClusterClientCache(
     NApi::NNative::IConnectionPtr localConnection,
     NYT::NApi::TClientOptions clientOptions,
-    TDuration evictionPeriod
-);
+    TDuration evictionPeriod);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -146,8 +146,8 @@ class TPerFiberClusterClientCache
 public:
     explicit TPerFiberClusterClientCache(
         IAlienClusterClientCachePtr underlying)
-    : TAlienClusterClientCacheBase(underlying->GetEvictionPeriod())
-    , Underlying_(std::move(underlying))
+        : TAlienClusterClientCacheBase(underlying->GetEvictionPeriod())
+        , Underlying_(std::move(underlying))
     { }
 
     const NNative::IClientPtr& GetClient(const std::string& clusterName)
