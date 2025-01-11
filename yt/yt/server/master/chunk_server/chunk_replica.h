@@ -71,7 +71,7 @@ public:
         requires WithReplicaState;
 
 private:
-    static_assert(sizeof (uintptr_t) == 8, "Pointer type must be of size 8.");
+    static_assert(sizeof(uintptr_t) == 8, "Pointer type must be of size 8.");
 
     // Use compact 8-byte representation with index occupying the highest 8 bits.
     uintptr_t Value_;
@@ -154,7 +154,7 @@ public:
     void Load(C& context);
 
 private:
-    static_assert(sizeof (uintptr_t) == 8, "Pointer type must be of size 8.");
+    static_assert(sizeof(uintptr_t) == 8, "Pointer type must be of size 8.");
 
     // Use compact 8-byte representation with indexes occupying the highest 12 bits.
     uintptr_t Value_;

@@ -421,7 +421,7 @@ protected:
         }
 
         // Values.
-        ::memcpy(versionedRow.BeginValues(), VersionedValues_.data(), sizeof (TVersionedValue) * VersionedValues_.size());
+        ::memcpy(versionedRow.BeginValues(), VersionedValues_.data(), sizeof(TVersionedValue) * VersionedValues_.size());
 
         return versionedRow;
     }

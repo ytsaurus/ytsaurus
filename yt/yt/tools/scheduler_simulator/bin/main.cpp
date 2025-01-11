@@ -362,7 +362,7 @@ private:
 
             int extractedCount = extractor.GetExtractedCount();
             TUnbufferedFileOutput output(Destination_);
-            output.Write(&extractedCount, sizeof extractedCount);
+            output.Write(&extractedCount, sizeof(extractedCount));
 
             context.Finish();
         }
