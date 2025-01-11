@@ -155,7 +155,7 @@ DEFINE_REFCOUNTED_TYPE(TSequoiaConnectionConfig)
  *  For secondary cluster connections (i.e. those taken from cluster directory or other
  *  dynamic sources) these options are taken from the configuration node as well as dynamic one.
  *
- *  NB: we try to keep the size of a statically generated cluster connection (by ytcfgen, YTInstance
+ *  NB: We try to keep the size of a statically generated cluster connection (by ytcfgen, YTInstance
  *  or k8s operator) as small as possible, so do not add new fields here unless it is absolutely necessary.
  *  A good reason for an option to be here is when it is required for fetching //sys/@cluster_connection.
  *  In other situations prefer adding fields only to dynamic config.
@@ -201,12 +201,12 @@ DEFINE_REFCOUNTED_TYPE(TConnectionStaticConfig)
 
 //! A dynamic cluster connection configuration which is designed to be taken from //sys/@cluster_connection.
 /*!
- *  NB: the word "dynamic" represents the origin of this config rather than the ability
+ *  NB: The word "dynamic" represents the origin of this config rather than the ability
  *  to reconfigure on the fly. Change of some of the options here will not take effect
  *  for an already existing connection; this may be fixed by writing reconfiguration code in
  *  #TConnection::Reconfigure method.
  *
- *  NB: during the transition period in order to keep the old behavior some of the components may take
+ *  NB: During the transition period in order to keep the old behavior some of the components may take
  *  the dynamic config from the static configuration.
  *
  */

@@ -269,7 +269,7 @@ class TPool
     : public virtual TCompositeElement
 {
 public:
-    // NB: it is combination of options on pool and on tree.
+    // NB: It is combination of options on pool and on tree.
     virtual TResourceVector GetIntegralShareLimitForRelaxedPool() const = 0;
 
     virtual const TIntegralResourcesState& IntegralResourcesState() const = 0;

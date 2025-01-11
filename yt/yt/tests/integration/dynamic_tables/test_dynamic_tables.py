@@ -874,7 +874,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         def get_tablet_ids(path):
             return list(x["tablet_id"] for x in get(path + "/@tablets"))
 
-        # NB: children are moved in lexicographic order
+        # NB: Children are moved in lexicographic order
         # //tmp/x/a is fine to move
         # //tmp/x/b is not
         tablet_ids_a = get_tablet_ids("//tmp/x/a")

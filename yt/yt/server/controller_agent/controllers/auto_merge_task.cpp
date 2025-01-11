@@ -504,7 +504,7 @@ void TAutoMergeTask::InitAutoMergeJobSpecTemplates()
         const auto& outputTable = TaskHost_->GetOutputTable(tableIndex);
 
         auto dataSourceDirectory = New<TDataSourceDirectory>();
-        // NB: chunks read by auto-merge jobs have table index set to output table index,
+        // NB: Chunks read by auto-merge jobs have table index set to output table index,
         // so we need to specify several unused data sources before actual one.
         dataSourceDirectory->DataSources().resize(tableIndex);
         auto& dataSource = dataSourceDirectory->DataSources().emplace_back(MakeUnversionedDataSource(

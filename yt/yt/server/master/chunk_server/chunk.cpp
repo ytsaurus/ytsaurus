@@ -697,7 +697,7 @@ void TChunk::Export(TCellTag cellTag, TChunkRequisitionRegistry* registry)
         YT_VERIFY(data.RefCounter == 1);
         YT_VERIFY(data.ChunkRequisitionIndex == EmptyChunkRequisitionIndex);
         registry->Ref(data.ChunkRequisitionIndex);
-        // NB: an empty requisition doesn't affect the aggregated requisition
+        // NB: An empty requisition doesn't affect the aggregated requisition
         // and thus doesn't call for updating the latter.
     } else {
         YT_VERIFY(data.RefCounter > 1);

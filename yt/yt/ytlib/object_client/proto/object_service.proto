@@ -41,7 +41,7 @@ message TRspExecute
     // COMPAT(babenko)
     // Similar to TReqExecute::part_counts, but denotes the number of parts in each
     // encapsulated response.
-    // NB: a batched response may have less subresponses than its corresponding request
+    // NB: A batched response may have less subresponses than its corresponding request
     // does subrequests if TReqExecute::allow_backoff was |true| (because of timeouts).
     repeated int32 part_counts = 1;
 

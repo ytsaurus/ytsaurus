@@ -209,12 +209,12 @@ class TestChunkReincarnatorBase(YTEnvSetup):
                 "chunk_replicator_address",
                 "compressed_data_size",
                 "max_block_size",
-                "schema",  # NB: schema can change only in a specific case, and we check it separately
+                "schema",  # NB: Schema can change only in a specific case, and we check it separately
                 "schema_id",
             ]
 
             if versioned:
-                # NB: size may be different because of uncommitted changes.
+                # NB: Size may be different because of uncommitted changes.
                 unimportant_attrs.append("uncompressed_data_size")
 
             for attr in unimportant_attrs:

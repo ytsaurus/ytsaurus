@@ -13,7 +13,7 @@ using namespace NQueryClient;
 
 TQueryEvaluationContext::~TQueryEvaluationContext()
 {
-    // NB: function contexts should be destroyed before the Expression since Expression hosts destructors.
+    // NB: Function contexts should be destroyed before the Expression since Expression hosts destructors.
     Variables.Clear();
 }
 

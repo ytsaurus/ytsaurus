@@ -38,7 +38,7 @@ NRpc::IAuthenticatorPtr CreateNativeAuthenticator(const IConnectionPtr& connecti
  *  Initially, construct cluster connection from static config, and then update
  *  its dynamic part whenever cluster directory notices connection config update.
  *
- *  NB: in two latter modes there is a period of time such that cluster connection
+ *  NB: In two latter modes there is a period of time such that cluster connection
  *  works with statically generated dynamic config. Therefore, you must be careful with
  *  "counter-fuckup" flags, you may not rely on dynamic config taking strictly the
  *  values from the Cypress at any moment of time. E.g. if corrupt_data = %true in

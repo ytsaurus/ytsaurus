@@ -19,7 +19,7 @@ IChunkSliceFetcherPtr TMockChunkSliceFetcherFactory::CreateChunkSliceFetcher()
 
 void TMockChunkSliceFetcherFactory::RegisterMetadata(auto&& registrar)
 {
-    // NB: this is a very bad way to persist pointers, but it is ok for unittests.
+    // NB: This is a very bad way to persist pointers, but it is ok for unittests.
     registrar.template VirtualField<1>("FetchersAddress_", [] (TThis* this_, auto& context) {
         auto fetchersAddress = Load<intptr_t>(context);
         this_->Fetchers_ = reinterpret_cast<std::vector<TStrictMockChunkSliceFetcherPtr>*>(fetchersAddress);

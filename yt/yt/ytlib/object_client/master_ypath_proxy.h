@@ -28,7 +28,7 @@ struct TMasterYPathProxy
 {
     DEFINE_YPATH_PROXY(Master);
 
-    // NB: when introducing a new method here, consider marking up such requests
+    // NB: When introducing a new method here, consider marking up such requests
     // with suppress_transaction_coordinator_sync.
 
     DEFINE_MUTATING_YPATH_PROXY_METHOD(NProto, CreateObject);

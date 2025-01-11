@@ -117,7 +117,7 @@ private:
             NApi::EMasterChannelKind::Follower,
             cellTag);
 
-        // NB: batch request is still useful here because server will execute requests, packed in batch request in parallel.
+        // NB: Batch request is still useful here because server will execute requests, packed in batch request in parallel.
         // Additionally it's better to send several smaller requests to make sure they don't occupy master for too long.
         auto batchReq = proxy.ExecuteBatch();
         auto objectIdsRange = TRange(objectIds);

@@ -396,7 +396,7 @@ void TOperationOptions::Register(TRegistrar registrar)
         .Default(0)
         .GreaterThanOrEqual(0);
 
-    // NB: defaults for these values are actually in preprocessor of TControllerAgentConfig::OperationOptions.
+    // NB: Defaults for these values are actually in preprocessor of TControllerAgentConfig::OperationOptions.
     registrar.Parameter("controller_building_job_spec_count_limit", &TThis::ControllerBuildingJobSpecCountLimit)
         .Default();
     registrar.Parameter("controller_total_building_job_spec_slice_count_limit", &TThis::ControllerTotalBuildingJobSpecSliceCountLimit)

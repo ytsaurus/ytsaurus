@@ -222,7 +222,7 @@ private:
 
         for (const auto& [slot, stores] : slotToStoresToRelease) {
             auto invoker = slot->GetAutomatonInvoker();
-            // NB: cannot capture structured binding element in lambda.
+            // NB: Cannot capture structured binding element in lambda.
             invoker->Invoke(BIND([slot = slot, stores = stores] {
                 const auto& tabletManager = slot->GetTabletManager();
                 for (const auto& store : stores) {

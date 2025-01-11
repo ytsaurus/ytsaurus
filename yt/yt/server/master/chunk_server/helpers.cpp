@@ -975,7 +975,7 @@ TOwningKeyBound GetUpperKeyBoundOrThrow(const TChunkTree* chunkTree, int keyColu
 {
     // TODO(max42): rewrite without using function above.
     auto upperBoundKey = GetUpperBoundKeyOrThrow(chunkTree, keyColumnCount);
-    // NB: upper bound key may contain min/max sentinels.
+    // NB: Upper bound key may contain min/max sentinels.
     return KeyBoundFromLegacyRow(upperBoundKey, /*isUpper*/ true, keyColumnCount);
 }
 

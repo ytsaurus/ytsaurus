@@ -650,7 +650,7 @@ public:
         if (clonedNode->IsExternal()) {
             auto transactionId = Transaction_->GetId();
 
-            // NB: source node has been locked during LockCopySource, from source node's native cell.
+            // NB: Source node has been locked during LockCopySource, from source node's native cell.
             // Make sure to use correct transaction for copying.
             auto sourceNodeNativeCellTag = CellTagFromId(sourceNodeId);
             auto sourceNodeExternalizedTransactionId = transactionId;
@@ -1851,7 +1851,7 @@ public:
 
     // Returns the mode of the strongest lock among all of the descendants
     // (branches, subbranches, subsubbranches...) of the node.
-    // NB: doesn't distinguish ELockMode::None and ELockMode::Snapshot - returns
+    // NB: Doesn't distinguish ELockMode::None and ELockMode::Snapshot - returns
     // the latter even if there're no locks at all.
     // (This is because snapshot locks may lie arbitrarily deep without
     // affecting ancestors, and we want to avoid traversing the whole subtree.)
@@ -2015,7 +2015,7 @@ public:
                     // instead (see YT_VERIFY below). But profiling showed that this
                     // is significantly faster (in some scenarios, at least).
                     if (lockingState.HasSnapshotLock(t)) {
-                        // NB: this won't find unbranched nodes.
+                        // NB: This won't find unbranched nodes.
                         auto* branchedNode = FindNode(TVersionedNodeId(
                             trunkNode->GetId(),
                             t->GetId()));
@@ -3651,7 +3651,7 @@ private:
         return lock;
     }
 
-    // NB: that this function does _not_ remove nodes from
+    // NB: That this function does _not_ remove nodes from
     // #transaction->LockedNodes(). It's a caller responsibility since almost
     // always this function is caled on transaction finish and it's cheaper to
     // clear whole map |LockedNodes()| at once then removing every given locked
@@ -3939,7 +3939,7 @@ private:
                         if (child) {
                             children[key] = child;
                         } else {
-                            // NB: erase may fail.
+                            // NB: Erase may fail.
                             children.erase(key);
                         }
                     }

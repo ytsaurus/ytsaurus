@@ -460,7 +460,7 @@ void TClient::DoKillProcess(const std::string& address, const TKillProcessOption
     auto req = proxy.Die();
     req->set_exit_code(options.ExitCode);
 
-    // NB: this will always throw an error since the service can
+    // NB: This will always throw an error since the service can
     // never reply to the request because it makes _exit immediately.
     // This is the intended behavior.
     WaitFor(req->Invoke())

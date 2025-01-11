@@ -115,7 +115,7 @@ TPeer::TPeer(
     , Channel_(CreateLocalChannel(RpcServer_))
 {
     RpcServer_->Start();
-    // NB: not creating peer service here as that would require access to Hydra manager.
+    // NB: Not creating peer service here as that would require access to Hydra manager.
 }
 
 void TPeer::Initialize()

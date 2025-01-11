@@ -805,7 +805,7 @@ void TJob::Finalize(TError error)
     YT_VERIFY(Error_);
     auto& currentError = *Error_;
 
-    // NB: we should disable slot here to give scheduler information about job failure.
+    // NB: We should disable slot here to give scheduler information about job failure.
     if (currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandFailed) &&
         !currentError.FindMatching(NExecNode::EErrorCode::GpuCheckCommandIncorrect))
     {
@@ -898,7 +898,7 @@ void TJob::OnJobFinalized()
     JobFinished_.Fire(MakeStrong(this));
 
     if (!currentError.IsOK()) {
-        // NB: it is required to report error that occurred in some place different
+        // NB: It is required to report error that occurred in some place different
         // from OnJobFinished method.
         HandleJobReport(MakeDefaultJobReport().Error(currentError));
     }
@@ -2696,7 +2696,7 @@ void TJob::Cleanup()
     }
 
     // NodeDirectory can be really huge, we better offload its cleanup.
-    // NB: do this after slot cleanup.
+    // NB: Do this after slot cleanup.
     {
         auto* inputNodeDirectory = GuardedJobSpec_.Transform([] (TJobSpec& jobSpec) {
             return jobSpec.MutableExtension(TJobSpecExt::job_spec_ext)
@@ -3224,7 +3224,7 @@ void TJob::BuildVirtualSandbox()
 TUserSandboxOptions TJob::BuildUserSandboxOptions()
 {
     TUserSandboxOptions options;
-    // NB: this eventually results in job graceful abort.
+    // NB: This eventually results in job graceful abort.
     options.DiskOverdraftCallback = BIND(&TJob::Fail, MakeWeak(this))
         .Via(Invoker_);
     // TODO(khlebnikov): Move into volume manager.

@@ -32,7 +32,7 @@ public:
 
     void SetSyncWithUpstream(bool syncWithUpstream);
 
-    // NB: the #additionalFutures is just to save some allocations and avoid doing this all the time:
+    // NB: The #additionalFutures is just to save some allocations and avoid doing this all the time:
     //   auto syncFuture = session->Sync(); // Already calls #AllSucceeded internally.
     //   additionalFutures.push_back(std::move(syncFuture));
     //   AllSucceeded(std::move(additionalFutures)); // Second call to #AllSucceeded.

@@ -470,7 +470,7 @@ private:
 
         response->set_close_demanded(IsCloseDemanded(location));
 
-        // NB: block checksums are validated before writing to disk.
+        // NB: Block checksums are validated before writing to disk.
         auto result = session->PutBlocks(
             firstBlockIndex,
             GetRpcAttachedBlocks(request, /*validateChecksums*/ false),
@@ -2503,7 +2503,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, UpdatePeer)
     {
-        // NB: this method is no longer used, but noop stub is kept here for smooth rolling update.
+        // NB: This method is no longer used, but noop stub is kept here for smooth rolling update.
         context->Reply();
     }
 

@@ -93,7 +93,7 @@ bool TConsistentChunkPlacement::TComparer::operator()(
 
 ui64 TConsistentChunkPlacement::THasher::operator()(NNodeTrackerServer::TNode* node, int index) const
 {
-    // NB: using default address instead of ID here with an eye towards
+    // NB: Using default address instead of ID here with an eye towards
     // someday supporting masterless chunk locate.
     const auto& address = node->GetDefaultAddress();
     // NB: Attempting to avoid serial collisions. That is, if two nodes
@@ -112,7 +112,7 @@ ui64 TConsistentChunkPlacement::THasher::operator()(NNodeTrackerServer::TNode* n
 ui64 TConsistentChunkPlacement::THasher::operator()(const TChunkPlacementGroup* group, int index) const
 {
     YT_VERIFY(!group->Chunks().empty());
-    // NB: all chunks in a group have the same hash.
+    // NB: All chunks in a group have the same hash.
     auto result = group->Chunks().front()->GetConsistentReplicaPlacementHash();
     HashCombine(result, index);
     return result;
@@ -535,7 +535,7 @@ TNodeList TConsistentChunkPlacement::GetWriteTargets(const TChunk* chunk, int me
     while (std::ssize(result) < replicationFactor) {
         result.push_back(*it++);
         if (it == nodeCandidates.end()) {
-            // NB: this cyclic repetition is just for the rare case of misconfiguration,
+            // NB: This cyclic repetition is just for the rare case of misconfiguration,
             // when CRP's replicas per chunk is less then RF. It has been log-alerted above.
             it = nodeCandidates.begin();
         }

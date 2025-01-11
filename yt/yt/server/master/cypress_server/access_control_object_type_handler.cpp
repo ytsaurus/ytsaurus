@@ -110,7 +110,7 @@ private:
 
     TObject* DoGetParent(TAccessControlObject* object) override
     {
-        // NB: this means that access control objects' schema is essentially useless.
+        // NB: This means that access control objects' schema is essentially useless.
         return object->Namespace().Get();
     }
 };

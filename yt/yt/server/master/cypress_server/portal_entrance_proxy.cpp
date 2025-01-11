@@ -65,7 +65,7 @@ private:
                 break;
 
             case EInternedAttributeKey::RecursiveResourceUsage:
-                // NB: suppress falling back to base class, forcing async getter to be called.
+                // NB: Suppress falling back to base class, forcing async getter to be called.
                 return false;
 
             default:
@@ -111,7 +111,7 @@ private:
                             ConvertToNode(TYsonString(rsp->value())),
                             Bootstrap_);
 
-                        // NB: account for both portal entrance and portal exit resource usage.
+                        // NB: Account for both portal entrance and portal exit resource usage.
                         resourceUsage += node->GetTotalResourceUsage();
 
                         TStringStream output;

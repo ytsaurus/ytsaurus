@@ -521,7 +521,7 @@ message TJobResultExt
     repeated TCoreInfo core_infos = 11;
     optional TOutputResult core_result = 12;
 
-    // NB: these fields are used only if job is interrupted.
+    // NB: These fields are used only if job is interrupted.
     repeated NYT.NChunkClient.NProto.TChunkSpec unread_chunk_specs = 14;
     repeated int32 chunk_spec_count_per_unread_data_slice = 15;
     repeated int64 virtual_row_index_per_unread_data_slice = 19;

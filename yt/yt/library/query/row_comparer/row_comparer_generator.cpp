@@ -116,7 +116,7 @@ private:
     const TComparerBuilderOptions Options_;
     LLVMContext& Context_;
 
-    // NB: temporary data which may change during the building process.
+    // NB: Temporary data which may change during the building process.
     BasicBlock* NextBB_;
     BasicBlock* LastBB_;
     Function* Function_;

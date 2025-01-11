@@ -113,7 +113,7 @@ inline void TChunkReplication::Set(int mediumIndex, TReplicationPolicy policy, b
             it->Policy() = policy;
         }
     } else {
-        // NB: ignoring policy.DataPartsOnly as it makes no sense for 0 RF
+        // NB: Ignoring policy.DataPartsOnly as it makes no sense for 0 RF
         Erase(mediumIndex);
     }
 }

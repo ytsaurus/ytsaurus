@@ -1018,7 +1018,7 @@ private:
 
         const auto& config = Config_.Acquire();
 
-        // NB: we try to do heavy work only if we are actually going to omit corresponding message. Conserve priceless CPU time.
+        // NB: We try to do heavy work only if we are actually going to omit corresponding message. Conserve priceless CPU time.
         if (shouldEmit(config->StructuredLoggingMainTopic)) {
             TString requestYson;
             TStringOutput requestOutput(requestYson);

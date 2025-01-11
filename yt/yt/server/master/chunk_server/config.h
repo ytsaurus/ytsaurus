@@ -538,7 +538,7 @@ public:
 
     int TokenDistributionBucketCount;
 
-    // NB: nullability is for testing purposes.
+    // NB: Nullability is for testing purposes.
     std::optional<TDuration> TokenRedistributionPeriod;
 
     int TokensPerNode;

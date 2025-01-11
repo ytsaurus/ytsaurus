@@ -268,7 +268,7 @@ TEST_F(TTestSortedTabletWriteBarrier, TestWriteBarrierUnversionedInFlight)
         },
         ThrowsMessage<std::exception>(HasSubstr("user mutations are still in flight")));
 
-    // NB: in contrast to previous two tests, we cannot expect the same error after recovering from snapshot.
+    // NB: In contrast to previous two tests, we cannot expect the same error after recovering from snapshot.
     // Note that WriteRows is not accepted during recovery.
 
     HydraManager()->ApplyAll();

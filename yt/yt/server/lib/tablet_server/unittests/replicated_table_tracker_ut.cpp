@@ -559,7 +559,7 @@ public:
         Host_->ValidateReplicaModeRemained(replica12);
         Host_->ValidateReplicaModeRemained(replica21);
 
-        // NB: table1 has sync replica11 on Cluster1 and async replica12 on Cluster2.
+        // NB: Table1 has sync replica11 on Cluster1 and async replica12 on Cluster2.
         // and table2 has sync replica22 on Cluster2 and async replica21 on Cluster1.
         return {
             table1, replica11, replica12,

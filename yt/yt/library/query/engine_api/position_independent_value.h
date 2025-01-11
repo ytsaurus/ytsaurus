@@ -27,7 +27,7 @@ union TPositionIndependentValueData
     //! |Boolean| value.
     bool Boolean;
     //! Offset for |String| type or YSON-encoded value for |Any| type.
-    //! NB: string is not zero-terminated, so never use it as a TString.
+    //! NB: String is not zero-terminated, so never use it as a TString.
     //! Use #TPositionIndependentValue::AsStringBuf() instead.
     ptrdiff_t StringOffset;
 };

@@ -269,7 +269,7 @@ TNode* TChunkLocation::SkipImaginaryChunkLocation(NCellMaster::TLoadContext& con
 
     auto* owningNode = Load<TNode*>(context);
 
-    // NB: some compats are too old for trunk.
+    // NB: Some compats are too old for trunk.
 #if 0
     // COMPAT(danilalexeev)
     if (context.GetVersion() >= EMasterReign::MakeDestroyedReplicasSetSharded) {

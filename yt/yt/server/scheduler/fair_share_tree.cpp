@@ -233,7 +233,7 @@ static const auto EmptyListYsonString = BuildYsonStringFluently()
 //!     Clones of this tree are used in heartbeats for scheduling. Also, element attributes from this tree
 //!     are used in orchid, for logging and for profiling.
 //!     This tree represented by #TreeSnapshot_.
-//!     NB: elements of this tree may be invalidated by #Alive flag in resource tree. In this case element cannot be safely used
+//!     NB: Elements of this tree may be invalidated by #Alive flag in resource tree. In this case element cannot be safely used
 //!     (corresponding operation or pool can be already deleted from all other scheduler structures).
 //!
 //!   * Resource tree, it is thread safe tree that maintain shared attributes of tree elements.

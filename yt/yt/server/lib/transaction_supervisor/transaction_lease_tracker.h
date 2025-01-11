@@ -43,7 +43,7 @@ using TTransactionLeaseExpirationHandler = TCallback<void(TTransactionId)>;
 struct ITransactionLeaseTracker
     : public TRefCounted
 {
-    // NB: all comments below are related to the implementation produced by
+    // NB: All comments below are related to the implementation produced by
     // #CreateTransactionLeaseTracker. The implementation from #CreateNullTransactionLeaseTracker
     // is effectively no-op for each call.
 

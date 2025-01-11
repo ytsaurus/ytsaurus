@@ -1176,7 +1176,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
         run_sleeping_vanilla()
 
-        # NB: we cannot check equality, since operations from previous tests may affect counter
+        # NB: We cannot check equality, since operations from previous tests may affect counter
         wait(lambda: operation_scheduling_index_attempt_count.get_delta() >= 1)
         wait(lambda: max_operation_scheduling_index.get_delta() >= 1)
 

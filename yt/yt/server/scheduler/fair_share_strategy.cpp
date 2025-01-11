@@ -406,7 +406,7 @@ public:
             }
 
             // Update configs and pools structure of all trees.
-            // NB: it updates already existing trees inplace.
+            // NB: It updates already existing trees inplace.
             std::vector<TString> updatedTreeIds;
             UpdateTreesConfigs(
                 poolsMap,
@@ -2301,7 +2301,7 @@ private:
 
             for (auto& [key, value] : newStatisticsPerTree) {
                 auto it = MeteringStatistics_.find(key);
-                // NB: we are going to have some accumulated values for metering.
+                // NB: We are going to have some accumulated values for metering.
                 if (it != MeteringStatistics_.end()) {
                     TMeteringStatistics delta(
                         value.StrongGuaranteeResources(),

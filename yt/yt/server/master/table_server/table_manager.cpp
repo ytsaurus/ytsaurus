@@ -98,7 +98,7 @@ public:
 
     ETypeFlags GetFlags() const override
     {
-        // NB: schema objects are cell-local. Different cells have differing schema sets.
+        // NB: Schema objects are cell-local. Different cells have differing schema sets.
         return ETypeFlags::None;
     }
 
@@ -294,7 +294,7 @@ public:
             return;
         }
 
-        // NB: a newly created schema object has zero reference count.
+        // NB: A newly created schema object has zero reference count.
         // Thus the new schema may technically be not alive here.
         YT_VERIFY(!schema->IsGhost());
 
@@ -361,7 +361,7 @@ public:
         auto& chunkSchema =  chunk->Schema();
         YT_VERIFY(!chunkSchema);
 
-        // NB: a newly created schema object has zero reference count.
+        // NB: A newly created schema object has zero reference count.
         // Thus the new schema may technically be not alive here.
         YT_VERIFY(!schema->IsGhost());
 
@@ -468,7 +468,7 @@ public:
         const NTableClient::TTableSchema& schema,
         TChunk* schemaHolder) override
     {
-        // NB: a newly created chunk in operation can have zero reference count.
+        // NB: A newly created chunk in operation can have zero reference count.
         // Thus it may technically be not alive here.
         YT_VERIFY(!schemaHolder->IsGhost());
 
@@ -603,7 +603,7 @@ public:
             TReqImportMasterTableSchema request;
 
             ToProto(request.mutable_schema_id(), schema->GetId());
-            // NB: this sometimes will lead to a synchronous serialization of
+            // NB: This sometimes will lead to a synchronous serialization of
             // schemas in automaton thread. This is unavoidable.
             ToProto(request.mutable_schema(), schema->AsTableSchema());
 

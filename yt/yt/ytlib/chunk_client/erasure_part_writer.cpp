@@ -82,7 +82,7 @@ std::vector<IChunkWriterPtr> CreateErasurePartWriters(
         auto partSessionId = TSessionId(
             ErasurePartIdFromChunkId(sessionId.ChunkId, partIndex),
             sessionId.MediumIndex);
-        // NB: the order of replicas is significant (at least for consistently
+        // NB: The order of replicas is significant (at least for consistently
         // placed chunks).
         writers.push_back(CreateReplicationWriter(
             partConfig,

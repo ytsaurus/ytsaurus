@@ -99,7 +99,7 @@ void TObjectPartCoWPtr<TObjectPart>::Load(NCellMaster::TLoadContext& context)
         SERIALIZATION_DUMP_WRITE(context, "objref %v", loadedKey);
     } else {
         ObjectPart_ = context.template GetRawEntity<TObjectPart>(key);
-        // NB: this only works iff the ref counter is embedded into the object.
+        // NB: This only works iff the ref counter is embedded into the object.
         // This is essentially the same as re-wrapping raw ptrs into intrusive ones.
         ObjectPart_->Ref();
         SERIALIZATION_DUMP_WRITE(context, "objref %v", key);

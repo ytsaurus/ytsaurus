@@ -32,7 +32,7 @@ bool IsTombstone(const NRecords::TNodeFork& record)
     // and on removal. This allows us to derive fork kind from
     // "progenitor_transaction_id" field.
 
-    // NB: the alternative solution could be to mark such tombstone records
+    // NB: The alternative solution could be to mark such tombstone records
     // with null path.
 
     return record.ProgenitorTransactionId != record.Key.TransactionId;

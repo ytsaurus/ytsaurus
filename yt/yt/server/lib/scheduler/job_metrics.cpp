@@ -185,7 +185,7 @@ bool TJobMetrics::IsEmpty() const
 
 void TJobMetrics::Profile(NProfiling::ISensorWriter* writer) const
 {
-    // NB: all job metrics are counters since we use straightforward aggregation of deltas.
+    // NB: All job metrics are counters since we use straightforward aggregation of deltas.
     for (auto metricName : TEnumTraits<EJobMetricName>::GetDomainValues()) {
         writer->AddCounter("/metrics/" + FormatEnum(metricName), Values_[metricName]);
     }

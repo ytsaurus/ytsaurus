@@ -1306,7 +1306,7 @@ public:
 
             unexportChunk();
 
-            // NB: don't use requisitionBefore after unexporting (but replicationBefore is ok).
+            // NB: Don't use requisitionBefore after unexporting (but replicationBefore is ok).
 
             UpdateChunkSchemaMasterMemoryUsage(chunk, +1, nullptr);
             if (isChunkDiskSizeFinal) {
@@ -3697,7 +3697,7 @@ private:
         YT_VERIFY(nodeTotalSpace != 0);
 
         auto bucket = 0;
-        // NB: binary search could've been used here, but the distribution is very small.
+        // NB: Binary search could've been used here, but the distribution is very small.
         for (auto it = mediumDistribution.rbegin(); it != mediumDistribution.rend(); ++it) {
             if (nodeTotalSpace <= *it) {
                 break;
@@ -3845,7 +3845,7 @@ private:
 
             const auto isChunkDiskSizeFinal = chunk->IsDiskSizeFinal();
 
-            // NB: changing chunk's requisition may unreference and destroy the old requisition.
+            // NB: Changing chunk's requisition may unreference and destroy the old requisition.
             // Worse yet, this may, in turn, weak-unreference some accounts, thus triggering
             // destruction of their control blocks (that hold strong and weak counters).
             // So be sure to use the old requisition *before* setting the new one.
@@ -3859,7 +3859,7 @@ private:
 
             setChunkRequisitionIndex(chunk, newRequisitionIndex);
 
-            // NB: don't use requisitionBefore after the change.
+            // NB: Don't use requisitionBefore after the change.
 
             UpdateChunkSchemaMasterMemoryUsage(chunk, +1, nullptr);
             if (isChunkDiskSizeFinal && chunk->IsNative()) {
@@ -3953,7 +3953,7 @@ private:
 
     std::vector<TRequisitionUpdate> TranslateChunkRequisitionUpdateRequest(NProto::TReqUpdateChunkRequisition* request)
     {
-        // NB: this is necessary even for local requests as requisition indexes
+        // NB: This is necessary even for local requests as requisition indexes
         // in the request are different from those in the registry.
         auto translateRequisitionIndex = BuildChunkRequisitionIndexTranslator(*request);
 
@@ -4827,7 +4827,7 @@ private:
 
             CrpChunkCount_ = std::ssize(crpChunks);
             for (auto* chunk : crpChunks) {
-                // NB: chunks are added after nodes!
+                // NB: Chunks are added after nodes!
                 ConsistentChunkPlacement_->AddChunk(chunk);
             }
 
@@ -6157,7 +6157,7 @@ private:
 
         RedistributeConsistentReplicaPlacementTokensExecutor_->SetPeriod(
             newCrpConfig->TokenRedistributionPeriod);
-        // NB: no need to immediately handle bucket count or token-per-node count
+        // NB: No need to immediately handle bucket count or token-per-node count
         // changes: this will be done in due time by the periodic.
 
         ConsistentChunkPlacement_->SetChunkReplicaCount(newCrpConfig->ReplicasPerChunk);

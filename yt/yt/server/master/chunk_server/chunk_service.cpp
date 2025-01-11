@@ -741,7 +741,7 @@ private:
         ValidatePeer(EPeerKind::Leader);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        // NB: supporting lazy transaction replication here is required for (at
+        // NB: Supporting lazy transaction replication here is required for (at
         // least) the following reason. When starting operations, controller
         // agents first start all the necessary transactions, only then getting
         // basic attributes for output & debug tables. Thus, at the moment of
@@ -886,7 +886,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         auto suppressUpstreamSync = GetSuppressUpstreamSync(context->RequestHeader());
-        // NB: supporting lazy transaction replication here is required for (at
+        // NB: Supporting lazy transaction replication here is required for (at
         // least) the following reason. When starting operations, controller
         // agents first start all the necessary transactions, only then getting
         // basic attributes for output & debug tables. Thus, at the moment of

@@ -26,7 +26,7 @@ public:
     std::string GetLowercaseObjectName() const override;
     std::string GetCapitalizedObjectName() const override;
 
-    // NB: exception is raised upon validation fails. Caller is obliged to restore correct state.
+    // NB: Exception is raised upon validation fails. Caller is obliged to restore correct state.
     void FullValidate();
     void ValidateChildrenCompatibility();
     void ValidateStrongGuarantees(const NScheduler::TFairShareStrategyTreeConfigPtr& poolTreeConfig) const;

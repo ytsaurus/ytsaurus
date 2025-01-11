@@ -373,7 +373,7 @@ private:
  *    - path_to_node_id
  *    - node_id_to_path
  *
- *  NB: select(* from <resolve table> where tx_id == {T}) can be ineffective
+ *  NB: Select(* from <resolve table> where tx_id == {T}) can be ineffective
  *  because tx_id isn't the first key column in resolve tables. Therefore, we
  *  start with fetching transaction's "delta" from "node_forks" and
  *  "node_snapshots" Sequoia table and then we know all changes under Cypress
@@ -381,7 +381,7 @@ private:
  *  sufficient to handle all changes to parent tx on commit so no read of
  *  resolve tables is needed.
  *
- *  NB: every Sequoia transaction which can finish some Cypress transactions is
+ *  NB: Every Sequoia transaction which can finish some Cypress transactions is
  *  either commit or abort of the single Cypress transaction. This Sequoia
  *  transaction may abort more than one Cypress transactions (e.g. nested or
  *  dependent transactions) but there is no more than one _committed_ Cypress
@@ -877,7 +877,7 @@ private:
         // |std::vector(allAncestors.begin(), allAncestors.end())|.
         AncestorIds_.reserve(allAncestors.size());
         for (const auto& record : transactions) {
-            // NB: ancestor_ids in "transactions" Sequoia table are always
+            // NB: Ancestor_ids in "transactions" Sequoia table are always
             // topologically sorted.
             for (auto ancestorId : record->AncestorIds) {
                 if (auto it = allAncestors.find(ancestorId); it != allAncestors.end()) {
@@ -984,7 +984,7 @@ private:
         }
 
         if (auto error = result.FindMatching(NSequoiaClient::EErrorCode::SequoiaTableCorrupted)) {
-            // NB: consider disabling Cypress tx mirroring by setting
+            // NB: Consider disabling Cypress tx mirroring by setting
             // //sys/@config/sequoia_manager/enable_cypress_transactions_in_sequoia to false.
             // Ensure that you actually know what are you doing.
             YT_LOG_ALERT(
@@ -1097,7 +1097,7 @@ private:
     const TCellTagList ReplicateToCellTags_;
     const std::vector<TTransactionId> PrerequisiteTransactionIds_;
 
-    // NB: transaction ID is set after Sequoia tx is started.
+    // NB: Transaction ID is set after Sequoia tx is started.
     NTransactionServer::NProto::TReqStartCypressTransaction Request_;
 
     static TCellTagList BuildReplicateToCellTags(TCellTag thisCellTag, TCellTagList cellTags)
@@ -1149,14 +1149,14 @@ private:
             CellTagFromId(CoordinatorCellId_),
             MakeTransactionActionData(Request_));
 
-        // NB: all of these transactions should be already locked.
+        // NB: All of these transactions should be already locked.
         for (auto prerequisiteTransactionId : PrerequisiteTransactionIds_) {
             if (!IsSequoiaId(prerequisiteTransactionId)) {
                 // One may use system transaction as prerequisite. Since system
                 // transactions are not mirrored we shouldn't put any info about
                 // them into Sequoia tables.
 
-                // NB: abort of such dependent transactions will be replicated
+                // NB: Abort of such dependent transactions will be replicated
                 // via Hive.
                 continue;
             }
@@ -1331,7 +1331,7 @@ public:
         std::vector<TTransactionId> DependentTransactionSubtreeRoots;
         THashMap<TTransactionId, NRecords::TTransaction> Transactions;
 
-        // NB: despite we fetch records from "dependent_transactions" and
+        // NB: Despite we fetch records from "dependent_transactions" and
         // "transaction_descendants" we don't return them since they are not
         // required to handle transaction finish: record from "transactions"
         // table contains "prerequisite_transaction_ids" and "ancestor_ids" and
@@ -1371,7 +1371,7 @@ private:
                 continue;
             }
 
-            // NB: checking transaction's parent is sufficient: if some ancestor
+            // NB: Checking transaction's parent is sufficient: if some ancestor
             // "A" of transaction "T" is collected then all its descendants are
             // collected too; so one of these descendants is parent of "T".
             if (record.AncestorIds.empty() ||

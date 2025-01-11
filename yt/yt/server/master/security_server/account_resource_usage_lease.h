@@ -30,7 +30,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TClusterResources, Resources);
 
 public:
-    // NB: it is necessary for LoadKeys in EntityMap.
+    // NB: It is necessary for LoadKeys in EntityMap.
     using TObject::TObject;
 
     TAccountResourceUsageLease(

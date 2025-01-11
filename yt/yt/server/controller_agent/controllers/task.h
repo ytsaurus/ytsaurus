@@ -449,7 +449,7 @@ private:
 
     //! Caches results of SerializeToWireProto serializations.
     // NB: This field is transient intentionally.
-    // NB: this field is used in BuildJobSpecProto which is run in an non-serialized invoker,
+    // NB: This field is used in BuildJobSpecProto which is run in an non-serialized invoker,
     // so access it only under the following spinlock.
     THashMap<NTableClient::TTableSchemaPtr, TString> TableSchemaToProtobufTableSchema_;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, TableSchemaToProtobufTableSchemaLock_);

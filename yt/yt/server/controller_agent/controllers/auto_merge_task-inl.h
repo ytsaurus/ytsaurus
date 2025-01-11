@@ -25,7 +25,7 @@ public:
         }
 
         auto result = TUnderlyingTask::GetPendingJobCount();
-        // NB: automerge works only in regular computation.
+        // NB: Automerge works only in regular computation.
         result.DefaultCount = std::min(
             result.DefaultCount,
             this->TaskHost_->GetAutoMergeDirector()->GetTaskPendingJobCountLimit());
@@ -111,7 +111,7 @@ public:
     }
 
 private:
-    // NB: this field is intentionally transient (otherwise automerge can stuck after loading from snapshot).
+    // NB: This field is intentionally transient (otherwise automerge can stuck after loading from snapshot).
     bool CanScheduleJob_ = true;
     // Our current best estimate to the number of chunks in the next job we are able to schedule.
     int LastChunkCount_ = 1;

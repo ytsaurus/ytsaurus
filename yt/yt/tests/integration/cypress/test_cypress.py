@@ -2319,7 +2319,7 @@ class TestCypress(YTEnvSetup):
     def test_expiration_timeout4(self):
         create("table", "//tmp/t1", attributes={"expiration_timeout": 4000})
         for i in range(10):
-            # NB: asking if whether the node exists prolongs its life.
+            # NB: Asking if whether the node exists prolongs its life.
             assert exists("//tmp/t1")
             time.sleep(1.0)
 
@@ -3377,7 +3377,7 @@ class TestCypress(YTEnvSetup):
         create("map_node", "//tmp/test_node")
 
         create("table", "//tmp/test_node/child", tx=tx1)
-        # NB: this isn't exactly equivalent to
+        # NB: This isn't exactly equivalent to
         # test_user_attribute_removal2_yt_10192, but since one can't
         # directly create a map node's child via 'set', this is the
         # closest we can get.

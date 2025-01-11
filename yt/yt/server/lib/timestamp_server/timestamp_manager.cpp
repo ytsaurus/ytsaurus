@@ -257,7 +257,7 @@ private:
             newCurrentTimestamp = EmbedCellTagIntoTimestamp(newCurrentTimestamp, CellTag_);
         }
 
-        // NB: the check is for sanity.
+        // NB: The check is for sanity.
         if (newCurrentTimestamp > CurrentTimestamp_) {
             CurrentTimestamp_ = newCurrentTimestamp;
         }

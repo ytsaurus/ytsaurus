@@ -52,7 +52,7 @@ TExecNodeDescriptorPtr TExecNode::BuildExecDescriptor() const
 
 void TExecNode::SetIOWeights(const THashMap<TString, double>& mediumToWeight)
 {
-    // NB: surely, something smarter than this should be done with individual medium weights here.
+    // NB: Surely, something smarter than this should be done with individual medium weights here.
     IOWeight_ = 0.0;
     for (const auto& [medium, weight] : mediumToWeight) {
         IOWeight_ += weight;

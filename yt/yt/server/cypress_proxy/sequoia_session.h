@@ -64,7 +64,7 @@ public:
     using TCypressTransactionAncestry = std::vector<NCypressClient::TTransactionId>;
     using TCypressTransactionAncestryView = TRange<NCypressClient::TTransactionId>;
 
-    // NB: trunk depth is zero.
+    // NB: Trunk depth is zero.
     using TCypressTransactionDepths = absl::flat_hash_map<
         NCypressClient::TTransactionId,
         int,
@@ -238,13 +238,13 @@ public:
     /*!
      *  Returns |nullopt| if there is no such node under current Cypress tx.
      *
-     *  NB: caches link's target path if needed.
+     *  NB: Caches link's target path if needed.
      */
     std::optional<TResolvedNodeId> FindNodePath(NCypressClient::TNodeId id);
 
     //! Finds target path of link.
     /*!
-     *  NB: if this node was already fetched from "node_id_to_path" Sequoia
+     *  NB: If this node was already fetched from "node_id_to_path" Sequoia
      *  table this method is no-op.
      */
     NSequoiaClient::TAbsoluteYPath GetLinkTargetPath(NCypressClient::TNodeId linkId);

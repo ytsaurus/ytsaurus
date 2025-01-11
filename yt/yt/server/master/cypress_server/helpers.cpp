@@ -66,7 +66,7 @@ const NDetail::TKeyToCypressNodeImpl<TChild>& GetMapNodeChildMapImpl(
 
             for (const auto& [childId, childNode] : keyToChild) {
                 if (!childNode) {
-                    // NB: key may be absent.
+                    // NB: Key may be absent.
                     storage->erase(childId);
                 } else {
                     (*storage)[childId] = childNode;
@@ -318,7 +318,7 @@ THashMap<TString, NYson::TYsonString> GetNodeAttributes(
                 if (value) {
                     result[key] = value;
                 } else {
-                    // NB: key may be absent.
+                    // NB: Key may be absent.
                     result.erase(key);
                 }
             }
@@ -343,7 +343,7 @@ THashSet<std::string> ListNodeAttributes(
                 if (value) {
                     result.insert(key);
                 } else {
-                    // NB: key may be absent.
+                    // NB: Key may be absent.
                     result.erase(key);
                 }
             }

@@ -523,7 +523,7 @@ private:
 
         MaybeRewriteSubrequestTargetPath(subrequest, resolveResult);
 
-        // NB: this can crash on invalid request header but it has been already
+        // NB: This can crash on invalid request header but it has been already
         // parsed before in order to predict if subrequest should be handled by
         // master.
         auto context = CreateSequoiaServiceContext(subrequest->RequestMessage);

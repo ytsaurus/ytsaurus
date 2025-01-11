@@ -583,7 +583,7 @@ TErrorOr<std::vector<TGpuSlotPtr>> TGpuManager::AcquireGpuSlots(int slotCount)
     int levelCount = 4;
     int maxLevelIndex = levelCount - 1;
 
-    // NB: std::map used to make the behaviour deterministic.
+    // NB: Std::map used to make the behaviour deterministic.
     std::vector<std::map<int, std::vector<int>>> freeDeviceIndexPerLevelPerGroup(levelCount);
     for (auto index : FreeSlots_) {
         YT_VERIFY(index < (1 << maxLevelIndex));

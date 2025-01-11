@@ -2212,7 +2212,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
         newRootChunkList->GetId(),
         accountId);
 
-    // NB: this may destroy old chunk list, so be sure to schedule requisition
+    // NB: This may destroy old chunk list, so be sure to schedule requisition
     // update beforehand.
     chunkOwner->SetChunkList(newRootChunkList);
 

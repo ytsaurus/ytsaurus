@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/ytree/interned_attributes.h>
 
-// NB: interned attributes are serialized and saved as strings.
+// NB: Interned attributes are serialized and saved as strings.
 // Do not change those snake-case identifiers lightly!
 
 #define FOR_EACH_INTERNED_ATTRIBUTE(XX) \

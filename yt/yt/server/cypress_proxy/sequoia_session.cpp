@@ -76,7 +76,7 @@ TCypressTransactionDepths EnumerateCypressTransactionAncestry(TCypressTransactio
 {
     VerifyCypressTransactionAncestryInitialized(ancestry);
 
-    // NB: transactions have to be sorted by depth in ascending order.
+    // NB: Transactions have to be sorted by depth in ascending order.
     TCypressTransactionDepths depths;
     depths.reserve(ancestry.size());
     for (auto [index, cypressTransactionId] : Enumerate(ancestry)) {
@@ -100,7 +100,7 @@ void SortRecordsByTransactionDepth(
     std::vector<TRecord>* record,
     const TCypressTransactionDepths& transactionDepths)
 {
-    // NB: we cannot sort as part of select query because transaction IDs
+    // NB: We cannot sort as part of select query because transaction IDs
     // are stored as strings.
     SortBy(*record, [&] (const TRecord& record) {
         return std::pair(
@@ -157,7 +157,7 @@ void FillProgenitorTransactionCache(
     const TMangledSequoiaPath* currentPath = nullptr;
 
     // Find the progenitor tx under which such path exists.
-    // NB: absence of the record for some transactions means that path wasn't
+    // NB: Absence of the record for some transactions means that path wasn't
     // changed in this transaction (i.e. neither new node was created nor
     // existing node was removed or replaced).
     for (const auto& record : currentRecords) {
@@ -188,7 +188,7 @@ void FillProgenitorTransactionCache(
     }
 
     if (parentRecords.Empty()) {
-        // NB: scions and snapshot nodes don't have a parent.
+        // NB: Scions and snapshot nodes don't have a parent.
         return;
     }
 
@@ -838,7 +838,7 @@ void TSequoiaSession::DetachAndRemoveSubtree(
         AcquireCypressLockInSequoia(node.Id, ELockMode::Exclusive);
     }
 
-    // NB: scions don't have parents.
+    // NB: Scions don't have parents.
     if (parentId) {
         if (detachInLatePrepare) {
             RequireLatePrepareOnNativeCellFor(parentId);
@@ -1095,7 +1095,7 @@ TNodeId TSequoiaSession::CreateMapNodeChain(
     // owns the attachment point (node which already exists).
     RequireLatePrepareOnNativeCellFor(startId);
 
-    // NB: this is the only node which was visible before current Sequoia
+    // NB: This is the only node which was visible before current Sequoia
     // request so there can be concurrent (Cypress) lock request for this node.
     // To simplify conflict detection we C-lock this node in late prepare.
     if (!names.Empty()) {

@@ -14,7 +14,7 @@
 
 #include <library/cpp/yt/yson_string/string.h>
 
-// NB: almost always these helpers should not be called directly since they
+// NB: Almost always these helpers should not be called directly since they
 // don't take into account transactions and branches. Moreover, in the future
 // tx action ordering should be moved from Sequoia tx to |TSequoiaSession| which
 // means that _all_ interactions with Cypress should be done via

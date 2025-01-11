@@ -179,7 +179,7 @@ public:
         , Path_(path)
         , DetachedTmpfsUmount_(detachedTmpfsUmount)
     {
-        // NB: iterating over /proc/mounts is not reliable,
+        // NB: Iterating over /proc/mounts is not reliable,
         // see https://bugs.debian.org/cgi-bin/bugreport.cgi?bug=593516.
         // To avoid problems with undeleting tmpfs ordered by user in sandbox
         // we always try to remove it several times.

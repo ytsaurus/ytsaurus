@@ -25,7 +25,7 @@ void TPoolResources::Register(TRegistrar registrar)
 
 bool TPoolResources::IsNonNegative()
 {
-    // NB: fields of type TJobResourcesConfig cannot be negative.
+    // NB: Fields of type TJobResourcesConfig cannot be negative.
     return (!MaxOperationCount.has_value() || MaxOperationCount >= 0) &&
         (!MaxRunningOperationCount.has_value() || MaxRunningOperationCount >= 0);
 }

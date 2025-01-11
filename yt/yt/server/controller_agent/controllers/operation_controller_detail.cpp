@@ -941,7 +941,7 @@ void TOperationControllerBase::InitializeOrchid()
         return createServiceWithInvoker(wrapWithMap(std::move(fluentMethod)), key);
     };
 
-    // NB: we may safely pass unretained this below as all the callbacks are wrapped with a createService helper
+    // NB: We may safely pass unretained this below as all the callbacks are wrapped with a createService helper
     // that takes care on checking the controller presence and properly replying in case it is already destroyed.
     auto service = New<TCompositeMapService>()
         ->AddChild(
@@ -1167,7 +1167,7 @@ TOperationControllerPrepareResult TOperationControllerBase::SafePrepare()
 
     CustomPrepare();
 
-    // NB: these calls must be after CustomPrepare() since some controllers may alter input table ranges
+    // NB: These calls must be after CustomPrepare() since some controllers may alter input table ranges
     // (e.g. TEraseController which inverts the user-provided range).
     InferInputRanges();
     InitInputStreamDirectory();
@@ -1517,7 +1517,7 @@ bool TOperationControllerBase::IsTransactionNeeded(ETransactionType type) const
             YT_ABORT();
         case ETransactionType::Output:
         case ETransactionType::OutputCompletion:
-            // NB: cannot replace with OutputTables_.empty() here because output tables are not ready yet.
+            // NB: Cannot replace with OutputTables_.empty() here because output tables are not ready yet.
             return !GetOutputTablePaths().empty();
         case ETransactionType::Debug:
         case ETransactionType::DebugCompletion:
@@ -1544,7 +1544,7 @@ void TOperationControllerBase::StartTransactions()
     std::vector<TFuture<NNative::ITransactionPtr>> asyncResults = {
         StartTransaction(ETransactionType::Async, Client),
         StartTransaction(ETransactionType::Output, OutputClient, GetOutputTransactionParentId()),
-        // NB: we do not start Debug transaction under User transaction since we want to save debug results
+        // NB: We do not start Debug transaction under User transaction since we want to save debug results
         // even if user transaction is aborted.
         StartTransaction(ETransactionType::Debug, Client),
     };
@@ -1648,7 +1648,7 @@ TFuture<NNative::ITransactionPtr> TOperationControllerBase::StartTransaction(
 
     TCellTagList replicateToCellTags;
     switch (type) {
-        // NB: these transactions are started when no basic attributes have been
+        // NB: These transactions are started when no basic attributes have been
         // fetched yet and collecting cell tags is therefore useless.
         case ETransactionType::Async:
         case ETransactionType::Input:
@@ -1861,7 +1861,7 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
     const i64 desiredChunkDataWeight = std::clamp<i64>(desiredChunkSize / InputCompressionRatio, 1, maxChunkDataWeight);
     const i64 dataWeightPerJob = desiredChunkDataWeight;
 
-    // NB: if row count limit is set on any output table, we do not
+    // NB: If row count limit is set on any output table, we do not
     // enable auto merge as it prematurely stops the operation
     // because wrong statistics are currently used when checking row count.
     for (int index = 0; index < std::ssize(OutputTables_); ++index) {
@@ -6137,7 +6137,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         }
     }
 
-    // NB: use root credentials.
+    // NB: Use root credentials.
     auto proxy = CreateObjectServiceWriteProxy(client);
     auto batchReq = proxy.ExecuteBatch();
 
@@ -7023,7 +7023,7 @@ void TOperationControllerBase::FetchUserFiles()
                         req->set_throw_on_chunk_views(true);
                     }
                 }
-                // NB: we always fetch parity replicas since
+                // NB: We always fetch parity replicas since
                 // erasure reader can repair data on flight.
                 req->set_fetch_parity_replicas(true);
                 AddCellTagToSyncWith(req, file.ObjectId);
@@ -8619,7 +8619,7 @@ void TOperationControllerBase::RegisterRecoveryInfo(
     const TChunkStripePtr& stripe)
 {
     for (const auto& dataSlice : stripe->DataSlices) {
-        // NB: intermediate slice must be trivial.
+        // NB: Intermediate slice must be trivial.
         auto chunkId = dataSlice->GetSingleUnversionedChunk()->GetChunkId();
         YT_VERIFY(ChunkOriginMap.emplace(chunkId, completedJob).second);
     }
@@ -9046,7 +9046,7 @@ void TOperationControllerBase::UnregisterJobForMonitoring(const TJobletPtr& jobl
         InsertOrCrash(MonitoringDescriptorIndexPool_, joblet->UserJobMonitoringDescriptor->Index);
         EraseOrCrash(JobIdToMonitoringDescriptor_, joblet->JobId);
         --MonitoredUserJobCount_;
-        // NB: we do not want to remove index, but old version of logic can be done with the following call.
+        // NB: We do not want to remove index, but old version of logic can be done with the following call.
         // Host->ReleaseJobMonitoringDescriptor(OperationId, joblet->UserJobMonitoringDescriptor->Index);
     }
     if (MonitoredUserJobCount_ <= MonitoredUserJobAttemptCount_) {
@@ -9562,7 +9562,7 @@ void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
         }
     }
 
-    // NB: this routine will be done in a separate thread pool.
+    // NB: This routine will be done in a separate thread pool.
     auto buildAggregatedStatisticsHeavy = [this, snapshots = std::move(snapshots), statisticsLimit, Logger = this->Logger] {
         TAggregatedJobStatistics runningJobStatistics;
         bool isLimitExceeded = false;

@@ -1052,7 +1052,7 @@ class TestPortals(YTEnvSetup):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 
         assert get("//tmp/p/@inherit_acl")
-        # NB: denying removal for portal exit only!
+        # NB: Denying removal for portal exit only!
         set("//tmp/p&/@acl", [make_ace("deny", "u", "remove", "object_and_descendants")])
         wait(lambda: get("//tmp/p&/@effective_acl") == get("//tmp/p/@effective_acl"))
 

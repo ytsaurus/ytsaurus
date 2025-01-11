@@ -876,7 +876,7 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         create("map_node", "//tmp/p12/d", tx=t12_tx_coord)
         # This cell is tx coordinator so all transactions should be already
         # present here.
-        # NB: every transaction should be present on primary cell since portal
+        # NB: Every transaction should be present on primary cell since portal
         # entrance resolve is being done under this transaction.
         check_transaction(root, [], all_txs, [10, 13])
         check_transaction(t12_tx_coord, [root], [], [10])
@@ -1040,7 +1040,7 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
         create("portal_entrance", "//tmp/p11", attributes={"exit_cell_tag": 11})
         create("map_node", "//tmp/p11/m", tx=t5)
 
-        # NB: t5 is already replicated to cell 13.
+        # NB: T5 is already replicated to cell 13.
         create("portal_entrance", "//tmp/p13", attributes={"exit_cell_tag": 13})
         create("map_node", "//tmp/p13/m", tx=t5)
 
@@ -1170,7 +1170,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
     def fetch_resolve_table(self, table_descriptor):
         query = f"select * from [{table_descriptor.get_default_path()}]"
         if table_descriptor is DESCRIPTORS.node_id_to_path:
-            # NB: we have to filter out symlinks which are mirrored to Sequoia.
+            # NB: We have to filter out symlinks which are mirrored to Sequoia.
             query += " where not is_prefix('//sys', path)"
         elif table_descriptor is DESCRIPTORS.child_node:
             # TODO(kvk1920): drop when YT-23209 will be done.
@@ -1380,7 +1380,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
             self.path_to_node_id("//tmp/s/a/f", None, tx=tx1),
             self.path_to_node_id("//tmp/s/a/b/c/d", None, tx=tx1),
 
-            # NB: tomstones for nested removed nodes can be useful for resolve
+            # NB: Tomstones for nested removed nodes can be useful for resolve
             # optimization (i.e. don't lookup nodes near the scion).
             self.path_to_node_id("//tmp/s/a/b/c/d/e", None, tx=tx1),
         ]
@@ -1397,7 +1397,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
             self.child_node(b_new_id, "c", c_new_id, tx=tx1),
             self.child_node(b_new_id, "g", g_id, tx=tx1),
 
-            # NB: tombstones for the children of removed node are useless. There
+            # NB: Tombstones for the children of removed node are useless. There
             # is even no node with ID |b_id|. But we still keep them to simplify
             # resolve table modification: it's simplier to not distinguish
             # nested node and subtree root removal.
@@ -2051,7 +2051,7 @@ class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
         types = {
             "map_node": 303,
             "table": 401,
-            "rootstock": 12001,  # NB: it's scion type.
+            "rootstock": 12001,  # NB: It's scion type.
         }
 
         cell_tag = 10

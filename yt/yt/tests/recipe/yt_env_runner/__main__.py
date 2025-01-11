@@ -53,7 +53,7 @@ def run_yt_env(config_path: str) -> None:
         assert hasattr(YTEnvRunner, k), f"Unknown yt env config option {k}"
         setattr(YTEnvRunner, k, v)
 
-    # NB: this option affects YT env setup only. Tests still may use whatever
+    # NB: This option affects YT env setup only. Tests still may use whatever
     # proxies/drivers they want.
     YTEnvRunner.DRIVER_BACKEND = "native"
 
@@ -61,7 +61,7 @@ def run_yt_env(config_path: str) -> None:
     runner.setup()
 
     # Set environment variables.
-    # NB: set_env(k, v) writes (k, v) into the special file instead of actually
+    # NB: Set_env(k, v) writes (k, v) into the special file instead of actually
     # setting environment variable so it's OK to call it in YT runner process.
 
     if runner.Env.yt_config.http_proxy_count > 0 and runner.ENABLE_HTTP_PROXY:

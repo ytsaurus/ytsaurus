@@ -59,7 +59,7 @@ public:
 
         const auto& connection = GetConnection();
         {
-            // NB: initialize happens after master cell directory synchronization starts.
+            // NB: Initialize happens after master cell directory synchronization starts.
             auto guard = Guard(Lock_);
             AddCachingObjectService(connection->GetPrimaryMasterCellId());
             for (const auto& cellId : connection->GetMasterCellDirectory()->GetSecondaryMasterCellIds()) {

@@ -1478,7 +1478,7 @@ private:
         const auto& descriptor = *tablet->BackupCutoffDescriptor();
 
         std::vector<TChunkTree*> storesToDetach;
-        // NB: cannot use tablet->DynamicStores() since dynamic stores in the chunk list
+        // NB: Cannot use tablet->DynamicStores() since dynamic stores in the chunk list
         // in fact belong to the other tablet and are not linked with this one.
         for (auto* child : EnumerateStoresInChunkTree(tablet->GetChunkList())) {
             if (child->GetType() != EObjectType::SortedDynamicTabletStore) {
@@ -1674,7 +1674,7 @@ private:
             return false;
         };
 
-        // NB: tablet chunk list has rank of at most 2, so it suffices to check only
+        // NB: Tablet chunk list has rank of at most 2, so it suffices to check only
         // one intermediate chunk list between store and tablet.
         if (IsChunkTabletStoreType(store->GetType())) {
             for (auto& [parent, multiplicity] : store->AsChunk()->Parents()) {

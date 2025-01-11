@@ -104,7 +104,7 @@ struct TCypressChildDescriptor
  *  either resolve or subtree removal so we can rely on cached information
  *  instead of looking into Sequoia tables again.
  *
- *  NB: treatment of this cache depends on context. In case of node removal a
+ *  NB: Treatment of this cache depends on context. In case of node removal a
  *  record missing from this cache implies a bug somewhere since we haven't
  *  observed the node existance before current request (or there wasn't such
  *  node but we decided to remove nonexistent node instead of reporting resolve

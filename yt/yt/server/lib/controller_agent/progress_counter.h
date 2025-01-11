@@ -78,7 +78,7 @@ public:
     void AddBlocked(i64 value);
     void SetBlocked(i64 value);
 
-    // NB: this method does not check that counter hierarchy does not contain loops.
+    // NB: This method does not check that counter hierarchy does not contain loops.
     void AddParent(TProgressCounterPtr parent);
 
     // NB: removes at most one occurrence of parent in parents list.

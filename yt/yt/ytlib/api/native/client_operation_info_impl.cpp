@@ -97,7 +97,7 @@ static const THashSet<TString> ArchiveOnlyAttributes = {
 
 bool TClient::DoesOperationsArchiveExist(bool useOperationsArchiveClient)
 {
-    // NB: we suppose that archive should exist and work correctly if this map node is presented.
+    // NB: We suppose that archive should exist and work correctly if this map node is presented.
     TNodeExistsOptions nodeExistsOptions;
     nodeExistsOptions.ReadFrom = Connection_->GetConfig()->ReadOperationsArchiveStateFrom;;
 

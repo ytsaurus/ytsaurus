@@ -63,7 +63,7 @@ IYPathServicePtr CreateService(
 
         auto manifest = New<TOrchidManifest>();
 
-        // NB: an attempt to obtain orchid manifest from #owningNode->Attributes() would lead
+        // NB: An attempt to obtain orchid manifest from #owningNode->Attributes() would lead
         // to an infinite recursion because attribute building would lead to execution of this method.
         // Actually it is true that owningNode is always of type TVirtualNodeProxy.
         auto objectNode = DynamicPointerCast<TObjectProxyBase>(owningNode);

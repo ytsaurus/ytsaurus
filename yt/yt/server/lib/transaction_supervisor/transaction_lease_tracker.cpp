@@ -427,7 +427,7 @@ private:
             YT_LOG_DEBUG("Transaction lease expired (TransactionId: %v)",
                 descriptor->TransactionId);
 
-            // NB: it's important to erase deadline before calling handler since
+            // NB: It's important to erase deadline before calling handler since
             // handler may want to register this transaction again.
             shard->DeadlineMap.erase(it);
             descriptor->TimedOut = true;

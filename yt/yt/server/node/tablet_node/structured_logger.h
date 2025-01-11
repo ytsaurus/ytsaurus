@@ -66,7 +66,7 @@ DEFINE_REFCOUNTED_TYPE(IStructuredLogger)
  * difference, dedicated methods are mostly used to encapsulate clumsy
  * or repeating lines of logging.
  *
- * NB: though unlikely, the logger may outlive its tablet. All methods except
+ * NB: Though unlikely, the logger may outlive its tablet. All methods except
  * GetTabletId() and LogEvent() should be called only if lifetime of the tablet
  * is guaranteed by the caller.
  */

@@ -47,7 +47,7 @@ public:
     //! This method is called by auto-merge task after teleporting all large chunks with the actual
     //! count of intermediate chunks that should be processed when new stripe is added or resumed.
     //! It is also called during stripe suspension to discount lost chunks.
-    //! NB: this method should be called right after the OnTaskJobFinished method in order to not
+    //! NB: This method should be called right after the OnTaskJobFinished method in order to not
     //! have situation when intermediate chunks are undercounted.
     void AccountMergeInputChunks(int intermediateChunkCount);
 

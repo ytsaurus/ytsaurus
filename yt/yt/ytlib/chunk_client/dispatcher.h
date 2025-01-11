@@ -19,7 +19,7 @@ public:
 
     void Configure(TDispatcherConfigPtr config);
 
-    //! Return invoker over "ChunkReader:*" thread pool. NB: this is not a serialized invoker.
+    //! Return invoker over "ChunkReader:*" thread pool. NB: This is not a serialized invoker.
     IInvokerPtr GetReaderInvoker();
     //! Return invoker over "ChunkWriter" thread.
     IInvokerPtr GetWriterInvoker();

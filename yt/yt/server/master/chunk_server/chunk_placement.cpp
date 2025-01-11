@@ -778,7 +778,7 @@ TNode* TChunkPlacement::FindPreferredNode(
 
     for (auto* node : preferredHost->GetNodesWithFlavor(ENodeFlavor::Data)) {
         if (IsValidPreferredWriteTargetToAllocate(node, medium)) {
-            // NB: assuming a single data node per host here.
+            // NB: Assuming a single data node per host here.
             return node;
         }
     }
@@ -905,7 +905,7 @@ std::optional<TNodeList> TChunkPlacement::FindConsistentPlacementWriteTargets(
     // some target nodes if necessary. For erasure chunks, a need to filter a
     // target node out means failing to place replicas consistently.
 
-    // NB: the code below is quadratic, but all factors are small.
+    // NB: The code below is quadratic, but all factors are small.
     if (chunk->IsErasure()) {
         for (auto* node : result) {
             if (isNodeForbidden(node)) {

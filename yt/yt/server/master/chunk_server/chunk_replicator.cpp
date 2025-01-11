@@ -1120,7 +1120,7 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         auto mediumDecommissionedReplicaCount = decommissionedReplicaCount[mediumIndex];
         auto mediumTemporarilyUnavailableReplicaCount = temporarilyUnavailableReplicaCount[mediumIndex];
 
-        // NB: some very counter-intuitive scenarios are possible here.
+        // NB: Some very counter-intuitive scenarios are possible here.
         // E.g. mediumReplicationFactor == 0, but mediumReplicaCount != 0.
         // This happens when chunk's requisition changes. One should be careful
         // with one's assumptions.
@@ -2173,7 +2173,7 @@ void TChunkReplicator::ScheduleRepairJobs(IJobSchedulingContext* context)
     THashMap<TChunkId, std::vector<std::pair<int, EChunkRepairQueue>>> chunkPartsInfo;
 
     // Schedule repair jobs.
-    // NB: the order of the enum items is crucial! Part-missing chunks must
+    // NB: The order of the enum items is crucial! Part-missing chunks must
     // be repaired before part-decommissioned chunks.
     for (auto queue : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
         TMediumMap<std::pair<TChunkRepairQueue::iterator, TChunkRepairQueue::iterator>> iteratorPerRepairQueue;
@@ -3555,7 +3555,7 @@ void TChunkReplicator::RemoveFromChunkRepairQueues(TChunk* chunk)
         return;
     }
 
-    // NB: when a chunk requisition (and replication) changes, there's a delay
+    // NB: When a chunk requisition (and replication) changes, there's a delay
     // before the subsequent refresh. Which means that the requisition and
     // replication/repair/etc. queues may be inconsistent. Do not rely on the
     // requisition when dealing with replicator queues!
@@ -3579,7 +3579,7 @@ void TChunkReplicator::TouchChunkInRepairQueues(TChunk* chunk)
         return;
     }
 
-    // NB: see RemoveFromChunkRepairQueues for the comment on why the chunk's
+    // NB: See RemoveFromChunkRepairQueues for the comment on why the chunk's
     // requisition should not be used here.
     for (auto queue : TEnumTraits<EChunkRepairQueue>::GetDomainValues()) {
         auto queueIterators = *chunk->SelectRepairQueueIteratorMap(queue);

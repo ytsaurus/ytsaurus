@@ -321,7 +321,7 @@ private:
                 key);
         }
 
-        // NB: no-op in case of late prepare.
+        // NB: No-op in case of late prepare.
         auto* parent = cypressManager->LockNode(
             trunkParent,
             cypressTransaction,
@@ -372,7 +372,7 @@ private:
             TLockRequest::MakeSharedChild(key))
             .ThrowOnError();
 
-        // NB: nobody can acquire the shared child lock for this node between
+        // NB: Nobody can acquire the shared child lock for this node between
         // prepare and commit due to Sequoia table lock. DetachChild acquires
         // exclusive lock on (nodeId, topmostTx, key) in "child_node" Sequoia
         // table.

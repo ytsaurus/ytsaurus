@@ -1274,7 +1274,7 @@ template <class TNonOwnedChild>
     auto dstChildren = std::make_unique<TMapNodeChildren>();
 
     dstChildren->KeyToChild_ = srcChildren->KeyToChild_;
-    // NB: the order of refs here is non-deterministic but this should not be a problem.
+    // NB: The order of refs here is non-deterministic but this should not be a problem.
     dstChildren->ChildToKey_.reserve(srcChildren->ChildToKey_.size());
     for (const auto& [child, key] : srcChildren->ChildToKey_) {
         dstChildren->ChildToKey_.emplace(Clone(child), key);

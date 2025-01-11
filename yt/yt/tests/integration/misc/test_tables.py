@@ -2571,7 +2571,7 @@ class TestTables(YTEnvSetup):
                 append_fn(dst)
                 assert read_table(dst) == [{"a": 42}, {"a": 42, "b": 23}]
             else:
-                # NB: after table altering last key becomes [42, #], which is greater than
+                # NB: After table altering last key becomes [42, #], which is greater than
                 # [42, 23] in descending sort order.
                 with raises_yt_error(yt_error_codes.SortOrderViolation):
                     append_fn(dst)

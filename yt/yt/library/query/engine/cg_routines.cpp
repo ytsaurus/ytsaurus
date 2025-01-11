@@ -1279,7 +1279,7 @@ void TGroupByClosure::ValidateGroupKeyIsNotNull(TPIValue* row) const
 
 void TGroupByClosure::FlushIntermediatesIfCurrentGroupSetIsFinished(const TExecutionContext* context, TPIValue* row)
 {
-    // NB: if !context->Ordered then PrefixEqComparer_ never lets flush.
+    // NB: If !context->Ordered then PrefixEqComparer_ never lets flush.
     if (IsCurrentGroupSetFinished(row)) {
         Flush(context, EStreamTag::Intermediate);
     }

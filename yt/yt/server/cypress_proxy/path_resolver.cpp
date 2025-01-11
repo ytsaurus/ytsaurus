@@ -30,7 +30,7 @@ namespace {
 bool ShouldBeResolvedInSequoia(TObjectId id)
 {
     auto type = TypeFromId(id);
-    // NB: all links are presented in Sequoia tables and have to be resolved in
+    // NB: All links are presented in Sequoia tables and have to be resolved in
     // Sequoia.
     return type == EObjectType::Link || (IsSequoiaId(id) && IsSupportedSequoiaType(type));
 }
@@ -45,7 +45,7 @@ public:
     using TPrefixes = TCompactVector<TAbsoluteYPathBuf, TypicalTokenCount>;
     DEFINE_BYREF_RO_PROPERTY(TPrefixes, Prefixes);
 
-    // NB: suffix may contain leading ampersand.
+    // NB: Suffix may contain leading ampersand.
     using TSuffixes = TCompactVector<TYPathBuf, TypicalTokenCount>;
     DEFINE_BYREF_RO_PROPERTY(TSuffixes, Suffixes);
 
@@ -84,7 +84,7 @@ TPathPrefixes CollectPathPrefixes(const TAbsoluteYPath& path)
         // tokenizer.GetInput(): current_token + suffix
         prefixes.PushBack(TAbsoluteYPathBuf(tokenizer.GetPrefix()), TYPathBuf(tokenizer.GetInput()));
 
-        // NB: we'll deal with it later. Of course, logically "&" should rather
+        // NB: We'll deal with it later. Of course, logically "&" should rather
         // be a part of "resolved prefix" than "unresolved suffix", but here we
         // are collecting path prefixes to resolve them via Sequoia tables.
         tokenizer.Skip(ETokenType::Ampersand);
@@ -95,7 +95,7 @@ TPathPrefixes CollectPathPrefixes(const TAbsoluteYPath& path)
 
 bool StartsWithAmpersand(TYPathBuf pathSuffix)
 {
-    // NB: such places are implemented via |TTokenizer| abstraction but they can
+    // NB: Such places are implemented via |TTokenizer| abstraction but they can
     // be probably implemented more optimally via straightforward checking of
     // first byte. The reason to not do it is unnecessary abstraction layer...
     // TODO(kvk1920): think of it.
@@ -119,7 +119,7 @@ bool ShouldFollowLink(TYPathBuf unresolvedSuffix, TStringBuf method)
 
     tokenizer.Expect(NYPath::ETokenType::EndOfStream);
 
-    // NB: when link is last component of request's path we try to avoid
+    // NB: When link is last component of request's path we try to avoid
     // actions leading to data loss. E.g., it's better to remove link instead
     // of table pointed by link.
 
@@ -245,7 +245,7 @@ TResolveIterationResult ResolveByObjectId(
     // "node_id_to_path" Sequoia table. After that we replace object ID with
     // its path and continue resolving it.
     if (auto resolvedNode = session->FindNodePath(rootDesignator)) {
-        // NB: ampersand is resolved (i.e. separated from unresolved
+        // NB: Ampersand is resolved (i.e. separated from unresolved
         // |pathSuffix|) in the next step. But in case of ampersand absence we
         // can do path rewriting here. Note that we don't need to distinguish
         // regular and snapshot nodes here.

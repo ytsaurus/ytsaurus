@@ -283,7 +283,7 @@ private:
     TLogger Logger;
 
     //! Upper bound using which all data slices in Main domain are to be cut.
-    //! NB: actual upper bound of job to be built may differ from #UpperBound_
+    //! NB: Actual upper bound of job to be built may differ from #UpperBound_
     //! in case when singleton data slices are added to the job; in this case
     //! actual upper bound for a job will be #UpperBound_.ToggleInclusiveness()
     //! (i.e. exclusive instead of inclusive).
@@ -508,7 +508,7 @@ private:
 
     void TransferBufferToMain()
     {
-        // NB: it is important to transfer singletons before non-singletons;
+        // NB: It is important to transfer singletons before non-singletons;
         // otherwise we would violate slice order guarantee.
         for (auto& dataSlice : BufferDomain_.DataSlices) {
             YT_VERIFY(dataSlice->LowerLimit().KeyBound == UpperBound_.Invert());

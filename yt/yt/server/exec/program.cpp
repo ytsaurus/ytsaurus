@@ -121,7 +121,7 @@ private:
             Exit(ToUnderlying(EProgramExitCode::ExecutorError));
         }
 
-        // NB: intentionally open executor_stderr after processing pipes to avoid fd clashes.
+        // NB: Intentionally open executor_stderr after processing pipes to avoid fd clashes.
         try {
             if (ExecutorStderr_.GetHandle() == STDOUT_FILENO) {
                 auto newFile = ExecutorStderr_.Duplicate();

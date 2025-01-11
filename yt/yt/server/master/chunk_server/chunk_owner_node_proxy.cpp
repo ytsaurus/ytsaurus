@@ -309,7 +309,7 @@ void BuildDynamicStoreSpec(
     chunkSpec->set_row_count_override(1);
     chunkSpec->set_data_weight_override(1);
 
-    // NB: table_row_index is not filled here since:
+    // NB: Table_row_index is not filled here since:
     // 1) dynamic store reader receives it from the node;
     // 2) we cannot determine it at master when there are multiple consecutive dynamic stores.
 
@@ -1557,8 +1557,8 @@ void TChunkOwnerNodeProxy::ReplicateBeginUploadRequestToExternalCell(
 
     SetTransactionId(replicationRequest, externalizedTransactionId);
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    // NB: upload_transaction_timeout must remain null
-    // NB: upload_transaction_secondary_cell_tags must remain empty
+    // NB: Upload_transaction_timeout must remain null
+    // NB: Upload_transaction_secondary_cell_tags must remain empty
     multicellManager->PostToMaster(replicationRequest, externalCellTag);
 }
 

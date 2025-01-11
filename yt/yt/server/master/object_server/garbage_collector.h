@@ -94,7 +94,7 @@ private:
     //! Contains objects with zero ref counter and positive weak ref counter
     //! (ephemeral ref counter may be zero or positive, it doesn't matter).
     //! These were already destroyed (via IObjectTypeHandler::Destroy) and await disposal (via |delete|).
-    //! NB: weak ghost objects are actually owned (and persisted) by the garbage collector.
+    //! NB: Weak ghost objects are actually owned (and persisted) by the garbage collector.
     THashMap<TObjectId, TObject*> WeakGhosts_;
 
     //! This promise is set each time #GCQueue becomes empty.

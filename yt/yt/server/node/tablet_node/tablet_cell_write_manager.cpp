@@ -910,7 +910,7 @@ private:
             tabletWriteManager->OnTransientGenerationPromoted(transaction);
         }
 
-        // NB: it is ok not to unlock prelocked tablets since tablet locking is a lifetime ensurance mechanism
+        // NB: It is ok not to unlock prelocked tablets since tablet locking is a lifetime ensurance mechanism
         // in contrast to row prelocking/locking which is a conflict prevention mechanism. Moreover, we do not
         // want the tablet to become fully unlocked while we still have in flight mutations, so it is better not
         // to touch tablet locks here at all.

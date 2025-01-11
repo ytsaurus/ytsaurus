@@ -341,7 +341,7 @@ protected:
                     .DataWeight = dataWeight
                 });
 
-            // NB: we are not going to return future since it will be set only when
+            // NB: We are not going to return future since it will be set only when
             // WriteRows mutation (or mutations) are applied; we are applying mutations
             // manually in these unittests, so this future is meaningless.
             // Still, it is useful to check that no error is thrown in WriteRows mutation handler.
@@ -434,7 +434,7 @@ protected:
                     .Versioned = true
                 });
 
-            // NB: we are not going to return the future since it will be set only when
+            // NB: We are not going to return the future since it will be set only when
             // WriteRows mutation (or mutations) are applied; we are applying mutations
             // manually in these unittests, so this future is meaningless.
             // Still, it is useful to check that no error is thrown in WriteRows mutation handler.

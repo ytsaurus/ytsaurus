@@ -11,7 +11,7 @@ namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB: all instances ot this class has to have static lifetime.
+// NB: All instances ot this class has to have static lifetime.
 struct ISequoiaTransactionActionSequencer
 {
     //! Returns priority of a given tx action.

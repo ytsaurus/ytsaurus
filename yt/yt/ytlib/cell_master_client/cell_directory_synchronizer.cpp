@@ -113,7 +113,7 @@ private:
         try {
             YT_LOG_DEBUG("Started synchronizing master cell directory");
 
-            // NB: here, we count on the directory being able to provide us with a
+            // NB: Here, we count on the directory being able to provide us with a
             // channel to primary cell even before the first sync happens.
 
             auto primaryMasterChannel = Directory_->GetMasterChannelOrThrow(EMasterChannelKind::Cache);

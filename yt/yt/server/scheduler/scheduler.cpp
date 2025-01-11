@@ -616,7 +616,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        // NB: we cannot use Config_ and SpecTemplate_ fields in threads other than control,
+        // NB: We cannot use Config_ and SpecTemplate_ fields in threads other than control,
         // so we make a copy of intrusive pointers here and pass them as arguments.
         return BIND(
             &TImpl::DoAssignExperimentsAndParseSpec,
@@ -1891,7 +1891,7 @@ private:
         } else if (operation->SetAlertWithoutArchivation(alertType, alert)) {
             OperationsCleaner_->EnqueueOperationAlertEvent(operationId, alertType, alert);
 
-            // NB: we don't want to recreate reset action if we already have one
+            // NB: We don't want to recreate reset action if we already have one
             // due to performance issues.
             if (timeout && !operation->HasAlertResetCookie(alertType)) {
                 auto resetCallback = BIND(&TImpl::DoSetOperationAlert, MakeStrong(this), operationId, alertType, TError(), std::nullopt)
@@ -2008,7 +2008,7 @@ private:
                     }
                 }
 
-                // NB: it is valid to reset state, since operation revival descriptor
+                // NB: It is valid to reset state, since operation revival descriptor
                 // has necessary information about state.
                 operation->SetStateAndEnqueueEvent(EOperationState::Orphaned);
 
@@ -3236,7 +3236,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        // NB: finishing state is ok, do not skip operation fail in this case.
+        // NB: Finishing state is ok, do not skip operation fail in this case.
         if (operation->IsFinishedState()) {
             // Operation is already terminated.
             return;
@@ -3259,7 +3259,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        // NB: finishing state is ok, do not skip operation abort in this case.
+        // NB: Finishing state is ok, do not skip operation abort in this case.
         if (operation->IsFinishedState()) {
             // Operation is already terminated.
             return;
@@ -3291,7 +3291,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-        // NB: finishing state is ok, do not skip operation fail in this case.
+        // NB: Finishing state is ok, do not skip operation fail in this case.
         if (operation->IsFinishedState()) {
             // Operation is already terminated.
             return;
@@ -3943,7 +3943,7 @@ private:
     {
         for (const auto& request : removedOperationRequests) {
             if (request.Alias) {
-                // NB: some other operation could have already used this alias (and even be removed after they completed),
+                // NB: Some other operation could have already used this alias (and even be removed after they completed),
                 // so we check if it is still assigned to an operation id we expect.
                 auto it = OperationAliases_.find(*request.Alias);
                 if (it == OperationAliases_.end()) {

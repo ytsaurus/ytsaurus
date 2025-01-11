@@ -82,7 +82,7 @@ void TGarbageCollector::Stop()
 
 void TGarbageCollector::SaveKeys(NCellMaster::TSaveContext& context) const
 {
-    // NB: normal THashMap serialization won't do. Weak ghosts are already
+    // NB: Normal THashMap serialization won't do. Weak ghosts are already
     // destroyed. Only TObject part of the objects should be saved.
 
     TSizeSerializer::Save(context, WeakGhosts_.size());

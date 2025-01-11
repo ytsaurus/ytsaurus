@@ -470,7 +470,7 @@ public:
                             .Item("sample_key_count").Value(partition->GetSampleKeys()->Keys.Size())
                         .EndMap();
                 })
-            // NB: deducible.
+            // NB: Deducible.
             .Item("new_store_partitions").DoMapFor(
                 oldPartition->Stores(),
                 [&] (auto fluent, const auto& store) {
