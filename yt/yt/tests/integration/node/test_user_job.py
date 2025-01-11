@@ -2261,7 +2261,7 @@ class TestTemporaryTokens(YTEnvSetup):
 
         driver_config = deepcopy(self.Env.configs["driver"])
         driver_config["api_version"] = 4
-        driver_config["scheduler"]["retry_attempts"] = 1
+        driver_config["scheduler"]["retry_backoff"]["invocation_count"] = 1
         driver = Driver(driver_config)
 
         op_response = run_test_vanilla(
