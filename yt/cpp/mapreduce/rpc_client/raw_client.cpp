@@ -778,6 +778,34 @@ void TRpcRawClient::RemountTable(
     WaitFor(future).ThrowOnError();
 }
 
+void TRpcRawClient::ReshardTableByPivotKeys(
+    TMutationId& mutationId,
+    const TYPath& path,
+    const TVector<TKey>& keys,
+    const TReshardTableOptions& options)
+{
+    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+
+    std::vector<NTableClient::TLegacyOwningKey> pivotKeys;
+    pivotKeys.reserve(keys.size());
+
+    for (const auto& key : keys) {
+        auto keysNodesList = TNode::CreateList();
+        for (const auto& part : key.Parts_) {
+            keysNodesList.Add(part);
+        }
+
+        NTableClient::TLegacyOwningKey pivotKey;
+        Deserialize(pivotKey, NYTree::ConvertToNode(NYson::TYsonString(
+            NodeToYsonString(keysNodesList, NYson::EYsonFormat::Binary))));
+
+        pivotKeys.emplace_back(std::move(pivotKey));
+    }
+
+    auto future = Client_->ReshardTable(newPath, pivotKeys,  SerializeOptionsForReshardTable(mutationId, options));
+    WaitFor(future).ThrowOnError();
+}
+
 void TRpcRawClient::ReshardTableByTabletCount(
     TMutationId& mutationId,
     const TYPath& path,
