@@ -198,7 +198,6 @@ spec_template = {
 
     "prepare_table_via_alter": BoolVariable(VariationPolicy.PickRandom),
     "skip_flush": False,
-    "index": False,
     "reshard": True,
     "alter": True,
     "remote_copy_to_itself": False,
