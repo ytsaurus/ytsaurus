@@ -469,7 +469,7 @@ class TestLocalMode(object):
             # Several master peers are not supported in multidaemon.
             master_count = 1
             # Several nodes  are not supported in multidaemon.
-            node_count = 1
+            node_count = 2
         else:
             master_count = 3
             node_count = 5
