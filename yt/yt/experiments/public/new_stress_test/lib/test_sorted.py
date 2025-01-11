@@ -33,7 +33,6 @@ class Registry(object):
         self.iter_deletion = None
         self.result = base + ".result"
         self.dump = base + ".dump"
-        self.index = base + ".index"
 
     def create_iter_tables(self, schema, iteration, aggregate, update, force):
         suffix = str(iteration)
@@ -81,7 +80,7 @@ def generate_iter_data(registry, schema, extra_key_count, aggregate, update, spe
         update)
     yt.remove(registry.prev_data)
 
-def write_to_dynamic_table(registry, attributes, schema, index_schema, aggregate, update, with_alter, force, spec):
+def write_to_dynamic_table(registry, attributes, schema, aggregate, update, with_alter, force, spec):
     if with_alter:
         attributes = copy.deepcopy(attributes)
         assert yt.get(registry.base + "/@dynamic") == False
@@ -108,33 +107,6 @@ def write_to_dynamic_table(registry, attributes, schema, index_schema, aggregate
                 "force_transform": True,
                 "title": "Initial merge during table creation"})
 
-        if spec.index:
-            logger.info(f"Creating index table {registry.index}")
-
-            remove_existing([registry.index], force)
-            attributes["schema"] = index_schema.yson_with_unique()
-            attributes["dynamic"] = False
-            attributes["chunk_format"] = chunk_format
-            attributes["optimize_for"] = optimize_for
-            yt.create("table", registry.index, attributes=attributes)
-            attributes["schema"] = [
-                {"name": column.name, "type": column.type.str()}
-                for column in index_schema.columns
-                if column.name != SYSTEM_EMPTY_COLUMN_NAME
-            ]
-            yt.run_sort(
-                yt.TablePath(
-                    registry.base,
-                    columns=filter(
-                        lambda name: name != SYSTEM_EMPTY_COLUMN_NAME,
-                        index_schema.get_column_names())),
-                registry.index,
-                sort_by=index_schema.get_key_column_names())
-
-            yt.alter_table(registry.index, dynamic=True)
-            set_dynamic_table_attributes(registry.index, spec)
-            yt.reshard_table(registry.index, index_schema.get_pivot_keys(), sync=True)
-
         yt.alter_table(registry.base, dynamic=True)
         set_dynamic_table_attributes(registry.base, spec)
         yt.reshard_table(registry.base, schema.get_pivot_keys(), sync=True)
@@ -157,7 +129,7 @@ def write_to_dynamic_table(registry, attributes, schema, index_schema, aggregate
     else:
         raise RuntimeError(f"Unknown sorted write policy \"{spec.sorted.write_policy}\"")
 
-def create_tables(registry, schema, index_schema, attributes, spec, force):
+def create_tables(registry, schema, attributes, spec, force):
     if not spec.testing.skip_generation:
         remove_existing([registry.keys, registry.data], force)
         yt.create("table", registry.keys, attributes={"schema": schema.yson_keys()})
@@ -175,26 +147,7 @@ def create_tables(registry, schema, index_schema, attributes, spec, force):
             spec.size.tablet_count,
             sorted=True,
             dynamic=not spec.prepare_table_via_alter,
-            skip_mount=bool(spec.index),
             spec=spec)
-
-        if spec.index and not spec.prepare_table_via_alter:
-            create_dynamic_table(
-                registry.index,
-                index_schema,
-                attributes,
-                None,
-                sorted=True,
-                dynamic=True,
-                skip_mount=True,
-                spec=spec)
-
-            set_dynamic_table_attributes(registry.index, spec)
-            yt.reshard_table(registry.index, index_schema.get_pivot_keys(), sync=True)
-
-            logger.info(f"Mounting {registry.base} and {registry.index}")
-            mount_table(registry.base)
-            mount_table(registry.index)
 
 def test_sorted_tables(base_path, spec, attributes, force):
     table_path = base_path + "/sorted_table"
@@ -207,7 +160,7 @@ def test_sorted_tables(base_path, spec, attributes, force):
 
     assert not spec.replicas
 
-    create_tables(registry, schema, index_schema, attributes, spec, force)
+    create_tables(registry, schema, attributes, spec, force)
 
     if spec.size.key_count is not None:
         key_count = spec.size.key_count
@@ -245,7 +198,7 @@ def test_sorted_tables(base_path, spec, attributes, force):
         if not spec.testing.skip_write:
             with_alter = iteration == 0 and spec.prepare_table_via_alter
             write_to_dynamic_table(
-                registry, attributes, schema, index_schema, aggregate, update, with_alter, force, spec)
+                registry, attributes, schema, aggregate, update, with_alter, force, spec)
             delete_data(registry.iter_deletion, registry.base, spec)
 
         # Disturb the table with remote copy.
@@ -342,18 +295,11 @@ def test_sorted_tables(base_path, spec, attributes, force):
             unmount_table(registry.base)
             # TODO: spec
             reshard_multiple_times(registry.base, schema)
-            if spec.index:
-                unmount_table(registry.index)
-                reshard_multiple_times(registry.index, index_schema)
 
         if spec.alter and len(schema.get_key_columns()) < MAX_KEY_COLUMN_NUMBER:
             logger.info("Altering table")
 
-            extra_column = schema.add_key_column()
-            if spec.index and extra_column:
-                unmount_table(registry.index)
-                index_schema.add_key_column(extra_column)
-                yt.alter_table(registry.index, schema=index_schema.yson_with_unique())
+            schema.add_key_column()
 
             unmount_table(registry.base)
             yt.alter_table(registry.base, schema=schema.yson())
@@ -368,5 +314,3 @@ def test_sorted_tables(base_path, spec, attributes, force):
                     "title": "Alter data table"})
 
         mount_table(registry.base)
-        if spec.index:
-            mount_table(registry.index)

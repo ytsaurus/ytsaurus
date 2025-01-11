@@ -151,7 +151,7 @@ SCALAR_TYPES = [TInt64, TUint64, TBoolean, TString]
 
 class TAny:
     def random():
-        types = random.sample(TAny.scalar_types, random.randint(0, len(TAny.scalar_types)))
+        types = random.sample(SCALAR_TYPES, random.randint(0, len(SCALAR_TYPES)))
         return [t.random() for t in types]
     def str():
         return "any"
