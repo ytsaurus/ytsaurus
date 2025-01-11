@@ -240,6 +240,12 @@ public:
         const TYPath& path,
         const TRemountTableOptions& options = {}) override;
 
+    void ReshardTableByPivotKeys(
+        TMutationId& mutationId,
+        const TYPath& path,
+        const TVector<TKey>& keys,
+        const TReshardTableOptions& options = {}) override;
+
     void ReshardTableByTabletCount(
         TMutationId& mutationId,
         const TYPath& path,
