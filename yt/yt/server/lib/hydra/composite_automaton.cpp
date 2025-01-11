@@ -17,7 +17,6 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 
-#include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/checksum.h>
 
@@ -469,10 +468,7 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
 
     if (!isRecovery) {
         MutationWaitTimer_.Record(waitTime);
-
-        if (WaitTimeObserver_) {
-            WaitTimeObserver_(waitTime);
-        }
+        WaitTimeObserved_.Fire(waitTime);
     }
 
     if (mutationType.empty()) {
@@ -629,9 +625,14 @@ void TCompositeAutomaton::CheckInvariants()
     }
 }
 
-void TCompositeAutomaton::RegisterWaitTimeObserver(TWaitTimeObserver waitTimeObserver)
+void TCompositeAutomaton::SubscribeWaitTimeObserved(const IInvoker::TWaitTimeObserver& callback)
 {
-    WaitTimeObserver_ = waitTimeObserver;
+    WaitTimeObserved_.Subscribe(callback);
+}
+
+void TCompositeAutomaton::UnsubscribeWaitTimeObserved(const IInvoker::TWaitTimeObserver& callback)
+{
+    WaitTimeObserved_.Unsubscribe(callback);
 }
 
 void TCompositeAutomaton::HydraResetStateHash(NProto::TReqResetStateHash* request)

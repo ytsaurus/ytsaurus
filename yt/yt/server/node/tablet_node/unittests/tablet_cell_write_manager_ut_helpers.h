@@ -70,9 +70,9 @@ public:
         AutomatonInvoker_ = AutomatonQueue_->GetInvoker();
 
         Automaton_ = New<TTabletAutomaton>(this);
-        Automaton_->RegisterWaitTimeObserver([&] (TDuration mutationWaitTime) {
+        Automaton_->SubscribeWaitTimeObserved(BIND([this] (TDuration mutationWaitTime) {
             TotalMutationWaitTime_ += mutationWaitTime.MicroSeconds() + 1;
-        });
+        }));
 
         HydraManager_ = New<TSimpleHydraManagerMock>(Automaton_, AutomatonInvoker_, NTabletNode::GetCurrentReign());
         TransactionManager_ = CreateTransactionManager(New<TTransactionManagerConfig>(), /*transactionManagerHost*/ this, InvalidCellTag, CreateNullTransactionLeaseTracker());

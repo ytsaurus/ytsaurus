@@ -62,8 +62,7 @@ public:
     void TrackInvoker(TStringBuf name, const IInvokerPtr& invoker);
     void TrackFSHThreadPool(TStringBuf name, const NConcurrency::ITwoLevelFairShareThreadPoolPtr& threadPool);
 
-    using TWaitTimeObserver = std::function<void(TDuration)>;
-    TWaitTimeObserver CreateGenericWaitTimeTracker(TStringBuf trackerType, std::optional<TStringBuf> id = {});
+    IInvoker::TWaitTimeObserver CreateGenericWaitTimeObserver(TStringBuf trackerType, std::optional<TStringBuf> id = {});
 
     TCongestionState GetCongestionState(TStringBuf service, TStringBuf method) const;
 

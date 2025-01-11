@@ -465,14 +465,12 @@ class TestLocalMode(object):
         finally:
             self.yt_local("stop", env_id)
 
+        node_count = 5
         if enable_multidaemon:
             # Several master peers are not supported in multidaemon.
             master_count = 1
-            # Several nodes  are not supported in multidaemon.
-            node_count = 2
         else:
             master_count = 3
-            node_count = 5
 
         env_id = self.yt_local(
             "start",
