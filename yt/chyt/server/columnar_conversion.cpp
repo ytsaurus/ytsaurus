@@ -264,7 +264,7 @@ DB::MutableColumnPtr ConvertFloatingPointYTColumnToCHColumn(
         ::memcpy(
             chData.data(),
             relevantValues.Begin(),
-            sizeof (T) * ytColumn.ValueCount);
+            sizeof(T) * ytColumn.ValueCount);
     }
 
     return chColumn;

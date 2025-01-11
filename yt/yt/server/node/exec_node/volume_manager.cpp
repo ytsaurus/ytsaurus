@@ -830,7 +830,7 @@ private:
                     NChunkClient::EErrorCode::IncorrectLayerFileSize,
                     "Layer meta file %v is too short: at least %v bytes expected",
                     metaFileName,
-                    sizeof (TLayerMetaHeader));
+                    sizeof(TLayerMetaHeader));
             }
 
             auto metaFileBlob = TSharedMutableRef::Allocate(metaFile.GetLength());

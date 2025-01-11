@@ -334,7 +334,7 @@ private:
             value.Length = data.String->Length;
             value.Data.String = data.String->Data;
         } else {
-            ::memcpy(&value.Data, &data, sizeof (data));
+            ::memcpy(&value.Data, &data, sizeof(data));
         }
         return value;
     }

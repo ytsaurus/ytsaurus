@@ -409,12 +409,12 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
     YT_LOG_DEBUG("Finished reading chunk meta file (FileName: %v)",
         metaFileName);
 
-    if (metaFileBlob.Size() < sizeof (TChunkMetaHeaderBase)) {
+    if (metaFileBlob.Size() < sizeof(TChunkMetaHeaderBase)) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::BrokenChunkFileMeta,
             "Chunk meta file %v is too short: at least %v bytes expected",
             metaFileName,
-            sizeof (TChunkMetaHeaderBase));
+            sizeof(TChunkMetaHeaderBase));
     }
 
     chunkReaderStatistics->MetaBytesReadFromDisk.fetch_add(

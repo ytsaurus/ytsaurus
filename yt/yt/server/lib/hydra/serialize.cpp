@@ -142,12 +142,12 @@ TSharedRef SerializeMutationRecord(
         reinterpret_cast<ui8*>(&recordHeader + 1),
         recordData.Begin());
     YT_VERIFY(mutationHeader.SerializeToArray(
-        recordData.Begin() + sizeof (TFixedMutationHeader),
+        recordData.Begin() + sizeof(TFixedMutationHeader),
         recordHeader.HeaderSize));
     std::copy(
         data.Begin(),
         data.End(),
-        recordData.Begin() + sizeof (TFixedMutationHeader) + recordHeader.HeaderSize);
+        recordData.Begin() + sizeof(TFixedMutationHeader) + recordHeader.HeaderSize);
 
     return recordData;
 }
@@ -157,10 +157,10 @@ void DeserializeMutationRecord(
     NProto::TMutationHeader* mutationHeader,
     TSharedRef* mutationData)
 {
-    YT_VERIFY(recordData.size() >= sizeof (TFixedMutationHeader));
+    YT_VERIFY(recordData.size() >= sizeof(TFixedMutationHeader));
     auto* recordHeader = reinterpret_cast<const TFixedMutationHeader*>(recordData.Begin());
 
-    size_t headerStartOffset = sizeof (TFixedMutationHeader);
+    size_t headerStartOffset = sizeof(TFixedMutationHeader);
     size_t headerEndOffset = headerStartOffset + recordHeader->HeaderSize;
     YT_VERIFY(recordData.size() >= headerEndOffset);
     DeserializeProto(mutationHeader, recordData.Slice(headerStartOffset, headerEndOffset));

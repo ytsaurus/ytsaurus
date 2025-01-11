@@ -132,7 +132,7 @@ i64 TColumnarChunkMeta::GetMemoryUsage() const
 
     return
         BlockLastKeysSize_ +
-        sizeof (TKey) * BlockLastKeys_.Size() +
+        sizeof(TKey) * BlockLastKeys_.Size() +
         Misc_.SpaceUsedLong() +
         DataBlockMeta_->GetSize() * metaMemoryFactor +
         (ColumnGroupInfos_ ? ColumnGroupInfos_->GetSize() * metaMemoryFactor : 0) +

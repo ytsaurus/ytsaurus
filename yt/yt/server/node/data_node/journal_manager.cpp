@@ -247,10 +247,10 @@ private:
 
             int currentRecordId = startRecordId;
             for (const auto& recordData : recordsData) {
-                YT_VERIFY(recordData.Size() >= sizeof (TMultiplexedRecordHeader));
+                YT_VERIFY(recordData.Size() >= sizeof(TMultiplexedRecordHeader));
                 TMultiplexedRecord record{
                     .Header = *reinterpret_cast<const TMultiplexedRecordHeader*>(recordData.Begin()),
-                    .Data = recordData.Slice(sizeof (TMultiplexedRecordHeader), recordData.Size())
+                    .Data = recordData.Slice(sizeof(TMultiplexedRecordHeader), recordData.Size())
                 };
                 handler(TVersion(changelogId, currentRecordId), record);
                 ++currentRecordId;
@@ -710,7 +710,7 @@ private:
 
         i64 totalSize = 0;
         for (const auto& multiplexedRecord : multiplexedRecords) {
-            totalSize += sizeof (TMultiplexedRecordHeader);
+            totalSize += sizeof(TMultiplexedRecordHeader);
             totalSize += multiplexedRecord.Data.Size();
         }
 
@@ -725,9 +725,9 @@ private:
 
             std::copy(
                 reinterpret_cast<const char*>(&multiplexedRecord.Header),
-                reinterpret_cast<const char*>(&multiplexedRecord.Header) + sizeof (TMultiplexedRecordHeader),
+                reinterpret_cast<const char*>(&multiplexedRecord.Header) + sizeof(TMultiplexedRecordHeader),
                 currentDataPtr);
-            currentDataPtr += sizeof (TMultiplexedRecordHeader);
+            currentDataPtr += sizeof(TMultiplexedRecordHeader);
 
             std::copy(
                 multiplexedRecord.Data.Begin(),
