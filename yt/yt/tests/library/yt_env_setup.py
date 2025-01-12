@@ -511,6 +511,8 @@ class YTEnvSetup(object):
 
     WAIT_FOR_DYNAMIC_CONFIG = True
 
+    ENABLE_MULTIDAEMON = False
+
     @classmethod
     def is_multicell(cls):
         return cls.NUM_SECONDARY_MASTER_CELLS > 0
@@ -746,7 +748,8 @@ class YTEnvSetup(object):
                     "expire_after_failed_update_time": 1000,
                     "expire_after_access_time": 300000,
                 },
-            } if cls._is_ground_cluster(index) else None
+            } if cls._is_ground_cluster(index) else None,
+            enable_multidaemon=cls.ENABLE_MULTIDAEMON,
         )
 
         if yt_config.jobs_environment_type == "porto" and not porto_available():
