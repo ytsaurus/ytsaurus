@@ -51,7 +51,7 @@
 #include <yt/yt/core/misc/range_formatters.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
-#include <library/cpp/yt/small_containers/compact_vector.h>
+#include <library/cpp/yt/compact_containers/compact_vector.h>
 
 #include <optional>
 

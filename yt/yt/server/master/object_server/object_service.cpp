@@ -74,7 +74,7 @@
 #include <library/cpp/yt/threading/spin_lock.h>
 #include <library/cpp/yt/threading/traceless_guard.h>
 
-#include <library/cpp/yt/small_containers/compact_vector.h>
+#include <library/cpp/yt/compact_containers/compact_vector.h>
 
 #include <util/generic/algorithm.h>
 

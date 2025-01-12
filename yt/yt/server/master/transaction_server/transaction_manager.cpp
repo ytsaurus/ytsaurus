@@ -95,7 +95,7 @@
 
 #include <yt/yt/core/rpc/authentication_identity.h>
 
-#include <library/cpp/yt/small_containers/compact_queue.h>
+#include <library/cpp/yt/compact_containers/compact_queue.h>
 
 namespace NYT::NTransactionServer {
 

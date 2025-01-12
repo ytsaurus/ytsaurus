@@ -16,7 +16,7 @@
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <library/cpp/yt/small_containers/compact_queue.h>
+#include <library/cpp/yt/compact_containers/compact_queue.h>
 
 namespace NYT::NChunkServer {
 

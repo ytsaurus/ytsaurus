@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <library/cpp/yt/small_containers/compact_set.h>
+#include <library/cpp/yt/compact_containers/compact_set.h>
 
 namespace NYT::NMaintenanceTrackerServer {
 

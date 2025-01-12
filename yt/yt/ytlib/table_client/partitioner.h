@@ -5,7 +5,7 @@
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <library/cpp/yt/small_containers/compact_vector.h>
+#include <library/cpp/yt/compact_containers/compact_vector.h>
 
 namespace NYT::NTableClient {
 
