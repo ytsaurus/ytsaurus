@@ -175,19 +175,22 @@ class TestLocalMode(object):
             path = lyt.path
             logs_path = lyt.logs_path
 
-        for index in range(master_count):
-            name = "master-0-" + str(index) + ".log"
-            assert os.path.exists(os.path.join(logs_path, name))
+        if enable_multidaemon:
+            assert os.path.exists(os.path.join(logs_path, "multi.log"))
+        else:
+            for index in range(master_count):
+                name = "master-0-" + str(index) + ".log"
+                assert os.path.exists(os.path.join(logs_path, name))
 
-        for index in range(node_count):
-            name = "node-" + str(index) + ".log"
-            assert os.path.exists(os.path.join(logs_path, name))
+            for index in range(node_count):
+                name = "node-" + str(index) + ".log"
+                assert os.path.exists(os.path.join(logs_path, name))
 
-        for index in range(scheduler_count):
-            name = "scheduler-" + str(index) + ".log"
-            assert os.path.exists(os.path.join(logs_path, name))
+            for index in range(scheduler_count):
+                name = "scheduler-" + str(index) + ".log"
+                assert os.path.exists(os.path.join(logs_path, name))
 
-        assert os.path.exists(os.path.join(logs_path, "http-proxy-0.log"))
+            assert os.path.exists(os.path.join(logs_path, "http-proxy-0.log"))
         assert os.path.exists(os.path.join(path, "stderrs"))
 
     def test_user_configs_path(self, enable_multidaemon):
@@ -254,8 +257,9 @@ class TestLocalMode(object):
 
         # Some log file may be missing if we exited during log rotation.
         presented = 0
+        name = "http-proxy-0" if not enable_multidaemon else "multi"
         for file_index in range(1, 5):
-            presented += os.path.exists(os.path.join(logs_path, "http-proxy-0.debug.log.{0}.gz".format(file_index)))
+            presented += os.path.exists(os.path.join(logs_path, f"{name}.debug.log.{file_index}.gz"))
         assert presented in (3, 4), "Log paths: {}".format(", ".join(os.listdir(logs_path)))
 
     def test_commands_sanity(self, enable_multidaemon):
@@ -622,7 +626,8 @@ class TestLocalMode(object):
         with local_yt(id=_get_id("test_structured_logging"), enable_structured_logging=True, enable_multidaemon=enable_multidaemon) as environment:
             client = environment.create_client()
             client.get("/")
-            wait(lambda: os.path.exists(os.path.join(environment.logs_path, "http-proxy-0.json.log")))
+            filename = "http-proxy-0.json.log" if not enable_multidaemon else "multi.json.log"
+            wait(lambda: os.path.exists(os.path.join(environment.logs_path, filename)))
 
     def test_one_node_configuration(self, enable_multidaemon):
         row_count = 100
