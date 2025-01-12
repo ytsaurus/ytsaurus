@@ -1,5 +1,7 @@
 #include "WAVM/ObjectCache/ObjectCache.h"
 
+#include <cstdlib>
+
 using namespace WAVM;
 using namespace WAVM::ObjectCache;
 
