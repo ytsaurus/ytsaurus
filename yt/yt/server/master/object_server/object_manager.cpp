@@ -2491,7 +2491,7 @@ IAttributeDictionaryPtr TObjectManager::GetReplicatedAttributes(
     if (!mandatory) {
         // Check custom attributes.
         if (const auto* customAttributes = object->GetAttributes()) {
-            for (const auto& [key, value] : object->GetAttributes()->Attributes()) {
+            for (const auto& [key, value] : customAttributes->Attributes()) {
                 // Never replicate custom attributes overlaid by system ones.
                 if (systemAttributeKeys.contains(key)) {
                     continue;
