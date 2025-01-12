@@ -41,6 +41,7 @@ import time
 
 
 class TestCypressRootCreationTime(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_CELLS = 1
     NUM_NODES = 0
