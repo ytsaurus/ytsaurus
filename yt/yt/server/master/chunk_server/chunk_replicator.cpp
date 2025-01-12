@@ -69,8 +69,8 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <library/cpp/yt/small_containers/compact_queue.h>
-#include <library/cpp/yt/small_containers/compact_vector.h>
+#include <library/cpp/yt/compact_containers/compact_queue.h>
+#include <library/cpp/yt/compact_containers/compact_vector.h>
 
 #include <array>
 

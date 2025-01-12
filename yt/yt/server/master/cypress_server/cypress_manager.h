@@ -31,7 +31,7 @@
 #include <yt/yt/core/ytree/tree_builder.h>
 #include <yt/yt/core/ytree/ypath_service.h>
 
-#include <library/cpp/yt/small_containers/compact_vector.h>
+#include <library/cpp/yt/compact_containers/compact_vector.h>
 
 namespace NYT::NCypressServer {
 

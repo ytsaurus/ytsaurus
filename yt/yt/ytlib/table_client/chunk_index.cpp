@@ -8,7 +8,7 @@
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
 
-#include <library/cpp/yt/small_containers/compact_flat_map.h>
+#include <library/cpp/yt/compact_containers/compact_flat_map.h>
 
 namespace NYT::NTableClient {
 

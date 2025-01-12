@@ -106,8 +106,8 @@
 #include <yt/yt/core/ypath/token.h>
 #include <yt/yt/core/ypath/tokenizer.h>
 
-#include <library/cpp/yt/small_containers/compact_set.h>
-#include <library/cpp/yt/small_containers/compact_queue.h>
+#include <library/cpp/yt/compact_containers/compact_set.h>
+#include <library/cpp/yt/compact_containers/compact_queue.h>
 
 #include <library/cpp/yt/misc/variant.h>
 
