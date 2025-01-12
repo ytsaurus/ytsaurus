@@ -117,6 +117,7 @@
     #if defined(ABORT_ON_LOGICAL_ERROR)
         // clang-format off
         #include <base/types.h>
+        #include <stdlib.h>
         namespace DB
         {
             void abortOnFailedAssertion(const String & description);
