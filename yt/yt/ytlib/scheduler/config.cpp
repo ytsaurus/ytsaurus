@@ -2055,6 +2055,8 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
         .NonEmpty();
 
     registrar.Postprocessor([] (TVanillaOperationSpec* spec) {
+        TStringBuf taskWithGangManagerName;
+        TStringBuf taskWithFailOnJobRestartName;
         for (const auto& [taskName, taskSpec] : spec->Tasks) {
             if (taskName.empty()) {
                 THROW_ERROR_EXCEPTION("Empty task names are not allowed");
@@ -2065,6 +2067,26 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
             ValidateNoOutputStreams(taskSpec, EOperationType::Vanilla);
 
             ValidateOutputTablePaths(taskSpec->OutputTablePaths);
+
+            if (taskSpec->GangManager) {
+                taskWithGangManagerName = taskName;
+            }
+            if (taskSpec->FailOnJobRestart) {
+                taskWithFailOnJobRestartName = taskName;
+            }
+        }
+
+        if (taskWithGangManagerName && spec->FailOnJobRestart) {
+            THROW_ERROR_EXCEPTION(
+                "Operation with \"fail_on_job_restart\" enabled can not have tasks with configured \"gang_manager\"")
+                << TErrorAttribute("task_with_gang_manager_name", taskWithGangManagerName);
+        }
+
+        if (taskWithGangManagerName &&taskWithFailOnJobRestartName) {
+            THROW_ERROR_EXCEPTION(
+                "Operation can not have both task with \"gang_manager\" and task with \"fail_on_job_restart\"")
+                << TErrorAttribute("task_with_gang_manager_name", taskWithGangManagerName)
+                << TErrorAttribute("task_with_fail_on_job_restart_name", taskWithFailOnJobRestartName);
         }
 
         if (spec->Sampling && spec->Sampling->SamplingRate) {

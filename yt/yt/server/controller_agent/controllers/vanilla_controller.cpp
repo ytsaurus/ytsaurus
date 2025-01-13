@@ -784,6 +784,11 @@ void TVanillaController::TrySwitchToNewOperationIncarnation(const TJobletPtr& jo
 {
     VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
+    if (auto state = State.load(); state != EControllerState::Running) {
+        YT_LOG_INFO("Operation is not running, skip switching to new incarnation (State: %v)", state);
+        return;
+    }
+
     GangManager_.TrySwitchToNewIncarnation(joblet->OperationIncarnation, operationIsReviving);
 }
 
