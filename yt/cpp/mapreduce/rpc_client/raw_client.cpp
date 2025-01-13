@@ -823,6 +823,16 @@ void TRpcRawClient::ReshardTableByTabletCount(
     WaitFor(future).ThrowOnError();
 }
 
+void TRpcRawClient::TrimRows(
+    const TYPath& path,
+    i64 tabletIndex,
+    i64 rowCount,
+    const TTrimRowsOptions& /*options*/)
+{
+    auto future = Client_->TrimTable(path, tabletIndex, rowCount);
+    WaitFor(future).ThrowOnError();
+}
+
 TNode::TListType TRpcRawClient::SelectRows(
     const TString& query,
     const TSelectRowsOptions& options)

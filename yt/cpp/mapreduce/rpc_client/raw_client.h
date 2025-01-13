@@ -252,6 +252,12 @@ public:
         i64 tabletCount,
         const TReshardTableOptions& options = {}) override;
 
+    void TrimRows(
+        const TYPath& path,
+        i64 tabletIndex,
+        i64 rowCount,
+        const TTrimRowsOptions& options = {}) override;
+
     TNode::TListType SelectRows(
         const TString& query,
         const TSelectRowsOptions& options = {}) override;
