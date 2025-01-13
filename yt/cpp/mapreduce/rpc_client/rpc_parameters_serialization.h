@@ -141,6 +141,10 @@ NApi::TReshardTableOptions SerializeOptionsForReshardTable(
     TMutationId& mutationId,
     const TReshardTableOptions& options);
 
+NApi::TTableReaderOptions SerializeOptionsForReadTable(
+    const TTransactionId& transactionId,
+    const TTableReaderOptions& options = {});
+
 NApi::TAlterTableReplicaOptions SerializeOptionsForAlterTableReplica(
     TMutationId& mutationId,
     const TAlterTableReplicaOptions& options);

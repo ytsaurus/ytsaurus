@@ -760,6 +760,19 @@ NApi::TReshardTableOptions SerializeOptionsForReshardTable(
     return result;
 }
 
+NApi::TTableReaderOptions SerializeOptionsForReadTable(
+    const TTransactionId& transactionId,
+    const TTableReaderOptions& options)
+{
+    NApi::TTableReaderOptions result;
+    SetTransactionId(&result, transactionId);
+    if (options.Config_) {
+        result.Config = NYTree::ConvertTo<NTableClient::TTableReaderConfigPtr>(
+            NYson::TYsonString(NodeToYsonString(*options.Config_, NYson::EYsonFormat::Binary)));
+    }
+    return result;
+}
+
 NApi::TAlterTableReplicaOptions SerializeOptionsForAlterTableReplica(
     TMutationId& mutationId,
     const TAlterTableReplicaOptions& options)
