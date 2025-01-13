@@ -701,7 +701,7 @@ bool TVanillaController::OnJobCompleted(
     TJobletPtr joblet,
     std::unique_ptr<TCompletedJobSummary> jobSummary)
 {
-    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+    VERIFY_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
     auto interruptionReason = jobSummary->InterruptionReason;
 
