@@ -319,7 +319,7 @@ void TBundleState::DoFetchStatistics(
     for (const auto& [id, info] : tableSettings) {
         EmplaceOrCrash(tableIds, id);
     }
-    auto droppedTables = DropMissingKeys(Bundle_->Tables, tableIds);
+    auto droppedTables = DropAndReturnMissingKeys(Bundle_->Tables, tableIds);
     for (auto table : droppedTables) {
         TableRegistry_->RemoveTable(table);
     }
