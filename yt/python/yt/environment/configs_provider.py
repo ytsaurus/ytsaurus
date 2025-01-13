@@ -560,7 +560,7 @@ def _build_discovery_server_configs(yt_config, multidaemon_config_output, ports_
         ports.append((rpc_port, monitoring_port))
 
     configs = []
-    for i in xrange(yt_config.discovery_server_count):
+    for index in xrange(yt_config.discovery_server_count):
         discovery_server_config = {}
         discovery_server_config["server_addresses"] = server_addresses
 
@@ -569,15 +569,21 @@ def _build_discovery_server_configs(yt_config, multidaemon_config_output, ports_
 
         singletons_config = multidaemon_config_output if yt_config.enable_multidaemon else config
         if not yt_config.enable_multidaemon:
+            init_singletons(singletons_config, yt_config)
+
             _init_logging(logs_dir,
                           "discovery-" + str(i),
                           singletons_config.setdefault("logging", {}),
                           yt_config,
                           log_errors_to_stderr=True)
 
-        config["rpc_port"], config["monitoring_port"] = ports[i]
+        init_jaeger_collector(singletons_config, "discovery", {
+            "discovery_index": str(i)
+        })
 
-        multidaemon_config_output["daemons"][f"discovery_{i}"] = {
+        config["rpc_port"], config["monitoring_port"] = ports[index]
+
+        multidaemon_config_output["daemons"][f"discovery_{index}"] = {
             "type": "discovery",
             "config": config,
         }
