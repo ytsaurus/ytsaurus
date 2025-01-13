@@ -101,7 +101,7 @@ public:
 
     bool IsInitialized() override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         auto* rootNode = cypressManager->GetRootNode();
@@ -120,7 +120,7 @@ public:
 
     void ValidateInitialized() override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         if (!IsInitialized()) {
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Cluster is not initialized");

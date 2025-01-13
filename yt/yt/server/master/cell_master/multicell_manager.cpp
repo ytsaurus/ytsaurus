@@ -274,7 +274,7 @@ public:
 
     bool IsLocalMasterCellRegistered() const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         if (IsPrimaryMaster()) {
             return true;
@@ -289,7 +289,7 @@ public:
 
     bool IsRegisteredMasterCell(TCellTag cellTag) const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return MasterEntryExists(cellTag);
     }
@@ -352,7 +352,7 @@ public:
 
     const TCellTagList& GetRegisteredMasterCellTags() const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return RegisteredMasterCellTags_;
     }
@@ -422,7 +422,7 @@ public:
 
     const NProto::TCellStatistics& GetClusterStatistics() const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return ClusterCellStatisics_;
     }
@@ -1129,7 +1129,7 @@ private:
 
     bool MasterEntryExists(TCellTag cellTag) const
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return RegisteredMasterMap_.contains(cellTag);
     }

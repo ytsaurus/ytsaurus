@@ -480,7 +480,7 @@ private:
         const TReadLimit& upperLimit,
         const TChunkViewModifier* modifier) override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         const auto& configManager = Bootstrap_->GetConfigManager();
         const auto& dynamicConfig = configManager->GetConfig()->ChunkManager;
@@ -592,7 +592,7 @@ private:
 
     void OnFinish(const TError& error) override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         if (!error.IsOK()) {
             ReplyError(error);

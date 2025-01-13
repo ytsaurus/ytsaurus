@@ -79,25 +79,22 @@ public:
         : Bootstrap_(nullptr)
     { }
 
-    THydraFacade(TBootstrap* bootstrap)
+    explicit THydraFacade(TBootstrap* bootstrap)
         : Config_(bootstrap->GetConfig())
         , Bootstrap_(bootstrap)
     {
         AutomatonQueue_ = CreateEnumIndexedFairShareActionQueue<EAutomatonThreadQueue>(
             "Automaton",
-            GetAutomatonThreadBuckets());
+            GetAutomatonThreadBuckets(),
+            {
+                .ThreadInitializer = BIND([bootstrap = Bootstrap_, epochContext = EpochContext_] {
+                    NObjectServer::InitializeMasterStateThread(
+                        bootstrap,
+                        epochContext,
+                        /*isAutomatonThread*/ true);
+                }),
+            });
         YT_ASSERT_INVOKER_THREAD_AFFINITY(AutomatonQueue_->GetInvoker(EAutomatonThreadQueue::Default), AutomatonThread);
-
-        NObjectServer::SetupMasterBootstrap(bootstrap);
-
-        BIND([this, this_ = MakeStrong(this)] {
-            NObjectServer::SetupAutomatonThread();
-            NObjectServer::SetupEpochContext(EpochContext_);
-        })
-            .AsyncVia(AutomatonQueue_->GetInvoker(EAutomatonThreadQueue::Default))
-            .Run()
-            .Get()
-            .ThrowOnError();
 
         Automaton_ = New<TMasterAutomaton>(Bootstrap_);
 

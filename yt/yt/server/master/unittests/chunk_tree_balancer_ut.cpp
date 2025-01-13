@@ -66,12 +66,12 @@ public:
         : Config_(New<TDynamicChunkTreeBalancerConfig>())
         , ChunkLists_(chunkLists)
     {
-        SetupMasterSmartpointers();
+        InitializeMasterSmartpointers();
     }
 
     ~TChunkTreeBalancerCallbacksMock()
     {
-        ResetMasterSmartpointers();
+        FinalizeMasterSmartpointers();
     }
 
     const TDynamicChunkTreeBalancerConfigPtr& GetConfig() const override

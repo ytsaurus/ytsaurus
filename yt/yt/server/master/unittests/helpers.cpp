@@ -26,35 +26,32 @@ TBootstrapMock::TBootstrapMock()
     ObjectManager_ = CreateObjectManager(TTestingTag(), this);
 }
 
-void TBootstrapMock::SetupMasterSmartpointers()
+void TBootstrapMock::InitializeMasterSmartpointers()
 {
-    SetupMasterBootstrap(this);
-    SetupAutomatonThread();
-
     auto epochContext = New<TEpochContext>();
     epochContext->CurrentEpoch = 42;
     epochContext->CurrentEpochCounter = 42;
     epochContext->EphemeralPtrUnrefInvoker = GetSyncInvoker();
-    SetupEpochContext(epochContext);
 
+    InitializeMasterStateThread(this, epochContext, /*isAutomatonThread*/ true);
     BeginMutation();
 }
 
-void TBootstrapMock::ResetMasterSmartpointers()
+void TBootstrapMock::FinalizeMasterSmartpointers()
 {
-    ResetAll();
+    FinalizeMasterStateThread();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TBootstrapTestBase::SetUp()
 {
-    Bootstrap_->SetupMasterSmartpointers();
+    Bootstrap_->InitializeMasterSmartpointers();
 }
 
 void TBootstrapTestBase::TearDown()
 {
-    Bootstrap_->ResetMasterSmartpointers();
+    Bootstrap_->FinalizeMasterSmartpointers();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

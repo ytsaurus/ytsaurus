@@ -2403,7 +2403,7 @@ public:
         TTransaction* transaction,
         NTableClient::NProto::TRspCheckDynamicTableLock* response)
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         YT_VERIFY(table->IsTrunk());
 

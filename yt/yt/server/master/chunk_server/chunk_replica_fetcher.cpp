@@ -119,7 +119,7 @@ public:
 
     bool CanHaveSequoiaReplicas(TChunkLocation* location) const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         if (!IsObjectAlive(location)) {
             return false;
@@ -153,7 +153,7 @@ public:
 
     bool CanHaveSequoiaReplicas(TChunkId chunkId) const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         const auto& config = GetDynamicConfig();
         if (!config->Enable) {
@@ -166,7 +166,7 @@ public:
 
     bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocationUuid locationUuid) const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
@@ -179,7 +179,7 @@ public:
 
     bool IsSequoiaChunkReplica(TChunkId chunkId, TChunkLocation* location) const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         if (!CanHaveSequoiaReplicas(chunkId)) {
             return false;
@@ -194,7 +194,7 @@ public:
         TChunkLocationUuid locationUuid) const override
     {
         YT_VERIFY(!HasMutationContext());
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         const auto& config = GetDynamicConfig();
         if (!config->Enable) {
@@ -223,7 +223,7 @@ public:
     TFuture<std::vector<NRecords::TLocationReplicas>> GetSequoiaNodeReplicas(TNodeId nodeId) const override
     {
         YT_VERIFY(!HasMutationContext());
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         const auto& config = GetDynamicConfig();
         if (!config->Enable) {
@@ -251,7 +251,7 @@ public:
     TFuture<std::vector<TNodeId>> GetLastSeenReplicas(const TEphemeralObjectPtr<TChunk>& chunk) const override
     {
         YT_VERIFY(!HasMutationContext());
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         auto chunkId = chunk->GetId();
         auto isErasure = chunk->IsErasure();
@@ -295,7 +295,7 @@ public:
         bool includeUnapproved) const override
     {
         YT_VERIFY(!HasMutationContext());
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         // This is so stupid.
         std::vector<TEphemeralObjectPtr<TChunk>> chunks;
@@ -319,7 +319,7 @@ public:
         bool includeUnapproved) const override
     {
         YT_VERIFY(!HasMutationContext());
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         auto chunkId = chunk->GetId();
 
@@ -337,7 +337,7 @@ public:
         bool includeUnapproved) const override
     {
         YT_VERIFY(!HasMutationContext());
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         auto sequoiaChunkIds = FilterSequoiaChunkIds(chunks);
         if (sequoiaChunkIds.empty()) {
@@ -379,7 +379,7 @@ public:
         bool includeUnapproved) const override
     {
         YT_VERIFY(!HasMutationContext());
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         std::vector<TChunkId> sequoiaChunkIds;
         for (auto chunkId : chunkIds) {
@@ -395,7 +395,7 @@ public:
     TFuture<std::vector<TSequoiaChunkReplica>> GetUnapprovedSequoiaChunkReplicas(const std::vector<TChunkId>& chunkIds) const override
     {
         YT_VERIFY(!HasMutationContext());
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         if (!GetDynamicConfig()->Enable) {
             return MakeFuture<std::vector<TSequoiaChunkReplica>>({});
@@ -449,7 +449,7 @@ private:
         bool includeUnapproved) const
     {
         YT_VERIFY(!HasMutationContext());
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList> result;
         for (auto chunkId : sequoiaChunkIds) {
@@ -511,7 +511,7 @@ private:
 
     const TDynamicSequoiaChunkReplicasConfigPtr& GetDynamicConfig() const
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->SequoiaChunkReplicas;
     }
@@ -521,7 +521,7 @@ private:
         const TErrorOr<THashMap<TChunkId, TChunkLocationPtrWithReplicaInfoList>>& sequoiaReplicasOrError,
         const std::vector<TChunkId>& sequoiaChunkIds) const
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         TChunkToLocationPtrWithReplicaInfoList result;
         if (!sequoiaReplicasOrError.IsOK()) {

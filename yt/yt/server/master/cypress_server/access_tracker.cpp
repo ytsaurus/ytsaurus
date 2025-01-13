@@ -71,7 +71,7 @@ void TAccessTracker::Stop()
 
 void TAccessTracker::SetAccessed(TCypressNode* trunkNode)
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     YT_VERIFY(FlushExecutor_);
     YT_VERIFY(IsObjectAlive(trunkNode));
@@ -98,7 +98,7 @@ void TAccessTracker::SetAccessed(TCypressNode* trunkNode)
 
 void TAccessTracker::SetTouched(TCypressNode* trunkNode)
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     YT_VERIFY(FlushExecutor_);
     YT_VERIFY(IsObjectAlive(trunkNode));
@@ -209,7 +209,7 @@ void TAccessTracker::OnFlush()
 
 TAccessTracker::TShard* TAccessTracker::GetShard(TCypressNode* node)
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     auto nodeId = node->GetId();
     auto shardIndex = GetShardIndex<ShardCount>(nodeId);

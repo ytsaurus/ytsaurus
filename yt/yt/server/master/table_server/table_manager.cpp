@@ -1162,7 +1162,7 @@ public:
 
     const THashSet<TTableNode*>& GetQueues() const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return Queues_;
     }
@@ -1193,7 +1193,7 @@ public:
 
     const THashSet<TTableNode*>& GetQueueConsumers() const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return QueueConsumers_;
     }
@@ -1226,7 +1226,7 @@ public:
 
     const THashSet<TTableNode*>& GetQueueProducers() const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return QueueProducers_;
     }
@@ -1261,7 +1261,7 @@ public:
 
     TFuture<TYsonString> GetQueueAgentObjectRevisionsAsync() const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         const auto& cypressManager = Bootstrap_->GetCypressManager();

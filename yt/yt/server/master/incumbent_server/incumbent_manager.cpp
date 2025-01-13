@@ -11,6 +11,8 @@
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 
+#include <yt/yt/server/master/object_server/object.h>
+
 #include <yt/yt/server/lib/incumbent_client/incumbent_service_proxy.h>
 #include <yt/yt/server/lib/incumbent_client/proto/incumbent_service.pb.h>
 
@@ -28,6 +30,7 @@ namespace NYT::NIncumbentServer {
 using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NIncumbentClient;
+using namespace NObjectServer;
 using namespace NLogging;
 using namespace NHydra;
 using namespace NYson;
@@ -344,7 +347,7 @@ private:
 
     std::optional<std::string> GetIncumbentAddress(EIncumbentType type, int shardIndex) const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return LocalIncumbentMap_[type].Addresses[shardIndex];
     }

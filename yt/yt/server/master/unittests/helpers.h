@@ -14,8 +14,8 @@ class TBootstrapMock
 public:
     TBootstrapMock();
 
-    void SetupMasterSmartpointers();
-    void ResetMasterSmartpointers();
+    void InitializeMasterSmartpointers();
+    void FinalizeMasterSmartpointers();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

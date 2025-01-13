@@ -7,6 +7,7 @@
 namespace NYT::NChunkServer {
 
 using namespace NChunkClient;
+using namespace NObjectServer;
 using namespace NYTree;
 using namespace NYson;
 
@@ -18,12 +19,12 @@ TChunkVisitorBase::TChunkVisitorBase(
     : Bootstrap_(bootstrap)
     , ChunkLists_(chunkLists)
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 }
 
 TFuture<TYsonString> TChunkVisitorBase::Run()
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     auto context = CreateAsyncChunkTraverserContext(
         Bootstrap_,
@@ -38,7 +39,7 @@ TFuture<TYsonString> TChunkVisitorBase::Run()
 
 void TChunkVisitorBase::OnFinish(const TError& error)
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     if (error.IsOK()) {
         OnSuccess();
@@ -67,7 +68,7 @@ bool TChunkIdsAttributeVisitor::OnChunk(
     const TReadLimit& /*endLimit*/,
     const TChunkViewModifier* /*modifier*/)
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     Writer_.OnListItem();
     Writer_.OnStringScalar(ToString(chunk->GetId()));
@@ -91,7 +92,7 @@ bool TChunkIdsAttributeVisitor::OnDynamicStore(
 
 void TChunkIdsAttributeVisitor::OnSuccess()
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     Writer_.OnEndList();
     Writer_.Flush();

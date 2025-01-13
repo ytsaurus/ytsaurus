@@ -66,7 +66,7 @@ public:
 
     void OnUserSeen(TUser* user) override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         YT_VERIFY(FlushExecutor_);
         YT_VERIFY(IsObjectAlive(user));
