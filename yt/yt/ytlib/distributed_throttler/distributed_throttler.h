@@ -31,6 +31,17 @@ struct TThrottlerUsage
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TThrottlerToGlobalUsage)
+
+class TThrottlerToGlobalUsage
+    : public virtual TRefCounted
+    , public THashMap<TThrottlerId, TThrottlerUsage>
+{ };
+
+DEFINE_REFCOUNTED_TYPE(TThrottlerToGlobalUsage)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IDistributedThrottlerFactory
     : public virtual TRefCounted
 {
@@ -42,7 +53,7 @@ struct IDistributedThrottlerFactory
     virtual void Reconfigure(TDistributedThrottlerConfigPtr config) = 0;
 
     //! Only the leader has non-empty throttler usages collected over all members.
-    virtual std::shared_ptr<const THashMap<TThrottlerId, TThrottlerUsage>> TryGetThrottlerToGlobalUsage() const = 0;
+    virtual TIntrusivePtr<const TThrottlerToGlobalUsage> TryGetThrottlerToGlobalUsage() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedThrottlerFactory)
