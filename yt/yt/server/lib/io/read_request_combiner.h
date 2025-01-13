@@ -14,7 +14,7 @@ struct IReadRequestCombiner
     struct TCombinedRequest
     {
         IIOEngine::TReadRequest ReadRequest;
-        TMutableRef ResultBuffer;
+        TSharedMutableRef ResultBuffer;
     };
 
     virtual std::vector<TCombinedRequest> Combine(

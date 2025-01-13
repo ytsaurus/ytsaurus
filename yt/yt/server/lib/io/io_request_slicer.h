@@ -12,7 +12,7 @@ namespace NYT::NIO {
 struct TSlicedReadRequest
 {
     IIOEngine::TReadRequest Request;
-    TMutableRef OutputBuffer;
+    TSharedMutableRef OutputBuffer;
 };
 
 class TIORequestSlicer
@@ -20,7 +20,7 @@ class TIORequestSlicer
 public:
     TIORequestSlicer(i64 desiredSize, i64 minSize);
 
-    std::vector<TSlicedReadRequest> Slice(IIOEngine::TReadRequest request, TMutableRef buffer) const;
+    std::vector<TSlicedReadRequest> Slice(IIOEngine::TReadRequest request, const TSharedMutableRef& buffer) const;
 
     std::vector<IIOEngine::TWriteRequest> Slice(IIOEngine::TWriteRequest request) const;
     std::vector<IIOEngine::TFlushFileRangeRequest> Slice(IIOEngine::TFlushFileRangeRequest request) const;
@@ -41,7 +41,7 @@ class TDummyRequestSlicer
 public:
     TDummyRequestSlicer(i64 desiredSize, i64 minSize);
 
-    std::array<TSlicedReadRequest, 1> Slice(IIOEngine::TReadRequest request, TMutableRef buffer) const;
+    std::array<TSlicedReadRequest, 1> Slice(IIOEngine::TReadRequest request, TSharedMutableRef buffer) const;
     std::array<IIOEngine::TWriteRequest, 1> Slice(IIOEngine::TWriteRequest request) const;
     std::array<IIOEngine::TFlushFileRangeRequest, 1> Slice(IIOEngine::TFlushFileRangeRequest request) const;
 };
