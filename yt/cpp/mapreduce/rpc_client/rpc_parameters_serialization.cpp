@@ -789,6 +789,8 @@ NApi::TTableReaderOptions SerializeOptionsForReadTable(
         result.Config = NYTree::ConvertTo<NTableClient::TTableReaderConfigPtr>(
             NYson::TYsonString(NodeToYsonString(*options.Config_, NYson::EYsonFormat::Binary)));
     }
+    result.EnableRowIndex = options.ControlAttributes_.EnableRowIndex_;
+    result.EnableRangeIndex = options.ControlAttributes_.EnableRangeIndex_;
     return result;
 }
 

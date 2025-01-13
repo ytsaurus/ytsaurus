@@ -6,9 +6,13 @@
 
 #include <yt/yt/client/api/file_reader.h>
 
+#include <yt/yt/client/api/rpc_proxy/client_base.h>
+
 #include <yt/yt/client/table_client/blob_reader.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
+
+#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <library/cpp/iterator/enumerate.h>
 
@@ -853,6 +857,46 @@ void TRpcRawClient::AlterTable(
 {
     auto future = Client_->AlterTable(path, SerializeOptionsForAlterTable(mutationId, transactionId, options));
     WaitFor(future).ThrowOnError();
+}
+
+std::unique_ptr<IInputStream> TRpcRawClient::ReadTable(
+    const TTransactionId& transactionId,
+    const TRichYPath& path,
+    const TMaybe<TFormat>& format,
+    const TTableReaderOptions& options)
+{
+    auto* clientBase = VerifyDynamicCast<NApi::NRpcProxy::TClientBase*>(Client_.Get());
+
+    auto apiOptions = SerializeOptionsForReadTable(transactionId, options);
+
+    auto proxy = clientBase->CreateApiServiceProxy();
+
+    auto req = proxy.ReadTable();
+    clientBase->InitStreamingRequest(*req);
+
+    ToProto(req->mutable_path(), ToApiRichPath(path));
+
+    req->set_unordered(apiOptions.Unordered);
+    req->set_omit_inaccessible_columns(apiOptions.OmitInaccessibleColumns);
+    req->set_enable_table_index(apiOptions.EnableTableIndex);
+    req->set_enable_row_index(apiOptions.EnableRowIndex);
+    req->set_enable_range_index(apiOptions.EnableRangeIndex);
+
+    if (apiOptions.Config) {
+        req->set_config(NYson::ConvertToYsonString(*apiOptions.Config).ToString());
+    }
+
+    if (format) {
+        req->set_desired_rowset_format(NApi::NRpcProxy::NProto::RF_FORMAT);
+        req->set_format(NodeToYsonString(format->Config, NYson::EYsonFormat::Text));
+    }
+
+    ToProto(req->mutable_transactional_options(), apiOptions);
+    ToProto(req->mutable_suppressable_access_tracking_options(), apiOptions);
+
+    auto future = NRpc::CreateRpcClientInputStream(std::move(req));
+    auto stream = WaitFor(future).ValueOrThrow();
+    return CreateSyncAdapter(CreateCopyingAdapter(std::move(stream)));
 }
 
 std::unique_ptr<IInputStream> TRpcRawClient::ReadBlobTable(
