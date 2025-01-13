@@ -7,7 +7,7 @@ from yt_env_setup import (
 )
 
 from yt_commands import (
-    authors, print_debug, wait, create, get, set, remove,
+    assert_statistics_v2, authors, print_debug, wait, create, get, set, remove,
     exists, create_user, disable_tablet_cells_on_node,
     make_ace, insert_rows, select_rows, lookup_rows, delete_rows, alter_table, read_table, write_table, merge,
     remote_copy, sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
@@ -1019,8 +1019,15 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             }
         )
 
-        jobs_count = op.get_statistics()["data"]["input"]["data_weight"][0]["summary"]["count"]
-        assert jobs_count == 1
+        def assert_job_count(job_count):
+            assert job_count == 1
+
+        assert_statistics_v2(
+            op,
+            "data.input.data_weight",
+            assert_job_count,
+            summary_type="count",
+            job_type="remote_copy")
 
         assert read_file("//tmp/out.txt") == remote_content
         assert get("//tmp/out.txt/@chunk_count") == chunks
@@ -1043,8 +1050,15 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 }
             )
 
-        jobs_count = op.get_statistics()["data"]["input"]["data_weight"][0]["summary"]["count"]
-        assert jobs_count == n_chunks
+        def assert_job_count(job_count):
+            assert job_count == n_chunks
+
+        assert_statistics_v2(
+            op,
+            "data.input.data_weight",
+            assert_job_count,
+            summary_type="count",
+            job_type="remote_copy")
 
         assert read_file("//tmp/out.txt") == remote_content
         assert get("//tmp/out.txt/@chunk_count") == n_chunks
