@@ -792,6 +792,30 @@ NApi::TTableReaderOptions SerializeOptionsForReadTable(
     return result;
 }
 
+NApi::TAlterTableOptions SerializeOptionsForAlterTable(
+    TMutationId& mutationId,
+    const TTransactionId& transactionId,
+    const TAlterTableOptions& options)
+{
+    NApi::TAlterTableOptions result;
+    SetMutationId(&result, &mutationId);
+    SetTransactionId(&result, transactionId);
+    if (options.Schema_) {
+        NTableClient::TTableSchema schema;
+        auto schemaNode = NYTree::ConvertToNode(
+            NYson::TYsonString(NodeToYsonString(options.Schema_->ToNode(), NYson::EYsonFormat::Binary)));
+        Deserialize(schema, schemaNode);
+        result.Schema = std::move(schema);
+    }
+    if (options.Dynamic_) {
+        result.Dynamic = *options.Dynamic_;
+    }
+    if (options.UpstreamReplicaId_) {
+        result.UpstreamReplicaId = YtGuidFromUtilGuid(*options.UpstreamReplicaId_);
+    }
+    return result;
+}
+
 NApi::TAlterTableReplicaOptions SerializeOptionsForAlterTableReplica(
     TMutationId& mutationId,
     const TAlterTableReplicaOptions& options)
