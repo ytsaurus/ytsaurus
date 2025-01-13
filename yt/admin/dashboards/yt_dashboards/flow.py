@@ -350,8 +350,12 @@ def build_pipeline():
     d.set_title("[YT Flow] Pipeline general")
     d.add_parameter("project", "Pipeline project", MonitoringTextDashboardParameter())
     d.add_parameter("cluster", "Cluster", MonitoringTextDashboardParameter())
+    d.add_parameter("proxy", "YT proxy", MonitoringTextDashboardParameter(default_value="-"))
+    d.add_parameter("pipeline_path", "Pipeline path", MonitoringTextDashboardParameter(default_value="-"))
     d.add_parameter("computation_id", "Computation (only for some graphs)", MonitoringTextDashboardParameter(default_value="-"))
 
     return (d
         .value("project", TemplateTag("project"))
-        .value("cluster", TemplateTag("cluster")))
+        .value("cluster", TemplateTag("cluster"))
+        .value("proxy", TemplateTag("proxy"))
+        .value("pipeline_path", TemplateTag("pipeline_path")))
