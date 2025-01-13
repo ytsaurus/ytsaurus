@@ -259,7 +259,8 @@ private:
             case EValueType::Any:
                 return TTypeBuilder<TDynamicValueData>::TStringType::Get(Builder_.Context_);
             default:
-                YT_ABORT();
+                THROW_ERROR_EXCEPTION("Unsupported type")
+                    << TErrorAttribute("type", ToString(type));
         }
     }
 
@@ -334,7 +335,8 @@ private:
             case EValueType::String:
                 return TTypeBuilder<TUnversionedValueData>::TStringType::Get(Builder_.Context_);
             default:
-                YT_ABORT();
+                THROW_ERROR_EXCEPTION("Unsupported type")
+                    << TErrorAttribute("type", ToString(type));
         }
     }
 
@@ -431,7 +433,8 @@ Value* TComparerBuilder::CreateCmp(Value* lhs, Value* rhs, EValueType type, bool
         case EValueType::Double:
             return CreateFCmp(isLessThan ? CmpInst::FCMP_ULT : CmpInst::FCMP_UGT, lhs, rhs);
         default:
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Unsupported type")
+                << TErrorAttribute("type", ToString(type));
     }
 }
 
