@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/api/file_reader.h>
 
+#include <yt/yt/client/table_client/blob_reader.h>
+
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <library/cpp/iterator/enumerate.h>
@@ -815,6 +817,62 @@ void TRpcRawClient::ReshardTableByTabletCount(
     auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
     auto future = Client_->ReshardTable(newPath, tabletCount, SerializeOptionsForReshardTable(mutationId, options));
     WaitFor(future).ThrowOnError();
+}
+
+std::unique_ptr<IInputStream> TRpcRawClient::ReadBlobTable(
+    const TTransactionId& transactionId,
+    const TRichYPath& path,
+    const TKey& key,
+    const TBlobTableReaderOptions& options)
+{
+    auto lowerKeyNode = TNode::CreateList(key.Parts_);
+    lowerKeyNode.Add(options.StartPartIndex_);
+
+    auto lowerLimitKeyNode = TNode::CreateList();
+    lowerLimitKeyNode.Add(">=");
+    lowerLimitKeyNode.Add(lowerKeyNode);
+
+    NTableClient::TOwningKeyBound lowerKeyBound;
+    Deserialize(lowerKeyBound, NYTree::ConvertToNode(NYson::TYsonString(
+        NodeToYsonString(lowerLimitKeyNode, NYson::EYsonFormat::Binary))));
+
+    auto upperKeyNode = TNode::CreateList(key.Parts_);
+    upperKeyNode.Add(std::numeric_limits<i64>::max());
+
+    auto upperLimitKeyNode = TNode::CreateList();
+    upperLimitKeyNode.Add("<");
+    upperLimitKeyNode.Add(upperKeyNode);
+
+    NTableClient::TOwningKeyBound upperKeyBound;
+    Deserialize(upperKeyBound, NYTree::ConvertToNode(NYson::TYsonString(
+        NodeToYsonString(upperLimitKeyNode, NYson::EYsonFormat::Binary))));
+
+    auto richPath = ToApiRichPath(path);
+    richPath.SetRanges({
+        NChunkClient::TReadRange{
+            NChunkClient::TReadLimit{lowerKeyBound},
+            NChunkClient::TReadLimit{upperKeyBound}}});
+
+    auto future = Client_->CreateTableReader(richPath, SerializeOptionsForReadTable(transactionId));
+    auto reader = WaitFor(future).ValueOrThrow();
+
+    std::optional<std::string> partIndexColumnName;
+    if (options.PartIndexColumnName_) {
+        partIndexColumnName = *options.PartIndexColumnName_;
+    }
+    std::optional<std::string> dataColumnName;
+    if (options.DataColumnName_) {
+        dataColumnName = *options.DataColumnName_;
+    }
+
+    auto blobReader = NTableClient::CreateBlobTableReader(
+        reader,
+        partIndexColumnName,
+        dataColumnName,
+        options.StartPartIndex_,
+        options.Offset_,
+        options.PartSize_);
+    return CreateSyncAdapter(CreateCopyingAdapter(blobReader));
 }
 
 void TRpcRawClient::AlterTableReplica(
