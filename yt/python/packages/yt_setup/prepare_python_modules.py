@@ -12,6 +12,7 @@ from .os_helpers import (
     apply_multiple,
     cp_r,
     cp,
+    ignore_patterns,
     logger,
     replace,
     replace_symlink,
@@ -60,7 +61,7 @@ YT_PREFIX_BINARIES = [
 
 
 def cp_r_755(src, dst):
-    cp_r(src, dst, permissions=0o755)
+    cp_r(src, dst, permissions=0o755, ignore=ignore_patterns("*.pyc"))
 
 
 def fix_type_info_package(type_info_path):
