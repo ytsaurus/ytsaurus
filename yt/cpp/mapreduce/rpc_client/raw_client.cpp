@@ -819,6 +819,32 @@ void TRpcRawClient::ReshardTableByTabletCount(
     WaitFor(future).ThrowOnError();
 }
 
+TNode::TListType TRpcRawClient::SelectRows(
+    const TString& query,
+    const TSelectRowsOptions& options)
+{
+    auto future = Client_->SelectRows(query, SerializeOptionsForSelectRows(options));
+    auto selectRowsResult = WaitFor(future).ValueOrThrow();
+
+    const auto& rowset = selectRowsResult.Rowset;
+    const auto columnNames  = rowset->GetSchema()->GetColumnNames();
+
+    auto result = TNode::CreateList();
+    for (const auto& row : rowset->GetRows()) {
+        YT_VERIFY(row.GetCount() == columnNames.size());
+
+        auto rowNode = TNode::CreateMap();
+        for (const auto& [columnIdx, columnName] : Enumerate(columnNames)) {
+            TNode value;
+            TNodeBuilder builder(&value);
+            Serialize(row[columnIdx], &builder);
+            rowNode[columnName] = value;
+        }
+        result.Add(std::move(rowNode));
+    }
+    return result.AsList();
+}
+
 std::unique_ptr<IInputStream> TRpcRawClient::ReadBlobTable(
     const TTransactionId& transactionId,
     const TRichYPath& path,

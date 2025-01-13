@@ -760,6 +760,25 @@ NApi::TReshardTableOptions SerializeOptionsForReshardTable(
     return result;
 }
 
+NApi::TSelectRowsOptions SerializeOptionsForSelectRows(const TSelectRowsOptions& options)
+{
+    NApi::TSelectRowsOptions result;
+    if (options.Timeout_) {
+        result.Timeout = *options.Timeout_;
+    }
+    if (options.InputRowLimit_) {
+        result.InputRowLimit = *options.InputRowLimit_;
+    }
+    if (options.OutputRowLimit_) {
+        result.OutputRowLimit = *options.OutputRowLimit_;
+    }
+    result.RangeExpansionLimit = options.RangeExpansionLimit_;
+    result.FailOnIncompleteResult = options.FailOnIncompleteResult_;
+    result.VerboseLogging = options.VerboseLogging_;
+    result.EnableCodeCache = options.EnableCodeCache_;
+    return result;
+}
+
 NApi::TTableReaderOptions SerializeOptionsForReadTable(
     const TTransactionId& transactionId,
     const TTableReaderOptions& options)

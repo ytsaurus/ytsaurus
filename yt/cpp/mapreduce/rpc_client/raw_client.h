@@ -252,6 +252,10 @@ public:
         i64 tabletCount,
         const TReshardTableOptions& options = {}) override;
 
+    TNode::TListType SelectRows(
+        const TString& query,
+        const TSelectRowsOptions& options = {}) override;
+
     std::unique_ptr<IInputStream> ReadBlobTable(
         const TTransactionId& transactionId,
         const TRichYPath& path,
