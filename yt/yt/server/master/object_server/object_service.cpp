@@ -740,10 +740,6 @@ private:
                 multicellSyncExt.suppress_upstream_sync(),
                 multicellSyncExt.suppress_transaction_coordinator_sync());
 
-            YT_LOG_DEBUG("Serving subrequest from cache (SubrequestIndex: %v, Key: %v)",
-                subrequestIndex,
-                key);
-
             auto refreshRevision = cachingRequestHeaderExt.refresh_revision();
             auto cookie = Owner_->Cache_->BeginLookup(
                 RequestId_,
@@ -752,6 +748,11 @@ private:
                 FromProto<TDuration>(cachingRequestHeaderExt.expire_after_failed_update_time()),
                 FromProto<TDuration>(cachingRequestHeaderExt.success_staleness_bound()),
                 refreshRevision);
+
+            YT_LOG_DEBUG("Serving subrequest from cache (SubrequestIndex: %v, Key: %v, CookieActive: %v)",
+                subrequestIndex,
+                key,
+                cookie.IsActive());
 
             if (cookie.IsActive()) {
                 subrequest.ActiveCacheCookie.emplace(std::move(cookie));
