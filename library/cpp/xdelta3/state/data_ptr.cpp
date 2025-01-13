@@ -1,5 +1,7 @@
 #include "data_ptr.h"
 
+#include <cstdlib>
+
 namespace NXdeltaAggregateColumn {
 
     TDeleter::TDeleter(XDeltaContext* context)
