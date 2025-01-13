@@ -5872,10 +5872,10 @@ bool TOperationControllerBase::RestartJobInAllocation(TNonNullPtr<TAllocation> a
     {
         auto abortReason = EAbortReason::OperationIncarnationChanged;
 
-        Host->AbortJob(joblet->JobId, abortReason, /*requestNewJob*/ true);
+        Host->AbortJob(currentJobId, abortReason, /*requestNewJob*/ true);
 
-        if (auto operationFinished = !OnJobAborted(joblet, std::make_unique<TAbortedJobSummary>(joblet->JobId, abortReason))) {
-            YT_LOG_DEBUG("Operation finished during restarting jobs (JobId: %v)", joblet->JobId);
+        if (auto operationFinished = !OnJobAborted(joblet, std::make_unique<TAbortedJobSummary>(currentJobId, abortReason))) {
+            YT_LOG_DEBUG("Operation finished during restarting jobs (JobId: %v)", currentJobId);
             return false;
         }
     }

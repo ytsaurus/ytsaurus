@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, Restarter, SCHEDULERS_SERVICE, CONTROLLER_A
 
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
-    raises_yt_error, update_controller_agent_config,
+    raises_yt_error, update_controller_agent_config, update_nodes_dynamic_config,
     create, ls, exists, sorted_dicts, create_pool,
     get, write_file, read_table, write_table, vanilla, run_test_vanilla, abort_job, abandon_job,
     interrupt_job, dump_job_context, run_sleeping_vanilla, get_allocation_id_from_job_id)
@@ -1333,6 +1333,106 @@ class TestGangManager(YTEnvSetup):
         release_breakpoint()
 
         op.track()
+
+    @authors("pogorelov")
+    def test_gang_manager_with_controller_in_failing_state(self):
+        update_controller_agent_config("job_tracker/enable_graceful_abort", True)
+        update_controller_agent_config("job_tracker/node_disconnection_timeout", 50000)
+        update_nodes_dynamic_config(
+            path="exec_node/controller_agent_connector/heartbeat_executor",
+            value={
+                "period": 20000,
+                "splay": 0,
+            },
+        )
+        time.sleep(1)
+
+        restarted_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "operation_incarnation_changed"},
+        )
+
+        op = vanilla(
+            track=False,
+            spec={
+                "time_limit": 2000,
+                "tasks": {
+                    "task_a": {
+                        "job_count": 2,
+                        "command": with_breakpoint("BREAKPOINT"),
+                        "gang_manager": {},
+                    },
+                },
+            },
+        )
+
+        job_ids = wait_breakpoint(job_count=2)
+        print_debug(f"Job ids are {job_ids}")
+
+        wait(lambda: get(op.get_path() + "/@progress/state") == "failing")
+
+        job_id_to_abort = job_ids[0]
+        print_debug(f"Aborting job {job_id_to_abort}")
+        abort_job(job_id_to_abort)
+
+        # User job abort is synchronous.
+        update_nodes_dynamic_config(
+            path="exec_node/controller_agent_connector/heartbeat_executor/period", value=100)
+
+        op.wait_for_state("failed")
+
+        assert restarted_job_profiler.get_job_count_delta() == 0
+
+    @authors("pogorelov")
+    def test_gang_manager_with_fail_on_job_restart(self):
+        with pytest.raises(YtError):
+            vanilla(
+                track=False,
+                spec={
+                    "fail_on_job_restart": True,
+                    "tasks": {
+                        "task_a": {
+                            "job_count": 1,
+                            "command": ";",
+                            "gang_manager": {},
+                        },
+                    },
+                },
+            )
+
+        with pytest.raises(YtError):
+            vanilla(
+                track=False,
+                spec={
+                    "tasks": {
+                        "task_a": {
+                            "job_count": 1,
+                            "command": ";",
+                            "gang_manager": {},
+                            "fail_on_job_restart": True,
+                        },
+                    },
+                },
+            )
+
+        with pytest.raises(YtError):
+            vanilla(
+                track=False,
+                spec={
+                    "tasks": {
+                        "task_a": {
+                            "job_count": 1,
+                            "command": ";",
+                            "gang_manager": {},
+                        },
+                        "task_b": {
+                            "job_count": 1,
+                            "command": ";",
+                            "fail_on_job_restart": True,
+                        }
+                    },
+                },
+            )
 
 
 ##################################################################
