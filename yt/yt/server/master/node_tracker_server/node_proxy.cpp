@@ -115,6 +115,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::DataCenter);
         descriptors->push_back(EInternedAttributeKey::State);
         descriptors->push_back(EInternedAttributeKey::MulticellStates);
+        descriptors->push_back(EInternedAttributeKey::MasterCellsReliabilities);
         descriptors->push_back(EInternedAttributeKey::RegistrationPending);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::UserTags)
             .SetWritable(true)
@@ -262,6 +263,13 @@ private:
                 BuildYsonFluently(consumer)
                     .DoMapFor(node->MulticellDescriptors(), [] (TFluentMap fluent, const auto& pair) {
                         fluent.Item(ToString(pair.first)).Value(pair.second.State);
+                    });
+                return true;
+
+            case EInternedAttributeKey::MasterCellsReliabilities:
+                BuildYsonFluently(consumer)
+                    .DoMapFor(node->MulticellDescriptors(), [] (TFluentMap fluent, const auto& pair) {
+                        fluent.Item(ToString(pair.first)).Value(pair.second.CellReliability);
                     });
                 return true;
 

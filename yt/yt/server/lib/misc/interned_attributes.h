@@ -347,6 +347,7 @@
     XX(MulticellCount, multicell_count) \
     XX(MulticellResourceUsage, multicell_resource_usage) \
     XX(MulticellStates, multicell_states) \
+    XX(MasterCellsReliabilities, master_cells_reliabilities) \
     XX(MulticellStatistics, multicell_statistics) \
     XX(MulticellStatus, multicell_status) \
     XX(Name, name) \

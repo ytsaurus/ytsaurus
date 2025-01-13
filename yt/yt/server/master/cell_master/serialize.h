@@ -204,6 +204,7 @@ DEFINE_ENUM(EMasterReign,
     ((BranchesInSequoia)                                            (2814))  // kvk1920
     ((SecondaryIndexStates)                                         (2815))  // sabdenovch
     ((MasterCellsRemoval)                                           (2816))  // cherepashka
+    ((ExecNodeCellAggregatedStateReliabilityPropagationFix)         (2817))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
