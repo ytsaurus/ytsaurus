@@ -1186,7 +1186,7 @@ private:
         // because they have discovered cell to which they will report heartbeat.
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsDynamicallyPropagatedMaster() && !node->MustReportHeartbeatsToAllMasters()) {
-            node->SetLocalCellAggregatedStateReliability(ECellAggregatedStateReliability::DynamicallyDiscovered);
+            SetNodeLocalCellAggregatedStateReliability(node, ECellAggregatedStateReliability::DynamicallyDiscovered);
         }
 
         if (leaseTransaction) {

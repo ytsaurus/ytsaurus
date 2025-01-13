@@ -987,7 +987,10 @@ class TestDynamicMasterCellPropagation(TestMasterCellAdditionBase):
         config["flavors"] = node_flavors[cls.node_counter]
         cls.node_counter = (cls.node_counter + 1) % cls.NUM_NODES
 
-        cls._collect_cell_ids_and_maybe_stash_last_cell(config["cluster_connection"], cluster_index, cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
+        cls._collect_cell_ids_and_maybe_stash_last_cell(
+            config["cluster_connection"],
+            cluster_index,
+            cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
     @authors("cherepashka")
     def test_add_cell(self):
@@ -1078,3 +1081,51 @@ class TestMasterCellDynamicPropagationDuringRegistration(TestMasterCellAdditionB
         # and attempt of starting cellar/data/tablet heartbeats before actual registration.
         # This shouldn't crash node.
         self.Env.start_nodes()
+
+
+class TestDynamicMasterCellPropagationForExecNodes(TestMasterCellAdditionBase):
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+
+    NUM_SECONDARY_MASTER_CELLS = 3
+    NUM_NODES = 1
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "multicell_manager" : {
+            "cell_descriptors" : {
+                "13": {"roles": []},
+            }
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_node_is_not_data_node": True,
+    }
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        config["flavors"] = ["exec"]
+        cls._collect_cell_ids_and_maybe_stash_last_cell(
+            config["cluster_connection"],
+            cluster_index,
+            cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
+
+    @authors("cherepashka")
+    def test_master_reliability_states_for_exec_nodes(self):
+        def check_reliability_status(node, dynamically_discovered_master=None):
+            reliabilities = get(f"//sys/cluster_nodes/{node}/@master_cells_reliabilities")
+            for master in reliabilities.keys():
+                if dynamically_discovered_master is not None and master == dynamically_discovered_master:
+                    if reliabilities[master] != "dynamically_discovered":
+                        return False
+                elif reliabilities[master] != "statically_known":
+                    return False
+            return True
+
+        nodes = ls("//sys/cluster_nodes")
+
+        self._enable_last_cell(downtime=False)
+
+        for node in nodes:
+            wait(lambda:  check_reliability_status(node, "13"))
