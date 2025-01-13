@@ -160,15 +160,9 @@ class TestLocalMode(object):
             os.environ["PATH"] = cls.env_path
 
     def test_logging(self, enable_multidaemon):
-        if enable_multidaemon:
-            # Several master peers are not supported in multidaemon.
-            master_count = 3
-            # Several nodes  are not supported in multidaemon.
-            node_count = 1
-        else:
-            master_count = 3
-            node_count = 2
         scheduler_count = 4
+        node_count = 2
+        master_count = 3
 
         with local_yt(id=_get_id("test_logging"), master_count=master_count, node_count=node_count,
                       scheduler_count=scheduler_count, http_proxy_count=1, enable_multidaemon=enable_multidaemon) as lyt:
@@ -194,15 +188,8 @@ class TestLocalMode(object):
         assert os.path.exists(os.path.join(path, "stderrs"))
 
     def test_user_configs_path(self, enable_multidaemon):
-        if enable_multidaemon:
-            # Several master peers are not supported in multidaemon.
-            master_count = 1
-            # Several nodes are not supported in multidaemon.
-            node_count = 1
-        else:
-            node_count = 2
-            master_count = 3
-
+        master_count = 3
+        node_count = 2
         scheduler_count = 4
         http_proxy_count = 5
         rpc_proxy_count = 6
@@ -281,11 +268,7 @@ class TestLocalMode(object):
         with pytest.raises(yt.YtError):
             start(master_count=0, enable_multidaemon=enable_multidaemon)
 
-        if enable_multidaemon:
-            # Several master peers are not supported in multidaemon.
-            master_count = 1
-        else:
-            master_count = 3
+        master_count = 3
 
         with local_yt(id=_get_id("test_start_masters_and_proxy"), master_count=master_count,
                       node_count=0, scheduler_count=0, controller_agent_count=0, enable_multidaemon=enable_multidaemon) as environment:
@@ -294,8 +277,8 @@ class TestLocalMode(object):
             assert len(environment.configs["master"]) == master_count
 
         if enable_multidaemon:
-            # Several nodes are not supported in multidaemon.
-            node_count = 1
+            # FIXME(nadya73): It fails if node_count > 2.
+            node_count = 2
         else:
             node_count = 5
 
@@ -666,3 +649,62 @@ class TestLocalMode(object):
 
             client.config["token"] = "password"
             client.list("/")
+
+    def test_start_all_components(self, enable_multidaemon):
+        if enable_multidaemon:
+            master_count = 3
+            node_count = 2
+            clock_count = 2
+            scheduler_count = 2
+            controller_agent_count = 2
+            discovery_server_count = 0
+            queue_agent_count = 2
+            kafka_proxy_count = 2
+            timestamp_provider_count = 0
+            http_proxy_count = 2
+            rpc_proxy_count = 2
+            master_cache_count = 2
+            cell_balancer_count = 0  # TODO(YT-23956): Increase it when it will be fixed.
+            tablet_balancer_count = 2
+            cypress_proxy_count = 0
+            replicated_table_tracker_count = 0
+        else:
+            # Run only one instance of each component.
+            master_count = 1
+            node_count = 1
+            clock_count = 1
+            scheduler_count = 1
+            controller_agent_count = 1
+            discovery_server_count = 1
+            queue_agent_count = 1
+            kafka_proxy_count = 1
+            timestamp_provider_count = 1
+            http_proxy_count = 1
+            rpc_proxy_count = 1
+            master_cache_count = 1
+            cell_balancer_count = 1
+            tablet_balancer_count = 1
+            cypress_proxy_count = 1
+            replicated_table_tracker_count = 1
+
+        with local_yt(id=_get_id("test_start_all_components"),
+                      master_count=master_count,
+                      node_count=node_count,
+                      clock_count=clock_count,
+                      scheduler_count=scheduler_count,
+                      controller_agent_count=controller_agent_count,
+                      discovery_server_count=discovery_server_count,
+                      queue_agent_count=queue_agent_count,
+                      kafka_proxy_count=kafka_proxy_count,
+                      timestamp_provider_count=timestamp_provider_count,
+                      http_proxy_count=http_proxy_count,
+                      rpc_proxy_count=rpc_proxy_count,
+                      master_cache_count=master_cache_count,
+                      cell_balancer_count=cell_balancer_count,
+                      tablet_balancer_count=tablet_balancer_count,
+                      cypress_proxy_count=cypress_proxy_count,
+                      replicated_table_tracker_count=replicated_table_tracker_count,
+                      enable_multidaemon=enable_multidaemon) as environment:
+            expected_pid_count = 2 if enable_multidaemon else 17
+            assert len(_read_pids_file(environment.id)) == expected_pid_count
+            assert len(environment.configs["master"]) == master_count
