@@ -446,15 +446,18 @@ def remove(path, recursive=False, force=False, client=None):
 
 
 def create(type, path=None, recursive=False, ignore_existing=False, lock_existing=None,
-           force=None, attributes=None, client=None):
+           force=None, attributes=None, ignore_type_mismatch=False, client=None):
     """Creates Cypress node.
 
     :param str type: one of ["table", "file", "map_node", "list_node", ...].
     :param path: path.
     :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
-    :param bool lock_existing: lock existing node.
     :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
+    :param bool ignore_existing: ignore existing node.
+    :param bool lock_existing: lock existing node.
+    :param bool force: force.
     :param dict attributes: attributes.
+    :param bool ignore_type_mismatch: ignore type mismatch with existing node.
 
     .. seealso:: `create in the docs <https://ytsaurus.tech/docs/en/api/commands#create>`_
     """
@@ -467,6 +470,7 @@ def create(type, path=None, recursive=False, ignore_existing=False, lock_existin
     set_param(params, "lock_existing", lock_existing)
     set_param(params, "attributes", attributes)
     set_param(params, "force", force)
+    set_param(params, "ignore_type_mismatch", ignore_type_mismatch)
     if path is not None:
         params["path"] = YPath(path, client=client)
 
