@@ -60,7 +60,7 @@ TIORequestSlicer::TIORequestSlicer(i64 desiredSize, i64 minSize)
 
 std::vector<TSlicedReadRequest> TIORequestSlicer::Slice(
     IIOEngine::TReadRequest request,
-    TMutableRef buffer) const
+    const TSharedMutableRef& buffer) const
 {
     YT_VERIFY(std::ssize(buffer) >= request.Size);
     return SliceRequest<TSlicedReadRequest>(request, [&] (TSlicedReadRequest& slice, i64 offset, i64 sliceSize) {
@@ -116,7 +116,7 @@ std::vector<TSlicedRequest> TIORequestSlicer::SliceRequest(const TInputRequest& 
 TDummyRequestSlicer::TDummyRequestSlicer(i64 /*desiredSize*/, i64 /*minSize*/)
 { }
 
-std::array<TSlicedReadRequest, 1> TDummyRequestSlicer::Slice(IIOEngine::TReadRequest request, TMutableRef buffer) const
+std::array<TSlicedReadRequest, 1> TDummyRequestSlicer::Slice(IIOEngine::TReadRequest request, TSharedMutableRef buffer) const
 {
     return {
         TSlicedReadRequest{

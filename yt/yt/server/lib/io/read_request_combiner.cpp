@@ -114,7 +114,7 @@ public:
                     requests[collapsed->Index].Handle != requests[current.Index].Handle ||
                     !TryCollapseRequest(&collapsed.value(), current))
                 {
-                    auto resultBuffer = TMutableRef(buffer).Slice(
+                    auto resultBuffer = buffer.Slice(
                         globalBufferOffset,
                         globalBufferOffset + collapsed->Size);
 
@@ -136,7 +136,7 @@ public:
                 OutputRefs_[current.Index] = std::move(outputBuffer);
             }
 
-            auto resultBuffer = TMutableRef(buffer).Slice(
+            auto resultBuffer = buffer.Slice(
                 globalBufferOffset,
                 globalBufferOffset + collapsed->Size);
 
@@ -148,7 +148,7 @@ public:
 
     void PushResult(
         std::vector<TCombinedRequest>* results,
-        TMutableRef buffer,
+        TSharedMutableRef buffer,
         const IIOEngine::TReadRequest& original,
         const TIORequest& combined)
     {
