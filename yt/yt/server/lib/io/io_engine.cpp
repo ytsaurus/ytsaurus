@@ -453,7 +453,7 @@ private:
 
     void DoRead(
         const TReadRequest& request,
-        TMutableRef buffer,
+        TSharedMutableRef buffer,
         TWallTimer timer,
         EWorkloadCategory category,
         TSessionId sessionId,

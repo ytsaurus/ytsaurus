@@ -361,7 +361,7 @@ struct TReadUringRequest
     struct TReadSubrequestState
     {
         iovec Iov;
-        TMutableRef Buffer;
+        TSharedMutableRef Buffer;
     };
 
     std::vector<IIOEngine::TReadRequest> ReadSubrequests;
