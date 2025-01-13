@@ -124,6 +124,7 @@ def get_dynamic_master_config():
 
     transaction_manager = {
         forbid_transaction_actions_for_cypress_transactions = %true;
+        enable_extra_ref_exported_objects = %true;
     };
 
     multicell_manager = {
