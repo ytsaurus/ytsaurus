@@ -439,7 +439,7 @@ std::optional<THashMap<TClusterName, TThrottlerManager::TIncomingTrafficUtilizat
     {
         auto guard = Guard(Lock_);
         if (DistributedThrottlerFactory_) {
-            throttlerToTotalUsage = DistributedThrottlerFactory_->GetThrottlerToTotalUsage();
+            throttlerToTotalUsage = DistributedThrottlerFactory_->TryGetThrottlerToGlobalUsage();
         }
     }
 

@@ -52,6 +52,18 @@ using TThrottlerGlobalUsage = TThrottlerUsage;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using NYT::FromProto;
+
+void FromProto(TThrottlerLocalUsage* throttlerLocalUsage, const NProto::TThrottlerData& throttlerData)
+{
+    throttlerLocalUsage->Rate = throttlerData.usage_rate();
+    throttlerLocalUsage->Limit = throttlerData.limit();
+    throttlerLocalUsage->QueueTotalAmount = throttlerData.queue_total_amount();
+    throttlerLocalUsage->EstimatedOverdraftDuration = TDuration::MilliSeconds(throttlerData.estimated_overdraft_duration());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TWrappedThrottler)
 
 class TWrappedThrottler
@@ -292,6 +304,18 @@ DEFINE_REFCOUNTED_TYPE(TWrappedThrottler)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using NYT::ToProto;
+
+void ToProto(NProto::TThrottlerData* throttlerData, TWrappedThrottlerPtr throttler)
+{
+    throttlerData->set_usage_rate(throttler->GetUsageRate());
+    throttlerData->set_limit(throttler->GetLimit().value_or(0));
+    throttlerData->set_queue_total_amount(throttler->GetQueueTotalAmount());
+    throttlerData->set_estimated_overdraft_duration(throttler->GetEstimatedOverdraftDuration().MilliSeconds());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_STRUCT(TThrottlers)
 
 struct TThrottlers final
@@ -495,9 +519,9 @@ public:
         return result;
     }
 
-    std::shared_ptr<const THashMap<TThrottlerId, TThrottlerGlobalUsage>> GetThrottlerToTotalUsage() const
+    std::shared_ptr<const THashMap<TThrottlerId, TThrottlerGlobalUsage>> GetThrottlerToGlobalUsage() const
     {
-        return atomic_load(&ThrottlerToTotalUsage_);
+        return atomic_load(&ThrottlerToGlobalUsage_);
     }
 
 private:
@@ -509,7 +533,7 @@ private:
     const NLogging::TLogger Logger;
     const int ShardCount_;
 
-    std::shared_ptr<THashMap<TThrottlerId, TThrottlerGlobalUsage>> ThrottlerToTotalUsage_;
+    std::shared_ptr<THashMap<TThrottlerId, TThrottlerGlobalUsage>> ThrottlerToGlobalUsage_;
     bool Active_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReconfigurationLock_);
@@ -559,12 +583,8 @@ private:
         throttlerIdToLocalUsage.reserve(request->throttlers().size());
         for (const auto& throttler : request->throttlers()) {
             const auto& throttlerId = throttler.id();
-            TThrottlerLocalUsage localUsage {
-                .Rate = throttler.usage_rate(),
-                .Limit = throttler.limit(),
-                .QueueTotalAmount = throttler.queue_total_amount(),
-                .EstimatedOverdraftDuration = TDuration::MilliSeconds(throttler.estimated_overdraft_duration())};
-            YT_VERIFY(throttlerIdToLocalUsage.emplace(throttlerId, std::move(localUsage)).second);
+            auto localUsage = FromProto<TThrottlerLocalUsage>(throttler);
+            EmplaceOrCrash(throttlerIdToLocalUsage, throttlerId, std::move(localUsage));
         }
 
         auto limits = GetMemberLimits(memberId, GetKeys(throttlerIdToLocalUsage));
@@ -698,8 +718,8 @@ private:
             auto guard = ReaderGuard(throttlerShard.TotalLimitsLock);
             throttlerCount += throttlerShard.ThrottlerIdToTotalLimit.size();
         }
-        auto newThrottlerToTotalUsage = std::make_shared<THashMap<TThrottlerId, TThrottlerGlobalUsage>>();
-        newThrottlerToTotalUsage->reserve(throttlerCount);
+        auto newThrottlerToGlobalUsage = std::make_shared<THashMap<TThrottlerId, TThrottlerGlobalUsage>>();
+        newThrottlerToGlobalUsage->reserve(throttlerCount);
 
         // Calculate new member limits.
         std::vector<THashMap<TMemberId, THashMap<TThrottlerId, double>>> memberIdToLimit(ShardCount_);
@@ -731,7 +751,7 @@ private:
                         throttlerIdToTotalUsageRate[throttlerId] += throttlerLocalUsage.Rate;
                         throttlerIdToUsageRates[throttlerId].emplace(memberId, throttlerLocalUsage.Rate);
 
-                        auto& throttlerGlobalUsage = (*newThrottlerToTotalUsage)[throttlerId];
+                        auto& throttlerGlobalUsage = (*newThrottlerToGlobalUsage)[throttlerId];
                         throttlerGlobalUsage.Rate += throttlerLocalUsage.Rate;
                         throttlerGlobalUsage.QueueTotalAmount += throttlerLocalUsage.QueueTotalAmount;
                         throttlerGlobalUsage.MaxEstimatedOverdraftDuration = std::max(
@@ -771,7 +791,7 @@ private:
                         newLimit,
                         extraLimit);
                     YT_VERIFY(memberIdToLimit[GetShardIndex(memberId)][memberId].emplace(throttlerId, newLimit).second);
-                    (*newThrottlerToTotalUsage)[throttlerId].Limit += newLimit;
+                    (*newThrottlerToGlobalUsage)[throttlerId].Limit += newLimit;
                 }
             }
         }
@@ -786,7 +806,7 @@ private:
         }
 
         // Update throttlers global data.
-        std::atomic_store(&ThrottlerToTotalUsage_, newThrottlerToTotalUsage);
+        std::atomic_store(&ThrottlerToGlobalUsage_, newThrottlerToGlobalUsage);
     }
 
     void ForgetDeadThrottlers()
@@ -1047,11 +1067,11 @@ public:
         Config_.Store(std::move(config));
     }
 
-    std::shared_ptr<const THashMap<TThrottlerId, TThrottlerGlobalUsage>> GetThrottlerToTotalUsage() const override
+    std::shared_ptr<const THashMap<TThrottlerId, TThrottlerGlobalUsage>> TryGetThrottlerToGlobalUsage() const override
     {
         auto guard = ReaderGuard(Lock_);
         if (MemberId_ == LeaderId_) {
-            return DistributedThrottlerService_->GetThrottlerToTotalUsage();
+            return DistributedThrottlerService_->GetThrottlerToGlobalUsage();
         }
 
         return nullptr;
@@ -1204,11 +1224,12 @@ private:
             auto config = throttler->GetConfig();
             DistributedThrottlerService_->SetTotalLimit(throttlerId, config->Limit);
 
-            TThrottlerLocalUsage localUsage = {
+            TThrottlerLocalUsage localUsage{
                 .Rate = throttler->GetUsageRate(),
                 .Limit = throttler->GetLimit().value_or(0),
                 .QueueTotalAmount = throttler->GetQueueTotalAmount(),
-                .EstimatedOverdraftDuration = throttler->GetEstimatedOverdraftDuration()};
+                .EstimatedOverdraftDuration = throttler->GetEstimatedOverdraftDuration(),
+            };
             EmplaceOrCrash(throttlerIdToLocalUsage, throttlerId, std::move(localUsage));
         }
 
@@ -1239,10 +1260,7 @@ private:
         for (const auto& [throttlerId, throttler] : throttlers) {
             auto* protoThrottler = req->add_throttlers();
             protoThrottler->set_id(throttlerId);
-            protoThrottler->set_usage_rate(throttler->GetUsageRate());
-            protoThrottler->set_limit(throttler->GetLimit().value_or(0));
-            protoThrottler->set_queue_total_amount(throttler->GetQueueTotalAmount());
-            protoThrottler->set_estimated_overdraft_duration(throttler->GetEstimatedOverdraftDuration().MilliSeconds());
+            ToProto(protoThrottler, throttler);
         }
 
         req->Invoke().Subscribe(
@@ -1399,15 +1417,15 @@ private:
 
     void UpdateGlobalThrottlersAttribute()
     {
-        auto throttlerToTotalUsage = GetThrottlerToTotalUsage();
-        if (!throttlerToTotalUsage || throttlerToTotalUsage->empty()) {
+        auto throttlerToGlobalUsage = TryGetThrottlerToGlobalUsage();
+        if (!throttlerToGlobalUsage || throttlerToGlobalUsage->empty()) {
             return;
         }
 
         YT_LOG_DEBUG("Update %Qv member attribute", GlobalThrottlersAttributeKey);
 
         auto yson = NYTree::BuildYsonStringFluently()
-            .DoMapFor(*throttlerToTotalUsage, [&] (NYTree::TFluentMap fluent, const auto& item) {
+            .DoMapFor(*throttlerToGlobalUsage, [&] (NYTree::TFluentMap fluent, const auto& item) {
                 auto rate = std::round(item.second.Rate * 10.0) / 10.0;
                 auto limit = std::round(item.second.Limit * 10.0) / 10.0;
                 fluent
