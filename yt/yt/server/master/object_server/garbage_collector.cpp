@@ -166,7 +166,7 @@ TFuture<void> TGarbageCollector::Collect()
 
 int TGarbageCollector::EphemeralRefObject(TObject* object)
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     YT_ASSERT(IsObjectAlive(object));
     YT_ASSERT(object->IsTrunk());
@@ -180,7 +180,7 @@ int TGarbageCollector::EphemeralRefObject(TObject* object)
 
 void TGarbageCollector::EphemeralUnrefObject(TObject* object)
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     YT_ASSERT(object->IsTrunk());
 
@@ -331,7 +331,7 @@ void TGarbageCollector::DestroyZombie(TObject* object)
 
 const THashSet<TObject*>& TGarbageCollector::GetZombies() const
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     return Zombies_;
 }
@@ -361,7 +361,7 @@ void TGarbageCollector::UnregisterRemovalAwaitingCellsSyncObject(TObject* object
 
 const THashSet<TObject*>& TGarbageCollector::GetRemovalAwaitingCellsSyncObjects() const
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     return RemovalAwaitingCellsSyncObjects_;
 }

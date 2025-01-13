@@ -42,6 +42,7 @@ using namespace NCypressServer;
 using namespace NCellarClient;
 using namespace NHydra;
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NChaosClient;
 using namespace NTableClient;
 using namespace NCypressClient;
@@ -268,21 +269,21 @@ private:
 
     const THashSet<TChaosReplicatedTableNode*>& GetQueues() const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return Queues_;
     }
 
     const THashSet<TChaosReplicatedTableNode*>& GetQueueConsumers() const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return Consumers_;
     }
 
     const THashSet<TChaosReplicatedTableNode*>& GetQueueProducers() const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return Producers_;
     }

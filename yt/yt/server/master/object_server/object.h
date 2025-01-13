@@ -319,12 +319,11 @@ struct TObjectIdFormatter
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void SetupMasterBootstrap(NCellMaster::TBootstrap* bootstrap);
-void SetupAutomatonThread();
-
-void SetupEpochContext(TEpochContextPtr epochContext);
-
-void ResetAll();
+void InitializeMasterStateThread(
+    NCellMaster::TBootstrap* bootstrap,
+    TEpochContextPtr epochContext,
+    bool isAutomatonThread);
+void FinalizeMasterStateThread();
 
 void BeginEpoch();
 void EndEpoch();
@@ -332,13 +331,18 @@ TEpoch GetCurrentEpoch();
 
 void BeginMutation();
 void EndMutation();
-
 bool IsInMutation();
 
 void BeginTeardown();
 void EndTeardown();
 
 void FlushObjectUnrefs();
+
+void AssertAutomatonThreadAffinity();
+void VerifyAutomatonThreadAffinity();
+
+void AssertPersistentStateRead();
+void VerifyPersistentStateRead();
 
 ////////////////////////////////////////////////////////////////////////////////
 

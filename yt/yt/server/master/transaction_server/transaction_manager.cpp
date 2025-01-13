@@ -1178,7 +1178,7 @@ public:
 
     TTransaction* GetTransactionOrThrow(TTransactionId transactionId) override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         auto* transaction = FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
@@ -1189,7 +1189,7 @@ public:
 
     TFuture<TInstant> GetLastPingTime(const TTransaction* transaction) override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return LeaseTracker_->GetLastPingTime(transaction->GetId());
     }

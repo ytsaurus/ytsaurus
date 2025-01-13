@@ -27,6 +27,7 @@ using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NHydra;
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
 using namespace NSequoiaServer;
@@ -140,14 +141,14 @@ public:
 
     const TRootstockNodeMap& RootstockNodes() override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return RootstockNodes_;
     }
 
     const TScionNodeMap& ScionNodes() override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return ScionNodes_;
     }

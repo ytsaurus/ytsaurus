@@ -162,7 +162,7 @@ class TestLocalMode(object):
     def test_logging(self, enable_multidaemon):
         if enable_multidaemon:
             # Several master peers are not supported in multidaemon.
-            master_count = 1
+            master_count = 3
             # Several nodes  are not supported in multidaemon.
             node_count = 1
         else:
@@ -470,24 +470,21 @@ class TestLocalMode(object):
             self.yt_local("stop", env_id)
 
         node_count = 5
-        if enable_multidaemon:
-            # Several master peers are not supported in multidaemon.
-            master_count = 1
-        else:
-            master_count = 3
+        scheduler_count = 2
+        master_count = 3
 
         env_id = self.yt_local(
             "start",
             master_count=master_count,
             node_count=node_count,
-            scheduler_count=2,
+            scheduler_count=scheduler_count,
             enable_multidaemon=enable_multidaemon,
             id=_get_id("test_yt_local_binary_with_counts_specified"))
 
         try:
             client = YtClient(proxy=self.yt_local("get_proxy", env_id))
             assert len(client.list("//sys/cluster_nodes")) == node_count
-            assert len(client.list("//sys/scheduler/instances")) == 2
+            assert len(client.list("//sys/scheduler/instances")) == scheduler_count
             assert len(client.list("//sys/primary_masters")) == master_count
         finally:
             self.yt_local("stop", env_id, "--delete")

@@ -1467,14 +1467,14 @@ public:
 
     TCypressMapNode* GetRootNode() const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return RootNode_;
     }
 
     TCypressShard* GetRootCypressShard() const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return RootShard_;
     }
@@ -1487,7 +1487,7 @@ public:
 
     TCypressNode* GetNodeOrThrow(TVersionedNodeId id) override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         auto* node = FindNode(id);
         // NB: Branches always have zero ref counter.
@@ -1614,7 +1614,7 @@ public:
         TCypressNode* trunkNode,
         TTransaction* transaction) override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         YT_ASSERT(trunkNode->IsTrunk());
 
@@ -1631,7 +1631,7 @@ public:
         TCypressNode* trunkNode,
         TTransaction* transaction) override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         YT_ASSERT(trunkNode->IsTrunk());
 
@@ -1649,7 +1649,7 @@ public:
         TCypressNode* trunkNode,
         TTransaction* transaction) override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         YT_ASSERT(trunkNode->IsTrunk());
 
@@ -2145,7 +2145,7 @@ public:
 
     void SetAccessed(TCypressNode* trunkNode) override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         YT_ASSERT(trunkNode->IsTrunk());
 
@@ -2156,7 +2156,7 @@ public:
 
     void SetTouched(TCypressNode* trunkNode) override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         YT_ASSERT(trunkNode->IsTrunk());
 
@@ -2340,7 +2340,7 @@ public:
         TTransaction* transaction,
         TCypressNode* trunkNode) override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         YT_ASSERT(trunkNode->IsTrunk());
 
@@ -2364,7 +2364,7 @@ public:
         TTransaction* transaction,
         TCypressNode* trunkNode) override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         YT_ASSERT(trunkNode->IsTrunk());
 
@@ -2424,7 +2424,7 @@ public:
     TAccessControlObjectNamespace* FindAccessControlObjectNamespaceByName(
         const std::string& name) const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         auto it = NameToAccessControlObjectNamespaceMap_.find(name);
         return it == NameToAccessControlObjectNamespaceMap_.end() ? nullptr : it->second;

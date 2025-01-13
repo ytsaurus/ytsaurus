@@ -30,6 +30,7 @@ namespace NYT::NSecurityServer {
 using namespace NConcurrency;
 using namespace NHydra;
 using namespace NDistributedThrottler;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -86,7 +87,7 @@ void TRequestTracker::ChargeUser(
     TUser* user,
     const TUserWorkload& workload)
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     switch (workload.Type) {
         case EUserWorkloadType::Read:
@@ -113,7 +114,7 @@ void TRequestTracker::DoChargeUser(
     TUser* user,
     const TUserWorkload& workload)
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     auto& statistics = user->Statistics()[workload.Type];
     statistics.RequestCount += workload.RequestCount;

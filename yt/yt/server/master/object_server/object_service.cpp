@@ -364,8 +364,11 @@ private:
 
     std::function<void()> MakeLocalReadThreadInitializer()
     {
-        return [epochContext = Bootstrap_->GetHydraFacade()->GetEpochContext()] {
-            NObjectServer::SetupEpochContext(epochContext);
+        return [bootstrap = Bootstrap_, epochContext = Bootstrap_->GetHydraFacade()->GetEpochContext()] {
+            NObjectServer::InitializeMasterStateThread(
+                bootstrap,
+                epochContext,
+                /*isAutomatonThread*/ false);
         };
     }
 

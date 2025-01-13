@@ -1209,7 +1209,7 @@ void TObjectManager::CheckInvariants()
 
 TObject* TObjectManager::FindObject(TObjectId id)
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     const auto& handler = FindHandler(TypeFromId(id));
     if (!handler) {
@@ -1221,7 +1221,7 @@ TObject* TObjectManager::FindObject(TObjectId id)
 
 TObject* TObjectManager::GetObject(TObjectId id)
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     auto* object = FindObject(id);
     YT_VERIFY(object);
@@ -1230,7 +1230,7 @@ TObject* TObjectManager::GetObject(TObjectId id)
 
 TObject* TObjectManager::GetObjectOrThrow(TObjectId id)
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     auto* object = FindObject(id);
     if (!IsObjectAlive(object)) {
@@ -1310,7 +1310,7 @@ IObjectProxyPtr TObjectManager::GetProxy(
     TObject* object,
     TTransaction* transaction)
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     YT_VERIFY(IsObjectAlive(object));
 
@@ -2420,7 +2420,7 @@ NProfiling::TTimeCounter* TObjectManager::GetMethodCumulativeExecuteTimeCounter(
 
 const TGarbageCollectorPtr& TObjectManager::GetGarbageCollector() const
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     return GarbageCollector_;
 }

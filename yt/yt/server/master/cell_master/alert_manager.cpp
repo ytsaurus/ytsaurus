@@ -17,6 +17,7 @@ namespace NYT::NCellMaster {
 using namespace NCellMaster::NProto;
 using namespace NConcurrency;
 using namespace NCypressClient;
+using namespace NObjectServer;
 using namespace NHydra;
 using namespace NYTree;
 
@@ -69,7 +70,7 @@ public:
 
     std::vector<TError> GetAlerts() const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         std::vector<TError> alerts;
         for (const auto& [cellTag, cellAlerts] : CellTagToAlerts_) {

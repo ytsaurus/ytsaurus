@@ -21,6 +21,7 @@ using namespace NObjectClient;
 using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
+using namespace NObjectServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -66,7 +67,7 @@ public:
 
     const TDynamicClusterConfigPtr& GetConfig() const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return Config_;
     }

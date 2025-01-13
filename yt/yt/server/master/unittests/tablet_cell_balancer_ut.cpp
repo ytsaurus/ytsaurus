@@ -445,7 +445,33 @@ public:
     void SetUp() override
     {
         TBootstrapTestBase::SetUp();
+        Initialize();
+    }
 
+    void TearDown() override
+    {
+        Finalize();
+        TBootstrapTestBase::TearDown();
+    }
+
+protected:
+    int NodesNum_;
+    int PeersNum_;
+    int BundlesNum_;
+    int CellsNum_;
+
+    std::vector<std::string> Nodes_;
+    std::vector<std::vector<int>> Cells_;
+    std::vector<int> CellsFlattened_;
+
+    THashMap<std::string, int> PeersPerCell_;
+    THashMap<std::string, std::vector<int>> CellLists_;
+    THashMap<std::string, std::vector<std::string>> NodeFeasibility_;
+    int TabletSlotCount_;
+    THashMap<std::string, std::vector<int>> CellDistribution_;
+
+    void Initialize()
+    {
         std::tie(NodesNum_, TabletSlotCount_, PeersNum_, BundlesNum_, CellsNum_) = GetParam();
 
         YT_VERIFY(NodesNum_ * TabletSlotCount_ == PeersNum_ * BundlesNum_ * CellsNum_);
@@ -481,34 +507,21 @@ public:
         }
     }
 
-    void TearDown() override
+    void Finalize()
     {
-        auto setting = New<TSetting>(PeersPerCell_, CellLists_, NodeFeasibility_, TabletSlotCount_, CellDistribution_);
+        auto setting = New<TSetting>(
+            PeersPerCell_,
+            CellLists_,
+            NodeFeasibility_,
+            TabletSlotCount_,
+            CellDistribution_);
         auto balancer = CreateCellBalancer(setting);
-        for (auto& unassigned : setting->GetUnassignedPeers()) {
+        for (const auto& unassigned : setting->GetUnassignedPeers()) {
             balancer->AssignPeer(unassigned.first, unassigned.second);
         }
 
         setting->ValidateAssignment(balancer->GetCellMoveDescriptors());
-
-        TBootstrapTestBase::TearDown();
     }
-
-protected:
-    int NodesNum_;
-    int PeersNum_;
-    int BundlesNum_;
-    int CellsNum_;
-
-    std::vector<std::string> Nodes_;
-    std::vector<std::vector<int>> Cells_;
-    std::vector<int> CellsFlattened_;
-
-    THashMap<std::string, int> PeersPerCell_;
-    THashMap<std::string, std::vector<int>> CellLists_;
-    THashMap<std::string, std::vector<std::string>> NodeFeasibility_;
-    int TabletSlotCount_;
-    THashMap<std::string, std::vector<int>> CellDistribution_;
 };
 
 TEST_P(TCellBaseBalancerStressTest, TestBalancerEmptyDistribution)

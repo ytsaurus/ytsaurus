@@ -561,7 +561,7 @@ public:
 
     const IJobRegistryPtr& GetJobRegistry() const override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         return JobRegistry_;
     }

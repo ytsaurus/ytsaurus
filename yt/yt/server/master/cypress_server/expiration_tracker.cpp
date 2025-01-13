@@ -245,7 +245,7 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
 
 TExpirationTracker::TShard* TExpirationTracker::GetShard(TCypressNode* node)
 {
-    Bootstrap_->VerifyPersistentStateRead();
+    VerifyPersistentStateRead();
 
     auto nodeId = node->GetId();
     auto shardIndex = GetShardIndex<ShardCount>(nodeId);

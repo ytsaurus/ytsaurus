@@ -2677,7 +2677,7 @@ public:
 
     void ChargeUser(TUser* user, const TUserWorkload& workload) override
     {
-        Bootstrap_->VerifyPersistentStateRead();
+        VerifyPersistentStateRead();
 
         if (!IsObjectAlive(user)) {
             return;
