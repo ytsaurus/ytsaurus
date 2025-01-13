@@ -262,6 +262,12 @@ public:
         const TKey& key,
         const TBlobTableReaderOptions& options = {}) override;
 
+    void AlterTable(
+        TMutationId& mutationId,
+        const TTransactionId& transactionId,
+        const TYPath& path,
+        const TAlterTableOptions& options = {}) override;
+
     void AlterTableReplica(
         TMutationId& mutationId,
         const TReplicaId& replicaId,

@@ -845,6 +845,16 @@ TNode::TListType TRpcRawClient::SelectRows(
     return result.AsList();
 }
 
+void TRpcRawClient::AlterTable(
+    TMutationId& mutationId,
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TAlterTableOptions& options)
+{
+    auto future = Client_->AlterTable(path, SerializeOptionsForAlterTable(mutationId, transactionId, options));
+    WaitFor(future).ThrowOnError();
+}
+
 std::unique_ptr<IInputStream> TRpcRawClient::ReadBlobTable(
     const TTransactionId& transactionId,
     const TRichYPath& path,
