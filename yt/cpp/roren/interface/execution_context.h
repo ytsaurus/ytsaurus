@@ -3,7 +3,9 @@
 #include "fwd.h"
 #include <yt/cpp/roren/interface/timers.h>
 
+#include <library/cpp/yt/logging/logger.h>
 #include <yt/yt/library/profiling/sensor.h>
+#include <yt/yt/library/profiling/sensors_owner/sensors_owner.h>
 
 #include <format>
 
@@ -22,6 +24,12 @@ public:
     virtual TString GetExecutorName() const = 0;
 
     virtual NYT::NProfiling::TProfiler GetProfiler() const = 0;
+
+    virtual const NYT::NProfiling::TSensorsOwner& GetSensorsOwner() const;
+
+    virtual const NYT::NLogging::TLogger& GetLogger() const;
+
+    virtual TInstant GetTime() const;
 
     virtual void SetTimer(const TTimer& timer, const TTimer::EMergePolicy policy) = 0;
     virtual void DeleteTimer(const TTimer::TKey& key) = 0;

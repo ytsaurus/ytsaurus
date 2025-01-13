@@ -37,6 +37,8 @@ PEERDIR(
     library/cpp/yt/string
     yt/cpp/roren/library/timers/timer
     yt/yt/core
+    yt/yt/library/profiling
+    yt/yt/library/profiling/sensors_owner
 )
 
 END()

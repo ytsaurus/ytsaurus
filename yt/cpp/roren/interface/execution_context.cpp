@@ -4,6 +4,24 @@ namespace NRoren {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const NYT::NProfiling::TSensorsOwner& IExecutionContext::GetSensorsOwner() const
+{
+    return NYT::NProfiling::GetRootSensorsOwner();
+}
+
+const NYT::NLogging::TLogger& IExecutionContext::GetLogger() const
+{
+    static const NYT::NLogging::TLogger Logger{"Roren"};
+    return Logger;
+}
+
+TInstant IExecutionContext::GetTime() const
+{
+    return NYT::GetInstant();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDummyExecutionContext
     : public IExecutionContext
 {

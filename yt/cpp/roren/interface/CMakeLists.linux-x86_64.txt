@@ -34,6 +34,8 @@ target_link_libraries(cpp-roren-interface PUBLIC
   cpp-yt-string
   library-timers-timer
   yt-yt-core
+  yt-library-profiling
+  library-profiling-sensors_owner
 )
 
 target_sources(cpp-roren-interface PRIVATE
