@@ -246,6 +246,16 @@ public:
         return Underlying_->GetAvailable();
     }
 
+    operator TThrottlerLocalUsage()
+    {
+        return TThrottlerLocalUsage{
+            .Rate = GetUsageRate(),
+            .Limit = GetLimit().value_or(0),
+            .QueueTotalAmount = GetQueueTotalAmount(),
+            .EstimatedOverdraftDuration = GetEstimatedOverdraftDuration(),
+        };
+    }
+
 private:
     const IReconfigurableThroughputThrottlerPtr Underlying_;
     const TThrottlerId ThrottlerId_;
@@ -519,9 +529,9 @@ public:
         return result;
     }
 
-    std::shared_ptr<const THashMap<TThrottlerId, TThrottlerGlobalUsage>> GetThrottlerToGlobalUsage() const
+    TIntrusivePtr<const TThrottlerToGlobalUsage> GetThrottlerToGlobalUsage() const
     {
-        return atomic_load(&ThrottlerToGlobalUsage_);
+        return ThrottlerToGlobalUsage_.Acquire();
     }
 
 private:
@@ -533,7 +543,7 @@ private:
     const NLogging::TLogger Logger;
     const int ShardCount_;
 
-    std::shared_ptr<THashMap<TThrottlerId, TThrottlerGlobalUsage>> ThrottlerToGlobalUsage_;
+    TAtomicIntrusivePtr<const TThrottlerToGlobalUsage> ThrottlerToGlobalUsage_;
     bool Active_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ReconfigurationLock_);
@@ -718,7 +728,7 @@ private:
             auto guard = ReaderGuard(throttlerShard.TotalLimitsLock);
             throttlerCount += throttlerShard.ThrottlerIdToTotalLimit.size();
         }
-        auto newThrottlerToGlobalUsage = std::make_shared<THashMap<TThrottlerId, TThrottlerGlobalUsage>>();
+        auto newThrottlerToGlobalUsage = New<TThrottlerToGlobalUsage>();
         newThrottlerToGlobalUsage->reserve(throttlerCount);
 
         // Calculate new member limits.
@@ -806,7 +816,7 @@ private:
         }
 
         // Update throttlers global data.
-        std::atomic_store(&ThrottlerToGlobalUsage_, newThrottlerToGlobalUsage);
+        ThrottlerToGlobalUsage_.Store(std::move(newThrottlerToGlobalUsage));
     }
 
     void ForgetDeadThrottlers()
@@ -1067,7 +1077,7 @@ public:
         Config_.Store(std::move(config));
     }
 
-    std::shared_ptr<const THashMap<TThrottlerId, TThrottlerGlobalUsage>> TryGetThrottlerToGlobalUsage() const override
+    TIntrusivePtr<const TThrottlerToGlobalUsage> TryGetThrottlerToGlobalUsage() const override
     {
         auto guard = ReaderGuard(Lock_);
         if (MemberId_ == LeaderId_) {
@@ -1224,12 +1234,7 @@ private:
             auto config = throttler->GetConfig();
             DistributedThrottlerService_->SetTotalLimit(throttlerId, config->Limit);
 
-            TThrottlerLocalUsage localUsage{
-                .Rate = throttler->GetUsageRate(),
-                .Limit = throttler->GetLimit().value_or(0),
-                .QueueTotalAmount = throttler->GetQueueTotalAmount(),
-                .EstimatedOverdraftDuration = throttler->GetEstimatedOverdraftDuration(),
-            };
+            auto localUsage = static_cast<TThrottlerLocalUsage>(*throttler);
             EmplaceOrCrash(throttlerIdToLocalUsage, throttlerId, std::move(localUsage));
         }
 

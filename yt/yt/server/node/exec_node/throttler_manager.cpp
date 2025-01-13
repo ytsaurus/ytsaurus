@@ -435,7 +435,7 @@ const TClusterThrottlersConfigPtr TThrottlerManager::GetClusterThrottlersConfig(
 
 std::optional<THashMap<TClusterName, TThrottlerManager::TIncomingTrafficUtilization>> TThrottlerManager::GetClusterToIncomingTrafficUtilization(EThrottlerTrafficType trafficType) const
 {
-    std::shared_ptr<const THashMap<TThrottlerId, TThrottlerUsage>> throttlerToTotalUsage;
+    TIntrusivePtr<const TThrottlerToGlobalUsage> throttlerToTotalUsage;
     {
         auto guard = Guard(Lock_);
         if (DistributedThrottlerFactory_) {
