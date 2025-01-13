@@ -504,16 +504,19 @@ class YtClient(ClientState):
             self,
             type,
             path=None, recursive=False, ignore_existing=False, lock_existing=None, force=None,
-            attributes=None):
+            attributes=None, ignore_type_mismatch=False):
         """
         Creates Cypress node.
 
         :param str type: one of ["table", "file", "map_node", "list_node", ...].
         :param path: path.
         :type path: str or :class:`YPath <yt.wrapper.ypath.YPath>`
-        :param bool lock_existing: lock existing node.
         :param bool recursive: ``yt.wrapper.config["yamr_mode"]["create_recursive"]`` by default.
+        :param bool ignore_existing: ignore existing node.
+        :param bool lock_existing: lock existing node.
+        :param bool force: force.
         :param dict attributes: attributes.
+        :param bool ignore_type_mismatch: ignore type mismatch with existing node.
 
         .. seealso:: `create in the docs <https://ytsaurus.tech/docs/en/api/commands#create>`_
 
@@ -522,7 +525,7 @@ class YtClient(ClientState):
             type,
             client=self,
             path=path, recursive=recursive, ignore_existing=ignore_existing, lock_existing=lock_existing,
-            force=force, attributes=attributes)
+            force=force, attributes=attributes, ignore_type_mismatch=ignore_type_mismatch)
 
     def create_batch_client(
             self,

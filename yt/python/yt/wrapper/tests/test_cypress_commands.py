@@ -266,6 +266,9 @@ class TestCypressCommands(object):
         yt.create("map_node", TEST_DIR + "/dir", ignore_existing=True)
         assert revision == yt.get(TEST_DIR + "/dir/@revision")
 
+        yt.create("document", TEST_DIR + "/dir", ignore_existing=True, ignore_type_mismatch=True)
+        assert revision == yt.get(TEST_DIR + "/dir/@revision")
+
         yt.create("map_node", TEST_DIR + "/dir", force=True)
         assert revision != yt.get(TEST_DIR + "/dir/@revision")
 
