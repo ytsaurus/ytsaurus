@@ -1025,6 +1025,7 @@ private:
             TYsonWriter requestYsonWriter(&requestOutput, EYsonFormat::Text);
             TProtobufParserOptions parserOptions{
                 .SkipUnknownFields = true,
+                .Utf8Check = EUtf8Check::Disable,
             };
 
             const TRequestMessage* request = &context->Request();
