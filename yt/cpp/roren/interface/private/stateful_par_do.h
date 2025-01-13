@@ -5,33 +5,41 @@
 
 #include "../output.h"
 
-#include <yt/cpp/roren/interface/fwd.h>
 #include <yt/cpp/roren/interface/fns.h>
-#include <yt/cpp/roren/interface/type_tag.h>
+#include <yt/cpp/roren/interface/fwd.h>
+#include <yt/cpp/roren/interface/private/fn_attributes_ops.h>
 #include <yt/cpp/roren/interface/private/row_vtable.h>
+#include <yt/cpp/roren/interface/type_tag.h>
 
 namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TFunction>
+template <typename T>
+concept CStatefulDoFn = std::default_initializable<T>
+    && std::derived_from<T, IStatefulDoFn<typename T::TInputRow, typename T::TOutputRow, typename T::TState>>;
+
+template <CStatefulDoFn TFunction>
 class TRawStatefulParDo
     : public IRawStatefulParDo
 {
-    using TInputRow = typename TFunction::TInputRow;
+    using TInputRow = std::decay_t<typename TFunction::TInputRow>;
     using TOutputRow = typename TFunction::TOutputRow;
     using TState = typename TFunction::TState;
     using TKey = typename TInputRow::TKey;
+    static constexpr bool IsMove = CMoveRow<typename TFunction::TInputRow>;
 
 public:
     TRawStatefulParDo() = default;
 
-    TRawStatefulParDo(TIntrusivePtr<TFunction> func, const TRowVtable inputVtable, std::vector<TDynamicTypeTag> outputTags, TFnAttributes fnAttributes)
+    TRawStatefulParDo(TIntrusivePtr<TFunction> func, std::vector<TDynamicTypeTag> outputTags, TFnAttributes fnAttributes)
         : Func_(std::move(func))
-        , InputTag_("stateful-do-fn-input", inputVtable)
+        , InputTag_("stateful-do-fn-input", MakeRowVtable<TInputRow>())
         , OutputTags_(std::move(outputTags))
         , FnAttributes_(std::move(fnAttributes))
-    { }
+    {
+        TFnAttributesOps::SetIsMove(FnAttributes_, IsMove);
+    }
 
     void Start(const IExecutionContextPtr& context, IRawStateStorePtr rawStateMap, const std::vector<IRawOutputPtr>& outputs) override
     {
@@ -49,19 +57,32 @@ public:
         Func_->Start(GetOutput());
     }
 
-    void Do(const void* row, int count) override
+    void Do(const void* rows, int count) override
     {
-        const TInputRow* current = static_cast<const TInputRow*>(row);
+        const TInputRow* current = static_cast<const TInputRow*>(rows);
         const TInputRow* end = current + count;
 
-        if constexpr (std::is_base_of_v<IStatefulDoFn<TInputRow, TOutputRow, TState>, TFunction>) {
-            for (; current < end; ++current) {
-                const auto* key = &current->Key();
-                auto* rawState = RawStateMap_->GetStateRaw(key);
+        for (; current < end; ++current) {
+            const auto* key = &current->Key();
+            auto* rawState = RawStateMap_->GetStateRaw(key);
+            if constexpr (IsMove) {
+                TInputRow copy(*current);
+                Func_->Do(std::move(copy), GetOutput(), *static_cast<TState*>(rawState));
+            } else {
                 Func_->Do(*current, GetOutput(), *static_cast<TState*>(rawState));
             }
-        } else {
-            static_assert(TDependentFalse<TFunction>);
+        }
+    }
+
+    void MoveDo(void* rows, int count) override
+    {
+        TInputRow* current = static_cast<TInputRow*>(rows);
+        TInputRow* end = current + count;
+
+        for (; current < end; ++current) {
+            const auto* key = &current->Key();
+            auto* rawState = RawStateMap_->GetStateRaw(key);
+            Func_->Do(std::move(*current), GetOutput(), *static_cast<TState*>(rawState));
         }
     }
 
@@ -141,8 +162,7 @@ private:
 template <typename TFunction>
 IRawStatefulParDoPtr MakeRawStatefulParDo(TIntrusivePtr<TFunction> fn, TFnAttributes fnAttributes)
 {
-    TRowVtable rowVtable = MakeRowVtable<typename TFunction::TInputRow>();
-    return ::MakeIntrusive<TRawStatefulParDo<TFunction>>(fn, rowVtable, fn->GetOutputTags(), std::move(fnAttributes));
+    return ::MakeIntrusive<TRawStatefulParDo<TFunction>>(fn, fn->GetOutputTags(), std::move(fnAttributes));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -173,7 +173,11 @@ public:
     virtual const TFnAttributes& GetFnAttributes() const = 0;
 
     virtual void Start(const IExecutionContextPtr& context, IRawStateStorePtr rawStateMap, const std::vector<IRawOutputPtr>& outputs) = 0;
-    virtual void Do(const void* row, int count) = 0;
+    virtual void Do(const void* rows, int count) = 0;
+    virtual void MoveDo(void* rows, int count)
+    {
+        Do(rows, count);
+    }
     virtual void Finish() = 0;
 };
 
@@ -194,7 +198,11 @@ public:
     virtual const TFnAttributes& GetFnAttributes() const = 0;
 
     virtual void Start(const IExecutionContextPtr& context, IRawStateStorePtr rawStateMap, const std::vector<IRawOutputPtr>& outputs) = 0;
-    virtual void Do(const void* row, int count) = 0;
+    virtual void Do(const void* rows, int count) = 0;
+    virtual void MoveDo(void* rows, int count)
+    {
+        Do(rows, count);
+    }
     virtual void OnTimer(const void* rawKey, const TTimer& timer) = 0;
     virtual void Finish() = 0;
 

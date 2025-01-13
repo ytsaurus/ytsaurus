@@ -167,15 +167,15 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TInputRow_, class TOutputRow_, class TState_>
+template <CRow TInputRow_, class TOutputRow_, class TState_>
 class IStatefulDoFn
     : public IFnBase
 {
 public:
-    static_assert(NTraits::TIsTKV<TInputRow_>::value);
+    static_assert(NTraits::TIsTKV<std::decay_t<TInputRow_>>::value);
     using TInputRow = TInputRow_;
-    using TKey = typename TInputRow::TKey;
-    using TValue = typename TInputRow::TValue;
+    using TKey = typename std::decay_t<TInputRow>::TKey;
+    using TValue = typename std::decay_t<TInputRow>::TValue;
     using TOutputRow = TOutputRow_;
     using TState = TState_;
 
@@ -192,9 +192,9 @@ public:
     virtual void Start(TOutput<TOutputRow>& /*output*/)
     { }
 
-    virtual void Do(const TInputRow& input, TOutput<TOutputRow>& output, TState& state) = 0;
+    virtual void Do(TDoFnInput<TInputRow> input, TOutput<TOutputRow>& output, TState& state) = 0;
 
-    virtual void Finish(TOutput<TOutputRow>& /*output*/, TStateStore<typename TInputRow::TKey, TState>& /*stateMap*/)
+    virtual void Finish(TOutput<TOutputRow>& /*output*/, TStateStore<TKey, TState>& /*stateMap*/)
     { }
 
     virtual TFnAttributes GetDefaultAttributes() const
