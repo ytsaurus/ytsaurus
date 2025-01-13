@@ -10,6 +10,8 @@
 #include <yt/yt/core/yson/protobuf_interop.h>
 #include <yt/yt/core/yson/writer.h>
 
+#include <yt/yt_proto/yt/core/yson/proto/protobuf_interop.pb.h>
+
 #include <yt/yt/core/misc/error.h>
 
 #include <library/cpp/yt/misc/cast.h>
@@ -17,6 +19,8 @@
 #include <util/string/cast.h>
 
 #include <google/protobuf/io/zero_copy_stream_impl_lite.h>
+
+#include <google/protobuf/descriptor.pb.h>
 
 namespace NYT::NOrm::NAttributes {
 

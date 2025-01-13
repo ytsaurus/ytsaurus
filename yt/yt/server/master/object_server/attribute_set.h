@@ -20,9 +20,9 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(i64, MasterMemoryUsage);
 
 public:
-    bool TryInsert(const std::string& key, const NYson::TYsonString& value);
-    void Set(const std::string& key, const NYson::TYsonString& value);
-    bool TryRemove(const std::string& key);
+    bool TryInsert(TStringBuf key, const NYson::TYsonString& value);
+    void Set(TStringBuf key, const NYson::TYsonString& value);
+    bool TryRemove(TStringBuf key);
     NYson::TYsonString Find(TStringBuf key) const;
 
     void Load(NCellMaster::TLoadContext& context);

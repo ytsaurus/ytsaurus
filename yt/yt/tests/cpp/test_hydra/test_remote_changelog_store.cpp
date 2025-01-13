@@ -165,7 +165,7 @@ protected:
     {
         auto checkSealed = [&] {
             NApi::TGetNodeOptions options{
-                .Attributes = std::vector<TString>{"sealed"},
+                .Attributes = {"sealed"},
             };
             auto path = GetChangelogPath(changelogIndex);
             auto rspOrError = WaitFor(Client_->GetNode(path, options));

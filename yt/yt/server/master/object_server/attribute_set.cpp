@@ -33,7 +33,7 @@ void TAttributeSet::Load(NCellMaster::TLoadContext& context)
     }
 }
 
-void TAttributeSet::Set(const std::string& key, const NYson::TYsonString& value)
+void TAttributeSet::Set(TStringBuf key, const NYson::TYsonString& value)
 {
     if (auto it = Attributes_.find(key); it != Attributes_.end()) {
         MasterMemoryUsage_ -= std::ssize(it->first);
@@ -48,7 +48,7 @@ void TAttributeSet::Set(const std::string& key, const NYson::TYsonString& value)
     }
 }
 
-bool TAttributeSet::TryInsert(const std::string& key, const NYson::TYsonString& value)
+bool TAttributeSet::TryInsert(TStringBuf key, const NYson::TYsonString& value)
 {
     if (Attributes_.find(key) != Attributes_.end()) {
         return false;
@@ -61,7 +61,7 @@ bool TAttributeSet::TryInsert(const std::string& key, const NYson::TYsonString& 
     return true;
 }
 
-bool TAttributeSet::TryRemove(const std::string& key)
+bool TAttributeSet::TryRemove(TStringBuf key)
 {
     auto it = Attributes_.find(key);
     if (it == Attributes_.end()) {

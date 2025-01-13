@@ -1448,8 +1448,7 @@ TObject* TObjectManager::CreateObject(
     if (schema && schema->GetAttributes()) {
         attributeHolder = CreateEphemeralAttributes();
         for (const auto& [key, value] : schema->GetAttributes()->Attributes()) {
-            // TODO(babenko): switch to std::string
-            attributeHolder->SetYson(TString(key), value);
+            attributeHolder->SetYson(key, value);
         }
         if (attributes) {
             auto attributeMap = PatchNode(attributeHolder->ToMap(), attributes->ToMap());
@@ -2456,8 +2455,7 @@ IAttributeDictionaryPtr TObjectManager::GetReplicatedAttributes(
     THashSet<std::string> replicatedKeys;
     auto replicateKey = [&] (const std::string& key, const TYsonString& value) {
         if (replicatedKeys.insert(key).second) {
-            // TODO(babenko): migrate to std::string
-            attributes->SetYson(TString(key), value);
+            attributes->SetYson(key, value);
         }
     };
 

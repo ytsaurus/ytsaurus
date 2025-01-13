@@ -44,9 +44,9 @@ public:
     std::optional<i64> JobCount;
     std::optional<i64> LowerIndex;
     std::optional<i64> UpperIndex;
-    std::vector<TString> Types;
-    std::vector<TString> Attributes;
-    std::vector<TString> AdditionalAttributes;
+    THashSet<NObjectClient::EObjectType> Types;
+    std::vector<std::string> Attributes;
+    std::vector<std::string> AdditionalAttributes;
     bool CalculateExtendedBranchStatistics;
 
     REGISTER_YSON_STRUCT(TExportArgumentsConfig);
@@ -99,7 +99,7 @@ DEFINE_REFCOUNTED_TYPE(TExportArgumentsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const std::vector<TString> PresetKeys = {
+static const std::vector<std::string> PresetKeys = {
     "access_time", \
     "account", \
     "acl", \
@@ -147,7 +147,7 @@ void ExportNode(
     TCypressNode* node,
     const TExportArgumentsConfigPtr& config,
     const ICypressNodeProxyPtr& nodeProxy,
-    const std::vector<TString>& keys,
+    const std::vector<std::string>& keys,
     const std::vector<NCypressClient::TNodeId>& extraNodesHeld,
     const ICypressManagerPtr& cypressManager)
 {
@@ -195,7 +195,7 @@ void ExportNode(
                 .Value(cypressManager->GetNodePath(node->GetTrunkNode(), node->GetTransaction()));
 
             fluent
-                .DoFor(keys, [&] (TFluentMap fluent, const TString& key) {
+                .DoFor(keys, [&] (TFluentMap fluent, const std::string& key) {
                     auto getAttribute = [&] {
                         auto internedKey = TInternedAttributeKey::Lookup(key);
                         if (internedKey != InvalidInternedAttribute) {
@@ -237,7 +237,7 @@ void ExportNode(
 void DoExportSnapshot(
     TBootstrap* bootstrap,
     const TExportArgumentsConfigPtr& config,
-    std::vector<TString> searchedKeys,
+    std::vector<std::string> searchedKeys,
     const THashSet<EObjectType>& searchedTypes)
 {
     const auto& cypressManager = bootstrap->GetCypressManager();
@@ -365,22 +365,13 @@ void ExportSnapshot(TBootstrap* bootstrap, const TString& configPath)
 
     auto searchedAttributes = config->Attributes.empty()
         ? PresetKeys
-        : std::move(config->Attributes);
+        : config->Attributes;
 
-    for (auto& attribute : config->AdditionalAttributes) {
+    for (const auto& attribute : config->AdditionalAttributes) {
         searchedAttributes.push_back(attribute);
     }
 
-    THashSet<EObjectType> searchedTypes;
-    searchedTypes.reserve(config->Types.size());
-    for (const auto& typeNode : config->Types) {
-        try {
-            searchedTypes.insert(ConvertTo<EObjectType>(typeNode));
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Invalid export config: unable to parse type %Qv", typeNode)
-                << ex;
-        }
-    }
+    const auto& searchedTypes = config->Types;
 
     BIND(&DoExportSnapshot, Unretained(bootstrap), config, searchedAttributes, searchedTypes)
         .AsyncVia(bootstrap->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::Default))

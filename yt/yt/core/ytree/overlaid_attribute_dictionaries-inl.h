@@ -35,9 +35,9 @@ void TOverlaidAttributeDictionary<T>::PushBottom(
 }
 
 template <class T>
-std::vector<TString> TOverlaidAttributeDictionary<T>::ListKeys() const
+auto TOverlaidAttributeDictionary<T>::ListKeys() const -> std::vector<TKey>
 {
-    std::vector<TString> result;
+    std::vector<TKey> result;
     for (const auto& dict : UnderlyingDictionaries_) {
         if (!dict) {
             continue;
@@ -50,9 +50,9 @@ std::vector<TString> TOverlaidAttributeDictionary<T>::ListKeys() const
 }
 
 template <class T>
-std::vector<NYTree::IAttributeDictionary::TKeyValuePair> TOverlaidAttributeDictionary<T>::ListPairs() const
+auto TOverlaidAttributeDictionary<T>::ListPairs() const -> std::vector<TKeyValuePair>
 {
-    THashMap<TString, NYson::TYsonString> result;
+    THashMap<TKey, NYson::TYsonString> result;
     for (int index  = std::ssize(UnderlyingDictionaries_) - 1; index >= 0; --index) {
         const auto& dict = UnderlyingDictionaries_[index];
         if (!dict) {
@@ -66,14 +66,13 @@ std::vector<NYTree::IAttributeDictionary::TKeyValuePair> TOverlaidAttributeDicti
 }
 
 template <class T>
-NYson::TYsonString TOverlaidAttributeDictionary<T>::FindYson(TStringBuf key) const
+auto TOverlaidAttributeDictionary<T>::FindYson(TKeyView key) const -> TValue
 {
     for (const auto& dict : UnderlyingDictionaries_) {
         if (!dict) {
             continue;
         }
-        auto value = dict->FindYson(key);
-        if (value) {
+        if (auto value = dict->FindYson(key)) {
             return value;
         }
     }
@@ -82,7 +81,7 @@ NYson::TYsonString TOverlaidAttributeDictionary<T>::FindYson(TStringBuf key) con
 }
 
 template <class T>
-void TOverlaidAttributeDictionary<T>::SetYson(const TString& key, const NYson::TYsonString& value)
+void TOverlaidAttributeDictionary<T>::SetYson(TKeyView key, const NYson::TYsonString& value)
 {
     auto set = false;
     for (const auto& dict : UnderlyingDictionaries_) {
@@ -104,7 +103,7 @@ void TOverlaidAttributeDictionary<T>::SetYson(const TString& key, const NYson::T
 }
 
 template <class T>
-bool TOverlaidAttributeDictionary<T>::Remove(const TString& key)
+bool TOverlaidAttributeDictionary<T>::Remove(TKeyView key)
 {
     auto removed = false;
     for (const auto& dict : UnderlyingDictionaries_) {
@@ -122,7 +121,7 @@ bool TOverlaidAttributeDictionary<T>::Remove(const TString& key)
 template <class T>
 void TOverlaidAttributeDictionary<T>::SetYson(
     IAttributeDictionary& dict,
-    const TString& key,
+    TKeyView key,
     const NYson::TYsonString& value)
 {
     dict.SetYson(key, value);
@@ -131,7 +130,7 @@ void TOverlaidAttributeDictionary<T>::SetYson(
 template <class T>
 void TOverlaidAttributeDictionary<T>::SetYson(
     const IAttributeDictionary& /*dict*/,
-    const TString& /*key*/,
+    TKeyView /*key*/,
     const NYson::TYsonString& /*value*/)
 {
     // NB: IAttributeDictionary's extension methods require SetYson() to be
@@ -142,7 +141,7 @@ void TOverlaidAttributeDictionary<T>::SetYson(
 template <class T>
 bool TOverlaidAttributeDictionary<T>::Remove(
     IAttributeDictionary& dict,
-    const TString& key)
+    TKeyView key)
 {
     return dict.Remove(key);
 }
@@ -150,7 +149,7 @@ bool TOverlaidAttributeDictionary<T>::Remove(
 template <class T>
 bool TOverlaidAttributeDictionary<T>::Remove(
     const IAttributeDictionary& /*dict*/,
-    const TString& /*key*/)
+    TKeyView /*key*/)
 {
     YT_ABORT();
 }

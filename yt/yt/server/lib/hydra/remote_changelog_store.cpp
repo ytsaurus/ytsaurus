@@ -119,12 +119,13 @@ protected:
     { }
 
     void ListChangelogs(
-        const std::vector<TString>& attributes,
+        const std::vector<std::string>& attributes,
         std::function<void(const INodePtr&, int id, bool atPrimaryPath)> functor)
     {
         YT_LOG_DEBUG("Requesting changelog list from remote store");
+
         TListNodeOptions options{
-            .Attributes = attributes
+            .Attributes = attributes,
         };
 
         auto processChangelogs = [&] (const TYPath& path, bool isPrimaryPath) {

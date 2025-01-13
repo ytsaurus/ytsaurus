@@ -147,7 +147,7 @@ TMountConfigAttributeDictionary::TMountConfigAttributeDictionary(
     , IncludeOldAttributesInList_(includeOldAttributesInList)
 { }
 
-std::vector<TString> TMountConfigAttributeDictionary::ListKeys() const
+auto TMountConfigAttributeDictionary::ListKeys() const -> std::vector<TKey>
 {
     if (!IncludeOldAttributesInList_) {
         return BaseAttributes_->ListKeys();
@@ -161,8 +161,7 @@ std::vector<TString> TMountConfigAttributeDictionary::ListKeys() const
     auto result = BaseAttributes_->ListKeys();
     for (const auto& [key, value] : storage->Attributes()) {
         if (NDetail::IsOldStyleMountConfigAttribute(key)) {
-            // TODO(babenko): migrate to std::string
-            result.push_back(TString(key));
+            result.push_back(key);
         }
     }
     return result;
@@ -188,7 +187,7 @@ auto TMountConfigAttributeDictionary::ListPairs() const -> std::vector<TKeyValue
     return result;
 }
 
-TYsonString TMountConfigAttributeDictionary::FindYson(TStringBuf key) const
+auto TMountConfigAttributeDictionary::FindYson(TKeyView key) const -> TValue
 {
     if (NDetail::IsOldStyleMountConfigAttribute(key)) {
         if (auto storage = Owner_->FindMountConfigStorage()) {
@@ -199,7 +198,7 @@ TYsonString TMountConfigAttributeDictionary::FindYson(TStringBuf key) const
     return BaseAttributes_->FindYson(key);
 }
 
-void TMountConfigAttributeDictionary::SetYson(const TString& key, const NYson::TYsonString& value)
+void TMountConfigAttributeDictionary::SetYson(TKeyView key, const NYson::TYsonString& value)
 {
     if (NDetail::IsOldStyleMountConfigAttribute(key)) {
         auto* lockedTable = LockMountConfigAttribute();
@@ -209,7 +208,7 @@ void TMountConfigAttributeDictionary::SetYson(const TString& key, const NYson::T
     return BaseAttributes_->SetYson(key, value);
 }
 
-bool TMountConfigAttributeDictionary::Remove(const TString& key)
+bool TMountConfigAttributeDictionary::Remove(TKeyView key)
 {
     if (NDetail::IsOldStyleMountConfigAttribute(key)) {
         auto* lockedTable = LockMountConfigAttribute();

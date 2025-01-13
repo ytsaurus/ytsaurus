@@ -50,8 +50,7 @@ TEST(TDiscoveryTest, Simple)
     NYPath::TYPath path = "/test/1234";
     std::vector<std::string> keys = {"lock_count"};
     NApi::TListNodeOptions options;
-    // TODO(babenko): switch to std::string
-    options.Attributes = {keys.begin(), keys.end()};
+    options.Attributes = keys;
 
     NYson::TYsonString listRet(TStringBuf("[<locks=[{child_key=tmp}]>dead_node;<locks=[{child_key=lock}]>alive_node;]"));
 
@@ -150,9 +149,9 @@ TEST(TDiscoveryTest, Enter)
         .ThrowOnError();
 }
 
-THashMap<TString, TString> TransformAttributes(TCreateNodeOptions options)
+THashMap<std::string, std::string> TransformAttributes(TCreateNodeOptions options)
 {
-    THashMap<TString, TString> result;
+    THashMap<std::string, std::string> result;
     if (options.Attributes) {
         for (const auto& [name, value] : options.Attributes->ToMap()->GetChildren()) {
             result[name] = value->AsString()->GetValue();
@@ -175,7 +174,7 @@ TEST(TDiscoveryTest, Leave)
 
     auto attrs = CreateEphemeralAttributes();
     attrs->Set("host", BuildYsonNodeFluently().Value("something.ru"));
-    THashMap<TString, TString> comparableAttrs;
+    THashMap<std::string, std::string> comparableAttrs;
     comparableAttrs["host"] = "something.ru";
     // See TransformAttributes.
     comparableAttrs["expiration_time"] = "expiration_time_value";
@@ -286,9 +285,9 @@ TEST(TDiscoveryTest, Ban)
         .ThrowOnError();
 }
 
-THashMap<TString, std::vector<TString>> GetAttributesKeys(THashMap<TString, IAttributeDictionaryPtr> listResult)
+THashMap<TString, std::vector<std::string>> GetAttributesKeys(THashMap<TString, IAttributeDictionaryPtr> listResult)
 {
-    THashMap<TString, std::vector<TString>> result;
+    THashMap<TString, std::vector<std::string>> result;
     for (const auto& [name, attributes] : listResult) {
         result[name] = attributes->ListKeys();
         std::sort(result[name].begin(), result[name].end());
@@ -338,7 +337,7 @@ TEST(TDiscoveryTest, Attributes)
     WaitFor(discovery->StartPolling())
         .ThrowOnError();
 
-    THashMap<TString, std::vector<TString>> expected;
+    THashMap<TString, std::vector<std::string>> expected;
     expected["alive_node1"] = expected["alive_node2"] = {"a1", "a2", "locks"};
 
     EXPECT_THAT(discovery->List(), ResultOf(GetAttributesKeys, expected));

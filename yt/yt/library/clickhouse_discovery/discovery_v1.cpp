@@ -26,7 +26,7 @@ TDiscovery::TDiscovery(
     if (std::find(extraAttributes.begin(), extraAttributes.end(), "locks") == extraAttributes.end()) {
         extraAttributes.push_back("locks");
     }
-    ListOptions_.Attributes = {extraAttributes.begin(), extraAttributes.end()};
+    ListOptions_.Attributes = extraAttributes;
     // TMasterReadOptions
     ListOptions_.ReadFrom = Config_->ReadFrom;
     ListOptions_.ExpireAfterSuccessfulUpdateTime = Config_->MasterCacheExpireTime;

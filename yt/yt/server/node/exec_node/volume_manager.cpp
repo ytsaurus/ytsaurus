@@ -1868,7 +1868,7 @@ private:
 
         TListNodeOptions listNodeOptions;
         listNodeOptions.ReadFrom = EMasterChannelKind::Cache;
-        listNodeOptions.Attributes = std::vector<TString>{"id"};
+        listNodeOptions.Attributes = {"id"};
         auto listNodeRspOrError = WaitFor(client->ListNode(
             *Config_->LayersDirectoryPath,
             listNodeOptions));

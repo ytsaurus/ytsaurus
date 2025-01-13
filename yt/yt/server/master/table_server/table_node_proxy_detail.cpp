@@ -1774,7 +1774,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
 }
 
 void TTableNodeProxy::ValidateCustomAttributeUpdate(
-    const TString& key,
+    TStringBuf key,
     const TYsonString& newValue)
 {
     auto internedKey = TInternedAttributeKey::Lookup(key);

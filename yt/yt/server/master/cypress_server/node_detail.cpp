@@ -815,9 +815,9 @@ TInheritedAttributeDictionary::TInheritedAttributeDictionary(const TConstInherit
         other->Clone())
 { }
 
-std::vector<TString> TInheritedAttributeDictionary::ListKeys() const
+auto TInheritedAttributeDictionary::ListKeys() const -> std::vector<TKey>
 {
-    std::vector<TString> result;
+    std::vector<TKey> result;
 #define XX(camelCaseName, snakeCaseName) \
     if (InheritedAttributes_.camelCaseName.IsSet()) {  \
         result.push_back(#snakeCaseName); \
@@ -835,12 +835,12 @@ std::vector<TString> TInheritedAttributeDictionary::ListKeys() const
     return result;
 }
 
-std::vector<IAttributeDictionary::TKeyValuePair> TInheritedAttributeDictionary::ListPairs() const
+auto TInheritedAttributeDictionary::ListPairs() const -> std::vector<TKeyValuePair>
 {
     return ListAttributesPairs(*this);
 }
 
-TYsonString TInheritedAttributeDictionary::FindYson(TStringBuf key) const
+auto TInheritedAttributeDictionary::FindYson(TKeyView key) const -> TValue
 {
 #define XX(camelCaseName, snakeCaseName) \
     if (key == #snakeCaseName) { \
@@ -910,7 +910,7 @@ TYsonString TInheritedAttributeDictionary::FindYson(TStringBuf key) const
     return Fallback_ ? Fallback_->FindYson(key) : TYsonString();
 }
 
-void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonString& value)
+void TInheritedAttributeDictionary::SetYson(TKeyView key, const TYsonString& value)
 {
 #define XX(camelCaseName, snakeCaseName) \
     if (key == #snakeCaseName) { \
@@ -993,7 +993,7 @@ void TInheritedAttributeDictionary::SetYson(const TString& key, const TYsonStrin
     Fallback_->SetYson(key, value);
 }
 
-bool TInheritedAttributeDictionary::Remove(const TString& key)
+bool TInheritedAttributeDictionary::Remove(TKeyView key)
 {
 #define XX(camelCaseName, snakeCaseName) \
     if (key == #snakeCaseName) { \

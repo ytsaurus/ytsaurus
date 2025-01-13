@@ -670,7 +670,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
                 SyncYPathGet(
                     ypathService,
                     "",
-                    std::vector<TString>{
+                    {
                         "child_count",
                         "type",
                         "member_count",
@@ -713,7 +713,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
                 SyncYPathGet(
                     ypathService,
                     "/sample_group1",
-                    std::vector<TString>{
+                    {
                         "child_count",
                         "type",
                         "member_count",
@@ -744,7 +744,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
                 SyncYPathGet(
                     ypathService,
                     "/sample_group1/@members",
-                    std::vector<TString>{
+                    std::vector<std::string>{
                         "priority",
                         "test",
                         "q1",
@@ -775,7 +775,7 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
         auto attributeKeys = sampleMemberNode->Attributes().ListKeys();
         std::sort(attributeKeys.begin(), attributeKeys.end());
 
-        std::vector<TString> correctAttributeKeys = {
+        std::vector<std::string> correctAttributeKeys = {
             "priority",
             "revision",
             "last_heartbeat_time",

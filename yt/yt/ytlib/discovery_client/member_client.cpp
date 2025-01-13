@@ -33,7 +33,7 @@ public:
         : Underlying_(std::move(underlying))
     { }
 
-    std::vector<TString> ListKeys() const override
+    std::vector<TKey> ListKeys() const override
     {
         return Underlying_->ListKeys();
     }
@@ -43,12 +43,12 @@ public:
         return Underlying_->ListPairs();
     }
 
-    NYson::TYsonString FindYson(TStringBuf key) const override
+    TValue FindYson(TKeyView key) const override
     {
         return Underlying_->FindYson(key);
     }
 
-    void SetYson(const TString& key, const NYson::TYsonString& value) override
+    void SetYson(TKeyView key, const TValue& value) override
     {
         if (IsMemberSystemAttribute(key)) {
             THROW_ERROR_EXCEPTION("Cannot set system attribute %Qv", key);
@@ -56,7 +56,7 @@ public:
         Underlying_->SetYson(key, value);
     }
 
-    bool Remove(const TString& key) override
+    bool Remove(TKeyView key) override
     {
         return Underlying_->Remove(key);
     }

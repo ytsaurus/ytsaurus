@@ -27,12 +27,12 @@ public:
         NYTree::IAttributeDictionary* baseAttributes,
         bool includeOldAttributesInList);
 
-    std::vector<TString> ListKeys() const override;
+    std::vector<TKey> ListKeys() const override;
     std::vector<TKeyValuePair> ListPairs() const override;
 
-    NYson::TYsonString FindYson(TStringBuf key) const override;
-    void SetYson(const TString& key, const NYson::TYsonString& value) override;
-    bool Remove(const TString& key) override;
+    TValue FindYson(TKeyView key) const override;
+    void SetYson(TKeyView key, const TValue& value) override;
+    bool Remove(TKeyView key) override;
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
