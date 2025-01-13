@@ -187,6 +187,10 @@ public:
         NControllerAgent::NProto::TUserJobSpec* proto,
         const TJobletPtr& joblet) const override;
 
+    bool OnJobCompleted(
+        TJobletPtr joblet,
+        std::unique_ptr<TCompletedJobSummary> jobSummary) final;
+
     bool OnJobFailed(
         TJobletPtr joblet,
         std::unique_ptr<TFailedJobSummary> jobSummary) final;
@@ -691,6 +695,25 @@ void TVanillaController::InitUserJobSpec(
 
     TOperationControllerBase::InitUserJobSpec(proto, joblet);
     proto->add_environment(Format("YT_OPERATION_INCARNATION=%v", joblet->OperationIncarnation));
+}
+
+bool TVanillaController::OnJobCompleted(
+    TJobletPtr joblet,
+    std::unique_ptr<TCompletedJobSummary> jobSummary)
+{
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+
+    auto interruptionReason = jobSummary->InterruptionReason;
+
+    if (!TOperationControllerBase::OnJobCompleted(joblet, std::move(jobSummary))) {
+        return false;
+    }
+
+    if (joblet->JobType == EJobType::Vanilla && interruptionReason != EInterruptReason::None) {
+        static_cast<TVanillaTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(joblet, /*operationIsReviving*/ false);
+    }
+
+    return true;
 }
 
 bool TVanillaController::OnJobFailed(

@@ -1109,7 +1109,7 @@ protected:
 
     virtual void DoFailOperation(const TError& error, bool flush = true, bool abortAllJoblets = true);
 
-    bool OnJobCompleted(TJobletPtr joblet, std::unique_ptr<TCompletedJobSummary> jobSummary);
+    virtual bool OnJobCompleted(TJobletPtr joblet, std::unique_ptr<TCompletedJobSummary> jobSummary);
     virtual bool OnJobFailed(TJobletPtr joblet, std::unique_ptr<TFailedJobSummary> jobSummary);
     virtual bool OnJobAborted(TJobletPtr joblet, std::unique_ptr<TAbortedJobSummary> jobSummary);
 
