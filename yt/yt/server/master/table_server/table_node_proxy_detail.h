@@ -37,7 +37,7 @@ protected:
 
     bool SetBuiltinAttribute(NYTree::TInternedAttributeKey key, const NYson::TYsonString& value, bool force) override;
     void ValidateCustomAttributeUpdate(
-        const TString& key,
+        TStringBuf key,
         const NYson::TYsonString& newValue) override;
     void ValidateReadLimit(const NChunkClient::NProto::TReadLimit& context) const override;
     NTableClient::TComparator GetComparator() const override;

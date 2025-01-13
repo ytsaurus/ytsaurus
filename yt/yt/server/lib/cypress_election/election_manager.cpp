@@ -288,7 +288,7 @@ private:
         YT_VERIFY(!IsLeader());
 
         TGetNodeOptions options{
-            .Attributes = std::vector<TString>({"state"})
+            .Attributes = {"state"},
         };
         auto rspOrError = WaitFor(Client_->GetNode(FromObjectId(LockId_), std::move(options)));
         if (rspOrError.IsOK()) {

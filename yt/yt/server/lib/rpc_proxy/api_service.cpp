@@ -1713,7 +1713,7 @@ private:
             FromProto(&options.Attributes, request->attributes());
         } else if (request->has_legacy_attributes() && !request->legacy_attributes().all()) {
             // COMPAT(max42): remove when no clients older than Aug22 are there.
-            options.Attributes = TAttributeFilter(FromProto<std::vector<TString>>(request->legacy_attributes().keys()));
+            options.Attributes = TAttributeFilter(FromProto<std::vector<std::string>>(request->legacy_attributes().keys()));
         }
         if (request->has_max_size()) {
             options.MaxSize = request->max_size();
@@ -1764,7 +1764,7 @@ private:
             FromProto(&options.Attributes, request->attributes());
         } else if (request->has_legacy_attributes() && !request->legacy_attributes().all()) {
             // COMPAT(max42): remove when no clients older than Aug22 are there.
-            options.Attributes = TAttributeFilter(FromProto<std::vector<TString>>(request->legacy_attributes().keys()));
+            options.Attributes = TAttributeFilter(FromProto<std::vector<std::string>>(request->legacy_attributes().keys()));
         }
         if (request->has_max_size()) {
             options.MaxSize = request->max_size();

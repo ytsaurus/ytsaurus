@@ -20,7 +20,7 @@ using namespace NObjectServer;
 
 namespace NDetail {
 
-void DropUnrecognizedRecursively(IMapNodePtr node, IMapNodePtr unrecognized)
+void DropUnrecognizedRecursively(const IMapNodePtr& node, const IMapNodePtr& unrecognized)
 {
     for (const auto& key : unrecognized->GetKeys()) {
         if (node->FindChild(key)) {
@@ -45,14 +45,14 @@ void DropUnrecognizedRecursively(IMapNodePtr node, IMapNodePtr unrecognized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TMountConfigStorage::Set(const std::string& key, const TYsonString& value)
+void TMountConfigStorage::Set(TStringBuf key, const TYsonString& value)
 {
     ValidateKey(key);
 
     TAttributeSet::Set(key, value);
 }
 
-bool TMountConfigStorage::TryRemove(const std::string& key)
+bool TMountConfigStorage::TryRemove(TStringBuf key)
 {
     // TODO: add validation specific for mount config.
     return TAttributeSet::TryRemove(key);
@@ -104,14 +104,14 @@ std::pair<IMapNodePtr, IMapNodePtr> TMountConfigStorage::GetRecognizedConfig() c
     return {std::move(providedConfig), std::move(unrecognizedConfig)};
 }
 
-void TMountConfigStorage::ValidateKey(const std::string& key) const
+void TMountConfigStorage::ValidateKey(TStringBuf key) const
 {
-    static THashSet<std::string> forbiddenKeySet(
+    static const THashSet<std::string, THash<TStringBuf>, TEqualTo<>> forbiddenKeySet(
         TBuiltinTableMountConfig::NonDynamicallyModifiableFields.begin(),
         TBuiltinTableMountConfig::NonDynamicallyModifiableFields.end());
 
     if (forbiddenKeySet.contains(key)) {
-        THROW_ERROR_EXCEPTION("Field %Qlv cannot be set to \"mount_config\" attribute, "
+        THROW_ERROR_EXCEPTION("Field %Qv cannot be set to \"mount_config\" attribute, "
             "it should be set at root as \"@%v\"",
             key,
             key);

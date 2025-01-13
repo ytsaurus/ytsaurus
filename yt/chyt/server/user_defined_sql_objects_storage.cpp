@@ -246,7 +246,7 @@ private:
         return removed;
     }
 
-    IMapNodePtr GetObjectMapNodeWithAttributes(std::vector<TString> attributes) const
+    IMapNodePtr GetObjectMapNodeWithAttributes(std::vector<std::string> attributes) const
     {
         TGetNodeOptions options;
         options.Attributes = std::move(attributes);

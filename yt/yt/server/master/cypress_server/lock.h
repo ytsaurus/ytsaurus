@@ -39,8 +39,8 @@ struct TLockRequest
     TLockRequest() = default;
     TLockRequest(ELockMode mode);
 
-    static TLockRequest MakeSharedChild(const std::string& key);
-    static TLockRequest MakeSharedAttribute(const std::string& key);
+    static TLockRequest MakeSharedChild(TStringBuf key);
+    static TLockRequest MakeSharedAttribute(TStringBuf key);
 
     void Persist(const NCellMaster::TPersistenceContext& context);
 

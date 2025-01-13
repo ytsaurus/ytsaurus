@@ -73,7 +73,7 @@ private:
         Cerr << "Aborting Cypress transactions" << Endl;
 
         auto transactions = ConvertToNode(WaitFor(Client_->ListNode("//sys/transactions", NApi::TListNodeOptions{
-            .Attributes = std::vector<TString>{"cypress_transaction"},
+            .Attributes = {"cypress_transaction"},
         }))
             .ValueOrThrow())
             ->AsList();

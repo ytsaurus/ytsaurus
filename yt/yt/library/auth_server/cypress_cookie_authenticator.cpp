@@ -88,15 +88,14 @@ private:
     {
         auto path = Format("//sys/users/%v", ToYPathLiteral(user));
 
-        constexpr TStringBuf PasswordRevisionAttribute = "password_revision";
+        static const std::string PasswordRevisionAttribute = "password_revision";
 
-        TGetNodeOptions options;
-        options.Attributes = std::vector<TString>({
-            TString{PasswordRevisionAttribute},
-        });
+        TGetNodeOptions options{
+            .Attributes = {PasswordRevisionAttribute},
+        };
 
         return Client_->GetNode(path, options)
-            .Apply(BIND([=] (const TYsonString& rsp) {
+            .Apply(BIND([] (const TYsonString& rsp) {
                 auto rspNode = ConvertToNode(rsp);
                 return rspNode->Attributes().Get<ui64>(PasswordRevisionAttribute);
             }));

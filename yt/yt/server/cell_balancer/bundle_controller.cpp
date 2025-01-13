@@ -1199,8 +1199,7 @@ private:
     {
         TListNodeOptions options;
         options.MaxSize = DefaultMaxSize;
-        // TODO(babenko): migrate to std::string
-        options.Attributes = {TEntryInfo::GetAttributes().begin(), TEntryInfo::GetAttributes().end()};
+        options.Attributes = TEntryInfo::GetAttributes();
 
         auto yson = WaitFor(transaction->ListNode(path, options))
             .ValueOrThrow();
@@ -1231,8 +1230,7 @@ private:
     {
         TGetNodeOptions options;
         options.MaxSize = DefaultMaxSize;
-        // TODO(babenko): switch to std::string
-        options.Attributes = {TEntryInfo::GetAttributes().begin(), TEntryInfo::GetAttributes().end()};
+        options.Attributes = TEntryInfo::GetAttributes();
 
         auto yson = WaitFor(transaction->GetNode(path, options))
             .ValueOrThrow();

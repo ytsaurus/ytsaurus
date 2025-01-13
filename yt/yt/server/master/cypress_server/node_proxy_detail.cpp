@@ -145,16 +145,16 @@ TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::TCustomAttributeDi
     : Proxy_(proxy)
 { }
 
-std::vector<TString> TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::ListKeys() const
+auto TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::ListKeys() const -> std::vector<TKey>
 {
     auto keys = ListNodeAttributes(
         Proxy_->Bootstrap_->GetCypressManager(),
         Proxy_->TrunkNode_,
         Proxy_->Transaction_);
-    return std::vector<TString>(keys.begin(), keys.end());
+    return {keys.begin(), keys.end()};
 }
 
-std::vector<IAttributeDictionary::TKeyValuePair> TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::ListPairs() const
+auto TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::ListPairs() const -> std::vector<TKeyValuePair>
 {
     auto pairs = GetNodeAttributes(
         Proxy_->Bootstrap_->GetCypressManager(),
@@ -163,7 +163,7 @@ std::vector<IAttributeDictionary::TKeyValuePair> TNontemplateCypressNodeProxyBas
     return std::vector<TKeyValuePair>(pairs.begin(), pairs.end());
 }
 
-TYsonString TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::FindYson(TStringBuf name) const
+auto TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::FindYson(TKeyView name) const -> TValue
 {
     const auto& cypressManager = Proxy_->Bootstrap_->GetCypressManager();
     auto originators = cypressManager->GetNodeOriginators(Proxy_->GetTransaction(), Proxy_->GetTrunkNode());
@@ -180,7 +180,7 @@ TYsonString TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::FindYs
     return {};
 }
 
-void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const TString& key, const TYsonString& value)
+void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(TKeyView key, const TYsonString& value)
 {
     YT_ASSERT(value);
 
@@ -209,7 +209,7 @@ void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const
     Proxy_->SetModified(EModificationType::Attributes);
 }
 
-bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(const TString& key)
+bool TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::Remove(TKeyView key)
 {
     if (!FindYson(key)) {
         return false;
@@ -2125,7 +2125,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, CalculateInherited
             iterateOverAttributeDeltaDuringInheritance(
                 inheritedAttributes,
                 currentNodeAttributes,
-                [&] (TString key, TYsonString value) {
+                [&] (const std::string& key, const TYsonString& value) {
                     if (!delta) {
                         delta = response->add_node_to_attribute_deltas();
                         ToProto(delta->mutable_node_id(), currentNode->GetId());

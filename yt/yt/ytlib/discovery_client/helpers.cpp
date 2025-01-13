@@ -87,7 +87,7 @@ void FromProto(TListGroupsOptions* listSubgroupsOptions, const NProto::TListGrou
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsMemberSystemAttribute(const std::string& key)
+bool IsMemberSystemAttribute(TStringBuf key)
 {
     return key == PriorityAttribute ||
         key == RevisionAttribute ||

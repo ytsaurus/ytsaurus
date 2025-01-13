@@ -133,19 +133,19 @@ protected:
     //! Called before attribute #key is added or changed.
     //! Not called for removals, thus `newValue` is always non-null.
     virtual void ValidateCustomAttributeUpdate(
-        const TString& key,
+        TStringBuf key,
         const NYson::TYsonString& newValue);
 
     //! Same as #ValidateCustomAttributeUpdate but wraps the exceptions.
     void GuardedValidateCustomAttributeUpdate(
-        const TString& key,
+        TStringBuf key,
         const NYson::TYsonString& newValue);
 
     //! Called before attribute #key is removed.
-    virtual void ValidateCustomAttributeRemoval(const std::string& key);
+    virtual void ValidateCustomAttributeRemoval(TStringBuf key);
 
     //! Same as #ValidateCustomAttributeRemoval but wraps the exceptions.
-    void GuardedValidateCustomAttributeRemoval(const std::string& key);
+    void GuardedValidateCustomAttributeRemoval(TStringBuf key);
 
     void ValidateCustomAttributeLength(const NYson::TYsonString& value);
 
@@ -247,11 +247,11 @@ protected:
         explicit TCustomAttributeDictionary(TNontemplateNonversionedObjectProxyBase* proxy);
 
         // IAttributeDictionary members
-        std::vector<TString> ListKeys() const override;
+        std::vector<TKey> ListKeys() const override;
         std::vector<TKeyValuePair> ListPairs() const override;
-        NYson::TYsonString FindYson(TStringBuf key) const override;
-        void SetYson(const TString& key, const NYson::TYsonString& value) override;
-        bool Remove(const TString& key) override;
+        TValue FindYson(TKeyView key) const override;
+        void SetYson(TKeyView key, const TValue& value) override;
+        bool Remove(TKeyView key) override;
 
     private:
         TNontemplateNonversionedObjectProxyBase* const Proxy_;

@@ -118,7 +118,7 @@ TFuture<typename TRecordDescriptor::TRecordPartial> LookupQueryTrackerRecord(
     const IClientPtr& client,
     const TString& tablePath,
     const TString& tableKind,
-    const std::optional<std::vector<TString>>& lookupKeys,
+    const std::optional<std::vector<std::string>>& lookupKeys,
     TTimestamp timestamp)
 {
     auto rowBuffer = New<TRowBuffer>();
@@ -233,7 +233,7 @@ TQuery LookupQuery(
     TQueryId queryId,
     const IClientPtr& client,
     const TString& root,
-    const std::optional<std::vector<TString>>& lookupKeys,
+    const std::optional<std::vector<std::string>>& lookupKeys,
     TTimestamp timestamp,
     const TLogger& logger)
 {
@@ -286,7 +286,10 @@ void ValidateQueryPermissions(
     EPermission permission,
     const TLogger& logger)
 {
-    std::vector<TString> lookupKeys = {"user", "access_control_objects"};
+    static const std::vector<std::string> lookupKeys{
+        "user",
+        "access_control_objects",
+    };
     auto query = LookupQuery(queryId, client, root, lookupKeys, timestamp, logger);
     if (CheckAccessControl(user, query.AccessControlObjects, *query.User, client, permission) == ESecurityAction::Deny) {
         ThrowAccessDeniedException(queryId, permission, user, query.AccessControlObjects, *query.User);
@@ -1024,7 +1027,10 @@ TQuery TQueryTrackerProxy::GetQuery(
         : WaitFor(StateClient_->GetTimestampProvider()->GenerateTimestamps())
             .ValueOrThrow();
 
-    YT_LOG_DEBUG("Getting query (QueryId: %v, Timestamp: %v, Attributes: %v)", queryId, timestamp, options.Attributes);
+    YT_LOG_DEBUG("Getting query (QueryId: %v, Timestamp: %v, Attributes: %v)",
+        queryId,
+        timestamp,
+        options.Attributes);
 
     options.Attributes.ValidateKeysOnly();
 
@@ -1275,7 +1281,11 @@ void TQueryTrackerProxy::AlterQuery(
 
     ValidateQueryPermissions(queryId, StateRoot_, timestamp, user, StateClient_, EPermission::Administer, Logger);
 
-    std::vector<TString> lookupKeys = {"state", "start_time", "user"};
+    static const std::vector<std::string> lookupKeys{
+        "state",
+        "start_time",
+        "user",
+    };
 
     auto query = LookupQuery(queryId, StateClient_, StateRoot_, lookupKeys, timestamp, Logger);
 

@@ -207,10 +207,10 @@ private:
     {
         YT_LOG_DEBUG("Started fetching native cookies");
 
-        constexpr TStringBuf ValueAttribute = "value";
+        static const std::string ValueAttribute = "value";
 
         TListNodeOptions listOptions{
-            .Attributes = std::vector<TString>({TString{ValueAttribute}}),
+            .Attributes = {ValueAttribute},
         };
         listOptions.ReadFrom = EMasterChannelKind::Cache;
 

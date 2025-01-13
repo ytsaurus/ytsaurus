@@ -803,7 +803,7 @@ void TObjectProxyBase::LogAcdUpdate(TInternedAttributeKey /*key*/, const TYsonSt
 { }
 
 void TObjectProxyBase::ValidateCustomAttributeUpdate(
-    const TString& key,
+    TStringBuf key,
     const TYsonString& /*newValue*/)
 {
     const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->ObjectManager;
@@ -823,7 +823,7 @@ void TObjectProxyBase::ValidateCustomAttributeUpdate(
 }
 
 void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
-    const TString& key,
+    TStringBuf key,
     const TYsonString& newValue)
 {
     try {
@@ -836,10 +836,10 @@ void TObjectProxyBase::GuardedValidateCustomAttributeUpdate(
     }
 }
 
-void TObjectProxyBase::ValidateCustomAttributeRemoval(const std::string& /*key*/)
+void TObjectProxyBase::ValidateCustomAttributeRemoval(TStringBuf /*key*/)
 { }
 
-void TObjectProxyBase::GuardedValidateCustomAttributeRemoval(const std::string& key)
+void TObjectProxyBase::GuardedValidateCustomAttributeRemoval(TStringBuf key)
 {
     try {
         ValidateCustomAttributeRemoval(key);
@@ -1028,24 +1028,23 @@ TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::TCustomAttr
     : Proxy_(proxy)
 { }
 
-std::vector<TString> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::ListKeys() const
+auto TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::ListKeys() const -> std::vector<TKey>
 {
     const auto* object = Proxy_->Object_;
     const auto* attributes = object->GetAttributes();
-    std::vector<TString> keys;
+    std::vector<TKey> keys;
     if (attributes) {
         keys.reserve(attributes->Attributes().size());
         for (const auto& [key, value] : attributes->Attributes()) {
             // Attribute cannot be empty (i.e. deleted) in null transaction.
             YT_ASSERT(value);
-            // TODO(babenko): migrate to std::string
-            keys.push_back(TString(key));
+            keys.push_back(key);
         }
     }
     return keys;
 }
 
-std::vector<IAttributeDictionary::TKeyValuePair> TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::ListPairs() const
+auto TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::ListPairs() const -> std::vector<TKeyValuePair>
 {
     const auto* object = Proxy_->Object_;
     const auto* attributes = object->GetAttributes();
@@ -1061,7 +1060,7 @@ std::vector<IAttributeDictionary::TKeyValuePair> TNontemplateNonversionedObjectP
     return pairs;
 }
 
-TYsonString TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::FindYson(TStringBuf key) const
+auto TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::FindYson(TKeyView key) const -> TValue
 {
     const auto* object = Proxy_->Object_;
     const auto* attributes = object->GetAttributes();
@@ -1079,7 +1078,7 @@ TYsonString TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary:
     return it->second;
 }
 
-void TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::SetYson(const TString& key, const TYsonString& value)
+void TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::SetYson(TKeyView key, const TYsonString& value)
 {
     Proxy_->GuardedValidateCustomAttributeUpdate(key, value);
 
@@ -1091,7 +1090,7 @@ void TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::SetYso
     Proxy_->SetModified(EModificationType::Attributes);
 }
 
-bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove(const TString& key)
+bool TNontemplateNonversionedObjectProxyBase::TCustomAttributeDictionary::Remove(TKeyView key)
 {
     Proxy_->GuardedValidateCustomAttributeRemoval(key);
 

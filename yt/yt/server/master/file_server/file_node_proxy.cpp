@@ -76,7 +76,7 @@ private:
     }
 
     void ValidateCustomAttributeUpdate(
-        const TString& key,
+        TStringBuf key,
         const TYsonString& newValue) override
     {
         auto internedKey = TInternedAttributeKey::Lookup(key);

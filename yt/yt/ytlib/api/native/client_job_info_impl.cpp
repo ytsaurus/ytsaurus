@@ -295,7 +295,7 @@ TErrorOr<IChannelPtr> TClient::TryCreateChannelToJobNode(
         ValidateOperationAccess(operationId, jobId, requiredPermissions);
 
         TGetJobOptions options;
-        options.Attributes = {TString("address")};
+        options.Attributes = {"address"};
         // TODO(ignat): support structured return value in GetJob.
         auto jobYsonString = WaitFor(GetJob(operationId, jobId, options))
             .ValueOrThrow();
@@ -447,7 +447,7 @@ void TClient::ValidateOperationAccess(
     EPermissionSet permissions)
 {
     TGetOperationOptions getOperationOptions;
-    getOperationOptions.Attributes = {TString("runtime_parameters")};
+    getOperationOptions.Attributes = {"runtime_parameters"};
     auto operationOrError = WaitFor(GetOperation(operationId, getOperationOptions));
 
     if (operationOrError.IsOK()) {
@@ -2095,7 +2095,7 @@ static TError TryFillJobPools(
     const NLogging::TLogger& Logger)
 {
     TGetOperationOptions getOperationOptions;
-    getOperationOptions.Attributes = {TString("runtime_parameters")};
+    getOperationOptions.Attributes = {"runtime_parameters"};
 
     auto operationOrError = WaitFor(client->GetOperation(operationId, getOperationOptions));
     if (!operationOrError.IsOK()) {

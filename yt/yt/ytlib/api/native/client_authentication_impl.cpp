@@ -334,9 +334,9 @@ void TClient::ValidateAuthenticationCommandPermissions(
     const TString& passwordSha256,
     const TTimeoutOptions& options)
 {
-    constexpr TStringBuf HashedPasswordAttribute = "hashed_password";
-    constexpr TStringBuf PasswordSaltAttribute = "password_salt";
-    constexpr TStringBuf PasswordRevisionAttribute = "password_revision";
+    static const std::string HashedPasswordAttribute = "hashed_password";
+    static const std::string PasswordSaltAttribute = "password_salt";
+    static const std::string PasswordRevisionAttribute = "password_revision";
 
     bool canAdminister = false;
     if (Options_.User) {
@@ -367,12 +367,11 @@ void TClient::ValidateAuthenticationCommandPermissions(
         if (Options_.RequirePasswordInAuthenticationCommands) {
             TGetNodeOptions getOptions;
             static_cast<TTimeoutOptions&>(getOptions) = options;
-
-            getOptions.Attributes = std::vector<TString>({
-                TString{HashedPasswordAttribute},
-                TString{PasswordSaltAttribute},
-                TString{PasswordRevisionAttribute},
-            });
+            getOptions.Attributes = {
+                HashedPasswordAttribute,
+                PasswordSaltAttribute,
+                PasswordRevisionAttribute,
+            };
 
             auto path = Format("//sys/users/%v", ToYPathLiteral(user));
             auto rsp = WaitFor(GetNode(path, getOptions))

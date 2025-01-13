@@ -45,18 +45,18 @@ public:
     template <class U>
     void PushBottom(U&& underlyingDict);
 
-    std::vector<TString> ListKeys() const override;
+    std::vector<TKey> ListKeys() const override;
     std::vector<TKeyValuePair> ListPairs() const override;
-    NYson::TYsonString FindYson(TStringBuf key) const override;
-    void SetYson(const TString& key, const NYson::TYsonString& value) override;
-    bool Remove(const TString& key) override;
+    TValue FindYson(TKeyView key) const override;
+    void SetYson(TKeyView key, const TValue& value) override;
+    bool Remove(TKeyView key) override;
 
 private:
-    void SetYson(IAttributeDictionary& dict, const TString& key, const NYson::TYsonString& value);
-    void SetYson(const IAttributeDictionary& dict, const TString& key, const NYson::TYsonString& value);
+    void SetYson(IAttributeDictionary& dict, TKeyView key, const TValue& value);
+    void SetYson(const IAttributeDictionary& dict, TKeyView key, const TValue& value);
 
-    bool Remove(IAttributeDictionary& dict, const TString& key);
-    bool Remove(const IAttributeDictionary& dict, const TString& key);
+    bool Remove(IAttributeDictionary& dict, TKeyView key);
+    bool Remove(const IAttributeDictionary& dict, TKeyView key);
 
     // From top to bottom (the earlier the dictionary, the higher its priority).
     TCompactVector<T, 2> UnderlyingDictionaries_;

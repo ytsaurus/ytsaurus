@@ -180,16 +180,16 @@ private:
     {
         auto path = Format("//sys/users/%v", ToYPathLiteral(user));
 
-        constexpr TStringBuf HashedPasswordAttribute = "hashed_password";
-        constexpr TStringBuf PasswordSaltAttribute = "password_salt";
-        constexpr TStringBuf PasswordRevisionAttribute = "password_revision";
+        static const std::string HashedPasswordAttribute = "hashed_password";
+        static const std::string PasswordSaltAttribute = "password_salt";
+        static const std::string PasswordRevisionAttribute = "password_revision";
 
         TGetNodeOptions options;
-        options.Attributes = std::vector<TString>({
-            TString{HashedPasswordAttribute},
-            TString{PasswordSaltAttribute},
-            TString{PasswordRevisionAttribute},
-        });
+        options.Attributes = {
+            HashedPasswordAttribute,
+            PasswordSaltAttribute,
+            PasswordRevisionAttribute,
+        };
 
         auto rsp = WaitFor(Client_->GetNode(path, options))
             .ValueOrThrow();

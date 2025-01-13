@@ -437,7 +437,7 @@ public:
 
         // Check that the table is indeed dynamic and is mounted.
         NApi::TGetNodeOptions options{
-            .Attributes = std::vector<TString>{"dynamic", "tablet_state"}
+            .Attributes = {"dynamic", "tablet_state"},
         };
         auto rsp = WaitFor(Client_->GetNode(DeviceConfig_->TablePath, options))
             .ValueOrThrow();
