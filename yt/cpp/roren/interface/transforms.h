@@ -395,7 +395,7 @@ auto StatefulParDo(TPState<TKey, TState> pState, TFn fn, const TFnAttributes& at
     if constexpr (NPrivate::CIntrusivePtr<TDecayedF>) {
         static_assert(std::is_same_v<TState, typename TDecayedF::TValueType::TState>, "Type of PState doesn't match StatefulDoFn");
 
-        using TInputRow = typename TDecayedF::TValueType::TInputRow;
+        using TInputRow = std::decay_t<typename TDecayedF::TValueType::TInputRow>;
         using TOutputRow = typename TDecayedF::TValueType::TOutputRow;
         static_assert(NTraits::IsTKV<TInputRow>, "Input row of transform must be TKV");
         static_assert(std::is_same_v<typename TInputRow::TKey, TKey>, "Key of input row must match key of PState");
@@ -424,7 +424,7 @@ auto StatefulParDo(TPState<TKey, TState> pState, TFn fn, const TFnAttributes& at
 }
 
 template <typename T, typename... Args>
-auto MakeStatefulParDo(TPState<typename T::TInputRow::TKey, typename T::TState> pState, Args... args)
+auto MakeStatefulParDo(TPState<typename std::decay_t<typename T::TInputRow>::TKey, typename T::TState> pState, Args... args)
 {
     return StatefulParDo(pState, MakeIntrusive<T>(args...));
 }
