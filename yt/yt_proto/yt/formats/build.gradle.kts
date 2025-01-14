@@ -22,7 +22,7 @@ java {
 }
 
 dependencies {
-    api("com.google.protobuf:protobuf-java:3.25.3")
+    api("com.google.protobuf:protobuf-java:3.25.5")
 
     protobuf(files(buildProtoDir))
 }
@@ -30,7 +30,7 @@ dependencies {
 protobuf {
     protoc {
         // Download from repositories
-        artifact = "com.google.protobuf:protoc:3.25.3"
+        artifact = "com.google.protobuf:protoc:3.25.5"
     }
 
 }

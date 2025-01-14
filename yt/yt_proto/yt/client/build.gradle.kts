@@ -22,7 +22,7 @@ java {
 }
 
 dependencies {
-    api("com.google.protobuf:protobuf-java:3.25.3")
+    api("com.google.protobuf:protobuf-java:3.25.5")
     api(project(":yt:yt_proto:yt:core"))
 
     protobuf(files(File(buildProtoDir, "yt")))
@@ -31,7 +31,7 @@ dependencies {
 protobuf {
     protoc {
         // Download from repositories
-        artifact = "com.google.protobuf:protoc:3.25.3"
+        artifact = "com.google.protobuf:protoc:3.25.5"
     }
 
 }

@@ -14,7 +14,7 @@ java {
 dependencies {
     api(project(":yt:java:annotations"))
     api(project(":yt:java:ytsaurus-testlib:src:main:proto"))
-    api("com.google.protobuf:protobuf-java:3.25.3")
+    api("com.google.protobuf:protobuf-java:3.25.5")
     api("com.google.code.findbugs:jsr305:3.0.2")
     api("org.hamcrest:hamcrest-core:2.2")
 }
