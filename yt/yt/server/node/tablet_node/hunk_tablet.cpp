@@ -55,10 +55,7 @@ void THunkTablet::Load(TLoadContext& context)
 
     Load(context, State_);
     Load(context, MountRevision_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::Avenues) {
-        Load(context, MasterAvenueEndpointId_);
-    }
+    Load(context, MasterAvenueEndpointId_);
     Load(context, *MountConfig_);
     Load(context, *StoreWriterConfig_);
     Load(context, *StoreWriterOptions_);

@@ -353,7 +353,6 @@ struct ITabletContext
     virtual NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const = 0;
     virtual NApi::NNative::IClientPtr GetClient() const = 0;
     virtual NClusterNode::TClusterNodeDynamicConfigManagerPtr GetDynamicConfigManager() const = 0;
-    virtual NObjectClient::TObjectId GenerateIdDeprecated(NObjectClient::EObjectType type) const = 0;
     virtual IStorePtr CreateStore(
         TTablet* tablet,
         EStoreType type,

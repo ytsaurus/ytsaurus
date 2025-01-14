@@ -151,7 +151,7 @@ void TTableConfigExperiment::Register(TRegistrar registrar)
     });
 }
 
-bool TTableConfigExperiment::Matches(const TTableDescriptor& descriptor, bool oldBehaviorCompat) const
+bool TTableConfigExperiment::Matches(const TTableDescriptor& descriptor) const
 {
     if (Sorted.has_value() && *Sorted != descriptor.Sorted) {
         return false;
@@ -165,19 +165,12 @@ bool TTableConfigExperiment::Matches(const TTableDescriptor& descriptor, bool ol
         return false;
     }
 
-    // COMPAT(dave11ar): Remove oldBehaviorCompat from Matches and DropIrrelevantExperiments.
-    if (oldBehaviorCompat) {
-        if (TabletCellBundle && TabletCellBundle->pattern() != descriptor.TabletCellBundle) {
-            return false;
-        }
-    } else {
-        if (TabletCellBundle && !NRe2::TRe2::FullMatch(NRe2::StringPiece(descriptor.TabletCellBundle), *TabletCellBundle)) {
-            return false;
-        }
+    if (TabletCellBundle && !NRe2::TRe2::FullMatch(NRe2::StringPiece(descriptor.TabletCellBundle), *TabletCellBundle)) {
+        return false;
+    }
 
-        if (InMemoryMode && !NRe2::TRe2::FullMatch(NRe2::StringPiece(FormatEnum(descriptor.InMemoryMode)), *InMemoryMode)) {
-            return false;
-        }
+    if (InMemoryMode && !NRe2::TRe2::FullMatch(NRe2::StringPiece(FormatEnum(descriptor.InMemoryMode)), *InMemoryMode)) {
+        return false;
     }
 
     auto hash = ComputeHash(descriptor.TableId);
@@ -222,11 +215,10 @@ void TRawTableSettings::CreateNewProvidedConfigs()
 }
 
 void TRawTableSettings::DropIrrelevantExperiments(
-    const TTableConfigExperiment::TTableDescriptor& descriptor,
-    bool oldBehaviorCompat)
+    const TTableConfigExperiment::TTableDescriptor& descriptor)
 {
     for (auto it = Experiments.begin(); it != Experiments.end(); ) {
-        if (it->second->Matches(descriptor, oldBehaviorCompat)) {
+        if (it->second->Matches(descriptor)) {
             ++it;
         } else {
             it = Experiments.erase(it);

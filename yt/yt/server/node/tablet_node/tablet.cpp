@@ -840,17 +840,7 @@ TReplicationCardId TTablet::GetReplicationCardId() const
 
 TObjectId TTablet::GenerateId(EObjectType type)
 {
-    // COMPAT(ifsmirnov)
-    const auto* mutationContext = TryGetCurrentMutationContext();
-
-    // NB: No mutation context in tests.
-    if (!mutationContext ||
-        mutationContext->Request().Reign >= static_cast<int>(ETabletReign::TabletIdGenerator))
-    {
-        return IdGenerator_.GenerateId(type);
-    } else {
-        return Context_->GenerateIdDeprecated(type);
-    }
+    return IdGenerator_.GenerateId(type);
 }
 
 void TTablet::Save(TSaveContext& context) const
@@ -934,10 +924,7 @@ void TTablet::Load(TLoadContext& context)
     Load(context, TableId_);
     Load(context, MountRevision_);
     Load(context, TablePath_);
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::Avenues) {
-        Load(context, MasterAvenueEndpointId_);
-    }
+    Load(context, MasterAvenueEndpointId_);
     Load(context, State_);
     TNonNullableIntrusivePtrSerializer<>::Load(context, TableSchema_);
     Load(context, Atomicity_);
@@ -1074,20 +1061,7 @@ void TTablet::Load(TLoadContext& context)
     }
     Load(context, PreparedReplicatorTransactionIds_);
 
-    // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::TabletIdGenerator) {
-        Load(context, IdGenerator_);
-    } else {
-        // Seems random enough.
-        auto preSeed = Id_.Parts64[1] ^ TableId_.Parts64[1] ^ SchemaId_.Parts64[1] ^ RuntimeData_->LastCommitTimestamp ^ MountRevision_.Underlying();
-        auto seed = TRandomGenerator(preSeed).Generate<ui64>();
-
-        IdGenerator_ = TIdGenerator(
-            CellTagFromId(Id_),
-            // Make first ids look like 1-1-... rather than 0-1-...
-            /*counter*/ 1ull << 32,
-            /*seed*/ seed);
-    }
+    Load(context, IdGenerator_);
 
     // COMPAT(akozhikhov)
     if (context.GetVersion() >= ETabletReign::ValueDictionaryCompression) {
