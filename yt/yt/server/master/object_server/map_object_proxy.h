@@ -219,7 +219,7 @@ protected:
     {
         EEventType Type;
         TProxyPtr Parent;
-        TString Key;
+        std::string Key;
         TProxyPtr Child;
     };
 
