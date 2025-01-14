@@ -1,5 +1,6 @@
 import enum
 import inspect
+import sys
 
 from .helpers import check_schema_module_available, is_schema_module_available
 
@@ -10,14 +11,9 @@ from .. import skiff
 import copy
 import datetime
 import types
+import typing
 
 from ...type_info.type_base import Primitive
-
-try:
-    import typing
-except ImportError:
-    import yt.packages.typing as typing
-
 
 import yt.type_info as ti
 
@@ -28,25 +24,22 @@ except ImportError:
     pass
 
 
-if is_schema_module_available():
-    try:
-        from yt.packages.typing_extensions import Annotated, Protocol
-    except ImportError:
-        from typing_extensions import Annotated, Protocol
-else:
-    Protocol = object
-
-
 if typing.TYPE_CHECKING:
-    import typing
-    from typing_extensions import dataclass_transform
+    from yt.packages.typing_extensions import Annotated, Protocol, dataclass_transform
 else:
     if is_schema_module_available():
-        try:
-            from yt.packages.typing_extensions import dataclass_transform
-        except ImportError:
-            from typing_extensions import dataclass_transform
+        if (sys.version_info.major, sys.version_info.minor) >= (3, 11):
+            from typing import Annotated, Protocol, dataclass_transform
+        else:
+            # Annotated - available since 3.9
+            from typing import Protocol
+            try:
+                from yt.packages.typing_extensions import Annotated, dataclass_transform
+            except ImportError:
+                from typing_extensions import Annotated, dataclass_transform
     else:
+        Protocol = object
+
         def dataclass_transform():
             return lambda x: x
 
