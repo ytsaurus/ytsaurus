@@ -1688,15 +1688,9 @@ TError TSortedDynamicStore::CheckRowLocks(
         }
 
         if (lockType != ELockType::None) {
-            // COMPAT(ponasenko-rs)
             TTimestamp lastExclusiveTimestamp;
-            if (HasMutationContext() &&
-                static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) < ETabletReign::PersistLastExclusiveLockTimestamp)
-            {
-                lastExclusiveTimestamp = GetLastWriteTimestamp(row, index);
-            } else {
-                lastExclusiveTimestamp = GetLastExclusiveTimestamp(row, index);
-            }
+            lastExclusiveTimestamp = GetLastExclusiveTimestamp(row, index);
+
 
             if (lastExclusiveTimestamp > transaction->GetStartTimestamp()) {
                 error = TError(
@@ -2012,24 +2006,12 @@ void TSortedDynamicStore::LoadRow(
             for (ui32 revision : revisions) {
                 AddWriteRevision(lock, revision);
             }
-
-            // COMPAT(ponasenko-rs)
-            if (!scratchData->LastExclusiveLockTimestamps) {
-                // Add old write revision into exclusive locks list so new code can use them.
-                if (lockIndex == PrimaryLockIndex) {
-                    primaryRevision = revisions.back();
-                } else {
-                    AddExclusiveLockRevision(lock, revisions.back());
-                }
-            }
         }
 
-        // COMPAT(ponasenko-rs)
-        if (scratchData->LastExclusiveLockTimestamps) {
-            auto lastExclusiveLockTimestamp = scratchData->LastExclusiveLockTimestamps[lockIndex];
-            auto revision = CaptureTimestamp(lastExclusiveLockTimestamp, timestampToRevision);
-            AddExclusiveLockRevision(lock, revision);
-        }
+        auto lastExclusiveLockTimestamp = scratchData->LastExclusiveLockTimestamps[lockIndex];
+        AddExclusiveLockRevision(
+            lock,
+            CaptureTimestamp(lastExclusiveLockTimestamp, timestampToRevision));
 
         // COMPAT(ponasenko-rs)
         if (scratchData->LastSharedWriteLockTimestamps) {
@@ -2058,12 +2040,6 @@ void TSortedDynamicStore::LoadRow(
         {
             primaryRevision = CaptureTimestamp(lastDeleteTimestamp, timestampToRevision);
         }
-    }
-
-    // COMPAT(ponasenko-rs)
-    if (!scratchData->LastExclusiveLockTimestamps) {
-        // Add old write revision into exclusive locks list so new code can use them.
-        AddExclusiveLockRevision(locks[PrimaryLockIndex], primaryRevision);
     }
 
     Rows_->Insert(dynamicRow);
@@ -2396,10 +2372,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
 
     if (Load<bool>(context)) {
         std::vector<TTimestamp> lastExclusiveLockTimestamps;
-        // COMPAT(ponasenko-rs)
-        if (context.GetVersion() >= ETabletReign::PersistLastExclusiveLockTimestamp) {
-            Load(context, lastExclusiveLockTimestamps);
-        }
+        Load(context, lastExclusiveLockTimestamps);
         auto lastExclusiveLockTimestampPtr = lastExclusiveLockTimestamps.begin();
 
         std::vector<TTimestamp> lastSharedWriteLockTimestamps;
@@ -2460,12 +2433,7 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
             }
 
             for (auto row : batch->MaterializeRows()) {
-                scratchData.LastExclusiveLockTimestamps = nullptr;
-                // COMPAT(ponasenko-rs)
-                if (context.GetVersion() >= ETabletReign::PersistLastExclusiveLockTimestamp) {
-                    scratchData.LastExclusiveLockTimestamps = lastExclusiveLockTimestampPtr;
-                    lastExclusiveLockTimestampPtr += ColumnLockCount_;
-                }
+                scratchData.LastExclusiveLockTimestamps = lastExclusiveLockTimestampPtr;
 
                 scratchData.LastSharedWriteLockTimestamps = nullptr;
                 // COMPAT(ponasenko-rs)
@@ -2476,7 +2444,9 @@ void TSortedDynamicStore::AsyncLoad(TLoadContext& context)
 
                 scratchData.LastReadLockTimestamps = lastReadLockTimestampPtr;
 
-                LoadRow(row,&scratchData);
+                LoadRow(row, &scratchData);
+
+                lastExclusiveLockTimestampPtr += ColumnLockCount_;
                 lastReadLockTimestampPtr += ColumnLockCount_;
             }
         }

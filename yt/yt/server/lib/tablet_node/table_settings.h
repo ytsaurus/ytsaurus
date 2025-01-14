@@ -111,7 +111,7 @@ public:
     //! Returns true iff the experiment affects a table denoted by |descriptor|. That is,
     //! the table belongs to the working set and a certain random number is less than |Fraction|.
     //! Random number deterministically depends on |descriptor.TableId| and |Salt|.
-    bool Matches(const TTableDescriptor& descriptor, bool oldBehaviorCompat = false) const;
+    bool Matches(const TTableDescriptor& descriptor) const;
 
 private:
     double Fraction;
@@ -208,8 +208,7 @@ struct TRawTableSettings
 
     //! Removes from the |Experiments| map all experiments which do not match |descriptor|.
     void DropIrrelevantExperiments(
-        const TTableConfigExperiment::TTableDescriptor& descriptor,
-        bool oldBehaviorCompat);
+        const TTableConfigExperiment::TTableDescriptor& descriptor);
 
     //! Combines all patches, experiments and provided settings. Each patch is either
     //! applied completely or not applied at all. If a patch cannot be applied, related

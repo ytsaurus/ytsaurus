@@ -23,16 +23,6 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign);
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ETabletReign,
-    // 23.2 starts here.
-    ((Avenues)                                     (100800)) // ifsmirnov
-    ((TabletIdGenerator)                           (100801)) // ifsmirnov
-    ((FixRaceBetweenCompactionUnmount)             (100802)) // dave11ar
-    ((InMemoryModeAndBundleInExperimentDescriptor) (100803)) // dave11ar
-    ((RegisterTxActionsShouldPersistTx)            (100804)) // ifsmirnov
-    ((PersistLastExclusiveLockTimestamp)           (100805)) // ponasenko-rs
-    ((ValueDictionaryCompression_23_2)             (100806)) // akozhikhov
-    ((HunkValueDictionaryCompression_23_2)         (100807)) // akozhikhov
-    ((AbortTransactionOnCorruptedChaosProgress)    (100808)) // osidorkin
     // 24.1 starts here.
     ((NoMountRevisionCheckInBulkInsert)            (100900)) // ifsmirnov
     ((SharedWriteLocks)                            (100901)) // ponasenko-rs

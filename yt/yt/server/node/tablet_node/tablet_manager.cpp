@@ -715,11 +715,6 @@ private:
             return Owner_->Bootstrap_->GetRowComparerProvider();
         }
 
-        TObjectId GenerateIdDeprecated(EObjectType type) const override
-        {
-            return Owner_->Slot_->GenerateId(type);
-        }
-
         IStorePtr CreateStore(
             TTablet* tablet,
             EStoreType type,
@@ -1088,30 +1083,16 @@ private:
                     EInMemoryMode::None),
                 .Sorted = schema->IsSorted(),
                 .Replicated = TypeFromId(tableId) == EObjectType::ReplicatedTable,
-            },
-            static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) <
-                ETabletReign::InMemoryModeAndBundleInExperimentDescriptor);
+            });
 
         std::vector<TError> configErrors;
         auto settings = rawSettings.BuildEffectiveSettings(&configErrors, nullptr);
-
-        // COMPAT(gritukan, ifsmirnov)
-        auto seed = [&] {
-            auto* mutationContext = GetCurrentMutationContext();
-            if (mutationContext->Request().Reign >= ToUnderlying(ETabletReign::TabletIdGenerator)) {
-                return mutationContext->RandomGenerator()->Generate<ui64>();
-            } else {
-                auto preSeed = mutationContext->GetRandomSeed() ^ tabletId.Parts64[1] ^ tableId.Parts64[1] ^ mountRevision.Underlying();
-                // Seems random enough.
-                return TRandomGenerator(preSeed).Generate<ui64>();
-            }
-        }();
 
         NTabletNode::TIdGenerator idGenerator(
             CellTagFromId(tabletId),
             // Make first ids look like 1-1-... rather than 0-1-...
             /*counter*/ 1ull << 32,
-            /*seed*/ seed);
+            /*seed*/ GetCurrentMutationContext()->RandomGenerator()->Generate<ui64>());
 
         auto tabletHolder = std::make_unique<TTablet>(
             tabletId,
@@ -1496,10 +1477,7 @@ private:
         auto rawSettings = DeserializeTableSettings(request, tabletId);
 
         auto descriptor = GetTableConfigExperimentDescriptor(tablet);
-        rawSettings.DropIrrelevantExperiments(
-            descriptor,
-            static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) <
-                ETabletReign::InMemoryModeAndBundleInExperimentDescriptor);
+        rawSettings.DropIrrelevantExperiments(descriptor);
 
         ReconfigureTablet(tablet, std::move(rawSettings));
 
@@ -1528,10 +1506,7 @@ private:
         newRawSettings.GlobalPatch = ConvertTo<TTableConfigPatchPtr>(TYsonString(request->global_patch()));
 
         auto descriptor = GetTableConfigExperimentDescriptor(tablet);
-        newRawSettings.DropIrrelevantExperiments(
-            descriptor,
-            static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) <
-                ETabletReign::InMemoryModeAndBundleInExperimentDescriptor);
+        newRawSettings.DropIrrelevantExperiments(descriptor);
 
         auto& oldExperiments = tablet->RawSettings().Experiments;
         auto& newExperiments = newRawSettings.Experiments;
@@ -2019,14 +1994,9 @@ private:
             }
         }
 
-        // COMPAT(dave11ar)
-        if (static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign) >=
-            ETabletReign::FixRaceBetweenCompactionUnmount)
-        {
-            if (IsInUnmountWorkflow(tablet->GetState()) && updateReason != ETabletStoresUpdateReason::Flush) {
-                THROW_ERROR_EXCEPTION("Tablet is in %Qlv state", tablet->GetState())
-                    << TErrorAttribute("update_reason", updateReason);
-            }
+        if (IsInUnmountWorkflow(tablet->GetState()) && updateReason != ETabletStoresUpdateReason::Flush) {
+            THROW_ERROR_EXCEPTION("Tablet is in %Qlv state", tablet->GetState())
+                << TErrorAttribute("update_reason", updateReason);
         }
 
         THashSet<TChunkId> hunkChunkIdsToAdd;
@@ -3014,22 +2984,19 @@ private:
                 << TErrorAttribute("write_pull_rows_transaction_id", chaosData->PreparedWritePulledRowsTransactionId);
         }
 
-        const auto* context = GetCurrentMutationContext();
-        if (context->Request().Reign >= static_cast<int>(ETabletReign::AbortTransactionOnCorruptedChaosProgress)) {
-            auto newProgress = FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress());
-            if (newProgress.Segments.empty()) {
-                THROW_ERROR_EXCEPTION("Empty progress");
-            }
-            if (CompareRows(newProgress.Segments.front().LowerKey.Get(), tablet->GetPivotKey()) != 0) {
-                THROW_ERROR_EXCEPTION("Replication progress boundaries differ from tablet pivot keys")
-                    << TErrorAttribute("tablet_lower_key", tablet->GetPivotKey())
-                    << TErrorAttribute("progress_lower_key", newProgress.Segments.front().LowerKey.Get());
-            }
-            if (CompareRows(newProgress.UpperKey.Get(), tablet->GetNextPivotKey()) != 0) {
-                THROW_ERROR_EXCEPTION("Replication progress boundaries differ from tablet pivot keys")
-                    << TErrorAttribute("tablet_upper_key", tablet->GetNextPivotKey())
-                    << TErrorAttribute("progress_upper_key", newProgress.UpperKey.Get());
-            }
+        auto newProgress = FromProto<NChaosClient::TReplicationProgress>(request->new_replication_progress());
+        if (newProgress.Segments.empty()) {
+            THROW_ERROR_EXCEPTION("Empty progress");
+        }
+        if (CompareRows(newProgress.Segments.front().LowerKey.Get(), tablet->GetPivotKey()) != 0) {
+            THROW_ERROR_EXCEPTION("Replication progress boundaries differ from tablet pivot keys")
+                << TErrorAttribute("tablet_lower_key", tablet->GetPivotKey())
+                << TErrorAttribute("progress_lower_key", newProgress.Segments.front().LowerKey.Get());
+        }
+        if (CompareRows(newProgress.UpperKey.Get(), tablet->GetNextPivotKey()) != 0) {
+            THROW_ERROR_EXCEPTION("Replication progress boundaries differ from tablet pivot keys")
+                << TErrorAttribute("tablet_upper_key", tablet->GetNextPivotKey())
+                << TErrorAttribute("progress_upper_key", newProgress.UpperKey.Get());
         }
 
         chaosData->PreparedWritePulledRowsTransactionId = transaction->GetId();

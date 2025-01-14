@@ -1046,11 +1046,7 @@ private:
             /*transient*/ false);
 
         if (transaction->GetTransient()) {
-            // COMPAT(ifsmirnov)
-            auto reign = static_cast<ETabletReign>(GetCurrentMutationContext()->Request().Reign);
-            if (reign >= ETabletReign::RegisterTxActionsShouldPersistTx) {
-                transaction = MakeTransactionPersistentOrThrow(transactionId);
-            }
+            transaction = MakeTransactionPersistentOrThrow(transactionId);
         }
 
         auto state = transaction->GetPersistentState();
