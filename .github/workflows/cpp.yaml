@@ -20,24 +20,28 @@ jobs:
     steps:
       - name: Start YC runner
         id: start-yc-runner
-        uses: yc-actions/yc-github-runner@v1
-        with:
-          mode: start
-          yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
-          github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-          folder-id: ${{ vars.YC_FOLDER_ID }}
-          image-id: fd835uif8risubv1up3o
-          zone-id: ${{ vars.YC_ZONE_ID }}
-          subnet-id: ${{ vars.YC_SUBNET_ID }}
-          cores: 16
-          memory: 64GB
-          core-fraction: 100
-          disk-type: network-ssd-nonreplicated
-          disk-size: 558GB
-          user: ${{ secrets.YC_VM_USERNAME }}
-          ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
-          public-ip: false
-          ttl: PT24H
+        run: |
+          echo "label=w3py9" >> $GITHUB_OUTPUT
+          echo "instance-id=none" >> $GITHUB_OUTPUT
+      #   uses: yc-actions/yc-github-runner@v1
+      #   with:
+      #     mode: start
+      #     yc-sa-json-credentials: ${{ secrets.YC_SA_JSON_CREDENTIALS }}
+      #     github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
+      #     folder-id: ${{ vars.YC_FOLDER_ID }}
+      #     image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
+      #     zone-id: ${{ vars.YC_ZONE_ID }}
+      #     subnet-id: ${{ vars.YC_SUBNET_ID }}
+      #     cores: 32
+      #     memory: 64GB
+      #     core-fraction: 100
+      #     disk-type: network-ssd-nonreplicated
+      #     disk-size: 558GB
+      #     user: ${{ secrets.YC_VM_USERNAME }}
+      #     ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
+      #     public-ip: false
+      #     ttl: PT6H
+      #     disable-update: true
 
   checkout:
     name: Checkout sources
@@ -176,6 +180,7 @@ jobs:
     name: Check
     needs:
       - start-vm
+      - build-cmake
       # - docker-cmake
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
