@@ -33,7 +33,7 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
         super(req.getWindowSize(), req.getPacketSize());
         this.req = req;
         this.serializationResolver = serializationResolver;
-        this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(
+        this.tableRowsSerializer = TableRowsSerializerUtil.createTableRowsSerializer(
                 this.req.getSerializationContext(), serializationResolver).orElse(null);
     }
 
@@ -85,7 +85,18 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
     }
 
     public boolean write(List<T> rows, TableSchema schema) throws IOException {
-        byte[] serializedRows = tableRowsSerializer.serializeRows(rows, schema);
+        byte[] serializedRows;
+        if (tableRowsSerializer instanceof TableRowsWireSerializer) {
+            var tableRowsWireSerializer = ((TableRowsWireSerializer<T>) tableRowsSerializer);
+            var descriptorDelta = tableRowsWireSerializer.getCurrentRowsetDescriptor(schema);
+            tableRowsWireSerializer.write(rows, schema, descriptorDelta);
+            serializedRows = TableRowsSerializerUtil.serializeRowsWithDescriptor(tableRowsSerializer, descriptorDelta);
+        } else {
+            tableRowsSerializer.write(rows);
+            serializedRows = TableRowsSerializerUtil.serializeRowsWithDescriptor(
+                    tableRowsSerializer, tableRowsSerializer.getRowsetDescriptor()
+            );
+        }
         return write(serializedRows);
     }
 
@@ -121,7 +132,10 @@ class TableWriterImpl<T> extends TableWriterBaseImpl<T> implements TableWriter<T
 
     @Override
     public TableSchema getSchema() {
-        return tableRowsSerializer.getSchema();
+        if (tableRowsSerializer instanceof TableRowsWireSerializer) {
+            return ((TableRowsWireSerializer<?>) tableRowsSerializer).getSchema();
+        }
+        return TableSchema.builder().build();
     }
 
     @Override
@@ -148,8 +162,9 @@ class AsyncTableWriterImpl<T> extends TableWriterBaseImpl<T> implements AsyncWri
         TableSchema schema;
         if (req.getTableSchema().isPresent()) {
             schema = req.getTableSchema().get();
-        } else if (tableRowsSerializer.getSchema().getColumnsCount() > 0) {
-            schema = tableRowsSerializer.getSchema();
+        } else if (tableRowsSerializer instanceof TableRowsWireSerializer &&
+                ((TableRowsWireSerializer<?>) tableRowsSerializer).getSchema().getColumnsCount() > 0) {
+            schema = ((TableRowsWireSerializer<?>) tableRowsSerializer).getSchema();
         } else {
             schema = this.schema;
         }

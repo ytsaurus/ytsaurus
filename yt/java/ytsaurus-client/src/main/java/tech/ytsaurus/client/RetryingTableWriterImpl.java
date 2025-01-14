@@ -18,8 +18,6 @@ import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.Unpooled;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.request.CreateNode;
@@ -49,8 +47,8 @@ class WriteTask<T> {
     final CompletableFuture<Void> handled;
     final int index;
 
-    WriteTask(Buffer<T> buffer, TableRowsSerializer<T> rowsSerializer, RetryPolicy retryPolicy, int index) {
-        this.data = buffer.finish(rowsSerializer);
+    WriteTask(Buffer<T> buffer, RetryPolicy retryPolicy, int index) {
+        this.data = buffer.finish();
         this.retryPolicy = retryPolicy;
         this.handled = buffer.handled;
         this.index = index;
@@ -60,28 +58,45 @@ class WriteTask<T> {
 @NonNullApi
 @NonNullFields
 class Buffer<T> {
-    final ByteBuf buffer;
+    private final TableRowsSerializer<T> tableRowsSerializer;
+    @Nullable
+    private byte[] serializedRows;
     final CompletableFuture<Void> handled = new CompletableFuture<>();
-    int rowsCount = 0;
 
-    Buffer() {
-        this.buffer = Unpooled.buffer();
+    Buffer(TableRowsSerializer<T> rowsSerializer) {
+        this.tableRowsSerializer = rowsSerializer;
     }
 
     public int size() {
-        return buffer.readableBytes();
+        if (serializedRows != null) {
+            return serializedRows.length;
+        }
+        return tableRowsSerializer.size();
     }
 
-    public void write(ByteBuf buf) {
-        buffer.writeBytes(buf);
+    public void write(List<T> rows, TableSchema schema) {
+        if (serializedRows != null) {
+            throw new RuntimeException("Buffer is finished");
+        }
+        if (tableRowsSerializer instanceof TableRowsWireSerializer) {
+            ((TableRowsWireSerializer<T>) tableRowsSerializer).write(rows, schema);
+            return;
+        }
+        tableRowsSerializer.write(rows);
     }
 
-    public byte[] finish(TableRowsSerializer<T> rowsSerializer) {
+    public byte[] finish() {
+        if (serializedRows != null) {
+            return serializedRows;
+        }
         try {
-            return rowsSerializer.serializeRowsWithDescriptor(buffer, rowsCount);
+            this.serializedRows = TableRowsSerializerUtil.serializeRowsWithDescriptor(
+                    tableRowsSerializer, tableRowsSerializer.getRowsetDescriptor()
+            );
         } catch (IOException ex) {
             throw new RuntimeException("Serialization was failed, but it wasn't expected");
         }
+        return serializedRows;
     }
 }
 
@@ -121,7 +136,7 @@ class RetryingTableWriterBaseImpl<T> {
 
     final CompletableFuture<InitResult> init;
     final CompletableFuture<Void> result = new CompletableFuture<>();
-    final CompletableFuture<Void> firstBufferHandled;
+    final CompletableFuture<Void> firstBufferHandled = new CompletableFuture<>();
 
     volatile WriteTable<T> req;
     @Nullable
@@ -154,10 +169,6 @@ class RetryingTableWriterBaseImpl<T> {
         LockMode lockMode = append ? LockMode.Shared : LockMode.Exclusive;
 
         this.semaphore = new Semaphore(this.req.getMaxWritesInFlight());
-
-        Buffer<T> firstBuffer = new Buffer<>();
-        firstBufferHandled = firstBuffer.handled;
-        this.buffer = firstBuffer;
 
         StartTransaction.Builder transactionRequestBuilder = StartTransaction.master().toBuilder();
         req.getTransactionId().ifPresent(transactionRequestBuilder::setParentId);
@@ -203,7 +214,7 @@ class RetryingTableWriterBaseImpl<T> {
                                     }
                                 }
 
-                                this.tableRowsSerializer = TableRowsSerializer.createTableRowsSerializer(
+                                this.tableRowsSerializer = TableRowsSerializerUtil.createTableRowsSerializer(
                                         this.req.getSerializationContext(), serializationResolver).orElse(null);
                                 if (this.tableRowsSerializer == null) {
                                     if (this.req.getSerializationContext().getObjectClass().isEmpty()) {
@@ -220,6 +231,11 @@ class RetryingTableWriterBaseImpl<T> {
                                                         serializationResolver.forClass(objectClazz, result.schema)));
                                     }
                                 }
+
+                                Buffer<T> firstBuffer = new Buffer<>(this.tableRowsSerializer);
+                                firstBuffer.handled.thenRun(() -> firstBufferHandled.complete(null));
+                                this.buffer = firstBuffer;
+
                                 return result;
                             });
                 });
@@ -236,7 +252,10 @@ class RetryingTableWriterBaseImpl<T> {
         if (tableRowsSerializer == null) {
             throw new RuntimeException("No tableRowsSerializer in TableWriter");
         }
-        return tableRowsSerializer.getSchema();
+        if (tableRowsSerializer instanceof TableRowsWireSerializer) {
+            return ((TableRowsWireSerializer<?>) tableRowsSerializer).getSchema();
+        }
+        return TableSchema.builder().build();
     }
 
     private boolean addAbortable(Abortable<?> abortable) {
@@ -393,7 +412,10 @@ class RetryingTableWriterBaseImpl<T> {
                     return;
                 }
                 if (buffer == null && !closed) {
-                    buffer = new Buffer<>();
+                    if (tableRowsSerializer == null) {
+                        throw new RuntimeException("No tableRowsSerializer in TableWriter");
+                    }
+                    buffer = new Buffer<>(tableRowsSerializer);
                     readyEvent.complete(null);
                 }
             }
@@ -414,12 +436,15 @@ class RetryingTableWriterBaseImpl<T> {
         }
 
         WriteTask<T> writeTask = new WriteTask<>(
-                currentBuffer, tableRowsSerializer, rpcOptions.getRetryPolicyFactory().get(), nextWriteTaskIndex++);
+                currentBuffer, rpcOptions.getRetryPolicyFactory().get(), nextWriteTaskIndex++);
         writeTasks.add(writeTask);
         handledEvents.add(currentBuffer.handled);
 
         if (!lastBuffer && writeTasks.size() <= req.getMaxWritesInFlight()) {
-            buffer = new Buffer<>();
+            if (tableRowsSerializer == null) {
+                throw new RuntimeException("No tableRowsSerializer in TableWriter");
+            }
+            buffer = new Buffer<>(tableRowsSerializer);
         } else {
             buffer = null;
             readyEvent = new CompletableFuture<>();
@@ -442,9 +467,7 @@ class RetryingTableWriterBaseImpl<T> {
             return false;
         }
 
-        ByteBuf serializedRows = tableRowsSerializer.serializeRowsToBuf(rows, schema);
-        currentBuffer.write(serializedRows);
-        currentBuffer.rowsCount += rows.size();
+        currentBuffer.write(rows, schema);
 
         if (currentBuffer.size() >= req.getChunkSize()) {
             flushBuffer(false);
@@ -560,8 +583,9 @@ class AsyncRetryingTableWriterImpl<T> extends RetryingTableWriterBaseImpl<T> imp
             TableSchema schema;
             if (req.getTableSchema().isPresent()) {
                 schema = req.getTableSchema().get();
-            } else if (tableRowsSerializer.getSchema().getColumnsCount() > 0) {
-                schema = tableRowsSerializer.getSchema();
+            } else if (tableRowsSerializer instanceof TableRowsWireSerializer &&
+                    ((TableRowsWireSerializer<?>) tableRowsSerializer).getSchema().getColumnsCount() > 0) {
+                schema = ((TableRowsWireSerializer<?>) tableRowsSerializer).getSchema();
             } else {
                 schema = initResult.schema;
             }
