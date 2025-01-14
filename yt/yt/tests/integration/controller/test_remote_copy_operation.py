@@ -8,7 +8,7 @@ from yt_env_setup import (
 
 from yt_commands import (
     assert_statistics_v2, authors, print_debug, wait, create, get, set, remove,
-    exists, create_user, disable_tablet_cells_on_node,
+    exists, create_user, disable_tablet_cells_on_node, get_job,
     make_ace, insert_rows, select_rows, lookup_rows, delete_rows, alter_table, read_table, write_table, merge,
     remote_copy, sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_reshard_table, sync_flush_table, sync_compact_table, remount_table,
@@ -18,7 +18,7 @@ from yt_commands import (
     update_controller_agent_config, remember_controller_agent_config,
     write_file, wait_for_nodes, read_file, get_singular_chunk_id)
 
-from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_component_old
+from yt_helpers import skip_if_no_descending, skip_if_old, skip_if_component_old, profiler_factory
 from yt_type_helpers import make_schema, normalize_schema, normalize_schema_v3, optional_type, list_type
 import yt_error_codes
 
@@ -2234,7 +2234,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         remote_copy_start_time = time.time()
 
         # Copy table from remote cluster to local cluster.
-        remote_copy(
+        op = remote_copy(
             in_="//tmp/remote_table",
             out="//tmp/local_table",
             spec={
@@ -2257,6 +2257,14 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         # Check result table on local cluster.
         assert read_table("//tmp/local_table") == [{"v": "0" * self.DATA_WEIGHT_SIZE_PER_CHUNK} for c in range(self.CHUNK_COUNT)]
         assert not get("//tmp/local_table/@sorted")
+
+        # Check that solomon counters have showed up.
+        for job_id in op.list_jobs():
+            job = get_job(op.id, job_id)
+
+            profiler = profiler_factory().at_node(job["address"])
+            wait(lambda: profiler.get("exec_node/throttler_manager/distributed_throttler/limit", {"throttler_id": "bandwidth_{}".format(self.REMOTE_CLUSTER_NAME)}) is not None)
+            wait(lambda: profiler.get("exec_node/throttler_manager/distributed_throttler/usage", {"throttler_id": "bandwidth_{}".format(self.REMOTE_CLUSTER_NAME)}) is not None)
 
     @authors("yuryalekseev")
     @pytest.mark.parametrize("config", ["empty", "malformed"])
