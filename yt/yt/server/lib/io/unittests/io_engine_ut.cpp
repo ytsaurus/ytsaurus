@@ -61,7 +61,7 @@ protected:
     {
         auto supportedTypes = GetSupportedIOEngineTypes();
         auto type = GetIOEngineType();
-        if (std::find(supportedTypes.begin(), supportedTypes.end(), type) == supportedTypes.end() || type == EIOEngineType::Uring) {
+        if (std::find(supportedTypes.begin(), supportedTypes.end(), type) == supportedTypes.end() || type == EIOEngineType::Uring || type == EIOEngineType::FairShareUring) {
             GTEST_SKIP() << Format("Skipping Test: IOEngine %v is not supported.", type);
         }
     }
