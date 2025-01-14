@@ -128,11 +128,11 @@ private:
         i64 Size = 0;
         i64 Index = 0;
         i64 Offset = 0;
-        std::vector<TBlock> Blocks;
         IChunkReaderPtr Reader;
         IChunkReader::TReadBlocksOptions ReadBlocksOptions;
         NChunkClient::NProto::TChunkSpec Spec;
-        TRefCountedChunkMetaPtr Meta;
+
+        mutable TFuture<std::vector<TBlock>> BlocksExtFuture;
     };
 
     std::vector<NChunkClient::NProto::TChunkSpec> ChunkSpecs_;
@@ -143,6 +143,9 @@ private:
     const IInvokerPtr Invoker_;
     const TLogger Logger;
     std::vector<TChunk> Chunks_;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ChunkLock);
+
     i64 Size_ = 0;
 
     std::atomic<i64> ReadBytes_;
@@ -194,6 +197,48 @@ private:
         return AllSucceeded(readFutures);
     }
 
+    TFuture<std::vector<TBlock>> GetBlockExt(const TChunk& chunk)
+    {
+        auto guard = Guard(ChunkLock);
+
+        if (chunk.BlocksExtFuture) {
+            // Blocks ext is already being requested.
+            return chunk.BlocksExtFuture;
+        }
+
+        YT_LOG_INFO("Start fetching chunk meta blocks extension (Chunk: %v)",
+            chunk.Index);
+
+        std::vector<int> extensionTags = {TProtoExtensionTag<NFileClient::NProto::TBlocksExt>::Value};
+        auto index = chunk.Index;
+        auto offset = chunk.Offset;
+
+        auto future = chunk.Reader->GetMeta(
+            /*options*/ {},
+            /*partitionTag*/ std::nullopt,
+            extensionTags)
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
+                auto blockOffset = offset;
+                auto blocksExt = GetProtoExtension<NFileClient::NProto::TBlocksExt>(meta->extensions());
+
+                std::vector<TBlock> blocks;
+                blocks.reserve(blocksExt.blocks_size());
+
+                for (const auto& blockInfo : blocksExt.blocks()) {
+                    blocks.push_back({blockInfo.size(), blockOffset});
+                    blockOffset += blockInfo.size();
+                }
+
+                YT_LOG_INFO("Finish fetching chunk meta blocks extension (Chunk: %v, BlockInfoCount: %v)",
+                    index,
+                    blocksExt.blocks_size());
+                return blocks;
+            }));
+
+        chunk.BlocksExtFuture = future;
+        return future;
+    }
+
     TFuture<std::vector<TSharedRef>> ReadFromChunk(
         const TChunk& chunk,
         i64 offset,
@@ -212,56 +257,92 @@ private:
                 length);
         }
 
-        std::vector<int> blockIndexes;
-        i64 blockOffsetWithinChunk = 0;
-        for (int blockIndex = 0; blockIndex < std::ssize(chunk.Blocks); ++blockIndex) {
-            auto blockSize = chunk.Blocks[blockIndex].Size;
+        struct TBlocksFetchResult
+        {
+            std::vector<NChunkClient::TBlock> Blocks;
+            std::vector<int> Indexes;
+            std::vector<TBlock> BlocksExt;
+        };
 
-            i64 blockBegin = blockOffsetWithinChunk;
-            i64 blockEnd = blockBegin + blockSize;
-            blockOffsetWithinChunk += blockSize;
+        auto blocksFuture = GetBlockExt(chunk);
+        auto readFuture = blocksFuture.Apply(BIND([
+            offset,
+            length,
+            reader = chunk.Reader,
+            options = chunk.ReadBlocksOptions
+        ] (const std::vector<TBlock>& blocksExt) {
+            std::vector<int> blockIndexes;
+            i64 blockOffsetWithinChunk = 0;
 
-            if (offset >= blockEnd || offset + length <= blockBegin) {
-                continue;
+            for (int blockIndex = 0; blockIndex < std::ssize(blocksExt); ++blockIndex) {
+                auto blockSize = blocksExt[blockIndex].Size;
+
+                i64 blockBegin = blockOffsetWithinChunk;
+                i64 blockEnd = blockBegin + blockSize;
+                blockOffsetWithinChunk += blockSize;
+
+                if (offset >= blockEnd || offset + length <= blockBegin) {
+                    continue;
+                }
+
+                blockIndexes.push_back(blockIndex);
             }
 
-            blockIndexes.push_back(blockIndex);
-        }
+            return reader->ReadBlocks(options, blockIndexes)
+                .ApplyUnique(BIND([
+                    indexes = std::move(blockIndexes),
+                    blocksExt = blocksExt
+                ] (std::vector<NChunkClient::TBlock>&& blocks) mutable {
+                    return TBlocksFetchResult{
+                        .Blocks = std::move(blocks),
+                        .Indexes = std::move(indexes),
+                        .BlocksExt = std::move(blocksExt),
+                    };
+                }));
+        }));
 
-        auto readFuture = chunk.Reader->ReadBlocks(
-            chunk.ReadBlocksOptions,
-            blockIndexes);
-        return readFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<NChunkClient::TBlock>& blocks) mutable {
+        return readFuture.ApplyUnique(BIND([
+            index = chunk.Index,
+            chunkOffset = chunk.Offset,
+            chunkSize = chunk.Size,
+            offset,
+            length,
+            statistics = chunk.ReadBlocksOptions.ClientOptions.ChunkReaderStatistics,
+            this,
+            this_ = MakeStrong(this)
+        ] (TBlocksFetchResult&& blocksFetchResult) mutable {
+            const auto& blocks = blocksFetchResult.Blocks;
+            const auto& blockIndexes = blocksFetchResult.Indexes;
+            auto readOffset = offset;
+
             YT_VERIFY(blocks.size() == blockIndexes.size());
 
             // Update read block counters.
-            auto& chunkReaderStatistics = chunk.ReadBlocksOptions.ClientOptions.ChunkReaderStatistics;
-
-            i64 readBlockBytesFromCache = chunkReaderStatistics->DataBytesReadFromCache.exchange(0);
+            i64 readBlockBytesFromCache = statistics->DataBytesReadFromCache.exchange(0);
             ReadBlockBytesFromCache_ += readBlockBytesFromCache;
 
-            i64 readBlockBytesFromDisk = chunkReaderStatistics->DataBytesReadFromDisk.exchange(0);
+            i64 readBlockBytesFromDisk = statistics->DataBytesReadFromDisk.exchange(0);
             ReadBlockBytesFromDisk_ += readBlockBytesFromDisk;
 
-            i64 readBlockMetaBytesFromDisk = chunkReaderStatistics->MetaBytesReadFromDisk.exchange(0);
+            i64 readBlockMetaBytesFromDisk = statistics->MetaBytesReadFromDisk.exchange(0);
             ReadBlockMetaBytesFromDisk_ += readBlockMetaBytesFromDisk;
 
             std::vector<TSharedRef> refs;
             for (int i = 0; i < std::ssize(blockIndexes); ++i) {
                 auto blockIndex = blockIndexes[i];
-                const auto& block = chunk.Blocks[blockIndex];
+                const auto& block = blocksFetchResult.BlocksExt[blockIndex];
 
                 YT_VERIFY(std::ssize(blocks[i].Data) == block.Size);
-                YT_VERIFY(chunk.Offset <= block.Offset);
-                YT_VERIFY(block.Offset + block.Size <= chunk.Offset + chunk.Size);
+                YT_VERIFY(chunkOffset <= block.Offset);
+                YT_VERIFY(block.Offset + block.Size <= chunkOffset + chunkSize);
 
-                i64 blockOffset = block.Offset - chunk.Offset;
+                i64 blockOffset = block.Offset - chunkOffset;
                 YT_VERIFY(0 <= blockOffset);
 
                 i64 blockSize = block.Size;
                 YT_VERIFY(0 < blockSize);
 
-                i64 beginWithinBlock = std::max(offset - blockOffset, 0l);
+                i64 beginWithinBlock = std::max(readOffset - blockOffset, 0l);
                 i64 endWithinBlock = std::min(beginWithinBlock + length, blockSize);
                 i64 sizeWithinBlock = endWithinBlock - beginWithinBlock;
 
@@ -272,7 +353,7 @@ private:
                 YT_VERIFY(sizeWithinBlock <= length);
 
                 YT_LOG_DEBUG("Read from block (Chunk: %v, Block: %v, Begin: %v, End: %v, Size %v)",
-                    chunk.Index,
+                    index,
                     blockIndex,
                     beginWithinBlock,
                     endWithinBlock,
@@ -284,7 +365,7 @@ private:
                 refs.push_back(std::move(ref));
 
                 length -= sizeWithinBlock;
-                offset += sizeWithinBlock;
+                readOffset += sizeWithinBlock;
             }
 
             return refs;
@@ -339,27 +420,6 @@ private:
 
             YT_LOG_INFO("Finish creating chunk reader (Chunk: %v)",
                 chunk.Index);
-
-            YT_LOG_INFO("Start fetching chunk meta blocks extension (Chunk: %v)",
-                chunk.Index);
-
-            std::vector<int> extensionTags = {TProtoExtensionTag<NFileClient::NProto::TBlocksExt>::Value};
-            chunk.Meta = WaitFor(chunk.Reader->GetMeta(
-                /*options*/ {},
-                /*partitionTag*/ std::nullopt,
-                extensionTags))
-                .ValueOrThrow();
-
-            auto blocksExt = GetProtoExtension<NFileClient::NProto::TBlocksExt>(chunk.Meta->extensions());
-
-            YT_LOG_INFO("Finish fetching chunk meta blocks extension (Chunk: %v, BlockInfoCount: %v)",
-                chunk.Index,
-                blocksExt.blocks_size());
-
-            for (const auto& blockInfo : blocksExt.blocks()) {
-                chunk.Blocks.push_back({blockInfo.size(), offset});
-                offset += blockInfo.size();
-            }
 
             Size_ += miscExt.uncompressed_data_size();
         }
