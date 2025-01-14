@@ -5,7 +5,6 @@
 
 #include <util/system/types.h>
 
-
 namespace NYT::NQueryClient::NRoutines {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,4 +56,4 @@ i64 TimestampFloorYearLocaltime(i64 timestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NQueryClient
+} // namespace NYT::NQueryClient::NRoutines

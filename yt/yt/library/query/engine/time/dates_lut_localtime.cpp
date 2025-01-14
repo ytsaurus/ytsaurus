@@ -1,4 +1,4 @@
-#pragma once
+#include "private.h"
 
 #include <util/system/types.h>
 
@@ -6,17 +6,7 @@ namespace NYT::NQueryClient::NRoutines {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TTimestampedDay
-{
-    i8 DayOfTheWeek; // [0; 6]
-    i8 DayOfTheMonth; // [1; 31]
-    i16 DayOfTheYear; // [1; 366]
-    i8 Month; // [1; 12]
-    i8 Year; // Year minus 1970, [0; 80)
-    i64 Timestamp; // Unix timestamp
-};
-
-const TTimestampedDay LocaltimeLut[] = {
+extern const TTimestampedDay LocaltimeLut[] = {
     {4,  1, 306, 11,  -2,  -36817200}, {5,  2, 307, 11,  -2,  -36730800},{6,  3, 308, 11,  -2,  -36644400},
     {0,  4, 309, 11,  -2,  -36558000}, {1,  5, 310, 11,  -2,  -36471600},{2,  6, 311, 11,  -2,  -36385200},
     {3,  7, 312, 11,  -2,  -36298800}, {4,  8, 313, 11,  -2,  -36212400},{5,  9, 314, 11,  -2,  -36126000},
@@ -10033,25 +10023,6 @@ const TTimestampedDay LocaltimeLut[] = {
     {6, 29,  29,  1,  81, 2558552400}, {0, 30,  30,  1,  81, 2558638800},{1, 31,  31,  1,  81, 2558725200},
     {2,  1,  32,  2,  81, 2558811600},
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-int FindLocal(i64 timestamp)
-{
-    int index = (timestamp + 36817200 + 86400 / 2) / 86400;
-
-    if (LocaltimeLut[index].Timestamp <= timestamp) {
-        while (LocaltimeLut[index + 1].Timestamp <= timestamp) {
-            index++;
-        }
-    } else {
-        while (LocaltimeLut[index].Timestamp > timestamp) {
-            index--;
-        }
-    }
-
-    return index;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

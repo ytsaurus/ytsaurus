@@ -24,7 +24,7 @@ int DaysInYear(int year)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TimestampFloorUtc, Week)
+TEST(TTimestampFloorUtcTest, Week)
 {
     auto check = [] (i64 timestamp) {
         i64 result = TimestampFloorWeek(timestamp);
@@ -56,7 +56,7 @@ TEST(TimestampFloorUtc, Week)
     check(MaxLutUtcTimestamp + 1);
 }
 
-TEST(TimestampFloorUtc, Month)
+TEST(TTimestampFloorUtcTest, Month)
 {
     auto check = [] (i64 timestamp) {
         i64 result = TimestampFloorMonth(timestamp);
@@ -87,7 +87,7 @@ TEST(TimestampFloorUtc, Month)
     check(MaxLutUtcTimestamp + 1);
 }
 
-TEST(TimestampFloorUtc, Quarter)
+TEST(TTimestampFloorUtcTest, Quarter)
 {
     auto check = [] (i64 timestamp) {
         i64 result = TimestampFloorQuarter(timestamp);
@@ -118,7 +118,7 @@ TEST(TimestampFloorUtc, Quarter)
     check(MaxLutUtcTimestamp + 1);
 }
 
-TEST(TimestampFloorUtc, Year)
+TEST(TTimestampFloorUtcTest, Year)
 {
     auto check = [] (i64 timestamp) {
         i64 result = TimestampFloorYear(timestamp);
@@ -151,7 +151,7 @@ TEST(TimestampFloorUtc, Year)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TimestampFloorLocaltime, Day)
+TEST(TTimestampFloorLocaltimeTest, Day)
 {
     auto check = [] (i64 timestamp) {
         i64 result = TimestampFloorDayLocaltime(timestamp);
@@ -182,7 +182,7 @@ TEST(TimestampFloorLocaltime, Day)
     check(MaxLutLocaltimeTimestamp + 1);
 }
 
-TEST(TimestampFloorLocaltime, Week)
+TEST(TTimestampFloorLocaltimeTest, Week)
 {
     auto check = [] (i64 timestamp) {
         i64 result = TimestampFloorWeekLocaltime(timestamp);
@@ -214,7 +214,7 @@ TEST(TimestampFloorLocaltime, Week)
     check(MaxLutLocaltimeTimestamp + 1);
 }
 
-TEST(TimestampFloorLocaltime, Month)
+TEST(TTimestampFloorLocaltimeTest, Month)
 {
     auto check = [] (i64 timestamp) {
         i64 result = TimestampFloorMonthLocaltime(timestamp);
@@ -245,7 +245,7 @@ TEST(TimestampFloorLocaltime, Month)
     check(MaxLutLocaltimeTimestamp + 1);
 }
 
-TEST(TimestampFloorLocaltime, Quarter)
+TEST(TTimestampFloorLocaltimeTest, Quarter)
 {
     auto check = [] (i64 timestamp) {
         i64 result = TimestampFloorQuarterLocaltime(timestamp);
@@ -276,7 +276,7 @@ TEST(TimestampFloorLocaltime, Quarter)
     check(MaxLutLocaltimeTimestamp + 1);
 }
 
-TEST(TimestampFloorLocaltime, Year)
+TEST(TTimestampFloorLocaltimeTest, Year)
 {
     auto check = [] (i64 timestamp) {
         i64 result = TimestampFloorYearLocaltime(timestamp);

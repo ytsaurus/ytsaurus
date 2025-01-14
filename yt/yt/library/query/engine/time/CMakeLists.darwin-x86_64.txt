@@ -27,6 +27,8 @@ target_link_libraries(query-engine-time PUBLIC
 )
 
 target_sources(query-engine-time PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/time/dates_lut_localtime.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/time/dates_lut_utc.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/time/dates.cpp
 )
 
