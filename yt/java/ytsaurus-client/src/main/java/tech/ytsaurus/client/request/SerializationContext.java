@@ -6,6 +6,7 @@ import javax.annotation.Nullable;
 
 import com.google.protobuf.Message;
 import tech.ytsaurus.client.TableAttachmentReader;
+import tech.ytsaurus.client.TableRowsSerializer;
 import tech.ytsaurus.client.rows.EntitySkiffSerializer;
 import tech.ytsaurus.client.rows.WireRowSerializer;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
@@ -30,6 +31,8 @@ public class SerializationContext<T> {
     protected Format format = null;
     @Nullable
     protected TableAttachmentReader<T> attachmentReader = null;
+    @Nullable
+    protected TableRowsSerializer<T> tableRowsSerializer;
 
     protected SerializationContext() {
     }
@@ -92,6 +95,10 @@ public class SerializationContext<T> {
 
     public Optional<TableAttachmentReader<T>> getAttachmentReader() {
         return Optional.ofNullable(attachmentReader);
+    }
+
+    public Optional<TableRowsSerializer<T>> getTableRowsSerializer() {
+        return Optional.ofNullable(tableRowsSerializer);
     }
 
     public boolean isProtobufFormat() {
