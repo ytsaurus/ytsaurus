@@ -30,7 +30,7 @@ using NYT::NQueryClient::TPIValueData;
 using NYT::NQueryClient::TLookupRows;
 using NYT::NQueryClient::TLookupRowInRowsetWebAssemblyContext;
 using NYT::NQueryClient::TJoinLookup;
-using NYT::NQueryClient::TTopCollectorBase;
+using NYT::NQueryClient::TTopCollector;
 using NYT::NQueryClient::TGroupByClosure;
 using NYT::NQueryClient::TWriteOpClosure;
 using NYT::NQueryClient::TExpressionClosure;
@@ -71,7 +71,7 @@ struct TTypeBuilder<bool>
     OPAQUE_TYPE(const std::vector<TMutableRow>*)
     OPAQUE_TYPE(TLookupRows*)
     OPAQUE_TYPE(TJoinLookup*)
-    OPAQUE_TYPE(TTopCollectorBase*)
+    OPAQUE_TYPE(TTopCollector*)
     OPAQUE_TYPE(TSharedRange<TRow>*)
     OPAQUE_TYPE(TSharedRange<TRowRange>*)
     OPAQUE_TYPE(TSharedRange<TPIRowRange>*)
