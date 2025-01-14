@@ -120,6 +120,9 @@
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 #include <yt/yt/ytlib/cell_master_client/cell_directory_synchronizer.h>
 
+#include <yt/yt/ytlib/chaos_client/config.h>
+#include <yt/yt/ytlib/chaos_client/chaos_residency_cache.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/chunk_replica_cache.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
@@ -1496,6 +1499,12 @@ private:
             newChunkReplicaCacheConfig->ExpirationTime = *newExpirationTime;
         }
         Connection_->GetChunkReplicaCache()->Reconfigure(std::move(newChunkReplicaCacheConfig));
+
+        auto newChaosResidencyCacheConfig = CloneYsonStruct(Config_->ClusterConnection->Dynamic->ChaosResidencyCache);
+        if (const auto& isClientModeActive = newConfig->ChaosResidencyCacheConfig->IsClientModeActive; isClientModeActive) {
+            newChaosResidencyCacheConfig->IsClientModeActive = *isClientModeActive;
+        }
+        Connection_->GetChaosResidencyCache()->Reconfigure(std::move(newChaosResidencyCacheConfig));
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)

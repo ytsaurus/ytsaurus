@@ -154,6 +154,21 @@ DEFINE_REFCOUNTED_TYPE(TChunkReplicaCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TChaosResidencyCacheDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<bool> IsClientModeActive;
+
+    REGISTER_YSON_STRUCT(TChaosResidencyCacheDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosResidencyCacheDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTopLevelPortoEnvironmentConfig
     : public NYTree::TYsonStruct
 {
@@ -487,6 +502,9 @@ public:
 
     //! Chunk replica cache config overrides
     TChunkReplicaCacheDynamicConfigPtr ChunkReplicaCacheConfig;
+
+    //! Chaos residency cache config overrides
+    TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCacheConfig;
 
     bool UsePortoNetworkLimitInThrottler;
 

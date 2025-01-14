@@ -521,6 +521,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .Default(1.0);
     registrar.Parameter("memory_limit_exceeded_for_category_threshold", &TThis::MemoryLimitExceededForCategoryThreshold)
         .Default(1.1);
+    registrar.Parameter("chaos_residency_cache", &TThis::ChaosResidencyCacheConfig)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -529,6 +531,14 @@ void TChunkReplicaCacheDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("expiration_time", &TThis::ExpirationTime)
         .GreaterThanOrEqual(TDuration::Zero())
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChaosResidencyCacheDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("is_client_mode_active", &TThis::IsClientModeActive)
         .Optional();
 }
 
