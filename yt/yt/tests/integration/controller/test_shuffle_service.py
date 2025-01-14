@@ -141,7 +141,7 @@ class TestShuffleService(YTEnvSetup):
             partition_count=11,
             parent_transaction_id=parent_transaction,
             replication_factor=5,
-            medium_name=self.NON_DEFAULT_MEDIUM)
+            medium=self.NON_DEFAULT_MEDIUM)
 
         rows = [{"key1": 0, "key2": -1}, {"key1": 1, "key2": 0}]
         write_shuffle_data(shuffle_handle, "key1", rows[1])

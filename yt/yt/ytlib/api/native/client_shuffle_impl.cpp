@@ -116,8 +116,8 @@ TShuffleHandlePtr TClient::DoStartShuffle(
     req->set_account(account);
     req->set_partition_count(partitionCount);
     ToProto(req->mutable_parent_transaction_id(), parentTransactionId);
-    if (options.MediumName) {
-        req->set_medium_name(*options.MediumName);
+    if (options.Medium) {
+        req->set_medium(*options.Medium);
     }
     if (options.ReplicationFactor) {
         req->set_replication_factor(*options.ReplicationFactor);
@@ -242,7 +242,7 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
     options->EvaluateComputedColumns = false;
     options->Account = shuffleHandle->Account;
     options->ReplicationFactor = shuffleHandle->ReplicationFactor;
-    options->MediumName = shuffleHandle->MediumName;
+    options->MediumName = shuffleHandle->Medium;
 
     auto writer = CreatePartitionMultiChunkWriter(
         config,

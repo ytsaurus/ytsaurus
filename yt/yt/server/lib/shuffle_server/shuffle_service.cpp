@@ -77,8 +77,8 @@ public:
         shuffleHandle->ReplicationFactor = request->has_replication_factor()
             ? request->replication_factor()
             : DefaultIntermediateDataReplicationFactor;
-        shuffleHandle->MediumName = request->has_medium_name()
-            ? request->medium_name()
+        shuffleHandle->Medium = request->has_medium()
+            ? request->medium()
             : DefaultStoreMediumName;
 
         response->set_shuffle_handle(ConvertToYsonString(shuffleHandle).ToString());
