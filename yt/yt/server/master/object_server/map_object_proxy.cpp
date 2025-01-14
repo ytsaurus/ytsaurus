@@ -314,8 +314,7 @@ void TNonversionedMapObjectProxyBase<TObject>::DetachChild(
     auto* childImpl = childProxy->GetThisImpl();
     YT_VERIFY(childImpl->GetParent() == impl);
     auto key = impl->GetChildKey(childImpl);
-    // TODO(babenko): switch to std::string
-    GetTypeHandler()->UnregisterName(TString(key), childImpl);
+    GetTypeHandler()->UnregisterName(key, childImpl);
     impl->DetachChild(childImpl);
     TBase::Bootstrap_->GetObjectManager()->UnrefObject(impl);
 }
@@ -947,11 +946,10 @@ void TNonversionedMapObjectFactoryBase<TObject>::AttachChild(
 
         parent->AttachChild(key, child);
         LogEvent({
-            EEventType::AttachChild,
-            parent,
-            // TODO(babenko): switch to std::string
-            TString(key),
-            child
+            .Type = EEventType::AttachChild,
+            .Parent = parent,
+            .Key = key,
+            .Child = child,
         });
 
         parent->ValidateAfterAttachChild(key, child);
@@ -969,20 +967,18 @@ void TNonversionedMapObjectFactoryBase<TObject>::DetachChild(const TProxyPtr& pa
 {
     Bootstrap_->GetObjectManager()->RefObject(parent->GetObject());
     LogEvent({
-        EEventType::RefObject,
-        parent,
-        TString(), /*key*/
-        child /*child*/
+        .Type = EEventType::RefObject,
+        .Parent = parent,
+        .Child = child,
     });
 
     auto key = parent->GetChildKeyOrThrow(child);
     parent->DetachChild(child);
-    // TODO(babenko): migrate to std::string
     LogEvent({
-        EEventType::DetachChild,
-        parent,
-        TString(key),
-        child
+        .Type = EEventType::DetachChild,
+        .Parent = parent,
+        .Key = key,
+        .Child = child,
     });
 }
 
