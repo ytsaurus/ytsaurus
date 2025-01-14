@@ -21,7 +21,7 @@ public:
         : Counter_(counter)
     { }
 
-    void PrepareRequest(NRawClient::TRawBatchRequest*) override
+    void PrepareRequest(NRawClient::THttpRawBatchRequest*) override
     { }
 
     EStatus OnRequestExecuted() override
