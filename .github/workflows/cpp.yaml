@@ -41,7 +41,6 @@ jobs:
           ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
           public-ip: false
           ttl: PT6H
-          disable-update: true
 
   checkout:
     name: Checkout sources
