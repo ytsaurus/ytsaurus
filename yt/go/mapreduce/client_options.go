@@ -5,7 +5,13 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 
+	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
+)
+
+const (
+	defaultTmpDir   = "//tmp/go_binary"
+	defaultCacheDir = defaultTmpDir + "/file_cache"
 )
 
 type Option interface {
@@ -51,10 +57,20 @@ type Config struct {
 	// ShouldRetryTooManyOperationsError determines whether the StartOperation
 	// that caused the yterrors.CodeTooManyOperations error should be retried.
 	ShouldRetryTooManyOperationsError bool
+	// TmpDirPath is the directiry where the operation binary will be uploaded.
+	//
+	// Default value is '//tmp/go_binary'.
+	TmpDirPath ypath.Path
+	// CacheDirPath is the directory for the file cache of operation binaries.
+	//
+	// Default value is '//tmp/go_binary/file_cache'.
+	CacheDirPath ypath.Path
 }
 
 func DefaultConfig() *Config {
 	return &Config{
 		CreateOutputTables: true,
+		TmpDirPath:         defaultTmpDir,
+		CacheDirPath:       defaultCacheDir,
 	}
 }
