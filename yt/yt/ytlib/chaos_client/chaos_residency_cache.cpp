@@ -7,6 +7,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
@@ -291,15 +292,27 @@ public:
                 ObjectId_);
         }
 
+        auto defaultTimeout = connection->GetConfig()->DefaultChaosNodeServiceTimeout;
         auto channelFuture = EnsureChaosCellChannel(connection, CellTag_);
         auto checkLastSeenResidencyFuture = channelFuture.IsSet()
-            ? CheckLastSeenResidency(ObjectId_, CellTag_, std::move(channelFuture.GetUnique().ValueOrDefault(nullptr)))
-            : channelFuture.ApplyUnique(BIND(TGetSession::CheckLastSeenResidency, ObjectId_, CellTag_));
+            ? CheckLastSeenResidency(
+                ObjectId_,
+                CellTag_,
+                defaultTimeout,
+                std::move(channelFuture.GetUnique()
+                    .ValueOrDefault(nullptr)))
+            : channelFuture.ApplyUnique(BIND(
+                TGetSession::CheckLastSeenResidency,
+                ObjectId_,
+                CellTag_,
+                defaultTimeout));
+
         auto fullLookupFuture = checkLastSeenResidencyFuture.ApplyUnique(BIND(
             [
                 this,
                 this_ = MakeStrong(this),
-                connection = std::move(connection)
+                connection = std::move(connection),
+                defaultTimeout
             ] (TErrorOr<TCellTag>&& sameResidency)
             {
                 auto sameResidencyValue = sameResidency.ValueOrDefault(InvalidCellTag);
@@ -307,7 +320,7 @@ public:
                     return MakeFuture(sameResidencyValue);
                 }
 
-                return LookForCardOnAllChaosCells(connection->GetCellDirectory());
+                return LookForCardOnAllChaosCells(connection->GetCellDirectory(), defaultTimeout);
             }
         ));
 
@@ -320,6 +333,7 @@ private:
     static TFuture<TCellTag> CheckLastSeenResidency(
         const TObjectId& objectId,
         TCellTag cellTag,
+        TDuration timeout,
         IChannelPtr&& channel)
     {
         if (!channel) {
@@ -327,6 +341,7 @@ private:
         }
 
         auto proxy = TChaosNodeServiceProxy(channel);
+        proxy.SetDefaultTimeout(timeout);
         auto req = proxy.FindReplicationCard();
         ToProto(req->mutable_replication_card_id(), objectId);
 
@@ -341,7 +356,7 @@ private:
             ));
     }
 
-    TFuture<TCellTag> LookForCardOnAllChaosCells(const NHiveClient::ICellDirectoryPtr& cellDirectory)
+    TFuture<TCellTag> LookForCardOnAllChaosCells(const NHiveClient::ICellDirectoryPtr& cellDirectory, TDuration timeout)
     {
         using TResponse = TIntrusivePtr<TChaosNodeServiceProxy::TRspFindReplicationCard>;
         std::vector<TFuture<TResponse>> futureFoundReplicationCards;
@@ -355,6 +370,7 @@ private:
             }
 
             auto proxy = TChaosNodeServiceProxy(channel);
+            proxy.SetDefaultTimeout(timeout);
             auto req = proxy.FindReplicationCard();
             ToProto(req->mutable_replication_card_id(), ObjectId_);
 
@@ -465,7 +481,15 @@ public:
 
     TFuture<TCellTag> Run() override
     {
+        auto connection = Owner_->Connection_.Lock();
+        if (!connection) {
+            THROW_ERROR_EXCEPTION("Unable to locate %v %v: connection terminated",
+                Type_,
+                ObjectId_);
+        }
+
         auto proxy = TChaosNodeServiceProxy(Owner_->ChaosCacheChannel_);
+        proxy.SetDefaultTimeout(connection->GetConfig()->DefaultChaosNodeServiceTimeout);
         auto req = proxy.GetReplicationCardResidency();
         ToProto(req->mutable_replication_card_id(), ObjectId_);
         if (ForceRefresh_) {
