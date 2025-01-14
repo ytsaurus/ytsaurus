@@ -24,6 +24,7 @@ YT_PYTHON_PACKAGE_LIST = [
     "requests",
     ("urllib3", "urllib3/src"),
     "chardet",
+    ("typing_extensions", "typing-extensions"),
 ]
 
 CONTRIB_PYTHON_PACKAGE_LIST = [
@@ -37,11 +38,9 @@ CONTRIB_PYTHON_PACKAGE_LIST = [
     "singledispatch",
     ("tornado", "tornado/tornado-4"),
     ("tqdm", "tqdm/py2"),
-    ("typing_extensions", "typing-extensions/py3"),
     ("idna", "idna/py2"),
     ("six", "six/py2"),
     ("attr", "attrs/py2"),
-    "typing",
 ]
 
 PY23_BINARIES = [

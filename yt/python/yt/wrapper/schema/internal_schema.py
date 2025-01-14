@@ -10,6 +10,7 @@ from ..errors import YtError
 
 import copy
 import datetime
+import sys
 
 import yt.type_info as ti
 import yt.logger as logger
@@ -19,11 +20,17 @@ try:
 except ImportError:
     pass
 
-if is_schema_module_available():
-    try:
-        from yt.packages.typing_extensions import get_type_hints
-    except ImportError:
-        from typing_extensions import get_type_hints
+if typing.TYPE_CHECKING:
+    from yt.packages.typing_extensions import get_type_hints
+else:
+    if is_schema_module_available():
+        if (sys.version_info.major, sys.version_info.minor) >= (3, 9):
+            from typing import get_type_hints
+        else:
+            try:
+                from yt.packages.typing_extensions import get_type_hints
+            except ImportError:
+                from typing_extensions import get_type_hints
 
 
 class _PySchemaSerializer:

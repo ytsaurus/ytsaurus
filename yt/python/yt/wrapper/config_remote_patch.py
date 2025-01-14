@@ -6,11 +6,7 @@ import yt.yson as yson
 
 import os
 import random
-
-try:
-    import typing
-except ImportError:
-    import yt.packages.typing as typing
+import typing
 
 
 class RemotePatchableValueBase(object):
