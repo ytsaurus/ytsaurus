@@ -6733,8 +6733,8 @@ private:
             context,
             [client = std::move(client), request, parentTransactionId] () {
                 TStartShuffleOptions options;
-                if (request->has_medium_name()) {
-                    options.MediumName = request->medium_name();
+                if (request->has_medium()) {
+                    options.Medium = request->medium();
                 }
                 if (request->has_replication_factor()) {
                     options.ReplicationFactor = request->replication_factor();
