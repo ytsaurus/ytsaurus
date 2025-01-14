@@ -2,6 +2,8 @@ package mapreduce
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
@@ -126,39 +128,102 @@ func (mr *client) doUploadSelf(ctx context.Context) error {
 	}
 	defer func() { _ = exe.Close() }()
 
-	id := guid.New().String()
-	tmpPath := ypath.Path("//tmp/go_binary").Child(id[:2]).Child(id)
+	tmpDirPath := mr.config.TmpDirPath
+	if tmpDirPath == "" {
+		tmpDirPath = defaultTmpDir
+	}
 
-	_, err = mr.yc.CreateNode(ctx, tmpPath, yt.NodeFile, &yt.CreateNodeOptions{Recursive: true})
+	cacheDirPath := mr.config.CacheDirPath
+	if cacheDirPath == "" {
+		cacheDirPath = defaultCacheDir
+	}
+
+	cachedPath, err := mr.checkFileInCacheAndUpload(ctx, exe, tmpDirPath, cacheDirPath)
 	if err != nil {
 		return err
 	}
+	mr.binaryPath = cachedPath.YPath()
 
-	w, err := mr.yc.WriteFile(ctx, tmpPath, nil)
+	return nil
+}
+
+func (mr *client) checkFileInCacheAndUpload(
+	ctx context.Context,
+	file *os.File,
+	tmpDirPath ypath.Path,
+	cacheDirPath ypath.Path,
+) (ypath.YPath, error) {
+	_, err := mr.yc.CreateNode(ctx, cacheDirPath, yt.NodeMap, &yt.CreateNodeOptions{Recursive: true, IgnoreExisting: true})
 	if err != nil {
-		return err
+		return nil, err
+	}
+
+	md5, err := calculateMD5(file)
+	if err != nil {
+		return nil, err
+	}
+	path, err := mr.yc.GetFileFromCache(ctx, md5, &yt.GetFileFromCacheOptions{CachePath: cacheDirPath})
+	if err != nil {
+		return nil, err
+	}
+	if path != nil {
+		return path, nil
+	}
+
+	if _, err := file.Seek(0, io.SeekStart); err != nil {
+		return nil, err
+	}
+
+	tmpPath, err := mr.writeFileToTmpDir(ctx, tmpDirPath, file, true)
+	if err != nil {
+		return nil, err
+	}
+
+	cachedPath, err := mr.yc.PutFileToCache(ctx, tmpPath, md5, &yt.PutFileToCacheOptions{CachePath: cacheDirPath})
+	if err != nil {
+		return nil, err
+	}
+	if err := mr.yc.RemoveNode(ctx, tmpPath, &yt.RemoveNodeOptions{Force: true}); err != nil {
+		return nil, err
+	}
+	return cachedPath, nil
+}
+
+func (mr *client) writeFileToTmpDir(
+	ctx context.Context,
+	tmpDirPath ypath.Path,
+	r io.Reader,
+	computeMD5 bool,
+) (tmpPath ypath.Path, err error) {
+	id := guid.New().String()
+	tmpPath = tmpDirPath.Child(id[:2]).Child(id)
+
+	_, err = mr.yc.CreateNode(ctx, tmpPath, yt.NodeFile, &yt.CreateNodeOptions{Recursive: true})
+	if err != nil {
+		return
+	}
+
+	w, err := mr.yc.WriteFile(ctx, tmpPath, &yt.WriteFileOptions{ComputeMD5: computeMD5})
+	if err != nil {
+		return
 	}
 
 	writeErrCh := make(chan error, 1)
 	go func() {
-		_, err = io.Copy(w, exe)
+		_, err = io.Copy(w, r)
 		writeErrCh <- err
 	}()
 
 	select {
 	case <-ctx.Done():
-	case err := <-writeErrCh:
+	case err = <-writeErrCh:
 		if err != nil {
-			return err
+			return
 		}
 	}
 
-	if err := w.Close(); err != nil {
-		return err
-	}
-
-	mr.binaryPath = tmpPath
-	return nil
+	err = w.Close()
+	return
 }
 
 func (mr *client) operationStartClient() yt.OperationStartClient {
@@ -167,4 +232,12 @@ func (mr *client) operationStartClient() yt.OperationStartClient {
 	}
 
 	return mr.yc
+}
+
+func calculateMD5(r io.Reader) (string, error) {
+	hash := md5.New()
+	if _, err := io.Copy(hash, r); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(hash.Sum(nil)), nil
 }

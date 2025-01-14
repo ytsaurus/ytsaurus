@@ -689,7 +689,12 @@ func (e *Encoder) PutFileToCache(
 ) (cachedPath ypath.YPath, err error) {
 	call := e.newCall(NewPutFileToCacheParams(path, md5, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decodeValue(&cachedPath)
+		var resPath ypath.Path
+		if err := res.decode(&resPath); err != nil {
+			return err
+		}
+		cachedPath = resPath
+		return nil
 	})
 	return
 }
@@ -701,7 +706,14 @@ func (e *Encoder) GetFileFromCache(
 ) (path ypath.YPath, err error) {
 	call := e.newCall(NewGetFileFromCacheParams(md5, options))
 	err = e.do(ctx, call, func(res *CallResult) error {
-		return res.decodeValue(&path)
+		var resPath ypath.Path
+		if err := res.decode(&resPath); err != nil {
+			return err
+		}
+		if resPath != "" {
+			path = resPath
+		}
+		return nil
 	})
 	return
 }
