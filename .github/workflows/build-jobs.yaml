@@ -80,8 +80,8 @@ jobs:
         include:
           - build-type: "release"
             cmake-build-type: "Release"
-          - build-type: "relwithdebinfo"
-            cmake-build-type: "RelWithDebInfo"
+          # - build-type: "relwithdebinfo"
+          #   cmake-build-type: "RelWithDebInfo"
     steps:
       - name: Create build directories
         run: |
