@@ -671,7 +671,7 @@ std::vector<TCGValue> UnpackValues(TCGBaseContext& builder, TCGValue span, const
                 break;
             }
             case EValueType::Double: {
-                Value *primitive = builder->CreateLoad(builder->getDoubleTy(), iterator);
+                Value* primitive = builder->CreateLoad(builder->getDoubleTy(), iterator);
                 iterator = builder->CreateGEP(builder->getInt8Ty(), iterator, builder->getInt32(8));
                 inplaceData.push_back(
                     TCGValue::Create(
@@ -1221,24 +1221,24 @@ public:
             auto types = std::vector{EValueType::Int64, argumentTypes[0]};
             auto state = UnpackValues(builder, aggState, types);
 
-            Value* counterFp = builder->CreateCast(
+            Value* counterFP = builder->CreateCast(
                 llvm::Instruction::CastOps::SIToFP,
                 state[0].GetData(),
                 builder->getDoubleTy());
 
-            Value* sumFp = state[1].GetTypedData(builder);
+            Value* sumFP = state[1].GetTypedData(builder);
 
             switch (argumentTypes[0]) {
                 case EValueType::Int64:
-                    sumFp = builder->CreateCast(
+                    sumFP = builder->CreateCast(
                         llvm::Instruction::CastOps::SIToFP,
-                        sumFp,
+                        sumFP,
                         builder->getDoubleTy());
                     break;
                 case EValueType::Uint64:
-                    sumFp = builder->CreateCast(
+                    sumFP = builder->CreateCast(
                         llvm::Instruction::CastOps::UIToFP,
-                        sumFp,
+                        sumFP,
                         builder->getDoubleTy());
                     break;
                 case EValueType::Double:
@@ -1247,7 +1247,7 @@ public:
                     YT_ABORT();
             }
 
-            auto avg = builder->CreateFDiv(sumFp, counterFp);
+            auto avg = builder->CreateFDiv(sumFP, counterFP);
 
             return TCGValue::Create(builder, builder->getFalse(), nullptr, avg, EValueType::Double);
         } else {

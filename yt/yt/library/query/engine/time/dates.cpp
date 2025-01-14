@@ -1,6 +1,5 @@
-#include "dates_lut_localtime.h"
-#include "dates_lut_utc.h"
 #include "dates.h"
+#include "private.h"
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
@@ -15,6 +14,33 @@ using namespace NTableClient;
 
 constexpr int MaxFormatLength = 30;
 constexpr int BufferLength = 128;
+
+extern const TDay UtcLut[];
+extern const TTimestampedDay LocaltimeLut[];
+
+////////////////////////////////////////////////////////////////////////////////
+
+int FindUtc(i64 timestamp)
+{
+    return timestamp / 86400;
+}
+
+int FindLocal(i64 timestamp)
+{
+    int index = (timestamp + 36817200 + 86400 / 2) / 86400;
+
+    if (LocaltimeLut[index].Timestamp <= timestamp) {
+        while (LocaltimeLut[index + 1].Timestamp <= timestamp) {
+            index++;
+        }
+    } else {
+        while (LocaltimeLut[index].Timestamp > timestamp) {
+            index--;
+        }
+    }
+
+    return index;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
