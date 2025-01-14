@@ -660,13 +660,13 @@ class TestLocalMode(object):
             discovery_server_count = 0
             queue_agent_count = 2
             kafka_proxy_count = 2
-            timestamp_provider_count = 0
+            timestamp_provider_count = 2
             http_proxy_count = 2
             rpc_proxy_count = 2
             master_cache_count = 2
             cell_balancer_count = 0  # TODO(YT-23956): Increase it when it will be fixed.
             tablet_balancer_count = 2
-            cypress_proxy_count = 0
+            cypress_proxy_count = 1
             replicated_table_tracker_count = 0
         else:
             # Run only one instance of each component.
