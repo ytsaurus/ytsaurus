@@ -199,6 +199,35 @@ private:
 
     void DoSetBlock(const TBlockInfo& blockInfo, TWindowSlot& windowSlot, TBlock block);
     void DoSetError(const TBlockInfo& blockInfo, TWindowSlot& windowSlot, const TError& error);
+
+    using TBlockDescriptors = std::vector<TBlockDescriptor>;
+
+    struct TValueGetter {
+        using TIterator = TBlockDescriptors::const_iterator;
+        using TValue = decltype(TBlockDescriptor::BlockIndex);
+
+        TValue operator()(const TIterator& iterator) const;
+    };
+
+    class TIntervalFormatter {
+    public:
+        using TIterator = TBlockDescriptors::const_iterator;
+
+        TIntervalFormatter(const TBlockFetcher* blockFetcher);
+
+        void operator()(
+            TStringBuilderBase* builder,
+            const TIterator& intervalBegin,
+            const TIterator& intervalEnd,
+            const TValueGetter& valueGetter,
+            bool firstInterval) const;
+
+    private:
+        const TBlockFetcher* BlockFetcher;
+    };
+
+    auto MakeCompactIntervalView(const TBlockDescriptors& blockDescriptors) const
+        -> TCompactIntervalView<TBlockDescriptors, TValueGetter, TIntervalFormatter>;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockFetcher)
