@@ -37,7 +37,7 @@ func checkScannerRaw(t *testing.T, input []byte, opcodes []opcode, literals []li
 	}
 
 	if op != opcodes[len(input)] {
-		t.Fatalf("invalid optcode in string %q after eof (expected %v, actual %v)",
+		t.Fatalf("invalid opcode in string %q after eof (expected %v, actual %v)",
 			string(input), string(opcodes[len(input)]), string(op))
 	}
 
