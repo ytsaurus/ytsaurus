@@ -1,4 +1,4 @@
-name: Generate Release Notes In Documentation
+name: Generate Documentation Release Notes
 
 on:
   release:
@@ -26,12 +26,18 @@ jobs:
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
+      - uses: actions/create-github-app-token@v1
+        id: generate-token
+        with:
+          app-id: ${{ secrets.YTSAURUS_ACTIONS_APP_ID }}
+          private-key: ${{ secrets.YTSAURUS_ACTIONS_CLIENT_ID }}
+
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: Update Release Notes
-          branch: members/ci/update-release-notes-${{ github.event.release.tag_name }}
+          token: ${{ steps.generate-token.outputs.token }}
+          commit-message: Update Documentation Release Notes
+          branch: ci/update-documentation-release-notes/${{ github.event.release.tag_name }}
           base: main
           title: "Update Release Notes"
           body: |
