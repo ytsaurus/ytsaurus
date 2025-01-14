@@ -1135,7 +1135,7 @@ private:
     const int GroupStateSize_;
     const int OrderKeySize_;
 
-    std::unique_ptr<TTopCollectorWithHashMap> TopCollector_ = nullptr;
+    std::unique_ptr<TTopCollector> TopCollector_ = nullptr;
 
     // When executing a query with `with totals`, we store data for `totals` using the null grouping key.
     // Thus, rows with a null grouping key should lead to an execution error.
@@ -1239,12 +1239,11 @@ TGroupByClosure::TGroupByClosure(
         NDetail::TRowComparer::MakeSentinel(NDetail::TRowComparer::ESentinelType::Deleted));
 
     if (combineGroupOpWithOrderOp) {
-        TopCollector_ = std::make_unique<TTopCollectorWithHashMap>(
+        TopCollector_ = std::make_unique<TTopCollector>(
             orderOpLimit,
             orderOpComparer,
             GroupKeySize_ + GroupStateSize_ + OrderKeySize_,
-            chunkProvider,
-            &GroupedIntermediateRows_);
+            chunkProvider);
     }
 }
 
@@ -1476,7 +1475,15 @@ const TPIValue* TGroupByClosure::InsertIntermediateWhenCombinedWithOrderOp(TPIVa
         return *it;
     }
 
-    auto* inserted = TopCollector_->AddRow(row);
+    auto* inserted = TopCollector_->AddRow(
+        row,
+        [&] (const TPIValue* insertedRow) {
+            GroupedIntermediateRows_.insert(insertedRow);
+        },
+        [&] (const TPIValue* evictedRow) {
+            GroupedIntermediateRows_.erase(evictedRow);
+        });
+
     if (inserted) {
         ++GroupedRowCount_;
         return std::bit_cast<const TPIValue*>(std::bit_cast<ui64>(inserted) | (1ULL << 48));
@@ -1747,7 +1754,7 @@ void AllocatePermanentRow(
     *ConvertPointerFromWasmToHost(row) = std::bit_cast<TValue*>(offset);
 }
 
-void AddRowToCollector(TTopCollectorBase* topCollector, TPIValue* row)
+void AddRowToCollector(TTopCollector* topCollector, TPIValue* row)
 {
     topCollector->AddRow(row);
 }
@@ -1756,7 +1763,7 @@ void OrderOpHelper(
     TExecutionContext* context,
     TComparerFunction* comparerFunction,
     void** collectRowsClosure,
-    void (*collectRowsFunction)(void** closure, TTopCollectorBase* topCollector),
+    void (*collectRowsFunction)(void** closure, TTopCollector* topCollector),
     void** consumeRowsClosure,
     TRowsConsumer consumeRowsFunction,
     size_t rowSize)

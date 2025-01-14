@@ -3789,7 +3789,7 @@ size_t MakeCodegenOrderOp(
     ] (TCGOperatorContext& builder) {
         auto schemaSize = sourceSchema.size();
 
-        auto collectRows = MakeClosure<void(TTopCollectorBase*)>(builder, "CollectRows", [&] (
+        auto collectRows = MakeClosure<void(TTopCollector*)>(builder, "CollectRows", [&] (
             TCGOperatorContext& builder,
             Value* topCollector) {
             Value* newValues = CodegenAllocateValues(builder, schemaSize + exprIds.size());

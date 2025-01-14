@@ -8,57 +8,29 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTopCollectorBase
+class TTopCollector
 {
 public:
-    virtual ~TTopCollectorBase() = default;
-
     using TComparerFunction = NWebAssembly::TCompartmentFunction<TComparerFunction>;
 
-    TTopCollectorBase(
+    TTopCollector(
         i64 limit,
         TComparerFunction comparer,
         size_t rowSize,
         IMemoryChunkProviderPtr memoryChunkProvider);
 
-    // Returns a pointer to the captured row if |row| was added.
-    const TPIValue* AddRow(const TPIValue* row);
-
     std::vector<const TPIValue*> GetRows() const;
 
-protected:
-    virtual void OnInsert(const TPIValue* insertedRow) = 0;
-    virtual void OnEvict(const TPIValue* evictedRow) = 0;
+    // Returns a pointer to the captured row if |row| was added.
+    template <class TOnInsert, class TOnEvict>
+    const TPIValue* AddRow(const TPIValue* row, TOnInsert onInsert, TOnEvict onEvict);
+    Y_FORCE_INLINE const TPIValue* AddRow(const TPIValue* row);
 
 private:
     struct TRowAndBuffer
     {
         TPIValue* Row = nullptr;
         i64 ContextIndex = -1;
-    };
-
-    class TMinComparer
-    {
-    public:
-        explicit TMinComparer(TComparerFunction comparer);
-
-        bool operator()(const TRowAndBuffer& lhs, const TRowAndBuffer& rhs) const;
-        bool operator()(const TPIValue* lhs, const TPIValue* rhs) const;
-
-    private:
-        const TComparerFunction Comparer_;
-    };
-
-    class TMaxComparer
-    {
-    public:
-        explicit TMaxComparer(TComparerFunction comparer);
-
-        bool operator()(const TRowAndBuffer& lhs, const TRowAndBuffer& rhs) const;
-        bool operator()(const TPIValue* lhs, const TPIValue* rhs) const;
-
-    private:
-        const TComparerFunction Comparer_;
     };
 
     void AccountGarbage(const TPIValue* row);
@@ -70,8 +42,7 @@ private:
     size_t AllocatedMemorySize_ = 0;
     size_t GarbageMemorySize_ = 0;
 
-    const TMinComparer MinComparer_;
-    const TMaxComparer MaxComparer_;
+    const TComparerFunction Comparer_;
     const size_t RowSize_;
     const IMemoryChunkProviderPtr MemoryChunkProvider_;
     const i64 Limit_;
@@ -86,40 +57,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTopCollector
-    : public TTopCollectorBase
-{
-public:
-    TTopCollector(
-        i64 limit,
-        TComparerFunction comparer,
-        size_t rowSize,
-        IMemoryChunkProviderPtr memoryChunkProvider);
-
-    void OnInsert(const TPIValue* /*insertedRow*/) override;
-    void OnEvict(const TPIValue* /*evictedRow*/) override;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TTopCollectorWithHashMap
-    : public TTopCollectorBase
-{
-public:
-    TTopCollectorWithHashMap(
-        i64 limit,
-        TComparerFunction comparer,
-        size_t rowSize,
-        IMemoryChunkProviderPtr memoryChunkProvider,
-        TLookupRows* const hashMap);
-
-    void OnInsert(const TPIValue* insertedRow) override;
-    void OnEvict(const TPIValue* evictedRow) override;
-
-private:
-    TLookupRows* const HashMap_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NQueryClient
+
+#define TOP_COLLECTOR_INL_H
+#include "top_collector-inl.h"
+#undef TOP_COLLECTOR_INL_H

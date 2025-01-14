@@ -17,13 +17,12 @@ struct TTopCollectorBufferTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTopCollectorBase::TTopCollectorBase(
+TTopCollector::TTopCollector(
     i64 limit,
     TComparerFunction comparer,
     size_t rowSize,
     IMemoryChunkProviderPtr memoryChunkProvider)
-    : MinComparer_(comparer)
-    , MaxComparer_(comparer)
+    : Comparer_(comparer)
     , RowSize_(rowSize)
     , MemoryChunkProvider_(std::move(memoryChunkProvider))
     , Limit_(limit)
@@ -31,40 +30,7 @@ TTopCollectorBase::TTopCollectorBase(
     , Heap_(GetRefCountedTypeCookie<TTopCollectorBufferTag>(), MemoryChunkProvider_)
 { }
 
-const TPIValue* TTopCollectorBase::AddRow(const TPIValue* row)
-{
-    if (Heap_.Size() < Limit_) {
-        auto* destination = std::bit_cast<TPIValue*>(
-            RowsContext_.AllocateAligned(
-                sizeof(TPIValue) * RowSize_,
-                EAddressSpace::WebAssembly));
-
-        auto capturedRow = Capture(row, destination);
-        Heap_.PushBack(capturedRow);
-        OnInsert(capturedRow.Row);
-
-        if (Heap_.Size() == Limit_) {
-            MakeHeap(Heap_.Begin(), Heap_.End(), MaxComparer_);
-        }
-
-        return capturedRow.Row;
-    }
-
-    if (!Heap_.Empty() && MaxComparer_(Heap_[0].Row, row)) {
-        auto popped = Heap_[0].Row;
-        AccountGarbage(popped);
-        OnEvict(popped);
-        auto capturedRow = Capture(row, popped);
-        Heap_[0].ContextIndex = capturedRow.ContextIndex;
-        AdjustHeapFront(Heap_.Begin(), Heap_.End(), MaxComparer_);
-        OnInsert(capturedRow.Row);
-        return capturedRow.Row;
-    }
-
-    return nullptr;
-}
-
-std::vector<const TPIValue*> TTopCollectorBase::GetRows() const
+std::vector<const TPIValue*> TTopCollector::GetRows() const
 {
     auto result = std::vector<const TPIValue*>(Heap_.Size());
 
@@ -72,12 +38,12 @@ std::vector<const TPIValue*> TTopCollectorBase::GetRows() const
         result[index] = Heap_[index].Row;
     }
 
-    std::sort(result.begin(), result.end(), MinComparer_);
+    std::sort(result.begin(), result.end(), Comparer_);
 
     return result;
 }
 
-void TTopCollectorBase::AccountGarbage(const TPIValue* row)
+void TTopCollector::AccountGarbage(const TPIValue* row)
 {
     row = ConvertPointerFromWasmToHost(row, RowSize_);
     for (size_t index = 0; index < RowSize_; ++index) {
@@ -88,7 +54,7 @@ void TTopCollectorBase::AccountGarbage(const TPIValue* row)
     }
 }
 
-void TTopCollectorBase::CollectGarbageAndAllocateNewContextIfNeeded()
+void TTopCollector::CollectGarbageAndAllocateNewContextIfNeeded()
 {
     if (!StringLikeValueEmptyContextIds_.empty()) {
         return;
@@ -146,7 +112,7 @@ void TTopCollectorBase::CollectGarbageAndAllocateNewContextIfNeeded()
     }
 }
 
-TTopCollectorBase::TRowAndBuffer TTopCollectorBase::Capture(
+TTopCollector::TRowAndBuffer TTopCollector::Capture(
     const TPIValue* row,
     TPIValue* destination)
 {
@@ -180,78 +146,6 @@ TTopCollectorBase::TRowAndBuffer TTopCollectorBase::Capture(
     }
 
     return {destination, contextId};
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTopCollectorBase::TMinComparer::TMinComparer(TComparerFunction comparer)
-    : Comparer_(comparer)
-{ }
-
-bool TTopCollectorBase::TMinComparer::operator()(const TRowAndBuffer& lhs, const TRowAndBuffer& rhs) const
-{
-    return (*this)(lhs.Row, rhs.Row);
-}
-
-bool TTopCollectorBase::TMinComparer::operator()(const TPIValue* lhs, const TPIValue* rhs) const
-{
-    return Comparer_(lhs, rhs);
-}
-
-TTopCollectorBase::TMaxComparer::TMaxComparer(TComparerFunction comparer)
-    : Comparer_(comparer)
-{ }
-
-bool TTopCollectorBase::TMaxComparer::operator()(const TRowAndBuffer& lhs, const TRowAndBuffer& rhs) const
-{
-    return (*this)(lhs.Row, rhs.Row);
-}
-
-bool TTopCollectorBase::TMaxComparer::operator()(const TPIValue* lhs, const TPIValue* rhs) const
-{
-    return Comparer_(rhs, lhs); // NB: Inverse |lhs| and |rhs|.
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTopCollector::TTopCollector(
-    i64 limit,
-    TComparerFunction comparer,
-    size_t rowSize,
-    IMemoryChunkProviderPtr memoryChunkProvider)
-    : TTopCollectorBase(limit, comparer, rowSize, std::move(memoryChunkProvider))
-{ }
-
-void TTopCollector::OnInsert(const TPIValue* /*insertedRow*/)
-{
-    // Do nothing.
-}
-
-void TTopCollector::OnEvict(const TPIValue* /*evictedRow*/)
-{
-    // Do nothing.
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TTopCollectorWithHashMap::TTopCollectorWithHashMap(
-    i64 limit,
-    TComparerFunction comparer,
-    size_t rowSize,
-    IMemoryChunkProviderPtr memoryChunkProvider,
-    TLookupRows* const hashMap)
-    : TTopCollectorBase(limit, comparer, rowSize, std::move(memoryChunkProvider))
-    , HashMap_(hashMap)
-{ }
-
-void TTopCollectorWithHashMap::OnInsert(const TPIValue* insertedRow)
-{
-    HashMap_->insert(insertedRow);
-}
-
-void TTopCollectorWithHashMap::OnEvict(const TPIValue* evictedRow)
-{
-    HashMap_->erase(evictedRow);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
