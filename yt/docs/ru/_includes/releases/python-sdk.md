@@ -8,6 +8,17 @@ Availabe as a package in [PyPI](https://pypi.org/project/ytsaurus-client/).
 
 **Releases:**
 
+{% cut "**0.13.22**" %}
+
+**Release date:** 2025-01-10
+
+
+### Fixes:
+* Fix import checks for `orc` related functions
+
+{% endcut %}
+
+
 {% cut "**0.13.21**" %}
 
 **Release date:** 2024-12-26

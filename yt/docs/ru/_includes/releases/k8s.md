@@ -8,6 +8,21 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 
 **Releases:**
 
+{% cut "**0.19.0**" %}
+
+**Release date:** 2025-01-09
+
+
+## Minor
+* Configure yqla mrjob syslibs by @Krisha11 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/409
+## Bugfix
+* Add yqla update job by @Krisha11 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/387
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.18.1...release/0.19.0
+
+{% endcut %}
+
+
 {% cut "**0.18.1**" %}
 
 **Release date:** 2024-12-13
