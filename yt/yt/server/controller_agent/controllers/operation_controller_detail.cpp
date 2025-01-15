@@ -3072,6 +3072,7 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobletPtr& joblet)
         .Item("resource_limits").Value(joblet->ResourceLimits)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
         .Item("job_type").Value(joblet->JobType)
+        .Item("task_name").Value(joblet->TaskName)
         .Item("tree_id").Value(joblet->TreeId);
 
     LogProgress();
@@ -3985,6 +3986,7 @@ TFluentLogEvent TOperationControllerBase::LogFinishedJobFluently(
         .Item("statistics").Value(statistics)
         .Item("node_address").Value(joblet->NodeDescriptor.Address)
         .Item("job_type").Value(joblet->JobType)
+        .Item("task_name").Value(joblet->TaskName)
         .Item("interruption_reason").Value(joblet->InterruptionReason)
         .Item("job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Speculative])
         .Item("probing_job_competition_id").Value(joblet->CompetitionIds[EJobCompetitionType::Probing])
