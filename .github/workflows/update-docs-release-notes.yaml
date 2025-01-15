@@ -31,11 +31,6 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Generate release notes
-        run: |
-          ./ya make -r yt/yt/scripts/generate_documentation_release_notes
-          ./yt/yt/scripts/generate_documentation_release_notes/generate_documentation_release_notes -o "yt/docs/en/_includes/releases" -o "yt/docs/ru/_includes/releases"
-
       - name: Configure Git
         run: |
           git config --global user.name "github-actions[bot]"
@@ -44,8 +39,13 @@ jobs:
       - uses: actions/create-github-app-token@v1
         id: generate-token
         with:
-          app-id: ${{ secrets.YTSAURUS_ACTIONS_APP_ID }}
-          private-key: ${{ secrets.YTSAURUS_ACTIONS_CLIENT_ID }}
+          app-id: ${{ vars.YTSAURUS_ACTIONS_APP_ID }}
+          private-key: ${{ secrets.YTSAURUS_ACTIONS_PRIVATE_KEY }}
+
+      - name: Generate release notes
+        run: |
+          ./ya make -r yt/yt/scripts/generate_documentation_release_notes
+          ./yt/yt/scripts/generate_documentation_release_notes/generate_documentation_release_notes -o "yt/docs/en/_includes/releases" -o "yt/docs/ru/_includes/releases"
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
@@ -55,5 +55,8 @@ jobs:
           branch: ci/update-documentation-release-notes/$TAG_NAME
           base: main
           title: "Update Release Notes"
+          labels: |
+            documentation
+            release-notes
           body: |
             Update release notes in the documentation.
