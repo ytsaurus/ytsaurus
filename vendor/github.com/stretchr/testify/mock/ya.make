@@ -4,7 +4,7 @@ SUBSCRIBER(g:go-contrib)
 
 LICENSE(MIT)
 
-VERSION(v1.9.0)
+VERSION(v1.10.0)
 
 GO_SKIP_TESTS(
     Test_Mock_Chained_On
