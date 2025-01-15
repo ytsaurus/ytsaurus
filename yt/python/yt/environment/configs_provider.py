@@ -584,7 +584,7 @@ def _build_discovery_server_configs(yt_config, multidaemon_config_output, ports_
         config["rpc_port"], config["monitoring_port"] = ports[index]
 
         multidaemon_config_output["daemons"][f"discovery_{index}"] = {
-            "type": "discovery",
+            "type": "discovery_server",
             "config": config,
         }
         configs.append(config)
