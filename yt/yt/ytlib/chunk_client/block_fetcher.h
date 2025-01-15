@@ -89,7 +89,7 @@ public:
 
     //! Asynchronously fetches blocks with given indices.
     /*!
-     *  It is batch version of FetchBlock call.
+     *  This is a batch version of FetchBlock call.
      */
     std::vector<TFuture<TBlock>> FetchBlocks(const std::vector<TBlockDescriptor>& blockDescriptors);
     std::vector<TFuture<TBlock>> FetchBlocks(const std::vector<int>& blockIndices);
