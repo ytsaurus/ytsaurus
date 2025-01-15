@@ -138,8 +138,6 @@ void TAutoMergeableOutputMixin<TUnderlyingTask>::RegisterMetadata(auto&& registr
     PHOENIX_REGISTER_FIELD(1, LastChunkCount_);
 }
 
-PHOENIX_DEFINE_TEMPLATE_TYPE(TAutoMergeableOutputMixin, TTask);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent::NControllers
