@@ -79,7 +79,7 @@ void Initialize(
     NYTree::IMapNodePtr* orchidRoot)
 {
     *monitoringManager = New<TMonitoringManager>();
-    (*monitoringManager)->Register("/ref_counted", CreateRefCountedTrackerStatisticsProducer());
+    (*monitoringManager)->Register("/ref_counted", GetCachingRefCountedTrackerStatisticsProducer());
     (*monitoringManager)->Register("/solomon", BIND([] (NYson::IYsonConsumer* consumer) {
         auto tags = NProfiling::TSolomonRegistry::Get()->GetDynamicTags();
 
