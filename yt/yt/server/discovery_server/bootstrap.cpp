@@ -163,7 +163,7 @@ private:
             SetNodeByYPath(
                 OrchidRoot_,
                 "/config",
-                ConfigNode_);
+                CreateVirtualNode(ConfigNode_));
         }
         SetNodeByYPath(
             OrchidRoot_,
