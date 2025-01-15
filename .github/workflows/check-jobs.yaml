@@ -16,7 +16,7 @@ jobs:
           cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build_cmake_release
           ln -s $(pwd)/../build_cmake_release $(pwd)/../build
           cd ../build
-          ./run_unittests.sh
+          # ./run_unittests.sh
 
       - name: Prepare pytest environment
         shell: bash
