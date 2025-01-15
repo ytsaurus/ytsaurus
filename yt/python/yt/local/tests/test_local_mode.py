@@ -657,7 +657,7 @@ class TestLocalMode(object):
             clock_count = 2
             scheduler_count = 2
             controller_agent_count = 2
-            discovery_server_count = 0
+            discovery_server_count = 2
             queue_agent_count = 2
             kafka_proxy_count = 2
             timestamp_provider_count = 2
