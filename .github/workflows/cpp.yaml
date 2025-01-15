@@ -36,7 +36,6 @@ jobs:
           user: ${{ secrets.YC_VM_USERNAME }}
           ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
           public-ip: false
-          disable-update: true
           ttl: PT24H
 
   checkout:
