@@ -23,6 +23,7 @@ type Gauge struct {
 	timestamp  *time.Time
 
 	useNameTag bool
+	memOnly    bool
 }
 
 func NewGauge(name string, value float64, opts ...MetricOpt) Gauge {
@@ -35,8 +36,10 @@ func NewGauge(name string, value float64, opts ...MetricOpt) Gauge {
 		metricType: typeGauge,
 		tags:       mOpts.tags,
 		value:      *atomic.NewFloat64(value),
-		useNameTag: mOpts.useNameTag,
 		timestamp:  mOpts.timestamp,
+
+		useNameTag: mOpts.useNameTag,
+		memOnly:    mOpts.memOnly,
 	}
 }
 
@@ -76,6 +79,14 @@ func (g *Gauge) getNameTag() string {
 	}
 }
 
+func (g *Gauge) isMemOnly() bool {
+	return g.memOnly
+}
+
+func (g *Gauge) setMemOnly() {
+	g.memOnly = true
+}
+
 // MarshalJSON implements json.Marshaler.
 func (g *Gauge) MarshalJSON() ([]byte, error) {
 	metricType := g.metricType.String()
@@ -109,8 +120,9 @@ func (g *Gauge) Snapshot() Metric {
 		metricType: g.metricType,
 		tags:       g.tags,
 		value:      *atomic.NewFloat64(g.value.Load()),
+		timestamp:  g.timestamp,
 
 		useNameTag: g.useNameTag,
-		timestamp:  g.timestamp,
+		memOnly:    g.memOnly,
 	}
 }

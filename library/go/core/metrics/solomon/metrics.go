@@ -92,6 +92,7 @@ type Metric interface {
 	getValue() interface{}
 	getNameTag() string
 	getTimestamp() *time.Time
+	isMemOnly() bool
 
 	Snapshot() Metric
 }
@@ -106,7 +107,7 @@ type Metric interface {
 //	Rated(cntvec)
 //
 // For additional info: https://m.yandex-team.ru/docs/concepts/data-model#rate
-func Rated(s interface{}) {
+func Rated(s interface{}) interface{} {
 	switch st := s.(type) {
 	case *Counter:
 		st.metricType = typeRated
@@ -123,6 +124,30 @@ func Rated(s interface{}) {
 		st.vec.rated = true
 	}
 	// All other metric types cannot be rated
+	return s
+}
+
+// MemOnly marks given Solomon metric as mem-only.
+func MemOnly(m interface{}) interface{} {
+	switch st := m.(type) {
+	case *Counter:
+		st.memOnly = true
+	case *FuncCounter:
+		st.memOnly = true
+	case *Histogram:
+		st.memOnly = true
+	case *Gauge:
+		st.memOnly = true
+	case *IntGauge:
+		st.memOnly = true
+	case *Timer:
+		st.memOnly = true
+	case *FuncGauge:
+		st.memOnly = true
+	case *FuncIntGauge:
+		st.memOnly = true
+	}
+	return m
 }
 
 var (

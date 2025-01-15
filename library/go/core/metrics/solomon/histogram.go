@@ -30,7 +30,9 @@ type Histogram struct {
 	infValue     atomic.Int64
 	mutex        sync.Mutex
 	timestamp    *time.Time
-	useNameTag   bool
+
+	useNameTag bool
+	memOnly    bool
 }
 
 type histogram struct {
@@ -129,6 +131,14 @@ func (h *Histogram) getNameTag() string {
 	}
 }
 
+func (h *Histogram) isMemOnly() bool {
+	return h.memOnly
+}
+
+func (h *Histogram) setMemOnly() {
+	h.memOnly = true
+}
+
 // MarshalJSON implements json.Marshaler.
 func (h *Histogram) MarshalJSON() ([]byte, error) {
 	valuesCopy := make([]int64, len(h.bucketValues))
@@ -176,7 +186,9 @@ func (h *Histogram) Snapshot() Metric {
 		bucketBounds: bucketBounds,
 		bucketValues: bucketValues,
 		infValue:     *atomic.NewInt64(h.infValue.Load()),
-		useNameTag:   h.useNameTag,
+
+		useNameTag: h.useNameTag,
+		memOnly:    h.memOnly,
 	}
 }
 

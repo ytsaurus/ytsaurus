@@ -16,6 +16,12 @@ const (
 	version12 spackVersion = 0x0102
 )
 
+type spackFlag byte
+
+const (
+	memOnlyFlag spackFlag = 0b0000_0001
+)
+
 type errWriter struct {
 	w   io.Writer
 	err error
@@ -228,6 +234,7 @@ func (se *spackEncoder) writeLabels() ([]spackMetric, error) {
 	for idx, metric := range se.metrics.metrics {
 		m := spackMetric{metric: metric}
 
+		var flagsByte byte
 		var err error
 		if se.version >= version12 {
 			err = m.writeLabelPool(se, namesIdx, valuesIdx, metric.getNameTag(), metric.Name())
@@ -235,6 +242,11 @@ func (se *spackEncoder) writeLabels() ([]spackMetric, error) {
 		} else {
 			err = m.writeLabel(se, namesIdx, valuesIdx, metric.getNameTag(), metric.Name())
 		}
+		if metric.isMemOnly() {
+			flagsByte |= byte(memOnlyFlag)
+		}
+		m.flags = flagsByte
+
 		if err != nil {
 			return nil, err
 		}

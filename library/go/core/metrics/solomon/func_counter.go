@@ -16,7 +16,9 @@ type FuncCounter struct {
 	tags       map[string]string
 	function   func() int64
 	timestamp  *time.Time
+
 	useNameTag bool
+	memOnly    bool
 }
 
 func (c *FuncCounter) Name() string {
@@ -51,6 +53,14 @@ func (c *FuncCounter) getNameTag() string {
 	}
 }
 
+func (c *FuncCounter) isMemOnly() bool {
+	return c.memOnly
+}
+
+func (c *FuncCounter) setMemOnly() {
+	c.memOnly = true
+}
+
 // MarshalJSON implements json.Marshaler.
 func (c *FuncCounter) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
@@ -82,5 +92,6 @@ func (c *FuncCounter) Snapshot() Metric {
 		value:      *atomic.NewInt64(c.function()),
 
 		useNameTag: c.useNameTag,
+		memOnly:    c.memOnly,
 	}
 }

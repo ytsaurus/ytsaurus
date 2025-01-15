@@ -23,6 +23,7 @@ type Timer struct {
 	timestamp  *time.Time
 
 	useNameTag bool
+	memOnly    bool
 }
 
 func (t *Timer) RecordDuration(value time.Duration) {
@@ -57,6 +58,14 @@ func (t *Timer) getNameTag() string {
 	}
 }
 
+func (t *Timer) isMemOnly() bool {
+	return t.memOnly
+}
+
+func (t *Timer) setMemOnly() {
+	t.memOnly = true
+}
+
 // MarshalJSON implements json.Marshaler.
 func (t *Timer) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
@@ -88,5 +97,6 @@ func (t *Timer) Snapshot() Metric {
 		value:      *atomic.NewDuration(t.value.Load()),
 
 		useNameTag: t.useNameTag,
+		memOnly:    t.memOnly,
 	}
 }

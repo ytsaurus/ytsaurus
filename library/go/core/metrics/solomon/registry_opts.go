@@ -3,6 +3,8 @@ package solomon
 import (
 	"context"
 
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/log/nop"
 	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/library/go/core/metrics/collect"
 	"go.ytsaurus.tech/library/go/core/metrics/internal/pkg/registryutil"
@@ -16,6 +18,7 @@ type RegistryOpts struct {
 	UseNameTag   bool
 	Collectors   []func(metrics.Registry)
 	StreamFormat StreamFormat
+	Logger       log.Logger
 }
 
 // NewRegistryOpts returns new initialized instance of RegistryOpts
@@ -25,6 +28,7 @@ func NewRegistryOpts() *RegistryOpts {
 		Tags:         make(map[string]string),
 		UseNameTag:   false,
 		StreamFormat: StreamSpack,
+		Logger:       new(nop.Logger),
 	}
 }
 

@@ -166,3 +166,10 @@ func TestNameTagRegistry(t *testing.T) {
 	expected1 := []byte(`{"type":"COUNTER","labels":{"foo":"bar","name":"sub_counter"},"value":0}`)
 	assert.Equal(t, expected1, b1)
 }
+
+func TestMetricFlags(t *testing.T) {
+	r := NewRegistry(NewRegistryOpts())
+	s := MemOnly(Rated(r.Counter("counter")))
+	assert.Equal(t, s.(Metric).isMemOnly(), true)
+	assert.Equal(t, s.(Metric).getType(), typeRated)
+}
