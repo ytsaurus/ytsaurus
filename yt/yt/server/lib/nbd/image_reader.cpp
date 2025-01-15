@@ -161,6 +161,10 @@ public:
 
         // Read the files from the readers.
         for (const auto& part : Layout_->GetParts()) {
+            if (length <= 0) {
+                break;
+            }
+
             auto partBegin = part.Offset;
             auto partEnd = partBegin + part.Size;
 
