@@ -365,15 +365,6 @@ extend google.protobuf.FileOptions
 
     optional bool no_parents_hash = 30002;
 
-    // Makes /meta user-defined attributes of user-defined objects within the database updatable by superuser only.
-    // By default /meta user-defined attributes are updatable by any user having corresponding write permission.
-    //
-    // Note that the option do not affect /meta system attributes, e.g.: creation_time, uuid, name, parent_key, etc.
-    // System object types are not affected either, e.g.: user, group, schema, etc.
-    //
-    // Can be specified in any database proto file.
-    optional bool meta_attributes_updatable_by_superuser_only = 30003;
-
     // Specifies whether tombstones mechanics is enabled or not.
     // Disabled by default.
     // If enabled, stores each object removal within tombstones table and
