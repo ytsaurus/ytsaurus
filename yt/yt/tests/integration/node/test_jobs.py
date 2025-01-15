@@ -5,9 +5,11 @@ from yt_commands import (
     with_breakpoint, wait_breakpoint, release_breakpoint, vanilla, map,
     disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node,
     interrupt_job, update_nodes_dynamic_config, abort_job, run_sleeping_vanilla,
-    set_node_banned, extract_statistic_v2, get_allocation_id_from_job_id)
+    set_node_banned, extract_statistic_v2, get_allocation_id_from_job_id, alter_table)
 
 from yt_helpers import JobCountProfiler, profiler_factory
+
+import pytest
 
 
 ##################################################################
@@ -370,3 +372,70 @@ class TestNodeAddressResolveFailed(YTEnvSetup):
         release_breakpoint()
 
         op.track()
+
+
+class TestGroupOutOfOrderBlocks(YTEnvSetup):
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_NODE_CONFIG = {
+        "chunk_client_dispatcher": {
+            "chunk_reader_pool_size": 1,
+        },
+    }
+
+    @authors("ngc224")
+    @pytest.mark.parametrize("group_out_of_order_blocks", [True, False])
+    def test_group_out_of_order_blocks(self, group_out_of_order_blocks):
+        create("table", "//tmp/t_input")
+        set("//tmp/t_input/@optimize_for", b"scan")
+        set("//tmp/t_input/@replication_factor", self.NUM_NODES)
+
+        column_count = 10
+        row_count = 100
+
+        schema = [
+            dict(
+                name=f'field_{column_index}',
+                type='string',
+            ) for column_index in range(column_count)
+        ]
+
+        data = [
+            {
+                f'field_{column_index}': f'value_{row_index}'
+                for column_index in range(column_count)
+            } for row_index in range(row_count)
+        ]
+
+        alter_table("//tmp/t_input", schema=schema)
+
+        write_table("//tmp/t_input", data)
+
+        assert get("//tmp/t_input/@chunk_count") == 1
+
+        create("table", "//tmp/t_output")
+        set("//tmp/t_output/@replication_factor", self.NUM_NODES)
+
+        op = map(
+            command="cat",
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            spec=dict(
+                job_io=dict(
+                    table_reader=dict(
+                        group_out_of_order_blocks=group_out_of_order_blocks,
+                    ),
+                ),
+                job_count=1,
+            ),
+            track=True,
+        )
+
+        assert get("//tmp/t_output/@row_count") == row_count
+
+        statistics = op.get_statistics()
+        chunk_reader_statistics = statistics["chunk_reader_statistics"]
+        expected_data_io_requests = 1 if group_out_of_order_blocks else column_count
+
+        assert extract_statistic_v2(chunk_reader_statistics, "data_io_requests") == expected_data_io_requests
