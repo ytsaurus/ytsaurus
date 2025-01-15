@@ -6,7 +6,6 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
-#include <yt/yt/core/concurrency/new_fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/threading/thread.h>
@@ -214,7 +213,7 @@ public:
         TThreadPoolIOEngineConfigPtr config,
         const TString& locationId,
         NLogging::TLogger logger)
-        : ReadThreadPool_(CreateNewTwoLevelFairShareThreadPool(
+        : ReadThreadPool_(CreateTwoLevelFairShareThreadPool(
             config->ReadThreadCount,
             Format("FSH:%v", locationId),
             {

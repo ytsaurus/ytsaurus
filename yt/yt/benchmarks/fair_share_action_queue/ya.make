@@ -6,6 +6,7 @@ ALLOCATOR(TCMALLOC)
 
 SRCS(
     main.cpp
+    old_two_level_fair_share_thread_pool.cpp
 )
 
 PEERDIR(

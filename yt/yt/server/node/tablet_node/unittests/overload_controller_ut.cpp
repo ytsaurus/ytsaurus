@@ -3,7 +3,6 @@
 #include <yt/yt/server/lib/tablet_node/config.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
-#include <yt/yt/core/concurrency/new_fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
 
 #include <yt/yt/core/test_framework/framework.h>
@@ -421,12 +420,7 @@ TEST(TOverloadControllerTest, WaitTimeObserver)
     }
 
     {
-        auto fshThreadPool = CreateTwoLevelFairShareThreadPool(1, "TestFsh");
-        ExecuteWaitTimeTest(fshThreadPool, fshThreadPool->GetInvoker("test-pool", "fsh-tag"));
-    }
-
-    {
-        auto fshThreadPool = CreateNewTwoLevelFairShareThreadPool(1, "TestNewFsh");
+        auto fshThreadPool = CreateTwoLevelFairShareThreadPool(1, "TestNewFsh");
         ExecuteWaitTimeTest(fshThreadPool, fshThreadPool->GetInvoker("test-pool", "fsh-tag"));
     }
 }

@@ -56,7 +56,6 @@
 #include <yt/yt/core/ytree/ypath_service.h>
 
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
-#include <yt/yt/core/concurrency/new_fair_share_thread_pool.h>
 #include <yt/yt/core/concurrency/poller.h>
 
 #include <yt/yt/core/misc/async_expiring_cache.h>
@@ -206,7 +205,7 @@ public:
 
         TableDynamicConfigManager_ = New<TTableDynamicConfigManager>(this);
 
-        QueryThreadPool_ = CreateNewTwoLevelFairShareThreadPool(
+        QueryThreadPool_ = CreateTwoLevelFairShareThreadPool(
             GetConfig()->QueryAgent->QueryThreadPoolSize,
             QueryThreadPoolName,
             {

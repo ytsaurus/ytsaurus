@@ -3,7 +3,6 @@
 #include <yt/yt/core/concurrency/thread_pool.h>
 
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
-#include <yt/yt/core/concurrency/new_fair_share_thread_pool.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
@@ -23,6 +22,15 @@
 #include <util/system/spinlock.h>
 
 #include <random>
+
+namespace NYT::NConcurrency {
+
+ITwoLevelFairShareThreadPoolPtr CreateOldTwoLevelFairShareThreadPool(
+    int threadCount,
+    const TString& threadNamePrefix,
+    IPoolWeightProviderPtr poolWeightProvider = nullptr);
+
+} // namespace NYT::NConcurrency
 
 using namespace NYT;
 using namespace NConcurrency;
@@ -345,8 +353,8 @@ void BenchmarkFSThreadPool(
     bool newPool)
 {
     auto threadPool = newPool
-        ? CreateNewTwoLevelFairShareThreadPool(threadCount, "Test")
-        : CreateTwoLevelFairShareThreadPool(threadCount, "Test");
+        ? CreateTwoLevelFairShareThreadPool(threadCount, "Test")
+        : CreateOldTwoLevelFairShareThreadPool(threadCount, "Test");
 
     Sleep(TDuration::MilliSeconds(10));
 
