@@ -370,8 +370,15 @@ private:
                 const auto& ioTracker = Bootstrap_->GetIOTracker();
                 bool isBlobChunk = IsBlobChunkId(DecodeChunkId(session->GetChunkId()).Id);
                 if (isBlobChunk && chunkInfo.disk_space() > 0 && ioTracker->IsEnabled()) {
+                    auto ioRequests =
+                        chunkWriterStatistics->DataIOWriteRequests.load(std::memory_order::relaxed) +
+                        chunkWriterStatistics->MetaIOWriteRequests.load(std::memory_order::relaxed);
+
                     ioTracker->Enqueue(
-                        TIOCounters{.Bytes = chunkInfo.disk_space(), .IORequests = 1},
+                        TIOCounters{
+                            .Bytes = chunkInfo.disk_space(),
+                            .IORequests = ioRequests,
+                        },
                         MakeWriteIOTags("FinishChunk", session, context));
                 }
 
