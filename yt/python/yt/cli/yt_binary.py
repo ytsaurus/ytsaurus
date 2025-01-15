@@ -2713,7 +2713,6 @@ def add_run_command_with_lock_parser(add_parser):
 def _get_version():
     yt_version = yt.get_version()
     result = ["Version: YT wrapper {}".format(yt_version)]
-
     if is_arcadia_python():
         return "\n".join(result)
 
