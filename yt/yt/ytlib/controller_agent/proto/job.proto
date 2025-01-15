@@ -467,7 +467,7 @@ message TJobSpecExt
 
     optional bool allow_idle_cpu_policy = 35 [default = false];
 
-    optional bool enable_prefetching_job_throttler = 36;
+    optional bool enable_prefetching_job_throttler = 36; // TODO(galtsev): remove after 25.1
 
     // At most one job profiler is supported for now.
     repeated TJobProfilerSpec job_profilers = 37;

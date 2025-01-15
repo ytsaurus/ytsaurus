@@ -842,9 +842,6 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("job_testing_options", &TThis::JobTestingOptions)
         .Default();
 
-    registrar.Parameter("enable_prefetching_job_throttler", &TThis::EnablePrefetchingJobThrottler)
-        .Default(false);
-
     registrar.Parameter("read_via_exec_node", &TThis::ReadViaExecNode)
         .Default(false);
 
