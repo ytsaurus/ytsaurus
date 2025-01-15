@@ -1068,50 +1068,66 @@ class YTEnvSetup(object):
 
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index, cluster_path):
-        for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
-            for peer_index, config in enumerate(configs["master"][tag]):
+        for cell_index, cell_tag in enumerate([configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]):
+            for peer_index, config in enumerate(configs["master"][cell_tag]):
                 config = update_inplace(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
-                configs["master"][tag][peer_index] = cls.update_timestamp_provider_config(cluster_index, config)
-                configs["master"][tag][peer_index] = cls.update_sequoia_connection_config(cluster_index, config)
-                configs["master"][tag][peer_index] = cls.update_transaction_supervisor_config(cluster_index, config)
-                cls.modify_master_config(configs["master"][tag][peer_index], tag, peer_index, cluster_index)
+                configs["master"][cell_tag][peer_index] = cls.update_timestamp_provider_config(cluster_index, config)
+                configs["master"][cell_tag][peer_index] = cls.update_sequoia_connection_config(cluster_index, config)
+                configs["master"][cell_tag][peer_index] = cls.update_transaction_supervisor_config(cluster_index, config)
+                cls.modify_master_config(configs["master"][cell_tag][peer_index], cell_tag, peer_index, cluster_index)
+
+                configs["multi"]["daemons"][f"master_{cell_index}_{peer_index}"]["config"] = configs["master"][cell_tag][peer_index]
 
         for index, config in enumerate(configs["scheduler"]):
             config = update_inplace(config, cls.get_param("DELTA_SCHEDULER_CONFIG", cluster_index))
 
             configs["scheduler"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_scheduler_config(configs["scheduler"][index], cluster_index)
-        for config in configs["clock"][configs["clock"]["cell_tag"]]:
+            configs["multi"]["daemons"][f"scheduler_{index}"]["config"] = configs["scheduler"][index]
+
+        for index, config in enumerate(configs["clock"][configs["clock"]["cell_tag"]]):
             cls.modify_clock_config(config, cluster_index, configs["master"]["primary_cell_tag"])
+            configs["multi"]["daemons"][f"clock_{index}"]["config"] = config
+
         for index, config in enumerate(configs["queue_agent"]):
             config = update_inplace(config, cls.get_param("DELTA_QUEUE_AGENT_CONFIG", cluster_index))
             configs["queue_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_queue_agent_config(configs["queue_agent"][index])
+            configs["multi"]["daemons"][f"queue_agent_{index}"]["config"] = configs["queue_agent"][index]
+
         for index, config in enumerate(configs["kafka_proxy"]):
             config = update_inplace(config, cls.get_param("DELTA_KAFKA_PROXY_CONFIG", cluster_index))
             configs["kafka_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_kafka_proxy_config(configs["kafka_proxy"][index])
+            configs["multi"]["daemons"][f"kafka_proxy_{index}"]["config"] = configs["kafka_proxy"][index]
+
         for index, config in enumerate(configs["cell_balancer"]):
             config = update_inplace(config, cls.get_param("DELTA_CELL_BALANCER_CONFIG", cluster_index))
             configs["cell_balancer"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_cell_balancer_config(configs["cell_balancer"][index])
+            configs["multi"]["daemons"][f"cell_balancer_{index}"]["config"] = configs["cell_balancer"][index]
+
         for index, config in enumerate(configs["tablet_balancer"]):
             config = update_inplace(config, cls.get_param("DELTA_TABLET_BALANCER_CONFIG", cluster_index))
             configs["tablet_balancer"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_tablet_balancer_config(configs["tablet_balancer"][index])
+            configs["multi"]["daemons"][f"tablet_balancer_{index}"]["config"] = configs["tablet_balancer"][index]
+
         for index, config in enumerate(configs["master_cache"]):
             config = update_inplace(config, cls.get_param("DELTA_MASTER_CACHE_CONFIG", cluster_index))
             configs["master_cache"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_master_cache_config(configs["master_cache"][index])
+            configs["multi"]["daemons"][f"master_cache_{index}"]["config"] = configs["master_cache"][index]
+
         for index, config in enumerate(configs["controller_agent"]):
             delta_config = cls.get_param("DELTA_CONTROLLER_AGENT_CONFIG", cluster_index)
             config = update_inplace(
                 update_inplace(config, YTEnvSetup._DEFAULT_DELTA_CONTROLLER_AGENT_CONFIG),
                 delta_config,
             )
-
             configs["controller_agent"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_controller_agent_config(configs["controller_agent"][index], cluster_index)
+            configs["multi"]["daemons"][f"controller_agent_{index}"]["config"] = configs["controller_agent"][index]
 
         node_flavors_length = len(cls.DELTA_NODE_FLAVORS)
         assert node_flavors_length == 0 or cls.NUM_NODES == node_flavors_length
@@ -1145,6 +1161,7 @@ class YTEnvSetup(object):
             config = update_inplace(config, cls.get_param("DELTA_CHAOS_NODE_CONFIG", cluster_index))
             configs["chaos_node"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_chaos_node_config(configs["chaos_node"][index], cluster_index)
+            configs["multi"]["daemons"][f"chaos_node_{index}"]["config"] = configs["chaos_node"][index]
 
         for index, config in enumerate(configs["http_proxy"]):
             # COMPAT(pogorelov)
@@ -1155,6 +1172,7 @@ class YTEnvSetup(object):
             config = update_inplace(config, delta_config)
             configs["http_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_proxy_config(configs["http_proxy"])
+            configs["multi"]["daemons"][f"http_proxy_{index}"]["config"] = configs["http_proxy"][index]
 
         for index, config in enumerate(configs["rpc_proxy"]):
             # COMPAT(pogorelov)
@@ -1164,12 +1182,15 @@ class YTEnvSetup(object):
 
             configs["rpc_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_rpc_proxy_config(configs["rpc_proxy"])
+            configs["multi"]["daemons"][f"rpc_proxy_{index}"]["config"] = configs["rpc_proxy"][index]
 
         for index, config in enumerate(configs["cypress_proxy"]):
             config = update_inplace(config, cls.get_param("DELTA_CYPRESS_PROXY_CONFIG", cluster_index))
             configs["cypress_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             configs["cypress_proxy"][index] = cls.update_sequoia_connection_config(cluster_index, config)
             cls.modify_cypress_proxy_config(configs["cypress_proxy"][index])
+
+            configs["multi"]["daemons"][f"cypress_proxy_{index}"]["config"] = configs["cypress_proxy"][index]
 
         for key, config in configs["driver"].items():
             config = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))
