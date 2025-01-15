@@ -87,10 +87,11 @@ class MetricUploader:
         )
         add_metric_from_path("node_count", "progress.yql_plan.Basic.nodes", MetricType.IGAUGE, len)
 
-        query_start = datetime.fromisoformat(query_info["start_time"])
-        query_finish = datetime.fromisoformat(query_info["finish_time"])
+        query_start = datetime.fromisoformat(query_info["start_time"]) if "start_time" in query_info else None
+        query_finish = datetime.fromisoformat(query_info["finish_time"]) if "finish_time" in query_info else None
         query_state = query_info["state"]
-        add_metric("duration", (query_finish - query_start).total_seconds(), MetricType.DGAUGE)
+        if query_start is not None and query_finish is not None:
+            add_metric("duration", (query_finish - query_start).total_seconds(), MetricType.DGAUGE)
         add_metric("error", int(query_state not in ["completing", "completed"]), MetricType.IGAUGE)
 
         return metrics

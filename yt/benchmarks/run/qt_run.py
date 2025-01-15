@@ -85,6 +85,8 @@ def qt(
 
                 start_time = time.time()
 
+                # TODO(pavook): remove this sleep. For some reason the queries get into an inconsistent state.
+                time.sleep(60)
                 state = client.get_query(query_id)["state"]
                 while state == "pending" or state == "running":
                     if time.time() - start_time >= timeout:
