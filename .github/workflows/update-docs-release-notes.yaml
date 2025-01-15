@@ -2,7 +2,7 @@ name: Generate Documentation Release Notes
 
 on:
   release:
-    types: [created, updated]
+    types: [created, edited, deleted]
 
 permissions:
   pull-requests: write
