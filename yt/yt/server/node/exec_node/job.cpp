@@ -3134,10 +3134,6 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
     }
 
     proxyInternalConfig->JobThrottler = CloneYsonStruct(CommonConfig_->JobThrottler);
-    if (!JobSpecExt_.enable_prefetching_job_throttler()) {
-        proxyInternalConfig->JobThrottler->BandwidthPrefetch->Enable = false;
-        proxyInternalConfig->JobThrottler->RpsPrefetch->Enable = false;
-    }
     YT_LOG_DEBUG(
         "Initialize prefetching job throttler (DynamicConfigEnable: %v, JobSpecEnable: %v, PrefetchEnable: %v)",
         CommonConfig_->JobThrottler->BandwidthPrefetch->Enable,

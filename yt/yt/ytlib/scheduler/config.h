@@ -1164,10 +1164,6 @@ public:
 
     NYTree::IMapNodePtr JobTestingOptions;
 
-    //! Enable prefetching throttler.
-    //! This option is not expected to be set by users manually.
-    bool EnablePrefetchingJobThrottler;
-
     //! Enable code generated comparator.
     //! Currently used by simple sort job and partition sort job.
     bool EnableCodegenComparator;

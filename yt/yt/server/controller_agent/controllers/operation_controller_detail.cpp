@@ -4739,7 +4739,7 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
     jobSpecExt->set_testing_options(ConvertToYsonString(Spec_->JobTestingOptions).ToString());
 
-    jobSpecExt->set_enable_prefetching_job_throttler(Spec_->EnablePrefetchingJobThrottler);
+    jobSpecExt->set_enable_prefetching_job_throttler(true);
 
     jobSpecExt->set_enable_codegen_comparator(Spec_->EnableCodegenComparator);
 
