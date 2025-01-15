@@ -319,6 +319,8 @@ private:
 
     // COMPAT(babenko)
     bool DropLegacyClusterNodeMap_ = false;
+    // COMPAT(cherepashka)
+    bool DropLegacyZookeeperShard_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -1080,6 +1082,7 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
     GarbageCollector_->LoadValues(context);
 
     DropLegacyClusterNodeMap_ = context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap;
+    DropLegacyZookeeperShard_ = context.GetVersion() >= EMasterReign::DropLegacyZookeeperShard;
 }
 
 void TObjectManager::OnAfterSnapshotLoaded()
@@ -1088,6 +1091,13 @@ void TObjectManager::OnAfterSnapshotLoaded()
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         auto id = MakeSchemaObjectId(EObjectType(804), primaryCellTag);
         SchemaMap_.Remove(id);
+    }
+    if (DropLegacyZookeeperShard_) {
+        auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
+        // EObjectType(1400) == ZookeeperShard.
+        auto id = MakeSchemaObjectId(EObjectType(1400), primaryCellTag);
+        // ZookeeperShard may be not present.
+        SchemaMap_.TryRemove(id);
     }
 }
 
