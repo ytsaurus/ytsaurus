@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v1.12.0)
+VERSION(v1.13.1)
 
 SRCS(
     mapelem.go
