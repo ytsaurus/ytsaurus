@@ -135,6 +135,7 @@ SRCS(
     chunk_client/chunk_spec_fetcher.cpp
     chunk_client/chunk_spec.cpp
     chunk_client/chunk_teleporter.cpp
+    chunk_client/chunk_writer_statistics.cpp
     chunk_client/client_block_cache.cpp
     chunk_client/combine_data_slices.cpp
     chunk_client/config.cpp
@@ -188,6 +189,7 @@ SRCS(
     chunk_client/proto/chunk_reader_statistics.proto
     chunk_client/proto/chunk_service.proto
     chunk_client/proto/chunk_slice.proto
+    chunk_client/proto/chunk_writer_statistics.proto
     chunk_client/proto/data_node_service.proto
     chunk_client/proto/data_sink.proto
     chunk_client/proto/data_source.proto

@@ -31,7 +31,8 @@ void DoRepairErasedParts(
     const TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderPtr>& readers,
     const std::vector<IChunkWriterPtr>& writers,
-    const TClientChunkReadOptions& options,
+    TClientChunkReadOptions chunkReadOptions,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     const NLogging::TLogger& logger)
 {
     YT_VERIFY(!writers.empty());
@@ -71,7 +72,7 @@ void DoRepairErasedParts(
             rowCount - 1);
 
         auto future = partsReader->ReadRows(
-            options,
+            chunkReadOptions,
             firstRowIndex,
             rowCount - firstRowIndex);
         auto rowLists = WaitFor(future)
@@ -104,7 +105,7 @@ void DoRepairErasedParts(
             TWorkloadDescriptor workloadDescriptor;
             workloadDescriptor.Category = EWorkloadCategory::SystemRepair;
 
-            if (!writer->WriteBlocks(workloadDescriptor, blocks)) {
+            if (!writer->WriteBlocks(writeBlocksOptions, workloadDescriptor, blocks)) {
                 futures.push_back(writer->GetReadyEvent());
             }
         }
@@ -128,7 +129,7 @@ void DoRepairErasedParts(
         std::vector<TFuture<void>> futures;
         for (const auto& writer : writers) {
             if (writer) {
-                futures.push_back(writer->Close());
+                futures.push_back(writer->Close(writeBlocksOptions));
             }
         }
 
@@ -148,7 +149,8 @@ TFuture<void> RepairErasedParts(
     const TPartIndexList& erasedIndices,
     std::vector<IChunkReaderPtr> readers,
     std::vector<IChunkWriterPtr> writers,
-    TClientChunkReadOptions options,
+    TClientChunkReadOptions chunkReadOptions,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     NLogging::TLogger logger)
 {
     return BIND(&DoRepairErasedParts)
@@ -160,7 +162,8 @@ TFuture<void> RepairErasedParts(
             erasedIndices,
             std::move(readers),
             std::move(writers),
-            std::move(options),
+            std::move(chunkReadOptions),
+            std::move(writeBlocksOptions),
             std::move(logger));
 }
 

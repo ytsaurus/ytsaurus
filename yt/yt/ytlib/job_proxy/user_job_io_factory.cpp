@@ -71,7 +71,8 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
     const TChunkTimestamps& chunkTimestamps,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
-    const std::optional<TDataSink>& dataSink)
+    const std::optional<TDataSink>& dataSink,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
 {
     auto nameTable = New<TNameTable>();
     nameTable->SetEnableColumnNameValidation();
@@ -88,6 +89,7 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
         transactionId,
         schemaId,
         dataSink,
+        std::move(writeBlocksOptions),
         chunkListId,
         chunkTimestamps,
         std::move(trafficMeter),
@@ -234,7 +236,8 @@ struct TUserJobIOFactoryBase
         TTableSchemaPtr tableSchema,
         TMasterTableSchemaId schemaId,
         const TChunkTimestamps& chunkTimestamps,
-        const std::optional<TDataSink>& dataSink) override
+        const std::optional<TDataSink>& dataSink,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions) override
     {
         return CreateTableWriter(
             std::move(client),
@@ -249,7 +252,8 @@ struct TUserJobIOFactoryBase
             // NB: This is ok, since traffic meter is shared between readers and writers.
             ChunkReaderHost_->TrafficMeter,
             OutBandwidthThrottler_,
-            dataSink);
+            dataSink,
+            std::move(writeBlocksOptions));
     }
 
 protected:
@@ -567,7 +571,8 @@ public:
         TTableSchemaPtr tableSchema,
         TMasterTableSchemaId schemaId,
         const TChunkTimestamps& chunkTimestamps,
-        const std::optional<TDataSink>& dataSink) override
+        const std::optional<TDataSink>& dataSink,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions) override
     {
         const auto& jobSpec = JobSpecHelper_->GetJobSpec();
         const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
@@ -611,6 +616,7 @@ public:
                 chunkListId,
                 std::move(partitioner),
                 dataSink,
+                std::move(writeBlocksOptions),
                 ChunkReaderHost_->TrafficMeter,
                 OutBandwidthThrottler_);
         } else {
@@ -627,7 +633,8 @@ public:
                 chunkTimestamps,
                 ChunkReaderHost_->TrafficMeter,
                 OutBandwidthThrottler_,
-                dataSink);
+                dataSink,
+                std::move(writeBlocksOptions));
         }
     }
 

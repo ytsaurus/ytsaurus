@@ -4074,3 +4074,56 @@ class TestJobInputCache(YTEnvSetup):
 
         wait(lambda: block_compressed_cache_size.get() == 0)
         wait(lambda: meta_cache_size.get() == 0)
+
+
+class TestJobStatistics(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 3
+    NUM_SCHEDULERS = 1
+
+    @authors("ngc224")
+    def test_io_statistics(self):
+        create("table", "//tmp/t_input")
+        write_table("//tmp/t_input", {"foo": "bar"})
+
+        create("table", "//tmp/t_output1")
+        create("table", "//tmp/t_output2")
+
+        script = (
+            b"#!/usr/bin/env python3\n"
+            b"import sys\n"
+            b"import os\n"
+            b"data = sys.stdin.read()\n"
+            b"sys.stdout.write(data)\n"
+            b"with os.fdopen(4, 'w') as f: f.write(data)\n"
+        )
+
+        create("file", "//tmp/script")
+        write_file("//tmp/script", script)
+        set("//tmp/script/@executable", True)
+
+        op = map(
+            command="./script.py",
+            in_="//tmp/t_input",
+            out=["//tmp/t_output1", "//tmp/t_output2"],
+            spec={
+                "mapper": {
+                    "copy_files": True,
+                    "file_paths": [
+                        yson.to_yson_type("//tmp/script", attributes={"file_name": "script.py"}),
+                    ],
+                }
+            },
+            track=True,
+        )
+
+        statistics = op.get_statistics()
+
+        def get_statistics(key, output):
+            return extract_statistic_v2(statistics, f"chunk_writer_statistics.{output}.{key}")
+
+        for output in [0, 1]:
+            assert get_statistics("data_bytes_written_to_disk", output) > 0
+            assert get_statistics("data_io_write_requests", output) > 0
+            assert get_statistics("meta_bytes_written_to_disk", output) > 0
+            assert get_statistics("meta_io_write_requests", output) > 0

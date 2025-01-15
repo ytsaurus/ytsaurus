@@ -293,6 +293,7 @@ public:
     {
         return {
             .ChunkReaderStatistics = ReadBlocksOptions_.ClientOptions.ChunkReaderStatistics,
+            .ChunkWriterStatistics = {WriteBlocksOptions_.ClientOptions.ChunkWriterStatistics},
             .TotalInputStatistics = {
                 .DataStatistics = DataStatistics_,
             },
@@ -332,6 +333,7 @@ private:
     const TAsyncSemaphorePtr CopySemaphore_;
 
     IChunkReader::TReadBlocksOptions ReadBlocksOptions_;
+    IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
 
     std::vector<TFuture<void>> ChunkFinalizationResults_;
 
@@ -580,7 +582,10 @@ private:
                                         partIndex);
                                 })));
                 } else {
-                    closeReplicaWriterResults.push_back(writer->Close(ReaderConfig_->WorkloadDescriptor, chunkMeta));
+                    closeReplicaWriterResults.push_back(writer->Close(
+                        WriteBlocksOptions_,
+                        ReaderConfig_->WorkloadDescriptor,
+                        chunkMeta));
                 }
             }
 
@@ -595,7 +600,10 @@ private:
             std::vector<TFuture<void>> closeReplicaWriterResults;
             closeReplicaWriterResults.reserve(writers.size());
             for (const auto& writer : writers) {
-                closeReplicaWriterResults.push_back(writer->Close(ReaderConfig_->WorkloadDescriptor, chunkMeta));
+                closeReplicaWriterResults.push_back(writer->Close(
+                    WriteBlocksOptions_,
+                    ReaderConfig_->WorkloadDescriptor,
+                    chunkMeta));
             }
             WaitFor(AllSucceeded(closeReplicaWriterResults))
                 .ThrowOnError();
@@ -803,7 +811,8 @@ private:
             erasedPartIndices,
             std::move(repairPartReaders),
             erasedPartWriters,
-            ReadBlocksOptions_))
+            ReadBlocksOptions_,
+            WriteBlocksOptions_))
             .ThrowOnError();
 
         for (int index = 0; index < std::ssize(erasedPartIndices); ++index) {
@@ -907,7 +916,7 @@ private:
     {
         TCurrentTraceContextGuard guard(OutputTraceContext_);
 
-        WaitFor(writer->Close(ReaderConfig_->WorkloadDescriptor, chunkMeta))
+        WaitFor(writer->Close(WriteBlocksOptions_, ReaderConfig_->WorkloadDescriptor, chunkMeta))
             .ThrowOnError();
         TChunkInfo chunkInfo = writer->GetChunkInfo();
         auto writtenReplicas = writer->GetWrittenChunkReplicasInfo().Replicas;
@@ -1054,7 +1063,7 @@ private:
             {
                 TCurrentTraceContextGuard guard(OutputTraceContext_);
 
-                if (!writer->WriteBlocks(ReaderConfig_->WorkloadDescriptor, blocks)) {
+                if (!writer->WriteBlocks(WriteBlocksOptions_, ReaderConfig_->WorkloadDescriptor, blocks)) {
                     auto result = WaitFor(writer->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error writing block");
                 }

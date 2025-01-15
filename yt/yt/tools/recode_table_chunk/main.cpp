@@ -221,7 +221,8 @@ private:
             TableWriterOptions_,
             schema,
             /*nameTable*/ nullptr,
-            ChunkWriter_);
+            ChunkWriter_,
+            /*writeBlocksOptions*/ {});
 
         while (auto batch = ReadRowBatch(tableReader)) {
             auto rows = batch->MaterializeRows();

@@ -26,7 +26,8 @@ TSessionBase::TSessionBase(
     const TSessionOptions& options,
     TStoreLocationPtr location,
     TLease lease,
-    TLockedChunkGuard lockedChunkGuard)
+    TLockedChunkGuard lockedChunkGuard,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
     : Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , SessionId_(sessionId)
@@ -40,6 +41,7 @@ TSessionBase::TSessionBase(
         SessionId_))
     , StartTime_(TInstant::Now())
     , LockedChunkGuard_(std::move(lockedChunkGuard))
+    , WriteBlocksOptions_(std::move(writeBlocksOptions))
 {
     YT_VERIFY(Bootstrap_);
     YT_VERIFY(Location_);
@@ -198,7 +200,7 @@ TFuture<void> TSessionBase::GetUnregisteredEvent()
     return UnregisteredEvent_.ToFuture();
 }
 
-TFuture<NChunkClient::NProto::TChunkInfo> TSessionBase::Finish(
+TFuture<ISession::TFinishResult> TSessionBase::Finish(
     const TRefCountedChunkMetaPtr& chunkMeta,
     std::optional<int> blockCount)
 {
@@ -268,7 +270,7 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TSessionBase::SendBlocks(
         .Run();
 }
 
-TFuture<NIO::TIOCounters> TSessionBase::FlushBlocks(int blockIndex)
+TFuture<ISession::TFlushBlocksResult> TSessionBase::FlushBlocks(int blockIndex)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

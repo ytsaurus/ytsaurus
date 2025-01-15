@@ -50,12 +50,14 @@ public:
         TTableWriterOptionsPtr options,
         NNative::IClientPtr client,
         TNameTablePtr nameTable,
-        TYPath path)
+        TYPath path,
+        IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(std::move(client))
         , NameTable_(std::move(nameTable))
         , Path_(std::move(path))
+        , WriteBlocksOptions_(std::move(writeBlocksOptions))
         , FlushBufferInvoker_(CreateSerializedInvoker(NChunkClient::TDispatcher::Get()->GetWriterInvoker()))
         , FlushExecutor_(New<TPeriodicExecutor>(
             FlushBufferInvoker_,
@@ -133,6 +135,7 @@ private:
     const NNative::IClientPtr Client_;
     const TNameTablePtr NameTable_;
     const TYPath Path_;
+    const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
 
     IInvokerPtr FlushBufferInvoker_;
     const TPeriodicExecutorPtr FlushExecutor_;
@@ -256,7 +259,8 @@ private:
                     NameTable_,
                     Client_,
                     /*localHostName*/ TString(), // Locality is not important during table upload.
-                    /*transaction*/ nullptr);
+                    /*transaction*/ nullptr,
+                    WriteBlocksOptions_);
 
                 auto writer = WaitFor(asyncWriter)
                     .ValueOrThrow();
@@ -293,14 +297,16 @@ IUnversionedWriterPtr CreateSchemalessBufferedTableWriter(
     TTableWriterOptionsPtr options,
     NNative::IClientPtr client,
     TNameTablePtr nameTable,
-    const TYPath& path)
+    const TYPath& path,
+    IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
 {
     return New<TSchemalessBufferedTableWriter>(
         std::move(config),
         std::move(options),
         std::move(client),
         std::move(nameTable),
-        path);
+        path,
+        std::move(writeBlocksOptions));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

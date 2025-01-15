@@ -153,12 +153,14 @@ public:
         TPartIndexList erasedIndices,
         std::vector<IChunkReaderAllowingRepairPtr> readers,
         std::vector<IChunkWriterPtr> writers,
-        IChunkReader::TReadBlocksOptions options)
+        IChunkReader::TReadBlocksOptions readOptions,
+        IChunkWriter::TWriteBlocksOptions writeOptions)
         : Codec_(codec)
         , Readers_(std::move(readers))
         , Writers_(std::move(writers))
         , ErasedIndices_(std::move(erasedIndices))
-        , ReadBlocksOptions_(std::move(options))
+        , ReadBlocksOptions_(std::move(readOptions))
+        , WriteBlocksOptions_(std::move(writeOptions))
     {
         YT_VERIFY(erasedIndices.size() == writers.size());
     }
@@ -180,6 +182,7 @@ private:
     const std::vector<IChunkWriterPtr> Writers_;
     const TPartIndexList ErasedIndices_;
     const IChunkReader::TReadBlocksOptions ReadBlocksOptions_;
+    const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
 
     TParityPartSplitInfo ParityPartSplitInfo_;
 
@@ -228,6 +231,7 @@ private:
             writerConsumers.push_back(New<TPartWriter>(
                 ReadBlocksOptions_.ClientOptions.WorkloadDescriptor,
                 Writers_[index],
+                WriteBlocksOptions_,
                 ErasedPartBlockRanges_[index],
                 /*computeChecksums*/ true));
             blockConsumers.push_back(writerConsumers.back());
@@ -268,7 +272,10 @@ private:
         {
             std::vector<TFuture<void>> asyncResults;
             for (auto writer : Writers_) {
-                asyncResults.push_back(writer->Close(ReadBlocksOptions_.ClientOptions.WorkloadDescriptor, deferredMeta));
+                asyncResults.push_back(writer->Close(
+                    WriteBlocksOptions_,
+                    ReadBlocksOptions_.ClientOptions.WorkloadDescriptor,
+                    deferredMeta));
             }
             WaitFor(AllSucceeded(asyncResults))
                 .ThrowOnError();
@@ -305,14 +312,16 @@ TFuture<void> RepairErasedParts(
     TPartIndexList erasedIndices,
     std::vector<IChunkReaderAllowingRepairPtr> readers,
     std::vector<IChunkWriterPtr> writers,
-    IChunkReader::TReadBlocksOptions options)
+    IChunkReader::TReadBlocksOptions readOptions,
+    IChunkWriter::TWriteBlocksOptions writeOptions)
 {
     auto session = New<TRepairAllPartsSession>(
         codec,
         std::move(erasedIndices),
         std::move(readers),
         std::move(writers),
-        std::move(options));
+        std::move(readOptions),
+        std::move(writeOptions));
     return session->Run();
 }
 
@@ -632,12 +641,12 @@ public:
         return VoidFuture;
     }
 
-    bool WriteBlock(const TWorkloadDescriptor&, const TBlock&) override
+    bool WriteBlock(const IChunkWriter::TWriteBlocksOptions&, const TWorkloadDescriptor&, const TBlock&) override
     {
         return true;
     }
 
-    bool WriteBlocks(const TWorkloadDescriptor&, const std::vector<TBlock>&) override
+    bool WriteBlocks(const IChunkWriter::TWriteBlocksOptions&, const TWorkloadDescriptor&, const std::vector<TBlock>&) override
     {
         return true;
     }
@@ -647,7 +656,7 @@ public:
         return VoidFuture;
     }
 
-    TFuture<void> Close(const TWorkloadDescriptor&, const TDeferredChunkMetaPtr&) override
+    TFuture<void> Close(const IChunkWriter::TWriteBlocksOptions&, const TWorkloadDescriptor&, const TDeferredChunkMetaPtr&) override
     {
         return VoidFuture;
     }
@@ -735,7 +744,8 @@ TFuture<void> AdaptiveRepairErasedParts(
     const TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderAllowingRepairPtr>& allReaders,
     TPartWriterFactory writerFactory,
-    const IChunkReader::TReadBlocksOptions& options,
+    const IChunkReader::TReadBlocksOptions& readOptions,
+    const IChunkWriter::TWriteBlocksOptions& writeOptions,
     const NLogging::TLogger& logger,
     NProfiling::TCounter adaptivelyRepairedCounter)
 {
@@ -759,7 +769,14 @@ TFuture<void> AdaptiveRepairErasedParts(
             auto writers = CreateWritersForRepairing(erasedIndices, bannedIndices, writerFactory);
             YT_VERIFY(writers.size() == bannedIndices.size());
 
-            auto future = RepairErasedParts(codec, bannedIndices, availableReaders, writers, options);
+            auto future = RepairErasedParts(
+                codec,
+                bannedIndices,
+                availableReaders,
+                writers,
+                readOptions,
+                writeOptions);
+
             return future.Apply(BIND([writers, Logger = logger] (const TError& error) {
                 if (error.IsOK()) {
                     return MakeFuture(error);

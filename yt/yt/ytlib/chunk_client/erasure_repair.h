@@ -4,6 +4,7 @@
 
 #include "chunk_meta_extensions.h"
 #include "chunk_reader_allowing_repair.h"
+#include "chunk_writer.h"
 
 #include <yt/yt/library/erasure/impl/public.h>
 
@@ -20,7 +21,8 @@ TFuture<void> RepairErasedParts(
     NErasure::TPartIndexList erasedIndices,
     std::vector<IChunkReaderAllowingRepairPtr> readers,
     std::vector<IChunkWriterPtr> writers,
-    IChunkReader::TReadBlocksOptions options);
+    IChunkReader::TReadBlocksOptions readOptions,
+    IChunkWriter::TWriteBlocksOptions writeOptions);
 
 using TPartWriterFactory = std::function<NChunkClient::IChunkWriterPtr(int partIndex)>;
 
@@ -31,7 +33,8 @@ TFuture<void> AdaptiveRepairErasedParts(
     const NErasure::TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderAllowingRepairPtr>& readers,
     TPartWriterFactory writerFactory,
-    const IChunkReader::TReadBlocksOptions& options,
+    const IChunkReader::TReadBlocksOptions& readOptions,
+    const IChunkWriter::TWriteBlocksOptions& writeOptions,
     const NLogging::TLogger& logger = {},
     NProfiling::TCounter adaptivelyRepairedCounter = {});
 

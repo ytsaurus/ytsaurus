@@ -78,17 +78,21 @@ public:
             .Apply(BIND(&TStripedErasureWriter::OnWriterOpened, MakeStrong(this)));
     }
 
-    bool WriteBlock(const TWorkloadDescriptor& /*workloadDescriptor*/, const TBlock& block) override
+    bool WriteBlock(
+        const IChunkWriter::TWriteBlocksOptions& options,
+        const TWorkloadDescriptor& /*workloadDescriptor*/,
+        const TBlock& block) override
     {
         YT_VERIFY(Opened_ && !Closed_);
 
         auto canHandleMore = UpdateWindowSize(GetWriterMemoryUsage(block.Size()));
-        WriterInvoker_->Invoke(BIND(&TStripedErasureWriter::DoWriteBlock, MakeStrong(this), block));
+        WriterInvoker_->Invoke(BIND(&TStripedErasureWriter::DoWriteBlock, MakeStrong(this), options, block));
 
         return canHandleMore;
     }
 
     bool WriteBlocks(
+        const IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<TBlock>& blocks) override
     {
@@ -96,7 +100,7 @@ public:
 
         bool canHandleMore = true;
         for (const auto& block : blocks) {
-            canHandleMore = WriteBlock(workloadDescriptor, block);
+            canHandleMore = WriteBlock(options, workloadDescriptor, block);
         }
 
         return canHandleMore;
@@ -111,11 +115,14 @@ public:
         return ReadyEvent_.ToFuture();
     }
 
-    TFuture<void> Close(const TWorkloadDescriptor& /*workloadDescriptor*/, const TDeferredChunkMetaPtr& chunkMeta) override
+    TFuture<void> Close(
+        const IChunkWriter::TWriteBlocksOptions& options,
+        const TWorkloadDescriptor& /*workloadDescriptor*/,
+        const TDeferredChunkMetaPtr& chunkMeta) override
     {
         YT_VERIFY(Opened_ && !Closed_);
 
-        return BIND(&TStripedErasureWriter::DoClose, MakeStrong(this), chunkMeta)
+        return BIND(&TStripedErasureWriter::DoClose, MakeStrong(this), options, chunkMeta)
             .AsyncVia(WriterInvoker_)
             .Run();
     }
@@ -269,7 +276,7 @@ private:
         return !isFull;
     }
 
-    void DoWriteBlock(TBlock block)
+    void DoWriteBlock(const IChunkWriter::TWriteBlocksOptions& options, TBlock block)
     {
         VERIFY_INVOKER_AFFINITY(WriterInvoker_);
 
@@ -277,22 +284,22 @@ private:
             CurrentGroupSize_ += block.Size();
             CurrentGroup_.push_back(std::move(block));
 
-            MaybeFlushCurrentGroup();
+            MaybeFlushCurrentGroup(options);
         } catch (const std::exception& ex) {
             OnFailed(ex);
         }
     }
 
-    void MaybeFlushCurrentGroup()
+    void MaybeFlushCurrentGroup(const IChunkWriter::TWriteBlocksOptions& options)
     {
         VERIFY_INVOKER_AFFINITY(WriterInvoker_);
 
         if (CurrentGroupSize_ >= Config_->WriterGroupSize) {
-            FlushCurrentGroup();
+            FlushCurrentGroup(options);
         }
     }
 
-    void FlushCurrentGroup()
+    void FlushCurrentGroup(const IChunkWriter::TWriteBlocksOptions& options)
     {
         VERIFY_INVOKER_AFFINITY(WriterInvoker_);
 
@@ -305,10 +312,10 @@ private:
         CurrentGroup_.clear();
         CurrentGroupSize_ = 0;
 
-        FlushBlocks();
+        FlushBlocks(options);
     }
 
-    void FlushBlocks()
+    void FlushBlocks(const IChunkWriter::TWriteBlocksOptions& options)
     {
         VERIFY_INVOKER_AFFINITY(WriterInvoker_);
 
@@ -344,7 +351,7 @@ private:
                         segment.push_back(getBlock());
                     }
                 }
-                FlushSegment(std::move(segment));
+                FlushSegment(options, std::move(segment));
                 segmentSize = 0;
             }
         }
@@ -354,7 +361,9 @@ private:
         }
     }
 
-    void FlushSegment(std::vector<TBlock> segment)
+    void FlushSegment(
+        const IChunkWriter::TWriteBlocksOptions& options,
+        std::vector<TBlock> segment)
     {
         VERIFY_INVOKER_AFFINITY(WriterInvoker_);
 
@@ -379,7 +388,7 @@ private:
 
             const auto& writer = Writers_[index];
             const auto& block = parts[index];
-            if (!writer->WriteBlock(WorkloadDescriptor_, block)) {
+            if (!writer->WriteBlock(options, WorkloadDescriptor_, block)) {
                 WriterReadyEvents_[index] = writer->GetReadyEvent();
             }
 
@@ -443,12 +452,12 @@ private:
         return parts;
     }
 
-    void DoClose(TDeferredChunkMetaPtr chunkMeta)
+    void DoClose(const IChunkWriter::TWriteBlocksOptions& options, TDeferredChunkMetaPtr chunkMeta)
     {
         VERIFY_INVOKER_AFFINITY(WriterInvoker_);
 
         Closing_ = true;
-        FlushCurrentGroup();
+        FlushCurrentGroup(options);
 
         WaitFor(FlushPromise_.ToFuture())
             .ThrowOnError();
@@ -461,7 +470,7 @@ private:
         std::vector<TFuture<void>> futures;
         futures.reserve(Writers_.size());
         for (const auto& writer : Writers_) {
-            futures.push_back(writer->Close(WorkloadDescriptor_, chunkMeta));
+            futures.push_back(writer->Close(options, WorkloadDescriptor_, chunkMeta));
         }
 
         WaitFor(AllSucceeded(std::move(futures)))

@@ -719,7 +719,8 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto hunkChunkPayloadWriter = CreateHunkChunkPayloadWriter(
             workloadDescriptor,
             hunkWriterConfig,
-            hunkChunkWriter);
+            hunkChunkWriter,
+            /*underlyingOptions*/ {});
         auto hunkChunkWriterStatistics = CreateHunkChunkWriterStatistics(
             tabletSnapshot->Settings.MountConfig->EnableHunkColumnarProfiling,
             tabletSnapshot->PhysicalSchema);
@@ -734,6 +735,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 storeWriterOptions,
                 tabletSnapshot->PhysicalSchema,
                 storeChunkWriter,
+                /*writeBlocksOptions*/ {},
                 /*dataSink*/ std::nullopt,
                 blockCache),
             tabletSnapshot->PhysicalSchema,

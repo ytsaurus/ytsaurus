@@ -151,11 +151,14 @@ struct IJob
 
     //! Schematized subset which is more or less common among different kinds of jobs.
     //! Used to reduce boilerplate in job implementations and to explicitly specify
-    //! variadic-size statistics kind (namely, #OutputStatistics).
+    //! variadic-size statistics kinds (namely, #OutputStatistics and #ChunkWriterStatistics).
     struct TStatistics
     {
         NYT::TStatistics Statstics;
         NChunkClient::TChunkReaderStatisticsPtr ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
+        //! Per-output chunk writer statistics; this field is truncated when producing final job statistics,
+        //! but the original statistics is sent as a separate protobuf field.
+        std::vector<NChunkClient::TChunkWriterStatisticsPtr> ChunkWriterStatistics;
         NTableClient::TTimingStatistics TimingStatistics;
 
         struct TPipeStatistics

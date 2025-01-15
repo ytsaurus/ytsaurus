@@ -2298,6 +2298,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
             tableWriterOptions,
             Schema_,
             chunkWriter,
+            /*writeBlocksOptions*/ {},
             /*dataSink*/ std::nullopt);
 
         TRowBatchReadOptions options{

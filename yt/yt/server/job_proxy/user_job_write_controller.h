@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
 
@@ -31,6 +32,8 @@ public:
     void PopulateResult(NControllerAgent::NProto::TJobResultExt* jobResultExt);
     void PopulateStderrResult(NControllerAgent::NProto::TJobResultExt* jobResultExt);
 
+    std::vector<NChunkClient::IChunkWriter::TWriteBlocksOptions> GetOutputWriteBlocksOptions() const;
+
 protected:
     const IJobHostPtr Host_;
     const NLogging::TLogger Logger;
@@ -40,6 +43,8 @@ protected:
     std::vector<NTableClient::ISchemalessMultiChunkWriterPtr> Writers_;
     std::vector<std::unique_ptr<NTableClient::IFlushableValueConsumer>> ValueConsumers_;
     std::unique_ptr<NTableClient::TBlobTableWriter> StderrTableWriter_;
+
+    std::vector<NChunkClient::IChunkWriter::TWriteBlocksOptions> OutputWriteBlocksOptions_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

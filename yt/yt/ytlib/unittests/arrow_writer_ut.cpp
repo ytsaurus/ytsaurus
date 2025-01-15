@@ -71,6 +71,7 @@ IUnversionedRowBatchPtr MakeColumnarRowBatch(
         Schema_,
         /*nameTable*/ nullptr,
         memoryWriter,
+        /*writeBlocksOptions*/ {},
         /*dataSink*/ std::nullopt);
 
     TUnversionedRowsBuilder builder;
