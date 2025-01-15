@@ -8,7 +8,7 @@ import yt.wrapper.yson as yson
 from yt.wrapper.common import (
     chunk_iter_stream, MB,
     DoNotReplaceAction, get_binary_std_stream, get_disk_space_from_resources,
-    chunk_iter_rows, format_disk_space)
+    chunk_iter_rows, format_disk_space, is_arcadia_python)
 from yt.wrapper.cli_helpers import (
     write_silently, print_to_output, run_main, ParseStructuredArgument, populate_argument_help, SUBPARSER_KWARGS,
     add_subparser, parse_arguments, parse_data, output_format, dump_data, add_argument, add_structured_argument,
@@ -2710,6 +2710,41 @@ def add_run_command_with_lock_parser(add_parser):
     parser.set_defaults(func=run_command_with_lock_handler)
 
 
+def _get_version():
+    yt_version = yt.get_version()
+
+    result = ["Version: YT wrapper {}".format(yt_version)]
+
+    if is_arcadia_python():
+        return "\n".join(result)
+
+    result.append("")
+
+    try:
+        import yt_yson_bindings
+        yson_version = yt_yson_bindings.VERSION
+        result.append("Component version: YSON bindings {}".format(yson_version))
+    except ModuleNotFoundError:
+        pass
+
+    try:
+        log_level = os.environ.get("YT_LOG_LEVEL")
+        if not log_level:
+            os.environ["YT_LOG_LEVEL"] = "WARNING"
+        import yt_driver_rpc_bindings.version
+        if not log_level:
+            del os.environ["YT_LOG_LEVEL"]
+        rpc_version = yt_driver_rpc_bindings.version.VERSION
+        result.append("Component version: RPC bindings {}".format(rpc_version))
+    except ModuleNotFoundError:
+        pass
+
+    python_version = "{}.{} ({})".format(sys.version_info.major, sys.version_info.minor, sys.executable)
+    result.append("Component version: Python {}".format(python_version))
+
+    return "\n".join(result)
+
+
 def _prepare_config_parser():
     config_parser = ArgumentParser(add_help=False)
     config_parser.add_argument("--proxy", help="specify cluster to run command, "
@@ -2737,7 +2772,7 @@ def _prepare_parser():
                             description=DESCRIPTION,
                             epilog=EPILOG)
 
-    parser.add_argument("--version", action="version", version="Version: YT wrapper " + yt.get_version())
+    parser.add_argument("--version", action="version", version=_get_version())
 
     subparsers = parser.add_subparsers(metavar="command")
     subparsers.required = True
