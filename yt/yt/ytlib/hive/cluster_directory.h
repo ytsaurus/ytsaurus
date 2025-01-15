@@ -54,8 +54,9 @@ public:
     //! Drops all directory entries.
     void Clear();
 
-    //! Updates the configuration of a cluster with a given #name, recreates the connection.
-    void UpdateCluster(const std::string& name, NYTree::INodePtr nativeConnectionConfig);
+    //! Updates the configuration of a cluster with a given #name,
+    //! recreates the connection if configuration changes.
+    void UpdateCluster(const std::string& name, const NYTree::INodePtr& nativeConnectionConfig);
 
     //! Updates configuration of all clusters given in #protoDirectory.
     //! Removes all clusters that are currently known but are missing in #protoDirectory.
@@ -81,7 +82,7 @@ private:
     THashMap<std::string, TCluster> NameToCluster_;
     THashMultiSet<NAuth::TTvmId> ClusterTvmIds_;
 
-    TCluster CreateCluster(const std::string& name, NYTree::INodePtr nativeConnectionConfig);
+    TCluster CreateCluster(const std::string& name, const NYTree::INodePtr& nativeConnectionConfig);
     static NApi::TClusterTag GetClusterTag(const TCluster& cluster);
 };
 

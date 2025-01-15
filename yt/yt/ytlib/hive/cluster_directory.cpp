@@ -115,8 +115,9 @@ void TClusterDirectory::Clear()
     ClusterTvmIds_.clear();
 }
 
-void TClusterDirectory::UpdateCluster(const std::string& name, INodePtr nativeConnectionConfig)
+void TClusterDirectory::UpdateCluster(const std::string& name, const INodePtr& nativeConnectionConfig)
 {
+    bool fire = false;
     auto addNewCluster = [&] (const TCluster& cluster) {
         auto clusterTag = GetClusterTag(cluster);
         if (ClusterTagToCluster_.contains(clusterTag)) {
@@ -130,6 +131,8 @@ void TClusterDirectory::UpdateCluster(const std::string& name, INodePtr nativeCo
         if (auto tvmId = cluster.Connection->GetConfig()->TvmId) {
             ClusterTvmIds_.insert(*tvmId);
         }
+
+        fire = true;
     };
 
     {
@@ -159,7 +162,9 @@ void TClusterDirectory::UpdateCluster(const std::string& name, INodePtr nativeCo
         }
     }
 
-    OnClusterUpdated_.Fire(name, nativeConnectionConfig);
+    if (fire) {
+        OnClusterUpdated_.Fire(name, nativeConnectionConfig);
+    }
 }
 
 void TClusterDirectory::UpdateDirectory(const NProto::TClusterDirectory& protoDirectory)
@@ -188,7 +193,7 @@ bool TClusterDirectory::HasTvmId(NAuth::TTvmId tvmId) const
     return ClusterTvmIds_.find(tvmId) != ClusterTvmIds_.end();
 }
 
-TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const std::string& name, INodePtr config)
+TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const std::string& name, const INodePtr& config)
 {
     TCluster cluster{
         .Name = name,
