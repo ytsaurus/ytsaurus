@@ -5,6 +5,8 @@ import (
 	"strconv"
 	"sync"
 
+	"go.ytsaurus.tech/library/go/core/log"
+	"go.ytsaurus.tech/library/go/core/log/nop"
 	"go.ytsaurus.tech/library/go/core/metrics"
 	"go.ytsaurus.tech/library/go/core/metrics/internal/pkg/metricsutil"
 	"go.ytsaurus.tech/library/go/core/metrics/internal/pkg/registryutil"
@@ -25,6 +27,8 @@ type Registry struct {
 	m             *sync.Mutex
 
 	metrics *sync.Map
+
+	logger log.Logger
 }
 
 func NewRegistry(opts *RegistryOpts) *Registry {
@@ -37,6 +41,7 @@ func NewRegistry(opts *RegistryOpts) *Registry {
 		m:             new(sync.Mutex),
 
 		metrics: new(sync.Map),
+		logger:  new(nop.Logger),
 	}
 
 	if opts != nil {
@@ -49,6 +54,7 @@ func NewRegistry(opts *RegistryOpts) *Registry {
 		for _, collector := range opts.Collectors {
 			collector(r)
 		}
+		r.logger = opts.Logger
 	}
 
 	return r
@@ -67,6 +73,7 @@ func (r Registry) Rated(rated bool) metrics.Registry {
 		m:             r.m,
 
 		metrics: r.metrics,
+		logger:  r.logger,
 	}
 }
 
@@ -90,7 +97,6 @@ func (r Registry) Counter(name string) metrics.Counter {
 		name:       r.newMetricName(name),
 		metricType: typeCounter,
 		tags:       r.tags,
-
 		useNameTag: r.useNameTag,
 	}
 
@@ -222,6 +228,7 @@ func (r *Registry) newSubregistry(prefix string, tags map[string]string) *Regist
 		m:             r.m,
 
 		metrics: r.metrics,
+		logger:  r.logger,
 	}
 
 	r.subregistries[registryKey] = subregistry
@@ -245,6 +252,9 @@ func (r *Registry) registerMetric(s Metric) Metric {
 	}
 
 	if reflect.TypeOf(oldMetric) == reflect.TypeOf(s) {
+		if oldMetric.(Metric).isMemOnly() != s.isMemOnly() {
+			r.logger.Error("cannot have the same metric with different memOnly flags", log.String("metric_name", s.Name()))
+		}
 		return oldMetric.(Metric)
 	} else {
 		r.metrics.Store(key, s)

@@ -23,6 +23,7 @@ type Counter struct {
 	timestamp  *time.Time
 
 	useNameTag bool
+	memOnly    bool
 }
 
 // Inc increments counter by 1.
@@ -63,6 +64,14 @@ func (c *Counter) getNameTag() string {
 	}
 }
 
+func (c *Counter) isMemOnly() bool {
+	return c.memOnly
+}
+
+func (c *Counter) setMemOnly() {
+	c.memOnly = true
+}
+
 // MarshalJSON implements json.Marshaler.
 func (c *Counter) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
@@ -94,5 +103,6 @@ func (c *Counter) Snapshot() Metric {
 		value:      *atomic.NewInt64(c.value.Load()),
 
 		useNameTag: c.useNameTag,
+		memOnly:    c.memOnly,
 	}
 }

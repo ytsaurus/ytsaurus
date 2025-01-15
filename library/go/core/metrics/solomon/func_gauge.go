@@ -18,6 +18,7 @@ type FuncGauge struct {
 	timestamp  *time.Time
 
 	useNameTag bool
+	memOnly    bool
 }
 
 func (g *FuncGauge) Name() string {
@@ -52,6 +53,14 @@ func (g *FuncGauge) getNameTag() string {
 	}
 }
 
+func (g *FuncGauge) isMemOnly() bool {
+	return g.memOnly
+}
+
+func (g *FuncGauge) setMemOnly() {
+	g.memOnly = true
+}
+
 // MarshalJSON implements json.Marshaler.
 func (g *FuncGauge) MarshalJSON() ([]byte, error) {
 	return json.Marshal(struct {
@@ -83,5 +92,6 @@ func (g *FuncGauge) Snapshot() Metric {
 		value:      *atomic.NewFloat64(g.function()),
 
 		useNameTag: g.useNameTag,
+		memOnly:    g.memOnly,
 	}
 }

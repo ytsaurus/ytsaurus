@@ -132,6 +132,33 @@ func Test_metrics_encode(t *testing.T) {
 			},
 			78,
 		},
+		{
+			"gauge+memOnly",
+			&Metrics{
+				metrics: []Metric{
+					func() Metric {
+						g := NewGauge("mygauge", 43, WithTimestamp(time.Unix(1657710476, 0)), WithMemOnly())
+						return &g
+					}(),
+				},
+			},
+			[]byte{0x0, 0x0, 0x0, 0x0}, // common time
+			[]byte{0x0},                // common labels count and indexes
+			[][]byte{
+				{
+					0x6, // uint8(typeGauge << 2) | uint8(valueTypeOneWithTS)
+					0x1, // flags
+					0x1, // labels index size
+					0x0, // indexes of name labels
+					0x0, // indexes of value labels
+
+					0x8c, 0xa7, 0xce, 0x62, //metric ts
+					0x00, 0x00, 0x00, 0x00, 0x00, 0x80, 0x45, 0x40, // 43  // metrics value
+
+				},
+			},
+			61,
+		},
 	}
 
 	for _, tc := range testCases {
