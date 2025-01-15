@@ -3,6 +3,12 @@ name: Generate Documentation Release Notes
 on:
   release:
     types: [created, edited, deleted]
+  workflow_dispatch:
+    inputs:
+      tag_name:
+        description: 'Tag name or custom string'
+        required: true
+        default: ''
 
 permissions:
   pull-requests: write
@@ -13,6 +19,15 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Set up environment variables
+        id: set-env
+        run: |
+          if [ "${{ github.event_name }}" == "release" ]; then
+            echo "TAG_NAME=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
+          else
+            echo "TAG_NAME=${{ inputs.tag_name }}" >> $GITHUB_ENV
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
 
@@ -37,7 +52,7 @@ jobs:
         with:
           token: ${{ steps.generate-token.outputs.token }}
           commit-message: Update Documentation Release Notes
-          branch: ci/update-documentation-release-notes/${{ github.event.release.tag_name }}
+          branch: ci/update-documentation-release-notes/$TAG_NAME
           base: main
           title: "Update Release Notes"
           body: |
