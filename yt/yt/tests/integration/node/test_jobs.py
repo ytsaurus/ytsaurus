@@ -257,6 +257,9 @@ class TestJobStatistics(YTEnvSetup):
         assert extract_statistic_v2(chunk_reader_statistics, "meta_bytes_transmitted", summary_type="count") > 0
         assert extract_statistic_v2(chunk_reader_statistics, "meta_io_requests", summary_type="count") > 0
 
+        assert extract_statistic_v2(chunk_reader_statistics, "block_count") > 0
+        assert extract_statistic_v2(chunk_reader_statistics, "prefetched_block_count", summary_type="count") > 0
+
     @authors("artemagafonov")
     def test_vanilla_statistics(self):
         op = run_test_vanilla("true", track=True)
@@ -439,3 +442,4 @@ class TestGroupOutOfOrderBlocks(YTEnvSetup):
         expected_data_io_requests = 1 if group_out_of_order_blocks else column_count
 
         assert extract_statistic_v2(chunk_reader_statistics, "data_io_requests") == expected_data_io_requests
+        assert extract_statistic_v2(chunk_reader_statistics, "block_count") == column_count

@@ -253,6 +253,8 @@ std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlock
     std::vector<TFuture<TBlock>> blockFutures;
     blockFutures.resize(blockDescriptors.size());
 
+    i64 outOfTurnBlockCount = 0;
+
     for (const auto& [blockDescriptor, originalIndex] : blockDescriptorWithIndexList) {
         auto [readerIndex, blockIndex] = blockDescriptor;
         int windowIndex = GetOrCrash(Chunks_[readerIndex].BlockIndexToWindowIndex, blockIndex);
@@ -262,6 +264,8 @@ std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlock
 
         YT_VERIFY(windowSlot.RemainingFetches > 0);
         if (!windowSlot.FetchStarted.test_and_set()) {
+            ++outOfTurnBlockCount;
+
             auto chunkId = Chunks_[readerIndex].Reader->GetChunkId();
 
             YT_LOG_DEBUG("Fetching block out of turn "
@@ -307,6 +311,10 @@ std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlock
 
         blockFutures[originalIndex] = blockFuture;
     }
+
+    ChunkReadOptions_.ChunkReaderStatistics->BlockCount.fetch_add(
+        outOfTurnBlockCount,
+        std::memory_order::relaxed);
 
     if (!windowIndicesToRelease.empty()) {
         ReaderInvoker_->Invoke(
@@ -495,6 +503,7 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
     std::vector<TBlockDescriptor> blockDescriptors;
     i64 uncompressedSize = 0;
     i64 availableSlots = underlyingGuard->GetSlots();
+    i64 prefetchedBlockCount = 0;
 
     while (FirstUnfetchedWindowIndex_ < std::ssize(BlockInfos_)) {
         const auto& blockInfo = BlockInfos_[FirstUnfetchedWindowIndex_];
@@ -512,6 +521,8 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
                 ++FirstUnfetchedWindowIndex_;
                 continue;
             }
+
+            ++prefetchedBlockCount;
 
             auto memoryToTransfer = std::min(
                 static_cast<i64>(blockInfo.UncompressedDataSize),
@@ -553,6 +564,14 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
 
         ++FirstUnfetchedWindowIndex_;
     }
+
+    ChunkReadOptions_.ChunkReaderStatistics->BlockCount.fetch_add(
+        prefetchedBlockCount,
+        std::memory_order::relaxed);
+
+    ChunkReadOptions_.ChunkReaderStatistics->PrefetchedBlockCount.fetch_add(
+        prefetchedBlockCount,
+        std::memory_order::relaxed);
 
     if (windowIndexes.empty()) {
         FetchingCompleted_ = true;

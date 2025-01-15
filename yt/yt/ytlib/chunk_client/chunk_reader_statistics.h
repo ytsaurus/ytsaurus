@@ -41,6 +41,9 @@ struct TChunkReaderStatistics
     std::atomic<i64> PassCount = 0;
     std::atomic<i64> RetryCount = 0;
 
+    std::atomic<i64> BlockCount = 0;
+    std::atomic<i64> PrefetchedBlockCount = 0;
+
     static constexpr TDuration MinTrackedLatency = TDuration::MicroSeconds(1);
     static constexpr TDuration MaxTrackedLatency = TDuration::Seconds(125);
 
@@ -121,6 +124,9 @@ private:
 
     NProfiling::TGaugeHistogram DataWaitTimeHistogram_;
     NProfiling::TGaugeHistogram MetaWaitTimeHistogram_;
+
+    NProfiling::TCounter BlockCount_;
+    NProfiling::TCounter PrefetchedBlockCount_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
