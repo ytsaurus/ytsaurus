@@ -186,6 +186,7 @@ class TestHunkStorage(YTEnvSetup):
         wait(lambda: not exists("#{}".format(store_id)))
 
     @authors("akozhikhov")
+    @pytest.mark.ignore_in_opensource_ci
     def test_bad_erasure_codec(self):
         sync_create_cells(1)
         self._create_hunk_storage("//tmp/h")

@@ -850,6 +850,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
     @authors("babenko")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.ignore_in_opensource_ci
     def test_update_key_columns_success(self, optimize_for):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for=optimize_for)
@@ -1140,6 +1141,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
                 timestamp=AsyncLastCommittedTimestamp) == rows
 
     @authors("babenko")
+    @pytest.mark.ignore_in_opensource_ci
     def test_erasure(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for="scan")

@@ -1268,6 +1268,7 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: self._check_resource_usage("a", resource_usage))
 
     @authors("shakurov", "kiselyovp")
+    @pytest.mark.ignore_in_opensource_ci
     def test_chunk_wise_accounting2(self):
         create_domestic_medium("hdd4")
         create_domestic_medium("hdd5")
@@ -1935,6 +1936,7 @@ class TestAccounts(AccountsTestSuiteBase):
         )
 
     @authors("babenko")
+    @pytest.mark.ignore_in_opensource_ci
     def test_erasure_disk_usage(self):
         create("table", "//tmp/t")
         set("//tmp/t/@erasure_codec", "lrc_12_2_2")

@@ -40,6 +40,7 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
     @authors("savrus")
     @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_6_3", "lrc_12_2_2"])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.ignore_in_opensource_ci
     def test_read_table(self, optimize_for, erasure_codec):
         sync_create_cells(1)
 
@@ -187,6 +188,7 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         abort_transaction(tx)
         verify_chunk_tree_refcount("//tmp/t", 1, [1, 1])
 
+    @pytest.mark.ignore_in_opensource_ci
     @authors("savrus")
     def test_read_table_ranges(self):
         sync_create_cells(1)
@@ -235,6 +237,7 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
         assert read_table("//tmp/t[(2):(9)]") == rows[2:9]
         assert get("//tmp/t/@chunk_count") == 6
 
+    @pytest.mark.ignore_in_opensource_ci
     @authors("savrus")
     @parametrize_external
     def test_read_table_when_chunk_crosses_tablet_boundaries(self, external):
@@ -279,6 +282,7 @@ class TestSortedDynamicTablesReadTablePortal(TestSortedDynamicTablesReadTableMul
 
 
 class TestReadDynamicTableFormats(DynamicTablesBase):
+    @pytest.mark.ignore_in_opensource_ci
     @authors("aleexfi")
     def test_read_table_with_complex_schema(self):
         schema = [

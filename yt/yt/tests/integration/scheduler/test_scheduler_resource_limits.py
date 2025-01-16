@@ -123,6 +123,7 @@ class TestDisabledMemoryLimit(YTEnvSetup):
     }
 
     @authors("psushin")
+    @pytest.mark.ignore_in_opensource_ci
     def test_no_memory_limit(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")

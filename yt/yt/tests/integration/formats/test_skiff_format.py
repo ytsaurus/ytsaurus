@@ -499,6 +499,7 @@ class TestSkiffFormat(YTEnvSetup):
         assert [{"key": "baz", "value": [0x42]}] == read_table("//tmp/t_out_mapper")
 
     @authors("levysotsky")
+    @pytest.mark.ignore_in_opensource_ci
     def test_map_reduce_trivial_mapper_schematized_streams(self):
         first_schema = [
             {"name": "key1", "type_v3": "int64"},

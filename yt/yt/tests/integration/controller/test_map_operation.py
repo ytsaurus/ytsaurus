@@ -552,6 +552,7 @@ cat > /dev/null; echo {hello=world}
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
     @authors("ignat")
+    @pytest.mark.ignore_in_opensource_ci
     def test_table_index(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
@@ -1484,6 +1485,7 @@ print(json.dumps(input))
     @authors("arkady-e1ppa")
     @pytest.mark.parametrize("ordered", [False, True])
     @pytest.mark.parametrize("small_pipe", [False, True])
+    @pytest.mark.ignore_in_opensource_ci
     def test_map_interrupt_job_with_pipe_capacity(self, ordered, small_pipe):
         create("table", "//tmp/in_1")
         write_table(
@@ -1544,6 +1546,7 @@ print(json.dumps(input))
     @pytest.mark.skip(reason="broken until YIML-219 is closed")
     @pytest.mark.parametrize("ordered", [False, True])
     @pytest.mark.parametrize("fmt", ["json", "dsv"])
+    @pytest.mark.ignore_in_opensource_ci
     def test_map_interrupt_job_with_delivery_fenced_pipe_writer(self, ordered, fmt):
         if any(version in getattr(self, "ARTIFACT_COMPONENTS", {}) for version in ["23_2", "24_1"]):
             pytest.xfail("Is not supported for older versions of server components")
@@ -1686,6 +1689,7 @@ print(json.dumps(input))
     @authors("galtsev")
     @pytest.mark.parametrize("job_count", list(range(1, 4)))
     @pytest.mark.parametrize("ordered", [False, True])
+    @pytest.mark.ignore_in_opensource_ci
     def test_force_allow_job_interruption(self, job_count, ordered):
         skip_if_old(self.Env, (24, 1), "Operations with explicit job count are not interruptible in old controller agents")
 
@@ -2588,6 +2592,7 @@ class TestInputOutputFormats(YTEnvSetup):
     }
 
     @authors("ignat")
+    @pytest.mark.ignore_in_opensource_ci
     def test_tskv_input_format(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -2614,6 +2619,7 @@ print '{hello=world}'
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
     @authors("ignat")
+    @pytest.mark.ignore_in_opensource_ci
     def test_tskv_output_format(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -2647,6 +2653,7 @@ print "tskv" + "\\t" + "hello=world"
         assert read_table("//tmp/t_out") == [{"hello": "world"}]
 
     @authors("ignat")
+    @pytest.mark.ignore_in_opensource_ci
     def test_yamr_output_format(self):
         create("table", "//tmp/t_in")
         write_table("//tmp/t_in", {"foo": "bar"})
@@ -2678,6 +2685,7 @@ print "key\\tsubkey\\tvalue"
         assert read_table("//tmp/t_out") == [{"key": "key", "subkey": "subkey", "value": "value"}]
 
     @authors("ignat")
+    @pytest.mark.ignore_in_opensource_ci
     def test_yamr_input_format(self):
         create("table", "//tmp/t_in")
         write_table(
@@ -2772,6 +2780,7 @@ print '{hello=world}'
 
         map(in_="//tmp/t_in[#12:#12]", out="//tmp/t_out", command="cat")
 
+    @pytest.mark.ignore_in_opensource_ci
     @authors("max42")
     def test_ordered_several_ranges(self):
         # YT-11322

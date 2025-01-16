@@ -1013,6 +1013,7 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
             time.sleep(0.01)
 
     @authors("ignat")
+    @pytest.mark.ignore_in_opensource_ci
     def test_hot_standby(self):
         self._prepare_tables()
 
