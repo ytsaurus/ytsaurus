@@ -6,12 +6,15 @@ from yt_commands import (
     authors, create, wait, get, set,
     sync_create_cells, sync_mount_table, raises_yt_error,
     sync_reshard_table, insert_rows, ls, abort_transaction,
-    build_snapshot, select_rows,
+    build_snapshot, select_rows, update_nodes_dynamic_config,
+    create_area,
 )
 
 from yt.common import YtError
 
 import random
+
+import pytest
 
 
 ##################################################################
@@ -50,9 +53,19 @@ class TestSmoothMovement(DynamicTablesBase):
 
         wait(lambda: self._check_action(action_id))
 
-    def _restart_cell(self, cell_id):
+    def _get_movement_stage_from_node(self, tablet_id):
+        # Smooth movement orchid does not exist when there is no movement
+        # in progress.
+        try:
+            return get(f"#{tablet_id}/orchid/smooth_movement/stage")
+        except YtError:
+            return None
+
+    def _restart_cell(self, cell_id, sync=True):
         tx_id = get(f"#{cell_id}/@prerequisite_transaction_id")
         abort_transaction(tx_id)
+        if sync:
+            wait(lambda: get(f"#{cell_id}/@health") == "good")
 
     @authors("ifsmirnov")
     def test_empty_store_rotation_recovery(self):
@@ -79,8 +92,6 @@ class TestSmoothMovement(DynamicTablesBase):
 
         self._restart_cell(old_cell_id)
         self._restart_cell(new_cell_id)
-        wait(lambda: get(f"#{old_cell_id}/@health") == "good")
-        wait(lambda: get(f"#{new_cell_id}/@health") == "good")
 
     @authors("ifsmirnov")
     def test_basic_write_redirect(self):
@@ -123,3 +134,90 @@ class TestSmoothMovement(DynamicTablesBase):
                 pass
 
         assert_items_equal(expected_rows, select_rows("* from [//tmp/t]"))
+
+    def _update_testing_config(self, config):
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "smooth_movement_tracker": {
+                    "testing": config,
+                }
+            }
+        })
+
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("recovery", ["source", "target", None])
+    def test_write_redirect_2pc(self, recovery):
+        custom_area_id = create_area(
+            "custom",
+            cell_bundle_id=get("//sys/tablet_cell_bundles/default/@id"))
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "slots": 1,
+            }
+        })
+
+        cell_ids = sync_create_cells(3)
+
+        # Extract target cell to a separate area so that it can be disabled.
+        set(f"#{cell_ids[2]}/@area", "custom")
+        wait(lambda: get(f"#{cell_ids[2]}/@health") == "good")
+
+        self._create_sorted_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[], [10]])
+        tablet_ids = [t["tablet_id"] for t in get("//tmp/t/@tablets")]
+        sync_mount_table("//tmp/t", target_cell_ids=[cell_ids[0], cell_ids[1]])
+
+        def _make_rows(*keys):
+            return [{"key": x, "value": str(x)} for x in keys]
+
+        # First tablet moves from 0 to 2, second tablet stays at cell 1.
+
+        rows1 = _make_rows(0, 10)
+        insert_rows("//tmp/t", rows1)
+
+        self._update_testing_config({
+            "delay_after_stage_at_source": {
+                "servant_switch_requested": 5000,
+            }
+        })
+
+        action_id = self._move_tablet(tablet_ids[0], cell_ids[2])
+        wait(lambda: self._get_movement_stage_from_node(tablet_ids[0]) == "servant_switch_requested")
+
+        if recovery == "source":
+            # Disable target servant so it does not receive forwarded mutations.
+            set(f"#{custom_area_id}/@node_tag_filter", "invalid")
+            wait(lambda: get(f"#{cell_ids[2]}/@health") == "failed")
+
+        rows2 = _make_rows(1, 11)
+        insert_rows("//tmp/t", rows2)
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
+
+        wait(lambda: self._get_movement_stage_from_node(tablet_ids[0]) == "servant_switched")
+
+        if recovery == "source":
+            # Ensure target cell has not resurrected.
+            assert get(f"#{cell_ids[2]}/@health") == "failed"
+
+            # Restart source cell.
+            self._restart_cell(cell_ids[0])
+
+            # Make target cell alive again.
+            set(f"#{custom_area_id}/@node_tag_filter", "")
+            wait(lambda: get(f"#{cell_ids[2]}/@health") == "good")
+
+        wait(lambda: self._check_action(action_id))
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
+
+        if recovery == "target":
+            self._restart_cell(cell_ids[2])
+            assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
+
+
+##################################################################
+
+
+class TestSmoothMovementMulticell(TestSmoothMovement):
+    NUM_SECONDARY_MASTER_CELLS = 2

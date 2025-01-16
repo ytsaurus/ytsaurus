@@ -968,6 +968,24 @@ void TCompressionDictionaryBuilderDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSmoothMovementTrackerTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("delay_after_stage_at_source", &TThis::DelayAfterStageAtSource)
+        .Default();
+    registrar.Parameter("delay_after_stage_at_target", &TThis::DelayAfterStageAtTarget)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TSmoothMovementTrackerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TErrorManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("deduplication_cache_timeout", &TThis::DeduplicationCacheTimeout)
@@ -1030,6 +1048,9 @@ void TTabletNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("backup_manager", &TThis::BackupManager)
+        .DefaultNew();
+
+    registrar.Parameter("smooth_movement_tracker", &TThis::SmoothMovementTracker)
         .DefaultNew();
 
     registrar.Parameter("overload_controller", &TThis::OverloadController)

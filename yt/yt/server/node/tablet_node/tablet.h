@@ -523,6 +523,7 @@ public:
 
     // Transient.
     DEFINE_BYVAL_RW_PROPERTY(bool, StageChangeScheduled);
+    DEFINE_BYVAL_RW_PROPERTY(TInstant, LastStageChangeTime);
 
     DEFINE_BYREF_RW_PROPERTY(TPromise<void>, TargetActivationPromise);
 
