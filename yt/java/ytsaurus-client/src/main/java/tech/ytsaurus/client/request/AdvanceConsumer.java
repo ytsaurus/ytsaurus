@@ -4,6 +4,7 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
@@ -81,8 +82,8 @@ public class AdvanceConsumer extends RequestBase<AdvanceConsumer.Builder, Advanc
 
         builder.setTransactionId(RpcUtil.toProto(transactionId));
 
-        builder.setConsumerPath(consumerPath.toString());
-        builder.setQueuePath(queuePath.toString());
+        builder.setConsumerPath(ByteString.copyFromUtf8(consumerPath.toString()));
+        builder.setQueuePath(ByteString.copyFromUtf8(queuePath.toString()));
         builder.setPartitionIndex(partitionIndex);
         if (oldOffset != null) {
             builder.setOldOffset(oldOffset);

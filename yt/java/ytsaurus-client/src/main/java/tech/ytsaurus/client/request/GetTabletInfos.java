@@ -6,6 +6,7 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.rpcproxy.TReqGetTabletInfos;
 
@@ -34,7 +35,7 @@ public class GetTabletInfos
      */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGetTabletInfos.Builder, ?> builder) {
-        builder.body().setPath(path);
+        builder.body().setPath(ByteString.copyFromUtf8(path));
         builder.body().addAllTabletIndexes(tabletIndexes);
     }
 

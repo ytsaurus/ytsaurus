@@ -4,6 +4,7 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.YPath;
 
@@ -40,7 +41,7 @@ public abstract class TableReq<
                 builder.getDescriptorForType().findFieldByName("mutating_options"),
                 mutatingOptions.toProto());
 
-        builder.setField(builder.getDescriptorForType().findFieldByName("path"), getPath());
+        builder.setField(builder.getDescriptorForType().findFieldByName("path"), ByteString.copyFromUtf8(getPath()));
 
         return builder;
     }

@@ -19,13 +19,13 @@ func NewCreateNodeRequest(r *rpc_proxy.TReqCreateNode) *CreateNodeRequest {
 
 func (r CreateNodeRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 		log.Int32("typ", r.GetType()),
 	}
 }
 
 func (r CreateNodeRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *CreateNodeRequest) SetTxOptions(opts *TransactionOptions) {
@@ -75,12 +75,12 @@ func NewNodeExistsRequest(r *rpc_proxy.TReqExistsNode) *NodeExistsRequest {
 
 func (r NodeExistsRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r NodeExistsRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *NodeExistsRequest) SetTxOptions(opts *TransactionOptions) {
@@ -102,12 +102,12 @@ func NewRemoveNodeRequest(r *rpc_proxy.TReqRemoveNode) *RemoveNodeRequest {
 
 func (r RemoveNodeRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r RemoveNodeRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *RemoveNodeRequest) SetTxOptions(opts *TransactionOptions) {
@@ -139,12 +139,12 @@ func NewGetNodeRequest(r *rpc_proxy.TReqGetNode) *GetNodeRequest {
 
 func (r GetNodeRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r GetNodeRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *GetNodeRequest) SetTxOptions(opts *TransactionOptions) {
@@ -166,12 +166,12 @@ func NewSetNodeRequest(r *rpc_proxy.TReqSetNode) *SetNodeRequest {
 
 func (r SetNodeRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r SetNodeRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *SetNodeRequest) SetTxOptions(opts *TransactionOptions) {
@@ -202,12 +202,12 @@ func NewMultisetAttributesRequest(r *rpc_proxy.TReqMultisetAttributesNode) *Mult
 
 func (r MultisetAttributesRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r MultisetAttributesRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *MultisetAttributesRequest) SetTxOptions(opts *TransactionOptions) {
@@ -239,12 +239,12 @@ func NewListNodeRequest(r *rpc_proxy.TReqListNode) *ListNodeRequest {
 
 func (r ListNodeRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r ListNodeRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *ListNodeRequest) SetTxOptions(opts *TransactionOptions) {
@@ -266,13 +266,13 @@ func NewCopyNodeRequest(r *rpc_proxy.TReqCopyNode) *CopyNodeRequest {
 
 func (r CopyNodeRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("src", r.GetSrcPath()),
-		log.String("dst", r.GetDstPath()),
+		log.String("src", string(r.GetSrcPath())),
+		log.String("dst", string(r.GetDstPath())),
 	}
 }
 
 func (r CopyNodeRequest) Path() (string, bool) {
-	return r.GetSrcPath(), true
+	return string(r.GetSrcPath()), true
 }
 
 func (r *CopyNodeRequest) SetTxOptions(opts *TransactionOptions) {
@@ -304,13 +304,13 @@ func NewMoveNodeRequest(r *rpc_proxy.TReqMoveNode) *MoveNodeRequest {
 
 func (r MoveNodeRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("src", r.GetSrcPath()),
-		log.String("dst", r.GetDstPath()),
+		log.String("src", string(r.GetSrcPath())),
+		log.String("dst", string(r.GetDstPath())),
 	}
 }
 
 func (r MoveNodeRequest) Path() (string, bool) {
-	return r.GetSrcPath(), true
+	return string(r.GetSrcPath()), true
 }
 
 func (r *MoveNodeRequest) SetTxOptions(opts *TransactionOptions) {
@@ -342,13 +342,13 @@ func NewLinkNodeRequest(r *rpc_proxy.TReqLinkNode) *LinkNodeRequest {
 
 func (r LinkNodeRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("target", r.GetSrcPath()),
-		log.String("link", r.GetDstPath()),
+		log.String("target", string(r.GetSrcPath())),
+		log.String("link", string(r.GetDstPath())),
 	}
 }
 
 func (r LinkNodeRequest) Path() (string, bool) {
-	return r.GetDstPath(), true
+	return string(r.GetDstPath()), true
 }
 
 func (r *LinkNodeRequest) SetTxOptions(opts *TransactionOptions) {
@@ -477,12 +477,12 @@ func NewWriteFileRequest(r *rpc_proxy.TReqWriteFile) *WriteFileRequest {
 
 func (r WriteFileRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r WriteFileRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *WriteFileRequest) SetTxOptions(opts *TransactionOptions) {
@@ -501,12 +501,12 @@ func NewReadFileRequest(r *rpc_proxy.TReqReadFile) *ReadFileRequest {
 
 func (r ReadFileRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r ReadFileRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *ReadFileRequest) SetTxOptions(opts *TransactionOptions) {
@@ -525,13 +525,13 @@ func NewPutFileToCacheRequest(r *rpc_proxy.TReqPutFileToCache) *PutFileToCacheRe
 
 func (r PutFileToCacheRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 		log.String("md5", r.GetMd5()),
 	}
 }
 
 func (r PutFileToCacheRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *PutFileToCacheRequest) HasMutatingOptions() bool {
@@ -580,12 +580,12 @@ func NewWriteTableRequest(r *rpc_proxy.TReqWriteTable) *WriteTableRequest {
 
 func (r WriteTableRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r WriteTableRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *WriteTableRequest) SetTxOptions(opts *TransactionOptions) {
@@ -604,12 +604,12 @@ func NewReadTableRequest(r *rpc_proxy.TReqReadTable) *ReadTableRequest {
 
 func (r ReadTableRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r ReadTableRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *ReadTableRequest) SetTxOptions(opts *TransactionOptions) {
@@ -1023,14 +1023,14 @@ func NewCheckPermissionRequest(r *rpc_proxy.TReqCheckPermission) *CheckPermissio
 
 func (r *CheckPermissionRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 		log.String("user", r.GetUser()),
 		log.Int32("permission", r.GetPermission()),
 	}
 }
 
 func (r *CheckPermissionRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *CheckPermissionRequest) SetTxOptions(opts *TransactionOptions) {
@@ -1150,13 +1150,13 @@ func NewLockNodeRequest(r *rpc_proxy.TReqLockNode) *LockNodeRequest {
 
 func (r LockNodeRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 		log.Int32("mode", r.GetMode()),
 	}
 }
 
 func (r LockNodeRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *LockNodeRequest) SetTxOptions(opts *TransactionOptions) {
@@ -1188,12 +1188,12 @@ func NewUnlockNodeRequest(r *rpc_proxy.TReqUnlockNode) *UnlockNodeRequest {
 
 func (r UnlockNodeRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r UnlockNodeRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *UnlockNodeRequest) SetTxOptions(opts *TransactionOptions) {
@@ -1248,12 +1248,12 @@ func NewLookupRowsRequest(r *rpc_proxy.TReqLookupRows) *LookupRowsRequest {
 
 func (r LookupRowsRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r LookupRowsRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *LookupRowsRequest) SetTxOptions(opts *TransactionOptions) {
@@ -1272,14 +1272,14 @@ func NewLockRowsRequest(r *rpc_proxy.TReqModifyRows) *LockRowsRequest {
 
 func (r LockRowsRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 		log.Any("locks", r.GetRowLocks()),
 		// log.Any("lockType", r.LockType), // todo
 	}
 }
 
 func (r LockRowsRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *LockRowsRequest) SetTxOptions(opts *TransactionOptions) {
@@ -1301,12 +1301,12 @@ func NewInsertRowsRequest(r *rpc_proxy.TReqModifyRows) *InsertRowsRequest {
 
 func (r InsertRowsRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r InsertRowsRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *InsertRowsRequest) SetTxOptions(opts *TransactionOptions) {
@@ -1328,15 +1328,15 @@ func NewPushQueueProducerRequest(r *rpc_proxy.TReqPushQueueProducer) *PushQueueP
 
 func (r PushQueueProducerRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("producer_path", r.GetProducerPath()),
-		log.String("queue_path", r.GetQueuePath()),
-		log.String("session_id", r.GetSessionId()),
+		log.String("producer_path", string(r.GetProducerPath())),
+		log.String("queue_path", string(r.GetQueuePath())),
+		log.String("session_id", string(r.GetSessionId())),
 		log.Int64("epoch", r.GetEpoch()),
 	}
 }
 
 func (r PushQueueProducerRequest) Path() (string, bool) {
-	return r.GetProducerPath(), true
+	return string(r.GetProducerPath()), true
 }
 
 func (r PushQueueProducerRequest) SetTxOptions(opts *TransactionOptions) {
@@ -1356,14 +1356,14 @@ func NewCreateQueueProducerSessionRequest(r *rpc_proxy.TReqCreateQueueProducerSe
 
 func (r CreateQueueProducerSessionRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("producer_path", r.GetProducerPath()),
-		log.String("queue_path", r.GetQueuePath()),
+		log.String("producer_path", string(r.GetProducerPath())),
+		log.String("queue_path", string(r.GetQueuePath())),
 		log.String("session_id", r.GetSessionId()),
 	}
 }
 
 func (r CreateQueueProducerSessionRequest) Path() (string, bool) {
-	return r.GetProducerPath(), false
+	return string(r.GetProducerPath()), false
 }
 
 type RemoveQueueProducerSessionRequest struct {
@@ -1376,14 +1376,14 @@ func NewRemoveQueueProducerSessionRequest(r *rpc_proxy.TReqRemoveQueueProducerSe
 
 func (r RemoveQueueProducerSessionRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("producer_path", r.GetProducerPath()),
-		log.String("queue_path", r.GetQueuePath()),
+		log.String("producer_path", string(r.GetProducerPath())),
+		log.String("queue_path", string(r.GetQueuePath())),
 		log.String("session_id", r.GetSessionId()),
 	}
 }
 
 func (r RemoveQueueProducerSessionRequest) Path() (string, bool) {
-	return r.GetProducerPath(), false
+	return string(r.GetProducerPath()), false
 }
 
 var _ TransactionalRequest = (*DeleteRowsRequest)(nil)
@@ -1398,12 +1398,12 @@ func NewDeleteRowsRequest(r *rpc_proxy.TReqModifyRows) *DeleteRowsRequest {
 
 func (r DeleteRowsRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r DeleteRowsRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *DeleteRowsRequest) SetTxOptions(opts *TransactionOptions) {
@@ -1425,12 +1425,12 @@ func NewMountTableRequest(r *rpc_proxy.TReqMountTable) *MountTableRequest {
 
 func (r MountTableRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r MountTableRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *MountTableRequest) HasMutatingOptions() bool {
@@ -1457,12 +1457,12 @@ func NewUnmountTableRequest(r *rpc_proxy.TReqUnmountTable) *UnmountTableRequest 
 
 func (r UnmountTableRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r UnmountTableRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *UnmountTableRequest) HasMutatingOptions() bool {
@@ -1489,12 +1489,12 @@ func NewRemountTableRequest(r *rpc_proxy.TReqRemountTable) *RemountTableRequest 
 
 func (r RemountTableRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r RemountTableRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *RemountTableRequest) HasMutatingOptions() bool {
@@ -1521,12 +1521,12 @@ func NewReshardTableRequest(r *rpc_proxy.TReqReshardTable) *ReshardTableRequest 
 
 func (r ReshardTableRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r ReshardTableRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *ReshardTableRequest) HasMutatingOptions() bool {
@@ -1553,12 +1553,12 @@ func NewAlterTableRequest(r *rpc_proxy.TReqAlterTable) *AlterTableRequest {
 
 func (r AlterTableRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r AlterTableRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *AlterTableRequest) HasMutatingOptions() bool {
@@ -1585,12 +1585,12 @@ func NewFreezeTableRequest(r *rpc_proxy.TReqFreezeTable) *FreezeTableRequest {
 
 func (r FreezeTableRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r FreezeTableRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *FreezeTableRequest) HasMutatingOptions() bool {
@@ -1617,12 +1617,12 @@ func NewUnfreezeTableRequest(r *rpc_proxy.TReqUnfreezeTable) *UnfreezeTableReque
 
 func (r UnfreezeTableRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 	}
 }
 
 func (r UnfreezeTableRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }
 
 func (r *UnfreezeTableRequest) HasMutatingOptions() bool {
@@ -1699,11 +1699,11 @@ func NewGetInSyncReplicasRequest(r *rpc_proxy.TReqGetInSyncReplicas) *GetInSyncR
 
 func (r GetInSyncReplicasRequest) Log() []log.Field {
 	return []log.Field{
-		log.String("path", r.GetPath()),
+		log.String("path", string(r.GetPath())),
 		log.UInt64("ts", r.GetTimestamp()),
 	}
 }
 
 func (r GetInSyncReplicasRequest) Path() (string, bool) {
-	return r.GetPath(), true
+	return string(r.GetPath()), true
 }

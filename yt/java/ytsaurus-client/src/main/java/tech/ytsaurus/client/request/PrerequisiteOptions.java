@@ -7,6 +7,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.rpcproxy.TPrerequisiteOptions;
@@ -76,7 +77,7 @@ public class PrerequisiteOptions {
         if (revisions != null) {
             for (RevisionPrerequisite rev : revisions) {
                 builder.addRevisions(TPrerequisiteOptions.TRevisionPrerequisite.newBuilder()
-                        .setPath(rev.path)
+                        .setPath(ByteString.copyFromUtf8(rev.path))
                         .setRevision(rev.revision)
                         .build());
             }

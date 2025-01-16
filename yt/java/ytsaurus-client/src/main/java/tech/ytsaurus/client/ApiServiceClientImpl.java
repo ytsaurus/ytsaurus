@@ -21,6 +21,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import com.google.protobuf.MessageLite;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -524,6 +525,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                 response -> response.body().getPartitionsList().stream()
                         .map(p -> {
                             List<YPath> tableRanges = p.getTableRangesList().stream()
+                                    .map(ByteString::toStringUtf8)
                                     .map(RichYPathParser::parse)
                                     .collect(Collectors.toList());
                             var statistics = new MultiTablePartition.AggregateStatistics(
@@ -1120,7 +1122,8 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                 sendRequest(req, ApiServiceMethodTable.GET_FILE_FROM_CACHE.createRequestBuilder(rpcOptions)),
                 response -> {
                     if (!response.body().getResult().getPath().isEmpty()) {
-                        return new GetFileFromCacheResult(YPath.simple(response.body().getResult().getPath()));
+                        return new GetFileFromCacheResult(
+                                YPath.simple(response.body().getResult().getPath().toStringUtf8()));
                     }
                     return new GetFileFromCacheResult(null);
                 }));
@@ -1130,7 +1133,8 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     public CompletableFuture<PutFileToCacheResult> putFileToCache(PutFileToCache req) {
         return onStarted(req, RpcUtil.apply(
                 sendRequest(req, ApiServiceMethodTable.PUT_FILE_TO_CACHE.createRequestBuilder(rpcOptions)),
-                response -> new PutFileToCacheResult(YPath.simple(response.body().getResult().getPath()))));
+                response -> new PutFileToCacheResult(
+                        YPath.simple(response.body().getResult().getPath().toStringUtf8()))));
     }
 
     @Override
@@ -1613,7 +1617,7 @@ class ModifyRowsWrapper implements HighLevelRequest<TReqModifyRows.Builder> {
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqModifyRows.Builder, ?> builder) {
         builder.body().setTransactionId(RpcUtil.toProto(transactionId));
-        builder.body().setPath(request.getPath());
+        builder.body().setPath(ByteString.copyFromUtf8(request.getPath()));
         if (request.getRequireSyncReplica().isPresent()) {
             builder.body().setRequireSyncReplica(request.getRequireSyncReplica().get());
         }
@@ -1650,7 +1654,7 @@ class GetInSyncReplicasWrapper implements HighLevelRequest<TReqGetInSyncReplicas
      */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGetInSyncReplicas.Builder, ?> builder) {
-        builder.body().setPath(request.getPath());
+        builder.body().setPath(ByteString.copyFromUtf8(request.getPath()));
         builder.body().setTimestamp(timestamp.getValue());
         builder.body().setRowsetDescriptor(ApiServiceUtil.makeRowsetDescriptor(request.getSchema()));
 

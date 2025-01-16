@@ -2,6 +2,7 @@ package tech.ytsaurus.client.request;
 
 import java.util.Objects;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.rpcproxy.TMasterReadOptions;
@@ -30,7 +31,7 @@ public class ExistsNode
      */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqExistsNode.Builder, ?> builder) {
-        builder.body().setPath(path.toString());
+        builder.body().setPath(ByteString.copyFromUtf8(path.toString()));
         if (transactionalOptions != null) {
             builder.body().setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));
         }
@@ -98,7 +99,7 @@ public class ExistsNode
          */
         @Override
         public void writeTo(RpcClientRequestBuilder<TReqExistsNode.Builder, ?> builder) {
-            builder.body().setPath(Objects.requireNonNull(path).toString());
+            builder.body().setPath(ByteString.copyFromUtf8(Objects.requireNonNull(path).toString()));
             if (transactionalOptions != null) {
                 builder.body().setTransactionalOptions(
                         transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));

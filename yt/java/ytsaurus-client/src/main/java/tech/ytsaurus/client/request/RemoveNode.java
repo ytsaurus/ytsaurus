@@ -1,5 +1,6 @@
 package tech.ytsaurus.client.request;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.rpcproxy.TMutatingOptions;
@@ -41,7 +42,7 @@ public class RemoveNode
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqRemoveNode.Builder, ?> builder) {
         builder.body()
-                .setPath(path.toString())
+                .setPath(ByteString.copyFromUtf8(path.toString()))
                 .setRecursive(recursive)
                 .setForce(force);
 

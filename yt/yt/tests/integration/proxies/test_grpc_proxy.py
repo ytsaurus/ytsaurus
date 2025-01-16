@@ -259,7 +259,7 @@ class TestGrpcProxy(YTEnvSetup):
 
     @authors("asaitgalin")
     def test_protocol_version(self):
-        msg = api_service_pb2.TReqGetNode(path="//tmp")
+        msg = api_service_pb2.TReqGetNode(path=b"//tmp")
 
         unary = self.channel.unary_unary(
             "/ApiService/GetNode",

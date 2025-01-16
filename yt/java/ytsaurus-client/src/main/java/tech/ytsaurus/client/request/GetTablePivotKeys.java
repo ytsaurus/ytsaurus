@@ -4,6 +4,7 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.rpcproxy.TReqGetTablePivotKeys;
 
@@ -31,7 +32,7 @@ public class GetTablePivotKeys extends RequestBase<GetTablePivotKeys.Builder, Ge
      */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGetTablePivotKeys.Builder, ?> builder) {
-        builder.body().setPath(path).setRepresentKeyAsList(representKeyAsList);
+        builder.body().setPath(ByteString.copyFromUtf8(path)).setRepresentKeyAsList(representKeyAsList);
     }
 
     @Override

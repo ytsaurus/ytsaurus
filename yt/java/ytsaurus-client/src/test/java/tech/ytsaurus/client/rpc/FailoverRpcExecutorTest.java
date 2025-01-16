@@ -15,6 +15,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
 
+import com.google.protobuf.ByteString;
 import org.junit.After;
 import org.junit.Test;
 import tech.ytsaurus.client.RetryPolicy;
@@ -281,7 +282,7 @@ public class FailoverRpcExecutorTest {
     ) {
         RpcRequest<?> rpcRequest;
         {
-            TReqGetNode reqGetNode = TReqGetNode.newBuilder().setPath("/").build();
+            TReqGetNode reqGetNode = TReqGetNode.newBuilder().setPath(ByteString.copyFromUtf8("/")).build();
             TRequestHeader.Builder header = TRequestHeader.newBuilder();
             header.setService("service");
             header.setMethod("method");

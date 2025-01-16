@@ -66,7 +66,7 @@ public class WriteFile extends RequestBase<WriteFile.Builder, WriteFile> {
     }
 
     public TReqWriteFile.Builder writeTo(TReqWriteFile.Builder builder) {
-        builder.setPath(path);
+        builder.setPath(ByteString.copyFromUtf8(path));
 
         if (computeMd5 != null) {
             builder.setComputeMd5(computeMd5);

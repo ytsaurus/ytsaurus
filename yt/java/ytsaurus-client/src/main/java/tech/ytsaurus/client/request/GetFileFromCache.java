@@ -4,6 +4,7 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.rpcproxy.TMasterReadOptions;
@@ -51,7 +52,7 @@ public class GetFileFromCache
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGetFileFromCache.Builder, ?> builder) {
         builder.body()
-                .setCachePath(cachePath.toString())
+                .setCachePath(ByteString.copyFromUtf8(cachePath.toString()))
                 .setMd5(md5);
         if (masterReadOptions != null) {
             builder.body().setMasterReadOptions(masterReadOptions.writeTo(TMasterReadOptions.newBuilder()));

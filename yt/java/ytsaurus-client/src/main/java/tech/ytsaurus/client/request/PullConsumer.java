@@ -4,6 +4,7 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.rpcproxy.TReqPullQueueConsumer;
@@ -72,8 +73,8 @@ public class PullConsumer extends RequestBase<PullConsumer.Builder, PullConsumer
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqPullQueueConsumer.Builder, ?> requestBuilder) {
         TReqPullQueueConsumer.Builder builder = requestBuilder.body();
-        builder.setConsumerPath(consumerPath.toString());
-        builder.setQueuePath(queuePath.toString());
+        builder.setConsumerPath(ByteString.copyFromUtf8(consumerPath.toString()));
+        builder.setQueuePath(ByteString.copyFromUtf8(queuePath.toString()));
         builder.setPartitionIndex(partitionIndex);
         builder.setRowBatchReadOptions(rowBatchReadOptions.toProto());
         if (offset != null) {

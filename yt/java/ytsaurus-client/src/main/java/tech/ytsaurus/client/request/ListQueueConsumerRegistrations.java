@@ -2,6 +2,7 @@ package tech.ytsaurus.client.request;
 
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.rpcproxy.TReqListQueueConsumerRegistrations;
@@ -60,10 +61,10 @@ public class ListQueueConsumerRegistrations extends RequestBase<ListQueueConsume
     public void writeTo(RpcClientRequestBuilder<TReqListQueueConsumerRegistrations.Builder, ?> requestBuilder) {
         TReqListQueueConsumerRegistrations.Builder builder = requestBuilder.body();
         if (queuePath != null) {
-            builder.setQueuePath(queuePath.toString());
+            builder.setQueuePath(ByteString.copyFromUtf8(queuePath.toString()));
         }
         if (consumerPath != null) {
-            builder.setConsumerPath(consumerPath.toString());
+            builder.setConsumerPath(ByteString.copyFromUtf8(consumerPath.toString()));
         }
     }
 

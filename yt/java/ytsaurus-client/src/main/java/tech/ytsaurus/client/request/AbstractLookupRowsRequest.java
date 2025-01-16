@@ -4,6 +4,7 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.ApiServiceUtil;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.YtTimestamp;
@@ -88,7 +89,7 @@ public abstract class AbstractLookupRowsRequest<
              */
             @Override
             public void writeTo(RpcClientRequestBuilder<TReqLookupRows.Builder, ?> builder) {
-                builder.body().setPath(getPath());
+                builder.body().setPath(ByteString.copyFromUtf8(getPath()));
                 builder.body().addAllColumns(getLookupColumns());
                 builder.body().setKeepMissingRows(getKeepMissingRows());
                 if (getTimestamp().isPresent()) {
@@ -127,7 +128,7 @@ public abstract class AbstractLookupRowsRequest<
              */
             @Override
             public void writeTo(RpcClientRequestBuilder<TReqVersionedLookupRows.Builder, ?> builder) {
-                builder.body().setPath(getPath());
+                builder.body().setPath(ByteString.copyFromUtf8(getPath()));
                 builder.body().addAllColumns(getLookupColumns());
                 builder.body().setKeepMissingRows(getKeepMissingRows());
                 if (getTimestamp().isPresent()) {

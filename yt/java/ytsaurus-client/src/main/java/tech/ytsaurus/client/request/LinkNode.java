@@ -1,5 +1,6 @@
 package tech.ytsaurus.client.request;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.rpcproxy.TMutatingOptions;
@@ -33,8 +34,8 @@ public class LinkNode
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqLinkNode.Builder, ?> requestBuilder) {
         TReqLinkNode.Builder builder = requestBuilder.body();
-        builder.setSrcPath(source)
-                .setDstPath(destination)
+        builder.setSrcPath(ByteString.copyFromUtf8(source))
+                .setDstPath(ByteString.copyFromUtf8(destination))
                 .setRecursive(recursive)
                 .setForce(force)
                 .setIgnoreExisting(ignoreExisting);

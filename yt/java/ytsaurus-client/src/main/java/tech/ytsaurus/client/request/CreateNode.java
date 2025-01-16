@@ -90,7 +90,7 @@ public class CreateNode
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqCreateNode.Builder, ?> builder) {
         builder.body()
-                .setPath(path.toString())
+                .setPath(ByteString.copyFromUtf8(path.toString()))
                 .setType(type.protoValue())
                 .setRecursive(recursive)
                 .setForce(force)
