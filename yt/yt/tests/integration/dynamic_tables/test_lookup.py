@@ -317,7 +317,7 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         timestamps = []
 
-        def random_write(table, keys):
+        def _random_write(table, keys):
             global timestamps
 
             for key in keys:
@@ -326,19 +326,19 @@ class TestLookup(TestSortedDynamicTablesBase):
                         key.update({v: random.randint(1, 10)})
             insert_rows(table, keys)
 
-        def random_key():
+        def _random_key():
             return {"k1": random.randint(1, 10), "k2": random.randint(1, 10)}
 
         sync_create_cells(1)
         self._create_simple_table("//tmp/expected", schema=schema, optimize_for="lookup")
         sync_mount_table("//tmp/expected")
 
-        for i in range(read_iters):
-            keys = [random_key() for i in range(5)]
+        for _ in range(read_iters):
+            keys = [_random_key() for _ in range(5)]
             if random.randint(0, 99) < delete_probability:
                 delete_rows("//tmp/expected", keys)
             else:
-                random_write("//tmp/expected", keys)
+                _random_write("//tmp/expected", keys)
             timestamps += [generate_timestamp()]
 
         sync_unmount_table("//tmp/expected")
@@ -353,7 +353,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         sync_compact_table("//tmp/actual")
 
         for i in range(lookup_iters):
-            keys = [random_key() for i in range(5)]
+            keys = [_random_key() for i in range(5)]
             ts = random.choice(timestamps)
             for versioned in True, False:
                 expected = lookup_rows("//tmp/expected", keys, versioned=versioned, timestamp=ts)
@@ -446,7 +446,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         set("//tmp/t/@enable_compaction_and_partitioning", False)
         sync_mount_table("//tmp/t")
 
-        def check(expected, actual):
+        def _check(expected, actual):
             assert len(expected) == len(actual)
             for row in actual:
                 key = row["key"]
@@ -469,20 +469,20 @@ class TestLookup(TestSortedDynamicTablesBase):
         keys = [{"key": i} for i in range(4)]
 
         actual = lookup_rows("//tmp/t", keys, versioned=True, timestamp=timestamps.pop(0))
-        check(expected, actual)
+        _check(expected, actual)
 
         expected[0] = {}
         actual = lookup_rows("//tmp/t", keys, versioned=True, timestamp=timestamps.pop(0))
-        check(expected, actual)
+        _check(expected, actual)
 
         expected[1] = {"v1": 1}
         expected[2] = {"v2": 2}
         actual = lookup_rows("//tmp/t", keys, versioned=True, timestamp=timestamps.pop(0))
-        check(expected, actual)
+        _check(expected, actual)
 
         expected[3] = {"v1": 3, "v2": 4}
         actual = lookup_rows("//tmp/t", keys, versioned=True, timestamp=timestamps.pop(0))
-        check(expected, actual)
+        _check(expected, actual)
 
     @authors("ifsmirnov")
     def test_versioned_lookup_early_timestamp(self):
@@ -1391,20 +1391,20 @@ class TestLookupCache(TestSortedDynamicTablesBase):
     def test_lookup_cache(self, hunks):
         sync_create_cells(1)
 
-        def make_value(i):
+        def _make_value(i):
             return str(i) + ("payload" * (i % 5) if hunks else "")
 
         self._create_simple_table("//tmp/t", hunks, lookup_cache_rows_per_tablet=50)
         set("//tmp/t/@mount_config/insert_meta_upon_store_update", False)
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": make_value(i)} for i in range(0, 1000, 2)]
+        rows = [{"key": i, "value": _make_value(i)} for i in range(0, 1000, 2)]
         insert_rows("//tmp/t", rows)
 
         sync_flush_table("//tmp/t")
 
         for step in range(1, 5):
-            expected = [{"key": i, "value": make_value(i)} for i in range(100, 200, 2 * step)]
+            expected = [{"key": i, "value": _make_value(i)} for i in range(100, 200, 2 * step)]
             actual = self._read("//tmp/t", range(100, 200, 2 * step), use_lookup_cache=True)
             assert_items_equal(actual, expected)
 
@@ -1416,7 +1416,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         assert get(path) == 51
 
         # Modify some rows.
-        rows = [{"key": i, "value": make_value(i + 1)} for i in range(100, 200, 2)]
+        rows = [{"key": i, "value": _make_value(i + 1)} for i in range(100, 200, 2)]
         insert_rows("//tmp/t", rows)
 
         # Check lookup result.
@@ -1445,21 +1445,21 @@ class TestLookupCache(TestSortedDynamicTablesBase):
     def test_lookup_cache_options(self, hunks):
         sync_create_cells(1)
 
-        def make_value(i):
+        def _make_value(i):
             return str(i) + ("payload" * (i % 5) if hunks else "")
 
         self._create_simple_table("//tmp/t", hunks)
 
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": make_value(i)} for i in range(0, 1000, 2)]
+        rows = [{"key": i, "value": _make_value(i)} for i in range(0, 1000, 2)]
         insert_rows("//tmp/t", rows)
 
         sync_flush_table("//tmp/t")
 
         # Cache is not configured yet.
         actual = self._read("//tmp/t", range(100, 200, 2), use_lookup_cache=False)
-        expected = [{"key": i, "value": make_value(i)} for i in range(100, 200, 2)]
+        expected = [{"key": i, "value": _make_value(i)} for i in range(100, 200, 2)]
         assert_items_equal(actual, expected)
 
         # Lookup key without polluting cache to increment static_chunk_row_lookup_count.
@@ -1477,14 +1477,14 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         cell_id = get("//sys/tablets/" + tablet_id + "/@cell_id")
         address = get_cell_leader_address(cell_id)
 
-        def check_tablet_config():
+        def _check_tablet_config():
             return exists(f"//sys/cluster_nodes/{address}/orchid/tablet_cells/{cell_id}/tablets/{tablet_id}/config/enable_lookup_cache_by_default")
 
-        wait(check_tablet_config)
+        wait(_check_tablet_config)
 
         # Populate cache and use it.
         for step in range(1, 5):
-            expected = [{"key": i, "value": make_value(i)} for i in range(100, 200, 2 * step)]
+            expected = [{"key": i, "value": _make_value(i)} for i in range(100, 200, 2 * step)]
             actual = self._read("//tmp/t", range(100, 200, 2 * step))
             assert_items_equal(actual, expected)
 
@@ -1500,28 +1500,28 @@ class TestLookupCache(TestSortedDynamicTablesBase):
     def test_lookup_cache_flush(self, hunks):
         sync_create_cells(1)
 
-        def make_value(i):
+        def _make_value(i):
             return str(i) + ("payload" * (i % 5) if hunks else "")
 
         self._create_simple_table("//tmp/t", hunks, lookup_cache_rows_per_tablet=50)
 
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": make_value(i)} for i in range(0, 300, 2)]
+        rows = [{"key": i, "value": _make_value(i)} for i in range(0, 300, 2)]
         insert_rows("//tmp/t", rows)
 
-        expected = [{"key": i, "value": make_value(i)} for i in range(100, 200, 2)]
+        expected = [{"key": i, "value": _make_value(i)} for i in range(100, 200, 2)]
         actual = self._read("//tmp/t", range(100, 200, 2), use_lookup_cache=True)
         assert_items_equal(actual, expected)
 
         # Insert rows again to increase last store timestamp.
-        rows = [{"key": i, "value": make_value(2 * i)} for i in range(0, 300, 4)]
+        rows = [{"key": i, "value": _make_value(2 * i)} for i in range(0, 300, 4)]
         insert_rows("//tmp/t", rows)
 
         sync_flush_table("//tmp/t")
 
         # Lookup again. Check that rows are in cache.
-        expected = [{"key": i, "value": make_value(2 * i if i % 4 == 0 else i)} for i in range(100, 200, 2)]
+        expected = [{"key": i, "value": _make_value(2 * i if i % 4 == 0 else i)} for i in range(100, 200, 2)]
         actual = self._read("//tmp/t", range(100, 200, 2), use_lookup_cache=True)
         assert_items_equal(actual, expected)
 
@@ -1538,7 +1538,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
     def test_lookup_cache_stress(self, hunks):
         sync_create_cells(1)
 
-        def make_value(i):
+        def _make_value(i):
             return str(i) + ("payload" * (i % 5) if hunks else "")
 
         create_dynamic_table(
@@ -1558,25 +1558,25 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         count = 500
 
         # Decorate to simplify grep.
-        def decorate_key(key):
+        def _decorate_key(key):
             return 12300000 + key
 
         for wave in range(1, 30):
             rows = [{
-                "key": decorate_key(k),
+                "key": _decorate_key(k),
                 "v": wave * count + k,
                 choice(["a", "b", "c"]): randint(1, 10000),
-                choice(["s", "t"]): make_value(randint(1, 10000))}
+                choice(["s", "t"]): _make_value(randint(1, 10000))}
                 for k in sample(list(range(1, count)), 200)]
             insert_rows("//tmp/t", rows, update=True)
             print_debug("Insert rows ", rows)
 
-            keys = [{"key": decorate_key(k)} for k in sample(list(range(1, count)), 100)]
+            keys = [{"key": _decorate_key(k)} for k in sample(list(range(1, count)), 100)]
             delete_rows("//tmp/t", keys)
             print_debug("Delete rows ", keys)
 
             for _ in range(1, 10):
-                keys = [decorate_key(k) for k in sample(list(range(1, count)), 10)]
+                keys = [_decorate_key(k) for k in sample(list(range(1, count)), 10)]
 
                 ts = generate_timestamp()
                 no_cache = self._read("//tmp/t", keys, timestamp=ts)
@@ -1595,7 +1595,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
     def test_lookup_cache_stress2(self, hunks):
         sync_create_cells(1)
 
-        def make_value(i):
+        def _make_value(i):
             return str(i) + ("payload" * (i % 5) if hunks else "")
 
         create_dynamic_table(
@@ -1622,12 +1622,12 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         optional_columns = ["a", "b", "c", "s", "t"]
         required_columns = ["v", "i"]
 
-        def get_checksum(row):
+        def _get_checksum(row):
             row_data = " ".join(str(yson.dumps(row.get(col, yson.YsonEntity())))
                                 for col in (required_columns + optional_columns))
             return row_data
 
-        def check_row(row, check):
+        def _check_row(row, check):
             check_values = dict(list(zip(required_columns + optional_columns, check.split(" "))))
             for name, value in row.items():
                 if name in ["key", "md5"]:
@@ -1635,29 +1635,29 @@ class TestLookupCache(TestSortedDynamicTablesBase):
                 assert str(yson.dumps(value)) == check_values[name]
 
         # Decorate to simplify grep.
-        def decorate_key(key):
+        def _decorate_key(key):
             return 12300000 + key
 
         for wave in range(1, 30):
             rows = [{
-                "key": decorate_key(k),
+                "key": _decorate_key(k),
                 "v": k,
                 "i": wave,
                 choice(["a", "b", "c"]): randint(1, 10000),
-                choice(["s", "t"]): make_value(randint(1, 10000))}
+                choice(["s", "t"]): _make_value(randint(1, 10000))}
                 for k in sample(list(range(1, count)), 200)]
 
             for row in rows:
                 key = row["key"]
                 item = verify_map.get(key, {})
                 item.update(row)
-                row["md5"] = get_checksum(item)
+                row["md5"] = _get_checksum(item)
                 verify_map[key] = item
 
             print_debug("Insert rows ", rows)
             insert_rows("//tmp/t", rows, update=True)
 
-            keys = [{"key": decorate_key(k)} for k in sample(list(range(1, count)), 100)]
+            keys = [{"key": _decorate_key(k)} for k in sample(list(range(1, count)), 100)]
             for key in keys:
                 if key["key"] in verify_map:
                     del verify_map[key["key"]]
@@ -1665,7 +1665,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
             delete_rows("//tmp/t", keys)
 
             for _ in range(1, 10):
-                keys = [decorate_key(k) for k in sample(list(range(1, count)), 10)]
+                keys = [_decorate_key(k) for k in sample(list(range(1, count)), 10)]
                 lookup_value_columns = \
                     ["key", "md5"] +\
                     required_columns +\
@@ -1677,8 +1677,8 @@ class TestLookupCache(TestSortedDynamicTablesBase):
                     use_lookup_cache=True)
 
                 for row in result:
-                    assert row["key"] == decorate_key(row["v"])
-                    check_row(row, row["md5"])
+                    assert row["key"] == _decorate_key(row["v"])
+                    _check_row(row, row["md5"])
                     revision = row["i"]
                     assert revision >= revision_map.get(row["key"], 0)
                     revision_map[row["key"]] = revision
@@ -1693,14 +1693,14 @@ class TestLookupCache(TestSortedDynamicTablesBase):
     def test_lookup_cache_hunks_cell_restart(self):
         sync_create_cells(1)
 
-        def make_value(i):
+        def _make_value(i):
             return str(i) + ("payload" * (i % 5))
 
         self._create_simple_table("//tmp/t", True, lookup_cache_rows_per_tablet=50)
 
         sync_mount_table("//tmp/t")
 
-        rows = [{"key": i, "value": make_value(i)} for i in range(0, 300, 2)]
+        rows = [{"key": i, "value": _make_value(i)} for i in range(0, 300, 2)]
         insert_rows("//tmp/t", rows)
 
         cell_id = ls("//sys/tablet_cells")[0]
@@ -1712,7 +1712,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         set_node_banned(leader_address, True)
         wait_for_cells([cell_id], decommissioned_addresses=[leader_address])
 
-        expected = [{"key": i, "value": make_value(i)} for i in range(100, 200, 2)]
+        expected = [{"key": i, "value": _make_value(i)} for i in range(100, 200, 2)]
         actual = self._read("//tmp/t", range(100, 200, 2), use_lookup_cache=True)
         assert_items_equal(actual, expected)
 
@@ -1751,7 +1751,7 @@ class TestLookupRpcProxy(TestLookup):
             name="rpc_proxy/detailed_table_statistics/lookup_duration",
             fixed_tags={"table_path": "//tmp/t", "user": "root"})
 
-        def check():
+        def _check():
             def _check(lookup_duration_histogram):
                 try:
                     bins = lookup_duration_histogram.get_bins(verbose=True)
@@ -1775,7 +1775,7 @@ class TestLookupRpcProxy(TestLookup):
             except WaitFailed:
                 return False
 
-        wait(lambda: check())
+        wait(lambda: _check())
         assert profiler_factory().at_rpc_proxy(rpc_proxy).get(
             name="rpc_proxy/detailed_table_statistics/lookup_mount_cache_wait_time",
             tags={"table_path": "//tmp/t"},
