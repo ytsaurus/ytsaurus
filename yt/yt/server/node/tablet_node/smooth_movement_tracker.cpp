@@ -12,9 +12,12 @@
 #include <yt/yt/server/lib/hive/hive_manager.h>
 #include <yt/yt/server/lib/hive/persistent_mailbox_state_cookie.h>
 
+#include <yt/yt/server/lib/tablet_node/config.h>
+
 namespace NYT::NTabletNode {
 
 using namespace NClusterNode;
+using namespace NConcurrency;
 using namespace NHiveServer;
 using namespace NHydra;
 using namespace NObjectClient;
@@ -157,6 +160,10 @@ public:
         }
 
         std::optional<ESmoothMovementStage> newStage;
+
+        if (ApplyTestingDelayBeforeStageChange(tablet)) {
+            return;
+        }
 
         if (movementData.GetRole() == ESmoothMovementRole::Source) {
             switch (movementData.GetStage()) {
@@ -451,6 +458,7 @@ private:
 
         movementData.SetStage(newStage);
         movementData.SetStageChangeScheduled(false);
+        movementData.SetLastStageChangeTime(GetCurrentMutationContext()->GetTimestamp());
 
         auto role = movementData.GetRole();
 
@@ -681,6 +689,52 @@ private:
         if (reservedCount == 1) {
             tablet->ReleaseReservedDynamicStoreId(reason);
         }
+    }
+
+    bool ApplyTestingDelayBeforeStageChange(TTablet* tablet)
+    {
+        const auto& movementData = tablet->SmoothMovementData();
+
+        auto testingConfig = GetDynamicConfig()->Testing;
+        const auto& map = movementData.GetRole() == ESmoothMovementRole::Source
+            ? testingConfig->DelayAfterStageAtSource
+            : testingConfig->DelayAfterStageAtTarget;
+
+        auto it = map.find(movementData.GetStage());
+        if (it == map.end()) {
+            return false;
+        }
+
+        auto delay = it->second;
+        auto allowedTime = movementData.GetLastStageChangeTime() + delay;
+        auto now = TInstant::Now();
+
+        if (now >= allowedTime) {
+            return false;
+        }
+
+        YT_LOG_DEBUG("Smooth movement stage change delayed for testing purposes "
+            "(%v, Role: %v, Stage: %v, RemainingTime: %v)",
+            tablet->GetLoggingTag(),
+            movementData.GetRole(),
+            movementData.GetStage(),
+            allowedTime - now);
+
+        TDelayedExecutor::Submit(
+            BIND([this, this_ = MakeStrong(this), tabletId = tablet->GetId()] {
+                if (auto* tablet = Host_->FindTablet(tabletId)) {
+                    CheckTablet(tablet);
+                }
+            }),
+            allowedTime - now,
+            AutomatonInvoker_);
+
+        return true;
+    }
+
+    TSmoothMovementTrackerDynamicConfigPtr GetDynamicConfig() const
+    {
+        return Host_->GetDynamicConfig()->SmoothMovementTracker;
     }
 };
 

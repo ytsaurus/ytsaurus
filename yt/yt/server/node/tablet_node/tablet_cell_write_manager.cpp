@@ -749,9 +749,9 @@ private:
         ToProto(
             request.mutable_transaction_id(),
             ReplaceTypeInId(transaction->GetId(), EObjectType::ExternalizedAtomicTabletTransaction));
-
         request.set_mount_revision(
             ToProto(tablet->SmoothMovementData().GetSiblingMountRevision()));
+
         MutationForwarder_->MaybeForwardMutationToSiblingServant(
             tablet,
             request);
