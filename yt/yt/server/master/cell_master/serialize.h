@@ -207,6 +207,7 @@ DEFINE_ENUM(EMasterReign,
     ((ExecNodeCellAggregatedStateReliabilityPropagationFix)         (2817))  // cherepashka
     ((DropDynamicConfigExtraRefFlagForExportedObjects)              (2818))  // cherepashka
     ((DropLegacyZookeeperShard)                                     (2819))  // cherepashka
+    ((OpaqueSchemaAttribute)                                        (2820))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
