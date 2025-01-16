@@ -56,7 +56,7 @@ func (e *Encoder) CreateNode(
 	}
 
 	req := &rpc_proxy.TReqCreateNode{
-		Path:                 ptr.String(path.YPath().String()),
+		Path:                 []byte(path.YPath().String()),
 		Type:                 ptr.Int32(int32(objectType)),
 		Attributes:           attrs,
 		Recursive:            &opts.Recursive,
@@ -128,7 +128,7 @@ func (e *Encoder) NodeExists(
 	}
 
 	req := &rpc_proxy.TReqExistsNode{
-		Path:                              ptr.String(path.YPath().String()),
+		Path:                              []byte(path.YPath().String()),
 		TransactionalOptions:              convertTransactionOptions(opts.TransactionOptions),
 		PrerequisiteOptions:               nil, // todo
 		MasterReadOptions:                 convertMasterReadOptions(opts.MasterReadOptions),
@@ -157,7 +157,7 @@ func (e *Encoder) RemoveNode(
 	}
 
 	req := &rpc_proxy.TReqRemoveNode{
-		Path:                 ptr.String(path.YPath().String()),
+		Path:                 []byte(path.YPath().String()),
 		Recursive:            &opts.Recursive,
 		Force:                &opts.Force,
 		TransactionalOptions: convertTransactionOptions(opts.TransactionOptions),
@@ -187,7 +187,7 @@ func (e *Encoder) GetNode(
 	}
 
 	req := &rpc_proxy.TReqGetNode{
-		Path: ptr.String(path.YPath().String()),
+		Path: []byte(path.YPath().String()),
 		// COMPAT(max42): after 22.3 is everywhere, drop legacy field.
 		LegacyAttributes:                  convertLegacyAttributeKeys(opts.Attributes),
 		Attributes:                        convertAttributeFilter(opts.Attributes),
@@ -230,7 +230,7 @@ func (e *Encoder) SetNode(
 	}
 
 	req := &rpc_proxy.TReqSetNode{
-		Path:                              ptr.String(path.YPath().String()),
+		Path:                              []byte(path.YPath().String()),
 		Value:                             valueBytes,
 		Recursive:                         &opts.Recursive,
 		Force:                             &opts.Force,
@@ -275,7 +275,7 @@ func (e *Encoder) MultisetAttributes(
 	}
 
 	req := &rpc_proxy.TReqMultisetAttributesNode{
-		Path:                              ptr.String(path.YPath().String()),
+		Path:                              []byte(path.YPath().String()),
 		Subrequests:                       subrequests,
 		TransactionalOptions:              convertTransactionOptions(opts.TransactionOptions),
 		PrerequisiteOptions:               convertPrerequisiteOptions(opts.PrerequisiteOptions),
@@ -305,7 +305,7 @@ func (e *Encoder) ListNode(
 	}
 
 	req := &rpc_proxy.TReqListNode{
-		Path: ptr.String(path.YPath().String()),
+		Path: []byte(path.YPath().String()),
 		// COMPAT(max42): after 22.3 is everywhere, drop legacy field.
 		LegacyAttributes:                  convertLegacyAttributeKeys(opts.Attributes),
 		Attributes:                        convertAttributeFilter(opts.Attributes),
@@ -348,8 +348,8 @@ func (e *Encoder) CopyNode(
 		MethodCopyNode,
 		func(enableCrossCellCopying bool) Request {
 			req := &rpc_proxy.TReqCopyNode{
-				SrcPath:                   ptr.String(src.YPath().String()),
-				DstPath:                   ptr.String(dst.YPath().String()),
+				SrcPath:                   []byte(src.YPath().String()),
+				DstPath:                   []byte(dst.YPath().String()),
 				Recursive:                 &options.Recursive,
 				Force:                     &options.Force,
 				PreserveAccount:           options.PreserveAccount,
@@ -394,8 +394,8 @@ func (e *Encoder) MoveNode(
 		MethodMoveNode,
 		func(enableCrossCellCopying bool) Request {
 			req := &rpc_proxy.TReqMoveNode{
-				SrcPath:                   ptr.String(src.YPath().String()),
-				DstPath:                   ptr.String(dst.YPath().String()),
+				SrcPath:                   []byte(src.YPath().String()),
+				DstPath:                   []byte(dst.YPath().String()),
 				Recursive:                 &options.Recursive,
 				Force:                     &options.Force,
 				PreserveAccount:           options.PreserveAccount,
@@ -447,8 +447,8 @@ func (e *Encoder) LinkNode(
 	}
 
 	req := &rpc_proxy.TReqLinkNode{
-		SrcPath:              ptr.String(target.YPath().String()),
-		DstPath:              ptr.String(link.YPath().String()),
+		SrcPath:              []byte(target.YPath().String()),
+		DstPath:              []byte(link.YPath().String()),
 		Recursive:            &opts.Recursive,
 		Force:                &opts.Force,
 		IgnoreExisting:       &opts.IgnoreExisting,
@@ -588,7 +588,7 @@ func (e *Encoder) LookupRows(
 	}
 
 	req := &rpc_proxy.TReqLookupRows{
-		Path:                ptr.String(path.String()),
+		Path:                []byte(path.String()),
 		Timestamp:           convertTimestamp(opts.Timestamp),
 		Columns:             opts.Columns,
 		KeepMissingRows:     &opts.KeepMissingRows,
@@ -637,8 +637,8 @@ func (e *Encoder) PushQueueProducerBatch(
 
 	req := &rpc_proxy.TReqPushQueueProducer{
 		TransactionId:    getTxID(opts.TransactionOptions),
-		ProducerPath:     ptr.String(producerPath.String()),
-		QueuePath:        ptr.String(queuePath.String()),
+		ProducerPath:     []byte(producerPath.String()),
+		QueuePath:        []byte(queuePath.String()),
 		SessionId:        ptr.String(sessionID),
 		Epoch:            ptr.Int64(epoch),
 		SequenceNumber:   opts.SequenceNumber,
@@ -692,8 +692,8 @@ func (e *Encoder) CreateQueueProducerSession(
 	opts *yt.CreateQueueProducerSessionOptions,
 ) (result *yt.CreateQueueProducerSessionResult, err error) {
 	req := &rpc_proxy.TReqCreateQueueProducerSession{
-		ProducerPath: ptr.String(producerPath.String()),
-		QueuePath:    ptr.String(queuePath.String()),
+		ProducerPath: []byte(producerPath.String()),
+		QueuePath:    []byte(queuePath.String()),
 		SessionId:    ptr.String(sessionID),
 	}
 	if opts.UserMeta != nil {
@@ -729,8 +729,8 @@ func (e *Encoder) RemoveQueueProducerSession(
 ) (err error) {
 
 	req := &rpc_proxy.TReqRemoveQueueProducerSession{
-		ProducerPath: ptr.String(producerPath.String()),
-		QueuePath:    ptr.String(queuePath.String()),
+		ProducerPath: []byte(producerPath.String()),
+		QueuePath:    []byte(queuePath.String()),
 		SessionId:    ptr.String(sessionID),
 	}
 
@@ -763,7 +763,7 @@ func (e *Encoder) InsertRowBatch(
 	req := &rpc_proxy.TReqModifyRows{
 		SequenceNumber:       nil, // todo
 		TransactionId:        getTxID(opts.TransactionOptions),
-		Path:                 ptr.String(path.String()),
+		Path:                 []byte(path.String()),
 		RowModificationTypes: modificationTypes,
 		RowLegacyReadLocks:   nil, // todo
 		RowLegacyLocks:       nil, // todo
@@ -822,7 +822,7 @@ func (e *Encoder) DeleteRows(
 	req := &rpc_proxy.TReqModifyRows{
 		SequenceNumber:       nil, // todo
 		TransactionId:        getTxID(opts.TransactionOptions),
-		Path:                 ptr.String(path.String()),
+		Path:                 []byte(path.String()),
 		RowModificationTypes: modificationTypes,
 		RowLegacyReadLocks:   nil, // todo
 		RowLegacyLocks:       nil, // todo
@@ -851,7 +851,7 @@ func (e *Encoder) MountTable(
 	}
 
 	req := &rpc_proxy.TReqMountTable{
-		Path:               ptr.String(path.YPath().String()),
+		Path:               []byte(path.YPath().String()),
 		CellId:             convertGUIDPtr(opts.CellID),
 		Freeze:             &opts.Freeze,
 		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
@@ -880,7 +880,7 @@ func (e *Encoder) UnmountTable(
 	}
 
 	req := &rpc_proxy.TReqUnmountTable{
-		Path:               ptr.String(path.YPath().String()),
+		Path:               []byte(path.YPath().String()),
 		Force:              &opts.Force,
 		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
 		TabletRangeOptions: convertTabletRangeOptions(opts.TabletRangeOptions),
@@ -907,7 +907,7 @@ func (e *Encoder) RemountTable(
 	}
 
 	req := &rpc_proxy.TReqRemountTable{
-		Path:               ptr.String(path.YPath().String()),
+		Path:               []byte(path.YPath().String()),
 		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
 		TabletRangeOptions: convertTabletRangeOptions(opts.TabletRangeOptions),
 	}
@@ -938,7 +938,7 @@ func (e *Encoder) ReshardTable(
 	}
 
 	req := &rpc_proxy.TReqReshardTable{
-		Path:               ptr.String(path.YPath().String()),
+		Path:               []byte(path.YPath().String()),
 		TabletCount:        intPtrToInt32Ptr(opts.TabletCount),
 		Uniform:            nil, // todo
 		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
@@ -971,7 +971,7 @@ func (e *Encoder) AlterTable(
 	}
 
 	req := &rpc_proxy.TReqAlterTable{
-		Path:                 ptr.String(path.YPath().String()),
+		Path:                 []byte(path.YPath().String()),
 		Schema:               schemaBytes,
 		Dynamic:              opts.Dynamic,
 		UpstreamReplicaId:    convertGUIDPtr(opts.UpstreamReplicaID),
@@ -1001,7 +1001,7 @@ func (e *Encoder) FreezeTable(
 	}
 
 	req := &rpc_proxy.TReqFreezeTable{
-		Path:               ptr.String(path.YPath().String()),
+		Path:               []byte(path.YPath().String()),
 		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
 		TabletRangeOptions: convertTabletRangeOptions(opts.TabletRangeOptions),
 	}
@@ -1027,7 +1027,7 @@ func (e *Encoder) UnfreezeTable(
 	}
 
 	req := &rpc_proxy.TReqUnfreezeTable{
-		Path:               ptr.String(path.YPath().String()),
+		Path:               []byte(path.YPath().String()),
 		MutatingOptions:    convertMutatingOptions(opts.MutatingOptions),
 		TabletRangeOptions: convertTabletRangeOptions(opts.TabletRangeOptions),
 	}
@@ -1566,7 +1566,7 @@ func (e *Encoder) CheckPermission(
 
 	req := &rpc_proxy.TReqCheckPermission{
 		User:                 &user,
-		Path:                 ptr.String(path.YPath().String()),
+		Path:                 []byte(path.YPath().String()),
 		Permission:           rpcPermission,
 		TransactionalOptions: convertTransactionOptions(opts.TransactionOptions),
 		PrerequisiteOptions:  convertPrerequisiteOptions(opts.PrerequisiteOptions),
@@ -2135,7 +2135,7 @@ func (e *Encoder) LockNode(
 	}
 
 	req := &rpc_proxy.TReqLockNode{
-		Path:                 ptr.String(path.YPath().String()),
+		Path:                 []byte(path.YPath().String()),
 		Mode:                 ptr.Int32(int32(lockMode)),
 		Waitable:             &opts.Waitable,
 		ChildKey:             opts.ChildKey,
@@ -2171,7 +2171,7 @@ func (e *Encoder) UnlockNode(
 	}
 
 	req := &rpc_proxy.TReqUnlockNode{
-		Path:                 ptr.String(path.YPath().String()),
+		Path:                 []byte(path.YPath().String()),
 		TransactionalOptions: convertTransactionOptions(opts.TransactionOptions),
 		PrerequisiteOptions:  nil, // todo
 		MutatingOptions:      convertMutatingOptions(opts.MutatingOptions),
@@ -2230,7 +2230,7 @@ func (e *Encoder) GetInSyncReplicas(
 	}
 
 	req := &rpc_proxy.TReqGetInSyncReplicas{
-		Path:             ptr.String(path.YPath().String()),
+		Path:             []byte(path.YPath().String()),
 		Timestamp:        convertTimestamp(&ts),
 		RowsetDescriptor: descriptor,
 	}

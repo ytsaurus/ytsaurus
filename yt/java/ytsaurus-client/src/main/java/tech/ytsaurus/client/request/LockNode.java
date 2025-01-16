@@ -6,6 +6,7 @@ import java.util.Optional;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.request.LockMode;
@@ -62,7 +63,7 @@ public class LockNode extends MutatePath<LockNode.Builder, LockNode> implements 
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqLockNode.Builder, ?> builder) {
         builder.body()
-                .setPath(path.toString())
+                .setPath(ByteString.copyFromUtf8(path.toString()))
                 .setMode(mode.getProtoValue())
                 .setWaitable(waitable);
 

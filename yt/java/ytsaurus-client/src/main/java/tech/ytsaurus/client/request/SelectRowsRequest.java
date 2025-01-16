@@ -165,7 +165,7 @@ public class SelectRowsRequest
             builder.body().setAllowJoinWithoutIndex(getAllowJoinWithoutIndex().get());
         }
         if (getUdfRegistryPath().isPresent()) {
-            builder.body().setUdfRegistryPath(getUdfRegistryPath().get());
+            builder.body().setUdfRegistryPath(ByteString.copyFromUtf8(getUdfRegistryPath().get()));
         }
         if (getExecutionPool().isPresent()) {
             builder.body().setExecutionPool(getExecutionPool().get());

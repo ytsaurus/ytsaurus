@@ -170,7 +170,7 @@ func convertPrerequisiteOptions(opts *yt.PrerequisiteOptions) *rpc_proxy.TPrereq
 	revisions := make([]*rpc_proxy.TPrerequisiteOptions_TRevisionPrerequisite, 0, len(opts.Revisions))
 	for _, rev := range opts.Revisions {
 		revisions = append(revisions, &rpc_proxy.TPrerequisiteOptions_TRevisionPrerequisite{
-			Path:     ptr.String(rev.Path.String()),
+			Path:     []byte(rev.Path.String()),
 			Revision: ptr.Uint64(uint64(rev.Revision)),
 		})
 	}

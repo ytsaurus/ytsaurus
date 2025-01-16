@@ -1,5 +1,6 @@
 package tech.ytsaurus.client.request;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.rpcproxy.TMasterReadOptions;
@@ -27,7 +28,7 @@ public class ListNode extends GetLikeReq<ListNode.Builder, ListNode> implements 
      */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqListNode.Builder, ?> builder) {
-        builder.body().setPath(path.toString());
+        builder.body().setPath(ByteString.copyFromUtf8(path.toString()));
         if (attributes != null) {
             builder.body().setAttributes(TAttributeFilter.newBuilder().addAllKeys(attributes));
         }

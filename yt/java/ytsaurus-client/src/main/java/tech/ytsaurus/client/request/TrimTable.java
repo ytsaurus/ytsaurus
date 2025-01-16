@@ -5,6 +5,7 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.rpcproxy.TReqTrimTable;
 
@@ -35,7 +36,7 @@ public class TrimTable
      */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqTrimTable.Builder, ?> builder) {
-        builder.body().setPath(path);
+        builder.body().setPath(ByteString.copyFromUtf8(path));
         builder.body().setTabletIndex(tabletIndex);
         builder.body().setTrimmedRowCount(trimmedRowCount);
     }

@@ -60,7 +60,7 @@ public class ReadFile extends RequestBase<ReadFile.Builder, ReadFile> {
     }
 
     public TReqReadFile.Builder writeTo(TReqReadFile.Builder builder) {
-        builder.setPath(path);
+        builder.setPath(ByteString.copyFromUtf8(path));
         if (offset != null) {
             builder.setOffset(offset);
         }

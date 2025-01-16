@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.rpcproxy.TMutatingOptions;
@@ -57,10 +58,10 @@ public class ConcatenateNodes extends MutateNode<ConcatenateNodes.Builder, Conca
     public void writeTo(RpcClientRequestBuilder<TReqConcatenateNodes.Builder, ?> requestBuilder) {
         TReqConcatenateNodes.Builder builder = requestBuilder.body();
         for (YPath s : sourcePaths) {
-            builder.addSrcPaths(s.toString());
+            builder.addSrcPaths(ByteString.copyFromUtf8(s.toString()));
         }
 
-        builder.setDstPath(destinationPath.toString());
+        builder.setDstPath(ByteString.copyFromUtf8(destinationPath.toString()));
 
         if (transactionalOptions != null) {
             builder.setTransactionalOptions(transactionalOptions.writeTo(TTransactionalOptions.newBuilder()));

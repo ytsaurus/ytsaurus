@@ -56,7 +56,7 @@ public class SetNode extends MutatePath<SetNode.Builder, SetNode> implements Hig
      */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqSetNode.Builder, ?> builder) {
-        builder.body().setPath(path.toString())
+        builder.body().setPath(ByteString.copyFromUtf8(path.toString()))
                 .setForce(force)
                 .setValue(ByteString.copyFrom(value));
         if (transactionalOptions != null) {

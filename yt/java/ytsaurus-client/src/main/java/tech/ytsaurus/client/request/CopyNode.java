@@ -2,6 +2,7 @@ package tech.ytsaurus.client.request;
 
 import java.util.Objects;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.rpcproxy.TMutatingOptions;
@@ -34,8 +35,8 @@ public class CopyNode
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqCopyNode.Builder, ?> requestBuilder) {
         TReqCopyNode.Builder builder = requestBuilder.body();
-        builder.setSrcPath(source)
-                .setDstPath(destination)
+        builder.setSrcPath(ByteString.copyFromUtf8(source))
+                .setDstPath(ByteString.copyFromUtf8(destination))
                 .setRecursive(recursive)
                 .setForce(force)
                 .setPreserveAccount(preserveAccount)
@@ -105,8 +106,8 @@ public class CopyNode
         @Override
         public void writeTo(RpcClientRequestBuilder<TReqCopyNode.Builder, ?> requestBuilder) {
             TReqCopyNode.Builder builder = requestBuilder.body();
-            builder.setSrcPath(Objects.requireNonNull(source))
-                    .setDstPath(Objects.requireNonNull(destination))
+            builder.setSrcPath(ByteString.copyFromUtf8(Objects.requireNonNull(source)))
+                    .setDstPath(ByteString.copyFromUtf8(Objects.requireNonNull(destination)))
                     .setRecursive(recursive)
                     .setForce(force)
                     .setPreserveAccount(preserveAccount)

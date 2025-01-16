@@ -36,8 +36,8 @@ public class ListQueueConsumerRegistrationsResult {
         private final RegistrationPartitions partitions;
 
         public QueueConsumerRegistration(TRspListQueueConsumerRegistrations.TQueueConsumerRegistration protoValue) {
-            this.queuePath = YPath.simple(protoValue.getQueuePath());
-            this.consumerPath = YPath.simple(protoValue.getConsumerPath());
+            this.queuePath = YPath.simple(protoValue.getQueuePath().toStringUtf8());
+            this.consumerPath = YPath.simple(protoValue.getConsumerPath().toStringUtf8());
             this.vital = protoValue.getVital();
             this.partitions = protoValue.hasPartitions()
                     ? new RegistrationPartitions(protoValue.getPartitions().getItemsList())

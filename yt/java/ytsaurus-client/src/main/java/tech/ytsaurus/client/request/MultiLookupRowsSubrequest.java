@@ -5,6 +5,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.ApiServiceUtil;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
@@ -52,7 +53,7 @@ public class MultiLookupRowsSubrequest
 
                 builder.body().addSubrequests(
                         TReqMultiLookup.TSubrequest.newBuilder()
-                                .setPath(path)
+                                .setPath(ByteString.copyFromUtf8(path))
                                 .addAllColumns(lookupColumns)
                                 .setKeepMissingRows(keepMissingRows)
                                 .setRowsetDescriptor(rowset)

@@ -136,7 +136,7 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
     }
 
     public TReqWriteTable.Builder writeTo(TReqWriteTable.Builder builder) {
-        builder.setPath(getPath());
+        builder.setPath(ByteString.copyFromUtf8(getPath()));
         if (config != null) {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             YTreeBinarySerializer.serialize(config, baos);
@@ -315,7 +315,7 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         }
 
         public TReqWriteTable.Builder writeTo(TReqWriteTable.Builder builder) {
-            builder.setPath(getPath());
+            builder.setPath(ByteString.copyFromUtf8(getPath()));
             if (config != null) {
                 ByteArrayOutputStream baos = new ByteArrayOutputStream();
                 YTreeBinarySerializer.serialize(config, baos);

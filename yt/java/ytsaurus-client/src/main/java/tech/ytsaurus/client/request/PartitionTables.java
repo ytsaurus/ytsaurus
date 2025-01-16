@@ -8,6 +8,7 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.core.cypress.YPath;
@@ -74,7 +75,7 @@ public class PartitionTables
     public void writeTo(RpcClientRequestBuilder<TReqPartitionTables.Builder, ?> requestBuilder) {
         TReqPartitionTables.Builder builder = requestBuilder.body();
         for (YPath path : paths) {
-            builder.addPaths(path.toString());
+            builder.addPaths(ByteString.copyFromUtf8(path.toString()));
         }
         if (chunkSliceFetcherConfig != null) {
             builder.setChunkSliceFetcherConfig(chunkSliceFetcherConfig.writeTo(

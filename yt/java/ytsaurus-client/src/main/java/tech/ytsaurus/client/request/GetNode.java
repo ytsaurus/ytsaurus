@@ -1,5 +1,6 @@
 package tech.ytsaurus.client.request;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.rpcproxy.TMasterReadOptions;
 import tech.ytsaurus.rpcproxy.TPrerequisiteOptions;
@@ -22,7 +23,7 @@ public class GetNode extends GetLikeReq<GetNode.Builder, GetNode> implements Hig
      */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGetNode.Builder, ?> builder) {
-        builder.body().setPath(path.toString());
+        builder.body().setPath(ByteString.copyFromUtf8(path.toString()));
         if (attributes != null) {
             builder.body().setAttributes(TAttributeFilter.newBuilder().addAllKeys(attributes));
         }

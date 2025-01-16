@@ -2,6 +2,7 @@ package tech.ytsaurus.client.request;
 
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.rpcproxy.TMasterReadOptions;
@@ -69,8 +70,8 @@ public class PutFileToCache
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqPutFileToCache.Builder, ?> builder) {
         builder.body()
-                .setPath(filePath.toString())
-                .setCachePath(cachePath.toString())
+                .setPath(ByteString.copyFromUtf8(filePath.toString()))
+                .setCachePath(ByteString.copyFromUtf8(cachePath.toString()))
                 .setMd5(md5);
         if (masterReadOptions != null) {
             builder.body().setMasterReadOptions(masterReadOptions.writeTo(TMasterReadOptions.newBuilder()));

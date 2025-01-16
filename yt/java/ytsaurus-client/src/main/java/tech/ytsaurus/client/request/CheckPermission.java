@@ -8,6 +8,7 @@ import java.util.Set;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.rpcproxy.TMasterReadOptions;
 import tech.ytsaurus.rpcproxy.TPrerequisiteOptions;
@@ -54,7 +55,7 @@ public class CheckPermission
 
         builder
                 .setUser(user)
-                .setPath(path)
+                .setPath(ByteString.copyFromUtf8(path))
                 .setPermission(permissions)
                 .setColumns(TReqCheckPermission.TColumns.newBuilder().addAllItems(columns));
 
