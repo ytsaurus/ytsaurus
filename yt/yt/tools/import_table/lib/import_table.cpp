@@ -839,9 +839,11 @@ void ImportParquetFilesFromS3(
         .Bucket = bucket,
     });
 
+    YT_LOG_INFO("Receiving file name from S3 (Url: %Qv, Region: %Qv, Bucket: %Qv, Prefix: %Qv)", url, region, bucket, prefix);
+
     auto fileKeys = GetListFilesKeysFromS3(s3Config, accessKeyId, secretAccessKey, prefix);
 
-    YT_LOG_INFO("Successfully received %v file names from S3", fileKeys.size());
+    YT_LOG_INFO("Successfully received file names from S3 (Count: %v)", fileKeys.size());
 
     ImportParquetFilesFromSource(
         proxy,
@@ -860,7 +862,8 @@ void ImportParquetFilesFromHuggingface(
     const std::optional<TString>& urlOverride,
     TImportConfigPtr config)
 {
-    YT_LOG_INFO("Start getting list of files");
+    YT_LOG_INFO("Receiving file name from Huggingface (Dataset: %Qv, Subset: %Qv, Split: %Qv)", dataset, subset, split);
+
     auto huggingfaceToken = GetEnvOrNull("HUGGINGFACE_TOKEN");
 
     auto poller = CreateThreadPoolPoller(1, "HuggingfacePoller");
@@ -868,7 +871,7 @@ void ImportParquetFilesFromHuggingface(
 
     auto fileIds = huggingfaceClient.GetParquetFileUrls(dataset, subset, split);
 
-    YT_LOG_INFO("Successfully received %v file names from huggingface", fileIds.size());
+    YT_LOG_INFO("Successfully received file names from Huggingface (Count: %v)", fileIds.size());
 
     ImportParquetFilesFromSource(
         proxy,
