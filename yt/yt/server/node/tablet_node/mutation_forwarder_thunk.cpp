@@ -5,6 +5,13 @@ namespace NYT::NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 void TMutationForwarderThunk::MaybeForwardMutationToSiblingServant(
+    const TTablet* tablet,
+    const ::google::protobuf::Message& message)
+{
+    Underlying_->MaybeForwardMutationToSiblingServant(tablet, message);
+}
+
+void TMutationForwarderThunk::MaybeForwardMutationToSiblingServant(
     TTabletId tabletId,
     const ::google::protobuf::Message& message)
 {
