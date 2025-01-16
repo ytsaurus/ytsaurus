@@ -2134,7 +2134,7 @@ void TObjectManager::HydraCreateForeignObject(NProto::TReqCreateForeignObject* r
 
     auto attributes = request->has_object_attributes()
         ? FromProto(request->object_attributes())
-        : nullptr;
+        : CreateEphemeralAttributes();
 
     CreateObject(
         objectId,
