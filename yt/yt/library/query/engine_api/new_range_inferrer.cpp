@@ -1,5 +1,6 @@
 #include "new_range_inferrer.h"
 
+#include <yt/yt/library/query/base/helpers.h>
 #include <yt/yt/library/query/base/query_helpers.h>
 
 namespace NYT::NQueryClient {

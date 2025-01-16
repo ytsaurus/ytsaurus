@@ -22,6 +22,7 @@ SRCS(
     query_common.cpp
     query_helpers.cpp
     query_preparer.cpp
+    query_visitors.cpp
 )
 
 PEERDIR(

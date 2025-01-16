@@ -2,16 +2,6 @@
 #include "functions_cache.h"
 #include "query_service_proxy.h"
 
-#include <yt/yt/library/query/base/query.h>
-#include <yt/yt/library/query/base/query_helpers.h>
-#include <yt/yt/library/query/base/coordination_helpers.h>
-
-#include <yt/yt/library/query/engine_api/column_evaluator.h>
-#include <yt/yt/library/query/engine_api/coordinator.h>
-#include <yt/yt/library/query/engine_api/evaluator.h>
-
-#include <yt/yt/client/query_client/query_statistics.h>
-
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/tablet_helpers.h>
@@ -22,6 +12,17 @@
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
+
+#include <yt/yt/library/query/base/helpers.h>
+#include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/query_helpers.h>
+#include <yt/yt/library/query/base/coordination_helpers.h>
+
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+#include <yt/yt/library/query/engine_api/coordinator.h>
+#include <yt/yt/library/query/engine_api/evaluator.h>
+
+#include <yt/yt/client/query_client/query_statistics.h>
 
 #include <yt/yt/client/object_client/helpers.h>
 

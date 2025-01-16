@@ -2,12 +2,18 @@
 
 #include "public.h"
 
-#include <yt/yt/library/query/base/functions.h>
+#include <yt/yt/library/query/base/constraints.h>
 #include <yt/yt/library/query/base/query.h>
 
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+using TConstraintExtractor = std::function<TConstraintRef(
+    TConstraintsHolder* constraints,
+    const TConstFunctionExpressionPtr& expr,
+    const TKeyColumns& keyColumns,
+    const TRowBufferPtr& rowBuffer)>;
 
 struct TConstraintExtractorMap
     : public TRefCounted

@@ -107,19 +107,6 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TRangeExtractor = std::function<TKeyTriePtr(
-    const TConstFunctionExpressionPtr& expr,
-    const TKeyColumns& keyColumns,
-    const TRowBufferPtr& rowBuffer)>;
-
-using TConstraintExtractor = std::function<TConstraintRef(
-    TConstraintsHolder* constraints,
-    const TConstFunctionExpressionPtr& expr,
-    const TKeyColumns& keyColumns,
-    const TRowBufferPtr& rowBuffer)>;
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TTypeInferrerMap
     : public TRefCounted
     , public std::unordered_map<std::string, ITypeInferrerPtr>

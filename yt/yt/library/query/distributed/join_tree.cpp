@@ -1,6 +1,7 @@
 #include "join_tree.h"
 
 #include <yt/yt/library/query/base/query_helpers.h>
+#include <yt/yt/library/query/base/query_visitors.h>
 
 #include <yt/yt/client/table_client/comparator.h>
 

@@ -2,6 +2,7 @@
 
 #include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/query_preparer.h>
+#include <yt/yt/library/query/base/helpers.h>
 
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/range_inferrer.h>

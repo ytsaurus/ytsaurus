@@ -2,15 +2,16 @@
 
 #include "public.h"
 
-#include <yt/yt/library/query/base/functions.h>
 #include <yt/yt/library/query/base/key_trie.h>
-#include <yt/yt/library/query/base/query.h>
-
-#include <functional>
 
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+using TRangeExtractor = std::function<TKeyTriePtr(
+    const TConstFunctionExpressionPtr& expr,
+    const TKeyColumns& keyColumns,
+    const TRowBufferPtr& rowBuffer)>;
 
 struct TRangeExtractorMap
     : public TRefCounted

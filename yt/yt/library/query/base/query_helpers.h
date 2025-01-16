@@ -1,8 +1,7 @@
 #pragma once
 
 #include "public.h"
-#include "key_trie.h"
-#include "query.h"
+#include "ast.h"
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -79,37 +78,29 @@ TIter MergeOverlappingRanges(TIter begin, TIter end)
     return dest;
 }
 
-struct TSelfifyRewriter
-    : public TRewriter<TSelfifyRewriter>
-{
-    const std::vector<TSelfEquation>& SelfEquations;
-    const THashMap<std::string, int>& ForeignReferenceToIndexMap;
-    bool Success = true;
-
-    TConstExpressionPtr OnReference(const TReferenceExpression* reference);
-};
-
-struct TAddAliasRewriter
-    : public TRewriter<TAddAliasRewriter>
-{
-    const std::optional<TString>& Alias;
-
-    TConstExpressionPtr OnReference(const TReferenceExpression* reference);
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReferenceHarvester
-    : public TVisitor<TReferenceHarvester>
-{
-public:
-    explicit TReferenceHarvester(TColumnSet* storage);
+NAst::TExpressionPtr BuildAndExpression(
+    TObjectsHolder* holder,
+    NAst::TExpressionPtr lhs,
+    NAst::TExpressionPtr rhs);
 
-    void OnReference(const TReferenceExpression* referenceExpr);
+NAst::TExpressionPtr BuildOrExpression(
+    TObjectsHolder* holder,
+    NAst::TExpressionPtr lhs,
+    NAst::TExpressionPtr rhs);
 
-private:
-    TColumnSet* const Storage_;
-};
+NAst::TExpressionPtr BuildConcatenationExpression(
+    TObjectsHolder* holder,
+    NAst::TExpressionPtr lhs,
+    NAst::TExpressionPtr rhs,
+    const TString& separator);
+
+//! For commutative operations only.
+NAst::TExpressionPtr BuildBinaryOperationTree(
+    TObjectsHolder* holder,
+    std::vector<NAst::TExpressionPtr> leaves,
+    EBinaryOp opCode);
 
 ////////////////////////////////////////////////////////////////////////////////
 

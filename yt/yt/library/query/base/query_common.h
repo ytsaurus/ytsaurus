@@ -140,6 +140,19 @@ struct TDataSource
     TSharedRange<TRow> Keys;
 };
 
+void ToProto(
+    NProto::TDataSource* serialized,
+    const TDataSource& original,
+    TRange<NTableClient::TLogicalTypePtr> schema,
+    bool lookupSupported,
+    size_t keyWidth);
+void FromProto(
+    TDataSource* original,
+    const NProto::TDataSource& serialized,
+    const IMemoryChunkProviderPtr& memoryChunkProvider = GetDefaultMemoryChunkProvider());
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TQueryBaseOptions
 {
     TReadSessionId ReadSessionId;
@@ -182,6 +195,9 @@ struct TQueryOptions
     bool NewRangeInference = true;
 };
 
+void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original);
+void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TFeatureFlags
@@ -193,6 +209,9 @@ TFeatureFlags MostFreshFeatureFlags();
 TFeatureFlags MostArchaicFeatureFlags();
 
 TString ToString(const TFeatureFlags& featureFlags);
+
+void ToProto(NProto::TFeatureFlags* serialized, const TFeatureFlags& original);
+void FromProto(TFeatureFlags* original, const NProto::TFeatureFlags& serialized);
 
 ////////////////////////////////////////////////////////////////////////////////
 

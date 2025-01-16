@@ -11,7 +11,6 @@
 #include "table_collocation_type_handler.h"
 #include "table_node.h"
 
-#include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
@@ -46,6 +45,7 @@
 #include <yt/yt/library/query/secondary_index/schema.h>
 
 #include <yt/yt/library/query/base/query_preparer.h>
+#include <yt/yt/library/query/base/query_visitors.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 

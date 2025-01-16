@@ -4,6 +4,8 @@
 #include "ast_visitors.h"
 #endif
 
+#include "helpers.h"
+
 #include <yt/yt/core/misc/finally.h>
 
 namespace NYT::NQueryClient::NAst {

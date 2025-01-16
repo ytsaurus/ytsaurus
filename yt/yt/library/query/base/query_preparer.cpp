@@ -6,6 +6,7 @@
 #include "lexer.h"
 #include "private.h"
 #include "query_helpers.h"
+#include "query_visitors.h"
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 

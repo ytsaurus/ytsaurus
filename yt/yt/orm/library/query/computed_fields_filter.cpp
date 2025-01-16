@@ -1,8 +1,8 @@
 #include "computed_fields_filter.h"
 
 #include <yt/yt/library/query/base/ast_visitors.h>
-#include <yt/yt/library/query/base/helpers.h>
 #include <yt/yt/library/query/base/query_common.h>
+#include <yt/yt/library/query/base/query_helpers.h>
 
 namespace NYT::NOrm::NQuery {
 

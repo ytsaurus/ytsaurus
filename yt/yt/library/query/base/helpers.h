@@ -1,6 +1,8 @@
 #pragma once
 
-#include "ast.h"
+#include "public.h"
+
+#include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NQueryClient {
 
@@ -10,27 +12,29 @@ void CheckStackDepth();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NAst::TExpressionPtr BuildAndExpression(
-    TObjectsHolder* holder,
-    NAst::TExpressionPtr lhs,
-    NAst::TExpressionPtr rhs);
+NLogging::TLogger MakeQueryLogger(TGuid queryId);
+NLogging::TLogger MakeQueryLogger(TConstBaseQueryPtr query);
 
-NAst::TExpressionPtr BuildOrExpression(
-    TObjectsHolder* holder,
-    NAst::TExpressionPtr lhs,
-    NAst::TExpressionPtr rhs);
+////////////////////////////////////////////////////////////////////////////////
 
-NAst::TExpressionPtr BuildConcatenationExpression(
-    TObjectsHolder* holder,
-    NAst::TExpressionPtr lhs,
-    NAst::TExpressionPtr rhs,
-    const TString& separator);
+void ThrowTypeMismatchError(
+    EValueType lhsType,
+    EValueType rhsType,
+    TStringBuf source,
+    TStringBuf lhsSource,
+    TStringBuf rhsSource);
 
-//! For commutative operations only.
-NAst::TExpressionPtr BuildBinaryOperationTree(
-    TObjectsHolder* holder,
-    std::vector<NAst::TExpressionPtr> leaves,
-    EBinaryOp opCode);
+////////////////////////////////////////////////////////////////////////////////
+
+//! Computes key index for a given column name.
+int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const std::string& columnName);
+
+//! Derives type of reference expression based on table column type.
+//!
+//! For historical reasons reference expressions used to have `wire type` of column i.e.
+//! if column had `Int16` type its reference would have `Int64` type.
+//! `DeriveReferenceType` keeps this behaviour for V1 types, but for V3 types actual type is returned.
+NTableClient::TLogicalTypePtr ToQLType(const NTableClient::TLogicalTypePtr& columnType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,4 +1,6 @@
 #include "helpers.h"
+#include "private.h"
+#include "query.h"
 
 #include <yt/yt/client/tablet_client/public.h>
 
@@ -6,7 +8,8 @@
 
 namespace NYT::NQueryClient {
 
-using namespace NYT;
+using namespace NLogging;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,102 +32,53 @@ void CheckStackDepth()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NAst::TExpressionPtr BuildAndExpression(
-    TObjectsHolder* holder,
-    NAst::TExpressionPtr lhs,
-    NAst::TExpressionPtr rhs)
+TLogger MakeQueryLogger(TGuid queryId)
 {
-    if (lhs && !rhs) {
-        return lhs;
-    }
-    if (rhs && !lhs) {
-        return rhs;
-    }
-    if (!lhs && !rhs) {
-        return holder->New<NAst::TLiteralExpression>(TSourceLocation(), NAst::TLiteralValue(true));
-    }
-    return holder->New<NAst::TBinaryOpExpression>(
-        TSourceLocation(),
-        NQueryClient::EBinaryOp::And,
-        NAst::TExpressionList{std::move(lhs)},
-        NAst::TExpressionList{std::move(rhs)});
+    return QueryClientLogger().WithTag("FragmentId: %v", queryId);
 }
 
-NAst::TExpressionPtr BuildOrExpression(
-    TObjectsHolder* holder,
-    NAst::TExpressionPtr lhs,
-    NAst::TExpressionPtr rhs)
+TLogger MakeQueryLogger(TConstBaseQueryPtr query)
 {
-    if (lhs && !rhs) {
-        return lhs;
-    }
-    if (rhs && !lhs) {
-        return rhs;
-    }
-    if (!lhs && !rhs) {
-        return holder->New<NAst::TLiteralExpression>(TSourceLocation(), NAst::TLiteralValue(false));
-    }
-    return holder->New<NAst::TBinaryOpExpression>(
-        TSourceLocation(),
-        NQueryClient::EBinaryOp::Or,
-        NAst::TExpressionList{std::move(lhs)},
-        NAst::TExpressionList{std::move(rhs)});
+    return MakeQueryLogger(query->Id);
 }
 
-NAst::TExpressionPtr BuildConcatenationExpression(
-    TObjectsHolder* holder,
-    NAst::TExpressionPtr lhs,
-    NAst::TExpressionPtr rhs,
-    const TString& separator)
+////////////////////////////////////////////////////////////////////////////////
+
+void ThrowTypeMismatchError(
+    EValueType lhsType,
+    EValueType rhsType,
+    TStringBuf source,
+    TStringBuf lhsSource,
+    TStringBuf rhsSource)
 {
-    if (lhs && !rhs) {
-        return lhs;
-    }
-    if (rhs && !lhs) {
-        return rhs;
-    }
-    if (!lhs && !rhs) {
-        return holder->New<NAst::TLiteralExpression>(TSourceLocation(), NAst::TLiteralValue(""));
-    }
-
-    auto keySeparator = holder->New<NAst::TLiteralExpression>(TSourceLocation(), separator);
-    lhs = holder->New<NAst::TBinaryOpExpression>(
-        TSourceLocation(),
-        NQueryClient::EBinaryOp::Concatenate,
-        NAst::TExpressionList{std::move(lhs)},
-        NAst::TExpressionList{std::move(keySeparator)});
-
-    return holder->New<NAst::TBinaryOpExpression>(
-        TSourceLocation(),
-        NQueryClient::EBinaryOp::Concatenate,
-        NAst::TExpressionList{std::move(lhs)},
-        NAst::TExpressionList{std::move(rhs)});
+    THROW_ERROR_EXCEPTION("Type mismatch in expression %Qv", source)
+        << TErrorAttribute("lhs_source", lhsSource)
+        << TErrorAttribute("rhs_source", rhsSource)
+        << TErrorAttribute("lhs_type", lhsType)
+        << TErrorAttribute("rhs_type", rhsType);
 }
 
-NAst::TExpressionPtr BuildBinaryOperationTree(
-    TObjectsHolder* context,
-    std::vector<NAst::TExpressionPtr> leaves,
-    EBinaryOp opCode)
+////////////////////////////////////////////////////////////////////////////////
+
+//! Computes key index for a given column name.
+int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const std::string& columnName)
 {
-    if (leaves.empty()) {
-        return nullptr;
+    for (int index = 0; index < std::ssize(keyColumns); ++index) {
+        if (keyColumns[index] == columnName) {
+            return index;
+        }
     }
-    if (leaves.size() == 1) {
-        return leaves[0];
+    return -1;
+}
+
+TLogicalTypePtr ToQLType(const TLogicalTypePtr& columnType)
+{
+    if (IsV1Type(columnType)) {
+        const auto wireType = GetWireType(columnType);
+        return MakeLogicalType(GetLogicalType(wireType), /*required*/ false);
+    } else {
+        return columnType;
     }
-    std::deque<NAst::TExpressionPtr> expressionQueue(leaves.begin(), leaves.end());
-    while (expressionQueue.size() != 1) {
-        auto lhs = expressionQueue.front();
-        expressionQueue.pop_front();
-        auto rhs = expressionQueue.front();
-        expressionQueue.pop_front();
-        expressionQueue.emplace_back(context->New<NAst::TBinaryOpExpression>(
-            NQueryClient::NullSourceLocation,
-            opCode,
-            NAst::TExpressionList{std::move(lhs)},
-            NAst::TExpressionList{std::move(rhs)}));
-    }
-    return expressionQueue.front();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
