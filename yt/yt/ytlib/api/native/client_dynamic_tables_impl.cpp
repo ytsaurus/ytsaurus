@@ -56,7 +56,7 @@
 #include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
-#include <yt/yt/ytlib/table_client/timestamped_schema_helpers.h>
+#include <yt/yt/ytlib/table_client/schema.h>
 
 #include <yt/yt/ytlib/tablet_client/pivot_keys_picker.h>
 #include <yt/yt/ytlib/tablet_client/tablet_cell_bundle_ypath_proxy.h>
@@ -77,6 +77,7 @@
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/timestamped_schema_helpers.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/versioned_io_options.h>
@@ -834,6 +835,11 @@ TVersionedLookupRowsResult TClient::DoVersionedLookupRows(
             unresolveOptions);
     };
 
+    if (options.VersionedReadOptions.ReadMode != NTableClient::EVersionedIOMode::Default) {
+        THROW_ERROR_EXCEPTION("Versioned lookup does not support versioned read mode %Qlv",
+            options.VersionedReadOptions.ReadMode);
+    }
+
     std::optional<TString> retentionConfig;
     if (options.RetentionConfig) {
         retentionConfig = ConvertToYsonString(options.RetentionConfig).ToString();
@@ -942,7 +948,9 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
     tableInfo->ValidateDynamic();
     tableInfo->ValidateSorted();
 
-    const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+    auto schema = options.VersionedReadOptions.ReadMode == NTableClient::EVersionedIOMode::LatestTimestamp
+        ? ToLatestTimestampSchema(tableInfo->Schemas[ETableSchemaKind::Primary])
+        : tableInfo->Schemas[ETableSchemaKind::Primary];
 
     if (options.FallbackReplicaId && tableInfo->UpstreamReplicaId != options.FallbackReplicaId) {
         THROW_ERROR_EXCEPTION("Invalid upstream replica id for chosen sync replica %Qv: expected %v, got %v",
@@ -954,7 +962,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
     if (options.FallbackTableSchema && tableInfo->ReplicationCardId) {
         ValidateTableSchemaUpdateInternal(
             *options.FallbackTableSchema,
-            *tableInfo->Schemas[ETableSchemaKind::Primary],
+            *schema,
             GetSchemaUpdateEnabledFeatures(),
             true,
             false);
@@ -963,7 +971,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
     auto idMapping = BuildColumnIdMapping(*schema, nameTable);
 
     auto remappedColumnFilter = RemapColumnFilter(options.ColumnFilter, idMapping, nameTable);
-    auto resultSchema = tableInfo->Schemas[ETableSchemaKind::Primary]->Filter(remappedColumnFilter, true);
+    auto resultSchema = schema->Filter(remappedColumnFilter, true);
     auto resultSchemaData = IWireProtocolReader::GetSchemaData(*schema, remappedColumnFilter);
 
     timer.Restart();
@@ -1296,6 +1304,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
         if (options.UseLookupCache) {
             req->set_use_lookup_cache(*options.UseLookupCache);
         }
+        ToProto(req->mutable_versioned_read_options(), options.VersionedReadOptions);
 
         if (inMemoryMode == EInMemoryMode::None) {
             if (auto timeout = connectionConfig->LookupRowsExtMemoryLoggingSuppressionTimeout) {

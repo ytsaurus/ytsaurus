@@ -1,8 +1,8 @@
 #pragma once
 
-#include "timestamped_schema_helpers.h"
 #include "nested_row_merger.h"
 
+#include <yt/yt/client/table_client/timestamped_schema_helpers.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 

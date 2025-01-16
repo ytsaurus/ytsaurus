@@ -1,7 +1,7 @@
 #include "timestamped_schema_helpers.h"
 
-#include <yt/yt/client/table_client/row_base.h>
-#include <yt/yt/client/table_client/schema.h>
+#include "row_base.h"
+#include "schema.h"
 
 namespace NYT::NTableClient {
 
@@ -27,10 +27,10 @@ TTableSchemaPtr ToLatestTimestampSchema(const TTableSchemaPtr& schema)
         schema->DeletedColumns());
 }
 
-TColumnFilter CreateLatestTimestampColumnFilter(
+TColumnFilter ToLatestTimestampColumnFilter(
     const TColumnFilter& columnFilter,
-    const TTableSchemaPtr& originalSchema,
-    const TTimestampReadOptions& timestampReadOptions)
+    const TTimestampReadOptions& timestampReadOptions,
+    int columnCount)
 {
     YT_ASSERT(!timestampReadOptions.TimestampColumnMapping.empty());
 
@@ -46,7 +46,7 @@ TColumnFilter CreateLatestTimestampColumnFilter(
     };
 
     if (columnFilter.IsUniversal()) {
-        for (int columnIndex = 0; columnIndex < originalSchema->GetColumnCount(); ++columnIndex) {
+        for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
             addIndex(columnIndex);
         }
     } else {

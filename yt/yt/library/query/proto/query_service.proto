@@ -3,6 +3,7 @@ import "yt/library/query/proto/query.proto";
 import "yt/library/query/proto/functions_cache.proto";
 import "yt_proto/yt/client/misc/proto/workload.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
+import "yt_proto/yt/client/table_client/proto/versioned_io_options.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/wire_protocol.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/client/query_client/proto/query_statistics.proto";
@@ -74,6 +75,7 @@ message TReqMultiread
     repeated int64 mount_revisions = 6;
     optional bool enable_partial_result = 7 [default=false];
     optional bool use_lookup_cache = 8 [default=false];
+    optional NYT.NTableClient.NProto.TVersionedReadOptions versioned_read_options = 11;
 
     // Attachment contains wire-encoded data.
 }

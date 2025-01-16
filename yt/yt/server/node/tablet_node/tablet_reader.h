@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
+#include <yt/yt/client/table_client/timestamped_schema_helpers.h>
+
 #include <yt/yt/core/actions/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -133,7 +135,7 @@ NTableClient::IVersionedReaderPtr CreateCompactionTabletReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<NTableClient::TSchemafulRowMerger> CreateLatestTimestampRowMerger(
+std::unique_ptr<NTableClient::TSchemafulRowMerger> CreateQueryLatestTimestampRowMerger(
     NTableClient::TRowBufferPtr rowBuffer,
     const TTabletSnapshotPtr& tabletSnapshot,
     const TColumnFilter& columnFilter,

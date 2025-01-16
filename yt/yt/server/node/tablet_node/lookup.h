@@ -5,6 +5,8 @@
 #include <yt/yt/ytlib/tablet_client/public.h>
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
+#include <yt/yt/client/table_client/timestamped_schema_helpers.h>
+
 #include <yt/yt/core/actions/public.h>
 
 #include <library/cpp/yt/logging/logger.h>
@@ -42,6 +44,7 @@ ILookupSessionPtr CreateLookupSession(
     NChunkClient::TClientChunkReadOptions chunkReadOptions,
     NTableClient::TRetentionConfigPtr retentionConfig,
     bool enablePartialResult,
+    NTableClient::TVersionedReadOptions versionedReadOptions,
     const ITabletSnapshotStorePtr& snapshotStore,
     const std::optional<std::string>& profilingUser,
     IInvokerPtr invoker);

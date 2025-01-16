@@ -24,10 +24,10 @@ struct TTimestampReadOptions
 
 TTableSchemaPtr ToLatestTimestampSchema(const TTableSchemaPtr& schema);
 
-TColumnFilter CreateLatestTimestampColumnFilter(
+TColumnFilter ToLatestTimestampColumnFilter(
     const TColumnFilter& columnFilter,
-    const TTableSchemaPtr& originalSchema,
-    const TTimestampReadOptions& timestampReadOptions);
+    const TTimestampReadOptions& timestampReadOptions,
+    int columnCount);
 
 ////////////////////////////////////////////////////////////////////////////////
 

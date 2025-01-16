@@ -47,7 +47,6 @@
 #include <yt/yt/ytlib/table_client/key_filter.h>
 #include <yt/yt/ytlib/table_client/row_merger.h>
 #include <yt/yt/ytlib/table_client/schemaful_chunk_reader.h>
-#include <yt/yt/ytlib/table_client/timestamped_schema_helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/public.h>
 
@@ -58,6 +57,7 @@
 #include <yt/yt/client/query_client/query_statistics.h>
 
 #include <yt/yt/client/table_client/pipe.h>
+#include <yt/yt/client/table_client/timestamped_schema_helpers.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/unordered_schemaful_reader.h>
@@ -730,7 +730,6 @@ private:
         std::vector<std::vector<TabletReadItems>> groupedDataSplits,
         const TRowBufferPtr& rowBuffer,
         size_t minKeyWidth)
-
     {
         auto clientOptions = NApi::TClientOptions::FromAuthenticationIdentity(Identity_);
         auto client = Bootstrap_
