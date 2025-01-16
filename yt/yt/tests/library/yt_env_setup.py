@@ -1413,7 +1413,12 @@ class YTEnvSetup(object):
                 self.get_param("USE_SEQUOIA", cluster_index) and \
                 not self._is_ground_cluster(cluster_index) and \
                 self.get_param("NUM_CYPRESS_PROXIES", cluster_index) > 0 and \
-                any("sequoia_node_host" in roles for roles in self.MASTER_CELL_DESCRIPTORS.values()):
+                any("sequoia_node_host" in cell_descriptor["roles"]
+                    for cell_descriptor in self.get_param(
+                        "MASTER_CELL_DESCRIPTORS",
+                        cluster_index
+                    ).values()):
+            yt_commands.print_debug("Waiting for cell with \"sequoia_node_host\" role")
             wait(lambda: yt_commands.create(
                 "rootstock",
                 "//check_cell_role",
