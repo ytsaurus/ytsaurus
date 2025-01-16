@@ -172,15 +172,19 @@ public:
         const TReadTimestampRange& timestampRange,
         ICodec* const codec,
         TRowBufferPtr rowBuffer,
-        IMemoryUsageTrackerPtr memoryUsageTracker)
+        IMemoryUsageTrackerPtr memoryUsageTracker,
+        TTimestampColumnMapping timestampColumnMapping)
         : TCompressingAdapterBase(codec, std::move(memoryUsageTracker))
         , Merger_(std::make_unique<TSchemafulRowMerger>(
             std::move(rowBuffer),
-            tabletSnapshot->PhysicalSchema->GetColumnCount(),
+            tabletSnapshot->PhysicalSchema->GetColumnCount() + (!timestampColumnMapping.empty()
+                ? tabletSnapshot->PhysicalSchema->GetValueColumnCount()
+                : 0),
             tabletSnapshot->PhysicalSchema->GetKeyColumnCount(),
             columnFilter,
             tabletSnapshot->ColumnEvaluator,
-            timestampRange.RetentionTimestamp))
+            timestampRange.RetentionTimestamp,
+            timestampColumnMapping))
     { }
 
     TUnversionedAdapter(TUnversionedAdapter&& other) = default;
@@ -1028,6 +1032,7 @@ public:
         NChunkClient::TClientChunkReadOptions chunkReadOptions,
         TRetentionConfigPtr retentionConfig,
         bool enablePartialResult,
+        TVersionedReadOptions versionedReadOptions,
         const ITabletSnapshotStorePtr& snapshotStore,
         const std::optional<std::string>& profilingUser,
         IInvokerPtr invoker);
@@ -1056,6 +1061,7 @@ private:
     const std::optional<bool> UseLookupCache_;
     const TRetentionConfigPtr RetentionConfig_;
     const bool EnablePartialResult_;
+    const TVersionedReadOptions VersionedReadOptions_;
     const ITabletSnapshotStorePtr& SnapshotStore_;
     const std::optional<std::string> ProfilingUser_;
     const IInvokerPtr Invoker_;
@@ -1213,6 +1219,7 @@ TLookupSession::TLookupSession(
     NChunkClient::TClientChunkReadOptions chunkReadOptions,
     TRetentionConfigPtr retentionConfig,
     bool enablePartialResult,
+    TVersionedReadOptions versionedReadOptions,
     const ITabletSnapshotStorePtr& snapshotStore,
     const std::optional<std::string>& profilingUser,
     IInvokerPtr invoker)
@@ -1224,6 +1231,7 @@ TLookupSession::TLookupSession(
     , UseLookupCache_(useLookupCache)
     , RetentionConfig_(std::move(retentionConfig))
     , EnablePartialResult_(enablePartialResult)
+    , VersionedReadOptions_(std::move(versionedReadOptions))
     , SnapshotStore_(snapshotStore)
     , ProfilingUser_(profilingUser)
     , Invoker_(std::move(invoker))
@@ -1632,11 +1640,17 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
                 command);
     }
 
+    const auto& physicalSchema = tabletSnapshot->PhysicalSchema;
+
+    bool isTimestampedLookup = lookupSession->VersionedReadOptions_.ReadMode == EVersionedIOMode::LatestTimestamp;
+
     auto columnFilter = DecodeColumnFilter(
         std::move(columnFilterProto),
-        tabletSnapshot->PhysicalSchema->GetColumnCount());
+        physicalSchema->GetColumnCount() + (isTimestampedLookup
+            ? physicalSchema->GetValueColumnCount()
+            : 0));
     auto lookupKeys = reader->ReadSchemafulRowset(
-        IWireProtocolReader::GetSchemaData(*tabletSnapshot->PhysicalSchema->ToKeys()),
+        IWireProtocolReader::GetSchemaData(*physicalSchema->ToKeys()),
         /*captureValues*/ false);
     lookupKeys = MakeSharedRange(lookupKeys, lookupKeys, RequestData);
 
@@ -1654,6 +1668,40 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
                 THROW_ERROR_EXCEPTION("Lookup command message is malformed");
             }
 
+            TColumnFilter::TIndexes indexes;
+            TTimestampReadOptions timestampReadOptions;
+            if (isTimestampedLookup) {
+                if (columnFilter.IsUniversal()) {
+                    for (int columnIndex = physicalSchema->GetKeyColumnCount(); columnIndex < physicalSchema->GetColumnCount(); ++columnIndex) {
+                        timestampReadOptions.TimestampColumnMapping.push_back({
+                            .ColumnIndex = columnIndex,
+                            .TimestampColumnIndex = columnIndex + physicalSchema->GetValueColumnCount(),
+                        });
+                    }
+                } else {
+                    for (int columnIndex : columnFilter.GetIndexes()) {
+                        if (columnIndex >= physicalSchema->GetColumnCount()) {
+                            int originalColumnIndex = columnIndex - physicalSchema->GetValueColumnCount();
+
+                            timestampReadOptions.TimestampColumnMapping.push_back({
+                                .ColumnIndex = originalColumnIndex,
+                                .TimestampColumnIndex = columnIndex,
+                            });
+
+                            // TODO(dave11ar): Optimize?
+                            if (!columnFilter.ContainsIndex(originalColumnIndex)) {
+                                timestampReadOptions.TimestampOnlyColumns.push_back(originalColumnIndex);
+                                indexes.push_back(originalColumnIndex);
+                            }
+                        } else {
+                            indexes.push_back(columnIndex);
+                        }
+                    }
+                }
+
+                isTimestampedLookup &= !timestampReadOptions.TimestampColumnMapping.empty();
+            }
+
             return DoRunTabletLookupSession<TUnversionedAdapter>(
                 TUnversionedAdapter(
                     tabletSnapshot,
@@ -1661,11 +1709,14 @@ TFuture<TSharedRef> TTabletLookupRequest::RunTabletLookupSession(
                     lookupSession->TimestampRange_,
                     lookupSession->ResponseCodec_,
                     rowBuffer,
-                    lookupSession->ChunkReadOptions_.MemoryUsageTracker),
+                    lookupSession->ChunkReadOptions_.MemoryUsageTracker,
+                    timestampReadOptions.TimestampColumnMapping),
                 useLookupCache,
                 std::move(tabletSnapshot),
                 /*produceAllVersions*/ false,
-                std::move(columnFilter),
+                columnFilter.IsUniversal() || !isTimestampedLookup
+                    ? std::move(columnFilter)
+                    : TColumnFilter(std::move(indexes)),
                 std::move(lookupKeys),
                 lookupSession,
                 rowBuffer);
@@ -2249,6 +2300,7 @@ ILookupSessionPtr CreateLookupSession(
     NChunkClient::TClientChunkReadOptions chunkReadOptions,
     TRetentionConfigPtr retentionConfig,
     bool enablePartialResult,
+    TVersionedReadOptions versionedReadOptions,
     const ITabletSnapshotStorePtr& snapshotStore,
     const std::optional<std::string>& profilingUser,
     IInvokerPtr invoker)
@@ -2264,6 +2316,7 @@ ILookupSessionPtr CreateLookupSession(
         std::move(chunkReadOptions),
         std::move(retentionConfig),
         enablePartialResult,
+        std::move(versionedReadOptions),
         snapshotStore,
         profilingUser,
         std::move(invoker));
@@ -2284,7 +2337,7 @@ public:
         TRowBufferPtr rowBuffer)
         : Writer_(pipe->GetWriter())
         , Pipe_(std::move(pipe))
-        , Merger_(CreateLatestTimestampRowMerger(
+        , Merger_(CreateQueryLatestTimestampRowMerger(
             std::move(rowBuffer),
             tabletSnapshot,
             columnFilter,

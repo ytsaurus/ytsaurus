@@ -11,6 +11,7 @@
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
+#include <yt/yt/client/table_client/versioned_io_options.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
@@ -185,6 +186,7 @@ inline std::vector<TUnversionedOwningRow> LookupRowsImpl(
             chunkReadOptions,
             /*retentionConfig*/ nullptr,
             /*enablePartialResult*/ false,
+            NTableClient::TVersionedReadOptions(),
             /*snapshotStore*/ snapshotStore,
             /*profilingUser*/ std::nullopt,
             GetCurrentInvoker());
@@ -252,6 +254,7 @@ inline TVersionedOwningRow VersionedLookupRowImpl(
             chunkReadOptions,
             retentionConfig,
             /*enablePartialResult*/ false,
+            NTableClient::TVersionedReadOptions(),
             /*snapshotStore*/ snapshotStore,
             /*profilingUser*/ std::nullopt,
             GetCurrentInvoker());

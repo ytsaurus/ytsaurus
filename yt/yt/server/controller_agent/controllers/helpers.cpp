@@ -19,11 +19,11 @@
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
-#include <yt/yt/ytlib/table_client/timestamped_schema_helpers.h>
 
 #include <yt/yt/client/formats/config.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/timestamped_schema_helpers.h>
 
 #include <util/string/split.h>
 

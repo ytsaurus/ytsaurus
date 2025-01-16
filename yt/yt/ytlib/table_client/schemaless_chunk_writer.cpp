@@ -7,7 +7,6 @@
 #include "schemaless_block_writer.h"
 #include "skynet_column_evaluator.h"
 #include "table_ypath_proxy.h"
-#include "timestamped_schema_helpers.h"
 #include "versioned_chunk_writer.h"
 
 #include <yt/yt/ytlib/table_chunk_format/column_writer.h>
@@ -48,6 +47,7 @@
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/table_upload_options.h>
+#include <yt/yt/client/table_client/timestamped_schema_helpers.h>
 
 #include <yt/yt/client/api/distributed_table_session.h>
 #include <yt/yt/client/api/transaction.h>

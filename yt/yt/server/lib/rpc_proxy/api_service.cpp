@@ -3536,6 +3536,9 @@ private:
         if (request->has_use_lookup_cache()) {
             options->UseLookupCache = request->use_lookup_cache();
         }
+        if constexpr (requires {request->has_versioned_read_options();}) {
+            FromProto(&options->VersionedReadOptions, request->versioned_read_options());
+        }
     }
 
     void ProcessLookupRowsDetailedProfilingInfo(

@@ -321,8 +321,8 @@ public:
         TDynamicTablesTestBase::SetUpTestCase();
 
         CreateTable(
-            "//tmp/multi_lookup_test", // tablePath
-            "[" // schema
+            /*tablePath*/ "//tmp/multi_lookup_test",
+            /*schema*/ "["
             "{name=k0;type=int64;sort_order=ascending};"
             "{name=v1;type=int64};]");
     }
@@ -340,7 +340,7 @@ TEST_F(TMultiLookupTest, MultiLookup)
         "<id=0> 0; <id=1> 0;");
     WriteUnversionedRow(
         {"k0", "v1"},
-        "<id=0> 1; <id=1> 1");
+        "<id=0> 1; <id=1> 1;");
 
     auto key0 = PrepareUnversionedRow(
         {"k0", "v1"},
@@ -349,37 +349,67 @@ TEST_F(TMultiLookupTest, MultiLookup)
         {"k0", "v1"},
         "<id=0; ts=2> 1;");
 
-    std::vector<TMultiLookupSubrequest> subrequests;
-    subrequests.push_back({
-        Table_,
-        std::get<1>(key0),
-        std::get<0>(key0),
-        TLookupRowsOptions()});
-    subrequests.push_back({
-        Table_,
-        std::get<1>(key1),
-        std::get<0>(key1),
-        TLookupRowsOptions()});
+    auto test = [&key0, &key1] (
+        const TLookupRowsOptions& lookupOptions,
+        const TString& yson0,
+        const TString& yson1)
+    {
+        auto results = WaitFor(Client_->MultiLookupRows(
+            {
+                {
+                    .Path = Table_,
+                    .NameTable = std::get<1>(key0),
+                    .Keys = std::get<0>(key0),
+                    .Options = lookupOptions,
+                },
+                {
+                    .Path = Table_,
+                    .NameTable = std::get<1>(key1),
+                    .Keys = std::get<0>(key1),
+                    .Options = lookupOptions,
+                },
+            },
+            TMultiLookupOptions()))
+            .ValueOrThrow();
 
-    auto results = WaitFor(Client_->MultiLookupRows(
-        subrequests,
-        TMultiLookupOptions()))
-        .ValueOrThrow();
+        ASSERT_EQ(2u, results.size());
+        const auto& rowset0 = results[0].Rowset;
+        const auto& rowset1 = results[1].Rowset;
 
-    ASSERT_EQ(2u, results.size());
-    const auto& rowset0 = results[0].Rowset;
-    const auto& rowset1 = results[1].Rowset;
+        ASSERT_EQ(1u, rowset0->GetRows().Size());
+        ASSERT_EQ(1u, rowset1->GetRows().Size());
 
-    ASSERT_EQ(1u, rowset0->GetRows().Size());
-    ASSERT_EQ(1u, rowset1->GetRows().Size());
+        auto expected = ToString(YsonToSchemalessRow(yson0));
+        auto actual = ToString(rowset0->GetRows()[0]);
+        EXPECT_EQ(expected, actual);
 
-    auto expected = ToString(YsonToSchemalessRow("<id=0> 0; <id=1> 0;"));
-    auto actual = ToString(rowset0->GetRows()[0]);
-    EXPECT_EQ(expected, actual);
+        expected = ToString(YsonToSchemalessRow(yson1));
+        actual = ToString(rowset1->GetRows()[0]);
+        EXPECT_EQ(expected, actual);
+    };
 
-    expected = ToString(YsonToSchemalessRow("<id=0> 1; <id=1> 1;"));
-    actual = ToString(rowset1->GetRows()[0]);
-    EXPECT_EQ(expected, actual);
+    TString yson0 = "<id=0> 0; <id=1> 0;";
+    TString yson1 = "<id=0> 1; <id=1> 1;";
+
+    TVersionedReadOptions versionedReadOptions;
+    versionedReadOptions.ReadMode = NTableClient::EVersionedIOMode::LatestTimestamp;
+
+    TLookupRowsOptions versionedLookupOptions;
+    versionedLookupOptions.VersionedReadOptions = versionedReadOptions;
+
+    auto getTimestamp = [&versionedReadOptions] (int k0) {
+        return WaitFor(Client_->SelectRows(
+            Format("[$timestamp:v1] from [%v] where k0 = %v", Table_, k0),
+            {TSelectRowsOptionsBase{.VersionedReadOptions = versionedReadOptions}}))
+            .ValueOrThrow().Rowset->GetRows()[0][0].Data.Uint64;
+    };
+
+    auto getYsonWithTimestamp = [&] (const TString& yson, int k0) {
+        return Format("%v<id=2> %vu;", yson, getTimestamp(k0));
+    };
+
+    test(TLookupRowsOptions(), yson0, yson1);
+    test(versionedLookupOptions, getYsonWithTimestamp(yson0, 0), getYsonWithTimestamp(yson1, 1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

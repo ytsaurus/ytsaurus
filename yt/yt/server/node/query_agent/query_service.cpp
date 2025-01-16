@@ -66,6 +66,7 @@
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/timestamped_schema_helpers.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
@@ -518,6 +519,9 @@ private:
             std::move(chunkReadOptions),
             std::move(retentionConfig),
             request->enable_partial_result(),
+            request->has_versioned_read_options()
+                ? FromProto<TVersionedReadOptions>(request->versioned_read_options())
+                : TVersionedReadOptions(),
             Bootstrap_->GetTabletSnapshotStore(),
             GetProfilingUser(NRpc::GetCurrentAuthenticationIdentity()),
             Bootstrap_->GetTabletLookupPoolInvoker());
