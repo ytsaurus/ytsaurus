@@ -59,29 +59,35 @@ using namespace NTableClient;
   SS-   *  - wait until no tablet store update       *
   SS-   *    is prepared                             *
   SS-   *                                            *
-  S--  (*) WaitingForLocks                           *
+  S--  (*) WaitingForLocksBeforeActivation           *
   S--   *  * write to tablet is forbidden            *
   S--   *                                            *
   S--   *  - wait until all persistent and           *
   S--   *  - transient transactions finish           *
   S--   *                                            *
-  S-S  (*) TargetActivated                           *
-  S-S   *  * tablet stores update is allowed         *
-  S-S   *                                            *
-  S-S   *        TReqReplicateTabletContent          *
-  S-S   * ----------------------------------------> (*) TargetActivated
-  S-S   *                                            *  * tablet stores update is forbidden
-  S-S   *                                            *  * reads and writes are forbidden
-  S-S   *                                            *  * tablet stores update is forbidden
-  S-S   *                                            *
-  S-S   *                                            *  - wait until common dynamic stores are flushed
-  S-S   *                                            *
-  S-S   *       TReqChangeSmoothMovementStage       (*) ServantSwitchRequested
-  S--  (*) ServantSwitchRequested <----------------- *
-  S--   *  * tablet stores update is forbidden       *
+  SSS  (*) TargetActivated                           *
+  SSS   *  * tablet stores update is allowed         *
+  SSS   *                                            *
+  SSS   *        TReqReplicateTabletContent          *
+  SSS   * ----------------------------------------> (*) TargetActivated
+  SSS   *                                            *  * tablet stores update is forbidden
+  SSS   *                                            *  * reads and writes are forbidden
+  SSS   *                                            *  * tablet stores update is forbidden
+  SSS   *                                            *
+  SSS   *                                            *  - wait until common dynamic stores are flushed
+  SSS   *                                            *
+  SSS   *       TReqChangeSmoothMovementStage       (*) ServantSwitchRequested
+  SS-  (*) ServantSwitchRequested <----------------- *
+  SS-   *  * tablet stores update is forbidden       *
+  SS-   *                                            *
+  SS-   *  - wait until no tablet store update       *
+  SS-   *    is prepared                             *
+  SS-   *                                            *
+  S--  (*) WaitingForLocksBeforeSwitch               *
+  S--   *  * write to tablet is forbidden            *
   S--   *                                            *
-  S--   *  - wait until no tablet store update       *
-  S--   *    is prepared                             *
+  S--   *  - wait until all persistent and           *
+  S--   *  - transient transactions finish           *
   S--   *                                            *
   ---  (*) ServantSwitched                           *
   ---   *  * read is forbidden, source is effectively*
@@ -159,11 +165,11 @@ public:
                         return;
                     }
 
-                    newStage = ESmoothMovementStage::WaitingForLocks;
+                    newStage = ESmoothMovementStage::WaitingForLocksBeforeActivation;
                     break;
                 }
 
-                case ESmoothMovementStage::WaitingForLocks: {
+                case ESmoothMovementStage::WaitingForLocksBeforeActivation: {
                     if (tablet->GetTotalTabletLockCount() > 0) {
                         return;
                     }
@@ -174,6 +180,15 @@ public:
 
                 case ESmoothMovementStage::ServantSwitchRequested: {
                     if (tablet->GetStoresUpdatePreparedTransactionId()) {
+                        return;
+                    }
+
+                    newStage = ESmoothMovementStage::WaitingForLocksBeforeSwitch;
+                    break;
+                }
+
+                case ESmoothMovementStage::WaitingForLocksBeforeSwitch: {
+                    if (tablet->GetTotalTabletLockCount() > 0) {
                         return;
                     }
 
@@ -468,12 +483,12 @@ private:
         auto& movementData = tablet->SmoothMovementData();
 
         switch (newStage) {
-            case ESmoothMovementStage::WaitingForLocks:
+            case ESmoothMovementStage::WaitingForLocksBeforeActivation:
                 YT_VERIFY(expectedStage == ESmoothMovementStage::TargetAllocated);
                 break;
 
             case ESmoothMovementStage::TargetActivated: {
-                YT_VERIFY(expectedStage == ESmoothMovementStage::WaitingForLocks);
+                YT_VERIFY(expectedStage == ESmoothMovementStage::WaitingForLocksBeforeActivation);
                 YT_VERIFY(tablet->GetTotalTabletLockCount() == 0);
                 const auto& tabletWriteManager = tablet->GetTabletWriteManager();
                 YT_VERIFY(!tabletWriteManager->HasUnfinishedPersistentTransactions());
@@ -482,12 +497,11 @@ private:
                 ReleaseReservedDynamicStore(tablet);
 
                 // TODO(ifsmirnov): YT-17388 - frozen tablets.
-                if (auto activeStore = tablet->GetActiveStore();
-                    activeStore && activeStore->GetRowCount() > 0)
-                {
+                if (tablet->GetActiveStore()) {
                     tablet->GetStoreManager()->Rotate(
                         /*createNewStore*/ true,
-                        NLsm::EStoreRotationReason::None);
+                        NLsm::EStoreRotationReason::None,
+                        /*allowEmptyStore*/ true);
                 }
 
                 SendReplicateTabletContentRequest(tablet);
@@ -495,12 +509,16 @@ private:
                 break;
             }
 
-            case ESmoothMovementStage::ServantSwitchRequested: {
+            case ESmoothMovementStage::ServantSwitchRequested:
                 YT_VERIFY(expectedStage == ESmoothMovementStage::TargetActivated);
                 break;
 
-            case ESmoothMovementStage::ServantSwitched:
+            case ESmoothMovementStage::WaitingForLocksBeforeSwitch:
                 YT_VERIFY(expectedStage == ESmoothMovementStage::ServantSwitchRequested);
+                break;
+
+            case ESmoothMovementStage::ServantSwitched: {
+                YT_VERIFY(expectedStage == ESmoothMovementStage::WaitingForLocksBeforeSwitch);
 
                 YT_LOG_DEBUG("Posting servant switch message (%v, CellId: %v)",
                     tablet->GetLoggingTag(),

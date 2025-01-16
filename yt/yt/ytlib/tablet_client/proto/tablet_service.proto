@@ -55,6 +55,7 @@ message TReqRegisterTransactionActions
     repeated NYT.NTransactionClient.NProto.TTransactionActionData actions = 5;
     optional string user = 6;
     optional string user_tag = 7;
+    optional NYT.NProto.TGuid externalization_token = 8;
 }
 
 message TRspRegisterTransactionActions

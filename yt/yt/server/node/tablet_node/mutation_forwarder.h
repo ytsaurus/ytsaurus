@@ -14,6 +14,10 @@ struct IMutationForwarder
     : public TRefCounted
 {
     virtual void MaybeForwardMutationToSiblingServant(
+        const TTablet* tablet,
+        const ::google::protobuf::Message& message) = 0;
+
+    virtual void MaybeForwardMutationToSiblingServant(
         TTabletId tabletId,
         const ::google::protobuf::Message& message) = 0;
 };

@@ -2,11 +2,12 @@
 
 #include "automaton.h"
 #include "hunk_lock_manager.h"
-#include "tablet.h"
-#include "transaction_manager.h"
-#include "transaction.h"
+#include "mutation_forwarder.h"
 #include "sorted_dynamic_store.h"
 #include "store_manager.h"
+#include "tablet.h"
+#include "transaction.h"
+#include "transaction_manager.h"
 
 #include <yt/yt/server/lib/hydra/automaton.h>
 #include <yt/yt/server/lib/hydra/mutation.h>
@@ -437,7 +438,7 @@ private:
         const NRpc::TAuthenticationIdentity& identity,
         bool updateReplicationProgress,
         const std::vector<TTransactionId>& prerequisiteTransactionIds,
-        TMutationContext* /*context*/) noexcept
+        TMutationContext* context) noexcept
     {
         NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
         bool replicatorWrite = IsReplicatorWrite(identity);
@@ -570,6 +571,12 @@ private:
                 hunkLockManager->IncrementPersistentLockCount(hunkStoreId, +1);
             }
         }
+
+        if (tablet->SmoothMovementData().ShouldForwardMutation()) {
+            TReqWriteRows forwardedRequest;
+            DeserializeProtoWithEnvelope(&forwardedRequest, context->Request().Data);
+            ForwardWriteRowsMutation(tablet, transaction, std::move(forwardedRequest));
+        }
     }
 
     void HydraFollowerWriteRows(TReqWriteRows* request) noexcept
@@ -592,6 +599,7 @@ private:
             hunkChunksInfo = FromProto<THunkChunksInfo>(request->hunk_chunks_info());
         }
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
+        auto transactionExternalizationToken = FromProto<TGuid>(request->transaction_externalization_token());
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = Host_->FindTablet(tabletId);
@@ -630,20 +638,23 @@ private:
             syncReplicaIds,
             hunkChunksInfo);
 
+        TTransaction* transaction = nullptr;
+
         switch (atomicity) {
             case EAtomicity::Full: {
                 const auto& transactionManager = Host_->GetTransactionManager();
-                TTransaction* transaction;
                 try {
                     // NB: May throw if tablet cell is decommissioned.
                     transaction = transactionManager->GetOrCreateTransactionOrThrow(
                         transactionId,
                         transactionStartTimestamp,
                         transactionTimeout,
-                        false);
+                        false,
+                        transactionExternalizationToken);
                 } catch (const std::exception& ex) {
-                    YT_LOG_DEBUG(ex, "Failed to create transaction (TransactionId: %v, TabletId: %v)",
+                    YT_LOG_DEBUG(ex, "Failed to create transaction (TransactionId: %v@%v, TabletId: %v)",
                         transactionId,
+                        transactionExternalizationToken,
                         tabletId);
                     return;
                 }
@@ -655,10 +666,11 @@ private:
                 AddPersistentLeases(transaction, prerequisiteTransactionIds);
 
                 YT_LOG_DEBUG(
-                    "Performing atomic write as follower (TabletId: %v, TransactionId: %v, "
+                    "Performing atomic write as follower (TabletId: %v, TransactionId: %v@%v, "
                     "BatchGeneration: %x, PersistentGeneration: %x, PrerequisiteTransactionIds: %v)",
                     tabletId,
                     transactionId,
+                    transactionExternalizationToken,
                     generation,
                     transaction->GetPersistentGeneration(),
                     prerequisiteTransactionIds);
@@ -712,6 +724,37 @@ private:
             default:
                 YT_ABORT();
         }
+
+        if (tablet->SmoothMovementData().ShouldForwardMutation()) {
+            ForwardWriteRowsMutation(tablet, transaction, *request);
+        }
+    }
+
+    void ForwardWriteRowsMutation(
+        TTablet* tablet,
+        TTransaction* transaction,
+        TReqWriteRows request)
+    {
+        YT_LOG_DEBUG("Forwarding writes to sibling servant (%v, TransactionId: %v)",
+            tablet->GetLoggingTag(),
+            transaction->GetId());
+
+        YT_VERIFY(transaction);
+
+        auto token = tablet->SmoothMovementData().GetSiblingAvenueEndpointId();
+
+        EmplaceOrCrash(transaction->ExternalizerTablets(), tablet->GetId(), token);
+
+        ToProto(request.mutable_transaction_externalization_token(), token);
+        ToProto(
+            request.mutable_transaction_id(),
+            ReplaceTypeInId(transaction->GetId(), EObjectType::ExternalizedAtomicTabletTransaction));
+
+        request.set_mount_revision(
+            ToProto(tablet->SmoothMovementData().GetSiblingMountRevision()));
+        MutationForwarder_->MaybeForwardMutationToSiblingServant(
+            tablet,
+            request);
     }
 
     void HydraWriteDelayedRows(TReqWriteDelayedRows* request) noexcept

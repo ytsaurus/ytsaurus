@@ -63,7 +63,10 @@ public:
     DEFINE_BYREF_RW_PROPERTY(std::vector<NLeaseServer::TLeaseId>, TransientLeaseIds);
     DEFINE_BYREF_RW_PROPERTY(std::vector<NLeaseServer::TLeaseId>, PersistentLeaseIds);
 
-    DEFINE_BYVAL_RW_PROPERTY(TTabletId, ExternalizerTabletId);
+    using TExternalizerTabletMap = THashMap<TTabletId, TTransactionExternalizationToken>;
+    DEFINE_BYREF_RW_PROPERTY(TExternalizerTabletMap, ExternalizerTablets);
+
+    DEFINE_BYVAL_RO_PROPERTY(TGuid, ExternalizationToken);
 
 public:
     explicit TTransaction(TTransactionId id);
@@ -95,6 +98,17 @@ public:
 private:
     TPromise<void> FinishedPromise_ = NewPromise<void>();
     TFuture<void> FinishedFuture_ = FinishedPromise_.ToFuture().ToUncancelable();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TExternalizedTransaction
+    : public TTransaction
+{
+public:
+    explicit TExternalizedTransaction(TTransactionId id, TTransactionExternalizationToken token);
+
+    explicit TExternalizedTransaction(TExternalizedTransactionId id);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -628,6 +628,8 @@ void TSmoothMovementData::ValidateWriteToTablet() const
         switch (Stage_) {
             case ESmoothMovementStage::None:
             case ESmoothMovementStage::TargetAllocated:
+            case ESmoothMovementStage::TargetActivated:
+            case ESmoothMovementStage::ServantSwitchRequested:
                 return;
 
             default:
@@ -659,7 +661,7 @@ bool TSmoothMovementData::IsTabletStoresUpdateAllowed(bool isCommonFlush) const
             case ESmoothMovementStage::TargetActivated:
                 return true;
 
-            case ESmoothMovementStage::WaitingForLocks:
+            case ESmoothMovementStage::WaitingForLocksBeforeActivation:
                 return isCommonFlush;
 
             default:
@@ -678,6 +680,7 @@ bool TSmoothMovementData::ShouldForwardMutation() const
         switch (Stage_) {
             case ESmoothMovementStage::TargetActivated:
             case ESmoothMovementStage::ServantSwitchRequested:
+            case ESmoothMovementStage::WaitingForLocksBeforeSwitch:
                 return true;
 
             default:
@@ -2371,6 +2374,13 @@ void TTablet::ValidateMountRevision(NHydra::TRevision mountRevision)
     }
 }
 
+TRevision TTablet::GetActiveServantMountRevision() const
+{
+    return IsActiveServant()
+        ? MountRevision_
+        : SmoothMovementData_.GetSiblingMountRevision();
+}
+
 int TTablet::ComputeEdenOverlappingStoreCount() const
 {
     std::map<TLegacyOwningKey, int> keyMap;
@@ -2478,6 +2488,11 @@ void TTablet::UpdateOverlappingStoreCount()
 
 void TTablet::UpdateUnflushedTimestamp() const
 {
+    if (!IsActiveServant()) {
+        RuntimeData_->UnflushedTimestamp = MinTimestamp;
+        return;
+    }
+
     auto unflushedTimestamp = MaxTimestamp;
 
     for (const auto& [storeId, store] : StoreIdMap()) {

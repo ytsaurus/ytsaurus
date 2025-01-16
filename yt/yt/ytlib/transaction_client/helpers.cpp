@@ -144,9 +144,11 @@ EAtomicity AtomicityFromTransactionId(TTransactionId id)
     switch (TypeFromId(id)) {
         case EObjectType::Transaction:
         case EObjectType::AtomicTabletTransaction:
+        case EObjectType::ExternalizedAtomicTabletTransaction:
             return EAtomicity::Full;
 
         case EObjectType::NonAtomicTabletTransaction:
+        case EObjectType::ExternalizedNonAtomicTabletTransaction:
             return EAtomicity::None;
 
         default:

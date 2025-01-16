@@ -37,6 +37,7 @@ TEST_SRCS(
     test_replicated_dynamic_tables.py
     test_replicated_dynamic_tables_profiling.py
     test_secondary_index.py
+    test_smooth_movement.py
     test_sorted_dynamic_tables.py
     test_sorted_dynamic_tables_master.py
     test_table_collocation.py

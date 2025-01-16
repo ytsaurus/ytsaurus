@@ -165,9 +165,10 @@ DEFINE_ENUM(ESmoothMovementStage,
     // Source: rejects all writes and compactions, except for common dynamic store
     // flushes. Waits for transactions to finish.
     // Target: n/a.
-    ((WaitingForLocks)                   (2))
+    ((WaitingForLocksBeforeActivation)   (2))
 
-    // Source: rejects all writes. Reads and compactions are allowed.
+    // Source: Reads, writes and compactions are allowed. Writes are forwarded
+    // to the target.
     // Target: rejects reads and writes. Wait for common dynamic stores flush.
     ((TargetActivated)                   (3))
 
@@ -176,15 +177,19 @@ DEFINE_ENUM(ESmoothMovementStage,
     // Target: rejects reads and writes, waits for source to confirm servant switch.
     ((ServantSwitchRequested)            (4))
 
+    // Source: rejects all writes and compactions. Waits for transactions to finish.
+    // Target: n/a.
+    ((WaitingForLocksBeforeSwitch)       (5))
+
     // Source: rejects reads and writes, responds with redirect error code to
     // all client requests. No more source-target avenue messages can be sent.
     // Target: fully functional now, accepts reads and writes, may perform compaction.
     // Waits for client cache invalidation to deactivate source.
-    ((ServantSwitched)                   (5))
+    ((ServantSwitched)                   (6))
 
     // Source: n/a.
     // Target: intermediate state needed to send source deactivation message.
-    ((SourceDeactivationRequested)       (6))
+    ((SourceDeactivationRequested)       (7))
 );
 
 DEFINE_ENUM(ESmoothMovementRole,

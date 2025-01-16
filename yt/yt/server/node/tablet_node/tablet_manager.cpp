@@ -1495,7 +1495,7 @@ private:
             return;
         }
 
-        if (tablet->GetMountRevision() != mountRevision) {
+        if (tablet->GetActiveServantMountRevision() != mountRevision) {
             return;
         }
 
@@ -1754,7 +1754,7 @@ private:
         }
 
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
-        if (mountRevision != tablet->GetMountRevision()) {
+        if (mountRevision != tablet->GetActiveServantMountRevision()) {
             return;
         }
 
@@ -1867,7 +1867,7 @@ private:
         }
 
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
-        if (mountRevision != tablet->GetMountRevision()) {
+        if (mountRevision != tablet->GetActiveServantMountRevision()) {
             return;
         }
 
@@ -1895,7 +1895,11 @@ private:
             return;
         }
 
-        if (mountRevision != tablet->GetMountRevision()) {
+        auto actualMountRevision = tablet->GetActiveServantMountRevision();
+        if (mountRevision != actualMountRevision) {
+            YT_LOG_DEBUG("Mount revision mismatch in store rotation request, ignored (Expected: %x, Actual: %x)",
+                mountRevision,
+                actualMountRevision);
             return;
         }
 
@@ -1907,7 +1911,7 @@ private:
             tablet->GetActiveStore()->GetId() != expectedActiveStoreId)
         {
             YT_LOG_DEBUG(
-                "Active store id mismatch in rotation attempt "
+                "Active store id mismatch in store rotation attempt "
                 "(ExpectedActiveStoreId: %v, ActualActiveStoreId: %v, Reason: %v, %v)",
                 expectedActiveStoreId,
                 tablet->GetActiveStore()->GetId(),
@@ -2316,10 +2320,7 @@ private:
         }
 
         auto actualMountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
-        auto expectedMountRevision = tablet->IsActiveServant()
-            ? tablet->GetMountRevision()
-            : tablet->SmoothMovementData().GetSiblingMountRevision();
-        if (actualMountRevision != expectedMountRevision) {
+        if (actualMountRevision != tablet->GetActiveServantMountRevision()) {
             return;
         }
 
@@ -2449,11 +2450,7 @@ private:
             return;
         }
 
-        auto actualMountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
-        auto expectedMountRevision = tablet->IsActiveServant()
-            ? tablet->GetMountRevision()
-            : tablet->SmoothMovementData().GetSiblingMountRevision();
-        if (actualMountRevision != expectedMountRevision) {
+        if (FromProto<NHydra::TRevision>(request->mount_revision()) != tablet->GetActiveServantMountRevision()) {
             return;
         }
 
@@ -2738,7 +2735,7 @@ private:
         YT_VERIFY(tablet->IsPhysicallySorted());
 
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
-        if (mountRevision != tablet->GetMountRevision()) {
+        if (mountRevision != tablet->GetActiveServantMountRevision()) {
             return;
         }
 
@@ -2786,7 +2783,7 @@ private:
         YT_VERIFY(tablet->IsPhysicallySorted());
 
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
-        if (mountRevision != tablet->GetMountRevision()) {
+        if (mountRevision != tablet->GetActiveServantMountRevision()) {
             return;
         }
 
@@ -2835,7 +2832,7 @@ private:
         YT_VERIFY(tablet->IsPhysicallySorted());
 
         auto mountRevision = FromProto<NHydra::TRevision>(request->mount_revision());
-        if (mountRevision != tablet->GetMountRevision()) {
+        if (mountRevision != tablet->GetActiveServantMountRevision()) {
             return;
         }
 
@@ -5001,15 +4998,20 @@ private:
 
             const auto& movementData = tablet->SmoothMovementData();
             if (movementData.ShouldForwardMutation()) {
-                YT_LOG_DEBUG("Externalizing tablet stores update transaction (%v, TransactionId: %v)",
+                auto token = movementData.GetSiblingAvenueEndpointId();
+
+                YT_LOG_DEBUG("Externalizing tablet stores update transaction "
+                    "(%v, TransactionId: %v, ExternalizationToken: %v)",
                     tablet->GetLoggingTag(),
-                    transaction->GetId());
+                    transaction->GetId(),
+                    token);
 
                 NProto::TReqExternalizeTransaction req;
                 ToProto(req.mutable_transaction_id(), transaction->GetId());
                 req.set_transaction_start_timestamp(transaction->GetStartTimestamp());
                 req.set_transaction_timeout(ToProto(transaction->GetTimeout()));
                 ToProto(req.mutable_externalizer_tablet_id(), tablet->GetId());
+                ToProto(req.mutable_externalization_token(), token);
 
                 NRpc::WriteAuthenticationIdentityToProto(
                     &req,
@@ -5019,9 +5021,11 @@ private:
                     ->CommitAndLog(Logger))
                     .ThrowOnError();
 
-                YT_LOG_DEBUG("Tablet stores update transaction externalized (%v, TransactionId: %v)",
+                YT_LOG_DEBUG("Tablet stores update transaction externalized "
+                    "(%v, TransactionId: %v, ExternalizationToken: %v)",
                     tablet->GetLoggingTag(),
-                    transaction->GetId());
+                    transaction->GetId(),
+                    token);
             }
 
             NApi::TTransactionCommitOptions commitOptions{

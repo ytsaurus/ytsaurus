@@ -19,6 +19,7 @@ message TReqExternalizeTransaction
     required NYT.NProto.TGuid externalizer_tablet_id = 4;
     required string user = 5;
     optional string user_tag = 6;
+    optional NYT.NProto.TGuid externalization_token = 7;
 }
 
 message TReqPrepareExternalizedTransaction
@@ -27,6 +28,7 @@ message TReqPrepareExternalizedTransaction
     required NYT.NTransactionSupervisor.NProto.TTransactionPrepareOptions options = 2;
     required string user = 3;
     optional string user_tag = 4;
+    required NYT.NProto.TGuid externalization_token = 5;
 }
 
 message TReqCommitExternalizedTransaction
@@ -35,6 +37,7 @@ message TReqCommitExternalizedTransaction
     required NYT.NTransactionSupervisor.NProto.TTransactionCommitOptions options = 2;
     required string user = 3;
     optional string user_tag = 4;
+    required NYT.NProto.TGuid externalization_token = 5;
 }
 
 message TReqAbortExternalizedTransaction
@@ -43,4 +46,5 @@ message TReqAbortExternalizedTransaction
     required NYT.NTransactionSupervisor.NProto.TTransactionAbortOptions options = 2;
     required string user = 3;
     optional string user_tag = 4;
+    required NYT.NProto.TGuid externalization_token = 5;
 }
