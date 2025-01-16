@@ -977,6 +977,37 @@ DEFINE_REFCOUNTED_TYPE(TCompressionDictionaryBuilderDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSmoothMovementTrackerTestingConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    THashMap<ESmoothMovementStage, TDuration> DelayAfterStageAtSource;
+    THashMap<ESmoothMovementStage, TDuration> DelayAfterStageAtTarget;
+
+    REGISTER_YSON_STRUCT(TSmoothMovementTrackerTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSmoothMovementTrackerTestingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSmoothMovementTrackerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TSmoothMovementTrackerTestingConfigPtr Testing;
+
+    REGISTER_YSON_STRUCT(TSmoothMovementTrackerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSmoothMovementTrackerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -1013,6 +1044,7 @@ public:
     TMasterConnectorDynamicConfigPtr MasterConnector;
     TSecurityManagerDynamicConfigPtr SecurityManager;
     TBackupManagerDynamicConfigPtr BackupManager;
+    TSmoothMovementTrackerDynamicConfigPtr SmoothMovementTracker;
 
     TOverloadControllerConfigPtr OverloadController;
 

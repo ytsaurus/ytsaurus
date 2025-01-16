@@ -712,7 +712,8 @@ void TSmoothMovementData::BuildOrchidYson(TFluentMap fluent) const
         .Item("sibling_mount_revision").Value(GetSiblingMountRevision())
         .Item("sibling_avenue_endpoint_id").Value(GetSiblingAvenueEndpointId())
         .Item("common_dynamic_store_ids").Value(CommonDynamicStoreIds())
-        .Item("stage_change_scheduled").Value(GetStageChangeScheduled());
+        .Item("stage_change_scheduled").Value(GetStageChangeScheduled())
+        .Item("last_stage_change_time").Value(GetLastStageChangeTime());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1866,6 +1867,8 @@ void TTablet::StartEpoch(const ITabletSlotPtr& slot)
     TabletWriteManager_->StartEpoch();
 
     InitializeTargetServantActivationFuture();
+
+    SmoothMovementData().SetLastStageChangeTime(TInstant::Zero());
 }
 
 void TTablet::StopEpoch()
