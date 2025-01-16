@@ -77,6 +77,7 @@ struct TDockerImageSpec
     TString Registry;
     TString Image;
     TString Tag;
+    TString Digest;
 
     TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config);
 

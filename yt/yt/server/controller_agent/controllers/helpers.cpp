@@ -268,21 +268,30 @@ void UpdateAggregatedJobStatistics(
 
 TDockerImageSpec::TDockerImageSpec(const TString& dockerImage, const TDockerRegistryConfigPtr& config)
 {
+    TStringBuf imageRef;
     TStringBuf imageTag;
 
-    // Format: [REGISTRY/]IMAGE[:TAG], where REGISTRY is FQDN[:PORT] - i.e. has at least one dot.
-    if (!StringSplitter(dockerImage).Split('/').Limit(2).TryCollectInto(&Registry, &imageTag) ||
-        !Registry.Contains('.'))
+    // Format: [REGISTRY/]IMAGE[:TAG][@DIGEST], where REGISTRY is FQDN[:PORT].
+    // Registry FQDN must has at least one "." or PORT.
+    if (!StringSplitter(dockerImage).Split('/').Limit(2).TryCollectInto(&Registry, &imageRef) ||
+        Registry.find_first_of(".:") == TString::npos)
     {
         Registry = "";
-        imageTag = dockerImage;
+        imageRef = dockerImage;
     } else if (Registry == config->InternalRegistryAddress) {
         Registry = "";
     }
 
+    if (!StringSplitter(imageRef).Split('@').Limit(2).TryCollectInto(&imageTag, &Digest)) {
+        imageTag = imageRef;
+        Digest = "";
+    }
+
     if (!StringSplitter(imageTag).Split(':').Limit(2).TryCollectInto(&Image, &Tag)) {
         Image = imageTag;
-        Tag = "latest";
+        if (Digest == "") {
+            Tag = "latest";
+        }
     }
 }
 

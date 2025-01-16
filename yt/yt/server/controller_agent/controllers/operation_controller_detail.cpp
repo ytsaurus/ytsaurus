@@ -9549,6 +9549,10 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         jobSpec->add_environment(Format("YT_DISCOVERY_ADDRESSES=%v", addresses));
     }
 
+    if (jobSpecConfig->DockerImage) {
+        jobSpec->add_environment(Format("YT_JOB_DOCKER_IMAGE=%v", *jobSpecConfig->DockerImage));
+    }
+
     BuildFileSpecs(jobSpec, files, jobSpecConfig, Config->EnableBypassArtifactCache);
 
     if (jobSpecConfig->Monitoring->Enable) {

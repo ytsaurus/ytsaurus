@@ -16,13 +16,41 @@ TEST(TDockerImageSpecTest, TestDockerImageParser)
 
     internalConfig->InternalRegistryAddress = "internal.registry";
 
-    // Format: [REGISTRY[:PORT]/]IMAGE[:TAG]
+    // Format: [REGISTRY[:PORT]/]IMAGE[:TAG][@DIGEST]
 
     {
         TDockerImageSpec image("image", defaultConfig);
         EXPECT_EQ(image.Registry, "");
         EXPECT_EQ(image.Image, "image");
         EXPECT_EQ(image.Tag, "latest");
+        EXPECT_EQ(image.Digest, "");
+        EXPECT_EQ(image.IsInternal(), true);
+    }
+
+    {
+        TDockerImageSpec image("image:tag", defaultConfig);
+        EXPECT_EQ(image.Registry, "");
+        EXPECT_EQ(image.Image, "image");
+        EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "");
+        EXPECT_EQ(image.IsInternal(), true);
+    }
+
+    {
+        TDockerImageSpec image("image@hash:digest", defaultConfig);
+        EXPECT_EQ(image.Registry, "");
+        EXPECT_EQ(image.Image, "image");
+        EXPECT_EQ(image.Tag, "");
+        EXPECT_EQ(image.Digest, "hash:digest");
+        EXPECT_EQ(image.IsInternal(), true);
+    }
+
+    {
+        TDockerImageSpec image("image:tag@hash:digest", defaultConfig);
+        EXPECT_EQ(image.Registry, "");
+        EXPECT_EQ(image.Image, "image");
+        EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "hash:digest");
         EXPECT_EQ(image.IsInternal(), true);
     }
 
@@ -31,6 +59,7 @@ TEST(TDockerImageSpecTest, TestDockerImageParser)
         EXPECT_EQ(image.Registry, "");
         EXPECT_EQ(image.Image, "home/user/image");
         EXPECT_EQ(image.Tag, "latest");
+        EXPECT_EQ(image.Digest, "");
         EXPECT_EQ(image.IsInternal(), true);
     }
 
@@ -39,7 +68,62 @@ TEST(TDockerImageSpecTest, TestDockerImageParser)
         EXPECT_EQ(image.Registry, "");
         EXPECT_EQ(image.Image, "home/user/image");
         EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "");
         EXPECT_EQ(image.IsInternal(), true);
+    }
+
+    {
+        TDockerImageSpec image("localhost:5000/image", defaultConfig);
+        EXPECT_EQ(image.Registry, "localhost:5000");
+        EXPECT_EQ(image.Image, "image");
+        EXPECT_EQ(image.Tag, "latest");
+        EXPECT_EQ(image.Digest, "");
+        EXPECT_EQ(image.IsInternal(), false);
+    }
+
+    {
+        TDockerImageSpec image("localhost:5000/image:tag", defaultConfig);
+        EXPECT_EQ(image.Registry, "localhost:5000");
+        EXPECT_EQ(image.Image, "image");
+        EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "");
+        EXPECT_EQ(image.IsInternal(), false);
+    }
+
+    {
+        TDockerImageSpec image("localhost:5000/image", defaultConfig);
+        EXPECT_EQ(image.Registry, "localhost:5000");
+        EXPECT_EQ(image.Image, "image");
+        EXPECT_EQ(image.Tag, "latest");
+        EXPECT_EQ(image.Digest, "");
+        EXPECT_EQ(image.IsInternal(), false);
+    }
+
+    {
+        TDockerImageSpec image("localhost:5000/image:tag", defaultConfig);
+        EXPECT_EQ(image.Registry, "localhost:5000");
+        EXPECT_EQ(image.Image, "image");
+        EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "");
+        EXPECT_EQ(image.IsInternal(), false);
+    }
+
+    {
+        TDockerImageSpec image("localhost:5000/image@hash:digest", defaultConfig);
+        EXPECT_EQ(image.Registry, "localhost:5000");
+        EXPECT_EQ(image.Image, "image");
+        EXPECT_EQ(image.Tag, "");
+        EXPECT_EQ(image.Digest, "hash:digest");
+        EXPECT_EQ(image.IsInternal(), false);
+    }
+
+    {
+        TDockerImageSpec image("localhost:5000/image:tag@hash:digest", defaultConfig);
+        EXPECT_EQ(image.Registry, "localhost:5000");
+        EXPECT_EQ(image.Image, "image");
+        EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "hash:digest");
+        EXPECT_EQ(image.IsInternal(), false);
     }
 
     {
@@ -47,6 +131,7 @@ TEST(TDockerImageSpecTest, TestDockerImageParser)
         EXPECT_EQ(image.Registry, "external.registry");
         EXPECT_EQ(image.Image, "image");
         EXPECT_EQ(image.Tag, "latest");
+        EXPECT_EQ(image.Digest, "");
         EXPECT_EQ(image.IsInternal(), false);
     }
 
@@ -55,6 +140,7 @@ TEST(TDockerImageSpecTest, TestDockerImageParser)
         EXPECT_EQ(image.Registry, "external.registry");
         EXPECT_EQ(image.Image, "image");
         EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "");
         EXPECT_EQ(image.IsInternal(), false);
     }
 
@@ -63,6 +149,7 @@ TEST(TDockerImageSpecTest, TestDockerImageParser)
         EXPECT_EQ(image.Registry, "external.registry:8888");
         EXPECT_EQ(image.Image, "image");
         EXPECT_EQ(image.Tag, "latest");
+        EXPECT_EQ(image.Digest, "");
         EXPECT_EQ(image.IsInternal(), false);
     }
 
@@ -71,6 +158,7 @@ TEST(TDockerImageSpecTest, TestDockerImageParser)
         EXPECT_EQ(image.Registry, "external.registry:8888");
         EXPECT_EQ(image.Image, "image");
         EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "");
         EXPECT_EQ(image.IsInternal(), false);
     }
 
@@ -79,6 +167,7 @@ TEST(TDockerImageSpecTest, TestDockerImageParser)
         EXPECT_EQ(image.Registry, "internal.registry");
         EXPECT_EQ(image.Image, "project/image");
         EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "");
         EXPECT_EQ(image.IsInternal(), false);
     }
 
@@ -87,6 +176,16 @@ TEST(TDockerImageSpecTest, TestDockerImageParser)
         EXPECT_EQ(image.Registry, "external.registry");
         EXPECT_EQ(image.Image, "project/image");
         EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "");
+        EXPECT_EQ(image.IsInternal(), false);
+    }
+
+    {
+        TDockerImageSpec image("external.registry/project/image:tag@hash:digest", internalConfig);
+        EXPECT_EQ(image.Registry, "external.registry");
+        EXPECT_EQ(image.Image, "project/image");
+        EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "hash:digest");
         EXPECT_EQ(image.IsInternal(), false);
     }
 
@@ -95,6 +194,7 @@ TEST(TDockerImageSpecTest, TestDockerImageParser)
         EXPECT_EQ(image.Registry, "");
         EXPECT_EQ(image.Image, "project/image");
         EXPECT_EQ(image.Tag, "tag");
+        EXPECT_EQ(image.Digest, "");
         EXPECT_EQ(image.IsInternal(), true);
     }
 }
