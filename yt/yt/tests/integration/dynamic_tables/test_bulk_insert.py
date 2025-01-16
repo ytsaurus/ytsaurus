@@ -36,7 +36,7 @@ from io import BytesIO
 
 @authors("ifsmirnov")
 class TestBulkInsert(DynamicTablesBase):
-    NUM_TEST_PARTITIONS = 6
+    NUM_TEST_PARTITIONS = 8
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1

@@ -26,6 +26,8 @@ from time import sleep, time
 
 
 class TestCompactionPartitioning(TestSortedDynamicTablesBase):
+    NUM_TEST_PARTITIONS = 4
+
     @authors("ifsmirnov")
     def test_partition_balancer_chunk_view(self):
         [cell_id] = sync_create_cells(1)
