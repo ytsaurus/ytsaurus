@@ -205,9 +205,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     descriptors->push_back(EInternedAttributeKey::Sorted);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::KeyColumns)
         .SetReplicated(true));
-    // TODO(shakurov): make @schema opaque (in favor of @schema_id)?
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
-        .SetReplicated(true));
+        .SetReplicated(true)
+        .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::SchemaId);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaDuplicateCount));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SortedBy)

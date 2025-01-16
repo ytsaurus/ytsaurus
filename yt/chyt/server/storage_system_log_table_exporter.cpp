@@ -552,7 +552,7 @@ private:
         YT_LOG_DEBUG("Getting latest Cypress table info");
 
         TGetNodeOptions options;
-        options.Attributes.Keys = {"key", "schema", "tablet_state"};
+        options.Attributes = NYTree::TAttributeFilter({"key", "schema", "tablet_state"});
 
         auto resultOrError = WaitFor(Client_->GetNode(GetLatestTablePath() + "/@", options));
 
