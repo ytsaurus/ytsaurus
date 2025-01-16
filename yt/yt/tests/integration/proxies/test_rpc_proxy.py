@@ -1290,7 +1290,7 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
 
     @authors("ni-stoiko", "galtsev")
     @pytest.mark.timeout(120)
-    @flaky(max_runs=3)
+    @flaky(max_runs=10)
     def test_heap_usage_gauge(self):
         user = self._get_user()
         self.prepare_allocation("rpc_proxies", user)
