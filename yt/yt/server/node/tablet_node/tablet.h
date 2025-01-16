@@ -790,6 +790,8 @@ public:
 
     void ValidateMountRevision(NHydra::TRevision mountRevision);
 
+    NHydra::TRevision GetActiveServantMountRevision() const;
+
     void UpdateUnflushedTimestamp() const;
 
     // Returns |true| if tablet either participates in smooth movement and holds master avenue connection

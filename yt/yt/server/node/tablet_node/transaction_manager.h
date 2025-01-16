@@ -80,7 +80,8 @@ struct ITransactionManager
         TTransactionId transactionId,
         TTimestamp startTimestamp,
         TDuration timeout,
-        bool transient) = 0;
+        bool transient,
+        TGuid externalizationToken = {}) = 0;
 
     //! Finds a transaction by id.
     //! If a persistent instance is found, just returns it.

@@ -11,6 +11,10 @@ class TMutationForwarderThunk
 {
 public:
     void MaybeForwardMutationToSiblingServant(
+        const TTablet* tablet,
+        const ::google::protobuf::Message& message) override;
+
+    void MaybeForwardMutationToSiblingServant(
         TTabletId tabletId,
         const ::google::protobuf::Message& message) override;
 

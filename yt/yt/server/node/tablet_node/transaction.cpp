@@ -58,7 +58,8 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, CommitTimestampClusterTag_);
     Save(context, TabletsToUpdateReplicationProgress_);
     Save(context, PersistentLeaseIds_);
-    Save(context, ExternalizerTabletId_);
+    Save(context, ExternalizerTablets_);
+    Save(context, ExternalizationToken_);
 }
 
 void TTransaction::Load(TLoadContext& context)
@@ -106,8 +107,15 @@ void TTransaction::Load(TLoadContext& context)
     }
 
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::SmoothTabletMovement) {
-        Load(context, ExternalizerTabletId_);
+    if (context.GetVersion() >= ETabletReign::SmoothMovementForwardWrites) {
+        Load(context, ExternalizerTablets_);
+    } else if (context.GetVersion() >= ETabletReign::SmoothTabletMovement) {
+        auto tabletId = Load<TTabletId>(context);
+        ExternalizerTablets_ = {{tabletId, tabletId}};
+    }
+
+    if (context.GetVersion() >= ETabletReign::SmoothMovementForwardWrites) {
+        Load(context, ExternalizationToken_);
     }
 }
 
@@ -175,7 +183,7 @@ TCellTag TTransaction::GetCellTag() const
 
 bool TTransaction::IsExternalizedFromThisCell() const
 {
-    return static_cast<bool>(ExternalizerTabletId_);
+    return !ExternalizerTablets_.empty();
 }
 
 bool TTransaction::IsExternalizedToThisCell() const
@@ -185,6 +193,18 @@ bool TTransaction::IsExternalizedToThisCell() const
         type == EObjectType::ExternalizedAtomicTabletTransaction ||
         type == EObjectType::ExternalizedNonAtomicTabletTransaction;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TExternalizedTransaction::TExternalizedTransaction(TTransactionId id, TTransactionExternalizationToken token)
+    : TTransaction(id)
+{
+    ExternalizationToken_ = token;
+};
+
+TExternalizedTransaction::TExternalizedTransaction(TExternalizedTransactionId id)
+    : TExternalizedTransaction(id.first, id.second)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

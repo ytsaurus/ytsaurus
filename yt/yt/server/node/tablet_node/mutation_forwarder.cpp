@@ -26,6 +26,18 @@ public:
     { }
 
     void MaybeForwardMutationToSiblingServant(
+        const TTablet* tablet,
+        const ::google::protobuf::Message& message) override
+    {
+        const auto& movementData = tablet->SmoothMovementData();
+        if (movementData.ShouldForwardMutation()) {
+            auto endpointId = movementData.GetSiblingAvenueEndpointId();
+            auto mailbox = HiveManager_->GetMailbox(endpointId);
+            HiveManager_->PostMessage(mailbox, message);
+        }
+    }
+
+    void MaybeForwardMutationToSiblingServant(
         TTabletId tabletId,
         const ::google::protobuf::Message& message) override
     {
@@ -39,12 +51,7 @@ public:
             return;
         }
 
-        const auto& movementData = tablet->SmoothMovementData();
-        if (movementData.ShouldForwardMutation()) {
-            auto endpointId = movementData.GetSiblingAvenueEndpointId();
-            auto mailbox = HiveManager_->GetMailbox(endpointId);
-            HiveManager_->PostMessage(mailbox, message);
-        }
+        MaybeForwardMutationToSiblingServant(tablet, message);
     }
 
 private:
@@ -71,6 +78,11 @@ IMutationForwarderPtr CreateDummyMutationForwarder()
     public:
         void MaybeForwardMutationToSiblingServant(
             TTabletId /*tabletId*/,
+            const ::google::protobuf::Message& /*message*/) override
+        { }
+
+        void MaybeForwardMutationToSiblingServant(
+            const TTablet* /*tablet*/,
             const ::google::protobuf::Message& /*message*/) override
         { }
     };
