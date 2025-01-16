@@ -960,6 +960,7 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    @pytest.mark.ignore_in_opensource_ci
     def test_ordered_tablet_index_correctness(self, optimize_for):
         self._prologue(shard_count=2, optimize_for=optimize_for)
 
@@ -1019,6 +1020,7 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    @pytest.mark.ignore_in_opensource_ci
     def test_ordered_tablet_index_general(self, optimize_for):
         self._prologue(shard_count=3, optimize_for=optimize_for)
 
@@ -1101,6 +1103,7 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    @pytest.mark.ignore_in_opensource_ci
     def test_ordered_tablet_index_multiple_parents(self, optimize_for):
         self._prologue(shard_count=2, optimize_for=optimize_for)
 

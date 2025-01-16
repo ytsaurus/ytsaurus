@@ -545,6 +545,7 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
 
     @authors("max42")
     @pytest.mark.timeout(60)
+    @pytest.mark.ignore_in_opensource_ci
     def test_erasure_output(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -976,6 +977,7 @@ class TestSchedulerAutoMergeAborted(TestSchedulerAutoMergeBase):
         assert sorted_dicts(content) == sorted_dicts(data)
 
     @authors("gepardo")
+    @pytest.mark.ignore_in_opensource_ci
     def test_incompatible_metas_switch(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")

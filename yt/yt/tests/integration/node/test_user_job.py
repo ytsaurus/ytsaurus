@@ -1466,6 +1466,7 @@ class TestJobStderr(YTEnvSetup):
         check_all_stderrs(op, b"stderr\n", 5)
 
     @authors("ignat")
+    @pytest.mark.ignore_in_opensource_ci
     def test_stderr_max_size(self):
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")

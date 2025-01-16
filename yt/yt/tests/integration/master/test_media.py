@@ -428,6 +428,7 @@ class TestMedia(YTEnvSetup):
             assert replica.attributes["medium"] == self.NON_DEFAULT_MEDIUM
 
     @authors("babenko", "shakurov")
+    @pytest.mark.ignore_in_opensource_ci
     def test_chunk_statuses_1_media(self):
         codec = "reed_solomon_6_3"
         codec_replica_count = 9
@@ -450,6 +451,7 @@ class TestMedia(YTEnvSetup):
         wait(lambda: self._check_chunk_ok(False, chunk_id, {"default"}))
 
     @authors("shakurov")
+    @pytest.mark.ignore_in_opensource_ci
     def test_chunk_statuses_2_media(self):
         codec = "reed_solomon_6_3"
         codec_replica_count = 9

@@ -21,6 +21,7 @@ class TestGetFeaturesBase(YTEnvSetup):
 
 class TestGetFeatures(TestGetFeaturesBase):
     @authors("levysotsky")
+    @pytest.mark.ignore_in_opensource_ci
     def test_get_features(self):
         driver = get_driver(api_version=4)
         features = get_supported_features(driver=driver)

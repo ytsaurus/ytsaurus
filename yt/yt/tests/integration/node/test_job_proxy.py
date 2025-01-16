@@ -98,6 +98,7 @@ class TestJobProxyBinary(JobProxyTestBase):
         assert re.match(r"^[0-9]+\.[0-9]", get(attribute_path))
 
     @authors("max42")
+    @pytest.mark.ignore_in_opensource_ci
     def test_job_proxy_build_info(self):
         n = ls("//sys/cluster_nodes")[0]
         orchid_path = "//sys/cluster_nodes/{}/orchid".format(n)
@@ -359,6 +360,7 @@ class TestUnavailableJobProxy(JobProxyTestBase):
     }
 
     @authors("max42")
+    @pytest.mark.ignore_in_opensource_ci
     def test_job_abort_on_unavailable_job_proxy(self):
         # JobProxyUnavailable alert is racy by its nature, so we still must ensure
         # that whenever job is scheduled to a node that does not have ytserver-job-proxy now,

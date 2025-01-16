@@ -571,6 +571,7 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
         ]
 
     @authors("akozhikhov")
+    @pytest.mark.ignore_in_opensource_ci
     def test_override_profiling_mode_attribute(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -1285,6 +1286,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert len(get("//sys/tablet_cells/" + cell_id + "/@peers")) == 2
 
     @authors("babenko")
+    @pytest.mark.ignore_in_opensource_ci
     def test_tablet_ops_require_exclusive_lock(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
@@ -2260,6 +2262,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         wait(lambda: _get_latest_file("changelogs") == _get_attr("max_changelog_id"))
 
     @authors("akozhikhov")
+    @pytest.mark.ignore_in_opensource_ci
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_traverse_dynamic_table_with_alter_and_ranges(self, optimize_for):
         sync_create_cells(1)
@@ -3089,6 +3092,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), expected)
 
     @authors("alexelexa")
+    @pytest.mark.ignore_in_opensource_ci
     def test_tablet_mount_attributes(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")

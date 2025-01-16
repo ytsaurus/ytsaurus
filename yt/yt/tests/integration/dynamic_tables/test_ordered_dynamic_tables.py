@@ -875,6 +875,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
     @authors("savrus")
     @pytest.mark.parametrize("erasure_codec", ["none", "reed_solomon_6_3", "lrc_12_2_2"])
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    @pytest.mark.ignore_in_opensource_ci
     def test_read_table(self, optimize_for, erasure_codec):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t", optimize_for=optimize_for, erasure_codec=erasure_codec)
