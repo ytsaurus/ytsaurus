@@ -696,6 +696,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         set("//tmp/t1/@custom_attr1", "attr_value1", driver=self.remote_driver)
         set("//tmp/t1/@custom_attr2", "attr_value2", driver=self.remote_driver)
+        set("//tmp/t1/@custom_attr3\\/1", "attr_value3", driver=self.remote_driver)
 
         remote_copy(
             in_="//tmp/t1",
@@ -705,6 +706,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         assert get("//tmp/t2/@custom_attr1") == "attr_value1"
         assert get("//tmp/t2/@custom_attr2") == "attr_value2"
+        assert get("//tmp/t2/@custom_attr3\\/1") == "attr_value3"
 
         remote_copy(
             in_="//tmp/t1",
@@ -712,12 +714,13 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             spec={
                 "cluster_name": self.REMOTE_CLUSTER_NAME,
                 "copy_attributes": True,
-                "attribute_keys": ["custom_attr2"],
+                "attribute_keys": ["custom_attr2", "custom_attr3/1"],
             },
         )
 
         assert not exists("//tmp/t3/@custom_attr1")
         assert get("//tmp/t3/@custom_attr2") == "attr_value2"
+        assert get("//tmp/t3/@custom_attr3\\/1") == "attr_value3"
 
         with pytest.raises(YtError):
             remote_copy(
@@ -1116,6 +1119,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         set("//tmp/in.txt/@custom_attr1", "attr_value1", driver=self.remote_driver)
         set("//tmp/in.txt/@custom_attr2", "attr_value2", driver=self.remote_driver)
+        set("//tmp/in.txt/@custom_attr3\\/1", "attr_value3", driver=self.remote_driver)
 
         remote_copy(
             in_="//tmp/in.txt",
@@ -1125,6 +1129,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
         assert get("//tmp/out.txt/@custom_attr1") == "attr_value1"
         assert get("//tmp/out.txt/@custom_attr2") == "attr_value2"
+        assert get("//tmp/out.txt/@custom_attr3\\/1") == "attr_value3"
 
         remote_copy(
             in_="//tmp/in.txt",
@@ -1132,12 +1137,13 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             spec={
                 "cluster_name": self.REMOTE_CLUSTER_NAME,
                 "copy_attributes": True,
-                "attribute_keys": ["custom_attr2"],
+                "attribute_keys": ["custom_attr2", "custom_attr3/1"],
             },
         )
 
         assert not exists("//tmp/out2.txt/@custom_attr1")
         assert get("//tmp/out2.txt/@custom_attr2") == "attr_value2"
+        assert get("//tmp/out.txt/@custom_attr3\\/1") == "attr_value3"
 
     @authors("coteeq")
     def test_remote_copy_file_codecs(self):
