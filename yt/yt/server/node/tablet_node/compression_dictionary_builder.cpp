@@ -70,7 +70,6 @@ struct TDictionaryCompressionSampleTag
 struct TDictionaryCompressionTag
 { };
 
-
 static constexpr int MinSampledBlockCountPerChunk = 3;
 
 ////////////////////////////////////////////////////////////////////////////////
