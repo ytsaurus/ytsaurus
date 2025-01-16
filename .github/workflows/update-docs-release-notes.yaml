@@ -19,13 +19,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Set up environment variables
-        id: set-env
+      - name: Calculate tag
+        id: tag
         run: |
           if [ "${{ github.event_name }}" == "release" ]; then
-            echo "TAG_NAME=${{ github.event.release.tag_name }}" >> $GITHUB_ENV
+            echo "TAG_NAME=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
           else
-            echo "TAG_NAME=${{ inputs.tag_name }}" >> $GITHUB_ENV
+            echo "TAG_NAME=${{ inputs.tag_name }}" >> $GITHUB_OUTPUT
           fi
 
       - name: Checkout
@@ -52,7 +52,7 @@ jobs:
         with:
           token: ${{ steps.generate-token.outputs.token }}
           commit-message: Update Documentation Release Notes
-          branch: ci/update-documentation-release-notes/$TAG_NAME
+          branch: ci/update-documentation-release-notes/${{ steps.tag.outputs.TAG_NAME }}
           base: main
           title: "Update Release Notes"
           labels: |
