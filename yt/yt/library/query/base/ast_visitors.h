@@ -1,7 +1,6 @@
 #pragma once
 
 #include "ast.h"
-#include "helpers.h"
 
 namespace NYT::NQueryClient::NAst {
 
@@ -15,6 +14,8 @@ struct TAbstractAstVisitor
     TResult Visit(TNode node);
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TDerived, class TNode>
 struct TAbstractAstVisitor<void, TDerived, TNode>
 {
@@ -25,12 +26,16 @@ struct TAbstractAstVisitor<void, TDerived, TNode>
     void Visit(const std::optional<std::vector<TNode>>& nullableTuple);
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TResult, class TDerived>
 struct TBaseAstVisitor
     : TAbstractAstVisitor<TResult, TDerived, TExpressionPtr>
 {
     TExpressionPtr GetExpression(TExpressionPtr expr);
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TDerived>
 struct TAstVisitor
@@ -54,6 +59,8 @@ struct TAstVisitor
     void Visit(const std::optional<std::vector<TExpressionPtr>>& nullableTuple);
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TDerived>
 class TAliasVisitingAstVisitor
     : public TAstVisitor<TDerived>
@@ -70,6 +77,8 @@ private:
     const NAst::TAliasMap& AliasMap_;
     THashSet<std::string> UsedAliases_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <class TDerived>
 struct TRewriter

@@ -5,7 +5,6 @@
 #include <yt/yt/orm/library/attributes/helpers.h>
 
 #include <yt/yt/library/query/base/ast_visitors.h>
-#include <yt/yt/library/query/base/helpers.h>
 
 #include <library/cpp/yt/assert/assert.h>
 

@@ -7,8 +7,8 @@
 
 #include <yt/yt/library/query/secondary_index/schema.h>
 
-#include <yt/yt/library/query/base/query_helpers.h>
 #include <yt/yt/library/query/base/query_preparer.h>
+#include <yt/yt/library/query/base/query_visitors.h>
 
 namespace NYT::NApi::NNative {
 

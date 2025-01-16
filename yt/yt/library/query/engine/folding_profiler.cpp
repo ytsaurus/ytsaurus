@@ -4,8 +4,10 @@
 #include "llvm_folding_set.h"
 
 #include <yt/yt/library/query/base/functions.h>
+#include <yt/yt/library/query/base/helpers.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
+#include <yt/yt/library/query/base/query_visitors.h>
 
 #include <yt/yt/library/query/engine_api/builtin_function_profiler.h>
 #include <yt/yt/library/query/engine_api/position_independent_value_transfer.h>

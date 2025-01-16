@@ -3,6 +3,7 @@
 
 #include <yt/yt/library/query/base/private.h>
 #include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/helpers.h>
 
 #include <yt/yt/library/query/engine_api/config.h>
 #include <yt/yt/library/query/engine_api/evaluator.h>

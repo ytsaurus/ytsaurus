@@ -1,7 +1,5 @@
 #include "query_rewriter.h"
 
-#include <yt/yt/library/query/base/helpers.h>
-
 namespace NYT::NOrm::NQuery {
 
 using namespace NQueryClient::NAst;

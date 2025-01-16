@@ -5,6 +5,7 @@
 #include <yt/yt/library/query/base/constraints.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
+#include <yt/yt/library/query/base/query_visitors.h>
 
 #include <yt/yt/client/table_client/columnar_statistics.h>
 #include <yt/yt/client/table_client/name_table.h>

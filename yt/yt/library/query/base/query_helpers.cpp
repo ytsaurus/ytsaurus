@@ -1,6 +1,8 @@
 #include "query_helpers.h"
 #include "query.h"
 #include "ast.h"
+#include "helpers.h"
+#include "key_trie.h"
 
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
@@ -612,31 +614,104 @@ ui64 GetEvaluatedColumnModulo(const TConstExpressionPtr& expr)
     return moduloExpansion;
 }
 
-TConstExpressionPtr TSelfifyRewriter::OnReference(const TReferenceExpression* reference)
-{
-    auto it = ForeignReferenceToIndexMap.find(reference->ColumnName);
-    if (it == ForeignReferenceToIndexMap.end()) {
-        Success = false;
-        return reference;
-    }
-    return SelfEquations[it->second].Expression;
-}
-
-TConstExpressionPtr TAddAliasRewriter::OnReference(const TReferenceExpression* reference)
-{
-    auto aliasedReference = NAst::InferColumnName(NAst::TReference(reference->ColumnName, Alias));
-    return New<TReferenceExpression>(reference->LogicalType, aliasedReference);
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TReferenceHarvester::TReferenceHarvester(TColumnSet* storage)
-    : Storage_(storage)
-{ }
-
-void TReferenceHarvester::OnReference(const TReferenceExpression* referenceExpr)
+NAst::TExpressionPtr BuildAndExpression(
+    TObjectsHolder* holder,
+    NAst::TExpressionPtr lhs,
+    NAst::TExpressionPtr rhs)
 {
-    Storage_->insert(referenceExpr->ColumnName);
+    if (lhs && !rhs) {
+        return lhs;
+    }
+    if (rhs && !lhs) {
+        return rhs;
+    }
+    if (!lhs && !rhs) {
+        return holder->New<NAst::TLiteralExpression>(TSourceLocation(), NAst::TLiteralValue(true));
+    }
+    return holder->New<NAst::TBinaryOpExpression>(
+        TSourceLocation(),
+        NQueryClient::EBinaryOp::And,
+        NAst::TExpressionList{std::move(lhs)},
+        NAst::TExpressionList{std::move(rhs)});
+}
+
+NAst::TExpressionPtr BuildOrExpression(
+    TObjectsHolder* holder,
+    NAst::TExpressionPtr lhs,
+    NAst::TExpressionPtr rhs)
+{
+    if (lhs && !rhs) {
+        return lhs;
+    }
+    if (rhs && !lhs) {
+        return rhs;
+    }
+    if (!lhs && !rhs) {
+        return holder->New<NAst::TLiteralExpression>(TSourceLocation(), NAst::TLiteralValue(false));
+    }
+    return holder->New<NAst::TBinaryOpExpression>(
+        TSourceLocation(),
+        NQueryClient::EBinaryOp::Or,
+        NAst::TExpressionList{std::move(lhs)},
+        NAst::TExpressionList{std::move(rhs)});
+}
+
+NAst::TExpressionPtr BuildConcatenationExpression(
+    TObjectsHolder* holder,
+    NAst::TExpressionPtr lhs,
+    NAst::TExpressionPtr rhs,
+    const TString& separator)
+{
+    if (lhs && !rhs) {
+        return lhs;
+    }
+    if (rhs && !lhs) {
+        return rhs;
+    }
+    if (!lhs && !rhs) {
+        return holder->New<NAst::TLiteralExpression>(TSourceLocation(), NAst::TLiteralValue(""));
+    }
+
+    auto keySeparator = holder->New<NAst::TLiteralExpression>(TSourceLocation(), separator);
+    lhs = holder->New<NAst::TBinaryOpExpression>(
+        TSourceLocation(),
+        NQueryClient::EBinaryOp::Concatenate,
+        NAst::TExpressionList{std::move(lhs)},
+        NAst::TExpressionList{std::move(keySeparator)});
+
+    return holder->New<NAst::TBinaryOpExpression>(
+        TSourceLocation(),
+        NQueryClient::EBinaryOp::Concatenate,
+        NAst::TExpressionList{std::move(lhs)},
+        NAst::TExpressionList{std::move(rhs)});
+}
+
+NAst::TExpressionPtr BuildBinaryOperationTree(
+    TObjectsHolder* context,
+    std::vector<NAst::TExpressionPtr> leaves,
+    EBinaryOp opCode)
+{
+    if (leaves.empty()) {
+        return nullptr;
+    }
+    if (leaves.size() == 1) {
+        return leaves[0];
+    }
+    std::deque<NAst::TExpressionPtr> expressionQueue(leaves.begin(), leaves.end());
+    while (expressionQueue.size() != 1) {
+        auto lhs = expressionQueue.front();
+        expressionQueue.pop_front();
+        auto rhs = expressionQueue.front();
+        expressionQueue.pop_front();
+        expressionQueue.emplace_back(context->New<NAst::TBinaryOpExpression>(
+            NQueryClient::NullSourceLocation,
+            opCode,
+            NAst::TExpressionList{std::move(lhs)},
+            NAst::TExpressionList{std::move(rhs)}));
+    }
+    return expressionQueue.front();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
