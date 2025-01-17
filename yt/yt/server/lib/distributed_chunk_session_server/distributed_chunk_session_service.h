@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-namespace NYT::NDistributedChunkSession {
+namespace NYT::NDistributedChunkSessionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -17,4 +17,4 @@ NRpc::IServicePtr CreateDistributedChunkSessionService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDistributedChunkSession
+} // namespace NYT::NDistributedChunkSessionServer

@@ -11,7 +11,7 @@ using namespace NChunkClient;
 void TDistributedChunkSessionControllerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("data_node_ping_period", &TThis::DataNodePingPeriod)
-        .Default(TDuration::Seconds(1));
+        .Default(TDuration::Seconds(10));
 
     registrar.Parameter("write_session_ping_period", &TThis::WriteSessionPingPeriod)
         .Default(TDuration::Seconds(1));
@@ -30,7 +30,7 @@ void TDistributedChunkSessionControllerConfig::Register(TRegistrar registrar)
 void TDistributedChunkWriterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
-        .Default(TDuration::Seconds(300));
+        .Default(TDuration::Seconds(30));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

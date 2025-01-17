@@ -77,7 +77,7 @@ target_link_libraries(yt-server-node PUBLIC
   server-lib-misc
   server-lib-nbd
   server-lib-rpc
-  server-lib-distributed_chunk_session
+  server-lib-distributed_chunk_session_server
   server-lib-controller_agent
   library-cpp-getopt
   cpp-yt-phdr_cache

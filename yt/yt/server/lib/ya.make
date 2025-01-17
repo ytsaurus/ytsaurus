@@ -41,7 +41,7 @@ RECURSE(
     cypress_election
     cypress_registrar
     discovery_server
-    distributed_chunk_session
+    distributed_chunk_session_server
     election
     exec_node
     hive

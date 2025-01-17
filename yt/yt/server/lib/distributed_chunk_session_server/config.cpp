@@ -1,6 +1,6 @@
 #include "config.h"
 
-namespace NYT::NDistributedChunkSession {
+namespace NYT::NDistributedChunkSessionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,4 +15,4 @@ void TDistributedChunkSessionServiceConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDistributedChunkSession
+} // namespace NYT::NDistributedChunkSessionServer

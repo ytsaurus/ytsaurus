@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/rpc/service_detail.h>
 
-namespace NYT::NDistributedChunkSession {
+namespace NYT::NDistributedChunkSessionServer {
 
 using namespace NDistributedChunkSessionClient;
 using namespace NRpc;
@@ -28,19 +28,19 @@ public:
             TDistributedChunkSessionServiceProxy::GetDescriptor(),
             DistributedChunkSessionServiceLogger())
     {
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartChunkSession));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingChunkSession));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(StartSession));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PingSession));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SendBlocks)
             .SetHeavy(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishChunkSession));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FinishSession));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NDistributedChunkSessionClient::NProto, StartChunkSession)
+    DECLARE_RPC_SERVICE_METHOD(NDistributedChunkSessionClient::NProto, StartSession)
     {
         YT_UNIMPLEMENTED();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NDistributedChunkSessionClient::NProto, PingChunkSession)
+    DECLARE_RPC_SERVICE_METHOD(NDistributedChunkSessionClient::NProto, PingSession)
     {
         YT_UNIMPLEMENTED();
     }
@@ -50,7 +50,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NDistributedChunkSessionClient::NProto, FinishChunkSession)
+    DECLARE_RPC_SERVICE_METHOD(NDistributedChunkSessionClient::NProto, FinishSession)
     {
         YT_UNIMPLEMENTED();
     }
@@ -71,4 +71,4 @@ IServicePtr CreateDistributedChunkSessionService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDistributedChunkSession
+} // namespace NYT::NDistributedChunkSessionServer

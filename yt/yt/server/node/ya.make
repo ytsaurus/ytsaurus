@@ -225,7 +225,7 @@ PEERDIR(
     yt/yt/server/lib/misc
     yt/yt/server/lib/nbd
     yt/yt/server/lib/rpc
-    yt/yt/server/lib/distributed_chunk_session
+    yt/yt/server/lib/distributed_chunk_session_server
 
     # TODO(max42): Eliminate.
     yt/yt/server/lib/controller_agent

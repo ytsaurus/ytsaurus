@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/hydra/config.h>
 
-#include <yt/yt/server/lib/distributed_chunk_session/config.h>
+#include <yt/yt/server/lib/distributed_chunk_session_server/config.h>
 
 #include <yt/yt/server/lib/misc/config.h>
 
@@ -1026,7 +1026,7 @@ public:
     TP2PConfigPtr P2P;
 
     //! Distributed chunk session service config.
-    NDistributedChunkSession::TDistributedChunkSessionServiceConfigPtr DistributedChunkSessionService;
+    NDistributedChunkSessionServer::TDistributedChunkSessionServiceConfigPtr DistributedChunkSessionService;
 
     i64 GetCacheCapacity() const;
 
