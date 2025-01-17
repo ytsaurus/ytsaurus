@@ -15,7 +15,6 @@
 #include "schemaless_block_reader.h"
 #include "schemaless_multi_chunk_reader.h"
 #include "table_read_spec.h"
-#include "timestamped_schema_helpers.h"
 #include "versioned_chunk_reader.h"
 #include "versioned_reader_adapter.h"
 
@@ -56,6 +55,7 @@
 #include <yt/yt/client/table_client/versioned_reader.h>
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/private.h>
+#include <yt/yt/client/table_client/timestamped_schema_helpers.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 

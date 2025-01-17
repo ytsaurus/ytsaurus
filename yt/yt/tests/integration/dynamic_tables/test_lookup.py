@@ -24,7 +24,7 @@ from yt_driver_bindings import Driver
 import pytest
 
 from copy import deepcopy
-from random import randint, choice, sample
+from random import randint, choice, sample, shuffle
 import random
 import time
 
@@ -737,14 +737,14 @@ class TestLookup(TestSortedDynamicTablesBase):
             def __init__(self):
                 self.profiling = self_._get_key_filter_profiling_wrapper("lookup", table)
 
-            def check(self, lookup_keys, expected, key=lambda d: d["key"]):
+            def check(self, lookup_keys, expected):
                 missing_key_count = len(lookup_keys) - len(expected)
 
                 def _check_counters():
                     input, filtered_out, false_positive = self.profiling.get_deltas()
                     return input == len(lookup_keys) and filtered_out + false_positive == missing_key_count
 
-                sorted(lookup_rows(table, lookup_keys, verbose=False), key=key) == sorted(expected, key=key)
+                assert lookup_rows(table, lookup_keys, verbose=False) == expected
                 wait(_check_counters)
                 self.profiling.commit()
 
@@ -829,7 +829,7 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         key_filter_checker = self._get_key_filter_lookup_checker(table_path)
 
-        key_filter_checker.check([{"key1": 0}], [{"key1": 0, "value": "0"}], lambda d: d["key1"])
+        key_filter_checker.check([{"key1": 0}], [{"key1": 0, "value": "0"}])
 
         sync_unmount_table(table_path)
         alter_table(table_path, schema=schema2)
@@ -838,7 +838,6 @@ class TestLookup(TestSortedDynamicTablesBase):
         key_filter_checker.check(
             [{"key1": 0, "key2": yson.YsonEntity()}],
             [{"key1": 0, "key2": yson.YsonEntity(), "value": "0"}],
-            lambda d: (d["key1"], d["key2"]),
         )
 
     @authors("akozhikhov")
@@ -902,6 +901,163 @@ class TestLookup(TestSortedDynamicTablesBase):
         )
 
         assert read_table("//tmp/out") == rows
+
+    @authors("dave11ar")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    @pytest.mark.parametrize("reader_type", ["dynamic_store", "chunk", "data_node_lookup"])
+    def test_lookup_with_timestamp_columns(self, optimize_for, reader_type):
+        path = "//tmp/t"
+
+        sync_create_cells(1)
+
+        create_dynamic_table(
+            path,
+            schema=[
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "v1", "type": "string"},
+                {"name": "v2", "type": "string"},
+                {"name": "v3", "type": "string"},
+                {"name": "v4", "type": "int64", "aggregate": "sum"},
+                {"name": "v5", "type": "string"},
+            ],
+            optimize_for=optimize_for,
+        )
+
+        need_to_flush = False
+
+        def _maybe_flush():
+            if need_to_flush:
+                sync_flush_table(path)
+
+        if reader_type == "dynamic_store":
+            set(f"{path}/@enable_store_rotation", False)
+        elif reader_type == "chunk":
+            need_to_flush = True
+        elif reader_type == "data_node_lookup":
+            need_to_flush = True
+            self._enable_data_node_lookup(path)
+        else:
+            assert False
+
+        sync_mount_table(path)
+
+        insert_rows(
+            path=path,
+            data=[{"k": 1, "v1": "a", "v2": "a", "v3": "a", "v4": 1, "v5": "a"}],
+            update=False,
+        )
+        insert_rows(
+            path=path,
+            data=[{"k": 1, "v1": "b", "v3": "b"}],
+            update=True,
+        )
+        insert_rows(
+            path=path,
+            data=[{"k": 1, "v2": "c", "v5": "c"}],
+            update=True,
+        )
+        _maybe_flush()
+
+        def check_vs(row, v1=None, v2=None, v3=None, v4=None, v5=None):
+            def check(name, value):
+                if value:
+                    assert row[name] == value
+                else:
+                    assert name not in row
+
+            assert row["k"] == 1
+            check("v1", v1)
+            check("v2", v2)
+            check("v3", v3)
+            check("v4", v4)
+            check("v5", v5)
+
+        def check_timestamps(row, order):
+            previous_ts = 0
+            for columns in order:
+                current_ts = row[f"$timestamp:{columns[0]}"]
+                assert previous_ts < current_ts
+
+                for i in range(1, len(columns)):
+                    assert row[f"$timestamp:{columns[i]}"] == current_ts
+
+                previous_ts = current_ts
+
+        def lookup_row_checked(**kwargs):
+            rows = lookup_rows(path, [{"k": 1}], **kwargs, with_timestamps=True)
+            assert len(rows) == 1
+            return rows[0]
+
+        row = lookup_row_checked()
+        check_vs(row, "b", "c", "b", 1, "c")
+        check_timestamps(row, [["v4"], ["v1", "v3"], ["v2", "v5"]])
+
+        first_timestamp = row["$timestamp:v4"]
+        row = lookup_row_checked(timestamp=first_timestamp)
+        check_vs(row, "a", "a", "a", 1, "a")
+        check_timestamps(row, [["v1", "v2", "v3", "v4", "v5"]])
+        assert row["$timestamp:v1"] == first_timestamp
+
+        row = lookup_row_checked(column_names=["k", "v1", "$timestamp:v1", "v2", "v3", "$timestamp:v5", "v4", "v5", "$timestamp:v4", "$timestamp:v3"])
+        check_vs(row, "b", "c", "b", 1, "c")
+        check_timestamps(row, [["v4"], ["v1", "v3"], ["v5"]])
+
+        row = lookup_row_checked(column_names=["k", "$timestamp:v2", "$timestamp:v1", "$timestamp:v5", "$timestamp:v3", "$timestamp:v4"])
+        check_vs(row)
+        check_timestamps(row, [["v4"], ["v1", "v3"], ["v2", "v5"]])
+
+        row = lookup_row_checked(column_names=["k", "$timestamp:v2", "v1", "v4", "$timestamp:v3", "$timestamp:v4"])
+        check_vs(row, v1="b", v4=1)
+        check_timestamps(row, [["v4"], ["v3"], ["v2"]])
+
+        with raises_yt_error('Versioned lookup does not support versioned read mode "latest_timestamp"'):
+            lookup_rows(path, [{"k": 1}], versioned=True, with_timestamps=True)
+
+        with raises_yt_error('No such column "$timestamp:v3"'):
+            lookup_rows(path, [{"k": 1}], column_names=["k", "v1", "v2", "$timestamp:v3", "v4"])
+
+        with raises_yt_error('No such column "$timestamp:v42"'):
+            lookup_rows(path, [{"k": 1}], column_names=["k", "v1", "v2", "$timestamp:v42", "v4"])
+
+        def check_aggregate(aggregate, v1, v4, expected_v4, last_value):
+            insert_rows(
+                path=path,
+                data=[{"k": 1, "v1": v1, "v4": v4}],
+                update=True,
+                aggregate=aggregate,
+            )
+            _maybe_flush()
+
+            row = lookup_row_checked(column_names=["k", "$timestamp:v2", "v1", "v4", "v3", "v2", "v5", "$timestamp:v3", "$timestamp:v4", "$timestamp:v1", "$timestamp:v5"])
+            check_vs(row, v1, "c", "b", expected_v4, "c")
+            check_timestamps(row, [["v3"], ["v2", "v5"], ["v1", "v4"]])
+
+            new_last_value = row["$timestamp:v4"]
+            assert new_last_value > last_value
+            return new_last_value
+
+        check_aggregate(
+            aggregate=True,
+            v1="e",
+            v4=4,
+            expected_v4=7,
+            last_value=check_aggregate(
+                aggregate=False,
+                v1="d",
+                v4=3,
+                expected_v4=3,
+                last_value=row["$timestamp:v4"],
+            ),
+        )
+
+        delete_rows(path, [{"k": 1}])
+        _maybe_flush()
+        assert lookup_rows(
+            path,
+            [{"k": 1}],
+            column_names=["k", "$timestamp:v2", "v1", "v4", "v3", "v2", "v5", "$timestamp:v3", "$timestamp:v4", "$timestamp:v1", "$timestamp:v5"],
+            with_timestamps=True,
+        ) == []
 
 
 class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
@@ -1715,6 +1871,110 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         expected = [{"key": i, "value": make_value(i)} for i in range(100, 200, 2)]
         actual = self._read("//tmp/t", range(100, 200, 2), use_lookup_cache=True)
         assert_items_equal(actual, expected)
+
+    @authors("dave11ar")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    @pytest.mark.parametrize("hunks", [False, True])
+    @pytest.mark.parametrize("test_size", [30])
+    def test_lookup_with_timestamp_columns_row_cache(self, optimize_for, hunks, test_size):
+        path = "//tmp/t"
+
+        sync_create_cells(1)
+
+        def decision(probability):
+            return random.random() < probability
+
+        def _make_value(i):
+            return str(i) + ("payload" * (i % 5) if hunks else "")
+
+        def _make_value_schema(name):
+            schema = {"name": name, "type": "string", "max_inline_hunk_size": 12}
+
+            if hunks:
+                schema["max_inline_hunk_size"] = 12
+
+            return schema
+
+        create_dynamic_table(
+            path,
+            schema=[
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                _make_value_schema("v0"),
+                _make_value_schema("v1"),
+                _make_value_schema("v2"),
+                _make_value_schema("v3"),
+                _make_value_schema("v4"),
+            ],
+            optimize_for=optimize_for,
+            lookup_cache_rows_per_tablet=int(test_size / 2),
+        )
+
+        sync_mount_table(path)
+
+        different_values = test_size * 2
+        columns = ["k", "v0", "v1", "v2", "$timestamp:v0", "$timestamp:v1", "$timestamp:v2"]
+        keys = [k for k in range(0, test_size)]
+        keys_for_lookup = [{"k": k} for k in keys]
+
+        for k in keys:
+            insert_rows(
+                path,
+                [{
+                    "k": k,
+                    "v0": _make_value(randint(0, different_values)),
+                    "v1": _make_value(randint(0, different_values)),
+                    "v2": _make_value(randint(0, different_values)),
+                    "v3": _make_value(randint(0, different_values)),
+                    "v4": _make_value(randint(0, different_values)),
+                }]
+            )
+
+        def _update_rows(column):
+            for k in keys:
+                if decision(1 / 3):
+                    insert_rows(
+                        path,
+                        [{
+                            "k": k,
+                            column: _make_value(randint(0, test_size)),
+                        }],
+                        update=True,
+                    )
+
+        _update_rows("v3")
+        _update_rows("v4")
+        _update_rows("v1")
+        _update_rows("v2")
+
+        sync_flush_table(path)
+
+        rows = lookup_rows(path, keys_for_lookup, with_timestamps=True)
+        rows_map = {row["k"]: row for row in rows}
+
+        assert rows == lookup_rows(path, keys_for_lookup, with_timestamps=True, use_lookup_cache=True)
+
+        for _ in range(test_size * 3):
+            test_keys = []
+            test_columns = []
+
+            for key in keys:
+                if decision(0.2):
+                    test_keys.append({"k": key})
+
+            for column in columns:
+                if decision(2 / 3):
+                    test_columns.append(column)
+
+            shuffle(test_keys)
+            shuffle(test_columns)
+
+            test_rows = lookup_rows(path, test_keys, column_names=test_columns, use_lookup_cache=True, with_timestamps=True)
+
+            for i in range(len(test_keys)):
+                row = rows_map[test_keys[i]["k"]]
+
+                for column, value in test_rows[i].items():
+                    assert value == row[column]
 
 ################################################################################
 

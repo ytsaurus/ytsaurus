@@ -1597,7 +1597,8 @@ class YtClient(ClientState):
             self,
             table, input_stream,
             timestamp=None, column_names=None, keep_missing_rows=None, enable_partial_result=None,
-            use_lookup_cache=None, format=None, raw=None, versioned=None, retention_timestamp=None):
+            use_lookup_cache=None, format=None, raw=None, versioned=None, retention_timestamp=None,
+            versioned_read_options=None, with_timestamps=None):
         """
         Lookups rows in dynamic table.
 
@@ -1614,7 +1615,8 @@ class YtClient(ClientState):
             client=self,
             timestamp=timestamp, column_names=column_names, keep_missing_rows=keep_missing_rows,
             enable_partial_result=enable_partial_result, use_lookup_cache=use_lookup_cache, format=format,
-            raw=raw, versioned=versioned, retention_timestamp=retention_timestamp)
+            raw=raw, versioned=versioned, retention_timestamp=retention_timestamp, versioned_read_options=versioned_read_options,
+            with_timestamps=with_timestamps)
 
     def mkdir(
             self,

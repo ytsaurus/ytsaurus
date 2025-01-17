@@ -18,7 +18,6 @@
 #include <yt/yt/ytlib/table_client/row_merger.h>
 #include <yt/yt/ytlib/table_client/schemaful_concatencaing_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_row_merger.h>
-#include <yt/yt/ytlib/table_client/timestamped_schema_helpers.h>
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
@@ -26,6 +25,7 @@
 
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/timestamped_schema_helpers.h>
 #include <yt/yt/client/table_client/unordered_schemaful_reader.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/versioned_reader.h>
@@ -451,7 +451,7 @@ ISchemafulUnversionedReaderPtr CreatePartitionScanReader(
                 tabletSnapshot->QuerySchema->GetKeyColumnCount());
         }
 
-        auto rowMerger = CreateLatestTimestampRowMerger(
+        auto rowMerger = CreateQueryLatestTimestampRowMerger(
             New<TRowBuffer>(TTabletReaderPoolTag()),
             tabletSnapshot,
             columnFilter,
@@ -511,7 +511,7 @@ ISchemafulUnversionedReaderPtr CreatePartitionScanReader(
                 workloadCategory);
             index++;
 
-            auto rowMerger = CreateLatestTimestampRowMerger(
+            auto rowMerger = CreateQueryLatestTimestampRowMerger(
                 New<TRowBuffer>(TTabletReaderPoolTag()),
                 tabletSnapshot,
                 columnFilter,
@@ -656,7 +656,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                 tabletSnapshot->QuerySchema->GetKeyColumnCount());
         }
 
-        auto rowMerger = CreateLatestTimestampRowMerger(
+        auto rowMerger = CreateQueryLatestTimestampRowMerger(
             New<TRowBuffer>(TTabletReaderPoolTag()),
             tabletSnapshot,
             columnFilter,
@@ -715,7 +715,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                 workloadCategory);
             index++;
 
-            auto rowMerger = CreateLatestTimestampRowMerger(
+            auto rowMerger = CreateQueryLatestTimestampRowMerger(
                 New<TRowBuffer>(TTabletReaderPoolTag()),
                 tabletSnapshot,
                 columnFilter,
@@ -1015,10 +1015,10 @@ IVersionedReaderPtr CreateCompactionTabletReader(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<TSchemafulRowMerger> CreateLatestTimestampRowMerger(
+std::unique_ptr<TSchemafulRowMerger> CreateQueryLatestTimestampRowMerger(
     TRowBufferPtr rowBuffer,
     const TTabletSnapshotPtr& tabletSnapshot,
-    const TColumnFilter& columnFilter,
+    const TColumnFilter& physicalColumnFilter,
     TTimestamp retentionTimestamp,
     const TTimestampReadOptions& timestampReadOptions)
 {
@@ -1035,12 +1035,15 @@ std::unique_ptr<TSchemafulRowMerger> CreateLatestTimestampRowMerger(
     };
 
     if (timestampReadOptions.TimestampColumnMapping.empty()) {
-        return createRowMerger(tabletSnapshot->QuerySchema->GetColumnCount(), columnFilter);
+        return createRowMerger(tabletSnapshot->QuerySchema->GetColumnCount(), physicalColumnFilter);
     } else {
         return createRowMerger(
             // Add timestamp column for every value column.
             tabletSnapshot->QuerySchema->GetColumnCount() + tabletSnapshot->QuerySchema->GetValueColumnCount(),
-            CreateLatestTimestampColumnFilter(columnFilter, tabletSnapshot->QuerySchema, timestampReadOptions));
+            ToLatestTimestampColumnFilter(
+                physicalColumnFilter,
+                timestampReadOptions,
+                tabletSnapshot->QuerySchema->GetColumnCount()));
     }
 }
 
