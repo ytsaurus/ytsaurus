@@ -255,7 +255,7 @@ public:
     virtual void LoadEctoplasm(TStreamLoadContext& context);
 
 protected:
-    // COMPAT(cherepashka): remove after 25.1.
+    // COMPAT(cherepashka): add `const` after 25.1.
     TObjectId Id_;
 
     int RefCounter_ = 0;
