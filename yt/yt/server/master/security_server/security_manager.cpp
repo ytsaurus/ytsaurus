@@ -2923,6 +2923,9 @@ private:
     TTimeGauge CheckPermissionGauge_;
     TTimeGauge AclIterationGauge_;
 
+    // COMPAT(cherepashka)
+    bool FixAdminBuiltinGroup_ = false;
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     static i64 GetDiskSpaceToCharge(i64 diskSpace, NErasure::ECodec erasureCodec, TReplicationPolicy policy)
@@ -3247,6 +3250,8 @@ private:
         AccountResourceUsageLeaseMap_.LoadValues(context);
 
         Load(context, IsChunkHostCell_);
+
+        FixAdminBuiltinGroup_ = context.GetVersion() < EMasterReign::FixBuiltinAdminsGroupId;
     }
 
     void OnAfterSnapshotLoaded() override
@@ -3330,6 +3335,18 @@ private:
         RecomputeSubtreeSize(RootAccount_, /*validateMatch*/ true);
 
         InitializeRootAccount();
+
+        if (FixAdminBuiltinGroup_) {
+            YT_LOG_INFO("Fixing %Qv group id (GroupId: %v -> %v)",
+                AdminsGroupName,
+                AdminsGroup_->GetId(),
+                AdminsGroupId_);
+
+            auto adminsGroupHolder = GroupMap_.Release(AdminsGroup_->GetId());
+            YT_VERIFY(IsWellKnownId(AdminsGroupId_));
+            adminsGroupHolder->SetId(AdminsGroupId_);
+            GroupMap_.Insert(AdminsGroupId_, std::move(adminsGroupHolder));
+        }
     }
 
     struct TAccountResourceUsage
