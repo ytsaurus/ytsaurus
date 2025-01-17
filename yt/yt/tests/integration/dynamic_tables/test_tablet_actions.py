@@ -14,6 +14,8 @@ from yt_commands import (
 
 from yt.common import YtError
 
+from yt_type_helpers import list_type, optional_type
+
 from flaky import flaky
 import pytest
 
@@ -742,6 +744,34 @@ class TestTabletActions(TabletActionsBase):
             _create_reshard_action(tablet_ids + tablet_ids)
 
         _create_move_action(tablet_ids)
+
+    @authors("ermolovd")
+    @pytest.mark.parametrize("key_column_type", [list_type("string"), optional_type("yson")])
+    def test_reshard_composite_key(self, key_column_type):
+        sync_create_cells(1)
+        create_dynamic_table("//tmp/t", schema=[
+            {"name": "key", "type_v3": key_column_type, "sort_order": "ascending"},
+            {"name": "value", "type": "string"}]
+        )
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": ["first" + str(i), "second" + str(i)], "value": "hello"} for i in range(100)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        tablet_ids = [get("//tmp/t/@tablets/0/tablet_id")]
+        pivot_keys = [[], [["first20", "second51"]], [["first50", "second51"]], [["first80", "second51"]]]
+
+        create(
+            "tablet_action",
+            "",
+            attributes={
+                "kind": "reshard",
+                "keep_finished": True,
+                "tablet_ids": tablet_ids,
+                "pivot_keys": pivot_keys,
+            },
+        )
 
 
 ##################################################################
