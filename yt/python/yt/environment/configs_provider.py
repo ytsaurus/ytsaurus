@@ -1707,6 +1707,8 @@ def _build_cluster_connection_config(yt_config,
     if len(cypress_proxy_rpc_ports) > 0:
         cypress_proxy_addresses = ["{}:{}".format(yt_config.fqdn, rpc_port) for rpc_port in cypress_proxy_rpc_ports]
         cluster_connection["cypress_proxy"] = {}
+        update_inplace(cluster_connection["cypress_proxy"], _get_retrying_channel_config())
+        update_inplace(cluster_connection["cypress_proxy"], _get_balancing_channel_config())
         cluster_connection["cypress_proxy"]["addresses"] = cypress_proxy_addresses
 
     if yt_config.mock_tvm_id is not None:
