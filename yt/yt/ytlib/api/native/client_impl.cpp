@@ -277,12 +277,14 @@ IChannelPtr TClient::GetCypressChannelOrThrow(
     //! NB: Since clients can be spawned at random moments there is no point in subscribing to master cell directory changes,
     // but it is still necessary to try to update channels.
     InitChannelsOrThrow(kind, effectiveCellTag);
-    if (auto channel = FindCypressChannel(kind, effectiveCellTag)) {
-        return channel;
+
+    auto channel = FindCypressChannel(kind, effectiveCellTag);
+    if (!channel) {
+        THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
+            cellTag);
     }
 
-    THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
-        cellTag);
+    return channel;
 }
 
 IChannelPtr TClient::GetCellChannelOrThrow(TCellId cellId)
