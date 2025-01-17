@@ -777,6 +777,10 @@ void TSlotManager::OnJobsCpuLimitUpdated()
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
+    if (!JobEnvironment_) {
+        return;
+    }
+
     try {
         const auto& resourceManager = Bootstrap_->GetNodeResourceManager();
         auto cpuLimit = resourceManager->GetJobsCpuLimit();
