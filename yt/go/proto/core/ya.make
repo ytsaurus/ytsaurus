@@ -1,4 +1,5 @@
 RECURSE(
+    bus
     misc
     rpc
     tracing
