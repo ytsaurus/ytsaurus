@@ -5,6 +5,7 @@ def pytest_configure(config):
         "skip_if(condition)",
         "timeout(timeout)",
         "opensource",
+        "ignore_in_opensource_ci",
     ]:
         config.addinivalue_line("markers", line)
 
