@@ -108,7 +108,7 @@ IRowStreamEncoderPtr CreateFormatRowStreamEncoder(
         std::move(nameTable),
         std::move(format),
         std::move(tableSchema),
-        columns,
+        std::move(columns),
         std::move(controlAttributesConfig));
 }
 

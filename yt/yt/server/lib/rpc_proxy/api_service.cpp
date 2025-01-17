@@ -294,7 +294,7 @@ IRowStreamEncoderPtr CreateRowStreamEncoder(
                     nameTable,
                     *format,
                     schema,
-                    std::move(columns),
+                    columns,
                     controlAttributesConfig);
             case NApi::NRpcProxy::NProto::RF_ARROW:
                 YT_ABORT();
