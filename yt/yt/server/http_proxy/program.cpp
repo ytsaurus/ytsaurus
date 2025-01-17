@@ -26,7 +26,7 @@ using namespace NYTree;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProxyProgram
-    : public TServerProgram<NHttpProxy::TProxyProgramConfig>
+    : public TServerProgram<TProxyProgramConfig>
     , public NLogging::TProgramDescribeStructuredLogsMixin
 {
 public:

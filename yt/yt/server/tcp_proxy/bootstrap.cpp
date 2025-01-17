@@ -84,15 +84,6 @@ public:
         }
     }
 
-    void Initialize()
-    {
-        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
-            .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
-    }
-
     TFuture<void> Run() override
     {
         return BIND(&TBootstrap::DoRun, MakeStrong(this))
@@ -170,6 +161,12 @@ private:
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
+    void DoRun()
+    {
+        DoInitialize();
+        DoStart();
+    }
+
     void DoInitialize()
     {
         BusServer_ = NBus::CreateBusServer(Config_->BusServer);
@@ -230,7 +227,7 @@ private:
         Router_ = CreateRouter(this);
     }
 
-    void DoRun()
+    void DoStart()
     {
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
@@ -256,12 +253,10 @@ IBootstrapPtr CreateTcpProxyBootstrap(
     INodePtr configNode,
     IServiceLocatorPtr serviceLocator)
 {
-    auto bootstrap = New<TBootstrap>(
+    return New<TBootstrap>(
         std::move(config),
         std::move(configNode),
         std::move(serviceLocator));
-    bootstrap->Initialize();
-    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

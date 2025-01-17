@@ -140,20 +140,17 @@ TBootstrap::TBootstrap(
 
 TBootstrap::~TBootstrap() = default;
 
-void TBootstrap::Initialize()
-{
-    BIND(&TBootstrap::DoInitialize, MakeStrong(this))
-        .AsyncVia(ControlQueue_->GetInvoker())
-        .Run()
-        .Get()
-        .ThrowOnError();
-}
-
 TFuture<void> TBootstrap::Run()
 {
     return BIND(&TBootstrap::DoRun, MakeStrong(this))
         .AsyncVia(ControlQueue_->GetInvoker())
         .Run();
+}
+
+void TBootstrap::DoRun()
+{
+    DoInitialize();
+    DoStart();
 }
 
 void TBootstrap::DoInitialize()
@@ -271,7 +268,7 @@ void TBootstrap::DoInitialize()
     HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 }
 
-void TBootstrap::DoRun()
+void TBootstrap::DoStart()
 {
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
@@ -372,9 +369,17 @@ void TBootstrap::DoRun()
     BundleDynamicConfigManager_->Start();
 
     // NB: We must apply the first dynamic config before ApiService_ starts.
-    YT_LOG_INFO("Waiting for dynamic config");
-    WaitFor(DynamicConfigManager_->GetConfigLoadedFuture())
-        .ThrowOnError();
+    YT_LOG_INFO("Loading dynamic config for the first time");
+
+    {
+        auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
+        YT_LOG_FATAL_UNLESS(
+            error.IsOK(),
+            error,
+            "Unexpected failure while waiting for the first dynamic config loaded");
+    }
+
+    YT_LOG_INFO("Dynamic config loaded");
 
     QueryCorpusReporter_->Reconfigure(DynamicConfigManager_->GetConfig()->Api->QueryCorpusReporter);
 
@@ -532,12 +537,10 @@ TBootstrapPtr CreateRpcProxyBootstrap(
     INodePtr configNode,
     IServiceLocatorPtr serviceLocator)
 {
-    auto bootstrap = New<TBootstrap>(
+    return New<TBootstrap>(
         std::move(config),
         std::move(configNode),
         std::move(serviceLocator));
-    bootstrap->Initialize();
-    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -26,7 +26,7 @@ namespace NYT::NCellMaster {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellMasterProgram
-    : public TServerProgram<NCellMaster::TCellMasterProgramConfig>
+    : public TServerProgram<TCellMasterProgramConfig>
 {
 public:
     TCellMasterProgram()
@@ -233,6 +233,8 @@ private:
 
         if (IsDryRunMode()) {
             NBus::TTcpDispatcher::Get()->DisableNetworking();
+
+            bootstrap->Initialize();
 
             if (IsLoadSnapshotMode()) {
                 bootstrap->LoadSnapshot(LoadSnapshotPath_, IsDumpSnapshotMode());

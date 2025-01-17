@@ -34,7 +34,7 @@ using namespace NObjectClient;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterNodeProgram
-    : public TServerProgram<NClusterNode::TClusterNodeProgramConfig, NClusterNode::TClusterNodeDynamicConfig>
+    : public TServerProgram<TClusterNodeProgramConfig, TClusterNodeDynamicConfig>
 {
 public:
     TClusterNodeProgram()
@@ -105,7 +105,7 @@ public:
             .SetFlag(&SkipTvmServiceEnvValidationFlag_)
             .NoArgument();
 
-        SetMainThreadName("Node");
+        SetMainThreadName("NodeProg");
     }
 
 private:
@@ -227,6 +227,8 @@ private:
 
         if (IsDryRunMode()) {
             NBus::TTcpDispatcher::Get()->DisableNetworking();
+
+            bootstrap->Initialize();
 
             const auto& cellarNodeBootstrap = bootstrap->GetCellarNodeBootstrap();
 

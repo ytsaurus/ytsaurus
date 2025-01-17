@@ -60,14 +60,18 @@ public:
     const IInvokerPtr& GetControlInvoker() const;
     const IInvokerPtr& GetSnapshotIOInvoker() const;
 
-    void Initialize();
     TFuture<void> Run() final;
+
+    void Initialize();
     void LoadSnapshot(const TString& fileName, bool dump);
 
 private:
     const TClusterClockBootstrapConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
     const NFusion::IServiceLocatorPtr ServiceLocator_;
+
+    const NConcurrency::TActionQueuePtr ControlQueue_;
+    const NConcurrency::TActionQueuePtr SnapshotIOQueue_;
 
     NObjectClient::TCellId CellId_;
     NObjectClient::TCellTag CellTag_;
@@ -80,11 +84,12 @@ private:
     NHydra::IChangelogStoreFactoryPtr ChangelogStoreFactory_;
     NHydra::ISnapshotStorePtr SnapshotStore_;
     THydraFacadePtr HydraFacade_;
-    NConcurrency::TActionQueuePtr ControlQueue_;
-    NConcurrency::TActionQueuePtr SnapshotIOQueue_;
 
-    void DoInitialize();
+
     void DoRun();
+    void DoInitialize();
+    void DoStart();
+
     void DoLoadSnapshot(const TString& fileName, bool dump);
 
     NYTree::IYPathServicePtr CreateCellOrchidService() const;

@@ -122,15 +122,6 @@ public:
         }
     }
 
-    void Initialize()
-    {
-        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
-            .AsyncVia(ControlInvoker_)
-            .Run()
-            .Get()
-            .ThrowOnError();
-    }
-
     TFuture<void> Run() final
     {
         return BIND(&TBootstrap::DoRun, MakeStrong(this))
@@ -176,6 +167,12 @@ private:
     TQueueAgentPtr QueueAgent_;
 
     ICypressSynchronizerPtr CypressSynchronizer_;
+
+    void DoRun()
+    {
+        DoInitialize();
+        DoStart();
+    }
 
     void DoInitialize()
     {
@@ -326,7 +323,7 @@ private:
             NativeAuthenticator_));
     }
 
-    void DoRun()
+    void DoStart()
     {
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
@@ -443,12 +440,10 @@ IBootstrapPtr CreateQueueAgentBootstrap(
     NYTree::INodePtr configNode,
     NFusion::IServiceLocatorPtr serviceLocator)
 {
-    auto bootstrap = New<TBootstrap>(
+    return New<TBootstrap>(
         std::move(config),
         std::move(configNode),
         std::move(serviceLocator));
-    bootstrap->Initialize();
-    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

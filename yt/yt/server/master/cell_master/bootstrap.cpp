@@ -711,6 +711,12 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TDiskSpaceProfiler)
 
+void TBootstrap::DoRun()
+{
+    DoInitialize();
+    DoStart();
+}
+
 void TBootstrap::DoInitialize()
 {
     Config_->PrimaryMaster->ValidateAllPeersPresent();
@@ -1133,7 +1139,7 @@ void TBootstrap::InitializeTimestampProvider()
     }
 }
 
-void TBootstrap::DoRun()
+void TBootstrap::DoStart()
 {
     if (const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName) {
         ClusterConnection_->GetClusterDirectory()->SubscribeOnClusterUpdated(
@@ -1306,12 +1312,10 @@ TBootstrapPtr CreateMasterBootstrap(
     INodePtr configNode,
     NFusion::IServiceLocatorPtr serviceLocator)
 {
-    auto bootstrap = New<TBootstrap>(
+    return  New<TBootstrap>(
         std::move(config),
         std::move(configNode),
         std::move(serviceLocator));
-    bootstrap->Initialize();
-    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

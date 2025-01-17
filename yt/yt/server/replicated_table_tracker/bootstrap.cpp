@@ -86,15 +86,6 @@ public:
         , RttHostIvoker_(RttHostQueue_->GetInvoker())
     { }
 
-    void Initialize()
-    {
-        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
-            .AsyncVia(ControlInvoker_)
-            .Run()
-            .Get()
-            .ThrowOnError();
-    }
-
     TFuture<void> Run() override
     {
         return BIND(&TBootstrap::DoRun, MakeStrong(this))
@@ -151,6 +142,12 @@ private:
     TReplicatedTableTrackerHostPtr ReplicatedTableTrackerHost_;
     IReplicatedTableTrackerPtr ReplicatedTableTracker_;
 
+    void DoRun()
+    {
+        DoInitialize();
+        DoStart();
+    }
+
     void DoInitialize()
     {
         YT_LOG_INFO("Starting replicated table tracker process (ClusterName: %v)",
@@ -185,8 +182,16 @@ private:
             NativeClient_,
             ControlInvoker_);
         DynamicConfigManager_->Start();
-        WaitFor(DynamicConfigManager_->GetConfigLoadedFuture())
-            .ThrowOnError();
+
+        {
+            YT_LOG_INFO("Loading dynamic config for the first time");
+            auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
+            YT_LOG_FATAL_UNLESS(
+                error.IsOK(),
+                error,
+                "Unexpected failure while waiting for the first dynamic config loaded");
+            YT_LOG_INFO("Dynamic config loaded");
+        }
 
         auto coreDumper = ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>();
 
@@ -227,7 +232,7 @@ private:
             NativeAuthenticator_));
     }
 
-    void DoRun()
+    void DoStart()
     {
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
@@ -314,12 +319,10 @@ IBootstrapPtr CreateReplicatedTableTrackerBootstrap(
     INodePtr configNode,
     IServiceLocatorPtr serviceLocator)
 {
-    auto bootstrap = New<TBootstrap>(
+    return New<TBootstrap>(
         std::move(config),
         std::move(configNode),
         std::move(serviceLocator));
-    bootstrap->Initialize();
-    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

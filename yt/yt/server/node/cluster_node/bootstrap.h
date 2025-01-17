@@ -200,6 +200,8 @@ struct IBootstrap
     : public IBootstrapBase
     , public NServer::IDaemonBootstrap
 {
+    virtual void Initialize() = 0;
+
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
 
     virtual NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TString& bucket) = 0;

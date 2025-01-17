@@ -88,15 +88,6 @@ public:
         }
     }
 
-    void Initialize()
-    {
-        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
-            .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
-    }
-
     TFuture<void> Run() override
     {
         return BIND(&TBootstrap::DoRun, MakeStrong(this))
@@ -164,6 +155,12 @@ private:
     ICellTrackerPtr CellTracker_;
     IBundleControllerPtr BundleController_;
 
+    void DoRun()
+    {
+        DoInitialize();
+        DoStart();
+    }
+
     void DoInitialize()
     {
         NNative::TConnectionOptions connectionOptions;
@@ -230,7 +227,7 @@ private:
         RpcServer_->RegisterService(NBundleController::CreateBundleControllerService(this));
     }
 
-    void DoRun()
+    void DoStart()
     {
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
@@ -261,12 +258,10 @@ IBootstrapPtr CreateCellBalancerBootstrap(
     INodePtr configNode,
     IServiceLocatorPtr serviceLocator)
 {
-    auto bootstrap = New<TBootstrap>(
+    return New<TBootstrap>(
         std::move(config),
         std::move(configNode),
         std::move(serviceLocator));
-    bootstrap->Initialize();
-    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

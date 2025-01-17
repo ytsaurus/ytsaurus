@@ -50,8 +50,6 @@ public:
         NFusion::IServiceLocatorPtr serviceLocator);
     ~TBootstrap();
 
-    void Initialize();
-
     TFuture<void> Run() final;
 
 private:
@@ -99,9 +97,9 @@ private:
 
     IQueryCorpusReporterPtr QueryCorpusReporter_;
 
-    void DoInitialize();
-
     void DoRun();
+    void DoInitialize();
+    void DoStart();
 
     void OnDynamicConfigChanged(
         const TProxyDynamicConfigPtr& /*oldConfig*/,

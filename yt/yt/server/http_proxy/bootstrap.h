@@ -61,7 +61,6 @@ public:
         NFusion::IServiceLocatorPtr serviceLocator);
     ~TBootstrap();
 
-    void Initialize();
     TFuture<void> Run() final;
 
     const IInvokerPtr& GetControlInvoker() const;
@@ -145,8 +144,9 @@ private:
 
     INodeMemoryTrackerPtr MemoryUsageTracker_;
 
-    void DoInitialize();
     void DoRun();
+    void DoInitialize();
+    void DoStart();
 
     void RegisterRoutes(const NHttp::IServerPtr& server);
     NHttp::IHttpHandlerPtr AllowCors(NHttp::IHttpHandlerPtr nextHandler) const;

@@ -98,6 +98,8 @@ TBootstrap::TBootstrap(
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
     , ServiceLocator_(std::move(serviceLocator))
+    , ControlQueue_(New<TActionQueue>("Control"))
+    , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
 {
     WarnForUnrecognizedOptions(Logger(), Config_);
 }
@@ -161,9 +163,6 @@ const IInvokerPtr& TBootstrap::GetSnapshotIOInvoker() const
 
 void TBootstrap::Initialize()
 {
-    ControlQueue_ = New<TActionQueue>("Control");
-    SnapshotIOQueue_ = New<TActionQueue>("SnapshotIO");
-
     BIND(&TBootstrap::DoInitialize, MakeStrong(this))
         .AsyncVia(GetControlInvoker())
         .Run()
@@ -185,6 +184,12 @@ void TBootstrap::LoadSnapshot(const TString& fileName, bool dump)
         .Run()
         .Get()
         .ThrowOnError();
+}
+
+void TBootstrap::DoRun()
+{
+    DoInitialize();
+    DoStart();
 }
 
 void TBootstrap::DoInitialize()
@@ -258,7 +263,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->Configure(Config_->RpcServer);
 }
 
-void TBootstrap::DoRun()
+void TBootstrap::DoStart()
 {
     HydraFacade_->Initialize();
 
@@ -334,12 +339,10 @@ TBootstrapPtr CreateClusterClockBootstrap(
     INodePtr configNode,
     IServiceLocatorPtr serviceLocator)
 {
-    auto bootstrap = New<TBootstrap>(
+    return New<TBootstrap>(
         std::move(config),
         std::move(configNode),
         std::move(serviceLocator));
-    bootstrap->Initialize();
-    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
