@@ -291,6 +291,9 @@ Checks whether the specified value is `NULL`.
 `is_finite(x) :: double -> boolean`
 Checks whether the specified value is a finite floating point number (i.e. it isn't infinite or `NaN`).
 
+`is_nan(x) :: double -> boolean`
+Checks whether the specified value is `NaN`.
+
 `transform(a, (a1, a2, ...), (b1, b2, ...)) :: A -> List[A] -> List[B] -> B`
 `transform[a2), ((a11, a12), ...), (v1, ...](a1,) :: Tuple -> List[Tuple] -> List[B] -> B`
 Convert a value (or tuple) according to an explicit display of some elements on other elements.
@@ -301,6 +304,9 @@ The complexity is constant.
 Returns the argument with the greatest value.
 
 #### Working with strings
+`length(s) :: string -> int64`
+Returns the `s` string length in bytes.
+
 `is_substr(s, t) :: string -> string -> boolean`
 Checks whether the `s` string is the `t` substring.
 
@@ -477,6 +483,9 @@ To convert a string to a number:
 `parse_int64 :: string -> int64`
 `parse_uint64 :: string -> uint64`
 `parse_double :: string -> double`
+
+Any type can be cast to `any`:
+`to_any :: int64 | uint64 | double | boolean | string | any -> any`
 
 #### NULL value
 In most operators, using `NULL` values in operands results in a `NULL` value. Comparison operators have a different behavior. The result in them is always `boolean`. This is to ensure that the behavior of comparison operations is the same both when ordering data in the table by key and when calculating expressions within a query. The need to compare with `NULL` is due to the desire to make the order relation on the keys complete. `NULL` is considered less than the other values.
@@ -660,7 +669,7 @@ The statistics have a hierarchical structure and correspond to the query executi
 - `async_time`: Total waiting time. If it differs significantly from "wait_on_ready_event_time", this means that the query is waiting for the CPU to allocate time in the fair share scheduler.
 
 ### The explain-query command { #explain_query }
-The explain rows command can be used to debug a query. The command outputs the result in a structured form.
+You can debug a query using the "explain" command. The command outputs the result in a structured form.
 Example:
 ```
 {
