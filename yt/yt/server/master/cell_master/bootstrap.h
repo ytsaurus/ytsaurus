@@ -269,9 +269,11 @@ protected:
 
     NObjectClient::TCellTagList GetKnownParticipantCellTags() const;
 
-    void DoInitialize();
-    void InitializeTimestampProvider();
     void DoRun();
+    void DoInitialize();
+    void DoStart();
+
+    void InitializeTimestampProvider();
     void DoLoadSnapshot(
         const TString& fileName,
         bool dump);

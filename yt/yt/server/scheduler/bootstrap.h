@@ -48,7 +48,6 @@ public:
 
     void Reconfigure(const TSchedulerConfigPtr& config);
 
-    void Initialize();
     TFuture<void> Run() final;
 
 private:
@@ -68,8 +67,9 @@ private:
     mutable THashMap<NObjectClient::TCellTag, NApi::NNative::IClientPtr> RemoteClients_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
-    void DoInitialize();
     void DoRun();
+    void DoInitialize();
+    void DoStart();
 };
 
 DEFINE_REFCOUNTED_TYPE(TBootstrap)

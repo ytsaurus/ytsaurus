@@ -92,15 +92,6 @@ public:
         }
     }
 
-    void Initialize()
-    {
-        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
-            .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
-    }
-
     TFuture<void> Run() override
     {
         return BIND(&TBootstrap::DoRun, MakeStrong(this))
@@ -173,6 +164,12 @@ private:
     IPartBootstrapPtr ChaosCacheBootstrap_;
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
+
+    void DoRun()
+    {
+        DoInitialize();
+        DoStart();
+    }
 
     void DoInitialize()
     {
@@ -256,7 +253,7 @@ private:
             NativeAuthenticator_));
     }
 
-    void DoRun()
+    void DoStart()
     {
         DynamicConfigManager_->Start();
 
@@ -284,12 +281,10 @@ IBootstrapPtr CreateMasterCacheBootstrap(
     NYTree::INodePtr configNode,
     NFusion::IServiceLocatorPtr serviceLocator)
 {
-    auto bootstrap = New<TBootstrap>(
+    return New<TBootstrap>(
         std::move(config),
         std::move(configNode),
         std::move(serviceLocator));
-    bootstrap->Initialize();
-    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

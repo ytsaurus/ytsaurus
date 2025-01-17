@@ -119,20 +119,17 @@ TBootstrap::TBootstrap(
 
 TBootstrap::~TBootstrap() = default;
 
-void TBootstrap::Initialize()
-{
-    BIND(&TBootstrap::DoInitialize, MakeStrong(this))
-        .AsyncVia(GetControlInvoker(EControlQueue::Default))
-        .Run()
-        .Get()
-        .ThrowOnError();
-}
-
 TFuture<void> TBootstrap::Run()
 {
     return BIND(&TBootstrap::DoRun, MakeStrong(this))
         .AsyncVia(GetControlInvoker(EControlQueue::Default))
         .Run();
+}
+
+void TBootstrap::DoRun()
+{
+    DoInitialize();
+    DoStart();
 }
 
 void TBootstrap::DoInitialize()
@@ -200,7 +197,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateControllerAgentTrackerService(this, ControllerAgentTracker_->GetResponseKeeper()));
 }
 
-void TBootstrap::DoRun()
+void TBootstrap::DoStart()
 {
     YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_->Start();
@@ -279,12 +276,10 @@ TBootstrapPtr CreateSchedulerBootstrap(
     INodePtr configNode,
     IServiceLocatorPtr serviceLocator)
 {
-    auto bootstrap = New<TBootstrap>(
+    return New<TBootstrap>(
         std::move(config),
         std::move(configNode),
         std::move(serviceLocator));
-    bootstrap->Initialize();
-    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -126,13 +126,10 @@ TBootstrap::TBootstrap(
 
 TBootstrap::~TBootstrap() = default;
 
-void TBootstrap::Initialize()
+void TBootstrap::DoRun()
 {
-    BIND(&TBootstrap::DoInitialize, MakeStrong(this))
-        .AsyncVia(GetControlInvoker())
-        .Run()
-        .Get()
-        .ThrowOnError();
+    DoInitialize();
+    DoStart();
 }
 
 void TBootstrap::DoInitialize()
@@ -422,7 +419,7 @@ TFuture<void> TBootstrap::Run()
         .Run();
 }
 
-void TBootstrap::DoRun()
+void TBootstrap::DoStart()
 {
     DynamicConfigManager_->Start();
 
@@ -590,12 +587,10 @@ TBootstrapPtr CreateHttpProxyBootstrap(
     INodePtr configNode,
     IServiceLocatorPtr serviceLocator)
 {
-    auto bootstrap = New<TBootstrap>(
+    return New<TBootstrap>(
         std::move(config),
         std::move(configNode),
         std::move(serviceLocator));
-    bootstrap->Initialize();
-    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
