@@ -255,7 +255,8 @@ public:
     virtual void LoadEctoplasm(TStreamLoadContext& context);
 
 protected:
-    const TObjectId Id_;
+    // COMPAT(cherepashka): remove after 25.1.
+    TObjectId Id_;
 
     int RefCounter_ = 0;
     TEpochRefCounter EphemeralRefCounter_;

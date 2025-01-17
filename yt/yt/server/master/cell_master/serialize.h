@@ -210,6 +210,7 @@ DEFINE_ENUM(EMasterReign,
     ((OpaqueSchemaAttribute)                                        (2820))  // cherepashka
     ((FixNullPtrDereferenceInCreateForeignObject)                   (2821))  // cherepashka
     ((FixCompositeKeyDeserialization)                               (2822))  // ermolovd
+    ((FixBuiltinAdminsGroupId)                                      (2823))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
