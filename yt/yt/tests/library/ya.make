@@ -39,6 +39,7 @@ PY_SRCS(
     yt_queries.py
     yt_queue_agent_test_base.py
     yt_mock_server.py
+    yt_master_cell_addition_base.py
     gdb_helpers.py
     decimal_helpers.py
 )
