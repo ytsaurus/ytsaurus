@@ -30,8 +30,6 @@ using namespace NObjectClient;
 using namespace NYTree;
 using namespace NYson;
 
-using NChunkClient::TDataSliceDescriptor;
-
 using NYT::FromProto;
 using NYT::ToProto;
 
@@ -51,12 +49,9 @@ public:
         TSimpleJobBase::Initialize();
 
         YT_VERIFY(JobSpecExt_.input_table_specs_size() == 1);
-        const auto& inputSpec = JobSpecExt_.input_table_specs(0);
 
-        auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
-
-        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(JobSpecExt_.extensions());
-        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
+        auto dataSliceDescriptors = Host_->GetJobSpecHelper()->UnpackDataSliceDescriptors();
+        auto dataSourceDirectory = Host_->GetJobSpecHelper()->GetDataSourceDirectory();
         auto readerOptions = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
             JobSpecExt_.table_reader_options()));
 

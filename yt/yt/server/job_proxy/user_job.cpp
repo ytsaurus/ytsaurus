@@ -146,7 +146,6 @@ using NControllerAgent::NProto::TJobResult;
 using NControllerAgent::NProto::TJobSpec;
 using NControllerAgent::NProto::TUserJobSpec;
 using NControllerAgent::NProto::TCoreInfo;
-using NChunkClient::TDataSliceDescriptor;
 
 using NYT::FromProto;
 using NYT::ToProto;
