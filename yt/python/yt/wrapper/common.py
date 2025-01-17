@@ -300,7 +300,7 @@ def generate_traceparent(generator=None):
     if generator is None:
         generator = random
 
-    return make_traceparent(generator.randint(2**128 - 1), generator.randint(2**64 - 1), is_sampled=True)
+    return make_traceparent(generator.randint(0, 2**128 - 1), generator.randint(0, 2**64 - 1), is_sampled=True)
 
 
 def get_home_dir():
