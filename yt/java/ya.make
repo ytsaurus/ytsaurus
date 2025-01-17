@@ -20,6 +20,7 @@ IF (NOT OPENSOURCE)
         jdbc
         jdbc/ub
         ytclient
+        ytclient-core
         ytclient/tutorial
     )
 ENDIF()
