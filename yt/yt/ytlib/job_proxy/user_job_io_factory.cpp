@@ -163,16 +163,9 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
     std::optional<int> partitionTag = std::nullopt)
 {
-    const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
-    std::vector<TDataSliceDescriptor> dataSliceDescriptors;
-    for (const auto& inputSpec : jobSpecExt.input_table_specs()) {
-        auto descriptors = UnpackDataSliceDescriptors(inputSpec);
-        dataSliceDescriptors.insert(dataSliceDescriptors.end(), descriptors.begin(), descriptors.end());
-    }
-
+    auto dataSliceDescriptors = jobSpecHelper->UnpackDataSliceDescriptors();
     auto dataSourceDirectory = jobSpecHelper->GetDataSourceDirectory();
-
-    auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(jobSpecExt.table_reader_options()));
+    auto options = jobSpecHelper->GetTableReaderOptions();
 
     auto createReader = isParallel
         ? CreateSchemalessParallelMultiReader

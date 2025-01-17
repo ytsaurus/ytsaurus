@@ -101,7 +101,7 @@ public:
         YT_VERIFY(JobSpecExt_.input_table_specs_size() == 1);
         YT_VERIFY(JobSpecExt_.output_table_specs_size() == 1);
 
-        DataSliceDescriptors_ = UnpackDataSliceDescriptors(JobSpecExt_.input_table_specs(0));
+        DataSliceDescriptors_ = Host_->GetJobSpecHelper()->UnpackDataSliceDescriptors();
 
         for (const auto& dataSliceDescriptor : DataSliceDescriptors_) {
             for (const auto& inputChunkSpec : dataSliceDescriptor.ChunkSpecs) {
@@ -144,8 +144,7 @@ public:
             extraChunkTags.ErasureCodec = NErasure::ECodec(tableSpec.chunk_specs()[0].erasure_codec());
         }
 
-        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(JobSpecExt_.extensions());
-        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
+        auto dataSourceDirectory = Host_->GetJobSpecHelper()->GetDataSourceDirectory();
         YT_VERIFY(std::ssize(dataSourceDirectory->DataSources()) == 1);
         PackBaggageForChunkReader(InputTraceContext_, dataSourceDirectory->DataSources()[0], extraChunkTags);
 

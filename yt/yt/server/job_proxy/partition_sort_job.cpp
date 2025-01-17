@@ -57,11 +57,8 @@ public:
         TotalRowCount_ = JobSpecExt_.input_row_count();
 
         YT_VERIFY(JobSpecExt_.input_table_specs_size() == 1);
-        const auto& inputSpec = JobSpecExt_.input_table_specs(0);
-        auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
-
-        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(JobSpecExt_.extensions());
-        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
+        auto dataSliceDescriptors = Host_->GetJobSpecHelper()->UnpackDataSliceDescriptors();
+        auto dataSourceDirectory = Host_->GetJobSpecHelper()->GetDataSourceDirectory();
 
         std::optional<int> partitionTag;
         if (JobSpecExt_.has_partition_tag()) {
