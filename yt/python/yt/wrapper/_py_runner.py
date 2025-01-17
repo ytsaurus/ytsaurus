@@ -154,7 +154,7 @@ def main():
                                           __main_filename,
                                           ('', 'rb', imp.__dict__[__main_module_type]))
         else:  # python3
-            import importlib
+            import importlib.util
             spec = importlib.util.spec_from_file_location(__main_module_name, __main_filename)
             main_module = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(main_module)

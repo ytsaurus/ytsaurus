@@ -579,7 +579,8 @@ def build_modules_arguments(modules_info, create_temp_file, file_argument_builde
 
 
 def build_main_file_arguments(function, create_temp_file, file_argument_builder):
-    main_filename = create_temp_file(prefix="_main_module", suffix=".py")
+    main_filename_local = create_temp_file(prefix="_main_module", suffix=".py")
+    main_filename_remote = "modules/_main_module.py"
     main_module_type = "PY_SOURCE"
     module_import_path = "_main_module"
     if is_running_interactively():
@@ -606,9 +607,16 @@ def build_main_file_arguments(function, create_temp_file, file_argument_builder)
                 main_module_type = "PY_COMPILED"
 
     if function_source_filename:
-        shutil.copy(function_source_filename, main_filename)
+        shutil.copy(function_source_filename, main_filename_local)
 
-    return [file_argument_builder(main_filename), module_import_path, main_module_type]
+    return [
+        file_argument_builder(
+            main_filename_local,
+            attributes={"file_name": main_filename_remote},
+        ),
+        module_import_path,
+        main_module_type,
+    ]
 
 
 def do_wrap(function, tempfiles_manager, local_mode, file_manager, params, client):
@@ -620,7 +628,7 @@ def do_wrap(function, tempfiles_manager, local_mode, file_manager, params, clien
             prefix=prefix,
             suffix=suffix)
 
-    def file_argument_builder(file_params, caller=False):
+    def file_argument_builder(file_params, caller=False, attributes=None):
         if isinstance(file_params, str):
             file_params = {"filename": file_params}
         else:
@@ -630,14 +638,13 @@ def do_wrap(function, tempfiles_manager, local_mode, file_manager, params, clien
             return os.path.abspath(file_params["filename"])
         else:
             bypass_artifacts_cache = get_config(client)["pickling"]["modules_bypass_artifacts_cache"]
-            attributes = None
             if bypass_artifacts_cache is not None:
                 if attributes is None:
                     attributes = {}
                 attributes["bypass_artifacts_cache"] = bypass_artifacts_cache
             file_params["filename"] = LocalFile(file_params["filename"], attributes=attributes)
             file_manager.add_files(file_params)
-            return ("./" if caller else "") + os.path.basename(file_params["filename"].path)
+            return ("./" if caller else "") + file_params["filename"].file_name
 
     is_standalone_binary = SINGLE_INDEPENDENT_BINARY_CASE or \
         (SINGLE_INDEPENDENT_BINARY_CASE is None and getattr(sys, "is_standalone_binary", False))

@@ -42,6 +42,7 @@ import io
 import json
 import logging
 import os
+import multiprocessing
 import signal
 import sys
 import tempfile
@@ -778,6 +779,36 @@ print(op.id)
             attributes={"format": yt.JsonFormat(encoding="utf-8", encode_utf8=False)})
 
         yt.run_map(foo, input_table, output_table, yt_files=[table_file_with_format])
+
+    @authors("thenno")
+    def test_multiprocessing_spawn(self):
+        if arcadia_interop.yatest_common is not None:
+            # The test doesn't work in arcadia env since the latter doesn't use pickling at all.
+            pytest.skip()
+
+        def foo():
+            assert "./modules" in sys.path
+            ctx = multiprocessing.get_context("spawn")
+            # Target function must be present in any module:
+            # https://stackoverflow.com/questions/1412787/picklingerror-cant-pickle-class-decimal-decimal-its-not-the-same-object/39812728#39812728.
+            process = ctx.Process(target=yt.default_config.get_default_config, args=tuple())
+            process.start()
+            process.join()
+            assert process.exitcode == 0
+            process.close()
+
+
+        task_spec = yt.VanillaSpecBuilder().begin_task("test multiprocessing spawn")
+        task_spec.command(foo)
+        task_spec.job_count(1)
+        operation_spec = task_spec.end_task()
+
+        # We have to disable pickling for system modules
+        # because it incorrectly pickles multiprocessing.
+        # We also have to disable local mode because
+        #
+        with set_config_option("pickling/ignore_system_modules", True), set_config_option("is_local_mode", False):
+            yt.run_operation(operation_spec)
 
 
 @pytest.mark.usefixtures("yt_env_with_rpc")
