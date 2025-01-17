@@ -806,7 +806,7 @@ print(op.id)
         # We have to disable pickling for system modules
         # because it incorrectly pickles multiprocessing.
         # We also have to disable local mode because
-        #
+        # attached files are not appearing at the /slot/sandbox directory inside the job (we can only absolute paths only).
         with set_config_option("pickling/ignore_system_modules", True), set_config_option("is_local_mode", False):
             yt.run_operation(operation_spec)
 
