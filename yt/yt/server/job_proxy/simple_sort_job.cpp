@@ -1,5 +1,4 @@
 #include "simple_sort_job.h"
-#include "private.h"
 #include "job_detail.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -63,12 +62,9 @@ public:
         auto nameTable = TNameTable::FromSchema(*outputSchema);
 
         YT_VERIFY(JobSpecExt_.input_table_specs_size() == 1);
-        const auto& inputSpec = JobSpecExt_.input_table_specs(0);
-        auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
-        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(JobSpecExt_.extensions());
-        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
-        auto readerOptions = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
-            JobSpecExt_.table_reader_options()));
+        auto dataSliceDescriptors = Host_->GetJobSpecHelper()->UnpackDataSliceDescriptors();
+        auto dataSourceDirectory = Host_->GetJobSpecHelper()->GetDataSourceDirectory();
+        auto readerOptions = Host_->GetJobSpecHelper()->GetTableReaderOptions();
 
         TotalRowCount_ = GetCumulativeRowCount(dataSliceDescriptors);
 

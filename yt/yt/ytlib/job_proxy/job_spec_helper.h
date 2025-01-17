@@ -23,6 +23,8 @@ struct IJobSpecHelper
     virtual NScheduler::TJobIOConfigPtr GetJobIOConfig() const = 0;
     virtual const NControllerAgent::NProto::TJobSpecExt& GetJobSpecExt() const = 0;
     virtual const NChunkClient::TDataSourceDirectoryPtr& GetDataSourceDirectory() const = 0;
+    virtual const std::vector<NChunkClient::TDataSliceDescriptor> UnpackDataSliceDescriptors() const = 0;
+    virtual NTableClient::TTableReaderOptionsPtr GetTableReaderOptions() const = 0;
     virtual int GetKeySwitchColumnCount() const = 0;
     virtual bool IsReaderInterruptionSupported() const = 0;
     virtual TJobTestingOptionsPtr GetJobTestingOptions() const = 0;

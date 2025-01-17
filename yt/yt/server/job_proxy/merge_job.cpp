@@ -31,7 +31,6 @@ using namespace NObjectClient;
 using namespace NYTree;
 using namespace NYson;
 
-using NChunkClient::TDataSliceDescriptor;
 using NYT::FromProto;
 using NYT::ToProto;
 
@@ -69,18 +68,12 @@ public:
             YT_LOG_INFO("Ordered merge produces sorted output");
         }
 
-        std::vector<TDataSliceDescriptor> dataSliceDescriptors;
-        for (const auto& inputSpec : JobSpecExt_.input_table_specs()) {
-            auto descriptors = UnpackDataSliceDescriptors(inputSpec);
-            dataSliceDescriptors.insert(dataSliceDescriptors.end(), descriptors.begin(), descriptors.end());
-        }
+        auto dataSliceDescriptors = Host_->GetJobSpecHelper()->UnpackDataSliceDescriptors();
 
         TotalRowCount_ = JobSpecExt_.input_row_count();
 
-        auto readerOptions = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
-            JobSpecExt_.table_reader_options()));
-        auto dataSourceDirectoryExt = GetProtoExtension<TDataSourceDirectoryExt>(JobSpecExt_.extensions());
-        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(dataSourceDirectoryExt);
+        auto readerOptions = Host_->GetJobSpecHelper()->GetTableReaderOptions();
+        auto dataSourceDirectory = Host_->GetJobSpecHelper()->GetDataSourceDirectory();
 
         NameTable_ = TNameTable::FromKeyColumns(keyColumns);
 

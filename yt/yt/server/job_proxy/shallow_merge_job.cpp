@@ -230,8 +230,7 @@ private:
 
     void PackBaggages()
     {
-        auto dataSourceDirectoryExt = FindProtoExtension<TDataSourceDirectoryExt>(JobSpecExt_.extensions());
-        auto dataSourceDirectory = FromProto<TDataSourceDirectoryPtr>(*dataSourceDirectoryExt);
+        auto dataSourceDirectory = Host_->GetJobSpecHelper()->GetDataSourceDirectory();
 
         TExtraChunkTags extraChunkTags;
 

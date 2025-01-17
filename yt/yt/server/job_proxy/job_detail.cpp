@@ -51,7 +51,6 @@ using namespace NJobAgent;
 using namespace NCoreDump;
 
 using NChunkClient::NProto::TDataStatistics;
-using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TChunkReaderStatistics;
 
 using NYT::FromProto;
