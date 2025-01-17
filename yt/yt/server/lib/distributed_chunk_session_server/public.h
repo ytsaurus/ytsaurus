@@ -2,7 +2,7 @@
 
 #include <library/cpp/yt/memory/intrusive_ptr.h>
 
-namespace NYT::NDistributedChunkSession {
+namespace NYT::NDistributedChunkSessionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -13,4 +13,4 @@ DECLARE_REFCOUNTED_CLASS(TDistributedChunkSessionServiceConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDistributedChunkSession
+} // namespace NYT::NDistributedChunkSessionServer

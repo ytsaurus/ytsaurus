@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
-namespace NYT::NDistributedChunkSession {
+namespace NYT::NDistributedChunkSessionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -10,4 +10,4 @@ YT_DEFINE_GLOBAL(const NLogging::TLogger, DistributedChunkSessionServiceLogger, 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDistributedChunkSession
+} // namespace NYT::NDistributedChunkSessionServer

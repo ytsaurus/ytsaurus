@@ -12,7 +12,7 @@
 
 #include <yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 
-namespace NYT::NDistributedChunkSession {
+namespace NYT::NDistributedChunkSessionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,7 +24,7 @@ struct TCoordinatorStatus
     std::vector<NTableClient::NProto::TDataBlockMeta> DataBlockMetas;
 };
 
-void ToProto(NDistributedChunkSessionClient::NProto::TRspPingChunkSession* proto, const TCoordinatorStatus& status);
+void ToProto(NDistributedChunkSessionClient::NProto::TRspPingSession* proto, const TCoordinatorStatus& status);
 
 /*!
  *  \note Thread affinity: any
@@ -67,4 +67,4 @@ IDistributedChunkSessionCoordinatorPtr CreateDistributedChunkSessionCoordinator(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDistributedChunkSession
+} // namespace NYT::NDistributedChunkSessionServer

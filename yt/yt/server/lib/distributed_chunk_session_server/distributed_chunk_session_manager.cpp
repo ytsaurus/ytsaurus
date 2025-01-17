@@ -1,6 +1,6 @@
 #include "distributed_chunk_session_manager.h"
 
-namespace NYT::NDistributedChunkSession {
+namespace NYT::NDistributedChunkSessionServer {
 
 using NApi::NNative::IConnectionPtr;
 
@@ -16,4 +16,4 @@ IDistributedChunkSessionManagerPtr CreateDistributedChunkSessionManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDistributedChunkSession
+} // namespace NYT::NDistributedChunkSessionServer

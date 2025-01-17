@@ -23,7 +23,7 @@
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 
-#include <yt/yt/server/lib/distributed_chunk_session/distributed_chunk_session_service.h>
+#include <yt/yt/server/lib/distributed_chunk_session_server/distributed_chunk_session_service.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 

@@ -2,7 +2,7 @@
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
-namespace NYT::NDistributedChunkSession {
+namespace NYT::NDistributedChunkSessionServer {
 
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
@@ -10,11 +10,11 @@ using namespace NNodeTrackerClient;
 using NYT::ToProto;
 
 using NApi::NNative::IConnectionPtr;
-using NDistributedChunkSessionClient::NProto::TRspPingChunkSession;
+using NDistributedChunkSessionClient::NProto::TRspPingSession;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(TRspPingChunkSession* proto, const TCoordinatorStatus& status)
+void ToProto(TRspPingSession* proto, const TCoordinatorStatus& status)
 {
     proto->set_close_demanded(status.CloseDemanded);
     proto->set_written_block_count(status.WrittenBlockCount);
@@ -36,4 +36,4 @@ IDistributedChunkSessionCoordinatorPtr CreateDistributedChunkSessionCoordinator(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDistributedChunkSession
+} // namespace NYT::NDistributedChunkSessionServer

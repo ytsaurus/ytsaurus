@@ -8,24 +8,24 @@ import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqStartChunkSession
+message TReqStartSession
 {
     required NYT.NChunkClient.NProto.TSessionId session_id = 1;
     repeated NYT.NNodeTrackerClient.NProto.TNodeDescriptor chunk_replicas = 2;
 }
 
-message TRspStartChunkSession
+message TRspStartSession
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqPingChunkSession
+message TReqPingSession
 {
     required NYT.NChunkClient.NProto.TSessionId session_id = 1;
     required int32 acknowledged_block_count = 2;
 }
 
-message TRspPingChunkSession
+message TRspPingSession
 {
     required bool close_demanded = 1;
 
@@ -53,10 +53,10 @@ message TRspSendBlocks
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TReqFinishChunkSession
+message TReqFinishSession
 {
     required NYT.NChunkClient.NProto.TSessionId session_id = 1;
 }
 
-message TRspFinishChunkSession
+message TRspFinishSession
 { }

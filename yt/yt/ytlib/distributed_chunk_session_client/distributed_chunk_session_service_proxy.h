@@ -14,10 +14,10 @@ class TDistributedChunkSessionServiceProxy
 public:
     DEFINE_RPC_PROXY(TDistributedChunkSessionServiceProxy, DistributedChunkSessionService);
 
-    DEFINE_RPC_PROXY_METHOD(NProto, StartChunkSession);
-    DEFINE_RPC_PROXY_METHOD(NProto, PingChunkSession);
+    DEFINE_RPC_PROXY_METHOD(NProto, StartSession);
+    DEFINE_RPC_PROXY_METHOD(NProto, PingSession);
     DEFINE_RPC_PROXY_METHOD(NProto, SendBlocks);
-    DEFINE_RPC_PROXY_METHOD(NProto, FinishChunkSession);
+    DEFINE_RPC_PROXY_METHOD(NProto, FinishSession);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

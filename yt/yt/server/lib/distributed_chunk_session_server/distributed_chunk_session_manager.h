@@ -6,7 +6,7 @@
 
 #include <yt/yt/ytlib/chunk_client/session_id.h>
 
-namespace NYT::NDistributedChunkSession {
+namespace NYT::NDistributedChunkSessionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,7 +24,7 @@ struct IDistributedChunkSessionManager
         NChunkClient::TSessionId sessionId,
         std::vector<NNodeTrackerClient::TNodeDescriptor> targets) = 0;
 
-    virtual void RenewLease(NChunkClient::TSessionId sessionId) = 0;
+    virtual void RenewSessionLease(NChunkClient::TSessionId sessionId) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedChunkSessionManager)
@@ -38,4 +38,4 @@ IDistributedChunkSessionManagerPtr CreateDistributedChunkSessionManager(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDistributedChunkSession
+} // namespace NYT::NDistributedChunkSessionServer

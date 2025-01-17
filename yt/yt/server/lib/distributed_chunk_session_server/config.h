@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-namespace NYT::NDistributedChunkSession {
+namespace NYT::NDistributedChunkSessionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,4 +24,4 @@ DEFINE_REFCOUNTED_TYPE(TDistributedChunkSessionServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NDistributedChunkSession
+} // namespace NYT::NDistributedChunkSessionServer
