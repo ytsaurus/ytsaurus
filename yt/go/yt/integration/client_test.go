@@ -2,16 +2,12 @@ package integration
 
 import (
 	"context"
-	"os"
 	"testing"
-
-	"github.com/stretchr/testify/require"
 
 	"go.ytsaurus.tech/library/go/core/log"
 	"go.ytsaurus.tech/library/go/core/log/ctxlog"
 	"go.ytsaurus.tech/yt/go/yt"
-	"go.ytsaurus.tech/yt/go/yt/ythttp"
-	"go.ytsaurus.tech/yt/go/yt/ytrpc"
+	"go.ytsaurus.tech/yt/go/yt/clienttest"
 	"go.ytsaurus.tech/yt/go/yttest"
 )
 
@@ -30,8 +26,8 @@ type ClientTest struct {
 }
 
 func (s *Suite) RunClientTests(t *testing.T, tests []ClientTest) {
-	httpClient := NewHTTPClient(t, s.L)
-	rpcClient := NewRPCClient(t, s.L)
+	httpClient := clienttest.NewHTTPClient(t, s.L)
+	rpcClient := clienttest.NewRPCClient(t, s.L)
 
 	for _, tc := range []struct {
 		name   string
@@ -53,22 +49,4 @@ func (s *Suite) RunClientTests(t *testing.T, tests []ClientTest) {
 			}
 		})
 	}
-}
-
-func NewHTTPClient(t *testing.T, l log.Structured) yt.Client {
-	t.Helper()
-
-	yc, err := ythttp.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: l})
-	require.NoError(t, err)
-
-	return yc
-}
-
-func NewRPCClient(t *testing.T, l log.Structured) yt.Client {
-	t.Helper()
-
-	yc, err := ytrpc.NewClient(&yt.Config{Proxy: os.Getenv("YT_PROXY"), Logger: l})
-	require.NoError(t, err)
-
-	return yc
 }

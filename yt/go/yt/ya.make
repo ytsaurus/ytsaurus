@@ -34,9 +34,11 @@ GO_TEST_SRCS(
 END()
 
 RECURSE(
+    clienttest
     gotest
     integration
     internal
+    multicell
     ytdiscovery
     ythttp
     ytjaeger

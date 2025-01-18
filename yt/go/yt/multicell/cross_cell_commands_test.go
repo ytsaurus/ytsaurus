@@ -1,4 +1,4 @@
-package integration
+package multicell
 
 import (
 	"context"
@@ -15,6 +15,7 @@ import (
 	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/ypath"
 	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt/clienttest"
 	"go.ytsaurus.tech/yt/go/yt/internal/httpclient"
 	"go.ytsaurus.tech/yt/go/yt/internal/rpcclient"
 	"go.ytsaurus.tech/yt/go/yttest"
@@ -25,7 +26,7 @@ func TestCrossCellCommandsRetries(t *testing.T) {
 
 	portalEntrance := ypath.Path("//tmp/some-portal")
 	portalCellID := 2
-	yc := NewHTTPClient(t, env.L)
+	yc := clienttest.NewHTTPClient(t, env.L)
 	_, err := yc.CreateNode(env.Ctx, portalEntrance, yt.NodePortalEntrance,
 		&yt.CreateNodeOptions{Attributes: map[string]any{"exit_cell_tag": portalCellID}})
 	require.NoError(t, err)
@@ -38,7 +39,7 @@ func TestCrossCellCommandsRetries(t *testing.T) {
 	}{
 		{
 			name: "cross-cell-copy-http",
-			yc:   NewHTTPClient(t, env.L),
+			yc:   clienttest.NewHTTPClient(t, env.L),
 			runCommand: func(ctx context.Context, yc yt.Client, src, dst ypath.YPath) (yt.NodeID, error) {
 				return yc.CopyNode(ctx, src, dst, nil)
 			},
@@ -46,7 +47,7 @@ func TestCrossCellCommandsRetries(t *testing.T) {
 		},
 		{
 			name: "cross-cell-copy-rpc",
-			yc:   NewRPCClient(t, env.L),
+			yc:   clienttest.NewRPCClient(t, env.L),
 			runCommand: func(ctx context.Context, yc yt.Client, src, dst ypath.YPath) (yt.NodeID, error) {
 				return yc.CopyNode(ctx, src, dst, nil)
 			},
@@ -54,7 +55,7 @@ func TestCrossCellCommandsRetries(t *testing.T) {
 		},
 		{
 			name: "cross-cell-move-http",
-			yc:   NewHTTPClient(t, env.L),
+			yc:   clienttest.NewHTTPClient(t, env.L),
 			runCommand: func(ctx context.Context, yc yt.Client, src, dst ypath.YPath) (yt.NodeID, error) {
 				return yc.MoveNode(ctx, src, dst, nil)
 			},
@@ -62,7 +63,7 @@ func TestCrossCellCommandsRetries(t *testing.T) {
 		},
 		{
 			name: "cross-cell-move-rpc",
-			yc:   NewRPCClient(t, env.L),
+			yc:   clienttest.NewRPCClient(t, env.L),
 			runCommand: func(ctx context.Context, yc yt.Client, src, dst ypath.YPath) (yt.NodeID, error) {
 				return yc.MoveNode(ctx, src, dst, nil)
 			},
