@@ -650,16 +650,15 @@ class TestSchedulerCommon(YTEnvSetup):
             op.track()
             assert sorted_dicts(read_table(output)) == original_data
 
-        time.sleep(5)
-        statistics = get("//sys/scheduler/orchid/monitoring/ref_counted/statistics")
-        operation_objects = [
-            "NYT::NScheduler::TOperation",
-            "NYT::NScheduler::TSchedulerOperationElement",
-        ]
-        records = [record for record in statistics if record["name"] in operation_objects]
-        assert len(records) == 2
-        assert records[0]["objects_alive"] == 0
-        assert records[1]["objects_alive"] == 0
+        def check():
+            statistics = get("//sys/scheduler/orchid/monitoring/ref_counted/statistics")
+            operation_objects = [
+                "NYT::NScheduler::TOperation",
+                "NYT::NScheduler::TSchedulerOperationElement",
+            ]
+            records = [record for record in statistics if record["name"] in operation_objects]
+            return len(records) == 2 and all(record["objects_alive"] == 0 for record in records)
+        wait(check)
 
     @authors("ignat")
     def test_concurrent_fail(self):
@@ -1749,15 +1748,13 @@ class TestSchedulerObjectsDestruction(YTEnvSetup):
         except YtError:
             pass
 
-        time.sleep(5)
-
-        statistics = get("//sys/scheduler/orchid/monitoring/ref_counted/statistics")
-        schedule_job_entry_object_type = \
-            "NYT::NDetail::TPromiseState<NYT::TIntrusivePtr<NYT::NScheduler::TControllerScheduleAllocationResult>>"
-        records = [record for record in statistics if record["name"] == schedule_job_entry_object_type]
-        assert len(records) == 1
-
-        assert records[0]["objects_alive"] == 0
+        def check():
+            statistics = get("//sys/scheduler/orchid/monitoring/ref_counted/statistics")
+            schedule_job_entry_object_type = \
+                "NYT::NDetail::TPromiseState<NYT::TIntrusivePtr<NYT::NScheduler::TControllerScheduleAllocationResult>>"
+            records = [record for record in statistics if record["name"] == schedule_job_entry_object_type]
+            return len(records) == 1 and all(record["objects_alive"] == 0 for record in records)
+        wait(check)
 
 
 ##################################################################
