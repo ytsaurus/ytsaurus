@@ -1,0 +1,27 @@
+title: YtSync
+href: index.md
+items:
+  - name: Обзор
+    href: index.md
+  - name: Быстрый старт
+    href: getting_started.md
+  - name: Подключение и использование
+    href: usage.md
+  - name: Настройки YtSync
+    href: settings.md
+  - name: Спецификация ноды
+    href: node_specification.md
+  - name: Спецификация таблицы
+    href: table_specification.md
+  - name: Спецификация консьюмера и продюсера
+    href: consumer_and_producer_specification.md
+  - name: Спецификация пайплайна YT Flow
+    href: pipeline_specification.md
+  - name: Спецификация стейджей и easy mode
+    href: stages_specification.md
+  - name: Настройки таблиц (deprecated)
+    href: table_settings.md
+  - name: Настройки консьюмеров (deprecated)
+    href: consumer_settings.md
+  - name: Сценарии
+    href: scenarios.md

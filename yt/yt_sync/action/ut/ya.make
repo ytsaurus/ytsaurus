@@ -1,0 +1,59 @@
+PY3TEST()
+
+STYLE_PYTHON()
+
+TEST_SRCS(
+    helpers.py
+    test_alter_replica_attributes.py
+    test_alter_rtt_options.py
+    test_alter_table_attributes.py
+    test_alter_table_schema.py
+    test_base.py
+    test_clean_temporary_objects.py
+    test_clone_chaos_replica.py
+    test_clone_replica.py
+    test_copy_replication_progress.py
+    test_create_ordered_from.py
+    test_create_replica.py
+    test_create_replicated_table.py
+    test_create_table.py
+    test_eliminate_chunk_views.py
+    test_force_compaction.py
+    test_freeze_table.py
+    test_generate_initial_replication_progress.py
+    test_gradual_remount.py
+    test_mount_table.py
+    test_move_table.py
+    test_read_replication_progress.py
+    test_read_total_row_count.py
+    test_register_queue_export.py
+    test_remote_copy.py
+    test_remount_table.py
+    test_remove_replica.py
+    test_remove_table.py
+    test_reshard_table.py
+    test_set_replication_progress.py
+    test_set_upstream_replica_id.py
+    test_sleep.py
+    test_switch_chaos_collocation_replicas.py
+    test_switch_replica_mode.py
+    test_switch_replica_state.py
+    test_switch_rtt.py
+    test_unfreeze_table.py
+    test_unmount_table.py
+    test_wait_chaos_replication_lag.py
+    test_wait_in_memory_preload.py
+    test_wait_replicas_flushed.py
+    test_wait_replicas_in_sync.py
+)
+
+PEERDIR(
+    yt/yt_sync/action
+    yt/yt_sync/core
+    yt/yt_sync/core/fixtures
+    yt/yt_sync/core/test_lib
+
+    yt/python/client
+)
+
+END()

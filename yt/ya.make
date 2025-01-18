@@ -15,6 +15,7 @@ RECURSE(
     styleguide
     systest
     admin
+    yt_sync
 )
 
 
@@ -43,6 +44,5 @@ IF (NOT OPENSOURCE)
         spark
         terraform
         yt_proto
-        yt_sync
     )
 ENDIF()
