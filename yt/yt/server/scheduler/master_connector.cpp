@@ -763,7 +763,6 @@ private:
 
     void StartConnecting(bool immediately)
     {
-        YT_LOG_INFO("YYY1");
         TDelayedExecutor::Submit(
             BIND(&TImpl::DoStartConnecting, MakeStrong(this))
                 .Via(Bootstrap_->GetControlInvoker(EControlQueue::MasterConnector)),
@@ -908,13 +907,11 @@ private:
 
         void FireConnecting()
         {
-            YT_LOG_INFO("XXX1");
             Owner_->MasterConnecting_.Fire();
         }
 
         void EnsureNoSafeMode()
         {
-            YT_LOG_INFO("XXX2");
             auto proxy = CreateObjectServiceReadProxy(
                 Owner_->Bootstrap_->GetClient(),
                 EMasterChannelKind::Follower);
@@ -931,7 +928,6 @@ private:
         // - Register scheduler instance.
         void RegisterInstance()
         {
-            YT_LOG_INFO("XXX3");
             auto proxy = CreateObjectServiceWriteProxy(Owner_->Bootstrap_->GetClient());
             auto batchReq = proxy.ExecuteBatch();
             auto path = "//sys/scheduler/instances/" + ToYPathLiteral(GetDefaultAddress(ServiceAddresses_));
@@ -966,7 +962,6 @@ private:
         // - Start lock transaction.
         void StartLockTransaction()
         {
-            YT_LOG_INFO("XXX4");
             TTransactionStartOptions options;
             options.AutoAbort = true;
             options.Timeout = Owner_->Config_->LockTransactionTimeout;
@@ -988,7 +983,6 @@ private:
         // - Take lock.
         void TakeLock()
         {
-            YT_LOG_INFO("XXX5");
             auto result = WaitFor(Owner_->LockTransaction_->LockNode("//sys/scheduler/lock", ELockMode::Exclusive));
             THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error taking scheduler lock");
         }
@@ -997,7 +991,6 @@ private:
         // - Update orchid address.
         void AssumeControl()
         {
-            YT_LOG_INFO("XXX6");
             auto batchReq = Owner_->StartObjectBatchRequest();
             auto addresses = Owner_->Bootstrap_->GetLocalAddresses();
             {
@@ -1429,7 +1422,6 @@ private:
 
         void InitPersistentStrategyState()
         {
-            YT_LOG_INFO("XXX8");
             try {
                 DoInitPersistentStrategyState();
             } catch (const std::exception& ex) {
@@ -1477,7 +1469,6 @@ private:
 
         void StrictUpdateWatchers()
         {
-            YT_LOG_INFO("XXX7");
             YT_LOG_INFO("Request common watcher updates");
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
             for (const auto& watcher : Owner_->CommonWatcherRecords_) {
