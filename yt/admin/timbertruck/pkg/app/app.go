@@ -256,7 +256,7 @@ func newDaemonApp(config Config, isRestart bool) (app *daemonApp, err error) {
 	errorCounter.Add(0)
 	app.logger = slog.New(
 		newLogErrorTracker(
-			slog.NewJSONHandler(logFile, nil),
+			slog.NewJSONHandler(logFile, &slog.HandlerOptions{Level: slog.LevelDebug}),
 			errorCounter,
 		),
 	)
