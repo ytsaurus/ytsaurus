@@ -1,4 +1,4 @@
-package integration
+package multicell
 
 import (
 	"context"
@@ -27,6 +27,7 @@ func run(m *testing.M) int {
 		dockertest.WithDynamicTables(),
 		dockertest.WithRPCProxies(1),
 		dockertest.WithDiscoveryServers(1),
+		dockertest.WithSecondaryMasterCells(2),
 	)
 	if err != nil {
 		log.Fatalf("failed to start container: %s", err)

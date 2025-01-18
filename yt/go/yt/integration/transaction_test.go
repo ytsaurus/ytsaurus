@@ -16,6 +16,7 @@ import (
 	"go.ytsaurus.tech/yt/go/bus"
 	"go.ytsaurus.tech/yt/go/yson"
 	"go.ytsaurus.tech/yt/go/yt"
+	"go.ytsaurus.tech/yt/go/yt/clienttest"
 	"go.ytsaurus.tech/yt/go/yt/internal/httpclient"
 	"go.ytsaurus.tech/yt/go/yt/internal/rpcclient"
 	"go.ytsaurus.tech/yt/go/yterrors"
@@ -355,7 +356,7 @@ func TestTxAbortedDuringNetworkPartition(t *testing.T) {
 		{
 			name: "http",
 			prepare: func(t *testing.T) (yt.Tx, chan struct{}) {
-				yc := NewHTTPClient(t, env.L)
+				yc := clienttest.NewHTTPClient(t, env.L)
 
 				drt := &disconnectingRoundTripper{
 					disconnect: make(chan struct{}),
@@ -371,7 +372,7 @@ func TestTxAbortedDuringNetworkPartition(t *testing.T) {
 		{
 			name: "rpc",
 			prepare: func(t *testing.T) (yt.Tx, chan struct{}) {
-				yc := NewRPCClient(t, env.L)
+				yc := clienttest.NewRPCClient(t, env.L)
 
 				disconnect := make(chan struct{})
 				dialer := NewDisconnectingRPCConnDialer(disconnect)
