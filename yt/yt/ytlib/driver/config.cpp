@@ -12,6 +12,8 @@ void TNativeDriverConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("chunk_client_dispatcher", &TThis::ChunkClientDispatcher)
         .DefaultNew();
+    registrar.Parameter("start_queue_consumer_registration_manager", &TThis::StartQueueConsumerRegistrationManager)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
