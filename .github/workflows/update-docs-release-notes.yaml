@@ -46,6 +46,7 @@ jobs:
         run: |
           ./ya make -r yt/yt/scripts/generate_documentation_release_notes
           ./yt/yt/scripts/generate_documentation_release_notes/generate_documentation_release_notes -o "yt/docs/en/_includes/releases" -o "yt/docs/ru/_includes/releases"
+          rm yt/yt/scripts/generate_documentation_release_notes/generate_documentation_release_notes
 
       - name: Create Pull Request
         uses: peter-evans/create-pull-request@v5
