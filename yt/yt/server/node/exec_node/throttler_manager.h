@@ -42,6 +42,9 @@ public:
         TDuration MinEstimatedTimeToReadPendingBytesThreshold = TDuration::Max();
     };
 
+    //! Ensures throttler configuration is loaded.
+    virtual TFuture<void> Start() = 0;
+
     virtual NConcurrency::IThroughputThrottlerPtr GetOrCreateThrottler(
         EExecNodeThrottlerKind kind,
         EThrottlerTrafficType trafficType,
@@ -56,6 +59,8 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(IThrottlerManager)
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TThrottlerManagerOptions
 {

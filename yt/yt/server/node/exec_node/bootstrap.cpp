@@ -184,6 +184,16 @@ public:
 
     void Run() override
     {
+        {
+            YT_LOG_INFO("Waiting for throttlers to initialize");
+            auto error = WaitFor(ThrottlerManager_->Start());
+            YT_LOG_FATAL_UNLESS(
+                error.IsOK(),
+                error,
+                "Unexpected failure while waiting for throttlers to initialize");
+            YT_LOG_INFO("Throttlers initialized");
+        }
+
         auto nbdConfig = DynamicConfig_.Acquire()->ExecNode->Nbd;
         if (nbdConfig && nbdConfig->Enabled) {
             NbdThreadPool_ = NConcurrency::CreateThreadPool(nbdConfig->Server->ThreadCount, "Nbd", { .ThreadPriority = NThreading::EThreadPriority::RealTime });
