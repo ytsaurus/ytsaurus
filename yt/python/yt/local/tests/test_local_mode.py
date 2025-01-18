@@ -666,8 +666,8 @@ class TestLocalMode(object):
             master_cache_count = 2
             cell_balancer_count = 0  # TODO(YT-23956): Increase it when it will be fixed.
             tablet_balancer_count = 2
-            cypress_proxy_count = 1
-            replicated_table_tracker_count = 0
+            cypress_proxy_count = 2
+            replicated_table_tracker_count = 2
         else:
             # Run only one instance of each component.
             master_count = 1
