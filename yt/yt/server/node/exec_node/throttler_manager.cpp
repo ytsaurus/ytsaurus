@@ -41,6 +41,8 @@ public:
         NClusterNode::IBootstrap* bootstrap,
         TThrottlerManagerOptions options);
 
+    TFuture<void> Start() override;
+
     IThroughputThrottlerPtr GetOrCreateThrottler(
         EExecNodeThrottlerKind kind,
         EThrottlerTrafficType trafficType,
@@ -54,7 +56,7 @@ public:
         EThrottlerTrafficType trafficType) const override;
 
 private:
-    NClusterNode::IBootstrap* const Bootstrap_ = nullptr;
+    NClusterNode::IBootstrap* const Bootstrap_;
     // Fields from bootstrap.
     const NRpc::IAuthenticatorPtr Authenticator_;
     const NApi::NNative::IConnectionPtr Connection_;
@@ -66,9 +68,10 @@ private:
     // Fields from manager options.
     const std::string LocalAddress_;
     const NProfiling::TProfiler Profiler_;
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
-    const NConcurrency::TPeriodicExecutorPtr ClusterThrottlersConfigUpdater_;
+    const TPeriodicExecutorPtr ClusterThrottlersConfigUpdater_;
+    const TPromise<void> ClusterThrottlersConfigInitializedPromise_ = NewPromise<void>();
 
     // The following members are protected by Lock_.
     TClusterThrottlersConfigPtr ClusterThrottlersConfig_;
@@ -207,13 +210,19 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
     YT_LOG_DEBUG("Try update cluster throttlers config");
 
     auto future = GetClusterThrottlersYson(Client_);
-    auto errorOrYson = NConcurrency::WaitFor(future);
-    if (!errorOrYson.IsOK()) {
-        YT_LOG_DEBUG("Failed to get cluster throttlers config: (Error: %v)", errorOrYson);
+    auto errorOrYson = WaitFor(future);
+    if (errorOrYson.FindMatching(NYTree::EErrorCode::ResolveError)) {
+        YT_LOG_DEBUG(errorOrYson, "Cluster throttlers are not configured");
+        ClusterThrottlersConfigInitializedPromise_.TrySet();
         return;
     }
 
-    auto newConfigYson = errorOrYson.Value();
+    if (!errorOrYson.IsOK()) {
+        YT_LOG_WARNING(errorOrYson, "Failed to get cluster throttlers config");
+        return;
+    }
+
+    const auto& newConfigYson = errorOrYson.Value();
     YT_LOG_DEBUG("Got cluster throttlers config (Config: %v)",
         NYson::ConvertToYsonString(newConfigYson, NYson::EYsonFormat::Text));
 
@@ -223,57 +232,67 @@ void TThrottlerManager::TryUpdateClusterThrottlersConfig()
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Failed to parse cluster throttlers config (Config: %v)",
             NYson::ConvertToYsonString(newConfigYson, NYson::EYsonFormat::Text));
+
+        {
+            auto guard = Guard(Lock_);
+            DistributedThrottlersHolder_.clear();
+            DistributedThrottlerFactory_.Reset();
+        }
+
+        // NB: Still regard the manager to be initialized, albeit unsuccessfully.
+        ClusterThrottlersConfigInitializedPromise_.TrySet();
+        return;
+    }
+
+    {
         auto guard = Guard(Lock_);
-        DistributedThrottlersHolder_.clear();
-        DistributedThrottlerFactory_.Reset();
-        return;
-    }
 
-    auto guard = Guard(Lock_);
+        if (AreClusterThrottlersConfigsEqual(ClusterThrottlersConfig_, newConfig)) {
+            YT_LOG_DEBUG("New cluster throttlers config is the same as the old one");
+            return;
+        }
 
-    if (AreClusterThrottlersConfigsEqual(ClusterThrottlersConfig_, newConfig)) {
-        YT_LOG_DEBUG("New cluster throttlers config is the same as the old one");
-        return;
-    }
+        YT_LOG_INFO("New cluster throttlers config is different from the old one");
 
-    YT_LOG_DEBUG("New cluster throttlers config is different from the old one");
+        ClusterThrottlersConfig_ = std::move(newConfig);
 
-    ClusterThrottlersConfig_ = std::move(newConfig);
+        ClusterThrottlersConfigUpdater_->SetPeriod(ClusterThrottlersConfig_->UpdatePeriod);
 
-    ClusterThrottlersConfigUpdater_->SetPeriod(ClusterThrottlersConfig_->UpdatePeriod);
+        if (NeedDistributedThrottlerFactory(ClusterThrottlersConfig_)) {
+            if (DistributedThrottlerFactory_) {
+                UpdateDistributedThrottlers();
 
-    if (NeedDistributedThrottlerFactory(ClusterThrottlersConfig_)) {
-        if (DistributedThrottlerFactory_) {
-            UpdateDistributedThrottlers();
+                YT_LOG_INFO("Reconfigure distributed throttler factory");
+                DistributedThrottlerFactory_->Reconfigure(ClusterThrottlersConfig_->DistributedThrottler);
+            } else {
+                DistributedThrottlersHolder_.clear();
 
-            YT_LOG_INFO("Reconfigure distributed throttler factory");
-            DistributedThrottlerFactory_->Reconfigure(ClusterThrottlersConfig_->DistributedThrottler);
+                YT_LOG_INFO("Create distributed throttler factory");
+                DistributedThrottlerFactory_ = CreateDistributedThrottlerFactory(
+                    ClusterThrottlersConfig_->DistributedThrottler,
+                    ChannelFactory_,
+                    Connection_,
+                    Invoker_,
+                    "/remote_cluster_throttlers_group",
+                    TMemberId(LocalAddress_),
+                    RpcServer_,
+                    // TODO(babenko): switch to std::string
+                    TString(LocalAddress_),
+                    this->Logger,
+                    Authenticator_,
+                    Profiler_.WithPrefix("/distributed_throttler"));
+            }
         } else {
             DistributedThrottlersHolder_.clear();
 
-            YT_LOG_INFO("Create distributed throttler factory");
-            DistributedThrottlerFactory_ = CreateDistributedThrottlerFactory(
-                ClusterThrottlersConfig_->DistributedThrottler,
-                ChannelFactory_,
-                Connection_,
-                Invoker_,
-                "/remote_cluster_throttlers_group",
-                TMemberId(LocalAddress_),
-                RpcServer_,
-                // TODO(babenko): switch to std::string
-                TString(LocalAddress_),
-                this->Logger,
-                Authenticator_,
-                Profiler_.WithPrefix("/distributed_throttler"));
+            YT_LOG_INFO("Disable distributed throttler factory");
+            DistributedThrottlerFactory_.Reset();
         }
-    } else {
-        DistributedThrottlersHolder_.clear();
 
-        YT_LOG_INFO("Disable distributed throttler factory");
-        DistributedThrottlerFactory_.Reset();
+        YT_LOG_INFO("Updated cluster throttlers config");
     }
 
-    YT_LOG_DEBUG("Updated cluster throttlers config");
+    ClusterThrottlersConfigInitializedPromise_.TrySet();
 }
 
 IThroughputThrottlerPtr TThrottlerManager::GetLocalThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType) const
@@ -351,9 +370,7 @@ TThrottlerManager::TThrottlerManager(
     , Logger(std::move(options.Logger))
     , ClusterThrottlersConfigUpdater_(New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
-        BIND(&TThrottlerManager::TryUpdateClusterThrottlersConfig, MakeWeak(this)),
-        // The period will be updated after the first config read.
-        TDuration::Seconds(1)))
+        BIND(&TThrottlerManager::TryUpdateClusterThrottlersConfig, MakeWeak(this))))
 {
     if (ClusterNodeConfig_->EnableFairThrottler) {
         Throttlers_[EExecNodeThrottlerKind::JobIn] = Bootstrap_->GetInThrottler("job_in");
@@ -380,34 +397,36 @@ TThrottlerManager::TThrottlerManager(
         }
     }
 
-    TryUpdateClusterThrottlersConfig();
     ClusterThrottlersConfigUpdater_->Start();
+    ClusterThrottlersConfigUpdater_->ScheduleOutOfBand();
+}
+
+TFuture<void> TThrottlerManager::Start()
+{
+    return ClusterThrottlersConfigInitializedPromise_.ToFuture();
 }
 
 IThroughputThrottlerPtr TThrottlerManager::GetOrCreateThrottler(EExecNodeThrottlerKind kind, EThrottlerTrafficType trafficType, std::optional<TClusterName> remoteClusterName)
 {
-    YT_LOG_DEBUG("Getting throttler (Kind: %v, TrafficType: %v, RemoteClusterName: %v)",
+    auto Logger = this->Logger.WithTag("Kind: %v, TrafficType: %v, RemoteClusterName: %v",
         kind,
         trafficType,
         remoteClusterName);
 
-    IThroughputThrottlerPtr localThrottler, distributedThrottler;
+    IThroughputThrottlerPtr localThrottler;
+    IThroughputThrottlerPtr distributedThrottler;
     {
         auto guard = Guard(Lock_);
-
         localThrottler = GetLocalThrottler(kind, trafficType);
         distributedThrottler = GetOrCreateDistributedThrottler(kind, trafficType, remoteClusterName);
         if (!distributedThrottler) {
+            YT_LOG_DEBUG("Distributed throttler is missing; falling back to local throttler");
             return localThrottler;
         }
     }
     YT_VERIFY(localThrottler && distributedThrottler);
 
-    YT_LOG_DEBUG("Creating combined throttler (Kind: %v, TrafficType: %v, RemoteClusterName: %v)",
-        kind,
-        trafficType,
-        remoteClusterName);
-
+    YT_LOG_DEBUG("Creating combined throttler");
     return CreateCombinedThrottler({std::move(localThrottler), std::move(distributedThrottler)});
 }
 
