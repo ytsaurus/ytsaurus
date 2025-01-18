@@ -67,7 +67,7 @@ public:
                 "cell-id",
                 "Tablet cell id")
             .Handler0([&] { CellIdFlag_ = true; })
-            .StoreMappedResultT<TString>(&CellId_, &CheckGuidArgMapper)
+            .StoreMappedResultT<TStringBuf>(&CellId_, &FromStringArgMapper<TCellId>)
             .RequiredArgument("CELL ID");
         Opts_
             .AddLongOption(

@@ -47,13 +47,13 @@ public:
             .AddLongOption(
                 "operation-id",
                 "Operation id")
-            .StoreMappedResultT<TString>(&OperationId_, &TJobProxyProgram::CheckOperationIdArgMapper)
+            .StoreMappedResultT<TStringBuf>(&OperationId_, &TJobProxyProgram::OperationIdArgMapper)
             .RequiredArgument("ID");
         Opts_
             .AddLongOption(
                 "job-id",
                 "Job id")
-            .StoreMappedResultT<TString>(&JobId_, &TJobProxyProgram::CheckJobIdArgMapper)
+            .StoreMappedResultT<TStringBuf>(&JobId_, &TJobProxyProgram::JobIdArgMapper)
             .RequiredArgument("ID");
         Opts_
             .AddLongOption(
@@ -126,14 +126,14 @@ private:
     TString StderrPath_ = "stderr";
     bool DoNotCloseDescriptors_ = false;
 
-    static NJobTrackerClient::TJobId CheckJobIdArgMapper(const TString& arg)
+    static NJobTrackerClient::TJobId JobIdArgMapper(TStringBuf arg)
     {
-        return NJobTrackerClient::TJobId(CheckGuidArgMapper(arg));
+        return NJobTrackerClient::TJobId(FromStringArgMapper<NJobTrackerClient::TJobId::TUnderlying>(arg));
     }
 
-    static NJobTrackerClient::TOperationId CheckOperationIdArgMapper(const TString& arg)
+    static NJobTrackerClient::TOperationId OperationIdArgMapper(TStringBuf arg)
     {
-        return NJobTrackerClient::TOperationId(CheckGuidArgMapper(arg));
+        return NJobTrackerClient::TOperationId(FromStringArgMapper<NJobTrackerClient::TOperationId::TUnderlying>(arg));
     }
 };
 
