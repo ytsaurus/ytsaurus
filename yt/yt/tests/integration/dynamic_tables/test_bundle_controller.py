@@ -11,7 +11,7 @@ from typing import Tuple
 
 
 class TestBundleController(YTEnvSetup):
-    ENABLE_MULTIDAEMON = True
+    ENABLE_MULTIDAEMON = False  # Cell balancer crashes in multidaemon mode.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_CELL_BALANCERS = 3

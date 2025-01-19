@@ -394,6 +394,7 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
 
 
 class TestFullDiscoverVersions(HttpProxyTestBase):
+    ENABLE_MULTIDAEMON = False  # Cell balancer crashes in multidaemon mode.
     NUM_DISCOVERY_SERVERS = 1
     NUM_TIMESTAMP_PROVIDERS = 1
     NUM_MASTER_CACHES = 1
@@ -402,7 +403,6 @@ class TestFullDiscoverVersions(HttpProxyTestBase):
     NUM_QUEUE_AGENTS = 1
     NUM_TABLET_BALANCERS = 1
     NUM_REPLICATED_TABLE_TRACKERS = 1
-    ENABLE_MULTIDAEMON = True
 
     @authors("koloshmet")
     def test_discover_versions_v2(self):
