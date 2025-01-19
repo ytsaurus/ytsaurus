@@ -17,11 +17,11 @@
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/yt/core/misc/range.h>
-
 #include <yt/yt/core/yson/public.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <library/cpp/yt/memory/range.h>
 
 namespace NYT::NTabletNode {
 

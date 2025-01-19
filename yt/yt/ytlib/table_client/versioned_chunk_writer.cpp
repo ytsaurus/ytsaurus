@@ -34,8 +34,9 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/private.h>
 
-#include <yt/yt/core/misc/range.h>
 #include <yt/yt/core/misc/random.h>
+
+#include <library/cpp/yt/memory/range.h>
 
 #include <util/generic/ylimits.h>
 

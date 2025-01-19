@@ -1,6 +1,6 @@
 #pragma once
 
-#include "range.h"
+#include <library/cpp/yt/memory/range.h>
 
 namespace NYT {
 

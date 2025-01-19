@@ -13,7 +13,7 @@
 #include <yt/yt/core/concurrency/public.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/yt/core/misc/range.h>
+#include <library/cpp/yt/memory/range.h>
 
 namespace NYT::NTabletNode {
 

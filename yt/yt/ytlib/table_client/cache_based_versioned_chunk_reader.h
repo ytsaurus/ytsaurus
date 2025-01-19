@@ -10,8 +10,9 @@
 
 #include <yt/yt/library/query/base/public.h>
 
-#include <yt/yt/core/misc/range.h>
 #include <yt/yt/core/misc/linear_probe.h>
+
+#include <library/cpp/yt/memory/range.h>
 
 namespace NYT::NTableClient {
 

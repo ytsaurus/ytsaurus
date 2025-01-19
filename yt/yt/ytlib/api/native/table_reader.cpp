@@ -38,9 +38,10 @@
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/range.h>
 
 #include <yt/yt/core/rpc/public.h>
+
+#include <library/cpp/yt/memory/range.h>
 
 namespace NYT::NApi::NNative {
 

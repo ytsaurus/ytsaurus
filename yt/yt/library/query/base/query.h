@@ -9,7 +9,8 @@
 
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/range.h>
+
+#include <library/cpp/yt/memory/range.h>
 
 namespace NYT::NQueryClient {
 
