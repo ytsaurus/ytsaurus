@@ -194,7 +194,7 @@ public:
     MOCK_METHOD(NRpc::IChannelPtr, CreateChannel, (bool), ());
     MOCK_METHOD(const TConnectionConfigPtr&, GetConfig, (), ());
     MOCK_METHOD(TClusterTag, GetClusterTag, (), (const, override));
-    MOCK_METHOD(const TString&, GetLoggingTag, (), (const, override));
+    MOCK_METHOD(const std::string&, GetLoggingTag, (), (const, override));
     MOCK_METHOD(const TString&, GetClusterId, (), (const, override));
     MOCK_METHOD(const std::optional<std::string>&, GetClusterName, (), (const, override));
     MOCK_METHOD(bool, IsSameCluster, (const TIntrusivePtr<NApi::IConnection>&), (const, override));

@@ -395,7 +395,7 @@ public:
         return GetPrimaryMasterCellTag();
     }
 
-    const TString& GetLoggingTag() const override
+    const std::string& GetLoggingTag() const override
     {
         return LoggingTag_;
     }
@@ -891,7 +891,7 @@ private:
 
     TConnectionOptions Options_;
 
-    const TString LoggingTag_;
+    const std::string LoggingTag_;
     const TString ClusterId_;
 
     NRpc::IChannelFactoryPtr ChannelFactory_;

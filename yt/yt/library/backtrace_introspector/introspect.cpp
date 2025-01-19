@@ -183,7 +183,7 @@ TString FormatIntrospectionInfos(const std::vector<TThreadIntrospectionInfo>& in
         if (info.TraceId) {
             builder.AppendFormat("Trace id: %v\n", info.TraceId);
         }
-        if (info.TraceLoggingTag) {
+        if (!info.TraceLoggingTag.empty()) {
             builder.AppendFormat("Trace logging tag: %v\n", info.TraceLoggingTag);
         }
         FormatBacktrace(&builder, info.Backtrace);
@@ -210,7 +210,7 @@ TString FormatIntrospectionInfos(const std::vector<TFiberIntrospectionInfo>& inf
         if (info.TraceId) {
             builder.AppendFormat("Trace id: %v\n", info.TraceId);
         }
-        if (info.TraceLoggingTag) {
+        if (!info.TraceLoggingTag.empty()) {
             builder.AppendFormat("Trace logging tag: %v\n", info.TraceLoggingTag);
         }
         FormatBacktrace(&builder, info.Backtrace);

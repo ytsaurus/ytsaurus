@@ -25,7 +25,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Mounted);
     DEFINE_BYVAL_RW_PROPERTY(TTableMountConfigPtr, MountConfig);
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, MountRevision);
-    DEFINE_BYVAL_RW_PROPERTY(TString, LoggingTag);
+    DEFINE_BYVAL_RW_PROPERTY(std::string, LoggingTag);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, IsForcedRotationPossible);
     DEFINE_BYVAL_RW_PROPERTY(bool, IsOverflowRotationNeeded);

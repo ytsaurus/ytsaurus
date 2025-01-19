@@ -304,7 +304,7 @@ struct TCompactionTask
     const IInvokerPtr Invoker;
     const TCancelableContextPtr CancelableContext;
 
-    const TString TabletLoggingTag;
+    const std::string TabletLoggingTag;
 
     // These fields are filled upon task invocation.
     TWeakPtr<TStoreCompactor> Owner;
