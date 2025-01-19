@@ -46,7 +46,7 @@ private:
     const TYqlAgentServerConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
 
-    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NConcurrency::TActionQueuePtr ControlQueue_;
     IInvokerPtr ControlInvoker_;
     NBus::IBusServerPtr BusServer_;

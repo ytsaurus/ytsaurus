@@ -229,7 +229,7 @@ private:
     IObjectServicePtr ObjectService_;
 
     IMapNodePtr OrchidRoot_;
-    TMonitoringManagerPtr MonitoringManager_;
+    IMonitoringManagerPtr MonitoringManager_;
     ICypressRegistrarPtr CypressRegistrar_;
 
     TDynamicConfigManagerPtr DynamicConfigManager_;

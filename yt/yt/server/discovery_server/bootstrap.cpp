@@ -109,7 +109,7 @@ private:
     NDiscoveryServer::IDiscoveryServerPtr DiscoveryServer_;
 
     IMapNodePtr OrchidRoot_;
-    TMonitoringManagerPtr MonitoringManager_;
+    IMonitoringManagerPtr MonitoringManager_;
 
 
     const IInvokerPtr& GetControlInvoker()

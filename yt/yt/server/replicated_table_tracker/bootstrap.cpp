@@ -133,7 +133,7 @@ private:
     NHttp::IServerPtr HttpServer_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
-    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    NMonitoring::IMonitoringManagerPtr MonitoringManager_;
 
     ICypressElectionManagerPtr ElectionManager_;
 

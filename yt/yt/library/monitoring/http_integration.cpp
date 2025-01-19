@@ -60,7 +60,7 @@ DEFINE_ENUM(EVerb,
 void Initialize(
     const NHttp::IServerPtr& monitoringServer,
     const NProfiling::TSolomonExporterConfigPtr& config,
-    TMonitoringManagerPtr* monitoringManager,
+    IMonitoringManagerPtr* monitoringManager,
     NYTree::IMapNodePtr* orchidRoot)
 {
     auto solomonExporter = New<NProfiling::TSolomonExporter>(config);
@@ -75,10 +75,10 @@ void Initialize(
 void Initialize(
     const NHttp::IServerPtr& monitoringServer,
     const NProfiling::TSolomonExporterPtr& solomonExporter,
-    TMonitoringManagerPtr* monitoringManager,
+    IMonitoringManagerPtr* monitoringManager,
     NYTree::IMapNodePtr* orchidRoot)
 {
-    *monitoringManager = New<TMonitoringManager>();
+    *monitoringManager = CreateMonitoringManager();
     (*monitoringManager)->Register("/ref_counted", GetCachingRefCountedTrackerStatisticsProducer());
     (*monitoringManager)->Register("/solomon", BIND([] (NYson::IYsonConsumer* consumer) {
         auto tags = NProfiling::TSolomonRegistry::Get()->GetDynamicTags();

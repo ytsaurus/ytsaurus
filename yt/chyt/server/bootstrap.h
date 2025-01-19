@@ -37,7 +37,7 @@ private:
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
-    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NCoreDump::ICoreDumperPtr CoreDumper_;
 
     std::atomic<int> SigintCounter_ = {0};

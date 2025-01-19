@@ -132,7 +132,7 @@ private:
 
     std::string LocalAddress_;
 
-    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;

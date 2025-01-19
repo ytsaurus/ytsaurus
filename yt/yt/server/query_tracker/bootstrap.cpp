@@ -152,7 +152,7 @@ private:
 
     std::string SelfAddress_;
 
-    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NYT::NBus::IBusServerPtr BusServer_;
     IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
