@@ -6,7 +6,7 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/core/misc/range.h>
+#include <library/cpp/yt/memory/range.h>
 
 namespace NYT::NQueryClient {
 

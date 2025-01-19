@@ -7,7 +7,7 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/range.h>
+#include <library/cpp/yt/memory/range.h>
 
 namespace NYT::NTabletBalancer {
 

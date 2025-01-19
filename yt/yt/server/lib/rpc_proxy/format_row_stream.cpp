@@ -12,10 +12,11 @@
 #include <yt/yt/client/table_client/table_output.h>
 #include <yt/yt/client/table_client/value_consumer.h>
 
-#include <yt/yt/core/misc/range.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/library/formats/format.h>
+
+#include <library/cpp/yt/memory/range.h>
 
 namespace NYT::NApi::NRpcProxy {
 

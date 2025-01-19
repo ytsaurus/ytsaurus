@@ -6,7 +6,7 @@
 
 #include <yt/yt/client/table_client/versioned_row.h>
 
-#include <yt/yt/core/misc/range.h>
+#include <library/cpp/yt/memory/range.h>
 
 namespace NYT::NTableClient {
 
