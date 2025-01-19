@@ -143,7 +143,7 @@ private:
     NHttp::IServerPtr HttpServer_;
 
     IMapNodePtr OrchidRoot_;
-    TMonitoringManagerPtr MonitoringManager_;
+    IMonitoringManagerPtr MonitoringManager_;
 
     NNative::IConnectionPtr Connection_;
     NNative::IClientPtr Client_;

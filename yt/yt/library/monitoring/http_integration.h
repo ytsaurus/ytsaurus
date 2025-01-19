@@ -12,18 +12,17 @@ namespace NYT::NMonitoring {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(babenko): refactor all these helpers
 void Initialize(
     const NHttp::IServerPtr& monitoringServer,
     const NProfiling::TSolomonExporterConfigPtr& solomonExporterConfig,
-    TMonitoringManagerPtr* monitoringManager,
+    IMonitoringManagerPtr* monitoringManager,
     NYTree::IMapNodePtr* orchidRoot);
 void Initialize(
     const NHttp::IServerPtr& monitoringServer,
     const NProfiling::TSolomonExporterPtr& solomonExporter,
-    TMonitoringManagerPtr* monitoringManager,
+    IMonitoringManagerPtr* monitoringManager,
     NYTree::IMapNodePtr* orchidRoot);
-
-NHttp::IHttpHandlerPtr CreateTracingHttpHandler();
 
 NHttp::IHttpHandlerPtr GetOrchidYPathHttpHandler(
     const NYTree::IYPathServicePtr& service);

@@ -61,7 +61,7 @@ private:
     const NConcurrency::IThreadPoolPtr WorkerPool_;
     const NConcurrency::IPollerPtr HttpPoller_;
 
-    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NBus::IBusServerPtr BusServer_;
     NBus::IBusServerPtr TvmOnlyBusServer_;
     IApiServicePtr ApiService_;

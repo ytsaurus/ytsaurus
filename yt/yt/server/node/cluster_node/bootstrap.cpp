@@ -681,7 +681,7 @@ private:
     IPrioritizedInvokerPtr StorageHeavyInvoker_;
     TActionQueuePtr MasterCacheQueue_;
 
-    TMonitoringManagerPtr MonitoringManager_;
+    IMonitoringManagerPtr MonitoringManager_;
 
     NYT::NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;

@@ -63,7 +63,7 @@ private:
     const NConcurrency::IThreadPoolPtr ConnectionThreadPool_;
     const NControllerAgent::TAgentId AgentId_;
 
-    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;

@@ -270,7 +270,7 @@ protected:
         {
             auto httpServer = NHttp::CreateServer(config->CreateMonitoringHttpServerConfig());
 
-            NMonitoring::TMonitoringManagerPtr monitoringManager;
+            NMonitoring::IMonitoringManagerPtr monitoringManager;
             NYTree::IMapNodePtr orchidRoot;
             NMonitoring::Initialize(
                 httpServer,

@@ -24,48 +24,51 @@ using namespace NConcurrency;
 
 static constexpr auto& Logger = MonitoringLogger;
 
-static const auto UpdatePeriod = TDuration::Seconds(3);
+static constexpr auto UpdatePeriod = TDuration::Seconds(3);
 static const auto EmptyRoot = GetEphemeralNodeFactory()->CreateMap();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMonitoringManager::TImpl
-    : public TRefCounted
+class TMonitoringManager
+    : public IMonitoringManager
 {
 public:
-    void Register(const TYPath& path, TYsonProducer producer)
+    TMonitoringManager()
+        : PeriodicExecutor_(New<TPeriodicExecutor>(
+            ActionQueue_->GetInvoker(),
+            BIND(&TMonitoringManager::Update, MakeWeak(this)),
+            UpdatePeriod))
+    { }
+
+    void Register(const TYPath& path, TYsonProducer producer) final
     {
         auto guard = Guard(SpinLock_);
         YT_VERIFY(PathToProducer_.emplace(path, producer).second);
     }
 
-    void Unregister(const TYPath& path)
+    void Unregister(const TYPath& path) final
     {
         auto guard = Guard(SpinLock_);
         YT_VERIFY(PathToProducer_.erase(path) == 1);
     }
 
-    IYPathServicePtr GetService()
+    IYPathServicePtr GetService() final
     {
         return New<TYPathService>(this);
     }
 
-    void Start()
+    void Start() final
     {
         auto guard = Guard(SpinLock_);
 
         YT_VERIFY(!Started_);
 
-        PeriodicExecutor_ = New<TPeriodicExecutor>(
-            ActionQueue_->GetInvoker(),
-            BIND(&TImpl::Update, MakeWeak(this)),
-            UpdatePeriod);
         PeriodicExecutor_->Start();
 
         Started_ = true;
     }
 
-    void Stop()
+    void Stop() final
     {
         auto guard = Guard(SpinLock_);
 
@@ -82,7 +85,7 @@ private:
         : public TYPathServiceBase
     {
     public:
-        explicit TYPathService(TIntrusivePtr<TImpl> owner)
+        explicit TYPathService(TIntrusivePtr<TMonitoringManager> owner)
             : Owner_(std::move(owner))
         { }
 
@@ -92,13 +95,13 @@ private:
         }
 
     private:
-        const TIntrusivePtr<TImpl> Owner_;
-
+        const TIntrusivePtr<TMonitoringManager> Owner_;
     };
 
+    const TActionQueuePtr ActionQueue_ = New<TActionQueue>("Monitoring");
+    const TPeriodicExecutorPtr PeriodicExecutor_;
+
     bool Started_ = false;
-    TActionQueuePtr ActionQueue_ = New<TActionQueue>("Monitoring");
-    TPeriodicExecutorPtr PeriodicExecutor_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     THashMap<TString, NYson::TYsonProducer> PathToProducer_;
@@ -137,39 +140,11 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TMonitoringManager)
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TMonitoringManager::TMonitoringManager()
-    : Impl_(New<TImpl>())
-{ }
-
-TMonitoringManager::~TMonitoringManager() = default;
-
-void TMonitoringManager::Register(const TYPath& path, TYsonProducer producer)
+IMonitoringManagerPtr CreateMonitoringManager()
 {
-    Impl_->Register(path, producer);
-}
-
-void TMonitoringManager::Unregister(const TYPath& path)
-{
-    Impl_->Unregister(path);
-}
-
-IYPathServicePtr TMonitoringManager::GetService()
-{
-    return Impl_->GetService();
-}
-
-void TMonitoringManager::Start()
-{
-    Impl_->Start();
-}
-
-void TMonitoringManager::Stop()
-{
-    Impl_->Stop();
+    return New<TMonitoringManager>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

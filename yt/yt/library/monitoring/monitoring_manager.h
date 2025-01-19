@@ -19,36 +19,33 @@ namespace NYT::NMonitoring {
  *  \note
  *  The results are cached and periodically updated.
  */
-class TMonitoringManager
+struct IMonitoringManager
     : public TRefCounted
 {
-public:
-    TMonitoringManager();
-    ~TMonitoringManager();
-
     //! Registers a new #producer for a given #path.
-    void Register(const NYPath::TYPath& path, NYson::TYsonProducer producer);
+    virtual void Register(const NYPath::TYPath& path, NYson::TYsonProducer producer) = 0;
 
     //! Unregisters an existing producer for the specified #path.
-    void Unregister(const NYPath::TYPath& path);
+    virtual void Unregister(const NYPath::TYPath& path) = 0;
 
     //! Returns the service representing the whole tree.
     /*!
      * \note The service is thread-safe.
      */
-    NYTree::IYPathServicePtr GetService();
+    virtual NYTree::IYPathServicePtr GetService() = 0;
 
     //! Starts periodic updates.
-    void Start();
+    virtual void Start() = 0;
 
     //! Stops periodic updates.
-    void Stop();
-
-private:
-    class TImpl;
-    TIntrusivePtr<TImpl> Impl_;
-
+    virtual void Stop() = 0;
 };
+
+DEFINE_REFCOUNTED_TYPE(IMonitoringManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IMonitoringManagerPtr CreateMonitoringManager();
 
 ////////////////////////////////////////////////////////////////////////////////
 

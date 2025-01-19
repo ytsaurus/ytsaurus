@@ -56,7 +56,7 @@ private:
     const NFusion::IServiceLocatorPtr ServiceLocator_;
     const NConcurrency::IEnumIndexedFairShareActionQueuePtr<EControlQueue> ControlQueue_;
 
-    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;

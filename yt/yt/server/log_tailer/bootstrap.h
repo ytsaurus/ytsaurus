@@ -39,7 +39,7 @@ private:
 
     NConcurrency::TActionQueuePtr LogTailerQueue_;
 
-    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    NMonitoring::IMonitoringManagerPtr MonitoringManager_;
 
     NYTree::IMapNodePtr OrchidRoot_;
 

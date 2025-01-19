@@ -151,7 +151,7 @@ private:
     NHttp::IServerPtr HttpServer_;
 
     IMapNodePtr OrchidRoot_;
-    TMonitoringManagerPtr MonitoringManager_;
+    IMonitoringManagerPtr MonitoringManager_;
     ICypressRegistrarPtr CypressRegistrar_;
 
     IConnectionPtr Connection_;

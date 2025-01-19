@@ -100,7 +100,7 @@ private:
     const NConcurrency::IPollerPtr Poller_;
     const NConcurrency::IPollerPtr Acceptor_;
 
-    NMonitoring::TMonitoringManagerPtr MonitoringManager_;
+    NMonitoring::IMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr MonitoringServer_;
 
     NApi::NNative::IConnectionPtr Connection_;
