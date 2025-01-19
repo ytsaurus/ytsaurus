@@ -2154,7 +2154,8 @@ def init_singletons(config, yt_config):
         "chunk_reader_pool_size": 1,
     })
     set_at(config, "tcp_dispatcher", {
-        "thread_pool_size": 2
+        "thread_pool_size": 2,
+        "enable_local_bypass": True,
     })
     set_at(config, "address_resolver/localhost_fqdn", yt_config.fqdn)
     set_at(config, "solomon_exporter/grid_step", 1000)
