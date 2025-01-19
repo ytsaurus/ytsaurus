@@ -30,6 +30,7 @@ import time
 
 
 class TestUsers(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 0
 
@@ -821,6 +822,7 @@ class TestUsers(YTEnvSetup):
 
 
 class TestRequestThrottling(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
     NUM_NODES = 0
 
@@ -968,6 +970,7 @@ class TestRequestThrottling(YTEnvSetup):
 
 
 class TestUsersRpcProxy(TestUsers):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -981,6 +984,7 @@ class TestUsersRpcProxy(TestUsers):
 
 
 class TestUsersMulticell(TestUsers):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("aleksandra-zh")

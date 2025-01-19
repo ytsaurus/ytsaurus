@@ -15,6 +15,7 @@ import time
 
 
 class TestFileCache(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
 

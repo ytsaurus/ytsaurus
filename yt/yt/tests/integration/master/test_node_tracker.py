@@ -25,6 +25,7 @@ import time
 
 
 class TestNodeTracker(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -345,6 +346,7 @@ class TestNodeTracker(YTEnvSetup):
 
 
 class TestNodeTrackerMulticell(TestNodeTracker):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("shakurov")
@@ -373,6 +375,7 @@ class TestNodeTrackerMulticell(TestNodeTracker):
 
 
 class TestRemoveClusterNodes(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -408,6 +411,7 @@ class TestRemoveClusterNodes(YTEnvSetup):
 
 
 class TestNodeUnrecognizedOptionsAlert(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -428,6 +432,7 @@ class TestNodeUnrecognizedOptionsAlert(YTEnvSetup):
 
 
 class TestReregisterNode(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_NODES = 2
     FIRST_CONFIG = None
     SECOND_CONFIG = None
@@ -470,6 +475,7 @@ class TestReregisterNode(YTEnvSetup):
 
 
 class TestRackDataCenter(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -490,6 +496,7 @@ class TestRackDataCenter(YTEnvSetup):
 
 
 class TestRack(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -506,8 +513,10 @@ class TestRack(YTEnvSetup):
 
 
 class TestRackCells(TestRack):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestRackDataCenterCells(TestRackDataCenter):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

@@ -18,6 +18,7 @@ def set_or_remove(path, value):
 
 
 class TestCypressRequestLimits(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_CELLS = 1
     NUM_MASTERS = 1
     NUM_NODES = 0
@@ -203,6 +204,7 @@ class TestCypressRequestLimits(YTEnvSetup):
 
 
 class TestCypressRequestLimitsRpcProxy(TestCypressRequestLimits):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True

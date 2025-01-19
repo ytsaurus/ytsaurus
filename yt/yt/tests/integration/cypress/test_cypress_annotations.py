@@ -6,6 +6,7 @@ from yt_commands import authors, ls, get, exists
 
 
 class TestCypressAnnotations(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SECONDARY_MASTER_CELLS = 1
     NUM_NODES = 1

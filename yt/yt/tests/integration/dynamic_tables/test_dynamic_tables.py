@@ -766,6 +766,8 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
 
 class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
+    # TODO(nadya73): Split this test suite.
+    ENABLE_MULTIDAEMON = False  # There are components restarts.
     NUM_TEST_PARTITIONS = 16
 
     @staticmethod
@@ -3411,6 +3413,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
 
 class TestDynamicTablesErasureJournals(TestDynamicTablesSingleCell):
+    ENABLE_MULTIDAEMON = False  # There are component restarts in the base class.
     NUM_NODES = 8
 
     def setup_method(self, method):
@@ -3433,6 +3436,7 @@ class TestDynamicTablesErasureJournals(TestDynamicTablesSingleCell):
 
 
 class TestDynamicTablesSafeMode(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     USE_PERMISSION_CACHE = False
 
     DELTA_NODE_CONFIG = {
@@ -3462,6 +3466,7 @@ class TestDynamicTablesSafeMode(DynamicTablesBase):
 
 
 class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("savrus")
@@ -3612,6 +3617,7 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
 
 
 class TestDynamicTablesDecommissionStall(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
     DELTA_NODE_CONFIG = {
         "logging": {
@@ -3637,10 +3643,12 @@ class TestDynamicTablesDecommissionStall(DynamicTablesBase):
 
 
 class TestDynamicTablesPortal(TestDynamicTablesMulticell):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     ENABLE_TMP_PORTAL = True
 
 
 class TestDynamicTablesShardedTx(TestDynamicTablesPortal):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
@@ -3649,6 +3657,7 @@ class TestDynamicTablesShardedTx(TestDynamicTablesPortal):
 
 
 class TestDynamicTablesMirroredTx(TestDynamicTablesShardedTx):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     USE_SEQUOIA = True
@@ -3673,6 +3682,7 @@ class TestDynamicTablesMirroredTx(TestDynamicTablesShardedTx):
 
 
 class TestDynamicTablesCypressProxy(TestDynamicTablesShardedTx):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_CYPRESS_PROXIES = 1
 
 
@@ -3680,6 +3690,7 @@ class TestDynamicTablesCypressProxy(TestDynamicTablesShardedTx):
 
 
 class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
@@ -3691,6 +3702,7 @@ class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
 
 
 class TestDynamicTablesWithAbandoningLeaderLeaseDuringRecovery(DynamicTablesSingleCellBase):
+    ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {
         "tablet_node": {
             "hydra_manager": {
@@ -3710,6 +3722,7 @@ class TestDynamicTablesWithAbandoningLeaderLeaseDuringRecovery(DynamicTablesSing
 
 
 class TestTabletOrchid(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {
         "resource_limits": {
             "memory_limits": {
@@ -3813,6 +3826,7 @@ class TestTabletOrchid(DynamicTablesBase):
 
 
 class TestTabletCellJanitor(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
     NUM_SECONDARY_MASTER_CELLS = 2
 
@@ -3851,6 +3865,7 @@ class TestTabletCellJanitor(DynamicTablesBase):
 
 
 class TestDynamicTablesHydraPersistenceMigrationPortal(TestDynamicTablesMulticell):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
         "13": {"roles": ["transaction_coordinator"]},

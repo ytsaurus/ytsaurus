@@ -10,6 +10,7 @@ import time
 
 
 class TestStructuredSecurityLogs(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks structured logs.
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
 

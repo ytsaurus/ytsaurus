@@ -65,7 +65,7 @@ class MasterCellAdditionBase(YTEnvSetup):
                 env.start_chaos_nodes()
 
     @classmethod
-    def modify_master_config(cls, config, tag, peer_index, cluster_index):
+    def modify_master_config(cls, multidaemon_config, config, tag, peer_index, cluster_index):
         cls.proceed_master_config(config, cluster_index, cls.get_param("REMOVE_LAST_MASTER_BEFORE_START", cluster_index))
 
     @classmethod

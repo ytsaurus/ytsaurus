@@ -95,6 +95,7 @@ EXPRESSIONLESS_SCHEMA = [
 
 
 class TestReplicatedDynamicTablesBase(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
     NUM_REMOTE_CLUSTERS = 1
 
@@ -219,6 +220,8 @@ class TestReplicatedDynamicTablesBase(DynamicTablesBase):
 
 
 class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("savrus")
     def test_replicated_table_must_be_dynamic(self):
         with pytest.raises(YtError):
@@ -3252,6 +3255,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
 
 class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     USE_PERMISSION_CACHE = False
 
     DELTA_NODE_CONFIG = {"master_cache_service": {"capacity": 0}}
@@ -3361,6 +3365,7 @@ class TestReplicatedDynamicTablesSafeMode(TestReplicatedDynamicTablesBase):
 
 
 class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("savrus")
@@ -3395,6 +3400,7 @@ class TestReplicatedDynamicTablesMulticell(TestReplicatedDynamicTables):
 
 
 class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
@@ -3566,6 +3572,8 @@ class TestReplicatedDynamicTablesRpcProxy(TestReplicatedDynamicTables):
 
 
 class TestErasureReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("babenko")
     def test_erasure_replicated_table(self):
         self._create_cells()

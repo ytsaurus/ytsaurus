@@ -21,6 +21,7 @@ from datetime import datetime, timedelta
 
 
 class TestErasureBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 20
     NUM_SCHEDULERS = 1
@@ -117,6 +118,7 @@ class TestErasureBase(YTEnvSetup):
 
 
 class TestErasure(TestErasureBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
 
     def _do_test_simple(self, erasure_codec, enable_striped_erasure):
@@ -628,6 +630,7 @@ class TestErasure(TestErasureBase):
 
 
 class TestErasureMulticell(TestErasure):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
     NUM_SECONDARY_MASTER_CELLS = 2
 
@@ -635,6 +638,7 @@ class TestErasureMulticell(TestErasure):
 
 
 class TestDynamicTablesErasure(TestErasureBase):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
     DELTA_NODE_CONFIG = {
         "data_node": {

@@ -21,6 +21,7 @@ import pytest
 
 
 class TestGrafting(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     NUM_CYPRESS_PROXIES = 1
     NUM_CLOCKS = 3
@@ -124,6 +125,7 @@ class TestGrafting(YTEnvSetup):
 
 @authors("kvk1920")
 class TestGraftingTmpCleanup(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     NUM_CYPRESS_PROXIES = 1

@@ -20,6 +20,7 @@ import builtins
 
 
 class TestMedia(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 10
     STORE_LOCATION_COUNT = 3
@@ -695,6 +696,7 @@ class TestMedia(YTEnvSetup):
 
 
 class TestMediaMulticell(TestMedia):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
@@ -702,6 +704,7 @@ class TestMediaMulticell(TestMedia):
 
 
 class TestDynamicMedia(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 1
     STORE_LOCATION_COUNT = 2

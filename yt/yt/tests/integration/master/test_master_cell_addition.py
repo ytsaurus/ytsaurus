@@ -15,6 +15,7 @@ import builtins
 
 
 class TestMasterCellAddition(MasterCellAdditionBaseChecks):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
@@ -41,6 +42,7 @@ class TestMasterCellAddition(MasterCellAdditionBaseChecks):
 
 
 class TestMasterCellAdditionWithoutDowntime(TestMasterCellAddition):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
@@ -49,6 +51,7 @@ class TestMasterCellAdditionWithoutDowntime(TestMasterCellAddition):
 
 
 class TestMasterCellsListChangeWithoutDowntime(TestMasterCellAddition):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
@@ -70,6 +73,7 @@ class TestMasterCellsListChangeWithoutDowntime(TestMasterCellAddition):
 
 
 class TestMasterCellAdditionChaosMultiCluster(MasterCellAdditionChaosMultiClusterBaseChecks):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
@@ -103,6 +107,7 @@ class TestMasterCellAdditionChaosMultiCluster(MasterCellAdditionChaosMultiCluste
 
 
 class TestMasterCellAdditionChaosMultiClusterWithoutDowntime(TestMasterCellAdditionChaosMultiCluster):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
@@ -111,6 +116,7 @@ class TestMasterCellAdditionChaosMultiClusterWithoutDowntime(TestMasterCellAddit
 
 
 class TestMasterCellsListChangeChaosMultiClusterWithoutDowntime(TestMasterCellAdditionChaosMultiCluster):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
@@ -133,6 +139,7 @@ class TestMasterCellsListChangeChaosMultiClusterWithoutDowntime(TestMasterCellAd
 
 
 class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
@@ -225,6 +232,7 @@ class TestDynamicMasterCellListChangeWithTabletCells(MasterCellAdditionBase):
 
 
 class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()
@@ -336,6 +344,7 @@ class TestDynamicMasterCellPropagation(MasterCellAdditionBase):
 
 
 class TestMasterCellDynamicPropagationDuringRegistration(MasterCellAdditionBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
     CELL_IDS = builtins.set()

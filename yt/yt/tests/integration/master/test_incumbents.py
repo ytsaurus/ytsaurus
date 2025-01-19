@@ -8,6 +8,7 @@ from yt_commands import (authors, wait, get, set, ls)
 
 
 class TestIncumbents(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 5
 
     def _get_orchid(self, master):

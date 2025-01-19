@@ -42,6 +42,7 @@ HUNK_COMPATIBLE_CHUNK_FORMATS = [
 
 
 class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 7
 
     NUM_NODES = 15
@@ -1481,6 +1482,7 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
 
 class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 7
 
     # Need some extra nodes for erasure repair.
@@ -2257,6 +2259,8 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
 
 class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
+    ENABLE_MULTIDAEMON = True
+
     def _setup_for_dictionary_compression(self, path):
         set("{}/@mount_config/enable_lsm_verbose_logging".format(path), True)
         set("{}/@mount_config/value_dictionary_compression".format(path), {
@@ -3095,6 +3099,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
 
 
 class TestOrderedMulticellHunks(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("akozhikhov")

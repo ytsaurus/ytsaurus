@@ -10,6 +10,7 @@ import yt.yson as yson
 class TestDsvFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
+    ENABLE_MULTIDAEMON = True
 
     @authors("ermolovd")
     def test_ignore_unknown_types(self):
@@ -52,6 +53,7 @@ class TestDsvFormat(YTEnvSetup):
 class TestYamredDsvFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
+    ENABLE_MULTIDAEMON = True
 
     @authors("ermolovd")
     def test_ignore_unknown_types(self):

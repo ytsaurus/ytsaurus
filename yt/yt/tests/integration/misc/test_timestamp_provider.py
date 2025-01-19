@@ -6,6 +6,7 @@ from yt_commands import authors, generate_timestamp, start_transaction, commit_t
 
 
 class TestTimestampProvider(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_TIMESTAMP_PROVIDERS = 1
@@ -26,4 +27,5 @@ class TestTimestampProvider(YTEnvSetup):
 
 
 class TestTimestampProviderClocks(TestTimestampProvider):
+    ENABLE_MULTIDAEMON = True
     NUM_CLOCKS = 1

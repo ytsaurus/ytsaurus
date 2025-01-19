@@ -91,6 +91,7 @@ class TestSkiffFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+    ENABLE_MULTIDAEMON = True
 
     @authors("ermolovd")
     def test_id_map(self):
@@ -705,6 +706,8 @@ while True:
 ])
 @authors("ermolovd")
 class TestGoodSkiffDecimal(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+
     def _encode_row(self, row_data):
         return b"\x00\x00" + row_data
 

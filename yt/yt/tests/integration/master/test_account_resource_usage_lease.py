@@ -20,6 +20,7 @@ def update_account_resource_usage_lease(lease_id, resources, **kwargs):
 
 
 class TestAccountResourceUsageLease(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 0
 

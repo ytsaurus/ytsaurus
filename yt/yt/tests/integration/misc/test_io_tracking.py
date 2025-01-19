@@ -24,6 +24,8 @@ import pytest
 
 
 class TestNodeIOTrackingBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
+
     def setup_method(self, method):
         super(TestNodeIOTrackingBase, self).setup_method(method)
         update_nodes_dynamic_config({
@@ -124,6 +126,7 @@ class TestNodeIOTrackingBase(YTEnvSetup):
 
 
 class TestDataNodeIOTracking(TestNodeIOTrackingBase):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -349,6 +352,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
 
 
 class TestMultipleReadIORequests(TestNodeIOTrackingBase):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -406,6 +410,7 @@ class TestMultipleReadIORequests(TestNodeIOTrackingBase):
 
 
 class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
     NUM_MASTERS = 1
     NUM_NODES = 6
     NUM_SCHEDULERS = 1
@@ -481,6 +486,7 @@ class TestDataNodeErasureIOTracking(TestNodeIOTrackingBase):
 
 
 class TestMasterJobIOTracking(TestNodeIOTrackingBase):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -630,6 +636,7 @@ class TestMasterJobIOTracking(TestNodeIOTrackingBase):
 
 
 class TestRepairMasterJobIOTracking(TestNodeIOTrackingBase):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
     NUM_MASTERS = 1
     # We need six nodes to store chunks for reed_solomon_3_3 and one extra node to store repaired chunk.
     NUM_NODES = 7
@@ -680,6 +687,7 @@ class TestRepairMasterJobIOTracking(TestNodeIOTrackingBase):
 
 
 class TestClientIOTracking(TestNodeIOTrackingBase):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -938,6 +946,7 @@ class TestClientIOTracking(TestNodeIOTrackingBase):
 
 
 class TestClientRpcProxyIOTracking(TestClientIOTracking):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
     DRIVER_BACKEND = "rpc"
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
@@ -958,6 +967,7 @@ class TestClientRpcProxyIOTracking(TestClientIOTracking):
 
 
 class TestJobIOTrackingBase(TestNodeIOTrackingBase):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -1043,6 +1053,8 @@ class TestJobIOTrackingBase(TestNodeIOTrackingBase):
 
 
 class TestJobIOTracking(TestJobIOTrackingBase):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
+
     @authors("gepardo")
     def test_pools(self):
         node = ls("//sys/cluster_nodes")[0]
@@ -1541,6 +1553,7 @@ class TestJobIOTracking(TestJobIOTrackingBase):
 
 
 class TestMapReduceJobIOTracking(TestJobIOTrackingBase):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "map_reduce_operation_options": {
@@ -1850,6 +1863,7 @@ cat
 
 
 class TestSortJobIOTracking(TestJobIOTrackingBase):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "sort_operation_options": {
@@ -2138,6 +2152,7 @@ class TestSortJobIOTracking(TestJobIOTrackingBase):
 
 
 class TestRemoteCopyIOTrackingBase(TestNodeIOTrackingBase):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -2183,6 +2198,7 @@ class TestRemoteCopyIOTrackingBase(TestNodeIOTrackingBase):
 
 
 class TestRemoteCopyIOTracking(TestRemoteCopyIOTrackingBase):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
     USE_DYNAMIC_TABLES = True
     ENABLE_BULK_INSERT = True
 
@@ -2289,6 +2305,7 @@ class TestRemoteCopyIOTracking(TestRemoteCopyIOTrackingBase):
 
 
 class TestRemoteCopyErasureIOTracking(TestRemoteCopyIOTrackingBase):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
     NUM_NODES = 6
     NUM_NODES_REMOTE_0 = 6
 
@@ -2431,6 +2448,7 @@ class TestRemoteCopyErasureIOTracking(TestRemoteCopyIOTrackingBase):
 
 
 class TestUserJobIOTracking(TestJobIOTrackingBase):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
     USE_PORTO = True
 
     DELTA_NODE_CONFIG = {

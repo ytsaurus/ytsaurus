@@ -19,6 +19,8 @@ from time import sleep, time
 
 
 class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("savrus")
     @flaky(max_runs=5)
     @pytest.mark.parametrize("schema", [SIMPLE_SCHEMA_SORTED, SIMPLE_SCHEMA_ORDERED])
@@ -259,6 +261,7 @@ class TestReplicatedDynamicTablesProfiling(TestReplicatedDynamicTablesBase):
 
 
 class TestReplicatedDynamicTablesProfilingMulticell(TestReplicatedDynamicTablesProfiling):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("savrus")

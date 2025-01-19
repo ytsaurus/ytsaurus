@@ -25,6 +25,7 @@ import time
 
 
 class TestHunkStorage(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 6
     USE_DYNAMIC_TABLES = True
@@ -517,6 +518,7 @@ class TestHunkStorage(YTEnvSetup):
 
 
 class TestHunkStorageMulticell(TestHunkStorage):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1
 
     @authors("akozhikhov")
@@ -549,6 +551,7 @@ class TestHunkStorageMulticell(TestHunkStorage):
 
 
 class TestHunkStoragePortal(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     USE_DYNAMIC_TABLES = True

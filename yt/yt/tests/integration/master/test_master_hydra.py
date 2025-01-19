@@ -15,6 +15,7 @@ import time
 
 
 class TestMasterLeaderSwitch(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 7
     NUM_NODES = 0
     DELTA_MASTER_CONFIG = {
@@ -59,6 +60,7 @@ class TestMasterLeaderSwitch(YTEnvSetup):
 
 
 class TestMasterResetStateHash(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
     NUM_NODES = 0
 
@@ -77,6 +79,7 @@ class TestMasterResetStateHash(YTEnvSetup):
 
 
 class TestDiscombobulate(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 5
     NUM_NONVOTING_MASTERS = 2
     DRIVER_BACKEND = "rpc"
@@ -140,6 +143,7 @@ class TestDiscombobulate(YTEnvSetup):
 
 
 class TestLamportClock(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
 
     @authors("danilalexeev")
@@ -160,6 +164,7 @@ class TestLamportClock(YTEnvSetup):
 
 
 class TestLocalJanitor(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     DELTA_MASTER_CONFIG = {
         "hydra_manager": {
             "enable_local_janitor": False,

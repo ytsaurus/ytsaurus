@@ -27,6 +27,7 @@ def parse_time(t):
 
 
 class TestMasterCellChunkStatisticsCollector(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 5
     NUM_NODES = 3
 

@@ -8,6 +8,7 @@ from yt.common import YtError
 
 
 class TestDiscovery(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SECONDARY_MASTER_CELLS = 1
 
@@ -18,6 +19,7 @@ class TestDiscovery(YTEnvSetup):
 
 
 class TestDiscoveryServers(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_DISCOVERY_SERVERS = 5
 
     @authors("aleksandra-zh")

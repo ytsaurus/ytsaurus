@@ -155,6 +155,7 @@ class TestJournalsBase(YTEnvSetup):
 
 
 class TestJournals(TestJournalsBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 10
     NUM_MASTERS = 3
     NUM_NODES = 6
@@ -694,10 +695,12 @@ class TestJournals(TestJournalsBase):
 
 
 class TestJournalsMulticell(TestJournals):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestJournalsPortal(TestJournalsMulticell):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
@@ -718,6 +721,7 @@ class TestJournalsPortal(TestJournalsMulticell):
 
 
 class TestJournalsRpcProxy(TestJournals):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
@@ -727,6 +731,7 @@ class TestJournalsRpcProxy(TestJournals):
 
 
 class TestJournalsChangeMedia(TestJournalsBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 3
     NUM_NODES = 5
 
@@ -792,6 +797,7 @@ class TestJournalsChangeMedia(TestJournalsBase):
 
 
 class TestErasureJournals(TestJournalsBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 12
     NUM_MASTERS = 3
     NUM_NODES = 20
@@ -966,6 +972,7 @@ class TestErasureJournals(TestJournalsBase):
 
 
 class TestErasureJournalsRpcProxy(TestErasureJournals):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
@@ -974,6 +981,7 @@ class TestErasureJournalsRpcProxy(TestErasureJournals):
 
 
 class TestChunkAutotomizer(TestJournalsBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 3
     NUM_MASTERS = 1
     NUM_NODES = 20
@@ -1241,8 +1249,10 @@ class TestChunkAutotomizer(TestJournalsBase):
 
 
 class TestChunkAutotomizerMulticell(TestChunkAutotomizer):
+    ENABLE_MULTIDAEMON = False  # There are component restarts in the base class.
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestChunkAutotomizerPortal(TestChunkAutotomizerMulticell):
+    ENABLE_MULTIDAEMON = False  # There are component restarts in the base class.
     ENABLE_TMP_PORTAL = True

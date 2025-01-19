@@ -14,6 +14,7 @@ import pytest
 
 class TestProxyRoles(YTEnvSetup):
     NUM_MASTERS = 1
+    ENABLE_MULTIDAEMON = True
 
     def setup_class(cls):
         super(TestProxyRoles, cls).setup_class()

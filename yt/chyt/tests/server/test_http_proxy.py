@@ -764,7 +764,7 @@ class TestClickHouseProxyStructuredLog(ClickHouseTestBase):
         self.proxy_log_file = self.path_to_run + "/logs/http-proxy-0.chyt.yson.log"
 
     @classmethod
-    def modify_proxy_config(cls, configs):
+    def modify_proxy_config(cls, multidaemon_config, configs):
         assert len(configs) == 1
 
         configs[0]["logging"]["rules"].append(

@@ -15,6 +15,7 @@ import pytest
 
 
 class TestReplicatedTablesCollocationBase(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     ENABLE_STANDALONE_REPLICATED_TABLE_TRACKER = True
     NUM_REPLICATED_TABLE_TRACKERS = 2
 
@@ -39,6 +40,8 @@ class TestReplicatedTablesCollocationBase(DynamicTablesBase):
 
 
 class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("akozhikhov")
     def test_table_collocation_creation_errors(self):
         set("//sys/@config/tablet_manager/replicate_table_collocations", False)
@@ -198,6 +201,7 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
 
 
 class TestReplicatedTablesCollocationMulticell(TestReplicatedTablesCollocation):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("akozhikhov")
@@ -231,6 +235,7 @@ class TestReplicatedTablesCollocationMulticell(TestReplicatedTablesCollocation):
 
 
 class TestReplicatedTablesCollocationPortal(TestReplicatedTablesCollocationBase):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
     ENABLE_TMP_PORTAL = True
 

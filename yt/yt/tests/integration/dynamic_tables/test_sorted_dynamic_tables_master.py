@@ -27,6 +27,8 @@ import builtins
 
 
 class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("babenko", "ignat")
     def test_mount(self):
         sync_create_cells(1)
@@ -366,15 +368,18 @@ class TestSortedDynamicTablesMountUnmountFreeze(TestSortedDynamicTablesBase):
 
 
 class TestSortedDynamicTablesMountUnmountFreezeMulticell(TestSortedDynamicTablesMountUnmountFreeze):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestSortedDynamicTablesMountUnmountFreezeRpcProxy(TestSortedDynamicTablesMountUnmountFreeze):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
 class TestSortedDynamicTablesMountUnmountFreezePortal(TestSortedDynamicTablesMountUnmountFreezeMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
 
@@ -382,6 +387,8 @@ class TestSortedDynamicTablesMountUnmountFreezePortal(TestSortedDynamicTablesMou
 
 
 class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+
     def _prepare_copy(self):
         sync_create_cells(1)
         self._create_simple_table("//tmp/t1")
@@ -907,13 +914,16 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
 
 
 class TestSortedDynamicTablesCopyReshardMulticell(TestSortedDynamicTablesCopyReshard):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestSortedDynamicTablesCopyReshardRpcProxy(TestSortedDynamicTablesCopyReshard):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
 class TestSortedDynamicTablesCopyReshardPortal(TestSortedDynamicTablesCopyReshardMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True

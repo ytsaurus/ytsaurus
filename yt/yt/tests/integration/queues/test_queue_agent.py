@@ -40,6 +40,8 @@ class TestQueueAgent(TestQueueAgentBase):
         },
     }
 
+    ENABLE_MULTIDAEMON = True
+
     @authors("achulkov2", "nadya73")
     def test_other_stages_are_ignored(self):
         queue_orchid = QueueAgentOrchid()
@@ -102,6 +104,8 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
             "enable": False,
         },
     }
+
+    ENABLE_MULTIDAEMON = True
 
     @authors("max42", "nadya73")
     def test_polling_loop(self):
@@ -279,6 +283,8 @@ class TestQueueController(TestQueueAgentBase):
             "policy": "watching",
         },
     }
+
+    ENABLE_MULTIDAEMON = True
 
     def _timestamp_to_iso_str(self, ts):
         unix_ts = ts >> 30
@@ -507,6 +513,8 @@ class TestRates(TestQueueAgentBase):
         },
     }
 
+    ENABLE_MULTIDAEMON = True
+
     @authors("max42", "nadya73")
     @pytest.mark.parametrize("without_meta", [True, False])
     def test_rates(self, without_meta):
@@ -611,6 +619,8 @@ class TestAutomaticTrimming(TestQueueAgentBase):
             "policy": "watching",
         },
     }
+
+    ENABLE_MULTIDAEMON = True
 
     @authors("achulkov2", "nadya73")
     def test_basic(self):
@@ -1249,6 +1259,8 @@ class TestMultipleAgents(TestQueueAgentBase):
         },
     }
 
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     @authors("max42", "nadya73")
     def test_leader_election(self):
         instances = self._wait_for_instances()
@@ -1544,6 +1556,8 @@ class TestMasterIntegration(TestQueueAgentBase):
         },
     }
 
+    ENABLE_MULTIDAEMON = True
+
     @authors("max42", "nadya73")
     def test_queue_attributes(self):
         self._create_queue("//tmp/q")
@@ -1734,6 +1748,8 @@ class TestMasterIntegrationFixes(TestQueueAgentBase):
         },
     }
 
+    ENABLE_MULTIDAEMON = True
+
     @authors("apachee")
     def test_queue_agent_nullptr_dereference_fix_yt_22654(self):
         create("queue_consumer", "//tmp/c")
@@ -1866,6 +1882,8 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
 
 
 class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("achulkov2", "nadya73")
     @pytest.mark.parametrize("policy", ["polling", "watching"])
     def test_alerts(self, policy):
@@ -1964,6 +1982,8 @@ class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
 
 
 class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
+    ENABLE_MULTIDAEMON = True
+
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "cypress_synchronizer": {
             "policy": "polling"
@@ -2124,6 +2144,8 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
             "policy": "watching",
         },
     }
+
+    ENABLE_MULTIDAEMON = True
 
     @authors("achulkov2", "nadya73")
     def test_basic(self):
@@ -2476,6 +2498,8 @@ class TestMultiClusterReplicatedTableObjectsBase(TestQueueAgentBase, ReplicatedO
 class TestMultiClusterReplicatedTableObjects(TestMultiClusterReplicatedTableObjectsBase):
     NUM_TEST_PARTITIONS = 2
 
+    ENABLE_MULTIDAEMON = True
+
     @authors("apachee")
     def test_no_queue_agent_instances_on_remote_clusters(self):
         for remote_index in range(self.NUM_REMOTE_CLUSTERS):
@@ -2698,6 +2722,8 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
 
     QUEUE_SCHEMA = [{"name": "data", "type": "string"}]
 
+    ENABLE_MULTIDAEMON = True
+
     @staticmethod
     def _assert_internal_queues_are(expected_queues):
         queues = builtins.set(map(itemgetter("path"), select_rows("[path] from [//sys/queue_agents/queues]")))
@@ -2828,6 +2854,8 @@ class TestReplicatedTableObjects(TestQueueAgentBase, ReplicatedObjectBase):
 
 
 class TestDynamicConfig(TestQueueAgentBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("achulkov2", "nadya73")
     def test_basic(self):
         orchid = CypressSynchronizerOrchid()
@@ -2966,6 +2994,8 @@ class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
             "enable": True,
         },
     }
+
+    ENABLE_MULTIDAEMON = True
 
     # Waits until updated "queue_agent_banned" attribute is handled.
     # We need to:
@@ -3138,6 +3168,8 @@ class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
 
 class TestQueueStaticExport(TestQueueStaticExportBase):
     NUM_TEST_PARTITIONS = 3
+
+    ENABLE_MULTIDAEMON = True
 
     @authors("cherepashka", "achulkov2", "nadya73")
     @pytest.mark.parametrize("queue_external_cell_tag", [10, 11, 12])
@@ -3556,6 +3588,8 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
         },
     }
 
+    ENABLE_MULTIDAEMON = True
+
     @authors("apachee")
     @pytest.mark.timeout(200)
     def test_basic(self):
@@ -3687,6 +3721,8 @@ class TestAutomaticTrimmingWithExports(TestQueueStaticExportBase):
 class TestQueueStaticExportPortals(TestQueueStaticExport):
     ENABLE_TMP_PORTAL = True
 
+    ENABLE_MULTIDAEMON = True
+
     @authors("achulkov2", "nadya73")
     def test_different_native_cells(self):
         _, queue_id = self._create_queue("//portals/q")
@@ -3723,6 +3759,8 @@ class TestObjectAlertCollection(TestQueueStaticExportBase):
             "policy": "watching",
         },
     }
+
+    ENABLE_MULTIDAEMON = True
 
     @authors("achulkov2", "nadya73")
     def test_alert_combinations(self):
@@ -3816,6 +3854,8 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
     }
 
     INF_PERIOD = 10 ** 15
+
+    ENABLE_MULTIDAEMON = True
 
     def setup_method(self, method):
         super(TestMultiClusterReplicatedTableObjectsTrimWithExports, self).setup_method(method)

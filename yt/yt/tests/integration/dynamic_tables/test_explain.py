@@ -6,6 +6,7 @@ from yt_type_helpers import make_schema
 
 
 class TestExplainQuery(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
 
     def _create_test_table(self, path):

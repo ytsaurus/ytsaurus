@@ -696,6 +696,7 @@ MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_secondary_indices)
 
 
 class TestMasterSnapshots(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_MASTER_CACHES = 1
@@ -739,6 +740,7 @@ class TestMasterSnapshots(YTEnvSetup):
 
 
 class TestMasterSnapshotsMulticell(TestMasterSnapshots):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 3
 
 
@@ -746,6 +748,8 @@ class TestMasterSnapshotsMulticell(TestMasterSnapshots):
 
 
 class TestMasterChangelogsMulticell(TestMasterSnapshotsMulticell):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     def _build_master_snapshots(self):
         pass
 
@@ -753,6 +757,7 @@ class TestMasterChangelogsMulticell(TestMasterSnapshotsMulticell):
 
 
 class TestMastersSnapshotsShardedTx(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 4
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
@@ -813,6 +818,8 @@ class TestMastersSnapshotsShardedTx(YTEnvSetup):
 
 
 class TestMastersPersistentReadOnly(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     @authors("danilalexeev")
     def test_read_only_after_recovery(self):
         build_master_snapshots(set_read_only=True)
@@ -853,6 +860,7 @@ class TestMastersPersistentReadOnly(YTEnvSetup):
 
 
 class TestMastersSnapshotsShardedTxCTxS(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 4
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -875,6 +883,7 @@ class TestMastersSnapshotsShardedTxCTxS(YTEnvSetup):
 
 @authors("kvk1920")
 class TestMastersSnapshotsMirroredTx(TestMastersSnapshotsShardedTxCTxS):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False
@@ -892,4 +901,5 @@ class TestMastersSnapshotsMirroredTx(TestMastersSnapshotsShardedTxCTxS):
 
 
 class TestMastersPersistentReadOnlyMulticell(TestMastersPersistentReadOnly):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2

@@ -17,6 +17,7 @@ import pytest
 
 
 class TestQueriesQL(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
 
     DELTA_DRIVER_CONFIG = {
@@ -153,6 +154,7 @@ class TestQueriesQL(YTEnvSetup):
 
 @authors("apollo1321")
 class TestQueriesQLRpcProxy(TestQueriesQL):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1

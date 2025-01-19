@@ -15,6 +15,7 @@ import pytest
 
 
 class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     USE_PERMISSION_CACHE = False
 
     SIMPLE_SCHEMA = [
@@ -263,15 +264,18 @@ class TestSortedDynamicTablesAcl(TestSortedDynamicTablesBase):
 
 
 class TestSortedDynamicTablesAclMulticell(TestSortedDynamicTablesAcl):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestSortedDynamicTablesAclRpcProxy(TestSortedDynamicTablesAcl):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
 class TestSortedDynamicTablesAclPortal(TestSortedDynamicTablesAclMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
 
@@ -279,6 +283,7 @@ class TestSortedDynamicTablesAclPortal(TestSortedDynamicTablesAclMulticell):
 
 
 class TestOrderedDynamicTablesAcl(TestOrderedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     USE_PERMISSION_CACHE = False
 
     def _prepare_allowed(self, permission):
@@ -339,13 +344,16 @@ class TestOrderedDynamicTablesAcl(TestOrderedDynamicTablesBase):
 
 
 class TestOrderedDynamicTablesAclMulticell(TestOrderedDynamicTablesAcl):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestOrderedDynamicTablesAclRpcProxy(TestOrderedDynamicTablesAcl):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
 class TestOrderedDynamicTablesAclPortal(TestOrderedDynamicTablesAclMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True

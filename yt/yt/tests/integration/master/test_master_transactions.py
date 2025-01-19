@@ -43,6 +43,7 @@ def with_portals_dir(func):
 # NB: CheckInvariants() complexity is at least O(|Cypress nodes|) which is too
 # slow in this case.
 class TestMasterTransactionsWithoutInvariantChecking(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
     NUM_NODES = 0
 
@@ -69,6 +70,7 @@ class TestMasterTransactionsWithoutInvariantChecking(YTEnvSetup):
 
 
 class TestMasterTransactions(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
     NUM_NODES = 3
 
@@ -617,6 +619,7 @@ class TestMasterTransactions(YTEnvSetup):
 
 
 class TestMasterTransactionsMulticell(TestMasterTransactions):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_DESCRIPTORS = {
         "12": {"roles": ["chunk_host"]},
@@ -698,6 +701,7 @@ class TestMasterTransactionsMulticell(TestMasterTransactions):
 
 
 class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 5
     NUM_TEST_PARTITIONS = 4
     ENABLE_TMP_PORTAL = True
@@ -877,6 +881,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
 
 
 class TestMasterTransactionsCTxS(TestMasterTransactionsShardedTx):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -890,6 +895,7 @@ class TestMasterTransactionsCTxS(TestMasterTransactionsShardedTx):
 
 
 class TestMasterTransactionsMirroredTx(TestMasterTransactionsCTxS):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False
@@ -908,6 +914,7 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsCTxS):
 
 
 class TestMasterTransactionsRpcProxy(TestMasterTransactions):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -915,6 +922,7 @@ class TestMasterTransactionsRpcProxy(TestMasterTransactions):
 ##################################################################
 
 class TestSequoiaCypressTransactionReplication(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_ROOTSTOCK = False
     ENABLE_TMP_PORTAL = False
     NUM_MASTERS = 3
@@ -1060,6 +1068,7 @@ class TestSequoiaCypressTransactionReplication(YTEnvSetup):
 
 
 class TestSequoiaCypressTransactionReplicationMirroredTx(TestSequoiaCypressTransactionReplication):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
 

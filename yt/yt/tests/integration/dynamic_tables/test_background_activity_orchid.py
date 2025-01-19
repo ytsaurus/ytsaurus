@@ -27,6 +27,7 @@ EMPTY_TASK_DICT = {
 
 
 class TestBackgroundActivityOrchid(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_NODES = 3
     USE_DYNAMIC_TABLES = True
 

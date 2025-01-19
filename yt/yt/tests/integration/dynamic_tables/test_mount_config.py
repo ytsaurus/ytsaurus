@@ -12,6 +12,8 @@ import yt.yson as yson
 
 
 class TestMountConfig(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+
     @staticmethod
     def _validate_dict_subset(full, subset):
         for key, value in subset.items():
@@ -393,4 +395,5 @@ class TestMountConfig(DynamicTablesBase):
 
 
 class TestMountConfigMulticell(TestMountConfig):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

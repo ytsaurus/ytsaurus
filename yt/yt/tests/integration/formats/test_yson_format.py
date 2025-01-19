@@ -81,6 +81,7 @@ class TestYsonPositionalFormat(YTEnvSetup):
     DICT = dict_type(
         "string", "int64"
     )
+    ENABLE_MULTIDAEMON = True
 
     @authors("ermolovd")
     def test_struct(self, optimize_for):
@@ -142,6 +143,8 @@ class TestYsonNamedFormat(YTEnvSetup):
         "int64", "string"
     )
 
+    ENABLE_MULTIDAEMON = True
+
     @authors("nadya73")
     def test_struct(self, optimize_for):
         _test_yson_row(
@@ -178,6 +181,8 @@ class TestYsonDecimalFormat(YTEnvSetup):
     BINARY_PI = b"\x80\x00\x7A\xB7"
     TEXT_PI = "3.1415"
     DECIMAL = decimal_type(5, 4)
+
+    ENABLE_MULTIDAEMON = True
 
     def test_simple(self, optimize_for):
         _test_yson_row(self.DECIMAL, optimize_for, self.BINARY_PI, self.TEXT_DECIMAL_FORMAT, self.TEXT_PI)
@@ -224,6 +229,8 @@ class TestYsonTimeFormat(YTEnvSetup):
     DATETIME_TEXT = "2021-07-02T16:18:40Z"
     MICROSECONDS = 1625242720 * 10**6 + 123456
     TIMESTAMP_TEXT = "2021-07-02T16:18:40.123456Z"
+
+    ENABLE_MULTIDAEMON = True
 
     def test_zero(self, optimize_for):
         _test_yson_row(self.DATE, optimize_for, 0, self.TEXT_TIME_FORMAT, "1970-01-01")
@@ -321,6 +328,8 @@ class TestYsonUuidFormat(YTEnvSetup):
     UUID_BINARY = b"\x01\x10\x20\x30\x40\x50\x60\x70\x80\x90\xa0\xb0\xc0\xd0\xe0\xf0"
     UUID_TEXT_YT = "1102030-40506070-8090a0b0-c0d0e0f0"
     UUID_TEXT_YQL = "30201001-5040-7060-8090-a0b0c0d0e0f0"
+
+    ENABLE_MULTIDAEMON = True
 
     def test_simple(self, optimize_for):
         _test_yson_row(self.UUID, optimize_for, self.UUID_BINARY, self.TEXT_YT_FORMAT, self.UUID_TEXT_YT)

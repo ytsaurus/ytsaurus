@@ -41,6 +41,7 @@ class TestYamlFormat(YTEnvSetup):
             },
         },
     }
+    ENABLE_MULTIDAEMON = True
 
     def setup_method(self, method):
         # Initialize operation archive table and fill it with some data.

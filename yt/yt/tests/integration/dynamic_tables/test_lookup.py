@@ -32,6 +32,7 @@ import time
 
 
 class TestLookup(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
     NUM_SCHEDULERS = 1
 
@@ -1061,6 +1062,7 @@ class TestLookup(TestSortedDynamicTablesBase):
 
 
 class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
 
     @authors("akozhikhov")
@@ -1457,6 +1459,7 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
 
 
 class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_NODES = 2
 
     DELTA_NODE_CONFIG = {
@@ -1506,6 +1509,7 @@ class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
 
 
 class TestLookupCache(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
 
     DELTA_NODE_CONFIG = {
@@ -1980,10 +1984,12 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 
 
 class TestLookupMulticell(TestLookup):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestLookupRpcProxy(TestLookup):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -2080,6 +2086,7 @@ class TestLookupRpcProxy(TestLookup):
 
 
 class TestLookupOutThrottlingLegacyThrottler(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {
         "enable_fair_throttler": False,
         "query_agent":  {
@@ -2113,6 +2120,7 @@ class TestLookupOutThrottlingLegacyThrottler(TestSortedDynamicTablesBase):
 
 
 class TestLookupOutThrottlingFairThrottler(TestLookupOutThrottlingLegacyThrottler):
+    ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {
         "enable_fair_throttler": True,
         "query_agent":  {

@@ -47,6 +47,7 @@ def get_tablet_follower_addresses(tablet_id):
 ##################################################################
 
 class TestSortedDynamicTablesBase(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {
         "cluster_connection": {
             "timestamp_provider": {
@@ -236,6 +237,7 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
 
 
 class TestSortedDynamicTables(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 6
 
     @authors("ifsmirnov")
@@ -1837,10 +1839,12 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
 
 
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestSortedDynamicTablesPortal(TestSortedDynamicTablesMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
     DELTA_NODE_CONFIG = {
@@ -1853,6 +1857,7 @@ class TestSortedDynamicTablesPortal(TestSortedDynamicTablesMulticell):
 
 
 class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -1939,6 +1944,8 @@ class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
 
 
 class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("ifsmirnov")
     def test_required_columns(self):
         schema = [
@@ -2130,21 +2137,25 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
 
 
 class TestSortedDynamicTablesSpecialColumnsMulticell(TestSortedDynamicTablesSpecialColumns):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestSortedDynamicTablesSpecialColumnsRpcProxy(TestSortedDynamicTablesSpecialColumns):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
 class TestSortedDynamicTablesSpecialColumnsPortal(TestSortedDynamicTablesSpecialColumnsMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
 ################################################################################
 
 
 class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_NODES = 1
 
     DELTA_NODE_CONFIG = {
@@ -2304,6 +2315,7 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
 
 
 class TestSortedDynamicTablesMemoryLimitRpcProxy(TestSortedDynamicTablesMemoryLimit):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -2311,6 +2323,7 @@ class TestSortedDynamicTablesMemoryLimitRpcProxy(TestSortedDynamicTablesMemoryLi
 
 
 class TestSortedDynamicTablesMultipleWriteBatches(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     DELTA_DRIVER_CONFIG = {
         "max_rows_per_write_request": 10
     }
@@ -2329,6 +2342,7 @@ class TestSortedDynamicTablesMultipleWriteBatches(TestSortedDynamicTablesBase):
 
 
 class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_NODES = 1
 
     DELTA_NODE_CONFIG = {
@@ -2476,6 +2490,7 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
 
 
 class TestSortedDynamicTablesMultipleSlotsPerNode(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_NODES = 1
     DELTA_NODE_CONFIG = {
         "tablet_node": {
@@ -2518,6 +2533,7 @@ class TestSortedDynamicTablesMultipleSlotsPerNode(TestSortedDynamicTablesBase):
 
 
 class TestReshardWithSlicing(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
 
     @staticmethod
@@ -2855,6 +2871,8 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
 
 
 class TestSortedDynamicTablesChunkFormat(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("babenko")
     def test_validate_chunk_format_on_mount(self):
         sync_create_cells(1)
@@ -2943,6 +2961,8 @@ class TestSortedDynamicTablesChunkFormat(TestSortedDynamicTablesBase):
 
 
 class TestDynamicTablesTtl(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+
     def _create_table_with_ttl_column(self, min_data_ttl, max_data_ttl=100000,
                                       merge_rows_on_flush=False,
                                       auto_compaction_period=1):
@@ -3138,6 +3158,8 @@ class TestDynamicTablesTtl(DynamicTablesBase):
 
 
 class TestDynamicNestedColumns(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+
     def _create_table(self, path, schema):
         create(
             "table",

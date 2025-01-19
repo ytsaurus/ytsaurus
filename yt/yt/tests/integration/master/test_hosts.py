@@ -16,6 +16,7 @@ import pytest
 
 
 class TestHosts(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
 
@@ -149,12 +150,14 @@ class TestHosts(YTEnvSetup):
 
 
 class TestHostsMulticell(TestHosts):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 ##################################################################
 
 
 class TestPreserveRackForNewHost(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are components restart.
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SECONDARY_MASTER_CELLS = 2

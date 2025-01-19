@@ -12,6 +12,7 @@ from yt.environment.helpers import assert_items_equal
 
 
 class TestCrossClusterTransactions(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 0
@@ -70,5 +71,6 @@ class TestCrossClusterTransactions(YTEnvSetup):
 
 
 class TestCrossClusterTransactionsRpcProxy(TestCrossClusterTransactions):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

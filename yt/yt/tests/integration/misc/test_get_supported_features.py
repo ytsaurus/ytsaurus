@@ -12,6 +12,7 @@ import pytest
 
 
 class TestGetFeaturesBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -20,6 +21,8 @@ class TestGetFeaturesBase(YTEnvSetup):
 
 
 class TestGetFeatures(TestGetFeaturesBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("levysotsky")
     @pytest.mark.ignore_in_opensource_ci
     def test_get_features(self):
@@ -135,6 +138,7 @@ class TestGetFeatures(TestGetFeaturesBase):
 
 
 class TestGetFeaturesWithConfigs(TestGetFeaturesBase):
+    ENABLE_MULTIDAEMON = True
     DELTA_DRIVER_CONFIG = {
         "require_password_in_authentication_commands": False,
     }

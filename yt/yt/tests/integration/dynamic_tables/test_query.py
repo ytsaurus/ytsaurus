@@ -41,6 +41,7 @@ import functools
 
 
 class TestQuery(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -2402,6 +2403,7 @@ class TestQuery(DynamicTablesBase):
 
 
 class TestQueryRpcProxy(TestQuery):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -2516,6 +2518,7 @@ class TestQueryRpcProxy(TestQuery):
 
 
 class TestSelectWithRowCache(TestLookupCache):
+    ENABLE_MULTIDAEMON = True
     COUNTER_NAME = "select"
 
     def _read(self, table, keys, column_names=None, **kwargs):

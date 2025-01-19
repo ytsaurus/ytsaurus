@@ -23,6 +23,7 @@ import time
 
 
 class TestMapOnDynamicTables(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
 
     NUM_MASTERS = 1
@@ -835,10 +836,12 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
 
 class TestMapOnDynamicTablesMulticell(TestMapOnDynamicTables):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestMapOnDynamicTablesPortal(TestMapOnDynamicTablesMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
 
@@ -951,6 +954,7 @@ class MROverOrderedDynTablesHelper(YTEnvSetup):
 
 
 class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
 
     NUM_MASTERS = 1
@@ -1254,10 +1258,12 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
 
 
 class TestInputOutputForOrderedWithTabletIndexMulticell(TestInputOutputForOrderedWithTabletIndex):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestInputOutputForOrderedWithTabletIndexPortal(TestInputOutputForOrderedWithTabletIndexMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
 
@@ -1265,6 +1271,7 @@ class TestInputOutputForOrderedWithTabletIndexPortal(TestInputOutputForOrderedWi
 
 
 class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -1434,8 +1441,10 @@ class TestSchedulerMapReduceDynamic(MROverOrderedDynTablesHelper):
 
 
 class TestSchedulerMapReduceDynamicMulticell(TestSchedulerMapReduceDynamic):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestSchedulerMapReduceDynamicPortal(TestSchedulerMapReduceDynamicMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True

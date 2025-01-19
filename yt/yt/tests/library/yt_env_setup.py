@@ -523,7 +523,11 @@ class YTEnvSetup(object):
 
     # To be redefined in successors
     @classmethod
-    def modify_master_config(cls, config, tag, peer_index, cluster_index):
+    def modify_multi_config(cls, config):
+        pass
+
+    @classmethod
+    def modify_master_config(cls, multidaemon_config, config, tag, peer_index, cluster_index):
         pass
 
     @classmethod
@@ -555,11 +559,11 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
-    def modify_proxy_config(cls, config):
+    def modify_proxy_config(cls, multidaemon_config, configs):
         pass
 
     @classmethod
-    def modify_rpc_proxy_config(cls, config):
+    def modify_rpc_proxy_config(cls, multidaemon_config, config):
         pass
 
     @classmethod
@@ -571,7 +575,7 @@ class YTEnvSetup(object):
         pass
 
     @classmethod
-    def modify_tablet_balancer_config(cls, config):
+    def modify_tablet_balancer_config(cls, multidaemon_config, config):
         pass
 
     @classmethod
@@ -1068,13 +1072,14 @@ class YTEnvSetup(object):
 
     @classmethod
     def apply_config_patches(cls, configs, ytserver_version, cluster_index, cluster_path):
+        cls.modify_multi_config(configs["multi"])
         for cell_index, cell_tag in enumerate([configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]):
             for peer_index, config in enumerate(configs["master"][cell_tag]):
                 config = update_inplace(config, cls.get_param("DELTA_MASTER_CONFIG", cluster_index))
                 configs["master"][cell_tag][peer_index] = cls.update_timestamp_provider_config(cluster_index, config)
                 configs["master"][cell_tag][peer_index] = cls.update_sequoia_connection_config(cluster_index, config)
                 configs["master"][cell_tag][peer_index] = cls.update_transaction_supervisor_config(cluster_index, config)
-                cls.modify_master_config(configs["master"][cell_tag][peer_index], cell_tag, peer_index, cluster_index)
+                cls.modify_master_config(configs["multi"], configs["master"][cell_tag][peer_index], cell_tag, peer_index, cluster_index)
 
                 configs["multi"]["daemons"][f"master_{cell_index}_{peer_index}"]["config"] = configs["master"][cell_tag][peer_index]
 
@@ -1110,7 +1115,7 @@ class YTEnvSetup(object):
         for index, config in enumerate(configs["tablet_balancer"]):
             config = update_inplace(config, cls.get_param("DELTA_TABLET_BALANCER_CONFIG", cluster_index))
             configs["tablet_balancer"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_tablet_balancer_config(configs["tablet_balancer"][index])
+            cls.modify_tablet_balancer_config(configs["multi"], configs["tablet_balancer"][index])
             configs["multi"]["daemons"][f"tablet_balancer_{index}"]["config"] = configs["tablet_balancer"][index]
 
         for index, config in enumerate(configs["master_cache"]):
@@ -1171,7 +1176,7 @@ class YTEnvSetup(object):
 
             config = update_inplace(config, delta_config)
             configs["http_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_proxy_config(configs["http_proxy"])
+            cls.modify_proxy_config(configs["multi"], configs["http_proxy"])
             configs["multi"]["daemons"][f"http_proxy_{index}"]["config"] = configs["http_proxy"][index]
 
         for index, config in enumerate(configs["rpc_proxy"]):
@@ -1181,7 +1186,7 @@ class YTEnvSetup(object):
             config = update_inplace(config, cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))
 
             configs["rpc_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
-            cls.modify_rpc_proxy_config(configs["rpc_proxy"])
+            cls.modify_rpc_proxy_config(configs["multi"], configs["rpc_proxy"])
             configs["multi"]["daemons"][f"rpc_proxy_{index}"]["config"] = configs["rpc_proxy"][index]
 
         for index, config in enumerate(configs["cypress_proxy"]):

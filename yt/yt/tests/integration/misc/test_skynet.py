@@ -48,6 +48,7 @@ SKYNET_TABLE_SCHEMA = make_schema(
 
 
 class TestSkynetIntegration(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1

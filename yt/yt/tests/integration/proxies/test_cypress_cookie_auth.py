@@ -43,6 +43,8 @@ class TestCypressCookieAuth(YTEnvSetup):
         },
     }
 
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     def _get_proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
 

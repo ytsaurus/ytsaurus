@@ -12,6 +12,7 @@ from yt.environment.helpers import Restarter, NODES_SERVICE, MASTERS_SERVICE
 
 
 class TestChunkLocations(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 3
     NUM_NODES = 3
 
@@ -134,12 +135,14 @@ class TestChunkLocations(YTEnvSetup):
 
 
 class TestChunkLocationsMulticell(TestChunkLocations):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
 
 ##################################################################
 
 
 class TestDanglingChunkLocationsCleaning(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 3
     NUM_NODES = 3
 
@@ -181,12 +184,14 @@ class TestDanglingChunkLocationsCleaning(YTEnvSetup):
 
 
 class TestDanglingChunkLocationsCleaningMulticell(TestDanglingChunkLocationsCleaning):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
 
 ##################################################################
 
 
 class TestPerLocationNodeDisposal(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_NODES = 6
 
@@ -303,6 +308,7 @@ class TestPerLocationNodeDisposal(YTEnvSetup):
 
 
 class TestMediumOverrideSafety(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 1
     NON_DEFAULT_MEDIUM = "ssd"

@@ -36,6 +36,7 @@ from io import BytesIO
 
 @authors("ifsmirnov")
 class TestBulkInsert(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
     NUM_MASTERS = 1
     NUM_NODES = 5
@@ -1450,6 +1451,7 @@ class TestBulkInsert(DynamicTablesBase):
 
 @authors("ifsmirnov")
 class TestUnversionedUpdateFormat(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
     NUM_MASTERS = 1
     NUM_NODES = 5
@@ -2179,14 +2181,17 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
 
 
 class TestBulkInsertMulticell(TestBulkInsert):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestBulkInsertPortal(TestBulkInsertMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
 
 class TestBulkInsertShardedTx(TestBulkInsertPortal):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
@@ -2197,6 +2202,7 @@ class TestBulkInsertShardedTx(TestBulkInsertPortal):
 
 
 class TestBulkInsertShardedTxCTxS(TestBulkInsertShardedTx):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -2210,6 +2216,7 @@ class TestBulkInsertShardedTxCTxS(TestBulkInsertShardedTx):
 
 
 class TestBulkInsertMirroredTx(TestBulkInsertShardedTxCTxS):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
@@ -2228,11 +2235,13 @@ class TestBulkInsertMirroredTx(TestBulkInsertShardedTxCTxS):
 
 
 class TestUnversionedUpdateFormatRpcProxy(TestUnversionedUpdateFormat):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
 class TestUnversionedUpdateFormatShardedTx(TestUnversionedUpdateFormat):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_DESCRIPTORS = {
@@ -2244,6 +2253,7 @@ class TestUnversionedUpdateFormatShardedTx(TestUnversionedUpdateFormat):
 
 
 class TestUnversionedUpdateFormatShardedTxCTxS(TestUnversionedUpdateFormatShardedTx):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -2257,6 +2267,7 @@ class TestUnversionedUpdateFormatShardedTxCTxS(TestUnversionedUpdateFormatSharde
 
 
 class TestUnversionedUpdateFormatMirroredTx(TestUnversionedUpdateFormatShardedTxCTxS):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False

@@ -19,6 +19,8 @@ class TestQueueAgentStages(TestQueueAgentBase):
         },
     }
 
+    ENABLE_MULTIDAEMON = True
+
     @authors("apachee")
     @pytest.mark.timeout(120)
     @pytest.mark.parametrize("cluster_with_stage", ["primary", "remote_0"])

@@ -73,6 +73,7 @@ class OperationInfo:
 
 @authors("ignat")
 class TestPrepareSchedulingUsage(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Check structured logs.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1

@@ -17,6 +17,7 @@ import builtins
 
 
 class TestRacks(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 20
 
@@ -382,4 +383,5 @@ class TestRacks(YTEnvSetup):
 
 
 class TestRacksMulticell(TestRacks):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

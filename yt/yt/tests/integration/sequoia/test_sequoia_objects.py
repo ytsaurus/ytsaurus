@@ -43,6 +43,7 @@ def sequoia_tables_empty():
 
 
 class TestSequoiaReplicas(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     USE_SEQUOIA = True
     NUM_SECONDARY_MASTER_CELLS = 0
 
@@ -330,6 +331,8 @@ class TestSequoiaReplicas(YTEnvSetup):
 
 
 class TestOnlySequoiaReplicas(TestSequoiaReplicas):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "sequoia_manager": {
             # Making sure we do not use it for replicas.
@@ -438,6 +441,7 @@ class TestOnlySequoiaReplicas(TestSequoiaReplicas):
 
 
 class TestSequoiaReplicasMulticell(TestSequoiaReplicas):
+    ENABLE_MULTIDAEMON = False  # There are components restarts.
     NUM_SECONDARY_MASTER_CELLS = 3
 
     @classmethod
@@ -453,6 +457,7 @@ class TestSequoiaReplicasMulticell(TestSequoiaReplicas):
 
 
 class TestSequoiaQueues(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     USE_SEQUOIA = True
     NUM_CYPRESS_PROXIES = 1
 

@@ -25,6 +25,8 @@ from yt.xdelta_aggregate_column.bindings import XDeltaCodec
 
 
 class TestAggregateColumns(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+
     def _create_table_with_aggregate_column(self, path, aggregate="sum", **attributes):
         if "schema" not in attributes:
             attributes.update(
@@ -589,9 +591,11 @@ class TestAggregateColumns(TestSortedDynamicTablesBase):
 
 
 class TestAggregateColumnsMulticell(TestAggregateColumns):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestAggregateColumnsRpcProxy(TestAggregateColumns):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

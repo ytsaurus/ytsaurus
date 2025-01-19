@@ -15,6 +15,7 @@ import builtins
 
 
 class TestAllyReplicas(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 7
 
@@ -187,4 +188,5 @@ class TestAllyReplicas(YTEnvSetup):
 
 
 class TestAllyReplicasMulticell(TestAllyReplicas):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

@@ -65,6 +65,7 @@ def not_implemented_in_sequoia(func):
 
 
 class TestCypress(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 12
 
     NUM_MASTERS = 3
@@ -4060,6 +4061,7 @@ class TestCypress(YTEnvSetup):
 
 
 class TestCypressMulticell(TestCypress):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("kvk1920")
@@ -4112,6 +4114,7 @@ class TestCypressMulticell(TestCypress):
 
 
 class TestCypressPortal(TestCypressMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 3
 
@@ -4272,6 +4275,7 @@ class TestCypressPortal(TestCypressMulticell):
 
 
 class TestCypressShardedTx(TestCypressPortal):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 4
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
@@ -4281,6 +4285,7 @@ class TestCypressShardedTx(TestCypressPortal):
 
 
 class TestCypressShardedTxCTxS(TestCypressShardedTx):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -4294,6 +4299,7 @@ class TestCypressShardedTxCTxS(TestCypressShardedTx):
 
 
 class TestCypressMirroredTx(TestCypressShardedTxCTxS):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False
@@ -4312,6 +4318,7 @@ class TestCypressMirroredTx(TestCypressShardedTxCTxS):
 
 
 class TestCypressCypressProxy(TestCypressShardedTx):
+    ENABLE_MULTIDAEMON = True
     NUM_CYPRESS_PROXIES = 2
 
 
@@ -4319,11 +4326,13 @@ class TestCypressCypressProxy(TestCypressShardedTx):
 
 
 class TestCypressRpcProxy(TestCypress):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
 class TestCypressMulticellRpcProxy(TestCypressMulticell, TestCypressRpcProxy):
+    ENABLE_MULTIDAEMON = True
     pass
 
 
@@ -4331,6 +4340,7 @@ class TestCypressMulticellRpcProxy(TestCypressMulticell, TestCypressRpcProxy):
 
 
 class TestCypressLeaderSwitch(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
     NUM_NODES = 0
 
@@ -4416,6 +4426,7 @@ class TestCypressLeaderSwitch(YTEnvSetup):
 ##################################################################
 
 class TestCypressForbidSet(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 0
 
@@ -4485,6 +4496,7 @@ class TestCypressForbidSet(YTEnvSetup):
 
 
 class TestCypressApiVersion4(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 0
 
@@ -4543,6 +4555,7 @@ class TestCypressApiVersion4(YTEnvSetup):
 
 
 class TestCypressNestingLevelLimit(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 0
 
@@ -4617,6 +4630,7 @@ class TestCypressNestingLevelLimit(YTEnvSetup):
 
 
 class TestCypressNestingLevelLimitRpcProxy(TestCypressNestingLevelLimit):
+    ENABLE_MULTIDAEMON = True
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
     DRIVER_BACKEND = "rpc"
@@ -4632,6 +4646,7 @@ class TestCypressNestingLevelLimitRpcProxy(TestCypressNestingLevelLimit):
 
 
 class TestCypressNestingLevelLimitHttpProxy(TestCypressNestingLevelLimit):
+    ENABLE_MULTIDAEMON = True
     ENABLE_HTTP_PROXY = True
     NUM_HTTP_PROXIES = 1
 
@@ -4684,6 +4699,7 @@ class TestCypressNestingLevelLimitHttpProxy(TestCypressNestingLevelLimit):
 
 
 class TestBuiltinAttributesRevision(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
 
     @authors("kvk1920")
@@ -4716,6 +4732,7 @@ class TestBuiltinAttributesRevision(YTEnvSetup):
 
 
 class TestAccessControlObjects(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1
 
     @authors("shakurov")
@@ -4899,6 +4916,7 @@ class TestAccessControlObjects(YTEnvSetup):
 
 
 class TestSequoia(TestCypressMulticell):
+    ENABLE_MULTIDAEMON = True
     NUM_NODES = 5
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True

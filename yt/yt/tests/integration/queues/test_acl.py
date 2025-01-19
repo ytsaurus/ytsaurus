@@ -6,6 +6,8 @@ from yt_commands import (authors, get, set, create, raises_yt_error, create_user
 
 
 class TestRegisterQueueConsumerPermission(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+
     @authors("nadya73", "max42")
     def test_register_queue_consumer_permission(self):
         create_user("u_vital")
@@ -43,5 +45,6 @@ class TestRegisterQueueConsumerPermission(YTEnvSetup):
 
 
 class TestRegisterQueueConsumerPermissionRpcProxy(TestRegisterQueueConsumerPermission):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

@@ -118,6 +118,7 @@ class TabletActionsBase(DynamicTablesBase):
 
 
 class TestTabletActions(TabletActionsBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     ENABLE_TABLET_BALANCER = True
     NUM_TEST_PARTITIONS = 3
 
@@ -1476,6 +1477,7 @@ class TabletBalancerBase(TabletActionsBase):
 
 
 class TestTabletBalancer(TabletBalancerBase):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TABLET_BALANCER = True
     NUM_TEST_PARTITIONS = 4
 
@@ -1587,10 +1589,12 @@ class TestTabletBalancer(TabletBalancerBase):
 
 
 class TestTabletActionsMulticell(TestTabletActions):
+    ENABLE_MULTIDAEMON = False  # There are component restarts in the base class.
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestTabletActionsRpcProxy(TestTabletActions):
+    ENABLE_MULTIDAEMON = False  # There are component restarts in the base class.
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -1599,10 +1603,12 @@ class TestTabletActionsRpcProxy(TestTabletActions):
 
 
 class TestTabletBalancerMulticell(TestTabletBalancer):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestTabletBalancerRpcProxy(TestTabletBalancer):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -1611,6 +1617,7 @@ class TestTabletBalancerRpcProxy(TestTabletBalancer):
 
 
 class TestRemoteChangelogStore(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 6
     NUM_SCHEDULERS = 0
@@ -1640,4 +1647,5 @@ class TestRemoteChangelogStore(YTEnvSetup):
 
 
 class TestRemoteChangelogStoreMulticell(TestRemoteChangelogStore):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

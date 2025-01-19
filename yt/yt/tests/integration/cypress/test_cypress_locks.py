@@ -42,6 +42,7 @@ def cannot_be_implemented_in_sequoia(reason):
 
 
 class TestCypressLocks(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
     NUM_NODES = 3
     NUM_TEST_PARTITIONS = 4
@@ -1667,22 +1668,25 @@ class TestCypressLocks(YTEnvSetup):
 
 
 class TestCypressLocksMulticell(TestCypressLocks):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestCypressLocksRpcProxy(TestCypressLocks):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
 class TestCypressLocksMulticellRpcProxy(TestCypressLocksMulticell, TestCypressLocksRpcProxy):
-    pass
+    ENABLE_MULTIDAEMON = True
 
 
 ##################################################################
 
 
 class TestCypressLocksShardedTx(TestCypressLocksMulticell):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 4
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
@@ -1692,6 +1696,7 @@ class TestCypressLocksShardedTx(TestCypressLocksMulticell):
 
 
 class TestCypressLocksShardedTxCTxS(TestCypressLocksShardedTx):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -1705,6 +1710,7 @@ class TestCypressLocksShardedTxCTxS(TestCypressLocksShardedTx):
 
 
 class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False
@@ -1759,6 +1765,7 @@ class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
 
 
 class TestCypressLocksInSequoia(TestCypressLocksMirroredTx):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_ROOTSTOCK = True
     NUM_CYPRESS_PROXIES = 1
     NUM_TEST_PARTITIONS = 12

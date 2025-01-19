@@ -61,7 +61,7 @@ class TestStandaloneTabletBalancerBase:
         wait(lambda: first_iteration_start_time < self._get_last_iteration_start_time(instances))
 
     @classmethod
-    def modify_tablet_balancer_config(cls, config):
+    def modify_tablet_balancer_config(cls, multidaemon_config, config):
         update_inplace(config, {
             "tablet_balancer": {
                 "period" : 100,
@@ -72,7 +72,10 @@ class TestStandaloneTabletBalancerBase:
                 "leader_cache_update_period": 100,
             }
         })
-        for rule in config["logging"]["rules"]:
+        if "logging" in config:
+            for rule in config["logging"]["rules"]:
+                rule.pop("exclude_categories", None)
+        for rule in multidaemon_config["logging"]["rules"]:
             rule.pop("exclude_categories", None)
 
     @classmethod
@@ -103,6 +106,7 @@ class TestStandaloneTabletBalancerBase:
 
 
 class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalancerBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
 
     def _test_simple_reshard(self):
@@ -226,9 +230,11 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
 
 
 class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletActionsBase):
+    ENABLE_MULTIDAEMON = True
+
     @classmethod
-    def modify_tablet_balancer_config(cls, config):
-        super(TestStandaloneTabletBalancerSlow, cls).modify_tablet_balancer_config(config)
+    def modify_tablet_balancer_config(cls, multidaemon_config, config):
+        super(TestStandaloneTabletBalancerSlow, cls).modify_tablet_balancer_config(multidaemon_config, config)
         update_inplace(config, {
             "tablet_balancer": {
                 "period" : 5000,
@@ -284,9 +290,11 @@ class TestStandaloneTabletBalancerSlow(TestStandaloneTabletBalancerBase, TabletA
 
 
 class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+
     @classmethod
-    def modify_tablet_balancer_config(cls, config):
-        super(TestParameterizedBalancing, cls).modify_tablet_balancer_config(config)
+    def modify_tablet_balancer_config(cls, multidaemon_config, config):
+        super(TestParameterizedBalancing, cls).modify_tablet_balancer_config(multidaemon_config, config)
         update_inplace(config, {
             "tablet_balancer": {
                 "period" : 5000,
@@ -670,12 +678,15 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
 
 
 class TestStandaloneTabletBalancerMulticell(TestStandaloneTabletBalancer):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestStandaloneTabletBalancerSlowMulticell(TestStandaloneTabletBalancerSlow):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestParameterizedBalancingMulticell(TestParameterizedBalancing):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

@@ -22,6 +22,7 @@ import pytest
 
 
 class TestCheckPermissionProfiling(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
 
@@ -345,6 +346,7 @@ class CheckPermissionBase(YTEnvSetup):
 
 
 class TestCypressAcls(CheckPermissionBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
     NUM_SCHEDULERS = 1
     USE_MASTER_CACHE = True
@@ -1942,17 +1944,20 @@ class TestCypressAcls(CheckPermissionBase):
 
 
 class TestCypressAclsMulticell(TestCypressAcls):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 3
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestCheckPermissionRpcProxy(CheckPermissionBase):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
 
 
 class TestCypressAclsPortal(TestCypressAclsMulticell):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 3
     NUM_SECONDARY_MASTER_CELLS = 3
     ENABLE_TMP_PORTAL = True

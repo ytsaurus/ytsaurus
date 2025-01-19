@@ -57,6 +57,7 @@ def _test_schemas_match(table_path, schema_equality, schema_id_equality=None, ex
 
 
 class TestChunkSchemas(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     USE_DYNAMIC_TABLES = True
@@ -377,6 +378,8 @@ class ChunkSchemasMulticellBase(YTEnvSetup):
 
 
 class TestChunkSchemasMulticell(ChunkSchemasMulticellBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("h0pless")
     def test_multicell_static_1(self):
         create("table", "//tmp/output", attributes={"external_cell_tag": 10})
@@ -423,6 +426,7 @@ class TestChunkSchemasMulticell(ChunkSchemasMulticellBase):
 
 
 class TestChunkSchemasMulticellPortal(ChunkSchemasMulticellBase):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
 
@@ -430,6 +434,7 @@ class TestChunkSchemasMulticellPortal(ChunkSchemasMulticellBase):
 
 
 class TestChunkTeleportation(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SECONDARY_MASTER_CELLS = 2
 

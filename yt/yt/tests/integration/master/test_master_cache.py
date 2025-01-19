@@ -5,6 +5,7 @@ from yt_commands import authors, wait, get, set, exists, ls
 
 
 class TestMasterCache(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_MASTER_CACHES = 1
@@ -35,4 +36,5 @@ class TestMasterCache(YTEnvSetup):
 
 
 class TestMasterCacheMulticell(TestMasterCache):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

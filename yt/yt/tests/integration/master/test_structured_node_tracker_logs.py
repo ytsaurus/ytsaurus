@@ -14,22 +14,38 @@ import os
 
 @authors("kvk1920")
 class TestNodeTrackerLog(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     LOG_WRITE_WAIT_TIME = 0.2
 
     @classmethod
-    def modify_master_config(cls, config, tag, peer_index, cluster_index):
-        config["logging"]["flush_period"] = 50
-        config["logging"]["rules"].append(
+    def modify_master_config(cls, multidaemon_config, config, tag, peer_index, cluster_index):
+        if "logging" in config:
+            config["logging"]["flush_period"] = 50
+            config["logging"]["rules"].append(
+                {
+                    "min_level": "debug",
+                    "writers": ["node_tracker"],
+                    "include_categories": ["NodeTrackerServerStructured", "Barrier"],
+                    "message_format": "structured",
+                }
+            )
+            config["logging"]["writers"]["node_tracker"] = {
+                "type": "file",
+                "file_name": os.path.join(cls.path_to_run, f"logs/master-{tag}-{peer_index}.node_tracker.json.log"),
+                "accepted_message_format": "structured",
+            }
+        multidaemon_config["logging"]["flush_period"] = 50
+        multidaemon_config["logging"]["rules"].append(
             {
                 "min_level": "debug",
-                "writers": ["node_tracker"],
+                "writers": [f"node_tracker-{tag}-{peer_index}"],
                 "include_categories": ["NodeTrackerServerStructured", "Barrier"],
                 "message_format": "structured",
             }
         )
-        config["logging"]["writers"]["node_tracker"] = {
+        multidaemon_config["logging"]["writers"][f"node_tracker-{tag}-{peer_index}"] = {
             "type": "file",
-            "file_name": os.path.join(cls.path_to_run, "logs/master-{}-{}.node_tracker.json.log".format(tag, peer_index)),
+            "file_name": os.path.join(cls.path_to_run, f"logs/master-{tag}-{peer_index}.node_tracker.json.log"),
             "accepted_message_format": "structured",
         }
 

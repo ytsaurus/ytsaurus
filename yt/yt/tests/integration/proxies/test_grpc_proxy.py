@@ -53,6 +53,7 @@ def uuid_to_dict(guid):
 class TestGrpcProxy(YTEnvSetup):
     ENABLE_RPC_PROXY = True
     USE_DYNAMIC_TABLES = True
+    ENABLE_MULTIDAEMON = True
 
     @classmethod
     def setup_class(cls):
