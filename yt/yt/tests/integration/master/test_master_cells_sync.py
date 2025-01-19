@@ -15,6 +15,7 @@ from yt_helpers import profiler_factory
 
 
 class TestMasterCellsSync(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     ENABLE_SECONDARY_CELLS_CLEANUP = False
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_NODES = 3
@@ -335,6 +336,7 @@ class TestMasterCellsSync(YTEnvSetup):
 
 
 class TestMasterCellsSyncDelayed(TestMasterCellsSync):
+    ENABLE_MULTIDAEMON = False  # There are defer components starts.
     DEFER_SECONDARY_CELL_START = True
     NUM_TEST_PARTITIONS = 2
 
@@ -352,6 +354,7 @@ class TestMasterCellsSyncDelayed(TestMasterCellsSync):
 ##################################################################
 
 class TestMasterHiveSync(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_MASTERS = 1
 

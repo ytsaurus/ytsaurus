@@ -15,6 +15,8 @@ class TestCypressTokenAuthBase(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     NUM_HTTP_PROXIES = 1
 
+    ENABLE_MULTIDAEMON = True
+
     def _get_proxy_address(self):
         return "http://" + self.Env.get_proxy_address()
 
@@ -51,6 +53,7 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
             },
         },
     }
+    ENABLE_MULTIDAEMON = True
 
     @authors("gritukan")
     def test_simple(self):
@@ -82,6 +85,7 @@ class TestAuthenticationCommands(TestCypressTokenAuthBase):
             "enable_authentication": True,
         },
     }
+    ENABLE_MULTIDAEMON = True
 
     @authors("aleksandr.gaev")
     def test_authentication_commands(self):
@@ -118,6 +122,7 @@ class TestAuthenticationCommandsWithNoPassword(TestCypressTokenAuthBase):
             "enable_authentication": True,
         },
     }
+    ENABLE_MULTIDAEMON = True
 
     @authors("aleksandr.gaev")
     def test_authentication_commands_without_password(self):

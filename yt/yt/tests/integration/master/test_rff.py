@@ -12,6 +12,7 @@ import os
 
 
 class TestRff(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 5
     NUM_NONVOTING_MASTERS = 2
     NUM_NODES = 3
@@ -91,4 +92,5 @@ class TestRff(YTEnvSetup):
 
 
 class TestRffMulticell(TestRff):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

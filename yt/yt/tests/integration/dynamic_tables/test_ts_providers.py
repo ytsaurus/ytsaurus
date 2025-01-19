@@ -15,6 +15,7 @@ class TClockTestBase(YTEnvSetup):
 
 
 class TestAlienTsProviders(TClockTestBase):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -50,12 +51,16 @@ class TestAlienTsProviders(TClockTestBase):
 
 
 class TestClockWithClusterTag(TestAlienTsProviders):
+    ENABLE_MULTIDAEMON = True
+
     @classmethod
     def modify_clock_config(cls, config, cluster_index, master_cell_tag):
         config["clock_cluster_tag"] = int(master_cell_tag)
 
 
 class TestClockMisconfiguration(TClockTestBase):
+    ENABLE_MULTIDAEMON = True
+
     @classmethod
     def modify_clock_config(cls, config, cluster_index, master_cell_tag):
         config["clock_cluster_tag"] = int(master_cell_tag) + 1

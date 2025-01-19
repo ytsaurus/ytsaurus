@@ -18,6 +18,8 @@ import builtins
 
 
 class TestCreateQueueProducer(TestQueueAgentBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("apachee")
     def test_create_producer(self):
         create("queue_producer", "//tmp/p")
@@ -37,6 +39,8 @@ class TestCreateQueueProducer(TestQueueAgentBase):
 
 
 class TestCreateRemoveForQueueProducerSessions(TestQueueAgentBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("apachee")
     def test_basic(self):
         def check_producer_table(expected_key_columns, expected_value_columns):
@@ -188,6 +192,8 @@ class TestCreateRemoveForQueueProducerSessions(TestQueueAgentBase):
 
 
 class TestProducerApi(TestQueueAgentBase):
+    ENABLE_MULTIDAEMON = True
+
     def _check_session(self, producer_path, session_id, sequence_number, epoch, user_meta=None):
         rows = select_rows(f"* from [{producer_path}] where [session_id] = '{session_id}'")
         assert len(rows) == 1

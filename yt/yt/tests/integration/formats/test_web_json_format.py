@@ -394,6 +394,7 @@ class TestWebJsonFormat(YTEnvSetup):
     NUM_NODES = 3
 
     USE_DYNAMIC_TABLES = True
+    ENABLE_MULTIDAEMON = True
 
     @authors("bidzilya")
     def test_read_table(self):

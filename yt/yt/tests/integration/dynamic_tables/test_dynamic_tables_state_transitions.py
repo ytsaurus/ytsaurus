@@ -19,6 +19,7 @@ import pytest
 
 
 class TestDynamicTableStateTransitions(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 5
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
@@ -264,8 +265,10 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
 
 
 class TestDynamicTableStateTransitionsMulticell(TestDynamicTableStateTransitions):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestDynamicTableStateTransitionsPortal(TestDynamicTableStateTransitionsMulticell):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     ENABLE_TMP_PORTAL = True

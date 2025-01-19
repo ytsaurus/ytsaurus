@@ -13,6 +13,7 @@ import builtins
 
 
 class TestOrchid(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -100,6 +101,7 @@ class TestOrchid(YTEnvSetup):
 
 
 class TestOrchidMulticell(TestOrchid):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("babenko")
@@ -116,6 +118,7 @@ class TestOrchidMulticell(TestOrchid):
 
 
 class TestConfigExposureInOrchid(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     DELTA_CELL_BALANCER_CONFIG = {
         "expose_config_in_orchid": False,
     }

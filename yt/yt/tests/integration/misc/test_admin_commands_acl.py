@@ -15,6 +15,7 @@ import pytest
 
 
 class TestAdminCommandsACL(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
     ENABLE_SECONDARY_CELLS_CLEANUP = True
 

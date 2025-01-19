@@ -28,6 +28,7 @@ from time import sleep
 
 
 class TestChunkServer(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 3
     NUM_NODES = 9
     NUM_TEST_PARTITIONS = 4
@@ -476,6 +477,7 @@ def _find_median_absolute_deviation(series):
 
 
 class TestTwoRandomChoicesWriteTargetAllocation(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 10
 
@@ -510,6 +512,7 @@ class TestTwoRandomChoicesWriteTargetAllocation(YTEnvSetup):
 
 
 class TestTwoRandomChoicesWriteTargetAllocationMulticell(TestTwoRandomChoicesWriteTargetAllocation):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
@@ -541,6 +544,7 @@ class TestNodePendingRestartBase(YTEnvSetup):
 
 
 class TestNodePendingRestart(TestNodePendingRestartBase):
+    ENABLE_MULTIDAEMON = False  # Kill specific components.
     DELTA_MASTER_CONFIG = {
         "logging": {
             "abort_on_alert": False,
@@ -708,6 +712,7 @@ class TestNodePendingRestart(TestNodePendingRestartBase):
 
 
 class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
+    ENABLE_MULTIDAEMON = False  # There are specific component kills.
     DELTA_NODE_CONFIG = {
         "data_node": {
             "master_connector": {
@@ -782,6 +787,7 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
 
 
 class TestChunkServerMulticell(TestChunkServer):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_SCHEDULERS = 1
 
@@ -930,6 +936,7 @@ class TestChunkServerMulticell(TestChunkServer):
 ##################################################################
 
 class TestChunkServerTwoChoicesAllocation(TestChunkServer):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "chunk_manager": {
             "enable_two_random_choices_write_target_allocation": True,
@@ -938,6 +945,7 @@ class TestChunkServerTwoChoicesAllocation(TestChunkServer):
 
 
 class TestTwoRandomChoicesWriteTargetAllocationChunkServerMulticell(TestChunkServerMulticell):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_DYNAMIC_MASTER_CONFIG = {
         "chunk_manager": {
             "enable_two_random_choices_write_target_allocation": True,
@@ -949,6 +957,7 @@ class TestTwoRandomChoicesWriteTargetAllocationChunkServerMulticell(TestChunkSer
 
 
 class TestChunkServerReplicaRemoval(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 3
     NUM_NODES = 8
 
@@ -1035,6 +1044,7 @@ class TestChunkServerReplicaRemoval(YTEnvSetup):
 
 
 class TestChunkServerReplicaRemovalMulticell(TestChunkServerReplicaRemoval):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_SCHEDULERS = 1
 
@@ -1043,6 +1053,7 @@ class TestChunkServerReplicaRemovalMulticell(TestChunkServerReplicaRemoval):
 
 
 class TestLastFinishedJobStoreLimit(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 4
 
@@ -1084,6 +1095,7 @@ class TestLastFinishedJobStoreLimit(YTEnvSetup):
 
 
 class TestMultipleErasurePartsPerNode(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
 
@@ -1113,6 +1125,7 @@ class TestMultipleErasurePartsPerNode(YTEnvSetup):
 
 
 class TestConsistentChunkReplicaPlacementBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
     NUM_NODES = 10
     USE_DYNAMIC_TABLES = True
@@ -1186,6 +1199,7 @@ class TestConsistentChunkReplicaPlacementBase(YTEnvSetup):
 
 
 class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 3
     NUM_SECONDARY_MASTER_CELLS = 2
 
@@ -1433,6 +1447,8 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
 
 
 class TestConsistentChunkReplicaPlacementSnapshotLoading(TestConsistentChunkReplicaPlacementBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     @authors("shakurov")
     def test_after_snapshot_loading_consistency(self):
         self._disable_token_redistribution()
@@ -1458,6 +1474,8 @@ class TestConsistentChunkReplicaPlacementSnapshotLoading(TestConsistentChunkRepl
 
 
 class TestConsistentChunkReplicaPlacementLeaderSwitch(TestConsistentChunkReplicaPlacementBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     @authors("shakurov")
     def test_leader_switch_consistency(self):
         self._disable_token_redistribution()
@@ -1485,6 +1503,7 @@ class TestConsistentChunkReplicaPlacementLeaderSwitch(TestConsistentChunkReplica
 
 
 class TestChunkWeightStatisticsHistogram(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
 
@@ -1601,6 +1620,7 @@ class TestChunkWeightStatisticsHistogram(YTEnvSetup):
 
 
 class TestChunkCreationThrottler(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1642,6 +1662,8 @@ class TestChunkCreationThrottler(YTEnvSetup):
 
 
 class TestChunkServerCypressIntegration(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+
     @authors("danilalexeev")
     def test_filtered_virtual_map_mutating_attribute_request(self):
         # Create lost chunk on purpose

@@ -209,6 +209,7 @@ def type_v3_to_type_v1(type_v3):
 @authors("ermolovd")
 @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
 class TestComplexTypes(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
 
     @authors("ermolovd")
     def test_complex_optional(self, optimize_for):
@@ -560,6 +561,7 @@ class TestComplexTypes(YTEnvSetup):
 
 @authors("ermolovd")
 class TestComplexTypesMisc(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
 
     NUM_TEST_PARTITIONS = 3
@@ -990,6 +992,7 @@ class TestComplexTypesMisc(YTEnvSetup):
 
 
 class TestLogicalType(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
 
     @authors("ermolovd")
@@ -1246,6 +1249,7 @@ class TestLogicalType(YTEnvSetup):
 
 
 class TestRequiredOption(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
     NUM_SCHEDULERS = 1
 
@@ -1519,6 +1523,8 @@ class TestRequiredOption(YTEnvSetup):
 
 
 class TestSchemaDeduplication(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+
     def _get_schema(self, strict):
         return make_schema([make_column("value", "string")], unique_keys=False, strict=strict)
 
@@ -1557,10 +1563,12 @@ class TestSchemaDeduplication(YTEnvSetup):
 
 
 class TestSchemaDeduplicationRpcProxy(TestSchemaDeduplication):
+    ENABLE_MULTIDAEMON = True
     NUM_RPC_PROXIES = 1
 
 
 class TestSchemaObjects(TestSchemaDeduplication):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("shakurov", "h0pless")
@@ -1765,6 +1773,8 @@ class TestSchemaObjects(TestSchemaDeduplication):
 
 
 class TestSchemaValidation(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+
     @authors("ermolovd")
     def test_schema_complexity(self):
         def make_schema(size):
@@ -1872,6 +1882,7 @@ class TestSchemaValidation(YTEnvSetup):
 
 @authors("ermolovd")
 class TestErrorCodes(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
 
     def test_YT_11522_missing_column(self):
@@ -1904,6 +1915,7 @@ class TestErrorCodes(YTEnvSetup):
 
 @authors("ermolovd")
 class TestAlterTable(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
 
     _TABLE_PATH = "//tmp/test-alter-table"
@@ -2287,6 +2299,7 @@ class TestAlterTable(YTEnvSetup):
 
 
 class TestSchemaDepthLimit(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     YSON_DEPTH_LIMIT = 256
 
     # Keep consistent with code.
@@ -2325,6 +2338,7 @@ class TestSchemaDepthLimit(YTEnvSetup):
 
 
 class TestRenameColumnsStatic(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
     ENABLE_DYNAMIC_TABLE_COLUMN_RENAMES = False
     NUM_SCHEDULERS = 1
@@ -2552,6 +2566,7 @@ class TestRenameColumnsStatic(YTEnvSetup):
 
 
 class TestRenameColumnsDynamic(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     _TABLE_PATH = "//tmp/test-alter-table"
     USE_DYNAMIC_TABLES = True
 
@@ -2796,6 +2811,7 @@ class TestRenameColumnsDynamic(YTEnvSetup):
 
 
 class TestDeleteColumnsDisabledStatic(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
     NUM_SCHEDULERS = 1
 
@@ -2829,6 +2845,7 @@ class TestDeleteColumnsDisabledStatic(YTEnvSetup):
 
 
 class TestDeleteColumnsDisabledDynamic(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
     NUM_SCHEDULERS = 1
 
@@ -2893,6 +2910,7 @@ class TestDeleteColumnsDisabledDynamic(YTEnvSetup):
 
 
 class TestDeleteColumns(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks structured logs.
     USE_DYNAMIC_TABLES = True
     NUM_SCHEDULERS = 1
 

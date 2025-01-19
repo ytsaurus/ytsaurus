@@ -21,6 +21,8 @@ import time
 
 
 class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("psushin")
     def test_read_invalid_limits(self):
         sync_create_cells(1)
@@ -269,19 +271,24 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
 
 
 class TestSortedDynamicTablesReadTableMulticell(TestSortedDynamicTablesReadTable):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestSortedDynamicTablesReadTableRpcProxy(TestSortedDynamicTablesReadTable):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
 class TestSortedDynamicTablesReadTablePortal(TestSortedDynamicTablesReadTableMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
 
 class TestReadDynamicTableFormats(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+
     @pytest.mark.ignore_in_opensource_ci
     @authors("aleexfi")
     def test_read_table_with_complex_schema(self):

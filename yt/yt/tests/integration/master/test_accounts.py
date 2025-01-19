@@ -338,6 +338,8 @@ class AccountsTestSuiteBase(YTEnvSetup):
 
 
 class TestAccounts(AccountsTestSuiteBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("babenko", "ignat")
     def test_init(self):
         assert sorted(ls("//sys/accounts")) == sorted(self._builtin_accounts)
@@ -2352,6 +2354,7 @@ class TestAccounts(AccountsTestSuiteBase):
 
 
 class TestAccountTree(AccountsTestSuiteBase):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
 
     def _create_account_acl(self, users):
@@ -4356,6 +4359,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
 
 class TestAccountsMulticell(TestAccounts):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_SCHEDULERS = 1
 
@@ -4617,6 +4621,7 @@ class TestAccountsMulticell(TestAccounts):
 
 
 class TestAccountTreeMulticell(TestAccountTree):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_SCHEDULERS = 1
 
@@ -4660,6 +4665,7 @@ class TestAccountTreeMulticell(TestAccountTree):
 
 
 class TestAccountsProfiling(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks profiling.
     NUM_MASTERS = 3
 
     def _get_leader_address(self):

@@ -8,6 +8,7 @@ from time import sleep
 
 
 class TestClusterConnectionDynamicConfig(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     ENABLE_HTTP_PROXY = True
 
     @authors("max42")

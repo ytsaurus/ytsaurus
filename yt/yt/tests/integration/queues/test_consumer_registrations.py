@@ -223,6 +223,8 @@ class TestConsumerRegistrations(TestQueueConsumerApiBase):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     @staticmethod
     def _replica_registrations_are(local_replica_path, expected_registrations, driver):
         registrations = {QueueConsumerRegistration.from_select(r)
@@ -959,6 +961,8 @@ class TestDataApiSingleCluster(TestDataApiBase):
         }
     }
 
+    ENABLE_MULTIDAEMON = True
+
     def setup_method(self, method):
         super(TestDataApiSingleCluster, self).setup_method(method)
 
@@ -1162,6 +1166,8 @@ class TestDataApiMultiCluster(TestDataApiBase):
             "handle_replicated_objects": True,
         }
     }
+
+    ENABLE_MULTIDAEMON = True
 
     def setup_method(self, method):
         super(TestDataApiMultiCluster, self).setup_method(method)

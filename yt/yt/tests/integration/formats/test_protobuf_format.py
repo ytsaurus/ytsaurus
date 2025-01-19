@@ -130,6 +130,7 @@ class TestSchemalessProtobufFormat(YTEnvSetup):
     NUM_SCHEDULERS = 1
 
     USE_DYNAMIC_TABLES = True
+    ENABLE_MULTIDAEMON = True
 
     @authors("levysotsky")
     def test_protobuf_read(self):
@@ -845,6 +846,7 @@ class TestSchemafulProtobufFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+    ENABLE_MULTIDAEMON = True
 
     @authors("levysotsky")
     def test_protobuf_read(self):

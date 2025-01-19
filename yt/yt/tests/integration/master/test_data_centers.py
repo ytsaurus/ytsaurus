@@ -19,6 +19,7 @@ import math
 
 
 class TestDataCentersBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 20
 
@@ -185,6 +186,8 @@ class TestDataCentersBase(YTEnvSetup):
 
 
 class TestDataCenters(TestDataCentersBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("shakurov")
     def test_create(self):
         create_data_center("d")
@@ -483,6 +486,8 @@ class TestDataCenters(TestDataCentersBase):
 
 
 class TestFaultyDataCenters(TestDataCentersBase):
+    ENABLE_MULTIDAEMON = True
+
     def _init_faulty_data_center_aware_replicator(self):
         self._init_data_center_aware_replicator()
         set("//sys/@config/chunk_manager/replicator_enabled_check_period", 2000)
@@ -674,10 +679,12 @@ class TestFaultyDataCenters(TestDataCentersBase):
 
 
 class TestDataCentersMulticell(TestDataCenters):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 ##################################################################
 
 
 class TestFaultyDataCentersMulticell(TestFaultyDataCenters):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

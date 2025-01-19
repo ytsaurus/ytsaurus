@@ -25,6 +25,7 @@ import os.path
 
 
 class TestSnapshotValidation(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     USE_DYNAMIC_TABLES = True
 

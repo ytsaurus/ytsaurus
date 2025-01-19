@@ -85,6 +85,7 @@ class TestOrderedDynamicTablesBase(DynamicTablesBase):
 
 
 class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 4
 
     @authors("babenko")
@@ -1437,14 +1438,17 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
 
 
 class TestOrderedDynamicTablesMulticell(TestOrderedDynamicTables):
+    ENABLE_MULTIDAEMON = False  # There are component restarts in the base class.
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestOrderedDynamicTablesPortal(TestOrderedDynamicTablesMulticell):
+    ENABLE_MULTIDAEMON = False  # There are component restarts in the base class.
     ENABLE_TMP_PORTAL = True
 
 
 class TestOrderedDynamicTablesRpcProxy(TestOrderedDynamicTables):
+    ENABLE_MULTIDAEMON = False  # There are component restarts in the base class.
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -1453,6 +1457,7 @@ class TestOrderedDynamicTablesRpcProxy(TestOrderedDynamicTables):
 
 
 class TestOrderedDynamicTablesMultipleWriteBatches(TestOrderedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     DELTA_DRIVER_CONFIG = {"max_rows_per_write_request": 10}
 
     @authors("babenko")

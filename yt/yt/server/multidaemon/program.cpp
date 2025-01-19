@@ -110,7 +110,9 @@ public:
             NFusion::IServiceLocatorPtr serviceLocator)) &&
     {
         auto typeErasedFactory = [=] (NYTree::INodePtr configNode, NFusion::IServiceLocatorPtr serviceLocator) -> NServer::IDaemonBootstrapPtr {
-            auto config = NYTree::ConvertTo<TIntrusivePtr<TConfig>>(configNode);
+            auto config = New<TConfig>();
+            config->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
+            config->Load(configNode);
             return factory(
                 std::move(config),
                 std::move(configNode),

@@ -36,6 +36,7 @@ class BackupKnowinglyFailedException(Exception):
 
 @authors("ifsmirnov")
 class TestBackups(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 3
 
     NUM_SCHEDULERS = 1
@@ -846,6 +847,7 @@ class TestBackups(DynamicTablesBase):
 
 @authors("ifsmirnov")
 class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
     ENABLE_BULK_INSERT = True
 
@@ -1347,11 +1349,13 @@ class TestReplicatedTableBackups(TestReplicatedDynamicTablesBase):
 
 @authors("ifsmirnov")
 class TestBackupsMulticell(TestBackups):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 @authors("ifsmirnov")
 class TestBackupsShardedTx(TestBackups):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
@@ -1378,6 +1382,7 @@ class TestBackupsShardedTx(TestBackups):
 
 @authors("kvk1920")
 class TestBackupsMirroredTx(TestBackupsShardedTx):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     USE_SEQUOIA = True
@@ -1407,11 +1412,13 @@ class TestBackupsMirroredTx(TestBackupsShardedTx):
 
 @authors("ifsmirnov")
 class TestReplicatedTableBackupsMulticell(TestReplicatedTableBackups):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 @authors("ifsmirnov")
 class TestReplicatedTableBackupsShardedTx(TestReplicatedTableBackups):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
@@ -1421,6 +1428,7 @@ class TestReplicatedTableBackupsShardedTx(TestReplicatedTableBackups):
 
 @authors("kvk1920")
 class TestReplicatedTableBackupsMirroredTx(TestReplicatedTableBackupsShardedTx):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     USE_SEQUOIA = True
@@ -1449,5 +1457,6 @@ class TestReplicatedTableBackupsMirroredTx(TestReplicatedTableBackupsShardedTx):
 
 @authors("dave11ar")
 class TestBackupsRpcProxy(TestBackups):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

@@ -5,6 +5,7 @@ from yt_commands import authors, wait, get, ls
 
 
 class TestObjectServiceCache(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
 

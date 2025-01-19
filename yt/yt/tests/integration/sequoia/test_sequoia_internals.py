@@ -45,6 +45,7 @@ except ImportError:
 
 
 class TestSequoiaEnvSetup(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     NUM_CYPRESS_PROXIES = 1
     NUM_MASTERS = 1
@@ -81,6 +82,7 @@ def with_cypress_dir(test_case):
 
 
 class TestSequoiaInternals(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = True
@@ -547,6 +549,7 @@ class TestSequoiaInternals(YTEnvSetup):
 
 
 class TestSequoiaResolve(TestSequoiaInternals):
+    ENABLE_MULTIDAEMON = True
     DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
         "object_service": {
             "allow_bypass_master_resolve": True,
@@ -558,6 +561,7 @@ class TestSequoiaResolve(TestSequoiaInternals):
 
 
 class TestSequoiaCypressTransactions(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False
@@ -1068,6 +1072,7 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
 
 
 class SequoiaNodeVersioningBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False
@@ -2031,6 +2036,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
 
 @authors("kvk1920")
 class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
+    ENABLE_MULTIDAEMON = True
     # We need only the primary master with tx coordinator role.
     NUM_SECONDARY_MASTER_CELLS = 0
 
@@ -2077,6 +2083,7 @@ class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
 
 @authors("kvk1920")
 class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
     NUM_CYPRESS_PROXIES = 1
     MASTER_CELL_DESCRIPTORS = {
@@ -2700,6 +2707,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
 
 
 class TestSequoiaMultipleCypressProxies(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     NUM_CYPRESS_PROXIES = 2
@@ -2769,6 +2777,7 @@ class TestSequoiaMultipleCypressProxies(YTEnvSetup):
 
 @authors("kvk1920")
 class TestSequoiaTmpCleanup(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     NUM_CYPRESS_PROXIES = 1

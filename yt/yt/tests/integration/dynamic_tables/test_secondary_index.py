@@ -109,6 +109,7 @@ UNIQUE_KEY_VALUE_PAIR_INDEX_SCHEMA = [
 
 
 class TestSecondaryIndexBase(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
     def _sync_create_cells(self, cell_count=1):
@@ -170,6 +171,7 @@ class TestSecondaryIndexBase(DynamicTablesBase):
 
 
 class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
+    ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 1
     REPLICA_CLUSTER_NAME = "remote_0"
 
@@ -258,6 +260,8 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
 
 
 class TestSecondaryIndexMaster(TestSecondaryIndexBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("sabdenovch")
     def test_forbid_create_secondary_index(self):
         set("//sys/@config/allow_everyone_create_secondary_indices", False)
@@ -412,6 +416,8 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
 # 1) Collocations beyond portals are not supported yet;
 # 2) Replicated tables cannot be moved or copied.
 class TestSecondaryIndexPortal(TestSecondaryIndexBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("sabdenovch")
     def test_forbid_create_beyond_portal(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
@@ -432,6 +438,8 @@ class TestSecondaryIndexPortal(TestSecondaryIndexBase):
 
 
 class TestSecondaryIndexSelect(TestSecondaryIndexBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("sabdenovch")
     def test_simple(self):
         self._create_table("//tmp/table", PRIMARY_SCHEMA)
@@ -600,6 +608,8 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
 
 
 class TestSecondaryIndexModifications(TestSecondaryIndexBase):
+    ENABLE_MULTIDAEMON = True
+
     def _insert_rows(self, rows, table="//tmp/table", **kwargs):
         insert_rows(table, rows, **kwargs)
 
@@ -1036,6 +1046,8 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
 
 
 class TestSecondaryIndexReplicatedMaster(TestSecondaryIndexReplicatedBase, TestSecondaryIndexMaster):
+    ENABLE_MULTIDAEMON = True
+
     @authors("sabdenovch")
     def test_holds_collocation(self):
         _ = self._create_table("//tmp/stranger", PRIMARY_SCHEMA)
@@ -1063,6 +1075,8 @@ class TestSecondaryIndexReplicatedMaster(TestSecondaryIndexReplicatedBase, TestS
 
 
 class TestSecondaryIndexReplicatedSelect(TestSecondaryIndexReplicatedBase, TestSecondaryIndexSelect):
+    ENABLE_MULTIDAEMON = True
+
     @authors("sabdenovch")
     def test_picks_sync_replicas(self):
         table_path = "//tmp/table"
@@ -1140,12 +1154,13 @@ class TestSecondaryIndexReplicatedSelect(TestSecondaryIndexReplicatedBase, TestS
 
 
 class TestSecondaryIndexReplicatedModifications(TestSecondaryIndexReplicatedBase, TestSecondaryIndexModifications):
-    pass
+    ENABLE_MULTIDAEMON = True
 
 
 ##################################################################
 
 
 class TestSecondaryIndexModificationsOverRpc(TestSecondaryIndexModifications):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

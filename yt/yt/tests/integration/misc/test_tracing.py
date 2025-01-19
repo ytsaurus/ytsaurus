@@ -11,6 +11,7 @@ import time
 
 
 class TestTracing(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
     NUM_SECONDARY_MASTER_CELLS = 1
     NUM_NODES = 3

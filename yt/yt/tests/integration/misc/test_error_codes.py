@@ -8,6 +8,7 @@ from yt.yson import YsonEntity
 
 
 class TestErrorCodes(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1

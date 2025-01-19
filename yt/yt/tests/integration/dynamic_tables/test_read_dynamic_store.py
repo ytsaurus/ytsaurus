@@ -70,6 +70,7 @@ def _make_path_with_range(path, lower_limit, upper_limit):
 
 @authors("ifsmirnov")
 class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 2
     NUM_SCHEDULERS = 1
     ENABLE_BULK_INSERT = True
@@ -555,6 +556,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
 
 
 class TestReadSortedDynamicTablesMulticell(TestReadSortedDynamicTables):
+    ENABLE_MULTIDAEMON = False  # There are component restarts in the base class.
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
@@ -563,6 +565,7 @@ class TestReadSortedDynamicTablesMulticell(TestReadSortedDynamicTables):
 
 @authors("ifsmirnov")
 class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
 
     simple_rows = [{"a": i, "b": 1.0 * i, "c": str(i)} for i in range(10)]
@@ -891,6 +894,7 @@ class TestReadOrderedDynamicTables(TestOrderedDynamicTablesBase):
 
 @authors("ifsmirnov")
 class TestReadGenericDynamicTables(DynamicTablesBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SCHEDULERS = 1
     ENABLE_BULK_INSERT = True
 

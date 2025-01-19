@@ -11,6 +11,7 @@ import yt.yson as yson
 
 
 class MetricsTestBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -57,6 +58,7 @@ class MetricsTestBase(YTEnvSetup):
 
 
 class TestPortoMetrics(MetricsTestBase):
+    ENABLE_MULTIDAEMON = False  # Metrics test.
     SUSPENDING_TABLE = "//tmp/suspending_table"
     DELAY_BEFORE_COMMAND = 10 * 1000
     KEEP_ALIVE_PERIOD = 1 * 1000

@@ -19,6 +19,7 @@ from datetime import datetime
 
 
 class TestMaintenanceTracker(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_NODES = 3
     TEST_MAINTENANCE_FLAGS = True
     NUM_RPC_PROXIES = 2
@@ -322,6 +323,7 @@ class TestMaintenanceTracker(YTEnvSetup):
 
 
 class TestMaintenanceTrackerMulticell(TestMaintenanceTracker):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @classmethod
@@ -348,4 +350,5 @@ class TestMaintenanceTrackerMulticell(TestMaintenanceTracker):
 
 
 class TestMaintenanceTrackerWithRpc(TestMaintenanceTracker):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

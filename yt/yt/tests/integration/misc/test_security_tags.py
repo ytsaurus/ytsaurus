@@ -15,6 +15,7 @@ import pytest
 
 
 class TestSecurityTags(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -277,4 +278,5 @@ class TestSecurityTags(YTEnvSetup):
 
 
 class TestSecurityTagsMulticell(TestSecurityTags):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1

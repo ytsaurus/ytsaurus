@@ -66,6 +66,7 @@ class TestOAuthBase(YTEnvSetup):
     NUM_HTTP_PROXIES = 1
     DELTA_PROXY_CONFIG = {}
     DELTA_PROXY_AUTH_CONFIG = {}
+    ENABLE_MULTIDAEMON = True
 
     @classmethod
     def setup_class(cls):
@@ -80,8 +81,8 @@ class TestOAuthBase(YTEnvSetup):
     # This is annoying, but we set blackbox_token_authenticator in default_config for
     # some reason. This way we avoid 10 second timeouts in each authentication call.
     @classmethod
-    def modify_proxy_config(cls, config):
-        super(TestOAuthBase, cls).modify_proxy_config(config)
+    def modify_proxy_config(cls, multidaemon_config, config):
+        super(TestOAuthBase, cls).modify_proxy_config(multidaemon_config, config)
 
         for proxy_config in config:
             if proxy_config.get("auth", {}).get("blackbox_token_authenticator"):
@@ -165,6 +166,8 @@ class TestOAuthBase(YTEnvSetup):
 
 
 class TestOAuth(TestOAuthBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("kaikash", "ignat")
     def test_http_proxy_invalid_token(self):
         assert self._check_deny()
@@ -235,6 +238,8 @@ class TestOAuth(TestOAuthBase):
 
 
 class TestOAuthWithDisabledUserCreation(TestOAuthBase):
+    ENABLE_MULTIDAEMON = True
+
     DELTA_PROXY_AUTH_CONFIG = {
         "oauth_cookie_authenticator": {
             "cache": {

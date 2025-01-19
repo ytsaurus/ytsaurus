@@ -26,6 +26,7 @@ from time import sleep, time
 
 
 class TestCompactionPartitioning(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 4
 
     @authors("ifsmirnov")
@@ -802,4 +803,5 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
 
 class TestCompactionPartitioningMulticell(TestCompactionPartitioning):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

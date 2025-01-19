@@ -74,6 +74,7 @@ class ReincarnatorStatistic:
 
 
 class TestChunkReincarnatorBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
     NUM_NODES = 3
     USE_DYNAMIC_TABLES = True
@@ -400,6 +401,8 @@ class TestChunkReincarnatorBase(YTEnvSetup):
 
 
 class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("kvk1920")
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
     def test_single_chunk(self, optimize_for):
@@ -696,6 +699,7 @@ class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
 
 
 class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
+    ENABLE_MULTIDAEMON = False  # Checks profiling.
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("kvk1920")
@@ -1072,6 +1076,7 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
 
 
 class TestChunkReincarnatorForErasureSingleCell(TestChunkReincarnatorSingleCell):
+    ENABLE_MULTIDAEMON = True
     ERASURE_CODEC = "reed_solomon_3_3"
 
 
@@ -1079,6 +1084,7 @@ class TestChunkReincarnatorForErasureSingleCell(TestChunkReincarnatorSingleCell)
 
 
 class TestChunkReincarnatorForErasureMultiCell(TestChunkReincarnatorMultiCell):
+    ENABLE_MULTIDAEMON = False  # Checks profiling.
     ERASURE_CODEC = "reed_solomon_3_3"
 
 
@@ -1086,6 +1092,8 @@ class TestChunkReincarnatorForErasureMultiCell(TestChunkReincarnatorMultiCell):
 
 
 class TestChunkReincarnationLeaderSwitch(TestChunkReincarnatorBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("kvk1920")
     def test_leader_switch_consistency(self):
         self._create_table("//tmp/t")

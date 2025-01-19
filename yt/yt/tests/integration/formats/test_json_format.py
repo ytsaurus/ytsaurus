@@ -8,6 +8,7 @@ from yt_type_helpers import optional_type
 class TestJsonFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
+    ENABLE_MULTIDAEMON = True
 
     @authors("yurial")
     def test_write_json_nothrow(self):

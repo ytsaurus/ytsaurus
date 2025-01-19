@@ -132,6 +132,8 @@ UNIFIED_TYPES_YSON = [s.strip() for s in UNIFIED_TYPES_YSON]
 
 @authors("ermolovd")
 class TestTypeV3Type(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+
     @pytest.mark.parametrize("type_yson", UNIFIED_TYPES_YSON)
     def test_type_v3_type(self, type_yson):
         type = yson.loads(type_yson.encode("ascii"))

@@ -20,6 +20,7 @@ import os
 
 @authors("shakurov", "avmatrosov")
 class TestAccessLog(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks structured logs.
     NUM_MASTERS = 3
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
@@ -83,19 +84,35 @@ class TestAccessLog(YTEnvSetup):
                            written_logs), "Entry {} is present in access log".format(log)
 
     @classmethod
-    def modify_master_config(cls, config, tag, peer_index, cluster_index):
-        config["logging"]["flush_period"] = 100
-        config["logging"]["rules"].append(
+    def modify_master_config(cls, multidaemon_config, config, tag, peer_index, cluster_index):
+        if "logging" in config:
+            config["logging"]["flush_period"] = 100
+            config["logging"]["rules"].append(
+                {
+                    "min_level": "debug",
+                    "writers": ["access"],
+                    "include_categories": ["Access"],
+                    "message_format": "structured",
+                }
+            )
+            config["logging"]["writers"]["access"] = {
+                "type": "file",
+                "file_name": os.path.join(cls.path_to_run, f"logs/master-{tag}-{peer_index}.access.json.log"),
+                "accepted_message_format": "structured",
+            }
+
+        multidaemon_config["logging"]["flush_period"] = 100
+        multidaemon_config["logging"]["rules"].append(
             {
                 "min_level": "debug",
-                "writers": ["access"],
+                "writers": [f"access-{tag}-{peer_index}"],
                 "include_categories": ["Access"],
                 "message_format": "structured",
             }
         )
-        config["logging"]["writers"]["access"] = {
+        multidaemon_config["logging"]["writers"][f"access-{tag}-{peer_index}"] = {
             "type": "file",
-            "file_name": os.path.join(cls.path_to_run, "logs/master-{}-{}.access.json.log".format(tag, peer_index)),
+            "file_name": os.path.join(cls.path_to_run, f"logs/master-{tag}-{peer_index}.access.json.log"),
             "accepted_message_format": "structured",
         }
 
@@ -560,6 +577,7 @@ class TestAccessLog(YTEnvSetup):
 
 
 class TestAccessLogPortal(TestAccessLog):
+    ENABLE_MULTIDAEMON = False  # Checks structured logs.
     NUM_SECONDARY_MASTER_CELLS = 3
     ENABLE_TMP_PORTAL = True
 

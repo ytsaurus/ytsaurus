@@ -44,6 +44,7 @@ def _schematize_rows(rows, schema):
 
 
 class TestChunkMerger(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Use profiling. TODO(nadya73): Fix it.
     NUM_TEST_PARTITIONS = 16
 
     NUM_MASTERS = 3
@@ -1498,6 +1499,7 @@ class TestChunkMerger(YTEnvSetup):
 
 
 class TestChunkMergerMulticell(TestChunkMerger):
+    ENABLE_MULTIDAEMON = False  # Checks structured logs.
     NUM_TEST_PARTITIONS = 6
 
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -1533,6 +1535,7 @@ class TestChunkMergerMulticell(TestChunkMerger):
 
 
 class TestChunkMergerPortal(TestChunkMergerMulticell):
+    ENABLE_MULTIDAEMON = False  # Checks strucured logs.
     NUM_TEST_PARTITIONS = 6
 
     ENABLE_TMP_PORTAL = True
@@ -1563,6 +1566,7 @@ class TestChunkMergerPortal(TestChunkMergerMulticell):
 
 
 class TestTableDataStatisticsConsistency(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1
 
     MASTER_CELL_DESCRIPTORS = {
@@ -1606,6 +1610,7 @@ class TestTableDataStatisticsConsistency(YTEnvSetup):
 
 
 class TestShallowMergeValidation(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Doesn't work because of abort_on_alert.
     NUM_MASTERS = 3
     NUM_NODES = 3
 

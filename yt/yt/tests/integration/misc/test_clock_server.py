@@ -13,6 +13,7 @@ from copy import deepcopy
 
 
 class TestClockServer(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_CLOCKS = 3
     NUM_NODES = 3
@@ -88,4 +89,5 @@ class TestClockServer(YTEnvSetup):
 
 
 class TestClockServerMulticell(TestClockServer):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1

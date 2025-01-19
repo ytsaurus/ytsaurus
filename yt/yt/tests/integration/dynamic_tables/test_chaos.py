@@ -45,6 +45,8 @@ MAX_KEY = [yson.to_yson_type(None, attributes={"type": "max"})]
 
 
 class TestChaos(ChaosTestBase):
+    # TODO(nadya73): split this test suite.
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_REMOTE_CLUSTERS = 2
     NUM_TEST_PARTITIONS = 30
     NUM_SCHEDULERS = 1
@@ -4401,6 +4403,7 @@ class TestChaos(ChaosTestBase):
 
 
 class TestChaosRpcProxy(TestChaos):
+    ENABLE_MULTIDAEMON = False  # There are components restarts.
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     DELTA_RPC_DRIVER_CONFIG = {
@@ -4447,6 +4450,7 @@ class TestChaosRpcProxy(TestChaos):
 
 
 class TestChaosNativeProxy(ChaosTestBase):
+    ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 0
     NUM_NODES = 5
 

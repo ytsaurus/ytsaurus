@@ -8,6 +8,7 @@ import time
 
 
 class TestDynamicTableLogger(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks debug logs.
     NUM_MASTERS = 3
     NUM_NODES = 1
     USE_DYNAMIC_TABLES = True

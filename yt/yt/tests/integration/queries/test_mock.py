@@ -36,6 +36,7 @@ class TestQueriesMock(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
+    ENABLE_MULTIDAEMON = True
 
     @authors("max42")
     def test_fail(self, query_tracker):
@@ -210,6 +211,7 @@ class TestQueryTrackerBan(YTEnvSetup):
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
     QUERY_TRACKER_DYNAMIC_CONFIG = {"state_check_period": 2000}
+    ENABLE_MULTIDAEMON = True
 
     def _test_query_fails():
         start_query("mock", "run_forever")
@@ -250,6 +252,7 @@ class TestQueryTrackerQueryRestart(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
+    ENABLE_MULTIDAEMON = True
 
     def _insert_query(self, state, query="run_forever", settings={}, error="", is_abort=False):
         guid = generate_uuid()
@@ -318,6 +321,8 @@ class TestAccessControl(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
+
+    ENABLE_MULTIDAEMON = True
 
     @authors("krock21")
     def test_no_acos(self, query_tracker):
@@ -591,6 +596,7 @@ class TestShare(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
+    ENABLE_MULTIDAEMON = True
 
     @authors("mpereskokova")
     def test_share(self, query_tracker):
@@ -608,6 +614,7 @@ class TestIndexTables(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
+    ENABLE_MULTIDAEMON = True
 
     @authors("mpereskokova")
     def test_start_query(self, query_tracker):
@@ -651,6 +658,7 @@ class TestMultipleAccessControl(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
+    ENABLE_MULTIDAEMON = True
 
     @authors("mpereskokova")
     def test_start_query(self, query_tracker):
@@ -734,6 +742,8 @@ class TestAccessControlList(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
+
+    ENABLE_MULTIDAEMON = True
 
     @pytest.mark.parametrize(
         "query_type",
@@ -911,6 +921,7 @@ class TestQueriesMockRpcProxy(TestQueriesMock):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True
 
 
 @authors("mpereskokova")
@@ -918,6 +929,7 @@ class TestQueryTrackerBanRpcProxy(TestQueryTrackerBan):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True
 
 
 @authors("apollo1321")
@@ -925,6 +937,7 @@ class TestAccessControlRpcProxy(TestAccessControl):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True
 
 
 @authors("mpereskokova")
@@ -932,6 +945,7 @@ class TestShareRpcProxy(TestShare):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True
 
 
 @authors("apollo1321")
@@ -939,6 +953,7 @@ class TestAccessControlListRpcProxy(TestAccessControlList):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True
 
 
 @authors("mpereskokova")
@@ -946,3 +961,4 @@ class TestMultipleAccessControlRpcProxy(TestMultipleAccessControl):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True

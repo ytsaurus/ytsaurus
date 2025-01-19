@@ -18,6 +18,7 @@ from io import TextIOBase
 
 
 class TestFiles(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
 
@@ -282,14 +283,17 @@ class TestFiles(YTEnvSetup):
 
 
 class TestFilesMulticell(TestFiles):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestFilesPortal(TestFilesMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
 
 class TestFilesRpcProxy(TestFiles):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
@@ -299,6 +303,7 @@ class TestFilesRpcProxy(TestFiles):
 
 
 class TestFileErrorsRpcProxy(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 2
     DRIVER_BACKEND = "rpc"
@@ -365,6 +370,7 @@ class TestFileErrorsRpcProxy(YTEnvSetup):
 
 
 class TestBigFilesRpcProxy(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
     DRIVER_BACKEND = "rpc"
@@ -388,6 +394,7 @@ class TestBigFilesRpcProxy(YTEnvSetup):
 
 
 class TestBigFilesWithCompressionRpcProxy(TestBigFilesRpcProxy):
+    ENABLE_MULTIDAEMON = True
     DELTA_RPC_DRIVER_CONFIG = {
         "request_codec": "lz4",
         "response_codec": "snappy",

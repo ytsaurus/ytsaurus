@@ -19,6 +19,8 @@ class TestEnvironment(YTEnvSetup):
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
 
+    ENABLE_MULTIDAEMON = True
+
     def _ls_instances(self):
         try:
             return ls("//sys/query_tracker/instances", verbose=False, verbose_error=False)
@@ -79,6 +81,8 @@ class TestMigration(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
+
+    ENABLE_MULTIDAEMON = True
 
     @authors("mpereskokova")
     def test_aco_migration(self, query_tracker):

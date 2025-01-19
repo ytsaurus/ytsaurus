@@ -55,6 +55,8 @@ class DynamicTablesResourceLimitsBase(DynamicTablesBase):
 
 
 class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
+    ENABLE_MULTIDAEMON = True
+
     def _verify_resource_usage(self, account, resource, expected):
         def resource_usage_matches(driver):
             return lambda: (
@@ -563,14 +565,17 @@ class TestDynamicTablesResourceLimits(DynamicTablesResourceLimitsBase):
 
 
 class TestDynamicTablesResourceLimitsMulticell(TestDynamicTablesResourceLimits):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestDynamicTablesResourceLimitsPortal(TestDynamicTablesResourceLimitsMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
 
 class TestDynamicTablesResourceLimitsShardedTx(TestDynamicTablesResourceLimitsPortal):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
@@ -579,6 +584,7 @@ class TestDynamicTablesResourceLimitsShardedTx(TestDynamicTablesResourceLimitsPo
 
 
 class TestDynamicTablesResourceLimitsShardedTxCTxS(TestDynamicTablesResourceLimitsShardedTx):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -592,6 +598,7 @@ class TestDynamicTablesResourceLimitsShardedTxCTxS(TestDynamicTablesResourceLimi
 
 
 class TestDynamicTablesResourceLimitsMirroredTx(TestDynamicTablesResourceLimitsShardedTxCTxS):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False
@@ -610,6 +617,8 @@ class TestDynamicTablesResourceLimitsMirroredTx(TestDynamicTablesResourceLimitsS
 
 
 class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
+    ENABLE_MULTIDAEMON = True
+
     def _verify_resource_usage(self, bundle, resource, expected):
         def resource_usage_matches(driver):
             return lambda: (
@@ -940,14 +949,17 @@ class TestPerBundleAccounting(DynamicTablesResourceLimitsBase):
 
 
 class TestPerBundleAccountingMulticell(TestPerBundleAccounting):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestPerBundleAccountingPortal(TestPerBundleAccountingMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
 
 class TestPerBundleAccountingShardedTx(TestPerBundleAccountingPortal):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
@@ -956,6 +968,7 @@ class TestPerBundleAccountingShardedTx(TestPerBundleAccountingPortal):
 
 
 class TestPerBundleAccountingShardedTxCTxS(TestPerBundleAccountingShardedTx):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -969,6 +982,7 @@ class TestPerBundleAccountingShardedTxCTxS(TestPerBundleAccountingShardedTx):
 
 
 class TestPerBundleAccountingMirroredTx(TestPerBundleAccountingShardedTxCTxS):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False

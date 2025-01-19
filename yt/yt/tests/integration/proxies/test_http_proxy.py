@@ -366,6 +366,8 @@ class TestHttpProxy(HttpProxyTestBase):
 
 
 class TestHttpProxyMemoryDrop(HttpProxyTestBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("nadya73")
     def test_basic(self):
         wait(lambda: requests.get(f"{self._get_proxy_address()}/api/v4/get?path=//@").ok)
@@ -400,6 +402,7 @@ class TestFullDiscoverVersions(HttpProxyTestBase):
     NUM_QUEUE_AGENTS = 1
     NUM_TABLET_BALANCERS = 1
     NUM_REPLICATED_TABLE_TRACKERS = 1
+    ENABLE_MULTIDAEMON = True
 
     @authors("koloshmet")
     def test_discover_versions_v2(self):
@@ -471,6 +474,8 @@ class TestSolomonProxy(HttpProxyTestBase):
             # We will configure the endpoint providers later, since monitoring ports are not yet generated at this point.
         }
     }
+
+    ENABLE_MULTIDAEMON = False  # Solomon test.
 
     # This is sad, but I don't see any other way to retrieve the generated monitoring ports during cluster configuration.
     @classmethod
@@ -617,6 +622,7 @@ class HttpProxyAccessCheckerTestBase(HttpProxyTestBase):
             },
         },
     }
+    ENABLE_MULTIDAEMON = True
 
     @authors("gritukan", "verytable")
     def test_access_checker(self):
@@ -669,6 +675,8 @@ class HttpProxyAccessCheckerTestBase(HttpProxyTestBase):
 
 
 class TestHttpProxyAccessChecker(HttpProxyAccessCheckerTestBase):
+    ENABLE_MULTIDAEMON = True
+
     def create_proxy_role_namespace(self):
         create("http_proxy_role_map", "//sys/http_proxy_roles")
 
@@ -680,6 +688,8 @@ class TestHttpProxyAccessChecker(HttpProxyAccessCheckerTestBase):
 
 
 class TestHttpProxyAccessCheckerWithAco(HttpProxyAccessCheckerTestBase):
+    ENABLE_MULTIDAEMON = True
+
     @classmethod
     def setup_class(cls):
         cls.DELTA_PROXY_CONFIG["access_checker"].update({
@@ -703,6 +713,8 @@ class TestHttpProxyRoleFromStaticConfig(HttpProxyTestBase):
         "role": "ab"
     }
 
+    ENABLE_MULTIDAEMON = True
+
     @authors("nadya73")
     def test_role(self):
         proxy = ls("//sys/http_proxies")[0]
@@ -722,6 +734,8 @@ class TestHttpProxyRoleFromStaticConfig(HttpProxyTestBase):
 
 
 class TestHttpProxyAuth(HttpProxyTestBase):
+    ENABLE_MULTIDAEMON = True
+
     @classmethod
     def setup_class(cls):
         cls.DELTA_PROXY_CONFIG["auth"] = {
@@ -813,6 +827,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         0x01: "data",
         0x02: "keep_alive",
     }
+    ENABLE_MULTIDAEMON = True
 
     @classmethod
     def _unframe_content(cls, content):
@@ -981,24 +996,41 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
     }
 
     USE_PORTO = True
+    ENABLE_MULTIDAEMON = True
 
     @classmethod
-    def modify_proxy_config(cls, configs):
+    def modify_proxy_config(cls, multidaemon_config, configs):
         for i in range(len(configs)):
-            configs[i]["logging"]["flush_period"] = 100
-            configs[i]["logging"]["rules"].append(
-                {
-                    "min_level": "info",
-                    "writers": ["job_shell"],
-                    "include_categories": ["JobShell"],
-                    "message_format": "structured",
+            if "logging" in configs[i]:
+                configs[i]["logging"]["flush_period"] = 100
+                configs[i]["logging"]["rules"].append(
+                    {
+                        "min_level": "info",
+                        "writers": ["job_shell"],
+                        "include_categories": ["JobShell"],
+                        "message_format": "structured",
+                    }
+                )
+                configs[i]["logging"]["writers"]["job_shell"] = {
+                    "type": "file",
+                    "file_name": os.path.join(cls.path_to_run, "logs/job-shell-{}.json.log".format(i)),
+                    "accepted_message_format": "structured",
                 }
-            )
-            configs[i]["logging"]["writers"]["job_shell"] = {
-                "type": "file",
-                "file_name": os.path.join(cls.path_to_run, "logs/job-shell-{}.json.log".format(i)),
-                "accepted_message_format": "structured",
+
+        multidaemon_config["logging"]["flush_period"] = 100
+        multidaemon_config["logging"]["rules"].append(
+            {
+                "min_level": "info",
+                "writers": ["job_shell"],
+                "include_categories": ["JobShell"],
+                "message_format": "structured",
             }
+        )
+        multidaemon_config["logging"]["writers"]["job_shell"] = {
+            "type": "file",
+            "file_name": os.path.join(cls.path_to_run, "logs/job-shell-0.json.log"),
+            "accepted_message_format": "structured",
+        }
 
     @authors("psushin")
     def test_job_shell_logging(self):
@@ -1054,6 +1086,7 @@ class TestHttpProxyJobShellAudit(HttpProxyTestBase):
 
 class TestHttpProxyFormatConfig(HttpProxyTestBase, _TestProxyFormatConfigBase):
     NUM_TEST_PARTITIONS = 6
+    ENABLE_MULTIDAEMON = True
 
     def setup_method(self, method):
         super(TestHttpProxyFormatConfig, self).setup_method(method)
@@ -1225,6 +1258,8 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
         },
     }
 
+    ENABLE_MULTIDAEMON = True
+
     def _build_snapshot(self, set_read_only):
         params = {
             "cell_id": self.Env.configs["master"][0]["primary_master"]["cell_id"],
@@ -1284,12 +1319,16 @@ class TestHttpProxyBuildSnapshotBase(HttpProxyTestBase):
 
 
 class TestHttpProxyBuildSnapshotNoReadonly(TestHttpProxyBuildSnapshotBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("babenko")
     def test_no_read_only(self):
         self._build_snapshot_and_check(False)
 
 
 class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     def _check_no_read_only(self):
         monitoring = self._get_hydra_monitoring()
         return "active" in monitoring and monitoring["active"] and not monitoring["read_only"]
@@ -1346,6 +1385,7 @@ class TestHttpProxyBuildSnapshotReadonly(TestHttpProxyBuildSnapshotBase):
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestHttpProxyHeapUsageStatisticsBase(HttpProxyTestBase):
     NUM_HTTP_PROXIES = 1
+    ENABLE_MULTIDAEMON = True
 
     def enable_allocation_tags(self, proxy):
         set(f"//sys/{proxy}/@config", {
@@ -1387,6 +1427,7 @@ class TestHttpProxyHeapUsageStatistics(TestHttpProxyHeapUsageStatisticsBase):
             },
         },
     }
+    ENABLE_MULTIDAEMON = False  # Checks profiling.
 
     @authors("ni-stoiko")
     @pytest.mark.timeout(120)
@@ -1442,6 +1483,7 @@ class TestHttpProxyNullApiTestingOptions(TestHttpProxyHeapUsageStatisticsBase):
             "snapshot_update_period": 50,
         },
     }
+    ENABLE_MULTIDAEMON = True
 
     @authors("ni-stoiko")
     def test_null_api_testing_options(self):
@@ -1461,6 +1503,8 @@ class TestHttpsProxy(HttpProxyTestBase):
             },
         },
     }
+
+    ENABLE_MULTIDAEMON = False  # Some problems with TLS.
 
     @authors("khlebnikov")
     def test_ping_https(self):

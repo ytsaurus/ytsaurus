@@ -8,6 +8,7 @@ import time
 
 
 class TestResponseKeeper(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
     NUM_NODES = 0
 
@@ -60,6 +61,7 @@ class TestResponseKeeper(YTEnvSetup):
 
 
 class TestSequoiaResponseKeeper(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = True
     VALIDATE_SEQUOIA_TREE_CONSISTENCY = True

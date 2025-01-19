@@ -154,6 +154,8 @@ class RpcProxyAccessCheckerTestBase(YTEnvSetup):
 
 
 class TestRpcProxyAccessChecker(RpcProxyAccessCheckerTestBase):
+    ENABLE_MULTIDAEMON = True
+
     def create_proxy_role_namespace(self):
         create("rpc_proxy_role_map", "//sys/rpc_proxy_roles")
 
@@ -165,6 +167,8 @@ class TestRpcProxyAccessChecker(RpcProxyAccessCheckerTestBase):
 
 
 class TestRpcProxyAccessCheckerWithAco(RpcProxyAccessCheckerTestBase):
+    ENABLE_MULTIDAEMON = True
+
     @classmethod
     def setup_class(cls):
         cls.DELTA_RPC_PROXY_CONFIG["access_checker"].update({
@@ -190,17 +194,33 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
 
     NUM_RPC_PROXIES = 1
 
+    ENABLE_MULTIDAEMON = True
+
     @classmethod
-    def modify_rpc_proxy_config(cls, config):
-        config[0]["logging"]["rules"].append(
+    def modify_rpc_proxy_config(cls, multidaemon_config, config):
+        if "logging" in config[0]:
+            config[0]["logging"]["rules"].append(
+                {
+                    "min_level": "debug",
+                    "writers": ["main"],
+                    "include_categories": ["RpcProxyStructuredMain", "Barrier"],
+                    "message_format": "structured",
+                }
+            )
+            config[0]["logging"]["writers"]["main"] = {
+                "type": "file",
+                "file_name": os.path.join(cls.path_to_run, "logs/rpc-proxy-0.main.yson.log"),
+                "format": "yson",
+            }
+        multidaemon_config["logging"]["rules"].append(
             {
                 "min_level": "debug",
-                "writers": ["main"],
+                "writers": ["main-rpc-proxy"],
                 "include_categories": ["RpcProxyStructuredMain", "Barrier"],
                 "message_format": "structured",
             }
         )
-        config[0]["logging"]["writers"]["main"] = {
+        multidaemon_config["logging"]["writers"]["main-rpc-proxy"] = {
             "type": "file",
             "file_name": os.path.join(cls.path_to_run, "logs/rpc-proxy-0.main.yson.log"),
             "format": "yson",
@@ -427,6 +447,8 @@ class TestRpcProxyDiscovery(YTEnvSetup):
 
     NUM_RPC_PROXIES = 2
 
+    ENABLE_MULTIDAEMON = True
+
     def setup_method(self, method):
         super(TestRpcProxyDiscovery, self).setup_method(method)
         driver_config = deepcopy(self.Env.configs["driver"])
@@ -491,6 +513,8 @@ class TestRpcProxyDiscoveryRoleFromStaticConfig(YTEnvSetup):
         "role": "ab",
     }
 
+    ENABLE_MULTIDAEMON = True
+
     def setup_method(self, method):
         super(TestRpcProxyDiscoveryRoleFromStaticConfig, self).setup_method(method)
         driver_config = deepcopy(self.Env.configs["driver"])
@@ -520,6 +544,8 @@ class TestRpcProxyDiscoveryBalancers(YTEnvSetup):
     ENABLE_RPC_PROXY = True
 
     NUM_RPC_PROXIES = 2
+
+    ENABLE_MULTIDAEMON = True
 
     def setup_method(self, method):
         super(TestRpcProxyDiscoveryBalancers, self).setup_method(method)
@@ -574,6 +600,8 @@ class TestRpcProxyDiscoveryViaHttp(YTEnvSetup):
     ENABLE_RPC_PROXY = True
 
     NUM_RPC_PROXIES = 2
+
+    ENABLE_MULTIDAEMON = True
 
     def setup_method(self, method):
         super(TestRpcProxyDiscoveryViaHttp, self).setup_method(method)
@@ -641,6 +669,7 @@ class TestRpcProxyBase(YTEnvSetup):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
+    ENABLE_MULTIDAEMON = True
 
     _schema_dicts = [
         {"name": "index", "type": "int64"},
@@ -720,6 +749,8 @@ class TestRpcProxyClientRetries(TestRpcProxyBase):
             "sticky_user_error_expire_time": 0
         }
     }
+
+    ENABLE_MULTIDAEMON = True
 
     @classmethod
     def setup_class(cls):
@@ -827,6 +858,8 @@ class TestRpcProxyClientRetries(TestRpcProxyBase):
 
 
 class TestOperationsRpcProxy(TestRpcProxyBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("kiselyovp")
     def test_map_reduce_simple(self):
         self._create_simple_table("//tmp/t_in", data=[self._sample_line])
@@ -911,6 +944,8 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 
 
 class TestDumpJobContextRpcProxy(TestRpcProxyBase):
+    ENABLE_MULTIDAEMON = True
+
     DELTA_DYNAMIC_NODE_CONFIG = {
         "%true": {
             "exec_node": {
@@ -964,6 +999,8 @@ class TestDumpJobContextRpcProxy(TestRpcProxyBase):
 
 
 class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
+    ENABLE_MULTIDAEMON = True
+
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 0
@@ -1046,12 +1083,14 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
 class TestPessimisticQuotaCheckMulticellRpcProxy(TestPessimisticQuotaCheckRpcProxy):
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_SCHEDULERS = 1
+    ENABLE_MULTIDAEMON = True
 
 
 ##################################################################
 
 
 class TestModifyRowsRpcProxy(TestRpcProxyBase):
+    ENABLE_MULTIDAEMON = True
     BATCH_CAPACITY = 10
     DELTA_RPC_DRIVER_CONFIG = {"modify_rows_batch_capacity": BATCH_CAPACITY}
 
@@ -1085,6 +1124,7 @@ class TestModifyRowsRpcProxy(TestRpcProxyBase):
 
 
 class TestRpcProxyWithoutDiscovery(TestRpcProxyBase):
+    ENABLE_MULTIDAEMON = True
     NUM_RPC_PROXIES = 1
     ENABLE_HTTP_PROXY = False
     NUM_HTTP_PROXIES = 0
@@ -1104,6 +1144,7 @@ class TestRpcProxyWithoutDiscovery(TestRpcProxyBase):
 
 
 class TestCompressionRpcProxy(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
@@ -1141,6 +1182,7 @@ class TestCompressionRpcProxy(YTEnvSetup):
 
 
 class TestModernCompressionRpcProxy(TestCompressionRpcProxy):
+    ENABLE_MULTIDAEMON = True
     DELTA_DRIVER_CONFIG = {
         "request_codec": "lz4",
         "response_codec": "quick_lz",
@@ -1152,6 +1194,8 @@ class TestModernCompressionRpcProxy(TestCompressionRpcProxy):
 
 
 class TestRpcProxyFormatConfig(TestRpcProxyBase, _TestProxyFormatConfigBase):
+    ENABLE_MULTIDAEMON = True
+
     def setup_method(self, method):
         super(TestRpcProxyFormatConfig, self).setup_method(method)
         proxy_name = ls("//sys/rpc_proxies")[0]
@@ -1194,6 +1238,7 @@ class TestRpcProxyFormatConfig(TestRpcProxyBase, _TestProxyFormatConfigBase):
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestRpcProxyHeapUsageStatisticsBase(TestRpcProxyBase):
+    ENABLE_MULTIDAEMON = True
     NUM_RPC_PROXIES = 1
 
     @classmethod
@@ -1262,6 +1307,7 @@ class TestRpcProxyHeapUsageStatisticsBase(TestRpcProxyBase):
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
+    ENABLE_MULTIDAEMON = False  # Checks profiling.
     DELTA_RPC_PROXY_CONFIG = {
         "api_service": {
             "testing": {
@@ -1357,12 +1403,15 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestRpcProxyNullApiTestingOptions(TestRpcProxyHeapUsageStatisticsBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("ni-stoiko")
     def test_null_api_testing_options(self):
         self.prepare_allocation("rpc_proxies", "user")
 
 
 class TestRpcProxySignaturesBase(TestRpcProxyBase):
+    ENABLE_MULTIDAEMON = True
     DELTA_RPC_PROXY_CONFIG = {
         "signature_validation": {
             "cypress_key_reader": dict(),
@@ -1398,6 +1447,7 @@ def deep_update(source: dict[Any, Any], overrides: dict[Any, Any]) -> dict[Any, 
 
 
 class TestRpcProxySignaturesKeyCreation(TestRpcProxySignaturesBase):
+    ENABLE_MULTIDAEMON = True
     DELTA_RPC_PROXY_CONFIG = deep_update(TestRpcProxySignaturesBase.DELTA_RPC_PROXY_CONFIG, {
         "signature_generation": {
             "key_rotator": {
@@ -1413,6 +1463,7 @@ class TestRpcProxySignaturesKeyCreation(TestRpcProxySignaturesBase):
 
 
 class TestRpcProxySignaturesKeyRotation(TestRpcProxySignaturesBase):
+    ENABLE_MULTIDAEMON = True
     DELTA_RPC_PROXY_CONFIG = deep_update(TestRpcProxySignaturesBase.DELTA_RPC_PROXY_CONFIG, {
         "signature_generation": {
             "key_rotator": {

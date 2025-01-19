@@ -23,6 +23,7 @@ from copy import deepcopy
 
 
 class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     USE_MASTER_CACHE = True
 
     DELTA_DRIVER_CONFIG = {
@@ -115,6 +116,7 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
 
 
 class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCaching):
+    ENABLE_MULTIDAEMON = True
     USE_MASTER_CACHE = False
 
     @authors("savrus")
@@ -170,10 +172,12 @@ class TestSortedDynamicTablesMetadataCaching2(TestSortedDynamicTablesMetadataCac
 
 
 class TestSortedDynamicTablesMetadataCachingMulticell(TestSortedDynamicTablesMetadataCaching):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestSortedDynamicTablesMetadataCachingMulticell2(TestSortedDynamicTablesMetadataCaching2):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
@@ -181,11 +185,13 @@ class TestSortedDynamicTablesMetadataCachingMulticell2(TestSortedDynamicTablesMe
 
 
 class TestSortedDynamicTablesMetadataCachingRpcProxy(TestSortedDynamicTablesMetadataCaching):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
 class TestSortedDynamicTablesMetadataCachingRpcProxy2(TestSortedDynamicTablesMetadataCaching2):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -194,6 +200,7 @@ class TestSortedDynamicTablesMetadataCachingRpcProxy2(TestSortedDynamicTablesMet
 
 
 class TestSortedDynamicTablesMetadataCachingOnRpcProxy(TestSortedDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 

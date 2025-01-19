@@ -39,6 +39,7 @@ class QueueAgentHelpers:
 
 class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
     USE_DYNAMIC_TABLES = True
+    ENABLE_MULTIDAEMON = True
 
     @authors("achulkov2", "nadya73")
     def test_attribute_opaqueness(self):
@@ -590,6 +591,7 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
 class TestQueueAgentObjectsRevisionsPortal(TestQueueAgentObjectRevisions):
     NUM_SECONDARY_MASTER_CELLS = 2
     ENABLE_TMP_PORTAL = True
+    ENABLE_MULTIDAEMON = True
 
     @authors("achulkov2", "nadya73")
     def test_objects_from_different_cells(self):

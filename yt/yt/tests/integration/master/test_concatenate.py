@@ -19,6 +19,7 @@ import pytest
 
 
 class TestConcatenate(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
     NUM_MASTERS = 1
     NUM_NODES = 9
@@ -807,6 +808,7 @@ class TestConcatenate(YTEnvSetup):
 
 
 class TestConcatenateMulticell(TestConcatenate):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("gritukan")
@@ -854,6 +856,7 @@ class TestConcatenateMulticell(TestConcatenate):
 
 
 class TestConcatenatePortal(TestConcatenateMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
     NUM_SECONDARY_MASTER_CELLS = 3
 
@@ -891,6 +894,7 @@ class TestConcatenatePortal(TestConcatenateMulticell):
 
 
 class TestConcatenateShardedTx(TestConcatenatePortal):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 5
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
@@ -911,6 +915,7 @@ class TestConcatenateShardedTx(TestConcatenatePortal):
 
 
 class TestConcatenateShardedTxCTxS(TestConcatenateShardedTx):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -924,6 +929,7 @@ class TestConcatenateShardedTxCTxS(TestConcatenateShardedTx):
 
 
 class TestConcatenateMirroredTx(TestConcatenateShardedTxCTxS):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False
@@ -941,10 +947,12 @@ class TestConcatenateMirroredTx(TestConcatenateShardedTxCTxS):
 
 
 class TestConcatenateRpcProxy(TestConcatenate):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
 
 
 class TestConcatenateCypressProxy(TestConcatenate):
+    ENABLE_MULTIDAEMON = True
     NUM_CYPRESS_PROXIES = 1

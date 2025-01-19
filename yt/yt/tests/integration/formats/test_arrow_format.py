@@ -49,6 +49,7 @@ class TestArrowFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+    ENABLE_MULTIDAEMON = True
 
     def test_simple_reader(self, optimize_for):
         create(
@@ -495,6 +496,7 @@ class TestMapArrowFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
+    ENABLE_MULTIDAEMON = True
 
     @staticmethod
     def get_row_and_columnar_batch_count(operation):
@@ -865,6 +867,7 @@ class TestMapArrowFormat(YTEnvSetup):
 class TestArrowIntegerColumn_YTADMINREQ_34427(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
+    ENABLE_MULTIDAEMON = True
 
     def test_integer_column(self):
         create(

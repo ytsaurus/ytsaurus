@@ -290,6 +290,7 @@ class YTInstance(object):
         self._service_processes = defaultdict(list)
         # Dictionary from pid to tuple with Process and arguments
         self._pid_to_process = {}
+        self._external_component_names = []
 
         self._kill_child_processes = kill_child_processes
         self._started = False
@@ -407,6 +408,7 @@ class YTInstance(object):
             config_paths.append(config_path)
             self._service_processes[lowercase_with_underscores_name].append(None)
 
+        self._external_component_names.append(lowercase_with_underscores_name)
         return config_paths
 
     def _prepare_certificates(self):
@@ -783,7 +785,10 @@ class YTInstance(object):
 
     def get_node_address(self, index, with_port=True, config_service="node"):
         node_config = self.configs[config_service][index]
-        node_address = node_config["address_resolver"]["localhost_fqdn"]
+        if not self.yt_config.enable_multidaemon:
+            node_address = node_config["address_resolver"]["localhost_fqdn"]
+        else:
+            node_address = self.configs["multi"][0]["address_resolver"]["localhost_fqdn"]
         if with_port:
             node_address = "{}:{}".format(node_address, node_config["rpc_port"])
         return node_address
@@ -982,7 +987,7 @@ class YTInstance(object):
 
     def kill_service(self, name, indexes=None, skip_multidaemon_check=False):
         with self._lock:
-            if self.yt_config.enable_multidaemon and name != "watcher" and not skip_multidaemon_check:
+            if self.yt_config.enable_multidaemon and name != "watcher" and name not in self._external_component_names and not skip_multidaemon_check:
                 raise YtError("Failed to kill specific component because it was run inside multidaemon")
 
             logger.info("Killing %s", name)

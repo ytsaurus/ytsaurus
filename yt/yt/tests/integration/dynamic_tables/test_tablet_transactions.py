@@ -13,6 +13,7 @@ import pytest
 
 
 class TestTabletTransactions(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 0
