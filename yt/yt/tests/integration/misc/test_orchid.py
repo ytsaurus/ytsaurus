@@ -118,7 +118,7 @@ class TestOrchidMulticell(TestOrchid):
 
 
 class TestConfigExposureInOrchid(YTEnvSetup):
-    ENABLE_MULTIDAEMON = True
+    ENABLE_MULTIDAEMON = False  # Cell balancer crashes in multidaemon mode.
     DELTA_CELL_BALANCER_CONFIG = {
         "expose_config_in_orchid": False,
     }
