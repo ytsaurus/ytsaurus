@@ -690,8 +690,8 @@ public:
             return;
         }
 
-        GetCancelableInvoker()->Invoke(BIND([this, this_ = MakeStrong(this), requests = std::move(requests)] {
-            for (auto request : requests) {
+        GetCancelableInvoker()->Invoke(BIND([this, this_ = MakeStrong(this), requests = std::move(requests)] () mutable {
+            for (auto&& request : requests) {
                 EnqueueForRemoval(std::move(request));
             }
         }));
@@ -1487,7 +1487,7 @@ private:
                 EMasterChannelKind::Follower);
             auto batchReq = proxy.ExecuteBatch();
 
-            for (auto removeOperationRequest : requests) {
+            for (const auto& removeOperationRequest : requests) {
                 auto req = TYPathProxy::Get(GetOperationPath(removeOperationRequest.Id) + "/@lock_count");
                 batchReq->AddRequest(req, "get_lock_count");
             }

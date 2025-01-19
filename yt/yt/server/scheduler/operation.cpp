@@ -613,11 +613,14 @@ bool TOperation::AddSecureVaultEntry(const TString& key, const INodePtr& value)
     YT_VERIFY(State_ == EOperationState::Starting);
 
     if (!SecureVault_) {
-        YT_LOG_DEBUG("Creating empty secure vault due to scheduler request (OperationId: %v)", Id_);
+        YT_LOG_DEBUG("Creating empty secure vault due to scheduler request (OperationId: %v)",
+            Id_);
         SecureVault_ = GetEphemeralNodeFactory()->CreateMap();
     }
 
-    YT_LOG_DEBUG("Adding secure vault entry (OperationId: %v, Key: %v)", Id_, key);
+    YT_LOG_DEBUG("Adding secure vault entry (OperationId: %v, Key: %v)",
+        Id_,
+        key);
     return SecureVault_->AddChild(key, value);
 }
 
