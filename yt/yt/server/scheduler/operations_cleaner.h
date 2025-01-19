@@ -111,6 +111,7 @@ public:
 
     TArchiveOperationRequest InitializeRequestFromOperation(const TOperationPtr& operation);
     TArchiveOperationRequest InitializeRequestFromAttributes(const NYTree::IAttributeDictionary& attributes);
+
 private:
     class TImpl;
     const TIntrusivePtr<TImpl> Impl_;
