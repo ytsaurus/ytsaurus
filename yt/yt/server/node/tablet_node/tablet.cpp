@@ -2327,7 +2327,7 @@ void TTablet::ReconfigureChunkFragmentReader(const ITabletSlotPtr& slot)
     ChunkFragmentReader_ = slot->CreateChunkFragmentReader(this);
 }
 
-const TString& TTablet::GetLoggingTag() const
+const std::string& TTablet::GetLoggingTag() const
 {
     return LoggingTag_;
 }

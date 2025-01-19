@@ -1439,7 +1439,7 @@ TFairShareUpdateContext::TFairShareUpdateContext(
 TFairShareUpdateExecutor::TFairShareUpdateExecutor(
     const TRootElementPtr& rootElement,
     TFairShareUpdateContext* context,
-    const std::optional<TString>& loggingTag)
+    const std::optional<std::string>& loggingTag)
     : RootElement_(rootElement)
     , Logger(FairShareLogger)
     , Context_(context)

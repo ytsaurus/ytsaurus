@@ -50,9 +50,9 @@ struct TStaticString
         std::copy(str.data(), str.data() + Length, Buffer.data());
     }
 
-    operator TString() const
+    operator std::string() const
     {
-        return TString(Buffer.data(), static_cast<size_t>(Length));
+        return std::string(Buffer.data(), static_cast<size_t>(Length));
     }
 
     std::array<char, 256> Buffer;

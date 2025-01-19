@@ -277,7 +277,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const TString& GetLoggingTag() const override
+    const std::string& GetLoggingTag() const override
     {
         YT_UNIMPLEMENTED();
     }

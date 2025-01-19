@@ -403,7 +403,7 @@ public:
         const TRootElementPtr& rootElement,
         // TODO(ignat): split context on input and output parts.
         TFairShareUpdateContext* context,
-        const std::optional<TString>& loggingTag = {});
+        const std::optional<std::string>& loggingTag = {});
 
     void Run();
 
