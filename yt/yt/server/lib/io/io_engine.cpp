@@ -38,6 +38,12 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TInternalReadResponse {
+    i64 IORequests = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 TIOEngineHandle::TIOEngineHandle(const TString& fName, EOpenMode oMode) noexcept
     : TFileHandle(fName, oMode)
     , OpenForDirectIO_(oMode & DirectAligned)
@@ -69,12 +75,14 @@ TFuture<IIOEngine::TReadResponse> IIOEngine::ReadAll(
                 category,
                 GetRefCountedTypeCookie<TReadAllBufferTag>(),
                 sessionId)
-                .ApplyUnique(BIND(
+                .Apply(BIND(
                     [=, this, this_ = MakeStrong(this), handle = handle]
-                    (TReadResponse&& response)
+                    (TReadResponse response)
                 {
                     YT_VERIFY(response.OutputBuffers.size() == 1);
                     return Close({.Handle = handle}, category)
+                        // ignore result as Close here won't trigger sync requests
+                        .AsVoid()
                         .Apply(BIND([response = std::move(response)] () mutable {
                             return std::move(response);
                         }));
@@ -299,7 +307,7 @@ public:
         TSessionId sessionId,
         bool useDedicatedAllocations) override
     {
-        std::vector<TFuture<void>> futures;
+        std::vector<TFuture<TInternalReadResponse>> futures;
         futures.reserve(requests.size());
 
         auto invoker = ThreadPool_.GetReadInvoker(category, sessionId);
@@ -329,12 +337,17 @@ public:
 
         TReadResponse response{
             .PaddedBytes = paddedBytes,
-            .IORequests = std::ssize(futures),
         };
         response.OutputBuffers.assign(buffers.begin(), buffers.end());
 
         return AllSucceeded(std::move(futures))
-            .Apply(BIND([response = std::move(response)] () mutable {
+            .Apply(BIND([
+                response = std::move(response)
+            ] (const std::vector<TInternalReadResponse>& subresponses) mutable {
+                for (const auto& subresponse: subresponses) {
+                    response.IORequests += subresponse.IORequests;
+                }
+
                 return std::move(response);
             }));
     }
@@ -352,7 +365,7 @@ public:
             request.Flush = false;
         }
 
-        std::vector<TFuture<void>> futures;
+        std::vector<TFuture<TWriteResponse>> futures;
         for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
             auto future = BIND(
                 &TThreadPoolIOEngine::DoWrite,
@@ -365,17 +378,21 @@ public:
             futures.push_back(std::move(future));
         }
 
-        TWriteResponse response{
-            .IOWriteRequests = std::ssize(futures),
-        };
-
         return AllSucceeded(std::move(futures))
-            .Apply(BIND([response = std::move(response)] () mutable {
-                return std::move(response);
+            .Apply(BIND([] (const std::vector<TWriteResponse>& subresponses) {
+                TWriteResponse response;
+
+                for (const auto& subresponse: subresponses) {
+                    response.IOWriteRequests += subresponse.IOWriteRequests;
+                    response.IOSyncRequests += subresponse.IOSyncRequests;
+                    response.WrittenBytes += subresponse.WrittenBytes;
+                }
+
+                return response;
             }));
     }
 
-    TFuture<void> FlushFile(
+    TFuture<TFlushFileResponse> FlushFile(
         TFlushFileRequest request,
         EWorkloadCategory category) override
     {
@@ -384,19 +401,29 @@ public:
             .Run();
     }
 
-    virtual TFuture<void> FlushFileRange(
+    virtual TFuture<TFlushFileRangeResponse> FlushFileRange(
         TFlushFileRangeRequest request,
         EWorkloadCategory category,
         TSessionId sessionId) override
     {
-        std::vector<TFuture<void>> futures;
+        std::vector<TFuture<TFlushFileRangeResponse>> futures;
         for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
             futures.push_back(
                 BIND(&TThreadPoolIOEngine::DoFlushFileRange, MakeStrong(this), std::move(slice))
                 .AsyncVia(ThreadPool_.GetWriteInvoker(category, sessionId))
                 .Run());
         }
-        return AllSucceeded(std::move(futures));
+
+        return AllSucceeded(std::move(futures))
+            .Apply(BIND([] (const std::vector<TFlushFileRangeResponse>& subresponses) {
+                TFlushFileRangeResponse response;
+
+                for (const auto& subresponse: subresponses) {
+                    response.IOSyncRequests += subresponse.IOSyncRequests;
+                }
+
+                return response;
+            }));
     }
 
 private:
@@ -457,7 +484,7 @@ private:
         return results;
     }
 
-    void DoRead(
+    TInternalReadResponse DoRead(
         const TReadRequest& request,
         TSharedMutableRef buffer,
         TWallTimer timer,
@@ -484,6 +511,8 @@ private:
             sessionId,
             readWaitTime);
 
+        TInternalReadResponse response;
+
         NFS::WrapIOErrors([&] {
             auto config = Config_.Acquire();
 
@@ -495,6 +524,7 @@ private:
                     TRequestStatsGuard statsGuard(Sensors_->ReadSensors);
                     NTracing::TNullTraceContextGuard nullTraceContextGuard;
                     reallyRead = HandleEintr(::pread, *request.Handle, buffer.Begin() + bufferOffset, toRead, fileOffset);
+                    ++response.IORequests;
 
                     YT_LOG_DEBUG_IF(category == EWorkloadCategory::UserInteractive,
                         "Finished reading from disk (Handle: %v, ReadBytes: %v, ReadSessionId: %v, ReadTime: %v)",
@@ -536,34 +566,37 @@ private:
                 << TErrorAttribute("file_size", request.Handle->GetLength())
                 << TErrorAttribute("handle", static_cast<FHANDLE>(*request.Handle));
         }
+
+        return response;
     }
 
-    void DoWrite(
+    TWriteResponse DoWrite(
         const TWriteRequest& request,
         TWallTimer timer,
         TRequestCounterGuard requestCounterGuard)
     {
         auto guard = std::move(requestCounterGuard);
-        auto writtenBytes = DoWriteImpl(request, timer);
+        auto writeResponse = DoWriteImpl(request, timer);
 
         auto config = Config_.Acquire();
-        if (config->FlushAfterWrite && request.Flush && writtenBytes) {
-            DoFlushFileRange(TFlushFileRangeRequest{
+        auto syncFlush = config->FlushAfterWrite && request.Flush;
+        auto asyncFlush = config->AsyncFlushAfterWrite;
+
+        if ((syncFlush || asyncFlush) && writeResponse.WrittenBytes) {
+            auto flushFileRangeResponse = DoFlushFileRange(TFlushFileRangeRequest{
                 .Handle = request.Handle,
                 .Offset = request.Offset,
-                .Size = writtenBytes
+                .Size = writeResponse.WrittenBytes,
+                .Async = !syncFlush && asyncFlush,
             });
-        } else if (config->AsyncFlushAfterWrite && writtenBytes) {
-            DoFlushFileRange(TFlushFileRangeRequest{
-                .Handle = request.Handle,
-                .Offset = request.Offset,
-                .Size = writtenBytes,
-                .Async = true
-            });
+
+            writeResponse.IOSyncRequests += flushFileRangeResponse.IOSyncRequests;
         }
+
+        return writeResponse;
     }
 
-    i64 DoWriteImpl(
+    TWriteResponse DoWriteImpl(
         const TWriteRequest& request,
         TWallTimer timer)
     {
@@ -571,6 +604,8 @@ private:
         Sensors_->UpdateKernelStatistics();
 
         auto fileOffset = request.Offset;
+
+        TWriteResponse response;
 
         NFS::WrapIOErrors([&] {
             NTracing::TNullTraceContextGuard nullTraceContextGuard;
@@ -679,17 +714,23 @@ private:
                 } else {
                     pwrite();
                 }
+
+                ++response.IOWriteRequests;
             }
         });
 
-        return fileOffset - request.Offset;
+        response.WrittenBytes = fileOffset - request.Offset;
+
+        return response;
     }
 
-    void DoFlushFile(const TFlushFileRequest& request)
+    TFlushFileResponse DoFlushFile(const TFlushFileRequest& request)
     {
+        TFlushFileResponse response;
+
         Sensors_->UpdateKernelStatistics();
         if (!StaticConfig_->EnableSync) {
-            return;
+            return response;
         }
 
         auto doFsync = [&] {
@@ -722,14 +763,20 @@ private:
             if (result != 0) {
                 ythrow TFileError();
             }
+
+            response.IOSyncRequests = 1;
         });
+
+        return response;
     }
 
-    void DoFlushFileRange(const TFlushFileRangeRequest& request)
+    TFlushFileRangeResponse DoFlushFileRange(const TFlushFileRangeRequest& request)
     {
+        TFlushFileRangeResponse response;
+
         Sensors_->UpdateKernelStatistics();
         if (!StaticConfig_->EnableSync) {
-            return;
+            return response;
         }
 
 #ifdef _linux_
@@ -746,13 +793,14 @@ private:
             if (result != 0) {
                 ythrow TFileError();
             }
+
+            response.IOSyncRequests = 1;
         });
 #else
-
-    Y_UNUSED(request);
-
+        Y_UNUSED(request);
 #endif
 
+        return response;
     }
 
     void DoReconfigure(const NYTree::INodePtr& node) override

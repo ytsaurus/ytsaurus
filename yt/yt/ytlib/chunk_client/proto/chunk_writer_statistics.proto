@@ -6,8 +6,10 @@ message TChunkWriterStatistics
 {
     required int64 data_bytes_written_to_disk = 1;
     required int64 data_io_write_requests = 2;
+    optional int64 data_io_sync_requests = 5;
     required int64 meta_bytes_written_to_disk = 3;
     required int64 meta_io_write_requests = 4;
+    required int64 meta_io_sync_requests = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

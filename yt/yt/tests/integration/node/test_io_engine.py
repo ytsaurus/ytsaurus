@@ -1,11 +1,8 @@
 from yt_env_setup import (YTEnvSetup, Restarter, NODES_SERVICE)
 
-from yt_helpers import profiler_factory
+from yt_helpers import profiler_factory, is_uring_supported, is_uring_disabled
 
-import re
 import pytest
-import platform
-import os.path
 import threading
 import yt
 
@@ -562,34 +559,6 @@ class TestIoEngine(YTEnvSetup):
 
         # Shouldn't change.
         self._wait_for_io_engine_enabled("fair_share_thread_pool")
-
-
-def parse_version(vstring):
-    pattern = r'^(\d+)\.(\d+)\.(\d+).*'
-    match = re.match(pattern, vstring)
-    if not match:
-        raise ValueError("invalid version number '%s'" % vstring)
-    (major, minor, patch) = match.group(1, 2, 3)
-    return tuple(map(int, [major, minor, patch]))
-
-
-def is_uring_supported():
-    if platform.system() != "Linux":
-        return False
-    try:
-        return parse_version(platform.release()) >= (5, 4, 0)
-    except Exception:
-        pass
-
-    return False
-
-
-def is_uring_disabled():
-    proc_file = "/proc/sys/kernel/io_uring_perm"
-    if not os.path.exists(proc_file):
-        return False
-    with open(proc_file, "r") as myfile:
-        return myfile.read() == '0'
 
 
 @authors("capone212")
