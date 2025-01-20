@@ -5,9 +5,9 @@
 
 #include <yt/yt/ytlib/api/native/transaction.h>
 
-#include <yt/yt/core/misc/shared_range.h>
-
 #include <library/cpp/yt/logging/logger.h>
+
+#include <library/cpp/yt/memory/shared_range.h>
 
 namespace NYT::NSequoiaClient {
 
