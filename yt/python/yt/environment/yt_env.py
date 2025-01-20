@@ -740,6 +740,9 @@ class YTInstance(object):
             components = ["http_proxy", "node", "chaos_node", "scheduler", "controller_agent", "master",
                           "rpc_proxy", "timestamp_provider", "master_caches", "cell_balancer",
                           "tablet_balancer", "cypress_proxy", "replicated_table_tracker", "queue_agent", "kafka_proxy", "multi"]
+
+        self._send_component_kills(components)
+
         for name in components:
             if name in self.configs:
                 self.kill_service(name, skip_multidaemon_check=True)
@@ -1001,6 +1004,19 @@ class YTInstance(object):
                 del self._pid_to_process[process.pid]
                 processes[index] = None
 
+    def _send_component_kills(self, components):
+        with self._lock:
+            for name in components:
+                if name not in self._service_processes:
+                    continue
+                logger.info("Send kill signal to %s", name)
+
+                processes = self._service_processes[name]
+                for index, process in enumerate(processes):
+                    if process is None:
+                        continue
+                    self._send_sigterm(process, name)
+
     def get_service_pids(self, name, indexes=None):
         result = []
         with self._lock:
@@ -1117,6 +1133,17 @@ class YTInstance(object):
         with open(os.path.join(self.path, "info.yson"), "wb") as fout:
             yson.dump(info, fout, yson_format="pretty")
 
+    def _safe_kill(self, kill):
+        try:
+            kill()
+        except OSError as e:
+            if e.errno != errno.ESRCH:
+                raise
+
+    def _send_sigterm(self, proc, name):
+        logger.info("Sending SIGTERM (pid: {}, current_process_pid: {})".format(proc.pid, os.getpid()))
+        self._safe_kill(lambda: os.kill(proc.pid, signal.SIGTERM))
+
     def _kill_process(self, proc, name):
         def print_proc_info(pid):
             try:
@@ -1140,15 +1167,7 @@ class YTInstance(object):
                 self._process_stderrs(name)
             return
 
-        def safe_kill(kill):
-            try:
-                kill()
-            except OSError as e:
-                if e.errno != errno.ESRCH:
-                    raise
-
-        logger.info("Sending SIGTERM (pid: {}, current_process_pid: {})".format(proc.pid, os.getpid()))
-        safe_kill(lambda: os.kill(proc.pid, signal.SIGTERM))
+        self._send_sigterm(proc, name)
 
         # leave 5s for process to finish writing coverage profile.
         for i in range(50):
@@ -1157,9 +1176,9 @@ class YTInstance(object):
             time.sleep(0.1)
         else:
             logger.info("Sending SIGKILL (pid: {}, current_process_pid: {})".format(proc.pid, os.getpid()))
-            safe_kill(lambda: os.kill(proc.pid, signal.SIGKILL))
+            self._safe_kill(lambda: os.kill(proc.pid, signal.SIGKILL))
 
-        safe_kill(lambda: os.killpg(proc.pid, signal.SIGKILL))
+        self._safe_kill(lambda: os.killpg(proc.pid, signal.SIGKILL))
 
         for i in range(100):
             verbose = i > 50 and (i + 1) % 10 == 0
