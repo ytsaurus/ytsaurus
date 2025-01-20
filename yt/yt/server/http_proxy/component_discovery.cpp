@@ -5,6 +5,8 @@
 
 #include <util/string/split.h>
 
+#include <library/cpp/iterator/zip.h>
+
 namespace NYT::NHttpProxy {
 
 using namespace NApi;
@@ -477,14 +479,25 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::GetInstances(EClust
     }
 }
 
-// TODO(achulkov2): Parallelize discovery of different components.
 std::vector<TClusterComponentInstance> TComponentDiscoverer::GetAllInstances() const
 {
-    std::vector<TClusterComponentInstance> instances;
+    std::vector<TFuture<std::vector<TClusterComponentInstance>>> asyncInstances;
     for (auto component : TEnumTraits<EClusterComponentType>::GetDomainValues()) {
-        auto componentInstances = GetInstances(component);
-        instances.reserve(instances.size() + componentInstances.size());
-        instances.insert(instances.end(), componentInstances.begin(), componentInstances.end());
+        asyncInstances.push_back(
+            BIND(&TComponentDiscoverer::GetInstances, Unretained(this), component)
+                .AsyncVia(GetCurrentInvoker())
+                .Run());
+    }
+
+    auto responses = WaitFor(AllSucceeded(asyncInstances))
+        .ValueOrThrow();
+
+    std::vector<TClusterComponentInstance> instances;
+
+    for (auto&& [component, componentInstances] :
+        Zip(TEnumTraits<EClusterComponentType>::GetDomainValues(), responses))
+    {
+        std::ranges::move(componentInstances, std::back_inserter(instances));
     }
 
     return instances;
