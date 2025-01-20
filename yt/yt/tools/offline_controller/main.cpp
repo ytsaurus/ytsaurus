@@ -340,8 +340,8 @@ public:
     { }
 
     void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
-        const NScheduler::TClusterName& /* clusterName */,
-        const TCallback<void()>& /* callback */) override
+        const NScheduler::TClusterName& /*clusterName*/,
+        const TCallback<void()>& /*callback*/) override
     { }
 
     std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const override
@@ -349,7 +349,7 @@ public:
         return nullptr;
     }
 
-    bool IsNetworkBandwidthAvailable(const NScheduler::TClusterName& /* clusterName */) const override
+    bool IsNetworkBandwidthAvailable(const NScheduler::TClusterName& /*clusterName*/) const override
     {
         return true;
     }

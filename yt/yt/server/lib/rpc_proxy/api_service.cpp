@@ -6050,7 +6050,7 @@ private:
         return TFinal(std::move(emptySignature));
     }
 
-    TFuture<bool> ValidateSignature(const TSignaturePtr& /* signedValue */) const
+    TFuture<bool> ValidateSignature(const TSignaturePtr& /*signedValue*/) const
     {
         return MakeFuture(true);
         // return SignatureValidator_->Validate(signedValue);
