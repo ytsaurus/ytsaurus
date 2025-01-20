@@ -2366,7 +2366,7 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
         sequoiaConfig->Enable && sequoiaConfig->EnableCypressTransactionsInSequoia,
         std::memory_order::release);
 
-    LocalReadExecutor_->Reconfigure(objectServiceConfig->LocalReadWorkerCount);
+    LocalReadExecutor_->SetThreadCount(objectServiceConfig->LocalReadThreadCount);
     LocalReadOffloadPool_->SetThreadCount(objectServiceConfig->LocalReadOffloadThreadCount);
     ProcessSessionsExecutor_->SetPeriod(objectServiceConfig->ProcessSessionsPeriod);
     LocalWriteRequestThrottler_->Reconfigure(objectServiceConfig->LocalWriteRequestThrottler);

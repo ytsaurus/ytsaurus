@@ -127,7 +127,8 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_two_level_cache", &TThis::EnableTwoLevelCache)
         .Default(true);
-    registrar.Parameter("local_read_worker_count", &TThis::LocalReadWorkerCount)
+    registrar.Parameter("local_read_thread_count", &TThis::LocalReadThreadCount)
+        .Alias("local_read_worker_count")
         .GreaterThan(0)
         .Default(4);
     registrar.Parameter("local_read_offload_thread_count", &TThis::LocalReadOffloadThreadCount)
