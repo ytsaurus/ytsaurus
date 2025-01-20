@@ -39,6 +39,7 @@ DEFINE_ENUM(ESnapshotVersion,
     // 25.1 starts here
     ((BumpTo_25_1)                          (301700))
     ((OperationIncarnationIsStrongTypedef)  (301701))
+    ((PhoenixSchema)                        (301702))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
