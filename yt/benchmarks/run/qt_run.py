@@ -4,10 +4,29 @@ import time
 import traceback
 from pathlib import Path
 
-from yt.wrapper import YtClient
 from yt.common import YtResponseError
+from yt.wrapper import YtClient
+from yt.yson import YsonType
 
 from . import common
+
+
+def get_query_with_retries(client: YtClient, query_id: str) -> YsonType:
+    result = None
+    num_retries = 0
+    MAX_RETRIES = 30
+    while result is None and num_retries < MAX_RETRIES:
+        num_retries += 1
+        try:
+            result = client.get_query(query_id)
+        except YtResponseError as e:
+            if e.contains_text("is not found"):
+                time.sleep(60)
+            else:
+                raise
+    if result is None:
+        raise RuntimeError(f"Query {query_id} failed after {MAX_RETRIES} retries")
+    return result
 
 
 @common.cli.command()
@@ -59,6 +78,7 @@ def qt(
         client = YtClient(proxy=proxy, token=token)
         for runnable in runnable_queries:
             query_id = None
+            query_title = ""
             try:
                 logger.start_query(runnable)
                 query = common.make_query(runnable, query_path, optimized_path, query_source)
@@ -85,18 +105,16 @@ def qt(
 
                 start_time = time.time()
 
-                # TODO(pavook): remove this sleep. For some reason the queries get into an inconsistent state.
-                time.sleep(60)
-                state = client.get_query(query_id)["state"]
+                state = get_query_with_retries(client, query_id)["state"]
                 while state == "pending" or state == "running":
                     if time.time() - start_time >= timeout:
                         client.abort_query(query_id)
                         state = "aborted"
                     else:
                         time.sleep(5)
-                        state = client.get_query(query_id)["state"]
+                        state = get_query_with_retries(client, query_id)["state"]
                 print(f"Query {query_title} finished with state: {state}", file=sys.stderr)
-                query_info = client.get_query(query_id)
+                query_info = get_query_with_retries(client, query_id)
                 logger.dump_info(query_info)
             except Exception as err:
                 print(f"Error while running query {query_title}: {err}", file=sys.stderr)
