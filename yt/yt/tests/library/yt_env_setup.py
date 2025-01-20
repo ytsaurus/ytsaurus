@@ -143,7 +143,7 @@ def prepare_yatest_environment(need_suid, artifact_components=None, force_create
             path = arcadia_interop.prepare_yt_environment(
                 destination,
                 binary_root=get_build_root(),
-                copy_ytserver_all=not ytrecipe,
+                copy_ytserver_all=False,
                 need_suid=need_suid and not ytrecipe,
                 artifact_components=components,
             )
