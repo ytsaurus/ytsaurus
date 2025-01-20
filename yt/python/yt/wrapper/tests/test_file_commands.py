@@ -225,3 +225,78 @@ class TestFileCommands(object):
             yt.write_file(file_path, chunks_generator)
 
             assert b"".join(chunks) == tuple(yt.read_file(file_path))[0]
+
+    @authors("abodrov")
+    @pytest.mark.parametrize("write_parallel", [True, False])
+    def test_storage_attributes_preserved_on_multi_chunk(self, write_parallel):
+        with set_config_option("write_parallel/enable", write_parallel):
+            with set_config_option("write_retries/chunk_size", 256):
+                yt.write_file(yt.YPath("<compression_codec=zlib_3>//tmp/file"), b"1" * 10 * MB)
+
+        assert yt.get("//tmp/file/@compression_codec") == "zlib_3"
+        assert yt.get("//tmp/file/@compression_statistics").keys() == {"zlib_3"}
+
+    @authors("abodrov")
+    @pytest.mark.parametrize("write_parallel", [True, False])
+    def test_storage_attributes_from_parent_preserved_on_multi_chunk(self, write_parallel):
+        yt.create("map_node", "//tmp/zlib3_compressed", attributes={"compression_codec": "zlib_3"}, recursive=True)
+        with set_config_option("write_parallel/enable", write_parallel):
+            with set_config_option("write_retries/chunk_size", 256):
+                yt.write_file(yt.YPath("//tmp/zlib3_compressed/file"), b"1" * 10 * MB)
+
+        assert yt.get("//tmp/zlib3_compressed/file/@compression_codec") == "zlib_3"
+        assert yt.get("//tmp/zlib3_compressed/file/@compression_statistics").keys() == {"zlib_3"}
+
+
+@pytest.fixture(scope="function")
+def custom_medium(yt_env_additional_media):
+    medium = 'custom_medium'
+    if not yt.exists(f"//sys/media/{medium}"):
+        yt.create("domestic_medium", attributes={"name": medium})
+        yt.set(f"//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{medium}", 10 * 1024**3)
+
+    return medium
+
+
+class TestCustomMediumWrite:
+    @authors("abodrov")
+    @pytest.mark.parametrize("write_parallel", [True, False])
+    def test_storage_attributes_from_parent_preserved_on_multi_chunk(self, write_parallel, custom_medium):
+
+        yt.create("map_node", "//tmp/custom_medium_dir", attributes={"primary_medium": custom_medium}, recursive=True)
+        with set_config_option("write_parallel/enable", write_parallel):
+            with set_config_option("write_retries/chunk_size", 10):
+                yt.write_file(yt.YPath("//tmp/custom_medium_dir/file"), b"1" * (MB // 2))
+
+        assert yt.get("//tmp/custom_medium_dir/file/@primary_medium") == custom_medium
+        assert yt.get("//tmp/custom_medium_dir/file/@media").keys() == {custom_medium}
+
+    @authors("abodrov")
+    @pytest.mark.parametrize("write_parallel", [True, False])
+    def test_storage_attributes_from_file_preserved_on_multi_chunk(self, write_parallel, custom_medium):
+        yt.create("file", "//tmp/custom_medium_file", attributes={"primary_medium": custom_medium}, recursive=True)
+        with set_config_option("write_parallel/enable", write_parallel):
+            with set_config_option("write_retries/chunk_size", 10):
+                yt.write_file(yt.YPath("//tmp/custom_medium_file"), b"1" * (MB // 2))
+
+        assert yt.get("//tmp/custom_medium_file/@primary_medium") == custom_medium
+        assert yt.get("//tmp/custom_medium_file/@media").keys() == {custom_medium}
+
+    @authors("abodrov")
+    @pytest.mark.parametrize("write_parallel", [True, False])
+    def test_storage_attributes_from_path_override_directory(self, write_parallel, custom_medium):
+        yt.create(
+            "map_node",
+            "//tmp/custom_storage_attributes_dir",
+            attributes={"primary_medium": custom_medium, "compression_codec": "zlib_3", "erasure_codec": "isa_lrc_12_2_2"},
+            recursive=True
+        )
+        path_attributes = {"primary_medium": "default", "compression_codec": "lz4", "erasure_codec": "none"}
+        path = yt.YPath("//tmp/custom_storage_attributes_dir/file", attributes=path_attributes)
+        with set_config_option("write_parallel/enable", write_parallel):
+            with set_config_option("write_retries/chunk_size", 10):
+                yt.write_file(path, b"1" * (MB // 2))
+
+        attribtues = yt.get(path + "/@", attributes=["primary_medium", "compression_codec", "erasure_codec"])
+        # TODO(YT-23841): Use primary medium from write query
+        assert attribtues == path_attributes | {"primary_medium": custom_medium}

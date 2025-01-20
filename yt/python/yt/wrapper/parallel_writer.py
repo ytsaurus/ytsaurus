@@ -1,10 +1,26 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Protocol
+    import yt.wrapper as yt
+
+    # NOTE: This is an interface for all progress monitoring objects
+    # It's not documented anywhere, but used in type annotation
+    class _ProgressMonitor(Protocol):
+        def start(self): ...
+        def finish(self, status="ok"): ...
+        def update(self, size): ...
+
+
 from .batch_helpers import batch_apply
 from .config import get_config
 from .common import MB, typing  # noqa
-from .cypress_commands import mkdir, concatenate, find_free_subpath, remove
+from .cypress_commands import get, mkdir, concatenate, find_free_subpath, remove, exists
 from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .driver import make_request
-from .ypath import YPath, YPathSupportingAppend, ypath_join
+from .ypath import _STORAGE_ATTRIBUTES, _WRITABLE_STORAGE_ATTRIBUTES, YPath, YPathSupportingAppend, ypath_dirname, ypath_join
 from .progress_bar import SimpleProgressBar, FakeProgressReporter
 from .stream import RawStream, ItemStream
 from .transaction import Transaction
@@ -54,7 +70,9 @@ class _SubstreamWrapper(object):
 
 class ParallelWriter(object):
     def __init__(self, path, params, create_object, unordered, transaction_timeout,
-                 thread_count, write_action, remote_temp_directory, tx_id, client):
+                 thread_count, write_action, remote_temp_directory, tx_id,
+                 use_tmp_dir_for_intermediate_data, concatenate_size, storage_attributes,
+                 client):
         self._unordered = unordered
         self._remote_temp_directory = remote_temp_directory
         self._write_action = write_action
@@ -62,10 +80,11 @@ class ParallelWriter(object):
         self._path = path
         self._create_object = create_object
         self._tx_id = tx_id
+        self._concatenate_size = concatenate_size
+        self._use_tmp_dir_for_intermediate_data = use_tmp_dir_for_intermediate_data
         self._client = client
 
-        self._path_attributes = copy.deepcopy(self._path.attributes)
-        self._path_attributes["append"] = False
+        self._storage_attributes = storage_attributes
 
         self._thread_data = {}
         self._pool = ThreadPool(thread_count, self._init_thread, (get_config(client), params))
@@ -87,7 +106,7 @@ class ParallelWriter(object):
                                     "retrier": retrier}
 
     def _create_temp_object(self, client):
-        if not get_config(client)["write_parallel"]["use_tmp_dir_for_intermediate_data"]:
+        if not self._use_tmp_dir_for_intermediate_data:
             path = find_free_subpath(str(self._path) + ".", client=client)
         else:
             temp_directory = self._remote_temp_directory
@@ -100,7 +119,8 @@ class ParallelWriter(object):
                 temp_directory = temp_directory + "/"
             path = find_free_subpath(temp_directory, client=client)
 
-        self._create_object(path, client)
+        path = YPath(path=path, client=client)
+        self._create_object(path, client, attributes=self._storage_attributes)
         return path
 
     def _write_chunk(self, chunk):
@@ -111,7 +131,7 @@ class ParallelWriter(object):
         client = self._thread_data[ident]["client"]
 
         with client.Transaction(transaction_id=self._tx_id):
-            params["path"] = YPath(self._create_temp_object(client), attributes=self._path_attributes)
+            params["path"] = YPath(self._create_temp_object(client))
             retrier.run_write_action(chunk, params)
 
         return str(params["path"])
@@ -124,15 +144,18 @@ class ParallelWriter(object):
     def write(self, chunks):
         try:
             output_objects = []
+            path = self._path
             for table in self._write_iterator(chunks):
                 output_objects.append(table)
-                if len(output_objects) >= get_config(self._client)["write_parallel"]["concatenate_size"]:
-                    concatenate(output_objects, self._path, client=self._client)
+                if len(output_objects) >= self._concatenate_size:
+                    concatenate(output_objects, path, client=self._client)
                     batch_apply(remove, output_objects, client=self._client)
-                    self._path.attributes["append"] = True
+                    if not path.append:
+                        path = path.clone_with_append_set()
+
                     output_objects = []
             if output_objects:
-                concatenate(output_objects, self._path, client=self._client)
+                concatenate(output_objects, path, client=self._client)
                 batch_apply(remove, output_objects, client=self._client)
         finally:
             self._pool.close()
@@ -157,10 +180,19 @@ def _get_chunk_size_and_thread_count(size_hint, config):
     return chunk_size, thread_count
 
 
-def make_parallel_write_request(command_name, stream, path, params, unordered,
-                                create_object, remote_temp_directory, size_hint=None,
-                                filename_hint=None, progress_monitor=None, client=None):
-    # type: (str, RawStream | ItemStream, str | YPath, dict, bool, typing.Callable[[YPath, yt.YtClient], None], str, int | None, str | None, _ProgressReporter | None, yt.YtClient | None) -> None
+def make_parallel_write_request(
+    command_name: str,
+    stream: RawStream | ItemStream,
+    path: str | YPath,
+    params: dict,
+    unordered: bool,
+    create_object: callable[[YPath, yt.YtClient], None],
+    remote_temp_directory: str,
+    size_hint: int | None = None,
+    filename_hint: str | None = None,
+    progress_monitor: _ProgressMonitor | None = None,
+    client: yt.YtClient | None = None
+) -> None:
 
     assert isinstance(stream, (RawStream, ItemStream))
 
@@ -177,17 +209,34 @@ def make_parallel_write_request(command_name, stream, path, params, unordered,
         progress_reporter = FakeProgressReporter()
 
     path = YPathSupportingAppend(path, client=client)
+
     transaction_timeout = max(
         get_config(client)["proxy"]["heavy_request_timeout"],
         get_config(client)["transaction_timeout"])
-    if get_config(client)["yamr_mode"]["create_tables_outside_of_transaction"]:
-        create_object(path, client)
+    created = False
 
+    storage_attributes = {
+        key: value
+        for key, value in path.attributes.items()
+        if key in _WRITABLE_STORAGE_ATTRIBUTES
+    }
+
+    if get_config(client)["yamr_mode"]["create_tables_outside_of_transaction"]:
+        create_object(path, client, storage_attributes)
+        created = True
+
+    write_parallel_config = get_config(client)["write_parallel"]
     title = "Python wrapper: {0} {1}".format(command_name, path)
     with Transaction(timeout=transaction_timeout,
                      attributes={"title": title},
                      client=client,
                      transaction_id=get_config(client)["write_retries"]["transaction_id"]) as tx:
+        if not created:
+            create_object(path, client, storage_attributes)
+
+        # NOTE: Path should exist at this point, as it was created just before we called _get_storage_attributes()
+        storage_attributes = get(path + "/@", attributes=tuple(_STORAGE_ATTRIBUTES), client=client)
+
         chunk_size, thread_count = _get_chunk_size_and_thread_count(size_hint, get_config(client))
         stream = stream.into_chunks(chunk_size)
 
@@ -203,6 +252,18 @@ def make_parallel_write_request(command_name, stream, path, params, unordered,
             use_heavy_proxy=True,
             client=client)
 
+        use_tmp_dir_for_intermediate_data = write_parallel_config["use_tmp_dir_for_intermediate_data"]
+        target_medium = storage_attributes.get("primary_medium")
+        if target_medium not in ("default", None) and use_tmp_dir_for_intermediate_data:
+            # Resolve account for remote_tmp_directory
+            parent_directory = remote_temp_directory
+            while not exists(parent_directory, client=client):
+                parent_directory = ypath_dirname(parent_directory)
+            account = get(parent_directory + '/@account', client=client)
+            # If there is no access to target_medium in tmp directory account - let's disable it
+            if not exists(f'//sys/accounts/{account}/@resource_limits/disk_space_per_medium/{target_medium}'):
+                use_tmp_dir_for_intermediate_data = False
+
         writer = ParallelWriter(
             tx_id=tx.transaction_id,
             path=path,
@@ -213,6 +274,9 @@ def make_parallel_write_request(command_name, stream, path, params, unordered,
             unordered=unordered,
             write_action=write_action,
             remote_temp_directory=remote_temp_directory,
+            use_tmp_dir_for_intermediate_data=use_tmp_dir_for_intermediate_data,
+            concatenate_size=write_parallel_config["concatenate_size"],
+            storage_attributes=storage_attributes,
             client=client)
 
         with progress_reporter:

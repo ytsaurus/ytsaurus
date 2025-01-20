@@ -10,6 +10,15 @@ from copy import deepcopy
 import string
 
 
+# Storage attributes that can be specified as YPath attributes in write request
+# TODO(YT-23841): Make "primary_medium" writable storage attribute
+_WRITABLE_STORAGE_ATTRIBUTES = frozenset({"erasure_codec", "compression_codec", "optimize_for", "schema"})
+# Storage attributes incompatible with append= flag
+_APPEND_INCOMPATIBLE_ATTRIBUTES = frozenset({"erasure_codec", "compression_codec", "optimize_for", "schema"})
+# All storage attributes
+_STORAGE_ATTRIBUTES = frozenset({*_WRITABLE_STORAGE_ATTRIBUTES, "primary_medium"})
+
+
 class TokensByPath(object):
     def __init__(self, path):
         if isinstance(path, bytes):
@@ -279,6 +288,17 @@ class YPathSupportingAppend(YPath):
         else:
             if "append" in self.attributes:
                 del self.attributes["append"]
+
+    def clone_with_append_set(self):
+        if not self.append:
+            cls = type(self)
+            new_path = cls(self, simplify=False, append=True)
+            attributes = new_path.attributes
+            for attribute_name in _APPEND_INCOMPATIBLE_ATTRIBUTES:
+                if attribute_name in attributes:
+                    del attributes[attribute_name]
+            return new_path
+        return type(self)(self)
 
 
 def to_ypath(object, client=None):

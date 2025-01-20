@@ -11,7 +11,7 @@ from .default_config import DEFAULT_WRITE_CHUNK_SIZE
 from .parallel_reader import make_read_parallel_request
 from .parallel_writer import make_parallel_write_request
 from .retries import Retrier, default_chaos_monkey
-from .ypath import FilePath, TablePath, ypath_join, ypath_dirname, ypath_split
+from .ypath import FilePath, ypath_join, ypath_dirname, ypath_split
 from .local_mode import is_local_mode
 from .stream import RawStream
 
@@ -180,26 +180,6 @@ def read_file(path, file_reader=None, offset=None, length=None, enable_read_para
         request_size=True)
 
 
-def _enrich_with_attributes(path, client=None):
-    """Fetches attributes of a given node and
-       returns `path` with these attributes."""
-    try:
-        attributes = get(path + "/@", attributes=["type", "schema", "optimize_for", "erasure_codec", "compression_codec"], client=client)
-    except YtResponseError as err:
-        if err.is_resolve_error():
-            return path
-        else:
-            raise
-    if attributes["type"] == "table":
-        return TablePath(path, attributes=attributes, client=client)
-    elif attributes["type"] == "file":
-        return FilePath(path, attributes=attributes, client=client)
-    else:
-        raise YtError('Bad node type, expected "file" or "table", got "{}"'.format(
-            attributes["type"],
-        ))
-
-
 def _get_upload_replication_factor(desired_replication_factor: int, client):
     # NB: In local mode we have only one node and default replication factor equal to one for all tables and files.
     if is_local_mode(client):
@@ -233,10 +213,10 @@ def write_file(destination, stream,
     if force_create is None:
         force_create = True
 
-    def prepare_file(path, client):
+    def prepare_file(path, client, attributes=None):
         if not force_create:
             return
-        create("file", path, ignore_existing=True, client=client)
+        create("file", path, attributes=attributes, ignore_existing=True, client=client)
 
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
     if chunk_size is None:
@@ -281,7 +261,6 @@ def write_file(destination, stream,
 
     if enable_parallel_write and not is_stream_compressed and not compute_md5:
         force_create = True
-        destination = _enrich_with_attributes(destination, client=client)
         make_parallel_write_request(
             "write_file",
             stream,
