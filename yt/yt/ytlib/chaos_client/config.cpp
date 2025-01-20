@@ -6,7 +6,7 @@ namespace NYT::NChaosClient {
 
 void TChaosResidencyCacheConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("is_client_mode_active", &TThis::IsClientModeActive)
+    registrar.Parameter("enable_client_mode", &TThis::EnableClientMode)
         .Default(false);
 }
 

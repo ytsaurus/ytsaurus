@@ -508,7 +508,7 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();
-    registrar.Parameter("chunk_replica_cache", &TThis::ChunkReplicaCacheConfig)
+    registrar.Parameter("chunk_replica_cache", &TThis::ChunkReplicaCache)
         .DefaultNew();
     registrar.Parameter("throttler_free_bandwidth_ratio", &TThis::ThrottlerFreeBandwidthRatio)
         .InRange(0.0, 1.0)
@@ -521,7 +521,7 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .Default(1.0);
     registrar.Parameter("memory_limit_exceeded_for_category_threshold", &TThis::MemoryLimitExceededForCategoryThreshold)
         .Default(1.1);
-    registrar.Parameter("chaos_residency_cache", &TThis::ChaosResidencyCacheConfig)
+    registrar.Parameter("chaos_residency_cache", &TThis::ChaosResidencyCache)
         .DefaultNew();
 }
 
@@ -538,7 +538,7 @@ void TChunkReplicaCacheDynamicConfig::Register(TRegistrar registrar)
 
 void TChaosResidencyCacheDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("is_client_mode_active", &TThis::IsClientModeActive)
+    registrar.Parameter("enable_client_mode", &TThis::EnableClientMode)
         .Optional();
 }
 
