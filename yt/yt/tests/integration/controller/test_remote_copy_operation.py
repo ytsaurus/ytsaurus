@@ -2187,7 +2187,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
 
     CHUNK_COUNT = 3
     BANDWIDTH_LIMIT = 10 ** 6
-    THROTTLER_JITTER_MULTIPLIER = 0.7
+    THROTTLER_JITTER_MULTIPLIER = 0.5
     DATA_WEIGHT_SIZE_PER_CHUNK = 10 ** 7
 
     # Setup //sys/cluster_throttlers on local cluster.
