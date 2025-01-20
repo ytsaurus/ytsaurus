@@ -416,14 +416,14 @@ public:
         return future;
     }
 
-    TFuture<void> FlushFile(
+    TFuture<TFlushFileResponse> FlushFile(
         TFlushFileRequest request,
         EWorkloadCategory category) override
     {
         return Underlying_->FlushFile(std::move(request), category);
     }
 
-    TFuture<void> FlushFileRange(
+    TFuture<TFlushFileRangeResponse> FlushFileRange(
         TFlushFileRangeRequest request,
         EWorkloadCategory category,
         TSessionId sessionId) override
@@ -431,7 +431,7 @@ public:
         return Underlying_->FlushFileRange(std::move(request), category, sessionId);
     }
 
-    TFuture<void> FlushDirectory(
+    TFuture<TFlushDirectoryResponse> FlushDirectory(
         TFlushDirectoryRequest request,
         EWorkloadCategory category) override
     {
@@ -445,7 +445,7 @@ public:
         return Underlying_->Open(std::move(request), category);
     }
 
-    TFuture<void> Close(
+    TFuture<TCloseResponse> Close(
         TCloseRequest request,
         EWorkloadCategory category) override
     {
