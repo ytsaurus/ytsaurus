@@ -16,10 +16,6 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = HttpProxyLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -357,52 +353,21 @@ std::vector<TClusterComponentInstance> TComponentDiscoverer::ListJobProxies() co
     std::vector<TClusterComponentInstance> instances;
     instances.reserve(execNodeInstances.size());
 
-    std::vector<TYPath> fallbackInstances;
     for (auto& instance : execNodeInstances) {
         if (instance.Banned) {
             continue;
         }
 
+        instance.Type = EClusterComponentType::JobProxy;
+
         if (instance.JobProxyVersion) {
-            instance.Type = EClusterComponentType::JobProxy;
             instance.Version = *instance.JobProxyVersion;
-            instances.emplace_back(std::move(instance));
-        } else if (instance.Online) {
-            fallbackInstances.emplace_back(std::move(instance.Address));
-        }
-    }
-
-    if (!fallbackInstances.empty()) {
-        YT_LOG_DEBUG(
-            "Falling back to fetching job proxy versions from orchids (InstanceCount: %v)",
-            fallbackInstances.size());
-
-        auto fallbackJobProxies = GetAttributes(
-            EClusterComponentType::ClusterNode,
-            fallbackInstances,
-            EClusterComponentType::JobProxy,
-            "/orchid/job_controller/job_proxy_build");
-
-        // COMPAT(arkady-e1ppa): Remove this when all nodes will be 23.2
-        fallbackInstances.clear();
-
-        for (auto& jobProxy : fallbackJobProxies) {
-            if (jobProxy.Error.IsOK()) {
-                instances.emplace_back(std::move(jobProxy));
-            } else {
-                fallbackInstances.emplace_back(std::move(jobProxy.Address));
-            }
+        } else {
+            instance.Version = {};
+            instance.Error = TError("Attribute \"job_proxy_build_version\" is missing");
         }
 
-        fallbackJobProxies = GetAttributes(
-            EClusterComponentType::ClusterNode,
-            fallbackInstances,
-            EClusterComponentType::JobProxy,
-            "/orchid/exec_node/job_controller/job_proxy_build");
-
-        for (auto& jobProxy : fallbackJobProxies) {
-            instances.emplace_back(std::move(jobProxy));
-        }
+        instances.emplace_back(std::move(instance));
     }
 
     return instances;
