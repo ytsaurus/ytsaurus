@@ -24,7 +24,7 @@ import time
 
 
 class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
-    ENABLE_MULTIDAEMON = True
+    ENABLE_MULTIDAEMON = False  # Checks profiling.
     DELTA_NODE_CONFIG = {"cluster_connection": {"timestamp_provider": {"update_period": 100}}}
 
     DELTA_DYNAMIC_MASTER_CONFIG = {
