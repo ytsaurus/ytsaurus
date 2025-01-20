@@ -144,6 +144,7 @@ public:
 
     void RememberReign(TReign reign);
     EFinalRecoveryAction GetFinalRecoveryAction() override;
+    void ResetFinalRecoveryAction() override;
 
     void CheckInvariants() override;
 

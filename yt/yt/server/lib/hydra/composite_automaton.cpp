@@ -441,8 +441,6 @@ void TCompositeAutomaton::RememberReign(TReign reign)
 {
     auto recoveryAction = GetActionToRecoverFromReign(reign);
 
-    YT_VERIFY(IsRecovery() || recoveryAction == EFinalRecoveryAction::None);
-
     if (recoveryAction != FinalRecoveryAction_) {
         YT_LOG_DEBUG("Updating final recovery action (MutationReign: %v, CurrentFinalRecoveryAction: %v, MutationFinalRecoveryAction: %v)",
             reign,
@@ -462,7 +460,7 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
     auto waitTime = GetInstant() - context->GetTimestamp();
 
     // COMPAT(savrus) Skip unreigned heartbeat mutations which are already in changelog.
-    if (mutationType != HeartbeatMutationType) {
+    if (!IsSystemMutationType(mutationType)) {
         RememberReign(request.Reign);
     }
 
@@ -614,6 +612,16 @@ bool TCompositeAutomaton::IsRecovery() const
 EFinalRecoveryAction TCompositeAutomaton::GetFinalRecoveryAction()
 {
     return FinalRecoveryAction_;
+}
+
+void TCompositeAutomaton::ResetFinalRecoveryAction()
+{
+    if (FinalRecoveryAction_ != EFinalRecoveryAction::None) {
+        YT_LOG_INFO("Resetting the final recovery action on its completion (CurrentFinalRecoveryAction: %v)",
+            FinalRecoveryAction_);
+    }
+
+    FinalRecoveryAction_ = EFinalRecoveryAction::None;
 }
 
 void TCompositeAutomaton::CheckInvariants()

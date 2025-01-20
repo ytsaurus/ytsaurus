@@ -278,6 +278,13 @@ public:
         return ControlState_;
     }
 
+    TReign GetLastMutationReign() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return DecoratedAutomaton_->GetLastMutationReign();
+    }
+
     EPeerState GetAutomatonState() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -299,11 +306,20 @@ public:
         return DecoratedAutomaton_->CreateGuardedUserInvoker(underlyingInvoker);
     }
 
+    // Checks if peer is a leader of a quorum and is ready to carry out system actions,
+    // such as building a snapshot, but still is denying mutations.
+    bool IsSystemLeader() const
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return DecoratedAutomaton_->GetState() == EPeerState::Leading && LeaderLease_->IsValid();
+    }
+
     bool IsActiveLeader() const override
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        return DecoratedAutomaton_->GetState() == EPeerState::Leading && LeaderRecovered_ && LeaderLease_->IsValid();
+        return IsSystemLeader() && LeaderRecovered_;
     }
 
     bool IsActiveFollower() const override
@@ -358,7 +374,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto epochContext = ControlEpochContext_;
-        if (!IsActiveLeader() || !epochContext || !epochContext->LeaderCommitter) {
+        if (!IsSystemLeader() || !epochContext || !epochContext->LeaderCommitter) {
             return MakeFuture<int>(TError(
                 NRpc::EErrorCode::Unavailable,
                 "Not an active leader"));
@@ -2114,9 +2130,6 @@ private:
                 .ThrowOnError();
             YT_LOG_INFO("Leader lease acquired");
 
-            YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery);
-            ControlState_ = EPeerState::Leading;
-
             const auto& leaderCommitter = epochContext->LeaderCommitter;
             leaderCommitter->Start();
 
@@ -2125,12 +2138,17 @@ private:
                 .Run())
                 .ThrowOnError();
 
-            ControlLeaderRecoveryComplete_.Fire();
-
             YT_LOG_INFO("Committing initial heartbeat mutation");
             WaitFor(ForceCommitMutation(MakeSystemMutationRequest(HeartbeatMutationType)))
                 .ThrowOnError();
             YT_LOG_INFO("Initial heartbeat mutation committed");
+
+            ExecuteFinalRecoveryAction();
+
+            YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery);
+            ControlState_ = EPeerState::Leading;
+
+            ControlLeaderRecoveryComplete_.Fire();
 
             if (Options_.ResponseKeeper) {
                 Options_.ResponseKeeper->Start();
@@ -2169,9 +2187,14 @@ private:
                     mutationCount,
                     mutationSize);
             }
-        } catch (const std::exception& ex) {
-            YT_LOG_WARNING(ex, "Leader recovery failed, backing off");
-            TDelayedExecutor::WaitForDuration(Config_->Get()->RestartBackoffTime);
+        } catch (const TErrorException& ex) {
+            if (ex.Error().FindMatching(NHydra::EErrorCode::RestartAfterRecovery)) {
+                YT_LOG_INFO("Leader restart after recovery requested");
+            } else {
+                YT_LOG_WARNING(ex, "Leader recovery failed, backing off");
+                TDelayedExecutor::WaitForDuration(Config_->Get()->RestartBackoffTime);
+            }
+
             ScheduleRestart(epochContext, ex);
         }
     }
@@ -2890,6 +2913,29 @@ private:
                     epochContext,
                     TError("Heartbeat mutation commit failed") << result);
             }));
+    }
+
+    void ExecuteFinalRecoveryAction()
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        YT_VERIFY(ControlState_ == EPeerState::LeaderRecovery);
+
+        switch (DecoratedAutomaton_->GetFinalRecoveryAction()) {
+            case EFinalRecoveryAction::BuildSnapshotAndRestart: {
+                auto snapshotId = WaitFor(BuildSnapshot(/*setReadOnly*/ false, /*waitForSnapshotCompletion*/ true))
+                    .ValueOrThrow();
+                YT_LOG_INFO("Built snapshot as the final recovery action (SnapshotId: %v)",
+                    snapshotId);
+                THROW_ERROR_EXCEPTION(
+                    NHydra::EErrorCode::RestartAfterRecovery,
+                    "Restart after recovery");
+                break;
+            }
+            default:
+                // Do nothing.
+                break;
+        }
     }
 
     void SetReadOnly(bool value)

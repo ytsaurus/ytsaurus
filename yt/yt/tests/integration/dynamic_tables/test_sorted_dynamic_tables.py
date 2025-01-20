@@ -2365,6 +2365,7 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
         "changelog_replication_factor": 1,
         "changelog_read_quorum": 1,
         "changelog_write_quorum": 1,
+        "snapshot_replication_factor": 1,
     }
 
     @authors("ifsmirnov")

@@ -134,6 +134,7 @@ public:
             .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
             .Run(snapshotId,
                 meta.last_mutation_term(),
+                meta.last_mutation_reign(),
                 TVersion(meta.last_segment_id(), meta.last_record_id()),
                 meta.sequence_number(),
                 meta.read_only(),
@@ -321,6 +322,11 @@ public:
     }
 
     EPeerState GetControlState() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
+    TReign GetLastMutationReign() const override
     {
         YT_UNIMPLEMENTED();
     }
