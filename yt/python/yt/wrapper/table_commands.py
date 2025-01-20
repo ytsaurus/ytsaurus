@@ -1,3 +1,11 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from typing import Mapping
+    from . import YtClient
+
 from .common import (flatten, require, update, get_value, set_param, datetime_to_string,
                      MB, chunk_iter_stream, deprecated, merge_blobs_by_size, typing, utcnow)
 from .compression import try_enable_parallel_write_gzip
@@ -16,11 +24,11 @@ from .parallel_writer import make_parallel_write_request
 from .response_stream import EmptyResponseStream, ResponseStreamWithReadRow
 from .table_helpers import (_prepare_source_tables, _are_default_empty_table, _prepare_table_writer,
                             _remove_tables, DEFAULT_EMPTY_TABLE, _to_chunk_stream, _prepare_command_format)
-from .file_commands import _get_remote_temp_files_directory, _enrich_with_attributes
+from .file_commands import _get_remote_temp_files_directory
 from .parallel_reader import make_read_parallel_request
 from .schema import _SchemaRuntimeCtx, TableSchema
 from .stream import ItemStream, _ChunkStream
-from .ypath import YPath, TablePath, ypath_join
+from .ypath import TablePath, YPath, ypath_join
 
 import yt.json_wrapper as json
 import yt.yson as yson
@@ -147,7 +155,7 @@ def write_table(
     is_stream_compressed=False,  # type: bool | None
     force_create=None,  # type: bool | None
     raw=None,  # type: bool | None
-    client=None,  # type: yt.wrapper.YtClient | None
+    client=None,  # type: YtClient | None
 ):
     """Writes rows from input_stream to table.
 
@@ -199,19 +207,30 @@ def write_table(
     params["input_format"] = format.to_yson_type()
     set_param(params, "table_writer", table_writer)
 
-    def prepare_table(path, client):
-        # type: (YPath | str, yt.YtClient) -> None
+    schema = table.attributes.get("schema")
+    if table.append and schema:
+        # NOTE: These attributes are mutually exclusive.
+        # NOTE: For legacy reasons we just del schema here.
+        del table.attributes["schema"]
+
+    default_create_attributes: Mapping | None = None
+    if schema:
+        default_create_attributes = {"schema": schema}
+
+    # We'll use pickle with prepare_table, so default values should be picklable.
+    # We don't want mutable values (e.g. dict) to be defaults, so we implement "marker" schema.
+    _DEFAULT = object()
+
+    def prepare_table(
+        path: str | YPath ,
+        client: YtClient | None,
+        attributes: Mapping | None = _DEFAULT
+    ):
+        if attributes is _DEFAULT:
+            attributes = default_create_attributes
         if not force_create:
             return
-
-        if isinstance(path, YPath) and path.attributes.get("schema") and path.attributes.get("append"):
-            # try to create table with schema (write_table will not do it in append mode)
-            _create_table(path, ignore_existing=True, client=client, attributes={"schema": path.attributes["schema"]})
-            # "schema" with "append" causes error on cluster side
-            del path.attributes["schema"]
-        else:
-            # create table without schema
-            _create_table(path, ignore_existing=True, client=client)
+        _create_table(path, ignore_existing=True, client=client, attributes=attributes)
 
     is_input_stream_filelike = hasattr(input_stream, "read")
     is_input_stream_str = isinstance(input_stream, (str, bytes))
@@ -243,7 +262,6 @@ def write_table(
 
     if enable_parallel_write:
         force_create = True
-        table = _enrich_with_attributes(table, client=client)
         make_parallel_write_request(
             "write_table",
             input_stream,

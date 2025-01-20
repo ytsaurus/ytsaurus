@@ -206,13 +206,9 @@ def make_write_request(command_name, stream, path, params, create_object, use_re
 
                     runner.run_write_action(chunk, params)
 
-                    params["path"].append = True
-                    # NOTE: If previous chunk was successfully written then
-                    # no need in additional attributes here, it is already
-                    # set by first request.
-                    for attr in ["schema", "optimize_for", "compression_codec", "erasure_codec"]:
-                        if attr in params["path"].attributes:
-                            del params["path"].attributes[attr]
+                    if not params["path"].append:
+                        params["path"] = params["path"].clone_with_append_set()
+
             else:
                 make_request(
                     command_name,

@@ -1169,3 +1169,50 @@ class TestTableCommandsFraming(object):
             statistics = yt.get_table_columnar_statistics(suspending_path + "{column_1}")
         assert len(statistics) == 1
         assert "column_data_weights" in statistics[0]
+
+
+@pytest.mark.usefixtures("yt_env")
+class TestTableCommandsMultiChunk(object):
+    @authors("abodrov")
+    @pytest.mark.parametrize("write_parallel", [True, False])
+    def test_storage_attributes_preserved_on_multi_chunk(self, write_parallel):
+        storage_attributes = {
+            'compression_codec': 'zlib_3',
+            'schema': yt.schema.TableSchema().add_column("a", typing.Int8),
+            'optimize_for': 'scan'
+        }
+        with set_config_option("write_parallel/enable", write_parallel):
+            with set_config_option("write_retries/chunk_size", 1):
+                yt.write_table(yt.YPath("//tmp/table", attributes=storage_attributes), [{"a": 1}] * 100)
+
+        assert yt.get("//tmp/table/@compression_codec") == "zlib_3"
+        assert yt.get("//tmp/table/@compression_statistics").keys() == {"zlib_3"}
+        assert yt.get_table_schema("//tmp/table") == storage_attributes["schema"]
+        assert yt.get("//tmp/table/@optimize_for") == "scan"
+
+    @authors("abodrov")
+    @pytest.mark.parametrize("write_parallel", [True, False])
+    def test_storage_attributes_from_parent_preserved_on_multi_chunk(self, write_parallel):
+        zlib3_compressed_path = TEST_DIR + '/zlib3_compressed'
+        yt.create("map_node", zlib3_compressed_path, attributes={"compression_codec": "zlib_3", "optimize_for": "scan"}, recursive=True)
+        table_path = zlib3_compressed_path + "/table"
+        with set_config_option("write_parallel/enable", write_parallel):
+            with set_config_option("write_retries/chunk_size", 1):
+                yt.write_table(yt.YPath(table_path), [{"a": 1}] * 100)
+
+        assert yt.get(table_path + "/@compression_codec") == "zlib_3"
+        assert yt.get(table_path + "/@compression_statistics").keys() == {"zlib_3"}
+        assert yt.get(table_path + "/@optimize_for") == "scan"
+
+    @authors("abodrov")
+    @pytest.mark.parametrize("write_parallel", [True, False])
+    def test_table_specific_storage_attributes_from_directory_are_ignored_on_multi_chunk(self, write_parallel):
+        specials_set = TEST_DIR + '/specials_set'
+        dir_attributes = {"schema": yt.schema.TableSchema().add_column("a", typing.Int8)}
+        yt.create("map_node", specials_set, attributes=dir_attributes, recursive=True)
+        table_path = specials_set + "/table"
+        with set_config_option("write_parallel/enable", write_parallel):
+            with set_config_option("write_retries/chunk_size", 1):
+                yt.write_table(yt.YPath(table_path), [{"a": 1}] * 100)
+
+        assert not yt.get(table_path + "/@schema")
