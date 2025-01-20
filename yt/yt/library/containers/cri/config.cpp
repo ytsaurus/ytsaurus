@@ -25,6 +25,9 @@ void TCriExecutorConfig::Register(TRegistrar registrar)
     registrar.Parameter("cpu_period", &TThis::CpuPeriod)
         .Default(TDuration::MilliSeconds(100));
 
+    registrar.Parameter("memory_oom_group", &TThis::MemoryOOMGroup)
+        .Default(false);
+
     registrar.Parameter("retry_error_prefixes", &TThis::RetryErrorPrefixes)
         .Default({
             // https://github.com/containerd/containerd/pull/9565

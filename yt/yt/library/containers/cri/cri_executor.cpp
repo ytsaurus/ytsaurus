@@ -43,8 +43,6 @@ static TError DecodeExitCode(int exitCode, const TString& reason)
         return TError();
     }
 
-    // TODO(khkebnikov) map reason == "OOMKilled"
-
     // Common bash notation for signals: 128 + signal
     if (exitCode > 128) {
         int signalNumber = exitCode - 128;
@@ -53,7 +51,8 @@ static TError DecodeExitCode(int exitCode, const TString& reason)
             "Process terminated by signal %v",
             signalNumber)
             << TErrorAttribute("signal", signalNumber)
-            << TErrorAttribute("reason", reason);
+            << TErrorAttribute("reason", reason)
+            << TErrorAttribute("oom_killed", reason == "OOMKilled");
     }
 
     // TODO(khkebnikov) check these
@@ -707,6 +706,10 @@ private:
 
         if (spec.MemoryRequest) {
             (*unified)["memory.low"] = ToString(*spec.MemoryRequest);
+        }
+
+        if (spec.MemoryOOMGroup.value_or(Config_->MemoryOOMGroup)) {
+            (*unified)["memory.oom.group"] = "1";
         }
 
         if (const auto& cpusetCpus = spec.CpusetCpus) {

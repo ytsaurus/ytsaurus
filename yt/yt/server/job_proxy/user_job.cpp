@@ -411,6 +411,19 @@ public:
                 .ThrowOnError();
         }
 
+        if (Config_->CheckUserJobOOMKill) {
+            // Detect OOM kills in job environment regardless of exit status of the main process.
+            if (auto oomKillCount = UserJobEnvironment_->GetJobOOMKillCount(); oomKillCount.value_or(0)) {
+                YT_LOG_INFO("Out of memory kill detected (OOMKillCount: %v)", *oomKillCount);
+                auto error = TError(
+                    EErrorCode::MemoryLimitExceeded,
+                    "User job process killed by OOM")
+                    << TErrorAttribute("oom_kill_count", *oomKillCount)
+                    << TErrorAttribute("abort_reason", EAbortReason::ResourceOverdraft);
+                innerErrors.push_back(std::move(error));
+            }
+        }
+
         auto jobError = innerErrors.empty()
             ? TError()
             : TError(EErrorCode::UserJobFailed, "User job failed") << std::move(innerErrors);
@@ -1720,6 +1733,13 @@ private:
         }
 
         Host_->SetUserJobMemoryUsage(memoryUsage);
+
+        if (Config_->CheckUserJobOOMKill) {
+            if (auto oomKillCount = UserJobEnvironment_->GetJobOOMKillCount(); oomKillCount.value_or(0)) {
+                YT_LOG_INFO("Out of memory kill detected (OOMKillCount: %v)", *oomKillCount);
+                CleanupUserProcesses();
+            }
+        }
     }
 
     void CheckThrashing()
