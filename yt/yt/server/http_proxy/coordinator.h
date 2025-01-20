@@ -201,7 +201,7 @@ class TDiscoverVersionsHandler
     , public TComponentDiscoverer
 {
 public:
-    TDiscoverVersionsHandler(NApi::IClientPtr client, TComponentDiscoveryOptions componentDiscoveryOptions);
+    TDiscoverVersionsHandler(NApi::NNative::IClientPtr client, TComponentDiscoveryOptions componentDiscoveryOptions);
 
     void HandleRequest(
         const NHttp::IRequestPtr& req,

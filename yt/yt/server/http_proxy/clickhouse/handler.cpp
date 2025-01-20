@@ -7,6 +7,7 @@
 #include <yt/yt/server/http_proxy/coordinator.h>
 #include <yt/yt/server/http_proxy/http_authenticator.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
