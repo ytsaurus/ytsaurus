@@ -110,8 +110,9 @@ void TTransaction::Load(TLoadContext& context)
     if (context.GetVersion() >= ETabletReign::SmoothMovementForwardWrites) {
         Load(context, ExternalizerTablets_);
     } else if (context.GetVersion() >= ETabletReign::SmoothTabletMovement) {
-        auto tabletId = Load<TTabletId>(context);
-        ExternalizerTablets_ = {{tabletId, tabletId}};
+        if (auto tabletId = Load<TTabletId>(context)) {
+            ExternalizerTablets_ = {{tabletId, tabletId}};
+        }
     }
 
     if (context.GetVersion() >= ETabletReign::SmoothMovementForwardWrites) {
