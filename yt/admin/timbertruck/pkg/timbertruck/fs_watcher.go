@@ -78,7 +78,6 @@ loop:
 			if !ok {
 				break loop
 			}
-			w.logger.Debug("Detected event", "event", event)
 			handlers, ok := w.handlerMap[event.Name]
 			if !ok {
 				continue
