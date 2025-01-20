@@ -31,7 +31,7 @@ import yt_error_codes
 
 from yt_driver_bindings import Driver
 
-from yt_helpers import profiler_factory
+from yt_helpers import profiler_factory, is_uring_supported, is_uring_disabled
 
 import yt.environment.init_operations_archive as init_operations_archive
 import yt.yson as yson
@@ -4234,6 +4234,13 @@ class TestJobStatistics(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    NODE_IO_ENGINE_TYPE = "thread_pool"
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        for store_location in config["data_node"]["store_locations"]:
+            store_location["io_config"]["enable_sync"] = True
+
     @authors("ngc224")
     def test_io_statistics(self):
         create("table", "//tmp/t_input")
@@ -4255,6 +4262,8 @@ class TestJobStatistics(YTEnvSetup):
         write_file("//tmp/script", script)
         set("//tmp/script/@executable", True)
 
+        upload_replication_factor = 3
+
         op = map(
             command="./script.py",
             in_="//tmp/t_input",
@@ -4265,7 +4274,13 @@ class TestJobStatistics(YTEnvSetup):
                     "file_paths": [
                         yson.to_yson_type("//tmp/script", attributes={"file_name": "script.py"}),
                     ],
-                }
+                },
+                "job_io": {
+                    "table_writer": {
+                        "min_upload_replication_factor": upload_replication_factor,
+                        "upload_replication_factor": upload_replication_factor,
+                    },
+                },
             },
             track=True,
         )
@@ -4277,6 +4292,17 @@ class TestJobStatistics(YTEnvSetup):
 
         for output in [0, 1]:
             assert get_statistics("data_bytes_written_to_disk", output) > 0
-            assert get_statistics("data_io_write_requests", output) > 0
+            assert get_statistics("data_io_write_requests", output) == upload_replication_factor
+            assert get_statistics("data_io_sync_requests", output) == upload_replication_factor
             assert get_statistics("meta_bytes_written_to_disk", output) > 0
-            assert get_statistics("meta_io_write_requests", output) > 0
+            assert get_statistics("meta_io_write_requests", output) == upload_replication_factor
+            # two sync requests expected:
+            # - one - on chunk writer's Close call to flush meta file
+            # - another - on chunk writer's FlushDirectory call to sync chunk directory meta
+            assert get_statistics("meta_io_sync_requests", output) == 2 * upload_replication_factor
+
+
+@authors("ngc224")
+@pytest.mark.skipif(not is_uring_supported() or is_uring_disabled(), reason="io_uring is not available on this host")
+class TestJobStatisticsUring(TestJobStatistics):
+    NODE_IO_ENGINE_TYPE = "uring"

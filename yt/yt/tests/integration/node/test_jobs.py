@@ -9,7 +9,7 @@ from yt_commands import (
     write_file, print_debug,
 )
 
-from yt_helpers import JobCountProfiler, profiler_factory
+from yt_helpers import JobCountProfiler, profiler_factory, is_uring_supported, is_uring_disabled
 
 import pytest
 
@@ -231,6 +231,8 @@ class TestJobStatistics(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    NODE_IO_ENGINE_TYPE = "thread_pool"
+
     @authors("ngc224")
     def test_io_statistics(self):
         create("table", "//tmp/t_input")
@@ -272,6 +274,18 @@ class TestJobStatistics(YTEnvSetup):
         assert "data" not in statistics or ("data" in statistics and "input" not in statistics["data"])
         assert "input" not in pipes_statistic
         assert "output" in pipes_statistic
+
+
+@authors("ngc224")
+@pytest.mark.skipif(not is_uring_supported() or is_uring_disabled(), reason="io_uring is not available on this host")
+class TestJobStatisticsUring(YTEnvSetup):
+    NUM_MASTERS = TestJobStatistics.NUM_MASTERS
+    NUM_NODES = TestJobStatistics.NUM_NODES
+    NUM_SCHEDULERS = TestJobStatistics.NUM_SCHEDULERS
+
+    NODE_IO_ENGINE_TYPE = "uring"
+
+    test_io_statistics = TestJobStatistics.test_io_statistics
 
 
 class TestAllocationWithTwoJobs(YTEnvSetup):
