@@ -51,6 +51,7 @@ def status_to_string(status):
 def build_response(*args, **kwargs):
     response = make_response(*args, **kwargs)
     response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Content-Type"] = "application/json"
     return response
 
 
