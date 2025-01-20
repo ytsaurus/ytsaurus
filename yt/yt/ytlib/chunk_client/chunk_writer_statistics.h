@@ -16,8 +16,10 @@ struct TChunkWriterStatistics
 {
     std::atomic<i64> DataBytesWrittenToDisk = 0;
     std::atomic<i64> DataIOWriteRequests = 0;
+    std::atomic<i64> DataIOSyncRequests = 0;
     std::atomic<i64> MetaBytesWrittenToDisk = 0;
     std::atomic<i64> MetaIOWriteRequests = 0;
+    std::atomic<i64> MetaIOSyncRequests = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkWriterStatistics)
@@ -54,9 +56,11 @@ public:
 private:
     NProfiling::TCounter DataBytesWrittenToDisk_;
     NProfiling::TCounter DataIOWriteRequests_;
+    NProfiling::TCounter DataIOSyncRequests_;
 
     NProfiling::TCounter MetaBytesWrittenToDisk_;
     NProfiling::TCounter MetaIOWriteRequests_;
+    NProfiling::TCounter MetaIOSyncRequests_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
