@@ -34,7 +34,7 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TVanillaJobFile)
 
-class TDqYtBackend
+class TDQYTBackend
     : public NYTree::TYsonStruct
 {
 public:
@@ -60,14 +60,14 @@ public:
     bool CanUseComputeActor;
     bool EnforceJobUtc;
 
-    REGISTER_YSON_STRUCT(TDqYtBackend);
+    REGISTER_YSON_STRUCT(TDQYTBackend);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDqYtBackend)
+DEFINE_REFCOUNTED_TYPE(TDQYTBackend)
 
-class TDqYtCoordinator
+class TDQYTCoordinator
     : public NYTree::TYsonStruct
 {
 public:
@@ -77,14 +77,14 @@ public:
     TString User;
     TString DebugLogFile;
 
-    REGISTER_YSON_STRUCT(TDqYtCoordinator);
+    REGISTER_YSON_STRUCT(TDQYTCoordinator);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDqYtCoordinator)
+DEFINE_REFCOUNTED_TYPE(TDQYTCoordinator)
 
-class TDqManagerConfig
+class TDQManagerConfig
     : public NYTree::TYsonStruct
 {
 public:
@@ -92,21 +92,21 @@ public:
     ui16 GrpcPort;
     ui32 ActorThreads;
     bool UseIPv4;
-    std::vector<TDqYtBackendPtr> YtBackends;
-    TDqYtCoordinatorPtr YtCoordinator;
+    std::vector<TDQYTBackendPtr> YTBackends;
+    TDQYTCoordinatorPtr YTCoordinator;
 
     //! Address resolver used in DQ operation. Is taken from singletons config if not set.
     NNet::TAddressResolverConfigPtr AddressResolver;
 
-    //! Dq Interconnect Settings. Fields from NYql::NProto::TDqConfig::TICSettings with snake case keys.
+    //! DQ Interconnect Settings. Fields from NYql::NProto::TDqConfig::TICSettings with snake case keys.
     NYTree::INodePtr ICSettings;
 
-    REGISTER_YSON_STRUCT(TDqManagerConfig);
+    REGISTER_YSON_STRUCT(TDQManagerConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDqManagerConfig)
+DEFINE_REFCOUNTED_TYPE(TDQManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,13 +120,13 @@ public:
     //! Fields from NYql::TYtGatewayConfig with snake case keys.
     NYTree::INodePtr GatewayConfig;
 
-    //! Fields from NYql::TDqGatewayConfig with snake case keys.
-    NYTree::INodePtr DqGatewayConfig;
+    //! Fields from NYql::TDQGatewayConfig with snake case keys.
+    NYTree::INodePtr DQGatewayConfig;
 
-    //! Fields from NYT::NYqlPlugin::TDqManagerConfig with snake case keys.
-    TDqManagerConfigPtr DqManagerConfig;
+    //! Fields from NYT::NYqlPlugin::TDQManagerConfig with snake case keys.
+    TDQManagerConfigPtr DQManagerConfig;
 
-    bool EnableDq;
+    bool EnableDQ;
 
     //! Fields from NYql::TFileStorageConfig with snake case keys.
     NYTree::INodePtr FileStorageConfig;

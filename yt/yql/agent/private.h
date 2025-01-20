@@ -25,9 +25,9 @@ DECLARE_REFCOUNTED_CLASS(TYqlAgentServerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
 DECLARE_REFCOUNTED_CLASS(TVanillaJobFile)
-DECLARE_REFCOUNTED_CLASS(TDqYtBackend)
-DECLARE_REFCOUNTED_CLASS(TDqYtCoordinator)
-DECLARE_REFCOUNTED_CLASS(TDqManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TDQYTBackend)
+DECLARE_REFCOUNTED_CLASS(TDQYTCoordinator)
+DECLARE_REFCOUNTED_CLASS(TDQManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

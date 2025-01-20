@@ -197,8 +197,8 @@ public:
             ? ConvertToYsonString(singletonsConfigDefaultLogging)
             : EmptyMap;
 
-        if (!Config_->DqManagerConfig->AddressResolver) {
-            Config_->DqManagerConfig->AddressResolver = SingletonsConfig_->GetSingletonConfig<NNet::TAddressResolverConfig>();
+        if (!Config_->DQManagerConfig->AddressResolver) {
+            Config_->DQManagerConfig->AddressResolver = SingletonsConfig_->GetSingletonConfig<NNet::TAddressResolverConfig>();
         }
 
         THashSet<TString> presentClusters;
@@ -224,8 +224,8 @@ public:
         NYqlPlugin::TYqlPluginOptions options{
             .SingletonsConfig = singletonsConfigString,
             .GatewayConfig = ConvertToYsonString(Config_->GatewayConfig),
-            .DqGatewayConfig = Config_->EnableDq ? ConvertToYsonString(Config_->DqGatewayConfig) : TYsonString(),
-            .DqManagerConfig = Config_->EnableDq ? ConvertToYsonString(Config_->DqManagerConfig) : TYsonString(),
+            .DqGatewayConfig = Config_->EnableDQ ? ConvertToYsonString(Config_->DQGatewayConfig) : TYsonString(),
+            .DqManagerConfig = Config_->EnableDQ ? ConvertToYsonString(Config_->DQManagerConfig) : TYsonString(),
             .FileStorageConfig = ConvertToYsonString(Config_->FileStorageConfig),
             .OperationAttributes = ConvertToYsonString(Config_->OperationAttributes),
             .Libraries = ConvertToYsonString(Config_->Libraries),
