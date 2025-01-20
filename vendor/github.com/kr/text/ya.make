@@ -18,5 +18,8 @@ GO_TEST_SRCS(
 END()
 
 RECURSE(
+    cmd
+    colwriter
     gotest
+    mc
 )
