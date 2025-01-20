@@ -1638,7 +1638,7 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         address = get_cell_leader_address(cell_id)
 
         def _check_tablet_config():
-            return exists(f"//sys/cluster_nodes/{address}/orchid/tablet_cells/{cell_id}/tablets/{tablet_id}/config/enable_lookup_cache_by_default")
+            return get(f"//sys/cluster_nodes/{address}/orchid/tablet_cells/{cell_id}/tablets/{tablet_id}/config/enable_lookup_cache_by_default")
 
         wait(_check_tablet_config)
 
