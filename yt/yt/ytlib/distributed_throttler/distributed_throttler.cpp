@@ -59,7 +59,7 @@ void FromProto(TThrottlerLocalUsage* throttlerLocalUsage, const NProto::TThrottl
     throttlerLocalUsage->Rate = throttlerData.usage_rate();
     throttlerLocalUsage->Limit = throttlerData.limit();
     throttlerLocalUsage->QueueTotalAmount = throttlerData.queue_total_amount();
-    throttlerLocalUsage->EstimatedOverdraftDuration = TDuration::MilliSeconds(throttlerData.estimated_overdraft_duration());
+    throttlerLocalUsage->EstimatedOverdraftDuration = FromProto<TDuration>(throttlerData.estimated_overdraft_duration());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -228,7 +228,7 @@ public:
         auto duration = Underlying_->GetEstimatedOverdraftDuration();
 
         if (Initialized_) {
-            EstimatedOverdraftDuration_.Update(duration.MilliSeconds());
+            EstimatedOverdraftDuration_.Update(duration);
         }
 
         return duration;
@@ -271,7 +271,7 @@ private:
     TGauge Limit_;
     TGauge Usage_;
     TGauge QueueTotalAmount_;
-    TGauge EstimatedOverdraftDuration_;
+    TTimeGauge EstimatedOverdraftDuration_;
     std::atomic<bool> Initialized_ = false;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, HistoricUsageAggregatorLock_);
@@ -290,11 +290,11 @@ private:
         Limit_ = Profiler_.Gauge("/limit");
         Usage_ = Profiler_.Gauge("/usage");
         QueueTotalAmount_ = Profiler_.Gauge("/queue_total_amount");
-        EstimatedOverdraftDuration_ = Profiler_.Gauge("/estimated_overdraft_duration");
+        EstimatedOverdraftDuration_ = Profiler_.TimeGauge("/estimated_overdraft_duration");
 
         Limit_.Update(ThrottlerConfig_.Acquire()->Limit.value_or(-1));
         QueueTotalAmount_.Update(0);
-        EstimatedOverdraftDuration_.Update(0);
+        EstimatedOverdraftDuration_.Update(TDuration::Zero());
     }
 
     void UpdateHistoricUsage(i64 amount)
@@ -321,7 +321,7 @@ void ToProto(NProto::TThrottlerData* throttlerData, TWrappedThrottlerPtr throttl
     throttlerData->set_usage_rate(throttler->GetUsageRate());
     throttlerData->set_limit(throttler->GetLimit().value_or(0));
     throttlerData->set_queue_total_amount(throttler->GetQueueTotalAmount());
-    throttlerData->set_estimated_overdraft_duration(throttler->GetEstimatedOverdraftDuration().MilliSeconds());
+    throttlerData->set_estimated_overdraft_duration(ToProto(throttler->GetEstimatedOverdraftDuration()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1410,7 +1410,7 @@ private:
                                     .Item("queue_total_amount").Value(strongPtr->GetQueueTotalAmount())
                                     .Item("is_overdraft").Value(strongPtr->IsOverdraft());
                             })
-                            .Item("estimated_overdraft_duration").Value(strongPtr->GetEstimatedOverdraftDuration().MilliSeconds())
+                            .Item("estimated_overdraft_duration").Value(strongPtr->GetEstimatedOverdraftDuration())
                             .Item("period").Value(strongPtr->GetConfig()->Period)
                         .EndMap();
                 }
@@ -1438,8 +1438,8 @@ private:
                         .Item("rate").Value(rate)
                         .Item("limit").Value(limit)
                         .Item("queue_total_amount").Value(item.second.QueueTotalAmount)
-                        .Item("max_estimated_overdraft_duration").Value(item.second.MaxEstimatedOverdraftDuration.MilliSeconds())
-                        .Item("min_estimated_overdraft_duration").Value(item.second.MinEstimatedOverdraftDuration.MilliSeconds())
+                        .Item("max_estimated_overdraft_duration").Value(item.second.MaxEstimatedOverdraftDuration)
+                        .Item("min_estimated_overdraft_duration").Value(item.second.MinEstimatedOverdraftDuration)
                     .EndMap();
             });
 
