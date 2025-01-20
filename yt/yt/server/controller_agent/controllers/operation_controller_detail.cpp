@@ -147,6 +147,8 @@
 
 #include <yt/yt/core/logging/fluent_log.h>
 
+#include <yt/yt/core/phoenix/type_registry.h>
+
 #include <library/cpp/yt/memory/chunked_input_stream.h>
 
 #include <library/cpp/iterator/concatenate.h>
@@ -1300,11 +1302,13 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
 
 void TOperationControllerBase::SaveSnapshot(IZeroCopyOutput* output)
 {
-    using NYT::Save;
-
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    using NYT::Save;
+
     TSaveContext context(output);
+
+    Save(context, NPhoenix::ITypeRegistry::Get()->GetUniverseDescriptor().GetSchemaYson());
 
     Save(context, this);
 
@@ -2068,6 +2072,11 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
         &input,
         RowBuffer,
         static_cast<ESnapshotVersion>(snapshot.Version));
+
+    if (context.GetVersion() >= ESnapshotVersion::PhoenixSchema) {
+        // TODO(babenko): make actual use of this schema
+        Load<TYsonString>(context);
+    }
 
     NPhoenix::NDetail::TSerializer::InplaceLoad(context, this);
 
