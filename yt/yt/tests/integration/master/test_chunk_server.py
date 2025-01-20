@@ -716,7 +716,7 @@ class TestPendingRestartNodeDisposal(TestNodePendingRestartBase):
     DELTA_NODE_CONFIG = {
         "data_node": {
             "master_connector": {
-                "delay_before_full_heartbeat_report": 2000,
+                "delay_before_full_heartbeat_report": 4000,
             },
             "lease_transaction_timeout": 2000,
             "lease_transaction_ping_period": 1000,
