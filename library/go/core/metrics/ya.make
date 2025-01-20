@@ -16,5 +16,8 @@ RECURSE(
     mock
     nop
     prometheus
-    solomon
 )
+
+IF (NOT OPENSOURCE)
+    RECURSE(solomon)
+ENDIF()
