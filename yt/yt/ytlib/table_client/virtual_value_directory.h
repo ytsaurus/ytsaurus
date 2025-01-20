@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/shared_range.h>
+#include <library/cpp/yt/memory/shared_range.h>
 
 namespace NYT::NTableClient {
 

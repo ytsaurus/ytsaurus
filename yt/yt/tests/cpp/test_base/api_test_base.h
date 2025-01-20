@@ -2,11 +2,11 @@
 
 #include <yt/yt/ytlib/api/connection.h>
 
-#include <yt/yt/core/misc/shared_range.h>
-
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/test_framework/framework.h>
+
+#include <library/cpp/yt/memory/shared_range.h>
 
 namespace NYT {
 namespace NCppTests {
