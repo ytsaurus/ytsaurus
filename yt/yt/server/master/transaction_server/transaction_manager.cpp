@@ -440,14 +440,13 @@ public:
         NProfiling::TWallTimer timer;
 
         const auto& dynamicConfig = GetDynamicConfig();
-        bool enableDedicatedTypesForSystemTransactions = dynamicConfig->EnableDedicatedTypesForSystemTransactions;
 
         EObjectType transactionObjectType;
         if (upload) {
             transactionObjectType = parent
                 ? EObjectType::UploadNestedTransaction
                 : EObjectType::UploadTransaction;
-        } else if (!isCypressTransaction && enableDedicatedTypesForSystemTransactions) {
+        } else if (!isCypressTransaction) {
             transactionObjectType = parent
                 ? EObjectType::SystemNestedTransaction
                 : EObjectType::SystemTransaction;
@@ -459,7 +458,7 @@ public:
 
         // COMPAT(h0pless): Replace this with ThrowErrorException when CTxS will be used by all clients.
         // NB: Upload transaction can be nested to both system and Cypress transaction.
-        if (enableDedicatedTypesForSystemTransactions && parent && !IsUploadTransactionType(transactionObjectType)) {
+        if (parent && !IsUploadTransactionType(transactionObjectType)) {
             auto parentType = TypeFromId(parent->GetId());
 
             if (IsSystemTransactionType(transactionObjectType) && !IsSystemTransactionType(parentType)) {
@@ -2027,7 +2026,7 @@ private:
         auto isCypressTransaction = request->is_cypress_transaction();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        if (!isCypressTransaction && GetDynamicConfig()->EnableDedicatedTypesForSystemTransactions) {
+        if (!isCypressTransaction) {
             auto* schema = objectManager->GetSchema(EObjectType::SystemTransaction);
             securityManager->ValidatePermission(schema, EPermission::Create);
         } else {
