@@ -76,7 +76,7 @@ def get_dynamic_master_config():
 {
     chunk_manager = {
         chunk_refresh_delay = 300;
-        replica_approve_timeout = 300;
+        replica_approve_timeout = 1000;
         chunk_refresh_period = 200;
         chunk_seal_backoff_time = 1000;
         removal_job_schedule_delay = 0;
