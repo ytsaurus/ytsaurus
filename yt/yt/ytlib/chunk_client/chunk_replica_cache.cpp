@@ -85,7 +85,7 @@ public:
             }
         }
 
-        UpdateToSize();
+        OnSizeUpdated();
 
         return replicas;
     }
@@ -114,7 +114,7 @@ public:
                 }
             }
 
-            UpdateToSize();
+            OnSizeUpdated();
         }
 
         std::vector<TPromise<TAllyReplicasInfo>> promises(chunkIds.size());
@@ -142,7 +142,7 @@ public:
                 futures[index] = entry.Future;
             }
 
-            UpdateToSize();
+            OnSizeUpdated();
         }
 
         MissesCounter_.Increment(cellTagToStillMissingIndices.size());
@@ -227,7 +227,7 @@ public:
                         }
                     }
 
-                    UpdateToSize();
+                    OnSizeUpdated();
                 }
             }
         }
@@ -257,7 +257,7 @@ public:
             }
         }
 
-        UpdateToSize();
+        OnSizeUpdated();
     }
 
     void PingChunks(const std::vector<TChunkId>& chunkIds) override
@@ -335,7 +335,7 @@ public:
                 tryUpdate(*it->second);
             }
 
-            UpdateToSize();
+            OnSizeUpdated();
         }
     }
 
@@ -432,7 +432,7 @@ private:
                     Entries_.erase(it);
                 }
 
-                UpdateToSize();
+                OnSizeUpdated();
             }
 
             auto error = TError(rspOrError);
@@ -474,7 +474,7 @@ private:
 
         {
             auto mapGuard = ReaderGuard(EntriesLock_);
-            UpdateToSize();
+            OnSizeUpdated();
         }
 
 
@@ -483,7 +483,7 @@ private:
             expiredChunkIds.size());
     }
 
-    void UpdateToSize()
+    void OnSizeUpdated()
     {
         // Here size estimation relies on the fact that TCompactVector in TAllyReplicasInfo
         // does not stray too much from its specified expected size.

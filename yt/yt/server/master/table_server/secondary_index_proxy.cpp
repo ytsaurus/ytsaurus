@@ -132,11 +132,11 @@ private:
 
                 auto* table = tableManager->FindTableNode(secondaryIndex->GetTableId());
 
-                YT_LOG_ALERT_IF(!table, "Failed to find indexed table of secondary index (TableId: %v, IndexId: %v)",
+                YT_LOG_ALERT_IF(!IsObjectAlive(table), "Failed to find indexed table of secondary index (TableId: %v, IndexId: %v)",
                     secondaryIndex->GetTableId(),
                     secondaryIndex->GetId());
 
-                THROW_ERROR_EXCEPTION_IF(!table, "Failed to find table %v of secondary index %v",
+                THROW_ERROR_EXCEPTION_IF(!IsObjectAlive(table), "Failed to find table %v of secondary index %v",
                     secondaryIndex->GetTableId(),
                     secondaryIndex->GetId());
 
