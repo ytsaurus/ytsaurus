@@ -3848,10 +3848,10 @@ for line in sys.stdin:
             },
         )
 
-        for i in range(54):
-            write_table("<append=%true>//tmp/t_in_1", [{"x": i % 3, "y": i % 9}])
-            write_table("<append=%true>//tmp/t_in_2", [{"x": i % 3, "y": i % 9}])
-            write_table("<append=%true>//tmp/t_in_3", [{"x": i % 3, "y": i % 9}])
+        for i in range(12):
+            write_table("<append=%true>//tmp/t_in_1", [{"x": i % 3, "y": i % 5}])
+            write_table("<append=%true>//tmp/t_in_2", [{"x": i % 3, "y": i % 5}])
+            write_table("<append=%true>//tmp/t_in_3", [{"x": i % 3, "y": i % 5}])
 
         create("file", "//tmp/reducer.py")
         write_file("//tmp/reducer.py", reducer)
