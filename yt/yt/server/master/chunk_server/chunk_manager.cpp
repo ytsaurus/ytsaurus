@@ -5481,7 +5481,7 @@ private:
             Logger(),
             reason == EAddReplicaReason::FullHeartbeat ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
             "Chunk replica added (ChunkId: %v, NodeId: %v, Address: %v, Reason: %v)",
-            replica.GetPtr()->GetId(),
+            TChunkIdWithIndex(chunk->GetId(), replica.GetReplicaIndex()),
             nodeId,
             node->GetDefaultAddress(),
             reason);
@@ -5558,7 +5558,7 @@ private:
             reason == ERemoveReplicaReason::ChunkDestroyed
             ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
             "Chunk replica removed (ChunkId: %v, Reason: %v, NodeId: %v, Address: %v, Approved: %v)",
-            replica.GetPtr()->GetId(),
+            TChunkIdWithIndex(chunk->GetId(), replica.GetReplicaIndex()),
             reason,
             nodeId,
             node->GetDefaultAddress(),
