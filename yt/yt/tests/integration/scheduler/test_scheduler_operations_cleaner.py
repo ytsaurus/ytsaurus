@@ -55,6 +55,7 @@ def _run_maps_parallel(count, command, expect_fail=False, max_failed_job_count=1
 
 
 class TestSchedulerOperationsCleaner(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1

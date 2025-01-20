@@ -24,6 +24,7 @@ from collections import Counter
 
 
 class TestSchedulerVanillaCommands(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 3
 
     NUM_MASTERS = 1
@@ -655,6 +656,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
 
 
 class TestYTDiscoveryServiceInVanilla(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -673,12 +675,14 @@ class TestYTDiscoveryServiceInVanilla(YTEnvSetup):
 
 
 class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 ##################################################################
 
 class TestSchedulerVanillaInterrupts(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -796,6 +800,7 @@ wait $child_pid
 
 
 class TestSchedulerVanillaInterruptsPorto(TestSchedulerVanillaInterrupts):
+    ENABLE_MULTIDAEMON = True
     USE_PORTO = True
 
 
@@ -803,6 +808,7 @@ class TestSchedulerVanillaInterruptsPorto(TestSchedulerVanillaInterrupts):
 
 
 class TestGangManager(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1

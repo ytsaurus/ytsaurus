@@ -32,6 +32,7 @@ import base64
 
 
 class TestSchedulerMapCommands(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 12
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -2355,6 +2356,7 @@ done
 
 
 class TestSchedulerMapCommandsPorto(TestSchedulerMapCommands):
+    ENABLE_MULTIDAEMON = False  # Use porto.
     USE_PORTO = True
 
 
@@ -2362,6 +2364,7 @@ class TestSchedulerMapCommandsPorto(TestSchedulerMapCommands):
 
 
 class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 15
     NUM_SECONDARY_MASTER_CELLS = 2
 
@@ -2385,10 +2388,12 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
 
 
 class TestSchedulerMapCommandsPortal(TestSchedulerMapCommandsMulticell):
+    ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
 
 class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 5
     MASTER_CELL_DESCRIPTORS = {
         "10": {"roles": ["cypress_node_host"]},
@@ -2401,6 +2406,7 @@ class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
 
 
 class TestSchedulerMapCommandsShardedTxCTxS(TestSchedulerMapCommandsShardedTx):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -2414,6 +2420,7 @@ class TestSchedulerMapCommandsShardedTxCTxS(TestSchedulerMapCommandsShardedTx):
 
 
 class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTxCTxS):
+    ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False
@@ -2435,6 +2442,7 @@ class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTxCTxS):
 
 
 class TestJobSizeAdjuster(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -2544,6 +2552,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
 
 
 class TestInputOutputFormats(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -2857,6 +2866,7 @@ print '{hello=world}'
 
 
 class TestInputOutputFormatsMulticell(TestInputOutputFormats):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
@@ -2864,6 +2874,7 @@ class TestInputOutputFormatsMulticell(TestInputOutputFormats):
 
 
 class TestNestingLevelLimitOperations(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -2924,6 +2935,7 @@ class TestNestingLevelLimitOperations(YTEnvSetup):
 
 
 class TestEnvironment(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1

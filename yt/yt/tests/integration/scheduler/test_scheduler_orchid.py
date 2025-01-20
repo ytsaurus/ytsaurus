@@ -22,6 +22,7 @@ import time
 
 
 class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -232,6 +233,7 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
 
 
 class TestOrchidOnSchedulerRestart(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -273,6 +275,7 @@ class TestOrchidOnSchedulerRestart(YTEnvSetup):
 
 @authors("renadeen")
 class TestRedirectToClusterAttribute(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
 

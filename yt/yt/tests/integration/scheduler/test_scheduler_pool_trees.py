@@ -48,6 +48,7 @@ def get_from_tree_orchid(tree, path, **kwargs):
 
 
 class TestPoolTreesReconfiguration(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -754,6 +755,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
 @authors("renadeen")
 class TestConfigurablePoolTreeRoot(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 0
@@ -779,6 +781,7 @@ class TestConfigurablePoolTreeRoot(YTEnvSetup):
 
 @authors("renadeen")
 class TestPoolTreesUpdateUnderLock(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 0
@@ -816,6 +819,7 @@ class TestPoolTreesUpdateUnderLock(YTEnvSetup):
 
 
 class TestTentativePoolTrees(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 6
     NUM_SCHEDULERS = 1
@@ -1150,6 +1154,7 @@ class TestTentativePoolTrees(YTEnvSetup):
 
 
 class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1204,6 +1209,7 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
 
 
 class TestSchedulerScheduleInSingleTree(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 2
     NUM_MASTERS = 1
     NUM_NODES = 4
@@ -1688,6 +1694,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 
 
 class TestPoolTreeOperationLimits(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1834,6 +1841,7 @@ class TestPoolTreeOperationLimits(YTEnvSetup):
 
 
 class TestOperationJobResourceLimitsRestrictions(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1930,6 +1938,7 @@ class TestOperationJobResourceLimitsRestrictions(YTEnvSetup):
 
 
 class TestTreeSetChangedDuringFairShareUpdate(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 0
@@ -1959,6 +1968,7 @@ class TestTreeSetChangedDuringFairShareUpdate(YTEnvSetup):
 
 @authors("renadeen")
 class TestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     # Scenario:
     # 1. Operation is running in two trees.
     # 2. Scheduler sends to controller request to schedule job in some tree.
@@ -2004,6 +2014,7 @@ class TestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
 
 @authors("renadeen")
 class TestMultiTreeOperations(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -2043,6 +2054,7 @@ class TestMultiTreeOperations(YTEnvSetup):
 
 
 class TestOffloadingPools(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -2380,6 +2392,7 @@ class TestOffloadingPools(YTEnvSetup):
 
 
 class TestNodeCountProfiling(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1

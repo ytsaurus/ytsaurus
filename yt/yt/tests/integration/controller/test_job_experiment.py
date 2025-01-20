@@ -16,6 +16,7 @@ USER_NETWORK_PROJECT_ID = 333
 
 
 class TestJobExperiment(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
 
     NUM_SCHEDULERS = 1

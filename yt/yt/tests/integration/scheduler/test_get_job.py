@@ -178,6 +178,8 @@ class _TestGetJobBase(YTEnvSetup):
 
 
 class _TestGetJobCommon(_TestGetJobBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("omgronny")
     def test_get_job(self):
         create_pool("my_pool")
@@ -271,6 +273,8 @@ class _TestGetJobCommon(_TestGetJobBase):
 
 
 class TestGetJob(_TestGetJobCommon):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "operation_time_limit_check_period": 100,
@@ -533,11 +537,14 @@ class TestGetJob(_TestGetJobCommon):
 
 
 class TestGetJobStatisticsLz4(_TestGetJobCommon):
+    ENABLE_MULTIDAEMON = True
+
     DELTA_DYNAMIC_NODE_CONFIG = deepcopy(_TestGetJobBase.DELTA_DYNAMIC_NODE_CONFIG)
     DELTA_DYNAMIC_NODE_CONFIG["%true"]["exec_node"]["job_reporter"]["report_statistics_lz4"] = True
 
 
 class TestGetJobMonitoring(_TestGetJobBase):
+    ENABLE_MULTIDAEMON = True
     USE_PORTO = True
 
     @authors("omgronny")
@@ -568,6 +575,8 @@ class TestGetJobMonitoring(_TestGetJobBase):
 
 
 class TestGetJobRpcProxy(TestGetJob):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -575,6 +584,7 @@ class TestGetJobRpcProxy(TestGetJob):
 
 
 class TestGetJobStatisticsLz4RpcProxy(TestGetJobStatisticsLz4):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

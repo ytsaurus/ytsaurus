@@ -50,6 +50,7 @@ def create_memory_script(memory, before_action=""):
 
 
 class TestSchedulerMemoryLimits(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -106,10 +107,12 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
 
 
 class TestSchedulerMemoryLimitsPorto(TestSchedulerMemoryLimits):
+    ENABLE_MULTIDAEMON = True
     USE_PORTO = True
 
 
 class TestDisabledMemoryLimit(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -141,6 +144,7 @@ class TestDisabledMemoryLimit(YTEnvSetup):
 
 
 class TestMemoryReserveFactor(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks structured log.
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -224,6 +228,7 @@ class TestMemoryReserveFactor(YTEnvSetup):
 @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
 @pytest.mark.skipif(is_debug_build(), reason="This test does not work under Debug build")
 class TestCumulativeMemoryStatistics(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks structured logs.
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -306,6 +311,7 @@ class TestCumulativeMemoryStatistics(YTEnvSetup):
 @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
 @pytest.mark.skipif(is_debug_build(), reason="This test does not work under Debug build")
 class TestMemoryReserveMultiplier(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks structured logs.
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -475,6 +481,7 @@ class TestMemoryReserveMultiplier(YTEnvSetup):
 @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
 @pytest.mark.skipif(is_debug_build(), reason="This test does not work under Debug build")
 class TestResourceOverdraftAbort(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -589,6 +596,7 @@ class TestResourceOverdraftAbort(YTEnvSetup):
 
 
 class TestContainerCpuProperties(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Use list_*_subcontainers.
     USE_PORTO = True
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
@@ -696,6 +704,7 @@ class TestContainerCpuProperties(YTEnvSetup):
 
 
 class TestDaemonSubcontainer(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Use get_*_container.
     USE_PORTO = True
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
@@ -727,6 +736,7 @@ class TestDaemonSubcontainer(YTEnvSetup):
 
 
 class TestUpdateInstanceLimits(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_NODE_CONFIG = {
         "instance_limits_update_period": 200,
         "resource_limits_update_period": 200,
@@ -857,6 +867,7 @@ class TestUpdateInstanceLimits(YTEnvSetup):
 
 
 class TestSchedulerGpu(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -993,6 +1004,7 @@ class TestSchedulerGpu(YTEnvSetup):
 
 
 class TestPorts(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 

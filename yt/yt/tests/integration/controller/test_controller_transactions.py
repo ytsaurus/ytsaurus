@@ -6,6 +6,7 @@ from time import sleep
 
 
 class TestControllerTransactions(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
     NUM_NODES = 5
     NUM_SCHEDULERS = 1

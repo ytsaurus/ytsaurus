@@ -20,6 +20,7 @@ import time
 
 
 class TestSchedulerAlerts(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -146,6 +147,7 @@ class LowCpuUsageSchedulerAlertBase(YTEnvSetup):
 
 
 class TestLowCpuUsageSchedulerAlertPresence(LowCpuUsageSchedulerAlertBase):
+    ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "operations_update_period": 100,
@@ -167,6 +169,7 @@ class TestLowCpuUsageSchedulerAlertPresence(LowCpuUsageSchedulerAlertBase):
 
 
 class TestLowCpuUsageSchedulerAlertAbsence(LowCpuUsageSchedulerAlertBase):
+    ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "operations_update_period": 100,
@@ -190,6 +193,7 @@ class TestLowCpuUsageSchedulerAlertAbsence(LowCpuUsageSchedulerAlertBase):
 
 
 class TestSchedulerOperationAlerts(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Use porto.
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
@@ -583,6 +587,7 @@ class TestSchedulerOperationAlerts(YTEnvSetup):
 
 
 class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -628,6 +633,7 @@ class TestSchedulerJobSpecThrottlerOperationAlert(YTEnvSetup):
 
 
 class TestControllerAgentAlerts(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
 

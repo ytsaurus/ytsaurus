@@ -23,6 +23,7 @@ import math
 
 
 class TestEventLog(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks structured logs.
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1

@@ -17,6 +17,7 @@ import math
 
 
 class TestSchedulerExperiments(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 2
@@ -307,6 +308,7 @@ class TestSchedulerExperiments(YTEnvSetup):
 
 
 class TestExperimentAssignmentError(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 2
@@ -377,6 +379,7 @@ class TestExperimentAssignmentError(YTEnvSetup):
 
 
 class TestSchedulerExperimentsArchivation(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 2
@@ -446,6 +449,7 @@ class TestSchedulerExperimentsArchivation(YTEnvSetup):
 
 
 class TestUserJobAndJobIOExperiments(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
@@ -685,6 +689,7 @@ class TestUserJobAndJobIOExperiments(YTEnvSetup):
 
 
 class TestListOperationFilterExperiments(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1

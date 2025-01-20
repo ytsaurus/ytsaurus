@@ -53,6 +53,7 @@ def get_running_job_count(op_id):
 
 
 class TestGetOperation(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 4
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -614,6 +615,7 @@ class TestGetOperation(YTEnvSetup):
 
 
 class TestGetOperationRpcProxy(TestGetOperation):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     NUM_RPC_PROXIES = 1
@@ -628,6 +630,7 @@ class TestGetOperationRpcProxy(TestGetOperation):
 
 
 class TestGetOperationHeavyRuntimeParameters(TestGetOperation):
+    ENABLE_MULTIDAEMON = True
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,
@@ -650,6 +653,7 @@ class TestGetOperationHeavyRuntimeParameters(TestGetOperation):
 
 
 class TestOperationAliases(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
@@ -800,6 +804,7 @@ class TestOperationAliases(YTEnvSetup):
 
 
 class TestOperationAliasesRpcProxy(TestOperationAliases):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True

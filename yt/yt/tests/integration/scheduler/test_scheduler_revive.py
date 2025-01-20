@@ -36,6 +36,7 @@ from io import BytesIO
 
 
 class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 4
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -187,6 +188,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
 
 
 class TestSchedulerRestart(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -407,6 +409,7 @@ class TestSchedulerRestart(YTEnvSetup):
 
 
 class TestControllerAgentReconnection(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -645,6 +648,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
 
 @authors("levysotsky")
 class TestControllerAgentZombieOrchids(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -706,6 +710,7 @@ class TestControllerAgentZombieOrchids(YTEnvSetup):
 
 
 class TestRaceBetweenShardAndStrategy(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 2  # snapshot upload replication factor is 2; unable to configure
     NUM_SCHEDULERS = 1
@@ -759,6 +764,7 @@ class TestRaceBetweenShardAndStrategy(YTEnvSetup):
 
 
 class OperationReviveBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1132,6 +1138,7 @@ class OperationReviveBase(YTEnvSetup):
 
 
 class TestSchedulerReviveForMap(OperationReviveBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     OP_TYPE = "map"
 
     def _start_op(self, command, **kwargs):
@@ -1139,6 +1146,7 @@ class TestSchedulerReviveForMap(OperationReviveBase):
 
 
 class TestSchedulerReviveForVanilla(OperationReviveBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     OP_TYPE = "vanilla"
 
     def _start_op(self, command, **kwargs):
@@ -1149,6 +1157,7 @@ class TestSchedulerReviveForVanilla(OperationReviveBase):
 
 
 class TestSchedulerReviveForMapMirroredTx(TestSchedulerReviveForMap):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     USE_SEQUOIA = True
@@ -1168,6 +1177,8 @@ class TestSchedulerReviveForMapMirroredTx(TestSchedulerReviveForMap):
 
 
 class TestJobRevivalBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     def _wait_for_single_job(self, op_id):
         path = get_operation_cypress_path(op_id) + "/controller_orchid"
         for i in range(500):
@@ -1198,6 +1209,7 @@ class TestJobRevivalBase(YTEnvSetup):
 
 
 class TestJobRevival(TestJobRevivalBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1539,6 +1551,7 @@ class TestJobRevival(TestJobRevivalBase):
 ##################################################################
 
 class TestHasFailedJobsOnRevive(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1606,6 +1619,7 @@ class TestHasFailedJobsOnRevive(YTEnvSetup):
 
 
 class TestDisabledJobRevival(TestJobRevivalBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1709,6 +1723,7 @@ class TestDisabledJobRevival(TestJobRevivalBase):
 
 
 class TestPreserveSlotIndexAfterRevive(YTEnvSetup, PrepareTables):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1

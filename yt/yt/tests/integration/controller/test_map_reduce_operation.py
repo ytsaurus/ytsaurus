@@ -31,6 +31,7 @@ import os
 
 
 class TestSchedulerMapReduceBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     ENABLE_UNIQUE_COUNT_CHECK = True
 
     def _find_intermediate_chunks(self):
@@ -73,6 +74,7 @@ class TestSchedulerMapReduceBase(YTEnvSetup):
 
 
 class TestSchedulerMapReduceCommands(TestSchedulerMapReduceBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 8
     NUM_MASTERS = 1
     NUM_NODES = 5
@@ -3919,6 +3921,7 @@ for line in sys.stdin:
 
 
 class TestSchedulerMapReduceCommandsMulticell(TestSchedulerMapReduceCommands):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
@@ -3926,6 +3929,7 @@ class TestSchedulerMapReduceCommandsMulticell(TestSchedulerMapReduceCommands):
 
 
 class TestSchedulerMapReduceCommandsPortal(TestSchedulerMapReduceCommandsMulticell):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     ENABLE_TMP_PORTAL = True
 
 
@@ -3933,6 +3937,7 @@ class TestSchedulerMapReduceCommandsPortal(TestSchedulerMapReduceCommandsMultice
 
 
 class TestSchedulerMapReduceCommandsNewSortedPool(TestSchedulerMapReduceCommands):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "sort_operation_options": {
@@ -3969,6 +3974,7 @@ class TestSchedulerMapReduceCommandsNewSortedPool(TestSchedulerMapReduceCommands
 
 
 class TestSchedulerMapReduceDeterminism(TestSchedulerMapReduceBase):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -4530,6 +4536,7 @@ fi
 
 
 class TestMaxParititonCount(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1

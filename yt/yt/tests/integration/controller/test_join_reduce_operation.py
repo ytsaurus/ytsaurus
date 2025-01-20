@@ -20,6 +20,7 @@ import pytest
 ##################################################################
 
 class TestSchedulerJoinReduceBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
 
     NUM_MASTERS = 1
@@ -151,6 +152,7 @@ class TestSchedulerJoinReduceBase(YTEnvSetup):
 
 
 class TestSchedulerJoinReduceForeignLookupDisabledByKeyLimit(TestSchedulerJoinReduceBase):
+    ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = update(TestSchedulerJoinReduceBase.DELTA_CONTROLLER_AGENT_CONFIG, {
         "controller_agent": {
             "join_reduce_operation_options": {
@@ -165,6 +167,7 @@ class TestSchedulerJoinReduceForeignLookupDisabledByKeyLimit(TestSchedulerJoinRe
 
 
 class TestSchedulerJoinReduceForeignLookupDisabledByDataWeightLimit(TestSchedulerJoinReduceBase):
+    ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = update(TestSchedulerJoinReduceBase.DELTA_CONTROLLER_AGENT_CONFIG, {
         "controller_agent": {
             "join_reduce_operation_options": {
@@ -179,6 +182,8 @@ class TestSchedulerJoinReduceForeignLookupDisabledByDataWeightLimit(TestSchedule
 
 
 class TestSchedulerJoinReduceCommands(TestSchedulerJoinReduceBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("klyachin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     def test_join_reduce_tricky_chunk_boundaries(self, sort_order):
@@ -1936,6 +1941,7 @@ done
 
 
 class TestSchedulerJoinReduceCommandsMulticell(TestSchedulerJoinReduceCommands):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
@@ -1943,6 +1949,7 @@ class TestSchedulerJoinReduceCommandsMulticell(TestSchedulerJoinReduceCommands):
 
 
 class TestMaxTotalSliceCount(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1986,6 +1993,7 @@ class TestMaxTotalSliceCount(YTEnvSetup):
 
 
 class TestSchedulerJoinReduceCommandsNewSortedPool(TestSchedulerJoinReduceCommands):
+    ENABLE_MULTIDAEMON = True
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,

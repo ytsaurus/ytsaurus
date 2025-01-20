@@ -27,6 +27,7 @@ def get_sorted_jobs(op):
 
 
 class TestCrashOnSchedulingJobWithStaleNeededResources(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     # Scenario:
     # 1. an operation with one job has started, demand = needed_resources = {default_tree: 1 job, cloud_tree: 0 jobs}
     # 2. the scheduler schedules one job, demand = usage = {default_tree: 1 job, cloud_tree: 0 jobs}
@@ -63,6 +64,7 @@ class TestCrashOnSchedulingJobWithStaleNeededResources(YTEnvSetup):
 
 
 class TestCrashOnLostProbingJobResult(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     # YT-17172
     # Scenario:
     # 1. map reduce operation is started
@@ -155,6 +157,7 @@ class TestCrashOnLostProbingJobResult(YTEnvSetup):
 
 
 class TestProbingJobs(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1

@@ -25,6 +25,7 @@ import binascii
 
 
 class TestSchedulerReduceCommands(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
 
     NUM_MASTERS = 1
@@ -3302,6 +3303,7 @@ for line in sys.stdin:
 
 
 class TestSchedulerReduceCommandsSliceSize(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -3370,10 +3372,12 @@ class TestSchedulerReduceCommandsSliceSize(YTEnvSetup):
 
 
 class TestSchedulerReduceCommandsMulticell(TestSchedulerReduceCommands):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestSchedulerReduceCommandsNewSortedPool(TestSchedulerReduceCommands):
+    ENABLE_MULTIDAEMON = True
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,

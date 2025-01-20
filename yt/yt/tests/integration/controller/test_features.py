@@ -60,6 +60,7 @@ class ControllerFeatures(object):
 
 
 class TestControllerFeatures(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
@@ -229,6 +230,7 @@ class TestControllerFeatures(YTEnvSetup):
 
 
 class TestJobStatisticFeatures(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
     USE_PORTO = True
 
@@ -273,6 +275,7 @@ class TestJobStatisticFeatures(YTEnvSetup):
 
 
 class TestPendingTimeFeatures(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1

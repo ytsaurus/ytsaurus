@@ -166,6 +166,8 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
 
 
 class TestColumnarStatistics(_TestColumnarStatisticsBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("max42")
     def test_get_table_columnar_statistics_basic(self):
         create("table", "//tmp/t")
@@ -561,6 +563,8 @@ class TestColumnarStatistics(_TestColumnarStatisticsBase):
 
 
 class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     @authors("max42")
     def test_map_thin_column(self):
         create("table", "//tmp/t", attributes={"optimize_for": "scan"})
@@ -830,6 +834,7 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
 
 
 class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperations):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "enable_map_job_size_adjustment": False,
@@ -878,6 +883,7 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
 
 
 class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -924,6 +930,7 @@ class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
 
 
 class TestColumnarStatisticsCommandEarlyFinishRpcProxy(TestColumnarStatisticsCommandEarlyFinish):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -938,6 +945,8 @@ class TestColumnarStatisticsCommandEarlyFinishRpcProxy(TestColumnarStatisticsCom
 
 
 class TestColumnarStatisticsRenamedColumns(_TestColumnarStatisticsBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("levysotsky")
     def test_get_table_columnar_statistics(self):
         skip_if_renaming_disabled(self.Env)
@@ -1027,6 +1036,7 @@ class TestColumnarStatisticsRenamedColumns(_TestColumnarStatisticsBase):
 
 
 class TestColumnarStatisticsRpcProxy(TestColumnarStatistics):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -1035,6 +1045,7 @@ class TestColumnarStatisticsRpcProxy(TestColumnarStatistics):
 
 
 class TestColumnarStatisticsUseControllerAgentDefault(_TestColumnarStatisticsBase):
+    ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "use_columnar_statistics_default": True,

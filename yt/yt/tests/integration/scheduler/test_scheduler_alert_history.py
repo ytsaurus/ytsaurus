@@ -72,6 +72,7 @@ def _run_op_with_input_chunks_alert(return_events=True, wait_until_set_event_sen
 
 
 class TestSchedulerAlertHistoryBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 5
@@ -195,6 +196,7 @@ class TestSchedulerAlertHistory(TestSchedulerAlertHistoryBase):
 
 
 class TestUpdateAlertEventsSenderPeriodOnDisabledCleaner(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
@@ -217,6 +219,8 @@ class TestUpdateAlertEventsSenderPeriodOnDisabledCleaner(YTEnvSetup):
 
 
 class TestAlertsHistoryInApi(TestSchedulerAlertHistoryBase):
+    ENABLE_MULTIDAEMON = True
+
     def setup_method(self, method):
         super(TestAlertsHistoryInApi, self).setup_method(method)
         sync_create_cells(1)
@@ -277,6 +281,7 @@ class TestAlertsHistoryInApi(TestSchedulerAlertHistoryBase):
 
 
 class TestAlertsHistoryInApiRpcProxy(TestAlertsHistoryInApi):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True

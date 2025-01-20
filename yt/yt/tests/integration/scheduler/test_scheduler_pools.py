@@ -17,6 +17,7 @@ import pytest
 
 @authors("renadeen")
 class TestSchedulerPoolManipulations(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 0
     NUM_SCHEDULERS = 0
@@ -1058,6 +1059,7 @@ class TestSchedulerPoolManipulations(YTEnvSetup):
 
 @authors("renadeen")
 class TestSchedulerPoolAcls(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 0
     NUM_SCHEDULERS = 0
@@ -1262,6 +1264,7 @@ class TestSchedulerPoolAcls(YTEnvSetup):
 
 @authors("renadeen")
 class TestTransferPoolResourcesCommand(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 0
     NUM_SCHEDULERS = 0
@@ -1777,6 +1780,7 @@ class TestTransferPoolResourcesCommand(YTEnvSetup):
 
 @authors("ignat")
 class TestSchedulerPoolConfigPresets(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
 

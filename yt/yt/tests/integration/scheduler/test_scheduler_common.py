@@ -42,6 +42,7 @@ import itertools
 
 
 class TestSchedulerCommon(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 4
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -973,6 +974,7 @@ class TestSchedulerCommon(YTEnvSetup):
 
 
 class TestSchedulerCommonMulticell(TestSchedulerCommon):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 6
     NUM_SECONDARY_MASTER_CELLS = 2
 
@@ -982,6 +984,7 @@ class TestSchedulerCommonMulticell(TestSchedulerCommon):
 
 @pytest.mark.opensource
 class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 2
@@ -1048,6 +1051,7 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
 
 
 class TestSchedulerMaxChunkPerJob(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1121,6 +1125,7 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerMaxInputOutputTableCount(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1164,6 +1169,7 @@ class TestSchedulerMaxInputOutputTableCount(YTEnvSetup):
 ##################################################################
 
 class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1230,6 +1236,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
 
 
 class TestSchedulerOperationSnapshots(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -1366,6 +1373,7 @@ class TestSchedulerOperationSnapshots(YTEnvSetup):
 
 
 class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1433,6 +1441,7 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
 
 
 class TestSchedulerJobStatistics(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1551,6 +1560,7 @@ class TestSchedulerJobStatistics(YTEnvSetup):
 
 
 class TestConnectToMaster(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 0
@@ -1614,6 +1624,7 @@ class TestConnectToMaster(YTEnvSetup):
 
 
 class TestJobStatisticsPorto(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
     USE_PORTO = True
 
@@ -1700,6 +1711,7 @@ class TestJobStatisticsPorto(YTEnvSetup):
 
 
 class TestSchedulerObjectsDestruction(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1761,6 +1773,7 @@ class TestSchedulerObjectsDestruction(YTEnvSetup):
 
 
 class TestScheduleJobDelayAndRevive(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1800,6 +1813,7 @@ class TestScheduleJobDelayAndRevive(YTEnvSetup):
 
 
 class TestDelayInNodeHeartbeat(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     # YT-17272
     # Scenario:
     # 1) Operation started.
@@ -1888,6 +1902,7 @@ class TestDelayInNodeHeartbeat(YTEnvSetup):
 
 
 class TestSchedulerTracing(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks structured logs.
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1

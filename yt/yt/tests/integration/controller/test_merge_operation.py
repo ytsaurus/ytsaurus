@@ -29,6 +29,7 @@ from time import sleep
 
 
 class TestSchedulerMergeCommands(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 6
 
     NUM_MASTERS = 1
@@ -2857,6 +2858,8 @@ class TestSchedulerMergeCommands(YTEnvSetup):
 
 
 class TestInferSchemaInMerge(TestSchedulerMergeCommands):
+    ENABLE_MULTIDAEMON = True
+
     @authors("nadya02")
     @pytest.mark.parametrize("merge_mode", ["unordered", "ordered"])
     def test_infer_schema_from_input_in_merge(self, merge_mode):
@@ -3497,6 +3500,7 @@ class TestInferSchemaInMerge(TestSchedulerMergeCommands):
 
 
 class TestSchedulerMergeCommandsSliceSize(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -3560,6 +3564,7 @@ class TestSchedulerMergeCommandsSliceSize(YTEnvSetup):
 
 
 class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("babenko")
@@ -3869,6 +3874,7 @@ class TestSchedulerMergeCommandsMulticell(TestSchedulerMergeCommands):
 
 
 class TestSchedulerMergeCommandsNewSortedPool(TestSchedulerMergeCommands):
+    ENABLE_MULTIDAEMON = True
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,

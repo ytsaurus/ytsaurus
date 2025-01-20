@@ -72,6 +72,7 @@ def wait_for_data_in_job_archive(op_id, job_ids):
 # COMPAT(levysotsky): This class is to be removed after enable_table_column_renaming is set everywhere.
 # See YT-16507
 class TestGetJobInputCompat(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -192,6 +193,7 @@ class TestGetJobInputCompat(YTEnvSetup):
 
 
 class TestGetJobInput(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -701,6 +703,7 @@ class TestGetJobInput(YTEnvSetup):
 
 
 class TestGetJobStderr(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1014,6 +1017,7 @@ class TestGetJobStderr(YTEnvSetup):
 
 
 class TestGetJobSpec(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1095,16 +1099,19 @@ class TestGetJobSpec(YTEnvSetup):
 
 
 class TestGetJobInputRpcProxy(TestGetJobInput):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
 
 
 class TestGetJobStderrRpcProxy(TestGetJobStderr):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
 class TestGetJobSpecRpcProxy(TestGetJobSpec):
+    ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

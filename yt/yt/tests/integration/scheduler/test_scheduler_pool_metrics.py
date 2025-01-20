@@ -44,6 +44,7 @@ def get_cypress_metrics(operation_id, key):
 
 
 class TestPoolMetrics(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -750,6 +751,7 @@ class TestPoolMetrics(YTEnvSetup):
 
 
 class TestImproperlyPreemptedResources(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1

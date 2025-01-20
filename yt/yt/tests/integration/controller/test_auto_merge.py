@@ -21,6 +21,7 @@ from time import sleep
 
 
 class TestSchedulerAutoMergeBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 12
     NUM_MASTERS = 1
     NUM_NODES = 4
@@ -128,6 +129,8 @@ class TestSchedulerAutoMergeBase(YTEnvSetup):
 
 
 class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     def _create_account(self, chunk_count):
         create_account("acc")
         set("//sys/accounts/acc/@resource_limits/chunk_count", chunk_count)
@@ -941,10 +944,12 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
 
 
 class TestSchedulerShallowAutoMerge(TestSchedulerAutoMerge):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     ENABLE_SHALLOW_MERGE = True
 
 
 class TestSchedulerAutoMergeAborted(TestSchedulerAutoMergeBase):
+    ENABLE_MULTIDAEMON = True
     ENABLE_SHALLOW_MERGE = True
 
     @authors("gepardo")
