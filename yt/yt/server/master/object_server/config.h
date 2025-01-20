@@ -170,7 +170,7 @@ class TDynamicObjectServiceConfig
 {
 public:
     bool EnableTwoLevelCache;
-    int LocalReadWorkerCount;
+    int LocalReadThreadCount;
     int LocalReadOffloadThreadCount;
     TDuration ScheduleReplyRetryBackoff;
 
