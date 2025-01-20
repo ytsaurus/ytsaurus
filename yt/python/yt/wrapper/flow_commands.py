@@ -1,6 +1,6 @@
 from .common import set_param
 from .driver import make_request, make_formatted_request, get_structured_format
-from .dynamic_table_commands import select_rows
+from .dynamic_table_commands import get_tablet_infos, select_rows
 from .format import YsonFormat
 from .ypath import YPath
 
@@ -279,18 +279,17 @@ def get_controller_logs(pipeline_path, count, offset=None, client=None):
     assert count > 0, "'count' must be positive"
 
     if offset is None:
-        last_offsets = list(select_rows(
-            f"MAX([$row_index]) AS value FROM [{pipeline_path}/controller_logs] GROUP BY [$tablet_index]",
-            raw=False,
-            client=client))
-        if not last_offsets:
-            return [], None
-        offset = max(last_offsets[0]["value"] - count + 1, 0)
+        tablet_infos = get_tablet_infos(f"{pipeline_path}/controller_logs", tablet_indexes=[0], client=client)
+        total_row_count = tablet_infos["tablets"][0]["total_row_count"]
+        offset = max(total_row_count - count, 0)
 
     end = offset + count - 1
     result = list(select_rows(
         f"host, data FROM [{pipeline_path}/controller_logs] WHERE [$tablet_index] = 0 AND [$row_index] BETWEEN {offset} AND {end}",
         raw=False,
         client=client))
+
+    if not result:
+        return [], None
 
     return result, offset + len(result)
