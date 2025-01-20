@@ -158,7 +158,7 @@ class TChaosResidencyCacheDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    std::optional<bool> IsClientModeActive;
+    std::optional<bool> EnableClientMode;
 
     REGISTER_YSON_STRUCT(TChaosResidencyCacheDynamicConfig);
 
@@ -501,10 +501,10 @@ public:
     std::optional<double> ThrottlerFreeBandwidthRatio;
 
     //! Chunk replica cache config overrides
-    TChunkReplicaCacheDynamicConfigPtr ChunkReplicaCacheConfig;
+    TChunkReplicaCacheDynamicConfigPtr ChunkReplicaCache;
 
     //! Chaos residency cache config overrides
-    TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCacheConfig;
+    TChaosResidencyCacheDynamicConfigPtr ChaosResidencyCache;
 
     bool UsePortoNetworkLimitInThrottler;
 

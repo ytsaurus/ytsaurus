@@ -554,7 +554,7 @@ TChaosResidencyCompoundCache::TChaosResidencyCompoundCache(
     TChaosResidencyCacheConfigPtr config)
     : MasterCache_(std::move(masterCache))
     , ClientCache_(std::move(clientCache))
-    , ActiveCacheIsClient_(config->IsClientModeActive)
+    , ActiveCacheIsClient_(config->EnableClientMode)
 { }
 
 TFuture<TCellTag> TChaosResidencyCompoundCache::GetChaosResidency(TObjectId objectId)
@@ -608,7 +608,7 @@ void TChaosResidencyCompoundCache::PingReplicationCardResidency(NObjectClient::T
 
 void TChaosResidencyCompoundCache::Reconfigure(TChaosResidencyCacheConfigPtr config)
 {
-    ActiveCacheIsClient_ = config->IsClientModeActive;
+    ActiveCacheIsClient_ = config->EnableClientMode;
     ClientCache_->Reconfigure(config);
     MasterCache_->Reconfigure(std::move(config));
 }
