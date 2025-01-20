@@ -43,6 +43,7 @@ HUNK_COMPATIBLE_CHUNK_FORMATS = [
 
 
 class TestSchedulerRemoteCopyCommandsBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
 
     NUM_MASTERS = 1
@@ -77,6 +78,7 @@ class TestSchedulerRemoteCopyCommandsBase(YTEnvSetup):
 
 
 class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     ENABLE_HUNKS_REMOTE_COPY = True
 
     @authors("ignat")
@@ -1305,6 +1307,8 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
 
 class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):
+    ENABLE_MULTIDAEMON = True
+
     @classmethod
     def modify_node_config(cls, config, cluster_index):
         config["addresses"].append(["custom_network", dict(config["addresses"])["default"]])
@@ -1442,6 +1446,7 @@ class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):
 
 
 class TestSchedulerRemoteCopyCommandsMulticell(TestSchedulerRemoteCopyCommands):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 6
     NUM_SECONDARY_MASTER_CELLS = 2
 
@@ -1450,6 +1455,7 @@ class TestSchedulerRemoteCopyCommandsMulticell(TestSchedulerRemoteCopyCommands):
 
 
 class TestSchedulerRemoteCopyDynamicTablesBase(TestSchedulerRemoteCopyCommandsBase):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
     ENABLE_BULK_INSERT = True
 
@@ -1491,6 +1497,8 @@ class TestSchedulerRemoteCopyDynamicTablesBase(TestSchedulerRemoteCopyCommandsBa
 
 
 class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
+
     @authors("ifsmirnov")
     @pytest.mark.parametrize("from_static", [True, False])
     @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
@@ -1799,6 +1807,7 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesB
 
 
 class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     ENABLE_HUNKS_REMOTE_COPY = True
 
     @authors("alexelexa")
@@ -1996,6 +2005,7 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
 
 
 class TestSchedulerRemoteCopyDynamicTablesErasure(TestSchedulerRemoteCopyDynamicTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_NODES = 12
     ENABLE_HUNKS_REMOTE_COPY = True
 
@@ -2126,6 +2136,7 @@ class TestSchedulerRemoteCopyDynamicTablesErasure(TestSchedulerRemoteCopyDynamic
 
 
 class TestSchedulerRemoteCopyDynamicTablesMulticell(TestSchedulerRemoteCopyDynamicTables):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
     @authors("ifsmirnov")
@@ -2157,6 +2168,7 @@ class TestSchedulerRemoteCopyDynamicTablesMulticell(TestSchedulerRemoteCopyDynam
 
 
 class TestSchedulerRemoteCopyDynamicTablesWithHunksMulticell(TestSchedulerRemoteCopyDynamicTablesWithHunks):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
@@ -2164,6 +2176,7 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunksMulticell(TestSchedulerRemote
 
 
 class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyCommandsBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_NODE_CONFIG = {
         "exec_node": {
             # Enable job throttler on exe node.

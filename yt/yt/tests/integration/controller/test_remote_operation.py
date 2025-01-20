@@ -39,6 +39,7 @@ from random import Random
 
 
 class TestSchedulerRemoteOperationCommandsBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
 
     NUM_MASTERS = 1
@@ -80,6 +81,8 @@ class TestSchedulerRemoteOperationCommandsBase(YTEnvSetup):
 
 
 class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     @authors("coteeq")
     def test_map_empty_table(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
@@ -621,6 +624,7 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
 
 
 class TestSchedulerRemoteOperationAllowedForEveryoneCluster(TestSchedulerRemoteOperationCommandsBase):
+    ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "snapshot_period": 500,

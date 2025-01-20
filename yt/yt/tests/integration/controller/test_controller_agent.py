@@ -28,6 +28,7 @@ from collections import defaultdict
 
 
 class TestControllerAgentOrchid(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
@@ -80,6 +81,7 @@ class TestControllerAgentOrchid(YTEnvSetup):
 
 
 class TestControllerAgentConfig(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
 
@@ -89,6 +91,7 @@ class TestControllerAgentConfig(YTEnvSetup):
 
 
 class TestControllerAgentRegistration(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
 
@@ -106,6 +109,7 @@ class TestControllerAgentRegistration(YTEnvSetup):
 
 
 class TestControllerMemoryUsage(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks memory usage.
     NUM_SCHEDULERS = 1
 
     DELTA_PROXY_CONFIG = {
@@ -233,6 +237,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
 
 
 class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 2
 
@@ -330,6 +335,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
 
 
 class TestSchedulerControllerThrottling(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -373,6 +379,7 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
 
 
 class TestCustomControllerQueues(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -438,6 +445,7 @@ class TestCustomControllerQueues(YTEnvSetup):
 
 
 class TestGetJobSpecFailed(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -488,6 +496,7 @@ class TestGetJobSpecFailed(YTEnvSetup):
 
 
 class TestControllerAgentTags(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 3
 
@@ -613,6 +622,7 @@ class TestControllerAgentTags(YTEnvSetup):
 
 
 class TestOperationControllerResourcesCheck(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -671,6 +681,7 @@ class TestOperationControllerResourcesCheck(YTEnvSetup):
 
 
 class TestOperationControllerLimit(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks memory.
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -705,6 +716,7 @@ class TestOperationControllerLimit(YTEnvSetup):
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestMemoryOverconsumptionThreshold(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks memory.
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -739,6 +751,7 @@ class TestMemoryOverconsumptionThreshold(YTEnvSetup):
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestTotalControllerMemoryLimit(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks memory.
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -789,6 +802,7 @@ class TestTotalControllerMemoryLimit(YTEnvSetup):
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestTotalControllerMemoryExceedLimit(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks memory.
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -843,6 +857,7 @@ class TestTotalControllerMemoryExceedLimit(YTEnvSetup):
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestControllerAgentMemoryAlert(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -932,6 +947,7 @@ class TestControllerAgentMemoryAlert(YTEnvSetup):
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
 class TestMemoryWatchdog(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks memory.
     NUM_MASTERS = 1
     NUM_NODES = 4
     NUM_SCHEDULERS = 1
@@ -1045,6 +1061,7 @@ class TestMemoryWatchdog(YTEnvSetup):
 
 
 class TestLivePreview(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1139,6 +1156,7 @@ class TestLivePreview(YTEnvSetup):
 
 
 class TestJobFailTolerance(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_CONTROLLER_AGENTS = 1
@@ -1265,6 +1283,7 @@ class TestJobFailTolerance(YTEnvSetup):
 
 
 class TestAllocationJobLimit(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
 

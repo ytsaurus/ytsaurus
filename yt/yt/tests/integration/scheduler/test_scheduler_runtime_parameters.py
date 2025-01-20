@@ -30,6 +30,7 @@ import time
 
 
 class TestRuntimeParameters(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -535,6 +536,7 @@ class TestRuntimeParameters(YTEnvSetup):
 
 
 class TestRuntimeParametersWithHeavyRuntimeParameters(TestRuntimeParameters):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "fair_share_update_period": 100,
@@ -547,6 +549,7 @@ class TestRuntimeParametersWithHeavyRuntimeParameters(TestRuntimeParameters):
 
 
 class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -584,6 +587,7 @@ class TestJobsAreScheduledAfterPoolChange(YTEnvSetup):
 
 
 class TestOperationDetailedLogs(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Checks debug logs.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1

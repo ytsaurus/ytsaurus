@@ -28,6 +28,7 @@ import builtins
 
 
 class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
@@ -126,6 +127,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
 
 
 class TestReplacementCpuToVCpu(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -234,6 +236,7 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
 
 
 class TestVCpuDisableByDefault(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -273,6 +276,7 @@ class TestVCpuDisableByDefault(YTEnvSetup):
 
 
 class TestResourceLimitsOverrides(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -356,6 +360,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
 
 
 class TestSchedulingTags(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
@@ -580,6 +585,7 @@ class TestSchedulingTags(YTEnvSetup):
 
 
 class TestNodeDoubleRegistration(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SCHEDULERS = 1
     NUM_NODES = 1
 
@@ -635,6 +641,7 @@ class TestNodeDoubleRegistration(YTEnvSetup):
 
 
 class TestNodeMultipleUnregistrations(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_NODES = 2
@@ -717,6 +724,7 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
 
 
 class TestOperationNodeBan(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
     NUM_NODES = 5
 
@@ -748,6 +756,7 @@ class TestOperationNodeBan(YTEnvSetup):
 
 
 class TestSchedulingHeartbeatThrottling(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 7
     NUM_SCHEDULERS = 1

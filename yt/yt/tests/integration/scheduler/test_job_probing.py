@@ -14,6 +14,7 @@ import pytest
 
 
 class TestJobProbingDuringRevival(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1

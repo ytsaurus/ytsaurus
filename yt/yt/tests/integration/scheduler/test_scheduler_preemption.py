@@ -49,6 +49,7 @@ def get_scheduling_options(user_slots):
 
 
 class TestSchedulerPreemption(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -694,6 +695,7 @@ class TestSchedulerPreemption(YTEnvSetup):
 
 
 class TestPreemptibleProgressUpdate(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -860,6 +862,7 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
 
 
 class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -996,6 +999,7 @@ class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
 
 
 class TestPreemptionPriorityScope(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -1075,6 +1079,7 @@ class TestPreemptionPriorityScope(YTEnvSetup):
 
 
 class TestRacyPreemption(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -1130,6 +1135,7 @@ class TestRacyPreemption(YTEnvSetup):
 
 
 class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -1169,6 +1175,7 @@ class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):
 
 
 class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
@@ -1323,6 +1330,7 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
 
 class TestSchedulerAggressivePreemption(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 4
     NUM_SCHEDULERS = 1
@@ -1488,6 +1496,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
 
 # TODO(ignat): merge with class above.
 class TestSchedulerAggressivePreemption2(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -1620,6 +1629,7 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
 
 
 class TestIncreasedStarvationToleranceForFullySatisfiedDemand(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -1680,6 +1690,7 @@ class TestIncreasedStarvationToleranceForFullySatisfiedDemand(YTEnvSetup):
 ##################################################################
 
 class BaseTestDiskPreemption(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 4
     NUM_SCHEDULERS = 1
@@ -1852,6 +1863,8 @@ class BaseTestDiskPreemption(YTEnvSetup):
 
 
 class TestSsdPriorityPreemption(BaseTestDiskPreemption):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     @classmethod
     def _setup_media(cls):
         cls._setup_media_impl(ssd_location_disk_quota=4 * 1024 * 1024, non_ssd_location_disk_quota=1 * 1024 * 1024)
@@ -2073,6 +2086,8 @@ class TestSsdPriorityPreemption(BaseTestDiskPreemption):
 
 
 class TestDiskQuotaInRegularPreemption(BaseTestDiskPreemption):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     @classmethod
     def _setup_media(cls):
         cls._setup_media_impl(ssd_location_disk_quota=5 * 1024 * 1024, default_medium_name=cls.SSD_MEDIUM)
@@ -2104,6 +2119,7 @@ class TestDiskQuotaInRegularPreemption(BaseTestDiskPreemption):
 
 
 class TestDiskQuotaInRegularPreemptionMultipleMedia(BaseTestDiskPreemption):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_NODE_CONFIG = update(BaseTestDiskPreemption.DELTA_NODE_CONFIG, {
         "exec_node": {
             "gpu_manager": {

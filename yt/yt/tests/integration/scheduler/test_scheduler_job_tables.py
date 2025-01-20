@@ -82,6 +82,7 @@ def expect_to_find_in_stderr_table(stderr_table_path, content):
 
 
 class TestStderrTable(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -646,6 +647,7 @@ class TestStderrTable(YTEnvSetup):
 
 
 class TestStderrTableShardedTx(TestStderrTable):
+    ENABLE_MULTIDAEMON = False  # There are component restarts
     NUM_SECONDARY_MASTER_CELLS = 5
     ENABLE_TMP_PORTAL = True
     MASTER_CELL_DESCRIPTORS = {
@@ -659,6 +661,7 @@ class TestStderrTableShardedTx(TestStderrTable):
 
 
 class TestStderrTableShardedTxCTxS(TestStderrTableShardedTx):
+    ENABLE_MULTIDAEMON = False  # There are component restarts
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
@@ -672,6 +675,7 @@ class TestStderrTableShardedTxCTxS(TestStderrTableShardedTx):
 
 
 class TestStderrTableMirroredTx(TestStderrTableShardedTxCTxS):
+    ENABLE_MULTIDAEMON = False  # There are component restarts
     USE_SEQUOIA = True
     ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
     ENABLE_TMP_ROOTSTOCK = False
@@ -704,6 +708,7 @@ def queue_iterator(queue):
 
 
 class TestCoreTable(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -1362,6 +1367,7 @@ class TestCoreTable(YTEnvSetup):
 
 @pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")
 class TestCoreTablePorto(TestCoreTable):
+    ENABLE_MULTIDAEMON = True
     USE_PORTO = True
 
     @authors("dcherednik", "gritukan")
@@ -1393,6 +1399,7 @@ class TestCoreTablePorto(TestCoreTable):
 
 @pytest.mark.skipif(is_asan_build(), reason="Cores are not dumped in ASAN build")
 class TestCoreTablePortoRootfs(TestCoreTablePorto):
+    ENABLE_MULTIDAEMON = True
     USE_CUSTOM_ROOTFS = True
 
 
@@ -1409,6 +1416,7 @@ def get_profiles_from_table(operation_id):
 
 
 class TestJobProfiling(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1587,6 +1595,7 @@ class TestJobProfiling(YTEnvSetup):
 
 
 class TestJobTraceEvents(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1725,6 +1734,7 @@ class TestJobTraceEvents(YTEnvSetup):
 
 
 class TestJobReporterInProgressLimits(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1

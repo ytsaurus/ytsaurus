@@ -12,6 +12,7 @@ import pytest
 
 
 class TestSchedulerEraseCommands(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -194,4 +195,5 @@ class TestSchedulerEraseCommands(YTEnvSetup):
 
 
 class TestSchedulerEraseCommandsMulticell(TestSchedulerEraseCommands):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

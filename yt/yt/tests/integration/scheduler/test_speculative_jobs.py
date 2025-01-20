@@ -28,6 +28,7 @@ def get_sorted_jobs(op):
 
 
 class TestSpeculativeJobEngine(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -234,6 +235,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
 
 
 class TestSpeculativeJobSplitter(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 6
     NUM_SCHEDULERS = 1
@@ -361,6 +363,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
 
 
 class TestListSpeculativeJobs(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -549,6 +552,7 @@ class TestListSpeculativeJobs(YTEnvSetup):
 
 
 class TestSpeculativeJobsOther(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1

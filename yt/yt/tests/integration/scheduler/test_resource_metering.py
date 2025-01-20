@@ -33,6 +33,7 @@ def get_by_composite_key(item, composite_key, default=None):
 
 
 class TestResourceMetering(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_SCHEDULERS = 1
     NUM_NODES = 5
     DELTA_SCHEDULER_CONFIG = {

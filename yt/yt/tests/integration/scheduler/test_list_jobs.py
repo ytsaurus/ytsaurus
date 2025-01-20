@@ -85,6 +85,7 @@ def checked_list_jobs(*args, **kwargs):
 
 
 class TestListJobsBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "job_proxy": {
@@ -599,11 +600,14 @@ class TestListJobsBase(YTEnvSetup):
 
 
 class TestListJobsStatisticsLz4(TestListJobsBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     DELTA_DYNAMIC_NODE_CONFIG = deepcopy(TestListJobsBase.DELTA_DYNAMIC_NODE_CONFIG)
     DELTA_DYNAMIC_NODE_CONFIG["%true"]["exec_node"]["job_reporter"]["report_statistics_lz4"] = True
 
 
 class TestListJobs(TestListJobsBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+
     @authors("ermolovd", "omgronny")
     def test_running_jobs_stderr_size(self):
         input_table, output_table = self._create_tables()
@@ -996,12 +1000,14 @@ class TestListJobs(TestListJobsBase):
 
 
 class TestListJobsRpcProxy(TestListJobs):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
 
 
 class TestListJobsStatisticsLz4RpcProxy(TestListJobsStatisticsLz4):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True

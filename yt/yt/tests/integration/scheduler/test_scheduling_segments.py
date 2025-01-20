@@ -58,6 +58,7 @@ def get_first_job_node(op):
     reason="This test suite requires a genuine release build to fit into timeout"
 )
 class TestSchedulingSegments(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 8
     NUM_MASTERS = 1
     NUM_NODES = 10
@@ -1026,6 +1027,7 @@ class TestSchedulingSegments(YTEnvSetup):
     reason="This test suite requires a genuine release build to fit into timeout"
 )
 class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 10
     NUM_SCHEDULERS = 1
@@ -1817,6 +1819,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
 
 class TestSchedulingSegmentsMultiDataCenter(BaseTestSchedulingSegmentsMultiModule):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 2
 
     def _setup_node_modules(self, node_count_per_module):
@@ -1836,6 +1839,7 @@ class TestSchedulingSegmentsMultiDataCenter(BaseTestSchedulingSegmentsMultiModul
 
 
 class TestSchedulingSegmentsMultiInfinibandCluster(BaseTestSchedulingSegmentsMultiModule):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 2
 
     def _setup_node_modules(self, node_count_per_module):
@@ -1859,6 +1863,7 @@ class TestSchedulingSegmentsMultiInfinibandCluster(BaseTestSchedulingSegmentsMul
 
 
 class TestInfinibandClusterTagValidation(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -2017,6 +2022,7 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
 
 
 class TestRunningJobStatistics(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 2
     NUM_SCHEDULERS = 1

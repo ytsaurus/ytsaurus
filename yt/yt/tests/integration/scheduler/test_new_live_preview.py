@@ -18,6 +18,7 @@ import pytest
 
 
 class TestNewLivePreview(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
     NUM_NODES = 3
     USE_DYNAMIC_TABLES = True
@@ -371,4 +372,5 @@ class TestNewLivePreview(YTEnvSetup):
 
 
 class TestNewLivePreviewMulticell(TestNewLivePreview):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

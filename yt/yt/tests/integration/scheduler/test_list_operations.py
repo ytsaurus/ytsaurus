@@ -203,6 +203,7 @@ class ListOperationsSetup(YTEnvSetup):
 
 
 class _TestListOperationsBase(ListOperationsSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -957,6 +958,7 @@ class _TestListOperationsBase(ListOperationsSetup):
 
 
 class TestListOperationsCypressOnly(_TestListOperationsBase):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 4
     include_archive = False
     read_from_values = ["cache", "follower"]
@@ -1048,6 +1050,7 @@ class TestListOperationsCypressOnly(_TestListOperationsBase):
 
 
 class TestListOperationsCypressArchive(_TestListOperationsBase):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
 
     include_archive = True
@@ -1070,6 +1073,7 @@ class TestListOperationsCypressArchive(_TestListOperationsBase):
 
 
 class TestListOperationsArchiveOnly(_TestListOperationsBase):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
 
     include_archive = True
@@ -1126,6 +1130,7 @@ class TestListOperationsArchiveOnly(_TestListOperationsBase):
 
 
 class TestListOperationsArchiveHacks(ListOperationsSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1184,6 +1189,7 @@ class TestListOperationsArchiveHacks(ListOperationsSetup):
 
 
 class TestListOperationsCypressOnlyRpcProxy(TestListOperationsCypressOnly):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -1191,6 +1197,7 @@ class TestListOperationsCypressOnlyRpcProxy(TestListOperationsCypressOnly):
 
 
 class TestListOperationsCypressArchiveRpcProxy(TestListOperationsCypressArchive):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -1198,6 +1205,7 @@ class TestListOperationsCypressArchiveRpcProxy(TestListOperationsCypressArchive)
 
 
 class TestListOperationsArchiveOnlyRpcProxy(TestListOperationsArchiveOnly):
+    ENABLE_MULTIDAEMON = True
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -1205,6 +1213,7 @@ class TestListOperationsArchiveOnlyRpcProxy(TestListOperationsArchiveOnly):
 
 
 class TestListOperationsCypressArchiveHeavyRuntimeParameters(TestListOperationsCypressArchive):
+    ENABLE_MULTIDAEMON = True
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "alerts_update_period": 100,
@@ -1216,6 +1225,7 @@ class TestListOperationsCypressArchiveHeavyRuntimeParameters(TestListOperationsC
 
 @authors("renadeen")
 class TestArchiveVersion(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1

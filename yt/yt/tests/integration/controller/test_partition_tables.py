@@ -12,6 +12,8 @@ import pytest
 
 
 class TestPartitionTablesBase(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+
     def setup_method(self, method):
         super(TestPartitionTablesBase, self).setup_method(method)
         sync_create_cells(1)
@@ -69,6 +71,7 @@ class TestPartitionTablesBase(YTEnvSetup):
 
 
 class TestPartitionTablesCommand(TestPartitionTablesBase):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1

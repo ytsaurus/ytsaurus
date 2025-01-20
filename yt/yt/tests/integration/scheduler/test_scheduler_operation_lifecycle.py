@@ -43,6 +43,7 @@ from datetime import datetime, timedelta
 
 
 class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 4
     NUM_MASTERS = 1
     NUM_NODES = 1
@@ -761,6 +762,7 @@ class TestSchedulerFunctionality(YTEnvSetup, PrepareTables):
 
 # See: YT-22656.
 class TestSuspendStopsSchedulingInCurrentSnapshot(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -810,6 +812,7 @@ class TestSuspendStopsSchedulingInCurrentSnapshot(YTEnvSetup):
 
 
 class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -1197,6 +1200,7 @@ class TestSchedulerProfiling(YTEnvSetup, PrepareTables):
 
 
 class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -1267,6 +1271,7 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
 
 
 class TestSchedulerErrorTruncate(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1350,6 +1355,7 @@ class TestSchedulerErrorTruncate(YTEnvSetup):
 
 
 class TestSafeAssertionsMode(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # TODO(nadya73): It crashes CA. Fix it.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1485,6 +1491,7 @@ class TestSafeAssertionsMode(YTEnvSetup):
 
 
 class TestSchedulerAttributes(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -1930,6 +1937,7 @@ class TestAsyncControllerActions(YTEnvSetup):
 
 
 class TestControllerAgentPrerequisiteTxError(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 2  # snapshot upload replication factor is 2; unable to configure
     NUM_SCHEDULERS = 1
@@ -1978,6 +1986,7 @@ class TestControllerAgentPrerequisiteTxError(YTEnvSetup):
 
 
 class TestControllerAgentDisconnectionDuringUnregistration(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 2  # snapshot upload replication factor is 2; unable to configure
     NUM_SCHEDULERS = 1
@@ -2032,6 +2041,7 @@ class TestControllerAgentDisconnectionDuringUnregistration(YTEnvSetup):
 
 
 class TestSuccessfulScheduleJobDurationEstimate(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1

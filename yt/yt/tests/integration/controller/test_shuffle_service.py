@@ -15,6 +15,7 @@ import pytest
 
 
 class TestShuffleService(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_SCHEDULERS = 1
     NUM_RPC_PROXIES = 1

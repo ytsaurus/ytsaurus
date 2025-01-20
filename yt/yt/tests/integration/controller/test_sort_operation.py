@@ -216,6 +216,7 @@ def sort_maniac(in_, out, sort_by, validate_types=False):
 
 
 class TestSchedulerSortCommands(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 18
     NUM_MASTERS = 1
     NUM_NODES = 5
@@ -2650,10 +2651,12 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
 
 class TestSchedulerSortCommandsMulticell(TestSchedulerSortCommands):
+    ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
 class TestSchedulerSortCommandsNewSortedPool(TestSchedulerSortCommands):
+    ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "sort_operation_options": {

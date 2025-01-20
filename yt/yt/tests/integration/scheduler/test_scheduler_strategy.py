@@ -53,6 +53,7 @@ def get_from_tree_orchid(tree, path, **kwargs):
 
 
 class TestResourceUsage(YTEnvSetup, PrepareTables):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -548,6 +549,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
 
 class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -608,6 +610,7 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
 
 
 class TestUnavailableChunkStrategies(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 2
     NUM_SCHEDULERS = 1
@@ -812,6 +815,7 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
 
 
 class TestSchedulerOperationLimits(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1240,6 +1244,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
 
 
 class TestLightweightOperations(YTEnvSetup, PrepareTables):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1575,6 +1580,7 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
 
 
 class TestInferWeightFromGuarantees(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1703,6 +1709,7 @@ class TestInferWeightFromGuarantees(YTEnvSetup):
 
 
 class TestSchedulerStuckOperations(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -1935,6 +1942,7 @@ class TestSchedulerStuckOperations(YTEnvSetup):
 
 
 class TestEphemeralPools(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -2438,6 +2446,7 @@ class TestEphemeralPools(YTEnvSetup):
 
 
 class TestSchedulerPoolsCommon(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -2570,6 +2579,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
 
 
 class TestSchedulerPoolsReconfiguration(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -2668,6 +2678,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
 
 
 class TestSchedulerSuspiciousJobs(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -2879,6 +2890,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 
 
 class TestMinNeededResources(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -2981,6 +2993,7 @@ class TestMinNeededResources(YTEnvSetup):
 
 
 class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_CPUS_PER_NODE = 10
     NUM_SLOTS_PER_NODE = 10
 
@@ -3131,6 +3144,7 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
 @authors("renadeen")
 class TestIntegralGuarantees(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -3695,6 +3709,7 @@ class TestIntegralGuarantees(YTEnvSetup):
 
 @authors("renadeen")
 class TestCrashDuringDistributingFreeVolumeAfterRemovingAllResourceFlow(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     # Scenario:
     # 1. there are burst pool with running operation and relaxed pool which supplies free volume for the first
     # 2. user removes resource flow from burst pool
@@ -3767,6 +3782,7 @@ class TestCrashDuringDistributingFreeVolumeAfterRemovingAllResourceFlow(YTEnvSet
 
 
 class TestSatisfactionRatio(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -3987,6 +4003,7 @@ class TestSatisfactionRatio(YTEnvSetup):
 
 
 class TestVectorStrongGuarantees(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -4174,6 +4191,7 @@ class TestVectorStrongGuarantees(YTEnvSetup):
 
 
 class TestPriorityStrongGuaranteeAdjustment(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
@@ -4443,6 +4461,7 @@ class TestPriorityStrongGuaranteeAdjustment(YTEnvSetup):
 
 
 class TestFifoPools(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -4642,6 +4661,7 @@ class TestFifoPools(YTEnvSetup):
 
 
 class TestRaceBetweenOperationUnregistrationAndFairShareUpdate(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1
@@ -4695,6 +4715,7 @@ class TestRaceBetweenOperationUnregistrationAndFairShareUpdate(YTEnvSetup):
 
 
 class TestGuaranteePriorityScheduling(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
     NUM_NODES = 1
     NUM_SCHEDULERS = 1

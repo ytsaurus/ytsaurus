@@ -22,6 +22,7 @@ import time
 
 
 class TestJobProber(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # Use profiling counters.
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
@@ -475,6 +476,7 @@ class TestJobProber(YTEnvSetup):
 
 
 class TestJobProberCri(TestJobProber):
+    ENABLE_MULTIDAEMON = False  # Use profiling counters.
     JOB_ENVIRONMENT_TYPE = "cri"
 
 
@@ -482,6 +484,7 @@ class TestJobProberCri(TestJobProber):
 
 
 class TestJobShellInSubcontainer(TestJobProber):
+    ENABLE_MULTIDAEMON = False  # Use profiling counters.
     DELTA_NODE_CONFIG = {
         "exec_node": {
             "job_proxy": {
@@ -802,6 +805,7 @@ class TestJobShellInSubcontainer(TestJobProber):
 
 
 class TestJobShellInSubcontainerCri(TestJobShellInSubcontainer):
+    ENABLE_MULTIDAEMON = False  # Use profiling counters.
     JOB_ENVIRONMENT_TYPE = "cri"
 
 
@@ -809,6 +813,7 @@ class TestJobShellInSubcontainerCri(TestJobShellInSubcontainer):
 
 
 class TestJobProberRpcProxy(TestJobProber):
+    ENABLE_MULTIDAEMON = False  # Use profiling counters.
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
@@ -818,6 +823,7 @@ class TestJobProberRpcProxy(TestJobProber):
 
 
 class TestJobShellInSubcontainerRpcProxy(TestJobShellInSubcontainer):
+    ENABLE_MULTIDAEMON = False  # Use profiling counters.
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True

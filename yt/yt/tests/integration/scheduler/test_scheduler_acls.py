@@ -55,6 +55,7 @@ def _update_op_parameters(**kwargs):
 
 
 class TestSchedulerAcls(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
     NUM_TEST_PARTITIONS = 3
     USE_DYNAMIC_TABLES = True
 
