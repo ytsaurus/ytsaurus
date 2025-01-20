@@ -13,7 +13,7 @@ import builtins
 class ChaosTestBase(DynamicTablesBase):
     NUM_CLOCKS = 1
     NUM_MASTER_CACHES = 1
-    NUM_NODES = 3
+    NUM_NODES = 4
     NUM_CHAOS_NODES = 1
     DELTA_NODE_CONFIG = {
         "cluster_connection": {

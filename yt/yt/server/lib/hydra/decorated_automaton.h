@@ -215,6 +215,7 @@ public:
     i64 GetSequenceNumber() const;
     i64 GetRandomSeed() const;
     int GetLastMutationTerm() const;
+    TReign GetLastMutationReign() const;
 
     i64 GetMutationCountSinceLastSnapshot() const;
     i64 GetMutationSizeSinceLastSnapshot() const;
@@ -228,6 +229,7 @@ public:
     void LoadSnapshot(
         int snapshotId,
         int lastMutationTerm,
+        TReign lastMutationReign,
         TVersion version,
         i64 sequenceNumber,
         bool readOnly,
@@ -295,6 +297,7 @@ private:
     std::atomic<i64> SequenceNumber_;
     std::atomic<ui64> StateHash_;
     std::atomic<int> LastMutationTerm_ = InvalidTerm;
+    std::atomic<TReign> LastMutationReign_ = InvalidReign;
 
     std::atomic<i64> ReliablyAppliedSequenceNumber_;
 
@@ -348,7 +351,8 @@ private:
 
     bool IsRecovery() const;
 
-    void UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemoteSnapshotParams>& snapshotInfoOrError);
+    void OnSnapshotBuilt(const TErrorOr<TRemoteSnapshotParams>& snapshotInfoOrError);
+    void UpdateLastSuccessfulSnapshotInfo(const TRemoteSnapshotParams& snapshotInfo);
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);

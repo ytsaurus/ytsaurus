@@ -89,6 +89,7 @@ using TReign = int;
 //! A special value representing an invalid snapshot (or changelog) id.
 constexpr int InvalidSegmentId = -1;
 constexpr int InvalidTerm = -1;
+constexpr int InvalidReign = -1;
 
 template <class TValue>
 struct TDefaultEntityMapTraits;

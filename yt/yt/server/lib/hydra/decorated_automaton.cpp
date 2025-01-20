@@ -300,6 +300,7 @@ public:
             meta.set_last_segment_id(automatonVersion.SegmentId);
             meta.set_last_record_id(automatonVersion.RecordId);
             meta.set_last_mutation_term(Owner_->LastMutationTerm_);
+            meta.set_last_mutation_reign(Owner_->LastMutationReign_);
             meta.set_read_only(SnapshotReadOnly_);
 
             SnapshotWriter_ = Owner_->SnapshotStore_->CreateWriter(SnapshotId_, meta);
@@ -962,6 +963,7 @@ TFuture<void> TDecoratedAutomaton::SaveSnapshot(const TSnapshotSaveContext& cont
 void TDecoratedAutomaton::LoadSnapshot(
     int snapshotId,
     int lastMutationTerm,
+    TReign lastMutationReign,
     TVersion version,
     i64 sequenceNumber,
     bool readOnly,
@@ -1038,6 +1040,7 @@ void TDecoratedAutomaton::LoadSnapshot(
     LastSuccessfulSnapshotReadOnly_ = readOnly;
     ReadOnly_ = readOnly;
     LastMutationTerm_ = lastMutationTerm;
+    LastMutationReign_ = lastMutationReign;
     MutationCountSinceLastSnapshot_ = 0;
     MutationSizeSinceLastSnapshot_ = 0;
 }
@@ -1315,9 +1318,11 @@ void TDecoratedAutomaton::DoApplyMutation(
     // So we'd better make the needed copies right away.
     // Cf. YT-6908.
     const auto& request = mutationContext->Request();
+    const auto& mutationType = request.Type;
     auto mutationId = request.MutationId;
     auto mutationSize = request.Data.Size();
     auto term = mutationContext->GetTerm();
+    auto reign = request.Reign;
 
     {
         TMutationContextGuard mutationContextGuard(mutationContext);
@@ -1391,6 +1396,10 @@ void TDecoratedAutomaton::DoApplyMutation(
     AutomatonVersion_ = mutationVersion.Advance();
 
     LastMutationTerm_ = term;
+    if (!IsSystemMutationType(mutationType)) {
+        LastMutationReign_ = reign;
+    }
+
     ++MutationCountSinceLastSnapshot_;
     MutationSizeSinceLastSnapshot_ += mutationSize;
 
@@ -1453,6 +1462,13 @@ int TDecoratedAutomaton::GetLastMutationTerm() const
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return LastMutationTerm_.load();
+}
+
+TReign TDecoratedAutomaton::GetLastMutationReign() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return LastMutationReign_.load();
 }
 
 i64 TDecoratedAutomaton::GetReliablyAppliedSequenceNumber() const
@@ -1549,7 +1565,7 @@ void TDecoratedAutomaton::StopEpoch()
     SanitizedLocalHostName_.Reset();
 }
 
-void TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemoteSnapshotParams>& snapshotInfoOrError)
+void TDecoratedAutomaton::OnSnapshotBuilt(const TErrorOr<TRemoteSnapshotParams>& snapshotInfoOrError)
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -1557,7 +1573,13 @@ void TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemot
         return;
     }
 
-    const auto& snapshotInfo = snapshotInfoOrError.Value();
+    UpdateLastSuccessfulSnapshotInfo(snapshotInfoOrError.Value());
+
+    Automaton_->ResetFinalRecoveryAction();
+}
+
+void TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo(const TRemoteSnapshotParams& snapshotInfo)
+{
     auto snapshotId = snapshotInfo.SnapshotId;
     if (snapshotId > LastSuccessfulSnapshotId_.load()) {
         LastSuccessfulSnapshotId_ = snapshotId;
@@ -1591,7 +1613,7 @@ void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
 
     auto buildResult = builder->Run();
     buildResult.Subscribe(
-        BIND(&TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo, MakeWeak(this))
+        BIND(&TDecoratedAutomaton::OnSnapshotBuilt, MakeWeak(this))
             .Via(AutomatonInvoker_));
 
     SnapshotParamsPromise_.SetFrom(buildResult);
