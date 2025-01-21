@@ -221,7 +221,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RuNMultidaemonProgram(int argc, const char** argv)
+void RunMultidaemonProgram(int argc, const char** argv)
 {
     TMultidaemonProgram().Run(argc, argv);
 }
