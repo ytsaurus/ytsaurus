@@ -18,7 +18,11 @@ TRowBatchReader::TRowBatchReader(
     IAsyncZeroCopyInputStreamPtr underlying,
     bool isStreamWithStatistics)
     : Underlying_(std::move(underlying))
-    , Decoder_(CreateWireRowStreamDecoder(NameTable_))
+    , Decoder_(CreateWireRowStreamDecoder(NameTable_, TWireProtocolOptions {
+        .MaxStringValueLength = std::numeric_limits<i64>::max(),
+        .MaxAnyValueLength = std::numeric_limits<i64>::max(),
+        .MaxCompositeValueLength = std::numeric_limits<i64>::max(),
+    }))
     , IsStreamWithStatistics_(isStreamWithStatistics)
 {
     YT_VERIFY(Underlying_);
