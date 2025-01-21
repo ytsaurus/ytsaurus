@@ -80,6 +80,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/cell_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/disk_space_sensor_producer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/epoch_history_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/hydra_facade.cpp

@@ -259,7 +259,7 @@ protected:
     NHiveClient::ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NDiscoveryServer::IDiscoveryServerPtr DiscoveryServer_;
     NRpc::IChannelFactoryPtr ChannelFactory_;
-    TDiskSpaceProfilerPtr DiskSpaceProfiler_;
+    NProfiling::ISensorProducerPtr DiskSpaceSensorProducer_;
 
     NNodeTrackerClient::INodeChannelFactoryPtr NodeChannelFactory_;
 
