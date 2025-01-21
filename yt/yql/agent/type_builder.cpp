@@ -8,7 +8,7 @@ using namespace NTableClient;
 
 TTypeBuilder::TTypeBuilder()
 {
-    ItemsStack.emplace(TItemType());
+    ItemsStack_.emplace(TItemType());
 }
 
 TLogicalTypePtr TTypeBuilder::PullResult()
@@ -19,8 +19,8 @@ TLogicalTypePtr TTypeBuilder::PullResult()
 template<class T>
 T TTypeBuilder::Pop()
 {
-    auto items = std::move(std::get<T>(ItemsStack.top()));
-    ItemsStack.pop();
+    auto items = std::move(std::get<T>(ItemsStack_.top()));
+    ItemsStack_.pop();
     return items;
 }
 
@@ -211,7 +211,7 @@ void TTypeBuilder::OnDecimal(ui32 precision, ui32 scale)
 
 void TTypeBuilder::OnBeginOptional()
 {
-    ItemsStack.emplace(TItemType());
+    ItemsStack_.emplace(TItemType());
 }
 
 void TTypeBuilder::OnEndOptional()
@@ -220,7 +220,7 @@ void TTypeBuilder::OnEndOptional()
 }
 void TTypeBuilder::OnBeginList()
 {
-    ItemsStack.emplace(TItemType());
+    ItemsStack_.emplace(TItemType());
 }
 
 void TTypeBuilder::OnEndList()
@@ -230,12 +230,11 @@ void TTypeBuilder::OnEndList()
 
 void TTypeBuilder::OnBeginTuple()
 {
-    ItemsStack.emplace(TElements());
+    ItemsStack_.emplace(TElements());
 }
 
 void TTypeBuilder::OnTupleItem()
-{
-}
+{ }
 
 void TTypeBuilder::OnEndTuple()
 {
@@ -244,11 +243,12 @@ void TTypeBuilder::OnEndTuple()
 
 void TTypeBuilder::OnBeginStruct()
 {
-    ItemsStack.emplace(TMembers());
+    ItemsStack_.emplace(TMembers());
 }
+
 void TTypeBuilder::OnStructItem(TStringBuf member)
 {
-    MemberNames.emplace(member);
+    MemberNames_.emplace(member);
 }
 
 void TTypeBuilder::OnEndStruct()
@@ -258,17 +258,17 @@ void TTypeBuilder::OnEndStruct()
 
 void TTypeBuilder::OnBeginDict()
 {
-    ItemsStack.emplace(TKeyAndPayload());
+    ItemsStack_.emplace(TKeyAndPayload());
 }
 
 void TTypeBuilder::OnDictKey()
 {
-    std::get<TKeyAndPayload>(ItemsStack.top()).Switch = true;
+    std::get<TKeyAndPayload>(ItemsStack_.top()).Switch = true;
 }
 
 void TTypeBuilder::OnDictPayload()
 {
-    std::get<TKeyAndPayload>(ItemsStack.top()).Switch = false;
+    std::get<TKeyAndPayload>(ItemsStack_.top()).Switch = false;
 }
 
 void TTypeBuilder::OnEndDict()
@@ -279,7 +279,7 @@ void TTypeBuilder::OnEndDict()
 
 void TTypeBuilder::OnBeginVariant()
 {
-    ItemsStack.emplace(TItemType());
+    ItemsStack_.emplace(TItemType());
 }
 
 void TTypeBuilder::OnEndVariant()
@@ -299,7 +299,7 @@ void TTypeBuilder::OnEndVariant()
 
 void TTypeBuilder::OnBeginTagged(TStringBuf tag)
 {
-    ItemsStack.emplace(TTagAndType(tag, nullptr));
+    ItemsStack_.emplace(TTagAndType(tag, nullptr));
 }
 
 void TTypeBuilder::OnEndTagged()
@@ -315,18 +315,23 @@ void TTypeBuilder::OnPg(TStringBuf /*name*/, TStringBuf /*category*/)
 
 void TTypeBuilder::Push(TLogicalTypePtr type)
 {
-    if (const auto item = std::get_if<TItemType>(&ItemsStack.top())) {
+    if (const auto item = std::get_if<TItemType>(&ItemsStack_.top())) {
         *item = std::move(type);
-    } else if (const auto elements = std::get_if<TElements>(&ItemsStack.top())) {
+    } else if (const auto elements = std::get_if<TElements>(&ItemsStack_.top())) {
         elements->emplace_back(std::move(type));
-    } else if (const auto members = std::get_if<TMembers>(&ItemsStack.top())) {
-        members->emplace_back(MemberNames.top(), std::move(type));
-        MemberNames.pop();
-    } else if (const auto items = std::get_if<TKeyAndPayload>(&ItemsStack.top())) {
+    } else if (const auto members = std::get_if<TMembers>(&ItemsStack_.top())) {
+        members->emplace_back(MemberNames_.top(), std::move(type));
+        MemberNames_.pop();
+    } else if (const auto items = std::get_if<TKeyAndPayload>(&ItemsStack_.top())) {
         items->Set(std::move(type));
-    } else if (const auto tagged = std::get_if<TTagAndType>(&ItemsStack.top())) {
+    } else if (const auto tagged = std::get_if<TTagAndType>(&ItemsStack_.top())) {
         tagged->second = std::move(type);
     }
+}
+
+void TTypeBuilder::TKeyAndPayload::Set(TItemType type)
+{
+    (*Switch ? Key : Payload) = std::move(type);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

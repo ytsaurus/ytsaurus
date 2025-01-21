@@ -19,6 +19,29 @@ public:
     NTableClient::TLogicalTypePtr PullResult();
 
 private:
+    using TItemType = NTableClient::TLogicalTypePtr;
+    using TElements = std::vector<TItemType>;
+    using TMembers = std::vector<NTableClient::TStructField>;
+    using TTagAndType = std::pair<TString, TItemType>;
+
+    struct TKeyAndPayload
+    {
+        TItemType Key, Payload;
+        std::optional<bool> Switch;
+
+        void Set(TItemType type);
+    };
+
+    using TItem = std::variant<TItemType, TElements, TMembers, TKeyAndPayload, TTagAndType>;
+
+    std::stack<TItem> ItemsStack_;
+    std::stack<TString> MemberNames_;
+
+    void Push(NTableClient::TLogicalTypePtr type);
+
+    template<class T = NTableClient::TLogicalTypePtr>
+    T Pop();
+
     void OnVoid() final;
     void OnNull() final;
     void OnEmptyList() final;
@@ -75,30 +98,6 @@ private:
     void OnBeginTagged(TStringBuf tag) final;
     void OnEndTagged() final;
     void OnPg(TStringBuf name, TStringBuf category) final;
-
-    void Push(NTableClient::TLogicalTypePtr type);
-
-    template<class T = NTableClient::TLogicalTypePtr>
-    T Pop();
-
-    using TItemType = NTableClient::TLogicalTypePtr;
-    using TElements = std::vector<TItemType>;
-    using TMembers = std::vector<NTableClient::TStructField>;
-    using TTagAndType = std::pair<TString, TItemType>;
-
-    struct TKeyAndPayload {
-        TItemType Key, Payload;
-        std::optional<bool> Switch;
-
-        void Set(TItemType type) {
-            (*Switch ? Key : Payload) = std::move(type);
-        }
-    };
-
-    using TItem = std::variant<TItemType, TElements, TMembers, TKeyAndPayload, TTagAndType>;
-
-    std::stack<TItem> ItemsStack;
-    std::stack<TString> MemberNames;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

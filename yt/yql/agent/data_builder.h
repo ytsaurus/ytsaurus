@@ -15,6 +15,13 @@ public:
     explicit TDataBuilder(NTableClient::IValueConsumer* consumer);
 
 private:
+    NTableClient::IValueConsumer* const ValueConsumer_;
+    TBlobOutput ValueBuffer_;
+    NYson::TBufferedBinaryYsonWriter ValueWriter_;
+
+    int Depth_ = -2; // Starts from table level: -2 List< -1 Struct< 0 ... >>
+    int ColumnIndex_ = 0;
+
     void OnVoid() final;
     void OnNull() final;
     void OnEmptyList() final;
@@ -92,13 +99,6 @@ private:
     void BeginList();
     void NextItem();
     void EndList();
-
-    NTableClient::IValueConsumer *const ValueConsumer_;
-    TBlobOutput ValueBuffer_;
-    NYson::TBufferedBinaryYsonWriter ValueWriter_;
-
-    int Depth_ = -2; // Starts from table level: -2 List< -1 Struct< 0 ... >>
-    int ColumnIndex_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

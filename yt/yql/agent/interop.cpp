@@ -259,7 +259,7 @@ TYqlRowset BuildRowsetFromYson(
 {
     if (!write.Refs.empty()) {
         if (write.Refs.size() != 1) {
-            THROW_ERROR_EXCEPTION("YQL returned non-singular ref, such response is not supported yet.");
+            THROW_ERROR_EXCEPTION("YQL returned non-singular ref, such response is not supported yet");
         }
         auto ref = New<TYqlRef>();
         ref->Reference = write.Refs.front().Reference;
@@ -289,7 +289,7 @@ TYqlRowset BuildRowsetFromSkiff(
     if (writeNode->FindChild("Ref")) {
         const auto& refsNode = writeNode->GetChildOrThrow("Ref")->AsList();
         if (refsNode->GetChildCount() != 1) {
-            THROW_ERROR_EXCEPTION("YQL returned non-singular ref, such response is not supported yet.");
+            THROW_ERROR_EXCEPTION("YQL returned non-singular ref, such response is not supported yet");
         }
         return BuildRowsetByRef(clientDirectory, ConvertTo<TYqlRefPtr>(refsNode->GetChildOrThrow(0)), resultIndex, rowCountLimit);
     }
@@ -353,7 +353,7 @@ std::vector<TWireYqlRowset> BuildRowsets(
     } catch (const std::exception& ex) {
         rowsets.clear();
         const auto error = TError(ex);
-        YT_LOG_DEBUG("Error building rowset result from yson: %v. Try fallback to skiff.", error);
+        YT_LOG_DEBUG(error, "Error building rowset result from yson. Try fallback to skiff");
     }
 
     // TODO: Remove the code below after switch on Yson in the plugin.
@@ -366,7 +366,7 @@ std::vector<TWireYqlRowset> BuildRowsets(
             rowsets.push_back(std::move(rowset));
         } catch (const std::exception& ex) {
             auto error = TError(ex);
-            YT_LOG_DEBUG("Error building rowset result (ResultIndex: %v, Error: %v)", index, error);
+            YT_LOG_DEBUG(error, "Error building rowset result (ResultIndex: %v)", index);
             rowsets.push_back({.Error = error});
         }
     }
