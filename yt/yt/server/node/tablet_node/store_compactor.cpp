@@ -579,13 +579,18 @@ private:
             writer->GetMeta()->SubscribeMetaFinalized(BIND(
                 &TStoreCompactionSessionBase::OnChunkMetaFinalized,
                 MakeWeak(this),
-                writer));
+                MakeWeak(writer)));
         }
         return writer;
     }
 
-    void OnChunkMetaFinalized(const IVersionedChunkWriterPtr& writer, const TRefCountedChunkMeta* finalizedMeta) const
+    void OnChunkMetaFinalized(const TWeakPtr<IVersionedChunkWriter>& weakWriter, const TRefCountedChunkMeta* finalizedMeta) const
     {
+        auto writer = weakWriter.Lock();
+        if (!writer) {
+            return;
+        }
+
         auto enableNewScanReader =
             TabletSnapshot_->Settings.MountConfig->EnableNewScanReaderForLookup ||
             TabletSnapshot_->Settings.MountConfig->EnableNewScanReaderForSelect;
@@ -602,7 +607,7 @@ private:
         }
 
         YT_LOG_DEBUG("Propagating versioned chunk meta cache upon chunk finalization "
-            "(Success: %v, ChunkId: %v, Activity: %Qlv)",
+            "(Success: %v, ChunkId: %v, Activity: %v)",
             result,
             writer->GetChunkId(),
             GetActivityKind());
