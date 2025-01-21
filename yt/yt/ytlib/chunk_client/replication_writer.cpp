@@ -267,6 +267,8 @@ DEFINE_REFCOUNTED_TYPE(TGroup)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 TString FormatBlocks(int startBlockIndex, int endBlockIndex)
 {
     TStringBuilder builder;
@@ -279,6 +281,8 @@ TString FormatBlocks(int startBlockIndex, int endBlockIndex)
 
     return builder.Flush();
 }
+
+} // anonymous namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
