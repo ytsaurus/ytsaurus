@@ -1,6 +1,5 @@
 {
     "": "build/config/tests/ruff/ruff.toml",
-    "addappter/backend": "addappter/backend/pyproject.toml",
     "fintech/uservices": "fintech/uservices/pyproject.toml",
     "maps/garden/": "maps/garden/pyproject.toml",
     "maps/sprav/": "maps/sprav/pyproject.toml",
