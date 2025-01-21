@@ -18,7 +18,11 @@ std::string THunkTablet::GetCapitalizedObjectName() const
 
 TTabletStatistics THunkTablet::GetTabletStatistics(bool /*fromAuxiliaryCell*/) const
 {
-    return {};
+    // TODO(akozhikhov): We cannot account chunk statistics here as they depend on whether
+    // each chunk is sealed which is racy with regard to tablet manager logic.
+    TTabletStatistics tabletStatistics;
+    tabletStatistics.TabletCount = 1;
+    return tabletStatistics;
 }
 
 void THunkTablet::ValidateReshard() const
