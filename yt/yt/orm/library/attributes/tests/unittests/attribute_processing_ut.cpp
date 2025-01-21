@@ -1,5 +1,5 @@
 #include <yt/yt/orm/library/attributes/helpers.h>
-#include <yt/yt/orm/library/attributes/yson_builder.h>
+#include <yt/yt/core/yson/yson_builder.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -36,7 +36,7 @@ TEST(TAttributesDetectingConsumerTest, JustWorks)
 
 TEST(TAttributesRemovingConsumerTest, JustWorks)
 {
-    TYsonStringBuilder builder(NYson::EYsonFormat::Text);
+    NYson::TYsonStringBuilder builder(NYson::EYsonFormat::Text);
     auto consumer = CreateAttributesRemovingConsumer(builder.GetConsumer());
 
     NYTree::BuildYsonFluently(consumer.get())
@@ -50,7 +50,7 @@ TEST(TAttributesRemovingConsumerTest, JustWorks)
 
 TEST(TAttributesRemovingConsumerTest, NestedAttributes)
 {
-    TYsonStringBuilder builder(NYson::EYsonFormat::Text);
+    NYson::TYsonStringBuilder builder(NYson::EYsonFormat::Text);
     auto consumer = CreateAttributesRemovingConsumer(builder.GetConsumer());
 
     NYTree::BuildYsonFluently(consumer.get())

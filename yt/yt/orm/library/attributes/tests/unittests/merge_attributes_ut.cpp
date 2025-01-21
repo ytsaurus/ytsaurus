@@ -5,7 +5,7 @@
 
 #include <yt/yt/orm/library/attributes/merge_attributes.h>
 #include <yt/yt/orm/library/attributes/unwrapping_consumer.h>
-#include <yt/yt/orm/library/attributes/yson_builder.h>
+#include <yt/yt/core/yson/yson_builder.h>
 
 namespace NYT::NOrm::NAttributes::NTests {
 namespace {
@@ -37,7 +37,7 @@ NYson::TYsonString ConsumingMergeAttributes(std::vector<TAttributeValue> values)
     std::ranges::sort(values, /*comparator*/ {}, /*projection*/ &TAttributeValue::Path);
     ValidateSortedPaths(values, &TAttributeValue::Path, &TAttributeValue::IsEtc);
 
-    TYsonStringBuilder builder(NYson::EYsonFormat::Text);
+    NYson::TYsonStringBuilder builder(NYson::EYsonFormat::Text);
     TMergeAttributesHelper mergeHelper(builder.GetConsumer());
     for (const auto& value : values) {
         mergeHelper.ToNextPath(value.Path, value.IsEtc);

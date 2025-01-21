@@ -1,5 +1,5 @@
 #include <yt/yt/orm/library/attributes/patch_unwrapping_consumer.h>
-#include <yt/yt/orm/library/attributes/yson_builder.h>
+#include <yt/yt/core/yson/yson_builder.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 

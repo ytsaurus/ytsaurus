@@ -10,7 +10,6 @@ SRCS(
     scalar_attribute_ut.cpp
     unwrapping_consumer_ut.cpp
     wire_string_ut.cpp
-    yson_builder_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)

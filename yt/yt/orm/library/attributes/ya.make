@@ -12,7 +12,6 @@ SRCS(
     scalar_attribute.cpp
     unwrapping_consumer.cpp
     wire_string.cpp
-    yson_builder.cpp
     ytree.cpp
 )
 

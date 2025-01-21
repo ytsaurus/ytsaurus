@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/yt/core/yson/public.h>
+#include "public.h"
 
 #include <library/cpp/yt/misc/strong_typedef.h>
 
-namespace NYT::NOrm::NAttributes {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -14,11 +14,11 @@ struct IYsonBuilder
 
     virtual ~IYsonBuilder() = default;
 
-    virtual NYson::IYsonConsumer* GetConsumer() = 0;
+    virtual IYsonConsumer* GetConsumer() = 0;
     virtual TCheckpoint CreateCheckpoint() = 0;
     virtual void RestoreCheckpoint(TCheckpoint checkpoint) = 0;
 
-    NYson::IYsonConsumer* operator->();
+    IYsonConsumer* operator->();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -59,9 +59,9 @@ class TYsonBuilder
     : public IYsonBuilder
 {
 public:
-    TYsonBuilder(EYsonBuilderForwardingPolicy policy, IYsonBuilder* underlying, NYson::IYsonConsumer* consumer);
+    TYsonBuilder(EYsonBuilderForwardingPolicy policy, IYsonBuilder* underlying, IYsonConsumer* consumer);
 
-    NYson::IYsonConsumer* GetConsumer() override;
+    IYsonConsumer* GetConsumer() override;
     IYsonBuilder::TCheckpoint CreateCheckpoint() override;
     void RestoreCheckpoint(TCheckpoint checkpoint) override;
 
@@ -73,4 +73,4 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOrm::NAttributes
+} // namespace NYT::NYson
