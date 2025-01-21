@@ -753,7 +753,7 @@ class YTEnvSetup(object):
                     "expire_after_access_time": 300000,
                 },
             } if cls._is_ground_cluster(index) else None,
-            enable_multidaemon=cls.ENABLE_MULTIDAEMON,
+            enable_multidaemon=cls.ENABLE_MULTIDAEMON and not cls.USE_PORTO,  # TODO(nadya73): Remove porto condition when it will be fixed.
         )
 
         if yt_config.jobs_environment_type == "porto" and not porto_available():
