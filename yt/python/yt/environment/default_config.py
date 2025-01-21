@@ -104,6 +104,7 @@ def get_dynamic_master_config():
     };
 
     object_service = {
+        minimize_execute_latency = %true;
     };
 
     security_manager = {

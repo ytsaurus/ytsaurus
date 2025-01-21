@@ -102,6 +102,10 @@ using namespace NTracing;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr auto DefaultScheduleReplyRetryBackoff = TDuration::MilliSeconds(100);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStickyUserErrorCache
 {
 public:
@@ -342,7 +346,8 @@ private:
     TStickyUserErrorCache StickyUserErrorCache_;
     std::atomic<bool> EnableTwoLevelCache_ = false;
     std::atomic<bool> EnableCypressTransactionsInSequoia_ = false;
-    std::atomic<TDuration> ScheduleReplyRetryBackoff_ = TDuration::MilliSeconds(100);
+    std::atomic<TDuration> ScheduleReplyRetryBackoff_ = DefaultScheduleReplyRetryBackoff;
+    std::atomic<bool> MinimizeExecuteLatency_ = false;
 
     static IInvokerPtr GetRpcInvoker()
     {
@@ -2360,6 +2365,7 @@ void TObjectService::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig
     const auto& objectServiceConfig = GetDynamicConfig();
     EnableTwoLevelCache_ = objectServiceConfig->EnableTwoLevelCache;
     ScheduleReplyRetryBackoff_ = objectServiceConfig->ScheduleReplyRetryBackoff;
+    MinimizeExecuteLatency_ = objectServiceConfig->MinimizeExecuteLatency;
 
     const auto& sequoiaConfig = Bootstrap_->GetConfigManager()->GetConfig()->SequoiaManager;
     EnableCypressTransactionsInSequoia_.store(
@@ -2377,6 +2383,10 @@ void TObjectService::EnqueueReadySession(TExecuteSessionPtr session)
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     ReadySessions_.Enqueue(std::move(session));
+
+    if (MinimizeExecuteLatency_.load(std::memory_order::relaxed)) {
+        ProcessSessionsExecutor_->ScheduleOutOfBand();
+    }
 }
 
 void TObjectService::EnqueueFinishedSession(TExecuteSessionInfo sessionInfo)

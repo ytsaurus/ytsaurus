@@ -177,6 +177,7 @@ public:
     TDuration LocalReadExecutorQuantumDuration;
 
     TDuration ProcessSessionsPeriod;
+    bool MinimizeExecuteLatency;
 
     TDefaultReadRequestComplexityLimitsConfigPtr DefaultReadRequestComplexityLimits;
     TMaxReadRequestComplexityLimitsConfigPtr MaxReadRequestComplexityLimits;
