@@ -1,0 +1,9 @@
+default:
+public:
+    proxy-pages:
+        http:
+            mapreduce-example: '[GitHub](https://github.com/ytsaurus/ytsaurus/tree/main/yt/docs/ru/code-examples/http-proxy.py)'
+            tmp-dir: '//tmp/yt_examples'
+        common:
+            heavy-proxy: <heavy-proxy>
+
