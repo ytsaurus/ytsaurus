@@ -1,11 +1,9 @@
 #pragma once
 
 #include "sorted_store_helpers.h"
+#include "store_context_mock.h"
 
 #include <yt/yt/server/node/tablet_node/tablet.h>
-
-#include <yt/yt/library/query/engine_api/config.h>
-#include <yt/yt/library/query/engine_api/column_evaluator.h>
 
 namespace NYT::NTabletNode {
 
@@ -50,15 +48,14 @@ public:
     TMockBackendChunkReadersHolderPtr GetBackendChunkReadersHolder() const;
 
 private:
-    ITabletWriteManagerHost* TabletWriteManagerHost_ = nullptr;
-
-    const NQueryClient::IColumnEvaluatorCachePtr ColumnEvaluatorCache_ =
-        NQueryClient::CreateColumnEvaluatorCache(New<NQueryClient::TColumnEvaluatorCacheConfig>());
+    ITabletWriteManagerHost* const TabletWriteManagerHost_ = nullptr;
+    const IStoreContextPtr StoreContext_ = New<TStoreContextMock>();
 
     const NQueryClient::IRowComparerProviderPtr RowComparerProvider_ =
         NQueryClient::CreateRowComparerProvider(New<TSlruCacheConfig>());
 
-    const TMockBackendChunkReadersHolderPtr BackendChunkReadersHolder_ = New<TMockBackendChunkReadersHolder>();
+    const TMockBackendChunkReadersHolderPtr BackendChunkReadersHolder_ =
+        New<TMockBackendChunkReadersHolder>();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

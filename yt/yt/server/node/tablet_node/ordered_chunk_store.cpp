@@ -150,22 +150,18 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TOrderedChunkStore::TOrderedChunkStore(
-    TTabletManagerConfigPtr config,
     TStoreId id,
     TTablet* tablet,
     const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
-    IBlockCachePtr blockCache,
-    IVersionedChunkMetaManagerPtr chunkMetaManager,
+    IStoreContextPtr context,
     IBackendChunkReadersHolderPtr backendReadersHolder)
     : TChunkStoreBase(
-        config,
         /*storeId*/ id,
         /*chunkId*/ id,
         NullTimestamp,
         tablet,
         addStoreDescriptor,
-        blockCache,
-        chunkMetaManager,
+        std::move(context),
         std::move(backendReadersHolder))
 {
     if (addStoreDescriptor) {
@@ -267,8 +263,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::CreateReader(
     });
 
     auto underlyingReader = CreateSchemafulChunkReader(
-        // NB: Mock tablets have nullptr client.
-        Tablet_->GetClient() ? Tablet_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache() : nullptr,
+        Context_->GetColumnEvaluatorCache(),
         chunkState,
         chunkMeta,
         std::move(backendReaders.ReaderConfig),
@@ -332,8 +327,7 @@ ISchemafulUnversionedReaderPtr TOrderedChunkStore::TryCreateCacheBasedReader(
         chunkState->BlockCache);
 
     auto underlyingReader = CreateSchemafulChunkReader(
-        // NB: Mock tablets have nullptr client.
-        Tablet_->GetClient() ? Tablet_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache() : nullptr,
+        Context_->GetColumnEvaluatorCache(),
         chunkState,
         chunkState->ChunkMeta,
         GetReaderConfig(),

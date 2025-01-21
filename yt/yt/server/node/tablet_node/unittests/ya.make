@@ -19,6 +19,7 @@ SRCS(
     sorted_dynamic_store_ut.cpp
     sorted_store_manager_stress.cpp
     sorted_store_manager_ut.cpp
+    store_context_mock.cpp
     tablet_cell_write_manager_ut.cpp
     tablet_context_mock.cpp
 )

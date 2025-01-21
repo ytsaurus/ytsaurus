@@ -84,6 +84,7 @@ target_sources(unittester-tablet-node PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_dynamic_store_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_store_manager_stress.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/sorted_store_manager_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/store_context_mock.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/tablet_cell_write_manager_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/node/tablet_node/unittests/tablet_context_mock.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/server/node/tablet_node/unittests/proto/simple_transaction_supervisor.pb.h

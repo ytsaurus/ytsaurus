@@ -1,4 +1,5 @@
 #include "ordered_dynamic_store_ut_helpers.h"
+#include "store_context_mock.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
@@ -71,13 +72,14 @@ protected:
     TOrderedDynamicStorePtr Store_;
 
 private:
+    const IStoreContextPtr StoreContext_ = New<TStoreContextMock>();
+
     void CreateDynamicStore() override
     {
-        auto config = New<TTabletManagerConfig>();
         Store_ = New<TOrderedDynamicStore>(
-            config,
             TStoreId(),
-            Tablet_.get());
+            Tablet_.get(),
+            StoreContext_);
     }
 
     IDynamicStorePtr GetDynamicStore() override

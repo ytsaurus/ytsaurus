@@ -149,6 +149,7 @@ using TTransactionExternalizationToken = TGuid;
 using TExternalizedTransactionId = std::pair<TTransactionId, TTransactionExternalizationToken>;
 DECLARE_ENTITY_TYPE(TExternalizedTransaction, TExternalizedTransactionId, ::THash<TExternalizedTransactionId>)
 
+DECLARE_REFCOUNTED_STRUCT(IStoreContext)
 DECLARE_REFCOUNTED_STRUCT(IStore)
 DECLARE_REFCOUNTED_STRUCT(IDynamicStore)
 DECLARE_REFCOUNTED_STRUCT(IChunkStore)

@@ -246,7 +246,7 @@ private:
             maxUpperRowIndex);
 
         BarrierFuture_ = barrierFuture
-            .WithTimeout(Store_->Config_->MaxBlockedRowWaitTime)
+            .WithTimeout(Store_->Context_->GetTabletManagerConfig()->MaxBlockedRowWaitTime)
             .Apply(BIND([] (const TError& error) {
                 if (error.GetCode() == NYT::EErrorCode::Timeout) {
                     THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::BlockedRowWaitTimeout, "Timed out waiting on blocked row");
@@ -304,10 +304,10 @@ std::optional<int> GetCumulativeDataWeightColumnId(const TTableSchema& schema)
 } // namespace
 
 TOrderedDynamicStore::TOrderedDynamicStore(
-    TTabletManagerConfigPtr config,
     TStoreId id,
-    TTablet* tablet)
-    : TDynamicStoreBase(config, id, tablet)
+    TTablet* tablet,
+    IStoreContextPtr context)
+    : TDynamicStoreBase(id, tablet, std::move(context))
     , TimestampColumnId_(GetTimestampColumnId(*Schema_))
     , CumulativeDataWeightColumnId_(GetCumulativeDataWeightColumnId(*Schema_))
 {
@@ -578,8 +578,7 @@ void TOrderedDynamicStore::AsyncLoad(TLoadContext& context)
             chunkMeta,
             TBlock::Wrap(blocks));
         auto tableReader = CreateSchemafulChunkReader(
-            // NB: Mock tablets have nullptr client.
-            Tablet_->GetClient() ? Tablet_->GetClient()->GetNativeConnection()->GetColumnEvaluatorCache() : nullptr,
+            Context_->GetColumnEvaluatorCache(),
             std::move(chunkState),
             New<TColumnarChunkMeta>(*chunkMeta),
             TChunkReaderConfig::GetDefault(),
