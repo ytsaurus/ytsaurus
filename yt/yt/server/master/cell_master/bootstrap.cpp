@@ -3,6 +3,7 @@
 #include "alert_manager.h"
 #include "config.h"
 #include "config_manager.h"
+#include "disk_space_sensor_producer.h"
 #include "epoch_history_manager.h"
 #include "hydra_facade.h"
 #include "master_hydra_service.h"
@@ -180,7 +181,6 @@
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
-#include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/yt/core/misc/configurable_singleton_def.h>
 
 #include <yt/yt/core/rpc/caching_channel_factory.h>
@@ -678,39 +678,6 @@ TCellTagList TBootstrap::GetKnownParticipantCellTags() const
     return participantCellTags;
 }
 
-class TDiskSpaceProfiler
-    : public NProfiling::ISensorProducer
-{
-public:
-    explicit TDiskSpaceProfiler(TCellMasterBootstrapConfigPtr config)
-        : Config_(std::move(config))
-    { }
-
-    void CollectSensors(ISensorWriter* writer) override
-    {
-        try {
-            auto snapshotsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Snapshots->Path);
-            writer->AddGauge("/snapshots/free_space", snapshotsStorageDiskSpaceStatistics.FreeSpace);
-            writer->AddGauge("/snapshots/available_space", snapshotsStorageDiskSpaceStatistics.AvailableSpace);
-        } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Failed to profile snapshots storage disk space");
-        }
-
-        try {
-            auto changelogsStorageDiskSpaceStatistics = NFS::GetDiskSpaceStatistics(Config_->Changelogs->Path);
-            writer->AddGauge("/changelogs/free_space", changelogsStorageDiskSpaceStatistics.FreeSpace);
-            writer->AddGauge("/changelogs/available_space", changelogsStorageDiskSpaceStatistics.AvailableSpace);
-        } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Failed to profile changelogs storage disk space");
-        }
-    }
-
-private:
-    const TCellMasterBootstrapConfigPtr Config_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TDiskSpaceProfiler)
-
 void TBootstrap::DoRun()
 {
     DoInitialize();
@@ -1107,8 +1074,8 @@ void TBootstrap::DoInitialize()
 
     RpcServer_->Configure(Config_->RpcServer);
 
-    DiskSpaceProfiler_ = New<TDiskSpaceProfiler>(Config_);
-    TProfiler{""}.AddProducer("", DiskSpaceProfiler_);
+    DiskSpaceSensorProducer_ = CreateDiskSpaceSensorProducer(Config_);
+    TProfiler{""}.AddProducer("", DiskSpaceSensorProducer_);
 }
 
 void TBootstrap::InitializeTimestampProvider()
