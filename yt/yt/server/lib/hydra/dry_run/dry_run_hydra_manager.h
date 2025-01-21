@@ -12,7 +12,12 @@ struct IDryRunHydraManager
     //! Loads snapshot and sets automaton to the correct state.
     virtual void DryRunLoadSnapshot(
         const ISnapshotReaderPtr& reader,
-        int snapshotId = InvalidSegmentId) = 0;
+        int snapshotId,
+        bool prepareState) = 0;
+
+    //! Checks the invariants.
+    //! Must be called after #DryRunLoadSnapshot.
+    virtual void DryRunCheckInvariants() = 0;
 
     //! Replays changelog.
     virtual void DryRunReplayChangelog(IChangelogPtr changelog) = 0;
