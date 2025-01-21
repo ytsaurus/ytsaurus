@@ -173,8 +173,14 @@ void ValidateAccessControlObjectName(const std::string& name);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void SetAccessTrackingOptions(
+    const NRpc::IClientRequestPtr& request,
+    const NCypressServer::NProto::TAccessTrackingOptions& protoOptions);
+
 void MaybeTouchNode(
-    const ICypressNodeProxyPtr& nodeProxy,
+    const ICypressManagerPtr& cypressManager,
+    TCypressNode* node,
+    std::optional<NObjectServer::EModificationType> modificationType = {},
     const NCypressServer::NProto::TAccessTrackingOptions& protoOptions = {});
 
 TLockRequest CreateLockRequest(
