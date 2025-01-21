@@ -27,6 +27,7 @@ using namespace NConcurrency;
 using namespace NClusterNode;
 using namespace NChunkClient;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -68,6 +69,26 @@ public:
             storeCompactorConfig->UseRowDigests));
     }
 
+    void ReconfigureTablet(TTablet* tablet, const TTableSettings& settings) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
+        const auto& oldSettings = tablet->GetSettings();
+
+        if (auto rowMergerType = settings.MountConfig->RowMergerType; rowMergerType == ERowMergerType::Watermark) {
+            if (rowMergerType != oldSettings.MountConfig->RowMergerType) {
+                ResetCompactionHints(tablet);
+            }
+
+            return;
+        }
+
+        if (*settings.MountConfig->RowDigestCompaction != *oldSettings.MountConfig->RowDigestCompaction) {
+            ResetCompactionHints(tablet);
+            FetchStoreInfos(tablet);
+        }
+    }
+
 private:
     const TTimeCounter RowDigestParseCumulativeTime_;
 
@@ -76,6 +97,7 @@ private:
     void DoReconfigure(bool useRowDigests)
     {
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
+
         if (UseRowDigests_ == useRowDigests) {
             return;
         }
@@ -100,7 +122,9 @@ private:
 
     bool IsFetchableTablet(const TTablet& tablet) const override
     {
-        return UseRowDigests_ && tablet.IsPhysicallySorted() &&
+        return UseRowDigests_ &&
+            tablet.IsPhysicallySorted() &&
+            tablet.GetSettings().MountConfig->RowMergerType != ERowMergerType::Watermark &&
         // TODO(dave11ar): Remove when correct considering of aggregate columns will be implemented.
             !tablet.GetTableSchema()->HasAggregateColumns();
     }

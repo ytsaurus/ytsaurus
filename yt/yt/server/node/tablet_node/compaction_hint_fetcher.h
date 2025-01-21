@@ -77,6 +77,7 @@ public:
     void ResetCompactionHints(TTablet* tablet) const;
 
     virtual void Reconfigure(const NClusterNode::TClusterNodeDynamicConfigPtr& config) = 0;
+    virtual void ReconfigureTablet(TTablet* tablet, const TTableSettings& settings) = 0;
 
 protected:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
