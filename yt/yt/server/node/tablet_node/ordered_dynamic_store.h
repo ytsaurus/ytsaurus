@@ -19,9 +19,9 @@ class TOrderedDynamicStore
 {
 public:
     TOrderedDynamicStore(
-        TTabletManagerConfigPtr config,
         TStoreId id,
-        TTablet* tablet);
+        TTablet* tablet,
+        IStoreContextPtr context);
 
     //! Returns the reader to be used during flush.
     NTableClient::ISchemafulUnversionedReaderPtr CreateFlushReader();

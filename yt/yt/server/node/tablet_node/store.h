@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/library/query/base/public.h>
+
 #include <yt/yt/client/api/public.h>
 
 #include <yt/yt/client/node_tracker_client/public.h>
@@ -48,6 +50,19 @@ struct TBackendReaders
     NTableClient::IOffloadingReaderPtr OffloadingReader;
     TTabletStoreReaderConfigPtr ReaderConfig;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IStoreContext
+    : public TRefCounted
+{
+    virtual const NChunkClient::IBlockCachePtr& GetBlockCache() = 0;
+    virtual const IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() = 0;
+    virtual const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() = 0;
+    virtual const TTabletManagerConfigPtr& GetTabletManagerConfig() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IStoreContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 

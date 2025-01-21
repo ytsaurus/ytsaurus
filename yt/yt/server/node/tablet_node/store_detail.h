@@ -33,9 +33,9 @@ class TStoreBase
 {
 public:
     TStoreBase(
-        TTabletManagerConfigPtr config,
         TStoreId id,
-        TTablet* tablet);
+        TTablet* tablet,
+        IStoreContextPtr context);
     ~TStoreBase();
 
     // IStore implementation.
@@ -62,9 +62,9 @@ public:
     TTabletId GetTabletId() const;
 
 protected:
-    const TTabletManagerConfigPtr Config_;
     const TStoreId StoreId_;
     TTablet* const Tablet_;
+    const IStoreContextPtr Context_;
 
     const NTableClient::TTabletPerformanceCountersPtr PerformanceCounters_;
     const TRuntimeTabletDataPtr RuntimeData_;
@@ -108,9 +108,9 @@ class TDynamicStoreBase
 {
 public:
     TDynamicStoreBase(
-        TTabletManagerConfigPtr config,
         TStoreId id,
-        TTablet* tablet);
+        TTablet* tablet,
+        IStoreContextPtr context);
 
     i64 Lock();
     i64 Unlock();
@@ -185,14 +185,12 @@ class TChunkStoreBase
 {
 public:
     TChunkStoreBase(
-        TTabletManagerConfigPtr config,
         TStoreId id,
         NChunkClient::TChunkId chunkId,
         TTimestamp overrideTimestamp,
         TTablet* tablet,
         const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
-        NChunkClient::IBlockCachePtr blockCache,
-        IVersionedChunkMetaManagerPtr chunkMetaManager,
+        IStoreContextPtr context,
         IBackendChunkReadersHolderPtr backendReadersHolder);
 
     void Initialize() override;
@@ -274,9 +272,6 @@ public:
         bool prepareColumnarMeta);
 
 protected:
-    const NChunkClient::IBlockCachePtr BlockCache_;
-    const IVersionedChunkMetaManagerPtr ChunkMetaManager_;
-
     std::vector<THunkChunkRef> HunkChunkRefs_;
 
     // NB: These fields are accessed under SpinLock_.

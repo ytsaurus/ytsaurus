@@ -33,9 +33,9 @@ class TSortedDynamicStore
 {
 public:
     TSortedDynamicStore(
-        TTabletManagerConfigPtr config,
         TStoreId id,
-        TTablet* tablet);
+        TTablet* tablet,
+        IStoreContextPtr context);
     ~TSortedDynamicStore();
 
     //! Returns the reader to be used during flush.

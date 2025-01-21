@@ -186,6 +186,7 @@ public:
         , Slot_(slot)
         , Bootstrap_(bootstrap)
         , Config_(config)
+        , StoreContext_(New<TStoreContext>(Config_, Bootstrap_))
         , TabletContext_(this)
         , TabletMap_(TTabletMapTraits(this))
         , DecommissionCheckExecutor_(New<TPeriodicExecutor>(
@@ -357,7 +358,7 @@ public:
         return tablet;
     }
 
-    TTablet* FindOrphanedTablet(TTabletId id) const override
+    TTablet* FindOrphanedTablet(TTabletId id) const final
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -378,7 +379,7 @@ public:
         return this;
     }
 
-    std::vector<TTabletMemoryStatistics> GetMemoryStatistics() const override
+    std::vector<TTabletMemoryStatistics> GetMemoryStatistics() const final
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -535,27 +536,27 @@ public:
         return OrchidService_;
     }
 
-    ETabletCellLifeStage GetTabletCellLifeStage() const override
+    ETabletCellLifeStage GetTabletCellLifeStage() const final
     {
         return CellLifeStage_;
     }
 
-    ITransactionManagerPtr GetTransactionManager() const override
+    ITransactionManagerPtr GetTransactionManager() const final
     {
         return Slot_->GetTransactionManager();
     }
 
-    TDynamicTabletCellOptionsPtr GetDynamicOptions() const override
+    TDynamicTabletCellOptionsPtr GetDynamicOptions() const final
     {
         return Slot_->GetDynamicOptions();
     }
 
-    TTabletManagerConfigPtr GetConfig() const override
+    TTabletManagerConfigPtr GetConfig() const final
     {
         return Config_;
     }
 
-    TTimestamp GetLatestTimestamp() const override
+    TTimestamp GetLatestTimestamp() const final
     {
         return Slot_->GetLatestTimestamp();
     }
@@ -601,6 +602,43 @@ public:
 private:
     const ITabletSlotPtr Slot_;
     IBootstrap* const Bootstrap_;
+    const TTabletManagerConfigPtr Config_;
+
+    class TStoreContext
+        : public IStoreContext
+    {
+    public:
+        TStoreContext(TTabletManagerConfigPtr config, IBootstrap* bootstrap)
+            : Config_(std::move(config))
+            , Bootstrap_(bootstrap)
+        { }
+
+        const NChunkClient::IBlockCachePtr& GetBlockCache() override
+        {
+            return Bootstrap_->GetBlockCache();
+        }
+
+        const IVersionedChunkMetaManagerPtr& GetVersionedChunkMetaManager() override
+        {
+            return Bootstrap_->GetVersionedChunkMetaManager();
+        }
+
+        const NQueryClient::IColumnEvaluatorCachePtr& GetColumnEvaluatorCache() override
+        {
+            return Bootstrap_->GetColumnEvaluatorCache();
+        }
+
+        const TTabletManagerConfigPtr& GetTabletManagerConfig() override
+        {
+            return Config_;
+        }
+
+    private:
+        const TTabletManagerConfigPtr Config_;
+        IBootstrap* const Bootstrap_;
+    };
+
+    const IStoreContextPtr StoreContext_;
 
     class TOrchidService
         : public TVirtualMapBase
@@ -612,7 +650,7 @@ private:
                 ->Via(invoker);
         }
 
-        std::vector<std::string> GetKeys(i64 limit) const override
+        std::vector<std::string> GetKeys(i64 limit) const final
         {
             std::vector<std::string> keys;
             if (auto owner = Owner_.Lock()) {
@@ -626,7 +664,7 @@ private:
             return keys;
         }
 
-        i64 GetSize() const override
+        i64 GetSize() const final
         {
             if (auto owner = Owner_.Lock()) {
                 return owner->Tablets().size();
@@ -634,7 +672,7 @@ private:
             return 0;
         }
 
-        IYPathServicePtr FindItemService(const std::string& key) const override
+        IYPathServicePtr FindItemService(const std::string& key) const final
         {
             if (auto owner = Owner_.Lock()) {
                 if (auto tablet = owner->FindTablet(TTabletId::FromString(key))) {
@@ -655,8 +693,6 @@ private:
         DECLARE_NEW_FRIEND()
     };
 
-    const TTabletManagerConfigPtr Config_;
-
     class TTabletContext
         : public ITabletContext
     {
@@ -665,52 +701,52 @@ private:
             : Owner_(owner)
         { }
 
-        TCellId GetCellId() const override
+        TCellId GetCellId() const final
         {
             return Owner_->Slot_->GetCellId();
         }
 
-        NNative::IClientPtr GetClient() const override
+        NNative::IClientPtr GetClient() const final
         {
             return Owner_->Bootstrap_->GetClient();
         }
 
-        NClusterNode::TClusterNodeDynamicConfigManagerPtr GetDynamicConfigManager() const override
+        NClusterNode::TClusterNodeDynamicConfigManagerPtr GetDynamicConfigManager() const final
         {
             return Owner_->Bootstrap_->GetDynamicConfigManager();
         }
 
-        const TString& GetTabletCellBundleName() const override
+        const TString& GetTabletCellBundleName() const final
         {
             return Owner_->Slot_->GetTabletCellBundleName();
         }
 
-        EPeerState GetAutomatonState() const override
+        EPeerState GetAutomatonState() const final
         {
             return Owner_->Slot_->GetAutomatonState();
         }
 
-        int GetAutomatonTerm() const override
+        int GetAutomatonTerm() const final
         {
             return Owner_->Slot_->GetAutomatonTerm();
         }
 
-        IInvokerPtr GetControlInvoker() const override
+        IInvokerPtr GetControlInvoker() const final
         {
             return Owner_->Bootstrap_->GetControlInvoker();
         }
 
-        IInvokerPtr GetAutomatonInvoker() const override
+        IInvokerPtr GetAutomatonInvoker() const final
         {
             return Owner_->Slot_->GetAutomatonInvoker(EAutomatonThreadQueue::Default);
         }
 
-        IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const override
+        IColumnEvaluatorCachePtr GetColumnEvaluatorCache() const final
         {
             return Owner_->Bootstrap_->GetColumnEvaluatorCache();
         }
 
-        NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const override
+        NQueryClient::IRowComparerProviderPtr GetRowComparerProvider() const final
         {
             return Owner_->Bootstrap_->GetRowComparerProvider();
         }
@@ -719,7 +755,7 @@ private:
             TTablet* tablet,
             EStoreType type,
             TStoreId storeId,
-            const TAddStoreDescriptor* descriptor) const override
+            const TAddStoreDescriptor* descriptor) const final
         {
             return Owner_->CreateStore(tablet, type, storeId, descriptor);
         }
@@ -727,52 +763,52 @@ private:
         THunkChunkPtr CreateHunkChunk(
             TTablet* tablet,
             TChunkId chunkId,
-            const TAddHunkChunkDescriptor* descriptor) const override
+            const TAddHunkChunkDescriptor* descriptor) const final
         {
             return Owner_->CreateHunkChunk(tablet, chunkId, descriptor);
         }
 
-        ITransactionManagerPtr GetTransactionManager() const override
+        ITransactionManagerPtr GetTransactionManager() const final
         {
             return Owner_->Slot_->GetTransactionManager();
         }
 
-        NRpc::IServerPtr GetLocalRpcServer() const override
+        NRpc::IServerPtr GetLocalRpcServer() const final
         {
             return Owner_->Bootstrap_->GetRpcServer();
         }
 
-        INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() const override
+        INodeMemoryTrackerPtr GetNodeMemoryUsageTracker() const final
         {
             return Owner_->Bootstrap_->GetNodeMemoryUsageTracker();
         }
 
-        NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const override
+        NChunkClient::IChunkReplicaCachePtr GetChunkReplicaCache() const final
         {
             return Owner_->Bootstrap_->GetConnection()->GetChunkReplicaCache();
         }
 
-        IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const override
+        IHedgingManagerRegistryPtr GetHedgingManagerRegistry() const final
         {
             return Owner_->Bootstrap_->GetHedgingManagerRegistry();
         }
 
-        std::string GetLocalHostName() const override
+        std::string GetLocalHostName() const final
         {
             return Owner_->Bootstrap_->GetLocalHostName();
         }
 
-        NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const override
+        NNodeTrackerClient::TNodeDescriptor GetLocalDescriptor() const final
         {
             return Owner_->Bootstrap_->GetLocalDescriptor();
         }
 
-        ITabletWriteManagerHostPtr GetTabletWriteManagerHost() const override
+        ITabletWriteManagerHostPtr GetTabletWriteManagerHost() const final
         {
             return Owner_;
         }
 
-        IVersionedChunkMetaManagerPtr GetVersionedChunkMetaManager() const override
+        IVersionedChunkMetaManagerPtr GetVersionedChunkMetaManager() const final
         {
             return Owner_->Bootstrap_->GetVersionedChunkMetaManager();
         }
@@ -898,7 +934,7 @@ private:
         }
     }
 
-    void OnAfterSnapshotLoaded() noexcept override
+    void OnAfterSnapshotLoaded() noexcept final
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -3801,7 +3837,7 @@ private:
         return false;
     }
 
-    const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() const override
+    const NLeaseServer::ILeaseManagerPtr& GetLeaseManager() const final
     {
         return Slot_->GetLeaseManager();
     }
@@ -3868,7 +3904,7 @@ private:
         CheckIfTabletFullyUnlocked(tablet);
     }
 
-    ISimpleHydraManagerPtr GetHydraManager() const override
+    ISimpleHydraManagerPtr GetHydraManager() const final
     {
         return Slot_->GetSimpleHydraManager();
     }
@@ -4656,7 +4692,7 @@ private:
             case EStoreType::SortedChunk: {
                 NChunkClient::TLegacyReadRange readRange;
                 TChunkId chunkId;
-                auto overrideTimestamp = NullTimestamp;
+                auto finalTimestamp = NullTimestamp;
                 auto maxClipTimestamp = NullTimestamp;
 
                 if (descriptor) {
@@ -4666,7 +4702,7 @@ private:
                             readRange = FromProto<NChunkClient::TLegacyReadRange>(chunkViewDescriptor.read_range());
                         }
                         if (chunkViewDescriptor.has_override_timestamp()) {
-                            overrideTimestamp = static_cast<TTimestamp>(chunkViewDescriptor.override_timestamp());
+                            finalTimestamp = static_cast<TTimestamp>(chunkViewDescriptor.override_timestamp());
                         }
                         if (chunkViewDescriptor.has_max_clip_timestamp()) {
                             maxClipTimestamp = static_cast<TTimestamp>(chunkViewDescriptor.max_clip_timestamp());
@@ -4680,16 +4716,14 @@ private:
                 }
 
                 return New<TSortedChunkStore>(
-                    Config_,
                     storeId,
                     chunkId,
                     readRange,
-                    overrideTimestamp,
+                    finalTimestamp,
                     maxClipTimestamp,
                     tablet,
                     descriptor,
-                    Bootstrap_->GetBlockCache(),
-                    Bootstrap_->GetVersionedChunkMetaManager(),
+                    StoreContext_,
                     CreateBackendChunkReadersHolder(
                         Bootstrap_,
                         Bootstrap_->GetClient(),
@@ -4701,9 +4735,9 @@ private:
             case EStoreType::SortedDynamic:
                 return NewWithOffloadedDtor<TSortedDynamicStore>(
                     NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-                    Config_,
                     storeId,
-                    tablet);
+                    tablet,
+                    StoreContext_);
 
             case EStoreType::OrderedChunk: {
                 if (!IsRecovery()) {
@@ -4712,12 +4746,10 @@ private:
                 }
 
                 return New<TOrderedChunkStore>(
-                    Config_,
                     storeId,
                     tablet,
                     descriptor,
-                    Bootstrap_->GetBlockCache(),
-                    Bootstrap_->GetVersionedChunkMetaManager(),
+                    StoreContext_,
                     CreateBackendChunkReadersHolder(
                         Bootstrap_,
                         Bootstrap_->GetClient(),
@@ -4729,9 +4761,9 @@ private:
             case EStoreType::OrderedDynamic:
                 return NewWithOffloadedDtor<TOrderedDynamicStore>(
                     NRpc::TDispatcher::Get()->GetHeavyInvoker(),
-                    Config_,
                     storeId,
-                    tablet);
+                    tablet,
+                    StoreContext_);
 
             default:
                 YT_ABORT();
@@ -4968,7 +5000,7 @@ private:
         UpdateTrimmedRowCount(tablet, trimmedRowCount);
     }
 
-    const IBackupManagerPtr& GetBackupManager() const override
+    const IBackupManagerPtr& GetBackupManager() const final
     {
         return BackupManager_;
     }
@@ -5032,7 +5064,7 @@ private:
         }
     }
 
-    TCellId GetCellId() const override
+    TCellId GetCellId() const final
     {
         return Slot_->GetCellId();
     }
@@ -5062,13 +5094,13 @@ private:
         return lockCount;
     }
 
-    TTabletNodeDynamicConfigPtr GetDynamicConfig() const override
+    TTabletNodeDynamicConfigPtr GetDynamicConfig() const final
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         return dynamicConfigManager->GetConfig()->TabletNode;
     }
 
-    const TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override
+    const TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const final
     {
         return Bootstrap_->GetDynamicConfigManager();
     }

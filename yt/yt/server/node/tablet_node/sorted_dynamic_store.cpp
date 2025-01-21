@@ -935,10 +935,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TSortedDynamicStore::TSortedDynamicStore(
-    TTabletManagerConfigPtr config,
     TStoreId id,
-    TTablet* tablet)
-    : TDynamicStoreBase(config, id, tablet)
+    TTablet* tablet,
+    IStoreContextPtr context)
+    : TDynamicStoreBase(id, tablet, std::move(context))
     , RowKeyComparer_(tablet->GetRowKeyComparer())
     , Rows_(new TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>(
         RowBuffer_->GetPool(),
@@ -1022,7 +1022,8 @@ void TSortedDynamicStore::WaitOnBlockedRow(
     }
 
     auto now = NProfiling::GetCpuInstant();
-    auto deadline = now + NProfiling::DurationToCpuDuration(Config_->MaxBlockedRowWaitTime);
+    auto maxBlockedRowWaitTime = Context_->GetTabletManagerConfig()->MaxBlockedRowWaitTime;
+    auto deadline = now + NProfiling::DurationToCpuDuration(maxBlockedRowWaitTime);
 
     while (true) {
         int lockIndex = GetBlockingLockIndex(row, lockMask, timestamp);
@@ -1036,7 +1037,7 @@ void TSortedDynamicStore::WaitOnBlockedRow(
                 << TErrorAttribute("tablet_id", TabletId_)
                 << TErrorAttribute("table_path", TablePath_)
                 << TErrorAttribute("key", RowToKey(row))
-                << TErrorAttribute("timeout", Config_->MaxBlockedRowWaitTime)
+                << TErrorAttribute("timeout", maxBlockedRowWaitTime)
                 << TErrorAttribute("timestamp", timestamp);
         };
 

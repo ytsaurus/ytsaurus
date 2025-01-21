@@ -3,6 +3,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include "tablet_context_mock.h"
+#include "store_context_mock.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
 #include <yt/yt/server/node/tablet_node/sorted_dynamic_store.h>
@@ -176,8 +177,6 @@ public:
         if (!sorted) {
             QueryNameTable_ = TNameTable::FromSchema(*schema->ToQuery());
         }
-
-        ChunkReadOptions_.ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
 
         CreateTablet();
     }
@@ -365,20 +364,24 @@ public:
         EndReserializeStore(BeginReserializeStore());
     }
 
-    const IColumnEvaluatorCachePtr ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(
-        New<TColumnEvaluatorCacheConfig>());
-
-    const NQueryClient::IRowComparerProviderPtr RowComparerProvider_ = CreateRowComparerProvider(New<TSlruCacheConfig>());
+protected:
+    /*const*/ TTabletContextMock TabletContext_;
+    const IStoreContextPtr StoreContext_ = New<TStoreContextMock>();
+    const NConcurrency::TActionQueuePtr TestQueue_ = New<NConcurrency::TActionQueue>("Test");
+    const TTableSettings TableSettings_ = TTableSettings::CreateNew();
+    const NChunkClient::TClientChunkReadOptions ChunkReadOptions_ = MakeChunkReadOptions();
 
     TNameTablePtr NameTable_;
     TNameTablePtr QueryNameTable_;
     std::unique_ptr<TTablet> Tablet_;
     TTimestamp LastGeneratedTimestamp_ = 10000; // some reasonable starting point
-    NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
-    TTabletContextMock TabletContext_;
-    TTableSettings TableSettings_ = TTableSettings::CreateNew();
 
-    const NConcurrency::TActionQueuePtr TestQueue_ = New<NConcurrency::TActionQueue>("Test");
+    static NChunkClient::TClientChunkReadOptions MakeChunkReadOptions()
+    {
+        NChunkClient::TClientChunkReadOptions result;
+        result.ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
+        return result;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

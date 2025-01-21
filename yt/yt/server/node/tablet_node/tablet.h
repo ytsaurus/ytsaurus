@@ -682,8 +682,6 @@ public:
 
     ETabletState GetPersistentState() const;
 
-    NApi::NNative::IClientPtr GetClient() const;
-
     const TTableSettings& GetSettings() const;
     void SetSettings(TTableSettings settings);
 
