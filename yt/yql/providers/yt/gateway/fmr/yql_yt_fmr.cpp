@@ -8,6 +8,8 @@ using namespace NThreading;
 
 namespace NYql {
 
+namespace {
+
 class TFmrYtGateway final: public TYtForwardingGatewayBase {
 public:
     TFmrYtGateway(IYtGateway::TPtr&& slave)
@@ -15,6 +17,8 @@ public:
     {
     }
 };
+
+} // namespace
 
 IYtGateway::TPtr CreateYtFmrGateway(IYtGateway::TPtr slave) {
     return MakeIntrusive<TFmrYtGateway>(std::move(slave));
