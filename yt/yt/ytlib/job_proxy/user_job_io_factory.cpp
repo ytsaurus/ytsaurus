@@ -232,19 +232,18 @@ struct TUserJobIOFactoryBase
         , OutBandwidthThrottler_(std::move(outBandwidthThrottler))
     { }
 
-    void Initialize()
+    IMultiReaderMemoryManagerPtr CreateMultiReaderMemoryManager()
     {
         // Initialize parallel reader memory manager.
-        {
-            auto totalReaderMemoryLimit = GetTotalReaderMemoryLimit();
-            TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
-                .TotalReservedMemorySize = totalReaderMemoryLimit,
-                .MaxInitialReaderReservedMemory = totalReaderMemoryLimit
-            };
-            MultiReaderMemoryManager_ = CreateParallelReaderMemoryManager(
-                parallelReaderMemoryManagerOptions,
-                NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
-        }
+        auto totalReaderMemoryLimit = GetTotalReaderMemoryLimit();
+        TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
+            .TotalReservedMemorySize = totalReaderMemoryLimit,
+            .MaxInitialReaderReservedMemory = totalReaderMemoryLimit
+        };
+        return CreateParallelReaderMemoryManager(
+            parallelReaderMemoryManagerOptions,
+            NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker()
+        );
     }
 
     ISchemalessMultiChunkWriterPtr CreateWriter(
@@ -282,7 +281,6 @@ protected:
     const TChunkReaderHostPtr ChunkReaderHost_;
     const TString LocalHostName_;
     const IThroughputThrottlerPtr OutBandwidthThrottler_;
-    IMultiReaderMemoryManagerPtr MultiReaderMemoryManager_;
 
     virtual i64 GetTotalReaderMemoryLimit() const = 0;
 };
@@ -307,15 +305,14 @@ public:
             std::move(localHostName),
             std::move(outBandwidthThrottler))
         , UseParallelReader_(useParallelReader)
-    {
-        TUserJobIOFactoryBase::Initialize();
-    }
+    { }
 
     ISchemalessMultiChunkReaderPtr CreateReader(
         TClosure /*onNetworkReleased*/,
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
+        auto multiReaderMemoryManager = CreateMultiReaderMemoryManager();
         return CreateRegularReader(
             JobSpecHelper_,
             ChunkReaderHost_,
@@ -323,7 +320,7 @@ public:
             std::move(nameTable),
             columnFilter,
             ChunkReadOptions_,
-            MultiReaderMemoryManager_);
+            multiReaderMemoryManager);
     }
 
 protected:
@@ -361,9 +358,7 @@ public:
         , InterruptAtKeyEdge_(interruptAtKeyEdge)
         , Logger(JobProxyClientLogger())
         , Buffer_(New<TRowBuffer>(TSortedReduceJobIOFactoryTag()))
-    {
-        TUserJobIOFactoryBase::Initialize();
-    }
+    { }
 
     ISchemalessMultiChunkReaderPtr CreateReader(
         TClosure /*onNetworkReleased*/,
@@ -375,6 +370,7 @@ public:
         const auto& reduceJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
         auto sortColumns = FromProto<TSortColumns>(reduceJobSpecExt.sort_columns());
+        auto multiReaderMemoryManager = CreateMultiReaderMemoryManager();
 
         // COMPAT(gritukan)
         if (sortColumns.empty()) {
@@ -407,7 +403,7 @@ public:
                 std::move(nameTable),
                 columnFilter,
                 ChunkReadOptions_,
-                MultiReaderMemoryManager_);
+                multiReaderMemoryManager);
         }
 
         auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
@@ -472,7 +468,7 @@ public:
                 const auto& inputSpec = jobSpecExt.input_table_specs(i);
                 auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
                 const auto& tableReaderConfig = JobSpecHelper_->GetJobIOConfig()->TableReader;
-                auto memoryManager = MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize);
+                auto memoryManager = multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize);
 
                 // TODO(orlovorlov) YT-18240: only read key columns here.
                 auto reader = CreateSchemalessSequentialMultiReader(
@@ -514,7 +510,7 @@ public:
             // ToDo(psushin): validate that input chunks are sorted.
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
             const auto& tableReaderConfig = JobSpecHelper_->GetJobIOConfig()->TableReader;
-            auto memoryManager = MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize);
+            auto memoryManager = multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize);
 
             auto reader = CreateSchemalessSequentialMultiReader(
                 tableReaderConfig,
@@ -552,7 +548,7 @@ public:
                 TReaderInterruptionOptions::NonInterruptible(),
                 columnFilter,
                 /*partitionTag*/ std::nullopt,
-                MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
+                multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
 
             foreignReaders.emplace_back(reader);
         }
@@ -604,9 +600,7 @@ public:
             std::move(chunkReaderHost),
             std::move(localHostName),
             std::move(outBandwidthThrottler))
-    {
-        TUserJobIOFactoryBase::Initialize();
-    }
+    { }
 
     ISchemalessMultiChunkReaderPtr CreateReader(
         TClosure /*onNetworkReleased*/,
@@ -614,6 +608,7 @@ public:
         const TColumnFilter& columnFilter) override
     {
         const auto& partitionJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
+        auto multiReaderMemoryManager = CreateMultiReaderMemoryManager();
 
         return CreateRegularReader(
             JobSpecHelper_,
@@ -622,7 +617,7 @@ public:
             std::move(nameTable),
             columnFilter,
             ChunkReadOptions_,
-            MultiReaderMemoryManager_);
+            multiReaderMemoryManager);
     }
 
     ISchemalessMultiChunkWriterPtr CreateWriter(
@@ -726,9 +721,7 @@ public:
             std::move(chunkReaderHost),
             std::move(localHostName),
             std::move(outBandwidthThrottler))
-    {
-        TUserJobIOFactoryBase::Initialize();
-    }
+    { }
 
     ISchemalessMultiChunkReaderPtr CreateReader(
         TClosure onNetworkReleased,
@@ -766,6 +759,8 @@ public:
         }
         YT_VERIFY(partitionTag);
 
+        auto multiReaderMemoryManager = CreateMultiReaderMemoryManager();
+
         if (reduceJobSpecExt.disable_sorted_input()) {
             return CreateRegularReader(
                 JobSpecHelper_,
@@ -774,7 +769,7 @@ public:
                 std::move(nameTable),
                 columnFilter,
                 ChunkReadOptions_,
-                MultiReaderMemoryManager_,
+                multiReaderMemoryManager,
                 partitionTag);
         }
 
@@ -790,7 +785,7 @@ public:
             jobSpecExt.is_approximate(),
             *partitionTag,
             ChunkReadOptions_,
-            MultiReaderMemoryManager_);
+            multiReaderMemoryManager);
     }
 
 protected:
