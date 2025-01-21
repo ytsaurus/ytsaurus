@@ -57,6 +57,21 @@ TNode TRpcRawClient::Get(
     return NodeFromYsonString(result.AsStringBuf());
 }
 
+TNode TRpcRawClient::TryGet(
+    const TTransactionId& transactionId,
+    const TYPath& path,
+    const TGetOptions& options)
+{
+    try {
+        return Get(transactionId, path, options);
+    } catch (const TErrorResponse& error) {
+        if (!error.IsResolveError()) {
+            throw;
+        }
+        return {};
+    }
+}
+
 void TRpcRawClient::Set(
     TMutationId& mutationId,
     const TTransactionId& transactionId,

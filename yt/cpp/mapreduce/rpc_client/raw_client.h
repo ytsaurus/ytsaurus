@@ -26,6 +26,11 @@ public:
         const TYPath& path,
         const TGetOptions& options = {}) override;
 
+    TNode TryGet(
+        const TTransactionId& transactionId,
+        const TYPath& path,
+        const TGetOptions& options = {}) override;
+
     void Set(
         TMutationId& mutationId,
         const TTransactionId& transactionId,
