@@ -351,10 +351,16 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
 
         if (tabletSnapshot->Settings.MountConfig->InsertMetaUponStoreUpdate) {
             tableWriter->GetMeta()->SubscribeMetaFinalized(BIND([
-                =,
                 this,
+                tabletSnapshot,
+                weakWriter = MakeWeak(tableWriter),
                 this_ = MakeStrong(this)] (const TRefCountedChunkMeta* finalizedMeta)
             {
+                auto tableWriter = weakWriter.Lock();
+                if (!tableWriter) {
+                    return;
+                }
+
                 auto result = false;
                 if (auto chunkMetaManager = TabletContext_->GetVersionedChunkMetaManager()) {
                     result = chunkMetaManager->InsertMeta(
@@ -367,7 +373,7 @@ TStoreFlushCallback TOrderedStoreManager::MakeStoreFlushCallback(
                 }
 
                 YT_LOG_DEBUG("Propagating versioned chunk meta cache upon chunk finalization "
-                    "(Success: %v, ChunkId: %v, Activity: %Qlv)",
+                    "(Success: %v, ChunkId: %v, Activity: %v)",
                     result,
                     tableWriter->GetChunkId(),
                     ETabletBackgroundActivity::Flush);

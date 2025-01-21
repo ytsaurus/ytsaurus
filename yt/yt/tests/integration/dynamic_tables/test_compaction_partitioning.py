@@ -6,7 +6,8 @@ from yt_commands import (
     remount_table, get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_reshard_table, sync_flush_table, build_snapshot, sorted_dicts, sync_compact_table,
     sync_freeze_table, sync_unfreeze_table, get_singular_chunk_id, generate_uuid,
-    set_node_banned, disable_write_sessions_on_node, update_nodes_dynamic_config)
+    set_node_banned, disable_write_sessions_on_node, update_nodes_dynamic_config,
+    create_domestic_medium)
 
 from yt.common import YtError
 
@@ -879,6 +880,50 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         _check_not_watermark("legacy")
         _check_not_watermark("new")
+
+    @authors("ifsmirnov")
+    def test_compaction_does_not_leak_memory(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t")
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"key": 1}])
+        sync_unmount_table("//tmp/t")
+
+        # Run successful compaction.
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        set("//tmp/t/@forced_compaction_revision", 1)
+        sync_mount_table("//tmp/t")
+        wait(lambda: get_singular_chunk_id("//tmp/t") != chunk_id)
+        sync_unmount_table("//tmp/t")
+
+        # Run unsuccessful compaction.
+        create_domestic_medium("m")
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/m", 1000000)
+        set("//tmp/t/@primary_medium", "m")
+        set("//tmp/t/@forced_compaction_revision", 1)
+        sync_mount_table("//tmp/t")
+
+        node_address = get("//tmp/t/@tablets/0/cell_leader_address")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        def _has_failed_tasks():
+            tasks = get(f"//sys/cluster_nodes/{node_address}/orchid/store_compactor/compaction_tasks/failed_tasks")
+            return len(tasks) > 0 and tasks[-1]["tablet_id"] == tablet_id
+        wait(_has_failed_tasks)
+
+        sync_unmount_table("//tmp/t")
+
+        def _background_memory_is_zero():
+            try:
+                usage = get(f"//sys/cluster_nodes/{node_address}/orchid/sensors/yt/cluster_node/memory_usage/used")
+            except YtError:
+                return False
+
+            for x in usage:
+                if x["tags"].get("category") == "tablet_background":
+                    return x["value"] == 0.0
+            return False
+        wait(_background_memory_is_zero)
 
 
 ################################################################################
