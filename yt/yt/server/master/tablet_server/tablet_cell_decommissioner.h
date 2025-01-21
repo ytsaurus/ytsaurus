@@ -15,10 +15,10 @@ public:
     explicit TTabletCellDecommissioner(NCellMaster::TBootstrap* bootstrap);
     ~TTabletCellDecommissioner();
 
-    void Start();
-    void Stop();
+    void Start() const;
+    void Stop() const;
 
-    void Reconfigure(TTabletCellDecommissionerConfigPtr config);
+    void Reconfigure(TTabletCellDecommissionerConfigPtr config) const;
 
 private:
     class TImpl;
