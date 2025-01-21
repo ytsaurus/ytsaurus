@@ -1786,7 +1786,7 @@ private:
 
             for (const auto& attribute : attributeKeys) {
                 auto* subrequest = req->add_subrequests();
-                subrequest->set_attribute(SubstGlobalCopy(attribute, "/", "\\/"));
+                subrequest->set_attribute(ToYPathLiteral(attribute));
                 auto value = InputTableAttributes_->GetYson(attribute);
                 ValidateYson(value, GetYsonNestingLevelLimit());
                 subrequest->set_value(value.ToString());
