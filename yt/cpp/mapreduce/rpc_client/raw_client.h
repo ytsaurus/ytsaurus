@@ -257,11 +257,21 @@ public:
         i64 tabletCount,
         const TReshardTableOptions& options = {}) override;
 
+    void InsertRows(
+        const TYPath& path,
+        const TNode::TListType& rows,
+        const TInsertRowsOptions& options = {}) override;
+
     void TrimRows(
         const TYPath& path,
         i64 tabletIndex,
         i64 rowCount,
         const TTrimRowsOptions& options = {}) override;
+
+    TNode::TListType LookupRows(
+        const TYPath& path,
+        const TNode::TListType& keys,
+        const TLookupRowsOptions& options = {}) override;
 
     TNode::TListType SelectRows(
         const TString& query,
@@ -289,6 +299,11 @@ public:
         TMutationId& mutationId,
         const TReplicaId& replicaId,
         const TAlterTableReplicaOptions& options = {}) override;
+
+    void DeleteRows(
+        const TYPath& path,
+        const TNode::TListType& keys,
+        const TDeleteRowsOptions& options = {}) override;
 
     void FreezeTable(
         const TYPath& path,
@@ -322,6 +337,8 @@ public:
         const TGetTablePartitionsOptions& options = {}) override;
 
     ui64 GenerateTimestamp() override;
+
+    IRawBatchRequestPtr CreateRawBatchRequest() override;
 
 private:
     const NApi::IClientPtr Client_;

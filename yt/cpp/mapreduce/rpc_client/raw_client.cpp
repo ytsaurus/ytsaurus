@@ -838,6 +838,14 @@ void TRpcRawClient::ReshardTableByTabletCount(
     WaitFor(future).ThrowOnError();
 }
 
+void TRpcRawClient::InsertRows(
+    const TYPath& /*path*/,
+    const TNode::TListType& /*rows*/,
+    const TInsertRowsOptions& /*options*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
 void TRpcRawClient::TrimRows(
     const TYPath& path,
     i64 tabletIndex,
@@ -846,6 +854,14 @@ void TRpcRawClient::TrimRows(
 {
     auto future = Client_->TrimTable(path, tabletIndex, rowCount);
     WaitFor(future).ThrowOnError();
+}
+
+TNode::TListType TRpcRawClient::LookupRows(
+    const TYPath& /*path*/,
+    const TNode::TListType& /*keys*/,
+    const TLookupRowsOptions& /*options*/)
+{
+    YT_UNIMPLEMENTED();
 }
 
 TNode::TListType TRpcRawClient::SelectRows(
@@ -989,6 +1005,14 @@ void TRpcRawClient::AlterTableReplica(
         YtGuidFromUtilGuid(replicaId),
         SerializeOptionsForAlterTableReplica(mutationId, options));
     WaitFor(future).ThrowOnError();
+}
+
+void TRpcRawClient::DeleteRows(
+    const TYPath& /*path*/,
+    const TNode::TListType& /*keys*/,
+    const TDeleteRowsOptions& /*options*/)
+{
+    YT_UNIMPLEMENTED();
 }
 
 void TRpcRawClient::FreezeTable(
@@ -1154,6 +1178,11 @@ ui64 TRpcRawClient::GenerateTimestamp()
     auto future = Client_->GetTimestampProvider()->GenerateTimestamps();
     auto result = WaitFor(future).ValueOrThrow();
     return result;
+}
+
+IRawBatchRequestPtr CreateRawBatchRequest()
+{
+    YT_UNIMPLEMENTED();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
