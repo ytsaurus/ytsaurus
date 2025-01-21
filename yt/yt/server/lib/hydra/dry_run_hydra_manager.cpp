@@ -105,7 +105,8 @@ public:
 
     void DryRunLoadSnapshot(
         const ISnapshotReaderPtr& reader,
-        int snapshotId = InvalidSegmentId) override
+        int snapshotId,
+        bool prepareState) override
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -132,7 +133,8 @@ public:
 
         auto loadSnapshotFuture = BIND(&TDecoratedAutomaton::LoadSnapshot, DecoratedAutomaton_)
             .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
-            .Run(snapshotId,
+            .Run(
+                snapshotId,
                 meta.last_mutation_term(),
                 meta.last_mutation_reign(),
                 TVersion(meta.last_segment_id(), meta.last_record_id()),
@@ -141,9 +143,17 @@ public:
                 meta.random_seed(),
                 meta.state_hash(),
                 FromProto<TInstant>(meta.timestamp()),
-                std::move(reader));
+                std::move(reader),
+                prepareState);
         WaitFor(loadSnapshotFuture)
             .ThrowOnError();
+
+        YT_LOG_INFO("Successfully finished loading snapshot in dry run mode");
+    }
+
+    void DryRunCheckInvariants() override
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         YT_LOG_INFO("Checking invariants");
 
@@ -153,7 +163,7 @@ public:
         WaitFor(checkInvariantsFuture)
             .ThrowOnError();
 
-        YT_LOG_INFO("Successfully finished loading snapshot in dry run mode");
+        YT_LOG_INFO("Successfully finished checking invariants in dry run mode");
     }
 
     void DryRunReplayChangelog(IChangelogPtr changelog) override

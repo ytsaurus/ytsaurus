@@ -341,7 +341,17 @@ private:
 
         const auto& hydraManager = DryRunOccupant_->GetHydraManager();
         auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
-        dryRunHydraManager->DryRunLoadSnapshot(std::move(snapshotReader));
+        dryRunHydraManager->DryRunLoadSnapshot(
+            std::move(snapshotReader),
+            // TODO(babenko): This is wierd hack. The id is used by Hydra
+            // for logging purposes and also to execute the implicit "prepare state" mutation.
+            // We must store the id in meta to avoid these complications.
+            InvalidSegmentId,
+            /*prepareState*/ !dumpSnapshot);
+
+        if (!dumpSnapshot) {
+            dryRunHydraManager->DryRunCheckInvariants();
+        }
     }
 
     void DoReplayChangelogs(const std::vector<TString>& changelogFileNames)

@@ -186,7 +186,8 @@ void TRecovery::DoRun()
                     snapshotRandomSeed,
                     snapshotStateHash,
                     snapshotTimestamp,
-                    snapshotReader);
+                    snapshotReader,
+                    /*prepareState*/ true);
             WaitFor(future)
                 .ThrowOnError();
         }
