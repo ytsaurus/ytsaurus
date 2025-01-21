@@ -16,6 +16,7 @@ import pytest
 
 class TestReplicatedTablesCollocationBase(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 3
     ENABLE_STANDALONE_REPLICATED_TABLE_TRACKER = True
     NUM_REPLICATED_TABLE_TRACKERS = 2
 

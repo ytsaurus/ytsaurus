@@ -110,6 +110,7 @@ UNIQUE_KEY_VALUE_PAIR_INDEX_SCHEMA = [
 
 class TestSecondaryIndexBase(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
+    NUM_MASTERS = 3
     NUM_SECONDARY_MASTER_CELLS = 2
 
     def _sync_create_cells(self, cell_count=1):
