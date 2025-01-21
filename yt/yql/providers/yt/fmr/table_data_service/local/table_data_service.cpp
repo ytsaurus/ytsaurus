@@ -2,38 +2,54 @@
 
 namespace NYql {
 
-TLocalTableDataService::TLocalTableDataService(ui32 numParts): NumParts_(numParts) {
-    Data_.resize(NumParts_);
+namespace {
+
+class TLocalTableDataService: public ITableDataService {
+public:
+    TLocalTableDataService(const TLocalTableDataServiceSettings& settings): NumParts_(settings.NumParts) {
+        Data_.resize(NumParts_);
+    }
+
+    NThreading::TFuture<void> Put(const TString& key, const TString& value) {
+        auto& map = Data_[std::hash<TString>()(key) % NumParts_];
+        auto it = map.find(key);
+        if (it != map.end()) {
+            return NThreading::MakeFuture();
+        }
+        map.insert({key, value});
+        return NThreading::MakeFuture();
+    }
+
+    NThreading::TFuture<TMaybe<TString>> Get(const TString& key) {
+        TMaybe<TString> value = Nothing();
+        auto& map = Data_[std::hash<TString>()(key) % NumParts_];
+        auto it = map.find(key);
+        if (it != map.end()) {
+            value = it->second;
+        }
+        return NThreading::MakeFuture(value);
+    }
+
+    NThreading::TFuture<void> Delete(const TString& key) {
+        auto& map = Data_[std::hash<TString>()(key) % NumParts_];
+        auto it = map.find(key);
+        if (it == map.end()) {
+            return NThreading::MakeFuture();
+        }
+        map.erase(key);
+        return NThreading::MakeFuture();
+    }
+
+private:
+    std::vector<std::unordered_map<TString, TString>> Data_;
+    const ui32 NumParts_;
 };
 
-NThreading::TFuture<void> TLocalTableDataService::Put(const TString& key, const TString& value) {
-    auto& map = Data_[std::hash<TString>()(key) % NumParts_];
-    auto it = map.find(key);
-    if (it != map.end()) {
-        return NThreading::MakeFuture();
-    }
-    map.insert({key, value});
-    return NThreading::MakeFuture();
+} // namespace
+
+ITableDataService::TPtr MakeLocalTableDataService(const TLocalTableDataServiceSettings& settings) {
+    return MakeIntrusive<TLocalTableDataService>(settings);
 }
 
-NThreading::TFuture<TMaybe<TString>> TLocalTableDataService::Get(const TString& key) {
-    TMaybe<TString> value = Nothing();
-    auto& map = Data_[std::hash<TString>()(key) % NumParts_];
-    auto it = map.find(key);
-    if (it != map.end()) {
-        value = it->second;
-    }
-    return NThreading::MakeFuture(value);
-}
 
-NThreading::TFuture<void> TLocalTableDataService::Delete(const TString& key) {
-    auto& map = Data_[std::hash<TString>()(key) % NumParts_];
-    auto it = map.find(key);
-    if (it == map.end()) {
-        return NThreading::MakeFuture();
-    }
-    map.erase(key);
-    return NThreading::MakeFuture();
-}
-
-} // namspace NYql
+} // namespace NYql

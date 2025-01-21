@@ -2,8 +2,10 @@
 
 namespace NYql {
 
-class ITableDataService {
+class ITableDataService: public TThrRefBase {
 public:
+    using TPtr = TIntrusivePtr<ITableDataService>;
+
     virtual ~ITableDataService() = default;
 
     virtual NThreading::TFuture<void> Put(const TString& id, const TString& data) = 0;

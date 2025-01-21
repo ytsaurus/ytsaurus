@@ -3,19 +3,10 @@
 
 namespace NYql {
 
-class TLocalTableDataService: public ITableDataService {
-public:
-    TLocalTableDataService(ui32 numParts);
-
-    NThreading::TFuture<void> Put(const TString& key, const TString& value) override;
-
-    NThreading::TFuture<TMaybe<TString>> Get(const TString& key) override;
-
-    NThreading::TFuture<void> Delete(const TString& key) override;
-
-private:
-    std::vector<std::unordered_map<TString, TString>> Data_;
-    const ui32 NumParts_;
+struct TLocalTableDataServiceSettings {
+    ui32 NumParts;
 };
+
+ITableDataService::TPtr MakeLocalTableDataService(const TLocalTableDataServiceSettings& settings);
 
 } // namspace NYql
