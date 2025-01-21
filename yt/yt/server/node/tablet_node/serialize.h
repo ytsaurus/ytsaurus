@@ -45,6 +45,7 @@ DEFINE_ENUM(ETabletReign,
     ((Start_25_1)                                  (101100)) // ponasenko-rs
     ((DropSamplingTimeCompats)                     (101101)) // sabdenovch
     ((SmoothMovementForwardWrites)                 (101102)) // ifsmirnov
+    ((FixPrepareToggleHunkTabletStore)             (101103)) // akozhikhov
     // 25.2 starts here.
     ((Start_25_2)                                  (101200)) // ponasenko-rs
 );
