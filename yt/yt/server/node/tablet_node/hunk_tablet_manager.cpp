@@ -594,13 +594,14 @@ private:
 
         auto storeId = FromProto<TStoreId>(request->store_id());
         auto store = tablet->GetStoreOrThrow(storeId);
-        store->Lock(transaction->GetId(), EObjectLockMode::Shared);
         if (!lock && !store->IsLockedByTablet(lockerTabletId)) {
             THROW_ERROR_EXCEPTION("Store %v of tablet %v is not locked by tablet %v",
                 storeId,
                 tabletId,
                 lockerTabletId);
         }
+
+        store->Lock(transaction->GetId(), EObjectLockMode::Shared);
 
         YT_LOG_DEBUG(
             "Hunk tablet store lock toggle prepared "
