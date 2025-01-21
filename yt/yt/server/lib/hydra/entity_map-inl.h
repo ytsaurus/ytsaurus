@@ -333,7 +333,6 @@ void TEntityMap<TValue, TTraits>::SaveKeys(TContext& context) const
             [] (auto lhs, auto rhs) { return lhs->first < rhs->first; });
     }
 
-    TSizeSerializer::Save(context, BatchedFormatMarker);
     TSizeSerializer::Save(context, SaveIterators_.size());
     for (const auto& it : SaveIterators_) {
         Save(context, it->first);
@@ -454,8 +453,8 @@ void TEntityMap<TValue, TTraits>::LoadKeys(TContext& context)
     size_t size;
 
     auto value = TSizeSerializer::Load(context);
+    // COMPAT(danilalexeev): YT-24017.
     if (value == BatchedFormatMarker) {
-        BatchedValuesFormat_ = true;
         size = TSizeSerializer::LoadSuspended(context);
     } else {
         size = value;
@@ -500,7 +499,6 @@ void TEntityMap<TValue, TTraits>::LoadValues(TContext& context, std::optional<in
     auto finally = Finally([&] {
         LoadKeys_.clear();
         LoadValues_.clear();
-        BatchedValuesFormat_ = false;
     });
 
     SERIALIZATION_DUMP_WRITE(context, "values[%v]", LoadKeys_.size());
@@ -508,7 +506,7 @@ void TEntityMap<TValue, TTraits>::LoadValues(TContext& context, std::optional<in
     int batchEntityCount = AllEntitiesBatchEntityCount;
     if (firstBatchEntityCount) {
         batchEntityCount = *firstBatchEntityCount;
-    } else if (BatchedValuesFormat_ && !LoadKeys_.empty()) {
+    } else if (!LoadKeys_.empty()) {
         Load(context, batchEntityCount);
     }
 
@@ -553,11 +551,10 @@ void TEntityMap<TValue, TTraits>::LoadValuesParallel(TContext& context)
     auto finally = Finally([&] {
         LoadKeys_.clear();
         LoadValues_.clear();
-        BatchedValuesFormat_ = false;
     });
 
     int batchEntityCount = AllEntitiesBatchEntityCount;
-    if (BatchedValuesFormat_ && !LoadKeys_.empty()) {
+    if (!LoadKeys_.empty()) {
         Load(context, batchEntityCount);
     }
 
