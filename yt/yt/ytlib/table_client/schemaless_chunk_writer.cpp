@@ -39,6 +39,7 @@
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
+#include <yt/yt/client/signature/generator.h>
 #include <yt/yt/client/signature/signature.h>
 
 #include <yt/yt/client/table_client/check_schema_compatibility.h>
@@ -2911,6 +2912,7 @@ public:
         , Logger(TableClientLogger().WithTag("Path: %v, TransactionId: %v",
             cookie.PatchInfo.RichPath,
             TransactionId_))
+        , DummySignatureGenerator_(NSignature::CreateDummySignatureGenerator())
     { }
 
     TFuture<void> Open()
@@ -2979,6 +2981,8 @@ private:
     // convert WriteResult_ to the proper type possibly to be signed
     // by rpc proxy later.
     TSignedWriteFragmentResultPtr SignedResult_;
+
+    const NSignature::TSignatureGeneratorBasePtr DummySignatureGenerator_;
 
     bool FirstRow_ = true;
 
@@ -3106,7 +3110,7 @@ private:
                 << underlyingWriterCloseError;
         }
 
-        SignedResult_ = TSignedWriteFragmentResultPtr(New<NSignature::TSignature>(ConvertToYsonString(WriteResult_)));
+        SignedResult_ = TSignedWriteFragmentResultPtr(DummySignatureGenerator_->Sign(ConvertToYsonString(WriteResult_)));
 
         // Log all statistics.
         YT_LOG_DEBUG("Writer data statistics (DataStatistics: %v)", UnderlyingWriter_->GetDataStatistics());

@@ -11,7 +11,7 @@ namespace NYT::NSignature {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSignatureValidator
-    : public ISignatureValidator
+    : public TSignatureValidatorBase
 {
 public:
     explicit TSignatureValidator(TSignatureValidatorConfigPtr config, IKeyStoreReaderPtr store);

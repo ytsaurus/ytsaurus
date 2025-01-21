@@ -335,8 +335,8 @@ void TBootstrap::DoStart()
             TraceSampler_,
             RpcProxyLogger(),
             RpcProxyProfiler(),
-            SignatureValidator_,
-            SignatureGenerator_,
+            (SignatureValidator_ ? SignatureValidator_ : CreateAlwaysThrowingSignatureValidator()),
+            (SignatureGenerator_ ? SignatureGenerator_ : CreateAlwaysThrowingSignatureGenerator()),
             MemoryUsageTracker_,
             /*stickyTransactionPool*/ {},
             QueryCorpusReporter_);

@@ -48,6 +48,8 @@
 #include <yt/yt/client/security_client/helpers.h>
 #include <yt/yt/client/security_client/public.h>
 
+#include <yt/yt/client/signature/generator.h>
+
 #include <yt/yt/core/rpc/helpers.h>
 #include <yt/yt/core/rpc/retrying_channel.h>
 
@@ -160,6 +162,7 @@ TClient::TClient(
         Connection_->GetConfig()->FunctionRegistryCache,
         MakeWeak(this),
         Connection_->GetInvoker()))
+    , DummySignatureGenerator_(NSignature::CreateDummySignatureGenerator())
 {
     if (!Options_.User) {
         THROW_ERROR_EXCEPTION("Native connection requires non-null \"user\" parameter");
