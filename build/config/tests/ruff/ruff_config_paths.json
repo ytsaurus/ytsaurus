@@ -9,6 +9,7 @@
     "taxi/cargo/check": "taxi/cargo/check/pyproject.toml",
     "taxi/codegen": "taxi/codegen/pyproject.toml",
     "taxi/github/code-linters": "taxi/github/code-linters/pyproject.toml",
+    "taxi/graph": "taxi/graph/pyproject.toml",
     "taxi/tars": "taxi/tars/pyproject.toml",
     "taxi/tplatform/uservices/": "taxi/tplatform/uservices/pyproject.toml",
     "taxi/uservices/": "taxi/uservices/pyproject.toml"
