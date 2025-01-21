@@ -482,6 +482,17 @@ class TestDataCenters(TestDataCentersBase):
 
         wait(lambda: not get("#{}/@replication_status/default/unsafely_placed".format(chunk_id)))
 
+    @authors("shakurov")
+    def test_dc_awareness_with_rf_capped_for_medium_yt_23541(self):
+        self._init_data_center_aware_replicator()
+
+        chunk_id = self._create_chunk(replication_factor=10)
+        # NB: _create_chunk waits for all the replicas to appear. Avoid capping RF before that.
+        set("//sys/media/default/@config/max_replication_factor", 3)
+
+        wait(lambda: sorted(self._get_replica_data_centers(chunk_id)) == ["d0", "d1", "d2"])
+
+
 ##################################################################
 
 
