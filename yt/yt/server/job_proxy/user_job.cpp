@@ -1430,7 +1430,7 @@ private:
         }
 
         result.ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics;
-        for (const auto& writeBlocksOptions: UserJobWriteController_->GetOutputWriteBlocksOptions()) {
+        for (const auto& writeBlocksOptions : UserJobWriteController_->GetOutputWriteBlocksOptions()) {
             result.ChunkWriterStatistics.push_back(writeBlocksOptions.ClientOptions.ChunkWriterStatistics);
         }
 

@@ -247,7 +247,7 @@ TTableReadSpec JoinTableReadSpecs(std::vector<TTableReadSpec>& tableReadSpecs)
     for (size_t index = 1; index < tableReadSpecs.size(); ++index) {
         auto& tableReadSpec = tableReadSpecs[index];
         for (auto& dataSliceDescriptor : tableReadSpec.DataSliceDescriptors) {
-            for (auto& chunkSpec: dataSliceDescriptor.ChunkSpecs) {
+            for (auto& chunkSpec : dataSliceDescriptor.ChunkSpecs) {
                 chunkSpec.set_table_index(chunkSpec.table_index() + dataSourceIndexOffset);
             }
             result.DataSliceDescriptors.emplace_back(std::move(dataSliceDescriptor));

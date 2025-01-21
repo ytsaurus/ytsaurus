@@ -1934,7 +1934,7 @@ TPIValue* LookupInRowset(
                 lookupTable->insert(row);
             }
         } else {
-            for (auto& row: *rowset) {
+            for (auto& row : *rowset) {
                 lookupTable->insert(row.Begin());
             }
         }

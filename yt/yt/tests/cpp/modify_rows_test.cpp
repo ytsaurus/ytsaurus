@@ -33,7 +33,7 @@ void TModifyRowsTest::TearDown()
     auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
         .ValueOrThrow();
 
-    for (const auto& key: Keys_) {
+    for (const auto& key : Keys_) {
         auto preparedKey = PrepareUnversionedRow({"key", "value"}, "<id=0> " + ToString(key));
         transaction->DeleteRows(Table_, std::get<1>(preparedKey), std::get<0>(preparedKey));
     }
@@ -100,7 +100,7 @@ void TModifyRowsTest::ValidateTableContent(
     const std::vector<std::pair<i64, i64>>& simpleRows)
 {
     THashSet<TString> expected;
-    for (const auto& simpleRow: simpleRows) {
+    for (const auto& simpleRow : simpleRows) {
         auto simpleRowString = MakeRowString(simpleRow.first, simpleRow.second);
         auto rowString = ToString(YsonToSchemalessRow(simpleRowString));
         expected.insert(rowString);
@@ -110,7 +110,7 @@ void TModifyRowsTest::ValidateTableContent(
         ValueOrThrow();
 
     THashSet<TString> actual;
-    for (const auto& row: res.Rowset->GetRows()) {
+    for (const auto& row : res.Rowset->GetRows()) {
         actual.insert(ToString(row));
     }
 

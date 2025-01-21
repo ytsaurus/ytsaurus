@@ -122,7 +122,7 @@ void RunHydraTest(const TString& configFile)
         client->Run();
     }
 
-    for (const auto& peer: peers) {
+    for (const auto& peer : peers) {
         peer->Initialize();
     }
 

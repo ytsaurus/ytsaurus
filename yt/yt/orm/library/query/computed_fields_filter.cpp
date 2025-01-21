@@ -284,7 +284,7 @@ std::pair<TExpressionPtr, TExpressionPtr> SplitFilter(
     TComputedFieldsChecker checker(std::move(detector));
     std::vector<TExpressionPtr> nonComputedPart;
     std::vector<TExpressionPtr> computedPart;
-    for (auto subTree: subTrees) {
+    for (auto subTree : subTrees) {
         if (checker.ContainsComputedField(subTree)) {
             computedPart.push_back(std::move(subTree));
         } else {

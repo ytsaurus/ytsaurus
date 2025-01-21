@@ -441,7 +441,7 @@ public:
         : Description_(description)
     {
         int i = 0;
-        for (const auto& pyElementSchema: Py::List(GetAttr(pySchema, ElementsFieldName))) {
+        for (const auto& pyElementSchema : Py::List(GetAttr(pySchema, ElementsFieldName))) {
             ElementConverters_.push_back(
                 CreateSkiffToPythonConverter(Format("%v.<tuple-element-%v>", description, i), pyElementSchema, validateOptionalOnRuntime));
         }

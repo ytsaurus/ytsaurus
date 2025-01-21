@@ -422,7 +422,7 @@ private:
                     THROW_ERROR_EXCEPTION("Cannot set user tags as user tags count limit exceeded")
                         << TErrorAttribute ("max_user_tag_count", securityManagerDynconfig->MaxUserTagCount);
                 }
-                for (const auto& tag: newTags) {
+                for (const auto& tag : newTags) {
                     if (std::ssize(tag) >= securityManagerDynconfig->MaxUserTagSize) {
                         THROW_ERROR_EXCEPTION("Cannot set user tags as user tag size limit exceeded")
                             << TErrorAttribute("max_user_tag_size", securityManagerDynconfig->MaxUserTagSize)

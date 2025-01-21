@@ -517,7 +517,7 @@ void TSchedulingSegmentManager::CollectFairResourceAmountPerSegment(TUpdateSched
     }
 
     // Third, apply specified reserves.
-    for (auto segment: TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
+    for (auto segment : TEnumTraits<ESchedulingSegment>::GetDomainValues()) {
         if (IsModuleAwareSchedulingSegment(segment)) {
             for (const auto& schedulingSegmentModule : Config_->GetModules()) {
                 auto reserve = std::min(

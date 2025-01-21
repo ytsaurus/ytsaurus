@@ -127,7 +127,7 @@ TStaticChannelFactoryPtr TChannelManager::GetChannelFactory(int peerId)
 
 void TChannelManager::SetUnderlying(IChannelPtr channel, int peerId)
 {
-    for (auto& channels: Channels_) {
+    for (auto& channels : Channels_) {
         channels[peerId]->SetUnderlying(channel);
     }
 }

@@ -1241,7 +1241,7 @@ private:
                     return TError("Replicated table tracker was destroyed");
                 }
 
-                YT_LOG_DEBUG("Creating client for (Cluster: %v)",
+                YT_LOG_DEBUG("Creating client for (Cluster : %v)",
                     clusterName);
 
                 if (auto client = Host_->CreateClusterClient(clusterName)) {

@@ -1431,7 +1431,7 @@ private:
         const std::vector<TYPath>& basePaths,
         const std::string& id)
     {
-        for (const auto& basePath: basePaths) {
+        for (const auto& basePath : basePaths) {
             auto path = Format("%v/%v", basePath,  NYPath::ToYPathLiteral(id));
 
             if (!WaitFor(transaction->NodeExists(path)).ValueOrThrow()) {

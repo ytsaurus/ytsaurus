@@ -1127,7 +1127,7 @@ THashMap<std::string, THashSet<std::string>> GetAliveNodes(
     auto now = TInstant::Now();
 
     for (const auto& [dataCenterName, dataCenterNodes] : bundleNodes) {
-        for (const auto& nodeName: dataCenterNodes) {
+        for (const auto& nodeName : dataCenterNodes) {
             const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
             if (!nodeInfo->Annotations->Allocated || nodeInfo->Banned) {
                 continue;
@@ -1175,7 +1175,7 @@ THashMap<std::string, THashSet<std::string>> GetAliveProxies(
     auto now = TInstant::Now();
 
     for (const auto& [dataCenterName, dataCenterProxies] : bundleProxies) {
-        for (const auto& proxyName: dataCenterProxies) {
+        for (const auto& proxyName : dataCenterProxies) {
             const auto& proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
             if (!proxyInfo->Annotations->Allocated || proxyInfo->Banned) {
                 continue;
