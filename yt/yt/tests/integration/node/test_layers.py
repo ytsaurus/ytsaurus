@@ -683,8 +683,8 @@ class TestCriDockerImage(TestLayersBase):
             while True:
                 r = poll_job_shell(job_id, operation="poll", shell_id=shell_id)
                 output += r["output"]
-        except YtResponseError as e:
-            if e.is_shell_exited():
+        except YtResponseError as err:
+            if err.is_shell_exited():
                 return output
             raise
 
@@ -777,15 +777,15 @@ class TestCriDockerImage(TestLayersBase):
         env = self._poll_until_shell_exited(job_id, poll_job_shell(
            job_id,
            operation="spawn",
-           command='env',
+           command="env",
         )["shell_id"])
         env = {
             key: value
             for line in env.splitlines()
-            for key, sep, value in [line.partition('=')]
+            for key, sep, value in [line.partition("=")]
             if sep
         }
-        expected['TMPDIR'] = lambda x: x == env["HOME"] + "/tmp"
+        expected["TMPDIR"] = lambda x: x == env["HOME"] + "/tmp"
         for name, test in expected.items():
             assert name in env
             assert test(env[name]), "Failed test for {}={}".format(name, env[name])
