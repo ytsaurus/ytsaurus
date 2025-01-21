@@ -576,6 +576,10 @@ def get_node_config():
             idle_post_period = 1000;
         };
 
+        hydra_manager = {
+            alert_on_snapshot_failure = %false;
+        };
+
         master_connector = {
             heartbeat_period = 100;
             heartbeat_period_splay = 30;

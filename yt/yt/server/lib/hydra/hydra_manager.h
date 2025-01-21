@@ -149,6 +149,12 @@ struct IHydraManager
      */
     virtual EPeerState GetControlState() const = 0;
 
+    //! Returns the reign of the last applied mutation.
+    /*!
+     *  \note Thread affinity: any
+     */
+    virtual TReign GetLastMutationReign() const = 0;
+
     //! Returns the current automaton version.
     /*!
      *  \note Thread affinity: any
