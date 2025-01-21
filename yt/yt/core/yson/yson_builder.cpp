@@ -1,24 +1,24 @@
 #include "yson_builder.h"
 
-#include <yt/yt/core/yson/writer.h>
+#include "writer.h"
 
-namespace NYT::NOrm::NAttributes {
+namespace NYT::NYson {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYson::IYsonConsumer* IYsonBuilder::operator->()
+IYsonConsumer* IYsonBuilder::operator->()
 {
     return GetConsumer();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYsonStringBuilder::TYsonStringBuilder(NYson::EYsonFormat format, NYson::EYsonType type, bool enableRaw)
+TYsonStringBuilder::TYsonStringBuilder(EYsonFormat format, EYsonType type, bool enableRaw)
     : Output_(ValueString_)
     , Writer_(CreateYsonWriter(&Output_, format, type, enableRaw))
 { }
 
-NYson::IYsonConsumer* TYsonStringBuilder::GetConsumer()
+IYsonConsumer* TYsonStringBuilder::GetConsumer()
 {
     return Writer_.get();
 }
@@ -37,10 +37,10 @@ void TYsonStringBuilder::RestoreCheckpoint(IYsonBuilder::TCheckpoint checkpoint)
     ValueString_.resize(static_cast<size_t>(checkpointSize));
 }
 
-NYson::TYsonString TYsonStringBuilder::Flush()
+TYsonString TYsonStringBuilder::Flush()
 {
     Writer_->Flush();
-    auto result = NYson::TYsonString(ValueString_);
+    auto result = TYsonString(ValueString_);
     ValueString_.clear();
     return result;
 }
@@ -56,13 +56,13 @@ bool TYsonStringBuilder::IsEmpty()
 TYsonBuilder::TYsonBuilder(
     EYsonBuilderForwardingPolicy policy,
     IYsonBuilder* underlying,
-    NYson::IYsonConsumer* consumer)
+    IYsonConsumer* consumer)
     : Policy_(policy)
     , Underlying_(underlying)
     , Consumer_(consumer)
 { }
 
-NYson::IYsonConsumer* TYsonBuilder::GetConsumer()
+IYsonConsumer* TYsonBuilder::GetConsumer()
 {
     return Consumer_;
 }
@@ -94,4 +94,4 @@ void TYsonBuilder::RestoreCheckpoint(TCheckpoint checkpoint)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOrm::NAttributes
+} // namespace NYT::NYson

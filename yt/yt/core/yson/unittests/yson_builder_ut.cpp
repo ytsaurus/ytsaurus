@@ -1,17 +1,17 @@
-#include <yt/yt/orm/library/attributes/yson_builder.h>
-
 #include <yt/yt/core/yson/consumer.h>
 #include <yt/yt/core/yson/string.h>
+#include <yt/yt/core/yson/yson_builder.h>
 
 #include <yt/yt/core/test_framework/framework.h>
 
-namespace NYT::NOrm::NServer::NObjects::NTests {
+namespace NYT::NYson {
+namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TYsonStringBuilderTest, Simple)
 {
-    NAttributes::TYsonStringBuilder builder;
+    NYson::TYsonStringBuilder builder;
     builder->OnStringScalar("some_scalar");
     ASSERT_EQ(builder.Flush().ToString(), TString{"\1\x16some_scalar"});
     ASSERT_TRUE(builder.IsEmpty());
@@ -19,7 +19,7 @@ TEST(TYsonStringBuilderTest, Simple)
 
 TEST(TYsonStringBuilderTest, Reusing)
 {
-    NAttributes::TYsonStringBuilder builder;
+    NYson::TYsonStringBuilder builder;
     builder->OnStringScalar("some_scalar1");
     ASSERT_EQ(builder.Flush().ToString(), TString{"\1\x18some_scalar1"});
     ASSERT_TRUE(builder.IsEmpty());
@@ -31,7 +31,7 @@ TEST(TYsonStringBuilderTest, Reusing)
 
 TEST(TYsonStringBuilderTest, Checkpoints)
 {
-    NAttributes::TYsonStringBuilder builder;
+    NYson::TYsonStringBuilder builder;
     builder->OnStringScalar("some_scalar");
 
     auto checkpoint = builder.CreateCheckpoint();
@@ -45,7 +45,7 @@ TEST(TYsonStringBuilderTest, Checkpoints)
 
 TEST(TYsonStringBuilderTest, MapCheckpoints)
 {
-    NAttributes::TYsonStringBuilder builder(NYson::EYsonFormat::Text);
+    NYson::TYsonStringBuilder builder(NYson::EYsonFormat::Text);
 
     builder->OnBeginMap();
 
@@ -66,9 +66,9 @@ TEST(TYsonStringBuilderTest, MapCheckpoints)
 
 TEST(TYsonBuilderTest, Forwarding)
 {
-    NAttributes::TYsonStringBuilder stringBuilder(NYson::EYsonFormat::Text);
-    NAttributes::TYsonBuilder builder(
-        NAttributes::EYsonBuilderForwardingPolicy::Forward,
+    NYson::TYsonStringBuilder stringBuilder(NYson::EYsonFormat::Text);
+    NYson::TYsonBuilder builder(
+        NYson::EYsonBuilderForwardingPolicy::Forward,
         &stringBuilder,
         stringBuilder.GetConsumer());
     builder->OnBeginMap();
@@ -83,4 +83,5 @@ TEST(TYsonBuilderTest, Forwarding)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NOrm::NServer::NObjects::NTests
+} // namespace
+} // namespace NYT::NYson

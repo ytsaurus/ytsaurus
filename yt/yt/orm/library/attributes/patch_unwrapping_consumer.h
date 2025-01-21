@@ -1,7 +1,7 @@
 #pragma once
 
-#include "yson_builder.h"
 
+#include <yt/yt/core/yson/yson_builder.h>
 #include <yt/yt/core/yson/forwarding_consumer.h>
 
 namespace NYT::NOrm::NAttributes {
@@ -26,7 +26,7 @@ public:
 
 private:
     NYson::IYsonConsumer* const Underlying_;
-    TYsonStringBuilder Builder_;
+    NYson::TYsonStringBuilder Builder_;
     std::optional<NYson::TYsonString> AttributesFragment_;
 };
 
