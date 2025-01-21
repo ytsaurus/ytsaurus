@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - members/ilyaibraev/check-if-os-test-tool-ok
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -107,7 +108,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: cmake
       build-ytsaurus: true
-      build-chyt: ${{ github.ref_name == 'main' }}
+      build-chyt: ${{ github.ref_name == 'members/ilyaibraev/check-if-os-test-tool-ok' }}
       build-python: true
       update-remote-cache: true
     secrets:
@@ -145,7 +146,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
-      build-query-tracker: ${{ github.ref_name == 'main' }}
+      build-query-tracker: ${{ github.ref_name == 'members/ilyaibraev/check-if-os-test-tool-ok' }}
       build-python: true
       update-remote-cache: true
     secrets:
@@ -182,7 +183,7 @@ jobs:
 
   systest:
     name: systest
-    if: github.ref_name == 'main'
+    if: github.ref_name == 'members/ilyaibraev/check-if-os-test-tool-ok'
     needs:
       - start-vm
       - tag
