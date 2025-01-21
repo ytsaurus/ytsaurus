@@ -899,6 +899,13 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 
         assert select_rows("* from [//tmp/t_out] LIMIT " + str(2 * size)) == original_table
 
+    @authors("faucct")
+    def test_writing_large_rows(self):
+        data = [{"index": 0, "str": "F" * 17 * (1 << 20)}]
+        create("table", "//tmp/table", attributes={"dynamic": False, "schema": self._schema})
+        write_table("//tmp/table", data, table_writer={"max_row_weight": 20 * (1 << 20)})
+        assert read_table("//tmp/table") == data
+
     @authors("kiselyovp")
     def test_abort_operation(self):
         op = self._start_simple_operation_with_breakpoint()
