@@ -248,27 +248,23 @@ class TestChunkServer(YTEnvSetup):
 
     @authors("babenko", "aleksandra-zh")
     def test_max_replication_factor(self):
-        old_max_rf = get("//sys/media/default/@config/max_replication_factor")
-        try:
-            MAX_RF = 5
-            set("//sys/media/default/@config/max_replication_factor", MAX_RF)
+        MAX_RF = 5
+        set("//sys/media/default/@config/max_replication_factor", MAX_RF)
 
-            multicell_sleep()
+        multicell_sleep()
 
-            create("table", "//tmp/t", attributes={"replication_factor": 8})
-            assert get("//tmp/t/@replication_factor") == 8
+        create("table", "//tmp/t", attributes={"replication_factor": 8})
+        assert get("//tmp/t/@replication_factor") == 8
 
-            write_table("//tmp/t", {"a": "b"})
-            chunk_id = get_singular_chunk_id("//tmp/t")
+        write_table("//tmp/t", {"a": "b"})
+        chunk_id = get_singular_chunk_id("//tmp/t")
 
-            def ok_replication_status():
-                status = get("#{}/@replication_status/default".format(chunk_id))
-                return not status["underreplicated"] and not status["overreplicated"]
-            wait(ok_replication_status)
+        def ok_replication_status():
+            status = get("#{}/@replication_status/default".format(chunk_id))
+            return not status["underreplicated"] and not status["overreplicated"]
+        wait(ok_replication_status)
 
-            assert len(get("#{0}/@stored_replicas".format(chunk_id))) == MAX_RF
-        finally:
-            set("//sys/media/default/@config/max_replication_factor", old_max_rf)
+        assert len(get("#{0}/@stored_replicas".format(chunk_id))) == MAX_RF
 
     @authors("gritukan")
     def test_disable_store_location(self):
@@ -542,6 +538,10 @@ class TestNodePendingRestartBase(YTEnvSetup):
 
         set("//sys/media/default/@config/max_replicas_per_rack", 1)
 
+    def setup_method(self, method):
+        super(TestNodePendingRestartBase, self).setup_method(method)
+        set("//sys/media/default/@config/max_replicas_per_rack", 1)
+
 
 class TestNodePendingRestart(TestNodePendingRestartBase):
     ENABLE_MULTIDAEMON = False  # Kill specific components.
@@ -588,8 +588,6 @@ class TestNodePendingRestart(TestNodePendingRestartBase):
         # 1 temporarily unavailable and 3 active (1 + 2 because of rack awareness)
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 4)
         assert node in get(f"#{chunk_id}/@stored_replicas")
-
-        set("//sys/media/default/@config/max_replicas_per_rack", 1)
 
     @authors("danilalexeev")
     def test_temporarily_unavailable_regular_replicas2(self):

@@ -1218,27 +1218,7 @@ int TChunkPlacement::GetMaxReplicasPerRack(
         medium->GetIndex(),
         replicationFactorOverride,
         Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry());
-    const auto& config = medium->AsDomestic()->Config();
-    // TODO(danilalexeev): introduce bounds to the chunk server config options.
-    result = std::min({result, config->MaxReplicasPerRack, NChunkServer::MaxReplicationFactor});
-
-    switch (chunk->GetType()) {
-        case EObjectType::Chunk:
-            result = std::min(result, config->MaxRegularReplicasPerRack);
-            break;
-        case EObjectType::ErasureChunk:
-            result = std::min(result, config->MaxErasureReplicasPerRack);
-            break;
-        case EObjectType::JournalChunk:
-            result = std::min(result, config->MaxJournalReplicasPerRack);
-            break;
-        case EObjectType::ErasureJournalChunk:
-            result = std::min(result, config->MaxErasureJournalReplicasPerRack);
-            break;
-        default:
-            YT_ABORT();
-    }
-    return result;
+    return CapPerRackReplicationFactor(result, medium, chunk);
 }
 
 int TChunkPlacement::GetMaxReplicasPerRack(
@@ -1274,9 +1254,13 @@ int TChunkPlacement::GetMaxReplicasPerDataCenter(
         return 0;
     }
 
-    auto* chunkRequisitionRegistry = Bootstrap_->GetChunkManager()->GetChunkRequisitionRegistry();
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    auto* chunkRequisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+
+    const auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
     auto replicaCount = replicationFactorOverride.value_or(
         chunk->GetPhysicalReplicationFactor(mediumIndex, chunkRequisitionRegistry));
+    replicaCount = CapTotalReplicationFactor(replicaCount, medium);
     auto aliveStorageDataCenterCount = std::ssize(AliveStorageDataCenters_);
     if (aliveStorageDataCenterCount == 0) {
         // Dividing by zero is bad, so case of zero alive data centers is handled separately.
@@ -1444,6 +1428,43 @@ TError TChunkPlacement::ComputeDataCenterFaultiness(
     }
 
     return {};
+}
+
+int TChunkPlacement::CapTotalReplicationFactor(
+    int replicationFactor,
+    const TMedium* medium) const
+{
+   const auto& config = medium->AsDomestic()->Config();
+   return std::min({replicationFactor, config->MaxReplicationFactor, NChunkServer::MaxReplicationFactor});
+}
+
+int TChunkPlacement::CapPerRackReplicationFactor(
+    int replicationFactor,
+    const TMedium* medium,
+    const TChunk* chunk) const
+{
+    const auto& config = medium->AsDomestic()->Config();
+    // TODO(danilalexeev): introduce bounds to the chunk server config options.
+    auto result = std::min({replicationFactor, config->MaxReplicasPerRack, NChunkServer::MaxReplicationFactor});
+
+    switch (chunk->GetType()) {
+        case EObjectType::Chunk:
+            result = std::min(result, config->MaxRegularReplicasPerRack);
+            break;
+        case EObjectType::ErasureChunk:
+            result = std::min(result, config->MaxErasureReplicasPerRack);
+            break;
+        case EObjectType::JournalChunk:
+            result = std::min(result, config->MaxJournalReplicasPerRack);
+            break;
+        case EObjectType::ErasureJournalChunk:
+            result = std::min(result, config->MaxErasureJournalReplicasPerRack);
+            break;
+        default:
+            YT_ABORT();
+    }
+
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
