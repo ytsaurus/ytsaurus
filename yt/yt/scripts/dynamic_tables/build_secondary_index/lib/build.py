@@ -5,6 +5,7 @@ from yt.common import wait
 
 import logging
 from itertools import zip_longest
+from random import shuffle
 
 SYSTEM_EMPTY_COLUMN_NAME = "$empty"
 TRANSIENT_PREDICATE_COLUMN_NAME = "transient_predicate"
@@ -264,6 +265,13 @@ def build_secondary_index(proxy, table, index_table, kind, predicate, dry_run, o
             "index_table_path": index_table,
             "kind": kind,
         }
+        primary_masters = client.list("//sys/primary_masters")
+        shuffle(primary_masters)
+        any_master = primary_masters[0]
+        version = client.get(f"//sys/primary_masters/{any_master}/orchid/build_info/binary_version")
+        major_version = int(version.split(".")[0])
+        if major_version >= 25:
+            attributes["table_to_index_correspondence"] = "injective" if online else "bijective"
         if predicate:
             attributes["predicate"] = predicate
         if kind == UNFOLDING:
