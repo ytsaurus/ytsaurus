@@ -3337,13 +3337,16 @@ private:
         InitializeRootAccount();
 
         if (FixAdminBuiltinGroup_) {
+            auto cellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
+            auto newAdminsGroupId = MakeWellKnownId(EObjectType::Group, cellTag, 0xfffffffffffffffc);
+
             YT_LOG_INFO("Fixing %Qv group id (GroupId: %v -> %v)",
                 AdminsGroupName,
                 AdminsGroup_->GetId(),
-                AdminsGroupId_);
+                newAdminsGroupId);
 
             auto adminsGroupHolder = GroupMap_.Release(AdminsGroup_->GetId());
-            YT_VERIFY(IsWellKnownId(AdminsGroupId_));
+            AdminsGroupId_ = newAdminsGroupId;
             adminsGroupHolder->SetId(AdminsGroupId_);
             GroupMap_.Insert(AdminsGroupId_, std::move(adminsGroupHolder));
         }
