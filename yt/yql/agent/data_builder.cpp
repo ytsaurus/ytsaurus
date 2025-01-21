@@ -197,16 +197,13 @@ void TDataBuilder::OnDecimal(TStringBuf value)
 }
 
 void TDataBuilder::OnBeginOptional()
-{
-}
+{ }
 
 void TDataBuilder::OnBeforeOptionalItem()
-{
-}
+{ }
 
 void TDataBuilder::OnAfterOptionalItem()
-{
-}
+{ }
 
 void TDataBuilder::OnEmptyOptional()
 {
@@ -311,8 +308,7 @@ void TDataBuilder::OnBeforeDictPayload()
 }
 
 void TDataBuilder::OnAfterDictPayload()
-{
-}
+{ }
 
 void TDataBuilder::OnAfterDictItem()
 {
