@@ -2719,6 +2719,19 @@ TConstProjectClausePtr BuildProjectClause(
     return projectClause;
 }
 
+void DropLimitClauseWhenGroupByOne(const TQueryPtr& query)
+{
+    if (!query->OrderClause &&
+        query->GroupClause &&
+        std::ssize(query->GroupClause->GroupItems) == 1 &&
+        query->GroupClause->GroupItems[0].Expression->As<TLiteralExpression>() &&
+        query->Limit != std::numeric_limits<i64>::max() &&
+        query->Limit != 0)
+    {
+        query->Limit = std::numeric_limits<i64>::max();
+    }
+}
+
 void PrepareQuery(
     const TQueryPtr& query,
     const NAst::TQuery& ast,
@@ -2859,6 +2872,8 @@ void PrepareQuery(
         // Select all columns.
         builder.PopulateAllColumns();
     }
+
+    DropLimitClauseWhenGroupByOne(query);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
