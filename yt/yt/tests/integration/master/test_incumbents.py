@@ -1,8 +1,8 @@
 from yt_env_setup import (YTEnvSetup, Restarter, MASTERS_SERVICE)
 
-from yt.common import YtError
-
 from yt_commands import (authors, wait, get, set, ls)
+
+import copy
 
 ##################################################################
 
@@ -14,8 +14,8 @@ class TestIncumbents(YTEnvSetup):
     def _get_orchid(self, master):
         return get(f"//sys/primary_masters/{master}/orchid/incumbent_manager")
 
-    def _get_leader_address(self):
-        for master in ls("//sys/primary_masters"):
+    def _get_leader_address(self, masters):
+        for master in masters:
             address = f"//sys/primary_masters/{master}/orchid"
             if get(f"{address}/monitoring/hydra/state") == "leading":
                 return master
@@ -40,24 +40,24 @@ class TestIncumbents(YTEnvSetup):
         with Restarter(self.Env, MASTERS_SERVICE):
             pass
 
-        def check_up():
-            try:
-                for master in ls("//sys/primary_masters"):
-                    address = f"//sys/primary_masters/{master}/orchid"
-                    get(f"{address}/monitoring/hydra/state")
-            except YtError:
-                return False
-            return True
-        wait(check_up)
+        masters = ls("//sys/primary_masters")
 
-        leader = self._get_leader_address()
-        followers = ls("//sys/primary_masters")
+        def check_up():
+            for master in masters:
+                address = f"//sys/primary_masters/{master}/orchid"
+                if get(f"{address}/monitoring/hydra/state") not in ["leading", "following"]:
+                    return False
+            return True
+        wait(check_up, ignore_exceptions=True)
+
+        leader = self._get_leader_address(masters)
+        followers = copy.deepcopy(masters)
         followers.remove(leader)
 
         def check_ok():
-            shards = self._get_orchid(self._get_leader_address())["target_state"]["chunk_replicator"]["addresses"]
+            shards = self._get_orchid(self._get_leader_address(masters))["target_state"]["chunk_replicator"]["addresses"]
             shards_per_peer = {}
-            alive_followers = ls("//sys/primary_masters")
+            alive_followers = copy.deepcopy(masters)
             alive_followers.remove(leader)
             banned_peers = get("//sys/@config/incumbent_manager/banned_peers")
             for peer_to_fail in banned_peers:
@@ -75,7 +75,7 @@ class TestIncumbents(YTEnvSetup):
                 if counter != 60 / len(alive_followers):
                     return False
 
-            for peer in ls("//sys/primary_masters"):
+            for peer in masters:
                 if peer in banned_peers:
                     continue
                 if self._get_orchid(peer)["local_state"]["chunk_replicator"]["addresses"] != shards:
