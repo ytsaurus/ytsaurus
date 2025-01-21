@@ -797,6 +797,89 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         update_throttler_limit(10000)
         wait(lambda: chunk_id not in get("//tmp/t/@chunk_ids"))
 
+    @authors("dave11ar")
+    def test_timestamp_digest_with_watermart_row_merger_mode(self):
+        sync_create_cells(1)
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "store_compactor": {
+                    "row_digest_fetch_period": 1,
+                    "use_row_digests": True,
+                },
+            },
+        })
+
+        def _create_table(row_merger_type):
+            table_path = f"//tmp/t{generate_uuid()}"
+
+            self._create_simple_table(
+                table_path,
+                mount_config={
+                    "min_data_ttl": 1e9,
+                    "max_data_ttl": 1e9,
+                    "min_data_versions": 0,
+                    "max_data_versions": 0,
+                    "row_merger_type": row_merger_type,
+                    "row_digest_compaction": {
+                        "max_obsolete_timestamp_ratio": 1,
+                    },
+                },
+                chunk_writer={
+                    "versioned_row_digest": {
+                        "enable": True,
+                    },
+                },
+                compression_codec="none",
+                dynamic_store_auto_flush_period=yson.YsonEntity(),
+            )
+
+            sync_mount_table(table_path)
+            insert_rows(table_path, [{"key": 1, "value": "v"}])
+            sync_flush_table(table_path)
+
+            return table_path
+
+        def _set_ttls(table_path, ttl):
+            set(f"{table_path}/@min_data_ttl", ttl)
+            set(f"{table_path}/@max_data_ttl", ttl)
+            remount_table(table_path)
+
+        def _check_chunk(table_path):
+            chunk_id = get(f"{table_path}/@chunk_ids")[0]
+
+            _set_ttls(table_path, 1)
+
+            sleep(2)
+
+            chunk_ids = get(f"{table_path}/@chunk_ids")
+
+            assert len(chunk_ids) == 1
+            assert chunk_ids[0] == chunk_id
+
+        def _check_not_watermark(row_merger_type):
+            table_path = _create_table(row_merger_type)
+
+            _set_ttls(table_path, 1)
+
+            sleep(2)
+
+            assert len(get(f"{table_path}/@chunk_ids")) == 0
+
+            _set_ttls(table_path, 1e9)
+            insert_rows(table_path, [{"key": 1, "value": "v"}])
+            sync_flush_table(table_path)
+
+            set(f"{table_path}/@mount_config/row_merger_type", "watermark")
+            remount_table(table_path)
+
+            _check_chunk(table_path)
+
+        table_path_watermark = _create_table("watermark")
+        _check_chunk(table_path_watermark)
+
+        _check_not_watermark("legacy")
+        _check_not_watermark("new")
+
 
 ################################################################################
 

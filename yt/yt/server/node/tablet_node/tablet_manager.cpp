@@ -1433,11 +1433,8 @@ private:
         std::vector<TError> configErrors;
         auto settings = rawSettings.BuildEffectiveSettings(&configErrors, nullptr);
 
-        bool rowDigestChanged = *settings.MountConfig->RowDigestCompaction !=
-            *tablet->GetSettings().MountConfig->RowDigestCompaction;
-
-        bool chunkViewSizeChanged = settings.MountConfig->MaxChunkViewSizeRatio !=
-            tablet->GetSettings().MountConfig->MaxChunkViewSizeRatio;
+        ChunkViewSizeFetcher_->ReconfigureTablet(tablet, settings);
+        RowDigestFetcher_->ReconfigureTablet(tablet, settings);
 
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->Remount(settings);
@@ -1454,15 +1451,6 @@ private:
                 StopTableReplicaEpoch(&replicaInfo);
                 StartTableReplicaEpoch(tablet, &replicaInfo);
             }
-        }
-
-        if (chunkViewSizeChanged) {
-            ChunkViewSizeFetcher_->ResetCompactionHints(tablet);
-            ChunkViewSizeFetcher_->FetchStoreInfos(tablet);
-        }
-        if (rowDigestChanged) {
-            RowDigestFetcher_->ResetCompactionHints(tablet);
-            RowDigestFetcher_->FetchStoreInfos(tablet);
         }
     }
 
