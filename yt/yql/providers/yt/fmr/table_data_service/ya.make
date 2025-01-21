@@ -1,0 +1,4 @@
+RECURSE(
+    local
+    interface
+)

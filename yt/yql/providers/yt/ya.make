@@ -3,6 +3,7 @@ RECURSE(
     common
     comp_nodes
     expr_nodes
+    fmr
     gateway
     job
     lib
