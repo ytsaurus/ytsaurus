@@ -144,6 +144,9 @@ void TDynamicObjectServiceConfig::Register(TRegistrar registrar)
     registrar.Parameter("process_sessions_period", &TThis::ProcessSessionsPeriod)
         .Default(TDuration::MilliSeconds(10));
 
+    registrar.Parameter("minimize_execute_latency", &TThis::MinimizeExecuteLatency)
+        .Default(false);
+
     registrar.Parameter("default_read_request_complexity_limits", &TThis::DefaultReadRequestComplexityLimits)
         .DefaultNew();
 
