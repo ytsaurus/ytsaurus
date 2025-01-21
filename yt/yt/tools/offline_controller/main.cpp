@@ -334,7 +334,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName&,
         const TCallback<void()>&) override
     { }

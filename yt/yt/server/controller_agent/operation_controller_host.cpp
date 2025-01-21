@@ -531,11 +531,11 @@ TFuture<void> TOperationControllerHost::UpdateAccountResourceUsageLease(
         diskQuota);
 }
 
-void TOperationControllerHost::SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+void TOperationControllerHost::SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
     const TClusterName& clusterName,
     const TCallback<void()>& callback)
 {
-    return Bootstrap_->GetControllerAgent()->SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(clusterName, callback);
+    return Bootstrap_->GetControllerAgent()->SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(clusterName, callback);
 }
 
 void TOperationControllerHost::UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(

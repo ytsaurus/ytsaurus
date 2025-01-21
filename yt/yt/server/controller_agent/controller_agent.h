@@ -209,7 +209,7 @@ public:
      */
     void EnqueueJobMonitoringAlertUpdate();
 
-    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName& clusterName,
         const TCallback<void()>& callback);
     void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(

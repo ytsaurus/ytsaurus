@@ -241,7 +241,7 @@ struct IOperationControllerHost
         NSecurityClient::TAccountResourceUsageLeaseId leaseId,
         const NScheduler::TDiskQuota& diskQuota) = 0;
 
-    virtual void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    virtual void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName& clusterName,
         const TCallback<void()>& callback) = 0;
     virtual void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
