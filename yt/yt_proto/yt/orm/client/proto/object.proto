@@ -271,6 +271,8 @@ message TIndexOption
     optional string camel_case_name = 2;
     optional string snake_case_name = 3;
     repeated string key = 4;
+    // Path to a TReference. The keys in the ref become indexed by the tabular backref.
+    optional string reference = 10;
     optional string hash_expression = 5;
     optional EIndexMode mode = 6;
     optional bool unique = 7;
