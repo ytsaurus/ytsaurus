@@ -64,6 +64,8 @@ ABSL_CONST_INIT Static::CreateSampleUserDataCallback*
     Static::create_sample_user_data_callback_ = nullptr;
 ABSL_CONST_INIT Static::CopySampleUserDataCallback*
     Static::copy_sample_user_data_callback_ = nullptr;
+ABSL_CONST_INIT Static::ComputeSampleUserDataHashCallback*
+    Static::compute_sample_user_data_hash_callback_ = nullptr;
 ABSL_CONST_INIT Static::DestroySampleUserDataCallback*
     Static::destroy_sample_user_data_callback_ = nullptr;
 ABSL_CONST_INIT Static::PageAllocatorStorage Static::page_allocator_;

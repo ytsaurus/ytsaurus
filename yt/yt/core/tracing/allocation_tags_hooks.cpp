@@ -88,6 +88,25 @@ TRange<TAllocationTag> ReadAllocationTags(void* opaque)
     return list->GetTags();
 }
 
+size_t ComputeAllocationTagsHash(void* opaque)
+{
+    if (!opaque) {
+        return 0;
+    }
+
+    size_t hash = 0;
+
+    const auto* allocationTagsPtr = static_cast<TAllocationTagList*>(opaque);
+
+    if (allocationTagsPtr) {
+        for (const auto& pair : allocationTagsPtr->GetTags()) {
+            NYT::HashCombine(hash, pair);
+        }
+    }
+
+    return hash;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTracing
@@ -106,6 +125,7 @@ const TAllocationTagsHooks& GetAllocationTagsHooks()
         .CreateAllocationTags = CreateAllocationTags,
         .CopyAllocationTags = CopyAllocationTags,
         .DestroyAllocationTags = DestroyAllocationTags,
+        .ComputeAllocationTagsHash = ComputeAllocationTagsHash,
         .ReadAllocationTags = ReadAllocationTags,
     };
     return hooks;

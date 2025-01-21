@@ -89,7 +89,8 @@ void EnableMemoryProfilingTags(std::optional<TDuration> snapshotUpdatePeriod)
         tcmalloc::MallocExtension::SetSampleUserDataCallbacks(
             hooks.CreateAllocationTags,
             hooks.CopyAllocationTags,
-            hooks.DestroyAllocationTags);
+            hooks.DestroyAllocationTags,
+            hooks.ComputeAllocationTagsHash);
     });
 
     SnapshotUpdatePeriod.store(snapshotUpdatePeriod.value_or(TDuration::Zero()));

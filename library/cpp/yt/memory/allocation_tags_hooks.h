@@ -13,6 +13,7 @@ struct TAllocationTagsHooks
     void* (*CreateAllocationTags)();
     void* (*CopyAllocationTags)(void* opaque);
     void (*DestroyAllocationTags)(void* opaque);
+    size_t (*ComputeAllocationTagsHash)(void* opaque);
     TRange<TAllocationTag> (*ReadAllocationTags)(void* opaque);
 };
 
