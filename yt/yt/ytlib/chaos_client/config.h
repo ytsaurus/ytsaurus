@@ -39,7 +39,7 @@ class TChaosResidencyCacheConfig
     : public TAsyncExpiringCacheConfig
 {
 public:
-    bool IsClientModeActive;
+    bool EnableClientMode;
 
     REGISTER_YSON_STRUCT(TChaosResidencyCacheConfig);
 

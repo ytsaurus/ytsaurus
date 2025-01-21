@@ -1495,15 +1495,15 @@ private:
             newConfig);
 
         auto newChunkReplicaCacheConfig = CloneYsonStruct(Config_->ClusterConnection->Dynamic->ChunkReplicaCache);
-        if (const auto& newExpirationTime = newConfig->ChunkReplicaCacheConfig->ExpirationTime; newExpirationTime) {
-            newChunkReplicaCacheConfig->ExpirationTime = *newExpirationTime;
-        }
+        UpdateYsonStructField(
+            newChunkReplicaCacheConfig->ExpirationTime,
+            newConfig->ChunkReplicaCache->ExpirationTime);
         Connection_->GetChunkReplicaCache()->Reconfigure(std::move(newChunkReplicaCacheConfig));
 
         auto newChaosResidencyCacheConfig = CloneYsonStruct(Config_->ClusterConnection->Dynamic->ChaosResidencyCache);
-        if (const auto& isClientModeActive = newConfig->ChaosResidencyCacheConfig->IsClientModeActive; isClientModeActive) {
-            newChaosResidencyCacheConfig->IsClientModeActive = *isClientModeActive;
-        }
+        UpdateYsonStructField(
+            newChaosResidencyCacheConfig->EnableClientMode,
+            newConfig->ChaosResidencyCache->EnableClientMode);
         Connection_->GetChaosResidencyCache()->Reconfigure(std::move(newChaosResidencyCacheConfig));
     }
 
