@@ -15,9 +15,11 @@ namespace NYT::NSignature {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSignatureGenerator
-    : public ISignatureGenerator
+    : public TSignatureGeneratorBase
 {
 public:
+    using TSignatureGeneratorBase::Sign;
+
     explicit TSignatureGenerator(TSignatureGeneratorConfigPtr config, IKeyStoreWriterPtr store);
 
     //! Fills out the Signature_ and Header_ fields in a given TSignature

@@ -70,9 +70,6 @@ TKeyInfoPtr TSignatureGenerator::KeyInfo() const
 
 void TSignatureGenerator::Sign(const TSignaturePtr& signature)
 {
-    // Make sure that we are not overwriting an existing signature.
-    YT_VERIFY(!GetHeader(signature));
-
     auto signatureId = TGuid::Create();
     auto now = Now();
     TSignatureHeader header;

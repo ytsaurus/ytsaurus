@@ -26,6 +26,8 @@
 
 #include <yt/yt/client/table_client/table_upload_options.h>
 
+#include <yt/yt/client/signature/generator.h>
+
 #include <yt/yt/core/ytree/convert.h>
 
 #include <library/cpp/yt/memory/non_null_ptr.h>
@@ -332,11 +334,11 @@ TFuture<TDistributedWriteSessionWithCookies> TClient::StartDistributedWriteSessi
     cookies.reserve(options.CookieCount);
 
     for (int i = 0; i < options.CookieCount; ++i) {
-        cookies.push_back(TSignedWriteFragmentCookiePtr(New<NSignature::TSignature>(ConvertToYsonString(session.CookieFromThis()))));
+        cookies.emplace_back(TSignedWriteFragmentCookiePtr(DummySignatureGenerator_->Sign(ConvertToYsonString(session.CookieFromThis()))));
     }
 
     return MakeFuture(TDistributedWriteSessionWithCookies{
-        .Session = TSignedDistributedWriteSessionPtr(New<NSignature::TSignature>(ConvertToYsonString(session))),
+        .Session = TSignedDistributedWriteSessionPtr(DummySignatureGenerator_->Sign(ConvertToYsonString(session))),
         .Cookies = std::move(cookies),
     });
 }

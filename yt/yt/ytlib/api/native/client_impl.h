@@ -971,6 +971,8 @@ private:
     std::unique_ptr<NScheduler::TOperationServiceProxy> SchedulerOperationProxy_;
     std::unique_ptr<NBundleController::TBundleControllerServiceProxy> BundleControllerProxy_;
 
+    const NSignature::TSignatureGeneratorBasePtr DummySignatureGenerator_;
+
     struct TReplicaClient final
     {
         YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock);
