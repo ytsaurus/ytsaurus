@@ -272,23 +272,22 @@ protected:
         // For mutable requests access tracking is conducted in transaction actions.
         YT_VERIFY(!IsRequestMutating(context->GetRequestHeader()));
 
-        auto suppressAccessTracking = GetSuppressAccessTracking(context->RequestHeader());
-        auto suppressExpirationTimeoutRenewal = GetSuppressExpirationTimeoutRenewal(context->RequestHeader());
-        if (suppressAccessTracking && suppressExpirationTimeoutRenewal) {
+        if (AccessTrackingOptions_.SuppressAccessTracking &&
+            AccessTrackingOptions_.SuppressExpirationTimeoutRenewal)
+        {
             return;
         }
 
         auto req = requestFactory(FromObjectId(Id_));
         SetTransactionId(req, SequoiaSession_->GetCurrentCypressTransactionId());
-        SetSuppressAccessTracking(req, suppressAccessTracking);
-        SetSuppressExpirationTimeoutRenewal(req, suppressExpirationTimeoutRenewal);
+        SetAccessTrackingOptions(req, AccessTrackingOptions_);
         SetAllowResolveFromSequoiaObject(req, true);
 
         auto rspOrError = WaitFor(CreateReadProxyForObject(Id_).Execute(std::move(req)));
         if (!rspOrError.IsOK()) {
-            YT_LOG_DEBUG(rspOrError, "Node touch failed");
+            THROW_ERROR_EXCEPTION("Node touch failed")
+                << rspOrError;
         }
-        rspOrError.ThrowOnError();
     }
 
     TCellTag RemoveRootstock()
@@ -1546,7 +1545,7 @@ private:
             ThrowNoSuchChild(Path_, tokenizer.GetLiteralValue());
         }
 
-        context->Reply();
+        FinishSequoiaSessionAndReply(context, CellIdFromObjectId(Id_), /*commitSession*/ false);
     }
 
     void ListSelf(TReqList* request, TRspList* response, const TCtxListPtr& context) override

@@ -18,9 +18,12 @@
 
 #include <yt/yt/server/lib/sequoia/helpers.h>
 
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
+using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
@@ -30,6 +33,7 @@ using namespace NTransactionServer;
 using namespace NYPath;
 using namespace NYson;
 using namespace NYTree;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -630,15 +634,29 @@ void ValidateAccessControlObjectName(const std::string& name)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void SetAccessTrackingOptions(
+    const IClientRequestPtr& request,
+    const NCypressServer::NProto::TAccessTrackingOptions& protoOptions)
+{
+    SetSuppressAccessTracking(request, protoOptions.suppress_access_tracking());
+    SetSuppressModificationTracking(request, protoOptions.suppress_modification_tracking());
+    SetSuppressExpirationTimeoutRenewal(request, protoOptions.suppress_expiration_timeout_renewal());
+}
+
 void MaybeTouchNode(
-    const ICypressNodeProxyPtr& nodeProxy,
+    const ICypressManagerPtr& cypressManager,
+    TCypressNode* node,
+    std::optional<EModificationType> modificationType,
     const NCypressServer::NProto::TAccessTrackingOptions& protoOptions)
 {
     if (!protoOptions.suppress_access_tracking()) {
-        nodeProxy->SetTouched();
+        cypressManager->SetAccessed(node->GetTrunkNode());
+    }
+    if (modificationType && !protoOptions.suppress_modification_tracking()) {
+        cypressManager->SetModified(node, *modificationType);
     }
     if (!protoOptions.suppress_expiration_timeout_renewal()) {
-        nodeProxy->SetAccessed();
+        cypressManager->SetTouched(node->GetTrunkNode());
     }
 }
 

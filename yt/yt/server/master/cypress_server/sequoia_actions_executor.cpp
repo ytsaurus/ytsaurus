@@ -11,7 +11,6 @@
 #include <yt/yt/server/lib/sequoia/helpers.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
-#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h>
 
@@ -26,6 +25,7 @@ using namespace NYson;
 using namespace NCellMaster;
 using namespace NCypressClient;
 using namespace NObjectClient;
+using namespace NObjectServer;
 using namespace NSequoiaServer;
 using namespace NTransactionServer;
 using namespace NTransactionSupervisor;
@@ -330,8 +330,11 @@ private:
         VerifySequoiaNode(parent);
         AttachChildToSequoiaNodeOrThrow(parent, key, childId);
 
-        auto proxy = cypressManager->GetNodeProxy(trunkParent, cypressTransaction);
-        MaybeTouchNode(proxy, request->access_tracking_options());
+        MaybeTouchNode(
+            cypressManager,
+            parent,
+            EModificationType::Content,
+            request->access_tracking_options());
     }
 
     void HydraPrepareDetachChild(
@@ -418,8 +421,11 @@ private:
             children.Set(key, NullObjectId);
         }
 
-        auto proxy = cypressManager->GetNodeProxy(trunkParent, cypressTransaction);
-        MaybeTouchNode(proxy, request->access_tracking_options());
+        MaybeTouchNode(
+            cypressManager,
+            parent,
+            EModificationType::Content,
+            request->access_tracking_options());
     }
 
     void HydraPrepareRemoveNode(
@@ -525,10 +531,7 @@ private:
         auto innerRequest = TCypressYPathProxy::Set(request->path());
         innerRequest->set_value(request->value());
         innerRequest->set_force(request->force());
-
-        const auto& accessTrackingOptions = request->access_tracking_options();
-        SetSuppressAccessTracking(innerRequest, accessTrackingOptions.suppress_access_tracking());
-        SetSuppressExpirationTimeoutRenewal(innerRequest, accessTrackingOptions.suppress_expiration_timeout_renewal());
+        SetAccessTrackingOptions(innerRequest, request->access_tracking_options());
 
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),
@@ -557,6 +560,7 @@ private:
         auto innerRequest = TYPathProxy::MultisetAttributes(request->path());
         *innerRequest->mutable_subrequests() = request->subrequests();
         innerRequest->set_force(request->force());
+        SetAccessTrackingOptions(innerRequest, request->access_tracking_options());
 
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),
@@ -589,6 +593,7 @@ private:
 
         auto innerRequest = TCypressYPathProxy::Remove(request->path());
         innerRequest->set_force(request->force());
+
         SyncExecuteVerb(
             cypressManager->GetNodeProxy(trunkNode, cypressTransaction),
             innerRequest);
@@ -671,19 +676,13 @@ private:
         auto cypressTransactionId = FromProto<TTransactionId>(request->transaction_id());
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
         auto* trunkSourceNode = cypressManager->GetNode({sourceNodeId, NullTransactionId});
-
-        auto* cypressTransaction = cypressTransactionId
-            ? transactionManager->GetTransaction(cypressTransactionId)
-            : nullptr;
 
         // TODO(danilalexeev): Sequoia transaction has to lock |sourceNodeId| to conflict
         // with an expired nodes removal.
         if (IsObjectAlive(trunkSourceNode)) {
-            auto proxy = cypressManager->GetNodeProxy(trunkSourceNode, cypressTransaction);
-            MaybeTouchNode(proxy);
+            MaybeTouchNode(cypressManager, trunkSourceNode);
         }
 
         objectManager->WeakUnrefObject(trunkSourceNode);
@@ -752,7 +751,7 @@ private:
         auto lockRequest = CreateLockRequest(mode, childKey, attributeKey, timestamp);
         proxy->Lock(lockRequest, waitable, lockId);
 
-        MaybeTouchNode(proxy);
+        MaybeTouchNode(cypressManager, trunkNode);
     }
 
     void HydraPrepareAndCommitUnlockNode(
@@ -778,7 +777,7 @@ private:
         auto proxy = cypressManager->GetNodeProxy(trunkNode, cypressTransaction);
         proxy->Unlock();
 
-        MaybeTouchNode(proxy);
+        MaybeTouchNode(cypressManager, trunkNode);
     }
 };
 

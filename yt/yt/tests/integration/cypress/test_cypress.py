@@ -1792,7 +1792,6 @@ class TestCypress(YTEnvSetup):
         assert c1 == c2
 
     @authors("babenko")
-    @not_implemented_in_sequoia
     def test_modification_suppress1(self):
         create("map_node", "//tmp/m")
         time.sleep(1)
@@ -3253,7 +3252,6 @@ class TestCypress(YTEnvSetup):
             create("sorted_dynamic_tablet_store", "//tmp/s")
 
     @authors("shakurov")
-    @not_implemented_in_sequoia
     def test_attribute_content_revision(self):
         create("map_node", "//tmp/test_node")
         revision = get("//tmp/test_node/@revision")
@@ -3263,6 +3261,18 @@ class TestCypress(YTEnvSetup):
         assert revision == attribute_revision
         assert revision == content_revision
 
+        set("//tmp/test_node/foo", 100, suppress_modification_tracking=True)
+        content_revision = get("//tmp/test_node/@content_revision")
+        assert revision == content_revision
+
+        set("//tmp/test_node", {}, force=True, suppress_modification_tracking=True)
+        content_revision = get("//tmp/test_node/@content_revision")
+        assert revision == content_revision
+
+        set("//tmp/test_node/bar", 100)
+        content_revision = get("//tmp/test_node/@content_revision")
+        assert revision < content_revision
+
         set("//tmp/test_node/@user_attribute1", "value1")
         revision = get("//tmp/test_node/@revision")
         attribute_revision = get("//tmp/test_node/@attribute_revision")
@@ -3270,15 +3280,6 @@ class TestCypress(YTEnvSetup):
 
         assert revision == attribute_revision
         assert revision > content_revision
-
-        set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
-        set("//tmp/test_node", {"hello": "world", "list": [0, "a", {}], "n": 1}, force=True)
-        revision = get("//tmp/test_node/@revision")
-        attribute_revision = get("//tmp/test_node/@attribute_revision")
-        content_revision = get("//tmp/test_node/@content_revision")
-
-        assert revision > attribute_revision
-        assert revision == content_revision
 
     @authors("babenko")
     def test_user_attribute_removal1_yt_10192(self):
