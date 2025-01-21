@@ -36,7 +36,7 @@ private:
         ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
 
         const auto* collocation = GetThisImpl();
-        for (const auto* table : collocation->Tables()) {
+        for (const auto* table : GetValuesSortedByKey(collocation->Tables())) {
             if (table->GetIndexTo() || !table->SecondaryIndices().empty()) {
                 THROW_ERROR_EXCEPTION("Cannot remove collocation %v because table %v has an index or is one itself",
                     collocation->GetId(),
