@@ -174,10 +174,9 @@ private:
     TChunkedMemoryPool DynamicDataPool_;
     TSpareEntityDynamicData* FirstSpareDynamicData_ = nullptr;
 
+    // COMPAT(danilalexeev): YT-24017.
     static constexpr int AllEntitiesBatchEntityCount = -1;
     static constexpr size_t BatchedFormatMarker = std::numeric_limits<ui32>::max();
-
-    bool BatchedValuesFormat_ = false;
 
     std::vector<TKey> LoadKeys_;
     std::vector<TValue*> LoadValues_;
