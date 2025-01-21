@@ -839,7 +839,11 @@ void ImportParquetFilesFromS3(
         .Bucket = bucket,
     });
 
-    YT_LOG_INFO("Receiving file name from S3 (Url: %Qv, Region: %Qv, Bucket: %Qv, Prefix: %Qv)", url, region, bucket, prefix);
+    YT_LOG_INFO("Receiving file name from S3 (Url: %v, Region: %v, Bucket: %v, Prefix: %v)",
+        url,
+        region,
+        bucket,
+        prefix);
 
     auto fileKeys = GetListFilesKeysFromS3(s3Config, accessKeyId, secretAccessKey, prefix);
 
@@ -862,7 +866,10 @@ void ImportParquetFilesFromHuggingface(
     const std::optional<TString>& urlOverride,
     TImportConfigPtr config)
 {
-    YT_LOG_INFO("Receiving file name from Huggingface (Dataset: %Qv, Subset: %Qv, Split: %Qv)", dataset, subset, split);
+    YT_LOG_INFO("Receiving file name from Huggingface (Dataset: %v, Subset: %v, Split: %v)",
+        dataset,
+        subset,
+        split);
 
     auto huggingfaceToken = GetEnvOrNull("HUGGINGFACE_TOKEN");
 
