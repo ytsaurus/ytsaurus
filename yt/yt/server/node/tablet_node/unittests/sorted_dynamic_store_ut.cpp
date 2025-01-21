@@ -16,12 +16,13 @@ class TSingleLockSortedDynamicStoreTest
     : public TSortedStoreTestBase
 {
 protected:
+    TSortedDynamicStorePtr Store_;
+
     void SetUp() override
     {
         TSortedStoreTestBase::SetUp();
         CreateDynamicStore();
     }
-
 
     void ConfirmRow(TTestTransaction* transaction, TSortedDynamicRow row)
     {
@@ -303,10 +304,6 @@ protected:
         return builder.Flush();
     }
 
-
-    TSortedDynamicStorePtr Store_;
-    TClientChunkReadOptions ChunkReadOptions_;
-
 private:
     void CreateDynamicStore() override
     {
@@ -314,9 +311,9 @@ private:
         config->MaxBlockedRowWaitTime = TDuration::MilliSeconds(100);
 
         Store_ = New<TSortedDynamicStore>(
-            config,
             TTabletId(),
-            Tablet_.get());
+            Tablet_.get(),
+            StoreContext_);
     }
 
     IDynamicStorePtr GetDynamicStore() override

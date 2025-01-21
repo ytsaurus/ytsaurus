@@ -42,7 +42,6 @@ public:
 
 public:
     TSortedChunkStore(
-        TTabletManagerConfigPtr config,
         TStoreId id,
         NChunkClient::TChunkId chunkId,
         const NChunkClient::TLegacyReadRange& readRange,
@@ -50,8 +49,7 @@ public:
         TTimestamp maxClipTimestamp,
         TTablet* tablet,
         const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
-        NChunkClient::IBlockCachePtr blockCache,
-        IVersionedChunkMetaManagerPtr chunkMetaManager,
+        IStoreContextPtr context,
         IBackendChunkReadersHolderPtr backendReadersHolder);
 
     void Initialize() override;

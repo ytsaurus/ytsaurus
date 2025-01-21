@@ -409,12 +409,12 @@ IBackendChunkReadersHolderPtr CreateBackendChunkReadersHolder(
 ////////////////////////////////////////////////////////////////////////////////
 
 TStoreBase::TStoreBase(
-    TTabletManagerConfigPtr config,
     TStoreId id,
-    TTablet* tablet)
-    : Config_(std::move(config))
-    , StoreId_(id)
+    TTablet* tablet,
+    IStoreContextPtr context)
+    : StoreId_(id)
     , Tablet_(tablet)
+    , Context_(std::move(context))
     , PerformanceCounters_(Tablet_->PerformanceCounters())
     , RuntimeData_(Tablet_->RuntimeData())
     , TabletId_(Tablet_->GetId())
@@ -573,14 +573,14 @@ struct TDynamicStoreBufferTag
 { };
 
 TDynamicStoreBase::TDynamicStoreBase(
-    TTabletManagerConfigPtr config,
     TStoreId id,
-    TTablet* tablet)
-    : TStoreBase(std::move(config), id, tablet)
+    TTablet* tablet,
+    IStoreContextPtr context)
+    : TStoreBase(id, tablet, std::move(context))
     , Atomicity_(Tablet_->GetAtomicity())
     , RowBuffer_(New<TRowBuffer>(
         TDynamicStoreBufferTag(),
-        Config_->PoolChunkSize))
+        Context_->GetTabletManagerConfig()->PoolChunkSize))
 {
     SetStoreState(EStoreState::ActiveDynamic);
 }
@@ -826,18 +826,14 @@ DEFINE_REFCOUNTED_TYPE(TPreloadedBlockCache)
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkStoreBase::TChunkStoreBase(
-    TTabletManagerConfigPtr config,
     TStoreId id,
     TChunkId chunkId,
     TTimestamp overrideTimestamp,
     TTablet* tablet,
     const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
-    IBlockCachePtr blockCache,
-    IVersionedChunkMetaManagerPtr chunkMetaManager,
+    IStoreContextPtr context,
     IBackendChunkReadersHolderPtr backendReadersHolder)
-    : TStoreBase(std::move(config), id, tablet)
-    , BlockCache_(std::move(blockCache))
-    , ChunkMetaManager_(std::move(chunkMetaManager))
+    : TStoreBase(id, tablet, std::move(context))
     , ChunkMeta_(New<TRefCountedChunkMeta>())
     , ChunkId_(chunkId)
     , OverrideTimestamp_(overrideTimestamp)
@@ -857,8 +853,6 @@ TChunkStoreBase::TChunkStoreBase(
         TypeFromId(ChunkId_) == EObjectType::ErasureChunk);
 
     YT_VERIFY(TypeFromId(StoreId_) == EObjectType::ChunkView || StoreId_ == ChunkId_ || !ChunkId_);
-
-    YT_VERIFY(ChunkMetaManager_);
 
     SetStoreState(EStoreState::Persistent);
 
@@ -1101,7 +1095,8 @@ TCachedVersionedChunkMetaPtr TChunkStoreBase::FindCachedVersionedChunkMeta(
     if (auto entry = WeakCachedVersionedChunkMetaEntry_.Lock()) {
         const auto& meta = entry->Meta();
         if (prepareColumnarMeta || !meta->IsColumnarMetaPrepared()) {
-            ChunkMetaManager_->Touch(entry);
+            const auto& chunkMetaManager = Context_->GetVersionedChunkMetaManager();
+            chunkMetaManager->Touch(entry);
             return meta;
         }
     }
@@ -1118,7 +1113,8 @@ TFuture<TCachedVersionedChunkMetaPtr> TChunkStoreBase::GetCachedVersionedChunkMe
 
     NProfiling::TWallTimer metaWaitTimer;
 
-    return ChunkMetaManager_->GetMeta(
+    const auto& chunkMetaManager = Context_->GetVersionedChunkMetaManager();
+    return chunkMetaManager->GetMeta(
         chunkReader,
         Schema_,
         chunkReadOptions,
@@ -1163,7 +1159,8 @@ bool TChunkStoreBase::IsPreloadAllowed() const
 
 void TChunkStoreBase::UpdatePreloadAttempt(bool isBackoff)
 {
-    AllowedPreloadTimestamp_ = Now() + (isBackoff ? Config_->PreloadBackoffTime : TDuration::Zero());
+    auto backoffTime = Context_->GetTabletManagerConfig()->PreloadBackoffTime;
+    AllowedPreloadTimestamp_ = Now() + (isBackoff ? backoffTime : TDuration::Zero());
 }
 
 void TChunkStoreBase::UpdateCompactionAttempt()
@@ -1230,7 +1227,7 @@ void TChunkStoreBase::Preload(TInMemoryChunkDataPtr chunkData)
         this,
         chunkData,
         ChunkId_,
-        BlockCache_);
+        Context_->GetBlockCache());
 
     ChunkState_ = New<TChunkState>(TChunkState{
         .BlockCache = PreloadedBlockCache_,
@@ -1272,7 +1269,7 @@ IBlockCachePtr TChunkStoreBase::DoGetBlockCache()
 {
     YT_ASSERT_SPINLOCK_AFFINITY(SpinLock_);
 
-    return PreloadedBlockCache_ ? PreloadedBlockCache_ : BlockCache_;
+    return PreloadedBlockCache_ ? PreloadedBlockCache_ : Context_->GetBlockCache();
 }
 
 TChunkStatePtr TChunkStoreBase::FindPreloadedChunkState() const

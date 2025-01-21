@@ -13,12 +13,10 @@ class TOrderedChunkStore
 {
 public:
     TOrderedChunkStore(
-        TTabletManagerConfigPtr config,
         TStoreId id,
         TTablet* tablet,
         const NTabletNode::NProto::TAddStoreDescriptor* addStoreDescriptor,
-        NChunkClient::IBlockCachePtr blockCache,
-        IVersionedChunkMetaManagerPtr chunkMetaManager,
+        IStoreContextPtr context,
         IBackendChunkReadersHolderPtr backendReadersHolder);
 
     // IStore implementation.

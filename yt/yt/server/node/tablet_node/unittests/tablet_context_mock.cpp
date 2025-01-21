@@ -74,7 +74,7 @@ IInvokerPtr TTabletContextMock::GetAutomatonInvoker() const
 
 IColumnEvaluatorCachePtr TTabletContextMock::GetColumnEvaluatorCache() const
 {
-    return ColumnEvaluatorCache_;
+    return StoreContext_->GetColumnEvaluatorCache();
 }
 
 NQueryClient::IRowComparerProviderPtr TTabletContextMock::GetRowComparerProvider() const
@@ -102,17 +102,16 @@ IStorePtr TTabletContextMock::CreateStore(
     switch (type) {
         case EStoreType::SortedDynamic:
             return New<TSortedDynamicStore>(
-                New<TTabletManagerConfig>(),
                 storeId,
-                tablet);
+                tablet,
+                StoreContext_);
         case EStoreType::OrderedDynamic:
             return New<TOrderedDynamicStore>(
-                New<TTabletManagerConfig>(),
                 storeId,
-                tablet);
+                tablet,
+                StoreContext_);
         case EStoreType::SortedChunk:
             return New<TSortedChunkStore>(
-                New<TTabletManagerConfig>(),
                 storeId,
                 storeId,
                 TLegacyReadRange{},
@@ -120,13 +119,7 @@ IStorePtr TTabletContextMock::CreateStore(
                 /*maxClipTimestamp*/ NullTimestamp,
                 tablet,
                 descriptor,
-                CreateClientBlockCache(
-                    New<TBlockCacheConfig>(),
-                    EBlockType::UncompressedData, // | EBlockType::CompressedData,
-                    GetNullMemoryUsageTracker()),
-                CreateVersionedChunkMetaManager(
-                    New<TSlruCacheConfig>(),
-                    GetNullMemoryUsageTracker()),
+                StoreContext_,
                 BackendChunkReadersHolder_);
         default:
             YT_ABORT();
