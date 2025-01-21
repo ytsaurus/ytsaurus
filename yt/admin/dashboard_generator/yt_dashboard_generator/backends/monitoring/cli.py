@@ -31,12 +31,14 @@ class MonitoringFacade(cli.FacadeBase):
             "--solomon-token", type=str,
             help="token for Solomon and Monitoring (read from ~/.solomon/token by default)")
         parser.add_argument("--monitoring-endpoint", type=str)
+        parser.add_argument("--disable-monitoring-set-name", action='store_true', help="Disable name set")
 
     @classmethod
     def on_args_parsed(cls, args):
         cls.token = cls.token or args.solomon_token or open(os.path.expanduser("~/.solomon/token")).read().rstrip()
         if args.monitoring_endpoint is not None:
             cls.endpoint = args.monitoring_endpoint
+        cls.set_name = not args.disable_monitoring_set_name
 
     def diff(self):
         # TODO: Implement some kind of JSON diff?
@@ -54,7 +56,8 @@ class MonitoringFacade(cli.FacadeBase):
 
     def do_submit(self, verbose):
         dashboard = self.func()
-        dashboard.try_set_name(self.uid)
+        if self.set_name:
+            dashboard.try_set_name(self.uid)
         serializer = monitoring.MonitoringDictSerializer(self.tag_postprocessor)
         widgets = dashboard.serialize(serializer)
 
