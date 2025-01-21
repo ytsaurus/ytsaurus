@@ -1,10 +1,10 @@
 #include "storage_subquery.h"
 
-#include "block_input_stream.h"
 #include "config.h"
+#include "secondary_query_source.h"
 #include "read_plan.h"
 #include "granule_min_max_filter.h"
-#include "prewhere_block_input_stream.h"
+#include "prewhere_secondary_query_source.h"
 #include "query_context.h"
 #include "storage_base.h"
 #include "subquery_spec.h"
@@ -222,25 +222,27 @@ public:
         for (int threadIndex = 0; threadIndex < std::ssize(perThreadDataSliceDescriptors); ++threadIndex) {
             const auto& threadDataSliceDescriptors = perThreadDataSliceDescriptors[threadIndex];
 
+            DB::SourcePtr sourcePtr;
             if (StorageContext_->Settings->Prewhere->PrefilterDataSlices && readPlan->SuitableForTwoStagePrewhere()) {
-                pipes.emplace_back(std::make_shared<DB::SourceFromInputStream>(CreatePrewhereBlockInputStream(
+                sourcePtr = CreatePrewhereSecondaryQuerySource(
                     StorageContext_,
                     SubquerySpec_,
                     readPlan,
                     traceContext,
                     threadDataSliceDescriptors,
                     granuleMinMaxFilter,
-                    statisticsCallback)));
+                    statisticsCallback);
             } else {
-                pipes.emplace_back(std::make_shared<DB::SourceFromInputStream>(CreateBlockInputStream(
+                sourcePtr = CreateSecondaryQuerySource(
                     StorageContext_,
                     SubquerySpec_,
                     readPlan,
                     traceContext,
                     threadDataSliceDescriptors,
                     granuleMinMaxFilter,
-                    statisticsCallback)));
+                    statisticsCallback);
             }
+            pipes.emplace_back(sourcePtr);
 
             i64 rowCount = 0;
             i64 dataWeight = 0;
@@ -265,6 +267,8 @@ public:
                     }
                 }
             }
+            sourcePtr->addTotalRowsApprox(rowCount);
+            sourcePtr->addTotalBytes(dataWeight);
             YT_LOG_DEBUG(
                 "Thread table reader stream created (ThreadIndex: %v, RowCount: %v, DataWeight: %v, DataSliceCount: %v)",
                 threadIndex,

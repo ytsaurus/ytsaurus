@@ -55,6 +55,8 @@ namespace NProto {
 class TSubquerySpec;
 class TChytRequest;
 class TSqlObjectInfo;
+class TProgressValues;
+class TQueryProgressValues;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -117,10 +119,13 @@ DECLARE_REFCOUNTED_STRUCT(TReadPlanWithFilter)
 struct TValue;
 class TSubquerySpec;
 struct TSubquery;
+struct TSecondaryQuery;
 struct TQueryAnalysisResult;
 class TClickHouseIndexBuilder;
 struct TSqlObjectInfo;
 struct TQueryFinishInfo;
+struct TQueryProgressValues;
+class TQueryProgress;
 
 struct IStorageDistributor;
 using IStorageDistributorPtr = std::shared_ptr<IStorageDistributor>;

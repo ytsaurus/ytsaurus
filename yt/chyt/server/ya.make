@@ -39,7 +39,6 @@ ADDINCL(
 )
 
 SRCS(
-    block_input_stream.cpp
     block_output_stream.cpp
     bootstrap.cpp
     ch_to_yt_converter.cpp
@@ -73,16 +72,19 @@ SRCS(
     memory_watchdog.cpp
     object_lock.cpp
     poco_config.cpp
-    prewhere_block_input_stream.cpp
+    prewhere_secondary_query_source.cpp
     private.cpp
     query_analyzer.cpp
     query_context.cpp
+    query_progress.cpp
     query_registry.cpp
     query_service.cpp
     read_plan.cpp
+    remote_source.cpp
     revision_tracker.cpp
     schema_inference.cpp
     secondary_query_header.cpp
+    secondary_query_source.cpp
     stack_size_checker.cpp
     std_helpers.cpp
     storage_base.cpp

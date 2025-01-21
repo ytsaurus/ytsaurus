@@ -4,6 +4,7 @@
 
 #include "cluster_nodes.h"
 #include "object_lock.h"
+#include "query_progress.h"
 
 #include <yt/yt/ytlib/api/native/client_cache.h>
 
@@ -169,6 +170,12 @@ public:
 
     TQueryFinishInfo GetQueryFinishInfo();
 
+    void OnProgress(const DB::Progress& progress);
+    void OnSecondaryProgress(TQueryId id, const DB::ReadProgress& progress);
+    void OnSecondaryFinish(TQueryId id);
+
+    TQueryProgressValues GetQueryProgress() const;
+
 public:
     //! A guard that automatically adds elapsed time to query statistics in destructor.
     class TStatisticsTimerGuard
@@ -208,6 +215,8 @@ private:
     TStatistics Statistics_;
     NYTree::IAttributeDictionaryPtr RuntimeVariables_ = NYTree::CreateEphemeralAttributes();
     std::vector<TQueryId> SecondaryQueryIds_;
+
+    TQueryProgress Progress_;
 
     //! Spinlock controlling lazy client creation.
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ClientLock_);

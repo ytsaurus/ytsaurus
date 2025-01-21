@@ -18,6 +18,7 @@
 
 #include <yt/yt/client/scheduler/public.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
@@ -34,7 +35,6 @@ using namespace NYPath;
 using namespace NHiveClient;
 using namespace NQueryTrackerClient;
 using namespace NClickHouseServer;
-using namespace NClickHouseServer::NProto;
 using namespace NRpc;
 using namespace NRpc::NBus;
 using namespace NYTree;
@@ -76,6 +76,8 @@ class TChytQueryHandler
     : public TQueryHandlerBase
 {
 public:
+    using TExecuteQueryResponse = TTypedClientResponse<NClickHouseServer::NProto::TRspExecuteQuery>::TResult;
+
     TChytQueryHandler(
         const IClientPtr& stateClient,
         const TYPath& stateRoot,
@@ -86,6 +88,7 @@ public:
         const IInvokerPtr& controlInvoker)
         : TQueryHandlerBase(stateClient, stateRoot, controlInvoker, config, activeQuery)
         , Settings_(ConvertTo<TChytSettingsPtr>(SettingsNode_))
+        , Config_(config)
         , Clique_(Settings_->Clique.value_or(config->DefaultClique))
         , Cluster_(Settings_->Cluster.value_or(config->DefaultCluster))
         , NativeConnection_(clusterDirectory->GetConnectionOrThrow(Cluster_))
@@ -97,6 +100,7 @@ public:
     {
         YT_LOG_DEBUG("Starting CHYT query");
         OnQueryStarted();
+        StartProgressWriter();
 
         AsyncQueryResult_ = BIND(&TChytQueryHandler::Execute, MakeStrong(this))
             .AsyncVia(GetCurrentInvoker())
@@ -120,6 +124,7 @@ public:
 
 private:
     const TChytSettingsPtr Settings_;
+    const TChytEngineConfigPtr Config_;
     TString Clique_;
     TString Cluster_;
     NApi::NNative::IConnectionPtr NativeConnection_;
@@ -130,7 +135,7 @@ private:
     IDiscoveryPtr Discovery_;
     THashMap<TString, NYTree::IAttributeDictionaryPtr> Instances_;
 
-    TFuture<TTypedClientResponse<TRspExecuteQuery>::TResult> AsyncQueryResult_;
+    TFuture<TExecuteQueryResponse> AsyncQueryResult_;
     std::atomic<bool> Cancelled_ = false;
 
     static const inline std::vector<TString> DiscoveryAttributes_ = std::vector<TString>{
@@ -242,7 +247,7 @@ private:
         return flattenedSettings;
     }
 
-    TTypedClientResponse<TRspExecuteQuery>::TResult Execute()
+    TExecuteQueryResponse Execute()
     {
         CheckPermission();
         InitializeInstances();
@@ -268,11 +273,63 @@ private:
             (*settings)[key] = value;
         }
 
-        return WaitFor(req->Invoke())
-            .ValueOrThrow();
+        auto rsp = req->Invoke();
+
+        auto progressPollerExecutor = New<TPeriodicExecutor>(
+            GetCurrentInvoker(),
+            BIND(&TChytQueryHandler::PollQueryProgress, MakeStrong(this), proxy),
+            Config_->ProgressPollPeriod);
+        progressPollerExecutor->Start();
+
+        auto result = WaitFor(rsp);
+
+        YT_UNUSED_FUTURE(progressPollerExecutor->Stop());
+
+        return result.ValueOrThrow();
     }
 
-    void OnChytResponse(const TErrorOr<TTypedClientResponse<TRspExecuteQuery>::TResult>& rspOrError)
+    void PollQueryProgress(TQueryServiceProxy coordinator)
+    {
+        auto req = coordinator.GetQueryProgress();
+        SetAuthenticationIdentity(req, TAuthenticationIdentity(User_));
+        ToProto(req->mutable_query_id(), QueryId_);
+
+        auto progress = WaitFor(req->Invoke()).ValueOrThrow();
+
+        SetProgress(progress->progress());
+    }
+
+    TYsonString ProgressValuesToYsonString(const NClickHouseServer::NProto::TProgressValues& values)
+    {
+        return BuildYsonStringFluently()
+            .BeginMap()
+                .Item("read_rows").Value(values.read_rows())
+                .Item("read_bytes").Value(values.read_bytes())
+                .Item("total_rows_to_read").Value(values.total_rows_to_read())
+                .Item("total_bytes_to_read").Value(values.total_bytes_to_read())
+                .Item("finished").Value(values.finished())
+            .EndMap();
+    }
+
+    void SetProgress(const NClickHouseServer::NProto::TQueryProgressValues& progress)
+    {
+        // ConvertToYsonString(progress)
+        auto progressYson = BuildYsonStringFluently()
+            .BeginMap()
+                .Item("total_progress").Value(ProgressValuesToYsonString(progress.total_progress()))
+                .Item("secondary_queries").DoMap([&] (TFluentMap fluent) {
+                    for (int index = 0; index < progress.secondary_query_ids_size(); ++index) {
+                        auto queryId = ToString(FromProto<TGuid>(progress.secondary_query_ids()[index]));
+                        auto queryProgress = progress.secondary_query_progresses()[index];
+                        fluent.Item(queryId).Value(ProgressValuesToYsonString(queryProgress));
+                    }
+                })
+            .EndMap();
+
+        OnProgress(std::move(progressYson));
+    }
+
+    void OnChytResponse(const TErrorOr<TExecuteQueryResponse>& rspOrError)
     {
         if (Cancelled_) {
             return;

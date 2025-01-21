@@ -1,5 +1,7 @@
 #include "read_plan.h"
 
+#include "conversion.h"
+
 #include <yt/yt/client/table_client/schema.h>
 
 #include <Functions/IFunction.h>
@@ -41,6 +43,68 @@ bool HasShortCircuitActions(const DB::ActionsDAGPtr& actionsDag)
 }
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TFilterInfo::Execute(TBlockWithFilter& blockWithFilter) const
+{
+    auto& [block, rowCount, currentFilter, rowCountAfterFilter] = blockWithFilter;
+
+    {
+        // execute requires size_t as an argument.
+        size_t numRows = rowCount;
+        Actions->execute(block, numRows);
+    }
+
+    auto filterColumnPosition = block.getPositionByName(FilterColumnName);
+    auto filterColumn = block.getByPosition(filterColumnPosition).column->convertToFullIfNeeded();
+
+    // Output block should contain at least one column to preserve row count.
+    if (RemoveFilterColumn && block.columns() != 1) {
+        block.erase(filterColumnPosition);
+    }
+
+    if (currentFilter.empty()) {
+        currentFilter.resize_fill(rowCount, 1);
+    }
+
+    auto throwIllegalType = [&] {
+        THROW_ERROR_EXCEPTION("Illegal type for filter in PREWHERE: %Qv", filterColumn->getName());
+    };
+
+    // Combine current filter and filter column.
+    // Note that filter column is either UInt8 or Nullable(UInt8).
+    if (const auto* nullableFilterColumn = DB::checkAndGetColumn<DB::ColumnNullable>(filterColumn.get())) {
+        const auto* nullMapColumn = DB::checkAndGetColumn<DB::ColumnVector<DB::UInt8>>(nullableFilterColumn->getNullMapColumn());
+        YT_VERIFY(nullMapColumn);
+        const auto& nullMap = nullMapColumn->getData();
+        YT_VERIFY(std::ssize(nullMap) == rowCount);
+
+        const auto* nestedColumn = DB::checkAndGetColumn<DB::ColumnVector<DB::UInt8>>(nullableFilterColumn->getNestedColumn());
+        if (!nestedColumn) {
+            throwIllegalType();
+        }
+        const auto& values = nestedColumn->getData();
+        YT_VERIFY(std::ssize(values) == rowCount);
+
+        for (i64 index = 0; index < rowCount; ++index) {
+            currentFilter[index] &= !nullMap[index] && values[index];
+        }
+    } else {
+        const auto* valueColumn = DB::checkAndGetColumn<DB::ColumnVector<DB::UInt8>>(filterColumn.get());
+        if (!valueColumn) {
+            throwIllegalType();
+        }
+        const auto& values = valueColumn->getData();
+        YT_VERIFY(std::ssize(values) == rowCount);
+
+        for (i64 index = 0; index < rowCount; ++index) {
+            currentFilter[index] &= static_cast<bool>(values[index]);
+        }
+    }
+
+    rowCountAfterFilter = DB::countBytesInFilter(currentFilter);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -87,7 +151,7 @@ TReadPlanWithFilterPtr BuildReadPlanWithPrewhere(
 
     auto prewhereActions = DB::IMergeTreeSelectAlgorithm::getPrewhereActions(
         prewhereInfo,
-        DB::ExpressionActionsSettings::fromSettings(settings, DB:: CompileExpressions::yes),
+        DB::ExpressionActionsSettings::fromSettings(settings, DB::CompileExpressions::yes),
         enableMultiplePrewhereReadSteps);
 
     std::vector<TReadStepWithFilter> steps;
@@ -164,6 +228,24 @@ TReadPlanWithFilterPtr ExtractPrewhereOnlyReadPlan(const TReadPlanWithFilterPtr&
     }
     // We always need to filter during a separate prewhere phase.
     return New<TReadPlanWithFilter>(std::move(steps), /*NeedFilter*/ true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+DB::Block DeriveHeaderBlockFromReadPlan(const TReadPlanWithFilterPtr& readPlan, const TCompositeSettingsPtr& settings)
+{
+    TBlockWithFilter blockWithFilter(/*rowCount*/ 0);
+
+    for (const auto& step : readPlan->Steps) {
+        for (const auto& column : ToHeaderBlock(step.Columns, settings)) {
+            blockWithFilter.Block.insert(column);
+        }
+        if (step.FilterInfo) {
+            step.FilterInfo->Execute(blockWithFilter);
+        }
+    }
+
+    return blockWithFilter.Block;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

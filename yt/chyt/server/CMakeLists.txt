@@ -56,7 +56,6 @@ target_link_libraries(yt-chyt-server PUBLIC
 )
 
 target_sources(yt-chyt-server PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/block_input_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/block_output_stream.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/bootstrap.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/ch_to_yt_converter.cpp
@@ -89,16 +88,19 @@ target_sources(yt-chyt-server PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/memory_watchdog.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/object_lock.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/poco_config.cpp
-  ${PROJECT_SOURCE_DIR}/yt/chyt/server/prewhere_block_input_stream.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/prewhere_secondary_query_source.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/private.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_analyzer.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_context.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_progress.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/query_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/read_plan.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/remote_source.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/revision_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/schema_inference.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/secondary_query_header.cpp
+  ${PROJECT_SOURCE_DIR}/yt/chyt/server/secondary_query_source.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/stack_size_checker.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/std_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/chyt/server/storage_base.cpp

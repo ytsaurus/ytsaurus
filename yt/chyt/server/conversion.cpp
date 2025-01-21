@@ -31,12 +31,12 @@ DB::DataTypePtr ToDataType(const TComplexTypeFieldDescriptor& descriptor, const 
     return converter.GetDataType();
 }
 
-DB::DataTypes ToDataTypes(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings, bool isReadConversions)
+DB::DataTypes ToDataTypes(const std::vector<TColumnSchema>& schemas, const TCompositeSettingsPtr& settings, bool isReadConversions)
 {
     DB::DataTypes result;
-    result.reserve(schema.GetColumnCount());
+    result.reserve(ssize(schemas));
 
-    for (const auto& column : schema.Columns()) {
+    for (const auto& column : schemas) {
         TComplexTypeFieldDescriptor descriptor(column);
         result.emplace_back(ToDataType(std::move(descriptor), settings, isReadConversions));
     }
@@ -44,24 +44,34 @@ DB::DataTypes ToDataTypes(const NTableClient::TTableSchema& schema, const TCompo
     return result;
 }
 
-DB::NamesAndTypesList ToNamesAndTypesList(const NTableClient::TTableSchema& schema, const TCompositeSettingsPtr& settings)
+DB::DataTypes ToDataTypes(const TTableSchema& schema, const TCompositeSettingsPtr& settings, bool isReadConversions)
 {
-    const auto& dataTypes = ToDataTypes(schema, settings);
+    return ToDataTypes(schema.Columns(), settings, isReadConversions);
+}
+
+DB::NamesAndTypesList ToNamesAndTypesList(const std::vector<TColumnSchema>& schemas, const TCompositeSettingsPtr& settings)
+{
+    const auto& dataTypes = ToDataTypes(schemas, settings);
 
     DB::NamesAndTypesList result;
 
-    for (int index = 0; index < schema.GetColumnCount(); ++index) {
-        result.emplace_back(schema.Columns()[index].Name(), dataTypes[index]);
+    for (int index = 0; index < ssize(schemas); ++index) {
+        result.emplace_back(schemas[index].Name(), dataTypes[index]);
     }
 
     return result;
 }
 
-DB::Block ToHeaderBlock(const TTableSchema& schema, const TCompositeSettingsPtr& settings)
+DB::NamesAndTypesList ToNamesAndTypesList(const TTableSchema& schema, const TCompositeSettingsPtr& settings)
+{
+    return ToNamesAndTypesList(schema.Columns(), settings);
+}
+
+DB::Block ToHeaderBlock(const std::vector<TColumnSchema>& schemas, const TCompositeSettingsPtr &settings)
 {
     DB::Block headerBlock;
 
-    auto namesAndTypesList = ToNamesAndTypesList(schema, settings);
+    auto namesAndTypesList = ToNamesAndTypesList(schemas, settings);
 
     for (const auto& nameAndTypePair : namesAndTypesList) {
         auto column = nameAndTypePair.type->createColumn();
@@ -69,6 +79,11 @@ DB::Block ToHeaderBlock(const TTableSchema& schema, const TCompositeSettingsPtr&
     }
 
     return headerBlock;
+}
+
+DB::Block ToHeaderBlock(const TTableSchema& schema, const TCompositeSettingsPtr& settings)
+{
+    return ToHeaderBlock(schema.Columns(), settings);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

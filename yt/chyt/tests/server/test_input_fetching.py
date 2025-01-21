@@ -48,14 +48,14 @@ class TestInputFetching(ClickHouseTestBase):
             }
         }
         with Clique(1, config_patch=config_patch) as clique:
-            clique.make_query_and_validate_row_count(
+            clique.make_query_and_validate_read_row_count(
                 'select * from "//tmp/t" {} i >= 3'.format(where_prewhere), exact=7
             )
-            clique.make_query_and_validate_row_count('select * from "//tmp/t" {} i < 2'.format(where_prewhere), exact=2)
-            clique.make_query_and_validate_row_count(
+            clique.make_query_and_validate_read_row_count('select * from "//tmp/t" {} i < 2'.format(where_prewhere), exact=2)
+            clique.make_query_and_validate_read_row_count(
                 'select * from "//tmp/t" {} 5 <= i and i <= 8'.format(where_prewhere), exact=4
             )
-            clique.make_query_and_validate_row_count(
+            clique.make_query_and_validate_read_row_count(
                 'select * from "//tmp/t" {} i in (-1, 2, 8, 8, 15)'.format(where_prewhere), exact=2
             )
 
@@ -88,30 +88,30 @@ class TestInputFetching(ClickHouseTestBase):
                 def correct_row_count(row_count):
                     return row_count if enable_computed_column_deduction else 10
 
-                clique.make_query_and_validate_row_count(
+                clique.make_query_and_validate_read_row_count(
                     'select * from "//tmp/t" where i == 3', exact=correct_row_count(2)
                 )
-                clique.make_query_and_validate_row_count(
+                clique.make_query_and_validate_read_row_count(
                     'select * from "//tmp/t" where i == 6 or i == 7', exact=correct_row_count(2)
                 )
-                clique.make_query_and_validate_row_count(
+                clique.make_query_and_validate_read_row_count(
                     'select * from "//tmp/t" where i == 0 or i == 9', exact=correct_row_count(4)
                 )
-                clique.make_query_and_validate_row_count(
+                clique.make_query_and_validate_read_row_count(
                     'select * from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=correct_row_count(4)
                 )
-                clique.make_query_and_validate_row_count(
+                clique.make_query_and_validate_read_row_count(
                     'select * from "//tmp/t" where i in tuple(-1, 2, 8, 8, 15)', exact=correct_row_count(4)
                 )
-                clique.make_query_and_validate_row_count(
+                clique.make_query_and_validate_read_row_count(
                     'select * from "//tmp/t" where i in (1)', exact=correct_row_count(2)
                 )
-                clique.make_query_and_validate_row_count(
+                clique.make_query_and_validate_read_row_count(
                     'select * from "//tmp/t" where i in tuple(1)', exact=correct_row_count(2)
                 )
 
                 # This case should not be optimized.
-                clique.make_query_and_validate_row_count('select * from "//tmp/t" where 5 <= i and i <= 8', exact=10)
+                clique.make_query_and_validate_read_row_count('select * from "//tmp/t" where 5 <= i and i <= 8', exact=10)
 
     @authors("max42")
     def test_dynamic_table_farm_hash(self):
@@ -161,9 +161,9 @@ class TestInputFetching(ClickHouseTestBase):
                     }
                 },
         ) as clique:
-            clique.make_query_and_validate_row_count("select * from `//tmp/t`", exact=5)
-            clique.make_query_and_validate_row_count("select * from `//tmp/t` where key == 'k1' or key = 'k3'", exact=2)
-            clique.make_query_and_validate_row_count(
+            clique.make_query_and_validate_read_row_count("select * from `//tmp/t`", exact=5)
+            clique.make_query_and_validate_read_row_count("select * from `//tmp/t` where key == 'k1' or key = 'k3'", exact=2)
+            clique.make_query_and_validate_read_row_count(
                 "select * from (select * from `//tmp/t` where key == 'k4')", exact=1
             )
 
@@ -215,10 +215,10 @@ class TestInputFetching(ClickHouseTestBase):
         }
 
         with Clique(1, config_patch=config_patch) as clique:
-            assert len(clique.make_query_and_validate_row_count("select * from `//tmp/t`", exact=5)) == 5
+            assert len(clique.make_query_and_validate_read_row_count("select * from `//tmp/t`", exact=5)) == 5
             assert (
                 len(
-                    clique.make_query_and_validate_row_count(
+                    clique.make_query_and_validate_read_row_count(
                         "select * from `//tmp/t` where "
                         "(key, subkey) == ('k1', 'sk1') or (key, subkey) = ('k3', 'sk3')",
                         exact=2,
@@ -228,7 +228,7 @@ class TestInputFetching(ClickHouseTestBase):
             )
             assert (
                 len(
-                    clique.make_query_and_validate_row_count(
+                    clique.make_query_and_validate_read_row_count(
                         "select * from (select * from `//tmp/t` where (key, subkey) == ('k4', 'sk4'))", exact=1
                     )
                 )
@@ -276,11 +276,11 @@ class TestInputFetching(ClickHouseTestBase):
         with Clique(1, config_patch={"clickhouse": {"settings": {"optimize_move_to_prewhere": 0}},
                                      "yt": {"settings": {"execution": {"enable_min_max_filtering": False}}}}) as clique:
             # Column 'a' is sorted.
-            clique.make_query_and_validate_row_count(
+            clique.make_query_and_validate_read_row_count(
                 'select * from concatYtTables("//tmp/t1", "//tmp/t2") where a > 18', exact=1
             )
             # Column 'a' isn't sorted.
-            clique.make_query_and_validate_row_count(
+            clique.make_query_and_validate_read_row_count(
                 'select * from concatYtTables("//tmp/t1", "//tmp/t3") where a > 18', exact=2
             )
 
@@ -364,20 +364,20 @@ class TestInputFetching(ClickHouseTestBase):
             query1 = 'select * from "//tmp/t_{}" where key = 2'
             query2 = 'select * from "//tmp/t_{}" where 1 < key and key < 3'
             for type in (int_types + float_types):
-                clique.make_query_and_validate_row_count(query1.format(type), exact=1)
-                clique.make_query_and_validate_row_count(query2.format(type), exact=1)
+                clique.make_query_and_validate_read_row_count(query1.format(type), exact=1)
+                clique.make_query_and_validate_read_row_count(query2.format(type), exact=1)
 
             query = 'select * from "//tmp/t_{}" where key = \'{{abc=2}}\''
             for type in string_types:
-                clique.make_query_and_validate_row_count(query.format(type), exact=1)
+                clique.make_query_and_validate_read_row_count(query.format(type), exact=1)
 
             query = 'select * from "//tmp/t_{}" where \'1970.01.10\' < key and key < \'1970.01.12\''
             for type in date_types:
-                clique.make_query_and_validate_row_count(query.format(type), exact=1)
+                clique.make_query_and_validate_read_row_count(query.format(type), exact=1)
 
             query = 'select * from "//tmp/t_{}" where INTERVAL 1 Microsecond < key and key < INTERVAL 3 Microsecond'
             for type in interval_types:
-                clique.make_query_and_validate_row_count(query.format(type), exact=1)
+                clique.make_query_and_validate_read_row_count(query.format(type), exact=1)
 
     @authors("max42")
     @pytest.mark.xfail(run="False", reason="Chunk slicing is temporarily not supported")
@@ -414,10 +414,10 @@ class TestInputFetching(ClickHouseTestBase):
         }
         with Clique(1, config_patch=config_patch) as clique:
             # Due to inclusiveness issues each of the row counts should be correct with some error.
-            clique.make_query_and_validate_row_count('select i from "//tmp/t" where i >= 3', min=7, max=8)
-            clique.make_query_and_validate_row_count('select i from "//tmp/t" where i < 2', min=3, max=4)
-            clique.make_query_and_validate_row_count('select i from "//tmp/t" where 5 <= i and i <= 8', min=4, max=6)
-            clique.make_query_and_validate_row_count(
+            clique.make_query_and_validate_read_row_count('select i from "//tmp/t" where i >= 3', min=7, max=8)
+            clique.make_query_and_validate_read_row_count('select i from "//tmp/t" where i < 2', min=3, max=4)
+            clique.make_query_and_validate_read_row_count('select i from "//tmp/t" where 5 <= i and i <= 8', min=4, max=6)
+            clique.make_query_and_validate_read_row_count(
                 'select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', min=2, max=4
             )
 
@@ -441,10 +441,10 @@ class TestInputFetching(ClickHouseTestBase):
         }
         with Clique(1, config_patch=config_patch) as clique:
             # Due to inclusiveness issues each of the row counts should be correct with some error.
-            clique.make_query_and_validate_row_count('select i from "//tmp/t" where i >= 3', exact=10)
-            clique.make_query_and_validate_row_count('select i from "//tmp/t" where i < 2', exact=10)
-            clique.make_query_and_validate_row_count('select i from "//tmp/t" where 5 <= i and i <= 8', exact=10)
-            clique.make_query_and_validate_row_count('select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=10)
+            clique.make_query_and_validate_read_row_count('select i from "//tmp/t" where i >= 3', exact=10)
+            clique.make_query_and_validate_read_row_count('select i from "//tmp/t" where i < 2', exact=10)
+            clique.make_query_and_validate_read_row_count('select i from "//tmp/t" where 5 <= i and i <= 8', exact=10)
+            clique.make_query_and_validate_read_row_count('select i from "//tmp/t" where i in (-1, 2, 8, 8, 15)', exact=10)
 
     @authors("max42", "gritukan")
     @pytest.mark.parametrize("use_block_sampling", [False, True])
@@ -460,24 +460,24 @@ class TestInputFetching(ClickHouseTestBase):
         write_table("//tmp/t", [{"a": i, "b": "A" * 1500} for i in range(1000)], verbose=False)
         with Clique(1, config_patch={"yt": {"settings": {"execution": {"enable_min_max_filtering": False}}}}) as clique:
             settings = {"chyt.use_block_sampling": int(use_block_sampling)}
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.1', min=60, max=170,
-                                                     verbose=False, settings=settings)
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 100', min=60, max=170,
-                                                     verbose=False, settings=settings)
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 2/20', min=60, max=170,
-                                                     verbose=False, settings=settings)
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.1 offset 42', min=60, max=170,
-                                                     verbose=False, settings=settings)
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False,
-                                                     settings=settings)
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False,
-                                                     settings=settings)
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0', exact=0, verbose=False,
-                                                     settings=settings)
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 0.000000000001', exact=0,
-                                                     verbose=False, settings=settings)
-            clique.make_query_and_validate_row_count('select a from "//tmp/t" sample 1/100000000000', exact=0,
-                                                     verbose=False, settings=settings)
+            clique.make_query_and_validate_read_row_count('select a from "//tmp/t" sample 0.1', min=60, max=170,
+                                                          verbose=False, settings=settings)
+            clique.make_query_and_validate_read_row_count('select a from "//tmp/t" sample 100', min=60, max=170,
+                                                          verbose=False, settings=settings)
+            clique.make_query_and_validate_read_row_count('select a from "//tmp/t" sample 2/20', min=60, max=170,
+                                                          verbose=False, settings=settings)
+            clique.make_query_and_validate_read_row_count('select a from "//tmp/t" sample 0.1 offset 42', min=60, max=170,
+                                                          verbose=False, settings=settings)
+            clique.make_query_and_validate_read_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False,
+                                                          settings=settings)
+            clique.make_query_and_validate_read_row_count('select a from "//tmp/t" sample 10000', exact=1000, verbose=False,
+                                                          settings=settings)
+            clique.make_query_and_validate_read_row_count('select a from "//tmp/t" sample 0', exact=0, verbose=False,
+                                                          settings=settings)
+            clique.make_query_and_validate_read_row_count('select a from "//tmp/t" sample 0.000000000001', exact=0,
+                                                          verbose=False, settings=settings)
+            clique.make_query_and_validate_read_row_count('select a from "//tmp/t" sample 1/100000000000', exact=0,
+                                                          verbose=False, settings=settings)
 
     @authors("max42")
     def test_chyt_143(self):
@@ -1069,23 +1069,23 @@ class TestInputFetching(ClickHouseTestBase):
             }
         }
         with Clique(1, config_patch=config_patch) as clique:
-            assert clique.make_query_and_validate_row_count(f'select c from "{table_path}" where a > 2 or b == 0 order by c', exact=3) == \
+            assert clique.make_query_and_validate_read_row_count(f'select c from "{table_path}" where a > 2 or b == 0 order by c', exact=3) == \
                 [{"c": "ab" * 100}, {"c": "apple"}, {"c": "polka"}]
 
-            clique.make_query_and_validate_row_count(f'select d from "{table_path}" where c < \'axe\'', exact=2)
+            clique.make_query_and_validate_read_row_count(f'select d from "{table_path}" where c < \'axe\'', exact=2)
 
-            clique.make_query_and_validate_row_count(f'select b from "{table_path}" where d is null', exact=2)
-            clique.make_query_and_validate_row_count(f'select b from "{table_path}" where d is not null', exact=3)
+            clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" where d is null', exact=2)
+            clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" where d is not null', exact=3)
 
-            clique.make_query_and_validate_row_count(f'select b from "{table_path}" prewhere d is null', exact=2)
+            clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" prewhere d is null', exact=2)
 
             # < and > conditions on 'any' columns should not prefilter any values.
             # But it may filter out chunks with only null values sometimes (depends on key condition details).
-            clique.make_query_and_validate_row_count(f'select b from "{table_path}" where e < \'a\'', min=4, max=5)
-            clique.make_query_and_validate_row_count(f'select b from "{table_path}" where e > \'a\'', min=4, max=5)
+            clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" where e < \'a\'', min=4, max=5)
+            clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" where e > \'a\'', min=4, max=5)
             # But isNull/isNotNull should work fine even with 'any' columns.
-            clique.make_query_and_validate_row_count(f'select b from "{table_path}" where e is null', exact=1)
-            clique.make_query_and_validate_row_count(f'select b from "{table_path}" where e is not null', exact=4)
+            clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" where e is null', exact=1)
+            clique.make_query_and_validate_read_row_count(f'select b from "{table_path}" where e is not null', exact=4)
 
     @staticmethod
     def make_query(clique, query, **kwargs):
@@ -1117,12 +1117,12 @@ class TestInputFetching(ClickHouseTestBase):
 
         if secondary_queries:
             block_rows = sum([
-                secondary_query["chyt_query_statistics"]["block_input_stream"]["steps"]["0"]["block_rows"]["sum"]
+                secondary_query["chyt_query_statistics"]["secondary_query_source"]["steps"]["0"]["block_rows"]["sum"]
                 for secondary_query in secondary_queries
             ])
         else:
             initial_query = TestInputFetching.get_log_messages(log_table, query_id=query_id, is_initial_query=1)
-            block_rows = initial_query["chyt_query_statistics"]["block_input_stream"]["steps"]["0"]["block_rows"]["sum"]
+            block_rows = initial_query["chyt_query_statistics"]["secondary_query_source"]["steps"]["0"]["block_rows"]["sum"]
 
         print_debug(f"Block rows read by query {query_id}: {block_rows}")
         return block_rows
@@ -1557,11 +1557,13 @@ class TestInputFetching(ClickHouseTestBase):
         with Clique(1, config_patch=config_patch) as clique:
             query = "select * from '//tmp/t-ts' where ts > toDateTime('2024-01-01T00:00:00')"
             # the first chunk must be filtered and not read
-            assert clique.make_query_and_validate_row_count(query, exact=4) == [
-                {"ts": "2024-02-02 00:00:00.000000"},
-                {"ts": "2024-05-05 00:00:00.000000"},
-                {"ts": "2024-10-10 00:00:00.000000"}
-            ]
+            assert_items_equal(
+                clique.make_query_and_validate_read_row_count(query, exact=4),
+                [
+                    {"ts": "2024-02-02 00:00:00.000000"},
+                    {"ts": "2024-05-05 00:00:00.000000"},
+                    {"ts": "2024-10-10 00:00:00.000000"},
+                ])
 
 
 class TestInputFetchingYPath(ClickHouseTestBase):

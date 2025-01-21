@@ -252,7 +252,7 @@ class TestJoinAndIn(ClickHouseTestBase):
             }
         }
         with Clique(1, config_patch=config_patch) as clique:
-            assert clique.make_query_and_validate_row_count(
+            assert clique.make_query_and_validate_read_row_count(
                 'select * from "//tmp/t1" t1 inner join "//tmp/t2" t2 using key where t2.subkey == 42',
                 exact=6) == [{"key": 5, "subkey": 42},
                              {"key": 10, "subkey": 42}]
@@ -414,16 +414,16 @@ class TestJoinAndIn(ClickHouseTestBase):
             query = 'select * from "//tmp/t1" as a join "//tmp/t2" as b using key order by key'
 
             # Two yt table sorted join. Secondary query reads 1 row from left and 1 row from right table.
-            assert clique.make_query_and_validate_row_count(query, exact=6, settings=settings) == expected_result
+            assert clique.make_query_and_validate_read_row_count(query, exact=6, settings=settings) == expected_result
 
             query = 'select * from "//tmp/t1" as a join (select * from "//tmp/t2") as b using key order by key'
 
             # Without bound conditions. Secondary query reads 1 row from left table and the whole right table (3 row).
-            assert clique.make_query_and_validate_row_count(query, exact=12, settings=settings) == expected_result
+            assert clique.make_query_and_validate_read_row_count(query, exact=12, settings=settings) == expected_result
 
             # With bound conditions. Secondary query reads only 1 row from left and 1 row from right table.
             settings["chyt.execution.filter_joined_subquery_by_sort_key"] = 1
-            assert clique.make_query_and_validate_row_count(query, exact=6, settings=settings) == expected_result
+            assert clique.make_query_and_validate_read_row_count(query, exact=6, settings=settings) == expected_result
 
     @authors("dakovalkov")
     def test_complex_join_key(self):
