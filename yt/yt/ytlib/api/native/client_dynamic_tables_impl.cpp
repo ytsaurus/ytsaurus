@@ -372,6 +372,80 @@ std::optional<i64> TryReserveMemory(
     return reservedBytes;
 }
 
+std::vector<TTabletInfo> GetChaosTabletInfosImpl(
+    TClient& client,
+    const TTableMountInfoPtr& tableInfo,
+    const std::vector<int>& tabletIndexes,
+    const TGetTabletInfosOptions& options)
+{
+    if (!tableInfo->ReplicationCardId) {
+        return {};
+    }
+
+    TGetReplicationCardOptions replicationCardGetOptions;
+    replicationCardGetOptions.IncludeHistory = true;
+    auto futureReplicationCard = client.GetReplicationCard(tableInfo->ReplicationCardId, replicationCardGetOptions);
+    auto replicationCard = WaitForFast(futureReplicationCard).ValueOrThrow();
+
+    const auto& clusterDirectory = client.GetNativeConnection()->GetClusterDirectory();
+    auto clientOptions = TClientOptions::FromUser(NSecurityClient::ReplicatorUserName);
+
+    std::vector<TFuture<std::vector<TTabletInfo>>> tabletInfoFutures;
+    std::vector<IClientPtr> clients;
+
+    for (const auto& [replicaId, replicaInfo] : replicationCard->Replicas) {
+        if (replicaInfo.ContentType != ETableReplicaContentType::Queue ||
+            !IsReplicaReallySync(replicaInfo.Mode, replicaInfo.State, replicaInfo.History))
+        {
+            continue;
+        }
+
+        auto alienConnection = clusterDirectory->FindConnection(replicaInfo.ClusterName);
+        if (!alienConnection) {
+            continue;
+        }
+
+        auto alienClient = alienConnection->CreateNativeClient(clientOptions);
+        tabletInfoFutures.push_back(alienClient->GetTabletInfos(replicaInfo.ReplicaPath, tabletIndexes, options));
+        clients.push_back(std::move(alienClient));
+    }
+
+    if (tabletInfoFutures.empty()) {
+        THROW_ERROR_EXCEPTION("No sync replicas found")
+            << TErrorAttribute("table_path", tableInfo->Path)
+            << TErrorAttribute("table_id", tableInfo->TableId)
+            << TErrorAttribute("table_replication_card_id", tableInfo->ReplicationCardId);
+    }
+
+    auto result = WaitForUnique(AllSucceeded(std::move(tabletInfoFutures)))
+        .ValueOrThrow();
+
+    auto replicaTabletInfosIt = result.begin();
+    std::vector<TTabletInfo> tabletInfos = std::move(*replicaTabletInfosIt);
+    ++replicaTabletInfosIt;
+    for (; replicaTabletInfosIt != result.end(); ++replicaTabletInfosIt) {
+        for (int tabletIndexIndex = 0; tabletIndexIndex < std::ssize(tabletInfos); ++tabletIndexIndex) {
+            auto& resultTabletInfo = tabletInfos[tabletIndexIndex];
+            const auto& patchTabletInfo = (*replicaTabletInfosIt)[tabletIndexIndex];
+
+            resultTabletInfo.BarrierTimestamp = std::min(
+                resultTabletInfo.BarrierTimestamp,
+                patchTabletInfo.BarrierTimestamp);
+            resultTabletInfo.LastWriteTimestamp = std::max(
+                resultTabletInfo.LastWriteTimestamp,
+                patchTabletInfo.LastWriteTimestamp);
+            resultTabletInfo.TrimmedRowCount = std::max(
+                resultTabletInfo.TrimmedRowCount,
+                patchTabletInfo.TrimmedRowCount);
+            resultTabletInfo.TotalRowCount = std::min(
+                resultTabletInfo.TotalRowCount,
+                patchTabletInfo.TotalRowCount);
+        }
+    }
+
+    return tabletInfos;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -506,6 +580,10 @@ std::vector<TTabletInfo> TClient::DoGetTabletInfos(
     const auto& tableMountCache = Connection_->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
         .ValueOrThrow();
+
+    if (tableInfo->IsChaosReplicated()) {
+        return GetChaosTabletInfosImpl(*this, tableInfo, tabletIndexes, options);
+    }
 
     return GetTabletInfosImpl(tableInfo, tabletIndexes, options);
 }
