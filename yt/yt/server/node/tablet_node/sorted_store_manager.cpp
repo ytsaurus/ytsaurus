@@ -745,10 +745,17 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         if (mountConfig->InsertMetaUponStoreUpdate) {
             storeWriter->GetMeta()->SubscribeMetaFinalized(BIND([
-                =,
                 this,
-                this_ = MakeStrong(this)] (const TRefCountedChunkMeta* finalizedMeta)
+                mountConfig,
+                tabletSnapshot,
+                this_ = MakeStrong(this),
+                weakWriter = MakeWeak(storeWriter)] (const TRefCountedChunkMeta* finalizedMeta)
             {
+                auto storeWriter = weakWriter.Lock();
+                if (!storeWriter) {
+                    return;
+                }
+
                 auto enableNewScanReader =
                     mountConfig->EnableNewScanReaderForLookup ||
                     mountConfig->EnableNewScanReaderForSelect;
@@ -765,7 +772,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
                 }
 
                 YT_LOG_DEBUG("Propagating versioned chunk meta cache upon chunk finalization "
-                    "(Success: %v, ChunkId: %v, Activity: %Qlv)",
+                    "(Success: %v, ChunkId: %v, Activity: %v)",
                     result,
                     storeWriter->GetChunkId(),
                     ETabletBackgroundActivity::Flush);
