@@ -47,6 +47,7 @@ struct TThrottlerLocalUsage
     i64 QueueTotalAmount = 0;
     TDuration EstimatedOverdraftDuration = TDuration::Zero();
 };
+
 // Throttler usage collected on the leader over all group members.
 using TThrottlerGlobalUsage = TThrottlerUsage;
 

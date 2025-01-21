@@ -174,7 +174,7 @@ public:
         NSecurityClient::TAccountResourceUsageLeaseId leaseId,
         const NScheduler::TDiskQuota& diskQuota) override;
 
-    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName& clusterName,
         const TCallback<void()>& callback) override;
     void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(

@@ -1024,7 +1024,7 @@ public:
         .Run();
     }
 
-    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
         const TClusterName& clusterName,
         const TCallback<void()>& callback)
     {
@@ -2524,11 +2524,11 @@ bool TControllerAgent::ReleaseJobMonitoringDescriptor(TOperationId operationId, 
     return Impl_->ReleaseJobMonitoringDescriptor(operationId, descriptor);
 }
 
-void TControllerAgent::SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+void TControllerAgent::SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
     const TClusterName& clusterName,
     const TCallback<void()>& callback)
 {
-    return Impl_->SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(clusterName, callback);
+    return Impl_->SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(clusterName, callback);
 }
 
 void TControllerAgent::UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(

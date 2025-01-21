@@ -1207,7 +1207,7 @@ public:
                 MakeWeak(this))
             .Via(GetCancelableInvoker());
 
-            Host->SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+            Host->SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
                 TClusterName(*Spec_->ClusterName),
                 UpdateNeededResourcesCallback_);
         }
@@ -1434,7 +1434,7 @@ private:
     // Don't persist this transient state.
     bool IsNetworkBandwidthAvailable_ = true;
 
-    void ValidateTableType(auto table) const
+    void ValidateTableType(const auto& table) const
     {
         if (table->Type != EObjectType::Table && table->Type != EObjectType::File) {
             THROW_ERROR_EXCEPTION("Only files and tables are allowed, but %v has type %Qlv",
@@ -1962,7 +1962,7 @@ private:
 
     void UpdateNeededResources()
     {
-        for (auto task : OrderedTasks_) {
+        for (const auto& task : OrderedTasks_) {
             UpdateTask(task.Get());
         }
     }
