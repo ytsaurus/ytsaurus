@@ -22,7 +22,7 @@ YT_PREVENT_TLS_CACHING void LazyDictCopy(TLazyDict* source, TLazyDict* destinati
         }
     }
 
-    for (const auto& item: *source->GetUnderlyingHashMap()) {
+    for (const auto& item : *source->GetUnderlyingHashMap()) {
         const auto& key = item.first;
         const auto& value = item.second;
 

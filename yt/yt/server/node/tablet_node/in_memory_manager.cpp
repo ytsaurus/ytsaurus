@@ -133,7 +133,7 @@ TInMemoryChunkDataPtr CreateInMemoryChunkData(
         blocks.back().Data = TrackMemory(memoryUsageTracker, EMemoryCategory::Unknown, block.Data);
     }
 
-    for (auto& block: blocks) {
+    for (auto& block : blocks) {
         block.Data = MarkUndumpable(block.Data);
     }
 
@@ -736,7 +736,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     readerProfiler->SetCodecStatistics(decompressionStatistics);
 
     i64 allocatedMemory = 0;
-    for (auto& block: blocks) {
+    for (auto& block : blocks) {
         allocatedMemory += block.Size();
     }
 

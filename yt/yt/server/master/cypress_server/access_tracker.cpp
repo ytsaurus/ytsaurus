@@ -134,7 +134,7 @@ void TAccessTracker::Reset()
             }
         }
 
-        for (auto nodeId: shard.TouchedNodes) {
+        for (auto nodeId : shard.TouchedNodes) {
             auto* node = objectManager->FindObject(nodeId)->As<TCypressNode>();
             if (IsObjectAlive(node)) {
                 node->SetTouchNodesIndex(-1);

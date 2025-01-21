@@ -1614,7 +1614,7 @@ private:
         auto& nodeList = NodeListPerRole_[nodeRole].Nodes();
         nodeList.clear();
 
-        for (auto protoNodeId: request->node_ids()) {
+        for (auto protoNodeId : request->node_ids()) {
             auto nodeId = FromProto<TNodeId>(protoNodeId);
             auto* node = FindNode(nodeId);
             if (IsObjectAlive(node)) {

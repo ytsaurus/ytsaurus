@@ -156,7 +156,7 @@ void LogAccess(
             }
         })
         .Do([&] (auto fluent) {
-            for (const auto& pair: additionalAttributes) {
+            for (const auto& pair : additionalAttributes) {
                 const auto& attrName = pair.first;
                 const auto& attrValue = pair.second;
                 if (attrName == "destination_path") {

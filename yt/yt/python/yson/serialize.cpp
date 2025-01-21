@@ -73,7 +73,7 @@ void SerializeLazyMapFragment(
     }
 
     TLazyYsonMapBase* obj = reinterpret_cast<TLazyYsonMapBase*>(map.ptr());
-    for (const auto& item: *obj->Dict->GetUnderlyingHashMap()) {
+    for (const auto& item : *obj->Dict->GetUnderlyingHashMap()) {
         const auto& key = item.first;
         const auto& value = item.second;
         ValidateKeyType(key);

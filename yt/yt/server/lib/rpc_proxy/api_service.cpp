@@ -4771,7 +4771,7 @@ private:
             /*searchInPool*/ true);
 
         int attachmentIndex = 0;
-        for (int partCount: request->part_counts()) {
+        for (int partCount : request->part_counts()) {
             NApi::NRpcProxy::NProto::TReqModifyRows subrequest;
             if (!TryDeserializeProto(&subrequest, request->Attachments()[attachmentIndex])) {
                 THROW_ERROR_EXCEPTION(NRpc::EErrorCode::ProtocolError, "Error deserializing subrequest");
@@ -5933,7 +5933,7 @@ private:
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
         std::vector<NYPath::TRichYPath> paths;
-        for (const auto& protoSubPath: request->paths()) {
+        for (const auto& protoSubPath : request->paths()) {
             paths.emplace_back(ConvertTo<NYPath::TRichYPath>(TYsonString(protoSubPath)));
         }
 

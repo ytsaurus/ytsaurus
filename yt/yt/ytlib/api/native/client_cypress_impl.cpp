@@ -683,7 +683,7 @@ protected:
 
         const auto& batchRsp = batchRspOrError.Value();
 
-        for (const auto& schemaId: SchemaIds_) {
+        for (const auto& schemaId : SchemaIds_) {
             auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(FromObjectId(schemaId));
             auto rsp = rspOrError.Value();
             auto schemaYson = TYsonString(rsp->value());

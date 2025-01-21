@@ -1361,7 +1361,7 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
     // Fetching progress and alert_events for operations with mentioned ids.
     if (DoesOperationsArchiveExist()) {
         std::vector<TOperationId> ids;
-        for (const auto& operation: result.Operations) {
+        for (const auto& operation : result.Operations) {
             ids.push_back(*operation.Id);
         }
 

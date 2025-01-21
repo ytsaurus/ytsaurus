@@ -194,7 +194,7 @@ ESecurityAction CheckAccessControl(
     TCheckPermissionOptions checkPermissionOptions;
     checkPermissionOptions.ReadFrom = EMasterChannelKind::Cache;
     checkPermissionOptions.SuccessStalenessBound = TDuration::Minutes(1);
-    for (const auto& accessControlObject: *accessControlObjectList) {
+    for (const auto& accessControlObject : *accessControlObjectList) {
         auto path = Format(
             "%v/%v/principal",
             QueriesAcoNamespacePath,
@@ -1257,7 +1257,7 @@ TListQueriesResult TQueryTrackerProxy::ListQueries(
     }
 
     if (!attributes || std::find(attributes.Keys.begin(), attributes.Keys.end(), "access_control_object") != attributes.Keys.end()) {
-        for (auto& query: result) {
+        for (auto& query : result) {
             ConvertAcoToOldFormat(query);
         }
     }

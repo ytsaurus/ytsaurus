@@ -358,12 +358,12 @@ void PrintMeta(const IIOEnginePtr& ioEngine, const TString& chunkFileName)
     }
 
     if (maybeColumnMetaExts) {
-        for (const auto& columnSchema: schema.Columns()) {
+        for (const auto& columnSchema : schema.Columns()) {
             auto columnIndex = schema.GetColumnIndex(columnSchema);
             const auto& segments = maybeColumnMetaExts->columns(columnIndex).segments();
             Cout << "  Column " << columnSchema.Name() << " (" << segments.size() << " blocks):" << Endl;
 
-            for (const auto& segment: segments) {
+            for (const auto& segment : segments) {
                 Cout << "    Index: " << segment.block_index() << Endl;
                 Cout << "      Uncompressed size: " << segment.size() << Endl;
                 Cout << "      RowCount: " << segment.row_count() << Endl;

@@ -490,7 +490,7 @@ protected:
 
     void ResumeDataSlice(IChunkPoolInput::TCookie cookie)
     {
-        for (auto chunkId: InputCookieToChunkIds_[cookie]) {
+        for (auto chunkId : InputCookieToChunkIds_[cookie]) {
             YT_VERIFY(chunkId);
             ActiveChunks_.insert(chunkId);
         }

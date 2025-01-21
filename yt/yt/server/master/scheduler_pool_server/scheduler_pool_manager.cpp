@@ -314,7 +314,7 @@ public:
                 reverseDstAncestry.push_back(pool);
             }
             std::reverse(reverseDstAncestry.begin(), reverseDstAncestry.end());
-            for (auto* pool: reverseDstAncestry) {
+            for (auto* pool : reverseDstAncestry) {
                 transaction.AddResources(pool, resourceDelta);
                 pool->FullValidate();
             }

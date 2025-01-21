@@ -92,7 +92,7 @@ public:
 
         THashMap<TString, THashSet<TTagList>> uniqueAlerts;
 
-        for (const auto& rawAlert: rawAlerts) {
+        for (const auto& rawAlert : rawAlerts) {
             // Each category + tags combination should be unique.
             InsertOrCrash(uniqueAlerts[rawAlert.Category], rawAlert.Tags);
 

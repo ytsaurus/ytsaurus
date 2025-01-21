@@ -94,7 +94,7 @@ private:
             .ValueOrThrow();
 
         THashMap<TString, IAttributeDictionaryPtr> newList;
-        for (const auto& memberInfo: list) {
+        for (const auto& memberInfo : list) {
             newList[memberInfo.Id] = memberInfo.Attributes->Clone();
         }
         {

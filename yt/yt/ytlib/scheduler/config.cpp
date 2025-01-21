@@ -1588,7 +1588,7 @@ void TReduceOperationSpec::Register(TRegistrar registrar)
             hasPrimary |= path.GetPrimary();
         }
         if (hasPrimary) {
-            for (auto& path: spec->InputTablePaths) {
+            for (auto& path : spec->InputTablePaths) {
                 path.Attributes().Set("foreign", !path.GetPrimary());
                 path.Attributes().Remove("primary");
             }

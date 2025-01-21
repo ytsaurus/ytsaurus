@@ -1178,7 +1178,7 @@ private:
 
         std::pair<IClientPtr, TQueryTrackerStageConfigPtr> resultStage;
         TString resultCluster;
-        for (const auto& cluster: GetClusterDirectory()->GetClusterNames()) {
+        for (const auto& cluster : GetClusterDirectory()->GetClusterNames()) {
             if (auto existingStage = findStage(cluster); existingStage.first) {
                 if (resultStage.first) {
                     THROW_ERROR_EXCEPTION("Query tracker stage %Qv is found in multiple connection configs, in clusters: %Qv, %Qv", stage, resultCluster, cluster);
