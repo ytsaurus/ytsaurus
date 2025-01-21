@@ -135,7 +135,7 @@ const TProgramMap& GetProgramMap()
             .Add(NTcpProxy::RunTcpProxyProgram, "tcp-proxy")
             .Add(NKafkaProxy::RunKafkaProxyProgram, "kafka-proxy")
             .Add(NReplicatedTableTracker::RunReplicatedTableTrackerProgram, "replicated-table-tracker")
-            .Add(NMultidaemon::RuNMultidaemonProgram, "multi")
+            .Add(NMultidaemon::RunMultidaemonProgram, "multi")
             .Finish();
     }();
     return result;
