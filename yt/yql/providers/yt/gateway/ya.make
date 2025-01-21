@@ -1,5 +1,6 @@
 RECURSE(
     file
+    fmr
     lib
     mixed
     native

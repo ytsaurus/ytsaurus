@@ -7,6 +7,7 @@
 #include <yt/yql/providers/yt/lib/yt_url_lister/yt_url_lister.h>
 #include <yt/yql/providers/yt/lib/log/yt_logger.h>
 #include <yt/yql/providers/yt/gateway/native/yql_yt_native.h>
+#include <yt/yql/providers/yt/gateway/fmr/yql_yt_fmr.h>
 #include <yql/essentials/providers/common/provider/yql_provider_names.h>
 #include <yql/essentials/core/peephole_opt/yql_opt_peephole_physical.h>
 #include <yql/essentials/core/services/yql_transform_pipeline.h>
@@ -167,7 +168,8 @@ IYtGateway::TPtr TYtRunTool::CreateYtGateway() {
     services.FunctionRegistry = GetFuncRegistry().Get();
     services.FileStorage = GetFileStorage();
     services.Config = std::make_shared<TYtGatewayConfig>(GetRunOptions().GatewaysConfig->GetYt());
-    return CreateYtNativeGateway(services);
+    auto ytGateway =  CreateYtNativeGateway(services);
+    return GetRunOptions().GatewayTypes.contains(FastMapReduceGatewayName) ? CreateYtFmrGateway(ytGateway): ytGateway;
 }
 
 IOptimizerFactory::TPtr TYtRunTool::CreateCboFactory() {
