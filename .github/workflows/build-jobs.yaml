@@ -18,6 +18,10 @@ on:
         default: false
         required: false
         type: boolean
+      build-ytsaurus-integration-tests:
+        default: false
+        required: false
+        type: boolean
       build-chyt:
         default: false
         required: false
@@ -295,6 +299,26 @@ jobs:
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
 
+      - name: Build ytsaurus integration tests dependencies (ya-make, ${{ matrix.build-type }})
+        if: ${{ (inputs.build-ytsaurus || inputs.build-query-tracker) && inputs.build-ytsaurus-integration-tests && (matrix.build-type == 'release') }}
+        run: |
+          cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
+
+          BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
+
+          for build_folder in yt/yt/tests/integration/size_s \
+                              yt/yt/tests/integration/size_m \
+                              yt/yt/tests/integration/size_l \
+                              yt/yt/tests/integration/size_xl
+          do
+            echo ${build_folder}
+            build_folder=../ytsaurus/ytsaurus/${build_folder}
+            if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
+              ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${build_folder} -A --test-prepare --bazel-remote-put
+            fi
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${build_folder} -A --test-prepare
+          done
+
       - name: Build YQL agent (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
         run: |
@@ -319,5 +343,5 @@ jobs:
           if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
             BUILD_FLAGS="${BUILD_FLAGS} --bazel-remote-put" ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}
           fi
-          
+
           ../ytsaurus/ytsaurus/yt/docker/ya-build/query-tracker/build_yql_agent.sh ${SCRIPT_FLAGS}

@@ -145,6 +145,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
+      build-ytsaurus-integration-tests: true
       build-query-tracker: ${{ github.ref_name == 'main' }}
       build-python: true
       update-remote-cache: true
