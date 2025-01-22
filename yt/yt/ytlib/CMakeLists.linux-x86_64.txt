@@ -187,6 +187,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/job_prober_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/job.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/proto/output_result.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/coverage/proto/coverage.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/cypress_ypath.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/proto/rpc.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.proto
@@ -397,6 +398,8 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/persistence.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/controller_agent/serialize.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/coverage/coverage_service.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/coverage/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/batch_attribute_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/cypress_client/rpc_helpers.cpp
@@ -691,6 +694,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/job_prober_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/job.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/controller_agent/proto/output_result.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/coverage/proto/coverage.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_client/proto/cypress_ypath.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_client/proto/rpc.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/cypress_server/proto/sequoia_actions.pb.h

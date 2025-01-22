@@ -17,6 +17,8 @@
 
 #include <yt/yt/ytlib/controller_agent/controller_agent_service_proxy.h>
 
+#include <yt/yt/ytlib/coverage/coverage_proxy.h>
+
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
 
@@ -972,6 +974,23 @@ TRequestRestartResult TClient::DoRequestRestart(
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return TRequestRestartResult();
+}
+
+TCollectCoverageResult TClient::DoCollectCoverage(
+    const std::string& address,
+    const TCollectCoverageOptions& /*options*/)
+{
+    ValidatePermissionsWithAcn(
+        EAccessControlObject::CollectCoverage,
+        EPermission::Use);
+
+    auto channel = Connection_->GetChannelFactory()->CreateChannel(address);
+
+    NCoverage::TCoverageProxy proxy(channel);
+    auto req = proxy.Collect();
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    return {rsp->coverage_map()};
 }
 
 void TClient::SyncCellsIfNeeded(const std::vector<TCellId>& cellIds)

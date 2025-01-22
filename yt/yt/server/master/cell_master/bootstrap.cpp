@@ -127,6 +127,10 @@
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/helpers.h>
 
+#ifdef __AFL_COMPILER
+#include <yt/yt/ytlib/coverage/coverage_service.h>
+#endif
+
 #include <yt/yt/ytlib/election/config.h>
 #include <yt/yt/ytlib/election/cell_manager.h>
 
@@ -1071,6 +1075,11 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateIncumbentService(this));
     RpcServer_->RegisterService(CreateTabletHydraService(this));
     RpcServer_->RegisterService(CreateReplicatedTableTrackerService(this, rttInvoker));
+
+    // Register the coverage service for instrumented binaries.
+#ifdef __AFL_COMPILER
+    RpcServer_->RegisterService(NCoverage::CreateCoverageService());
+#endif
 
     RpcServer_->Configure(Config_->RpcServer);
 

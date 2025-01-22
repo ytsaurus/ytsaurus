@@ -145,6 +145,7 @@ public:
         PYCXX_ADD_KEYWORDS_METHOD(discombobulate_nonvoting_peers, DiscombobulateNonvotingPeers, "Do not restart nonvoting peers in leader`s absence");
         PYCXX_ADD_KEYWORDS_METHOD(gc_collect, GCCollect, "Runs garbage collection");
         PYCXX_ADD_KEYWORDS_METHOD(clear_metadata_caches, ClearMetadataCaches, "Clears metadata caches");
+        PYCXX_ADD_KEYWORDS_METHOD(collect_coverage, CollectCoverage, "Collects coverage at host");
 
         behaviors().readyType();
     }
@@ -392,6 +393,26 @@ public:
         } CATCH_AND_CREATE_YT_ERROR("Failed to clear metadata caches");
     }
     PYCXX_KEYWORDS_METHOD_DECL(TDriver, ClearMetadataCaches)
+
+    Py::Object CollectCoverage(Py::Tuple& args, Py::Dict& kwargs)
+    {
+        auto options = TCollectCoverageOptions();
+
+        if (!HasArgument(args, kwargs, "address")) {
+            throw CreateYtError("Missing argument 'address'");
+        }
+        auto address = ConvertStringObjectToString(ExtractArgument(args, kwargs, "address"));
+
+        ValidateArgumentsEmpty(args, kwargs);
+
+        try {
+            auto client = CreateClient();
+            auto result = WaitFor(client->CollectCoverage(address, options))
+                .ValueOrThrow();
+            return Py::Bytes(result.CoverageMap);
+        } CATCH_AND_CREATE_YT_ERROR("Failed to collect coverage");
+    }
+    PYCXX_KEYWORDS_METHOD_DECL(TDriver, CollectCoverage)
 
     PYCXX_DECLARE_DRIVER_METHODS(TDriver)
 

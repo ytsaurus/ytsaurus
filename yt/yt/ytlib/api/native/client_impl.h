@@ -743,7 +743,10 @@ public: \
         const TMaintenanceFilter& target,
         const TRemoveMaintenanceOptions& options),
         (component, address, target, options))
-
+    IMPLEMENT_METHOD(TCollectCoverageResult, CollectCoverage, (
+        const std::string& address,
+        const TCollectCoverageOptions& options),
+        (address, options))
 
     IMPLEMENT_METHOD(TSyncAlienCellsResult, SyncAlienCells, (
         const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
