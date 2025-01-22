@@ -270,6 +270,10 @@ public:
 
     void ResetJobIndexGenerator();
 
+    virtual TDuration GetTotalDuration() const;
+
+    virtual TDuration GetPausedSchedulingDuration() const;
+
 protected:
     NLogging::TSerializableLogger Logger;
 

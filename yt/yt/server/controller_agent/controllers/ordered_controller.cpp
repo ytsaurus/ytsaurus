@@ -1269,9 +1269,13 @@ protected:
             }
 
             if (Controller_->Spec_->ClusterName) {
+                if (Controller_->PausedSchedulingStartTime_) {
+                    Controller_->PausedShedulingDuration_ += (TInstant::Now() - Controller_->PausedSchedulingStartTime_.value());
+                }
+
                 TClusterName clusterName{Controller_->Spec_->ClusterName.value()};
-                Controller_->IsNetworkBandwidthAvailable_ = Controller_->Host->IsNetworkBandwidthAvailable(clusterName);
-                if (!Controller_->IsNetworkBandwidthAvailable_) {
+                if (!Controller_->Host->IsNetworkBandwidthAvailable(clusterName)) {
+                    Controller_->PausedSchedulingStartTime_ = TInstant::Now();
                     YT_LOG_DEBUG(
                         "Network bandwidth to remote cluster is not available now so zero out needed resources "
                         "(ClusterName: %v, OldMaxRunnableJobCount: %v, NewMaxRunnableJobCount: %v)",
@@ -1283,12 +1287,24 @@ protected:
                     CachedTotalNeededResources_ = {};
                     CurrentMaxRunnableJobCount_ = 0;
                     return result;
+                } else {
+                    Controller_->PausedSchedulingStartTime_.reset();
                 }
             }
 
             // Increase maximum runnable jobs exponentially up to MaxRunnableJobCount.
             CurrentMaxRunnableJobCount_ = std::clamp(2 * CurrentMaxRunnableJobCount_, static_cast<i64>(1), MaxRunnableJobCount);
             return TTask::GetTotalNeededResourcesDelta();
+        }
+
+        TDuration GetPausedSchedulingDuration() const override
+        {
+            TDuration lastPausedSchedulingDuration = TDuration::Zero();
+            if (Controller_->PausedSchedulingStartTime_) {
+                lastPausedSchedulingDuration = TInstant::Now() - Controller_->PausedSchedulingStartTime_.value();
+            }
+
+            return Controller_->PausedShedulingDuration_ + lastPausedSchedulingDuration;
         }
 
     protected:
@@ -1432,7 +1448,8 @@ private:
     TExtendedCallback<void()> UpdateNeededResourcesCallback_;
 
     // Don't persist this transient state.
-    bool IsNetworkBandwidthAvailable_ = true;
+    std::optional<TInstant> PausedSchedulingStartTime_;
+    TDuration PausedShedulingDuration_ = TDuration::Zero();
 
     void ValidateTableType(const auto& table) const
     {
@@ -1976,7 +1993,7 @@ private:
                 fluent
                     .Item("network_bandwidth_availability").BeginMap()
                         .Item(*Spec_->ClusterName)
-                        .Value(IsNetworkBandwidthAvailable_)
+                        .Value(!PausedSchedulingStartTime_.has_value())
                     .EndMap();
             });
     }
