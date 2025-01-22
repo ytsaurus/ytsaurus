@@ -8,11 +8,11 @@ SPYT works with Java 11 and Scala 2.12.
 
 All the dependencies are installed in SPYT automatically; therefore the `scope` value is `Provided`. They will be used for compilation only and will not be included in the `.jar` or run.
 
-All possible values for `spytVersion` can be found [here](https://github.com/ytsaurus/ytsaurus/tags) under the spyt/* or spyt-spark/* tag.
+All possible values for `spytVersion` can be found [here](https://github.com/ytsaurus/ytsaurus/tags) under the spyt/* or spyt-spark/* tag. Apache Spark compatible versions are described in [this table](../../../../../user-guide/data-processing/spyt/overview.md#spyt-compatibility).
 
 ```scala
 
-val sparkVersion = "{{spark-version}}"
+val sparkVersion = "3.5.4"
 val spytVersion = "{{spyt-version}}"
 
 libraryDependencies ++= Seq(
