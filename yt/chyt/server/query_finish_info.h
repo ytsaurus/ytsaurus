@@ -17,6 +17,7 @@ struct TQueryFinishInfo
     TQueryProgressValues Progess;
     NYTree::IAttributeDictionaryPtr RuntimeVariables;
     std::vector<TQueryId> SecondaryQueryIds;
+    std::vector<std::pair<TString, TString>> HttpHeaders;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

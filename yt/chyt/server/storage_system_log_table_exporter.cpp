@@ -225,6 +225,11 @@ public:
             TColumnSchema("chyt_query_runtime_variables", ESimpleLogicalValueType::Any),
             TColumnSchema("chyt_secondary_query_ids",
                 OptionalLogicalType(ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))),
+            TColumnSchema("http_headers",
+                OptionalLogicalType(
+                    DictLogicalType(
+                        SimpleLogicalType(ESimpleLogicalValueType::String),
+                        SimpleLogicalType(ESimpleLogicalValueType::String)))),
         };
 
         Columns_ = TGeneralTableExtender::GetColumns();
@@ -264,6 +269,7 @@ public:
         int statisticsColumnId = nameTable->GetIdOrThrow("chyt_query_statistics");
         int runtimeVariablesColumnId = nameTable->GetIdOrThrow("chyt_query_runtime_variables");
         int secondaryQueryIdsColumnId = nameTable->GetIdOrThrow("chyt_secondary_query_ids");
+        int httpHeadersColumnId = nameTable->GetIdOrThrow("http_headers");
 
         for (size_t rowIndex = 0; rowIndex < rows.size(); ++rowIndex) {
             if (rowInfos[rowIndex].Type == typeQueryFinish) {
@@ -274,6 +280,8 @@ public:
                         queryInfos[queryIndex]->RuntimeVariables);
                     auto ysonSecondaryQueryIds = ConvertToYsonString(
                         queryInfos[queryIndex]->SecondaryQueryIds);
+                    auto httpHeaders = ConvertToYsonString(
+                        queryInfos[queryIndex]->HttpHeaders);
 
                     rows[rowIndex].PushBack(rowBuffer->CaptureValue(
                         MakeUnversionedAnyValue(
@@ -287,6 +295,10 @@ public:
                         MakeUnversionedCompositeValue(
                             ysonSecondaryQueryIds.AsStringBuf(),
                             secondaryQueryIdsColumnId)));
+                    rows[rowIndex].PushBack(rowBuffer->CaptureValue(
+                        MakeUnversionedCompositeValue(
+                            httpHeaders.AsStringBuf(),
+                             httpHeadersColumnId)));
                 }
                 ++queryIndex;
             }
