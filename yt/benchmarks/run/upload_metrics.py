@@ -1,4 +1,4 @@
-from .common import cli
+from .common import cli, nested_get
 
 import click
 import httpx
@@ -23,14 +23,6 @@ class Metric:
     labels: dict[str, str]
     type: MetricType
     value: int | float
-
-
-def nested_get(dic: dict[str, Any], keys: list[str]) -> Any:
-    for key in keys:
-        if key not in dic:
-            return None
-        dic = dic.get(key, None)
-    return dic
 
 
 class MetricUploader:

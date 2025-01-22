@@ -10,6 +10,8 @@ from datetime import datetime
 from typing import Any
 from enum import StrEnum
 
+from yt.yson import YsonType, yson_to_json
+
 ################################################################################
 
 ROOT_RESOURCE = resources.files(__package__)
@@ -144,6 +146,14 @@ def list_all_pragma_presets() -> list[str]:
             if preset.name.endswith(".sql")]
 
 
+def nested_get(dic: dict[str, Any], keys: list[str]) -> Any:
+    for key in keys:
+        if key not in dic.keys():
+            return None
+        dic = dic.get(key, None)
+    return dic
+
+
 class DurationType(click.ParamType):
     name = "duration"
 
@@ -189,6 +199,11 @@ class IntList(click.ParamType):
         return res
 
 
+class FullQueryInfo:
+    qt_query_info: YsonType | None = None
+    yt_operation_info: dict[str, YsonType] = dict()
+
+
 class ArtifactLogger:
     path: Path | None = None
     launch_path: Path | None = None
@@ -230,7 +245,7 @@ class ArtifactLogger:
             "arguments": arguments,
         }
         with (self.launch_path / "launch.json").open("w") as f:
-            json.dump(info, f)
+            json.dump(info, f, indent=2)
 
     def start_query(self, query: RunnableQuery):
         if not self.launch_path:
@@ -238,6 +253,7 @@ class ArtifactLogger:
         query_type = "optimized" if query.optimized else "original"
         self.query_path = self.launch_path / "queries" / query_type / str(query.index)
         self.query_path.mkdir(parents=True)
+        (self.query_path / "yt").mkdir()
 
     def dump_query(self, query: str):
         if not self.query_path:
@@ -251,17 +267,20 @@ class ArtifactLogger:
         with (self.query_path / "id.txt").open("w") as f:
             f.write(query_id)
 
-    def dump_info(self, query_info: dict[str, Any]):
+    def dump_info(self, query_info: FullQueryInfo):
         if not self.query_path:
             return
         with (self.query_path / "info.json").open("w") as f:
-            json.dump(query_info, f)
+            json.dump(yson_to_json(query_info.qt_query_info), f, indent=2)
+        for id, info in query_info.yt_operation_info.items():
+            with (self.query_path / "yt" / f"{id}.json").open("w") as f:
+                json.dump(yson_to_json(info), f, indent=2)
 
     def dump_error(self, error: dict[str, Any]):
         if not self.query_path:
             return
         with (self.query_path / "error.json").open("w") as f:
-            json.dump(error, f)
+            json.dump(error, f, indent=2)
 
 
 ################################################################################
