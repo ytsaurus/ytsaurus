@@ -1158,6 +1158,9 @@ void TTabletNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("compression_dictionary_cache", &TThis::CompressionDictionaryCache)
         .DefaultNew();
 
+    registrar.Parameter("allow_reign_change", &TThis::AllowReignChange)
+        .Default(true);
+
     registrar.Preprocessor([] (TThis* config) {
         config->VersionedChunkMetaCache->Capacity = 10_GB;
     });
