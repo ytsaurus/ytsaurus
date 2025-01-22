@@ -194,6 +194,11 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
     bool isQueueProducer = table->IsQueueProducer();
     bool isNative = table->IsNative();
 
+    auto makeSchemaAttributeOpaque = Bootstrap_
+        ->GetDynamicConfig()
+        ->TableManager
+        ->MakeSchemaAttributeOpaque;
+
     TBase::DoListSystemAttributes(descriptors, /*showTabletAttributes*/ isDynamic);
 
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkRowCount));
@@ -207,7 +212,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
         .SetReplicated(true)
-        .SetOpaque(true));
+        .SetOpaque(makeSchemaAttributeOpaque));
     descriptors->push_back(EInternedAttributeKey::SchemaId);
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SchemaDuplicateCount));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SortedBy)
