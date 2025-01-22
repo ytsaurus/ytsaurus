@@ -437,7 +437,7 @@ TEST(OperationCommands, ListOperations)
             TListOperationsOptions()
             .FromTime(beforeStartTimes.front())
             .ToTime(afterFinishTimes.back())
-            .State("completed")
+            .State(EOperationState::Completed)
             .Type(EOperationType::Sort)
             .IncludeCounters(true));
 

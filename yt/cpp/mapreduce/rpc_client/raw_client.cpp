@@ -1180,7 +1180,7 @@ ui64 TRpcRawClient::GenerateTimestamp()
     return result;
 }
 
-IRawBatchRequestPtr CreateRawBatchRequest()
+IRawBatchRequestPtr TRpcRawClient::CreateRawBatchRequest()
 {
     YT_UNIMPLEMENTED();
 }
