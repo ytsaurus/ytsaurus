@@ -438,10 +438,12 @@ def get_started_by(command_length_limit=None):
     started_by = {
         "hostname": socket.getfqdn(),
         "pid": os.getpid(),
-        "command": command,
         "wrapper_version": get_version(),
-        "python_version": python_version
+        "python_version": python_version,
+        "binary_name": os.path.basename(sys.argv[0]),
     }
+    if command_length_limit != 0:
+        started_by["command"] = command
 
     if is_arcadia_python():
         import __res

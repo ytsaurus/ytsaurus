@@ -6,7 +6,7 @@ from . import common
 from .config_remote_patch import (RemotePatchableValueBase, RemotePatchableString, RemotePatchableBoolean,
                                   RemotePatchableInteger, _validate_operation_link_pattern,
                                   _validate_query_link_pattern)
-from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION
+from .constants import DEFAULT_HOST_SUFFIX, SKYNET_MANAGER_URL, PICKLING_DL_ENABLE_AUTO_COLLECTION, STARTED_BY_COMMAND_LENGTH_LIMIT
 from .errors import YtConfigError
 from .mappings import VerifiedDict
 
@@ -694,7 +694,7 @@ default_config = {
 
     "allow_fallback_to_native_driver": True,
 
-    "started_by_command_length_limit": 4096,
+    "started_by_command_length_limit": STARTED_BY_COMMAND_LENGTH_LIMIT,
 
     # Handle (some) type mismatch while reading, not initializing
     # i.e. do not throw exception while declare "weak" reading (f.e. read Optional[int] into int)
