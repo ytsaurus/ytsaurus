@@ -59,6 +59,7 @@ type UserScript struct {
 
 	EnablePorto            string         `yson:"enable_porto,omitempty"`
 	UsePortoMemoryTracking *bool          `yson:"use_porto_memory_tracking,omitempty"`
+	UseSmapsMemoryTracker  *bool          `yson:"use_smaps_memory_tracker,omitempty"`
 	Monitoring             map[string]any `yson:"monitoring,omitempty"`
 
 	// Following fields are used only in vanilla operations.
