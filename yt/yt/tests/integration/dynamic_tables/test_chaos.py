@@ -4250,6 +4250,56 @@ class TestChaos(ChaosTestBase):
         assert get("//tmp/crt/@tablet_count") == 5
         assert get_table_mount_info("//tmp/crt")["upper_cap_bound"][0] == 5
 
+    @authors("osidorkin")
+    def test_crt_tablets_info(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+        set("//sys/chaos_cell_bundles/c/@metadata_cell_id", cell_id)
+
+        queue_schema = self._get_schemas_by_name(["ordered_simple"])[0]
+        create("chaos_replicated_table", "//tmp/crt", attributes={"chaos_cell_bundle": "c", "schema": queue_schema})
+
+        card_id = get("//tmp/crt/@replication_card_id")
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/q0"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q1"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/q2"},
+        ]
+
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path="//tmp/crt")
+        self._create_replica_tables(replicas, replica_ids, ordered=True, schema=queue_schema)
+
+        self._sync_replication_era(card_id)
+        assert get("//tmp/crt/@tablet_count") == 1
+
+        values = [{"$tablet_index": 0, "key": 0, "value": str(0)}]
+        tx = start_transaction(type="tablet")
+        insert_rows("//tmp/crt", values, tx=tx)
+        commit_res = commit_transaction(tx)
+        primary_commit_timestamp = commit_res["primary_commit_timestamp"]
+
+        # Waitng for transaction serialization so total row count is updated
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[1]}/replication_lag_timestamp") >= primary_commit_timestamp)
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[2]}/replication_lag_timestamp") >= primary_commit_timestamp)
+
+        tablet_infos = get_tablet_infos("//tmp/crt", [0])["tablets"]
+        assert len(tablet_infos) == 1
+        assert tablet_infos[0]["last_write_timestamp"] >= primary_commit_timestamp
+        assert tablet_infos[0]["total_row_count"] == 1
+        assert tablet_infos[0]["trimmed_row_count"] == 0
+
+        # Prevent trimmig errors due to replication lag
+        self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="sync")
+
+        trim_rows("//tmp/q0", 0, 1)
+        trim_rows("//tmp/q1", 0, 1)
+        trim_rows("//tmp/q2", 0, 1)
+
+        tablet_infos = get_tablet_infos("//tmp/crt", [0])["tablets"]
+        assert len(tablet_infos) == 1
+        assert tablet_infos[0]["total_row_count"] == 1
+        assert tablet_infos[0]["trimmed_row_count"] == 1
+
 
 ##################################################################
 
