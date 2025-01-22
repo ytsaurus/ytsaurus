@@ -29,6 +29,23 @@ def get_query_with_retries(client: YtClient, query_id: str) -> YsonType:
     return result
 
 
+def fetch_full_query_info(client: YtClient, query_id: str) -> common.FullQueryInfo:
+    result = common.FullQueryInfo()
+    result.qt_query_info = get_query_with_retries(client, query_id)
+    yql_progress = common.nested_get(result.qt_query_info, ["progress", "yql_progress"])
+    if yql_progress is None:
+        return result
+    for (id, status) in yql_progress.items():
+        if not status.get("remoteId"):
+            continue
+        operation_id = status["remoteId"].rsplit("/", 1)[1]
+        if not operation_id:
+            continue
+        operation_info = client.get_operation(operation_id)
+        result.yt_operation_info[id] = operation_info
+    return result
+
+
 @common.cli.command()
 @click.option("--stage", default="production", show_default=True, help="Stage of YQL agent.")
 @click.option(
@@ -114,7 +131,7 @@ def qt(
                         time.sleep(5)
                         state = get_query_with_retries(client, query_id)["state"]
                 print(f"Query {query_title} finished with state: {state}", file=sys.stderr)
-                query_info = get_query_with_retries(client, query_id)
+                query_info = fetch_full_query_info(client, query_id)
                 logger.dump_info(query_info)
             except Exception as err:
                 print(f"Error while running query {query_title}: {err}", file=sys.stderr)
