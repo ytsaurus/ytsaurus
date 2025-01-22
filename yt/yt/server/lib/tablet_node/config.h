@@ -1145,6 +1145,10 @@ public:
 
     TSlruCacheConfigPtr CompressionDictionaryCache;
 
+    //! Used for local mode. If false, node will crash when recovering
+    //! a tablet cell from the different reign.
+    bool AllowReignChange;
+
     REGISTER_YSON_STRUCT(TTabletNodeConfig);
 
     static void Register(TRegistrar registrar);

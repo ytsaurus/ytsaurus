@@ -16,6 +16,7 @@
 #include "overload_controller.h"
 #include "partition_balancer.h"
 #include "security_manager.h"
+#include "serialize.h"
 #include "slot_manager.h"
 #include "sorted_dynamic_comparer.h"
 #include "statistics_reporter.h"
@@ -326,6 +327,11 @@ public:
 
         if (auto hotswapManager = ClusterNodeBootstrap_->TryGetHotswapManager()) {
             SubscribePopulateAlerts(BIND_NO_PROPAGATE(&NDiskManager::IHotswapManager::PopulateAlerts, hotswapManager));
+        }
+
+        if (!GetConfig()->TabletNode->AllowReignChange) {
+            YT_LOG_DEBUG("Tablet cell reign change is forbidden by config");
+            SetReignChangeAllowed(false);
         }
     }
 
