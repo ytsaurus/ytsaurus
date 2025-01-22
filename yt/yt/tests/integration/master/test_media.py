@@ -28,6 +28,14 @@ class TestMedia(YTEnvSetup):
     NON_DEFAULT_MEDIUM = "hdd1"
     NON_DEFAULT_TRANSIENT_MEDIUM = "hdd2"
 
+    S3_MEDIUM_CONFIG = {
+        "url": "http://yt.s3.amazonaws.com",
+        "region": "us‑east‑2",
+        "bucket": "yt",
+        "access_key_id": "lol",
+        "secret_access_key": "nope",
+    }
+
     @classmethod
     def setup_class(cls):
         super(TestMedia, cls).setup_class()
@@ -51,13 +59,12 @@ class TestMedia(YTEnvSetup):
         while medium_count < 119:
             create_domestic_medium("hdd" + str(medium_count))
             medium_count += 1
-        create_s3_medium("s3", {
-            "url": "http://yt.s3.amazonaws.com",
-            "region": "us‑east‑2",
-            "bucket": "yt",
-            "access_key_id": "lol",
-            "secret_access_key": "nope",
-        })
+        create_s3_medium("s3", cls.S3_MEDIUM_CONFIG)
+
+    def setup_method(self, method):
+        super(TestMedia, self).setup_method(method)
+
+        set("//sys/media/s3/@config", self.S3_MEDIUM_CONFIG)
 
     def _check_all_chunks_on_medium(self, tbl, medium):
         chunk_ids = get("//tmp/{0}/@chunk_ids".format(tbl))
