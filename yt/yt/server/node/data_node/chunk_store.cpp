@@ -767,6 +767,20 @@ std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLoc
             continue;
         }
 
+        auto trackedMemory = location->GetWriteMemoryTracker()->GetUsed();
+        auto totalMemoryLimit  = location->GetWriteMemoryTracker()->GetLimit() * memoryLimitFractionForStartingNewSessions;
+
+        if (memoryLimitFractionForStartingNewSessions &&
+            trackedMemory > totalMemoryLimit)
+        {
+            throttledLocations.push_back(location);
+            throttledLocationErrors.push_back(TError("Session cannot be started due to lack of memory")
+                << TErrorAttribute("location_id", location->GetId())
+                << TErrorAttribute("category_memory_used", trackedMemory)
+                << TErrorAttribute("category_memory_limit", totalMemoryLimit));
+            continue;
+        }
+
         auto sessionCount = location->GetSessionCount();
         auto sessionCountLimit = location->GetSessionCountLimit();
         if (sessionCount >= sessionCountLimit) {
