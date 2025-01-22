@@ -33,9 +33,8 @@ struct TThrottlerUsage
 
 DECLARE_REFCOUNTED_CLASS(TThrottlerToGlobalUsage)
 
-class TThrottlerToGlobalUsage
-    : public virtual TRefCounted
-    , public THashMap<TThrottlerId, TThrottlerUsage>
+class TThrottlerToGlobalUsage final
+    : public THashMap<TThrottlerId, TThrottlerUsage>
 { };
 
 DEFINE_REFCOUNTED_TYPE(TThrottlerToGlobalUsage)
