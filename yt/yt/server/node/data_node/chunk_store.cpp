@@ -86,10 +86,10 @@ public:
         }
     }
 
-    bool CanPassSessionOutOfTurn(TSessionId sessionId) override
+    bool CanPassSessionOutOfTurn(TChunkId chunkId) override
     {
         if (auto sessionManager = Bootstrap_->GetDataNodeBootstrap()->GetSessionManager()) {
-            return sessionManager->CanPassSessionOutOfTurn(sessionId);
+            return sessionManager->CanPassSessionOutOfTurn(chunkId);
         } else {
             return false;
         }

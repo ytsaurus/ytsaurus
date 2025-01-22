@@ -427,7 +427,7 @@ public:
 
     //! Returns whether writes must be throttled.
     TDiskThrottlingResult CheckWriteThrottling(
-        TSessionId sessionId,
+        TChunkId sessionId,
         const TWorkloadDescriptor& workloadDescriptor,
         bool blocksWindowShifted,
         bool incrementCounter = true) const;

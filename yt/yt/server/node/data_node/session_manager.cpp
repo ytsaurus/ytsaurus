@@ -44,13 +44,6 @@ static constexpr auto& Logger = DataNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool TSessionManager::TSessionCreatedAtSortIndex::operator < (const TSessionManager::TSessionCreatedAtSortIndex& other) const
-{
-    return std::tie(StartedAt, SessionId.ChunkId, SessionId.MediumIndex) < std::tie(other.StartedAt, other.SessionId.ChunkId, other.SessionId.MediumIndex);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TSessionManager::TSessionManager(
     TDataNodeConfigPtr config,
     IBootstrap* bootstrap)
@@ -68,46 +61,39 @@ TSessionManager::TSessionManager(
 
 void TSessionManager::BuildOrchid(IYsonConsumer* consumer)
 {
-    THashMap<TSessionId, ISessionPtr> idToSession;
+    decltype(SessionMap_) sessionMap;
     {
         auto guard = ReaderGuard(SessionMapLock_);
-        idToSession = SessionMap_;
-    }
-
-    THashMap<TSessionId, TStoreLocationPtr> sessionIdToLocation;
-
-    for (const auto& [id, session] : idToSession) {
-        EmplaceOrCrash(sessionIdToLocation, session->GetId(), session->GetStoreLocation());
+        sessionMap = SessionMap_;
     }
 
     BuildYsonFluently(consumer)
         .BeginMap()
             .Item("sessions")
             .BeginMap()
-            .DoFor(
-                idToSession.begin(),
-                idToSession.end(),
-                [&] (TFluentMap fluent, const auto& idToSession) {
-                    const auto& session = idToSession->second;
-                    const auto& location = GetOrCrash(sessionIdToLocation, session->GetId());
-
-                    fluent
-                        .Item(ToString(session->GetId()))
-                        .BeginMap()
-                            .Item("chunk_id").Value(session->GetChunkId())
-                            .Item("type").Value(ToString(session->GetType()))
-                            .Item("start_time").Value(session->GetStartTime())
-                            .Item("memory_usage").Value(session->GetMemoryUsage())
-                            .Item("block_count").Value(session->GetBlockCount())
-                            .Item("size").Value(session->GetTotalSize())
-                            .Item("location_id").Value(location->GetId())
-                            .Item("location_uuid").Value(location->GetUuid())
-                            .Item("intermediate_empty_block_count").Value(session->GetIntermediateEmptyBlockCount())
-                            .Item("medium").Value(location->GetMediumName())
-                        .EndMap();
-                })
+                .DoFor(
+                    sessionMap.begin(),
+                    sessionMap.end(),
+                    [&] (TFluentMap fluent, auto it) {
+                        const auto& session = it->second;
+                        const auto& location = session->GetStoreLocation();
+                        fluent
+                            .Item(ToString(session->GetId()))
+                            .BeginMap()
+                                .Item("chunk_id").Value(session->GetChunkId())
+                                .Item("type").Value(ToString(session->GetType()))
+                                .Item("start_time").Value(session->GetStartTime())
+                                .Item("memory_usage").Value(session->GetMemoryUsage())
+                                .Item("block_count").Value(session->GetBlockCount())
+                                .Item("size").Value(session->GetTotalSize())
+                                .Item("location_id").Value(location->GetId())
+                                .Item("location_uuid").Value(location->GetUuid())
+                                .Item("intermediate_empty_block_count").Value(session->GetIntermediateEmptyBlockCount())
+                                .Item("medium").Value(location->GetMediumName())
+                            .EndMap();
+                    })
             .EndMap()
-            .Item("session_count").Value(idToSession.size())
+            .Item("session_count").Value(sessionMap.size())
             .Item("disable_write_sessions").Value(DisableWriteSessions_.load())
         .EndMap();
 }
@@ -134,30 +120,25 @@ void TSessionManager::Initialize()
         BIND_NO_PROPAGATE(&TSessionManager::OnChunkRemovalScheduled, MakeWeak(this)));
 }
 
-ISessionPtr TSessionManager::FindSession(TSessionId sessionId)
+ISessionPtr TSessionManager::FindSession(TChunkId chunkId)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto guard = ReaderGuard(SessionMapLock_);
-    if (sessionId.MediumIndex == AllMediaIndex) {
-        auto it = ChunkMap_.find(sessionId.ChunkId);
-        return it == ChunkMap_.end() ? nullptr : it->second;
-    } else {
-        auto it = SessionMap_.find(sessionId);
-        return it == SessionMap_.end() ? nullptr : it->second;
-    }
+    auto it = SessionMap_.find(chunkId);
+    return it == SessionMap_.end() ? nullptr : it->second;
 }
 
-ISessionPtr TSessionManager::GetSessionOrThrow(TSessionId sessionId)
+ISessionPtr TSessionManager::GetSessionOrThrow(TChunkId chunkId)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    auto session = FindSession(sessionId);
+    auto session = FindSession(chunkId);
     if (!session) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::NoSuchSession,
             "Session %v is invalid or expired",
-            sessionId);
+            chunkId);
     }
     return session;
 }
@@ -186,7 +167,7 @@ ISessionPtr TSessionManager::StartSession(
             Config_->MaxWriteSessions);
     }
 
-    if (ChunkMap_.contains(sessionId.ChunkId)) {
+    if (SessionMap_.contains(sessionId.ChunkId)) {
         THROW_ERROR_EXCEPTION(
             NChunkClient::EErrorCode::SessionAlreadyExists,
             "Write session for chunk %v is already registered",
@@ -232,7 +213,7 @@ ISessionPtr TSessionManager::CreateSession(
 
     auto lease = TLeaseManager::CreateLease(
         Config_->SessionTimeout,
-        BIND(&TSessionManager::OnSessionLeaseExpired, MakeStrong(this), sessionId)
+        BIND(&TSessionManager::OnSessionLeaseExpired, MakeStrong(this), sessionId.ChunkId)
             .Via(Bootstrap_->GetStorageLightInvoker()));
 
     auto chunkType = TypeFromId(DecodeChunkId(sessionId.ChunkId).Id);
@@ -269,17 +250,17 @@ ISessionPtr TSessionManager::CreateSession(
     }
 }
 
-void TSessionManager::OnSessionLeaseExpired(TSessionId sessionId)
+void TSessionManager::OnSessionLeaseExpired(TChunkId chunkId)
 {
     YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetStorageLightInvoker());
 
-    auto session = FindSession(sessionId);
+    auto session = FindSession(chunkId);
     if (!session) {
         return;
     }
 
     YT_LOG_DEBUG("Session lease expired (ChunkId: %v)",
-        sessionId);
+        chunkId);
 
     session->Cancel(TError("Session lease expired"));
 }
@@ -294,7 +275,7 @@ void TSessionManager::OnSessionFinished(const TWeakPtr<ISession>& weakSession, c
     }
 
     YT_LOG_DEBUG("Session finished (ChunkId: %v)",
-        session->GetId());
+        session->GetChunkId());
 
     {
         auto guard = WriterGuard(SessionMapLock_);
@@ -332,12 +313,11 @@ void TSessionManager::RegisterSession(const ISessionPtr& session)
 {
     YT_ASSERT_SPINLOCK_AFFINITY(SessionMapLock_);
 
-    EmplaceOrCrash(SessionMap_, session->GetId(), session);
-    EmplaceOrCrash(ChunkMap_, session->GetId().ChunkId, session);
+    EmplaceOrCrash(SessionMap_, session->GetChunkId(), session);
     EmplaceOrCrash(
         SessionToCreatedAt_,
         TSessionCreatedAtSortIndex{
-            .SessionId = session->GetId(),
+            .ChunkId = session->GetChunkId(),
             .StartedAt = session->GetStartTime(),
         });
 
@@ -348,12 +328,11 @@ void TSessionManager::UnregisterSession(const ISessionPtr& session)
 {
     YT_ASSERT_SPINLOCK_AFFINITY(SessionMapLock_);
 
-    EraseOrCrash(SessionMap_, session->GetId());
-    EraseOrCrash(ChunkMap_, session->GetId().ChunkId);
+    EraseOrCrash(SessionMap_, session->GetChunkId());
     EraseOrCrash(
         SessionToCreatedAt_,
         TSessionCreatedAtSortIndex{
-            .SessionId = session->GetId(),
+            .ChunkId = session->GetChunkId(),
             .StartedAt = session->GetStartTime(),
         });
 
@@ -366,25 +345,23 @@ void TSessionManager::OnMasterDisconnected()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    THashMap<TSessionId, ISessionPtr> sessionMap;
+    decltype(SessionMap_) sessionMap;
     {
         auto guard = ReaderGuard(SessionMapLock_);
         sessionMap = SessionMap_;
     }
 
-    for (const auto& [sessionId, session] : sessionMap) {
+    for (const auto& [_, session] : sessionMap) {
         session->Cancel(TError("Node has disconnected from master"));
     }
 }
 
 void TSessionManager::OnChunkRemovalScheduled(const IChunkPtr& chunk)
 {
-    auto sessionId = TSessionId(
-        chunk->GetId(),
-        chunk->GetLocation()->GetMediumDescriptor().Index);
-    if (auto session = FindSession(sessionId)) {
+    auto chunkId = chunk->GetId();
+    if (auto session = FindSession(chunkId)) {
         session->Cancel(TError("Chunk %v is about to be removed",
-            chunk->GetId()));
+            chunkId));
     }
 }
 
@@ -392,7 +369,7 @@ void TSessionManager::CancelLocationSessions(const TChunkLocationPtr& location)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    THashMap<TSessionId, ISessionPtr> sessionMap;
+    decltype(SessionMap_) sessionMap;
     {
         auto guard = ReaderGuard(SessionMapLock_);
         sessionMap = SessionMap_;
@@ -405,7 +382,7 @@ void TSessionManager::CancelLocationSessions(const TChunkLocationPtr& location)
     }
 }
 
-bool TSessionManager::CanPassSessionOutOfTurn(TSessionId sessionId)
+bool TSessionManager::CanPassSessionOutOfTurn(TChunkId chunkId)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -416,7 +393,7 @@ bool TSessionManager::CanPassSessionOutOfTurn(TSessionId sessionId)
 
     auto guard = ReaderGuard(SessionMapLock_);
 
-    if (!SessionMap_.contains(sessionId)) {
+    if (!SessionMap_.contains(chunkId)) {
         return false;
     }
 
@@ -425,8 +402,8 @@ bool TSessionManager::CanPassSessionOutOfTurn(TSessionId sessionId)
     return std::find_if(
         begin,
         end,
-        [sessionId] (const auto& index) {
-            return sessionId == index.SessionId;
+        [&] (const auto& index) {
+            return chunkId == index.ChunkId;
         }) != SessionToCreatedAt_.end();
 }
 

@@ -67,7 +67,7 @@ public:
     void CancelLocationSessions(const TChunkLocationPtr& /*location*/) override
     { }
 
-    bool CanPassSessionOutOfTurn(TSessionId /*sessionId*/) override
+    bool CanPassSessionOutOfTurn(TChunkId /*chunkId*/) override
     {
         return false;
     }
