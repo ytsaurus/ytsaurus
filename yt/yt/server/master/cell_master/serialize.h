@@ -211,6 +211,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixNullPtrDereferenceInCreateForeignObject)                   (2821))  // cherepashka
     ((FixCompositeKeyDeserialization)                               (2822))  // ermolovd
     ((FixBuiltinAdminsGroupId)                                      (2823))  // cherepashka
+    ((StableOrderedSecondaryIndicesDestruction)                     (2824))  // koloshmet
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
