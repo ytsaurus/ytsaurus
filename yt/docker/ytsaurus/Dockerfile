@@ -120,6 +120,8 @@ RUN for package in client yson local native_driver; \
     python3.8 -m pip install ${wheel_path}; \
   done
 
+RUN python3.8 -m pip install packaging==24.1
+
 RUN ln -s /usr/local/bin/yt /usr/bin/yt -f
 
 RUN rm -rf /tmp/ytsaurus_python
