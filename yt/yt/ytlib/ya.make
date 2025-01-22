@@ -217,6 +217,10 @@ SRCS(
     controller_agent/proto/job.proto
     controller_agent/proto/output_result.proto
 
+    coverage/proto/coverage.proto
+    coverage/coverage_service.cpp
+    coverage/helpers.cpp
+
     cypress_client/batch_attribute_fetcher.cpp
     cypress_client/public.cpp
     cypress_client/rpc_helpers.cpp
