@@ -1660,6 +1660,10 @@ private:
             task->SemaphoreGuard.Release();
             doneGuard.Release();
 
+            if (RandomNumber<double>() < mountConfig->Testing.PartitioningFailureProbability) {
+                THROW_ERROR_EXCEPTION("Partitioning failed for testing purposes");
+            }
+
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_create_hunk_chunks_during_prepare(true);
             actionRequest.set_update_reason(ToProto(ETabletStoresUpdateReason::Partitioning));
@@ -2060,6 +2064,10 @@ private:
             // We can release semaphore, because we are no longer actively using resources.
             task->SemaphoreGuard.Release();
             doneGuard.Release();
+
+            if (RandomNumber<double>() < mountConfig->Testing.CompactionFailureProbability) {
+                THROW_ERROR_EXCEPTION("Compaction failed for testing purposes");
+            }
 
             NTabletServer::NProto::TReqUpdateTabletStores actionRequest;
             actionRequest.set_create_hunk_chunks_during_prepare(true);

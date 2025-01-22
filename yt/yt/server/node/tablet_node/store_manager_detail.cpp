@@ -89,7 +89,7 @@ bool TStoreManagerBase::HasUnflushedStores() const
 
 void TStoreManagerBase::StartEpoch(ITabletSlotPtr slot)
 {
-    if (auto delay = Tablet_->GetSettings().MountConfig->SimulatedTabletSnapshotDelay) {
+    if (auto delay = Tablet_->GetSettings().MountConfig->Testing.SimulatedTabletSnapshotDelay) {
         // For integration testing.
         Sleep(delay);
     }
@@ -403,7 +403,7 @@ void TStoreManagerBase::BeginStorePreload(IChunkStorePtr store, TCallback<TFutur
 
 void TStoreManagerBase::EndStorePreload(IChunkStorePtr store)
 {
-    if (auto delay = Tablet_->GetSettings().MountConfig->SimulatedStorePreloadDelay) {
+    if (auto delay = Tablet_->GetSettings().MountConfig->Testing.SimulatedStorePreloadDelay) {
         // For integration testing.
         NConcurrency::TDelayedExecutor::WaitForDuration(delay);
     }

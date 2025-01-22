@@ -6,8 +6,7 @@ from yt_commands import (
     remount_table, get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_reshard_table, sync_flush_table, build_snapshot, sorted_dicts, sync_compact_table,
     sync_freeze_table, sync_unfreeze_table, get_singular_chunk_id, generate_uuid,
-    set_node_banned, disable_write_sessions_on_node, update_nodes_dynamic_config,
-    create_domestic_medium)
+    set_node_banned, disable_write_sessions_on_node, update_nodes_dynamic_config)
 
 from yt.common import YtError
 
@@ -800,7 +799,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         wait(lambda: chunk_id not in get("//tmp/t/@chunk_ids"))
 
     @authors("dave11ar")
-    def test_timestamp_digest_with_watermart_row_merger_mode(self):
+    def test_timestamp_digest_with_watermark_row_merger_mode(self):
         sync_create_cells(1)
         update_nodes_dynamic_config({
             "tablet_node": {
@@ -898,9 +897,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         sync_unmount_table("//tmp/t")
 
         # Run unsuccessful compaction.
-        create_domestic_medium("m")
-        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/m", 1000000)
-        set("//tmp/t/@primary_medium", "m")
+        set("//tmp/t/@mount_config/testing", {"compaction_failure_probability": 1.0})
         set("//tmp/t/@forced_compaction_revision", 1)
         sync_mount_table("//tmp/t")
 

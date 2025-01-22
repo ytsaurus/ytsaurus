@@ -193,8 +193,10 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             tablet_cell_bundle="b",
             in_memory_mode="uncompressed")
 
-        set("//tmp/t/@mount_config/simulated_tablet_snapshot_delay", 1000)
-        set("//tmp/t/@mount_config/simulated_store_preload_delay", 3000)
+        set("//tmp/t/@mount_config/testing", {
+            "simulated_tablet_snapshot_delay": 1000,
+            "simulated_store_preload_delay": 3000,
+        })
 
         sync_mount_table("//tmp/t")
 
