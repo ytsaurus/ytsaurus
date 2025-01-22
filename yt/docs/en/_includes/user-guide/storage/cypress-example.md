@@ -303,10 +303,24 @@ Some nodes may return as opaque (such nodes will have no additional attributes) 
 
 The `set` command assigns the specified `value` in [YSON](../../../user-guide/storage/yson.md) format using the specified `<path>`.
 
+{% note warning "Attention!" %}
+
+One should be aware that if the `<path>` ends with `/@`, the `set` command changes the *attribute dictionary* of the node and not just the attributes mentioned in `value`. In other words, the following two commands are not equivalent:
+```bash
+$ yt set //home/dev/test1/@some_attr test
+```
+and
+```bash
+$ yt set //home/dev/test1/@ '{"some_attr"="test";}'
+```
+The former assigns to a specific attribute while the latter modifies the whole attribute dictionary which sets the attributes listed in `value` but also **removes everything not mentioned there.** For this reason, the `set` command should never be used to set multiple attributes at once as doing so may lead to data loss.
+
+{% endnote %}
+
 ### Description of the set command
 
 ```bash
-yt set [--format FORMAT] [-r, --recursive] [-f, --force]<path> <value>
+yt set [--format FORMAT] [-r, --recursive] [-f, --force] <path> <value>
 ```
 ### Calling set
 ```bash
