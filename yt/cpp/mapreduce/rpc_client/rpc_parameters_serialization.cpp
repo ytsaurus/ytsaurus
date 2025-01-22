@@ -172,6 +172,78 @@ NTableClient::ETablePartitionMode ToApiTablePartitionMode(ETablePartitionMode mo
     YT_ABORT();
 }
 
+NJobTrackerClient::EJobType ToApiJobType(EJobType type)
+{
+    switch (type) {
+        case EJobType::Map:
+            return NJobTrackerClient::EJobType::Map;
+        case EJobType::PartitionMap:
+            return NJobTrackerClient::EJobType::PartitionMap;
+        case EJobType::SortedMerge:
+            return NJobTrackerClient::EJobType::SortedMerge;
+        case EJobType::OrderedMerge:
+            return NJobTrackerClient::EJobType::OrderedMerge;
+        case EJobType::UnorderedMerge:
+            return NJobTrackerClient::EJobType::UnorderedMerge;
+        case EJobType::Partition:
+            return NJobTrackerClient::EJobType::Partition;
+        case EJobType::SimpleSort:
+            return NJobTrackerClient::EJobType::SimpleSort;
+        case EJobType::FinalSort:
+            return NJobTrackerClient::EJobType::FinalSort;
+        case EJobType::SortedReduce:
+            return NJobTrackerClient::EJobType::SortedReduce;
+        case EJobType::PartitionReduce:
+            return NJobTrackerClient::EJobType::PartitionReduce;
+        case EJobType::ReduceCombiner:
+            return NJobTrackerClient::EJobType::ReduceCombiner;
+        case EJobType::RemoteCopy:
+            return NJobTrackerClient::EJobType::RemoteCopy;
+        case EJobType::IntermediateSort:
+            return NJobTrackerClient::EJobType::IntermediateSort;
+        case EJobType::OrderedMap:
+            return NJobTrackerClient::EJobType::OrderedMap;
+        case EJobType::JoinReduce:
+            return NJobTrackerClient::EJobType::JoinReduce;
+        case EJobType::Vanilla:
+            return NJobTrackerClient::EJobType::Vanilla;
+        case EJobType::SchedulerUnknown:
+            return NJobTrackerClient::EJobType::SchedulerUnknown;
+        case EJobType::ReplicateChunk:
+            return NJobTrackerClient::EJobType::ReplicateChunk;
+        case EJobType::RemoveChunk:
+            return NJobTrackerClient::EJobType::RemoveChunk;
+        case EJobType::RepairChunk:
+            return NJobTrackerClient::EJobType::RepairChunk;
+        case EJobType::SealChunk:
+            return NJobTrackerClient::EJobType::SealChunk;
+    }
+    YT_ABORT();
+}
+
+NJobTrackerClient::EJobState ToApiJobState(EJobState state)
+{
+    switch (state) {
+        case EJobState::None:
+            return NJobTrackerClient::EJobState::None;
+        case EJobState::Waiting:
+            return NJobTrackerClient::EJobState::Waiting;
+        case EJobState::Running:
+            return NJobTrackerClient::EJobState::Running;
+        case EJobState::Aborting:
+            return NJobTrackerClient::EJobState::Aborting;
+        case EJobState::Completed:
+            return NJobTrackerClient::EJobState::Completed;
+        case EJobState::Failed:
+            return NJobTrackerClient::EJobState::Failed;
+        case EJobState::Aborted:
+            return NJobTrackerClient::EJobState::Aborted;
+        case EJobState::Lost:
+            return NJobTrackerClient::EJobState::Lost;
+    }
+    YT_ABORT();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Generates a new mutation ID based on the given conditions.
@@ -507,7 +579,7 @@ NApi::TListOperationsOptions SerializeOptionsForListOperations(const TListOperat
         result.UserFilter = *options.User_;
     }
     if (options.State_) {
-        result.StateFilter = FromString<NScheduler::EOperationState>(*options.State_);
+        result.StateFilter = NScheduler::EOperationState(*options.State_);
     }
     if (options.Type_) {
         result.TypeFilter = NScheduler::EOperationType(*options.Type_);
@@ -573,10 +645,10 @@ NApi::TListJobsOptions SerializeOptionsForListJobs(const TListJobsOptions& optio
 {
     NApi::TListJobsOptions result;
     if (options.Type_) {
-        result.Type = FromString<NJobTrackerClient::EJobType>(ToString(*options.Type_));
+        result.Type = ToApiJobType(*options.Type_);
     }
     if (options.State_) {
-        result.State = FromString<NJobTrackerClient::EJobState>(ToString(*options.State_));
+        result.State = ToApiJobState(*options.State_);
     }
     if (options.Address_) {
         result.Address = *options.Address_;

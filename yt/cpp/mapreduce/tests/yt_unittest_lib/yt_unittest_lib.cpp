@@ -201,7 +201,7 @@ TTestFixture::~TTestFixture()
         auto result = Client_->ListOperations(
             TListOperationsOptions()
                 .User(Client_->WhoAmI().Login)
-                .State("running")
+                .State(EOperationState::Running)
                 .Limit(100));
         for (const auto& op : result.Operations) {
             Y_ABORT_UNLESS(op.Id);
