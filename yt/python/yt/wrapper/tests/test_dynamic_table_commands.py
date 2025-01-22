@@ -85,6 +85,32 @@ class TestDynamicTableCommands(object):
         assert yt.get("{}/@tablet_count".format(table)) == 5
 
     @authors("ifsmirnov")
+    def test_trimmed_row_counts(self):
+        if yt.config["backend"] == "rpc":
+            pytest.skip()
+
+        table = TEST_DIR + "/table_reshard_trimmed_row_counts"
+        self._create_dynamic_table(
+            table,
+            schema=[{"type": "uint64", "name": "x"}],
+            tablet_count=2,
+            trimmed_row_counts=[10, 20],
+        )
+
+        assert [t["trimmed_row_count"] for t in yt.get(f"{table}/@tablets")] == [10, 20]
+
+        yt.reshard_table(
+            table,
+            tablet_count=3,
+            first_tablet_index=1,
+            last_tablet_index=1,
+            trimmed_row_counts=[30, 40],
+            sync=True,
+        )
+
+        assert [t["trimmed_row_count"] for t in yt.get(f"{table}/@tablets")] == [10, 20, 30, 40]
+
+    @authors("ifsmirnov")
     def test_insert_lookup_delete(self):
         with set_config_option("tabular_data_format", None):
             # Name must differ with name of table in select test because of metadata caches
