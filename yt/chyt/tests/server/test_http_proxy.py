@@ -532,7 +532,10 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
             return {session_id: _job_cookie_of_instance_picked_for_the_query(clique, session_id=session_id)
                     for session_id in SESSION_IDS}
 
-        with Clique(NUM_INSTANCES) as clique:
+        patch = {
+            "graceful_interruption_delay": 100000,
+        }
+        with Clique(NUM_INSTANCES, config_patch=patch) as clique:
             initial_distribution = get_distribution(clique)
 
             clique.resize(NUM_INSTANCES - 1)
