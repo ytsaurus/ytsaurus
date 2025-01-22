@@ -1,0 +1,219 @@
+name: PR tests
+on:
+  workflow_call:
+    inputs:
+      runs-on-value:
+        required: true
+        type: string
+      comment-id:
+        required: true
+        type: string
+    secrets:
+      S3_ACCESS_KEY:
+        required: false
+      S3_SECRET_NAME:
+        required: false
+      YA_YT_TOKEN:
+        required: false
+
+env:
+  ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
+
+jobs:
+  fast-test:
+    name: Fast tests
+    runs-on: ${{ inputs.runs-on-value }}
+    steps:
+      - name: Unittests
+        shell: bash
+        run: |
+          cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build_cmake_release
+          ln -s $(pwd)/../build_cmake_release $(pwd)/../build
+          cd ../build
+          ./run_unittests.sh
+
+      - name: Prepare pytest environment
+        shell: bash
+        run: |
+          ytsaurus/yt/yt/scripts/prepare_pytest_environment.sh
+
+      - name: Python tests
+        shell: bash
+        run: |
+          ytsaurus/yt/yt/scripts/run_python_tests.sh
+
+      - name: Odin tests
+        shell: bash
+        run: |
+          ytsaurus/yt/odin/tests/run_tests.sh
+
+  notify-pr-tests-start:
+    name: Notify PR integration tests started
+    runs-on: trampoline
+    needs:
+      - fast-test
+    if: ${{ needs.fast-test.result == 'success' }}
+    steps:
+      - name: Notify PR
+        uses: actions/github-script@v7
+        env:
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+        with:
+          script: |
+            const current_time = new Date().toLocaleString("ru-RU");
+            const message = 'Integration tests are started.';
+            const comment = await github.rest.issues.getComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ inputs.comment-id }}
+            });
+            const comment_body = comment.data.body;
+            const new_comment_body = comment_body + '\n' + '`' + current_time + '`' + ' ' + message;
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ inputs.comment-id }},
+              body: new_comment_body
+            });
+
+  integration-test:
+    name: Integration tests
+    needs:
+      - notify-pr-tests-start
+      - fast-test
+    if: ${{ needs.fast-test.result == 'success' }}
+    runs-on: ${{ inputs.runs-on-value }}
+    outputs:
+      COMMENT_DATA: ${{ steps.run-tests.outputs.COMMENT_DATA }}
+    env:
+      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+      YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+    steps:
+      - name: Prepare directories
+        run: |
+          mkdir -p ${{ github.run_id }}
+          mkdir -p ${{ github.run_id }}/dump_directory
+          mkdir -p ${{ github.run_id }}/test_results
+
+      - name: Calculate variables
+        id: vars
+        run: |
+          TEST_FLAGS="--thinlto -DCGO_ENABLED=0 -DCFLAGS=-fsized-deallocation -DSTRIP=yes --build=release --run-tagged-tests-on-yt -A -DYT_OPENSOURCE_CI=true"
+          echo "TEST_FLAGS=$TEST_FLAGS" >> $GITHUB_OUTPUT
+
+      - name: Configure S3
+        run: |
+          mkdir -p ~/.aws
+          echo "[default]" > ~/.aws/credentials
+          echo "aws_access_key_id = ${{ secrets.S3_ACCESS_KEY }}" >> ~/.aws/credentials
+          echo "aws_secret_access_key = ${{ secrets.S3_SECRET_NAME }}" >> ~/.aws/credentials
+          echo "[default]" > ~/.aws/config
+          echo "region = ${{ vars.S3_REGION }}" >> ~/.aws/config
+          echo "endpoint_url = ${{ vars.S3_ENDPOINT_URL }}" >> ~/.aws/config
+
+      - name: Get commit details
+        id: commit-details
+        run: |
+          cd ../ytsaurus/ytsaurus
+          echo "date=$(git log -1 --format=%cd --date="format:%Y.%m.%d %H:%M:%S")" >> $GITHUB_OUTPUT
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_OUTPUT
+
+      - name: Create CI context
+        env:
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          CI_RUN_ID: ${{ github.run_id }}
+          COMMIT_DATE: ${{ steps.commit-details.outputs.date }}
+          COMMIT_HASH: ${{ steps.commit-details.outputs.sha }}
+          PULL_REQUEST_TITLE: ${{ github.event.pull_request.title }}
+          PULL_REQUEST_URL: ${{ github.event.pull_request.html_url }}
+          PULL_REQUEST_COMMENT_ID: ${{ inputs.comment-id }}
+          REPOSITORY: ${{ github.repository }}
+          TARGET_BRANCH: ${{ github.event.pull_request.base.ref }}
+        run: |
+          mkdir -p ci-viewer
+          python3 << EOF
+          import os
+          import json
+
+          PULL_REQUEST_NUMBER = os.environ.get('PULL_REQUEST_NUMBER')
+          AUTHOR = os.environ.get('AUTHOR')
+          CI_RUN_ID = os.environ.get('CI_RUN_ID')
+          COMMIT_DATE = os.environ.get('COMMIT_DATE')
+          COMMIT_HASH = os.environ.get('COMMIT_HASH')
+          PULL_REQUEST_TITLE = os.environ.get('PULL_REQUEST_TITLE')
+          PULL_REQUEST_URL = os.environ.get('PULL_REQUEST_URL')
+          PULL_REQUEST_COMMENT_ID = os.environ.get('PULL_REQUEST_COMMENT_ID')
+          REPOSITORY = os.environ.get('GITHUB_REPOSITORY')
+          TARGET_BRANCH = os.environ.get('TARGET_BRANCH')
+
+          ci_context = {
+              "context": {
+                  "version": CI_RUN_ID,
+                  "ci_url": "https://github.com/" + REPOSITORY + "/actions/runs/" + CI_RUN_ID,
+                  "target_commit": {
+                      "author": AUTHOR,
+                      "date": COMMIT_DATE,
+                      "revision": {
+                          "hash": COMMIT_HASH,
+                      },
+                      "message": PULL_REQUEST_TITLE,
+                      "github_link": PULL_REQUEST_URL,
+                      "github_comment_link": PULL_REQUEST_URL + "#issuecomment-" + PULL_REQUEST_COMMENT_ID,
+                      "repository": REPOSITORY,
+                      "target_branch": TARGET_BRANCH
+                  }
+              }
+          }
+
+          with open('ci-viewer/ci_context.json', 'w') as file:
+              json.dump(ci_context, file)
+          EOF
+
+      - name: Run tests
+        id: run-tests
+        run: |
+          source ../venv/bin/activate
+          pip install boto3 Jinja2 ytsaurus-client ytsaurus-yson
+
+          python3 ../ytsaurus/ytsaurus/.github/scripts/run_tests.py \
+                  --yt-root ../ytsaurus/ytsaurus \
+                  --ya-test-flags "${{ steps.vars.outputs.TEST_FLAGS }} --pytest-args=\"-m 'not ignore_in_opensource_ci and enabled_multidaemon' -vv\"" \
+                  --test-to-run "yt/yt/tests/integration/size_s:ci-viewer/${{ github.run_id }}/size_s:10" \
+                  --s3-upload-artifacts "ci-viewer/${{ github.run_id }}" \
+                  --s3-bucket-name "files.ytsaurus.tech" \
+                  --s3-endpoint-url "${{ vars.S3_ENDPOINT_URL }}" \
+                  --dump-storage-script "../ytsaurus/ytsaurus/.github/scripts/dump_tests.py" \
+                  --dump-storage-cluster "10.131.0.11:80" \
+                  --dump-storage-token ${{ secrets.YA_YT_TOKEN }} \
+                  --dump-storage-ci-context-path "ci-viewer/ci_context.json" \
+                  --dump-storage-build-id "${{ github.run_id }}"
+          echo "COMMENT_DATA='$(cat test_results.txt)'" >> $GITHUB_OUTPUT
+
+  notify-pr-tests-finish:
+    runs-on: trampoline
+    needs:
+      - integration-test
+    if: always()
+    steps:
+      - name: Notify PR
+        uses: actions/github-script@v7
+        env:
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+        with:
+          script: |
+            const current_time = new Date().toLocaleString("ru-RU");
+            message = "Tests finished.\n" + ${{ needs.integration-test.outputs.COMMENT_DATA }} + "\n";
+            const comment = await github.rest.issues.getComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ inputs.comment-id }}
+            });
+            const comment_body = comment.data.body;
+            const new_comment_body = comment_body + '\n' + '`' + current_time + '`' + ' ' + message;
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ inputs.comment-id }},
+              body: new_comment_body
+            });

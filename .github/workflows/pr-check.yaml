@@ -7,6 +7,8 @@ on:
         type: string
 
     secrets:
+      YA_YT_TOKEN:
+        required: true
       YC_SA_JSON_CREDENTIALS:
         required: true
       GH_PERSONAL_ACCESS_TOKEN:
@@ -15,6 +17,10 @@ on:
         required: true
       YC_VM_SSH_PUBLIC_KEY:
         required: true
+      S3_ACCESS_KEY:
+        required: false
+      S3_SECRET_NAME:
+        required: false
       BUILD_CACHE_BAZEL_USERNAME:
         required: false
       BUILD_CACHE_BAZEL_PASSWORD:
@@ -24,6 +30,29 @@ env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
 
 jobs:
+
+  notify-start:
+    name: Notify PR start
+    runs-on: trampoline
+    outputs:
+      comment-id: ${{ steps.notify-pr.outputs.comment-id }}
+    steps:
+      - name: Notify PR
+        id: notify-pr
+        uses: actions/github-script@v7
+        env:
+          PULL_REQUEST_NUMBER: ${{ github.event.pull_request.number }}
+        with:
+          script: |
+            const current_time = new Date().toLocaleString("ru-RU");
+            const message = 'PR autocheck started. Watch workflow progress [here](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}).';
+            const { data: comment } = await github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: '`' + current_time + '`' + ' ' + message
+            });
+            core.setOutput('comment-id', comment.id);
 
   start-vm:
     name: Start VM
@@ -124,6 +153,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
+      build-ytsaurus-integration-tests: true
       build-query-tracker: ${{ github.ref_name == 'main' }}
       build-python: true
     secrets:
@@ -131,12 +161,69 @@ jobs:
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
+  run-tests:
+    name: PR tests
+    needs:
+      - start-vm
+      - build-strawberry
+      - build-ya-make
+      - build-cmake
+      - notify-start
+      - checkout
+    if: ${{ needs.build-ya-make.result == 'success' && needs.build-cmake.result == 'success'}}
+    uses: ./.github/workflows/pr-tests.yaml
+    with:
+      runs-on-value: ${{ needs.start-vm.outputs.label }}
+      comment-id: ${{ needs.notify-start.outputs.comment-id }}
+    secrets:
+      YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
+      S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
+      S3_SECRET_NAME: ${{ secrets.S3_SECRET_NAME }}
+
+  notify-finish:
+    name: Notify PR finish
+    needs:
+      - notify-start
+      - run-tests
+      - start-vm
+      - build-ya-make
+      - build-cmake
+      - build-strawberry
+    runs-on: trampoline
+    if: ${{ always() }}
+    steps:
+      - name: Notify PR
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const current_time = new Date().toLocaleString("ru-RU");
+            const message = 'PR autocheck finished.\nStatuses:\n'
+            const strawberry_status = 'Strawberry controller: ' + '${{ needs.build-strawberry.result }}' + '\n';
+            const cmake_status = 'CMake build: ' + '${{ needs.build-cmake.result }}' + '\n';
+            const ya_make_status = 'Ya-make build: ' + '${{ needs.build-ya-make.result }}' + '\n';
+            const tests_status = 'Tests: ' + '${{ needs.run-tests.result }}' + '\n';
+            const comment = await github.rest.issues.getComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ needs.notify-start.outputs.comment-id }}
+            });
+            const comment_body = comment.data.body;
+            const new_comment_body = comment_body + '\n' + '`' + current_time + '`' + ' ' + message + strawberry_status + cmake_status + ya_make_status + tests_status;
+            await github.rest.issues.updateComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              comment_id: ${{ needs.notify-start.outputs.comment-id }},
+              body: new_comment_body
+            });
+
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
       - build-ya-make
       - build-cmake
+      - run-tests
+      - notify-finish
     runs-on: trampoline
     if: ${{ always() }}
     steps:
