@@ -17,6 +17,7 @@
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -68,7 +69,9 @@ namespace {
 class TChaosReplicatedTableTabletsCountGetter
 {
 public:
-    static TFuture<TYsonString> GetTabletsCountYson(TFuture<TReplicationCardPtr> replicationCardFuture, NNative::IConnectionPtr connection)
+    static TFuture<TYsonString> GetTabletsCountYson(
+        TFuture<TReplicationCardPtr> replicationCardFuture,
+        NNative::IConnectionPtr connection)
     {
         return GetTabletCount(
                 std::move(replicationCardFuture),
@@ -88,13 +91,14 @@ public:
         TFuture<TReplicationCardPtr> replicationCardFuture,
         NNative::IConnectionPtr connection)
     {
+        auto getTableInfoWaitTimeout = connection->GetConfig()->DefaulChaosReplicatedTableGetTabletCountTimeout;
         auto activeQueueConnectionsFuture = replicationCardFuture.ApplyUnique(BIND(
             [connection = std::move(connection)] (TReplicationCardPtr&& card) {
-                return GetActiveQueueReplicaConnections(card->Replicas, connection, false);
+                return GetActiveQueueReplicaConnections(card->Replicas, connection);
             }));
 
         auto replicaTabletCountRequestsFuture = activeQueueConnectionsFuture.ApplyUnique(BIND(
-            [] (std::vector<std::pair<TYPath, NNative::IConnectionPtr>>&& connections)
+            [getTableInfoWaitTimeout] (std::vector<std::pair<TYPath, NNative::IConnectionPtr>>&& connections)
             {
                 std::vector<TFuture<int>> requests;
                 requests.reserve(connections.size());
@@ -104,7 +108,9 @@ public:
                         std::move(replicaClusterConnection)));
                 }
 
-                return AllSet(std::move(requests));
+                return AllSetWithTimeout(
+                    std::move(requests),
+                    getTableInfoWaitTimeout);
             }));
 
         return replicaTabletCountRequestsFuture
@@ -134,30 +140,20 @@ public:
 private:
     static TFuture<std::vector<std::pair<TYPath, NNative::IConnectionPtr>>> GetActiveQueueReplicaConnections(
         const THashMap<TReplicaId, TReplicaInfo>& replicas,
-        NNative::IConnectionPtr nativeConnection,
-        bool skipMissing)
+        NNative::IConnectionPtr nativeConnection)
     {
         const auto& clusterDirectory = nativeConnection->GetClusterDirectory();
         std::vector<std::pair<TYPath, NNative::IConnectionPtr>> connections;
         for (const auto& [replicaId, replica] : replicas) {
             if (replica.ContentType != ETableReplicaContentType::Queue ||
-                !EqualToOneOf(replica.State, ETableReplicaState::Enabled, ETableReplicaState::Enabling))
+                !IsReplicaReallySync(replica.Mode, replica.State, replica.History))
             {
                 continue;
             }
 
             auto replicaClusterConnection = clusterDirectory->FindConnection(replica.ClusterName);
             if (!replicaClusterConnection) {
-                if (skipMissing) {
-                    continue;
-                } else {
-                    return nativeConnection->GetClusterDirectorySynchronizer()->Sync(false).Apply(
-                        BIND(
-                            &TChaosReplicatedTableTabletsCountGetter::GetActiveQueueReplicaConnections,
-                            replicas,
-                            std::move(nativeConnection),
-                            true));
-                }
+                continue;
             }
 
             connections.emplace_back(replica.ReplicaPath, std::move(replicaClusterConnection));
@@ -531,7 +527,7 @@ private:
 
                 // TODO(osidorkin): Write better implementation after replication card progress format is changed (YT-17817)
                 return TChaosReplicatedTableTabletsCountGetter::GetTabletsCountYson(
-                    GetReplicationCard(),
+                    GetReplicationCard({.IncludeHistory = true}),
                     Bootstrap_->GetClusterConnection());
             }
 

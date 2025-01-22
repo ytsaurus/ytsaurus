@@ -4389,8 +4389,8 @@ class TestChaos(ChaosTestBase):
         assert get_table_mount_info("//tmp/crt")["upper_cap_bound"][0] == 1
 
         _reshard_table("//tmp/q2", remote_driver1)
-        assert get("//tmp/crt/@tablet_count") == 1
-        assert get_table_mount_info("//tmp/crt")["upper_cap_bound"][0] == 1
+        assert get("//tmp/crt/@tablet_count") == 5
+        assert get_table_mount_info("//tmp/crt")["upper_cap_bound"][0] == 5
 
         _reshard_table("//tmp/q0", primary_driver)
         assert get("//tmp/crt/@tablet_count") == 5
