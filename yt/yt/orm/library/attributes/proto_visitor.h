@@ -71,7 +71,7 @@ class TProtoVisitor
     using TPathVisitor<TSelf>::Self;
 
 public:
-    // Call VisitAttributeDiectionary for TAttributeDictionary. Otherwise call VisitRegularMessage.
+    // Call VisitAttributeDictionary for TAttributeDictionary. Otherwise call VisitRegularMessage.
     DEFINE_BYVAL_RW_PROPERTY(bool, ProcessAttributeDictionary, false);
 
 protected:
@@ -146,7 +146,7 @@ protected:
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
         EVisitReason reason);
-    // Called when there is a problem with evaluating field precense (e.g., mismatching presence in
+    // Called when there is a problem with evaluating field presense (e.g., mismatching presence in
     // a wrap). Throws the error by default.
     void OnPresenceError(
         TMessageParam message,
@@ -206,7 +206,7 @@ protected:
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
         EVisitReason reason);
-    // The entry was located. The specific paramerets are:
+    // The entry was located. The specific parameters are:
     // - message is the one containing the map
     // - fieldDescriptor describes the map (see its message_type()->map_key() and map_value())
     // - entryMessage is the entry in the map (synthetic message type with key and value)
