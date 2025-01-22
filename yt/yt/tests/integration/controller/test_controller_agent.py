@@ -27,6 +27,7 @@ from collections import defaultdict
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestControllerAgentOrchid(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -80,6 +81,7 @@ class TestControllerAgentOrchid(YTEnvSetup):
         assert list(get(orchid_path)) == [str(op.id)]
 
 
+@pytest.mark.enabled_multidaemon
 class TestControllerAgentConfig(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -90,6 +92,7 @@ class TestControllerAgentConfig(YTEnvSetup):
         assert get("//sys/controller_agents/config/@type") == "document"
 
 
+@pytest.mark.enabled_multidaemon
 class TestControllerAgentRegistration(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -236,6 +239,7 @@ class TestControllerMemoryUsage(YTEnvSetup):
             assert False, "Must not exist alive operations"
 
 
+@pytest.mark.enabled_multidaemon
 class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -334,6 +338,7 @@ class TestControllerAgentMemoryPickStrategy(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerControllerThrottling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -378,6 +383,7 @@ class TestSchedulerControllerThrottling(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCustomControllerQueues(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -444,6 +450,7 @@ class TestCustomControllerQueues(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestGetJobSpecFailed(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -621,6 +628,7 @@ class TestControllerAgentTags(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestOperationControllerResourcesCheck(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -856,6 +864,7 @@ class TestTotalControllerMemoryExceedLimit(YTEnvSetup):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+@pytest.mark.enabled_multidaemon
 class TestControllerAgentMemoryAlert(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1155,6 +1164,7 @@ class TestLivePreview(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestJobFailTolerance(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1282,6 +1292,7 @@ class TestJobFailTolerance(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestAllocationJobLimit(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 1

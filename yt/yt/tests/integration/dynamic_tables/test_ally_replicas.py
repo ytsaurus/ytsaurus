@@ -14,6 +14,7 @@ import builtins
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestAllyReplicas(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -187,6 +188,7 @@ class TestAllyReplicas(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestAllyReplicasMulticell(TestAllyReplicas):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

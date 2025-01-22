@@ -19,6 +19,7 @@ import builtins
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMedia(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -702,6 +703,7 @@ class TestMedia(YTEnvSetup):
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMediaMulticell(TestMedia):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

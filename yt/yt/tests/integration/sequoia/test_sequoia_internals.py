@@ -44,6 +44,7 @@ except ImportError:
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSequoiaEnvSetup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -81,6 +82,7 @@ def with_cypress_dir(test_case):
     return wrapped
 
 
+@pytest.mark.enabled_multidaemon
 class TestSequoiaInternals(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -548,6 +550,7 @@ class TestSequoiaInternals(YTEnvSetup):
             get_batch_output(results[1])
 
 
+@pytest.mark.enabled_multidaemon
 class TestSequoiaResolve(TestSequoiaInternals):
     ENABLE_MULTIDAEMON = True
     DELTA_CYPRESS_PROXY_DYNAMIC_CONFIG = {
@@ -560,6 +563,7 @@ class TestSequoiaResolve(TestSequoiaInternals):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSequoiaCypressTransactions(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1071,6 +1075,7 @@ class TestSequoiaCypressTransactions(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class SequoiaNodeVersioningBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -2035,6 +2040,7 @@ class SequoiaNodeVersioningBase(YTEnvSetup):
 
 
 @authors("kvk1920")
+@pytest.mark.enabled_multidaemon
 class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
     ENABLE_MULTIDAEMON = True
     # We need only the primary master with tx coordinator role.
@@ -2082,6 +2088,7 @@ class TestSequoiaNodeVersioningSimulation(SequoiaNodeVersioningBase):
 
 
 @authors("kvk1920")
+@pytest.mark.enabled_multidaemon
 class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -2706,6 +2713,7 @@ class TestSequoiaNodeVersioningReal(SequoiaNodeVersioningBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSequoiaMultipleCypressProxies(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -2776,6 +2784,7 @@ class TestSequoiaMultipleCypressProxies(YTEnvSetup):
 
 
 @authors("kvk1920")
+@pytest.mark.enabled_multidaemon
 class TestSequoiaTmpCleanup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

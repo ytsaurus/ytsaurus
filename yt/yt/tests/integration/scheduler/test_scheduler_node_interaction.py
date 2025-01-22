@@ -27,6 +27,7 @@ import builtins
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -126,6 +127,7 @@ class TestIgnoreJobFailuresAtBannedNodes(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestReplacementCpuToVCpu(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -235,6 +237,7 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
         assert resource_limits["cpu"] == 23.35
 
 
+@pytest.mark.enabled_multidaemon
 class TestVCpuDisableByDefault(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -275,6 +278,7 @@ class TestVCpuDisableByDefault(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestResourceLimitsOverrides(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -723,6 +727,7 @@ class TestNodeMultipleUnregistrations(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestOperationNodeBan(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -755,6 +760,7 @@ class TestOperationNodeBan(YTEnvSetup):
         assert len(builtins.set(job["address"] for job in jobs)) == 3
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulingHeartbeatThrottling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

@@ -41,6 +41,7 @@ def cannot_be_implemented_in_sequoia(reason):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressLocks(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -1667,17 +1668,20 @@ class TestCypressLocks(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressLocksMulticell(TestCypressLocks):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressLocksRpcProxy(TestCypressLocks):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressLocksMulticellRpcProxy(TestCypressLocksMulticell, TestCypressLocksRpcProxy):
     ENABLE_MULTIDAEMON = True
 
@@ -1685,6 +1689,7 @@ class TestCypressLocksMulticellRpcProxy(TestCypressLocksMulticell, TestCypressLo
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressLocksShardedTx(TestCypressLocksMulticell):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 4
@@ -1695,6 +1700,7 @@ class TestCypressLocksShardedTx(TestCypressLocksMulticell):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressLocksShardedTxCTxS(TestCypressLocksShardedTx):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -1709,6 +1715,7 @@ class TestCypressLocksShardedTxCTxS(TestCypressLocksShardedTx):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -1764,6 +1771,7 @@ class TestCypressLocksMirroredTx(TestCypressLocksShardedTxCTxS):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressLocksInSequoia(TestCypressLocksMirroredTx):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_ROOTSTOCK = True

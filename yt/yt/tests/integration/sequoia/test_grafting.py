@@ -20,6 +20,7 @@ import pytest
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestGrafting(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -124,6 +125,7 @@ class TestGrafting(YTEnvSetup):
 
 
 @authors("kvk1920")
+@pytest.mark.enabled_multidaemon
 class TestGraftingTmpCleanup(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

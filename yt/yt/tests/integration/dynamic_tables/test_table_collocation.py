@@ -14,6 +14,7 @@ from yt.test_helpers import assert_items_equal
 import pytest
 
 
+@pytest.mark.enabled_multidaemon
 class TestReplicatedTablesCollocationBase(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -40,6 +41,7 @@ class TestReplicatedTablesCollocationBase(DynamicTablesBase):
         return create_dynamic_table(path, **attributes)
 
 
+@pytest.mark.enabled_multidaemon
 class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
     ENABLE_MULTIDAEMON = True
 
@@ -201,6 +203,7 @@ class TestReplicatedTablesCollocation(TestReplicatedTablesCollocationBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestReplicatedTablesCollocationMulticell(TestReplicatedTablesCollocation):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -235,6 +238,7 @@ class TestReplicatedTablesCollocationMulticell(TestReplicatedTablesCollocation):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestReplicatedTablesCollocationPortal(TestReplicatedTablesCollocationBase):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

@@ -11,6 +11,7 @@ from collections import defaultdict
 import pytest
 
 
+@pytest.mark.enabled_multidaemon
 class TestPartitionTablesBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
@@ -70,6 +71,7 @@ class TestPartitionTablesBase(YTEnvSetup):
         return get(f"{table}/@data_weight")
 
 
+@pytest.mark.enabled_multidaemon
 class TestPartitionTablesCommand(TestPartitionTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

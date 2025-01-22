@@ -153,6 +153,7 @@ class RpcProxyAccessCheckerTestBase(YTEnvSetup):
         wait(lambda: not check_access("u"))
 
 
+@pytest.mark.enabled_multidaemon
 class TestRpcProxyAccessChecker(RpcProxyAccessCheckerTestBase):
     ENABLE_MULTIDAEMON = True
 
@@ -166,6 +167,7 @@ class TestRpcProxyAccessChecker(RpcProxyAccessCheckerTestBase):
         set(f"//sys/rpc_proxy_roles/{role}/@acl", acl)
 
 
+@pytest.mark.enabled_multidaemon
 class TestRpcProxyAccessCheckerWithAco(RpcProxyAccessCheckerTestBase):
     ENABLE_MULTIDAEMON = True
 
@@ -187,6 +189,7 @@ class TestRpcProxyAccessCheckerWithAco(RpcProxyAccessCheckerTestBase):
         set(f"//sys/access_control_object_namespaces/rpc_proxy_roles/{role}/principal/@acl", acl)
 
 
+@pytest.mark.enabled_multidaemon
 class TestRpcProxyStructuredLogging(YTEnvSetup):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -441,6 +444,7 @@ class TestRpcProxyStructuredLogging(YTEnvSetup):
         assert read_entry("SelectRows", from_barrier=b1, to_barrier=b2)["request"]["query"] == query[:10]
 
 
+@pytest.mark.enabled_multidaemon
 class TestRpcProxyDiscovery(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
@@ -503,6 +507,7 @@ class TestRpcProxyDiscovery(YTEnvSetup):
         assert len(proxies) == 0
 
 
+@pytest.mark.enabled_multidaemon
 class TestRpcProxyDiscoveryRoleFromStaticConfig(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
@@ -539,6 +544,7 @@ class TestRpcProxyDiscoveryRoleFromStaticConfig(YTEnvSetup):
         assert sorted(proxies) == configured_proxy_addresses
 
 
+@pytest.mark.enabled_multidaemon
 class TestRpcProxyDiscoveryBalancers(YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
@@ -594,6 +600,7 @@ class TestRpcProxyDiscoveryBalancers(YTEnvSetup):
         assert len(proxies) == 0
 
 
+@pytest.mark.enabled_multidaemon
 class TestRpcProxyDiscoveryViaHttp(YTEnvSetup):
     DRIVER_BACKEND = "rpc"
     ENABLE_HTTP_PROXY = True
@@ -661,6 +668,7 @@ class TestRpcProxyDiscoveryViaHttp(YTEnvSetup):
         assert excinfo.value.contains_text("Proxy list is empty")
 
 
+@pytest.mark.enabled_multidaemon
 class TestRpcProxyBase(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
@@ -721,6 +729,7 @@ class TestRpcProxyBase(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestRpcProxyClientRetries(TestRpcProxyBase):
     NUM_NODES = 2
 
@@ -857,6 +866,7 @@ class TestRpcProxyClientRetries(TestRpcProxyBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestOperationsRpcProxy(TestRpcProxyBase):
     ENABLE_MULTIDAEMON = True
 
@@ -943,6 +953,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestDumpJobContextRpcProxy(TestRpcProxyBase):
     ENABLE_MULTIDAEMON = True
 
@@ -998,6 +1009,7 @@ class TestDumpJobContextRpcProxy(TestRpcProxyBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1080,6 +1092,7 @@ class TestPessimisticQuotaCheckRpcProxy(TestRpcProxyBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestPessimisticQuotaCheckMulticellRpcProxy(TestPessimisticQuotaCheckRpcProxy):
     NUM_SECONDARY_MASTER_CELLS = 2
     NUM_SCHEDULERS = 1
@@ -1089,6 +1102,7 @@ class TestPessimisticQuotaCheckMulticellRpcProxy(TestPessimisticQuotaCheckRpcPro
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestModifyRowsRpcProxy(TestRpcProxyBase):
     ENABLE_MULTIDAEMON = True
     BATCH_CAPACITY = 10
@@ -1123,6 +1137,7 @@ class TestModifyRowsRpcProxy(TestRpcProxyBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestRpcProxyWithoutDiscovery(TestRpcProxyBase):
     ENABLE_MULTIDAEMON = True
     NUM_RPC_PROXIES = 1
@@ -1143,6 +1158,7 @@ class TestRpcProxyWithoutDiscovery(TestRpcProxyBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCompressionRpcProxy(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -1181,6 +1197,7 @@ class TestCompressionRpcProxy(YTEnvSetup):
         lookup_rows("//tmp/d", [{"key": 0}])
 
 
+@pytest.mark.enabled_multidaemon
 class TestModernCompressionRpcProxy(TestCompressionRpcProxy):
     ENABLE_MULTIDAEMON = True
     DELTA_DRIVER_CONFIG = {
@@ -1193,6 +1210,7 @@ class TestModernCompressionRpcProxy(TestCompressionRpcProxy):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestRpcProxyFormatConfig(TestRpcProxyBase, _TestProxyFormatConfigBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1237,6 +1255,7 @@ class TestRpcProxyFormatConfig(TestRpcProxyBase, _TestProxyFormatConfigBase):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+@pytest.mark.enabled_multidaemon
 class TestRpcProxyHeapUsageStatisticsBase(TestRpcProxyBase):
     ENABLE_MULTIDAEMON = True
     NUM_RPC_PROXIES = 1
@@ -1402,6 +1421,7 @@ class TestRpcProxyHeapUsageStatistics(TestRpcProxyHeapUsageStatisticsBase):
 
 
 @pytest.mark.skipif(is_asan_build(), reason="Memory allocation is not reported under ASAN")
+@pytest.mark.enabled_multidaemon
 class TestRpcProxyNullApiTestingOptions(TestRpcProxyHeapUsageStatisticsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1410,6 +1430,7 @@ class TestRpcProxyNullApiTestingOptions(TestRpcProxyHeapUsageStatisticsBase):
         self.prepare_allocation("rpc_proxies", "user")
 
 
+@pytest.mark.enabled_multidaemon
 class TestRpcProxySignaturesBase(TestRpcProxyBase):
     ENABLE_MULTIDAEMON = True
     DELTA_RPC_PROXY_CONFIG = {
@@ -1446,6 +1467,7 @@ def deep_update(source: dict[Any, Any], overrides: dict[Any, Any]) -> dict[Any, 
     return result
 
 
+@pytest.mark.enabled_multidaemon
 class TestRpcProxySignaturesKeyCreation(TestRpcProxySignaturesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_RPC_PROXY_CONFIG = deep_update(TestRpcProxySignaturesBase.DELTA_RPC_PROXY_CONFIG, {
@@ -1462,6 +1484,7 @@ class TestRpcProxySignaturesKeyCreation(TestRpcProxySignaturesBase):
         wait(lambda: len(ls(self.KEYS_PATH)) == 1)
 
 
+@pytest.mark.enabled_multidaemon
 class TestRpcProxySignaturesKeyRotation(TestRpcProxySignaturesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_RPC_PROXY_CONFIG = deep_update(TestRpcProxySignaturesBase.DELTA_RPC_PROXY_CONFIG, {

@@ -7,6 +7,8 @@ from yt_commands import (authors, get, create, remove, start_transaction, commit
 
 from yt.yson import YsonEntity
 
+import pytest
+
 import builtins
 
 
@@ -37,6 +39,7 @@ class QueueAgentHelpers:
             assert producers[path] == get(path + "/@attribute_revision")
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
     USE_DYNAMIC_TABLES = True
     ENABLE_MULTIDAEMON = True
@@ -588,6 +591,7 @@ class TestQueueAgentObjectRevisions(ChaosTestBase, YTEnvSetup):
                 set(f"//tmp/{producer_name}/@treat_as_queue_producer", True, tx=tx)
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueueAgentObjectsRevisionsPortal(TestQueueAgentObjectRevisions):
     NUM_SECONDARY_MASTER_CELLS = 2
     ENABLE_TMP_PORTAL = True

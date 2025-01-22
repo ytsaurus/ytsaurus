@@ -45,6 +45,7 @@ import time
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteOperationCommandsBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 5
@@ -630,6 +631,7 @@ class TestSchedulerRemoteOperationCommands(TestSchedulerRemoteOperationCommandsB
             )
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteOperationAllowedForEveryoneCluster(TestSchedulerRemoteOperationCommandsBase):
     ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = {

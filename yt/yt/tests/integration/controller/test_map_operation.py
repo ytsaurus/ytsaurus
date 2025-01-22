@@ -31,6 +31,7 @@ import base64
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommands(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 12
@@ -2363,6 +2364,7 @@ class TestSchedulerMapCommandsPorto(TestSchedulerMapCommands):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 15
@@ -2387,11 +2389,13 @@ class TestSchedulerMapCommandsMulticell(TestSchedulerMapCommands):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommandsPortal(TestSchedulerMapCommandsMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 5
@@ -2405,6 +2409,7 @@ class TestSchedulerMapCommandsShardedTx(TestSchedulerMapCommandsPortal):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommandsShardedTxCTxS(TestSchedulerMapCommandsShardedTx):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -2419,6 +2424,7 @@ class TestSchedulerMapCommandsShardedTxCTxS(TestSchedulerMapCommandsShardedTx):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTxCTxS):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -2441,6 +2447,7 @@ class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTxCTxS):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestJobSizeAdjuster(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2551,6 +2558,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestInputOutputFormats(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2865,6 +2873,7 @@ print '{hello=world}'
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestInputOutputFormatsMulticell(TestInputOutputFormats):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -2873,6 +2882,7 @@ class TestInputOutputFormatsMulticell(TestInputOutputFormats):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestNestingLevelLimitOperations(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2934,6 +2944,7 @@ class TestNestingLevelLimitOperations(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestEnvironment(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

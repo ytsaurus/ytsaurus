@@ -34,6 +34,7 @@ def get_operation_tasks(op):
     return builtins.set(tasks)
 
 
+@pytest.mark.enabled_multidaemon
 class TestIntermediateMediumSwitch(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

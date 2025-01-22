@@ -12,6 +12,7 @@ import builtins
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestOrchid(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -100,6 +101,7 @@ class TestOrchid(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestOrchidMulticell(TestOrchid):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

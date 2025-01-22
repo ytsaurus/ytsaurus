@@ -165,6 +165,7 @@ class _TestColumnarStatisticsBase(YTEnvSetup):
                     "Error when checking {}, table path is {}".format(statistics_name, path)
 
 
+@pytest.mark.enabled_multidaemon
 class TestColumnarStatistics(_TestColumnarStatisticsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -882,6 +883,7 @@ class TestColumnarStatisticsOperationsEarlyFinish(TestColumnarStatisticsOperatio
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -929,6 +931,7 @@ class TestColumnarStatisticsCommandEarlyFinish(_TestColumnarStatisticsBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestColumnarStatisticsCommandEarlyFinishRpcProxy(TestColumnarStatisticsCommandEarlyFinish):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -944,6 +947,7 @@ class TestColumnarStatisticsCommandEarlyFinishRpcProxy(TestColumnarStatisticsCom
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestColumnarStatisticsRenamedColumns(_TestColumnarStatisticsBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1035,6 +1039,7 @@ class TestColumnarStatisticsRenamedColumns(_TestColumnarStatisticsBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestColumnarStatisticsRpcProxy(TestColumnarStatistics):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -1044,6 +1049,7 @@ class TestColumnarStatisticsRpcProxy(TestColumnarStatistics):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestColumnarStatisticsUseControllerAgentDefault(_TestColumnarStatisticsBase):
     ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = {

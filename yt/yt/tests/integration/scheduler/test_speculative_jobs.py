@@ -234,6 +234,7 @@ class TestSpeculativeJobEngine(YTEnvSetup):
         return op
 
 
+@pytest.mark.enabled_multidaemon
 class TestSpeculativeJobSplitter(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -362,6 +363,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         return op
 
 
+@pytest.mark.enabled_multidaemon
 class TestListSpeculativeJobs(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -551,6 +553,7 @@ class TestListSpeculativeJobs(YTEnvSetup):
         assert jobs[1]["has_competitors"]
 
 
+@pytest.mark.enabled_multidaemon
 class TestSpeculativeJobsOther(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

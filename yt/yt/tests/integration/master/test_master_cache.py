@@ -1,9 +1,12 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import authors, wait, get, set, exists, ls
 
+import pytest
+
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMasterCache(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -35,6 +38,7 @@ class TestMasterCache(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMasterCacheMulticell(TestMasterCache):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

@@ -1,9 +1,12 @@
 from yt_env_setup import YTEnvSetup
 from yt_commands import authors, wait, get, ls
 
+import pytest
+
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestObjectServiceCache(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

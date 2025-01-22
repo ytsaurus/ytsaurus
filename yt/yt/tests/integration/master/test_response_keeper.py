@@ -2,11 +2,14 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import authors, generate_uuid, get, create, raises_yt_error
 
+import pytest
+
 import time
 
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestResponseKeeper(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -60,6 +63,7 @@ class TestResponseKeeper(YTEnvSetup):
         assert err[0].inner_errors[0]["attributes"]["host"] == "localhost"
 
 
+@pytest.mark.enabled_multidaemon
 class TestSequoiaResponseKeeper(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

@@ -2,11 +2,14 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import authors, wait, get, ls, set
 
+import pytest
+
 from time import sleep
 
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestClusterConnectionDynamicConfig(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     ENABLE_HTTP_PROXY = True

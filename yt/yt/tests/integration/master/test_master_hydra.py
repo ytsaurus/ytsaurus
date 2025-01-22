@@ -14,6 +14,7 @@ import time
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMasterLeaderSwitch(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 7
@@ -59,6 +60,7 @@ class TestMasterLeaderSwitch(YTEnvSetup):
         assert _get_master_grace_delay_status(new_leader_rpc_address) == "previous_lease_abandoned"
 
 
+@pytest.mark.enabled_multidaemon
 class TestMasterResetStateHash(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -142,6 +144,7 @@ class TestDiscombobulate(YTEnvSetup):
                 default=True)
 
 
+@pytest.mark.enabled_multidaemon
 class TestLamportClock(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -163,6 +166,7 @@ class TestLamportClock(YTEnvSetup):
             assert new_state[cell_id] >= state[cell_id]
 
 
+@pytest.mark.enabled_multidaemon
 class TestLocalJanitor(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     DELTA_MASTER_CONFIG = {

@@ -31,6 +31,7 @@ import time
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestLookup(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -1061,6 +1062,7 @@ class TestLookup(TestSortedDynamicTablesBase):
         ) == []
 
 
+@pytest.mark.enabled_multidaemon
 class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -1458,6 +1460,7 @@ class TestAlternativeLookupMethods(TestSortedDynamicTablesBase):
         assert get(row_count) == 1
 
 
+@pytest.mark.enabled_multidaemon
 class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 2
@@ -1508,6 +1511,7 @@ class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestLookupCache(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -1983,11 +1987,13 @@ class TestLookupCache(TestSortedDynamicTablesBase):
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestLookupMulticell(TestLookup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
+@pytest.mark.enabled_multidaemon
 class TestLookupRpcProxy(TestLookup):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -2085,6 +2091,7 @@ class TestLookupRpcProxy(TestLookup):
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestLookupOutThrottlingLegacyThrottler(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {
@@ -2119,6 +2126,7 @@ class TestLookupOutThrottlingLegacyThrottler(TestSortedDynamicTablesBase):
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestLookupOutThrottlingFairThrottler(TestLookupOutThrottlingLegacyThrottler):
     ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {

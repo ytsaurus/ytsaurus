@@ -32,6 +32,7 @@ def expect_queries(queries, list_result, incomplete=False):
         raise
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueriesMock(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -205,6 +206,7 @@ class TestQueriesMock(YTEnvSetup):
         assert not q.get_result(1)["is_truncated"]
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueryTrackerBan(YTEnvSetup):
     NUM_QUERY_TRACKER = 1
     DELTA_DRIVER_CONFIG = {
@@ -248,6 +250,7 @@ class TestQueryTrackerBan(YTEnvSetup):
         wait(lambda: query.get_state() == "running", ignore_exceptions=True)
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueryTrackerQueryRestart(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -315,6 +318,7 @@ class TestQueryTrackerQueryRestart(YTEnvSetup):
         query.track()
 
 
+@pytest.mark.enabled_multidaemon
 class TestAccessControl(YTEnvSetup):
     NUM_TEST_PARTITIONS = 16
 
@@ -592,6 +596,7 @@ class TestAccessControl(YTEnvSetup):
             {'query_tracker_stage': 'testing', 'cluster_name': 'primary', 'supported_features': supported_features, 'access_control_objects': ['everyone', 'everyone-share', 'nobody']}
 
 
+@pytest.mark.enabled_multidaemon
 class TestShare(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -610,6 +615,7 @@ class TestShare(YTEnvSetup):
         expect_queries([], list_queries(authenticated_user="u2"))
 
 
+@pytest.mark.enabled_multidaemon
 class TestIndexTables(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -654,6 +660,7 @@ class TestIndexTables(YTEnvSetup):
         expect_queries([q2, q1], list_queries(authenticated_user="u1", limit=2))
 
 
+@pytest.mark.enabled_multidaemon
 class TestMultipleAccessControl(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
@@ -736,6 +743,7 @@ class TestMultipleAccessControl(YTEnvSetup):
 
 
 # Separate list to fit 480 seconds limit for a test class.
+@pytest.mark.enabled_multidaemon
 class TestAccessControlList(YTEnvSetup):
     NUM_TEST_PARTITIONS = 16
 
@@ -917,6 +925,7 @@ class TestAccessControlList(YTEnvSetup):
 
 
 @authors("apollo1321")
+@pytest.mark.enabled_multidaemon
 class TestQueriesMockRpcProxy(TestQueriesMock):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -925,6 +934,7 @@ class TestQueriesMockRpcProxy(TestQueriesMock):
 
 
 @authors("mpereskokova")
+@pytest.mark.enabled_multidaemon
 class TestQueryTrackerBanRpcProxy(TestQueryTrackerBan):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -933,6 +943,7 @@ class TestQueryTrackerBanRpcProxy(TestQueryTrackerBan):
 
 
 @authors("apollo1321")
+@pytest.mark.enabled_multidaemon
 class TestAccessControlRpcProxy(TestAccessControl):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -941,6 +952,7 @@ class TestAccessControlRpcProxy(TestAccessControl):
 
 
 @authors("mpereskokova")
+@pytest.mark.enabled_multidaemon
 class TestShareRpcProxy(TestShare):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -949,6 +961,7 @@ class TestShareRpcProxy(TestShare):
 
 
 @authors("apollo1321")
+@pytest.mark.enabled_multidaemon
 class TestAccessControlListRpcProxy(TestAccessControlList):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
@@ -957,6 +970,7 @@ class TestAccessControlListRpcProxy(TestAccessControlList):
 
 
 @authors("mpereskokova")
+@pytest.mark.enabled_multidaemon
 class TestMultipleAccessControlRpcProxy(TestMultipleAccessControl):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True

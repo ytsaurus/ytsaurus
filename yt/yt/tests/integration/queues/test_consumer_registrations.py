@@ -947,6 +947,7 @@ class TestDataApiBase(TestQueueConsumerApiBase, ReplicatedObjectBase, TestQueueA
         TestDataApiBase._assert_rows_contain(actual_rows, expected_rows)
 
 
+@pytest.mark.enabled_multidaemon
 class TestDataApiSingleCluster(TestDataApiBase):
     NUM_TEST_PARTITIONS = 2
 
@@ -1150,6 +1151,7 @@ class TestDataApiSingleCluster(TestDataApiBase):
         assert get_offset("//tmp/q4") == 1543
 
 
+@pytest.mark.enabled_multidaemon
 class TestDataApiMultiCluster(TestDataApiBase):
     NUM_REMOTE_CLUSTERS = 1
 

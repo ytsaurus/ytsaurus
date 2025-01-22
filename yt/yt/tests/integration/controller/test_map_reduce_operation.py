@@ -30,6 +30,7 @@ import os
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerMapReduceBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     ENABLE_UNIQUE_COUNT_CHECK = True
@@ -3973,6 +3974,7 @@ class TestSchedulerMapReduceCommandsNewSortedPool(TestSchedulerMapReduceCommands
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerMapReduceDeterminism(TestSchedulerMapReduceBase):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -4535,6 +4537,7 @@ fi
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMaxParititonCount(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

@@ -756,6 +756,7 @@ class TestMasterChangelogsMulticell(TestMasterSnapshotsMulticell):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMastersSnapshotsShardedTx(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 4
@@ -859,6 +860,7 @@ class TestMastersPersistentReadOnly(YTEnvSetup):
             wait(lambda: no_peers_in_read_only("//sys/secondary_masters/{}".format(cell_tag), addresses))
 
 
+@pytest.mark.enabled_multidaemon
 class TestMastersSnapshotsShardedTxCTxS(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 4
@@ -882,6 +884,7 @@ class TestMastersSnapshotsShardedTxCTxS(YTEnvSetup):
 
 
 @authors("kvk1920")
+@pytest.mark.enabled_multidaemon
 class TestMastersSnapshotsMirroredTx(TestMastersSnapshotsShardedTxCTxS):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

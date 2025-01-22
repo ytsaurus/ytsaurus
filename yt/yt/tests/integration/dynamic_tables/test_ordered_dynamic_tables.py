@@ -1456,6 +1456,7 @@ class TestOrderedDynamicTablesRpcProxy(TestOrderedDynamicTables):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesMultipleWriteBatches(TestOrderedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_DRIVER_CONFIG = {"max_rows_per_write_request": 10}

@@ -24,6 +24,7 @@ import time
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestHunkStorage(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -521,6 +522,7 @@ class TestHunkStorage(YTEnvSetup):
             set("//tmp/s/@hunk_storage_id", table_id)
 
 
+@pytest.mark.enabled_multidaemon
 class TestHunkStorageMulticell(TestHunkStorage):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 1
@@ -554,6 +556,7 @@ class TestHunkStorageMulticell(TestHunkStorage):
         assert get(f"#{table_id}/@hunk_storage_id", driver=get_driver(1)) == hunk_storage_id
 
 
+@pytest.mark.enabled_multidaemon
 class TestHunkStoragePortal(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

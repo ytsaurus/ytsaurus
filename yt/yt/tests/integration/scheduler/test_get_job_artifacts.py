@@ -71,6 +71,7 @@ def wait_for_data_in_job_archive(op_id, job_ids):
 
 # COMPAT(levysotsky): This class is to be removed after enable_table_column_renaming is set everywhere.
 # See YT-16507
+@pytest.mark.enabled_multidaemon
 class TestGetJobInputCompat(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -192,6 +193,7 @@ class TestGetJobInputCompat(YTEnvSetup):
             get_job_input(job_id)
 
 
+@pytest.mark.enabled_multidaemon
 class TestGetJobInput(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -702,6 +704,7 @@ class TestGetJobInput(YTEnvSetup):
             wait(lambda: len(get_job_spec_rows_for_jobs(job_ids)) > 0)
 
 
+@pytest.mark.enabled_multidaemon
 class TestGetJobStderr(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1016,6 +1019,7 @@ class TestGetJobStderr(YTEnvSetup):
             set("//sys/operations/@inherit_acl", True)
 
 
+@pytest.mark.enabled_multidaemon
 class TestGetJobSpec(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1098,6 +1102,7 @@ class TestGetJobSpec(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestGetJobInputRpcProxy(TestGetJobInput):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -1105,12 +1110,14 @@ class TestGetJobInputRpcProxy(TestGetJobInput):
     ENABLE_RPC_PROXY = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestGetJobStderrRpcProxy(TestGetJobStderr):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestGetJobSpecRpcProxy(TestGetJobSpec):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

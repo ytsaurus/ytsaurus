@@ -369,6 +369,7 @@ class TestDynamicTablesProfiling(TestSortedDynamicTablesBase):
                      hunk_chunk_count=0)
 
 
+@pytest.mark.enabled_multidaemon
 class TestOrderedDynamicTablesProfiling(TestOrderedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {"cluster_connection": {"timestamp_provider": {"update_period": 100}}}

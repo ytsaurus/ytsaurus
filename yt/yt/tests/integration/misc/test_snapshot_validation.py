@@ -7,6 +7,7 @@ from yt_commands import (
 
 import yt.yson as yson
 
+import pytest
 from flaky import flaky
 
 from pytest import fail
@@ -24,6 +25,7 @@ import os.path
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSnapshotValidation(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

@@ -750,6 +750,7 @@ class TestPoolMetrics(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestImproperlyPreemptedResources(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

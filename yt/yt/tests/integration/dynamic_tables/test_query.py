@@ -40,6 +40,7 @@ import functools
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestQuery(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -2402,6 +2403,7 @@ class TestQuery(DynamicTablesBase):
         assert expected == actual
 
 
+@pytest.mark.enabled_multidaemon
 class TestQueryRpcProxy(TestQuery):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -2517,6 +2519,7 @@ class TestQueryRpcProxy(TestQuery):
         assert corpus == queries
 
 
+@pytest.mark.enabled_multidaemon
 class TestSelectWithRowCache(TestLookupCache):
     ENABLE_MULTIDAEMON = True
     COUNTER_NAME = "select"

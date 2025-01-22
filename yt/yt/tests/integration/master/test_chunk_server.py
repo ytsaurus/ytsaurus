@@ -472,6 +472,7 @@ def _find_median_absolute_deviation(series):
     return _find_median(absolute_deviations)
 
 
+@pytest.mark.enabled_multidaemon
 class TestTwoRandomChoicesWriteTargetAllocation(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -507,6 +508,7 @@ class TestTwoRandomChoicesWriteTargetAllocation(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestTwoRandomChoicesWriteTargetAllocationMulticell(TestTwoRandomChoicesWriteTargetAllocation):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1050,6 +1052,7 @@ class TestChunkServerReplicaRemovalMulticell(TestChunkServerReplicaRemoval):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestLastFinishedJobStoreLimit(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1092,6 +1095,7 @@ class TestLastFinishedJobStoreLimit(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMultipleErasurePartsPerNode(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1122,6 +1126,7 @@ class TestMultipleErasurePartsPerNode(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestConsistentChunkReplicaPlacementBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -1617,6 +1622,7 @@ class TestChunkWeightStatisticsHistogram(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChunkCreationThrottler(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1659,6 +1665,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChunkServerCypressIntegration(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 

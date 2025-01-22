@@ -4499,6 +4499,7 @@ class TestChaosRpcProxy(TestChaos):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChaosNativeProxy(ChaosTestBase):
     ENABLE_MULTIDAEMON = True
     NUM_REMOTE_CLUSTERS = 0

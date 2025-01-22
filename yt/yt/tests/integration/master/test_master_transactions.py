@@ -42,6 +42,7 @@ def with_portals_dir(func):
 
 # NB: CheckInvariants() complexity is at least O(|Cypress nodes|) which is too
 # slow in this case.
+@pytest.mark.enabled_multidaemon
 class TestMasterTransactionsWithoutInvariantChecking(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -69,6 +70,7 @@ class TestMasterTransactionsWithoutInvariantChecking(YTEnvSetup):
         assert not exists(f"#{tx1}")
 
 
+@pytest.mark.enabled_multidaemon
 class TestMasterTransactions(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -618,6 +620,7 @@ class TestMasterTransactions(YTEnvSetup):
             get("#a-b-c-d/@")
 
 
+@pytest.mark.enabled_multidaemon
 class TestMasterTransactionsMulticell(TestMasterTransactions):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -700,6 +703,7 @@ class TestMasterTransactionsMulticell(TestMasterTransactions):
         self._assert_native_content_revision_matches("//portals/p/t_copy_tx")
 
 
+@pytest.mark.enabled_multidaemon
 class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 5
@@ -880,6 +884,7 @@ class TestMasterTransactionsShardedTx(TestMasterTransactionsMulticell):
         wait(lambda: tx not in ls("//sys/foreign_transactions", driver=get_driver(3)))
 
 
+@pytest.mark.enabled_multidaemon
 class TestMasterTransactionsCTxS(TestMasterTransactionsShardedTx):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -894,6 +899,7 @@ class TestMasterTransactionsCTxS(TestMasterTransactionsShardedTx):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestMasterTransactionsMirroredTx(TestMasterTransactionsCTxS):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True
@@ -913,6 +919,7 @@ class TestMasterTransactionsMirroredTx(TestMasterTransactionsCTxS):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestMasterTransactionsRpcProxy(TestMasterTransactions):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -921,6 +928,7 @@ class TestMasterTransactionsRpcProxy(TestMasterTransactions):
 
 ##################################################################
 
+@pytest.mark.enabled_multidaemon
 class TestSequoiaCypressTransactionReplication(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_ROOTSTOCK = False
@@ -1067,6 +1075,7 @@ class TestSequoiaCypressTransactionReplication(YTEnvSetup):
         assert read_table("//tmp/t") == content
 
 
+@pytest.mark.enabled_multidaemon
 class TestSequoiaCypressTransactionReplicationMirroredTx(TestSequoiaCypressTransactionReplication):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

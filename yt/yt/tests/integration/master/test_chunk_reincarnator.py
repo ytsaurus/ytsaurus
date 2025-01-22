@@ -73,6 +73,7 @@ class ReincarnatorStatistic:
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChunkReincarnatorBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3
@@ -400,6 +401,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChunkReincarnatorSingleCell(TestChunkReincarnatorBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1075,6 +1077,7 @@ class TestChunkReincarnatorMultiCell(TestChunkReincarnatorSingleCell):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChunkReincarnatorForErasureSingleCell(TestChunkReincarnatorSingleCell):
     ENABLE_MULTIDAEMON = True
     ERASURE_CODEC = "reed_solomon_3_3"
@@ -1091,6 +1094,7 @@ class TestChunkReincarnatorForErasureMultiCell(TestChunkReincarnatorMultiCell):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestChunkReincarnationLeaderSwitch(TestChunkReincarnatorBase):
     ENABLE_MULTIDAEMON = True
 

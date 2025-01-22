@@ -12,11 +12,14 @@ import yt.environment.init_queue_agent_state as init_queue_agent_state
 
 import yt_error_codes
 
+import pytest
+
 import builtins
 
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCreateQueueProducer(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 
@@ -38,6 +41,7 @@ class TestCreateQueueProducer(TestQueueAgentBase):
         wait_for_tablet_state("//tmp/p", "mounted")
 
 
+@pytest.mark.enabled_multidaemon
 class TestCreateRemoveForQueueProducerSessions(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 
@@ -191,6 +195,7 @@ class TestCreateRemoveForQueueProducerSessions(TestQueueAgentBase):
         remove("//tmp/p")
 
 
+@pytest.mark.enabled_multidaemon
 class TestProducerApi(TestQueueAgentBase):
     ENABLE_MULTIDAEMON = True
 

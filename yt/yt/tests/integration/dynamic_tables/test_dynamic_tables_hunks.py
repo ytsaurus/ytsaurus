@@ -41,6 +41,7 @@ HUNK_COMPATIBLE_CHUNK_FORMATS = [
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 7
@@ -2281,6 +2282,7 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
     ENABLE_MULTIDAEMON = True
 
@@ -3121,6 +3123,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestOrderedMulticellHunks(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

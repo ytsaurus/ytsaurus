@@ -694,6 +694,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_operation_path(op2.id) + "/effective_fair_share_starvation_timeout", default=None) == 2000)
 
 
+@pytest.mark.enabled_multidaemon
 class TestPreemptibleProgressUpdate(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -861,6 +862,7 @@ class TestPreemptibleProgressUpdate(YTEnvSetup):
         map_op.track()
 
 
+@pytest.mark.enabled_multidaemon
 class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -998,6 +1000,7 @@ class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
         wait_no_assert(lambda: self._check_preemptible_job_count(op, 1, 2))
 
 
+@pytest.mark.enabled_multidaemon
 class TestPreemptionPriorityScope(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1078,6 +1081,7 @@ class TestPreemptionPriorityScope(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestRacyPreemption(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1134,6 +1138,7 @@ class TestRacyPreemption(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1174,6 +1179,7 @@ class TestSchedulingBugOfOperationWithGracefulPreemption(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1329,6 +1335,7 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerAggressivePreemption(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1495,6 +1502,7 @@ class TestSchedulerAggressivePreemption(YTEnvSetup):
 
 
 # TODO(ignat): merge with class above.
+@pytest.mark.enabled_multidaemon
 class TestSchedulerAggressivePreemption2(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1628,6 +1636,7 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestIncreasedStarvationToleranceForFullySatisfiedDemand(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

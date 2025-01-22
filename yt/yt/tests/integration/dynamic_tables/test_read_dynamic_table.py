@@ -20,6 +20,7 @@ import time
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -270,22 +271,26 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
             write_table("//tmp/t", [{"key": 1, "value": 2}])
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesReadTableMulticell(TestSortedDynamicTablesReadTable):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesReadTableRpcProxy(TestSortedDynamicTablesReadTable):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesReadTablePortal(TestSortedDynamicTablesReadTableMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestReadDynamicTableFormats(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 

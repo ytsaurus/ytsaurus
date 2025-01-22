@@ -3,12 +3,15 @@ from yt_commands import (
     authors, create_user, issue_token, revoke_token, wait, get, set_user_password
 )
 
+import pytest
+
 import requests
 import hashlib
 
 
 ##################################################################
 
+@pytest.mark.enabled_multidaemon
 class TestCypressTokenAuthBase(YTEnvSetup):
     NUM_MASTERS = 1
 
@@ -40,6 +43,7 @@ class TestCypressTokenAuthBase(YTEnvSetup):
         return hashlib.sha256(value.encode("utf-8")).hexdigest()
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressTokenAuth(TestCypressTokenAuthBase):
     DELTA_PROXY_CONFIG = {
         "auth": {
@@ -79,6 +83,7 @@ class TestCypressTokenAuth(TestCypressTokenAuthBase):
         wait(lambda: self._check_deny(token=t))
 
 
+@pytest.mark.enabled_multidaemon
 class TestAuthenticationCommands(TestCypressTokenAuthBase):
     DELTA_PROXY_CONFIG = {
         "auth": {
@@ -113,6 +118,7 @@ class TestAuthenticationCommands(TestCypressTokenAuthBase):
         self._make_request(f"/api/v4/list_user_tokens?user=u3&password_sha256={p2_sha256}", t).raise_for_status()
 
 
+@pytest.mark.enabled_multidaemon
 class TestAuthenticationCommandsWithNoPassword(TestCypressTokenAuthBase):
     DELTA_PROXY_CONFIG = {
         "driver": {

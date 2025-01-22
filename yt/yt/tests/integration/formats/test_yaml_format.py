@@ -8,6 +8,8 @@ import yaml
 
 import yt.yson as yson
 
+import pytest
+
 # Most of the logic is tested in unittests, see yaml_{writer,parser}_ut.cpp.
 # Here we just test that the format is correctly registered and can be used in
 # structured and tabular commands by various comparisons between the results
@@ -15,6 +17,7 @@ import yt.yson as yson
 
 
 @authors("max42")
+@pytest.mark.enabled_multidaemon
 class TestYamlFormat(YTEnvSetup):
     # We use operation archive table as a source of both complex structured data
     # and complex tabular data by retrieving its attributes and rows respectively.

@@ -25,6 +25,7 @@ from time import sleep, time
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCompactionPartitioning(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 4
@@ -927,6 +928,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCompactionPartitioningMulticell(TestCompactionPartitioning):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

@@ -35,6 +35,7 @@ from io import BytesIO
 
 
 @authors("ifsmirnov")
+@pytest.mark.enabled_multidaemon
 class TestBulkInsert(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
@@ -1450,6 +1451,7 @@ class TestBulkInsert(DynamicTablesBase):
 
 
 @authors("ifsmirnov")
+@pytest.mark.enabled_multidaemon
 class TestUnversionedUpdateFormat(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -2180,16 +2182,19 @@ class TestUnversionedUpdateFormat(DynamicTablesBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestBulkInsertMulticell(TestBulkInsert):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
+@pytest.mark.enabled_multidaemon
 class TestBulkInsertPortal(TestBulkInsertMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestBulkInsertShardedTx(TestBulkInsertPortal):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 3
@@ -2201,6 +2206,7 @@ class TestBulkInsertShardedTx(TestBulkInsertPortal):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestBulkInsertShardedTxCTxS(TestBulkInsertShardedTx):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -2215,6 +2221,7 @@ class TestBulkInsertShardedTxCTxS(TestBulkInsertShardedTx):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestBulkInsertMirroredTx(TestBulkInsertShardedTxCTxS):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 8
@@ -2234,12 +2241,14 @@ class TestBulkInsertMirroredTx(TestBulkInsertShardedTxCTxS):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestUnversionedUpdateFormatRpcProxy(TestUnversionedUpdateFormat):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestUnversionedUpdateFormatShardedTx(TestUnversionedUpdateFormat):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -2252,6 +2261,7 @@ class TestUnversionedUpdateFormatShardedTx(TestUnversionedUpdateFormat):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestUnversionedUpdateFormatShardedTxCTxS(TestUnversionedUpdateFormatShardedTx):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -2266,6 +2276,7 @@ class TestUnversionedUpdateFormatShardedTxCTxS(TestUnversionedUpdateFormatSharde
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestUnversionedUpdateFormatMirroredTx(TestUnversionedUpdateFormatShardedTxCTxS):
     ENABLE_MULTIDAEMON = True
     USE_SEQUOIA = True

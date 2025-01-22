@@ -8,9 +8,12 @@ from yt_commands import (
 
 from yt.environment.helpers import assert_items_equal
 
+import pytest
+
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCrossClusterTransactions(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -70,6 +73,7 @@ class TestCrossClusterTransactions(YTEnvSetup):
         assert_items_equal(select_rows("* from [//tmp/remote]", driver=self.remote_driver), REMOTE_ROWS)
 
 
+@pytest.mark.enabled_multidaemon
 class TestCrossClusterTransactionsRpcProxy(TestCrossClusterTransactions):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
