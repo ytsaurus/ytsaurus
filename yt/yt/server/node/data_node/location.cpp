@@ -1324,7 +1324,7 @@ void TChunkLocation::ReportThrottledRead() const
 }
 
 TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
-    TSessionId sessionId,
+    TChunkId chunkId,
     const TWorkloadDescriptor& workloadDescriptor,
     bool blocksWindowShifted,
     bool incrementCounter) const
@@ -1385,9 +1385,10 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
 
     if (throttled &&
         memoryOvercommit &&
-        ChunkStoreHost_->CanPassSessionOutOfTurn(sessionId))
+        ChunkStoreHost_->CanPassSessionOutOfTurn(chunkId))
     {
-        YT_LOG_WARNING("Session passed out of turn with possible overcommit (SessionId: %v)", sessionId);
+        YT_LOG_WARNING("Session passed out of turn with possible overcommit (Chunkd: %v)",
+            chunkId);
         throttled = false;
     }
 

@@ -35,11 +35,11 @@ public:
      */
     ISessionPtr StartSession(TSessionId sessionId, const TSessionOptions& options);
 
-    //! Finds session by session ID. Returns |nullptr| if no session is found.
-    ISessionPtr FindSession(TSessionId sessionId);
+    //! Finds session by chunk id. Returns |nullptr| if no session is found.
+    ISessionPtr FindSession(TChunkId chunkId);
 
-    //! Finds session by session ID. Throws if no session is found.
-    ISessionPtr GetSessionOrThrow(TSessionId sessionId);
+    //! Finds session by chunk id. Throws if no session is found.
+    ISessionPtr GetSessionOrThrow(TChunkId chunkId);
 
     //! Returns the number of currently active sessions of a given type.
     int GetSessionCount(ESessionType type);
@@ -53,17 +53,17 @@ public:
     //! Cancel all location sessions.
     void CancelLocationSessions(const TChunkLocationPtr& location);
 
-    bool CanPassSessionOutOfTurn(TSessionId sessionId);
+    bool CanPassSessionOutOfTurn(TChunkId chunkId);
 
     NYTree::IYPathServicePtr GetOrchidService();
 
 private:
     struct TSessionCreatedAtSortIndex
     {
-        TSessionId SessionId;
+        TChunkId ChunkId;
         TInstant StartedAt;
 
-        bool operator < (const TSessionCreatedAtSortIndex& other) const;
+        std::strong_ordering operator<=>(const TSessionCreatedAtSortIndex& other) const = default;
     };
 
     const TDataNodeConfigPtr Config_;
@@ -71,8 +71,7 @@ private:
     const NYTree::IYPathServicePtr OrchidService_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SessionMapLock_);
-    THashMap<TSessionId, ISessionPtr> SessionMap_;
-    THashMap<TChunkId, ISessionPtr> ChunkMap_;
+    THashMap<TChunkId, ISessionPtr> SessionMap_;
 
     std::atomic<bool> DisableWriteSessions_ = false;
 
@@ -80,7 +79,7 @@ private:
 
     ISessionPtr CreateSession(TSessionId sessionId, const TSessionOptions& options);
 
-    void OnSessionLeaseExpired(TSessionId sessionId);
+    void OnSessionLeaseExpired(TChunkId chunkId);
     void OnSessionFinished(const TWeakPtr<ISession>& weakSession, const TError& error);
 
     void RegisterSession(const ISessionPtr& session);

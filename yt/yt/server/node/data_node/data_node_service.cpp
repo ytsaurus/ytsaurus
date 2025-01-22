@@ -299,7 +299,7 @@ private:
         options.PlacementId = FromProto<TPlacementId>(request->placement_id());
         options.DisableSendBlocks = GetDynamicConfig()->UseDisableSendBlocks && request->disable_send_blocks();
 
-        context->SetRequestInfo("ChunkId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v, DisableSendBlocks: %v",
+        context->SetRequestInfo("SessionId: %v, Workload: %v, SyncOnClose: %v, EnableMultiplexing: %v, PlacementId: %v, DisableSendBlocks: %v",
             sessionId,
             options.WorkloadDescriptor,
             options.SyncOnClose,
@@ -317,19 +317,13 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FinishChunk)
     {
-        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto chunkId = FromProto<TChunkId>(request->session_id().chunk_id());
+
         auto blockCount = request->has_block_count() ? std::make_optional(request->block_count()) : std::nullopt;
         bool ignoreMissingSession = request->ignore_missing_session();
 
-        // COMPAT(babenko): This flag is only used for quorum journal session abort.
-        // Starting from 24.2, master will be sending AllMediaIndex by itself.
-        // Starting from 25.1, this compat may be removed.
-        if (ignoreMissingSession) {
-            sessionId.MediumIndex = AllMediaIndex;
-        }
-
         context->SetRequestInfo("ChunkId: %v, BlockCount: %v, IgnoreMissingSession: %v",
-            sessionId,
+            chunkId,
             blockCount,
             ignoreMissingSession);
 
@@ -337,12 +331,12 @@ private:
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
         auto session = ignoreMissingSession
-            ? sessionManager->FindSession(sessionId)
-            : sessionManager->GetSessionOrThrow(sessionId);
+            ? sessionManager->FindSession(chunkId)
+            : sessionManager->GetSessionOrThrow(chunkId);
         if (!session) {
             YT_VERIFY(ignoreMissingSession);
-            YT_LOG_DEBUG("Session is missing (SessionId: %v)",
-                sessionId);
+            YT_LOG_DEBUG("Session is missing (ChunkId: %v)",
+                chunkId);
             context->Reply();
             return;
         }
@@ -403,8 +397,10 @@ private:
         }
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->FindSession(sessionId);
+        auto session = sessionManager->FindSession(sessionId.ChunkId);
         if (!session) {
+            YT_LOG_DEBUG("Session is missing (ChunkId: %v)",
+                sessionId.ChunkId);
             context->Reply();
             return;
         }
@@ -420,12 +416,12 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PingSession)
     {
-        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
         context->SetRequestInfo("ChunkId: %v",
-            sessionId);
+            chunkId);
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSessionOrThrow(sessionId);
+        auto session = sessionManager->GetSessionOrThrow(chunkId);
         const auto& location = session->GetStoreLocation();
 
         session->Ping();
@@ -437,7 +433,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, PutBlocks)
     {
-        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
         int firstBlockIndex = request->first_block_index();
         int blockCount = std::ssize(request->Attachments());
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
@@ -448,7 +444,8 @@ private:
         ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSessionOrThrow(sessionId);
+        auto session = sessionManager->GetSessionOrThrow(chunkId);
+
         const auto& location = session->GetStoreLocation();
         auto options = session->GetSessionOptions();
         auto blocksWindowShifted = cumulativeBlockSize == 0 || cumulativeBlockSize != 0 && firstBlockIndex >= session->GetWindowSize();
@@ -457,7 +454,7 @@ private:
             "BlockIds: %v:%v-%v, PopulateCache: %v, "
             "FlushBlocks: %v, Medium: %v, "
             "DisableSendBlocks: %v, CumulativeBlockSize: %v, BlocksWindowShifted: %v",
-            sessionId,
+            chunkId,
             firstBlockIndex,
             lastBlockIndex,
             populateCache,
@@ -468,7 +465,7 @@ private:
             blocksWindowShifted);
 
         auto throttlingResult = location->CheckWriteThrottling(
-            session->GetId(),
+            session->GetChunkId(),
             session->GetWorkloadDescriptor(),
             blocksWindowShifted);
         throttlingResult.Error.ThrowOnError();
@@ -538,7 +535,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, SendBlocks)
     {
-        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
         int firstBlockIndex = request->first_block_index();
         int blockCount = request->block_count();
         int lastBlockIndex = firstBlockIndex + blockCount - 1;
@@ -546,7 +543,7 @@ private:
         auto targetDescriptor = FromProto<TNodeDescriptor>(request->target_descriptor());
 
         context->SetRequestInfo("BlockIds: %v:%v-%v, CumulativeBlockSize: %v, Target: %v",
-            sessionId,
+            chunkId,
             firstBlockIndex,
             lastBlockIndex,
             cumulativeBlockSize,
@@ -555,7 +552,7 @@ private:
         ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSessionOrThrow(sessionId);
+        auto session = sessionManager->GetSessionOrThrow(chunkId);
         session->SendBlocks(firstBlockIndex, blockCount, cumulativeBlockSize, targetDescriptor)
             .Subscribe(BIND([=] (const TDataNodeServiceProxy::TErrorOrRspPutBlocksPtr& errorOrRsp) {
                 if (errorOrRsp.IsOK()) {
@@ -573,17 +570,17 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, FlushBlocks)
     {
-        auto sessionId = FromProto<TSessionId>(request->session_id());
+        auto chunkId = FromProto<TSessionId>(request->session_id()).ChunkId;
         int blockIndex = request->block_index();
 
         context->SetRequestInfo("BlockId: %v:%v",
-            sessionId,
+            chunkId,
             blockIndex);
 
         ValidateOnline();
 
         const auto& sessionManager = Bootstrap_->GetSessionManager();
-        auto session = sessionManager->GetSessionOrThrow(sessionId);
+        auto session = sessionManager->GetSessionOrThrow(chunkId);
         const auto& location = session->GetStoreLocation();
         auto result = session->FlushBlocks(blockIndex);
 
@@ -704,12 +701,12 @@ private:
                 continue;
             }
 
-            auto p2pSessionId = FromProto<TGuid>(barrier.session_id());
-            auto barrierFuture = p2pBlockCache->WaitSessionIteration(p2pSessionId, barrier.iteration());
+            auto sessionId = FromProto<TGuid>(barrier.session_id());
+            auto barrierFuture = p2pBlockCache->WaitSessionIteration(sessionId, barrier.iteration());
 
             if (!barrierFuture.IsSet()) {
                 YT_LOG_DEBUG("Waiting for P2P barrier (SessionId: %v, Iteration: %v)",
-                    p2pSessionId,
+                    sessionId,
                     barrier.iteration());
                 barrierFutures.push_back(barrierFuture);
             }
