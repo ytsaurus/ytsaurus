@@ -67,7 +67,7 @@ TFuture<std::vector<TErrorOr<TObjectLock>>> DoAcquireSnapshotLocksAsync(
     for (size_t index = 0; index < paths.size(); ++index) {
         auto req = TCypressYPathProxy::Lock(paths[index]);
         req->Tag() = index;
-        req->set_mode(NYT::ToProto(ELockMode::Snapshot));
+        req->set_mode(static_cast<int>(ELockMode::Snapshot));
         SetTransactionId(req, readTransactionId);
         batchReq->AddRequest(req);
     }
