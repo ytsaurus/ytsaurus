@@ -22,8 +22,6 @@
 
 #include <yt/cpp/mapreduce/library/lazy_sort/lazy_sort.h>
 
-#include <yt/cpp/mapreduce/raw_client/raw_requests.h>
-
 #include <yt/cpp/mapreduce/util/wait_for_tablets_state.h>
 
 #include <library/cpp/digest/md5/md5.h>

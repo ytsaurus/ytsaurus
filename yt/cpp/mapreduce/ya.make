@@ -3,11 +3,11 @@ RECURSE(
     client
     examples/tutorial
     http
+    http_client
     interface
     interface/logging
     io
     library
-    raw_client
     rpc_client
     skiff
     util
