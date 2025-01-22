@@ -20,7 +20,32 @@ Different types of objects have their own set of type-specific system attributes
 
 System attributes are either modifiable (can be changed by the user), such as `compression_codec`, or unmodifiable, such as `compressed_data_size`. If you try to set an unmodifiable attribute, the system will return an error. Attempting to remove a system attribute will also cause an error.
 
-Some attributes are **inherited**: `compression_codec`, `erasure_codec`, `primary_medium`, `media`, `replication_factor`, `vital`, `tablet_cell_bundle`, `atomicity`, `commit_ordering`, `in_memory_mode`, and `optimize_for`. Besides objects for which the semantics of these attributes is obvious (tables, files, etc.), these attributes can be set on composite nodes (i.e. on map and list nodes). Inherited attributes are nullable with respect to composite nodes. When no value for an inherited attribute is specified when creating a new object, that attribute gets the value of the closest ancestor node, or the default value if no ancestor up to the root has the attribute set.
+Some attributes are **inheritable**: these attributes can be set on directories (a.k.a. map nodes) where they are nullable, i.e. may lack (and, indeed, do lack by default) a value. If no value for an inheritable attribute is specified when creating a new object, that attribute gets the value of the closest ancestor node, or the default value if no ancestor up to the root has the attribute set.
+
+Different types of objects inherit different sets of attributes. The following attributes are inherited by **tables, files, and journals:**
+  - `chunk_merger_mode`;
+  - `compression_codec`;
+  - `enable_striped_erasure`;
+  - `erasure_codec`;
+  - `hunk_media`;
+  - `hunk_primary_medium`;
+  - `media`;
+  - `primary_medium`;
+  - `replication_factor`;
+  - `vital`.
+
+In addition, the following attributes are inherited by **tables only:**
+  - `atomicity`;
+  - `hunk_erasure_codec`;
+  - `commit_ordering`;
+  - `in_memory_mode`;
+  - `optimize_for`;
+  - `profiling_mode`;
+  - `profiling_tag`;
+  - `tablet_cell_bundle`.
+
+**Chaos replicated tables** inherit the following attributes:
+  - `chaos_cell_bundle`.
 
 System attributes can also be **opaque** (or **computed**). The value of an **opaque** attribute will be available only when explicitly requested with the `get` command, but will not be available when all attributes are requested. Specifically, when all attributes are requested, the value of an opaque attribute will be set to **entity**. Most often, attributes are declared as opaque when they have a large value (in terms of occupied memory) or take a long time to compute.{% if audience == "public" %} In practical terms, if the value of an attribute is 100 KB or more, you should probably make it opaque. In this case, when all attributes are requested, it will not be returned, making it fast to read all attributes. To get the value of an opaque attribute, you must explicitly request it.{% endif %} An example of an opaque attribute will be a list of all table chunks (the `chunk_ids` attribute) or the total usage of resources by Cypress subtree (the `recursive_resource_usage` attribute).
 
