@@ -53,6 +53,7 @@ public:
         AnalyzeScheduleJobStatistics();
         AnalyzeControllerQueues();
         AnalyzeInvalidatedJobs();
+        AnalyzeTasksPausedSchedulingDuration();
     }
 
 private:
@@ -803,6 +804,40 @@ private:
             auto invalidatedJobCountError = TError("Operation has invalidated jobs")
                 << TErrorAttribute("invalidated_job_count", invalidatedJobCount);
             Host_->SetOperationAlert(EOperationAlertType::InvalidatedJobsFound, invalidatedJobCountError);
+        }
+    }
+
+    void AnalyzeTasksPausedSchedulingDuration()
+    {
+        if (Host_->GetOperationType() != EOperationType::RemoteCopy) {
+            return;
+        }
+
+        std::optional<TString> taskWithLongPausedScheduling;
+        for (const auto& task : Host_->GetTasks()) {
+            auto totalDuration = task->GetTotalDuration();
+            auto pausedSchedulingDuration = task->GetPausedSchedulingDuration();
+
+            double pausedSchedulingRatio = 0;
+            if (totalDuration < pausedSchedulingDuration) {
+                // Scheduling has been paused from the beginning of operation.
+                pausedSchedulingRatio = 1.0;
+            } else if (TDuration::Zero() < totalDuration) {
+                pausedSchedulingRatio = pausedSchedulingDuration / totalDuration;
+            }
+            if (Host_->GetConfig()->AlertManager->TaskPausedSchedulingRatioThreshold < pausedSchedulingRatio) {
+                taskWithLongPausedScheduling = task->GetTitle();
+                break;
+            }
+        }
+
+        if (taskWithLongPausedScheduling) {
+            auto error = TError("Operation has task with long paused scheduling")
+                << TErrorAttribute("task_with_long_paused_scheduling", *taskWithLongPausedScheduling);
+
+            Host_->SetOperationAlert(
+                EOperationAlertType::HasTaskWithLongPausedScheduling,
+                error);
         }
     }
 
