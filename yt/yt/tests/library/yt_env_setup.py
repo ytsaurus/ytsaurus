@@ -1817,7 +1817,10 @@ class YTEnvSetup(object):
             "check_operation_for_liveness_in_preschedule": False,
         }
 
+        media = yt_commands.ls("//sys/media", driver=driver)
+
         for response in yt_commands.execute_batch(
+            [yt_commands.make_batch_request("set", path=f"//sys/media/{medium}/@config", input={}) for medium in media] +
             [
                 yt_commands.make_batch_request(
                     "set",

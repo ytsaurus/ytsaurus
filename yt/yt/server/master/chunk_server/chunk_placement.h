@@ -254,6 +254,15 @@ private:
         const NNodeTrackerServer::TDataCenter* dataCenter,
         const NNodeTrackerClient::TAggregatedNodeStatistics& dataCenterStatistics,
         bool dataCenterIsEnabled) const;
+
+    // TODO(shakurov): consider moving this to TChunk. At the moment,
+    // TChunk::GetMaxReplicasPerFailureDomain and TChunk::GetPhysicalReplicationFactor
+    // respect neither global nor medium-specific RF caps. Refactor.
+    int CapTotalReplicationFactor(int replicationFactor, const TMedium* medium) const;
+    int CapPerRackReplicationFactor(
+        int replicationFactor,
+        const TMedium* medium,
+        const TChunk* chunk) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TChunkPlacement)
