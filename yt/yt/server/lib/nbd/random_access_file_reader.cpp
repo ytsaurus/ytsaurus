@@ -167,6 +167,12 @@ private:
 
         std::vector<TFuture<std::vector<TSharedRef>>> readFutures;
         for (const auto& chunk : chunks) {
+            YT_VERIFY(chunk.Size > 0);
+
+            if (length <= 0) {
+                break;
+            }
+
             auto chunkBegin = chunk.Offset;
             auto chunkEnd = chunkBegin + chunk.Size;
 
@@ -421,6 +427,7 @@ private:
             YT_LOG_INFO("Finish creating chunk reader (Chunk: %v)",
                 chunk.Index);
 
+            offset += miscExt.uncompressed_data_size();
             Size_ += miscExt.uncompressed_data_size();
         }
 
