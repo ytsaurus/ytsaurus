@@ -200,6 +200,9 @@ public:
     // if queues with average wait time above this threshold are found.
     TDuration QueueTotalTimeEstimateThreshold;
 
+    // Ratio.
+    double TaskPausedSchedulingRatioThreshold;
+
     REGISTER_YSON_STRUCT(TAlertManagerConfig);
 
     static void Register(TRegistrar registrar);

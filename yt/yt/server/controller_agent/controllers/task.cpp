@@ -2473,6 +2473,19 @@ void TTask::UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, cons
     }
 }
 
+TDuration TTask::GetTotalDuration() const
+{
+    if (!StartTime_) {
+        return TDuration::Zero();
+    }
+    return TInstant::Now() - *StartTime_;
+}
+
+TDuration TTask::GetPausedSchedulingDuration() const
+{
+    return TDuration::Zero();
+}
+
 PHOENIX_DEFINE_TYPE(TTask);
 
 ////////////////////////////////////////////////////////////////////////////////

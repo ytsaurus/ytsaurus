@@ -2172,6 +2172,28 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         }
     }
 
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operations_update_period": 100,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "operations_update_period": 100,
+            "operation_alerts_push_period": 100,
+            "alert_manager": {
+                "period": 100,
+                "task_paused_scheduling_ratio_threshold": 0.01,
+            },
+            "remote_copy_operation_options": {
+                "spec_template": {
+                    "use_remote_master_caches": True,
+                },
+            },
+        },
+    }
+
     CHUNK_COUNT = 3
     BANDWIDTH_LIMIT = 10 ** 6
     THROTTLER_JITTER_MULTIPLIER = 0.7
@@ -2385,7 +2407,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         remote_copy_start_time = time.time()
 
         # Copy table from remote cluster to local cluster.
-        remote_copy(
+        op = remote_copy(
             in_="//tmp/remote_table",
             out="//tmp/local_table",
             spec={
@@ -2449,3 +2471,6 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
             op.track()
 
         assert 'Operation is running for too long' in str(err)
+
+        # Check that operation scheduling was paused due to unavailable network bandwidth.
+        assert 'has_task_with_long_paused_scheduling' in op.get_alerts()

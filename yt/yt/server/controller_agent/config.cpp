@@ -221,6 +221,10 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("queue_total_time_estimate_threshold", &TThis::QueueTotalTimeEstimateThreshold)
         .Alias("queue_average_wait_time_threshold")
         .Default(TDuration::Minutes(1));
+
+    registrar.Parameter("task_paused_scheduling_ratio_threshold", &TThis::TaskPausedSchedulingRatioThreshold)
+        .Default(0.3)
+        .InRange(0.0, 1.0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
