@@ -982,6 +982,7 @@ def add_reshard_table_parser(add_parser):
     parser.add_argument("--uniform", action="store_true")
     parser.add_argument("--enable-slicing", action="store_true")
     parser.add_argument("--slicing-accuracy", type=float)
+    parser.add_argument("--trimmed-row-counts", type=int, nargs="+")
 
 
 def add_reshard_table_automatic_parser(add_parser):

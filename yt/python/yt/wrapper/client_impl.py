@@ -2173,7 +2173,7 @@ class YtClient(ClientState):
             self,
             path,
             pivot_keys=None, tablet_count=None, first_tablet_index=None, last_tablet_index=None,
-            uniform=None, enable_slicing=None, slicing_accuracy=None, sync=False):
+            uniform=None, enable_slicing=None, slicing_accuracy=None, trimmed_row_counts=None, sync=False):
         """
         Changes pivot keys separating tablets of a given table.
 
@@ -2191,6 +2191,8 @@ class YtClient(ClientState):
         :param bool enable_slicing:
         use more precise algorithm for picking pivot keys when tablet_count
         is specified.
+        :param List[int] trimmed_row_counts: new initial tirmmed row counts
+        for the new tablets of the ordered table.
         :param bool sync: wait for completion.
 
 
@@ -2200,7 +2202,7 @@ class YtClient(ClientState):
             client=self,
             pivot_keys=pivot_keys, tablet_count=tablet_count, first_tablet_index=first_tablet_index,
             last_tablet_index=last_tablet_index, uniform=uniform, enable_slicing=enable_slicing, slicing_accuracy=slicing_accuracy,
-            sync=sync)
+            trimmed_row_counts=trimmed_row_counts, sync=sync)
 
     def reshard_table_automatic(
             self,
