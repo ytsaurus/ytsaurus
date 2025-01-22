@@ -3234,7 +3234,11 @@ bool TOperationControllerBase::OnJobCompleted(
                 jobSummary->InterruptionReason);
         }
 
-        YT_VERIFY((jobSummary->InterruptionReason == EInterruptReason::None) ^ restartNeeded);
+        YT_VERIFY(
+            (jobSummary->InterruptionReason == EInterruptReason::None && jobResultExt.unread_chunk_specs_size() == 0) ||
+            (jobSummary->InterruptionReason != EInterruptReason::None && (
+                jobResultExt.unread_chunk_specs_size() != 0 ||
+                jobResultExt.restart_needed())));
 
         // Validate all node ids of the output chunks and populate the local node directory.
         // In case any id is not known, abort the job.
