@@ -817,7 +817,7 @@ private:
         }
 
         // Update throttlers global data.
-        ThrottlerToGlobalUsage_.Store(std::move(newThrottlerToGlobalUsage));
+        ThrottlerToGlobalUsage_.Store(newThrottlerToGlobalUsage.Get());
     }
 
     void ForgetDeadThrottlers()
