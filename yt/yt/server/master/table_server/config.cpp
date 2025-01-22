@@ -10,6 +10,9 @@ void TDynamicTableManagerConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(8_KB)
         .DontSerializeDefault();
+
+    registrar.Parameter("max_schema_attribute_opaque", &TThis::MakeSchemaAttributeOpaque)
+        .Default(true);
 }
 
 void TTableManagerConfig::Register(TRegistrar /*registrar*/)

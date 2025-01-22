@@ -14,6 +14,9 @@ class TDynamicTableManagerConfig
 public:
     i64 MaxSchemaMemoryUsageToLog;
 
+    // COMPAT(cherepashka, aleksandra-zh).
+    bool MakeSchemaAttributeOpaque;
+
     REGISTER_YSON_STRUCT(TDynamicTableManagerConfig)
 
     static void Register(TRegistrar registrar);
