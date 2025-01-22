@@ -21,6 +21,7 @@ import pytest
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCheckPermissionProfiling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -345,6 +346,7 @@ class CheckPermissionBase(YTEnvSetup):
             assert_items_equal(response_parameters["omitted_inaccessible_columns"], [b"a", b"b"])
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressAcls(CheckPermissionBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -1943,12 +1945,14 @@ class TestCypressAcls(CheckPermissionBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressAclsMulticell(TestCypressAcls):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 3
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
+@pytest.mark.enabled_multidaemon
 class TestCheckPermissionRpcProxy(CheckPermissionBase):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -1956,6 +1960,7 @@ class TestCheckPermissionRpcProxy(CheckPermissionBase):
     ENABLE_RPC_PROXY = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressAclsPortal(TestCypressAclsMulticell):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 3

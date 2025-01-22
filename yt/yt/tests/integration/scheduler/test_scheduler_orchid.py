@@ -15,12 +15,15 @@ from yt.common import YtError
 
 from yt import yson
 
+import pytest
+
 import builtins
 import time
 
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -232,6 +235,7 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
         }
 
 
+@pytest.mark.enabled_multidaemon
 class TestOrchidOnSchedulerRestart(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -274,6 +278,7 @@ class TestOrchidOnSchedulerRestart(YTEnvSetup):
 
 
 @authors("renadeen")
+@pytest.mark.enabled_multidaemon
 class TestRedirectToClusterAttribute(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

@@ -3437,6 +3437,7 @@ class TestDynamicTablesErasureJournals(TestDynamicTablesSingleCell):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestDynamicTablesSafeMode(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     USE_PERMISSION_CACHE = False
@@ -3618,6 +3619,7 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         assert get("//tmp/t/@remount_needed_tablet_count") == 0
 
 
+@pytest.mark.enabled_multidaemon
 class TestDynamicTablesDecommissionStall(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -3703,6 +3705,7 @@ class TestDynamicTablesRpcProxy(TestDynamicTablesSingleCell):
         pass
 
 
+@pytest.mark.enabled_multidaemon
 class TestDynamicTablesWithAbandoningLeaderLeaseDuringRecovery(DynamicTablesSingleCellBase):
     ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {
@@ -3723,6 +3726,7 @@ class TestDynamicTablesWithAbandoningLeaderLeaseDuringRecovery(DynamicTablesSing
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestTabletOrchid(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {
@@ -3827,6 +3831,7 @@ class TestTabletOrchid(DynamicTablesBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestTabletCellJanitor(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3

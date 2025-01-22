@@ -19,6 +19,7 @@ import pytest
 
 ##################################################################
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerJoinReduceBase(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -151,6 +152,7 @@ class TestSchedulerJoinReduceBase(YTEnvSetup):
         ] * 10
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerJoinReduceForeignLookupDisabledByKeyLimit(TestSchedulerJoinReduceBase):
     ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = update(TestSchedulerJoinReduceBase.DELTA_CONTROLLER_AGENT_CONFIG, {
@@ -166,6 +168,7 @@ class TestSchedulerJoinReduceForeignLookupDisabledByKeyLimit(TestSchedulerJoinRe
     EXPECTED_INTERRUPT_JOB_EXTRA_ROW_COUNT = 0
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerJoinReduceForeignLookupDisabledByDataWeightLimit(TestSchedulerJoinReduceBase):
     ENABLE_MULTIDAEMON = True
     DELTA_CONTROLLER_AGENT_CONFIG = update(TestSchedulerJoinReduceBase.DELTA_CONTROLLER_AGENT_CONFIG, {
@@ -181,6 +184,7 @@ class TestSchedulerJoinReduceForeignLookupDisabledByDataWeightLimit(TestSchedule
     EXPECTED_INTERRUPT_JOB_EXTRA_ROW_COUNT = 0
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerJoinReduceCommands(TestSchedulerJoinReduceBase):
     ENABLE_MULTIDAEMON = True
 
@@ -1940,6 +1944,7 @@ done
         assert get("//tmp/out/@sorted")
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerJoinReduceCommandsMulticell(TestSchedulerJoinReduceCommands):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
@@ -1948,6 +1953,7 @@ class TestSchedulerJoinReduceCommandsMulticell(TestSchedulerJoinReduceCommands):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMaxTotalSliceCount(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1992,6 +1998,7 @@ class TestMaxTotalSliceCount(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerJoinReduceCommandsNewSortedPool(TestSchedulerJoinReduceCommands):
     ENABLE_MULTIDAEMON = True
     DELTA_SCHEDULER_CONFIG = {

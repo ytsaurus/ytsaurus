@@ -4,7 +4,10 @@ from yt_commands import (authors, create, write_table, merge, raises_yt_error)
 
 from time import sleep
 
+import pytest
 
+
+@pytest.mark.enabled_multidaemon
 class TestControllerTransactions(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 3

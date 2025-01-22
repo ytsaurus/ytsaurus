@@ -87,6 +87,7 @@ def make_skiff_format(*table_skiff_schemas):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSkiffFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3
@@ -705,6 +706,7 @@ while True:
     (76, 32, "yson32"),
 ])
 @authors("ermolovd")
+@pytest.mark.enabled_multidaemon
 class TestGoodSkiffDecimal(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 

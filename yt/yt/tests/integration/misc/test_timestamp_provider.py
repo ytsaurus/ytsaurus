@@ -2,9 +2,12 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import authors, generate_timestamp, start_transaction, commit_transaction
 
+import pytest
+
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestTimestampProvider(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -26,6 +29,7 @@ class TestTimestampProvider(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestTimestampProviderClocks(TestTimestampProvider):
     ENABLE_MULTIDAEMON = True
     NUM_CLOCKS = 1

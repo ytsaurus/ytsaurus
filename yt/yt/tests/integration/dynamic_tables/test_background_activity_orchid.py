@@ -26,6 +26,7 @@ EMPTY_TASK_DICT = {
 #################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestBackgroundActivityOrchid(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 3

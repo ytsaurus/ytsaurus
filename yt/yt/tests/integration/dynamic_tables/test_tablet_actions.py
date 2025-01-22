@@ -1476,6 +1476,7 @@ class TabletBalancerBase(TabletActionsBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestTabletBalancer(TabletBalancerBase):
     ENABLE_MULTIDAEMON = True
     ENABLE_TABLET_BALANCER = True
@@ -1602,11 +1603,13 @@ class TestTabletActionsRpcProxy(TestTabletActions):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestTabletBalancerMulticell(TestTabletBalancer):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
+@pytest.mark.enabled_multidaemon
 class TestTabletBalancerRpcProxy(TestTabletBalancer):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -1616,6 +1619,7 @@ class TestTabletBalancerRpcProxy(TestTabletBalancer):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestRemoteChangelogStore(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1646,6 +1650,7 @@ class TestRemoteChangelogStore(YTEnvSetup):
                     assert get("#{}/@native_cell_tag".format(chunk_id)) == desired_cell_tag
 
 
+@pytest.mark.enabled_multidaemon
 class TestRemoteChangelogStoreMulticell(TestRemoteChangelogStore):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

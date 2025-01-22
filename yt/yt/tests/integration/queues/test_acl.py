@@ -2,9 +2,12 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (authors, get, set, create, raises_yt_error, create_user, check_permission)
 
+import pytest
+
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestRegisterQueueConsumerPermission(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 
@@ -44,6 +47,7 @@ class TestRegisterQueueConsumerPermission(YTEnvSetup):
         assert check_permission("u_vital", "register_queue_consumer", "//tmp/t", vital=True)["action"] == "allow"
 
 
+@pytest.mark.enabled_multidaemon
 class TestRegisterQueueConsumerPermissionRpcProxy(TestRegisterQueueConsumerPermission):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"

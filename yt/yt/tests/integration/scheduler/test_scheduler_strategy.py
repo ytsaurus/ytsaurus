@@ -52,6 +52,7 @@ def get_from_tree_orchid(tree, path, **kwargs):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestResourceUsage(YTEnvSetup, PrepareTables):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -548,6 +549,7 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -609,6 +611,7 @@ class TestStrategyWithSlowController(YTEnvSetup, PrepareTables):
         assert abs(op1.get_job_count("running") - op2.get_job_count("running")) <= self.CONCURRENT_HEARTBEAT_LIMIT
 
 
+@pytest.mark.enabled_multidaemon
 class TestUnavailableChunkStrategies(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1243,6 +1246,7 @@ class TestSchedulerOperationLimits(YTEnvSetup):
         time.sleep(1)
 
 
+@pytest.mark.enabled_multidaemon
 class TestLightweightOperations(YTEnvSetup, PrepareTables):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1579,6 +1583,7 @@ class TestLightweightOperations(YTEnvSetup, PrepareTables):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestInferWeightFromGuarantees(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1708,6 +1713,7 @@ class TestInferWeightFromGuarantees(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerStuckOperations(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1941,6 +1947,7 @@ class TestSchedulerStuckOperations(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestEphemeralPools(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2445,6 +2452,7 @@ class TestEphemeralPools(YTEnvSetup):
         run_test_vanilla(":", track=True, spec={"pool": "ephemeral_hub"})
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerPoolsCommon(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2578,6 +2586,7 @@ class TestSchedulerPoolsCommon(YTEnvSetup):
             update_op_parameters(op.id, parameters={"pool": "invalid|name"})
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerPoolsReconfiguration(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2677,6 +2686,7 @@ class TestSchedulerPoolsReconfiguration(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerSuspiciousJobs(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2889,6 +2899,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMinNeededResources(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2992,6 +3003,7 @@ class TestMinNeededResources(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_CPUS_PER_NODE = 10
@@ -3708,6 +3720,7 @@ class TestIntegralGuarantees(YTEnvSetup):
 
 
 @authors("renadeen")
+@pytest.mark.enabled_multidaemon
 class TestCrashDuringDistributingFreeVolumeAfterRemovingAllResourceFlow(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     # Scenario:
@@ -3781,6 +3794,7 @@ class TestCrashDuringDistributingFreeVolumeAfterRemovingAllResourceFlow(YTEnvSet
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSatisfactionRatio(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -4190,6 +4204,7 @@ class TestVectorStrongGuarantees(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestPriorityStrongGuaranteeAdjustment(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -4460,6 +4475,7 @@ class TestPriorityStrongGuaranteeAdjustment(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestFifoPools(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -4660,6 +4676,7 @@ class TestFifoPools(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestRaceBetweenOperationUnregistrationAndFairShareUpdate(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -4714,6 +4731,7 @@ class TestRaceBetweenOperationUnregistrationAndFairShareUpdate(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestGuaranteePriorityScheduling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

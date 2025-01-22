@@ -983,6 +983,7 @@ class TestSchedulerCommonMulticell(TestSchedulerCommon):
 
 
 @pytest.mark.opensource
+@pytest.mark.enabled_multidaemon
 class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1050,6 +1051,7 @@ class TestMultipleSchedulers(YTEnvSetup, PrepareTables):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerMaxChunkPerJob(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1124,6 +1126,7 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
 
 ##################################################################
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerMaxInputOutputTableCount(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1168,6 +1171,7 @@ class TestSchedulerMaxInputOutputTableCount(YTEnvSetup):
 
 ##################################################################
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1235,6 +1239,7 @@ class TestSchedulerMaxChildrenPerAttachRequest(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerOperationSnapshots(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1372,6 +1377,7 @@ class TestSchedulerOperationSnapshots(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1440,6 +1446,7 @@ class TestSchedulerHeterogeneousConfiguration(YTEnvSetup):
 ###############################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerJobStatistics(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1623,6 +1630,7 @@ class TestConnectToMaster(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestJobStatisticsPorto(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SCHEDULERS = 1
@@ -1710,6 +1718,7 @@ class TestJobStatisticsPorto(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerObjectsDestruction(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1812,6 +1821,7 @@ class TestScheduleJobDelayAndRevive(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestDelayInNodeHeartbeat(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     # YT-17272

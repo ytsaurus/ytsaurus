@@ -754,6 +754,7 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
 
 
 @authors("renadeen")
+@pytest.mark.enabled_multidaemon
 class TestConfigurablePoolTreeRoot(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -780,6 +781,7 @@ class TestConfigurablePoolTreeRoot(YTEnvSetup):
 
 
 @authors("renadeen")
+@pytest.mark.enabled_multidaemon
 class TestPoolTreesUpdateUnderLock(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -818,6 +820,7 @@ class TestPoolTreesUpdateUnderLock(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestTentativePoolTrees(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1153,6 +1156,7 @@ class TestTentativePoolTrees(YTEnvSetup):
         wait(lambda: op.get_runtime_progress("scheduling_info_per_pool_tree/other/tentative"))
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1693,6 +1697,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestPoolTreeOperationLimits(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1937,6 +1942,7 @@ class TestOperationJobResourceLimitsRestrictions(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestTreeSetChangedDuringFairShareUpdate(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -1967,6 +1973,7 @@ class TestTreeSetChangedDuringFairShareUpdate(YTEnvSetup):
 
 
 @authors("renadeen")
+@pytest.mark.enabled_multidaemon
 class TestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     # Scenario:
@@ -2013,6 +2020,7 @@ class TestRaceBetweenSchedulingJobAndDisablingOperation(YTEnvSetup):
 
 
 @authors("renadeen")
+@pytest.mark.enabled_multidaemon
 class TestMultiTreeOperations(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2053,6 +2061,7 @@ class TestMultiTreeOperations(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestOffloadingPools(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -2391,6 +2400,7 @@ class TestOffloadingPools(YTEnvSetup):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestNodeCountProfiling(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

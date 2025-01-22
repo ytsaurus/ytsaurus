@@ -2,9 +2,12 @@ from yt_env_setup import YTEnvSetup, wait
 
 from yt_commands import authors, ls, get, exists
 
+import pytest
+
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestCypressAnnotations(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

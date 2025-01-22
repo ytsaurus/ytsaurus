@@ -16,6 +16,8 @@ from yt_commands import (
 
 from yt.common import YtError
 
+import pytest
+
 
 def get_sorted_jobs(op):
     jobs = []
@@ -26,6 +28,7 @@ def get_sorted_jobs(op):
     return sorted(jobs, key=lambda job: job["start_time"])
 
 
+@pytest.mark.enabled_multidaemon
 class TestCrashOnSchedulingJobWithStaleNeededResources(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     # Scenario:
@@ -63,6 +66,7 @@ class TestCrashOnSchedulingJobWithStaleNeededResources(YTEnvSetup):
         op.track()
 
 
+@pytest.mark.enabled_multidaemon
 class TestCrashOnLostProbingJobResult(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     # YT-17172

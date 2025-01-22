@@ -655,6 +655,7 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
         op.track()
 
 
+@pytest.mark.enabled_multidaemon
 class TestYTDiscoveryServiceInVanilla(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -681,6 +682,7 @@ class TestSchedulerVanillaCommandsMulticell(TestSchedulerVanillaCommands):
 
 ##################################################################
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerVanillaInterrupts(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
@@ -799,6 +801,7 @@ wait $child_pid
         op.track()
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerVanillaInterruptsPorto(TestSchedulerVanillaInterrupts):
     ENABLE_MULTIDAEMON = True
     USE_PORTO = True

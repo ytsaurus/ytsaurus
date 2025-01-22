@@ -131,6 +131,7 @@ UNIFIED_TYPES_YSON = [s.strip() for s in UNIFIED_TYPES_YSON]
 
 
 @authors("ermolovd")
+@pytest.mark.enabled_multidaemon
 class TestTypeV3Type(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
 

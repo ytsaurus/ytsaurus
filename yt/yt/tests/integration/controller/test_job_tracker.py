@@ -449,6 +449,7 @@ class TestJobTracker(YTEnvSetup):
         op.track()
 
 
+@pytest.mark.enabled_multidaemon
 class TestJobTrackerRaces(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

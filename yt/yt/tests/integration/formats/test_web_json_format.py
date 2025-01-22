@@ -389,6 +389,7 @@ def _assert_yql_row_match(actual_row, expected_row, type_registry):
         assert expected_type == actual_type
 
 
+@pytest.mark.enabled_multidaemon
 class TestWebJsonFormat(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3

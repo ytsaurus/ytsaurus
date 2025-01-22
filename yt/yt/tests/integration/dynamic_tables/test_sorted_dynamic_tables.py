@@ -46,6 +46,7 @@ def get_tablet_follower_addresses(tablet_id):
 
 ##################################################################
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesBase(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_NODE_CONFIG = {
@@ -236,6 +237,7 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTables(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 6
@@ -1838,11 +1840,13 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         wait(lambda: select_rows(query) == [])
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesPortal(TestSortedDynamicTablesMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -1856,6 +1860,7 @@ class TestSortedDynamicTablesPortal(TestSortedDynamicTablesMulticell):
     }
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -1943,6 +1948,7 @@ class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -2136,17 +2142,20 @@ class TestSortedDynamicTablesSpecialColumns(TestSortedDynamicTablesBase):
         assert_items_equal(actual, expected)
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesSpecialColumnsMulticell(TestSortedDynamicTablesSpecialColumns):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesSpecialColumnsRpcProxy(TestSortedDynamicTablesSpecialColumns):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesSpecialColumnsPortal(TestSortedDynamicTablesSpecialColumnsMulticell):
     ENABLE_MULTIDAEMON = True
     ENABLE_TMP_PORTAL = True
@@ -2154,6 +2163,7 @@ class TestSortedDynamicTablesSpecialColumnsPortal(TestSortedDynamicTablesSpecial
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 1
@@ -2314,6 +2324,7 @@ class TestSortedDynamicTablesMemoryLimit(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t", [{"key": 3, "value": "value3"}])
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMemoryLimitRpcProxy(TestSortedDynamicTablesMemoryLimit):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
@@ -2322,6 +2333,7 @@ class TestSortedDynamicTablesMemoryLimitRpcProxy(TestSortedDynamicTablesMemoryLi
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMultipleWriteBatches(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     DELTA_DRIVER_CONFIG = {
@@ -2341,6 +2353,7 @@ class TestSortedDynamicTablesMultipleWriteBatches(TestSortedDynamicTablesBase):
 ################################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 1
@@ -2490,6 +2503,7 @@ class TestSortedDynamicTablesTabletDynamicMemory(TestSortedDynamicTablesBase):
                 break
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesMultipleSlotsPerNode(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 1
@@ -2533,6 +2547,7 @@ class TestSortedDynamicTablesMultipleSlotsPerNode(TestSortedDynamicTablesBase):
         assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
 
+@pytest.mark.enabled_multidaemon
 class TestReshardWithSlicing(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 2
@@ -2871,6 +2886,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestSortedDynamicTablesChunkFormat(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -2961,6 +2977,7 @@ class TestSortedDynamicTablesChunkFormat(TestSortedDynamicTablesBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestDynamicTablesTtl(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 
@@ -3158,6 +3175,7 @@ class TestDynamicTablesTtl(DynamicTablesBase):
         assert lookup_rows("//tmp/t", keys) == rows
 
 
+@pytest.mark.enabled_multidaemon
 class TestDynamicNestedColumns(DynamicTablesBase):
     ENABLE_MULTIDAEMON = True
 

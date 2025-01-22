@@ -647,6 +647,7 @@ class TestControllerAgentReconnection(YTEnvSetup):
 
 
 @authors("levysotsky")
+@pytest.mark.enabled_multidaemon
 class TestControllerAgentZombieOrchids(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

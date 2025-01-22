@@ -7,6 +7,7 @@ from yt_commands import (
     create_tablet_cell, create_tablet_cell_bundle, remove_tablet_cell_bundle, create_area, wait_for_cells,
     get_driver, disable_tablet_cells_on_node)
 
+import pytest
 from flaky import flaky
 
 from yt_helpers import profiler_factory
@@ -14,6 +15,7 @@ from yt_helpers import profiler_factory
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestMasterCellsSync(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     ENABLE_SECONDARY_CELLS_CLEANUP = False
@@ -353,6 +355,7 @@ class TestMasterCellsSyncDelayed(TestMasterCellsSync):
 
 ##################################################################
 
+@pytest.mark.enabled_multidaemon
 class TestMasterHiveSync(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2

@@ -5,6 +5,8 @@ from yt_commands import (
     join_reduce, merge,
     sort, erase)
 
+import pytest
+
 ##################################################################
 
 
@@ -34,6 +36,7 @@ def check_attributes(op, options):
         assert get(spec_path + "/output_table_path") == get(brief_spec_path + "/output_table_paths/0")
 
 
+@pytest.mark.enabled_multidaemon
 class TestSchedulerBriefSpec(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

@@ -796,6 +796,7 @@ class TestJournalsChangeMedia(TestJournalsBase):
 ##################################################################
 
 
+@pytest.mark.enabled_multidaemon
 class TestErasureJournals(TestJournalsBase):
     ENABLE_MULTIDAEMON = True
     NUM_TEST_PARTITIONS = 12
@@ -971,6 +972,7 @@ class TestErasureJournals(TestJournalsBase):
         self._check_repair_jobs("//tmp/j", rows)
 
 
+@pytest.mark.enabled_multidaemon
 class TestErasureJournalsRpcProxy(TestErasureJournals):
     ENABLE_MULTIDAEMON = True
     DRIVER_BACKEND = "rpc"
