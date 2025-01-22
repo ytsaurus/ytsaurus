@@ -93,6 +93,29 @@ void TBuiltinTableMountConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTestingTableMountConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("compaction_failure_probability", &TThis::CompactionFailureProbability)
+        .Default(0)
+        .InRange(0, 1);
+
+    registrar.Parameter("partitioning_failure_probability", &TThis::PartitioningFailureProbability)
+        .Default(0)
+        .InRange(0, 1);
+
+    registrar.Parameter("flush_failure_probability", &TThis::FlushFailureProbability)
+        .Default(0)
+        .InRange(0, 1);
+
+    registrar.Parameter("simulated_tablet_snapshot_delay", &TThis::SimulatedTabletSnapshotDelay)
+        .Default();
+
+    registrar.Parameter("simulated_store_preload_delay", &TThis::SimulatedStorePreloadDelay)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TCustomTableMountConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_dynamic_store_row_count", &TThis::MaxDynamicStoreRowCount)
@@ -365,20 +388,15 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default();
 
-    registrar.Parameter("simulated_tablet_snapshot_delay", &TThis::SimulatedTabletSnapshotDelay)
-        .Default()
-        .DontSerializeDefault();
-
-    registrar.Parameter("simulated_store_preload_delay", &TThis::SimulatedStorePreloadDelay)
-        .Default()
-        .DontSerializeDefault();
-
     registrar.Parameter("value_dictionary_compression", &TThis::ValueDictionaryCompression)
         .DefaultNew();
 
     registrar.Parameter("insert_meta_upon_store_update", &TThis::InsertMetaUponStoreUpdate)
         .Default(true)
         .DontSerializeDefault();
+
+    registrar.Parameter("testing", &TThis::Testing)
+        .Default();
 
     registrar.Postprocessor([&] (TCustomTableMountConfig* config) {
         if (config->MaxDynamicStoreRowCount > config->MaxDynamicStoreValueCount) {

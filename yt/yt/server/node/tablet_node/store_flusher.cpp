@@ -519,6 +519,10 @@ private:
 
             tablet->ThrottleTabletStoresUpdate(slot, Logger());
 
+            if (RandomNumber<double>() < mountConfig->Testing.FlushFailureProbability) {
+                THROW_ERROR_EXCEPTION("Store flush failed for testing purposes");
+            }
+
             NTabletServer::NProto::TReqUpdateTabletStores updateTabletStoresReq;
             ToProto(updateTabletStoresReq.mutable_tablet_id(), tabletId);
             updateTabletStoresReq.set_mount_revision(ToProto(tablet->GetMountRevision()));
