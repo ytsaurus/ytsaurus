@@ -231,7 +231,8 @@ TFuture<IRowBatchWriterPtr> TClient::CreateShuffleWriter(
     // index in the schema (because the chunk name table is initialized from the
     // schema columns).
     auto schema = New<TTableSchema>(
-        std::vector{TColumnSchema(partitionColumn, ESimpleLogicalValueType::Int64)}, /*strict*/ false);
+        std::vector{TColumnSchema(partitionColumn, ESimpleLogicalValueType::Int64)},
+        /*strict*/ false);
     auto nameTable = TNameTable::FromSchema(*schema);
 
     auto partitioner = CreateColumnBasedPartitioner(
