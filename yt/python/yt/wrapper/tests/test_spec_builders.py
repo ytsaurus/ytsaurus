@@ -478,13 +478,18 @@ class TestSpecBuilders(object):
             .end_task() \
             .spec({"tasks": {"sample": {"memory_limit": 666 * 1024}}, "weight": 2}) # noqa
 
-        result_spec = deepcopy(vanilla_spec).build()
-        assert result_spec["started_by"]["command"] == get_started_by()["command"]
+        with set_config_option("started_by_command_length_limit", 4096):
+            result_spec = deepcopy(vanilla_spec).build()
+            assert result_spec["started_by"]["command"] == get_started_by()["command"]
 
         limit = len(sys.argv[0]) + 1
         with set_config_option("started_by_command_length_limit", limit):
             result_spec = deepcopy(vanilla_spec).build()
             assert result_spec["started_by"]["command"] == [sys.argv[0], sys.argv[1][0] + "...truncated"]
+
+        with set_config_option("started_by_command_length_limit", 0):
+            result_spec = deepcopy(vanilla_spec).build()
+            assert "command" not in result_spec["started_by"]
 
     @authors("aleexfi")
     def test_human_readable_operation_title(self):
