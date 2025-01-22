@@ -129,7 +129,8 @@ TQueryContext::TQueryContext(
     TTraceContextPtr traceContext,
     std::optional<TString> dataLensRequestId,
     std::optional<TString> yqlOperationId,
-    const TSecondaryQueryHeaderPtr& secondaryQueryHeader)
+    const TSecondaryQueryHeaderPtr& secondaryQueryHeader,
+    std::vector<std::pair<TString, TString>> httpHeaders)
     : Logger(QueryLogger)
     , User(TString(context->getClientInfo().initial_user))
     , TraceContext(std::move(traceContext))
@@ -139,6 +140,7 @@ TQueryContext::TQueryContext(
     , DataLensRequestId(std::move(dataLensRequestId))
     , YqlOperationId(std::move(yqlOperationId))
     , RowBuffer(New<NTableClient::TRowBuffer>())
+    , HttpHeaders_(std::move(httpHeaders))
 {
     Logger.AddTag("QueryId: %v", QueryId);
     if (DataLensRequestId) {
@@ -680,6 +682,7 @@ TQueryFinishInfo TQueryContext::GetQueryFinishInfo()
         // It is unlikely that the variables will change after query is finished, but let's be safe.
         result.RuntimeVariables = RuntimeVariables_->Clone();
         result.SecondaryQueryIds = SecondaryQueryIds_;
+        result.HttpHeaders = HttpHeaders_;
     }
 
     // Add last (current) phase duration.
@@ -847,7 +850,8 @@ void SetupHostContext(THost* host,
     TTraceContextPtr traceContext,
     std::optional<TString> dataLensRequestId,
     std::optional<TString> yqlOperationId,
-    const TSecondaryQueryHeaderPtr& secondaryQueryHeader)
+    const TSecondaryQueryHeaderPtr& secondaryQueryHeader,
+    std::vector<std::pair<TString, TString>> HttpHeaders)
 {
     YT_VERIFY(traceContext);
 
@@ -858,7 +862,8 @@ void SetupHostContext(THost* host,
         std::move(traceContext),
         std::move(dataLensRequestId),
         std::move(yqlOperationId),
-        secondaryQueryHeader);
+        secondaryQueryHeader,
+        std::move(HttpHeaders));
 
     auto prevCallback = context->getProgressCallback();
     auto curCallback = BIND(&TQueryContext::OnProgress, queryContext);

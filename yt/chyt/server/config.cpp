@@ -513,7 +513,10 @@ void TYtConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("user_agent_blacklist", &TThis::UserAgentBlacklist)
         .Default();
-
+    registrar.Parameter("enable_http_header_log", &TThis::EnableHttpHeaderLog)
+        .Default(false);
+    registrar.Parameter("http_header_blacklist", &TThis::HttpHeaderBlacklist)
+        .Default();
     registrar.Parameter("user_name_blacklist", &TThis::UserNameBlacklist)
         .Default();
 

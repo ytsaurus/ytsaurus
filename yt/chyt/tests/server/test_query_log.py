@@ -120,3 +120,48 @@ class TestQueryLog(ClickHouseTestBase):
             assert 'storage_distributor' not in secondary_query_entry["chyt_query_statistics"]
             assert 'storage_subquery' in secondary_query_entry["chyt_query_statistics"]
             assert 'secondary_query_source' in secondary_query_entry["chyt_query_statistics"]
+
+    @authors("a-dyu")
+    def test_http_header_logs(self):
+        root_dir = "//tmp/exporter"
+        create("map_node", root_dir)
+        patch = self._get_query_log_patch(root_dir)
+        patch["yt"]["http_header_blacklist"] = "Authentication|X-ClickHouse-User"
+
+        def make_query_and_get_loged_query_headers(patch):
+            with Clique(1, config_patch=patch) as clique:
+                query_id = clique.make_query(
+                    "select queryID() as query_id",
+                    headers={
+                        "Authentication": "some value",
+                        "X-ClickHouse-User": "some value",
+                        "Allowed-Header": "some value",
+                    },
+                )[0]["query_id"]
+                table_path = root_dir + "/query_log/0"
+                wait(lambda: exists(table_path))
+
+                def match(row):
+                    return row["query_id"] == query_id and row["type"] == "QueryFinish"
+
+                wait(lambda: len([r for r in read_table(table_path) if match(r)]) > 0)
+
+                row = [r for r in read_table(table_path) if match(r)][0]
+                query_headers = row["http_headers"]
+                return query_headers
+
+        def get_headers(query_headers, expected_header):
+            for [header, value] in query_headers:
+                if header == expected_header:
+                    return value
+            return None
+
+        query_headers = make_query_and_get_loged_query_headers(patch)
+        assert get_headers(query_headers, "Authentication") is None
+        assert get_headers(query_headers, "X-ClickHouse-User") is None
+        assert get_headers(query_headers, "Allowed-Header") is None
+        patch["yt"]["enable_http_header_log"] = True
+        query_headers = make_query_and_get_loged_query_headers(patch)
+        assert get_headers(query_headers, "Authentication") is None
+        assert get_headers(query_headers, "X-ClickHouse-User") is None
+        assert get_headers(query_headers, "Allowed-Header") == "some value"

@@ -80,7 +80,7 @@ public:
         }
     }
 
-    void customizeContext(DB::HTTPServerRequest& /*request*/, DB::ContextMutablePtr context, DB::ReadBuffer& /*body*/) override
+    void customizeContext(DB::HTTPServerRequest& request, DB::ContextMutablePtr context, DB::ReadBuffer& /*body*/) override
     {
         YT_VERIFY(TraceContext_);
 
@@ -90,7 +90,16 @@ public:
         context->setInitialQueryId(queryId);
         context->setCurrentQueryId(queryId);
 
-        SetupHostContext(Host_, context, QueryId_, TraceContext_, DataLensRequestId_, YqlOperationId_);
+        std::vector<std::pair<TString, TString>> httpHeaders;
+        if (Host_->GetConfig()->EnableHttpHeaderLog) {
+            for (auto header : request) {
+                if (!NRe2::TRe2::FullMatch(header.first, *Host_->GetConfig()->HttpHeaderBlacklist)) {
+                    httpHeaders.emplace_back(header);
+                }
+            }
+        }
+
+        SetupHostContext(Host_, context, QueryId_, TraceContext_, DataLensRequestId_, YqlOperationId_, nullptr, std::move(httpHeaders));
     }
 
     void handleRequest(DB::HTTPServerRequest& request, DB::HTTPServerResponse& response) override

@@ -109,7 +109,8 @@ public:
         NTracing::TTraceContextPtr traceContext,
         std::optional<TString> dataLensRequestId,
         std::optional<TString> yqlOperationId,
-        const TSecondaryQueryHeaderPtr& secondaryQueryHeader);
+        const TSecondaryQueryHeaderPtr& secondaryQueryHeader,
+        std::vector<std::pair<TString, TString>> httpHeaders);
 
     ~TQueryContext();
 
@@ -215,6 +216,7 @@ private:
     TStatistics Statistics_;
     NYTree::IAttributeDictionaryPtr RuntimeVariables_ = NYTree::CreateEphemeralAttributes();
     std::vector<TQueryId> SecondaryQueryIds_;
+    std::vector<std::pair<TString, TString>> HttpHeaders_;
 
     TQueryProgress Progress_;
 
@@ -276,7 +278,8 @@ void SetupHostContext(
     NTracing::TTraceContextPtr traceContext,
     std::optional<TString> dataLensRequestId = std::nullopt,
     std::optional<TString> yqlOperationId = std::nullopt,
-    const TSecondaryQueryHeaderPtr& secondaryQueryHeader = nullptr);
+    const TSecondaryQueryHeaderPtr& secondaryQueryHeader = nullptr,
+    std::vector<std::pair<TString, TString>> HttpHeaders = {});
 
 TQueryContext* GetQueryContext(DB::ContextPtr context);
 

@@ -731,6 +731,9 @@ public:
 
     TSystemLogTableExportersConfigPtr SystemLogTableExporters;
 
+    bool EnableHttpHeaderLog;
+    NRe2::TRe2Ptr HttpHeaderBlacklist;
+
     REGISTER_YSON_STRUCT(TYtConfig);
 
     static void Register(TRegistrar registrar);
