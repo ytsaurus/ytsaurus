@@ -393,7 +393,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
             table->SetIndexTo(nullptr);
         }
 
-        for (auto* secondaryIndex : table->SecondaryIndices()) {
+        for (auto* secondaryIndex : GetValuesSortedByKey(table->SecondaryIndices())) {
             secondaryIndex->SetTableId({});
             int refCounter = objectManager->UnrefObject(secondaryIndex);
 

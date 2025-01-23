@@ -108,6 +108,7 @@ UNIQUE_KEY_VALUE_PAIR_INDEX_SCHEMA = [
 
 
 class TestSecondaryIndexBase(DynamicTablesBase):
+    NUM_MASTERS = 3
     NUM_SECONDARY_MASTER_CELLS = 2
 
     def _mount(self, *tables, cell_count=1):
