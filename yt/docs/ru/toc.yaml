@@ -460,6 +460,9 @@ items:
             href: admin-guide/spyt.md
           #      - name: Интеграции с внешними системами
           #        href: admin-guide/external-systems.md
+      - name: Настройка SSO
+        href: admin-guide/oauth.md
+        when: audience == "public"
       - name: Мониторинг
         href: admin-guide/monitoring.md
           #      - name: Изменение конфигурации кластера
