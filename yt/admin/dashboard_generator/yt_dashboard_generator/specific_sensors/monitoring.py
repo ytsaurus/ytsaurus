@@ -32,6 +32,8 @@ class MonitoringExpr(Taggable):
             self.node_type, self.args = args[0], args[1:]
         else:
             self.node_type, self.args = self.NodeType.Terminal, args
+        self._name = None
+        self._hidden = False
 
     def __add__(self, x):
         return self.binary_op("+", self, x)
@@ -64,6 +66,16 @@ class MonitoringExpr(Taggable):
     @classmethod
     def binary_op(cls, op, lhs, rhs):
         return MonitoringExpr(cls.NodeType.BinaryOp, op, lhs, rhs)
+
+    def name(self, value):
+        ret = deepcopy(self)
+        ret._name = value
+        return ret
+
+    def hidden(self, value):
+        ret = deepcopy(self)
+        ret._hidden = value
+        return ret
 
     def alias(self, param):
         return self.func("alias", self, f'"{param}"')
@@ -102,6 +114,9 @@ class MonitoringExpr(Taggable):
         if len(labels) == 0:
             return self.func("series_max", self)
         return self.func("series_max", [f'"{label}"' for label in labels], self)
+
+    def series_percentile(self, k):
+        return self.func("series_percentile", k, self)
 
     def top_avg(self, k):
         return self.func("top_avg", k, self)
