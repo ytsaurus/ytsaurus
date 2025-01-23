@@ -170,7 +170,7 @@ Thus, the system reads `yt-message-body-size` bytes, turns them into a proto mes
 
 {{product-name}} uses a wire format to transmit rows, serialized rows are transmitted to attachments. The partitioning of a serialized row stream into attachments is arbitrary, consider several consecutive attachments as a single byte stream.
 
-Each query that can accept or return rows has a [rowset descriptor](https://github.com/ytsaurus/ytsaurus/blob/main/yt/yt_proto/yt/client/api/rpc_proxy/proto/api_service.proto). It describes how rows should be deserialized or serialized. This section describes how an unversioned rowset (`RK_UNVERSIONED`) is arranged. If you want to use the `RK_VERSIONED` or `RK_SCHEMAFUL` type, write to {{%if lang == ru%}}[yt@](mailto:community_ru@ytsaurus.tech){{% else %}}[yt@](mailto:community@ytsaurus.tech){{% endif %}}.
+Each query that can accept or return rows has a [rowset descriptor](https://github.com/ytsaurus/ytsaurus/blob/main/yt/yt_proto/yt/client/api/rpc_proxy/proto/api_service.proto). It describes how rows should be deserialized or serialized. This section describes how an unversioned rowset (`RK_UNVERSIONED`) is arranged. If you want to use the `RK_VERSIONED` or `RK_SCHEMAFUL` type, write to {%if lang == "ru"%}[ytsaurus@](mailto:community_ru@ytsaurus.tech){% else %}[ytsaurus@](mailto:community@ytsaurus.tech){% endif %}.
 
 Use the familiar ABNF notation (endianness - little) for description:
 
