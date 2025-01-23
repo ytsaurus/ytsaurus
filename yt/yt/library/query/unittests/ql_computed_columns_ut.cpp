@@ -91,7 +91,8 @@ protected:
             ColumnEvaluatorCache_,
             GetBuiltinRangeExtractors(),
             options,
-            GetDefaultMemoryChunkProvider());
+            GetDefaultMemoryChunkProvider(),
+            /*forceLightRangeInference*/ false);
     }
 
     void SetSchema(const TTableSchema& schema)

@@ -795,9 +795,11 @@ TSharedRange<TRowRange> CreateLightRangeInferrer(
         /*insertUndefined*/ false,
         options.RangeExpansionLimit);
 
+    // TODO(sabdenovch): make a hard cast here.
+
     TRowRanges resultRanges(mutableRanges.begin(), mutableRanges.end());
 
-    return MakeSharedRange(resultRanges, rowBuffer);
+    return MakeSharedRange(std::move(resultRanges), rowBuffer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

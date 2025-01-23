@@ -64,11 +64,13 @@ TSharedRange<TRowRange> GetPrunedRanges(
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options,
     const IMemoryChunkProviderPtr& memoryChunkProvider,
+    bool forceLightRangeInference,
     TGuid queryId)
 {
     auto Logger = MakeQueryLogger(queryId);
 
-    YT_LOG_DEBUG("Inferring ranges from predicate");
+    YT_LOG_DEBUG("Inferring ranges from predicate (ForceLightRangeInference: %v)",
+        forceLightRangeInference);
 
     TSharedRange<TRowRange> result;
 
@@ -80,7 +82,8 @@ TSharedRange<TRowRange> GetPrunedRanges(
             evaluatorCache,
             GetBuiltinConstraintExtractors(),
             options,
-            memoryChunkProvider);
+            memoryChunkProvider,
+            forceLightRangeInference);
     } else {
         result = CreateRangeInferrer(
             predicate,
@@ -127,6 +130,7 @@ TSharedRange<TRowRange> GetPrunedRanges(
         rangeExtractors,
         options,
         memoryChunkProvider,
+        query->ForceLightRangeInference,
         query->Id);
 }
 
