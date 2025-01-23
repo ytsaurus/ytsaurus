@@ -6179,10 +6179,8 @@ private:
             tablet->GetId(),
             cell->GetId());
 
-        if (tablet->GetType() == EObjectType::Tablet) {
-            auto tabletStatistics = tablet->GetTabletStatistics(servant->IsAuxiliary());
-            cell->GossipStatistics().Local() -= tabletStatistics;
-        }
+        auto tabletStatistics = tablet->GetTabletStatistics(servant->IsAuxiliary());
+        cell->GossipStatistics().Local() -= tabletStatistics;
 
         CheckIfFullyUnmounted(cell);
 
@@ -6341,9 +6339,10 @@ private:
 
     void DoTabletUnmounted(THunkTablet* tablet, bool force)
     {
-        DoTabletUnmountedBase(tablet, force);
-
         auto* owner = tablet->GetOwner();
+
+        owner->DiscountTabletStatistics(tablet->GetTabletStatistics());
+        DoTabletUnmountedBase(tablet, force);
         owner->AccountTabletStatistics(tablet->GetTabletStatistics());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -6606,8 +6605,8 @@ private:
         owner->AccountTabletStatistics(newStatistics);
 
         YT_LOG_DEBUG(
-            "Hunk tablet stores update committed (TransactionId: %v, HunkStorageId: %v, TabletId: %v, "
-            "%v)",
+            "Hunk tablet stores update committed "
+            "(TransactionId: %v, HunkStorageId: %v, TabletId: %v, %v)",
             transaction->GetId(),
             tablet->GetOwner()->GetId(),
             tablet->GetId(),

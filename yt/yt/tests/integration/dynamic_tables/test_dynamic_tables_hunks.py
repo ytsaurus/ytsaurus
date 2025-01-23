@@ -2253,6 +2253,29 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         for hunk_chunk in hunk_chunks:
             wait(lambda: check_chunk_requisition(hunk_chunk, expected_hunk_requisition))
 
+    @authors("akozhikhov")
+    def test_remove_cell_with_attached_hunk_storage(self):
+        cell_id = sync_create_cells(1)[0]
+
+        create("hunk_storage", "//tmp/h")
+
+        sync_mount_table("//tmp/h")
+
+        assert get("//tmp/h/@tablet_state") == "mounted"
+        assert get("#{}/@tablet_count".format(cell_id)) == 1
+        assert len(get("#{}/@tablet_ids".format(cell_id))) == 1
+
+        assert get("#{}/@total_statistics/tablet_count".format(cell_id)) == 1
+
+        remove("#{}".format(cell_id))
+        time.sleep(5)
+
+        assert exists("#{}".format(cell_id))
+
+        sync_unmount_table("//tmp/h")
+        wait(lambda: not exists("#{}".format(cell_id)))
+
+
 ################################################################################
 
 
@@ -3124,3 +3147,23 @@ class TestOrderedMulticellHunks(TestSortedDynamicTablesBase):
 
         with raises_yt_error("can not be exported because it has hunk links"):
             concatenate(["//tmp/t"], "//tmp/t2")
+
+    @authors("akozhikhov")
+    def test_remove_cell_with_attached_hunk_storage(self):
+        cell_id = sync_create_cells(1)[0]
+
+        create("hunk_storage", "//tmp/h", attributes={"external_cell_tag": 11})
+
+        sync_mount_table("//tmp/h")
+
+        assert get("//tmp/h/@tablet_state") == "mounted"
+        assert get("#{}/@tablet_count".format(cell_id)) == 1
+        assert len(get("#{}/@tablet_ids".format(cell_id))) == 1
+
+        assert get("#{}/@total_statistics/tablet_count".format(cell_id)) == 1
+
+        remove("#{}".format(cell_id))
+        time.sleep(5)
+
+        sync_unmount_table("//tmp/h")
+        wait(lambda: not exists("#{}".format(cell_id)))
