@@ -729,8 +729,10 @@ private:
             {
                 continue;
             }
-            if (!variable.StartsWith("YT_") ||
-                !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment())
+            if (JobEnvironmentType_ == EJobEnvironmentType::Cri
+                ? !variable.StartsWith("YT_") || !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment()
+                // FIXME: HOME breaks shell start in porto
+                : variable.StartsWith("YT_") && !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment())
             {
                 shellEnvironment.push_back(variable);
             }
