@@ -148,6 +148,24 @@ DEFINE_REFCOUNTED_TYPE(TBuiltinTableMountConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TTestingTableMountConfig
+    : public NYTree::TYsonStructLite
+{
+public:
+    double CompactionFailureProbability;
+    double PartitioningFailureProbability;
+    double FlushFailureProbability;
+
+    TDuration SimulatedTabletSnapshotDelay;
+    TDuration SimulatedStorePreloadDelay;
+
+    REGISTER_YSON_STRUCT_LITE(TTestingTableMountConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TCustomTableMountConfig
     : public NTableClient::TRetentionConfig
 {
@@ -190,7 +208,6 @@ public:
 
     int MaxOverlappingStoreCount;
     int OverlappingStoreImmediateSplitThreshold;
-
 
     int MaxStoresPerTablet;
     int MaxEdenStoresPerTablet;
@@ -281,13 +298,11 @@ public:
 
     std::optional<i64> MaxOrderedTabletDataWeight;
 
-    // For testing purposes only.
-    TDuration SimulatedTabletSnapshotDelay;
-    TDuration SimulatedStorePreloadDelay;
-
     NTableClient::TDictionaryCompressionConfigPtr ValueDictionaryCompression;
 
     bool InsertMetaUponStoreUpdate;
+
+    TTestingTableMountConfig Testing;
 
     REGISTER_YSON_STRUCT(TCustomTableMountConfig);
 
