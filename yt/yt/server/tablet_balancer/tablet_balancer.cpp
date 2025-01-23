@@ -141,17 +141,19 @@ private:
         std::deque<TError> RetryableErrors;
     };
 
-    std::atomic_flag IsActive_ = ATOMIC_FLAG_INIT;
     IBootstrap* const Bootstrap_;
     const TStandaloneTabletBalancerConfigPtr Config_;
     const IInvokerPtr ControlInvoker_;
     const TPeriodicExecutorPtr PollExecutor_;
+    IThreadPoolPtr WorkerPool_;
+    IThreadPoolPtr PivotPickerPool_;
+
+    std::atomic_flag IsActive_ = ATOMIC_FLAG_INIT;
+
     THashMap<TString, TBundleStatePtr> Bundles_;
     mutable THashMap<TString, TBundleErrors> BundleErrors_;
 
     THashSet<TGlobalGroupTag> GroupsToMoveOnNextIteration_;
-    IThreadPoolPtr WorkerPool_;
-    IThreadPoolPtr PivotPickerPool_;
     IActionManagerPtr ActionManager_;
     TTableRegistryPtr TableRegistry_;
 
