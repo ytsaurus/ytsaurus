@@ -409,7 +409,7 @@ TNodeList TConsistentChunkPlacement::GetWriteTargets(const TChunk* chunk, int me
         }
 
     protected:
-        TCompactVector<NNodeTrackerServer::TNode*, UpperReplicaCountBound> SeenNodes_;
+        TCompactVector<NNodeTrackerServer::TNode*, TypicalReplicaCount> SeenNodes_;
     };
 
     struct TRackAwareness
