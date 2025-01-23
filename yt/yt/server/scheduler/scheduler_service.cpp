@@ -155,7 +155,8 @@ private:
         auto asyncResult = scheduler->SuspendOperation(
             operation,
             context->GetAuthenticationIdentity().User,
-            abortRunningAllocations);
+            abortRunningAllocations,
+            request->reason());
 
         context->ReplyFrom(asyncResult);
     }

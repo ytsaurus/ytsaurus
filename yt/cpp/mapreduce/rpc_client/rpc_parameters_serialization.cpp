@@ -551,6 +551,7 @@ NApi::TSuspendOperationOptions SerializeOptionsForSuspendOperation(const TSuspen
     if (options.AbortRunningJobs_) {
         result.AbortRunningJobs = *options.AbortRunningJobs_;
     }
+    result.Reason = *options.Reason_;
     return result;
 }
 

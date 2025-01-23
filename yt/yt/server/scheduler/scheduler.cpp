@@ -776,7 +776,8 @@ public:
     TFuture<void> SuspendOperation(
         const TOperationPtr& operation,
         const std::string& user,
-        bool abortRunningAllocations)
+        bool abortRunningAllocations,
+        const std::string& reason)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -797,9 +798,11 @@ public:
 
         DoSuspendOperation(
             operation,
-            TError("Suspend operation by user request"),
+            reason.empty()
+                ? TError("Suspend operation by user request")
+                : TError("Suspend operation by user request (Reason: %Qv)", reason),
             abortRunningAllocations,
-            /*setAlert*/ false);
+            !reason.empty());
 
         return MasterConnector_->FlushOperationNode(operation);
     }
@@ -4444,9 +4447,10 @@ TFuture<void> TScheduler::AbortOperation(
 TFuture<void> TScheduler::SuspendOperation(
     TOperationPtr operation,
     const std::string& user,
-    bool abortRunningAllocations)
+    bool abortRunningAllocations,
+    const std::string& reason)
 {
-    return Impl_->SuspendOperation(operation, user, abortRunningAllocations);
+    return Impl_->SuspendOperation(operation, user, abortRunningAllocations, reason);
 }
 
 TFuture<void> TScheduler::ResumeOperation(

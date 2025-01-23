@@ -1158,6 +1158,7 @@ TFuture<void> TClient::SuspendOperation(
 
     NScheduler::ToProto(req, operationIdOrAlias);
     req->set_abort_running_jobs(options.AbortRunningJobs);
+    req->set_reason(options.Reason);
 
     return req->Invoke().As<void>();
 }

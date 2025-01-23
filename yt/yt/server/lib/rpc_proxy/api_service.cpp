@@ -2839,6 +2839,9 @@ private:
         if (request->has_abort_running_jobs()) {
             options.AbortRunningJobs = request->abort_running_jobs();
         }
+        if (request->has_reason()) {
+            options.Reason = request->reason();
+        }
 
         context->SetRequestInfo("OperationId: %v, AbortRunningJobs: %v",
             operationIdOrAlias,
