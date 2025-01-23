@@ -536,9 +536,9 @@ private:
         auto invokeResult = CreateSequoiaService(Owner_->Bootstrap_)
             ->TryInvoke(context, session, resolveResult);
         switch (invokeResult) {
-            case ISequoiaService::Executed:
+            case EInvokeResult::Executed:
                 return context->GetResponseMessage();
-            case ISequoiaService::ForwardToMaster:
+            case EInvokeResult::ForwardToMaster:
                 subrequest->Target = ERequestTarget::Master;
                 return std::nullopt;
             default:

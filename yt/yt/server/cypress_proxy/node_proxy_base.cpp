@@ -1,12 +1,12 @@
 #include "node_proxy_base.h"
 
-#include "sequoia_service.h"
+#include "private.h"
 
 namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNodeProxyBase::Invoke(const ISequoiaServiceContextPtr& context)
+EInvokeResult TNodeProxyBase::Invoke(const ISequoiaServiceContextPtr& context)
 {
     TError error;
     try {
@@ -24,8 +24,11 @@ void TNodeProxyBase::Invoke(const ISequoiaServiceContextPtr& context)
     AfterInvoke(context);
 
     if (!error.IsOK()) {
+        YT_VERIFY(InvokeResult_ == EInvokeResult::Executed);
         context->Reply(error);
     }
+
+    return InvokeResult_;
 }
 
 TNodeProxyBase::TNodeProxyBase(IBootstrap* bootstrap, TSequoiaSessionPtr sequoiaSession)

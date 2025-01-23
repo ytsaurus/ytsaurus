@@ -198,13 +198,13 @@ public:
         TNodeProxyBasePtr proxy;
         if (const auto* cypressResolveResult = std::get_if<TCypressResolveResult>(&resolveResult)) {
             if (context->GetRequestHeader().method() != "Create") {
-                return ForwardToMaster;
+                return EInvokeResult::ForwardToMaster;
             }
 
             auto reqCreate = TryParseReqCreate(context);
             if (!reqCreate) {
                 // Error during parsing.
-                return Executed;
+                return EInvokeResult::Executed;
             }
 
             switch (reqCreate->Type) {
@@ -232,23 +232,22 @@ public:
                                 EInternedAttributeKey::TargetPath.Unintern()),
                             resolveResult);
                         // Link should be created in master.
-                        return ForwardToMaster;
+                        return EInvokeResult::ForwardToMaster;
                     } catch (const std::exception& ex) {
                         context->Reply(ex);
-                        return Executed;
+                        return EInvokeResult::Executed;
                     }
                     break;
 
                 default:
-                    return ForwardToMaster;
+                    return EInvokeResult::ForwardToMaster;
             }
         } else {
             const auto& sequoiaResolveResult = std::get<TSequoiaResolveResult>(resolveResult);
             proxy = CreateNodeProxy(Bootstrap_, session, sequoiaResolveResult);
         }
 
-        proxy->Invoke(context);
-        return Executed;
+        return proxy->Invoke(context);
     }
 
 private:
