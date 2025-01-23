@@ -228,7 +228,12 @@ yt remove //tmp/replicated_table_3/@replication_collocation_id
 yt set //tmp/replicated_table/@replicated_table_options/preferred_sync_replica_clusters '["cluster-name"]'
 ```
 
-Этот атрибут уважает [коллокации](#replication_collocation) реплицированных таблиц, но для его корректной работы необходимо выставить атрибут **на все таблицы** коллокации.
+Этот атрибут уважает [коллокации](#replication_collocation) реплицированных таблиц.
+Чтобы указать предпочтительные кластера сразу для всех таблиц в коллокации, достаточно один раз указать этот атрибут в опциях коллокации.
+```bash
+yt set #collocation-id/@replicated_table_options/preferred_sync_replica_clusters '["cluster-name"]'
+```
+В случае отсутствия этого атрибута у коллокации, его значение будет браться из опций реплицированных таблиц. В этом случае стоит следить, чтобы этот атрибут был выставлен **на все таблицы** коллокации. 
 
 ### Ограничение скорости репликации
 
