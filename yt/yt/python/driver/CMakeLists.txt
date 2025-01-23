@@ -12,8 +12,8 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(rpc_shared)
-add_subdirectory(rpc)
 add_subdirectory(lib)
-add_subdirectory(native_shared)
+add_subdirectory(rpc)
+add_subdirectory(rpc_shared)
 add_subdirectory(native)
+add_subdirectory(native_shared)
