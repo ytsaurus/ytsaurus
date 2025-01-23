@@ -766,7 +766,7 @@ private:
         int splitCount = std::ssize(groupedDataSplits);
 
         return CoordinateAndExecute(
-            Query_->IsOrdered(),
+            Query_->IsOrdered(RequestFeatureFlags_),
             Query_->IsPrefetching(),
             splitCount,
             [
@@ -787,7 +787,7 @@ private:
                 // Copy query to generate new id.
                 auto bottomQuery = New<TQuery>(*bottomQueryPattern);
 
-                bool orderedExecution = bottomQuery->IsOrdered();
+                bool orderedExecution = bottomQuery->IsOrdered(RequestFeatureFlags_);
 
                 auto foreignProfileCallback = [
                     asyncSubqueryResults,

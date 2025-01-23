@@ -203,6 +203,7 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 struct TFeatureFlags
 {
     bool WithTotalsFinalizesAggregatedOnCoordinator = false;
+    bool GroupByWithLimitIsUnordered = false;
 };
 
 TFeatureFlags MostFreshFeatureFlags();

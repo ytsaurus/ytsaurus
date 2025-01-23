@@ -1773,6 +1773,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     }
 
     auto requestFeatureFlags = MostFreshFeatureFlags();
+    requestFeatureFlags.GroupByWithLimitIsUnordered = dynamicConfig->GroupByWithLimitIsUnordered;
 
     IUnversionedRowsetWriterPtr writer;
     TFuture<IUnversionedRowsetPtr> asyncRowset;
@@ -1867,6 +1868,12 @@ NYson::TYsonString TClient::DoExplainQuery(
         FunctionRegistry_.Get(),
         options.VersionedReadOptions);
 
+    auto requestFeatureFlags = MostFreshFeatureFlags();
+
+    requestFeatureFlags.GroupByWithLimitIsUnordered = GetNativeConnection()
+        ->GetConfig()
+        ->GroupByWithLimitIsUnordered;
+
     auto fragment = PreparePlanFragment(
         queryPreparer.Get(),
         *parsedQuery,
@@ -1877,7 +1884,13 @@ NYson::TYsonString TClient::DoExplainQuery(
         ExplainQueryMemoryLimit,
         QueryMemoryTracker_);
 
-    return BuildExplainQueryYson(GetNativeConnection(), fragment, udfRegistryPath, options, memoryChunkProvider);
+    return BuildExplainQueryYson(
+        GetNativeConnection(),
+        fragment,
+        udfRegistryPath,
+        options,
+        memoryChunkProvider,
+        requestFeatureFlags);
 }
 
 template <class T>

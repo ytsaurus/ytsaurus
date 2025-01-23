@@ -441,7 +441,7 @@ struct TBaseQuery
 
     TBaseQuery(const TBaseQuery& other);
 
-    bool IsOrdered() const;
+    bool IsOrdered(const TFeatureFlags& featureFlags) const;
 
     bool IsPrefetching() const;
 
