@@ -29,6 +29,7 @@ struct IUserJobIOFactory
     : public virtual TRefCounted
 {
     virtual NTableClient::ISchemalessMultiChunkReaderPtr CreateReader(
+        const IJobSpecHelperPtr& jobSpecHelper,
         TClosure onNetworkReleased,
         NTableClient::TNameTablePtr nameTable,
         const NTableClient::TColumnFilter& columnFilter) = 0;
