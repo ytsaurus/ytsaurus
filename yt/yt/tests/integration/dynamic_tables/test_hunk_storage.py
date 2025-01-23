@@ -295,6 +295,8 @@ class TestHunkStorage(YTEnvSetup):
         unlock_hunk_store("//tmp/h", 0, store_id)
         wait(lambda: not exists("#{}".format(store_id)))
 
+        sync_unmount_table("//tmp/h")
+
     @authors("gritukan")
     def test_invalid_hunk_store_lock(self):
         sync_create_cells(1)
@@ -309,6 +311,8 @@ class TestHunkStorage(YTEnvSetup):
         store_id = self._get_active_store_id("//tmp/h")
         with raises_yt_error("is not locked"):
             unlock_hunk_store("//tmp/h", 0, store_id)
+
+        sync_unmount_table("//tmp/h")
 
     @authors("gritukan")
     @pytest.mark.xfail(run=False, reason="WIP")
