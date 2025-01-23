@@ -121,6 +121,7 @@ struct TMemoryLimits
     std::optional<i64> KeyFilterBlockCache;
     std::optional<i64> VersionedChunkMeta;
     std::optional<i64> LookupRowCache;
+    std::optional<i64> Query;
 
     TMemoryLimitsEnumIndexedVector AsEnumIndexedVector() const;
 
