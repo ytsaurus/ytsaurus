@@ -1,5 +1,6 @@
 #include "evaluation_helpers.h"
 
+#include <yt/yt/library/query/base/helpers.h>
 #include <yt/yt/library/query/base/private.h>
 #include <yt/yt/library/query/base/query.h>
 #include <yt/yt/library/query/base/query_helpers.h>
@@ -288,60 +289,121 @@ TCGAggregateInstance TCGAggregateImage::Instantiate() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::pair<TQueryPtr, TDataSource> GetForeignQuery(
-    TQueryPtr subquery,
-    TConstJoinClausePtr joinClause,
-    std::vector<TRow> keys,
-    TRowBufferPtr permanentBuffer)
+bool AllComputedColumnsEvaluated(const TJoinClause& joinClause)
 {
-    auto foreignKeyPrefix = joinClause->ForeignKeyPrefix;
-    const auto& foreignEquations = joinClause->ForeignEquations;
+    auto isColumnInEquations = [&] (TStringBuf column) {
+        for (const auto& equation : joinClause.ForeignEquations) {
+            if (const auto* reference = equation->As<TReferenceExpression>();
+                reference && column == reference->ColumnName)
+            {
+                return true;
+            }
+        }
 
-    auto newQuery = New<TQuery>(*subquery);
+        return false;
+    };
 
+    for (const auto& column : joinClause.Schema.Original->Columns()) {
+        if (!column.SortOrder()) {
+            break;
+        }
+        if (!column.Expression()) {
+            continue;
+        }
+        if (!isColumnInEquations(column.Name())) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+std::pair<TQueryPtr, TDataSource> GetForeignQuery(
+    std::vector<TRow> keys,
+    TRowBufferPtr buffer,
+    const TJoinClause& joinClause)
+{
     TDataSource dataSource;
-    dataSource.ObjectId = joinClause->ForeignObjectId;
-    dataSource.CellId = joinClause->ForeignCellId;
+    dataSource.ObjectId = joinClause.ForeignObjectId;
+    dataSource.CellId = joinClause.ForeignCellId;
 
-    if (foreignKeyPrefix > 0) {
+    const auto& foreignEquations = joinClause.ForeignEquations;
+    auto foreignKeyPrefix = joinClause.ForeignKeyPrefix;
+    auto newQuery = joinClause.GetJoinSubquery();
+
+    auto predicateRefines = false;
+
+    if (joinClause.Predicate) {
+        auto keyColumns = joinClause.Schema.GetKeyColumns();
+
+        auto dummyInClause = New<TInExpression>(
+            foreignEquations,
+            nullptr);
+
+        auto dummyWhereClause = MakeAndExpression(std::move(dummyInClause), joinClause.Predicate);
+
+        auto signature = GetExpressionConstraintSignature(std::move(dummyWhereClause), keyColumns);
+
+        auto score = GetConstraintSignatureScore(signature);
+
+        YT_LOG_DEBUG("Calculated score for join via IN with predicate (Signature: %v, Score: %v)",
+            signature,
+            score);
+
+        predicateRefines = score > static_cast<int>(2 * foreignKeyPrefix);
+    }
+
+    if (foreignKeyPrefix == 0 || predicateRefines) {
+        YT_LOG_DEBUG("Using join via IN clause");
+
+        TRowRanges universalRange{{
+            buffer->CaptureRow(NTableClient::MinKey().Get()),
+            buffer->CaptureRow(NTableClient::MaxKey().Get()),
+        }};
+
+        dataSource.Ranges = MakeSharedRange(std::move(universalRange), buffer);
+
+        auto inClause = New<TInExpression>(
+            foreignEquations,
+            MakeSharedRange(std::move(keys), std::move(buffer)));
+
+        newQuery->WhereClause = newQuery->WhereClause
+            ? MakeAndExpression(inClause, newQuery->WhereClause)
+            : inClause;
+
+        if (joinClause.Schema.Original->HasComputedColumns() &&
+            AllComputedColumnsEvaluated(joinClause))
+        {
+            newQuery->ForceLightRangeInference = true;
+        }
+
+        if (foreignKeyPrefix > 0) {
+            // COMPAT(lukyan): Use ordered read without modification of protocol
+            newQuery->Limit = OrderedReadWithPrefetchHint;
+        }
+    } else {
         if (foreignKeyPrefix == foreignEquations.size()) {
             YT_LOG_DEBUG("Using join via source ranges");
-            dataSource.Keys = MakeSharedRange(std::move(keys), std::move(permanentBuffer));
+            dataSource.Keys = MakeSharedRange(std::move(keys), std::move(buffer));
         } else {
             YT_LOG_DEBUG("Using join via prefix ranges");
             std::vector<TRow> prefixKeys;
+            prefixKeys.reserve(keys.size());
             for (auto key : keys) {
-                prefixKeys.push_back(permanentBuffer->CaptureRow(
+                prefixKeys.push_back(buffer->CaptureRow(
                     TRange(key.Begin(), foreignKeyPrefix),
                     /*captureValues*/ false));
             }
             prefixKeys.erase(std::unique(prefixKeys.begin(), prefixKeys.end()), prefixKeys.end());
-            dataSource.Keys = MakeSharedRange(std::move(prefixKeys), std::move(permanentBuffer));
+            dataSource.Keys = MakeSharedRange(std::move(prefixKeys), std::move(buffer));
         }
 
         newQuery->InferRanges = false;
         // COMPAT(lukyan): Use ordered read without modification of protocol
         newQuery->Limit = OrderedReadWithPrefetchHint;
-    } else {
-        TRowRanges ranges;
-
-        YT_LOG_DEBUG("Using join via IN clause");
-        ranges.emplace_back(
-            permanentBuffer->CaptureRow(NTableClient::MinKey().Get()),
-            permanentBuffer->CaptureRow(NTableClient::MaxKey().Get()));
-
-        auto inClause = New<TInExpression>(
-            foreignEquations,
-            MakeSharedRange(std::move(keys), permanentBuffer));
-
-        dataSource.Ranges = MakeSharedRange(std::move(ranges), std::move(permanentBuffer));
-
-        newQuery->WhereClause = newQuery->WhereClause
-            ? MakeAndExpression(inClause, newQuery->WhereClause)
-            : inClause;
     }
 
-    return std::pair(newQuery, dataSource);
+    return std::make_pair(std::move(newQuery), std::move(dataSource));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

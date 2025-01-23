@@ -413,10 +413,9 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::pair<TQueryPtr, TDataSource> GetForeignQuery(
-    TQueryPtr subquery,
-    TConstJoinClausePtr joinClause,
     std::vector<TRow> keys,
-    TRowBufferPtr permanentBuffer);
+    TRowBufferPtr buffer,
+    const TJoinClause& joinClause);
 
 ////////////////////////////////////////////////////////////////////////////////
 

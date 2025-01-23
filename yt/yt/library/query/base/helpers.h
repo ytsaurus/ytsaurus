@@ -38,4 +38,12 @@ NTableClient::TLogicalTypePtr ToQLType(const NTableClient::TLogicalTypePtr& colu
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::vector<EConstraintKind> GetExpressionConstraintSignature(
+    const TConstExpressionPtr& expression,
+    const NTableClient::TKeyColumns& keyColumns);
+
+int GetConstraintSignatureScore(const std::vector<EConstraintKind>& signature);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient

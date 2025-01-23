@@ -1404,7 +1404,7 @@ TEST_P(TInferRangesTest, Stress)
             GetBuiltinRangeExtractors(),
             options,
             GetDefaultMemoryChunkProvider(),
-            {});
+            /*forceLightRangeInference*/ false);
 
         Y_UNUSED(inferredRanges);
 
