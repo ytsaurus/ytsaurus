@@ -13,7 +13,11 @@ ENV(YT_DEBUG_TAKEN_PORT=1)
 
 SET(NO_STRIP yes)
 
-YT_SPEC(yt/yt/tests/integration/spec.yson)
+IF (NOT OPENSOURCE)
+    YT_SPEC(yt/yt/tests/integration/spec.yson)
+ELSE()
+    YT_SPEC(yt/yt/tests/integration/spec_os.yson)
+ENDIF()
 
 SIZE(LARGE)
 

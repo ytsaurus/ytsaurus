@@ -223,7 +223,6 @@ class S3Uploader:
         s3 = session.client(
             service_name="s3",
             endpoint_url=self.endpoint_url,
-            config=boto3.session.Config(signature_version='s3')
         )
         for root, _, files in os.walk(self.upload_path):
             for file in files:
