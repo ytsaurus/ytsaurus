@@ -1082,7 +1082,7 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
     GarbageCollector_->LoadValues(context);
 
     DropLegacyClusterNodeMap_ = context.GetVersion() < EMasterReign::DropLegacyClusterNodeMap;
-    DropLegacyZookeeperShard_ = context.GetVersion() >= EMasterReign::DropLegacyZookeeperShard;
+    DropLegacyZookeeperShard_ = context.GetVersion() < EMasterReign::DropLegacyZookeeperShard;
 }
 
 void TObjectManager::OnAfterSnapshotLoaded()
@@ -1120,6 +1120,7 @@ void TObjectManager::Clear()
     DestroyedObjects_ = 0;
 
     DropLegacyClusterNodeMap_ = false;
+    DropLegacyZookeeperShard_ = false;
 
     GarbageCollector_->Clear();
     MutationIdempotizer_->Clear();
