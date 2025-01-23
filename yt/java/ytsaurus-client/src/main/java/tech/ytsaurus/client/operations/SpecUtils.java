@@ -52,7 +52,6 @@ final class SpecUtils {
     static YTreeBuilder startedBy(YTreeBuilder builder, SpecPreparationContext context) {
         YTreeBuilder result = builder.beginMap()
                 .key("user").value(System.getProperty("user.name"))
-                .key("command").beginList().value("command").endList()
                 .key("hostname").value(getLocalHostname())
                 .key("wrapper_version").value(context.getConfiguration().getVersion());
         try {
