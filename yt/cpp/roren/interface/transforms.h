@@ -736,12 +736,23 @@ TPCollection<TRow> Flatten(const std::vector<TPCollection<TRow>>& pCollectionLis
 ///     {
 ///         return TMyTransform{ ... }
 ///     }
-template <typename TInputRow, typename TOutputRow>
+template <typename TInputRow, typename... TOutputRows>
 class TTransform
 {
+    template <typename TFirst_, typename... TTypes>
+    struct TTypesHolder
+    {
+        using TFirst = TFirst_;
+    };
 public:
     using TArgument = std::conditional_t<std::is_same_v<TInputRow, void>, TPipeline, TPCollection<TInputRow>>;
-    using TResult = std::conditional_t<std::is_same_v<TOutputRow, void>, void, TPCollection<TOutputRow>>;
+    using TResult = std::conditional_t<
+        std::is_same_v<TTypesHolder<TOutputRows...>, TTypesHolder<void>>,
+        void,
+        std::conditional_t<
+            sizeof...(TOutputRows) == 1,
+            TPCollection<typename TTypesHolder<TOutputRows...>::TFirst>,
+            TPCollections<TOutputRows...>>>;
 
 public:
     template <typename T>
