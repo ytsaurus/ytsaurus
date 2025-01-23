@@ -287,6 +287,7 @@ message TQueryOptions
 message TFeatureFlags
 {
     optional bool with_totals_finalizes_aggregated_on_coordinator = 1;
+    optional bool group_by_with_limit_is_unordered = 2;
 }
 
 message TDataSource

@@ -1410,7 +1410,7 @@ TQueryStatistics DoExecuteQuery(
 
     ssize_t batchSize = maxBatchSize;
 
-    if (query->IsOrdered() && query->Offset + query->Limit < batchSize) {
+    if (query->IsOrdered(MostFreshFeatureFlags()) && query->Offset + query->Limit < batchSize) {
         batchSize = query->Offset + query->Limit;
     }
 
@@ -1423,7 +1423,7 @@ TQueryStatistics DoExecuteQuery(
             owningSourceRows[index] = TOwningRow();
         }
 
-        if (isFirstRead && query->IsOrdered()) {
+        if (isFirstRead && query->IsOrdered(MostFreshFeatureFlags())) {
             EXPECT_EQ(options.MaxRowsPerRead, std::min(RowsetProcessingBatchSize, query->Offset + query->Limit));
             isFirstRead = false;
         }
@@ -2004,7 +2004,7 @@ protected:
             return pipe->GetReader();
         };
 
-        auto frontReader = frontQuery->IsOrdered()
+        auto frontReader = frontQuery->IsOrdered(MostFreshFeatureFlags())
             ? CreateFullPrefetchingOrderedSchemafulReader(getNextReader)
             : CreateFullPrefetchingShufflingSchemafulReader(getNextReader);
 
@@ -2123,7 +2123,7 @@ protected:
             return pipe->GetReader();
         };
 
-        auto reader = query->IsOrdered()
+        auto reader = query->IsOrdered(MostFreshFeatureFlags())
             ? CreateFullPrefetchingOrderedSchemafulReader(nextReader)
             : CreateFullPrefetchingShufflingSchemafulReader(nextReader);
 
@@ -2167,7 +2167,7 @@ protected:
             return pipe->GetReader();
         };
 
-        auto reader = frontQuery->IsOrdered()
+        auto reader = frontQuery->IsOrdered(MostFreshFeatureFlags())
             ? CreateFullPrefetchingOrderedSchemafulReader(nextReader)
             : CreateFullPrefetchingShufflingSchemafulReader(nextReader);
 
@@ -9467,7 +9467,7 @@ void TQueryEvaluateComplexTest::DoTest(
     };
 
     auto query = Evaluate(queryString, splits, sources, resultMatcher);
-    EXPECT_TRUE(query->IsOrdered());
+    EXPECT_TRUE(query->IsOrdered(MostFreshFeatureFlags()));
 }
 
 TEST_P(TQueryEvaluateComplexTest, All)
