@@ -819,7 +819,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
+        ProfileForBothExecutionBackends(query, &id1, &variables, [] (int) -> TJoinSubqueryEvaluator {
             return {};
         });
     }
@@ -839,7 +839,7 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
+        ProfileForBothExecutionBackends(query, &id2, &variables, [] (int) -> TJoinSubqueryEvaluator {
             return {};
         });
     }
@@ -895,7 +895,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
+        ProfileForBothExecutionBackends(query, &id1, &variables, [] (int) -> TJoinSubqueryEvaluator {
             return {};
         });
     }
@@ -912,7 +912,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
+        ProfileForBothExecutionBackends(query, &id2, &variables, [] (int) -> TJoinSubqueryEvaluator {
             return {};
         });
     }
@@ -941,7 +941,7 @@ TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
         auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] group by 1")->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id1, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
+        ProfileForBothExecutionBackends(query, &id1, &variables, [] (int) -> TJoinSubqueryEvaluator {
             return {};
         });
     }
@@ -951,7 +951,7 @@ TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
         auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] group by 1 limit 1")->Query;
 
         TCGVariables variables;
-        ProfileForBothExecutionBackends(query, &id2, &variables, [] (TQueryPtr, TConstJoinClausePtr) -> TJoinSubqueryEvaluator {
+        ProfileForBothExecutionBackends(query, &id2, &variables, [] (int) -> TJoinSubqueryEvaluator {
             return {};
         });
     }
@@ -1852,20 +1852,20 @@ protected:
 
         auto aggregatedStatistics = TQueryStatistics();
 
-        auto profileCallback = [&] (TQueryPtr subquery, TConstJoinClausePtr joinClause) mutable {
+        auto profileCallback = [&] (int joinIndex) mutable {
+            auto joinClause = primaryQuery->JoinClauses[joinIndex];
             auto rows = owningSources[sourceIndex++];
 
-            return [&, rows, subquery, joinClause] (
+            return [&, rows, joinClause] (
                 std::vector<TRow> keys,
                 TRowBufferPtr permanentBuffer) mutable
             {
                 TDataSource dataSource;
                 TQueryPtr preparedSubquery;
                 std::tie(preparedSubquery, dataSource) = GetForeignQuery(
-                    subquery,
-                    joinClause,
                     std::move(keys),
-                    permanentBuffer);
+                    permanentBuffer,
+                    *joinClause);
 
                 auto pipe = New<NTableClient::TSchemafulPipe>(GetDefaultMemoryChunkProvider());
 

@@ -551,7 +551,10 @@ public:
             ? CoordinateDataSourcesOld(std::move(classifiedDataSources), rowBuffer)
             : CoordinateDataSourcesNew(std::move(classifiedDataSources), rowBuffer);
 
-        auto statistics = DoCoordinateAndExecute(std::move(groupedDataSplits), rowBuffer, minKeyWidth);
+        auto statistics = DoCoordinateAndExecute(
+            std::move(groupedDataSplits),
+            rowBuffer,
+            minKeyWidth);
 
         auto cpuTime = statistics.SyncTime;
         for (const auto& innerStatistics : statistics.InnerStatistics) {
@@ -610,7 +613,8 @@ private:
                 for (const auto& bound : partitionBound.Bounds) {
                     TRowRange range{
                         std::max<TRow>(partitions[partitionBound.PartitionIndex]->PivotKey, bound.first),
-                        std::min<TRow>(partitions[partitionBound.PartitionIndex]->NextPivotKey, bound.second)};
+                        std::min<TRow>(partitions[partitionBound.PartitionIndex]->NextPivotKey, bound.second),
+                    };
 
                     int lowerBoundWidth = std::min(
                         GetSignificantWidth(range.first),
@@ -793,7 +797,9 @@ private:
                     minKeyWidth,
                     this,
                     this_ = MakeStrong(this)
-                ] (const TQueryPtr& subquery, const TConstJoinClausePtr& joinClause) -> TJoinSubqueryEvaluator {
+                ] (int joinIndex) -> TJoinSubqueryEvaluator {
+                    auto joinClause = Query_->JoinClauses[joinIndex];
+
                     auto remoteOptions = QueryOptions_;
                     remoteOptions.MaxSubqueries = 1;
                     remoteOptions.MergeVersionedRows = true;
@@ -808,20 +814,21 @@ private:
                         auto dataSource = GetPrefixReadItems(dataSplits, joinClause->CommonKeyPrefix);
                         dataSource.ObjectId = joinClause->ForeignObjectId;
                         dataSource.CellId = joinClause->ForeignCellId;
+                        auto joinSubquery = joinClause->GetJoinSubquery();
 
-                        subquery->InferRanges = false;
+                        joinSubquery->InferRanges = false;
 
                         // COMPAT(lukyan): Use ordered read without modification of protocol
-                        subquery->Limit = OrderedReadWithPrefetchHint;
+                        joinSubquery->Limit = OrderedReadWithPrefetchHint;
 
-                        YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", subquery->Id);
+                        YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", joinSubquery->Id);
 
                         auto writer = New<TSimpleRowsetWriter>(MemoryChunkProvider_);
 
                         auto asyncResult = BIND(
                             &IExecutor::Execute,
                             remoteExecutor,
-                            subquery,
+                            joinSubquery,
                             ExternalCGInfo_,
                             std::move(dataSource),
                             writer,
@@ -857,7 +864,6 @@ private:
                         return [
                             asyncSubqueryResults,
                             remoteExecutor,
-                            subquery,
                             joinClause,
                             remoteOptions,
                             remoteFeatureFlags,
@@ -870,10 +876,9 @@ private:
                             TDataSource dataSource;
                             TQueryPtr foreignQuery;
                             std::tie(foreignQuery, dataSource) = GetForeignQuery(
-                                subquery,
-                                joinClause,
                                 std::move(keys),
-                                permanentBuffer);
+                                std::move(permanentBuffer),
+                                *joinClause);
 
                             YT_LOG_DEBUG("Evaluating remote subquery (SubqueryId: %v)", foreignQuery->Id);
 

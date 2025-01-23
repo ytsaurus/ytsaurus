@@ -339,7 +339,7 @@ struct TJoinClause
     size_t ForeignKeyPrefix = 0;
 
     // TODO(sabdenovch): introduce TArrayJoinClause and TTableJoinClause.
-    // Currently non-empty ArrayExpressions renders fields *Prefix, *Id, *Equations and Predicate meaningless.
+    // Currently non-empty ArrayExpressions renders fields *KeyPrefix, Foreign*Id and *Equations meaningless.
     std::vector<TConstExpressionPtr> ArrayExpressions;
 
     bool IsLeft = false;
@@ -354,6 +354,10 @@ struct TJoinClause
     TKeyColumns GetKeyColumns() const;
 
     TTableSchemaPtr GetTableSchema(const TTableSchema& source) const;
+
+    TQueryPtr GetJoinSubquery() const;
+
+    std::vector<size_t> GetForeignColumnIndices() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoinClause)
@@ -448,6 +452,8 @@ struct TBaseQuery
     bool UseDisjointGroupBy = false;
 
     bool InferRanges = true;
+
+    bool ForceLightRangeInference = false;
 
     explicit TBaseQuery(TGuid id = TGuid::Create());
 

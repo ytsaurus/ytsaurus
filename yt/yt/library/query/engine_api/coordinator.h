@@ -25,6 +25,7 @@ TSharedRange<TRowRange> GetPrunedRanges(
     const TConstRangeExtractorMapPtr& rangeExtractors,
     const TQueryOptions& options,
     const IMemoryChunkProviderPtr& memoryChunkProvider,
+    bool forceLightRangeInference,
     TGuid queryId = {});
 
 TSharedRange<TRowRange> GetPrunedRanges(

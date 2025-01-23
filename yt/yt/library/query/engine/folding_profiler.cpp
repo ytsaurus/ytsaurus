@@ -2061,15 +2061,16 @@ void TQueryProfiler::Profile(
     Fold(EFoldingObjectType::ScanOp);
 
     auto schema = query->GetRenamedSchema();
+    auto readSchema = query->GetReadSchema();
     TSchemaProfiler::Profile(schema);
 
-    auto stringLikeColumnIndices = GetStringLikeColumnIndices(query->GetReadSchema());
+    auto stringLikeColumnIndices = GetStringLikeColumnIndices(readSchema);
 
     int rowSchemaInformationIndex = Variables_->AddOpaque<TRowSchemaInformation>(
         TRowSchemaInformation{
             .RowWeightWithNoStrings = InferRowWeightWithNoStrings(query->GetReadSchema()),
             .StringLikeIndices = stringLikeColumnIndices,
-            .Length = query->GetReadSchema()->GetColumnCount() + 0, // NB: This query has no incoming stream tag.
+            .Length = readSchema->GetColumnCount() + 0, // NB: This query has no incoming stream tag.
         });
 
     size_t currentSlot = MakeCodegenScanOp(
@@ -2232,50 +2233,14 @@ void TQueryProfiler::Profile(
 
             parameters.push_back(std::move(codegenParameters));
 
-            TSingleJoinParameters singleJoinParameters;
+            TSingleJoinParameters singleJoinParameters{
+                .KeySize = joinClause->ForeignEquations.size(),
+                .IsLeft = joinClause->IsLeft,
+                .IsPartiallySorted = joinClause->ForeignKeyPrefix < singleJoinParameters.KeySize,
+                .ForeignColumns = joinClause->GetForeignColumnIndices(),
+                .ExecuteForeign = joinProfiler(joinIndex),
+            };
 
-            {
-                const auto& foreignEquations = joinClause->ForeignEquations;
-
-                // Create subquery TQuery{ForeignDataSplit, foreign predicate and (join columns) in (keys)}.
-                auto subquery = New<TQuery>();
-
-                subquery->Schema.Original = joinClause->Schema.Original;
-                subquery->Schema.Mapping = joinClause->Schema.Mapping;
-
-                // (join key... , other columns...)
-                auto projectClause = New<TProjectClause>();
-
-                for (const auto& column : foreignEquations) {
-                    projectClause->AddProjection(column, InferName(column));
-                }
-
-                subquery->ProjectClause = projectClause;
-                subquery->WhereClause = joinClause->Predicate;
-
-                std::vector<size_t> foreignColumns;
-                auto joinRenamedTableColumns = joinClause->GetRenamedSchema()->Columns();
-                for (const auto& renamedColumn : joinRenamedTableColumns) {
-                    if (joinClause->ForeignJoinedColumns.contains(renamedColumn.Name())) {
-                        foreignColumns.push_back(projectClause->Projections.size());
-
-                        projectClause->AddProjection(
-                            New<TReferenceExpression>(
-                                renamedColumn.LogicalType(),
-                                renamedColumn.Name()),
-                            renamedColumn.Name());
-                    }
-                };
-
-                singleJoinParameters.KeySize = foreignEquations.size();
-                singleJoinParameters.IsLeft = joinClause->IsLeft;
-                singleJoinParameters.IsPartiallySorted = joinClause->ForeignKeyPrefix < foreignEquations.size();
-                singleJoinParameters.ForeignColumns = std::move(foreignColumns);
-                // TODO(lukyan): Transfer projectClause instead of subquery. Move query construction to joinProfiler.
-                // How to get foreignColumns, foreignColumnsIndexes?
-                // Or build projectClause in query preparer?
-                singleJoinParameters.ExecuteForeign = joinProfiler(std::move(subquery), joinClause);
-            }
             joinParameters.Items.push_back(std::move(singleJoinParameters));
 
             lastSchema = joinClause->GetTableSchema(*lastSchema);
@@ -2350,15 +2315,16 @@ void TQueryProfiler::Profile(
     Fold(EFoldingObjectType::ScanOp);
 
     auto schema = query->GetRenamedSchema();
+    auto readSchema = query->GetReadSchema();
     TSchemaProfiler::Profile(schema);
 
-    auto stringLikeColumnIndices = GetStringLikeColumnIndices(query->GetReadSchema());
+    auto stringLikeColumnIndices = GetStringLikeColumnIndices(readSchema);
 
     int rowSchemaInformationIndex = Variables_->AddOpaque<TRowSchemaInformation>(
         TRowSchemaInformation{
             .RowWeightWithNoStrings = InferRowWeightWithNoStrings(query->GetReadSchema()),
             .StringLikeIndices = stringLikeColumnIndices,
-            .Length = query->GetReadSchema()->GetColumnCount() + 1, // NB: We use +1 for stream tag.
+            .Length = readSchema->GetColumnCount() + 1, // NB: We use +1 for stream tag.
         });
 
     size_t currentSlot = MakeCodegenScanOp(

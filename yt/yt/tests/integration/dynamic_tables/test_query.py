@@ -2400,6 +2400,61 @@ class TestQuery(DynamicTablesBase):
             limit 3""")
         assert expected == actual
 
+    @authors("sabdenovch")
+    def test_join_range_inference_uses_predicate(self):
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/t",
+            [
+                make_sorted_column("k0", "int64"),
+                make_sorted_column("k1", "int64"),
+                make_column("v0", "int64"),
+            ],
+            [
+                {"k0": 0, "k1": 0, "v0": 0},
+            ],
+        )
+
+        self._create_table(
+            "//tmp/j",
+            [
+                make_sorted_column("k0", "int64"),
+                make_sorted_column("k1", "int64"),
+                make_sorted_column("k2", "int64"),
+                make_column("v1", "int64"),
+            ],
+            [
+                {"k0": 0, "k1": 0, "k2": 0, "v1": 1},
+                {"k0": 0, "k1": 0, "k2": 10, "v1": 1},
+            ],
+        )
+
+        self._create_table(
+            "//tmp/j_eva",
+            [
+                {"name": "eva", "type": "int64", "sort_order": "ascending", "expression": "0*(k0 + k1 + k2)"},
+                make_sorted_column("k0", "int64"),
+                make_sorted_column("k1", "int64"),
+                make_sorted_column("k2", "int64"),
+                make_column("v1", "int64"),
+            ],
+            [
+                {"k0": 0, "k1": 0, "k2": 0, "v1": 1},
+                {"k0": 0, "k1": 0, "k2": 10, "v1": 1},
+            ],
+        )
+
+        query = "k0, k1, k2, v1 from [//tmp/t] join [//tmp/j] using k0, k1 and k2 = 0"
+        query_eva = "k0, k1, k2, v1 from [//tmp/t] T join [//tmp/j_eva] on (T.k0, T.k1) = (k0, k1) AND k2 = 0"
+        expected = [{"k0": 0, "k1": 0, "k2": 0, "v1": 1}]
+
+        sync_unmount_table("//tmp/j")
+        reshard_table("//tmp/j", [[], [0, 0, 4]])
+        sync_mount_table("//tmp/j", first_tablet_index=0, last_tablet_index=0)
+
+        assert_items_equal(select_rows(query), expected)
+        assert_items_equal(select_rows(query_eva, allow_join_without_index=True), expected)
+
 
 class TestQueryRpcProxy(TestQuery):
     DRIVER_BACKEND = "rpc"

@@ -329,6 +329,48 @@ TTableSchemaPtr TJoinClause::GetTableSchema(const TTableSchema& source) const
     return New<TTableSchema>(std::move(result));
 }
 
+TQueryPtr TJoinClause::GetJoinSubquery() const
+{
+    auto joinSubquery = New<TQuery>();
+
+    joinSubquery->Schema.Original = Schema.Original;
+    joinSubquery->Schema.Mapping = Schema.Mapping;
+
+    joinSubquery->WhereClause = Predicate;
+    auto projectClause = New<TProjectClause>();
+    joinSubquery->ProjectClause = projectClause;
+
+    for (const auto& column : ForeignEquations) {
+        projectClause->AddProjection(column, InferName(column));
+    }
+    auto joinRenamedTableColumns = GetRenamedSchema()->Columns();
+    for (const auto& renamedColumn : joinRenamedTableColumns) {
+        if (ForeignJoinedColumns.contains(renamedColumn.Name())) {
+            projectClause->AddProjection(
+                New<TReferenceExpression>(
+                    renamedColumn.LogicalType(),
+                    renamedColumn.Name()),
+                renamedColumn.Name());
+        }
+    };
+
+    return joinSubquery;
+}
+
+std::vector<size_t> TJoinClause::GetForeignColumnIndices() const
+{
+    std::vector<size_t> foreignColumns;
+    auto joinRenamedTableColumns = GetRenamedSchema()->Columns();
+    size_t foreignColumnsIndex = ForeignEquations.size();
+    for (const auto& renamedColumn : joinRenamedTableColumns) {
+        if (ForeignJoinedColumns.contains(renamedColumn.Name())) {
+            foreignColumns.push_back(foreignColumnsIndex++);
+        }
+    };
+
+    return foreignColumns;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TGroupClause::AddGroupItem(TNamedItem namedItem)
