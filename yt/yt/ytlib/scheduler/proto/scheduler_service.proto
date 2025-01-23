@@ -54,7 +54,7 @@ message TReqSuspendOperation
         string operation_alias = 3;
     }
     optional bool abort_running_jobs = 2;
-    optional string reason = 4 [default = ""];
+    optional string reason = 4;
 }
 
 message TRspSuspendOperation

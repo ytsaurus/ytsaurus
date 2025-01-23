@@ -937,7 +937,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
         op.track()
         assert op.get_state() == "completed"
 
-    @authors("kiselyovp")
+    @authors("faucct")
     def test_suspend_resume_operation_with_reason(self):
         op = self._start_simple_operation_with_breakpoint()
         wait(lambda: op.get_state() == "running")
@@ -950,7 +950,9 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
         assert get(op.get_path() + "/@suspended")
         assert op.get_state() == "running"
 
-        assert op.get_alerts()["operation_suspended"]["message"] == 'Suspend operation by user request (Reason: "because")'
+        alert = op.get_alerts()["operation_suspended"]
+        assert alert["message"] == "Suspend operation by user request"
+        assert alert["attributes"]["reason"] == "because"
         op.resume()
         assert op.get_alerts() == {}
         op.track()

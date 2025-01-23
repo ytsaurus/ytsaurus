@@ -796,13 +796,15 @@ public:
                 operation->GetState()));
         }
 
+        TError error = TError("Suspend operation by user request");
+        if (!reason.empty()) {
+            error <<= TErrorAttribute("reason", reason);
+        }
         DoSuspendOperation(
             operation,
-            reason.empty()
-                ? TError("Suspend operation by user request")
-                : TError("Suspend operation by user request (Reason: %Qv)", reason),
+            error,
             abortRunningAllocations,
-            !reason.empty());
+            /*setAlert*/ !reason.empty());
 
         return MasterConnector_->FlushOperationNode(operation);
     }
