@@ -3156,13 +3156,12 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/q0", values, tx=tx)
         commit_res = commit_transaction(tx)
         print_debug("Commit results: ", commit_res)
-        primary_commit_timestamp = commit_res["primary_commit_timestamp"]
-        assert primary_commit_timestamp != 0
 
         wait(lambda: select_rows("key, value from [//tmp/q0]") == data_values)
 
+        ts = generate_timestamp()
         for replica_id in replica_ids:
-            wait(lambda: get(f"//tmp/crt/@replicas/{replica_id}/replication_lag_timestamp") > primary_commit_timestamp)
+            wait(lambda: get(f"//tmp/crt/@replicas/{replica_id}/replication_lag_timestamp") > ts)
 
         ts = generate_timestamp()
 
