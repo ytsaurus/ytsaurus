@@ -22,6 +22,7 @@ Y_WEAK TSharedRange<TRowRange> GetPrunedRanges(
     const TConstRangeExtractorMapPtr& /*rangeExtractors*/,
     const TQueryOptions& /*options*/,
     const IMemoryChunkProviderPtr& /*memoryChunkProvider*/,
+    bool /*forceLightRangeInference*/,
     TGuid /*queryId*/)
 {
     // Proper implementation resides in yt/yt/library/query/engine/coordinator.cpp.

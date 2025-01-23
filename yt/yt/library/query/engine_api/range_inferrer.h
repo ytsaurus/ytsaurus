@@ -4,6 +4,8 @@
 
 #include <yt/yt/library/query/base/key_trie.h>
 
+#include <functional>
+
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////

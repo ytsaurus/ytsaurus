@@ -30,10 +30,9 @@ public:
     TAsyncExpiringCacheConfigPtr PoolWeightCache;
 
     bool RejectUponThrottlerOverdraft;
+    bool AccountUserBackendOutTraffic;
 
     i64 MaxPullQueueResponseDataWeight;
-
-    bool AccountUserBackendOutTraffic;
 
     REGISTER_YSON_STRUCT(TQueryAgentConfig);
 

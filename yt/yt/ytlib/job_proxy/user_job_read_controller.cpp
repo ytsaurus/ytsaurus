@@ -440,6 +440,7 @@ private:
     {
         YT_VERIFY(!Reader_);
         Reader_ = UserJobIOFactory_->CreateReader(
+            JobSpecHelper_,
             OnNetworkRelease_,
             std::move(nameTable),
             columnFilter);

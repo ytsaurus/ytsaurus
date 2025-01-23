@@ -261,7 +261,7 @@ def make_parallel_write_request(
                 parent_directory = ypath_dirname(parent_directory)
             account = get(parent_directory + '/@account', client=client)
             # If there is no access to target_medium in tmp directory account - let's disable it
-            if not exists(f'//sys/accounts/{account}/@resource_limits/disk_space_per_medium/{target_medium}'):
+            if not exists(f'//sys/accounts/{account}/@resource_limits/disk_space_per_medium/{target_medium}', client=client):
                 use_tmp_dir_for_intermediate_data = False
 
         writer = ParallelWriter(

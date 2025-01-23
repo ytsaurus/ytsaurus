@@ -1123,9 +1123,10 @@ TSharedRange<TRowRange> CreateNewRangeInferrer(
     const IColumnEvaluatorCachePtr& evaluatorCache,
     const TConstConstraintExtractorMapPtr& constraintExtractors,
     const TQueryOptions& options,
-    const IMemoryChunkProviderPtr& memoryChunkProvider)
+    const IMemoryChunkProviderPtr& memoryChunkProvider,
+    bool forceLightRangeInference)
 {
-    return schema->HasMaterializedComputedColumns()
+    return (!forceLightRangeInference && schema->HasMaterializedComputedColumns())
         ? CreateNewHeavyRangeInferrer(
             predicate,
             schema,
