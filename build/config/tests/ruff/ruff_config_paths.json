@@ -1,6 +1,7 @@
 {
     "": "build/config/tests/ruff/ruff.toml",
     "fintech/uservices": "fintech/uservices/pyproject.toml",
+    "insurance/": "insurance/pyproject.toml",
     "maps/garden/": "maps/garden/pyproject.toml",
     "maps/sprav/": "maps/sprav/pyproject.toml",
     "sprav/": "sprav/pyproject.toml",
