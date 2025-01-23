@@ -53,13 +53,13 @@ public:
         const TProfiler& profiler,
         const IInvokerPtr& invoker)
         : Changelog_(std::move(changelog))
-        , Profiler_(profiler)
+        , Profiler(profiler)
         , Invoker_(NConcurrency::CreateBoundedConcurrencyInvoker(invoker, 1))
         , ProcessQueueCallback_(BIND_NO_PROPAGATE(&TFileChangelogQueue::Process, MakeWeak(this)))
         , FlushedRecordCount_(Changelog_->GetRecordCount())
-        , ChangelogReadIOTimer_(Profiler_.Timer("/changelog_read_io_time"))
-        , ChangelogReadCopyTimer_(Profiler_.Timer("/changelog_read_copy_time"))
-        , ChangelogFlushIOTimer_(Profiler_.Timer("/changelog_flush_io_time"))
+        , ChangelogReadIOTimer_(Profiler.Timer("/changelog_read_io_time"))
+        , ChangelogReadCopyTimer_(Profiler.Timer("/changelog_read_copy_time"))
+        , ChangelogFlushIOTimer_(Profiler.Timer("/changelog_flush_io_time"))
     { }
 
     ~TFileChangelogQueue()
@@ -264,7 +264,7 @@ public:
 
 private:
     const IUnbufferedFileChangelogPtr Changelog_;
-    const TProfiler Profiler_;
+    const TProfiler Profiler;
     const IInvokerPtr Invoker_;
     const TClosure ProcessQueueCallback_;
 
@@ -363,14 +363,14 @@ public:
             ActionQueue_->GetInvoker(),
             ProcessQueuesCallback_,
             config->FlushQuantum))
-        , Profiler_(std::move(profiler))
-        , RecordCounter_(Profiler_.Counter("/records"))
-        , ByteCounter_(Profiler_.Counter("/bytes"))
-        , QueueCountGauge_(Profiler_.Gauge("/queue_count"))
-        , ChangelogTruncateIOTimer_(Profiler_.Timer("/changelog_truncate_io_time"))
-        , ChangelogCloseIOTimer_(Profiler_.Timer("/changelog_close_io_time"))
-        , ChangelogReadRecordCountGauge_(Profiler_.Gauge("/changelog_read_record_count"))
-        , ChangelogReadSizeGauge_(Profiler_.Gauge("/changelog_read_size"))
+        , Profiler(std::move(profiler))
+        , RecordCounter_(Profiler.Counter("/records"))
+        , ByteCounter_(Profiler.Counter("/bytes"))
+        , QueueCountGauge_(Profiler.Gauge("/queue_count"))
+        , ChangelogTruncateIOTimer_(Profiler.Timer("/changelog_truncate_io_time"))
+        , ChangelogCloseIOTimer_(Profiler.Timer("/changelog_close_io_time"))
+        , ChangelogReadRecordCountGauge_(Profiler.Gauge("/changelog_read_record_count"))
+        , ChangelogReadSizeGauge_(Profiler.Gauge("/changelog_read_size"))
     {
         PeriodicExecutor_->Start();
     }
@@ -425,7 +425,7 @@ public:
 
     TFileChangelogQueuePtr CreateQueue(IUnbufferedFileChangelogPtr changelog)
     {
-        return New<TFileChangelogQueue>(std::move(changelog), Profiler_, GetInvoker());
+        return New<TFileChangelogQueue>(std::move(changelog), Profiler, GetInvoker());
     }
 
     void RegisterQueue(const TFileChangelogQueuePtr& queue)
@@ -501,7 +501,7 @@ private:
     const TActionQueuePtr ActionQueue_;
     const TPeriodicExecutorPtr PeriodicExecutor_;
 
-    const TProfiler Profiler_;
+    const TProfiler Profiler;
 
     THashSet<TFileChangelogQueuePtr> Queues_;
 
@@ -555,13 +555,7 @@ private:
         int maxRecords,
         i64 maxBytes)
     {
-        auto memoryGuard = TMemoryUsageTrackerGuard::Acquire(MemoryUsageTracker_, maxBytes);
         auto records = queue->Read(firstRecordId, maxRecords, maxBytes);
-
-        for (auto& record : records) {
-            record = TrackMemory(MemoryUsageTracker_, std::move(record));
-        }
-
         ChangelogReadRecordCountGauge_.Update(records.size());
         ChangelogReadSizeGauge_.Update(GetByteSize(records));
         return records;
