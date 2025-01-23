@@ -44,7 +44,7 @@ using NChunkClient::NullChunkTreeId;
 using NChunkClient::TBlockOffset;
 using NChunkClient::EChunkType;
 using NChunkClient::TBlockId;
-using NChunkClient::UpperReplicaCountBound;
+using NChunkClient::TypicalReplicaCount;
 using NChunkClient::MaxMediumCount;
 using NChunkClient::MediumIndexBound;
 using NChunkClient::DefaultStoreMediumIndex;
@@ -98,7 +98,7 @@ DECLARE_MASTER_OBJECT_TYPE(TS3Medium)
 
 class TChunkLocation;
 
-using TChunkLocationList = TCompactVector<TChunkLocation*, UpperReplicaCountBound>;
+using TChunkLocationList = TCompactVector<TChunkLocation*, TypicalReplicaCount>;
 
 class TChunkTree;
 class TChunkOwnerBase;
