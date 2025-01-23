@@ -499,7 +499,7 @@ public:
 
         std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits;
 
-        if (coordinatedQuery->IsOrdered()) {
+        if (coordinatedQuery->IsOrdered(requestFeatureFlags)) {
             // Splits are ordered by tablet bounds.
             YT_LOG_DEBUG("Got ordered splits (SplitCount: %v)", allSplits.size());
 
@@ -602,7 +602,7 @@ private:
         int splitCount = std::ssize(groupedDataSplits);
 
         return CoordinateAndExecute(
-            query->IsOrdered(),
+            query->IsOrdered(requestFeatureFlags),
             query->IsPrefetching(),
             splitCount,
             [

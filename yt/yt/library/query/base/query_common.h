@@ -187,6 +187,7 @@ struct TQueryOptions
 struct TFeatureFlags
 {
     bool WithTotalsFinalizesAggregatedOnCoordinator = false;
+    bool GroupByWithLimitIsUnordered = false;
 };
 
 TFeatureFlags MostFreshFeatureFlags();
