@@ -1685,6 +1685,10 @@ void GroupOpHelper(
     bool groupByInCompatMode = (!context->RequestFeatureFlags->WithTotalsFinalizesAggregatedOnCoordinator) ||
         (!responseFeatureFlags.WithTotalsFinalizesAggregatedOnCoordinator);
 
+    if (context->RequestFeatureFlags->GroupByWithLimitIsUnordered) {
+        YT_VERIFY(responseFeatureFlags.GroupByWithLimitIsUnordered);
+    }
+
     auto closure = TGroupByClosure(
         context->MemoryChunkProvider,
         prefixEqComparer,
@@ -3004,7 +3008,7 @@ struct TChunkReplica
     auto operator<=>(const TChunkReplica& other) const = default;
 };
 
-using TChunkReplicaList = TCompactVector<TChunkReplica, UpperReplicaCountBound>;
+using TChunkReplicaList = TCompactVector<TChunkReplica, TypicalReplicaCount>;
 
 TChunkReplicaList UniteReplicas(const TChunkReplicaList& first, const TChunkReplicaList& second)
 {

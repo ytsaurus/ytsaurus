@@ -235,7 +235,16 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
                 axis_to_precision[axis] = precision
             if MonitoringSystemFields.DownsamplingAggregation in tags:
                 downsampling_aggregation = tags[MonitoringSystemFields.DownsamplingAggregation]
-            targets.append({"query": self._get_sensor_query(sensor)})
+            structure = {}
+            structure["query"] = self._get_sensor_query(sensor)
+
+            if sensor._name is not None:
+                structure["name"] = sensor._name
+
+            if sensor._hidden is not None:
+                structure["hidden"] = sensor._hidden
+
+            targets.append(structure)
 
         result = {
             "chart": {

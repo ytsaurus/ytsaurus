@@ -210,6 +210,7 @@ TFeatureFlags MostFreshFeatureFlags()
 {
     return {
         .WithTotalsFinalizesAggregatedOnCoordinator = true,
+        .GroupByWithLimitIsUnordered = true,
     };
 }
 
@@ -217,14 +218,16 @@ TFeatureFlags MostArchaicFeatureFlags()
 {
     return {
         .WithTotalsFinalizesAggregatedOnCoordinator = false,
+        .GroupByWithLimitIsUnordered = false,
     };
 }
 
 TString ToString(const TFeatureFlags& featureFlags)
 {
     return Format(
-        "{WithTotalsFinalizesAggregatedOnCoordinator: %v}",
-        featureFlags.WithTotalsFinalizesAggregatedOnCoordinator);
+        "{WithTotalsFinalizesAggregatedOnCoordinator: %v, GroupByWithLimitIsUnordered: %v}",
+        featureFlags.WithTotalsFinalizesAggregatedOnCoordinator,
+        featureFlags.GroupByWithLimitIsUnordered);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -305,11 +308,15 @@ void FromProto(
 void ToProto(NProto::TFeatureFlags* serialized, const TFeatureFlags& original)
 {
     serialized->set_with_totals_finalizes_aggregated_on_coordinator(original.WithTotalsFinalizesAggregatedOnCoordinator);
+    serialized->set_group_by_with_limit_is_unordered(original.GroupByWithLimitIsUnordered);
 }
 
 void FromProto(TFeatureFlags* original, const NProto::TFeatureFlags& serialized)
 {
     original->WithTotalsFinalizesAggregatedOnCoordinator = serialized.with_totals_finalizes_aggregated_on_coordinator();
+    if (serialized.has_group_by_with_limit_is_unordered()) {
+        original->GroupByWithLimitIsUnordered = serialized.group_by_with_limit_is_unordered();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

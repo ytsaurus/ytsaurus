@@ -10,13 +10,13 @@
    Минусы:
 4. Протокол более низкоуровневый. Более сложная работа с табличными данными, требуется сериализовывать/десериализовывать строки вручную.
 5. В данный момент отсутствует интеграции с готовыми HTTP клиентами {{product-name}} (C++ или Python).
-6. Написание полноценной удобной клиентской библиотеки поверх API — это сложная и объемная задача. Для части языков (C++, Python, Java) она отчасти решена нами. 
+6. Написание полноценной удобной клиентской библиотеки поверх API — это сложная и объемная задача. Для части языков (C++, Python, Java) она отчасти решена нами.
 
 gRPC запросы обслуживают [RPC-прокси](../../../user-guide/proxy/rpc.md) {{product-name}}. Как следует из названия прокси (RPC) — от клиента сервер ожидает [protobuf](https://developers.google.com/protocol-buffers/) сообщение. Ответом сервера также будет сообщение. Каждая команда {{product-name}}, такая как «создать узел в Кипарисе», «записать строки» представлена в виде пары сообщений (с префиксами TReq и TRsp для запроса и ответа соответственно). Пример: `TReqCreateNode, TRspCreateNode` —  создание узла в Кипарисе. Сообщения и их описания можно посмотреть в proto файле.
 
 ## Установка и компиляция proto сообщений
 
-Скомпилированные сообщения можно установить через pip: `pip install ytsaurus-proto`. Также необходимо установить gRPC и protobuf следующих версий (более свежие версии тоже можно, но на более свежих пакетах функциональность не тестировалась): 
+Скомпилированные сообщения можно установить через pip: `pip install ytsaurus-proto`. Также необходимо установить gRPC и protobuf следующих версий (более свежие версии тоже можно, но на более свежих пакетах функциональность не тестировалась):
 
    ```
    protobuf>=3.2.1
@@ -38,7 +38,7 @@ import grpc
 import random
 
 if __name__ == "__main__":
-    # Будем делать запрос к кластеру 
+    # Будем делать запрос к кластеру
     yt.config["proxy"]["url"] = "cluster-name"
 
     # Получаем список gRPC прокси, команда "discover_proxies" доступна с четвертой версии API.
@@ -155,8 +155,8 @@ Message → *{binary octet}
 ```
 Message → SerializedProtoMessage *Length-Prefixed-Attachment
 Length-Prefixed-Attachment → Attachment-Length [Attachment]
-Attachment-Length → {length of Attachment} # encoded as 4 byte unsigned integer, can be 0xFFFFFFFF if Attachment is omitted 
-Attachment → *{binary octet} 
+Attachment-Length → {length of Attachment} # encoded as 4 byte unsigned integer, can be 0xFFFFFFFF if Attachment is omitted
+Attachment → *{binary octet}
 ```
 
 Сначала идёт часть `SerializedProtoMessage`, которая представляет собой сериализованное proto сообщение. Далее следует количество (возможно, нулевое) attachments. Каждый attachment — это длина (`Attachment-Length`, кодируется четырьмя байтами) + произвольная байтовая последовательность длины `Attachment-Length`.
@@ -171,7 +171,7 @@ Attachment → *{binary octet}
 
 Для передачи строк {{product-name}} использует wire format, сериализованные строки передаются в attachments. Разбиение сериализованного потока строк на аттачменты произвольно, стоит рассматривать несколько последовательных attachments как один поток байт.
 
-Каждый запрос, который может принимать или возвращать строки, имеет [rowset descriptor](https://github.com/ytsaurus/ytsaurus/blob/main/yt/yt_proto/yt/client/api/rpc_proxy/proto/api_service.proto). Дескриптор описывает, каким образом строки должны быть десериализованы или сериализованы. В данной секции описывается, как устроен unversioned rowset (`RK_UNVERSIONED`). Если вы хотите использовать `RK_VERSIONED` или `RK_SCHEMAFUL` тип, то напишите на рассылку {{%if lang == ru%}}[yt@](mailto:community_ru@ytsaurus.tech){{% else %}}[yt@](mailto:community@ytsaurus.tech){{% endif %}}.
+Каждый запрос, который может принимать или возвращать строки, имеет [rowset descriptor](https://github.com/ytsaurus/ytsaurus/blob/main/yt/yt_proto/yt/client/api/rpc_proxy/proto/api_service.proto). Дескриптор описывает, каким образом строки должны быть десериализованы или сериализованы. В данной секции описывается, как устроен unversioned rowset (`RK_UNVERSIONED`). Если вы хотите использовать `RK_VERSIONED` или `RK_SCHEMAFUL` тип, то напишите на {%if lang == "ru"%}[рассылку](mailto:community_ru@ytsaurus.tech){% else %}[рассылку](mailto:community@ytsaurus.tech){% endif %}.
 
 Для описания воспользуемся уже знакомой ABNF нотацией (endianness - little):
 

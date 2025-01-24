@@ -106,7 +106,7 @@ jobs:
           mkdir -p ~/.aws
           echo "[default]" > ~/.aws/credentials
           echo "aws_access_key_id = ${{ secrets.S3_ACCESS_KEY }}" >> ~/.aws/credentials
-          echo "aws_secret_access_key = ${{ secrets.S3_SECRET_NAME }}" >> ~/.aws/credentials
+          echo "aws_secret_access_key = ${{ secrets.S3_SECRET_KEY }}" >> ~/.aws/credentials
           echo "[default]" > ~/.aws/config
           echo "region = ${{ vars.S3_REGION }}" >> ~/.aws/config
           echo "endpoint_url = ${{ vars.S3_ENDPOINT_URL }}" >> ~/.aws/config
@@ -174,7 +174,7 @@ jobs:
         id: run-tests
         run: |
           source ../venv/bin/activate
-          pip install boto3 Jinja2 ytsaurus-client ytsaurus-yson
+          pip install boto3==1.35.99 Jinja2==3.1.5 ytsaurus-client ytsaurus-yson
 
           python3 ../ytsaurus/ytsaurus/.github/scripts/run_tests.py \
                   --yt-root ../ytsaurus/ytsaurus \

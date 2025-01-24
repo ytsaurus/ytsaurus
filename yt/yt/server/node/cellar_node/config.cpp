@@ -99,6 +99,7 @@ TMemoryLimitsEnumIndexedVector TMemoryLimits::AsEnumIndexedVector() const
     populate(EMemoryCategory::TabletStatic, TabletStatic);
     populate(EMemoryCategory::TabletDynamic, TabletDynamic);
     populate(EMemoryCategory::LookupRowsCache, LookupRowCache);
+    populate(EMemoryCategory::Query, Query);
 
     return result;
 }
@@ -127,6 +128,8 @@ void TMemoryLimits::Register(TRegistrar registrar)
     registrar.Parameter("versioned_chunk_meta", &TThis::VersionedChunkMeta)
         .Optional();
     registrar.Parameter("lookup_row_cache", &TThis::LookupRowCache)
+        .Optional();
+    registrar.Parameter("query", &TThis::Query)
         .Optional();
 }
 

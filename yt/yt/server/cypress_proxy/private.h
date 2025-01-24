@@ -10,6 +10,14 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+enum class EInvokeResult
+{
+    Executed,
+    ForwardToMaster,
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TCypressProxyBootstrapConfig)
 DECLARE_REFCOUNTED_CLASS(TCypressProxyProgramConfig)
 

@@ -39,7 +39,8 @@ TCGQueryGenerator Profile(
     bool useCanonicalNullRelations = false,
     NCodegen::EExecutionBackend executionBackend = NCodegen::EExecutionBackend::Native,
     const TConstFunctionProfilerMapPtr& functionProfilers = GetBuiltinFunctionProfilers().Get(),
-    const TConstAggregateProfilerMapPtr& aggregateProfilers = GetBuiltinAggregateProfilers().Get());
+    const TConstAggregateProfilerMapPtr& aggregateProfilers = GetBuiltinAggregateProfilers().Get(),
+    TFeatureFlags featureFlags = MostFreshFeatureFlags());
 
 ////////////////////////////////////////////////////////////////////////////////
 

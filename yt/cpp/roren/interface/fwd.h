@@ -9,6 +9,9 @@ namespace NRoren {
 template <typename T>
 class TPCollection;
 
+template <typename... T>
+using TPCollections = std::tuple<TPCollection<T>...>;
+
 class TMultiPCollection;
 
 class TPipeline;
@@ -52,7 +55,7 @@ class TParDoTransform;
 template <typename T>
 class TTypeTag;
 
-template <typename I, typename O>
+template <typename I, typename... O>
 class TTransform;
 
 template <typename T>

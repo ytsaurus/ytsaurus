@@ -365,7 +365,7 @@ private:
     const int DataPartCount_;
 
     NHydra::TRevision ReplicasRevision_ = NHydra::NullRevision;
-    TCompactVector<std::optional<TChunkReplicaInfo>, UpperReplicaCountBound> Replicas_;
+    TCompactVector<std::optional<TChunkReplicaInfo>, TypicalReplicaCount> Replicas_;
 
     TChunkFragmentReadControllerPlan RegularPlan_;
     TChunkFragmentReadControllerPlan RepairPlan_;
@@ -466,7 +466,7 @@ private:
 
     std::vector<std::vector<TSharedRef>> RepairFragmentParts_;
 
-    TCompactVector<bool, UpperReplicaCountBound> HasPartForRepair_;
+    TCompactVector<bool, TypicalReplicaCount> HasPartForRepair_;
 
 
     TChunkFragmentReadControllerPlan* BuildRegularPlan()

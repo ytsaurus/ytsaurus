@@ -3564,7 +3564,6 @@
   "yt/yt/tests/integration/README.md":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/tests/integration/README.md",
   "yt/yt/tests/integration/pytest.ini":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/tests/integration/pytest.ini",
   "yt/yt/tests/integration/run_tests.sh":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/tests/integration/run_tests.sh",
-  "yt/yt/tests/integration/spec.yson":"yt/opensource/repos/ytsaurus/github_toplevel/yt/yt/tests/integration/spec.yson",
   "yt/yt/tests/integration/yt_fibers_printer/CMakeLists.txt":"",
   "yt/yt/tests/integration/yt_fibers_printer/gdbtest/CMakeLists.darwin-arm64.txt":"",
   "yt/yt/tests/integration/yt_fibers_printer/gdbtest/CMakeLists.darwin-x86_64.txt":"",
