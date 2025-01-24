@@ -172,7 +172,6 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_reader_statistics.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_slice.proto
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_writer_statistics.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_node_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_sink.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/proto/data_source.proto
@@ -336,7 +335,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_spec_fetcher.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_spec.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_teleporter.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/chunk_writer_statistics.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/client_block_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/combine_data_slices.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/chunk_client/config.cpp
@@ -672,7 +670,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_reader_statistics.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_slice.pb.h
-  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/chunk_writer_statistics.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_sink.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/chunk_client/proto/data_source.pb.h

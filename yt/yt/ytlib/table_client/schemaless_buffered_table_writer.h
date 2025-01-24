@@ -4,8 +4,6 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
-
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/client/ypath/public.h>
@@ -19,8 +17,7 @@ IUnversionedWriterPtr CreateSchemalessBufferedTableWriter(
     TTableWriterOptionsPtr options,
     NApi::NNative::IClientPtr client,
     TNameTablePtr nameTable,
-    const NYPath::TYPath& path,
-    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions);
+    const NYPath::TYPath& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

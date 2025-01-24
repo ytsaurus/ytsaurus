@@ -8,7 +8,6 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
-#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/blob_reader.h>
@@ -55,8 +54,7 @@ public:
         const std::optional<NChunkClient::TDataSink>& dataSink,
         NChunkClient::TChunkListId chunkListId,
         NChunkClient::TTrafficMeterPtr trafficMeter,
-        NConcurrency::IThroughputThrottlerPtr throttler,
-        NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions);
+        NConcurrency::IThroughputThrottlerPtr throttler);
 
     NControllerAgent::NProto::TOutputResult GetOutputResult(bool withChunkSpecs = false) const;
 

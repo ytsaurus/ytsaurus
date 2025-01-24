@@ -85,21 +85,16 @@ public:
             BIND(&TBlobWritePipeline::DoOpen, MakeStrong(this)));
     }
 
-    TFuture<void> WriteBlocks(
-        const IChunkWriter::TWriteBlocksOptions& options,
-        int firstBlockIndex,
-        std::vector<TBlock> blocks)
+    TFuture<void> WriteBlocks(int firstBlockIndex, std::vector<TBlock> blocks)
     {
         return EnqueueCommand(
-            BIND(&TBlobWritePipeline::DoWriteBlocks, MakeStrong(this), options, firstBlockIndex, std::move(blocks)));
+            BIND(&TBlobWritePipeline::DoWriteBlocks, MakeStrong(this), firstBlockIndex, std::move(blocks)));
     }
 
-    TFuture<void> Close(
-        const IChunkWriter::TWriteBlocksOptions& options,
-        TRefCountedChunkMetaPtr chunkMeta)
+    TFuture<void> Close(TRefCountedChunkMetaPtr chunkMeta)
     {
         return EnqueueCommand(
-            BIND(&TBlobWritePipeline::DoClose, MakeStrong(this), options, std::move(chunkMeta)));
+            BIND(&TBlobWritePipeline::DoClose, MakeStrong(this), std::move(chunkMeta)));
     }
 
     TFuture<void> Abort()
@@ -208,10 +203,7 @@ private:
             }));
     }
 
-    TFuture<void> DoWriteBlocks(
-        const IChunkWriter::TWriteBlocksOptions& options,
-        int firstBlockIndex,
-        const std::vector<TBlock>& blocks)
+    TFuture<void> DoWriteBlocks(int firstBlockIndex, const std::vector<TBlock>& blocks)
     {
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -226,7 +218,7 @@ private:
         TWallTimer timer;
 
         // This is how TFileWriter works.
-        YT_VERIFY(!Writer_->WriteBlocks(options, Options_.WorkloadDescriptor, blocks));
+        YT_VERIFY(!Writer_->WriteBlocks(Options_.WorkloadDescriptor, blocks));
 
         return Writer_->GetReadyEvent().Apply(
             BIND([=, this, this_ = MakeStrong(this)] {
@@ -246,9 +238,7 @@ private:
             }));
     }
 
-    TFuture<void> DoClose(
-        const IChunkWriter::TWriteBlocksOptions& options,
-        const TRefCountedChunkMetaPtr& chunkMeta)
+    TFuture<void> DoClose(const TRefCountedChunkMetaPtr& chunkMeta)
     {
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -260,7 +250,7 @@ private:
 
         TWallTimer timer;
 
-        return Writer_->Close(options, Options_.WorkloadDescriptor, deferredChunkMeta).Apply(
+        return Writer_->Close(Options_.WorkloadDescriptor, deferredChunkMeta).Apply(
             BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 
@@ -304,8 +294,7 @@ TBlobSession::TBlobSession(
     const TSessionOptions& options,
     TStoreLocationPtr location,
     NConcurrency::TLease lease,
-    TLockedChunkGuard lockedChunkGuard,
-    IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
+    TLockedChunkGuard lockedChunkGuard)
     : TSessionBase(
         std::move(config),
         bootstrap,
@@ -313,8 +302,7 @@ TBlobSession::TBlobSession(
         options,
         std::move(location),
         std::move(lease),
-        std::move(lockedChunkGuard),
-        std::move(writeBlocksOptions))
+        std::move(lockedChunkGuard))
     , Pipeline_(New<TBlobWritePipeline>(
         Location_,
         SessionInvoker_,
@@ -367,7 +355,7 @@ void TBlobSession::OnStarted(const TError& error)
     }
 }
 
-TFuture<ISession::TFinishResult> TBlobSession::DoFinish(
+TFuture<TChunkInfo> TBlobSession::DoFinish(
     const TRefCountedChunkMetaPtr& chunkMeta,
     std::optional<int> blockCount)
 {
@@ -375,13 +363,13 @@ TFuture<ISession::TFinishResult> TBlobSession::DoFinish(
     YT_VERIFY(chunkMeta);
 
     if (!blockCount) {
-        return MakeFuture<TFinishResult>(TError("Attempt to finish a blob session %v without specifying block count",
+        return MakeFuture<TChunkInfo>(TError("Attempt to finish a blob session %v without specifying block count",
             SessionId_));
     }
 
     auto currentBlockCount = BlockCount_.load();
     if (*blockCount != currentBlockCount) {
-        return MakeFuture<TFinishResult>(TError("Block count mismatch in blob session %v: expected %v, got %v",
+        return MakeFuture<TChunkInfo>(TError("Block count mismatch in blob session %v: expected %v, got %v",
             SessionId_,
             currentBlockCount,
             *blockCount));
@@ -390,7 +378,7 @@ TFuture<ISession::TFinishResult> TBlobSession::DoFinish(
     for (int blockIndex = WindowStartBlockIndex_; blockIndex < std::ssize(Window_); ++blockIndex) {
         const auto& slot = GetSlot(blockIndex);
         if (slot.State != ESlotState::Released) {
-            return MakeFuture<TFinishResult>(TError(
+            return MakeFuture<TChunkInfo>(TError(
                 NChunkClient::EErrorCode::WindowError,
                 "Attempt to finish a session with an unflushed block %v",
                 TBlockId(GetChunkId(), blockIndex)));
@@ -398,10 +386,10 @@ TFuture<ISession::TFinishResult> TBlobSession::DoFinish(
     }
 
     if (!Error_.IsOK()) {
-        return MakeFuture<TFinishResult>(Error_);
+        return MakeFuture<TChunkInfo>(Error_);
     }
 
-    return Pipeline_->Close(WriteBlocksOptions_, chunkMeta)
+    return Pipeline_->Close(chunkMeta)
         .Apply(BIND(&TBlobSession::OnFinished, MakeStrong(this))
             .AsyncVia(SessionInvoker_));
 }
@@ -431,7 +419,7 @@ i64 TBlobSession::GetIntermediateEmptyBlockCount() const
     return IntermediateEmptyBlockCount_.load();
 }
 
-ISession::TFinishResult TBlobSession::OnFinished(const TError& error)
+TChunkInfo TBlobSession::OnFinished(const TError& error)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
@@ -481,10 +469,7 @@ ISession::TFinishResult TBlobSession::OnFinished(const TError& error)
 
     Error_.ThrowOnError();
 
-    return TFinishResult {
-        .ChunkInfo = Pipeline_->GetChunkInfo(),
-        .ChunkWriterStatistics = WriteBlocksOptions_.ClientOptions.ChunkWriterStatistics,
-    };
+    return Pipeline_->GetChunkInfo();
 }
 
 TFuture<NIO::TIOCounters> TBlobSession::DoPutBlocks(
@@ -682,7 +667,7 @@ TFuture<NIO::TIOCounters> TBlobSession::DoPerformPutBlocks(
             return;
         }
 
-        Pipeline_->WriteBlocks(WriteBlocksOptions_, firstBlockIndex, blocksToWrite)
+        Pipeline_->WriteBlocks(firstBlockIndex, blocksToWrite)
             .Subscribe(
                 BIND(&TBlobSession::OnBlocksWritten, MakeStrong(this), firstBlockIndex, WindowIndex_)
                     .Via(SessionInvoker_));
@@ -825,17 +810,14 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TBlobSession::DoSendBlocks(
     }));
 }
 
-TFuture<ISession::TFlushBlocksResult> TBlobSession::DoFlushBlocks(int blockIndex)
+TFuture<NIO::TIOCounters> TBlobSession::DoFlushBlocks(int blockIndex)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
     if (!IsInWindow(blockIndex)) {
         YT_LOG_DEBUG("Blocks are already flushed (BlockIndex: %v)",
             blockIndex);
-        return MakeFuture(TFlushBlocksResult {
-            .IOCounters = {},
-            .ChunkWriterStatistics = New<NChunkClient::TChunkWriterStatistics>(),
-        });
+        return MakeFuture(NIO::TIOCounters{});
     }
 
     const auto& slot = GetSlot(blockIndex);
@@ -851,23 +833,18 @@ TFuture<ISession::TFlushBlocksResult> TBlobSession::DoFlushBlocks(int blockIndex
         BIND(&TBlobSession::OnBlockFlushed, MakeStrong(this), blockIndex));
 }
 
-ISession::TFlushBlocksResult TBlobSession::OnBlockFlushed(int blockIndex)
+NIO::TIOCounters TBlobSession::OnBlockFlushed(int blockIndex)
 {
     VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-    auto flushBlocksResult = TFlushBlocksResult {
-        .IOCounters = {},
-        .ChunkWriterStatistics = New<NChunkClient::TChunkWriterStatistics>(),
-    };
-
     if (Canceled_.load()) {
-        return flushBlocksResult;
+        return NIO::TIOCounters{};
     }
 
     ReleaseBlocks(blockIndex);
 
     // The data for blob chunks is flushed to disk only when the blob session is finished, so return empty IO counters here.
-    return flushBlocksResult;
+    return NIO::TIOCounters{};
 }
 
 void TBlobSession::DoCancel(const TError& error)

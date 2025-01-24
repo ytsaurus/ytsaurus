@@ -32,7 +32,6 @@ TFuture<void> TMemoryWriter::Cancel()
 }
 
 bool TMemoryWriter::WriteBlock(
-    const IChunkWriter::TWriteBlocksOptions& /*options*/,
     const TWorkloadDescriptor& /*workloadDescriptor*/,
     const TBlock& block)
 {
@@ -45,7 +44,6 @@ bool TMemoryWriter::WriteBlock(
 }
 
 bool TMemoryWriter::WriteBlocks(
-    const IChunkWriter::TWriteBlocksOptions& /*options*/,
     const TWorkloadDescriptor& /*workloadDescriptor*/,
     const std::vector<TBlock>& blocks)
 {
@@ -65,7 +63,6 @@ TFuture<void> TMemoryWriter::GetReadyEvent()
 }
 
 TFuture<void> TMemoryWriter::Close(
-    const IChunkWriter::TWriteBlocksOptions& /*options*/,
     const TWorkloadDescriptor& /*workloadDescriptor*/,
     const TDeferredChunkMetaPtr& chunkMeta)
 {

@@ -47,7 +47,6 @@ public:
         TFileChunkWriterConfigPtr config,
         TEncodingWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
-        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         const NChunkClient::TDataSink& dataSink,
         NChunkClient::IBlockCachePtr blockCache);
 
@@ -94,7 +93,6 @@ TFileChunkWriter::TFileChunkWriter(
     TFileChunkWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
     IChunkWriterPtr chunkWriter,
-    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     const NChunkClient::TDataSink& dataSink,
     IBlockCachePtr blockCache)
     : Logger(FileClientLogger().WithTag("ChunkWriterId: %v", TGuid::Create()))
@@ -103,7 +101,6 @@ TFileChunkWriter::TFileChunkWriter(
         config,
         options,
         chunkWriter,
-        std::move(writeBlocksOptions),
         blockCache,
         Logger))
     , TraceContext_(CreateTraceContextFromCurrent("FileChunkWriter"))
@@ -237,7 +234,6 @@ IFileChunkWriterPtr CreateFileChunkWriter(
     TFileChunkWriterConfigPtr config,
     TEncodingWriterOptionsPtr options,
     IChunkWriterPtr chunkWriter,
-    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     const NChunkClient::TDataSink& dataSink,
     IBlockCachePtr blockCache)
 {
@@ -245,7 +241,6 @@ IFileChunkWriterPtr CreateFileChunkWriter(
         config,
         options,
         chunkWriter,
-        std::move(writeBlocksOptions),
         dataSink,
         blockCache);
 }
@@ -258,7 +253,6 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
     TTransactionId transactionId,
     TChunkListId parentChunkListId,
     const NChunkClient::TDataSink& dataSink,
-    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     TTrafficMeterPtr trafficMeter,
     IThroughputThrottlerPtr throttler,
     IBlockCachePtr blockCache)
@@ -273,7 +267,6 @@ IFileMultiChunkWriterPtr CreateFileMultiChunkWriter(
             config,
             options,
             chunkWriter,
-            writeBlocksOptions,
             dataSink);
     };
 

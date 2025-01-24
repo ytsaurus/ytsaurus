@@ -18,8 +18,7 @@ NEventLog::IEventLogWriterPtr CreateRemoteEventLogWriter(const TRemoteEventLogCo
     return CreateStaticTableEventLogWriter(
         config->EventLogManager,
         client,
-        invoker,
-        /*writeBlocksOptions*/ {});
+        invoker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

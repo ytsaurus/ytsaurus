@@ -327,8 +327,6 @@ IJob::TStatistics TSimpleJobBase::GetStatistics() const
     }
 
     if (Writer_) {
-        result.ChunkWriterStatistics = {WriteBlocksOptions_.ClientOptions.ChunkWriterStatistics};
-
         result.OutputStatistics = {{
             .DataStatistics = {Writer_->GetDataStatistics()},
             .CodecStatistics = {Writer_->GetCompressionStatistics()},

@@ -31,8 +31,7 @@ void DoRepairErasedParts(
     const TPartIndexList& erasedIndices,
     const std::vector<IChunkReaderPtr>& readers,
     const std::vector<IChunkWriterPtr>& writers,
-    TClientChunkReadOptions chunkReadOptions,
-    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
+    const TClientChunkReadOptions& options,
     const NLogging::TLogger& logger)
 {
     YT_VERIFY(!writers.empty());
@@ -72,7 +71,7 @@ void DoRepairErasedParts(
             rowCount - 1);
 
         auto future = partsReader->ReadRows(
-            chunkReadOptions,
+            options,
             firstRowIndex,
             rowCount - firstRowIndex);
         auto rowLists = WaitFor(future)
@@ -105,7 +104,7 @@ void DoRepairErasedParts(
             TWorkloadDescriptor workloadDescriptor;
             workloadDescriptor.Category = EWorkloadCategory::SystemRepair;
 
-            if (!writer->WriteBlocks(writeBlocksOptions, workloadDescriptor, blocks)) {
+            if (!writer->WriteBlocks(workloadDescriptor, blocks)) {
                 futures.push_back(writer->GetReadyEvent());
             }
         }
@@ -129,7 +128,7 @@ void DoRepairErasedParts(
         std::vector<TFuture<void>> futures;
         for (const auto& writer : writers) {
             if (writer) {
-                futures.push_back(writer->Close(writeBlocksOptions));
+                futures.push_back(writer->Close());
             }
         }
 
@@ -149,8 +148,7 @@ TFuture<void> RepairErasedParts(
     const TPartIndexList& erasedIndices,
     std::vector<IChunkReaderPtr> readers,
     std::vector<IChunkWriterPtr> writers,
-    TClientChunkReadOptions chunkReadOptions,
-    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
+    TClientChunkReadOptions options,
     NLogging::TLogger logger)
 {
     return BIND(&DoRepairErasedParts)
@@ -162,8 +160,7 @@ TFuture<void> RepairErasedParts(
             erasedIndices,
             std::move(readers),
             std::move(writers),
-            std::move(chunkReadOptions),
-            std::move(writeBlocksOptions),
+            std::move(options),
             std::move(logger));
 }
 

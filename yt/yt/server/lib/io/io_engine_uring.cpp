@@ -1672,7 +1672,7 @@ public:
             sessionId);
     }
 
-    TFuture<TWriteResponse> Write(
+    TFuture<void> Write(
         TWriteRequest request,
         EWorkloadCategory category,
         TSessionId sessionId) override
@@ -1699,14 +1699,7 @@ public:
 
         ThreadPool_->SubmitRequests(uringRequests, category, sessionId);
 
-        TWriteResponse response{
-            .IOWriteRequests = std::ssize(uringRequests),
-        };
-
-        return AllSucceeded(std::move(futures))
-            .Apply(BIND([response = std::move(response)] () mutable {
-                return std::move(response);
-            }));
+        return AllSucceeded(std::move(futures));
     }
 
     TFuture<void> FlushFile(

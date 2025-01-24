@@ -4,7 +4,6 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
-#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/public.h>
@@ -462,8 +461,7 @@ DEFINE_REFCOUNTED_TYPE(IHunkChunkPayloadWriter)
 IHunkChunkPayloadWriterPtr CreateHunkChunkPayloadWriter(
     const TWorkloadDescriptor& workloadDescriptor,
     THunkChunkPayloadWriterConfigPtr config,
-    NChunkClient::IChunkWriterPtr underlying,
-    NChunkClient::IChunkWriter::TWriteBlocksOptions underlyingOptions);
+    NChunkClient::IChunkWriterPtr underlying);
 
 ////////////////////////////////////////////////////////////////////////////////
 

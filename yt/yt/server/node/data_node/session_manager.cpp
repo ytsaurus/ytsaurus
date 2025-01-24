@@ -245,8 +245,7 @@ ISessionPtr TSessionManager::CreateSession(
                 options,
                 location,
                 lease,
-                std::move(lockedChunkGuard),
-                /*writeBlocksOptions*/ IChunkWriter::TWriteBlocksOptions{});
+                std::move(lockedChunkGuard));
             break;
 
         case EObjectType::JournalChunk:
@@ -258,8 +257,7 @@ ISessionPtr TSessionManager::CreateSession(
                 options,
                 location,
                 lease,
-                std::move(lockedChunkGuard),
-                /*writeBlocksOptions*/ IChunkWriter::TWriteBlocksOptions{});
+                std::move(lockedChunkGuard));
             break;
 
         default:

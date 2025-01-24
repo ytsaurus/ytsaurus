@@ -9,7 +9,6 @@ import "yt_proto/yt/client/chunk_client/proto/chunk_meta.proto";
 import "yt_proto/yt/client/chunk_client/proto/read_limit.proto";
 import "yt/ytlib/chunk_client/proto/chunk_reader_statistics.proto";
 import "yt/ytlib/chunk_client/proto/chunk_slice.proto";
-import "yt/ytlib/chunk_client/proto/chunk_writer_statistics.proto";
 import "yt/ytlib/chunk_client/proto/session_id.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/wire_protocol.proto";
@@ -75,7 +74,6 @@ message TReqFinishChunk
 message TRspFinishChunk
 {
     required TChunkInfo chunk_info = 1;
-    optional TChunkWriterStatistics chunk_writer_statistics = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -114,9 +112,7 @@ message TPutBlocksStatistics
 message TRspPutBlocks
 {
     optional bool close_demanded = 1 [default = false];
-    // TODO(ngc224): deprecate in favor of chunk_writer_statistics
     optional TPutBlocksStatistics statistics = 2;
-    optional TChunkWriterStatistics chunk_writer_statistics = 3;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,7 +143,6 @@ message TReqFlushBlocks
 message TRspFlushBlocks
 {
     optional bool close_demanded = 1 [default = false];
-    optional TChunkWriterStatistics chunk_writer_statistics = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

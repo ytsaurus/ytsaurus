@@ -37,8 +37,7 @@ public:
         const TSessionOptions& options,
         TStoreLocationPtr location,
         NConcurrency::TLease lease,
-        TLockedChunkGuard lockedChunkGuard,
-        NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions);
+        TLockedChunkGuard lockedChunkGuard);
 
     i64 GetMemoryUsage() const override;
     i64 GetTotalSize() const override;
@@ -109,15 +108,15 @@ private:
         i64 cumulativeBlockSize,
         const NNodeTrackerClient::TNodeDescriptor& targetDescriptor) override;
 
-    TFuture<TFlushBlocksResult> DoFlushBlocks(int blockIndex) override;
-    TFlushBlocksResult OnBlockFlushed(int blockIndex);
+    TFuture<NIO::TIOCounters> DoFlushBlocks(int blockIndex) override;
+    NIO::TIOCounters OnBlockFlushed(int blockIndex);
 
     void DoCancel(const TError& error) override;
 
-    TFuture<TFinishResult> DoFinish(
+    TFuture<NChunkClient::NProto::TChunkInfo> DoFinish(
         const NChunkClient::TRefCountedChunkMetaPtr& chunkMeta,
         std::optional<int> blockCount) override;
-    TFinishResult OnFinished(const TError& error);
+    NChunkClient::NProto::TChunkInfo OnFinished(const TError& error);
 
     void Abort();
     void OnAborted(const TError& error);

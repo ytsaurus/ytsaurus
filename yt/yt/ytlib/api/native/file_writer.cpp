@@ -322,7 +322,6 @@ private:
             UploadTransaction_->GetId(),
             chunkListId,
             dataSink,
-            /*writeBlocksOptions*/ {},
             /*trafficMetter*/ nullptr,
             std::move(throttler));
 

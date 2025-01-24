@@ -333,7 +333,6 @@ void TFileChangelogIndex::AsyncFlush()
             .Flush = true,
         },
         WorkloadCategory_)
-        .AsVoid()
         .Apply(BIND([=, this, this_ = MakeStrong(this)] {
             YT_VERIFY(Flushing_.exchange(false));
             YT_LOG_DEBUG("Finished flushing changelog file index segment");

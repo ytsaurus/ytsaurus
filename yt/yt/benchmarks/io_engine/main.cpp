@@ -449,7 +449,7 @@ private:
                     .As<void>();
                 break;
             case EAmmoType::Write:
-                shot = IOEngine_->Write({File_, ammo.Offset, {WriteData_}}).AsVoid();
+                shot = IOEngine_->Write({File_, ammo.Offset, {WriteData_}});
                 break;
         }
 

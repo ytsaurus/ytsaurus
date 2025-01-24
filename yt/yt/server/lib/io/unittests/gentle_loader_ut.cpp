@@ -106,15 +106,12 @@ public:
             }));
     }
 
-    TFuture<TWriteResponse> Write(
+    TFuture<void> Write(
         TWriteRequest /*request*/,
         EWorkloadCategory /*category*/,
         TSessionId /*sessionId*/) override
     {
-        return RunRequest(Config_.WriteLatency, Config_.WriteFailingProbability)
-            .Apply(BIND([] {
-                return TWriteResponse{};
-            }));
+        return RunRequest(Config_.WriteLatency, Config_.WriteFailingProbability);
     }
 
     TFuture<void> FlushFile(

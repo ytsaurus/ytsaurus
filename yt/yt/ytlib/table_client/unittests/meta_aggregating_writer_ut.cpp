@@ -104,7 +104,6 @@ protected:
                 Schema_,
                 /*nameTable*/ nullptr,
                 memoryWriter,
-                /*writeBlocksOptions*/ {},
                 /*dataSink*/ std::nullopt);
 
             TUnversionedRowsBuilder builder;
@@ -148,13 +147,10 @@ protected:
             auto deferredChunkMeta = New<TDeferredChunkMeta>();
             deferredChunkMeta->CopyFrom(*chunkInfo.ChunkMeta);
             writer->AbsorbMeta(deferredChunkMeta, NullChunkId);
-            writer->WriteBlocks(
-                IChunkWriter::TWriteBlocksOptions(),
-                TWorkloadDescriptor(),
-                chunkInfo.MemoryWriter->GetBlocks());
+            writer->WriteBlocks(TWorkloadDescriptor(), chunkInfo.MemoryWriter->GetBlocks());
         }
 
-        WaitFor(writer->Close(IChunkWriter::TWriteBlocksOptions()))
+        WaitFor(writer->Close())
             .ThrowOnError();
     }
 

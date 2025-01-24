@@ -325,7 +325,6 @@ private:
                 .Buffers = {MakeRandomBuffer(packetSize)},
             },
             category)
-            .AsVoid()
             .Apply(BIND([&] {
                 if (Config_->FlushAfterWrite) {
                     return IOEngine_->FlushFile({handle, EFlushFileMode::Data});

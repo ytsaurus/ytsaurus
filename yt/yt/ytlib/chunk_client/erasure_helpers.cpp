@@ -258,12 +258,10 @@ public:
     TImpl(
         const TWorkloadDescriptor& workloadDescriptor,
         IChunkWriterPtr writer,
-        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         const std::vector<TPartRange>& blockRanges,
         bool computeChecksum)
         : WorkloadDescriptor_(workloadDescriptor)
         , Writer_(writer)
-        , WriteBlocksOptions_(std::move(writeBlocksOptions))
         , BlockRanges_(blockRanges)
         , ComputeChecksum_(computeChecksum)
     { }
@@ -321,7 +319,7 @@ public:
             }
         }
 
-        if (!Writer_->WriteBlocks(WriteBlocksOptions_, WorkloadDescriptor_, blocksToWrite)) {
+        if (!Writer_->WriteBlocks(WorkloadDescriptor_, blocksToWrite)) {
             return Writer_->GetReadyEvent();
         }
         return VoidFuture;
@@ -335,7 +333,6 @@ public:
 private:
     const TWorkloadDescriptor WorkloadDescriptor_;
     const IChunkWriterPtr Writer_;
-    const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
     const std::vector<TPartRange> BlockRanges_;
     const bool ComputeChecksum_;
 
@@ -350,15 +347,9 @@ private:
 TPartWriter::TPartWriter(
     const TWorkloadDescriptor& workloadDescriptor,
     IChunkWriterPtr writer,
-    IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
     const std::vector<TPartRange>& blockRanges,
     bool computeChecksum)
-    : Impl_(New<TImpl>(
-        workloadDescriptor,
-        writer,
-        std::move(writeBlocksOptions),
-        blockRanges,
-        computeChecksum))
+    : Impl_(New<TImpl>(workloadDescriptor, writer, blockRanges, computeChecksum))
 { }
 
 TPartWriter::~TPartWriter()

@@ -4,7 +4,6 @@
 #include "chunk_reader.h"
 #include "chunk_reader_allowing_repair.h"
 #include "chunk_meta_extensions.h"
-#include "chunk_writer.h"
 
 #include <yt/yt/core/actions/future.h>
 
@@ -97,7 +96,6 @@ public:
     TPartWriter(
         const TWorkloadDescriptor& workloadDescriptor,
         IChunkWriterPtr writer,
-        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         const std::vector<TPartRange>& blockRanges,
         bool computeChecksum);
 

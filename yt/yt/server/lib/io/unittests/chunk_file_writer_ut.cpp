@@ -87,13 +87,13 @@ protected:
 
     void WriteBlock(const IChunkWriterPtr& writer, const TBlock& block)
     {
-        EXPECT_FALSE(writer->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), block));
+        EXPECT_FALSE(writer->WriteBlock(TWorkloadDescriptor(), block));
         EXPECT_TRUE(writer->GetReadyEvent().Get().IsOK());
     }
 
     void WriteBlocks(const IChunkWriterPtr& writer, const std::vector<TBlock>& blocks)
     {
-        EXPECT_FALSE(writer->WriteBlocks(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), blocks));
+        EXPECT_FALSE(writer->WriteBlocks(TWorkloadDescriptor(), blocks));
         EXPECT_TRUE(writer->GetReadyEvent().Get().IsOK());
     }
 
@@ -135,7 +135,7 @@ TEST_P(TChunkFileWriterTest, SingleWrite)
         CheckBlock(*tmpFile, block);
     }
 
-    writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>())
+    writer->Close(TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>())
         .Get()
         .ThrowOnError();
 
@@ -169,7 +169,7 @@ TEST_P(TChunkFileWriterTest, MultiWrite)
         CheckBlock(*tmpFile, block);
     }
 
-    writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>())
+    writer->Close(TWorkloadDescriptor(), New<NChunkClient::TDeferredChunkMeta>())
         .Get()
         .ThrowOnError();
 

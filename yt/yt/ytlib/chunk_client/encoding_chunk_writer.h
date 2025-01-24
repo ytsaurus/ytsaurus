@@ -1,7 +1,6 @@
 #pragma once
 
 #include "chunk_meta_extensions.h"
-#include "chunk_writer.h"
 
 #include "memory_tracked_deferred_chunk_meta.h"
 
@@ -28,7 +27,6 @@ public:
         TEncodingWriterConfigPtr config,
         TEncodingWriterOptionsPtr options,
         IChunkWriterPtr chunkWriter,
-        IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
         IBlockCachePtr blockCache,
         NLogging::TLogger logger);
 
@@ -59,7 +57,6 @@ private:
     const TEncodingWriterConfigPtr Config_;
     const TEncodingWriterOptionsPtr Options_;
     const IChunkWriterPtr ChunkWriter_;
-    const IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
     const TEncodingWriterPtr EncodingWriter_;
 
     int CurrentBlockIndex_ = 0;

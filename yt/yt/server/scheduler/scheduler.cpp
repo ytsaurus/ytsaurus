@@ -261,8 +261,7 @@ public:
         EventLogWriter_ = CreateStaticTableEventLogWriter(
             Config_->EventLog,
             GetClient(),
-            Bootstrap_->GetControlInvoker(EControlQueue::EventLog),
-            /*writeBlocksOptions*/ {});
+            Bootstrap_->GetControlInvoker(EControlQueue::EventLog));
         ControlEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
         OffloadedEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
 

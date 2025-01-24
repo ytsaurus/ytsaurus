@@ -376,8 +376,7 @@ i64 TCoreWatcher::DoReadCore(const IAsyncInputStreamPtr& coreStream, const TStri
         /*dataSink*/ std::nullopt,
         ChunkList_,
         JobHost_->GetTrafficMeter(),
-        JobHost_->GetOutBandwidthThrottler(),
-        /*writeBlocksOptions*/ {});
+        JobHost_->GetOutBandwidthThrottler());
 
     YT_LOG_DEBUG("Started writing core dump (CoreName: %v, TransactionId: %v, ChunkListId: %v)",
         coreName,

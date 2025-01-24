@@ -43,19 +43,16 @@ public:
     TFuture<void> Open() override;
 
     bool WriteBlock(
-        const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const NChunkClient::TBlock& block) override;
 
     bool WriteBlocks(
-        const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const std::vector<NChunkClient::TBlock>& blocks) override;
 
     TFuture<void> GetReadyEvent() override;
 
     TFuture<void> Close(
-        const NChunkClient::IChunkWriter::TWriteBlocksOptions& options,
         const TWorkloadDescriptor& workloadDescriptor,
         const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override;
 

@@ -56,7 +56,7 @@ TChunk WriteErasureChunk(
         .ThrowOnError();
 
     for (const auto& block : blocks) {
-        if (!writer->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), TBlock(block))) {
+        if (!writer->WriteBlock(TWorkloadDescriptor(), TBlock(block))) {
             WaitFor(writer->GetReadyEvent())
                 .ThrowOnError();
         }
@@ -64,7 +64,7 @@ TChunk WriteErasureChunk(
 
     auto deferredMeta = New<TDeferredChunkMeta>();
     SetProtoExtension(deferredMeta->mutable_extensions(), NProto::TMiscExt());
-    WaitFor(writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), deferredMeta))
+    WaitFor(writer->Close(TWorkloadDescriptor(), deferredMeta))
         .ThrowOnError();
 
     TChunk chunk;
@@ -141,12 +141,11 @@ public:
     { }
 
     bool WriteBlock(
-        const IChunkWriter::TWriteBlocksOptions& writeBlocksOptions,
         const TWorkloadDescriptor& workloadDescriptor,
         const TBlock& block) override
     {
         if (!ShouldIntercept_) {
-            return TMemoryWriter::WriteBlock(writeBlocksOptions, workloadDescriptor, block);
+            return TMemoryWriter::WriteBlock(workloadDescriptor, block);
         }
 
         WriteRequested_.Set();
@@ -223,14 +222,14 @@ TEST(TStripedErasureTest, FailureWhileClosing)
         .ThrowOnError();
 
     TSharedRef block = TSharedRef::FromString("abcd");
-    EXPECT_FALSE(writer->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), TBlock(block)));
+    EXPECT_FALSE(writer->WriteBlock(TWorkloadDescriptor(), TBlock(block)));
     // First ready event will always be successful regardless of intercepting writer malfunction.
     WaitFor(writer->GetReadyEvent())
         .ThrowOnError();
 
     // Longer string is used because the writer's window size accounting is imprecise.
     block = TSharedRef::FromString("efghefghefghefghefgh");
-    EXPECT_FALSE(writer->WriteBlock(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), TBlock(block)));
+    EXPECT_FALSE(writer->WriteBlock(TWorkloadDescriptor(), TBlock(block)));
     auto readyEvent = writer->GetReadyEvent();
     // This ready event is supposed to be blocked on intercepting writer's ready event.
     EXPECT_FALSE(readyEvent.IsSet());
@@ -239,7 +238,7 @@ TEST(TStripedErasureTest, FailureWhileClosing)
     // so this action will be executed after the second flush.
     auto deferredMeta = New<TDeferredChunkMeta>();
     SetProtoExtension(deferredMeta->mutable_extensions(), NProto::TMiscExt());
-    auto closeFuture = writer->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), deferredMeta);
+    auto closeFuture = writer->Close(TWorkloadDescriptor(), deferredMeta);
     EXPECT_FALSE(closeFuture.IsSet());
 
     // Best effort to ensure that these actions above were actually invoked.

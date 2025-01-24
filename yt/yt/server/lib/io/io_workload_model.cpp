@@ -400,7 +400,7 @@ public:
         return future;
     }
 
-    TFuture<TWriteResponse> Write(
+    TFuture<void> Write(
         TWriteRequest request,
         EWorkloadCategory category,
         TSessionId sessionId) override

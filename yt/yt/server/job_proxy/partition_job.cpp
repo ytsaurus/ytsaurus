@@ -139,7 +139,6 @@ public:
                 chunkListId,
                 CreatePartitioner(PartitionJobSpecExt_),
                 dataSink,
-                WriteBlocksOptions_,
                 Host_->GetTrafficMeter(),
                 Host_->GetOutBandwidthThrottler());
         };

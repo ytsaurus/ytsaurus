@@ -716,8 +716,7 @@ private:
         HunkWriter_ = CreateHunkChunkPayloadWriter(
             TWorkloadDescriptor(WorkloadCategory_),
             hunkWriterConfig,
-            chunkWriter,
-            /*underlyingOptions*/ {});
+            chunkWriter);
 
         WaitFor(HunkWriter_->Open())
             .ThrowOnError();

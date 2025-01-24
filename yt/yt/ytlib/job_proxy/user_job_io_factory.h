@@ -7,7 +7,6 @@
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/data_sink.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
@@ -40,8 +39,7 @@ struct IUserJobIOFactory
         NTableClient::TTableSchemaPtr tableSchema,
         NTableClient::TMasterTableSchemaId schemaId,
         const NTableClient::TChunkTimestamps& chunkTimestamps,
-        const std::optional<NChunkClient::TDataSink>& dataSink,
-        NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions) = 0;
+        const std::optional<NChunkClient::TDataSink>& dataSink) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserJobIOFactory)

@@ -35,7 +35,6 @@ void DoTestEncodingWriter(
         config,
         options,
         memoryWriter,
-        IChunkWriter::TWriteBlocksOptions(),
         GetNullBlockCache(),
         NLogging::TLogger{"test"});
 
@@ -72,7 +71,7 @@ void DoTestEncodingWriter(
 
     auto wallTime = wallTimer.GetElapsedTime();
 
-    WaitFor(memoryWriter->Close(IChunkWriter::TWriteBlocksOptions(), TWorkloadDescriptor(), New<TDeferredChunkMeta>()))
+    WaitFor(memoryWriter->Close(TWorkloadDescriptor(), New<TDeferredChunkMeta>()))
         .ThrowOnError();
 
     auto result = memoryWriter->GetBlocks();

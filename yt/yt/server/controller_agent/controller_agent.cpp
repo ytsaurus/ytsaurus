@@ -213,8 +213,7 @@ public:
         , EventLogWriter_(CreateStaticTableEventLogWriter(
             Config_->EventLog,
             Bootstrap_->GetClient(),
-            Bootstrap_->GetControlInvoker(),
-            /*writeBlocksOptions*/ {}))
+            Bootstrap_->GetControlInvoker()))
         , JobReporter_(New<TJobReporter>(
             Config_->JobReporter,
             Bootstrap_->GetClient()->GetNativeConnection()))

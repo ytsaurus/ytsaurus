@@ -129,15 +129,13 @@ TFuture<void> TChunkFileWriter::Open()
 }
 
 bool TChunkFileWriter::WriteBlock(
-    const IChunkWriter::TWriteBlocksOptions& options,
     const TWorkloadDescriptor& workloadDescriptor,
     const TBlock& block)
 {
-    return WriteBlocks(options, workloadDescriptor, {block});
+    return WriteBlocks(workloadDescriptor, {block});
 }
 
 bool TChunkFileWriter::WriteBlocks(
-    const IChunkWriter::TWriteBlocksOptions& options,
     const TWorkloadDescriptor& workloadDescriptor,
     const std::vector<TBlock>& blocks)
 {
@@ -173,26 +171,15 @@ bool TChunkFileWriter::WriteBlocks(
             SyncOnClose_
         },
         workloadDescriptor.Category)
-        .Apply(BIND([
-            =,
-            this,
-            this_ = MakeStrong(this),
-            newDataSize = currentOffset
-        ] (const TErrorOr<IIOEngine::TWriteResponse>& rspOrError) {
+        .Apply(BIND([=, this, this_ = MakeStrong(this), newDataSize = currentOffset] (const TError& error) {
             YT_VERIFY(State_.load() == EState::WritingBlocks);
 
-            if (!rspOrError.IsOK()) {
-                SetFailed(rspOrError);
+            if (!error.IsOK()) {
+                SetFailed(error);
                 THROW_ERROR_EXCEPTION("Failed to write chunk data file %v",
                     FileName_)
-                    << rspOrError;
+                    << error;
             }
-
-            const auto& rsp = rspOrError.Value();
-
-            auto& chunkWriterStatistics = *options.ClientOptions.ChunkWriterStatistics;
-            chunkWriterStatistics.DataBytesWrittenToDisk.fetch_add(newDataSize - DataSize_, std::memory_order::relaxed);
-            chunkWriterStatistics.DataIOWriteRequests.fetch_add(rsp.IOWriteRequests, std::memory_order::relaxed);
 
             DataSize_ = newDataSize;
             State_.store(EState::Ready);
@@ -212,7 +199,6 @@ TFuture<void> TChunkFileWriter::GetReadyEvent()
 }
 
 TFuture<void> TChunkFileWriter::Close(
-    const IChunkWriter::TWriteBlocksOptions& options,
     const TWorkloadDescriptor& workloadDescriptor,
     const TDeferredChunkMetaPtr& chunkMeta)
 {
@@ -264,11 +250,6 @@ TFuture<void> TChunkFileWriter::Close(
                     SyncOnClose_
                 },
                 workloadDescriptor.Category)
-                .Apply(BIND([=, this, this_ = MakeStrong(this)] (IIOEngine::TWriteResponse rsp) {
-                    auto& chunkWriterStatistics = *options.ClientOptions.ChunkWriterStatistics;
-                    chunkWriterStatistics.MetaBytesWrittenToDisk.fetch_add(MetaDataSize_, std::memory_order::relaxed);
-                    chunkWriterStatistics.MetaIOWriteRequests.fetch_add(rsp.IOWriteRequests, std::memory_order::relaxed);
-                }))
                 .Apply(BIND(&IIOEngine::Close, IOEngine_, IIOEngine::TCloseRequest{
                     std::move(chunkMetaFile),
                     MetaDataSize_,

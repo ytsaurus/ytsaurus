@@ -111,8 +111,7 @@ void TStderrWriter::Upload(
             transactionId,
             TDataSink(),
             trafficMeter,
-            throttler,
-            /*writeBlocksOptions*/ {});
+            throttler);
         SaveCurrentDataTo(&fileChunkOutput);
         fileChunkOutput.Finish();
         ChunkId_ = fileChunkOutput.GetChunkId();

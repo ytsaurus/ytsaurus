@@ -82,8 +82,7 @@ TFuture<ITableWriterPtr> TClient::CreateTableWriter(
         nameTable,
         this,
         /*localHostName*/ TString(), // Locality is not important during table upload.
-        transaction,
-        /*writeBlocksOptions*/ {});
+        transaction);
 
     return asyncSchemalessWriter.Apply(BIND([] (const IUnversionedWriterPtr& schemalessWriter) {
         return CreateApiFromSchemalessWriterAdapter(std::move(schemalessWriter));

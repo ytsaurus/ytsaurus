@@ -169,7 +169,6 @@ public:
     {
         return {
             .ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics,
-            .ChunkWriterStatistics = {WriteBlocksOptions_.ClientOptions.ChunkWriterStatistics},
             .TotalInputStatistics = {
                 .DataStatistics = InputDataStatistics_.Load(),
             },
@@ -209,7 +208,6 @@ private:
     IMetaAggregatingWriterPtr Writer_;
 
     TClientChunkReadOptions ChunkReadOptions_;
-    IChunkWriter::TWriteBlocksOptions WriteBlocksOptions_;
 
     std::vector<TInputChunkState> InputChunkStates_;
 
@@ -521,7 +519,7 @@ private:
                     auto block = WaitForUniqueFast(blockFetcher->FetchBlock(chunkIndex, blockIndex))
                         .ValueOrThrow();
 
-                    if (!Writer_->WriteBlock(WriteBlocksOptions_, ReaderConfig_->WorkloadDescriptor, block)) {
+                    if (!Writer_->WriteBlock(ReaderConfig_->WorkloadDescriptor, block)) {
                         WaitFor(Writer_->GetReadyEvent())
                             .ThrowOnError();
                     }
@@ -535,7 +533,7 @@ private:
             }
         }
 
-        WaitFor(Writer_->Close(WriteBlocksOptions_))
+        WaitFor(Writer_->Close())
             .ThrowOnError();
 
         OutputDataStatistics_.Transform([] (auto& statistics) {

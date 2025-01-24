@@ -139,7 +139,6 @@ public:
                 transactionId,
                 schemaId,
                 dataSink,
-                WriteBlocksOptions_,
                 chunkListId,
                 TChunkTimestamps{timestamp, timestamp},
                 Host_->GetTrafficMeter(),

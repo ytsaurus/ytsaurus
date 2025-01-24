@@ -322,8 +322,7 @@ protected:
             config,
             options,
             Schema,
-            memoryWriter,
-            /*writeBlocksOptions*/ {});
+            memoryWriter);
 
         int startIndex = 0;
         TChunkedMemoryPool memoryPool;
@@ -786,8 +785,7 @@ protected:
             config,
             options,
             writeSchema,
-            memoryWriter,
-            /*writeBlocksOptions*/ {});
+            memoryWriter);
 
         Y_UNUSED(chunkWriter->Write(initialRows));
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());

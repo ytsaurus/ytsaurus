@@ -3,7 +3,6 @@
 #include "public.h"
 
 #include <yt/yt/ytlib/chunk_client/public.h>
-#include <yt/yt/ytlib/chunk_client/chunk_writer.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
@@ -22,8 +21,7 @@ TFuture<void> RepairErasedParts(
     const NErasure::TPartIndexList& erasedIndices,
     std::vector<NChunkClient::IChunkReaderPtr> readers,
     std::vector<NChunkClient::IChunkWriterPtr> writers,
-    NChunkClient::TClientChunkReadOptions chunkReadOptions,
-    NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions,
+    NChunkClient::TClientChunkReadOptions options,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////

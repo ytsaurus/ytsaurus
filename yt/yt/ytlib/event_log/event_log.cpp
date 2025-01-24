@@ -16,7 +16,6 @@ namespace NYT::NEventLog {
 using namespace NApi;
 using namespace NYson;
 using namespace NTableClient;
-using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NComplexTypes;
 
@@ -264,8 +263,7 @@ TFuture<void> TEventLogWriter::Close()
 TEventLogWriterPtr CreateStaticTableEventLogWriter(
     TEventLogManagerConfigPtr config,
     NApi::NNative::IClientPtr client,
-    IInvokerPtr invoker,
-    IChunkWriter::TWriteBlocksOptions writeBlocksOptions)
+    IInvokerPtr invoker)
 {
     auto nameTable = New<TNameTable>();
     auto options = New<NTableClient::TTableWriterOptions>();
@@ -276,8 +274,7 @@ TEventLogWriterPtr CreateStaticTableEventLogWriter(
         options,
         client,
         nameTable,
-        config->Path,
-        std::move(writeBlocksOptions));
+        config->Path);
 
     return New<TEventLogWriter>(std::move(config), std::move(invoker), std::move(eventLogWriter));
 }
