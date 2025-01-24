@@ -25,6 +25,7 @@ import (
 	"bytes"
 	"crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"net"
 	"strings"
@@ -43,11 +44,15 @@ func TestGenerator(t *testing.T) {
 
 func testNewV1(t *testing.T) {
 	t.Run("Basic", testNewV1Basic)
+	t.Run("BasicWithOptions", testNewV1BasicWithOptions)
 	t.Run("DifferentAcrossCalls", testNewV1DifferentAcrossCalls)
 	t.Run("StaleEpoch", testNewV1StaleEpoch)
 	t.Run("FaultyRand", testNewV1FaultyRand)
+	t.Run("FaultyRandWithOptions", testNewV1FaultyRandWithOptions)
 	t.Run("MissingNetwork", testNewV1MissingNetwork)
+	t.Run("MissingNetworkWithOptions", testNewV1MissingNetworkWithOptions)
 	t.Run("MissingNetworkFaultyRand", testNewV1MissingNetworkFaultyRand)
+	t.Run("MissingNetworkFaultyRandWithOptions", testNewV1MissingNetworkFaultyRandWithOptions)
 }
 
 func TestNewGenWithHWAF(t *testing.T) {
@@ -81,6 +86,24 @@ func TestNewGenWithHWAF(t *testing.T) {
 
 func testNewV1Basic(t *testing.T) {
 	u, err := NewV1()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := u.Version(), V1; got != want {
+		t.Errorf("generated UUID with version %d, want %d", got, want)
+	}
+	if got, want := u.Variant(), VariantRFC4122; got != want {
+		t.Errorf("generated UUID with variant %d, want %d", got, want)
+	}
+}
+
+func testNewV1BasicWithOptions(t *testing.T) {
+	g := NewGenWithOptions(
+		WithHWAddrFunc(nil),
+		WithEpochFunc(nil),
+		WithRandomReader(nil),
+	)
+	u, err := g.NewV1()
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,6 +181,18 @@ func testNewV1MissingNetwork(t *testing.T) {
 	}
 }
 
+func testNewV1MissingNetworkWithOptions(t *testing.T) {
+	g := NewGenWithOptions(
+		WithHWAddrFunc(func() (net.HardwareAddr, error) {
+			return []byte{}, fmt.Errorf("uuid: no hw address found")
+		}),
+	)
+	_, err := g.NewV1()
+	if err != nil {
+		t.Errorf("did not handle missing network interfaces: %v", err)
+	}
+}
+
 func testNewV1MissingNetworkFaultyRand(t *testing.T) {
 	g := &Gen{
 		epochFunc: time.Now,
@@ -168,6 +203,33 @@ func testNewV1MissingNetworkFaultyRand(t *testing.T) {
 			readToFail: 1,
 		},
 	}
+	u, err := g.NewV1()
+	if err == nil {
+		t.Errorf("did not error on faulty reader and missing network, got %v", u)
+	}
+}
+
+func testNewV1MissingNetworkFaultyRandWithOptions(t *testing.T) {
+	g := NewGenWithOptions(
+		WithHWAddrFunc(func() (net.HardwareAddr, error) {
+			return []byte{}, fmt.Errorf("uuid: no hw address found")
+		}),
+		WithRandomReader(&faultyReader{
+			readToFail: 1,
+		}),
+	)
+
+	u, err := g.NewV1()
+	if err == nil {
+		t.Errorf("did not error on faulty reader and missing network, got %v", u)
+	}
+}
+
+func testNewV1FaultyRandWithOptions(t *testing.T) {
+	g := NewGenWithOptions(WithRandomReader(&faultyReader{
+		readToFail: 0, // fail immediately
+	}),
+	)
 	u, err := g.NewV1()
 	if err == nil {
 		t.Errorf("did not error on faulty reader and missing network, got %v", u)
@@ -221,7 +283,9 @@ func testNewV4(t *testing.T) {
 	t.Run("Basic", testNewV4Basic)
 	t.Run("DifferentAcrossCalls", testNewV4DifferentAcrossCalls)
 	t.Run("FaultyRand", testNewV4FaultyRand)
+	t.Run("FaultyRandWithOptions", testNewV4FaultyRandWithOptions)
 	t.Run("ShortRandomRead", testNewV4ShortRandomRead)
+	t.Run("ShortRandomReadWithOptions", testNewV4ShortRandomReadWithOptions)
 }
 
 func testNewV4Basic(t *testing.T) {
@@ -265,6 +329,18 @@ func testNewV4FaultyRand(t *testing.T) {
 	}
 }
 
+func testNewV4FaultyRandWithOptions(t *testing.T) {
+	g := NewGenWithOptions(
+		WithRandomReader(&faultyReader{
+			readToFail: 0, // fail immediately
+		}),
+	)
+	u, err := g.NewV4()
+	if err == nil {
+		t.Errorf("got %v, nil error", u)
+	}
+}
+
 func testNewV4ShortRandomRead(t *testing.T) {
 	g := &Gen{
 		epochFunc: time.Now,
@@ -273,6 +349,21 @@ func testNewV4ShortRandomRead(t *testing.T) {
 		},
 		rand: bytes.NewReader([]byte{42}),
 	}
+	u, err := g.NewV4()
+	if err == nil {
+		t.Errorf("got %v, nil error", u)
+	}
+}
+
+func testNewV4ShortRandomReadWithOptions(t *testing.T) {
+	g := NewGenWithOptions(
+		WithHWAddrFunc(func() (net.HardwareAddr, error) {
+			return []byte{}, fmt.Errorf("uuid: no hw address found")
+		}),
+		WithRandomReader(&faultyReader{
+			readToFail: 0, // fail immediately
+		}),
+	)
 	u, err := g.NewV4()
 	if err == nil {
 		t.Errorf("got %v, nil error", u)
@@ -326,8 +417,11 @@ func testNewV6(t *testing.T) {
 	t.Run("Basic", testNewV6Basic)
 	t.Run("DifferentAcrossCalls", testNewV6DifferentAcrossCalls)
 	t.Run("StaleEpoch", testNewV6StaleEpoch)
+	t.Run("StaleEpochWithOptions", testNewV6StaleEpochWithOptions)
 	t.Run("FaultyRand", testNewV6FaultyRand)
+	t.Run("FaultyRandWithOptions", testNewV6FaultyRandWithOptions)
 	t.Run("ShortRandomRead", testNewV6ShortRandomRead)
+	t.Run("ShortRandomReadWithOptions", testNewV6ShortRandomReadWithOptions)
 	t.Run("KSortable", testNewV6KSortable)
 }
 
@@ -379,6 +473,25 @@ func testNewV6StaleEpoch(t *testing.T) {
 	}
 }
 
+func testNewV6StaleEpochWithOptions(t *testing.T) {
+	g := NewGenWithOptions(
+		WithEpochFunc(func() time.Time {
+			return time.Unix(0, 0)
+		}),
+	)
+	u1, err := g.NewV6()
+	if err != nil {
+		t.Fatal(err)
+	}
+	u2, err := g.NewV6()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if u1 == u2 {
+		t.Errorf("generated identical UUIDs across calls: %v", u1)
+	}
+}
+
 func testNewV6FaultyRand(t *testing.T) {
 	t.Run("randomData", func(t *testing.T) {
 		g := &Gen{
@@ -415,11 +528,53 @@ func testNewV6FaultyRand(t *testing.T) {
 	})
 }
 
+func testNewV6FaultyRandWithOptions(t *testing.T) {
+	t.Run("randomData", func(t *testing.T) {
+		g := NewGenWithOptions(
+			WithRandomReader(&faultyReader{
+				readToFail: 0, // fail immediately
+			}),
+		)
+		u, err := g.NewV6()
+		if err == nil {
+			t.Fatalf("got %v, want error", u)
+		}
+		if u != Nil {
+			t.Fatalf("got %v on error, want Nil", u)
+		}
+	})
+
+	t.Run("clockSequence", func(t *testing.T) {
+		g := NewGenWithOptions(
+			WithRandomReader(&faultyReader{
+				readToFail: 1, // fail immediately
+			}),
+		)
+		u, err := g.NewV6()
+		if err == nil {
+			t.Fatalf("got %v, want error", u)
+		}
+		if u != Nil {
+			t.Fatalf("got %v on error, want Nil", u)
+		}
+	})
+}
+
 func testNewV6ShortRandomRead(t *testing.T) {
 	g := &Gen{
 		epochFunc: time.Now,
 		rand:      bytes.NewReader([]byte{42}),
 	}
+	u, err := g.NewV6()
+	if err == nil {
+		t.Errorf("got %v, nil error", u)
+	}
+}
+
+func testNewV6ShortRandomReadWithOptions(t *testing.T) {
+	g := NewGenWithOptions(
+		WithRandomReader(bytes.NewReader([]byte{42})),
+	)
 	u, err := g.NewV6()
 	if err == nil {
 		t.Errorf("got %v, nil error", u)
@@ -447,54 +602,22 @@ func testNewV6KSortable(t *testing.T) {
 }
 
 func testNewV7(t *testing.T) {
-	t.Run("InvalidPrecision", testNewV7InvalidPrecision)
-
-	for _, p := range []Precision{NanosecondPrecision, MicrosecondPrecision, MillisecondPrecision} {
-		t.Run(p.String(), func(t *testing.T) {
-			t.Run("Basic", makeTestNewV7Basic(p))
-			t.Run("Basic10000000", makeTestNewV7Basic10000000(p))
-			t.Run("DifferentAcrossCalls", makeTestNewV7DifferentAcrossCalls(p))
-			t.Run("StaleEpoch", makeTestNewV7StaleEpoch(p))
-			t.Run("FaultyRand", makeTestNewV7FaultyRand(p))
-			t.Run("ShortRandomRead", makeTestNewV7ShortRandomRead(p))
-			t.Run("ClockSequenceBehaviors", makeTestNewV7ClockSequenceBehaviors(p))
-			t.Run("KSortable", makeTestNewV7KSortable(p))
-		})
-	}
-
-	t.Run("ClockSequence", testNewV7ClockSequence)
+	t.Run("Basic", makeTestNewV7Basic())
+	t.Run("TestVector", makeTestNewV7TestVector())
+	t.Run("Basic10000000", makeTestNewV7Basic10000000())
+	t.Run("DifferentAcrossCalls", makeTestNewV7DifferentAcrossCalls())
+	t.Run("StaleEpoch", makeTestNewV7StaleEpoch())
+	t.Run("StaleEpochWithOptions", makeTestNewV7StaleEpochWithOptions())
+	t.Run("FaultyRand", makeTestNewV7FaultyRand())
+	t.Run("FaultyRandWithOptions", makeTestNewV7FaultyRandWithOptions())
+	t.Run("ShortRandomRead", makeTestNewV7ShortRandomRead())
+	t.Run("KSortable", makeTestNewV7KSortable())
+	t.Run("ClockSequence", makeTestNewV7ClockSequence())
 }
 
-func testNewV7InvalidPrecision(t *testing.T) {
-	t.Run("NewV7", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Fatal("call did not panic")
-			}
-		}()
-
-		NewV7(255)
-	})
-
-	t.Run("getV7ClockSequence", func(t *testing.T) {
-		defer func() {
-			if r := recover(); r == nil {
-				t.Fatal("expected panic did not occur")
-			}
-		}()
-
-		g := NewGen()
-		g.epochFunc = func() time.Time {
-			return time.Unix(0, 0)
-		}
-
-		g.getV7ClockSequence(255)
-	})
-}
-
-func makeTestNewV7Basic(p Precision) func(t *testing.T) {
+func makeTestNewV7Basic() func(t *testing.T) {
 	return func(t *testing.T) {
-		u, err := NewV7(p)
+		u, err := NewV7()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -507,20 +630,47 @@ func makeTestNewV7Basic(p Precision) func(t *testing.T) {
 	}
 }
 
-func makeTestNewV7Basic10000000(p Precision) func(t *testing.T) {
+// makeTestNewV7TestVector as defined in Draft04
+func makeTestNewV7TestVector() func(t *testing.T) {
+	return func(t *testing.T) {
+		pRand := make([]byte, 10)
+		//first 2 bytes will be read by clockSeq. First 4 bits will be overridden by Version. The next bits should be 0xCC3(3267)
+		binary.LittleEndian.PutUint16(pRand[:2], uint16(0xCC3))
+		//8bytes will be read for rand_b. First 2 bits will be overridden by Variant
+		binary.LittleEndian.PutUint64(pRand[2:], uint64(0x18C4DC0C0C07398F))
+
+		g := &Gen{
+			epochFunc: func() time.Time {
+				return time.UnixMilli(1645557742000)
+			},
+			rand: bytes.NewReader(pRand),
+		}
+		u, err := g.NewV7()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got, want := u.Version(), V7; got != want {
+			t.Errorf("got version %d, want %d", got, want)
+		}
+		if got, want := u.Variant(), VariantRFC4122; got != want {
+			t.Errorf("got variant %d, want %d", got, want)
+		}
+		if got, want := u.String()[:15], "017f22e2-79b0-7"; got != want {
+			t.Errorf("got version %q, want %q", got, want)
+		}
+	}
+}
+
+func makeTestNewV7Basic10000000() func(t *testing.T) {
 	return func(t *testing.T) {
 		if testing.Short() {
 			t.Skip("skipping test in short mode.")
 		}
 
-		if p == MillisecondPrecision {
-			t.Skip("skipping test, see: https://github.com/uuid6/uuid6-ietf-draft/issues/40")
-		}
-
 		g := NewGen()
 
 		for i := 0; i < 10000000; i++ {
-			u, err := g.NewV7(p)
+			u, err := g.NewV7()
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -534,15 +684,15 @@ func makeTestNewV7Basic10000000(p Precision) func(t *testing.T) {
 	}
 }
 
-func makeTestNewV7DifferentAcrossCalls(p Precision) func(t *testing.T) {
+func makeTestNewV7DifferentAcrossCalls() func(t *testing.T) {
 	return func(t *testing.T) {
 		g := NewGen()
 
-		u1, err := g.NewV7(p)
+		u1, err := g.NewV7()
 		if err != nil {
 			t.Fatal(err)
 		}
-		u2, err := g.NewV7(p)
+		u2, err := g.NewV7()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -552,7 +702,7 @@ func makeTestNewV7DifferentAcrossCalls(p Precision) func(t *testing.T) {
 	}
 }
 
-func makeTestNewV7StaleEpoch(p Precision) func(t *testing.T) {
+func makeTestNewV7StaleEpoch() func(t *testing.T) {
 	return func(t *testing.T) {
 		g := &Gen{
 			epochFunc: func() time.Time {
@@ -560,11 +710,11 @@ func makeTestNewV7StaleEpoch(p Precision) func(t *testing.T) {
 			},
 			rand: rand.Reader,
 		}
-		u1, err := g.NewV7(p)
+		u1, err := g.NewV7()
 		if err != nil {
 			t.Fatal(err)
 		}
-		u2, err := g.NewV7(p)
+		u2, err := g.NewV7()
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -574,44 +724,101 @@ func makeTestNewV7StaleEpoch(p Precision) func(t *testing.T) {
 	}
 }
 
-func makeTestNewV7FaultyRand(p Precision) func(t *testing.T) {
+func makeTestNewV7StaleEpochWithOptions() func(t *testing.T) {
+	return func(t *testing.T) {
+		g := NewGenWithOptions(
+			WithEpochFunc(func() time.Time {
+				return time.Unix(0, 0)
+			}),
+		)
+		u1, err := g.NewV7()
+		if err != nil {
+			t.Fatal(err)
+		}
+		u2, err := g.NewV7()
+		if err != nil {
+			t.Fatal(err)
+		}
+		if u1 == u2 {
+			t.Errorf("generated identical UUIDs across calls: %v", u1)
+		}
+	}
+}
+
+func makeTestNewV7FaultyRand() func(t *testing.T) {
 	return func(t *testing.T) {
 		g := &Gen{
 			epochFunc: time.Now,
 			rand: &faultyReader{
-				readToFail: 0, // fail immediately
+				readToFail: 0,
 			},
 		}
-		u, err := g.NewV7(p)
+		u, err := g.NewV7()
+		if err == nil {
+			t.Errorf("got %v, nil error for clockSequence", u)
+		}
+
+		g = &Gen{
+			epochFunc: time.Now,
+			rand: &faultyReader{
+				readToFail: 1,
+			},
+		}
+		u, err = g.NewV7()
+		if err == nil {
+			t.Errorf("got %v, nil error rand_b", u)
+		}
+	}
+}
+
+func makeTestNewV7FaultyRandWithOptions() func(t *testing.T) {
+	return func(t *testing.T) {
+		g := NewGenWithOptions(
+			WithRandomReader(&faultyReader{
+				readToFail: 0, // fail immediately
+			}),
+		)
+		u, err := g.NewV7()
 		if err == nil {
 			t.Errorf("got %v, nil error", u)
 		}
 	}
 }
 
-func makeTestNewV7ShortRandomRead(p Precision) func(t *testing.T) {
+func makeTestNewV7ShortRandomRead() func(t *testing.T) {
 	return func(t *testing.T) {
 		g := &Gen{
 			epochFunc: time.Now,
 			rand:      bytes.NewReader([]byte{42}),
 		}
-		u, err := g.NewV7(p)
+		u, err := g.NewV7()
 		if err == nil {
 			t.Errorf("got %v, nil error", u)
 		}
 	}
 }
 
-func makeTestNewV7KSortable(p Precision) func(t *testing.T) {
+func makeTestNewV7ShortRandomReadWithOptions() func(t *testing.T) {
+	return func(t *testing.T) {
+		g := NewGenWithOptions(
+			WithRandomReader(bytes.NewReader([]byte{42})),
+		)
+		u, err := g.NewV7()
+		if err == nil {
+			t.Errorf("got %v, nil error", u)
+		}
+	}
+}
+
+func makeTestNewV7KSortable() func(t *testing.T) {
 	return func(t *testing.T) {
 		uuids := make([]UUID, 10)
 		for i := range uuids {
-			u, err := NewV7(p)
-			testErrCheck(t, "NewV6()", "", err)
+			u, err := NewV7()
+			testErrCheck(t, "NewV7()", "", err)
 
 			uuids[i] = u
-
-			time.Sleep(p.Duration())
+			time.Sleep(time.Millisecond)
 		}
 
 		for i := 1; i < len(uuids); i++ {
@@ -624,185 +831,127 @@ func makeTestNewV7KSortable(p Precision) func(t *testing.T) {
 	}
 }
 
-// to get 100% code coverage we need to do some glass box testing
-func makeTestNewV7ClockSequenceBehaviors(p Precision) func(t *testing.T) {
+func makeTestNewV7ClockSequence() func(t *testing.T) {
 	return func(t *testing.T) {
-		t.Run("TimeWarp", func(t *testing.T) {
-			g := NewGen()
-			tn := time.Now()
-			unix := uint64(tn.Unix()) + 100
-			nsec := uint64(tn.Nanosecond())
+		if testing.Short() {
+			t.Skip("skipping test in short mode.")
+		}
 
-			g.v7LastTime = unix
-			g.v7LastSubsec = nsec
+		g := NewGen()
+		//always return the same TS
+		g.epochFunc = func() time.Time {
+			return time.UnixMilli(1645557742000)
+		}
+		//by being KSortable with the same timestamp, it means the sequence is Not empty, and it is monotonic
+		uuids := make([]UUID, 10)
+		for i := range uuids {
+			u, err := g.NewV7()
+			testErrCheck(t, "NewV7()", "", err)
+			uuids[i] = u
+		}
 
-			_, err := g.NewV7(p)
-			testErrCheck(t, "g.NewV7()", "", err)
-
-			if g.v7ClockSequence != 1 {
-				t.Fatalf("g.v7ClockSequence = %d, want 1", g.v7ClockSequence)
+		for i := 1; i < len(uuids); i++ {
+			p, n := uuids[i-1], uuids[i]
+			isLess := p.String() < n.String()
+			if !isLess {
+				t.Errorf("uuids[%d] (%s) not less than uuids[%d] (%s)", i-1, p, i, n)
 			}
-		})
-
-		t.Run("NominalTime", func(t *testing.T) {
-			g := NewGen()
-			g.v7ClockSequence = 100
-
-			tn := time.Now()
-			unix := uint64(tn.Unix()) - 100
-			nsec := uint64(tn.Nanosecond())
-
-			g.v7LastTime = unix
-			g.v7LastSubsec = nsec
-
-			_, err := g.NewV7(p)
-			testErrCheck(t, "g.NewV7()", "", err)
-
-			if g.v7ClockSequence != 0 {
-				t.Fatalf("g.v7ClockSequence = %d, want 0", g.v7ClockSequence)
-			}
-		})
-
-		t.Run("Overflow", func(t *testing.T) {
-			if testing.Short() {
-				t.Skip("skipping test in short mode.")
-			}
-
-			wantErrStr := fmt.Sprintf("generating %s precision UUIDv7s too fast: internal clock sequence would roll over", p.String())
-
-			g := NewGen()
-
-			g.epochFunc = func() time.Time {
-				return time.Unix(0, 0)
-			}
-
-			g.v7ClockSequence = maxSeq14 + 1
-			g.v7LastTime = uint64(g.epochFunc().Unix())
-			g.v7LastSubsec = uint64(g.epochFunc().Nanosecond())
-
-			_, err := g.NewV7(p)
-			testErrCheck(t, "g.NewV7()", wantErrStr, err)
-		})
+		}
 	}
 }
 
-func testNewV7ClockSequence(t *testing.T) {
-	if testing.Short() {
-		t.Skip("skipping test in short mode.")
-	}
-
-	g := NewGen()
-
-	// hack to try and reduce race conditions based on when the test starts
-	nsec := time.Now().Nanosecond()
-	sleepDur := int(time.Second) - nsec
-	time.Sleep(time.Duration(sleepDur))
-
-	u1, err := g.NewV7(MillisecondPrecision)
-	if err != nil {
-		t.Fatalf("failed to generate V7 UUID #1: %v", err)
-	}
-
-	u2, err := g.NewV7(MillisecondPrecision)
-	if err != nil {
-		t.Fatalf("failed to generate V7 UUID #2: %v", err)
-	}
-
-	time.Sleep(time.Millisecond)
-
-	u3, err := g.NewV7(MillisecondPrecision)
-	if err != nil {
-		t.Fatalf("failed to generate V7 UUID #3: %v", err)
-	}
-
-	time.Sleep(time.Second)
-
-	u4, err := g.NewV7(MillisecondPrecision)
-	if err != nil {
-		t.Fatalf("failed to generate V7 UUID #3: %v", err)
-	}
-
-	s1 := binary.BigEndian.Uint16(u1[6:8]) & 0xfff
-	s2 := binary.BigEndian.Uint16(u2[6:8]) & 0xfff
-	s3 := binary.BigEndian.Uint16(u3[6:8]) & 0xfff
-	s4 := binary.BigEndian.Uint16(u4[6:8]) & 0xfff
-
-	if s1 != 0 {
-		t.Errorf("sequence 1 should be zero, was %d", s1)
-	}
-
-	if s2 != s1+1 {
-		t.Errorf("sequence 2 expected to be one above sequence 1; seq 1: %d, seq 2: %d", s1, s2)
-	}
-
-	if s3 != 0 {
-		t.Errorf("sequence 3 should be zero, was %d", s3)
-	}
-
-	if s4 != 0 {
-		t.Errorf("sequence 4 should be zero, was %d", s4)
-	}
-}
-
-func TestPrecision_String(t *testing.T) {
+func TestDefaultHWAddrFunc(t *testing.T) {
 	tests := []struct {
-		p    Precision
-		want string
+		n  string
+		fn func() ([]net.Interface, error)
+		hw net.HardwareAddr
+		e  string
 	}{
 		{
-			p:    NanosecondPrecision,
-			want: "nanosecond",
+			n: "Error",
+			fn: func() ([]net.Interface, error) {
+				return nil, errors.New("controlled failure")
+			},
+			e: "controlled failure",
 		},
 		{
-			p:    MillisecondPrecision,
-			want: "millisecond",
+			n: "NoValidHWAddrReturned",
+			fn: func() ([]net.Interface, error) {
+				s := []net.Interface{
+					{
+						Index:        1,
+						MTU:          1500,
+						Name:         "test0",
+						HardwareAddr: net.HardwareAddr{1, 2, 3, 4},
+					},
+					{
+						Index:        2,
+						MTU:          1500,
+						Name:         "lo0",
+						HardwareAddr: net.HardwareAddr{5, 6, 7, 8},
+					},
+				}
+
+				return s, nil
+			},
+			e: "uuid: no HW address found",
 		},
 		{
-			p:    MicrosecondPrecision,
-			want: "microsecond",
-		},
-		{
-			p:    0xff,
-			want: "unknown",
+			n: "ValidHWAddrReturned",
+			fn: func() ([]net.Interface, error) {
+				s := []net.Interface{
+					{
+						Index:        1,
+						MTU:          1500,
+						Name:         "test0",
+						HardwareAddr: net.HardwareAddr{1, 2, 3, 4},
+					},
+					{
+						Index:        2,
+						MTU:          1500,
+						Name:         "lo0",
+						HardwareAddr: net.HardwareAddr{5, 6, 7, 8, 9, 0},
+					},
+				}
+
+				return s, nil
+			},
+			hw: net.HardwareAddr{5, 6, 7, 8, 9, 0},
 		},
 	}
 
 	for _, tt := range tests {
-		t.Run(tt.want, func(t *testing.T) {
-			if got := tt.p.String(); got != tt.want {
-				t.Errorf("got = %s, want %s", got, tt.want)
+		t.Run(tt.n, func(t *testing.T) {
+			// set the netInterfaces variable (function) for the test
+			// and then set it back to default in the deferred function
+			netInterfaces = tt.fn
+			defer func() {
+				netInterfaces = net.Interfaces
+			}()
+
+			var hw net.HardwareAddr
+			var err error
+
+			hw, err = defaultHWAddrFunc()
+
+			if len(tt.e) > 0 {
+				if err == nil {
+					t.Fatalf("defaultHWAddrFunc() error = <nil>, should contain %q", tt.e)
+				}
+
+				if !strings.Contains(err.Error(), tt.e) {
+					t.Fatalf("defaultHWAddrFunc() error = %q, should contain %q", err.Error(), tt.e)
+				}
+
+				return
 			}
-		})
-	}
-}
 
-func TestPrecision_Duration(t *testing.T) {
-	tests := []struct {
-		p    Precision
-		want time.Duration
-	}{
-		{
-			p:    NanosecondPrecision,
-			want: time.Nanosecond,
-		},
-		{
-			p:    MillisecondPrecision,
-			want: time.Millisecond,
-		},
-		{
-			p:    MicrosecondPrecision,
-			want: time.Microsecond,
-		},
-		{
-			p:    0xff,
-			want: 0,
-		},
-	}
+			if err != nil && tt.e == "" {
+				t.Fatalf("defaultHWAddrFunc() error = %q, want <nil>", err.Error())
+			}
 
-	for _, tt := range tests {
-		t.Run(tt.p.String(), func(t *testing.T) {
-			if got := tt.p.Duration(); got != tt.want {
-				t.Errorf("got = %s, want %s", got, tt.want)
+			if !bytes.Equal(hw, tt.hw) {
+				t.Fatalf("hw = %#v, want %#v", hw, tt.hw)
 			}
 		})
 	}

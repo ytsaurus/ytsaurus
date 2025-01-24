@@ -291,6 +291,7 @@ func testNullUUIDUnmarshalJSONNull(t *testing.T) {
 		t.Fatalf("u.UUID = %v, want %v", u.UUID, Nil)
 	}
 }
+
 func testNullUUIDUnmarshalJSONValid(t *testing.T) {
 	var u NullUUID
 
@@ -317,4 +318,48 @@ func testNullUUIDUnmarshalJSONMalformed(t *testing.T) {
 	if err := json.Unmarshal(data, &u); err == nil {
 		t.Fatal("json.Unmarshal err = <nil>, want error")
 	}
+}
+
+func BenchmarkNullMarshalJSON(b *testing.B) {
+	b.Run("Valid", func(b *testing.B) {
+		u, err := FromString("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+		if err != nil {
+			b.Fatal(err)
+		}
+		n := NullUUID{UUID: u, Valid: true}
+		for i := 0; i < b.N; i++ {
+			n.MarshalJSON()
+		}
+	})
+	b.Run("Invalid", func(b *testing.B) {
+		n := NullUUID{Valid: false}
+		for i := 0; i < b.N; i++ {
+			n.MarshalJSON()
+		}
+	})
+}
+
+func BenchmarkNullUnmarshalJSON(b *testing.B) {
+	baseUUID, err := FromString("6ba7b810-9dad-11d1-80b4-00c04fd430c8")
+	if err != nil {
+		b.Fatal(err)
+	}
+	data, err := json.Marshal(&baseUUID)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	b.Run("Valid", func(b *testing.B) {
+		var u NullUUID
+		for i := 0; i < b.N; i++ {
+			u.UnmarshalJSON(data)
+		}
+	})
+	b.Run("Invalid", func(b *testing.B) {
+		invalid := []byte("null")
+		var n NullUUID
+		for i := 0; i < b.N; i++ {
+			n.UnmarshalJSON(invalid)
+		}
+	})
 }
