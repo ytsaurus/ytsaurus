@@ -171,7 +171,7 @@ Attachment → *{binary octet}
 
 Для передачи строк {{product-name}} использует wire format, сериализованные строки передаются в attachments. Разбиение сериализованного потока строк на аттачменты произвольно, стоит рассматривать несколько последовательных attachments как один поток байт.
 
-Каждый запрос, который может принимать или возвращать строки, имеет [rowset descriptor](https://github.com/ytsaurus/ytsaurus/blob/main/yt/yt_proto/yt/client/api/rpc_proxy/proto/api_service.proto). Дескриптор описывает, каким образом строки должны быть десериализованы или сериализованы. В данной секции описывается, как устроен unversioned rowset (`RK_UNVERSIONED`). Если вы хотите использовать `RK_VERSIONED` или `RK_SCHEMAFUL` тип, то напишите на {%if lang == "ru"%}[рассылку](mailto:community_ru@ytsaurus.tech){% else %}[рассылку](mailto:community@ytsaurus.tech){% endif %}.
+Каждый запрос, который может принимать или возвращать строки, имеет [rowset descriptor](https://github.com/ytsaurus/ytsaurus/blob/main/yt/yt_proto/yt/client/api/rpc_proxy/proto/api_service.proto). Дескриптор описывает, каким образом строки должны быть десериализованы или сериализованы. В данной секции описывается, как устроен unversioned rowset (`RK_UNVERSIONED`). Если вы хотите использовать `RK_VERSIONED` тип, то напишите на {%if lang == "ru"%}[рассылку](mailto:community_ru@ytsaurus.tech){% else %}[рассылку](mailto:community@ytsaurus.tech){% endif %}.
 
 Для описания воспользуемся уже знакомой ABNF нотацией (endianness - little):
 
