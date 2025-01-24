@@ -105,10 +105,7 @@ TFuture<void> TChunkFileWriter::Open()
     // NB: Races are possible between file creation and a call to flock.
     // Unfortunately in Linux we can't create'n'flock a file atomically.
     return IOEngine_->Open({FileName_ + NFS::TempFileSuffix, FileMode})
-        .Apply(BIND([
-            this,
-            this_ = MakeStrong(this)
-        ] (const TIOEngineHandlePtr& file) {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& file) {
             YT_VERIFY(State_.load() == EState::Opening);
 
             DataFile_ = file;
@@ -117,10 +114,7 @@ TFuture<void> TChunkFileWriter::Open()
             TryLockDataFile(promise);
             return promise.ToFuture();
         }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
-        .Apply(BIND([
-            this,
-            this_ = MakeStrong(this)
-        ] (const TError& error) {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
             YT_VERIFY(State_.load() == EState::Opening);
 
             if (!error.IsOK()) {
@@ -180,10 +174,10 @@ bool TChunkFileWriter::WriteBlocks(
         },
         workloadDescriptor.Category)
         .Apply(BIND([
+            =,
             this,
             this_ = MakeStrong(this),
-            newDataSize = currentOffset,
-            chunkWriterStatistics = options.ClientOptions.ChunkWriterStatistics
+            newDataSize = currentOffset
         ] (const TErrorOr<IIOEngine::TWriteResponse>& rspOrError) {
             YT_VERIFY(State_.load() == EState::WritingBlocks);
 
@@ -195,11 +189,10 @@ bool TChunkFileWriter::WriteBlocks(
             }
 
             const auto& rsp = rspOrError.Value();
-            YT_VERIFY(newDataSize - DataSize_ == rsp.WrittenBytes);
 
-            chunkWriterStatistics->DataBytesWrittenToDisk.fetch_add(rsp.WrittenBytes, std::memory_order::relaxed);
-            chunkWriterStatistics->DataIOWriteRequests.fetch_add(rsp.IOWriteRequests, std::memory_order::relaxed);
-            chunkWriterStatistics->DataIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
+            auto& chunkWriterStatistics = *options.ClientOptions.ChunkWriterStatistics;
+            chunkWriterStatistics.DataBytesWrittenToDisk.fetch_add(newDataSize - DataSize_, std::memory_order::relaxed);
+            chunkWriterStatistics.DataIOWriteRequests.fetch_add(rsp.IOWriteRequests, std::memory_order::relaxed);
 
             DataSize_ = newDataSize;
             State_.store(EState::Ready);
@@ -229,13 +222,7 @@ TFuture<void> TChunkFileWriter::Close(
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
     return IOEngine_->Close({std::move(DataFile_), DataSize_, SyncOnClose_})
-        .Apply(BIND([
-            this,
-            this_ = MakeStrong(this),
-            chunkMeta,
-            metaFileName,
-            chunkWriterStatistics = options.ClientOptions.ChunkWriterStatistics
-        ] (const IIOEngine::TCloseResponse& rsp) {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] {
             YT_VERIFY(State_.load() == EState::Closing);
 
             if (!chunkMeta->IsFinalized()) {
@@ -248,16 +235,9 @@ TFuture<void> TChunkFileWriter::Close(
             ChunkMeta_->CopyFrom(*chunkMeta);
             SetProtoExtension(ChunkMeta_->mutable_extensions(), BlocksExt_);
 
-            chunkWriterStatistics->DataIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
-
             return IOEngine_->Open({metaFileName + NFS::TempFileSuffix, FileMode});
         }))
-        .Apply(BIND([
-            this,
-            this_ = MakeStrong(this),
-            workloadDescriptor,
-            chunkWriterStatistics = options.ClientOptions.ChunkWriterStatistics
-        ] (const TIOEngineHandlePtr& chunkMetaFile) {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& chunkMetaFile) {
             YT_VERIFY(State_.load() == EState::Closing);
 
             auto metaData = SerializeProtoToRefWithEnvelope(*ChunkMeta_);
@@ -284,33 +264,19 @@ TFuture<void> TChunkFileWriter::Close(
                     SyncOnClose_
                 },
                 workloadDescriptor.Category)
-                .Apply(BIND([
-                    this,
-                    this_ = MakeStrong(this),
-                    chunkWriterStatistics
-                ] (const IIOEngine::TWriteResponse& rsp) {
-                    YT_VERIFY(MetaDataSize_ == rsp.WrittenBytes);
-
-                    chunkWriterStatistics->MetaBytesWrittenToDisk.fetch_add(rsp.WrittenBytes, std::memory_order::relaxed);
-                    chunkWriterStatistics->MetaIOWriteRequests.fetch_add(rsp.IOWriteRequests, std::memory_order::relaxed);
-                    chunkWriterStatistics->MetaIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (IIOEngine::TWriteResponse rsp) {
+                    auto& chunkWriterStatistics = *options.ClientOptions.ChunkWriterStatistics;
+                    chunkWriterStatistics.MetaBytesWrittenToDisk.fetch_add(MetaDataSize_, std::memory_order::relaxed);
+                    chunkWriterStatistics.MetaIOWriteRequests.fetch_add(rsp.IOWriteRequests, std::memory_order::relaxed);
                 }))
                 .Apply(BIND(&IIOEngine::Close, IOEngine_, IIOEngine::TCloseRequest{
                     std::move(chunkMetaFile),
                     MetaDataSize_,
                     SyncOnClose_
                 },
-                workloadDescriptor.Category))
-                .Apply(BIND([chunkWriterStatistics] (const IIOEngine::TCloseResponse& rsp) {
-                    chunkWriterStatistics->MetaIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
-                }));
+                workloadDescriptor.Category));
         }))
-        .Apply(BIND([
-            this,
-            this_ = MakeStrong(this),
-            metaFileName,
-            chunkWriterStatistics = options.ClientOptions.ChunkWriterStatistics
-        ] () mutable {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] {
             YT_VERIFY(State_.load() == EState::Closing);
 
             NFS::Rename(metaFileName + NFS::TempFileSuffix, metaFileName);
@@ -320,17 +286,9 @@ TFuture<void> TChunkFileWriter::Close(
                 return VoidFuture;
             }
 
-            return IOEngine_->FlushDirectory({NFS::GetDirectoryName(FileName_)})
-                .Apply(BIND([
-                    chunkWriterStatistics = std::move(chunkWriterStatistics)
-                ] (const IIOEngine::TFlushDirectoryResponse& rsp) {
-                    chunkWriterStatistics->MetaIOSyncRequests.fetch_add(rsp.IOSyncRequests, std::memory_order::relaxed);
-                }));
+            return IOEngine_->FlushDirectory({NFS::GetDirectoryName(FileName_)});
         }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
-        .Apply(BIND([
-            this,
-            this_ = MakeStrong(this)
-        ] (const TError& error) {
+        .Apply(BIND([this, _this = MakeStrong(this)] (const TError& error) {
             YT_VERIFY(State_.load() == EState::Closing);
 
             if (!error.IsOK()) {

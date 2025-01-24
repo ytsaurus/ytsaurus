@@ -328,8 +328,7 @@ private:
             .AsVoid()
             .Apply(BIND([&] {
                 if (Config_->FlushAfterWrite) {
-                    return IOEngine_->FlushFile({handle, EFlushFileMode::Data})
-                        .AsVoid();
+                    return IOEngine_->FlushFile({handle, EFlushFileMode::Data});
                 }
                 return VoidFuture;
             }));

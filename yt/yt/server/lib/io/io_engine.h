@@ -78,8 +78,6 @@ struct IIOEngine
     struct TWriteResponse
     {
         i64 IOWriteRequests = 0;
-        i64 IOSyncRequests = 0;
-        i64 WrittenBytes = 0;
     };
 
     struct TOpenRequest
@@ -95,11 +93,6 @@ struct IIOEngine
         bool Flush = false;
     };
 
-    struct TCloseResponse
-    {
-        i64 IOSyncRequests = 0;
-    };
-
     struct TAllocateRequest
     {
         TIOEngineHandlePtr Handle;
@@ -112,11 +105,6 @@ struct IIOEngine
         EFlushFileMode Mode;
     };
 
-    struct TFlushFileResponse
-    {
-        i64 IOSyncRequests = 0;
-    };
-
     struct TFlushFileRangeRequest
     {
         TIOEngineHandlePtr Handle;
@@ -125,19 +113,9 @@ struct IIOEngine
         bool Async = false;
     };
 
-    struct TFlushFileRangeResponse
-    {
-        i64 IOSyncRequests = 0;
-    };
-
     struct TFlushDirectoryRequest
     {
         TString Path;
-    };
-
-    struct TFlushDirectoryResponse
-    {
-        i64 IOSyncRequests = 0;
     };
 
     struct TLockRequest
@@ -167,21 +145,21 @@ struct IIOEngine
         EWorkloadCategory category = EWorkloadCategory::Idle,
         TSessionId sessionId = {}) = 0;
 
-    virtual TFuture<TFlushFileResponse> FlushFile(
+    virtual TFuture<void> FlushFile(
         TFlushFileRequest request,
         EWorkloadCategory category = EWorkloadCategory::Idle) = 0;
-    virtual TFuture<TFlushFileRangeResponse> FlushFileRange(
+    virtual TFuture<void> FlushFileRange(
         TFlushFileRangeRequest request,
         EWorkloadCategory category = EWorkloadCategory::Idle,
         TSessionId sessionId = {}) = 0;
-    virtual TFuture<TFlushDirectoryResponse> FlushDirectory(
+    virtual TFuture<void> FlushDirectory(
         TFlushDirectoryRequest request,
         EWorkloadCategory category = EWorkloadCategory::Idle) = 0;
 
     virtual TFuture<TIOEngineHandlePtr> Open(
         TOpenRequest request,
         EWorkloadCategory category = EWorkloadCategory::Idle) = 0;
-    virtual TFuture<TCloseResponse> Close(
+    virtual TFuture<void> Close(
         TCloseRequest request,
         EWorkloadCategory category = EWorkloadCategory::Idle) = 0;
 

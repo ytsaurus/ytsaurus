@@ -10,13 +10,9 @@ from collections import defaultdict
 from datetime import datetime
 from dateutil import parser
 from dateutil.tz import tzlocal
-
-import inspect
-import json
-import os.path
-import platform
 import pytest
-import re
+import json
+import inspect
 
 MAX_DECIMAL_PRECISION = 35
 
@@ -269,31 +265,3 @@ def master_exit_read_only_sync(driver=None):
 
 def wait_until_unlocked(path, driver=None):
     wait(lambda: get(path + "/@lock_count", driver=driver) == 0)
-
-
-def parse_version(vstring):
-    pattern = r'^(\d+)\.(\d+)\.(\d+).*'
-    match = re.match(pattern, vstring)
-    if not match:
-        raise ValueError("invalid version number '%s'" % vstring)
-    (major, minor, patch) = match.group(1, 2, 3)
-    return tuple(map(int, [major, minor, patch]))
-
-
-def is_uring_supported():
-    if platform.system() != "Linux":
-        return False
-    try:
-        return parse_version(platform.release()) >= (5, 4, 0)
-    except Exception:
-        pass
-
-    return False
-
-
-def is_uring_disabled():
-    proc_file = "/proc/sys/kernel/io_uring_perm"
-    if not os.path.exists(proc_file):
-        return False
-    with open(proc_file, "r") as myfile:
-        return myfile.read().strip() == '0'

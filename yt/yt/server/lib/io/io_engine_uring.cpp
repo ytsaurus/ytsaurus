@@ -278,8 +278,6 @@ template <typename TResponse>
 struct TUringRequestBase
     : public TUringRequest
 {
-    using TUringResponse = TResponse;
-
     const TPromise<TResponse> Promise = NewPromise<TResponse>();
 
     virtual ~TUringRequestBase();
@@ -295,13 +293,11 @@ struct TUringRequestBase
         }
 
         if (OptionalError->IsOK()) {
-            TrySetResponse();
+            Promise.TrySet();
         } else {
             Promise.TrySet(std::move(*OptionalError));
         }
     }
-
-    virtual void TrySetResponse() = 0;
 
     void TrySetSucceeded()
     {
@@ -336,16 +332,9 @@ TUringRequestBase<TResponse>::~TUringRequestBase()
 { }
 
 struct TFlushFileUringRequest
-    : public TUringRequestBase<IIOEngine::TFlushFileResponse>
+    : public TUringRequestBase<void>
 {
     IIOEngine::TFlushFileRequest FlushFileRequest;
-    i64 IOSyncRequests = 0;
-
-    void TrySetResponse() override {
-        Promise.TrySet(IIOEngine::TFlushFileResponse{
-            .IOSyncRequests = IOSyncRequests,
-        });
-    }
 };
 
 struct TAllocateUringRequest
@@ -355,29 +344,19 @@ struct TAllocateUringRequest
 };
 
 struct TWriteUringRequest
-    : public TUringRequestBase<IIOEngine::TWriteResponse>
+    : public TUringRequestBase<void>
 {
     IIOEngine::TWriteRequest WriteRequest;
     int CurrentWriteSubrequestIndex = 0;
     TUringIovBuffer* WriteIovBuffer = nullptr;
     i64 WrittenBytes = 0;
-    i64 IOWriteRequests = 0;
-    i64 IOSyncRequests = 0;
 
     int FinishedSubrequestCount = 0;
     bool SyncedFileRange = false;
-
-    void TrySetResponse() override {
-        Promise.TrySet(IIOEngine::TWriteResponse{
-            .IOWriteRequests = IOWriteRequests,
-            .IOSyncRequests = IOSyncRequests,
-            .WrittenBytes = WrittenBytes,
-        });
-    }
 };
 
 struct TReadUringRequest
-    : public TUringRequestBase<IIOEngine::TReadResponse>
+    : public TUringRequestBase<void>
 {
     struct TReadSubrequestState
     {
@@ -391,19 +370,11 @@ struct TReadUringRequest
     const IReadRequestCombinerPtr ReadRequestCombiner;
 
     i64 PaddedBytes = 0;
-    i64 IORequests = 0;
     int FinishedSubrequestCount = 0;
 
     explicit TReadUringRequest(IReadRequestCombinerPtr combiner)
         : ReadRequestCombiner(std::move(combiner))
     { }
-
-    void TrySetResponse() override {
-        Promise.TrySet(IIOEngine::TReadResponse{
-            .PaddedBytes = PaddedBytes,
-            .IORequests = IORequests,
-        });
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -724,8 +695,6 @@ private:
                 1,
                 subrequest.Offset);
 
-            ++request->IORequests;
-
             SetRequestUserData(sqe, request, Sensors_->ReadSensors, subrequestIndex);
         }
 
@@ -752,8 +721,6 @@ private:
             request->WrittenBytes,
             offset,
             flags);
-
-        ++request->IOSyncRequests;
 
         SetRequestUserData(sqe, request, Sensors_->DataSyncSensors);
         return true;
@@ -826,8 +793,6 @@ private:
             iovCount,
             request->WriteRequest.Offset);
 
-        ++request->IOWriteRequests;
-
         SetRequestUserData(sqe, request, Sensors_->WriteSensors);
     }
 
@@ -855,9 +820,6 @@ private:
 
         auto* sqe = AllocateSqe();
         io_uring_prep_fsync(sqe, *request->FlushFileRequest.Handle, GetSyncFlags(request->FlushFileRequest.Mode));
-
-        ++request->IOSyncRequests;
-
         SetRequestUserData(sqe, request, Sensors_->SyncSensors);
     }
 
@@ -1719,7 +1681,7 @@ public:
 
         auto slices = requestSlicer.Slice(std::move(request));
 
-        std::vector<TFuture<TWriteResponse>> futures;
+        std::vector<TFuture<void>> futures;
         std::vector<TUringRequestPtr> uringRequests;
 
         futures.reserve(slices.size());
@@ -1737,37 +1699,33 @@ public:
 
         ThreadPool_->SubmitRequests(uringRequests, category, sessionId);
 
+        TWriteResponse response{
+            .IOWriteRequests = std::ssize(uringRequests),
+        };
+
         return AllSucceeded(std::move(futures))
-            .Apply(BIND([] (const std::vector<TWriteResponse>& subresponces) {
-                TWriteResponse response;
-
-                for (const auto& subresponse: subresponces) {
-                    response.WrittenBytes += subresponse.WrittenBytes;
-                    response.IOWriteRequests += subresponse.IOWriteRequests;
-                    response.IOSyncRequests += subresponse.IOSyncRequests;
-                }
-
-                return response;
+            .Apply(BIND([response = std::move(response)] () mutable {
+                return std::move(response);
             }));
     }
 
-    TFuture<TFlushFileResponse> FlushFile(
+    TFuture<void> FlushFile(
         TFlushFileRequest request,
         EWorkloadCategory category) override
     {
         auto uringRequest = std::make_unique<TFlushFileUringRequest>();
         uringRequest->Type = EUringRequestType::FlushFile;
         uringRequest->FlushFileRequest = std::move(request);
-        return SubmitRequest(std::move(uringRequest), category, { });
+        return SubmitRequest<void>(std::move(uringRequest), category, { });
     }
 
-    virtual TFuture<TFlushFileRangeResponse> FlushFileRange(
+    virtual TFuture<void> FlushFileRange(
         TFlushFileRangeRequest /*request*/,
         EWorkloadCategory /*category*/,
         TSessionId /*sessionId*/) override
     {
         // TODO (capone212): implement
-        return MakeFuture(TFlushFileRangeResponse{});
+        return VoidFuture;
     }
 
 private:
@@ -1776,9 +1734,9 @@ private:
     const IInvokerPtr ReconfigureInvoker_;
     TUringThreadPoolPtr ThreadPool_;
 
-    template <typename TUringRequestPtr>
-    TFuture<typename TUringRequestPtr::element_type::TUringResponse> SubmitRequest(
-        TUringRequestPtr request,
+    template <typename TUringResponse, typename TUringRequest>
+    TFuture<TUringResponse> SubmitRequest(
+        TUringRequest request,
         EWorkloadCategory category,
         IIOEngine::TSessionId sessionId)
     {
@@ -1826,12 +1784,16 @@ private:
             uringRequest->PendingReadSubrequestIndexes.push_back(index);
         }
 
-        return SubmitRequest(std::move(uringRequest), category, sessionId)
-            .Apply(BIND([
-                combiner = std::move(readRequestCombiner)
-            ] (TReadResponse response) mutable {
-                response.OutputBuffers = std::move(combiner->ReleaseOutputBuffers());
-                return response;
+        auto paddedBytes = uringRequest->PaddedBytes;
+        auto subrequestCount = std::ssize(uringRequest->PendingReadSubrequestIndexes);
+
+        return SubmitRequest<void>(std::move(uringRequest), category, sessionId)
+            .Apply(BIND([combiner = std::move(readRequestCombiner), paddedBytes, subrequestCount] {
+                return TReadResponse{
+                    .OutputBuffers = std::move(combiner->ReleaseOutputBuffers()),
+                    .PaddedBytes = paddedBytes,
+                    .IORequests = subrequestCount,
+                };
             }));
     }
 
@@ -1844,8 +1806,9 @@ private:
     {
         std::vector<TUringRequestPtr> uringRequests;
         uringRequests.reserve(combinedRequests.size());
+        i64 paddedBytes = 0;
 
-        std::vector<TFuture<TReadResponse>> futures;
+        std::vector<TFuture<void>> futures;
         futures.reserve(combinedRequests.size());
 
         for (auto& request : combinedRequests) {
@@ -1858,7 +1821,7 @@ private:
                 uringRequest->PendingReadSubrequestIndexes.reserve(1);
                 uringRequest->RequestCounterGuard = CreateInFlightRequestGuard(EIOEngineRequestType::Read);
 
-                uringRequest->PaddedBytes += GetPaddedSize(
+                paddedBytes += GetPaddedSize(
                     slice.Request.Offset,
                     slice.Request.Size,
                     slice.Request.Handle->IsOpenForDirectIO() ? Config_->GetDirectIOPageSize() : DefaultPageSize);
@@ -1880,20 +1843,15 @@ private:
 
         ThreadPool_->SubmitRequests(uringRequests, category, sessionId);
 
+        auto subrequestCount = std::ssize(futures);
+
         return AllSucceeded(std::move(futures))
-            .Apply(BIND([
-                combiner = std::move(readRequestCombiner)
-            ] (const std::vector<TReadResponse>& subresponses) mutable {
-                TReadResponse response{
+            .Apply(BIND([paddedBytes, combiner = std::move(readRequestCombiner), subrequestCount] {
+                return TReadResponse{
                     .OutputBuffers = std::move(combiner->ReleaseOutputBuffers()),
+                    .PaddedBytes = paddedBytes,
+                    .IORequests = subrequestCount,
                 };
-
-                for (const auto& subresponse: subresponses) {
-                    response.PaddedBytes += subresponse.PaddedBytes;
-                    response.IORequests += subresponse.IORequests;
-                }
-
-                return response;
             }));
     }
 };

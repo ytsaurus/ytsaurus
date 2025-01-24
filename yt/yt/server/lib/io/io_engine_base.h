@@ -162,9 +162,9 @@ class TIOEngineBase
 public:
     TFuture<TIOEngineHandlePtr> Open(TOpenRequest request, EWorkloadCategory category) override;
 
-    TFuture<TCloseResponse> Close(TCloseRequest request, EWorkloadCategory category) override;
+    TFuture<void> Close(TCloseRequest request, EWorkloadCategory category) override;
 
-    TFuture<TFlushDirectoryResponse> FlushDirectory(TFlushDirectoryRequest request, EWorkloadCategory category) override;
+    TFuture<void> FlushDirectory(TFlushDirectoryRequest request, EWorkloadCategory category) override;
 
     TFuture<void> Allocate(TAllocateRequest request, EWorkloadCategory category) override;
 
@@ -210,8 +210,8 @@ protected:
 
     TIOEngineHandlePtr DoOpen(const TOpenRequest& request);
 
-    TFlushDirectoryResponse DoFlushDirectory(const TFlushDirectoryRequest& request);
-    TCloseResponse DoClose(const TCloseRequest& request);
+    void DoFlushDirectory(const TFlushDirectoryRequest& request);
+    void DoClose(const TCloseRequest& request);
     void DoAllocate(const TAllocateRequest& request);
     static int GetLockOp(ELockFileMode mode);
     void DoLock(const TLockRequest& request);

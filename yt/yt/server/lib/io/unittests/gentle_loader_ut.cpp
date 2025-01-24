@@ -117,35 +117,26 @@ public:
             }));
     }
 
-    TFuture<TFlushFileResponse> FlushFile(
+    TFuture<void> FlushFile(
         TFlushFileRequest /*request*/,
         EWorkloadCategory /*category*/) override
     {
-        return RunRequest(TDuration{})
-            .Apply(BIND([] {
-                return TFlushFileResponse{};
-            }));
+        return RunRequest(TDuration{});
     }
 
-    TFuture<TFlushFileRangeResponse> FlushFileRange(
+    TFuture<void> FlushFileRange(
         TFlushFileRangeRequest /*request*/,
         EWorkloadCategory /*category*/,
         TSessionId /*sessionId*/) override
     {
-        return RunRequest(TDuration{})
-            .Apply(BIND([] {
-                return TFlushFileRangeResponse{};
-            }));
+        return RunRequest(TDuration{});
     }
 
-    TFuture<TFlushDirectoryResponse> FlushDirectory(
+    TFuture<void> FlushDirectory(
         TFlushDirectoryRequest /*request*/,
         EWorkloadCategory /*category*/) override
     {
-        return RunRequest(TDuration{})
-            .Apply(BIND([] {
-                return TFlushDirectoryResponse{};
-            }));
+        return RunRequest(TDuration{});
     }
 
     TFuture<TIOEngineHandlePtr> Open(
@@ -158,14 +149,11 @@ public:
             }));
     }
 
-    TFuture<TCloseResponse> Close(
+    TFuture<void> Close(
         TCloseRequest /*request*/,
         EWorkloadCategory /*category*/) override
     {
-        return RunRequest(TDuration{})
-            .Apply(BIND([] {
-                return TCloseResponse{};
-            }));
+        return RunRequest(TDuration{});
     }
 
     TFuture<void> Allocate(

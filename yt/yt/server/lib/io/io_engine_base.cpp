@@ -233,8 +233,7 @@ TFuture<TIOEngineHandlePtr> TIOEngineBase::Open(TOpenRequest request, EWorkloadC
         .Run();
 }
 
-TFuture<IIOEngine::TCloseResponse>
-TIOEngineBase::Close(TCloseRequest request, EWorkloadCategory category)
+TFuture<void> TIOEngineBase::Close(TCloseRequest request, EWorkloadCategory category)
 {
     auto invoker = (request.Flush || request.Size) ? FsyncInvoker_ : AuxInvoker_;
     return BIND(&TIOEngineBase::DoClose, MakeStrong(this), std::move(request))
@@ -242,8 +241,7 @@ TIOEngineBase::Close(TCloseRequest request, EWorkloadCategory category)
         .Run();
 }
 
-TFuture<IIOEngine::TFlushDirectoryResponse>
-TIOEngineBase::FlushDirectory(TFlushDirectoryRequest request, EWorkloadCategory category)
+TFuture<void> TIOEngineBase::FlushDirectory(TFlushDirectoryRequest request, EWorkloadCategory category)
 {
     return BIND(&TIOEngineBase::DoFlushDirectory, MakeStrong(this), std::move(request))
         .AsyncVia(CreateFixedPriorityInvoker(FsyncInvoker_, GetBasicPriority(category)))
@@ -361,28 +359,19 @@ TIOEngineHandlePtr TIOEngineBase::DoOpen(const TOpenRequest& request)
     return handle;
 }
 
-
-IIOEngine::TFlushDirectoryResponse
-TIOEngineBase::DoFlushDirectory(const TFlushDirectoryRequest& request)
+void TIOEngineBase::DoFlushDirectory(const TFlushDirectoryRequest& request)
 {
-    TFlushDirectoryResponse response;
-
     Sensors_->UpdateKernelStatistics();
     NFS::WrapIOErrors([&] {
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
         if (StaticConfig_->EnableSync) {
             NFS::FlushDirectory(request.Path);
-            response.IOSyncRequests = 1;
         }
     });
-
-    return response;
 }
 
-IIOEngine::TCloseResponse TIOEngineBase::DoClose(const TCloseRequest& request)
+void TIOEngineBase::DoClose(const TCloseRequest& request)
 {
-    TCloseResponse response;
-
     Sensors_->UpdateKernelStatistics();
     NFS::WrapIOErrors([&] {
         NTracing::TNullTraceContextGuard nullTraceContextGuard;
@@ -392,12 +381,9 @@ IIOEngine::TCloseResponse TIOEngineBase::DoClose(const TCloseRequest& request)
         if (request.Flush && StaticConfig_->EnableSync) {
             TRequestStatsGuard statsGuard(Sensors_->SyncSensors);
             request.Handle->Flush();
-            response.IOSyncRequests = 1;
         }
         request.Handle->Close();
     });
-
-    return response;
 }
 
 void TIOEngineBase::DoAllocate(const TAllocateRequest& request)
