@@ -41,7 +41,6 @@ target_link_options(ytserver-log-tailer PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

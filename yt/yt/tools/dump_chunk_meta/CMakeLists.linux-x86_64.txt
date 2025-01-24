@@ -45,7 +45,6 @@ target_link_options(dump-chunk-meta PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

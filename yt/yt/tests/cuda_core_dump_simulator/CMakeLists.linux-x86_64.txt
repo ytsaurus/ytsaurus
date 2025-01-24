@@ -40,7 +40,6 @@ target_link_options(cuda_core_dump_simulator PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
 )

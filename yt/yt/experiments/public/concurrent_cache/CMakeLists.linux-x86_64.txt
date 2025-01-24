@@ -36,7 +36,6 @@ target_link_options(concurrent_cache PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

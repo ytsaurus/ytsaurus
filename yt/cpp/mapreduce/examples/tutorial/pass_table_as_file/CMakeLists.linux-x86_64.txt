@@ -41,7 +41,6 @@ target_link_options(pass_table_as_file PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

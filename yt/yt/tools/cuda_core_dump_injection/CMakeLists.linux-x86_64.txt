@@ -30,7 +30,6 @@ target_link_options(cuda_core_dump_injection PRIVATE
   -fPIC
   -Wl,-z,notext
   -fPIC
-  -lpthread
   -lrt
   -ldl
 )

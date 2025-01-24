@@ -44,7 +44,6 @@ target_link_options(driver_lib PRIVATE
   -Wl,-z,notext
   -Wl,-Bsymbolic
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

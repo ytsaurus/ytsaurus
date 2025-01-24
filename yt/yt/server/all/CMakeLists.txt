@@ -68,7 +68,6 @@ target_link_options(ytserver-all PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

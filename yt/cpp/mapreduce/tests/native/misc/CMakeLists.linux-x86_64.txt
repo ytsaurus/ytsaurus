@@ -47,7 +47,6 @@ target_link_options(yt-cpp-mapreduce-tests-native-misc PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

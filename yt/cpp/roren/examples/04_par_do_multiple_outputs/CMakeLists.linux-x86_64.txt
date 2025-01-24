@@ -37,7 +37,6 @@ target_link_options(04_par_do_multiple_outputs PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

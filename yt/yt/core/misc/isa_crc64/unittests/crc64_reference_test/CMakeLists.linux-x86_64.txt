@@ -40,7 +40,6 @@ target_link_options(crc64_reference_test PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
 )
 
 target_sources(crc64_reference_test PRIVATE

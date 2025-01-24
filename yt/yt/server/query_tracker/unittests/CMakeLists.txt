@@ -45,7 +45,6 @@ target_link_options(unittester-query-tracker-proxy PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

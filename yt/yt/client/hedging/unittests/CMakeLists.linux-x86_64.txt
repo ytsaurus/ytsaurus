@@ -49,7 +49,6 @@ target_link_options(yt-yt-client-hedging-unittests PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

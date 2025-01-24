@@ -42,7 +42,6 @@ target_link_options(mpsc_sharded_queue PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

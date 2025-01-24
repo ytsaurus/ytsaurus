@@ -42,7 +42,6 @@ target_link_options(fair_share_action_queue PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

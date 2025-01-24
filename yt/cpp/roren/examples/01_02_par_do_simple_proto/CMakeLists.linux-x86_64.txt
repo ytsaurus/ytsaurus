@@ -52,7 +52,6 @@ target_link_options(01_02_par_do_simple_proto PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

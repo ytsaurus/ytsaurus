@@ -41,7 +41,6 @@ target_link_options(table_read_write_tnode PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

@@ -52,7 +52,6 @@ target_link_options(columnar_merge PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

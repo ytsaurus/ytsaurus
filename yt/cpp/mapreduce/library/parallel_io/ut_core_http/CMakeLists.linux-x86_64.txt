@@ -50,7 +50,6 @@ target_link_options(yt-cpp-mapreduce-library-parallel_io-ut_core_http PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

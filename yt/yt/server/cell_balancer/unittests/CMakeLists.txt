@@ -43,7 +43,6 @@ target_link_options(cell-balancer-unittests PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

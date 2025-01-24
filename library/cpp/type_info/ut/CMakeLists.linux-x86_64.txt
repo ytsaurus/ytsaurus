@@ -47,7 +47,6 @@ target_link_options(library-cpp-type_info-ut PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
 )

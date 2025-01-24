@@ -38,7 +38,6 @@ target_link_options(yt-sudo-fixup PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
 )
 
 target_sources(yt-sudo-fixup PRIVATE

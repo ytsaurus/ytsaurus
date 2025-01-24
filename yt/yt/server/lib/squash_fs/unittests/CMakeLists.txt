@@ -46,7 +46,6 @@ target_link_options(yt-yt-server-lib-squash_fs-unittests PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

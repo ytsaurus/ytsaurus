@@ -38,7 +38,6 @@ target_link_options(unittester-tools PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

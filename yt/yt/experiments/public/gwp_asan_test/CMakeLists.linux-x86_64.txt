@@ -43,7 +43,6 @@ target_link_options(gwp_asan_test PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

@@ -56,7 +56,6 @@ target_link_options(multiple_input_multiple_output_reduce_protobuf PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

@@ -44,7 +44,6 @@ target_link_options(unittester-controller-agent PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

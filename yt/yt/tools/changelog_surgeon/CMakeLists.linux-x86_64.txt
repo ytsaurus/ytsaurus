@@ -40,7 +40,6 @@ target_link_options(changelog_surgeon PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil

@@ -37,7 +37,6 @@ target_link_options(01_01_par_do_simple_tnode PRIVATE
   -Wl,--no-as-needed
   -fPIC
   -fPIC
-  -lpthread
   -lrt
   -ldl
   -lutil
