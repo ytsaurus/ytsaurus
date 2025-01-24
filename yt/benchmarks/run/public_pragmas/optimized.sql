@@ -1,6 +1,6 @@
 pragma AnsiInForEmptyOrNullableItemsCollections;
 pragma AnsiOptionalAs;
-pragma CompactGroupBy; -- TODO(pavook): replace to CompactForDistinct on cluster update.
+pragma CompactGroupBy;
 pragma TablePathPrefix = "home/tpcds/3Tb";
 pragma config.flags("OptimizerFlags", "FilterPushdownEnableMultiusage", "EarlyExpandSkipNull","FieldSubsetEnableMultiusage", "PushdownComplexFiltersOverAggregate", "ExtractCommonPredicatesFromLogicalOps");
 pragma yt.AutoMerge = "disabled";
@@ -10,7 +10,6 @@ pragma yt.DataSizePerPartition = "64M";
 pragma yt.HybridDqExecution = "true";
 pragma yt.MapJoinLimit = "4G";
 pragma yt.MaxReplicationFactorToFuseOperations="100";
-pragma yt.OperationSpec='{time_limit=3600000; locality_timeout=0; enable_partitioned_data_balancing=%false}';
 pragma yt.PartitionByConstantKeysViaMap;
 pragma yt.Pool = "tpcds";
 pragma yt.QueryCacheMode = "disable";
