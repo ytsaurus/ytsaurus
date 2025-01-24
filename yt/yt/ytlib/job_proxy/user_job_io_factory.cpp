@@ -154,7 +154,10 @@ TSharedRange<TUnversionedRow> DedupRows(
 }
 
 ISchemalessMultiChunkReaderPtr CreateRegularReader(
-    const IJobSpecHelperPtr& jobSpecHelper,
+    std::vector<TDataSliceDescriptor> dataSliceDescriptors,
+    TDataSourceDirectoryPtr dataSourceDirectory,
+    TTableReaderOptionsPtr options,
+    TTableReaderConfigPtr tableReaderConfig,
     TChunkReaderHostPtr chunkReaderHost,
     bool isParallel,
     TNameTablePtr nameTable,
@@ -163,14 +166,9 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
     IMultiReaderMemoryManagerPtr multiReaderMemoryManager,
     std::optional<int> partitionTag = std::nullopt)
 {
-    auto dataSliceDescriptors = jobSpecHelper->UnpackDataSliceDescriptors();
-    auto dataSourceDirectory = jobSpecHelper->GetDataSourceDirectory();
-    auto options = jobSpecHelper->GetTableReaderOptions();
-
     auto createReader = isParallel
         ? CreateSchemalessParallelMultiReader
         : CreateSchemalessSequentialMultiReader;
-    const auto& tableReaderConfig = jobSpecHelper->GetJobIOConfig()->TableReader;
     return createReader(
         tableReaderConfig,
         std::move(options),
@@ -220,22 +218,19 @@ struct TUserJobIOFactoryBase
     : public IUserJobIOFactory
 {
     TUserJobIOFactoryBase(
-        IJobSpecHelperPtr jobSpecHelper,
         const TClientChunkReadOptions& chunkReadOptions,
         TChunkReaderHostPtr chunkReaderHost,
         TString localHostName,
         IThroughputThrottlerPtr outBandwidthThrottler)
-        : JobSpecHelper_(std::move(jobSpecHelper))
-        , ChunkReadOptions_(chunkReadOptions)
+        : ChunkReadOptions_(chunkReadOptions)
         , ChunkReaderHost_(std::move(chunkReaderHost))
         , LocalHostName_(std::move(localHostName))
         , OutBandwidthThrottler_(std::move(outBandwidthThrottler))
     { }
 
-    IMultiReaderMemoryManagerPtr CreateMultiReaderMemoryManager()
+    IMultiReaderMemoryManagerPtr CreateMultiReaderMemoryManager(i64 totalReaderMemoryLimit)
     {
         // Initialize parallel reader memory manager.
-        auto totalReaderMemoryLimit = GetTotalReaderMemoryLimit();
         TParallelReaderMemoryManagerOptions parallelReaderMemoryManagerOptions{
             .TotalReservedMemorySize = totalReaderMemoryLimit,
             .MaxInitialReaderReservedMemory = totalReaderMemoryLimit
@@ -276,13 +271,10 @@ struct TUserJobIOFactoryBase
     }
 
 protected:
-    const IJobSpecHelperPtr JobSpecHelper_;
     const TClientChunkReadOptions ChunkReadOptions_;
     const TChunkReaderHostPtr ChunkReaderHost_;
     const TString LocalHostName_;
     const IThroughputThrottlerPtr OutBandwidthThrottler_;
-
-    virtual i64 GetTotalReaderMemoryLimit() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -292,14 +284,12 @@ class TMapJobIOFactory
 {
 public:
     TMapJobIOFactory(
-        IJobSpecHelperPtr jobSpecHelper,
         bool useParallelReader,
         const TClientChunkReadOptions& chunkReadOptions,
         TChunkReaderHostPtr chunkReaderHost,
         TString localHostName,
         IThroughputThrottlerPtr outBandwidthThrottler)
         : TUserJobIOFactoryBase(
-            std::move(jobSpecHelper),
             chunkReadOptions,
             std::move(chunkReaderHost),
             std::move(localHostName),
@@ -308,25 +298,23 @@ public:
     { }
 
     ISchemalessMultiChunkReaderPtr CreateReader(
+        const IJobSpecHelperPtr& jobSpecHelper,
         TClosure /*onNetworkReleased*/,
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
-        auto multiReaderMemoryManager = CreateMultiReaderMemoryManager();
+        auto multiReaderMemoryManager = CreateMultiReaderMemoryManager(jobSpecHelper->GetJobIOConfig()->TableReader->MaxBufferSize);
         return CreateRegularReader(
-            JobSpecHelper_,
+            jobSpecHelper->UnpackDataSliceDescriptors(),
+            jobSpecHelper->GetDataSourceDirectory(),
+            jobSpecHelper->GetTableReaderOptions(),
+            jobSpecHelper->GetJobIOConfig()->TableReader,
             ChunkReaderHost_,
             UseParallelReader_,
             std::move(nameTable),
             columnFilter,
             ChunkReadOptions_,
             multiReaderMemoryManager);
-    }
-
-protected:
-    i64 GetTotalReaderMemoryLimit() const override
-    {
-        return JobSpecHelper_->GetJobIOConfig()->TableReader->MaxBufferSize;
     }
 
 private:
@@ -343,14 +331,12 @@ class TSortedReduceJobIOFactory
 
 public:
     TSortedReduceJobIOFactory(
-        IJobSpecHelperPtr jobSpecHelper,
         bool interruptAtKeyEdge,
         const TClientChunkReadOptions& chunkReadOptions,
         TChunkReaderHostPtr chunkReaderHost,
         TString localHostName,
         IThroughputThrottlerPtr outBandwidthThrottler)
         : TUserJobIOFactoryBase(
-            std::move(jobSpecHelper),
             chunkReadOptions,
             std::move(chunkReaderHost),
             std::move(localHostName),
@@ -361,16 +347,17 @@ public:
     { }
 
     ISchemalessMultiChunkReaderPtr CreateReader(
+        const IJobSpecHelperPtr& jobSpecHelper,
         TClosure /*onNetworkReleased*/,
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
         YT_VERIFY(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
 
-        const auto& reduceJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+        const auto& reduceJobSpecExt = jobSpecHelper->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
         auto sortColumns = FromProto<TSortColumns>(reduceJobSpecExt.sort_columns());
-        auto multiReaderMemoryManager = CreateMultiReaderMemoryManager();
+        auto multiReaderMemoryManager = CreateMultiReaderMemoryManager(GetTotalReaderMemoryLimit(jobSpecHelper));
 
         // COMPAT(gritukan)
         if (sortColumns.empty()) {
@@ -380,9 +367,8 @@ public:
         }
 
         nameTable = TNameTable::FromSortColumns(sortColumns);
-        const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
-
-        auto dataSourceDirectory = JobSpecHelper_->GetDataSourceDirectory();
+        const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
+        auto dataSourceDirectory = jobSpecHelper->GetDataSourceDirectory();
 
         // COMPAT(max42, onionalex): remove after all CAs are 22.2+.
         for (auto& dataSource : dataSourceDirectory->DataSources()) {
@@ -397,7 +383,10 @@ public:
             // in the current implementation.
 
             return CreateRegularReader(
-                JobSpecHelper_,
+                jobSpecHelper->UnpackDataSliceDescriptors(),
+                jobSpecHelper->GetDataSourceDirectory(),
+                jobSpecHelper->GetTableReaderOptions(),
+                jobSpecHelper->GetJobIOConfig()->TableReader,
                 ChunkReaderHost_,
                 /*isParallel*/ true,
                 std::move(nameTable),
@@ -467,7 +456,7 @@ public:
             for (int i = 0; i < jobSpecExt.input_table_specs_size(); i++) {
                 const auto& inputSpec = jobSpecExt.input_table_specs(i);
                 auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
-                const auto& tableReaderConfig = JobSpecHelper_->GetJobIOConfig()->TableReader;
+                const auto& tableReaderConfig = jobSpecHelper->GetJobIOConfig()->TableReader;
                 auto memoryManager = multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize);
 
                 // TODO(orlovorlov) YT-18240: only read key columns here.
@@ -509,7 +498,7 @@ public:
         for (const auto& inputSpec : jobSpecExt.input_table_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
-            const auto& tableReaderConfig = JobSpecHelper_->GetJobIOConfig()->TableReader;
+            const auto& tableReaderConfig = jobSpecHelper->GetJobIOConfig()->TableReader;
             auto memoryManager = multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize);
 
             auto reader = CreateSchemalessSequentialMultiReader(
@@ -534,7 +523,7 @@ public:
         for (const auto& inputSpec : jobSpecExt.foreign_input_table_specs()) {
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
 
-            const auto& tableReaderConfig = JobSpecHelper_->GetJobIOConfig()->TableReader;
+            const auto& tableReaderConfig = jobSpecHelper->GetJobIOConfig()->TableReader;
 
             auto reader = CreateSchemalessSequentialMultiReader(
                 tableReaderConfig,
@@ -562,15 +551,16 @@ public:
             InterruptAtKeyEdge_);
     }
 
-    virtual std::optional<NChunkClient::NProto::TDataStatistics> GetPreparationDataStatistics() override {
+    virtual std::optional<NChunkClient::NProto::TDataStatistics> GetPreparationDataStatistics() override
+    {
         return PreparationDataStatistics_;
     }
 
 protected:
-    i64 GetTotalReaderMemoryLimit() const override
+    i64 GetTotalReaderMemoryLimit(const IJobSpecHelperPtr& jobSpecHelper) const
     {
-        auto readerMemoryLimit = JobSpecHelper_->GetJobIOConfig()->TableReader->MaxBufferSize;
-        const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
+        auto readerMemoryLimit = jobSpecHelper->GetJobIOConfig()->TableReader->MaxBufferSize;
+        const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
         auto readerCount = jobSpecExt.input_table_specs_size() + jobSpecExt.foreign_input_table_specs_size();
         return readerMemoryLimit * readerCount;
     }
@@ -589,31 +579,34 @@ class TPartitionMapJobIOFactory
 {
 public:
     explicit TPartitionMapJobIOFactory(
-        IJobSpecHelperPtr jobSpecHelper,
+        const IJobSpecHelperPtr& jobSpecHelper,
         const TClientChunkReadOptions& chunkReadOptions,
         TChunkReaderHostPtr chunkReaderHost,
         TString localHostName,
         IThroughputThrottlerPtr outBandwidthThrottler)
         : TUserJobIOFactoryBase(
-            std::move(jobSpecHelper),
             chunkReadOptions,
             std::move(chunkReaderHost),
             std::move(localHostName),
             std::move(outBandwidthThrottler))
+        , PartitionJobSpecExt_(jobSpecHelper->GetJobSpec().GetExtension(TPartitionJobSpecExt::partition_job_spec_ext))
     { }
 
     ISchemalessMultiChunkReaderPtr CreateReader(
+        const IJobSpecHelperPtr& jobSpecHelper,
         TClosure /*onNetworkReleased*/,
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
-        const auto& partitionJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-        auto multiReaderMemoryManager = CreateMultiReaderMemoryManager();
+        auto multiReaderMemoryManager = CreateMultiReaderMemoryManager(GetTotalReaderMemoryLimit(jobSpecHelper));
 
         return CreateRegularReader(
-            JobSpecHelper_,
+            jobSpecHelper->UnpackDataSliceDescriptors(),
+            jobSpecHelper->GetDataSourceDirectory(),
+            jobSpecHelper->GetTableReaderOptions(),
+            jobSpecHelper->GetJobIOConfig()->TableReader,
             ChunkReaderHost_,
-            /*isParallel*/ !partitionJobSpecExt.use_sequential_reader(),
+            /*isParallel*/ !PartitionJobSpecExt_.use_sequential_reader(),
             std::move(nameTable),
             columnFilter,
             ChunkReadOptions_,
@@ -632,9 +625,7 @@ public:
         const std::optional<TDataSink>& dataSink,
         IChunkWriter::TWriteBlocksOptions writeBlocksOptions) override
     {
-        const auto& jobSpec = JobSpecHelper_->GetJobSpec();
-        const auto& jobSpecExt = jobSpec.GetExtension(TPartitionJobSpecExt::partition_job_spec_ext);
-        auto partitioner = CreatePartitioner(jobSpecExt);
+        auto partitioner = CreatePartitioner(PartitionJobSpecExt_);
 
         // We pass partitioning columns through schema but input stream is not sorted.
         options->ValidateSorted = false;
@@ -642,8 +633,8 @@ public:
         // TODO(max42): currently ReturnBoundaryKeys are set exactly for the writers
         // that correspond to the map-sink edge. Think more about how this may be done properly.
         if (!options->ReturnBoundaryKeys) {
-            auto keyColumns = FromProto<TKeyColumns>(jobSpecExt.sort_key_columns());
-            auto sortColumns = FromProto<TSortColumns>(jobSpecExt.sort_columns());
+            auto keyColumns = FromProto<TKeyColumns>(PartitionJobSpecExt_.sort_key_columns());
+            auto sortColumns = FromProto<TSortColumns>(PartitionJobSpecExt_.sort_columns());
             // COMPAT(gritukan)
             if (sortColumns.empty()) {
                 for (const auto& keyColumn : keyColumns) {
@@ -697,10 +688,13 @@ public:
     }
 
 protected:
-    i64 GetTotalReaderMemoryLimit() const override
+    i64 GetTotalReaderMemoryLimit(const IJobSpecHelperPtr& jobSpecHelper) const
     {
-        return JobSpecHelper_->GetJobIOConfig()->TableReader->MaxBufferSize;
+        return jobSpecHelper->GetJobIOConfig()->TableReader->MaxBufferSize;
     }
+
+private:
+    TPartitionJobSpecExt PartitionJobSpecExt_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -710,13 +704,11 @@ class TPartitionReduceJobIOFactory
 {
 public:
     TPartitionReduceJobIOFactory(
-        IJobSpecHelperPtr jobSpecHelper,
         const TClientChunkReadOptions& chunkReadOptions,
         TChunkReaderHostPtr chunkReaderHost,
         TString localHostName,
         IThroughputThrottlerPtr outBandwidthThrottler)
         : TUserJobIOFactoryBase(
-            std::move(jobSpecHelper),
             chunkReadOptions,
             std::move(chunkReaderHost),
             std::move(localHostName),
@@ -724,21 +716,22 @@ public:
     { }
 
     ISchemalessMultiChunkReaderPtr CreateReader(
+        const IJobSpecHelperPtr& jobSpecHelper,
         TClosure onNetworkReleased,
         TNameTablePtr nameTable,
         const TColumnFilter& columnFilter) override
     {
         YT_VERIFY(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
 
-        const auto& jobSpecExt = JobSpecHelper_->GetJobSpecExt();
+        const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
 
         YT_VERIFY(jobSpecExt.input_table_specs_size() == 1);
 
         const auto& inputSpec = jobSpecExt.input_table_specs(0);
         auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
-        auto dataSourceDirectory = JobSpecHelper_->GetDataSourceDirectory();
+        auto dataSourceDirectory = jobSpecHelper->GetDataSourceDirectory();
 
-        const auto& reduceJobSpecExt = JobSpecHelper_->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+        const auto& reduceJobSpecExt = jobSpecHelper->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
         auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
         auto sortColumns = FromProto<TSortColumns>(reduceJobSpecExt.sort_columns());
 
@@ -759,11 +752,14 @@ public:
         }
         YT_VERIFY(partitionTag);
 
-        auto multiReaderMemoryManager = CreateMultiReaderMemoryManager();
+        auto multiReaderMemoryManager = CreateMultiReaderMemoryManager(GetTotalReaderMemoryLimit(jobSpecHelper));
 
         if (reduceJobSpecExt.disable_sorted_input()) {
             return CreateRegularReader(
-                JobSpecHelper_,
+                jobSpecHelper->UnpackDataSliceDescriptors(),
+                jobSpecHelper->GetDataSourceDirectory(),
+                jobSpecHelper->GetTableReaderOptions(),
+                jobSpecHelper->GetJobIOConfig()->TableReader,
                 ChunkReaderHost_,
                 /*isParallel*/ true,
                 std::move(nameTable),
@@ -774,7 +770,7 @@ public:
         }
 
         return CreatePartitionSortReader(
-            JobSpecHelper_->GetJobIOConfig()->TableReader,
+            jobSpecHelper->GetJobIOConfig()->TableReader,
             ChunkReaderHost_,
             GetComparator(sortColumns),
             nameTable,
@@ -789,9 +785,9 @@ public:
     }
 
 protected:
-    i64 GetTotalReaderMemoryLimit() const override
+    i64 GetTotalReaderMemoryLimit(const IJobSpecHelperPtr& jobSpecHelper) const
     {
-        return JobSpecHelper_->GetJobIOConfig()->TableReader->MaxBufferSize;
+        return jobSpecHelper->GetJobIOConfig()->TableReader->MaxBufferSize;
     }
 };
 
@@ -802,13 +798,11 @@ class TVanillaJobIOFactory
 {
 public:
     TVanillaJobIOFactory(
-        IJobSpecHelperPtr jobSpecHelper,
         const TClientChunkReadOptions& chunkReadOptions,
         TChunkReaderHostPtr chunkReaderHost,
         TString localHostName,
         IThroughputThrottlerPtr outBandwidthThrottler)
         : TUserJobIOFactoryBase(
-            std::move(jobSpecHelper),
             chunkReadOptions,
             std::move(chunkReaderHost),
             std::move(localHostName),
@@ -816,17 +810,12 @@ public:
     { }
 
     ISchemalessMultiChunkReaderPtr CreateReader(
+        const IJobSpecHelperPtr& /*jobSpecHelper*/,
         TClosure /*onNetworkReleased*/,
         TNameTablePtr /*nameTable*/,
         const TColumnFilter& /*columnFilter*/) override
     {
         return nullptr;
-    }
-
-protected:
-    i64 GetTotalReaderMemoryLimit() const override
-    {
-        return 0;
     }
 };
 
@@ -843,7 +832,6 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
     switch (jobType) {
         case EJobType::Map:
             return New<TMapJobIOFactory>(
-                jobSpecHelper,
                 true,
                 chunkReadOptions,
                 std::move(chunkReaderHost),
@@ -852,7 +840,6 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
 
         case EJobType::OrderedMap:
             return New<TMapJobIOFactory>(
-                jobSpecHelper,
                 false,
                 chunkReadOptions,
                 std::move(chunkReaderHost),
@@ -861,7 +848,6 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
 
         case EJobType::SortedReduce:
             return New<TSortedReduceJobIOFactory>(
-                jobSpecHelper,
                 true,
                 chunkReadOptions,
                 std::move(chunkReaderHost),
@@ -870,7 +856,6 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
 
         case EJobType::JoinReduce:
             return New<TSortedReduceJobIOFactory>(
-                jobSpecHelper,
                 false,
                 chunkReadOptions,
                 std::move(chunkReaderHost),
@@ -889,7 +874,6 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
         case EJobType::ReduceCombiner:
         case EJobType::PartitionReduce:
             return New<TPartitionReduceJobIOFactory>(
-                jobSpecHelper,
                 chunkReadOptions,
                 std::move(chunkReaderHost),
                 std::move(localHostName),
@@ -897,7 +881,6 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
 
         case EJobType::Vanilla:
             return New<TVanillaJobIOFactory>(
-                jobSpecHelper,
                 chunkReadOptions,
                 std::move(chunkReaderHost),
                 std::move(localHostName),
