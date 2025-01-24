@@ -1087,17 +1087,25 @@ void TObjectManager::LoadValues(NCellMaster::TLoadContext& context)
 
 void TObjectManager::OnAfterSnapshotLoaded()
 {
+    auto dropSchema = [&] (EObjectType schemaType) {
+        auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
+        auto schemaId = MakeSchemaObjectId(schemaType, primaryCellTag);
+        if (auto* schema = SchemaMap_.Find(schemaId)) {
+            auto& acd = schema->Acd();
+            acd.SetOwner(nullptr);
+            acd.ClearEntries();
+            SchemaMap_.Remove(schemaId);
+        }
+    };
+
     if (DropLegacyClusterNodeMap_) {
-        auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
-        auto id = MakeSchemaObjectId(EObjectType(804), primaryCellTag);
-        SchemaMap_.Remove(id);
+        // ClusterNodeMap
+        dropSchema(EObjectType(804));
     }
+
     if (DropLegacyZookeeperShard_) {
-        auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
-        // EObjectType(1400) == ZookeeperShard.
-        auto id = MakeSchemaObjectId(EObjectType(1400), primaryCellTag);
-        // ZookeeperShard may be not present.
-        SchemaMap_.TryRemove(id);
+        // ZookeeperShard
+        dropSchema(EObjectType(1400));
     }
 }
 
