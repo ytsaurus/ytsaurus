@@ -17,6 +17,7 @@ SRCS(
     queue_controller.cpp
     snapshot_representation.cpp
     queue_static_table_exporter.cpp
+    queue_static_table_export_manager.cpp
 )
 
 PEERDIR(

@@ -6,6 +6,7 @@
 #include "helpers.h"
 #include "profile_manager.h"
 #include "queue_static_table_exporter.h"
+#include "queue_static_table_export_manager.h"
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -361,6 +362,7 @@ public:
         TQueueTableRow queueRow,
         std::optional<TReplicatedTableMappingTableRow> replicatedTableMappingRow,
         const IObjectStore* store,
+        const IQueueStaticTableExportManagerPtr& queueStaticTableExportManager,
         const TQueueControllerDynamicConfigPtr& dynamicConfig,
         TQueueAgentClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker)
@@ -394,6 +396,7 @@ public:
             Invoker_))
         , TrimAlertCollector_(CreateAlertCollector(AlertManager_))
         , QueueExportsAlertCollector_(CreateAlertCollector(AlertManager_))
+        , QueueStaticTableExportManager_(queueStaticTableExportManager)
     {
         // Prepare initial erroneous snapshot.
         auto queueSnapshot = New<TQueueSnapshot>();
@@ -456,6 +459,15 @@ public:
 
         AlertManager_->Reconfigure(oldConfig->AlertManager, newConfig->AlertManager);
 
+        {
+            auto guard = WriterGuard(QueueExportsLock_);
+            if (QueueExports_.IsOK()) {
+                for (auto& exporter : GetValues(QueueExports_.Value())) {
+                    exporter->OnDynamicConfigChanged(newConfig->QueueExporter);
+                }
+            }
+        }
+
         YT_LOG_DEBUG(
             "Updated queue controller dynamic config (OldConfig: %v, NewConfig: %v)",
             ConvertToYsonString(oldConfig, EYsonFormat::Text),
@@ -501,9 +513,11 @@ private:
     const IAlertCollectorPtr TrimAlertCollector_;
     const IAlertCollectorPtr QueueExportsAlertCollector_;
 
-    using QueueExportsMappingOrError = TErrorOr<THashMap<TString, TQueueExporterPtr>>;
+    using QueueExportsMappingOrError = TErrorOr<THashMap<TString, IQueueStaticTableExporterPtr>>;
     QueueExportsMappingOrError QueueExports_;
     TReaderWriterSpinLock QueueExportsLock_;
+
+    const IQueueStaticTableExportManagerPtr QueueStaticTableExportManager_;
 
     void Pass()
     {
@@ -603,18 +617,19 @@ private:
         auto& queueExports = QueueExports_.Value();
         for (const auto& [name, exportConfig] : *staticExportConfig) {
             if (queueExports.find(name) == queueExports.end()) {
-                queueExports[name] = New<TQueueExporter>(
+                queueExports[name] = CreateQueueStaticTableExporter(
                     name,
                     QueueRef_,
                     exportConfig,
                     queueExporterConfig,
                     ClientDirectory_->GetUnderlyingClientDirectory(),
                     Invoker_,
+                    QueueStaticTableExportManager_,
                     CreateAlertCollector(AlertManager_),
                     ProfileManager_->GetQueueProfiler(),
                     Logger);
             } else {
-                queueExports[name]->Reconfigure(exportConfig, queueExporterConfig);
+                queueExports[name]->OnExportConfigChanged(exportConfig);
             }
         }
 
@@ -630,7 +645,7 @@ private:
         }
     }
 
-    TError CheckStaticExportConfig(const THashMap<TString, TQueueStaticExportConfig>& configs, std::optional<EObjectType> objectType) const
+    TError CheckStaticExportConfig(const THashMap<TString, TQueueStaticExportConfigPtr>& configs, std::optional<EObjectType> objectType) const
     {
         if (!objectType) {
             return TError("Cannot check \"static_export_config\", because object type is not known");
@@ -642,9 +657,9 @@ private:
         THashSet<TYPath> directories;
         THashSet<TYPath> duplicateDirectories;
         for (const auto& [_, config] : configs) {
-            if (auto [_, inserted] = directories.insert(config.ExportDirectory); !inserted) {
-                YT_LOG_DEBUG("There are duplicate export directories in queue static export config (Value: %v)", config.ExportDirectory);
-                duplicateDirectories.insert(config.ExportDirectory);
+            if (auto [_, inserted] = directories.insert(config->ExportDirectory); !inserted) {
+                YT_LOG_DEBUG("There are duplicate export directories in queue static export config (Value: %v)", config->ExportDirectory);
+                duplicateDirectories.insert(config->ExportDirectory);
             }
         }
 
@@ -1513,8 +1528,9 @@ bool UpdateQueueController(
     const TQueueTableRow& row,
     const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     const IObjectStore* store,
+    const IQueueStaticTableExportManagerPtr& queueStaticTableExportManager,
     const TQueueControllerDynamicConfigPtr& dynamicConfig,
-    TQueueAgentClientDirectoryPtr clientDirectory,
+    const TQueueAgentClientDirectoryPtr& clientDirectory,
     IInvokerPtr invoker)
 {
     // Recreating an error controller on each iteration seems ok as it does
@@ -1545,6 +1561,7 @@ bool UpdateQueueController(
                 row,
                 replicatedTableMappingRow,
                 store,
+                queueStaticTableExportManager,
                 dynamicConfig,
                 std::move(clientDirectory),
                 std::move(invoker));

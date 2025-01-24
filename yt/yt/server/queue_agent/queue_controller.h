@@ -15,8 +15,9 @@ bool UpdateQueueController(
     const NQueueClient::TQueueTableRow& row,
     const std::optional<NQueueClient::TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     const IObjectStore* store,
+    const IQueueStaticTableExportManagerPtr& queueStaticTableExportManager,
     const TQueueControllerDynamicConfigPtr& dynamicConfig,
-    TQueueAgentClientDirectoryPtr clientDirectory,
+    const TQueueAgentClientDirectoryPtr& clientDirectory,
     IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////

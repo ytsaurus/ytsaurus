@@ -116,6 +116,8 @@ private:
 
     TEnumIndexedArray<EObjectKind, NYTree::INodePtr> ObjectServiceNodes_;
 
+    IQueueStaticTableExportManagerPtr QueueStaticTableExportManager_;
+
     NYTree::IYPathServicePtr RedirectYPathRequest(const TString& host, TStringBuf queryRoot, TStringBuf key) const;
 
     void BuildObjectYson(

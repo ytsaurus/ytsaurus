@@ -18,6 +18,7 @@ YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentLogger, "QueueAgent");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueControllerLogger, "QueueController");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, ConsumerControllerLogger, "ConsumerController");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueStaticTableExporterLogger, "QueueStaticTableExporter");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueStaticTableExportManagerLogger, "QueueStaticTableExportManager");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentShardingManagerLogger, "QueueAgentShardingManager");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, CypressSynchronizerLogger, "CypressSynchronizer");
 
@@ -53,6 +54,7 @@ YT_DEFINE_ERROR_ENUM(
 DECLARE_REFCOUNTED_CLASS(TQueueAgent)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentConfig)
 DECLARE_REFCOUNTED_CLASS(TQueueControllerDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TQueueStaticTableExportManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ICypressSynchronizer)
@@ -69,7 +71,9 @@ DECLARE_REFCOUNTED_CLASS(TQueueAgentComponentDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
-DECLARE_REFCOUNTED_CLASS(TQueueExporter)
+DECLARE_REFCOUNTED_STRUCT(IQueueStaticTableExporter)
+
+DECLARE_REFCOUNTED_STRUCT(IQueueStaticTableExportManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 

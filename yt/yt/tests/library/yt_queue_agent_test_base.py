@@ -1,7 +1,8 @@
+from operator import itemgetter
 from yt_env_setup import YTEnvSetup
 from yt_chaos_test_base import ChaosTestBase
 
-from yt_commands import (get, set, ls, wait, create, remove, sync_mount_table, sync_create_cells, exists,
+from yt_commands import (get, read_table, set, ls, wait, create, remove, sync_mount_table, sync_create_cells, exists,
                          select_rows, sync_reshard_table, print_debug, get_driver, register_queue_consumer,
                          sync_freeze_table, sync_unfreeze_table, create_table_replica, sync_enable_table_replica,
                          advance_consumer, insert_rows, wait_for_tablet_state)
@@ -265,6 +266,97 @@ class ReplicatedObjectBase(ChaosTestBase):
 ##################################################################
 
 
+class QueueStaticExportHelpers:
+    @staticmethod
+    def _create_export_destination(export_directory, queue_id, **kwargs):
+        create("map_node", export_directory, recursive=True, ignore_existing=True, **kwargs)
+        set(f"{export_directory}/@queue_static_export_destination", {
+            "originating_queue_id": queue_id,
+        }, **kwargs)
+        assert exists(export_directory, driver=kwargs.pop("driver", None))
+
+    @staticmethod
+    def remove_export_destination(export_directory, **kwargs):
+        def try_remove():
+            remove(export_directory, **kwargs)
+            return True
+
+        wait(try_remove, ignore_exceptions=True)
+        assert not exists(export_directory, driver=kwargs.pop("driver", None))
+
+    @staticmethod
+    # NB: The last two options should be used carefully: currently they strictly check that all timestamps are within [ts - period, ts], which might not generally be the case.
+    def _check_export(export_directory, expected_data, queue_path=None, use_upper_bound_for_table_names=False, check_lower_bound=False, last_export_unix_ts_field_name="last_export_unix_ts", **kwargs):
+        exported_tables = [name for name in sorted(ls(export_directory, **kwargs)) if f"{export_directory}/{name}" != queue_path]
+        assert len(exported_tables) == len(expected_data)
+
+        queue_id = get(f"{export_directory}/@queue_static_export_destination/originating_queue_id", **kwargs)
+
+        export_progress = get(f"{export_directory}/@queue_static_export_progress", **kwargs)
+
+        last_export_unix_ts, last_exported_table_export_period = map(int, exported_tables[-1].split("-"))
+        assert export_progress[last_export_unix_ts_field_name] == last_export_unix_ts + (0 if use_upper_bound_for_table_names else last_exported_table_export_period)
+
+        queue_schema_id = get(f"#{queue_id}/@schema_id", **kwargs)
+        queue_schema = get(f"#{queue_id}/@schema", **kwargs)
+        queue_native_cell_tag = get(f"#{queue_id}/@native_cell_tag", **kwargs)
+
+        max_timestamp = 0
+        total_row_count = 0
+
+        for table_index, table_name in enumerate(exported_tables):
+            table_path = f"{export_directory}/{table_name}"
+
+            if table_path == queue_path:
+                continue
+
+            export_unix_ts, export_period = map(int, table_name.split("-"))
+
+            exported_table_native_cell_tag = get(f"{table_path}/@native_cell_tag", **kwargs)
+
+            # If both tables are on the same native cell, we use schema ids in upload.
+            if exported_table_native_cell_tag == queue_native_cell_tag:
+                exported_table_schema_id = get(f"{table_path}/@schema_id", **kwargs)
+                assert exported_table_schema_id == queue_schema_id
+
+            exported_table_schema = get(f"{table_path}/@schema", **kwargs)
+            assert exported_table_schema == queue_schema
+
+            rows = list(read_table(table_path, **kwargs))
+            assert list(map(itemgetter("data"), rows)) == expected_data[table_index]
+
+            ts_lower_bound = export_unix_ts - (export_period if use_upper_bound_for_table_names else 0)
+            ts_upper_bound = export_unix_ts + (0 if use_upper_bound_for_table_names else export_period)
+
+            for row in rows:
+                ts = row["$timestamp"]
+                max_timestamp = max(ts, max_timestamp)
+
+                assert ts >> 30 <= ts_upper_bound
+
+                if check_lower_bound:
+                    assert ts_lower_bound <= ts >> 30
+
+            total_row_count += len(rows)
+
+        assert max(map(itemgetter("max_timestamp"), export_progress["tablets"].values())) == max_timestamp
+        assert sum(map(itemgetter("row_count"), export_progress["tablets"].values())) == total_row_count
+
+    # Sleeps until next instant which is at the specified offset (in seconds) in the specified periodic cycle.
+    def _sleep_until_next_export_instant(self, period, offset=0.0):
+        now = time.time()
+        last_export_time = int(now) // period * period
+        next_instant = last_export_time + offset
+        if next_instant < now:
+            next_instant += period
+        assert next_instant >= now
+        time.sleep(next_instant - now)
+        return next_instant
+
+
+##################################################################
+
+
 class TestQueueAgentBase(YTEnvSetup):
     # NB(apachee): Create Queue Agent instances only on primary cluster
     NUM_QUEUE_AGENTS_PRIMARY = 1
@@ -282,7 +374,15 @@ class TestQueueAgentBase(YTEnvSetup):
             "pass_period": 100,
             "controller": {
                 "pass_period": 100,
+                "queue_exporter": {
+                    "pass_period": 100,
+                    # Fixate greater value for tests in case default decreases in the future.
+                    "max_export_count_per_iteration": 10,
+                }
             },
+        },
+        "queue_static_table_export_manager": {
+            "export_rate_limit": 100,
         },
         "cypress_synchronizer": {
             # List of clusters for the watching policy.

@@ -7,6 +7,7 @@
 #include "object.h"
 #include "queue_controller.h"
 #include "queue_static_table_exporter.h"
+#include "queue_static_table_export_manager.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -180,6 +181,8 @@ TQueueAgent::TQueueAgent(
         NAuth::CreateNativeAuthenticationInjectingChannelFactory(
             CreateCachingChannelFactory(CreateTcpBusChannelFactory(Config_->BusClient)),
             nativeConnection->GetConfig()->TvmId))
+    , QueueStaticTableExportManager_(CreateQueueStaticTableExportManager(
+        DynamicConfig_->QueueStaticTableExportManager))
 {
     for (auto objectKind : {EObjectKind::Queue, EObjectKind::Consumer}) {
         ObjectServiceNodes_[objectKind] = CreateVirtualNode(
@@ -242,6 +245,10 @@ void TQueueAgent::OnDynamicConfigChanged(
             }
         }
     }
+
+    QueueStaticTableExportManager_->OnDynamicConfigChanged(
+        oldConfig->QueueStaticTableExportManager,
+        newConfig->QueueStaticTableExportManager);
 
     YT_LOG_DEBUG(
         "Updated queue agent dynamic config (OldConfig: %v, NewConfig: %v)",
@@ -424,6 +431,7 @@ void TQueueAgent::Pass()
                 row,
                 getReplicatedTableMappingRow(row.Ref),
                 /*store*/ this,
+                QueueStaticTableExportManager_,
                 DynamicConfig_->Controller,
                 QAClientDirectory_,
                 ControllerThreadPool_->GetInvoker());

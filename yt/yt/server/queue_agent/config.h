@@ -106,6 +106,13 @@ class TQueueExporterDynamicConfig
 public:
     bool Enable;
 
+    //! Queue static table exporter pass period. Defines the minimum duration between 2 consecutive export iterations.
+    TDuration PassPeriod;
+    //! Maximum number of static tables exported per single export iteration.
+    int MaxExportedTableCountPerTask;
+
+    bool operator==(const TQueueExporterDynamicConfig&) const = default;
+
     REGISTER_YSON_STRUCT_LITE(TQueueExporterDynamicConfig);
 
     static void Register(TRegistrar registrar);
@@ -148,6 +155,22 @@ DEFINE_REFCOUNTED_TYPE(TQueueControllerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TQueueStaticTableExportManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Maximum number of export starting per second.
+    std::optional<double> ExportRateLimit;
+
+    REGISTER_YSON_STRUCT(TQueueStaticTableExportManagerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueueStaticTableExportManagerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TQueueAgentDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -160,6 +183,9 @@ public:
 
     //! Configuration of queue controllers.
     TQueueControllerDynamicConfigPtr Controller;
+
+    //! Configuration of queue static table export manager.
+    TQueueStaticTableExportManagerDynamicConfigPtr QueueStaticTableExportManager;
 
     //! Controls whether replicated objects are handled by this queue agent instance.
     //! NB: Even when set to true, mutating requests are only performed for objects with the corresponding stage.

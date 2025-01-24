@@ -46,9 +46,15 @@ class TQueueExportProgress
     : public NYTree::TYsonStruct
 {
 public:
+    //! Instant corresponding to the last export task, which had no errors.
+    TInstant LastSuccessfulExportTaskInstant;
+    // COMPAT(apachee): Duplicate of LastSuccessfulExportTaskInstant, used for compatability.
     TInstant LastSuccessfulExportIterationInstant;
-    TInstant LastExportedFramgentIterationInstant;
-    ui64 LastExportedFragmentUnixTs;
+    //! Instant corresponding to the last export task.
+    TInstant LastExportTaskInstant;
+    //! Export unix ts of the last exported table.
+    //! It is a multiple of the export period passed to the export task, which created the last exported table.
+    ui64 LastExportUnixTs;
     THashMap<i64, TQueueTabletExportProgressPtr> Tablets;
     //! Queue id corresponding to this export progress.
     NObjectClient::TObjectId QueueObjectId;
@@ -69,6 +75,8 @@ struct TQueueExportProfilingCounters final
     NProfiling::TCounter ExportedRows;
     NProfiling::TCounter ExportedChunks;
     NProfiling::TCounter ExportedTables;
+    NProfiling::TCounter SkippedTables;
+    NProfiling::TCounter ExportTaskErrors;
 
     explicit TQueueExportProfilingCounters(const NProfiling::TProfiler& profiler);
 };
@@ -77,52 +85,28 @@ using TQueueExportProfilingCountersPtr = TIntrusivePtr<TQueueExportProfilingCoun
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueExporter
-    : public TRefCounted
+struct IQueueStaticTableExporter
+    : public virtual TRefCounted
 {
-public:
-    TQueueExporter() = default;
+    virtual TQueueExportProgressPtr GetExportProgress() const = 0;
 
-    TQueueExporter(
-        TString exportName,
-        NQueueClient::TCrossClusterReference queue,
-        const NQueueClient::TQueueStaticExportConfig& exportConfig,
-        const TQueueExporterDynamicConfig& dynamicConfig,
-        NHiveClient::TClientDirectoryPtr clientDirectory,
-        IInvokerPtr invoker,
-        NAlertManager::IAlertCollectorPtr alertCollector,
-        const NProfiling::TProfiler& queueProfiler,
-        const NLogging::TLogger& logger);
-
-    TQueueExportProgressPtr GetExportProgress() const;
-
-    void Reconfigure(const NQueueClient::TQueueStaticExportConfig& newExportConfig, const TQueueExporterDynamicConfig& newDynamicConfig);
-
-private:
-    const TString ExportName_;
-    const NQueueClient::TCrossClusterReference Queue_;
-
-    NThreading::TSpinLock Lock_;
-    NQueueClient::TQueueStaticExportConfig ExportConfig_;
-    TQueueExporterDynamicConfig DynamicConfig_;
-    TQueueExportProgressPtr ExportProgress_;
-
-    const NHiveClient::TClientDirectoryPtr ClientDirectory_;
-    const IInvokerPtr Invoker_;
-    const NAlertManager::IAlertCollectorPtr AlertCollector_;
-    const TQueueExportProfilingCountersPtr ProfilingCounters_;
-
-    NConcurrency::TScheduledExecutorPtr Executor_;
-
-    const NLogging::TLogger Logger;
-
-    void Export();
-    void GuardedExport();
-
-    NQueueClient::TQueueStaticExportConfig GetConfig();
+    virtual void OnExportConfigChanged(const NQueueClient::TQueueStaticExportConfigPtr& newExportConfig) = 0;
+    virtual void OnDynamicConfigChanged(const TQueueExporterDynamicConfig& newDynamicConfig) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueueExporter)
+DEFINE_REFCOUNTED_TYPE(IQueueStaticTableExporter)
+
+IQueueStaticTableExporterPtr CreateQueueStaticTableExporter(
+    TString exportName,
+    NQueueClient::TCrossClusterReference queue,
+    NQueueClient::TQueueStaticExportConfigPtr exportConfig,
+    TQueueExporterDynamicConfig dynamicConfig,
+    NHiveClient::TClientDirectoryPtr clientDirectory,
+    IInvokerPtr invoker,
+    IQueueStaticTableExportManagerPtr queueStaticTableExportManager,
+    NAlertManager::IAlertCollectorPtr alertCollector,
+    const NProfiling::TProfiler& queueProfiler,
+    const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
