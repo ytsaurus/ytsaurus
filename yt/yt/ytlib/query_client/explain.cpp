@@ -122,16 +122,17 @@ void GetReadRangesInfo(
 
 void GetFrontQueryInfo(
     TFluentMap fluent,
-    const TConstBaseQueryPtr query)
+    const TConstBaseQueryPtr query,
+    TFeatureFlags featureFlags)
 {
     fluent
-        .Item("is_ordered_scan").Value(query->IsOrdered())
+        .Item("is_ordered_scan").Value(query->IsOrdered(featureFlags))
         .DoIf(query->UseDisjointGroupBy, [&] (auto fluent) {
             fluent.Item("common_prefix_with_primary_key").Value(query->GroupClause->CommonPrefixWithPrimaryKey);
         });
 }
 
-void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query)
+void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query, TFeatureFlags featureFlags)
 {
     const auto& predicate = query->WhereClause;
 
@@ -172,14 +173,15 @@ void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query)
             })
         .EndList();
 
-    GetFrontQueryInfo(fluent, query);
+    GetFrontQueryInfo(fluent, query, featureFlags);
 }
 
 NYson::TYsonString BuildExplainQueryYson(
     NApi::NNative::IConnectionPtr connection,
     const std::unique_ptr<TPlanFragment>& fragment,
     TStringBuf udfRegistryPath,
-    const NApi::TExplainQueryOptions& options)
+    const NApi::TExplainQueryOptions& options,
+    TFeatureFlags featureFlags)
 {
     const auto& query = fragment->Query;
     const TDataSource& dataSource = fragment->DataSource;
@@ -189,7 +191,7 @@ NYson::TYsonString BuildExplainQueryYson(
         .Item("udf_registry_path").Value(udfRegistryPath)
         .Item("query")
         .DoMap([&] (auto fluent) {
-            GetQueryInfo(fluent, query);
+            GetQueryInfo(fluent, query, featureFlags);
             GetReadRangesInfo(fluent, connection, query, dataSource, options);
         })
         .Do([&] (TFluentMap fluent) {
@@ -197,11 +199,11 @@ NYson::TYsonString BuildExplainQueryYson(
             fluent
                 .Item("bottom_query")
                 .DoMap([&, bottomQuery = bottomQuery] (auto fluent) {
-                    GetQueryInfo(fluent, bottomQuery);
+                    GetQueryInfo(fluent, bottomQuery, featureFlags);
                 });
             fluent.Item("front_query")
                 .DoMap([&, frontQuery = frontQuery] (auto fluent) {
-                    GetFrontQueryInfo(fluent, frontQuery);
+                    GetFrontQueryInfo(fluent, frontQuery, featureFlags);
                 });
         })
         .EndMap();

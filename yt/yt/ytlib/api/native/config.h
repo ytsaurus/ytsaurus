@@ -348,6 +348,8 @@ public:
 
     bool UseWebAssembly;
 
+    bool GroupByWithLimitIsUnordered;
+
     TDuration FlowPipelineControllerRpcTimeout;
 
     EMasterChannelKind ReadArchiveStateFrom;

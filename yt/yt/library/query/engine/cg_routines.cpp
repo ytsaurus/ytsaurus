@@ -1673,6 +1673,10 @@ void GroupOpHelper(
     bool groupByInCompatMode = (!context->RequestFeatureFlags->WithTotalsFinalizesAggregatedOnCoordinator) ||
         (!responseFeatureFlags.WithTotalsFinalizesAggregatedOnCoordinator);
 
+    if (context->RequestFeatureFlags->GroupByWithLimitIsUnordered) {
+        YT_VERIFY(responseFeatureFlags.GroupByWithLimitIsUnordered);
+    }
+
     auto closure = TGroupByClosure(
         context->MemoryChunkProvider,
         prefixEqComparer,

@@ -1209,9 +1209,11 @@ public:
         const TConstFunctionProfilerMapPtr& functionProfilers,
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         bool useCanonicalNullRelations,
-        EExecutionBackend executionBackend)
+        EExecutionBackend executionBackend,
+        TFeatureFlags featureFlags)
         : TExpressionProfiler(id, variables, functionProfilers, useCanonicalNullRelations, executionBackend)
         , AggregateProfilers_(aggregateProfilers)
+        , FeatureFlags_(featureFlags)
     { }
 
     void Profile(
@@ -1235,6 +1237,7 @@ public:
 
 protected:
     const TConstAggregateProfilerMapPtr AggregateProfilers_;
+    const TFeatureFlags FeatureFlags_;
 
     size_t Profile(
         const TNamedItem& namedExpression,
@@ -1260,7 +1263,8 @@ public:
         const TCodegenFragmentInfosPtr& havingFragmentsInfos,
         size_t havingPredicateId,
         TCGVariables* variables,
-        bool combineGroupOpWithOrderOp)
+        bool combineGroupOpWithOrderOp,
+        TFeatureFlags featureFlags)
         : FinalMode_(finalMode)
         , MergeMode_(mergeMode)
         , CodegenSource_(codegenSource)
@@ -1276,6 +1280,7 @@ public:
         , HavingPredicateId_(havingPredicateId)
         , Variables_(variables)
         , CombineGroupOpWithOrderOp_(combineGroupOpWithOrderOp)
+        , FeatureFlags_(featureFlags)
     { }
 
     void Process(size_t* intermediate, size_t* aggregated, size_t* delta, size_t* totals)
@@ -1313,13 +1318,15 @@ private:
 
     const bool CombineGroupOpWithOrderOp_;
 
+    const TFeatureFlags FeatureFlags_;
+
     // If the query uses `WITH TOTALS` together with `LIMIT`, but without `ORDER BY`,
     // we should account totals on the query coordinator side,
     // since the coordinator decides which rows will be included into the response.
     // When totals are calculated at the coordinator, the coordinator should also finalize aggregated.
     bool ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator() const
     {
-        return Query_->GroupClause->TotalsMode != ETotalsMode::None && Query_->IsOrdered();
+        return Query_->GroupClause->TotalsMode != ETotalsMode::None && Query_->IsOrdered(FeatureFlags_);
     }
 
     // We should convert intermediates to deltas at the last stage of execution (query is final), since there will be no more groupings.
@@ -1373,7 +1380,7 @@ private:
 
     void LimitTotalsInput(size_t* totals) const
     {
-        bool considerLimit = Query_->IsOrdered() && Query_->IsFinal;
+        bool considerLimit = Query_->IsOrdered(FeatureFlags_) && Query_->IsFinal;
 
         if (considerLimit) {
             int offsetId = Variables_->AddOpaque<size_t>(Query_->Offset);
@@ -1525,7 +1532,7 @@ void TQueryProfiler::Profile(
     Fold(EFoldingObjectType::MergeMode);
     Fold(mergeMode);
     Fold(EFoldingObjectType::QueryIsOrdered);
-    Fold(query->IsOrdered());
+    Fold(query->IsOrdered(FeatureFlags_));
 
     auto combineGroupOpWithOrderOp = TCodegenOrderOpInfosPtr();
 
@@ -1568,17 +1575,12 @@ void TQueryProfiler::Profile(
             keyTypes.push_back(groupItem.Expression->GetWireType());
         }
 
-        bool allAggregatesFirst = true;
         for (const auto& aggregateItem : groupClause->AggregateItems) {
             Fold(EFoldingObjectType::AggregateItem);
             Fold(aggregateItem.AggregateFunction.c_str());
             Fold(aggregateItem.Name.c_str());
 
             const auto& aggregate = AggregateProfilers_->GetAggregate(aggregateItem.AggregateFunction);
-
-            if (!aggregate->IsFirst()) {
-                allAggregatesFirst = false;
-            }
 
             int argumentCount = aggregateItem.Arguments.size();
 
@@ -1676,12 +1678,12 @@ void TQueryProfiler::Profile(
             keyTypes,
             stateTypes,
             aggregatedTypes,
-            allAggregatesFirst,
+            query->GroupClause->AllAggregatesAreFirst(),
             mergeMode,
             groupClause->TotalsMode != ETotalsMode::None,
             // Input is ordered for ordered queries and bottom fragments if CommonPrefixWithPrimaryKey > 0.
             // Prefix comparer can be used only if input is ordered.
-            (!mergeMode || query->IsOrdered()) && (!combineGroupOpWithOrderOp) ? groupClause->CommonPrefixWithPrimaryKey : 0,
+            (!mergeMode || query->IsOrdered(FeatureFlags_)) && (!combineGroupOpWithOrderOp) ? groupClause->CommonPrefixWithPrimaryKey : 0,
             combineGroupOpWithOrderOp,
             ComparerManager_);
 
@@ -1721,7 +1723,8 @@ void TQueryProfiler::Profile(
             havingFragmentsInfos,
             havingPredicateId,
             Variables_,
-            combineGroupOpWithOrderOp != nullptr);
+            combineGroupOpWithOrderOp != nullptr,
+            FeatureFlags_);
 
         manager.Process(&newIntermediateSlot, &newAggregatedSlot, &newDeltaSlot, &newTotalsSlot);
 
@@ -1923,7 +1926,9 @@ void TQueryProfiler::Profile(
         schema = projectClause->GetTableSchema();
     }
 
-    bool considerLimit = query->IsOrdered() && (!query->GroupClause || query->IsFinal);
+    bool considerLimit = (query->Limit < std::numeric_limits<i64>::max()) &&
+        !query->OrderClause &&
+        (!query->GroupClause || query->IsFinal);
     Fold(considerLimit);
     if (considerLimit) {
         // Since we have already applied filters to queries with `having` at this stage,
@@ -2193,7 +2198,7 @@ void TQueryProfiler::Profile(
 
         size_t joinBatchSize = MaxJoinBatchSize;
 
-        if (query->IsOrdered() && query->Offset + query->Limit < static_cast<ssize_t>(joinBatchSize)) {
+        if (query->IsOrdered(FeatureFlags_) && query->Offset + query->Limit < static_cast<ssize_t>(joinBatchSize)) {
             joinBatchSize = query->Offset + query->Limit;
         }
 
@@ -2438,7 +2443,8 @@ TCGQueryGenerator Profile(
     bool useCanonicalNullRelations,
     EExecutionBackend executionBackend,
     const TConstFunctionProfilerMapPtr& functionProfilers,
-    const TConstAggregateProfilerMapPtr& aggregateProfilers)
+    const TConstAggregateProfilerMapPtr& aggregateProfilers,
+    TFeatureFlags featureFlags)
 {
     auto profiler = TQueryProfiler(
         id,
@@ -2446,7 +2452,8 @@ TCGQueryGenerator Profile(
         functionProfilers,
         aggregateProfilers,
         useCanonicalNullRelations,
-        executionBackend);
+        executionBackend,
+        featureFlags);
 
     size_t slotCount = 0;
     TCodegenSource codegenSource = &CodegenEmptyOp;

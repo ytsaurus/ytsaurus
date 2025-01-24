@@ -1409,7 +1409,7 @@ TQueryStatistics DoExecuteQuery(
 
     ssize_t batchSize = maxBatchSize;
 
-    if (query->IsOrdered() && query->Offset + query->Limit < batchSize) {
+    if (query->IsOrdered(MostFreshFeatureFlags()) && query->Offset + query->Limit < batchSize) {
         batchSize = query->Offset + query->Limit;
     }
 
@@ -1422,7 +1422,7 @@ TQueryStatistics DoExecuteQuery(
             owningSourceRows[index] = TOwningRow();
         }
 
-        if (isFirstRead && query->IsOrdered()) {
+        if (isFirstRead && query->IsOrdered(MostFreshFeatureFlags())) {
             EXPECT_EQ(options.MaxRowsPerRead, std::min(RowsetProcessingBatchSize, query->Offset + query->Limit));
             isFirstRead = false;
         }
@@ -2008,7 +2008,7 @@ protected:
             return pipe->GetReader();
         };
 
-        auto frontReader = frontQuery->IsOrdered()
+        auto frontReader = frontQuery->IsOrdered(MostFreshFeatureFlags())
             ? CreateFullPrefetchingOrderedSchemafulReader(getNextReader)
             : CreateFullPrefetchingShufflingSchemafulReader(getNextReader);
 
@@ -2127,7 +2127,7 @@ protected:
             return pipe->GetReader();
         };
 
-        auto reader = query->IsOrdered()
+        auto reader = query->IsOrdered(MostFreshFeatureFlags())
             ? CreateFullPrefetchingOrderedSchemafulReader(nextReader)
             : CreateFullPrefetchingShufflingSchemafulReader(nextReader);
 
@@ -2171,7 +2171,7 @@ protected:
             return pipe->GetReader();
         };
 
-        auto reader = frontQuery->IsOrdered()
+        auto reader = frontQuery->IsOrdered(MostFreshFeatureFlags())
             ? CreateFullPrefetchingOrderedSchemafulReader(nextReader)
             : CreateFullPrefetchingShufflingSchemafulReader(nextReader);
 
@@ -4054,34 +4054,32 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsWithLimitNoPrimaryKeyInGr
     });
 
     for (int iteration = 0; iteration < 1; ++iteration) {
-        for (i64 limit = 1; limit < 100; ++limit) {
-            auto sources = std::vector<std::vector<TString>>();
-            auto expected = THashMap<std::optional<i64>, i64>();
+        auto sources = std::vector<std::vector<TString>>();
+        auto expected = THashMap<std::optional<i64>, i64>();
 
-            for (i64 pk = 0; pk < 100; ++pk) {
-                i64 gk = std::rand() % 20;
-                i64 v = std::rand() % 100;
+        for (i64 pk = 0; pk < 100; ++pk) {
+            i64 gk = std::rand() % 20;
+            i64 v = std::rand() % 100;
 
-                if (std::ssize(expected) <= limit || expected.contains(gk)) {
-                    expected[gk] += v;
-                    expected[std::nullopt] += v;
-                }
+            expected[std::nullopt] += v;
+            expected[gk] += v;
 
-                bool shouldMakeNewPartition = (std::rand() % 8) == 0;
+            bool shouldMakeNewPartition = (std::rand() % 8) == 0;
 
-                if (shouldMakeNewPartition || sources.empty()) {
-                    sources.emplace_back();
-                }
-
-                sources.back().emplace_back(Format("pk=%v;gk=%v;v=%v", pk, gk, v));
+            if (shouldMakeNewPartition || sources.empty()) {
+                sources.emplace_back();
             }
 
+            sources.back().emplace_back(Format("pk=%v;gk=%v;v=%v", pk, gk, v));
+        }
+
+        for (i64 limit = 1; limit < 100; ++limit) {
             EvaluateCoordinatedGroupBy(
                 Format("gk, sum(v) as v from [//t] group by gk with totals limit %v", limit),
                 split,
                 sources,
                 [&] (TRange<TRow> actual, const TTableSchema& /*schema*/) {
-                    EXPECT_EQ(std::ssize(actual), std::ssize(expected));
+                    EXPECT_EQ(std::ssize(actual), std::min(21l, limit + 1));
                     for (const auto& row : actual) {
                         auto key = (row[0].Type == EValueType::Null) ? std::nullopt : std::optional(row[0].Data.Int64);
                         i64 value = row[1].Data.Int64;
@@ -4232,7 +4230,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithNoKeyColumnsInTableSchema)
     {
         auto resultSplit = MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::Int64}});
         auto result = YsonToRows({"a=0;b=0", "a=1;b=1", "a=2;b=2", "a=3;b=3", "a=4;b=4"}, resultSplit);
-        EvaluateCoordinatedGroupBy("a, sum(b) as b from [//t] group by a limit 1000", split, sources, ResultMatcher(result));
+        EvaluateCoordinatedGroupBy("a, sum(b) as b from [//t] group by a limit 1000", split, sources, OrderedResultMatcher(result, {"a"}));
     }
 }
 
@@ -4649,67 +4647,20 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
     SUCCEED();
 }
 
-TEST_F(TQueryEvaluateTest, GroupByWithTotalsAndLimit1)
+TEST_F(TQueryEvaluateTest, GroupByWithTotalsAndLimit)
 {
     auto split = MakeSplit({
         {"a", EValueType::Int64},
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
-        "a=1;b=1",
-        "a=2;b=1",
-        "a=2;b=1",
-        "a=3;b=1",
-        "a=3;b=1",
-        "a=3;b=1",
-        "a=4;b=1",
-        "a=4;b=1",
-        "a=4;b=1",
-        "a=4;b=1",
-    };
-
-    auto resultSplit = MakeSplit({
-        {"x", EValueType::Int64},
-        {"y", EValueType::Int64}
-    });
-
-    auto result = YsonToRows({
-        "x=1;y=1",
-        "x=2;y=2",
-        "x=3;y=3",
-        "x=#;y=6",
-    }, resultSplit);
-
-    Evaluate("x, sum(b) as y FROM [//t] group by a as x with totals limit 3",
-        split, source, ResultMatcher(result));
-
-    SUCCEED();
-}
-
-TEST_F(TQueryEvaluateTest, GroupByWithTotalsAndLimit2)
-{
-    auto split = MakeSplit({
-        {"a", EValueType::Int64},
-        {"b", EValueType::Int64}
-    });
-
-    size_t limit = 20;
-    std::vector<i64> orderedKeys;
+    const size_t limit = 20;
+    const i64 groupKeyCardinality = 127;
     std::unordered_map<i64, i64> groupedValues;
     i64 totalSum = 0;
 
     auto groupRow = [&] (i64 key, i64 value) {
-        i64 x = key % 127;
-
-        if (!groupedValues.count(x)) {
-            if (groupedValues.size() >= limit) {
-                return;
-            } else {
-                orderedKeys.push_back(x);
-            }
-        }
-
+        i64 x = key % groupKeyCardinality;
         groupedValues[x] += value;
         totalSum += value;
     };
@@ -4731,21 +4682,18 @@ TEST_F(TQueryEvaluateTest, GroupByWithTotalsAndLimit2)
         groupRow(key, value);
     }
 
-    auto resultSplit = MakeSplit({
-        {"x", EValueType::Int64},
-        {"y", EValueType::Int64}
-    });
+    Evaluate(Format("x, sum(b) as y FROM [//t] group by a %% %v as x with totals limit %v", groupKeyCardinality, limit),
+        split, source, [&] (TRange<TRow> actual, const TTableSchema& /*schema*/) {
+            EXPECT_EQ(actual.size(), limit + 1ul);
 
-    std::vector<TOwningRow> result;
-    for (auto key : orderedKeys) {
-        TString resultRow = Format("x=%v;y=%v", key, groupedValues[key]);
-        result.push_back(YsonToRow(resultRow, resultSplit, false));
-    }
-    // TODO(lukyan): Try to make stable order of totals row
-    result.push_back(YsonToRow("y=" + ToString(totalSum), resultSplit, true));
-
-    Evaluate("x, sum(b) as y FROM [//t] group by a % 127 as x with totals limit 20",
-        split, source, ResultMatcher(result));
+            for (auto row : actual) {
+                if (row[0].Type != EValueType::Null) {
+                    EXPECT_EQ(groupedValues.at(row[0].Data.Int64), row[1].Data.Int64);
+                } else {
+                    EXPECT_EQ(row[1].Data.Int64, totalSum);
+                }
+            }
+        });
 
     SUCCEED();
 }
@@ -4822,22 +4770,13 @@ TEST_F(TQueryEvaluateTest, JoinGroupByWithLimit)
         {"b", EValueType::Int64}
     }, 1);
 
-    size_t limit = 20;
-    std::vector<i64> orderedKeys;
+    const size_t limit = 20;
+    const i64 groupKeyCardinality = 31;
     std::unordered_map<i64, i64> groupedValues;
     i64 totalSum = 0;
 
     auto groupRow = [&] (i64 key, i64 value) {
-        i64 x = key % 31;
-
-        if (!groupedValues.count(x)) {
-            if (groupedValues.size() >= limit) {
-                return;
-            } else {
-                orderedKeys.push_back(x);
-            }
-        }
-
+        i64 x = key % groupKeyCardinality;
         groupedValues[x] += value;
         totalSum += value;
     };
@@ -4865,23 +4804,21 @@ TEST_F(TQueryEvaluateTest, JoinGroupByWithLimit)
         }
     }
 
-    auto resultSplit = MakeSplit({
-        {"x", EValueType::Int64},
-        {"y", EValueType::Int64}
-    });
-
-    std::vector<TOwningRow> result;
-    for (auto key : orderedKeys) {
-        TString resultRow = Format("x=%v;y=%v", key, groupedValues[key]);
-        result.push_back(YsonToRow(resultRow, resultSplit, false));
-    }
-    result.push_back(YsonToRow("y=" + ToString(totalSum), resultSplit, true));
-
     Evaluate(
-        "x, sum(b) as y FROM [//left] join [//right] using a group by a % 31 as x with totals limit 20",
+        Format("x, sum(b) as y FROM [//left] join [//right] using a group by a %% %v as x with totals limit %v", groupKeyCardinality, limit),
         splits,
         sources,
-        ResultMatcher(result));
+        [&] (TRange<TRow> actual, const TTableSchema& /*schema*/) {
+            EXPECT_EQ(actual.size(), limit + 1ul);
+
+            for (auto row : actual) {
+                if (row[0].Type != EValueType::Null) {
+                    EXPECT_EQ(groupedValues.at(row[0].Data.Int64), row[1].Data.Int64);
+                } else {
+                    EXPECT_EQ(row[1].Data.Int64, totalSum);
+                }
+            }
+        });
 
     SUCCEED();
 }
@@ -9535,7 +9472,7 @@ void TQueryEvaluateComplexTest::DoTest(
     };
 
     auto query = Evaluate(queryString, splits, sources, resultMatcher);
-    EXPECT_TRUE(query->IsOrdered());
+    EXPECT_TRUE(query->IsOrdered(MostFreshFeatureFlags()));
 }
 
 TEST_P(TQueryEvaluateComplexTest, All)

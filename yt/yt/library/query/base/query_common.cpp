@@ -197,6 +197,7 @@ TFeatureFlags MostFreshFeatureFlags()
 {
     return {
         .WithTotalsFinalizesAggregatedOnCoordinator = true,
+        .GroupByWithLimitIsUnordered = true,
     };
 }
 
@@ -204,14 +205,16 @@ TFeatureFlags MostArchaicFeatureFlags()
 {
     return {
         .WithTotalsFinalizesAggregatedOnCoordinator = false,
+        .GroupByWithLimitIsUnordered = false,
     };
 }
 
 TString ToString(const TFeatureFlags& featureFlags)
 {
     return Format(
-        "{WithTotalsFinalizesAggregatedOnCoordinator: %v}",
-        featureFlags.WithTotalsFinalizesAggregatedOnCoordinator);
+        "{WithTotalsFinalizesAggregatedOnCoordinator: %v, GroupByWithLimitIsUnordered: %v}",
+        featureFlags.WithTotalsFinalizesAggregatedOnCoordinator,
+        featureFlags.GroupByWithLimitIsUnordered);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

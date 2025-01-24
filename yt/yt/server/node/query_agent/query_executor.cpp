@@ -760,7 +760,7 @@ private:
 
         auto [frontQuery, bottomQueryPattern] = GetDistributedQueryPattern(Query_);
 
-        bool ordered = Query_->IsOrdered();
+        bool ordered = Query_->IsOrdered(RequestFeatureFlags_);
         bool prefetch = Query_->Limit == std::numeric_limits<i64>::max() - 1;
         int splitCount = std::ssize(groupedDataSplits);
 
@@ -786,7 +786,7 @@ private:
                 // Copy query to generate new id.
                 auto bottomQuery = New<TQuery>(*bottomQueryPattern);
 
-                bool orderedExecution = bottomQuery->IsOrdered();
+                bool orderedExecution = bottomQuery->IsOrdered(RequestFeatureFlags_);
 
                 auto foreignProfileCallback = [
                     asyncSubqueryResults,

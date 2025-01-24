@@ -384,6 +384,8 @@ struct TGroupClause
     void AddGroupItem(TConstExpressionPtr expression, TString name);
 
     TTableSchemaPtr GetTableSchema(bool isFinal) const;
+
+    bool AllAggregatesAreFirst() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TGroupClause)
@@ -465,7 +467,7 @@ struct TBaseQuery
 
     TBaseQuery(const TBaseQuery& other);
 
-    bool IsOrdered() const;
+    bool IsOrdered(const TFeatureFlags& featureFlags) const;
 
     virtual TTableSchemaPtr GetReadSchema() const = 0;
     virtual TTableSchemaPtr GetTableSchema() const = 0;

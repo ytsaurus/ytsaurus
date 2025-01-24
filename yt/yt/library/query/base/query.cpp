@@ -321,6 +321,17 @@ TTableSchemaPtr TGroupClause::GetTableSchema(bool isFinal) const
     return New<TTableSchema>(std::move(result));
 }
 
+bool TGroupClause::AllAggregatesAreFirst() const
+{
+    for (const auto& aggregate : AggregateItems) {
+        if (aggregate.AggregateFunction != "first") {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TProjectClause::AddProjection(TNamedItem namedItem)
@@ -363,10 +374,14 @@ TBaseQuery::TBaseQuery(const TBaseQuery& other)
     , InferRanges(other.InferRanges)
 { }
 
-bool TBaseQuery::IsOrdered() const
+bool TBaseQuery::IsOrdered(const TFeatureFlags& featureFlags) const
 {
     if (Limit < std::numeric_limits<i64>::max()) {
-        return !OrderClause;
+        if (featureFlags.GroupByWithLimitIsUnordered) {
+            return !OrderClause && (!GroupClause || GroupClause->AllAggregatesAreFirst() || GroupClause->CommonPrefixWithPrimaryKey > 0);
+        } else {
+            return !OrderClause;
+        }
     } else {
         YT_VERIFY(!OrderClause);
         return false;
@@ -1539,11 +1554,15 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 void ToProto(NProto::TFeatureFlags* serialized, const TFeatureFlags& original)
 {
     serialized->set_with_totals_finalizes_aggregated_on_coordinator(original.WithTotalsFinalizesAggregatedOnCoordinator);
+    serialized->set_group_by_with_limit_is_unordered(original.GroupByWithLimitIsUnordered);
 }
 
 void FromProto(TFeatureFlags* original, const NProto::TFeatureFlags& serialized)
 {
     original->WithTotalsFinalizesAggregatedOnCoordinator = serialized.with_totals_finalizes_aggregated_on_coordinator();
+    if (serialized.has_group_by_with_limit_is_unordered()) {
+        original->GroupByWithLimitIsUnordered = serialized.group_by_with_limit_is_unordered();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

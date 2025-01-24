@@ -1815,15 +1815,17 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         }
     }
 
+    auto dynamicConfig = GetNativeConnection()->GetConfig();
+
     TQueryOptions queryOptions;
     queryOptions.TimestampRange.Timestamp = options.Timestamp;
     queryOptions.TimestampRange.RetentionTimestamp = options.RetentionTimestamp;
     queryOptions.RangeExpansionLimit = options.RangeExpansionLimit;
     queryOptions.VerboseLogging = options.VerboseLogging;
-    queryOptions.NewRangeInference = GetNativeConnection()->GetConfig()->DisableNewRangeInference
+    queryOptions.NewRangeInference = dynamicConfig->DisableNewRangeInference
         ? false
         : options.NewRangeInference;
-    queryOptions.ExecutionBackend = GetNativeConnection()->GetConfig()->UseWebAssembly
+    queryOptions.ExecutionBackend = dynamicConfig->UseWebAssembly
         ? static_cast<NCodegen::EExecutionBackend>(options.ExecutionBackend.value_or(NApi::EExecutionBackend::Native))
         : NCodegen::EExecutionBackend::Native;
     queryOptions.EnableCodeCache = options.EnableCodeCache;
@@ -1843,6 +1845,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     queryOptions.UseLookupCache = options.UseLookupCache;
 
     auto requestFeatureFlags = MostFreshFeatureFlags();
+    requestFeatureFlags.GroupByWithLimitIsUnordered = dynamicConfig->GroupByWithLimitIsUnordered;
 
     IUnversionedRowsetWriterPtr writer;
     TFuture<IUnversionedRowsetPtr> asyncRowset;
@@ -1890,9 +1893,11 @@ NYson::TYsonString TClient::DoExplainQuery(
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
     TransformWithIndexStatement(&parsedQuery->AstHead, cache);
 
+    auto dynamicConfig = GetNativeConnection()->GetConfig();
+
     auto udfRegistryPath = options.UdfRegistryPath
         ? *options.UdfRegistryPath
-        : GetNativeConnection()->GetConfig()->UdfRegistryPath;
+        : dynamicConfig->UdfRegistryPath;
 
     auto externalCGInfo = New<TExternalCGInfo>();
     auto fetchFunctions = [&] (const std::vector<TString>& names, const TTypeInferrerMapPtr& typeInferrers) {
@@ -1914,13 +1919,16 @@ NYson::TYsonString TClient::DoExplainQuery(
 
     auto queryPreparer = New<TQueryPreparer>(cache, GetNativeConnection()->GetInvoker());
 
+    auto requestFeatureFlags = MostFreshFeatureFlags();
+    requestFeatureFlags.GroupByWithLimitIsUnordered = dynamicConfig->GroupByWithLimitIsUnordered;
+
     auto fragment = PreparePlanFragment(
         queryPreparer.Get(),
         *parsedQuery,
         fetchFunctions,
         QueryMemoryTracker_);
 
-    return BuildExplainQueryYson(GetNativeConnection(), fragment, udfRegistryPath, options);
+    return BuildExplainQueryYson(GetNativeConnection(), fragment, udfRegistryPath, options, requestFeatureFlags);
 }
 
 template <class T>

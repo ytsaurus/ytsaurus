@@ -435,6 +435,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_web_assembly", &TThis::UseWebAssembly)
         .Default(false);
 
+    registrar.Parameter("group_by_with_limit_is_unordered", &TThis::GroupByWithLimitIsUnordered)
+        .Default(false);
+
     registrar.Parameter("flow_pipeline_controller_rpc_timeout", &TThis::FlowPipelineControllerRpcTimeout)
         .Default(TDuration::Seconds(10));
 
