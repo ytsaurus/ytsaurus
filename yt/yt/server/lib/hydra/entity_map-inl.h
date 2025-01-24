@@ -14,6 +14,8 @@
 #include <library/cpp/yt/memory/chunked_input_stream.h>
 #include <library/cpp/yt/memory/chunked_output_stream.h>
 
+#include <util/system/type_name.h>
+
 namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -450,8 +452,9 @@ void TEntityMap<TValue, TTraits>::LoadKeys(TContext& context)
 
     Clear();
 
-    size_t size;
+    TStreamLoadContextScopeGuard scopeGuard(context, Format("keys:%v", GetTypeName()));
 
+    size_t size;
     auto value = TSizeSerializer::Load(context);
     // COMPAT(danilalexeev): YT-24017.
     if (value == BatchedFormatMarker) {
@@ -501,6 +504,8 @@ void TEntityMap<TValue, TTraits>::LoadValues(TContext& context, std::optional<in
         LoadValues_.clear();
     });
 
+    TStreamLoadContextScopeGuard mapScopeGuard(context, Format("values:%v", GetTypeName()));
+
     SERIALIZATION_DUMP_WRITE(context, "values[%v]", LoadKeys_.size());
 
     int batchEntityCount = AllEntitiesBatchEntityCount;
@@ -529,7 +534,11 @@ void TEntityMap<TValue, TTraits>::LoadValues(TContext& context, std::optional<in
             }
 
             for (int index = entityStartIndex; index < entityEndIndex; ++index) {
-                SERIALIZATION_DUMP_WRITE(context, "%v =>", LoadKeys_[index]);
+                const auto& key = LoadKeys_[index];
+
+                TStreamLoadContextScopeGuard valueScopeGuard(context, ToString(key));
+
+                SERIALIZATION_DUMP_WRITE(context, "%v =>", key);
                 SERIALIZATION_DUMP_INDENT(context) {
                     Load(context, *LoadValues_[index]);
                 }
@@ -637,6 +646,12 @@ void TEntityMap<TValue, TTraits>::FreeDynamicData(TDynamicData* data)
     auto* spareData = reinterpret_cast<TSpareEntityDynamicData*>(data);
     spareData->Next  = FirstSpareDynamicData_;
     FirstSpareDynamicData_ = spareData;
+}
+
+template <class TValue, class TTraits>
+std::string TEntityMap<TValue, TTraits>::GetTypeName()
+{
+    return CppDemangle(typeid(TValue).name());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -81,7 +81,7 @@ TLoadContext::TLoadContext(
 
 void TLoadContext::SkipToCheckpoint()
 {
-    Input_.ClearBuffer();
+    Input_.SkipToCheckpoint();
     CheckpointableInput_->SkipToCheckpoint();
 }
 

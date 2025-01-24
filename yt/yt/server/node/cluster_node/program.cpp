@@ -49,6 +49,12 @@ public:
             .RequiredArgument("SNAPSHOT");
         Opts_
             .AddLongOption(
+                "snapshot-dump-mode",
+                "Valid options are: content, checksum")
+            .StoreMappedResultT<TStringBuf>(&SnapshotDumpMode_, &ParseEnumArgMapper<ESerializationDumpMode>)
+            .RequiredArgument("MODE");
+        Opts_
+            .AddLongOption(
                 "validate-snapshot",
                 "Loads tablet cell snapshot in a dry run mode\n"
                 "Expects path to snapshot")
@@ -237,7 +243,10 @@ private:
                     ? NYTree::ConvertTo<NHydra::NProto::TSnapshotMeta>(SnapshotMeta_)
                     : NHydra::NProto::TSnapshotMeta{};
 
-                cellarNodeBootstrap->LoadSnapshot(LoadSnapshotPath_, meta, IsDumpSnapshotMode());
+                cellarNodeBootstrap->LoadSnapshot(
+                    LoadSnapshotPath_,
+                    meta,
+                    IsDumpSnapshotMode() ? SnapshotDumpMode_ : ESerializationDumpMode::None);
             }
 
             if (IsReplayChangelogsMode()) {
@@ -263,6 +272,7 @@ private:
 
 private:
     bool DumpSnapshotFlag_ = false;
+    ESerializationDumpMode SnapshotDumpMode_ = ESerializationDumpMode::Content;
     bool ValidateSnapshotFlag_ = false;
     TString LoadSnapshotPath_;
     bool ReplayChangelogsFlag_ = false;

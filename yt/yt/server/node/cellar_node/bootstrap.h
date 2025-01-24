@@ -15,7 +15,7 @@ struct IBootstrapDryRunBase
     virtual void LoadSnapshot(
         const TString& fileName,
         NHydra::NProto::TSnapshotMeta meta = {},
-        bool dump = false) = 0;
+        ESerializationDumpMode dumpMode = ESerializationDumpMode::None) = 0;
     virtual void ReplayChangelogs(std::vector<TString> changelogFileNames) = 0;
     virtual void BuildSnapshot() = 0;
     virtual void FinishDryRun() = 0;

@@ -41,6 +41,12 @@ public:
             .RequiredArgument("SNAPSHOT");
         Opts_
             .AddLongOption(
+                "snapshot-dump-mode",
+                "Valid options are: content, checksum")
+            .StoreMappedResultT<TStringBuf>(&SnapshotDumpMode_, &ParseEnumArgMapper<ESerializationDumpMode>)
+            .RequiredArgument("MODE");
+        Opts_
+            .AddLongOption(
                 "export-snapshot",
                 "Exports master snapshot\n"
                 "Expects path to snapshot")
@@ -97,6 +103,7 @@ public:
 
 private:
     bool DumpSnapshotFlag_ = false;
+    ESerializationDumpMode SnapshotDumpMode_ = ESerializationDumpMode::Content;
     bool ValidateSnapshotFlag_ = false;
     bool ExportSnapshotFlag_ = false;
     TString LoadSnapshotPath_;
@@ -237,7 +244,9 @@ private:
             bootstrap->Initialize();
 
             if (IsLoadSnapshotMode()) {
-                bootstrap->LoadSnapshot(LoadSnapshotPath_, IsDumpSnapshotMode());
+                bootstrap->LoadSnapshot(
+                    LoadSnapshotPath_,
+                    IsDumpSnapshotMode() ? SnapshotDumpMode_ : ESerializationDumpMode::None);
             }
 
             if (IsExportSnapshotMode()) {

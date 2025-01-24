@@ -126,12 +126,14 @@ public:
         LocalJanitor_->Initialize();
     }
 
-    void LoadSnapshot(ISnapshotReaderPtr reader, bool dump)
+    void LoadSnapshot(
+        ISnapshotReaderPtr reader,
+        ESerializationDumpMode dumpMode)
     {
         WaitFor(reader->Open())
             .ThrowOnError();
 
-        Automaton_->SetSerializationDumpEnabled(dump);
+        Automaton_->SetSerializationDumpMode(dumpMode);
         Automaton_->Clear();
         TSnapshotLoadContext context{
             .Reader = reader,
@@ -223,9 +225,11 @@ void THydraFacade::Initialize()
     Impl_->Initialize();
 }
 
-void THydraFacade::LoadSnapshot(ISnapshotReaderPtr reader, bool dump)
+void THydraFacade::LoadSnapshot(
+    ISnapshotReaderPtr reader,
+    ESerializationDumpMode dumpMode)
 {
-    Impl_->LoadSnapshot(reader, dump);
+    Impl_->LoadSnapshot(reader, dumpMode);
 }
 
 const TClockAutomatonPtr& THydraFacade::GetAutomaton() const

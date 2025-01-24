@@ -177,9 +177,11 @@ TFuture<void> TBootstrap::Run()
         .Run();
 }
 
-void TBootstrap::LoadSnapshot(const TString& fileName, bool dump)
+void TBootstrap::LoadSnapshot(
+    const TString& fileName,
+    ESerializationDumpMode dumpMode)
 {
-    BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, dump)
+    BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, dumpMode)
         .AsyncVia(HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
         .Run()
         .Get()
@@ -310,13 +312,15 @@ void TBootstrap::DoStart()
     RpcServer_->Start();
 }
 
-void TBootstrap::DoLoadSnapshot(const TString& fileName, bool dump)
+void TBootstrap::DoLoadSnapshot(
+    const TString& fileName,
+    ESerializationDumpMode dumpMode)
 {
     auto reader = CreateLocalSnapshotReader(
         fileName,
         InvalidSegmentId,
         GetSnapshotIOInvoker());
-    HydraFacade_->LoadSnapshot(reader, dump);
+    HydraFacade_->LoadSnapshot(reader, dumpMode);
 }
 
 IYPathServicePtr TBootstrap::CreateCellOrchidService() const

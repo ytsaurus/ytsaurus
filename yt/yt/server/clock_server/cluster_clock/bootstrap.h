@@ -61,9 +61,11 @@ public:
     const IInvokerPtr& GetSnapshotIOInvoker() const;
 
     TFuture<void> Run() final;
-
     void Initialize();
-    void LoadSnapshot(const TString& fileName, bool dump);
+
+    void LoadSnapshot(
+        const TString& fileName,
+        ESerializationDumpMode dumpMode);
 
 private:
     const TClusterClockBootstrapConfigPtr Config_;
@@ -90,7 +92,9 @@ private:
     void DoInitialize();
     void DoStart();
 
-    void DoLoadSnapshot(const TString& fileName, bool dump);
+    void DoLoadSnapshot(
+        const TString& fileName,
+        ESerializationDumpMode dumpMode);
 
     NYTree::IYPathServicePtr CreateCellOrchidService() const;
 };

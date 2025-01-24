@@ -233,9 +233,9 @@ TCompositeAutomaton::TCompositeAutomaton(
     RegisterMethod(BIND_NO_PROPAGATE(&TCompositeAutomaton::HydraResetStateHash, Unretained(this)));
 }
 
-void TCompositeAutomaton::SetSerializationDumpEnabled(bool value)
+void TCompositeAutomaton::SetSerializationDumpMode(ESerializationDumpMode mode)
 {
-    SerializationDumpEnabled_ = value;
+    SerializationDumpMode_ = mode;
 }
 
 void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPartPtr part)
@@ -259,7 +259,7 @@ void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPartPtr part)
 
 void TCompositeAutomaton::SetupLoadContext(TLoadContext* context)
 {
-    context->Dumper().SetEnabled(SerializationDumpEnabled_);
+    context->Dumper().SetMode(SerializationDumpMode_);
 }
 
 void TCompositeAutomaton::RegisterMethod(
@@ -395,9 +395,12 @@ void TCompositeAutomaton::LoadSnapshot(const TSnapshotLoadContext& context)
                     SERIALIZATION_DUMP_WRITE(context, "%v@%v =>", name, version);
 
                     SERIALIZATION_DUMP_INDENT(context) {
-                        auto readPart = [&] (auto func) {
+                        auto readPart = [&context, &name] (auto func) {
                             auto offsetBefore = context.GetOffset();
-                            func();
+                            {
+                                TStreamLoadContextScopeGuard scopeGuard(context, Format("part:%v", name));
+                                func();
+                            }
                             context.SkipToCheckpoint();
                             auto offsetAfter = context.GetOffset();
                             return offsetAfter - offsetBefore;

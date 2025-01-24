@@ -131,7 +131,7 @@ class TCompositeAutomaton
     : public IAutomaton
 {
 public:
-    void SetSerializationDumpEnabled(bool value);
+    void SetSerializationDumpMode(ESerializationDumpMode mode);
 
     TFuture<void> SaveSnapshot(const TSnapshotSaveContext& context) override;
     void LoadSnapshot(const TSnapshotLoadContext& context) override;
@@ -151,7 +151,7 @@ public:
     DECLARE_SIGNAL(IInvoker::TWaitTimeObserver::TSignature, WaitTimeObserved);
 
 protected:
-    bool SerializationDumpEnabled_ = false;
+    ESerializationDumpMode SerializationDumpMode_ = ESerializationDumpMode::None;
 
     const NLogging::TLogger Logger;
     NProfiling::TProfiler Profiler_;
