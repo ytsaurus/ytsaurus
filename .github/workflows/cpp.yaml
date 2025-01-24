@@ -39,6 +39,7 @@ jobs:
           ttl: PT24H
           runner-home-dir: /actions-runner
 
+
   checkout:
     name: Checkout sources
     needs: start-vm
