@@ -31,6 +31,12 @@ public:
             .RequiredArgument("SNAPSHOT");
         Opts_
             .AddLongOption(
+                "snapshot-dump-mode",
+                "Valid options are: content, checksum")
+            .StoreMappedResultT<TStringBuf>(&SnapshotDumpMode_, &ParseEnumArgMapper<ESerializationDumpMode>)
+            .RequiredArgument("MODE");
+        Opts_
+            .AddLongOption(
                 "validate-snapshot",
                 "Loads clock snapshot in a dry run mode\n"
                 "Expects path to snapshot")
@@ -92,12 +98,12 @@ private:
             bootstrap->Initialize();
 
             if (IsDumpSnapshotMode()) {
-                bootstrap->LoadSnapshot(LoadSnapshotPath_, true);
+                bootstrap->LoadSnapshot(LoadSnapshotPath_, SnapshotDumpMode_);
                 return;
             }
 
             if (IsValidateSnapshotMode()) {
-                bootstrap->LoadSnapshot(LoadSnapshotPath_, false);
+                bootstrap->LoadSnapshot(LoadSnapshotPath_, ESerializationDumpMode::None);
                 return;
             }
         }
@@ -110,6 +116,7 @@ private:
 
 private:
     bool DumpSnapshotFlag_ = false;
+    ESerializationDumpMode SnapshotDumpMode_ = ESerializationDumpMode::Content;
     bool ValidateSnapshotFlag_ = false;
     TString LoadSnapshotPath_;
 };

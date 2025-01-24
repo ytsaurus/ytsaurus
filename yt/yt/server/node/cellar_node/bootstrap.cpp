@@ -237,10 +237,10 @@ public:
 
     void LoadSnapshot(
         const TString& fileName,
-        NHydra::NProto::TSnapshotMeta meta = {},
-        bool dumpSnapshot = false) override
+        NHydra::NProto::TSnapshotMeta meta,
+        ESerializationDumpMode dumpMode) override
     {
-        BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, meta, dumpSnapshot)
+        BIND(&TBootstrap::DoLoadSnapshot, MakeStrong(this), fileName, meta, dumpMode)
             .AsyncVia(GetControlInvoker())
             .Run()
             .Get()
@@ -324,8 +324,8 @@ private:
 
     void DoLoadSnapshot(
         const TString& fileName,
-        const NHydra::NProto::TSnapshotMeta& meta = {},
-        bool dumpSnapshot = false)
+        const NHydra::NProto::TSnapshotMeta& meta,
+        ESerializationDumpMode dumpMode)
     {
         YT_LOG_EVENT(DryRunLogger, NLogging::ELogLevel::Info, "Snapshot meta received (Meta: %v)",
             meta);
@@ -337,7 +337,7 @@ private:
             DryRunOccupant_->GetSnapshotLocalIOInvoker());
 
         const auto& automaton = DryRunOccupant_->GetAutomaton();
-        automaton->SetSerializationDumpEnabled(dumpSnapshot);
+        automaton->SetSerializationDumpMode(dumpMode);
 
         const auto& hydraManager = DryRunOccupant_->GetHydraManager();
         auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
@@ -347,9 +347,9 @@ private:
             // for logging purposes and also to execute the implicit "prepare state" mutation.
             // We must store the id in meta to avoid these complications.
             InvalidSegmentId,
-            /*prepareState*/ !dumpSnapshot);
+            /*prepareState*/ dumpMode == ESerializationDumpMode::None);
 
-        if (!dumpSnapshot) {
+        if (dumpMode == ESerializationDumpMode::None) {
             dryRunHydraManager->DryRunCheckInvariants();
         }
     }

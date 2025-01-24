@@ -172,7 +172,9 @@ public:
     void Initialize();
     TFuture<void> Run() final;
 
-    void LoadSnapshot(const TString& fileName, bool dump);
+    void LoadSnapshot(
+        const TString& fileName,
+        ESerializationDumpMode dumpMode);
     void ReplayChangelogs(std::vector<TString> changelogFileNames);
     void BuildSnapshot();
     void FinishDryRun();
@@ -276,7 +278,7 @@ protected:
     void InitializeTimestampProvider();
     void DoLoadSnapshot(
         const TString& fileName,
-        bool dump);
+        ESerializationDumpMode dumpMode);
 
     void DoReplayChangelogs(const std::vector<TString>& changelogFileNames);
 
