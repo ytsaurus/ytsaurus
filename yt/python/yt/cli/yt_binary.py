@@ -1257,6 +1257,24 @@ def add_pull_consumer_parser(add_parser):
     add_structured_format_argument(parser)
 
 
+@copy_docstring_from(yt.pull_queue_consumer)
+def pull_queue_consumer(print_statistics=None, **kwargs):
+    result = yt.pull_queue_consumer(raw=True, **kwargs)
+    write_silently(chunk_iter_stream(result, yt.config["read_buffer_size"]))
+
+
+def add_pull_queue_consumer_parser(add_parser):
+    parser = add_parser("pull-queue-consumer", pull_queue_consumer)
+    add_ypath_argument(parser, "consumer_path", hybrid=True)
+    add_ypath_argument(parser, "queue_path", hybrid=True)
+    parser.add_argument("--offset", type=int, required=True)
+    parser.add_argument("--partition-index", type=int, required=True)
+    parser.add_argument("--max-row-count", type=int)
+    parser.add_argument("--max-data-weight", type=int)
+    parser.add_argument("--replica-consistency", type=str, choices=["none", "sync"])
+    add_structured_format_argument(parser)
+
+
 def add_advance_consumer_parser(add_parser):
     parser = add_parser("advance-consumer", yt.advance_consumer)
     add_ypath_argument(parser, "consumer_path", hybrid=True)
@@ -1264,6 +1282,59 @@ def add_advance_consumer_parser(add_parser):
     parser.add_argument("--partition-index", type=int, required=True)
     parser.add_argument("--old-offset", type=int)
     parser.add_argument("--new-offset", type=int, required=True)
+
+
+def add_advance_queue_consumer_parser(add_parser):
+    parser = add_parser("advance-queue-consumer", yt.advance_queue_consumer)
+    add_ypath_argument(parser, "consumer_path", hybrid=True)
+    add_ypath_argument(parser, "queue_path", hybrid=True)
+    parser.add_argument("--partition-index", type=int, required=True)
+    parser.add_argument("--old-offset", type=int)
+    parser.add_argument("--new-offset", type=int, required=True)
+
+
+@copy_docstring_from(yt.push_queue_producer)
+def push_queue_producer(**kwargs):
+    result = yt.push_queue_producer(**kwargs)
+    if kwargs["output_format"] is None:
+        result = dump_data(result)
+    print_to_output(result, eoln=False)
+
+
+def add_push_queue_producer_parser(add_parser):
+    parser = add_parser("push-queue-producer", push_queue_producer)
+    add_ypath_argument(parser, "producer_path", hybrid=True)
+    add_ypath_argument(parser, "queue_path", hybrid=True)
+    parser.add_argument("--session-id", type=str, required=True)
+    parser.add_argument("--epoch", type=int, required=True)
+
+    add_format_argument(parser, name="--input-format", help="input format")
+    add_structured_format_argument(parser, name="--output-format", help="output format")
+
+    parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin), raw=True)
+
+
+@copy_docstring_from(yt.create_queue_producer_session)
+def create_queue_producer_session(**kwargs):
+    result = yt.create_queue_producer_session(**kwargs)
+    if kwargs["format"] is None:
+        result = dump_data(result)
+    print_to_output(result, eoln=False)
+
+
+def add_create_queue_producer_session_parser(add_parser):
+    parser = add_parser("create-queue-producer-session", create_queue_producer_session)
+    add_ypath_argument(parser, "--producer-path", help="Path to producer in Cypress; cluster may be specified")
+    add_ypath_argument(parser, "--queue-path", help="Path to queue in Cypress; cluster may be specified")
+    parser.add_argument("--session-id", type=str, required=True)
+    add_structured_format_argument(parser)
+
+
+def add_remove_queue_producer_session_parser(add_parser):
+    parser = add_parser("remove-queue-producer-session", yt.remove_queue_producer_session)
+    add_ypath_argument(parser, "--producer-path", help="Path to producer in Cypress; cluster may be specified")
+    add_ypath_argument(parser, "--queue-path", help="Path to queue in Cypress; cluster may be specified")
+    parser.add_argument("--session-id", type=str, required=True)
 
 
 @copy_docstring_from(yt.start_query)
@@ -2831,7 +2902,12 @@ def _prepare_parser():
     add_list_queue_consumer_registrations_parser(add_parser)
     add_pull_queue_parser(add_parser)
     add_pull_consumer_parser(add_parser)
+    add_pull_queue_consumer_parser(add_parser)
     add_advance_consumer_parser(add_parser)
+    add_advance_queue_consumer_parser(add_parser)
+    add_push_queue_producer_parser(add_parser)
+    add_create_queue_producer_session_parser(add_parser)
+    add_remove_queue_producer_session_parser(add_parser)
 
     add_start_query_parser(add_parser)
     add_query_parser(add_parser)
