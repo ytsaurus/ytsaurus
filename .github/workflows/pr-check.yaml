@@ -19,7 +19,7 @@ on:
         required: true
       S3_ACCESS_KEY:
         required: false
-      S3_SECRET_NAME:
+      S3_SECRET_KEY:
         required: false
       BUILD_CACHE_BAZEL_USERNAME:
         required: false
@@ -178,7 +178,7 @@ jobs:
     secrets:
       YA_YT_TOKEN: ${{ secrets.YA_YT_TOKEN }}
       S3_ACCESS_KEY: ${{ secrets.S3_ACCESS_KEY }}
-      S3_SECRET_NAME: ${{ secrets.S3_SECRET_NAME }}
+      S3_SECRET_KEY: ${{ secrets.S3_SECRET_KEY }}
 
   notify-finish:
     name: Notify PR finish
