@@ -8,15 +8,15 @@ A Kubernetes operator supports updates to Docker images used for server componen
 
 {% note warning "Attention" %}
 
-You can only update to more recent versions. If you try to roll back to an older image, you won't be able to deploy the masters. You also can't roll back successful upgrades to the latest version.
+You can only update to more recent versions. If you try to roll back to an older image, you won't be able to deploy the masters. You also can't roll back successful updates to the latest version.
 
-We strongly advise against upgrading to a `dev` version compiled from the current `main` branch since those {{product-name}} versions aren't stable and haven't been properly tested. Moreover, rolling back to the latest stable release will be impossible for the reasons described above.
+We strongly advise against updating to a `dev` version compiled from the current `main` branch since those {{product-name}} versions aren't stable and haven't been properly tested. Moreover, rolling back to the latest stable release will be impossible for the reasons described above.
 
 {% endnote %}
 
 {% note warning "Important" %}
 
-Before updating {{product-name}}, you first need to update the operator to the latest release. Functionality isn't guaranteed for new stable images with outdated operators or for operators with unstable {{product-name}} versions like `dev`. You can find a list of stable images on the [Releases](../../admin-guide/releases) page.
+Before updating {{product-name}}, you first need to update the operator to the latest release. New stable images might not work with an outdated operator, and the operator itself might not work if it has an unstable {{product-name}} version like `dev`. You can find a list of stable images on the [Releases](../../admin-guide/releases) page.
 
 {% endnote %}
 
@@ -79,7 +79,7 @@ If that happens, restore the previous specification value to prevent the compone
 
 ## Manual intervention
 
-There are various issues that can potentially occur during an update, which may require manual intervention. When that happens, set the `isManaged=false` flag in the `Ytsaurus` specification. This prevents the operator from performing any operations on the cluster, so you can take whatever manual measures are necessary.
+While updating, you might encounter some issues that will require manual intervention. When that happens, set the `isManaged=false` flag in the `Ytsaurus` specification. This prevents the operator from performing any operations on the cluster, so you can take whatever manual measures are necessary.
 
 {% note warning "Attention" %}
 
@@ -97,18 +97,39 @@ Before updating the operator, make sure the cluster is healthy. For example, it 
 
 ### Instructions
 
-1. Launch the chart update: `helm upgrade ytsaurus --install oci://ghcr.io/ytsaurus/ytop-chart --version <new-version>`
-2. Make sure the old operator's substations have been deleted and new ones have been created:
-```bash
-$ kubectl get pod -n <namespace>
-NAME                                                      READY   STATUS        RESTARTS   AGE
-ytsaurus-ytop-chart-controller-manager-6f67fd5d5c-6bbws   2/2     Running       0          21s
-ytsaurus-ytop-chart-controller-manager-7478f9b6cb-qr8wd   2/2     Terminating   0          23h
+1. Launch the chart update:
+    ```bash
+    helm upgrade ytsaurus --install oci://ghcr.io/ytsaurus/ytop-chart --version <new-version>
+    ```
+   For a list of available operator versions, see the [release page](../../admin-guide/releases.md#kubernetes-operator).
+2. Make sure the operator's old pods have been deleted and new ones have been created:
+    ```bash
+    $ kubectl get pod -n <namespace>
+    NAME                                                      READY   STATUS        RESTARTS   AGE
+    ytsaurus-ytop-chart-controller-manager-6f67fd5d5c-6bbws   2/2     Running       0          21s
+    ytsaurus-ytop-chart-controller-manager-7478f9b6cb-qr8wd   2/2     Terminating   0          23h
 
-$ kubectl get pod -n <namespace>
-NAME                                                      READY   STATUS    RESTARTS   AGE
-ytsaurus-ytop-chart-controller-manager-6f67fd5d5c-6bbws   2/2     Running   0          25s
-```
+    $ kubectl get pod -n <namespace>
+    NAME                                                      READY   STATUS    RESTARTS   AGE
+    ytsaurus-ytop-chart-controller-manager-6f67fd5d5c-6bbws   2/2     Running   0          25s
+    ```
+3. If necessary, update the CRDs.
+    By default, Helm doesn't update previously installed [CRDs](https://kubernetes.io/docs/concepts/extend-kubernetes/api-extension/custom-resources/#customresourcedefinitions), so you may need to update them manually to use the new spec fields. Always exercise caution when doing manual updates to avoid any potential data loss. To learn more, see the [documentation for Helm](https://helm.sh/docs/topics/charts/#limitations-on-crds).
+
+    To manually update the CRDs, download the chart locally and then update them using `kubectl replace`:
+    ```bash
+    $ helm pull oci://ghcr.io/ytsaurus/ytop-chart --version <new-version> --untar
+    $ helm template ytop-chart --output-dir ./templates
+    wrote ./templates/ytop-chart/templates/serviceaccount.yaml
+    wrote ./templates/ytop-chart/templates/manager-config.yaml
+    ...
+    $ kubectl replace -f ./templates/ytop-chart/templates/crds/<crd-to-update>
+    ...
+    ```
+    You will probably have to update the following CRDs:
+    * ```chyts.cluster.ytsaurus.tech.yaml```
+    * ```spyts.cluster.ytsaurus.tech.yaml```
+    * ```ytsaurus.cluster.ytsaurus.tech.yaml```
 
 ### Possible automated cluster update
 
