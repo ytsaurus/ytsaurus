@@ -20,11 +20,11 @@
             "source": {
                 "type": "ARCADIA",
                 "path": "yt/python/yt/environment",
+                "files": [
+                    "init_queue_agent_state.py",
+                    "init_operations_archive.py",
+                ],
             },
-            "files": [
-                "init_queue_agent_state.py",
-                "init_operations_archive.py",
-            ],
             "destination": {
                 "path": "/",
             },
