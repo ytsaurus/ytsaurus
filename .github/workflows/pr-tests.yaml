@@ -11,7 +11,7 @@ on:
     secrets:
       S3_ACCESS_KEY:
         required: false
-      S3_SECRET_NAME:
+      S3_SECRET_KEY:
         required: false
       YA_YT_TOKEN:
         required: false
