@@ -253,7 +253,6 @@ class ArtifactLogger:
         query_type = "optimized" if query.optimized else "original"
         self.query_path = self.launch_path / "queries" / query_type / str(query.index)
         self.query_path.mkdir(parents=True)
-        (self.query_path / "yt").mkdir()
 
     def dump_query(self, query: str):
         if not self.query_path:
@@ -272,6 +271,8 @@ class ArtifactLogger:
             return
         with (self.query_path / "info.json").open("w") as f:
             json.dump(yson_to_json(query_info.qt_query_info), f, indent=2)
+        if query_info.yt_operation_info:
+            (self.query_path / "yt").mkdir()
         for id, info in query_info.yt_operation_info.items():
             with (self.query_path / "yt" / f"{id}.json").open("w") as f:
                 json.dump(yson_to_json(info), f, indent=2)

@@ -29,9 +29,11 @@ def get_query_with_retries(client: YtClient, query_id: str) -> YsonType:
     return result
 
 
-def fetch_full_query_info(client: YtClient, query_id: str) -> common.FullQueryInfo:
+def fetch_full_query_info(client: YtClient, query_id: str, with_operation_info: bool) -> common.FullQueryInfo:
     result = common.FullQueryInfo()
     result.qt_query_info = get_query_with_retries(client, query_id)
+    if not with_operation_info:
+        return result
     yql_progress = common.nested_get(result.qt_query_info, ["progress", "yql_progress"])
     if yql_progress is None:
         return result
@@ -54,6 +56,13 @@ def fetch_full_query_info(client: YtClient, query_id: str) -> common.FullQueryIn
     help="YT token. Fetched from file ~/.yt/token or from env var YT_TOKEN by default. "
     "See https://ytsaurus.tech/docs/user-guide/storage/auth for more information on how to get your token.",
 )
+@click.option(
+    "--with-operation-artifacts/--no-operation-artifacts",
+    is_flag=True,
+    default=False,
+    show_default=True,
+    help="Store inner operations info in the artifacts. Can increase the total artifact size by a lot."
+)
 @click.option("--title-prefix", default="[QT] ", show_default=True, help="Title prefix of YQL query on query tracker")
 @common.run_options
 def qt(
@@ -71,6 +80,7 @@ def qt(
     token: str | None,
     timeout: int,  # seconds
     artifact_path: str | None,
+    with_operation_artifacts: bool,
     title_prefix: str,
 ) -> None:
     """Run TPC-DS benchmark queries using the Query Tracker."""
@@ -131,7 +141,7 @@ def qt(
                         time.sleep(5)
                         state = get_query_with_retries(client, query_id)["state"]
                 print(f"Query {query_title} finished with state: {state}", file=sys.stderr)
-                query_info = fetch_full_query_info(client, query_id)
+                query_info = fetch_full_query_info(client, query_id, with_operation_artifacts)
                 logger.dump_info(query_info)
             except Exception as err:
                 print(f"Error while running query {query_title}: {err}", file=sys.stderr)
