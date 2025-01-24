@@ -28,6 +28,7 @@ IF (NOT OPENSOURCE)
         master
         python_sdk
         cmake
+        cache_heater
     )
 
     RECURSE_FOR_TESTS(
