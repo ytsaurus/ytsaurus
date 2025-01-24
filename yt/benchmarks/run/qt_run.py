@@ -66,8 +66,8 @@ def fetch_full_query_info(client: YtClient, query_id: str, with_operation_info: 
 @click.option("--title-prefix", default="[QT] ", show_default=True, help="Title prefix of YQL query on query tracker")
 @common.run_options
 def qt(
-    queries: list[int],
-    optimized: bool | None,
+    queries: list[int] | None,
+    use_hand_optimized: bool,
     query_path: str,
     optimized_path: str,
     query_source: common.QuerySource,
@@ -79,6 +79,7 @@ def qt(
     stage: str,
     token: str | None,
     timeout: int,  # seconds
+    launch_timeout: int,  # seconds
     artifact_path: str | None,
     with_operation_artifacts: bool,
     title_prefix: str,
@@ -97,13 +98,16 @@ def qt(
     if token is None:
         raise RuntimeError("YT token is not specified")
 
-    runnable_queries = common.get_runnable_queries(queries, optimized, query_path, optimized_path, query_source, pragma_add, pragma_file, pragma_preset)
+    runnable_queries = common.get_runnable_queries(queries, use_hand_optimized, query_path, optimized_path, query_source, pragma_add, pragma_file, pragma_preset)
 
     with common.ArtifactLogger(artifact_path) as logger:
         logger.dump_launch(arguments)
 
         client = YtClient(proxy=proxy, token=token)
+        launch_start = time.time()
         for runnable in runnable_queries:
+            if time.time() - launch_start >= launch_timeout:
+                raise TimeoutError(f"Exceeded launch timeout of {launch_timeout} seconds, stopping at query {runnable.index}")
             query_id = None
             query_title = ""
             try:

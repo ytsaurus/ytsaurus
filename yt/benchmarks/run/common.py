@@ -28,18 +28,18 @@ def root_path(query_source: QuerySource) -> Path | Traversable:
 
 class RunnableQuery:
     index: int
-    optimized: bool
+    hand_optimized: bool
     pragmas: str
 
-    def __init__(self, index: int, optimized: bool, pragmas: str):
+    def __init__(self, index: int, hand_optimized: bool, pragmas: str):
         self.index = index
-        self.optimized = optimized
+        self.hand_optimized = hand_optimized
         self.pragmas = pragmas
 
     def get_title(self, prefix: str = ""):
-        result = prefix + f"TPC-DS {self.index}"
-        if self.optimized:
-            result = result + " (manually optimized)"
+        result = prefix + f"TPC-DS {self.index:02d}"
+        if self.hand_optimized:
+            result = result + " (hand-optimized)"
         return result
 
 
@@ -66,8 +66,8 @@ def combine_pragma_settings(
 
 
 def get_runnable_queries(
-    queries: list[int],
-    optimized: bool | None,
+    queries: list[int] | None,
+    use_hand_optimized: bool,
     query_path: str,
     optimized_path: str,
     query_source: QuerySource,
@@ -77,40 +77,43 @@ def get_runnable_queries(
 ) -> list[RunnableQuery]:
 
     original_queries = list_all_queries(query_path, query_source)
-    optimized_queries = list_all_queries(optimized_path, query_source)
-    runset = []
-
     original_pragmas = combine_pragma_settings(
         (ROOT_RESOURCE / "pragmas" / "default.sql").read_text() + "\n",
         pragma_add,
         pragma_file,
         pragma_preset
     )
+    original_set = set(original_queries)
 
+    if not queries:
+        queries = original_queries
+    else:
+        unknown_queries = set(queries).difference(original_queries)
+        if unknown_queries:
+            logging.warning(f"Unknown queries {unknown_queries}")
+
+    if not use_hand_optimized:
+        return [RunnableQuery(num, False, original_pragmas) for num in queries if num in original_set]
+
+    # Override the original queries with hand-optimized when present.
+
+    optimized_queries = list_all_queries(optimized_path, query_source)
     optimized_pragmas = combine_pragma_settings(
         (ROOT_RESOURCE / "pragmas" / "optimized.sql").read_text() + "\n",
         pragma_add,
         pragma_file,
         pragma_preset
     )
+    optimized_set = set(optimized_queries)
 
-    if queries:
-        if not optimized:
-            unknown_queries = set(queries).difference(original_queries)
-            if unknown_queries:
-                logging.warning("Unknown original queries %s" % str(list(unknown_queries)))
-            runset += [RunnableQuery(num, False, original_pragmas) for num in set(original_queries).intersection(queries)]
-        if optimized is None or optimized:
-            unknown_queries = set(queries).difference(optimized_queries)
-            if unknown_queries:
-                logging.warning("Unknown optimized queries %s" % str(list(unknown_queries)))
-            runset += [RunnableQuery(num, True, optimized_pragmas) for num in set(optimized_queries).intersection(queries)]
-    else:
-        if not optimized:
-            runset += [RunnableQuery(num, False, original_pragmas) for num in original_queries]
-        if optimized is None or optimized:
-            runset += [RunnableQuery(num, True, optimized_pragmas) for num in optimized_queries]
+    runset = []
+    for num in queries:
+        if num not in original_set:
+            continue
 
+        optimized = num in optimized_set
+        pragma_set = optimized_pragmas if optimized else original_pragmas
+        runset.append(RunnableQuery(num, optimized, pragma_set))
     return runset
 
 
@@ -124,7 +127,7 @@ def make_query(
     query_name = f"{runnable.index:02d}.sql"
     path_root = root_path(query_source)
 
-    if runnable.optimized:
+    if runnable.hand_optimized:
         path = path_root / optimized_path / query_name
     else:
         path = path_root / query_path / query_name
@@ -250,7 +253,7 @@ class ArtifactLogger:
     def start_query(self, query: RunnableQuery):
         if not self.launch_path:
             return
-        query_type = "optimized" if query.optimized else "original"
+        query_type = "hand_optimized" if query.hand_optimized else "original"
         self.query_path = self.launch_path / "queries" / query_type / str(query.index)
         self.query_path.mkdir(parents=True)
 
@@ -295,10 +298,10 @@ def run_options(func):
         help="Comma-separated query index (or index range) list (by default all .sql files are loaded)",
     )
     @click.option(
-        "--optimized/--original",
-        required=False,
-        default=None,
-        help="Use optimized queries when they are available.",
+        "--use-hand-optimized/--no-hand-optimized",
+        default=True,
+        show_default=True,
+        help="Override original queries with hand-optimized versions when those are available.",
     )
     @click.option(
         "--query-source",
@@ -352,7 +355,10 @@ def run_options(func):
         show_default=True,
     )
     @click.option(
-        "--timeout", type=DurationType(), default="30m", show_default=True, help="Query execution time limit."
+        "--timeout", type=DurationType(), default="30m", show_default=True, help="Single query execution time limit."
+    )
+    @click.option(
+        "--launch-timeout", type=DurationType(), default="22h", show_default=True, help="Full launch time limit."
     )
     @click.option(
         "--artifact-path",
