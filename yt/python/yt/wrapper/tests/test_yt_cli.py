@@ -6,11 +6,14 @@ from .conftest import authors
 from .helpers import get_tests_sandbox, wait, get_environment_for_binary_test
 from .helpers_cli import YtCli
 
+from yt import yson
+
 from yt.testlib.test_environment import YtTestEnvironment
 
 from yt.common import makedirp
 
 import yt.wrapper as yt
+
 
 from flaky import flaky
 
@@ -18,6 +21,7 @@ import os
 import pytest
 import random
 import string
+import time
 import uuid
 
 
@@ -737,3 +741,30 @@ class TestYtBinary(object):
         )
         yt_cli.check_output(["yt", "dirtable", "download", "--directory", download_dir, "--yt-table", "//home/wrapper_test/dirtable"])
         assert yt_cli.check_output(["diff", "-qr", source_dir, download_dir]) == b""
+
+    @authors("nadya73")
+    def test_queue_producer(self, yt_cli: YtCli):
+        yt_cli.check_output(["yt", "create", "tablet_cell", "--attributes", "{size=1}"]).decode("utf-8").strip()
+
+        queue_path = "//home/wrapper_test/queue"
+        producer_path = "//home/wrapper_test/producer"
+
+        yt_cli.check_output(["yt", "create", "table", queue_path, "--attribute", "{dynamic=%true;schema=[{name=data;type=string;}]}"])
+        yt_cli.check_output(["yt", "mount-table", queue_path])
+
+        yt_cli.check_output(["yt", "create", "queue_producer", producer_path])
+        time.sleep(0.2)
+
+        session_id = "session_123"
+
+        session_info = yson.loads(yt_cli.check_output(["yt", "create-queue-producer-session", "--producer-path", producer_path, "--queue-path", queue_path, "--session-id", session_id]))
+        assert session_info["epoch"] == 0
+        assert session_info["sequence_number"] == -1
+
+        push_result = yson.loads(yt_cli.check_output([
+            "yt", "push-queue-producer", producer_path, queue_path,
+            "--session-id", session_id, "--input-format", "<format=text>yson", "--epoch", "0"
+        ], stdin="{data=a;\"$sequence_number\"=1};{data=b;\"$sequence_number\"=3};"))
+        assert push_result["last_sequence_number"] == 3
+
+        yt_cli.check_output(["yt", "remove-queue-producer-session", "--producer-path", producer_path, "--queue-path", queue_path, "--session-id", session_id])
