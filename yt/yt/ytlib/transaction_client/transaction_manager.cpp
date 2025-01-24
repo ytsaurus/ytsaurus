@@ -79,6 +79,8 @@ class TTransactionManager::TImpl
 public:
     TImpl(IConnectionPtr connection, const std::string& user);
 
+    ~TImpl();
+
     TFuture<TTransactionPtr> Start(
         ETransactionType type,
         const TTransactionStartOptions& options);
@@ -241,6 +243,9 @@ private:
     const NHiveClient::ICellDirectoryPtr CellDirectory_;
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
     const TCellTrackerPtr DownedCellTracker_;
+
+    const TCallback<IConnection::TReconfiguredSignature> ReconfiguredCallback_ =
+        BIND(&TImpl::OnConnectionReconfigured, MakeWeak(this));
 
     TAtomicIntrusivePtr<TTransactionManagerConfig> Config_;
 
@@ -1766,7 +1771,14 @@ TTransactionManager::TImpl::TImpl(
     , DownedCellTracker_(connection->GetDownedCellTracker())
     , Config_(connection->GetConfig()->TransactionManager)
 {
-    connection->SubscribeReconfigured(BIND(&TImpl::OnConnectionReconfigured, MakeWeak(this)));
+    connection->SubscribeReconfigured(ReconfiguredCallback_);
+}
+
+TTransactionManager::TImpl::~TImpl()
+{
+    if (auto connectionStrong = Connection_.Lock(); connectionStrong) {
+        connectionStrong->UnsubscribeReconfigured(ReconfiguredCallback_);
+    }
 }
 
 TFuture<TTransactionPtr> TTransactionManager::TImpl::Start(
