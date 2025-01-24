@@ -636,7 +636,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
 
     if (trunkTable->IsQueue()) {
         auto tabletCountFuture = TChaosReplicatedTableTabletsCountGetter::GetTabletCount(
-            GetReplicationCard(),
+            GetReplicationCard({.IncludeHistory = true}),
             Bootstrap_->GetClusterConnection());
 
         context->ReplyFrom(tabletCountFuture.ApplyUnique(BIND(
