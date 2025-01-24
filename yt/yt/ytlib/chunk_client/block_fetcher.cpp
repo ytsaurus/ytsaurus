@@ -147,8 +147,18 @@ TBlockFetcher::TBlockFetcher(
     MemoryManagerHolder_->Get()->SetTotalSize(totalBlockUncompressedSize + Config_->WindowSize);
     MemoryManagerHolder_->Get()->SetPrefetchMemorySize(std::min(Config_->WindowSize, totalRemainingSize));
 
-    YT_LOG_DEBUG("Creating block fetcher (BlockDescriptors: %v)",
-        MakeCompactIntervalView(blockDescriptors));
+    TStringBuilder builder;
+    bool first = true;
+    for (const auto& blockDescriptor : blockDescriptors) {
+        builder.AppendString(first ? "[" : ", ");
+        first = false;
+
+        auto chunkId = Chunks_[blockDescriptor.ReaderIndex].Reader->GetChunkId();
+        builder.AppendFormat("%v:%v", chunkId, blockDescriptor.BlockIndex);
+    }
+    builder.AppendChar(']');
+
+    YT_LOG_DEBUG("Creating block fetcher (Blocks: %v)", builder.Flush());
 
     YT_VERIFY(totalRemainingSize > 0);
 }
@@ -226,9 +236,6 @@ i64 TBlockFetcher::GetBlockSize(int blockIndex) const
 
 std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlockDescriptor>& blockDescriptors)
 {
-    YT_LOG_DEBUG("Fetching blocks (BlockDescriptors: %v)",
-        MakeCompactIntervalView(blockDescriptors));
-
     YT_VERIFY(Started_);
     YT_VERIFY(HasMoreBlocks());
 
@@ -322,9 +329,6 @@ std::vector<TFuture<TBlock>> TBlockFetcher::FetchBlocks(const std::vector<TBlock
         i64 estimatedCompressedSize = 0;
 
         auto requestBlocks = [&] {
-            YT_LOG_DEBUG("Requesting blocks async (BlockDescriptors: %v)",
-                MakeCompactIntervalView(groupBlockDescriptors));
-
             ReaderInvoker_->Invoke(
                 BIND(&TBlockFetcher::RequestBlocks,
                     MakeWeak(this),
@@ -600,7 +604,7 @@ void TBlockFetcher::MarkFailedBlocks(const std::vector<int>& windowIndexes, cons
 void TBlockFetcher::ReleaseBlocks(const std::vector<int>& windowIndexes)
 {
     YT_LOG_DEBUG("Releasing blocks (WindowIndexes: %v)",
-        ::NYT::MakeCompactIntervalView(windowIndexes));
+        MakeShrunkFormattableView(windowIndexes, TDefaultFormatter(), 3));
 
     for (auto index : windowIndexes) {
         ResetBlockPromise(Window_[index]);
@@ -654,7 +658,7 @@ void TBlockFetcher::RequestBlocks(
         YT_LOG_DEBUG("Requesting block group "
             "(ChunkId: %v, Blocks: %v, UncompressedSize: %v, CompressionRatio: %v)",
             chunkReader->GetChunkId(),
-            ::NYT::MakeCompactIntervalView(blockIndices),
+            MakeShrunkFormattableView(blockIndices, TDefaultFormatter(), 3),
             uncompressedSize,
             CompressionRatio_);
 
@@ -704,7 +708,7 @@ void TBlockFetcher::OnGotBlocks(
     auto chunkId = Chunks_[readerIndex].Reader->GetChunkId();
     YT_LOG_DEBUG("Got block group (ChunkId: %v, Blocks: %v)",
         chunkId,
-        ::NYT::MakeCompactIntervalView(blockIndexes));
+        MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3));
 
     if (Codec_->GetId() == NCompression::ECodec::None) {
         DecompressBlocks(
@@ -740,60 +744,6 @@ TCodecDuration TBlockFetcher::GetDecompressionTime() const
         Codec_->GetId(),
         NProfiling::ValueToDuration(DecompressionTime_)
     };
-}
-
-auto TBlockFetcher::TValueGetter::operator()(const TIterator& iterator) const
-    -> TValue
-{
-    return iterator->BlockIndex;
-}
-
-TBlockFetcher::TIntervalFormatter::TIntervalFormatter(const TBlockFetcher* blockFetcher)
-    : BlockFetcher(blockFetcher)
-{
-    YT_VERIFY(blockFetcher);
-}
-
-void TBlockFetcher::TIntervalFormatter::operator()(
-    TStringBuilderBase* builder,
-    const TIterator& first,
-    const TIterator& last,
-    const TValueGetter& valueGetter,
-    bool firstInterval) const
-{
-    auto readerIndex = first->ReaderIndex;
-    bool appendChunkId = false;
-
-    if (!firstInterval) {
-        if (std::prev(first)->ReaderIndex != readerIndex) {
-            builder->AppendString("; ");
-            appendChunkId = true;
-        } else {
-            builder->AppendString(", ");
-        }
-    } else {
-        appendChunkId = true;
-    }
-
-    if (appendChunkId) {
-        auto chunkId = BlockFetcher->Chunks_[readerIndex].Reader->GetChunkId();
-        builder->AppendFormat("%v:", chunkId);
-    }
-
-    if (first == last) {
-        builder->AppendFormat("%v", valueGetter(first));
-    } else {
-        builder->AppendFormat("%v-%v", valueGetter(first), valueGetter(last));
-    }
-}
-
-auto TBlockFetcher::MakeCompactIntervalView(const TBlockDescriptors& blockDescriptors) const
-    -> TCompactIntervalView<TBlockDescriptors, TValueGetter, TIntervalFormatter>
-{
-    return ::NYT::MakeCompactIntervalView(
-        blockDescriptors,
-        TValueGetter{},
-        TIntervalFormatter{this});
 }
 
 ////////////////////////////////////////////////////////////////////////////////

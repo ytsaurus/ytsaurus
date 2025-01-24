@@ -1703,7 +1703,7 @@ public:
         , EstimatedSize_(options.EstimatedSize)
     {
         YT_LOG_DEBUG("Will read block set (Blocks: %v)",
-            MakeCompactIntervalView(blockIndexes));
+            blockIndexes);
     }
 
     ~TReadBlockSetSession()
@@ -2178,7 +2178,7 @@ private:
             "(Address: %v, PeerType: %v, BlocksReceived: %v, BytesReceived: %v, PeersSuggested: %v, InvalidBlockCount: %v)",
             respondedPeer.Address,
             respondedPeer.Type,
-            MakeCompactIntervalView(receivedBlockIndexes),
+            MakeShrunkFormattableView(receivedBlockIndexes, TDefaultFormatter(), 3),
             bytesReceived,
             rsp->peer_descriptors_size(),
             invalidBlockCount);
@@ -2263,7 +2263,7 @@ private:
 
         YT_LOG_DEBUG("Fetched blocks from block cache (Count: %v, BlockIndexes: %v)",
             fetchedBlockIndexes.size(),
-            MakeCompactIntervalView(fetchedBlockIndexes));
+            fetchedBlockIndexes);
     }
 
     void OnSessionSucceeded()
@@ -2370,7 +2370,9 @@ public:
         , BlockCount_(blockCount)
         , EstimatedSize_(options.EstimatedSize)
     {
-        YT_LOG_DEBUG("Will read block range (Blocks: %v)", FormatBlocks());
+        YT_LOG_DEBUG("Will read block range (Blocks: %v-%v)",
+            FirstBlockIndex_,
+            FirstBlockIndex_ + BlockCount_ - 1);
     }
 
     TFuture<std::vector<TBlock>> Run()
@@ -2448,9 +2450,10 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Requesting blocks from peer (Address: %v, Blocks: %v, EstimatedSize: %v, BytesThrottled: %v)",
+        YT_LOG_DEBUG("Requesting blocks from peer (Address: %v, Blocks: %v-%v, EstimatedSize: %v, BytesThrottled: %v)",
             peerAddress,
-            FormatBlocks(),
+            FirstBlockIndex_,
+            FirstBlockIndex_ + BlockCount_ - 1,
             EstimatedSize_,
             BytesThrottled_);
 
@@ -2574,7 +2577,9 @@ private:
 
     void OnSessionSucceeded()
     {
-        YT_LOG_DEBUG("Some blocks are fetched (Blocks: %v)", FormatBlocks());
+        YT_LOG_DEBUG("Some blocks are fetched (Blocks: %v-%v)",
+            FirstBlockIndex_,
+            FirstBlockIndex_ + FetchedBlocks_.size() - 1);
 
         AccountExtraMediumBandwidth(BytesThrottled_);
 
@@ -2610,21 +2615,6 @@ private:
             << error;
         TSessionBase::OnCanceled(wrappedError);
         Promise_.TrySet(wrappedError);
-    }
-
-    TString FormatBlocks() const
-    {
-        TStringBuilder builder;
-
-        if (BlockCount_ == 1) {
-            builder.AppendFormat("[%v]", FirstBlockIndex_);
-        } else {
-            builder.AppendFormat("[%v-%v]",
-                FirstBlockIndex_,
-                FirstBlockIndex_ + BlockCount_ - 1);
-        }
-
-        return builder.Flush();
     }
 };
 

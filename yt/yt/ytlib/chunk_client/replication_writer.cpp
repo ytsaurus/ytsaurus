@@ -266,21 +266,6 @@ DEFINE_REFCOUNTED_TYPE(TGroup)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString FormatBlocks(int startBlockIndex, int endBlockIndex)
-{
-    TStringBuilder builder;
-
-    if (startBlockIndex == endBlockIndex) {
-        builder.AppendFormat("[%v]", startBlockIndex);
-    } else {
-        builder.AppendFormat("[%v-%v]", startBlockIndex, endBlockIndex);
-    }
-
-    return builder.Flush();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TReplicationWriter
     : public IChunkWriter
 {
@@ -681,10 +666,9 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Block group added (Blocks: %v)",
-            FormatBlocks(
-                CurrentGroup_->GetStartBlockIndex(),
-                CurrentGroup_->GetEndBlockIndex()));
+        YT_LOG_DEBUG("Block group added (Blocks: %v-%v)",
+            CurrentGroup_->GetStartBlockIndex(),
+            CurrentGroup_->GetEndBlockIndex());
 
         Window_.push_back(CurrentGroup_);
         CurrentGroup_->ReorderBlocks(&BlockReorderer_);
@@ -799,8 +783,9 @@ private:
                 return;
             }
 
-            YT_LOG_DEBUG("Window shifted (Blocks: %v, Size: %v)",
-                FormatBlocks(group->GetStartBlockIndex(), group->GetEndBlockIndex()),
+            YT_LOG_DEBUG("Window shifted (Blocks: %v-%v, Size: %v)",
+                group->GetStartBlockIndex(),
+                group->GetEndBlockIndex(),
                 group->GetSize());
 
             WindowSlots_->Release(group->GetSize());
@@ -1127,8 +1112,9 @@ private:
 
         int lastBlockIndex = BlockCount_ - 1;
 
-        YT_LOG_DEBUG("Blocks added (Blocks: %v, Size: %v)",
-            FormatBlocks(firstBlockIndex, lastBlockIndex),
+        YT_LOG_DEBUG("Blocks added (Blocks: %v-%v, Size: %v)",
+            firstBlockIndex,
+            lastBlockIndex,
             GetByteSize(blocks));
     }
 
@@ -1262,8 +1248,9 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::T
 
         auto throttle = ShouldThrottle(node->GetDefaultAddress(), writer);
 
-        YT_LOG_DEBUG("Ready to put blocks (Blocks: %v, Address: %v, Size: %v, Throttle: %v, CumulativeBlockSize: %v)",
-            FormatBlocks(GetStartBlockIndex(), GetEndBlockIndex()),
+        YT_LOG_DEBUG("Ready to put blocks (Blocks: %v-%v, Address: %v, Size: %v, Throttle: %v, CumulativeBlockSize: %v)",
+            GetStartBlockIndex(),
+            GetEndBlockIndex(),
             node->GetDefaultAddress(),
             Size_,
             throttle,
@@ -1303,8 +1290,9 @@ void TGroup::PutGroup(const TReplicationWriterPtr& writer, const IChunkWriter::T
 
             writer->AccountTraffic(Size_, node->GetDescriptor());
 
-            YT_LOG_DEBUG("Blocks are put (Blocks: %v, Address: %v)",
-                FormatBlocks(GetStartBlockIndex(), GetEndBlockIndex()),
+            YT_LOG_DEBUG("Blocks are put (Blocks: %v-%v, Address: %v)",
+                GetStartBlockIndex(),
+                GetEndBlockIndex(),
                 node->GetDefaultAddress());
         } else {
             if (rspOrError.FindMatching(NChunkClient::EErrorCode::ReaderThrottlingFailed) && !writer->StateError_.IsSet()) {
@@ -1340,8 +1328,9 @@ void TGroup::SendGroup(
         const auto& dstNode = dstNodes[i];
         const auto& srcNode = srcNodes[i % srcNodes.size()];
 
-        YT_LOG_DEBUG("Sending blocks (Blocks: %v, SrcAddress: %v, DstAddress: %v, Size: %v, CumulativeBlockSize: %v)",
-            FormatBlocks(GetStartBlockIndex(), GetEndBlockIndex()),
+        YT_LOG_DEBUG("Sending blocks (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v, Size: %v, CumulativeBlockSize: %v)",
+            GetStartBlockIndex(),
+            GetEndBlockIndex(),
             srcNode->GetDefaultAddress(),
             dstNode->GetDefaultAddress(),
             Size_,
@@ -1374,8 +1363,9 @@ void TGroup::SendGroup(
 
             writer->AccountTraffic(Size_, srcNode->GetDescriptor(), dstNode->GetDescriptor());
 
-            YT_LOG_DEBUG("Blocks are sent (Blocks: %v, SrcAddress: %v, DstAddress: %v)",
-                FormatBlocks(FirstBlockIndex_, GetEndBlockIndex()),
+            YT_LOG_DEBUG("Blocks are sent (Blocks: %v-%v, SrcAddress: %v, DstAddress: %v)",
+                FirstBlockIndex_,
+                GetEndBlockIndex(),
                 srcNode->GetDefaultAddress(),
                 dstNode->GetDefaultAddress());
         } else {
@@ -1443,8 +1433,9 @@ void TGroup::Process(const IChunkWriter::TWriteBlocksOptions& options)
         return;
     }
 
-    YT_LOG_DEBUG("Processing blocks (Blocks: %v)",
-        FormatBlocks(FirstBlockIndex_, GetEndBlockIndex()));
+    YT_LOG_DEBUG("Processing blocks (Blocks: %v-%v)",
+        FirstBlockIndex_,
+        GetEndBlockIndex());
 
     std::vector<TNodePtr> nodesWithBlocks;
     bool emptyNodeFound = false;
