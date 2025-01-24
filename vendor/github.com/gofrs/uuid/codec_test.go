@@ -28,6 +28,7 @@ import (
 	"io/ioutil"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -90,7 +91,7 @@ type fromStringTest struct {
 }
 
 // Run runs the FromString test in a subtest of t, named by fst.variant.
-func (fst fromStringTest) Run(t *testing.T) {
+func (fst fromStringTest) TestFromString(t *testing.T) {
 	t.Run(fst.variant, func(t *testing.T) {
 		got, err := FromString(fst.input)
 		if err != nil {
@@ -98,6 +99,19 @@ func (fst fromStringTest) Run(t *testing.T) {
 		}
 		if want := codecTestUUID; got != want {
 			t.Fatalf("FromString(%q) = %v, want %v", fst.input, got, want)
+		}
+	})
+}
+
+func (fst fromStringTest) TestUnmarshalText(t *testing.T) {
+	t.Run(fst.variant, func(t *testing.T) {
+		var u UUID
+		err := u.UnmarshalText([]byte(fst.input))
+		if err != nil {
+			t.Fatalf("UnmarshalText(%q) (%s): %v", fst.input, fst.variant, err)
+		}
+		if want := codecTestData; !bytes.Equal(u[:], want[:]) {
+			t.Fatalf("UnmarshalText(%q) (%s) = %v, want %v", fst.input, fst.variant, u, want)
 		}
 	})
 }
@@ -171,7 +185,7 @@ var invalidFromStringInputs = []string{
 func TestFromString(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		for _, fst := range fromStringTests {
-			fst.Run(t)
+			fst.TestFromString(t)
 		}
 	})
 	t.Run("Invalid", func(t *testing.T) {
@@ -201,6 +215,35 @@ func TestFromStringOrNil(t *testing.T) {
 	})
 }
 
+func TestUnmarshalText(t *testing.T) {
+	t.Run("Valid", func(t *testing.T) {
+		for _, fst := range fromStringTests {
+			fst.TestUnmarshalText(t)
+		}
+	})
+	t.Run("Invalid", func(t *testing.T) {
+		for _, s := range invalidFromStringInputs {
+			var u UUID
+			err := u.UnmarshalText([]byte(s))
+			if err == nil {
+				t.Errorf("FromBytes(%q): want err != nil, got %v", s, u)
+			}
+		}
+	})
+}
+
+// Test that UnmarshalText() and Parse() return identical errors
+func TestUnmarshalTextParseErrors(t *testing.T) {
+	for _, s := range invalidFromStringInputs {
+		var u UUID
+		e1 := u.UnmarshalText([]byte(s))
+		e2 := u.Parse(s)
+		if e1 == nil || e1.Error() != e2.Error() {
+			t.Errorf("%q: errors don't match: UnmarshalText: %v Parse: %v", s, e1, e2)
+		}
+	}
+}
+
 func TestMarshalBinary(t *testing.T) {
 	got, err := codecTestUUID.MarshalBinary()
 	if err != nil {
@@ -227,9 +270,48 @@ func TestDecodePlainWithWrongLength(t *testing.T) {
 
 	u := UUID{}
 
-	if u.decodePlain(arg) == nil {
-		t.Errorf("%v.decodePlain(%q): should return error, but it did not", u, arg)
+	if u.UnmarshalText(arg) == nil {
+		t.Errorf("%v.UnmarshalText(%q): should return error, but it did not", u, arg)
 	}
+}
+
+func TestFromHexChar(t *testing.T) {
+	const hextable = "0123456789abcdef"
+
+	t.Run("Valid", func(t *testing.T) {
+		t.Run("Lower", func(t *testing.T) {
+			for i, c := range []byte(hextable) {
+				x := fromHexChar(c)
+				if int(x) != i {
+					t.Errorf("fromHexChar(%c): got %d want %d", c, x, i)
+				}
+			}
+		})
+		t.Run("Upper", func(t *testing.T) {
+			for i, c := range []byte(strings.ToUpper(hextable)) {
+				x := fromHexChar(c)
+				if int(x) != i {
+					t.Errorf("fromHexChar(%c): got %d want %d", c, x, i)
+				}
+			}
+		})
+	})
+
+	t.Run("Invalid", func(t *testing.T) {
+		skip := make(map[byte]bool)
+		for _, c := range []byte(hextable + strings.ToUpper(hextable)) {
+			skip[c] = true
+		}
+		for i := 0; i < 256; i++ {
+			c := byte(i)
+			if !skip[c] {
+				v := fromHexChar(c)
+				if v != 255 {
+					t.Errorf("fromHexChar(%c): got %d want: %d", c, v, 255)
+				}
+			}
+		}
+	})
 }
 
 var stringBenchmarkSink string
@@ -264,6 +346,42 @@ func BenchmarkFromString(b *testing.B) {
 	})
 }
 
+func BenchmarkUnmarshalText(b *testing.B) {
+	b.Run("canonical", func(b *testing.B) {
+		text := []byte(Must(FromString("6ba7b810-9dad-11d1-80b4-00c04fd430c8")).String())
+		u := new(UUID)
+		if err := u.UnmarshalText(text); err != nil {
+			b.Fatal(err)
+		}
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = u.UnmarshalText(text)
+		}
+	})
+	b.Run("urn", func(b *testing.B) {
+		text := []byte(Must(FromString("urn:uuid:6ba7b810-9dad-11d1-80b4-00c04fd430c8")).String())
+		u := new(UUID)
+		if err := u.UnmarshalText(text); err != nil {
+			b.Fatal(err)
+		}
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = u.UnmarshalText(text)
+		}
+	})
+	b.Run("braced", func(b *testing.B) {
+		text := []byte(Must(FromString("{6ba7b810-9dad-11d1-80b4-00c04fd430c8}")).String())
+		u := new(UUID)
+		if err := u.UnmarshalText(text); err != nil {
+			b.Fatal(err)
+		}
+		b.ResetTimer()
+		for i := 0; i < b.N; i++ {
+			_ = u.UnmarshalText(text)
+		}
+	})
+}
+
 func BenchmarkMarshalBinary(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		codecTestUUID.MarshalBinary()
@@ -273,6 +391,16 @@ func BenchmarkMarshalBinary(b *testing.B) {
 func BenchmarkMarshalText(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		codecTestUUID.MarshalText()
+	}
+}
+
+func BenchmarkParseV4(b *testing.B) {
+	const text = "f52a747a-983f-45f7-90b5-e84d70f470dd"
+	for i := 0; i < b.N; i++ {
+		var u UUID
+		if err := u.Parse(text); err != nil {
+			b.Fatal(err)
+		}
 	}
 }
 

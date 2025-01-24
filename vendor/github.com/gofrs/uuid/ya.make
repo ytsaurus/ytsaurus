@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(MIT)
 
-VERSION(v4.2.0+incompatible)
+VERSION(v4.4.0+incompatible)
 
 SRCS(
     codec.go
