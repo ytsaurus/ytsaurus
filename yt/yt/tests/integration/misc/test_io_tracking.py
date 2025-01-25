@@ -98,19 +98,14 @@ class TestNodeIOTrackingBase(YTEnvSetup):
     def read_raw_events(self, *args, **kwargs):
         return self._read_events("IORaw", *args, **kwargs)
 
-    def generate_large_data(self, row_len=10000, row_count=5, column_count=1):
+    def generate_large_data(self, row_len=10000, row_count=5):
         rnd = random.Random(42)
         # NB. The values are chosen in such a way so they cannot be compressed or deduplicated.
-        column_len = row_len // column_count
-        large_data = []
-        large_data_size = 0
-        for row_index in range(row_count):
-            row = dict(id=row_index)
-            for column_index in range(column_count):
-                value = bytes(bytearray(rnd.randint(0, 255) for _ in range(column_len)))
-                row[f"data_{column_index}"] = value
-                large_data_size += len(value)
-            large_data.append(row)
+        large_data = [{
+            "id": i,
+            "data": bytes(bytearray([rnd.randint(0, 255) for _ in range(row_len)]))
+        } for i in range(row_count)]
+        large_data_size = row_count * row_len
         return large_data, large_data_size
 
     def generate_large_journal(self, row_len=10000, row_count=5):
@@ -260,40 +255,6 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         for counter in ["bytes", "io_requests"]:
             assert raw_events[0][counter] > 0
             assert raw_events[1][counter] > 0
-
-    @authors("ngc224")
-    def test_multiple_read_io_requests(self):
-        large_data, large_data_size = self.generate_large_data(column_count=100)
-        columns = list(large_data[0].keys())
-
-        schema = yson.YsonList([
-            {"name": _, "type": "string" if _ != "id" else "int64"}
-            for _ in columns
-        ])
-        schema.attributes["strict"] = True
-
-        create("table", "//tmp/table", attributes={"schema": schema, "optimize_for": "scan"})
-        write_table("//tmp/table", large_data)
-
-        from_barrier = self.write_log_barrier(self.get_node_address())
-
-        path = f"//tmp/table{{{columns[0]},{columns[50]},{columns[99]}}}"
-        options = {
-            "table_reader": {
-                "group_size": large_data_size,
-                "window_size": large_data_size,
-                "group_out_of_order_blocks": True,
-            }
-        }
-
-        assert len(read_table(path, **options)) == len(large_data)
-
-        raw_events = self.wait_for_raw_events(count=1, from_barrier=from_barrier)
-
-        assert raw_events[0]["data_node_method@"] == "GetBlockSet"
-        assert raw_events[0]["direction@"] == "read"
-        assert raw_events[0]["bytes"] > 0
-        assert raw_events[0]["io_requests"] == 3
 
     @authors("gepardo")
     def test_large_data(self):

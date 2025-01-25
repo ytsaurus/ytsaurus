@@ -229,8 +229,6 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
         int blocksRead = static_cast<int>(blocks.size());
         i64 bytesRead = GetByteSize(blocks);
         session->Options.ChunkReaderStatistics->DataBytesReadFromDisk.fetch_add(bytesRead, std::memory_order::relaxed);
-        // TODO(ngc224): propagate proper value in YT-23540
-        session->Options.ChunkReaderStatistics->DataIORequests.fetch_add(1, std::memory_order::relaxed);
 
         YT_LOG_DEBUG("Finished reading journal chunk blocks (BlockIds: %v:%v-%v, LocationId: %v, BlocksReadActually: %v, "
             "BytesReadActually: %v, Time: %v)",
