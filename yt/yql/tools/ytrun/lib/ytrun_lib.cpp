@@ -64,6 +64,7 @@ TYtRunTool::TYtRunTool(TString name)
     GetRunOptions().EnableResultPosition = true;
     GetRunOptions().EnableCredentials = true;
     GetRunOptions().EnableQPlayer = true;
+    GetRunOptions().ResultStream = &Cout;
 
     GetRunOptions().AddOptExtension([this](NLastGetopt::TOpts& opts) {
         opts.AddLongOption("user", "MR user")
