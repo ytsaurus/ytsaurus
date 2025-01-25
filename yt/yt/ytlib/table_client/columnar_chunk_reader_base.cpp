@@ -459,33 +459,15 @@ TFuture<void> TColumnarRangeChunkReaderBase::RequestFirstBlocks()
     PendingBlocks_.clear();
 
     std::vector<TFuture<void>> blockFetchResult;
-    std::vector<int> blockIndicesToFetch;
-    std::vector<std::optional<int>> columnIndexToFetchedBlockIndex;
-
     for (auto& column : Columns_) {
         if (column.BlockIndexSequence.empty()) {
             // E.g. NullColumnReader.
-            columnIndexToFetchedBlockIndex.push_back(std::nullopt);
+            PendingBlocks_.emplace_back();
         } else {
             column.PendingBlockIndex = column.BlockIndexSequence.front();
             RequiredMemorySize_ += BlockFetcher_->GetBlockSize(column.PendingBlockIndex);
             MemoryManagerHolder_->Get()->SetRequiredMemorySize(RequiredMemorySize_);
-            blockIndicesToFetch.push_back(column.PendingBlockIndex);
-            columnIndexToFetchedBlockIndex.push_back(blockIndicesToFetch.size() - 1);
-        }
-    }
-
-    std::vector<TFuture<TBlock>> pendingBlocks;
-    if (!blockIndicesToFetch.empty()) {
-        pendingBlocks = BlockFetcher_->FetchBlocks(blockIndicesToFetch);
-    }
-
-    for (auto fetchedBlockIndex : columnIndexToFetchedBlockIndex) {
-        if (!fetchedBlockIndex.has_value()) {
-            // E.g. NullColumnReader.
-            PendingBlocks_.emplace_back();
-        } else {
-            PendingBlocks_.push_back(pendingBlocks[*fetchedBlockIndex]);
+            PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex));
             blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
         }
     }
@@ -521,9 +503,6 @@ bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
         }
     }
 
-    std::vector<int> blockIndicesToFetch;
-    std::vector<std::optional<int>> columnIndexToFetchedBlockIndex;
-
     for (int columnIndex = 0; columnIndex < std::ssize(Columns_); ++columnIndex) {
         auto& column = Columns_[columnIndex];
         const auto& columnReader = column.ColumnReader;
@@ -533,9 +512,8 @@ bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
         }
 
         if (currentRowIndex >= columnReader->GetBlockUpperRowIndex()) {
-            while (std::ssize(columnIndexToFetchedBlockIndex) < columnIndex) {
-                // E.g. NullColumnReader.
-                columnIndexToFetchedBlockIndex.push_back(std::nullopt);
+            while (std::ssize(PendingBlocks_) < columnIndex) {
+                PendingBlocks_.emplace_back();
             }
 
             const auto& columnMeta = ChunkMeta_->ColumnMeta()->columns(column.ColumnMetaIndex);
@@ -549,22 +527,7 @@ bool TColumnarRangeChunkReaderBase::TryFetchNextRow()
 
             RequiredMemorySize_ += BlockFetcher_->GetBlockSize(column.PendingBlockIndex);
             MemoryManagerHolder_->Get()->SetRequiredMemorySize(RequiredMemorySize_);
-            blockIndicesToFetch.push_back(column.PendingBlockIndex);
-            columnIndexToFetchedBlockIndex.push_back(blockIndicesToFetch.size() - 1);
-        }
-    }
-
-    std::vector<TFuture<TBlock>> pendingBlocks;
-    if (!blockIndicesToFetch.empty()) {
-        pendingBlocks = BlockFetcher_->FetchBlocks(blockIndicesToFetch);
-    }
-
-    for (auto fetchedBlockIndex : columnIndexToFetchedBlockIndex) {
-        if (!fetchedBlockIndex.has_value()) {
-            // E.g. NullColumnReader.
-            PendingBlocks_.emplace_back();
-        } else {
-            PendingBlocks_.push_back(pendingBlocks[*fetchedBlockIndex]);
+            PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex));
             blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
         }
     }
@@ -655,12 +618,8 @@ TFuture<void> TColumnarLookupChunkReaderBase::RequestFirstBlocks()
         return VoidFuture;
     }
 
-    PendingBlocks_.clear();
-
     std::vector<TFuture<void>> blockFetchResult;
-    std::vector<int> blockIndicesToFetch;
-    std::vector<int> columnIndexToFetchedBlockIndex;
-
+    PendingBlocks_.clear();
     for (int i = 0; i < std::ssize(Columns_); ++i) {
         auto& column = Columns_[i];
 
@@ -670,29 +629,15 @@ TFuture<void> TColumnarLookupChunkReaderBase::RequestFirstBlocks()
         }
 
         if (column.ColumnReader->GetCurrentBlockIndex() != column.BlockIndexSequence[NextKeyIndex_]) {
-            while (std::ssize(columnIndexToFetchedBlockIndex) < i) {
-                columnIndexToFetchedBlockIndex.push_back(-1);
+            while (std::ssize(PendingBlocks_) < i) {
+                PendingBlocks_.emplace_back();
             }
 
             column.PendingBlockIndex = column.BlockIndexSequence[NextKeyIndex_];
             RequiredMemorySize_ += BlockFetcher_->GetBlockSize(column.PendingBlockIndex);
             MemoryManagerHolder_->Get()->SetRequiredMemorySize(RequiredMemorySize_);
-            blockIndicesToFetch.push_back(column.PendingBlockIndex);
-            columnIndexToFetchedBlockIndex.push_back(blockIndicesToFetch.size() - 1);
-        }
-    }
-
-    std::vector<TFuture<TBlock>> pendingBlocks;
-    if (!blockIndicesToFetch.empty()) {
-        pendingBlocks = BlockFetcher_->FetchBlocks(blockIndicesToFetch);
-    }
-
-    for (auto fetchedBlockIndex : columnIndexToFetchedBlockIndex) {
-        if (fetchedBlockIndex < 0) {
-            PendingBlocks_.emplace_back();
-        } else {
-            PendingBlocks_.push_back(pendingBlocks[fetchedBlockIndex]);
-            blockFetchResult.push_back(PendingBlocks_.back().template As<void>());
+            PendingBlocks_.push_back(BlockFetcher_->FetchBlock(column.PendingBlockIndex));
+            blockFetchResult.push_back(PendingBlocks_.back().As<void>());
         }
     }
 

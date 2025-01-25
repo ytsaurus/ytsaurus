@@ -48,14 +48,6 @@ public:
         EBlockType BlockType = EBlockType::None;
     };
 
-    struct TBlockDescriptor
-    {
-        int ReaderIndex;
-        int BlockIndex;
-
-        auto operator<=>(const TBlockDescriptor& other) const = default;
-    };
-
     TBlockFetcher(
         TBlockFetcherConfigPtr config,
         std::vector<TBlockInfo> blockInfos,
@@ -86,13 +78,6 @@ public:
      */
     TFuture<TBlock> FetchBlock(int readerIndex, int blockIndex);
     TFuture<TBlock> FetchBlock(int blockIndex);
-
-    //! Asynchronously fetches blocks with given indices.
-    /*!
-     *  It is batch version of FetchBlock call.
-     */
-    std::vector<TFuture<TBlock>> FetchBlocks(const std::vector<TBlockDescriptor>& blockDescriptors);
-    std::vector<TFuture<TBlock>> FetchBlocks(const std::vector<int>& blockIndices);
 
     //! Returns true if all blocks are fetched and false otherwise.
     bool IsFetchingCompleted() const;
@@ -168,6 +153,14 @@ private:
     std::atomic<i64> TotalRemainingSize_ = 0;
 
     std::atomic<bool> Started_ = false;
+
+    struct TBlockDescriptor
+    {
+        int ReaderIndex;
+        int BlockIndex;
+
+        bool operator==(const TBlockDescriptor& other) const = default;
+    };
 
     void FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryUsageGuardOrError);
 
