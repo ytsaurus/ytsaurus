@@ -72,7 +72,7 @@ jobs:
           image-id: ${{ vars.YC_DEFAULT_IMAGE_ID }}
           zone-id: ${{ vars.YC_ZONE_ID }}
           subnet-id: ${{ vars.YC_SUBNET_ID }}
-          cores: 32
+          cores: 16
           memory: 64GB
           core-fraction: 100
           disk-type: network-ssd-nonreplicated
@@ -80,8 +80,10 @@ jobs:
           user: ${{ secrets.YC_VM_USERNAME }}
           ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
           public-ip: false
-          ttl: PT6H
-  
+          ttl: PT24H
+          disable-update: true
+          runner-home-dir: /actions-runner
+
   checkout:
     name: Checkout sources
     needs: 
