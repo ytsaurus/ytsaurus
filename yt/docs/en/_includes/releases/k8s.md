@@ -8,6 +8,41 @@ Is released as helm charts on [Github Packages](https://github.com/ytsaurus/ytsa
 
 **Releases:**
 
+{% cut "**0.20.0**" %}
+
+**Release date:** 2025-01-20
+
+
+## Minor
+* Support not creating non-existing users by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/416
+* Added DNSConfig into Instance and YTsaurusSpec by @qurname2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/420
+* Enable real chunks job by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/412
+* Add log_manager_template for job proxy by @l0kix2 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/428
+
+## Release notes
+This release makes yt operator compatible with ytsaurus 24.2. 
+Update to this version will launch job for setting correct enable_real_chunks_value values in cypress and exec nodes will be updated with a new config.
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.19.0...release/0.20.0
+
+{% endcut %}
+
+
+{% cut "**0.19.0**" %}
+
+**Release date:** 2025-01-09
+
+
+## Minor
+* Configure yqla mrjob syslibs by @Krisha11 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/409
+## Bugfix
+* Add yqla update job by @Krisha11 in https://github.com/ytsaurus/ytsaurus-k8s-operator/pull/387
+
+**Full Changelog**: https://github.com/ytsaurus/ytsaurus-k8s-operator/compare/release/0.18.1...release/0.19.0
+
+{% endcut %}
+
+
 {% cut "**0.18.1**" %}
 
 **Release date:** 2024-12-13
