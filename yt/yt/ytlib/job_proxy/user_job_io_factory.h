@@ -25,10 +25,16 @@ namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCreateUserJobReaderResult
+{
+    NTableClient::ISchemalessMultiChunkReaderPtr Reader;
+    std::optional<NChunkClient::NProto::TDataStatistics> PreparationDataStatistics;
+};
+
 struct IUserJobIOFactory
     : public virtual TRefCounted
 {
-    virtual NTableClient::ISchemalessMultiChunkReaderPtr CreateReader(
+    virtual TCreateUserJobReaderResult CreateReader(
         const IJobSpecHelperPtr& jobSpecHelper,
         TClosure onNetworkReleased,
         NTableClient::TNameTablePtr nameTable,
@@ -45,8 +51,6 @@ struct IUserJobIOFactory
         const NTableClient::TChunkTimestamps& chunkTimestamps,
         const std::optional<NChunkClient::TDataSink>& dataSink,
         NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions) = 0;
-
-    virtual std::optional<NChunkClient::NProto::TDataStatistics> GetPreparationDataStatistics() { return std::nullopt; }
 };
 
 DEFINE_REFCOUNTED_TYPE(IUserJobIOFactory)
