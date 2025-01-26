@@ -1,10 +1,10 @@
-from yt_queue_agent_test_base import TestQueueAgentBase
+from yt_queue_agent_test_base import TestQueueAgentBase, ReplicatedObjectBase
 
 from yt_commands import (
     authors, create, create_queue_producer_session, get, insert_rows, remove,
     remove_queue_producer_session, select_rows, wait_for_tablet_state,
     push_queue_producer, raises_yt_error, start_transaction, commit_transaction,
-    sorted_dicts)
+    sorted_dicts, sync_create_cells, get_driver)
 
 from yt_type_helpers import normalize_schema, make_schema
 
@@ -455,3 +455,73 @@ class TestProducerApi(TestQueueAgentBase):
 
         session = create_queue_producer_session("//tmp/p", "//tmp/q", "test")
         assert session["user_meta"] == user_meta
+
+
+@pytest.mark.enabled_multidaemon
+class TestProducerApiReplicatedTable(TestQueueAgentBase, ReplicatedObjectBase):
+    ENABLE_MULTIDAEMON = True
+    NUM_REMOTE_CLUSTERS = 1
+
+    DEFAULT_QUEUE_SCHEMA = [
+        {"name": "$timestamp", "type": "uint64"},
+        {"name": "$cumulative_data_weight", "type": "int64"},
+        {"name": "data", "type": "string"},
+    ]
+
+    def _get_drivers(self, clusters=None):
+        if clusters is None:
+            clusters = self.get_cluster_names()
+        return [get_driver(cluster=cluster) for cluster in clusters]
+
+    def _create_tablet_cells(self):
+        for driver in self._get_drivers():
+            sync_create_cells(1, driver=driver)
+
+    def setup_method(self, method):
+        super(TestProducerApiReplicatedTable, self).setup_method(method)
+        self._create_tablet_cells()
+
+    @staticmethod
+    def _create_replicated_queue(path, replica_modes, **kwargs):
+        replicated_table_path = f"{path}"
+        replicas = [
+            {
+                "cluster_name": "remote_0",
+                "replica_path": f"{path}_replica_{i}",
+                "mode": replica_modes[i],
+                "enabled": True
+            } for i in range(len(replica_modes))
+        ]
+        replica_ids = TestProducerApiReplicatedTable._create_replicated_table_base(replicated_table_path, replicas, TestProducerApiReplicatedTable.DEFAULT_QUEUE_SCHEMA, **kwargs)
+
+        return replicated_table_path, replicas, replica_ids
+
+    def _check_session(self, producer_path, session_id, sequence_number, epoch, user_meta=None):
+        rows = select_rows(f"* from [{producer_path}] where [session_id] = '{session_id}'")
+        assert len(rows) == 1
+        assert rows[0]["session_id"] == session_id
+        assert rows[0]["sequence_number"] == sequence_number
+        assert rows[0]["epoch"] == epoch
+        if user_meta is not None:
+            assert rows[0]["user_meta"] == user_meta
+
+    @authors("nadya73")
+    def test_only_async_replicas(self):
+        self._create_replicated_queue("//tmp/q", ["async"])
+        self._create_producer("//tmp/p")
+
+        session = create_queue_producer_session("//tmp/p", "//tmp/q", "test")
+        assert session["sequence_number"] == -1
+        assert session["epoch"] == 0
+
+        with raises_yt_error(code=yt_error_codes.InvalidRowSequenceNumbers):
+            push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row2"}], epoch=0)
+
+        with raises_yt_error("has no synchronous replicas"):
+            push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1"}], epoch=0, sequence_number=0)
+
+        push_result = push_queue_producer("//tmp/p", "//tmp/q", "test", data=[{"data": "row1"}], epoch=0, sequence_number=0, require_sync_replica=False)
+        assert push_result["last_sequence_number"] == 0
+        assert push_result["skipped_row_count"] == 0
+
+        self._check_session("//tmp/p", "test", 0, 0)
