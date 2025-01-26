@@ -139,10 +139,8 @@ public:
             return std::nullopt;
         }
         auto dataStatistics = Reader_->GetDataStatistics();
-        auto overheadStatistics = UserJobIOFactory_->GetPreparationDataStatistics();
-
-        if (overheadStatistics) {
-            dataStatistics += *overheadStatistics;
+        if (PreparationDataStatistics_) {
+            dataStatistics += *PreparationDataStatistics_;
         }
 
         i64 encodedRowBatchCount = 0;
@@ -220,6 +218,7 @@ private:
     const IUserJobIOFactoryPtr UserJobIOFactory_;
 
     ISchemalessMultiChunkReaderPtr Reader_;
+    std::optional<NChunkClient::NProto::TDataStatistics> PreparationDataStatistics_;
     std::vector<ISchemalessFormatWriterPtr> FormatWriters_;
     std::optional<TString> UdfDirectory_;
     std::atomic<bool> Initialized_ = {false};
@@ -439,11 +438,13 @@ private:
     void InitializeReader(TNameTablePtr nameTable, const TColumnFilter& columnFilter)
     {
         YT_VERIFY(!Reader_);
-        Reader_ = UserJobIOFactory_->CreateReader(
+        auto result = UserJobIOFactory_->CreateReader(
             JobSpecHelper_,
             OnNetworkRelease_,
             std::move(nameTable),
             columnFilter);
+        Reader_ = std::move(result.Reader);
+        PreparationDataStatistics_ = std::move(result.PreparationDataStatistics);
         Initialized_ = true;
     }
 };
