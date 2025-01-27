@@ -507,34 +507,6 @@ bool AreAllReferencesInSchema(TConstExpressionPtr expr, const TTableSchema& tabl
     return false;
 }
 
-TConstExpressionPtr ExtractPredicateForColumnSubset(
-    TConstExpressionPtr expr,
-    const TTableSchema& tableSchema)
-{
-    if (!expr) {
-        return nullptr;
-    }
-
-    if (AreAllReferencesInSchema(expr, tableSchema)) {
-        return expr;
-    } else if (auto binaryOpExpr = expr->As<TBinaryOpExpression>()) {
-        auto opcode = binaryOpExpr->Opcode;
-        if (opcode == EBinaryOp::And) {
-            return MakeAndExpression(
-                ExtractPredicateForColumnSubset(binaryOpExpr->Lhs, tableSchema),
-                ExtractPredicateForColumnSubset(binaryOpExpr->Rhs, tableSchema));
-        } else if (opcode == EBinaryOp::Or) {
-            return MakeOrExpression(
-                ExtractPredicateForColumnSubset(binaryOpExpr->Lhs, tableSchema),
-                ExtractPredicateForColumnSubset(binaryOpExpr->Rhs, tableSchema));
-        }
-    }
-
-    return New<TLiteralExpression>(
-        EValueType::Boolean,
-        MakeUnversionedBooleanValue(true));
-}
-
 void CollectOperands(std::vector<TConstExpressionPtr>* operands, TConstExpressionPtr expr)
 {
     if (!expr) {
