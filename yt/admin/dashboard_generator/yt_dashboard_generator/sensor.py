@@ -21,18 +21,6 @@ class Sensor(Taggable):
         self.callable = "{}" in sensor
         self.sensor = sensor
         self.sensor_tag_name = sensor_tag_name
-        self._name = None
-        self._hidden = False
-
-    def name(self, value):
-        ret = deepcopy(self)
-        ret._name = value
-        return ret
-
-    def hidden(self, value):
-        ret = deepcopy(self)
-        ret._hidden = value
-        return ret
 
     def value(self, key, value, overwrite=True):
         if not overwrite and key in self.tags:
