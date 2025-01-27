@@ -107,7 +107,7 @@ private:
     const TConstraintsHolder QueryConstraintsHolder_;
     const TRowBufferPtr RowBuffer_;
 
-    NLogging::TLogger Logger;
+    const NLogging::TLogger Logger;
 
     mutable std::atomic<ui64> SeenGranules_ = 0;
     mutable std::atomic<ui64> SkippedGranules_ = 0;
