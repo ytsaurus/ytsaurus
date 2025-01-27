@@ -3112,7 +3112,8 @@ class TestChaos(ChaosTestBase):
 
         wait(lambda: select_rows("key, value from [//tmp/q0]") == data_values)
 
-        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replication_lag_timestamp") > primary_commit_timestamp)
+        for replica_id in replica_ids:
+            wait(lambda: get(f"//tmp/crt/@replicas/{replica_id}/replication_lag_timestamp") > primary_commit_timestamp)
 
         ts = generate_timestamp()
 
