@@ -525,4 +525,11 @@ bool HasCompressionDictionaries(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void AdjustSamplingFromConfig(const TOperationSpecBasePtr& spec, const TControllerAgentConfigPtr& config)
+{
+    spec->Sampling->MaxTotalSliceCount = spec->Sampling->MaxTotalSliceCount.value_or(config->MaxTotalSliceCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers

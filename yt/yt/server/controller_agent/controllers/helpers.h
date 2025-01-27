@@ -138,6 +138,10 @@ bool HasCompressionDictionaries(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void AdjustSamplingFromConfig(const TOperationSpecBasePtr& spec, const TControllerAgentConfigPtr& config);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers
 
 #define HELPERS_INL_H

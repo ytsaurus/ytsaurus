@@ -328,8 +328,6 @@ protected:
 
     void CalculateSizes()
     {
-        Spec_->Sampling->MaxTotalSliceCount = Spec_->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
-
         switch (OperationType) {
             case EOperationType::Merge:
             case EOperationType::Erase:
@@ -747,6 +745,7 @@ IOperationControllerPtr CreateOrderedMergeController(
 {
     auto options = config->OrderedMergeOperationOptions;
     auto spec = ParseOperationSpec<TOrderedMergeOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    AdjustSamplingFromConfig(spec, config);
     return New<TOrderedMergeController>(spec, config, options, host, operation);
 }
 
@@ -947,6 +946,7 @@ IOperationControllerPtr CreateOrderedMapController(
 {
     auto options = config->MapOperationOptions;
     auto spec = ParseOperationSpec<TMapOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    AdjustSamplingFromConfig(spec, config);
     return New<TOrderedMapController>(spec, config, options, host, operation);
 }
 
@@ -1162,6 +1162,7 @@ IOperationControllerPtr CreateEraseController(
 {
     auto options = config->EraseOperationOptions;
     auto spec = ParseOperationSpec<TEraseOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    AdjustSamplingFromConfig(spec, config);
     return New<TEraseController>(spec, config, options, host, operation);
 }
 

@@ -4821,6 +4821,7 @@ IOperationControllerPtr CreateMapReduceController(
 {
     auto options = config->MapReduceOperationOptions;
     auto spec = ParseOperationSpec<TMapReduceOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    AdjustSamplingFromConfig(spec, config);
     return New<TMapReduceController>(spec, config, options, host, operation);
 }
 
