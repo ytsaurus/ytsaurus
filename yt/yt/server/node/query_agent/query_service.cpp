@@ -214,7 +214,7 @@ public:
             .SetPooled(false));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Multiread)
             .SetCancelable(true)
-            .SetInvoker(Bootstrap_->GetTabletLookupPoolInvoker())
+            .SetInvokerProvider(BIND(&TQueryService::GetMultireadInvoker, Unretained(this)))
             .SetRequestQueueProvider(MultireadRequestQueueProvider_)
             .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullRows)
@@ -270,6 +270,7 @@ private:
     std::atomic<bool> RejectInMemoryRequestsUponThrottlerOverdraft_;
     std::atomic<i64> MaxPullQueueResponseDataWeight_;
     std::atomic<bool> AccountUserBackendOutTraffic_;
+    std::atomic<bool> UseQueryPoolForLookups_;
 
     NProfiling::TCounter TabletErrorCountCounter_ = QueryAgentProfiler().Counter("/get_tablet_infos/errors/count");
     NProfiling::TCounter TabletErrorSizeCounter_ = QueryAgentProfiler().Counter("/get_tablet_infos/errors/byte_size");
@@ -287,6 +288,34 @@ private:
             : DefaultQLExecutionPoolName;
 
         return Bootstrap_->GetQueryPoolInvoker(poolName, tag);
+    }
+
+    IInvokerPtr GetMultireadInvoker(const NRpc::NProto::TRequestHeader& requestHeader)
+    {
+        const auto& ext = requestHeader.GetExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
+        auto inMemoryMode = FromProto<EInMemoryMode>(ext.in_memory_mode());
+
+        if (inMemoryMode == EInMemoryMode::None && UseQueryPoolForLookups_.load(std::memory_order_relaxed)) {
+            TString tag;
+            TString poolName;
+            if (requestHeader.HasExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext)) {
+                const auto& executeExt = requestHeader.GetExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
+                tag = executeExt.has_execution_tag()
+                    ? executeExt.execution_tag()
+                    : DefaultQLExecutionTag;
+
+                poolName = executeExt.has_execution_pool()
+                    ? executeExt.execution_pool()
+                    : DefaultQLExecutionPoolName;
+            } else {
+                tag = DefaultQLExecutionTag;
+                poolName = DefaultQLExecutionPoolName;
+            }
+
+            return Bootstrap_->GetQueryPoolInvoker(poolName, tag);
+        } else {
+            return Bootstrap_->GetTabletLookupPoolInvoker();
+        }
     }
 
     static i64 GetAttachmentBytes(const auto& response)
@@ -1709,6 +1738,8 @@ private:
             newConfig->QueryAgent->MaxPullQueueResponseDataWeight.value_or(Config_->MaxPullQueueResponseDataWeight));
         AccountUserBackendOutTraffic_.store(
             newConfig->QueryAgent->AccountUserBackendOutTraffic.value_or(Config_->AccountUserBackendOutTraffic));
+        UseQueryPoolForLookups_.store(
+            newConfig->QueryAgent->UseQueryPoolForLookups.value_or(Config_->UseQueryPoolForLookups));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, CreateDistributedSession)

@@ -1351,6 +1351,8 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
     std::vector<TFuture<TQueryServiceProxy::TRspMultireadPtr>> multireadFutures;
     multireadFutures.reserve(cellDescriptorsByPeer.size());
 
+    auto readSessionId = TReadSessionId::Create();
+
     for (const auto& cellDescriptors : cellDescriptorsByPeer) {
         auto channel = CreateTabletReadChannel(
             ChannelFactory_,
@@ -1413,6 +1415,12 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
         auto* ext = req->Header().MutableExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
         ext->set_in_memory_mode(ToProto(inMemoryMode));
+
+        auto* executeExt = req->Header().MutableExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
+        if (options.ExecutionPool) {
+            executeExt->set_execution_pool(*options.ExecutionPool);
+        }
+        executeExt->set_execution_tag(ToString(readSessionId));
 
         multireadFutures.push_back(req->Invoke());
     }

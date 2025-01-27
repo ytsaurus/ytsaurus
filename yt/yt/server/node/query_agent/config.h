@@ -31,6 +31,7 @@ public:
 
     bool RejectUponThrottlerOverdraft;
     bool AccountUserBackendOutTraffic;
+    bool UseQueryPoolForLookups;
 
     i64 MaxPullQueueResponseDataWeight;
 
@@ -57,6 +58,7 @@ public:
 
     std::optional<i64> MaxPullQueueResponseDataWeight;
     std::optional<bool> AccountUserBackendOutTraffic;
+    std::optional<bool> UseQueryPoolForLookups;
 
     REGISTER_YSON_STRUCT(TQueryAgentDynamicConfig);
 

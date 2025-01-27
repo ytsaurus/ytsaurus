@@ -47,6 +47,9 @@ void TQueryAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("account_user_backend_out_traffic", &TThis::AccountUserBackendOutTraffic)
         .Default(false);
 
+    registrar.Parameter("use_query_pool_for_lookups", &TThis::UseQueryPoolForLookups)
+        .Default(false);
+
     registrar.Preprocessor([] (TThis* config) {
         config->FunctionImplCache->Capacity = 100;
     });
@@ -76,6 +79,8 @@ void TQueryAgentDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_pull_queue_response_data_weight", &TThis::MaxPullQueueResponseDataWeight)
         .Optional();
     registrar.Parameter("account_user_backend_out_traffic", &TThis::AccountUserBackendOutTraffic)
+        .Optional();
+    registrar.Parameter("use_query_pool_for_lookups", &TThis::UseQueryPoolForLookups)
         .Optional();
 }
 
