@@ -901,10 +901,26 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 
     @authors("faucct")
     def test_writing_large_rows(self):
-        data = [{"index": 0, "str": "F" * 17 * (1 << 20)}]
+        data = [{"index": 0, "str": "F" * (17 << 20)}]
         create("table", "//tmp/table", attributes={"dynamic": False, "schema": self._schema})
-        write_table("//tmp/table", data, table_writer={"max_row_weight": 20 * (1 << 20)})
+        write_table("//tmp/table", data, table_writer={"max_row_weight": 20 << 20})
         assert read_table("//tmp/table") == data
+
+    @authors("faucct")
+    @pytest.mark.parametrize("atomicity", ["none", "full"])
+    def test_writing_large_dynamic_rows(self, atomicity):
+        data = [{"index": 0, "str": "F" * (17 << 20)}]
+        create("table", "//tmp/dynamic", attributes={"dynamic": True, "schema": self._schema, "atomicity": atomicity})
+        sync_create_cells(1)
+        sync_mount_table("//tmp/dynamic")
+        try:
+            insert_rows("//tmp/dynamic", data, table_writer={"max_row_weight": 20 << 20})
+        except YtResponseError as err:
+            assert f'Value of type "string" is too long: length {17 << 20}, limit {16 << 20}' in str(err)
+        else:
+            assert False, "Failed to catch response error"
+        sync_unmount_table("//tmp/dynamic")
+        assert read_table("//tmp/dynamic") == []
 
     @authors("kiselyovp")
     def test_abort_operation(self):
