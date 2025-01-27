@@ -460,7 +460,7 @@ class TestJobTrackerRaces(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "job_tracker": {
-                "node_disconnection_timeout": 200,
+                "node_disconnection_timeout": 500,
             },
             "snapshot_period": 3000,
         },
@@ -471,6 +471,11 @@ class TestJobTrackerRaces(YTEnvSetup):
         aborted_job_profiler = JobCountProfiler(
             "aborted",
             tags={"tree": "default", "job_type": "vanilla", "abort_reason": "allocation_finished"})
+
+        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
+        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
+
+        (node_address, ) = ls("//sys/cluster_nodes")
 
         op1 = run_test_vanilla(
             "sleep 0.1",
@@ -485,11 +490,6 @@ class TestJobTrackerRaces(YTEnvSetup):
                 "pool": "fake_pool",
             },
         )
-
-        total_cpu_limit = get("//sys/scheduler/orchid/scheduler/cluster/resource_limits/cpu")
-        create_pool("test_pool", attributes={"min_share_resources": {"cpu": total_cpu_limit}})
-
-        (node_address, ) = ls("//sys/cluster_nodes")
 
         wait(lambda: len(ls(f"//sys/cluster_nodes/{node_address}/orchid/exec_node/job_controller/allocations")) == 1)
 
@@ -510,7 +510,6 @@ class TestJobTrackerRaces(YTEnvSetup):
         wait(lambda: not exists(f"//sys/cluster_nodes/{node_address}/orchid/exec_node/job_controller/allocations/{allocation1}"))
 
         op2.track()
-
         op1.track()
 
     @authors("pogorelov")
