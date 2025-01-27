@@ -57,9 +57,9 @@ const T& TVectorOverMemoryChunkProvider<T>::operator[](i64 index) const
 template <typename T>
     requires std::is_trivially_copyable_v<T>
 TVectorOverMemoryChunkProvider<T>::TVectorOverMemoryChunkProvider(
-        TRefCountedTypeCookie cookie,
-        IMemoryChunkProviderPtr memoryChunkProvider)
-    : Provider_(memoryChunkProvider)
+    TRefCountedTypeCookie cookie,
+    IMemoryChunkProviderPtr memoryChunkProvider)
+    : Provider_(std::move(memoryChunkProvider))
     , Cookie_(cookie)
     , DataHolder_(Provider_->Allocate(sizeof(T) * MinCapacity, Cookie_))
 { }
