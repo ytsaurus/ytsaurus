@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/chunk_pools/vanilla_chunk_pool.h>
 
+#include <yt/yt/server/lib/scheduler/helpers.h>
+
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/scheduler/proto/resources.pb.h>
@@ -113,6 +115,8 @@ public:
 
     int GetTargetJobCount() const noexcept;
 
+    IVanillaChunkPoolOutputPtr GetVanillaChunkPool() const noexcept;
+
 private:
     TVanillaTaskSpecPtr Spec_;
     TString Name_;
@@ -120,13 +124,15 @@ private:
     TJobSpec JobSpecTemplate_;
 
     //! This chunk pool does not really operate with chunks, it is used as an interface for a job counter in it.
-    IPersistentChunkPoolOutputPtr VanillaChunkPool_;
+    IVanillaChunkPoolOutputPtr VanillaChunkPool_;
 
     bool IsInputDataWeightHistogramSupported() const override;
 
     TJobSplitterConfigPtr GetJobSplitterConfig() const override;
 
     void InitJobSpecTemplate();
+
+    IChunkPoolOutput::TCookie ExtractCookieForAllocation(const TAllocation& allocation) final;
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TVanillaTask, 0x55e9aacd);
 };
@@ -235,6 +241,8 @@ private:
 
     void TrySwitchToNewOperationIncarnation(bool operationIsReviving);
 
+    void RestartAllRunningJobsPreservingAllocations(bool operationIsReviving);
+
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TVanillaController, 0x99fa99ae);
 };
 
@@ -337,7 +345,11 @@ TVanillaTask::TVanillaTask(
     : TTask(std::move(taskHost), std::move(outputStreamDescriptors), std::move(inputStreamDescriptors))
     , Spec_(std::move(spec))
     , Name_(std::move(name))
-    , VanillaChunkPool_(CreateVanillaChunkPool({Spec_->JobCount, Spec_->RestartCompletedJobs, Logger}))
+    , VanillaChunkPool_(CreateVanillaChunkPool(TVanillaChunkPoolOptions{
+        .JobCount = Spec_->JobCount,
+        .RestartCompletedJobs = Spec_->RestartCompletedJobs,
+        .Logger = Logger.WithTag("Name: %v", Name_),
+    }))
 { }
 
 void TVanillaTask::RegisterMetadata(auto&& registrar)
@@ -348,6 +360,11 @@ void TVanillaTask::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(2, Name_);
     PHOENIX_REGISTER_FIELD(3, VanillaChunkPool_);
     PHOENIX_REGISTER_FIELD(4, JobSpecTemplate_);
+
+    registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
+        // COMPAT(pogorelov)
+        this_->VanillaChunkPool_->SetJobCount(this_->Spec_->JobCount);
+    });
 }
 
 TString TVanillaTask::GetTitle() const
@@ -368,7 +385,7 @@ IPersistentChunkPoolInputPtr TVanillaTask::GetChunkPoolInput() const
 
 IPersistentChunkPoolOutputPtr TVanillaTask::GetChunkPoolOutput() const
 {
-    return VanillaChunkPool_;
+    return GetVanillaChunkPool();
 }
 
 TUserJobSpecPtr TVanillaTask::GetUserJobSpec() const
@@ -458,6 +475,11 @@ int TVanillaTask::GetTargetJobCount() const noexcept
     return Spec_->JobCount;
 }
 
+IVanillaChunkPoolOutputPtr TVanillaTask::GetVanillaChunkPool() const noexcept
+{
+    return VanillaChunkPool_;
+}
+
 bool TVanillaTask::IsInputDataWeightHistogramSupported() const
 {
     return false;
@@ -485,6 +507,17 @@ void TVanillaTask::InitJobSpecTemplate()
         Spec_,
         TaskHost_->GetUserFiles(Spec_),
         TaskHost_->GetSpec()->DebugArtifactsAccount);
+}
+
+IChunkPoolOutput::TCookie TVanillaTask::ExtractCookieForAllocation(const TAllocation& allocation)
+{
+    if (allocation.LastJobInfo) {
+        VanillaChunkPool_->Extract(allocation.LastJobInfo.OutputCookie);
+
+        return allocation.LastJobInfo.OutputCookie;
+    }
+
+    return VanillaChunkPool_->Extract(NodeIdFromAllocationId(allocation.Id));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -788,6 +821,80 @@ void TVanillaController::TrySwitchToNewOperationIncarnation(const TJobletPtr& jo
     }
 
     GangManager_.TrySwitchToNewIncarnation(joblet->OperationIncarnation, operationIsReviving);
+}
+
+// NB(pogorelov): In case of restarting job during operation revival, we do not know the latest job id, started on node in the allocation,
+// so we can not create new job immediately, and we do not force new job started in the same allocation.
+// We could avoid this problem if node will know operation incarnation of jobs, but I'm not sure that this case is important.
+void TVanillaController::RestartAllRunningJobsPreservingAllocations(bool operationIsReviving)
+{
+    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
+
+    auto abortReason = EAbortReason::OperationIncarnationChanged;
+
+    std::vector<TNonNullPtr<TAllocation>> allocationsToRestartJobs;
+    allocationsToRestartJobs.reserve(size(AllocationMap_));
+
+    // NB(pogorelov): OnJobAborted may produce context switches only if operation has been finished, in such cases we break the loop.
+    for (auto& [allocationId, allocation] : AllocationMap_) {
+        if (const auto& joblet = allocation.Joblet) {
+            auto jobId = joblet->JobId;
+            bool contextSwitchesDetected = false;
+            TOneShotContextSwitchGuard guard([&] {
+                contextSwitchesDetected = true;
+            });
+
+            allocationsToRestartJobs.push_back(GetPtr(allocation));
+
+            // NB(pogorelov): We abort job with requestNewJob even if we aren't able to schedule new job since:
+            // 1) Job aborting causes immedeate job releasing.
+            // 2) Job tracker doesn't expect running job releasing (intentionally).
+            // 3) We can't schedule new job before aborting old one.
+            // TODO(pogorelov): It could be fixed by defering job releasing untill the end of method, think about it.
+            Host->AbortJob(jobId, abortReason, /*requestNewJob*/ true);
+
+            if (auto operationFinished = !OnJobAborted(joblet, std::make_unique<TAbortedJobSummary>(jobId, abortReason))) {
+                YT_LOG_DEBUG("Operation finished during restarting jobs (JobId: %v)", jobId);
+                return;
+            }
+
+            YT_LOG_FATAL_IF(
+                contextSwitchesDetected,
+                "Unexpected context switches detected during restarting job (JobId: %v)",
+                jobId);
+        }
+    }
+
+    // Currently gang operation may not contain not vanilla tasks at all.
+    for (const auto& task : Tasks_) {
+        YT_VERIFY(task->GetJobType() == EJobType::Vanilla);
+
+        auto chunkPool = task->GetVanillaChunkPool();
+        chunkPool->LostAll();
+    }
+
+    if (operationIsReviving) {
+        YT_LOG_DEBUG("No later job absence guaranteed, do not create new jobs immediately");
+
+        UpdateAllTasks();
+
+        return;
+    }
+
+    for (auto allocation : allocationsToRestartJobs) {
+        auto failReason = TryScheduleNextJob(*allocation, allocation->LastJobInfo.JobId);
+        if (failReason) {
+            YT_LOG_DEBUG(
+                "Failed to restart job, just aborting it (AllocationId: %v, CurrentJobId: %v, ScheduleNewJobFailReason: %v)",
+                allocation->Id,
+                allocation->LastJobInfo.JobId,
+                failReason);
+
+            allocation->NewJobsForbiddenReason = failReason;
+        }
+    }
+
+    UpdateAllTasks();
 }
 
 void TVanillaController::OnOperationIncarnationChanged(bool operationIsReviving)

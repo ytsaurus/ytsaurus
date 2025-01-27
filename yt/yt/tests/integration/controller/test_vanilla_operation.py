@@ -821,6 +821,8 @@ class TestGangManager(YTEnvSetup):
             "gang_manager": {
                 "enabled": True,
             },
+
+            "snapshot_period": 1000,
         },
     }
 
@@ -1198,6 +1200,37 @@ class TestGangManager(YTEnvSetup):
         op.track()
 
     @authors("pogorelov")
+    def test_restart_completed_jobs(self):
+        completed_job_profiler = JobCountProfiler(
+            "completed",
+            tags={"tree": "default", "job_type": "vanilla"},
+        )
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=3,
+            task_patch={"gang_manager": {}},
+        )
+
+        job_ids = wait_breakpoint(job_count=3)
+
+        print_debug("Running jobs {}; Completing {} and {}, restarting {}".format(job_ids, job_ids[0], job_ids[1], job_ids[2]))
+
+        release_breakpoint(job_id=job_ids[0])
+        release_breakpoint(job_id=job_ids[1])
+
+        wait(lambda: completed_job_profiler.get_job_count_delta() == 2)
+
+        abort_job(job_ids[2])
+        release_breakpoint(job_id=job_ids[2])
+
+        # wait(lambda: restarted_job_profiler.get_job_count_delta() == 2)
+
+        job_ids = wait_breakpoint(job_count=3)
+        release_breakpoint()
+        op.track()
+
+    @authors("pogorelov")
     def test_job_index_reset(self):
         # Operation will fail if some job is failed.
         # Job is failed if job index is not 0 in new incarnation.
@@ -1217,6 +1250,90 @@ class TestGangManager(YTEnvSetup):
         print_debug("aborting job ", job_id)
 
         abort_job(job_id)
+
+        release_breakpoint()
+
+        op.track()
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("with_job_revival", [False, True])
+    def test_preserving_job_cookie_for_allocation(self, with_job_revival):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=3,
+            task_patch={"gang_manager": {}},
+        )
+
+        job_ids = wait_breakpoint(job_count=3)
+        assert len(job_ids) == 3
+
+        if with_job_revival:
+            op.wait_for_fresh_snapshot()
+            with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+                pass
+
+            # Waiting for operation revival
+            check_path = op.get_path() + "/controller_orchid/progress/jobs"
+            wait(lambda: exists(check_path))
+
+        # We create it after CA restart to not compare new value of sensor with value before restart.
+        restarted_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "operation_incarnation_changed"},
+        )
+
+        first_job_id = job_ids[0]
+
+        def get_running_jobs():
+            running_jobs = []
+
+            def check():
+                nonlocal running_jobs
+                running_jobs = op.get_running_jobs()
+                return len(running_jobs) == 3
+
+            wait(check)
+            return running_jobs
+
+        running_jobs = get_running_jobs()
+        print_debug(f"Running jobs are {running_jobs}")
+
+        old_allocation_id_to_job_cookie = {get_allocation_id_from_job_id(job_id): info["job_cookie"] for job_id, info in running_jobs.items()}
+        aborted_job_cookie = old_allocation_id_to_job_cookie[get_allocation_id_from_job_id(first_job_id)]
+
+        print_debug(f"Old allocation id to job cookie are: {old_allocation_id_to_job_cookie}")
+
+        print_debug(f"Aborting job {first_job_id} with cookie {aborted_job_cookie}")
+
+        abort_job(first_job_id)
+
+        wait(lambda: restarted_job_profiler.get_job_count_delta() == 2)
+
+        job_orchid_addresses = [op.get_job_node_orchid_path(job_id) + f"/exec_node/job_controller/active_jobs/{job_id}" for job_id in job_ids]
+
+        release_breakpoint(job_id=job_ids[0])
+        release_breakpoint(job_id=job_ids[1])
+        release_breakpoint(job_id=job_ids[2])
+
+        for job_orchid_address in job_orchid_addresses:
+            wait(lambda: not exists(job_orchid_address))
+
+        new_job_ids = wait_breakpoint(job_count=3)
+
+        assert len(set(job_ids) & set(new_job_ids)) == 0
+
+        running_jobs = get_running_jobs()
+        print_debug(f"Running jobs are {running_jobs}")
+
+        new_allocation_id_to_job_cookie = {get_allocation_id_from_job_id(job_id): info["job_cookie"] for job_id, info in running_jobs.items()}
+        print_debug(f"New allocation id to job cookie are: {new_allocation_id_to_job_cookie}")
+
+        assert new_allocation_id_to_job_cookie != old_allocation_id_to_job_cookie
+
+        old_allocation_id_to_job_cookie.pop(get_allocation_id_from_job_id(first_job_id))
+
+        for allocation_id, old_job_cookie in old_allocation_id_to_job_cookie.items():
+            assert old_job_cookie == new_allocation_id_to_job_cookie[allocation_id]
 
         release_breakpoint()
 
@@ -1441,6 +1558,29 @@ class TestGangManager(YTEnvSetup):
                         }
                     },
                 },
+            )
+
+    @authors("pogorelov")
+    def test_gang_manager_with_output_table(self):
+        create("table", "//tmp/t")
+        with pytest.raises(YtError):
+            vanilla(
+                spec={
+                    "tasks": {
+                        "task_a": {
+                            "job_count": 1,
+                            "output_table_paths": ["//tmp/t"],
+                            "format": "yson",
+                            "command": "echo '{a=1}'",
+                        },
+                        "task_b": {
+                            "job_count": 1,
+                            "gang_manager": {},
+                            "format": "json",
+                            "command": ';',
+                        },
+                    }
+                }
             )
 
 

@@ -56,8 +56,11 @@ struct TAllocation
     {
         TJobId JobId;
         std::optional<EJobCompetitionType> CompetitionType;
+        NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
 
         void Persist(const TPersistenceContext& context);
+
+        operator bool () const noexcept;
     };
 
     TLastJobInfo LastJobInfo;
