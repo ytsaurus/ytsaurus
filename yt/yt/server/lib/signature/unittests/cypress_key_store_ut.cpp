@@ -1,8 +1,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include "helpers.h"
-
 #include <yt/yt/server/lib/signature/key_stores/cypress.h>
+
+#include <yt/yt/server/lib/signature/key_info.h>
 
 #include <yt/yt/client/unittests/mock/client.h>
 
@@ -43,20 +43,18 @@ struct TCypressKeyReaderTest
 {
     TIntrusivePtr<TStrictMockClient> Client = New<TStrictMockClient>();
 
-    TOwnerId Owner = TOwnerId("test");
+    TOwnerId OwnerId = TOwnerId("test");
     TKeyId KeyId = TKeyId(TGuid(1, 2, 3, 4));
     TInstant NowTime = Now();
     TInstant ExpiresAt = NowTime + TDuration::Hours(10);
     TKeyPairMetadata Meta = TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
-        .Owner = Owner,
-        .Id = KeyId,
+        .OwnerId = OwnerId,
+        .KeyId = KeyId,
         .CreatedAt = NowTime,
         .ValidAfter = NowTime - TDuration::Hours(10),
         .ExpiresAt = ExpiresAt,
     };
     TCypressKeyReaderConfigPtr Config = New<TCypressKeyReaderConfig>();
-
-    TCypressKeyReaderTest() = default;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -71,7 +69,7 @@ TEST_F(TCypressKeyReaderTest, FindKey)
 
     auto reader = New<TCypressKeyReader>(Config, Client);
 
-    auto keyInfo = WaitFor(reader->FindKey(Owner, KeyId));
+    auto keyInfo = WaitFor(reader->FindKey(OwnerId, KeyId));
     EXPECT_THAT(keyInfo.ValueOrThrow(), Pointee(*simpleKeyInfo));
 }
 
@@ -84,7 +82,7 @@ TEST_F(TCypressKeyReaderTest, FindKeyNotFound)
 
     auto reader = New<TCypressKeyReader>(Config, Client);
 
-    auto keyInfo = WaitFor(reader->FindKey(Owner, KeyId));
+    auto keyInfo = WaitFor(reader->FindKey(OwnerId, KeyId));
     EXPECT_FALSE(keyInfo.IsOK());
     EXPECT_THAT(keyInfo.GetMessage(), HasSubstr("Key not found"));
 }
@@ -98,7 +96,7 @@ TEST_F(TCypressKeyReaderTest, FindKeyInvalidString)
 
     auto reader = New<TCypressKeyReader>(Config, Client);
 
-    auto keyInfo = WaitFor(reader->FindKey(Owner, KeyId));
+    auto keyInfo = WaitFor(reader->FindKey(OwnerId, KeyId));
     EXPECT_FALSE(keyInfo.IsOK());
     EXPECT_THAT(keyInfo.GetMessage(), HasSubstr("node has invalid type"));
 }
@@ -110,20 +108,21 @@ struct TCypressKeyWriterNoInitTest
 {
     TIntrusivePtr<TStrictMockClient> Client = New<TStrictMockClient>();
 
-    TOwnerId Owner = TOwnerId("test");
+    TOwnerId OwnerId = TOwnerId("test");
     TInstant NowTime = Now();
     TInstant ExpiresAt = NowTime + TDuration::Hours(10);
     TKeyPairMetadata Meta = TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
-        .Owner = Owner,
-        .Id = TKeyId(TGuid(1, 2, 3, 4)),
+        .OwnerId = OwnerId,
+        .KeyId = TKeyId(TGuid(1, 2, 3, 4)),
         .CreatedAt = NowTime,
         .ValidAfter = NowTime - TDuration::Hours(10),
         .ExpiresAt = ExpiresAt,
     };
     TCypressKeyWriterConfigPtr Config = New<TCypressKeyWriterConfig>();
 
-    TCypressKeyWriterNoInitTest() {
-        Config->Owner = Owner;
+    TCypressKeyWriterNoInitTest()
+    {
+        Config->OwnerId = OwnerId;
     }
 };
 
@@ -169,7 +168,7 @@ TEST_F(TCypressKeyWriterTest, GetOwner)
     auto writer = New<TCypressKeyWriter>(Config, Client);
     WaitFor(writer->Initialize()).ThrowOnError();
 
-    EXPECT_EQ(writer->GetOwner(), Owner);
+    EXPECT_EQ(writer->GetOwner(), OwnerId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -218,13 +217,14 @@ TEST_F(TCypressKeyWriterTest, RegisterKeyFailed)
 TEST_F(TCypressKeyWriterTest, RegisterKeyWrongOwner)
 {
     auto writer = New<TCypressKeyWriter>(Config, Client);
-    WaitFor(writer->Initialize()).ThrowOnError();
+    WaitFor(writer->Initialize())
+        .ThrowOnError();
 
     // TODO(pavook): enable this test when we can replace YT_VERIFY with exceptions.
     if (false) {
         auto metaNotMine = std::visit([] (const auto& meta) {
             auto ret = meta;
-            ret.Owner = TOwnerId("notMine");
+            ret.OwnerId = TOwnerId("notMine");
             return ret;
         }, Meta);
         auto notMineKeyInfo = New<TKeyInfo>(TPublicKey{}, metaNotMine);

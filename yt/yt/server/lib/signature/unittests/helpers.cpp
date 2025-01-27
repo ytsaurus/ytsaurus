@@ -15,8 +15,8 @@ TKeyPairMetadata SimpleMetadata(
 
     auto now = Now();
     return TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
-        .Owner = ownerId,
-        .Id = keyId,
+        .OwnerId = ownerId,
+        .KeyId = keyId,
         .CreatedAt = now + createdDelta,
         .ValidAfter = now + validAfterDelta,
         .ExpiresAt = now + expiresAtDelta,

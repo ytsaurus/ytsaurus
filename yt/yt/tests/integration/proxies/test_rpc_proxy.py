@@ -1440,7 +1440,7 @@ class TestRpcProxySignaturesBase(TestRpcProxyBase):
         },
         "signature_generation": {
             "cypress_key_writer": {
-                "owner": "test-rpc-proxy",
+                "owner_id": "test-rpc-proxy",
             },
             "generator": dict(),
         },

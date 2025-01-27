@@ -16,6 +16,7 @@ void TSignatureValidationConfig::Register(TRegistrar registrar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
 void TSignatureGenerationConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cypress_key_writer", &TThis::CypressKeyWriter);

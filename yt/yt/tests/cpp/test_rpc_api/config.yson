@@ -15,7 +15,7 @@
         };
         signature_generation = {
             cypress_key_writer = {
-                owner = test-rpc-proxy;
+                owner_id = test-rpc-proxy;
             };
             generator = {};
             key_rotator = {};

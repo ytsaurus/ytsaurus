@@ -28,6 +28,7 @@ target_link_libraries(server-lib-signature PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  yt-yt-core
   yt-yt-ytlib
   contrib-libs-libsodium
   cpp-string_utils-secret_string

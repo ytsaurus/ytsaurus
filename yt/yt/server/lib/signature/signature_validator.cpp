@@ -3,8 +3,8 @@
 #include "key_info.h"
 #include "key_store.h"
 #include "private.h"
-#include "signature_preprocess.h"
 #include "signature_header.h"
+#include "signature_preprocess.h"
 
 #include <yt/yt/client/signature/signature.h>
 
@@ -19,9 +19,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSignatureValidator::TSignatureValidator(TSignatureValidatorConfigPtr config, IKeyStoreReaderPtr store)
+TSignatureValidator::TSignatureValidator(TSignatureValidatorConfigPtr config, IKeyStoreReaderPtr keyReader)
     : Config_(std::move(config))
-    , Store_(std::move(store))
+    , KeyReader_(std::move(keyReader))
 {
     InitializeCryptography();
     YT_LOG_INFO("Signature validator initialized");
@@ -51,11 +51,11 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature)
     TSignatureHeader header;
     try {
         header = ConvertTo<TSignatureHeader>(GetHeader(signature));
-    } catch(const std::exception& ex) {
+    } catch (const std::exception& ex) {
         YT_LOG_WARNING(
-            "Received invalid signature header (Header: %v, Error: %v)",
-            GetHeader(signature).ToString(),
-            ex);
+            ex,
+            "Received invalid signature header (Header: %v)",
+            GetHeader(signature).ToString());
         return MakeFuture(false);
     }
 
@@ -64,7 +64,7 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature)
         [] (auto&& header_) { return std::pair{TOwnerId(header_.Issuer), TKeyId(header_.KeypairId)}; },
         header);
 
-    return Store_->FindKey(keyIssuer, keyId).Apply(
+    return KeyReader_->FindKey(keyIssuer, keyId).Apply(
         BIND([
                 this,
                 this_ = MakeStrong(this),

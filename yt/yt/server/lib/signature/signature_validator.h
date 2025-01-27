@@ -14,13 +14,13 @@ class TSignatureValidator
     : public TSignatureValidatorBase
 {
 public:
-    explicit TSignatureValidator(TSignatureValidatorConfigPtr config, IKeyStoreReaderPtr store);
+    explicit TSignatureValidator(TSignatureValidatorConfigPtr config, IKeyStoreReaderPtr keyReader);
 
     TFuture<bool> Validate(const TSignaturePtr& signature) override;
 
 private:
     const TSignatureValidatorConfigPtr Config_;
-    const IKeyStoreReaderPtr Store_;
+    const IKeyStoreReaderPtr KeyReader_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TSignatureValidator)
