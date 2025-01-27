@@ -447,13 +447,25 @@ IChunkPoolOutput::TCookie TNewJobManager::ExtractCookie()
     }
 
     auto cookie = *CookiePool_->begin();
+
+    DoExtractCookie(cookie);
+
+    return cookie;
+}
+
+void TNewJobManager::ExtractCookie(IChunkPoolOutput::TCookie cookie)
+{
+    YT_VERIFY(CookiePool_->contains(cookie));
+    DoExtractCookie(cookie);
+}
+
+void TNewJobManager::DoExtractCookie(IChunkPoolOutput::TCookie cookie)
+{
     auto& job = Jobs_[cookie];
     YT_VERIFY(!job.GetIsBarrier());
     YT_VERIFY(job.GetState() == EJobState::Pending);
 
     job.SetState(EJobState::Running);
-
-    return cookie;
 }
 
 void TNewJobManager::Failed(IChunkPoolOutput::TCookie cookie)
@@ -472,9 +484,14 @@ void TNewJobManager::Aborted(IChunkPoolOutput::TCookie cookie, EAbortReason reas
     job.SetState(EJobState::Pending);
 }
 
-void TNewJobManager::Lost(IChunkPoolOutput::TCookie cookie)
+void TNewJobManager::Lost(IChunkPoolOutput::TCookie cookie, bool force)
 {
     auto& job = Jobs_[cookie];
+
+    if (!force && job.GetState() != EJobState::Completed) {
+        return;
+    }
+
     YT_VERIFY(job.GetState() == EJobState::Completed);
     job.CallProgressCounterGuards(&TProgressCounterGuard::OnLost);
     job.SetState(EJobState::Pending);

@@ -1,5 +1,6 @@
 #include "vanilla_chunk_pool.h"
 
+#include "helpers.h"
 #include "new_job_manager.h"
 
 #include <yt/yt/server/lib/controller_agent/structs.h>
@@ -23,12 +24,18 @@ using namespace NControllerAgent;
 class TVanillaChunkPool
     : public TChunkPoolOutputWithNewJobManagerBase
     , public TJobSplittingBase
+    , public IVanillaChunkPoolOutput
 {
 public:
     explicit TVanillaChunkPool(const TVanillaChunkPoolOptions& options)
         : TChunkPoolOutputWithNewJobManagerBase(options.Logger)
+        , JobCount_(options.JobCount)
         , RestartCompletedJobs_(options.RestartCompletedJobs)
     {
+        Logger = options.Logger;
+
+        ValidateLogger(Logger);
+
         // We use very small portion of job manager functionality. We fill it with dummy
         // jobs and make manager deal with extracting/completing/failing/aborting jobs for us.
         for (int index = 0; index < options.JobCount; ++index) {
@@ -59,12 +66,35 @@ public:
         }
     }
 
+    void LostAll() override
+    {
+        YT_LOG_DEBUG("Lost all cookies (Count: %v)", JobCount_);
+
+        for (TOutputCookie cookie = 0; cookie < JobCount_; ++cookie) {
+            JobManager_->Lost(cookie, /*force*/ false);
+        }
+    }
+
     TChunkStripeListPtr GetStripeList(IChunkPoolOutput::TCookie /*cookie*/) override
     {
         return NullStripeList;
     }
 
+    using TChunkPoolOutputWithNewJobManagerBase::Extract;
+
+    void Extract(IChunkPoolOutput::TCookie cookie) final
+    {
+        JobManager_->ExtractCookie(cookie);
+    }
+
+    void SetJobCount(int jobCount) final
+    {
+        JobCount_ = jobCount;
+    }
+
 private:
+    int JobCount_;
+
     bool RestartCompletedJobs_;
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TVanillaChunkPool, 0x42439a0a);
@@ -73,15 +103,17 @@ private:
 void TVanillaChunkPool::RegisterMetadata(auto&& registrar)
 {
     registrar.template BaseType<TChunkPoolOutputWithJobManagerBase>();
+    registrar.template BaseType<TJobSplittingBase>();
 
     PHOENIX_REGISTER_FIELD(1, RestartCompletedJobs_);
+    PHOENIX_REGISTER_FIELD(2, JobCount_);
 }
 
 PHOENIX_DEFINE_TYPE(TVanillaChunkPool);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IPersistentChunkPoolOutputPtr CreateVanillaChunkPool(const TVanillaChunkPoolOptions& options)
+IVanillaChunkPoolOutputPtr CreateVanillaChunkPool(const TVanillaChunkPoolOptions& options)
 {
     return New<TVanillaChunkPool>(options);
 }

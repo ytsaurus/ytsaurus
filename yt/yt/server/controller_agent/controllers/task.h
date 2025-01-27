@@ -242,7 +242,7 @@ public:
         const NChunkPools::TChunkStripeListPtr& inputStripeList,
         std::vector<NChunkPools::TChunkStripePtr>* outputStripes);
 
-    virtual NChunkPools::IChunkPoolOutput::TCookie ExtractCookie(NNodeTrackerClient::TNodeId nodeId);
+    virtual NChunkPools::IChunkPoolOutput::TCookie ExtractCookieForAllocation(const TAllocation& allocation);
 
     void UpdateMemoryDigests(const TJobletPtr& joblet, bool resourceOverdraft);
 

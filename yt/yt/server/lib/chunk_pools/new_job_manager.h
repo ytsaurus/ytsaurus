@@ -107,12 +107,14 @@ public:
     void Completed(IChunkPoolOutput::TCookie cookie, NScheduler::EInterruptReason reason);
     void Failed(IChunkPoolOutput::TCookie cookie);
     void Aborted(IChunkPoolOutput::TCookie cookie, NScheduler::EAbortReason reason);
-    void Lost(IChunkPoolOutput::TCookie cookie);
+    void Lost(IChunkPoolOutput::TCookie cookie, bool force = true);
 
     void Suspend(IChunkPoolInput::TCookie inputCookie);
     void Resume(IChunkPoolInput::TCookie inputCookie);
 
     IChunkPoolOutput::TCookie ExtractCookie();
+    // Used if we know which cookie we want to extract.
+    void ExtractCookie(IChunkPoolOutput::TCookie cookie);
 
     void Invalidate(IChunkPoolInput::TCookie inputCookie);
 
@@ -232,6 +234,8 @@ private:
     std::vector<TJob> Jobs_;
 
     NLogging::TSerializableLogger Logger;
+
+    void DoExtractCookie(IChunkPoolOutput::TCookie cookie);
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_TYPE(TNewJobManager, 0x7e42ef5b);

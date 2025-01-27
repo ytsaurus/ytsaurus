@@ -40,6 +40,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((BumpTo_25_1)                          (301700))
     ((OperationIncarnationIsStrongTypedef)  (301701))
     ((PhoenixSchema)                        (301702))
+    ((PreserveJobCookieForAllocationInGangs)(301703))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
