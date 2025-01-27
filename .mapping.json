@@ -1918,6 +1918,7 @@
   "library/cpp/ytalloc/api/CMakeLists.txt":"",
   "library/go/blockcodecs/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/library/go/blockcodecs/go.mod",
   "library/go/blockcodecs/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/library/go/blockcodecs/go.sum",
+  "library/go/core/buildinfo/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/library/go/core/buildinfo/go.mod",
   "library/go/core/log/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/library/go/core/log/go.mod",
   "library/go/core/log/go.sum":"yt/opensource/repos/ytsaurus/github_toplevel/library/go/core/log/go.sum",
   "library/go/core/metrics/go.mod":"yt/opensource/repos/ytsaurus/github_toplevel/library/go/core/metrics/go.mod",
