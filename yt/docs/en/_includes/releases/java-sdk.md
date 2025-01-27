@@ -8,6 +8,19 @@ Is released as packages in [maven](https://central.sonatype.com/artifact/tech.yt
 
 **Releases:**
 
+{% cut "**1.2.8**" %}
+
+**Release date:** 2025-01-23
+
+
+* Update protobuf to 3.25.5 version.
+* Support for the ability to use a custom `TableRowsSerializer` provided through the `SerializationContext`.
+* Change protobuf type of `YPath` and `RichYPath` parameters: `string` -> `bytes`.
+* Remove "command" from "started_by" spec field.
+
+{% endcut %}
+
+
 {% cut "**1.2.7**" %}
 
 **Release date:** 2024-11-25
