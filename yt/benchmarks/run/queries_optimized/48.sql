@@ -3,7 +3,7 @@
 select sum (ss_quantity)
  from store_sales cross join date_dim cross join store cross join customer_demographics cross join customer_address
  where ss_sold_date_sk = d_date_sk and s_store_sk = ss_store_sk
-  and d_year = 1998
+  and d_year = 1998 and
  (
   (
    cd_demo_sk = ss_cdemo_sk
