@@ -1339,6 +1339,16 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
     auto unlockChunks = [&] (const auto& chunkIds) {
         for (auto chunkId : chunkIds) {
             EraseOrCrash(RemovalLockedChunkIds_, chunkId);
+
+            auto* chunk = chunkManager->FindChunk(chunkId);
+            if (IsObjectAlive(chunk)) {
+                ScheduleChunkRefresh(chunk);
+            }
+
+            YT_LOG_DEBUG("Unlocked removing replicas for chunk on node unregistration"
+                " (ChunkId: %v, NodeAddress: %v)",
+                chunkId,
+                node->GetDefaultAddress());
         }
     };
 
@@ -3076,9 +3086,10 @@ void TChunkReplicator::MaybeUpdateChunkRemovalLock(const TJobPtr& job)
         awaitingChunkIds.emplace(sequenceNumber, chunkId);
 
         YT_LOG_DEBUG("Chunk removal job lock sequence number updated"
-            " (ChunkId: %v, JobId: %v, SequenceNumber: %v)",
+            " (ChunkId: %v, JobId: %v, NodeAddress: %v, SequenceNumber: %v)",
             chunkId,
             job->GetJobId(),
+            node->GetDefaultAddress(),
             sequenceNumber);
     }
 }
