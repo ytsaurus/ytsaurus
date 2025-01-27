@@ -202,24 +202,15 @@ TEST_P(TExtractSubexpressionPredicateTest, Simple)
     auto predicate = PrepareExpression(predicateString, tableSchema);
     auto expected = PrepareExpression(extractedString, tableSubschema);
 
-    auto extracted = ExtractPredicateForColumnSubset(predicate, tableSubschema);
-
-    TConstExpressionPtr extracted2;
+    TConstExpressionPtr extracted;
     TConstExpressionPtr remaining;
-    std::tie(extracted2, remaining) = SplitPredicateByColumnSubset(predicate, tableSubschema);
+    std::tie(extracted, remaining) = SplitPredicateByColumnSubset(predicate, tableSubschema);
 
     EXPECT_TRUE(Equal(extracted, expected))
         << "schema: " << schemaString << std::endl
         << "subschema: " << subschemaString << std::endl
         << "predicate: " << ::testing::PrintToString(predicate) << std::endl
-        << "extracted: " << ::testing::PrintToString(extracted) << std::endl
-        << "expected: " << ::testing::PrintToString(expected);
-
-    EXPECT_TRUE(Equal(extracted2, expected))
-        << "schema: " << schemaString << std::endl
-        << "subschema: " << subschemaString << std::endl
-        << "predicate: " << ::testing::PrintToString(predicate) << std::endl
-        << "extracted2: " << ::testing::PrintToString(extracted2) << std::endl
+        << "extracted2: " << ::testing::PrintToString(extracted) << std::endl
         << "expected: " << ::testing::PrintToString(expected);
 }
 
