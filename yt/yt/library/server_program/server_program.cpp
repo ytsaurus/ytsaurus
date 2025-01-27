@@ -24,8 +24,6 @@
 
 #include <library/cpp/yt/mlock/mlock.h>
 
-#include <yt/yt/core/net/address.h>
-
 #include <util/string/subst.h>
 #include <util/system/env.h>
 
@@ -60,11 +58,6 @@ TServerProgramBase::TServerProgramBase()
     : ServiceDirectory_(NFusion::CreateServiceDirectory())
 {
     ConfigureCoverageOutput();
-
-    // By default, server components must have a reasonable FQDN.
-    // Failure to do so may result in issues like YT-4561.
-    // TODO(babenko): move to server program base
-    NNet::TAddressResolver::Get()->EnsureLocalHostName();
 }
 
 void TServerProgramBase::SetMainThreadName(const std::string& name)
