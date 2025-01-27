@@ -260,7 +260,7 @@ private:
                 return TTypeBuilder<TDynamicValueData>::TStringType::Get(Builder_.Context_);
             default:
                 THROW_ERROR_EXCEPTION("Unsupported type")
-                    << TErrorAttribute("type", ToString(type));
+                    << TErrorAttribute("type", type);
         }
     }
 
