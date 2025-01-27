@@ -46,6 +46,7 @@ target_link_libraries(yt-server-master PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  cpp-containers-absl_flat_hash
   library-cpp-getopt
   cpp-yt-phdr_cache
   yt-library-server_program
