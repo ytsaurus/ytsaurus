@@ -17,6 +17,8 @@ class SystemFields(Enum):
     RightAxis = auto()
     Unit = auto()
     Precision = auto()
+    Hidden = auto()
+    Name = auto()
 
 
 ContainerTemplate = "{{container}}"
@@ -91,6 +93,12 @@ class Taggable(ABC):
 
     def max(self, max):
         return self.range(None, max)
+
+    def name(self, value):
+        return self.value(SystemFields.Name, value)
+
+    def hidden(self, value):
+        return self.value(SystemFields.Hidden, value)
 
     def unit(self, unit, axis=SystemFields.LeftAxis):
         return self.value(SystemFields.Unit, (unit, axis))

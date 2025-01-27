@@ -238,11 +238,11 @@ class MonitoringDictSerializer(MonitoringSerializerBase):
             structure = {}
             structure["query"] = self._get_sensor_query(sensor)
 
-            if sensor._name is not None:
-                structure["name"] = sensor._name
+            if SystemFields.Name in tags:
+                structure["name"] = tags[SystemFields.Name]
 
-            if sensor._hidden is not None:
-                structure["hidden"] = sensor._hidden
+            if SystemFields.Hidden in tags and tags[SystemFields.Hidden]:
+                structure["hidden"] = True
 
             targets.append(structure)
 
