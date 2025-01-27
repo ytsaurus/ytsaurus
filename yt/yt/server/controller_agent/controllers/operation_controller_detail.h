@@ -1075,8 +1075,6 @@ protected:
 
     virtual void BuildControllerInfoYson(NYTree::TFluentMap fluent) const;
 
-    void ResetJobIndexGenerator();
-
 private:
     NScheduler::TPoolTreeControllerSettingsMap PoolTreeControllerSettingsMap_;
     std::optional<std::vector<TString>> OffloadingPoolTrees_;

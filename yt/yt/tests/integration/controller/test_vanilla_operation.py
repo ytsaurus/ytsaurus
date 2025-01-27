@@ -1231,31 +1231,6 @@ class TestGangManager(YTEnvSetup):
         op.track()
 
     @authors("pogorelov")
-    def test_job_index_reset(self):
-        # Operation will fail if some job is failed.
-        # Job is failed if job index is not 0 in new incarnation.
-        op = run_test_vanilla(
-            with_breakpoint('if [[ "$YT_JOB_INDEX" != 0 ]] ; then exit 1; fi; if [[ "$YT_TASK_JOB_INDEX" != 0 ]] ; then exit 2; fi; BREAKPOINT'),
-            job_count=1,
-            spec={"max_failed_job_count": 0},
-            task_patch={"gang_manager": {}},
-        )
-
-        job_ids = wait_breakpoint(job_count=1)
-
-        assert len(job_ids) == 1
-
-        job_id = job_ids[0]
-
-        print_debug("aborting job ", job_id)
-
-        abort_job(job_id)
-
-        release_breakpoint()
-
-        op.track()
-
-    @authors("pogorelov")
     @pytest.mark.parametrize("with_job_revival", [False, True])
     def test_preserving_job_cookie_for_allocation(self, with_job_revival):
         op = run_test_vanilla(

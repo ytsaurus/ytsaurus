@@ -5840,13 +5840,6 @@ TJobletPtr TOperationControllerBase::CreateJoblet(
     return joblet;
 }
 
-void TOperationControllerBase::ResetJobIndexGenerator()
-{
-    YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
-
-    JobIndexGenerator.Reset();
-}
-
 TJobFailsTolerancePtr TOperationControllerBase::GetJobFailsTolerance() const
 {
     return Config->EnableJobFailsTolerance
