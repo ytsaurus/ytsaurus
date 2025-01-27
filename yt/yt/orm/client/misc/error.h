@@ -1,4 +1,7 @@
 // AUTOMATICALLY GENERATED. DO NOT EDIT!
+// See https://yt.yandex-team.ru/docs/orm/description/codegen#codegen-setup for details.
+// See yt/yt/orm/codegen/generator/templates/error.h.j2 for source template.
+// Use yt/yt/orm/codegen/run_static_codegen.sh to regenerate this file.
 
 #pragma once
 
