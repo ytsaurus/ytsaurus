@@ -13,7 +13,11 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
+
+#include <yt/yt/core/misc/mpsc_stack.h>
+
 #include <yt/yt/core/profiling/timing.h>
+
 
 namespace NYT::NRpcProxy {
 
@@ -27,7 +31,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = RpcProxyLogger();
+static constexpr auto& Logger = RpcProxyLogger;
 
 static const auto QueryCorpusTableSchema = TTableSchema({{"query", EValueType::String, ESortOrder::Ascending}});
 static const auto QueryCorpusNameTable = TNameTable::FromSchema(QueryCorpusTableSchema);
@@ -43,7 +47,7 @@ class TQueryCorpusReporter
 public:
     explicit TQueryCorpusReporter(NApi::NNative::IClientPtr client)
         : Client_(std::move(client))
-        , ActionQueue_(New<TActionQueue>("QueryCorpusReporter"))
+        , ActionQueue_(New<TActionQueue>("QLCorpusReporter"))
         , Executor_(New<TPeriodicExecutor>(
             ActionQueue_->GetInvoker(),
             BIND(&TQueryCorpusReporter::ReportStatistics, MakeWeak(this))))
@@ -101,8 +105,8 @@ private:
     std::atomic<int> BatchSize_;
     std::atomic<int> MaxBatchSize_;
 
-    NConcurrency::TActionQueuePtr ActionQueue_;
-    NConcurrency::TPeriodicExecutorPtr Executor_;
+    const NConcurrency::TActionQueuePtr ActionQueue_;
+    const NConcurrency::TPeriodicExecutorPtr Executor_;
 
     TProfiler Profiler_;
     TCounter ReportCount_;
