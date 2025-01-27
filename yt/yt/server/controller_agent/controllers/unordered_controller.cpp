@@ -295,8 +295,6 @@ protected:
 
     void InitJobSizeConstraints()
     {
-        Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
-
         switch (OperationType) {
             case EOperationType::Merge:
                 JobSizeConstraints_ = CreateMergeJobSizeConstraints(
@@ -754,6 +752,7 @@ IOperationControllerPtr CreateUnorderedMapController(
 {
     auto options = config->MapOperationOptions;
     auto spec = ParseOperationSpec<TMapOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    AdjustSamplingFromConfig(spec, config);
     return New<TMapController>(spec, config, options, host, operation);
 }
 
@@ -941,6 +940,7 @@ IOperationControllerPtr CreateUnorderedMergeController(
 {
     auto options = config->UnorderedMergeOperationOptions;
     auto spec = ParseOperationSpec<TUnorderedMergeOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    AdjustSamplingFromConfig(spec, config);
     return New<TUnorderedMergeController>(spec, config, options, host, operation);
 }
 
