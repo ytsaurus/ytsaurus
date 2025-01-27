@@ -903,12 +903,6 @@ void TVanillaController::OnOperationIncarnationChanged(bool operationIsReviving)
 
     TForbidContextSwitchGuard guard;
 
-    ResetJobIndexGenerator();
-
-    for (const auto& task : Tasks_) {
-        task->ResetJobIndexGenerator();
-    }
-
     RestartAllRunningJobsPreservingAllocations(operationIsReviving);
 }
 
