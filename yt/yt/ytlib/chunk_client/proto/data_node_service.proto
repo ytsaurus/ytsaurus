@@ -574,8 +574,19 @@ message TRspGetColumnarStatistics
 
         reserved 2, 3;
 
+        // Either error or the following two fields are set.
         optional NYT.NTableClient.NProto.TColumnarStatisticsExt columnar_statistics = 4;
         optional NYT.NTableClient.NProto.TLargeColumnarStatisticsExt large_columnar_statistics = 5;
+
+        // This field provides an estimate of the byte size of data expected to be read from disk.
+        // It gives a more accurate size estimation when reading subsets of columns from a column group,
+        // compared to older per-column statistics methods.
+        // Since columns within a single group are written to the same chunk block, and the smallest
+        // reading unit is a chunk block, relying solely on per-column statistics can lead to inaccurate
+        // read size estimates. This is because a column with small data values could be stored alongside
+        // a column with large data values within the same group, necessitating the reading of the entire
+        // chunk block. Hence, this estimation accounts for such scenarios and improves job splitting.
+        optional int64 read_data_size_estimate = 6;
     }
 
     repeated TSubresponse subresponses = 1;
