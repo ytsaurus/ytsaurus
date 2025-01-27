@@ -420,6 +420,7 @@ SRCS(
 )
 
 PEERDIR(
+    library/cpp/containers/absl_flat_hash
     library/cpp/getopt
     library/cpp/yt/phdr_cache
 

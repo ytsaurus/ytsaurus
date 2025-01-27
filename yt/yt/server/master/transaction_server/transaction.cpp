@@ -76,7 +76,7 @@ void TBranchedNodeSet::EraseOrCrash(NCypressServer::TCypressNode* node)
     YT_VERIFY(it != NodeToIndex_.end());
 
     auto index = it->second;
-    YT_ASSERT(index < std::ssize(Nodes_));
+    YT_VERIFY(index < std::ssize(Nodes_));
 
     if (index < std::ssize(Nodes_) - 1) {
         // Move last element to the place of removed element.
