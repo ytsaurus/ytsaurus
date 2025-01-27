@@ -880,7 +880,6 @@ private:
     const IInvokerPtr ControlInvoker_;
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
     const IMemoryUsageTrackerPtr LookupMemoryTracker_;
-
     const TSignatureValidatorBasePtr SignatureValidator_;
     const TSignatureGeneratorBasePtr SignatureGenerator_;
 

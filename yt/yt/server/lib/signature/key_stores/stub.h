@@ -12,13 +12,13 @@ struct TStubKeyStore
     : public IKeyStoreReader
     , public IKeyStoreWriter
 {
-    TOwnerId Owner = TOwnerId("TStubKeyStore");
+    TOwnerId OwnerId = TOwnerId("TStubKeyStore");
 
     THashMap<TOwnerId, std::vector<TKeyInfoPtr>> Data;
 
-    TOwnerId GetOwner() override;
+    const TOwnerId& GetOwner() override;
 
-    TFuture<TKeyInfoPtr> FindKey(const TOwnerId& owner, const TKeyId& key) override;
+    TFuture<TKeyInfoPtr> FindKey(const TOwnerId& ownerId, const TKeyId& keyId) override;
 
     TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) override;
 };

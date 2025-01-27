@@ -25,7 +25,7 @@ public:
 
     TKeyPair(const TKeyPairMetadata& metadata);
 
-    [[nodiscard]] TKeyInfoPtr KeyInfo() const;
+    [[nodiscard]] const TKeyInfoPtr& KeyInfo() const;
 
     void Sign(
         std::span<const std::byte> data,

@@ -31,7 +31,7 @@ struct TCypressKeyWriterConfig
     //! Prefix path for public keys (will be stored as <Path>/<Owner>/<KeyId>).
     NYPath::TYPath Path;
 
-    TOwnerId Owner;
+    TOwnerId OwnerId;
 
     //! Time to wait after expiration before deleting keys from Cypress.
     TDuration KeyDeletionDelay;
@@ -56,7 +56,7 @@ public:
         TCypressKeyReaderConfigPtr config,
         NApi::IClientPtr client);
 
-    TFuture<TKeyInfoPtr> FindKey(const TOwnerId& owner, const TKeyId& key) override;
+    TFuture<TKeyInfoPtr> FindKey(const TOwnerId& ownerId, const TKeyId& keyId) override;
 
 private:
     TCypressKeyReaderConfigPtr Config_;
@@ -78,27 +78,27 @@ public:
     //! Initialize() should be called at least once before all other calls.
     TFuture<void> Initialize();
 
-    [[nodiscard]] TOwnerId GetOwner() override;
+    const TOwnerId& GetOwner() override;
 
     TFuture<void> RegisterKey(const TKeyInfoPtr& keyInfo) override;
 
 private:
-    TFuture<void> DoRegister(const TKeyInfoPtr& keyInfo);
-
-    TCypressKeyWriterConfigPtr Config_;
-    NApi::IClientPtr Client_;
+    const TCypressKeyWriterConfigPtr Config_;
+    const NApi::IClientPtr Client_;
 
     TFuture<void> Initialization_;
+
+    TFuture<void> DoRegister(const TKeyInfoPtr& keyInfo);
 };
 
 DEFINE_REFCOUNTED_TYPE(TCypressKeyWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYPath::TYPath GetCypressKeyPath(
+NYPath::TYPath MakeCypressKeyPath(
     const NYPath::TYPath& prefix,
-    const TOwnerId& owner,
-    const TKeyId& key);
+    const TOwnerId& ownerId,
+    const TKeyId& keyId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

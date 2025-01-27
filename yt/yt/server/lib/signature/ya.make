@@ -20,6 +20,7 @@ SRCS(
 )
 
 PEERDIR(
+    yt/yt/core
     yt/yt/ytlib
     contrib/libs/libsodium
     library/cpp/string_utils/secret_string

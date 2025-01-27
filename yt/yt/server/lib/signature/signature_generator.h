@@ -20,7 +20,7 @@ class TSignatureGenerator
 public:
     using TSignatureGeneratorBase::Sign;
 
-    explicit TSignatureGenerator(TSignatureGeneratorConfigPtr config, IKeyStoreWriterPtr store);
+    TSignatureGenerator(TSignatureGeneratorConfigPtr config, IKeyStoreWriterPtr keyWriter);
 
     //! Fills out the Signature_ and Header_ fields in a given TSignature
     // based on its payload.
@@ -32,8 +32,8 @@ public:
 
 private:
     const TSignatureGeneratorConfigPtr Config_;
-    const IKeyStoreWriterPtr Store_;
-    const TOwnerId Owner_;
+    const IKeyStoreWriterPtr KeyWriter_;
+    const TOwnerId OwnerId_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, KeyPairLock_);
     std::optional<TKeyPair> KeyPair_;

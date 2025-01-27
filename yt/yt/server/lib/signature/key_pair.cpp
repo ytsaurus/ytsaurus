@@ -33,7 +33,8 @@ TKeyPair::TKeyPair(const TKeyPairMetadata& metadata)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TKeyInfoPtr TKeyPair::KeyInfo() const {
+const TKeyInfoPtr& TKeyPair::KeyInfo() const
+{
     return KeyInfo_;
 }
 

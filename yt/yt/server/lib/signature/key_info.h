@@ -28,8 +28,8 @@ struct TKeyPairMetadataImpl;
 template <>
 struct TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>
 {
-    TOwnerId Owner;
-    TKeyId Id;
+    TOwnerId OwnerId;
+    TKeyId KeyId;
     TInstant CreatedAt;
     TInstant ValidAfter;
     TInstant ExpiresAt;

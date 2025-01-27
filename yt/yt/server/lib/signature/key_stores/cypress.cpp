@@ -21,24 +21,24 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NThreading;
 
-YT_DEFINE_GLOBAL(TYPath, DefaultPath, "//sys/public_keys/by_owner");
+static constexpr TYPathBuf DefaultKeyPath = "//sys/public_keys/by_owner";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCypressKeyReaderConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("path", &TThis::Path)
-        .Default(DefaultPath())
+        .Default(TYPath(DefaultKeyPath))
         .NonEmpty();
 }
 
 void TCypressKeyWriterConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("path", &TThis::Path)
-        .Default(DefaultPath())
+        .Default(TYPath(DefaultKeyPath))
         .NonEmpty();
 
-    registrar.Parameter("owner", &TThis::Owner)
+    registrar.Parameter("owner_id", &TThis::OwnerId)
         .CheckThat([] (const TOwnerId& owner) { return !owner.Underlying().empty(); });
 
     registrar.Parameter("key_deletion_delay", &TThis::KeyDeletionDelay)
@@ -58,12 +58,12 @@ TCypressKeyReader::TCypressKeyReader(TCypressKeyReaderConfigPtr config, IClientP
     , Client_(std::move(client))
 { }
 
-TFuture<TKeyInfoPtr> TCypressKeyReader::FindKey(const TOwnerId& owner, const TKeyId& key)
+TFuture<TKeyInfoPtr> TCypressKeyReader::FindKey(const TOwnerId& ownerId, const TKeyId& keyId)
 {
-    auto keyNodePath = GetCypressKeyPath(Config_->Path, owner, key);
-    auto res = Client_->GetNode(keyNodePath);
+    auto keyNodePath = MakeCypressKeyPath(Config_->Path, ownerId, keyId);
+    auto result = Client_->GetNode(keyNodePath);
 
-    return res.Apply(BIND([](const TYsonString& str) {
+    return result.Apply(BIND([] (const TYsonString& str) {
         return ConvertTo<TKeyInfoPtr>(str);
     }));
 }
@@ -81,7 +81,7 @@ TFuture<void> TCypressKeyWriter::Initialize()
     options.IgnoreExisting = true;
 
     Initialization_ = Client_->CreateNode(
-        YPathJoin(Config_->Path, ToYPathLiteral(Config_->Owner)),
+        YPathJoin(Config_->Path, ToYPathLiteral(Config_->OwnerId)),
         EObjectType::MapNode,
         std::move(options)).AsVoid();
 
@@ -90,14 +90,14 @@ TFuture<void> TCypressKeyWriter::Initialize()
     return Initialization_;
 }
 
-TOwnerId TCypressKeyWriter::GetOwner()
+const TOwnerId& TCypressKeyWriter::GetOwner()
 {
-    return Config_->Owner;
+    return Config_->OwnerId;
 }
 
 TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
 {
-    YT_ASSERT(keyInfo);
+    YT_VERIFY(keyInfo);
 
     return Initialization_.Apply(BIND([this, keyInfo, this_ = MakeStrong(this)] () {
         return DoRegister(std::move(keyInfo));
@@ -106,16 +106,16 @@ TFuture<void> TCypressKeyWriter::RegisterKey(const TKeyInfoPtr& keyInfo)
 
 TFuture<void> TCypressKeyWriter::DoRegister(const TKeyInfoPtr& keyInfo)
 {
-    auto [owner, id] = std::visit([] (const auto& meta) {
-        return std::pair{meta.Owner, meta.Id};
+    auto [ownerId, keyId] = std::visit([] (const auto& meta) {
+        return std::pair{meta.OwnerId, meta.KeyId};
     }, keyInfo->Meta());
 
-    YT_LOG_DEBUG("Registering key (Owner: %v, Id %v)", owner, id);
+    YT_LOG_DEBUG("Registering key (OwnerId: %v, KeyId: %v)", ownerId, keyId);
 
     // We should not register keys belonging to other owners.
-    YT_VERIFY(owner == Config_->Owner);
+    YT_VERIFY(ownerId == Config_->OwnerId);
 
-    auto keyNodePath = GetCypressKeyPath(Config_->Path, owner, id);
+    auto keyNodePath = MakeCypressKeyPath(Config_->Path, ownerId, keyId);
 
     auto keyExpirationTime = std::visit([] (const auto& meta) {
         return meta.ExpiresAt;
@@ -137,16 +137,16 @@ TFuture<void> TCypressKeyWriter::DoRegister(const TKeyInfoPtr& keyInfo)
                 keyNodePath = std::move(keyNodePath),
                 keyInfo,
                 this_ = MakeStrong(this)
-            ] (NCypressClient::TNodeId /*nodeId*/) {
+            ] (NCypressClient::TNodeId /*nodeId*/) mutable {
                 return Client_->SetNode(keyNodePath, ConvertToYsonString(std::move(keyInfo)));
             }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPath GetCypressKeyPath(const TYPath& prefixPath, const TOwnerId& owner, const TKeyId& key)
+TYPath MakeCypressKeyPath(const TYPath& prefixPath, const TOwnerId& ownerId, const TKeyId& keyId)
 {
-    return YPathJoin(prefixPath, ToYPathLiteral(owner), ToYPathLiteral(key));
+    return YPathJoin(prefixPath, ToYPathLiteral(ownerId), ToYPathLiteral(keyId));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

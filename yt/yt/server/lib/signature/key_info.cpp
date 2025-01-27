@@ -22,7 +22,7 @@ struct TValidateVisitor
         if (meta.IsDeprecated) {
             YT_LOG_WARNING(
                 "Received deprecated key info (Id: %v, Version: %v.%v)",
-                meta.Id,
+                meta.KeyId,
                 version.Major,
                 version.Minor);
         }
@@ -47,7 +47,7 @@ bool IsKeyPairMetadataValid(const TKeyPairMetadata& meta)
 
 TKeyId GetKeyId(const TKeyPairMetadata& metadata)
 {
-    return std::visit([](const auto& meta) { return meta.Id; }, metadata);
+    return std::visit([] (const auto& meta) { return meta.KeyId; }, metadata);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -63,8 +63,8 @@ struct TSerializeVisitor
     {
         BuildYsonFluently(Consumer).BeginMap()
             .Item("version").Value(Format("%v.%v", version.Major, version.Minor))
-            .Item("owner").Value(metadata.Owner)
-            .Item("id").Value(metadata.Id)
+            .Item("owner_id").Value(metadata.OwnerId)
+            .Item("key_id").Value(metadata.KeyId)
             .Item("created_at").Value(metadata.CreatedAt)
             .Item("valid_after").Value(metadata.ValidAfter)
             .Item("expires_at").Value(metadata.ExpiresAt)
@@ -90,8 +90,8 @@ struct TDeserializeVisitor
     template <TKeyPairVersion version>
     void operator()(TKeyPairMetadataImpl<version>& metadata) const
     {
-        metadata.Owner = MapNode->GetChildValueOrThrow<TOwnerId>("owner");
-        metadata.Id = MapNode->GetChildValueOrThrow<TKeyId>("id");
+        metadata.OwnerId = MapNode->GetChildValueOrThrow<TOwnerId>("owner_id");
+        metadata.KeyId = MapNode->GetChildValueOrThrow<TKeyId>("key_id");
         metadata.CreatedAt = MapNode->GetChildValueOrThrow<TInstant>("created_at");
         metadata.ValidAfter = MapNode->GetChildValueOrThrow<TInstant>("valid_after");
         metadata.ExpiresAt = MapNode->GetChildValueOrThrow<TInstant>("expires_at");
