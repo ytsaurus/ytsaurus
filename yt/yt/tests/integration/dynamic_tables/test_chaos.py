@@ -3041,7 +3041,7 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values)
 
         def _try_trim_rows():
-            with raises_yt_error("Could not trim tablet since some replicas may not be replicated up to this point"):
+            with raises_yt_error("trim tablet since some replicas may not be replicated up to this point"):
                 trim_rows("//tmp/t", 0, 1)
 
         wait(lambda: select_rows("key, value from [//tmp/t]") == data_values[:1])
@@ -3072,6 +3072,40 @@ class TestChaos(ChaosTestBase):
         values = [{"$tablet_index": 0, "key": i, "value": str(i)} for i in range(2, 3)]
         insert_rows("//tmp/t", values)
         wait(lambda: _insistent_trim_rows("//tmp/r", driver=remote_driver0))
+
+        # Ensure all replication is complete
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="sync")
+
+        assert select_rows("key, value from [//tmp/r]", driver=remote_driver0) == data_values[1:]
+
+    @authors("apachee", "osidorkin")
+    @pytest.mark.parametrize("rows_to_insert", [1, 2])
+    def test_ordered_chaos_table_trim_one_row_for_different_row_count(self, rows_to_insert):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "async", "enabled": True, "replica_path": "//tmp/r"},
+        ]
+        self._create_chaos_tables(cell_id, replicas, ordered=True)
+        remote_driver0 = self._get_drivers()[1]
+
+        data_values = [{"key": i, "value": f"{i}"} for i in range(rows_to_insert)]
+        values = [{"$tablet_index": 0, "key": i, "value": f"{i}"} for i in range(rows_to_insert)]
+
+        for i in range(len(values)):
+            insert_rows("//tmp/t", values[i:(i + 1)])
+
+            wait(lambda: select_rows("key, value from [//tmp/t]") == data_values[:(i + 1)])
+            wait(lambda: select_rows("key, value from [//tmp/r]", driver=remote_driver0) == data_values[:(i + 1)])
+
+            sync_flush_table("//tmp/t")
+            sync_flush_table("//tmp/r", driver=remote_driver0)
+
+        trim_rows("//tmp/t", 0, 1)
+        trim_rows("//tmp/r", 0, 1, driver=remote_driver0)
+
+        assert select_rows("key, value from [//tmp/t]") == data_values[1:]
         assert select_rows("key, value from [//tmp/r]", driver=remote_driver0) == data_values[1:]
 
     @authors("savrus")
