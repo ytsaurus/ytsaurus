@@ -10035,20 +10035,19 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_rpc_proxy_worker_thread_pool_size(jobSpecConfig->RpcProxyWorkerThreadPoolSize);
 
     // Pass external docker image into job spec as is.
-    if (jobSpecConfig->DockerImage)
-    {
+    if (jobSpecConfig->DockerImage) {
         if (TDockerImageSpec(*jobSpecConfig->DockerImage, Config->DockerRegistry).IsInternal()) {
-            if (!Config->Environment.contains("YT_SECURE_VAULT_docker_auth") && !jobSpecConfig->Environment.contains("YT_SECURE_VAULT_docker_auth")) {
-                TString *token = nullptr;
-                auto local_token = jobSpecConfig->Environment.find("YT_TOKEN");
-                if (local_token != jobSpecConfig->Environment.end()) {
-                    token = &local_token->second;
-                } else {
-                    auto global_token = Config->Environment.find("YT_TOKEN");
-                    if (global_token != Config->Environment.end()) {
-                        token = &global_token->second;
+            auto environmentValue = [&](const char *key) -> const TString * {
+                for (auto &environment : {jobSpecConfig->Environment, Config->Environment}) {
+                    auto found = environment.find(key);
+                    if (found != environment.end()) {
+                        return &found->second;
                     }
                 }
+                return nullptr;
+            };
+            if (!environmentValue("YT_SECURE_VAULT_docker_auth")) {
+                auto token = environmentValue("YT_TOKEN");
                 if (token) {
                     jobSpec->add_environment(Format("YT_SECURE_VAULT_docker_auth={Username=%Qv; Password=%Qv}", AuthenticatedUser, *token));
                 }
