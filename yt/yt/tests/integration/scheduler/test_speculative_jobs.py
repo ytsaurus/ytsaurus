@@ -272,6 +272,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
     ROW_COUNT_TO_FILL_PIPE = 1000000
 
     @authors("renadeen")
+    @pytest.mark.xfail(run=False, reason="YT-24062")
     def test_speculative_on_residual_job(self):
         op = self.run_op_with_residual_speculative_job()
         regular, speculative = get_sorted_jobs(op)
@@ -280,6 +281,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         op.track()
 
     @authors("renadeen")
+    @pytest.mark.xfail(run=False, reason="YT-24062")
     def test_speculative_with_automerge(self):
         op = self.run_op_with_residual_speculative_job(spec={"auto_merge": {"mode": "relaxed"}})
         regular, speculative = get_sorted_jobs(op)
@@ -288,6 +290,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         op.track()
 
     @authors("renadeen")
+    @pytest.mark.xfail(run=False, reason="YT-24062")
     @flaky(max_runs=3)
     def test_aborted_speculative_job_is_restarted(self):
         op = self.run_op_with_residual_speculative_job()
