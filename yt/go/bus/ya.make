@@ -17,6 +17,7 @@ GO_TEST_SRCS(
 )
 
 IF (OPENSOURCE)
+    ENV(TEST_SERVICE_BINARY_PATH=${ARCADIA_BUILD_ROOT}/yt/yt/core/rpc/unittests/bin/rpc-test-service)
     SRCS(
         test_service_binary.go
     )
