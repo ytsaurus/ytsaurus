@@ -648,11 +648,11 @@ public:
         , LookupMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Lookup))
         , SignatureValidator_(std::move(signatureValidator))
         , SignatureGenerator_(std::move(signatureGenerator))
+        , QueryCorpusReporter_(std::move(queryCorpusReporter))
         , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
         , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
         , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
         , SelectOutputRowCount_(Profiler_.Counter("/select_output/row_count"))
-        , QueryCorpusReporter_(std::move(queryCorpusReporter))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
 
@@ -883,6 +883,8 @@ private:
     const TSignatureValidatorBasePtr SignatureValidator_;
     const TSignatureGeneratorBasePtr SignatureGenerator_;
 
+    const IQueryCorpusReporterPtr QueryCorpusReporter_;
+
     static const TStructuredLoggingMethodDynamicConfigPtr DefaultMethodConfig;
 
     TCounter SelectConsumeDataWeight_;
@@ -890,8 +892,6 @@ private:
 
     TCounter SelectOutputDataWeight_;
     TCounter SelectOutputRowCount_;
-
-    IQueryCorpusReporterPtr QueryCorpusReporter_;
 
     struct TDetailedProfilingCountersKey
     {
