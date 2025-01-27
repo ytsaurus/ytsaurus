@@ -1193,7 +1193,7 @@ class TestDataApiMultiCluster(TestDataApiBase):
         insert_rows(queue_replicated_table, [{"data": "foo"}])
         insert_rows(queue_replicated_table, [{"data": "bar"}])
 
-        self._assert_rows_contain(pull_queue(queue_replicated_table, offset=1, partition_index=0), [
+        self._wait_assert_rows_contain(lambda: pull_queue(queue_replicated_table, offset=1, partition_index=0), [
             {"$tablet_index": 0, "$row_index": 1, "data": "bar"},
         ])
 
