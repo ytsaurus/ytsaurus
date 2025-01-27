@@ -54,9 +54,17 @@ func (c *Controller) buildCommand(ctx context.Context, speclet *Speclet, alias s
 	if !found {
 		ipV6Enabled = "false"
 	}
+	var classPath string
+	if speclet.EnableSquashfsOrDefault() {
+		classPath = "/usr/lib/spyt/conf/:/usr/lib/spyt/jars/*:/usr/lib/spark/jars/*"
+	} else {
+		classPath = "spyt-package/conf/:spyt-package/jars/*:spark/jars/*"
+	}
+
 	javaOpts := []string{
 		"-Xmx512m",
-		"-cp spyt-package/conf/:spyt-package/jars/*:spark/jars/*",
+		"-cp",
+		classPath,
 		"-Dlog4j.loglevel=INFO",
 		fmt.Sprintf("-Djava.net.preferIPv6Addresses=%[1]v -Dspark.hadoop.yt.preferenceIpv6.enabled=%[1]v", ipV6Enabled),
 	}
@@ -72,7 +80,23 @@ func (c *Controller) buildCommand(ctx context.Context, speclet *Speclet, alias s
 	if networkProject != nil {
 		livyOpts = append(livyOpts, fmt.Sprintf("--network-project %v", *networkProject))
 	}
-	envCommand := fmt.Sprintf("./setup-spyt-env.sh --spark-home . --enable-livy --spark-distributive %v", sparkDistribName)
+	var envCommand string
+	var sparkHome string
+	var spytHome string
+	var livyHome string
+	livyWorkDir := "$HOME/./livy"
+	if speclet.EnableSquashfsOrDefault() {
+		envCommand = "./setup-spyt-env.sh --use-squashfs"
+		livyOpts = append(livyOpts, "--enable-squashfs")
+		sparkHome = "/usr/lib/spark"
+		spytHome = "/usr/lib/spyt"
+		livyHome = "/usr/lib/livy"
+	} else {
+		envCommand = fmt.Sprintf("./setup-spyt-env.sh --spark-home . --enable-livy --spark-distributive %v", sparkDistribName)
+		sparkHome = "$HOME/./spark"
+		spytHome = "$HOME/./spyt-package"
+		livyHome = livyWorkDir
+	}
 	launcherCommand := "$JAVA_HOME/bin/java " + strings.Join(javaOpts[:], " ") +
 		" tech.ytsaurus.spark.launcher.LivyLauncher " + strings.Join(livyOpts[:], " ")
 	cmd := envCommand + " && " + launcherCommand
@@ -86,15 +110,16 @@ func (c *Controller) buildCommand(ctx context.Context, speclet *Speclet, alias s
 		masterGroupID = *speclet.MasterGroupID
 	}
 	envPatch := map[string]string{
-		"LIVY_HOME":                       "$HOME/./livy",
+		"LIVY_HOME":                       livyHome,
+		"LIVY_WORK_DIR":                   livyWorkDir,
 		"SPARK_DISCOVERY_GROUP_ID":        alias,
 		"SPARK_MASTER_DISCOVERY_GROUP_ID": masterGroupID,
-		"SPARK_HOME":                      "$HOME/./spark",
+		"SPARK_HOME":                      sparkHome,
 		"SPARK_YT_RPC_JOB_PROXY_ENABLED":  "True",
 		"SPARK_YT_SOLOMON_ENABLED":        "False",
 		"SPARK_YT_TCP_PROXY_ENABLED":      "False",
 		"SPYT_CLUSTER_VERSION":            *speclet.Version,
-		"SPYT_HOME":                       "$HOME/./spyt-package",
+		"SPYT_HOME":                       spytHome,
 		"YT_DISCOVERY_ADDRESSES":          discoveryAddresses,
 		"YT_PROXY":                        c.cluster,
 	}
@@ -112,6 +137,11 @@ func VersionType(version string) string {
 	if strings.Contains(version, "SNAPSHOT") {
 		return "snapshots"
 	}
+	if strings.Contains(version, "-alpha-") ||
+		strings.Contains(version, "-beta-") ||
+		strings.Contains(version, "-rc-") {
+		return "pre-releases"
+	}
 	return "releases"
 }
 
@@ -120,9 +150,11 @@ type SparkGlobalConf struct {
 }
 
 type SparkLaunchConf struct {
-	FilePaths  []string          `yson:"file_paths"`
-	LayerPaths []string          `yson:"layer_paths"`
-	SparkConf  map[string]string `yson:"spark_conf"`
+	FilePaths          []string          `yson:"file_paths"`
+	LayerPaths         []string          `yson:"layer_paths"`
+	SquashfsLayerPaths []string          `yson:"squashfs_layer_paths"`
+	SparkConf          map[string]string `yson:"spark_conf"`
+	BasePath           string            `yson:"spark_yt_base_path"`
 }
 
 func (c *Controller) ParseGlobalConf(ctx context.Context) (conf SparkGlobalConf, err error) {
@@ -189,7 +221,20 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 
 	cpuLimit := 1 + speclet.DriverCPUOrDefault()*speclet.MaxSessionsOrDefault()
 	memoryLimit := 1024*1024*1024 + speclet.DriverMemoryOrDefault()*speclet.MaxSessionsOrDefault()
-	filePaths := append(versionConf.FilePaths, "//home/spark/livy/livy.tgz", sparkDistribPath)
+
+	filePaths := versionConf.FilePaths
+	var layerPaths []string
+
+	if speclet.EnableSquashfsOrDefault() {
+		sparkSquashfsPath := strings.Replace(sparkDistribPath, ".tgz", ".squashfs", 1)
+		spytSquashfsPath := versionConf.BasePath + "/spyt-package.squashfs"
+		layerPaths = append(layerPaths, "//home/spark/livy/livy.squashfs", sparkSquashfsPath, spytSquashfsPath)
+		layerPaths = append(layerPaths, versionConf.SquashfsLayerPaths...)
+	} else {
+		layerPaths = versionConf.LayerPaths
+		filePaths = append(filePaths, "//home/spark/livy/livy.tgz", sparkDistribPath)
+	}
+
 	spec = map[string]any{
 		"tasks": map[string]any{
 			"livy": map[string]any{
@@ -199,7 +244,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 				"memory_limit":                  memoryLimit,
 				"environment":                   env,
 				"file_paths":                    filePaths,
-				"layer_paths":                   versionConf.LayerPaths,
+				"layer_paths":                   layerPaths,
 				"restart_completed_jobs":        true,
 				"memory_reserve_factor":         1.0,
 				"enable_rpc_proxy_in_job_proxy": true,

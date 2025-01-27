@@ -12,6 +12,8 @@ type Speclet struct {
 
 	SparkVersion *string `yson:"spark_version"`
 	Version      *string `yson:"spyt_version"`
+
+	EnableSquashfs *bool `yson:"enable_squashfs"`
 }
 
 const (
@@ -21,6 +23,8 @@ const (
 	DefaultMaxSessions = 3
 
 	DefaultSparkVersion = "3.2.2"
+
+	DefaultEnableSquashfs = false
 )
 
 func (speclet *Speclet) DriverCPUOrDefault() uint64 {
@@ -49,4 +53,11 @@ func (speclet *Speclet) SparkVersionOrDefault() string {
 		return *speclet.SparkVersion
 	}
 	return DefaultSparkVersion
+}
+
+func (speclet *Speclet) EnableSquashfsOrDefault() bool {
+	if speclet.EnableSquashfs != nil {
+		return *speclet.EnableSquashfs
+	}
+	return DefaultEnableSquashfs
 }
