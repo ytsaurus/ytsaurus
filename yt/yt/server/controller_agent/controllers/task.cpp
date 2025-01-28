@@ -543,8 +543,6 @@ TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation)
     auto chunkPoolOutput = GetChunkPoolOutput();
     bool speculative = chunkPoolOutput->GetJobCounter()->GetPending() == 0;
 
-    auto nodeId = NodeIdFromAllocationId(allocation.Id);
-
     TOutputCookieInfo result;
 
     if (TaskHost_->IsTreeProbing(allocation.TreeId)) {
@@ -558,8 +556,7 @@ TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation)
         result.OutputCookie = SpeculativeJobManager_.PeekJobCandidate();
     } else {
         result.CompetitionType = std::nullopt;
-        auto localityNodeId = HasInputLocality() ? nodeId : InvalidNodeId;
-        result.OutputCookie = ExtractCookie(localityNodeId);
+        result.OutputCookie = ExtractCookieForAllocation(allocation);
         if (result.OutputCookie == IChunkPoolOutput::NullCookie) {
             YT_LOG_DEBUG("Job input is empty");
 
@@ -577,8 +574,6 @@ TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation)
 {
     const auto& chunkPoolOutput = GetChunkPoolOutput();
     bool speculative = chunkPoolOutput->GetJobCounter()->GetPending() == 0;
-
-    auto nodeId = NodeIdFromAllocationId(allocation.Id);
 
     TOutputCookieInfo result;
 
@@ -602,8 +597,7 @@ TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation)
             result.OutputCookie = SpeculativeJobManager_.PeekJobCandidate();
         } else {
             result.CompetitionType = std::nullopt;
-            auto localityNodeId = HasInputLocality() ? nodeId : InvalidNodeId;
-            result.OutputCookie = ExtractCookie(localityNodeId);
+            result.OutputCookie = ExtractCookieForAllocation(allocation);
             if (result.OutputCookie == IChunkPoolOutput::NullCookie) {
                 YT_LOG_DEBUG("Job input is empty");
 
@@ -663,6 +657,8 @@ std::optional<EScheduleFailReason> TTask::TryScheduleJob(
             allocation.NodeDescriptor = joblet->NodeDescriptor;
             allocation.Resources = result.value();
         }
+
+        allocation.LastJobInfo.OutputCookie = cookieInfo.OutputCookie;
 
         return std::nullopt;
     } else {
@@ -1004,8 +1000,10 @@ void TTask::PropagatePartitions(
     }
 }
 
-IChunkPoolOutput::TCookie TTask::ExtractCookie(TNodeId nodeId)
+NChunkPools::IChunkPoolOutput::TCookie  TTask::ExtractCookieForAllocation(const TAllocation& allocation)
 {
+    auto nodeId = HasInputLocality() ? NodeIdFromAllocationId(allocation.Id) : InvalidNodeId;
+
     return GetChunkPoolOutput()->Extract(nodeId);
 }
 

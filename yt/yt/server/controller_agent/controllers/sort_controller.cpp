@@ -23,6 +23,8 @@
 #include <yt/yt/server/lib/chunk_pools/shuffle_chunk_pool.h>
 #include <yt/yt/server/lib/chunk_pools/unordered_chunk_pool.h>
 
+#include <yt/yt/server/lib/scheduler/helpers.h>
+
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
@@ -1222,8 +1224,9 @@ protected:
             }
         }
 
-        IChunkPoolOutput::TCookie ExtractCookie(TNodeId nodeId) override
+        IChunkPoolOutput::TCookie ExtractCookieForAllocation(const TAllocation& allocation) override
         {
+            auto nodeId = HasInputLocality() ? NodeIdFromAllocationId(allocation.Id) : InvalidNodeId;
             auto localityEntry = Controller_->GetLocalityEntry(nodeId);
             if (localityEntry) {
                 auto partitionIndex = localityEntry->PartitionIndex;
@@ -1429,9 +1432,9 @@ protected:
             OutputStreamDescriptors_ = {Controller_->GetSortedMergeStreamDescriptor()};
         }
 
-        IChunkPoolOutput::TCookie ExtractCookie(TNodeId nodeId) override
+        IChunkPoolOutput::TCookie ExtractCookieForAllocation(const TAllocation& allocation) override
         {
-            auto cookie = TSortTaskBase::ExtractCookie(nodeId);
+            auto cookie = TSortTaskBase::ExtractCookieForAllocation(allocation);
 
             // NB(gritukan): In some weird cases unordered chunk pool can estimate total
             // number of jobs as 1 after pool creation and >1 after first cookie extraction.
@@ -1500,8 +1503,10 @@ protected:
             }
         }
 
-        IChunkPoolOutput::TCookie ExtractCookie(TNodeId nodeId) override
+        IChunkPoolOutput::TCookie ExtractCookieForAllocation(const TAllocation& allocation) override
         {
+            auto nodeId = HasInputLocality() ? NodeIdFromAllocationId(allocation.Id) : InvalidNodeId;
+
             auto localityEntry = Controller_->GetLocalityEntry(nodeId);
             if (localityEntry) {
                 auto partitionIndex = localityEntry->PartitionIndex;

@@ -2118,6 +2118,7 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
     registrar.Postprocessor([] (TVanillaOperationSpec* spec) {
         TStringBuf taskWithGangManagerName;
         TStringBuf taskWithFailOnJobRestartName;
+        TStringBuf taskWithOutputTableName;
         for (const auto& [taskName, taskSpec] : spec->Tasks) {
             if (taskName.empty()) {
                 THROW_ERROR_EXCEPTION("Empty task names are not allowed");
@@ -2135,6 +2136,9 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
             if (taskSpec->FailOnJobRestart) {
                 taskWithFailOnJobRestartName = taskName;
             }
+            if (!empty(taskSpec->OutputTablePaths)) {
+                taskWithOutputTableName = taskName;
+            }
         }
 
         if (taskWithGangManagerName && spec->FailOnJobRestart) {
@@ -2143,11 +2147,18 @@ void TVanillaOperationSpec::Register(TRegistrar registrar)
                 << TErrorAttribute("task_with_gang_manager_name", taskWithGangManagerName);
         }
 
-        if (taskWithGangManagerName &&taskWithFailOnJobRestartName) {
+        if (taskWithGangManagerName && taskWithFailOnJobRestartName) {
             THROW_ERROR_EXCEPTION(
                 "Operation can not have both task with \"gang_manager\" and task with \"fail_on_job_restart\"")
                 << TErrorAttribute("task_with_gang_manager_name", taskWithGangManagerName)
                 << TErrorAttribute("task_with_fail_on_job_restart_name", taskWithFailOnJobRestartName);
+        }
+
+        if (taskWithOutputTableName && taskWithGangManagerName) {
+            THROW_ERROR_EXCEPTION(
+                "Gang operations having output tables are not currently supported")
+                << TErrorAttribute("task_with_output_table_name", taskWithOutputTableName)
+                << TErrorAttribute("task_with_gang_manager_name", taskWithGangManagerName);
         }
 
         if (spec->Sampling && spec->Sampling->SamplingRate) {

@@ -46,6 +46,15 @@ void TAllocation::TLastJobInfo::Persist(const TPersistenceContext& context)
 
     Persist(context, JobId);
     Persist(context, CompetitionType);
+
+    if (context.GetVersion() >= ESnapshotVersion::PreserveJobCookieForAllocationInGangs) {
+        Persist(context, OutputCookie);
+    }
+}
+
+TAllocation::TLastJobInfo::operator bool() const noexcept
+{
+    return JobId != TJobId();
 }
 
 void TAllocation::Persist(const TPersistenceContext& context)

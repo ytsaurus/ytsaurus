@@ -180,7 +180,7 @@ public:
         PendingPoolIterators_.reserve(underlyingPools.size());
 
         for (int poolIndex = 0; poolIndex < std::ssize(underlyingPools); ++poolIndex) {
-            const auto& pool = underlyingPools[poolIndex];
+            auto& pool = underlyingPools[poolIndex];
             AddPoolOutput(std::move(pool), poolIndex);
         }
 

@@ -1075,8 +1075,6 @@ protected:
 
     virtual void BuildControllerInfoYson(NYTree::TFluentMap fluent) const;
 
-    void RestartAllRunningJobsPreservingAllocations(bool operationIsReviving);
-
     void ResetJobIndexGenerator();
 
 private:
@@ -1508,10 +1506,6 @@ private:
 
     template <class TAllocationEvent>
     void ProcessAllocationEvent(TAllocationEvent&& eventSummary, TStringBuf eventType);
-
-    // Returns false if operation has been finished.
-    bool RestartJobInAllocation(TNonNullPtr<TAllocation> allocation, bool operationIsReviving);
-
 
     // Returns nullptr if corresponding feature-flag is |false|.
     NScheduler::TJobFailsTolerancePtr GetJobFailsTolerance() const;
