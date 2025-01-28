@@ -22,6 +22,7 @@ require (
 	go.uber.org/goleak v1.3.0
 	go.uber.org/zap v1.27.0
 	go.ytsaurus.tech/library/go/blockcodecs v0.0.3
+	go.ytsaurus.tech/library/go/core/buildinfo v0.0.0-20250128064255-bfed144851b6
 	go.ytsaurus.tech/library/go/core/log v0.0.4
 	go.ytsaurus.tech/library/go/core/xerrors v0.0.4
 	go.ytsaurus.tech/library/go/httputil/middleware/httpmetrics v0.0.2

@@ -5,6 +5,9 @@ import (
 	"context"
 	"fmt"
 	"math"
+	"os"
+	"os/user"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -12,6 +15,7 @@ import (
 	"github.com/google/tink/go/keyset"
 	"golang.org/x/xerrors"
 
+	"go.ytsaurus.tech/library/go/core/buildinfo"
 	"go.ytsaurus.tech/yt/go/guid"
 	"go.ytsaurus.tech/yt/go/mapreduce/spec"
 	"go.ytsaurus.tech/yt/go/schema"
@@ -154,6 +158,10 @@ func (p *prepare) prepare(opts []OperationOption) error {
 		p.spec.ACL = p.mr.defaultACL
 	}
 
+	if err := setStartedBy(p.spec); err != nil {
+		return err
+	}
+
 	var cypress yt.CypressClient = p.mr.yc
 	if p.mr.tx != nil {
 		cypress = p.mr.tx
@@ -259,4 +267,29 @@ func (p *prepare) startOperation(opts *yt.StartOperationOptions) (*yt.OperationI
 			return nil, p.ctx.Err()
 		}
 	}
+}
+
+func setStartedBy(spec *spec.Spec) error {
+	u, err := user.Current()
+	if err != nil {
+		return err
+	}
+	hostname, err := os.Hostname()
+	if err != nil {
+		return err
+	}
+	execPath, err := os.Executable()
+	if err != nil {
+		return err
+	}
+
+	spec.StartedBy = map[string]any{
+		"binary":          execPath,
+		"binary_name":     filepath.Base(execPath),
+		"hostname":        hostname,
+		"pid":             os.Getpid(),
+		"user":            u.Username,
+		"wrapper_version": fmt.Sprintf("yt/go/mapreduce@%s", buildinfo.Info.ArcadiaSourceRevision),
+	}
+	return nil
 }
