@@ -45,7 +45,6 @@ IAttributeDictionaryPtr GetInputMessagesTableAttributes()
             .BeginMap()
                 .Item("min_data_versions").Value(0)
                 .Item("min_data_ttl").Value(0)
-                .Item("max_data_ttl").Value(1800000)
                 .Item("row_merger_type").Value(NTabletClient::ERowMergerType::Watermark)
             .EndMap());
 
@@ -66,14 +65,13 @@ IAttributeDictionaryPtr GetOutputMessagesTableAttributes()
         /*uniqueKeys*/ true));
 }
 
-IAttributeDictionaryPtr GetPartitionDataTableAttributes()
+IAttributeDictionaryPtr GetCheckpointsTableAttributes()
 {
     return CreateDynamicTableAttributes(TTableSchema(
         std::vector{
-            TColumnSchema("partition_id", EValueType::String, ESortOrder::Ascending),
-            TColumnSchema("watermarks", EValueType::String),
-            TColumnSchema("offsets", EValueType::String),
-            TColumnSchema("meta_field_setter", EValueType::String),
+            TColumnSchema("computation_id", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("key", EValueType::Any, ESortOrder::Ascending),
+            TColumnSchema("checkpoint", EValueType::Any),
         },
         /*strict*/ true,
         /*uniqueKeys*/ true));
@@ -124,7 +122,7 @@ auto GetTables()
     return std::vector<std::tuple<TStringBuf, IAttributeDictionaryPtr>>{
         {InputMessagesTableName, GetInputMessagesTableAttributes()},
         {OutputMessagesTableName, GetOutputMessagesTableAttributes()},
-        {PartitionDataTableName, GetPartitionDataTableAttributes()},
+        {CheckpointsTableName, GetCheckpointsTableAttributes()},
         {TimerMessagesTableName, GetTimerMessagesTableAttributes()},
         {ControllerLogsTableName, GetControllerLogsTableAttributes()},
     };
