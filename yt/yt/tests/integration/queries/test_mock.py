@@ -13,6 +13,8 @@ from yt.common import date_string_to_timestamp_mcs
 
 from yt.test_helpers import assert_items_equal
 
+from yt.wrapper import yson
+
 from collections import Counter
 from builtins import set as Set
 
@@ -248,6 +250,47 @@ class TestQueryTrackerBan(YTEnvSetup):
         set(f"//sys/query_tracker/instances/{address}/@banned", False)
         query = Query(guid)
         wait(lambda: query.get_state() == "running", ignore_exceptions=True)
+
+
+@pytest.mark.enabled_multidaemon
+class TestQueryTrackerResults(YTEnvSetup):
+    DELTA_DRIVER_CONFIG = {
+        "cluster_connection_dynamic_config_policy": "from_cluster_directory",
+    }
+    ENABLE_MULTIDAEMON = True
+
+    @authors("lucius")
+    def test_query_tracker_results(self, query_tracker):
+        guid = generate_uuid()
+        insert_rows("//sys/query_tracker/finished_queries", [{
+            "query_id": guid,
+            "engine": "mock",
+            "query": "select *",
+            "files": None,
+            "settings": None,
+            "user": "test",
+            "access_control_objects": None,
+            "start_time": 0,
+            "state": "completed",
+            "progress": None,
+            "error": {"attributes": {}, "code": 100, "message": ""},
+            "result_count": 1,
+            "finish_time": 0,
+            "annotations": None,
+        }])
+        full_result = {"cluster": "test", "table_path": "tmp/test"}
+        insert_rows("//sys/query_tracker/finished_query_results", [{
+            "query_id": guid,
+            "result_index": 0,
+            "error": {"attributes": {}, "code": 100, "message": ""},
+            "schema": [{"name": "a", "type": "int64"}],
+            "data_statistics": {},
+            "rowset": """[{"a": 1}]""",
+            "is_truncated": False,
+            "full_result": full_result,
+        }])
+        query = Query(guid)
+        assert query.get_result(0)["full_result"] == yson.YsonMap(full_result)
 
 
 @pytest.mark.enabled_multidaemon
@@ -936,6 +979,15 @@ class TestQueriesMockRpcProxy(TestQueriesMock):
 @authors("mpereskokova")
 @pytest.mark.enabled_multidaemon
 class TestQueryTrackerBanRpcProxy(TestQueryTrackerBan):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+    NUM_RPC_PROXIES = 1
+    ENABLE_MULTIDAEMON = True
+
+
+@authors("lucius")
+@pytest.mark.enabled_multidaemon
+class TestQueryTrackerResultsRpcProxy(TestQueryTrackerResults):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1

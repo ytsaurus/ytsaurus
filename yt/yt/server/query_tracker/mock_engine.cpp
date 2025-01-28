@@ -25,6 +25,7 @@ public:
     TTableSchemaPtr Schema;
     std::vector<INodePtr> Rows;
     bool IsTruncated;
+    std::optional<NYson::TYsonString> FullResult;
 
     REGISTER_YSON_STRUCT(TMockResult);
 
@@ -37,6 +38,8 @@ public:
         registrar.Parameter("rows", &TThis::Rows)
             .Default();
         registrar.Parameter("is_truncated", &TThis::IsTruncated)
+            .Default();
+        registrar.Parameter("full_result", &TThis::FullResult)
             .Default();
 
         registrar.Postprocessor([] (TThis* result) {
@@ -117,7 +120,11 @@ public:
                             EYsonType::Node);
                         builder.AddRow(TUnversionedRow(owningRow));
                     }
-                    rowsetOrErrors.emplace_back(TRowset{.Rowset = CreateRowset(result->Schema, builder.Build()), .IsTruncated = result->IsTruncated});
+                    rowsetOrErrors.emplace_back(TRowset{
+                        .Rowset = CreateRowset(result->Schema, builder.Build()),
+                        .IsTruncated = result->IsTruncated,
+                        .FullResult = result->FullResult,
+                    });
                 }
             }
             DelayedCookie_ = TDelayedExecutor::Submit(

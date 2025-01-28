@@ -111,6 +111,7 @@ void ProcessRowset(TFinishedQueryResultPartial& newRecord, TWireRowset wireSchem
         dataStatistics.set_data_weight(GetDataWeight(rows));
         newRecord.DataStatistics = ConvertToYsonString(dataStatistics);
         newRecord.IsTruncated = wireSchemaAndSchemafulRowset.IsTruncated;
+        newRecord.FullResult = wireSchemaAndSchemafulRowset.FullResult;
         if (rowset.Size() <= MaxStringValueLength) {
             // Fast path. Copy full rowset.
             YT_LOG_DEBUG("Copying full rowset of size %v", rowset.Size());
@@ -287,7 +288,11 @@ void TQueryHandlerBase::OnQueryCompleted(const std::vector<TErrorOr<TRowset>>& r
             auto refs = writer->Finish();
             struct THandlerTag { };
             auto result = MergeRefsToRef<THandlerTag>(refs);
-            wireRowsetOrErrors.push_back(TWireRowset{.Rowset = std::move(result), .IsTruncated = rowsetOrError.Value().IsTruncated});
+            wireRowsetOrErrors.push_back(TWireRowset{
+                .Rowset = std::move(result),
+                .IsTruncated = rowsetOrError.Value().IsTruncated,
+                .FullResult = rowsetOrError.Value().FullResult,
+            });
         } else {
             wireRowsetOrErrors.push_back(static_cast<TError>(rowsetOrError));
         }

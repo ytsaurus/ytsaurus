@@ -553,6 +553,16 @@ class TestYqlAgent(TestQueriesYqlBase):
             assert file_storage_config["max_size_mb"] == 1 << 13
 
 
+def assert_full_result(query_result):
+    assert "full_result" in query_result
+    full_result = query_result["full_result"]
+    assert isinstance(full_result, yson.YsonMap)
+    assert "cluster" in full_result
+    assert isinstance(full_result["cluster"], str)
+    assert "table_path" in full_result
+    assert isinstance(full_result["table_path"], str)
+
+
 class TestQueriesYqlLimitedResult(TestQueriesYqlBase):
     QUERY_TRACKER_DYNAMIC_CONFIG = {"yql_engine": {"row_count_limit": 1}}
 
@@ -569,24 +579,30 @@ class TestQueriesYqlLimitedResult(TestQueriesYqlBase):
         result = query.read_result(0)
         assert_items_equal(result, [{"a": 42}])
         assert query.get_result(0)["is_truncated"]
+        assert_full_result(query.get_result(0))
 
         query = start_query("yql", "select * from `//tmp/t1` limit 1")
         query.track()
         result = query.read_result(0)
         assert_items_equal(result, [{"a": 42}])
         assert not query.get_result(0)["is_truncated"]
+        assert "full_result" not in query.get_result(0)
 
 
 class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
     QUERY_TRACKER_DYNAMIC_CONFIG = {"yql_engine": {"resulting_rowset_value_length_limit": 20 * 1024**2}}
 
     @staticmethod
-    def _assert_select_result(path, rows, is_truncated):
+    def _assert_select_result(path, rows, is_truncated, has_full_result):
         q = start_query("yql", f"select * from `{path}`")
         q.track()
         assert q.get()["result_count"] == 1
         assert_items_equal(q.read_result(0), rows)
         assert q.get_result(0)["is_truncated"] == yson.YsonBoolean(is_truncated)
+        if has_full_result:
+            assert_full_result(q.get_result(0))
+        else:
+            assert "full_result" not in q.get_result(0)
 
     @authors("aleksandr.gaev")
     @pytest.mark.timeout(300)
@@ -600,31 +616,31 @@ class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
         # 14 MB
         rows = [{"value": str(i) + ''.join(['a' for _ in range(value_size)])} for i in range(14)]
         write_table("//tmp/t", rows)
-        self._assert_select_result("//tmp/t", rows, False)
+        self._assert_select_result("//tmp/t", rows, False, True)
 
         # 15 MB
         new_rows = [{"value": str(i) + ''.join(['b' for _ in range(value_size)])} for i in range(14, 15)]
         rows += new_rows
         write_table("//tmp/t", rows)
-        self._assert_select_result("//tmp/t", rows, False)
+        self._assert_select_result("//tmp/t", rows, False, True)
 
         # 16 MB
         new_rows = [{"value": str(i) + ''.join(['c' for _ in range(value_size)])} for i in range(15, 16)]
         rows += new_rows
         write_table("//tmp/t", rows)
-        self._assert_select_result("//tmp/t", rows[:15], True)
+        self._assert_select_result("//tmp/t", rows[:15], True, True)
 
         # 17 MB
         new_rows = [{"value": str(i) + ''.join(['d' for _ in range(value_size)])} for i in range(16, 17)]
         rows += new_rows
         write_table("//tmp/t", rows)
-        self._assert_select_result("//tmp/t", rows[:15], True)
+        self._assert_select_result("//tmp/t", rows[:15], True, True)
 
         # 22 MB
         new_rows = [{"value": str(i) + ''.join(['d' for _ in range(value_size)])} for i in range(17, 22)]
         rows += new_rows
         write_table("//tmp/t", rows)
-        self._assert_select_result("//tmp/t", rows[:15], True)
+        self._assert_select_result("//tmp/t", rows[:15], True, True)
 
     @authors("aleksandr.gaev")
     @pytest.mark.timeout(180)
@@ -636,17 +652,17 @@ class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
         # 12 MB line
         rows = [{"value": "a"}, {"value": ''.join(['a' for _ in range(12 * 1024**2)])}]
         write_table("//tmp/t", rows, table_writer={"max_row_weight": 64 * 1024**2})
-        self._assert_select_result("//tmp/t", rows, False)
+        self._assert_select_result("//tmp/t", rows, False, False)
 
         # 16 MB line
         rows = [{"value": "a"}, {"value": ''.join(['a' for _ in range(16 * 1024**2)])}]
         write_table("//tmp/t", rows, table_writer={"max_row_weight": 64 * 1024**2})
-        self._assert_select_result("//tmp/t", rows[:1], True)
+        self._assert_select_result("//tmp/t", rows[:1], True, False)
 
         # 19 MB line
         rows = [{"value": "a"}, {"value": ''.join(['a' for _ in range(19 * 1024**2)])}]
         write_table("//tmp/t", rows, table_writer={"max_row_weight": 64 * 1024**2})
-        self._assert_select_result("//tmp/t", rows[:1], True)
+        self._assert_select_result("//tmp/t", rows[:1], True, False)
 
     @authors("aleksandr.gaev")
     @pytest.mark.timeout(180)
@@ -668,6 +684,7 @@ class TestQueriesYqlResultTruncation(TestQueriesYqlBase):
         assert "error" in result
         assert "Failed to save rowset" in str(result["error"])
         assert "Failed to read resulting rowset. Try using INSERT INTO to save result" in str(result["error"])
+        assert "full_result" not in result
 
 
 class TestQueriesYqlAuth(TestQueriesYqlBase):
