@@ -75,49 +75,40 @@ def build_flow_layout_mutations():
             .cell("Job manage mutations", FlowController("yt.flow.controller.job_manager.*.rate").unit("UNIT_COUNTS_PER_SECOND"))
     ).owner
 
-def build_watermarks():
+
+def build_streams():
     return (Rowset()
         .stack(False)
+        .all("stream_id")
         .row()
             .cell(
-                "System watermark",
-                MonitoringExpr(FlowController("yt.flow.controller.watermark_lag.system_timestamp"))
+                "Stream Time Lag",
+                MonitoringExpr(FlowController("yt.flow.controller.streams.time_lag"))
                     .alias("{{stream_id}}")
                     .unit("UNIT_SECONDS")
                     .precision(1))
             .cell(
-                "User watermarks",
-                MonitoringExpr(FlowController("yt.flow.controller.watermark_lag.user_timestamp"))
+                "User Watermark Lag",
+                MonitoringExpr(FlowController("yt.flow.controller.streams.user_time_lag"))
                     .all("user_timestamp_id")
-                    .alias("{{stream_id}}/{{user_timestamp_id}}")
+                    .alias("{{stream_id}} - {{user_timestamp_id}}")
                     .unit("UNIT_SECONDS")
                     .precision(1))
-    ).owner
-
-def build_lags():
-    return (Rowset()
-        .stack(False)
-        .all("computation_id")
-        .all("stream_id")
         .row()
             .cell(
-                "Stream lags",
-                MonitoringExpr(FlowController("yt.flow.controller.computation.*streams.lag"))
-                    .alias("{{computation_id}}/{{stream_id}}")
+                "Stream count lags",
+                MonitoringExpr(FlowController("yt.flow.controller.streams.count_lag"))
+                    .alias("{{stream_id}}")
                     .unit("UNIT_COUNT"))
             .cell(
-                "Stream time lags",
-                MonitoringExpr(FlowController("yt.flow.controller.computation.*streams.time_lag"))
-                    .alias("{{computation_id}}/{{stream_id}}")
-                    .unit("UNIT_SECONDS"))
-            .cell(
                 "Stream size lags",
-                MonitoringExpr(FlowController("yt.flow.controller.computation.*streams.byte_size_lag"))
-                    .alias("{{computation_id}}/{{stream_id}}")
+                MonitoringExpr(FlowController("yt.flow.controller.streams.byte_size_lag"))
+                    .alias("{{stream_id}}")
                     .unit("UNIT_BYTES_SI"))
     )
 
-def build_streams():
+
+def build_computations():
     return (Rowset()
         .stack(True)
         .aggr("host")
@@ -125,52 +116,73 @@ def build_streams():
         .all("stream_id")
         .row()
             .cell(
-                "Input messages rate",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.input_messages_count.rate"))
-                    .alias("{{computation_id}}/{{stream_id}}")
+                "Registered processed messages rate",
+                MultiSensor(
+                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.input_streams.persisted_count.rate"))
+                        .alias("input - {{computation_id}} - {{stream_id}}"),
+                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.source_streams.persisted_count.rate"))
+                        .alias("source - {{computation_id}} - {{stream_id}}"),
+                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.timer_streams.unregistered_count.rate"))
+                        .alias("timer - {{computation_id}} - {{stream_id}}")
+                )
                     .unit("UNIT_COUNTS_PER_SECOND"))
             .cell(
-                "Input messages bytes rate",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.input_messages_size.rate"))
-                    .alias("{{computation_id}}/{{stream_id}}")
+                "Registered processed messages bytes rate",
+                MultiSensor(
+                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.input_streams.persisted_bytes.rate"))
+                        .alias("input - {{computation_id}} - {{stream_id}}"),
+                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.source_streams.persisted_bytes.rate"))
+                        .alias("source - {{computation_id}} - {{stream_id}}"),
+                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.timer_streams.unregistered_bytes.rate"))
+                        .alias("timer - {{computation_id}} - {{stream_id}}")
+                )
                     .unit("UNIT_BYTES_SI_PER_SECOND"))
+        .row()
             .cell(
-                "Output messages rate",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.output_messages_count.rate"))
-                    .alias("{{computation_id}}/{{stream_id}}")
+                "Registered generated messages rate",
+                MultiSensor(
+                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.output_streams.registered_count.rate"))
+                        .alias("output - {{computation_id}} - {{stream_id}}"),
+                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.timer_streams.registered_count.rate"))
+                        .alias("timer - {{computation_id}} - {{stream_id}}")
+                )
                     .unit("UNIT_COUNTS_PER_SECOND"))
             .cell(
-                "Output messages bytes rate",
-                MonitoringExpr(FlowWorker("yt.flow.worker.computation.output_messages_size.rate"))
-                    .alias("{{computation_id}}/{{stream_id}}")
+                "Registered generated messages bytes rate",
+                MultiSensor(
+                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.output_streams.registered_bytes.rate"))
+                        .alias("{{computation_id}}/{{stream_id}} - output"),
+                    MonitoringExpr(FlowWorker("yt.flow.worker.computation.timer_streams.registered_bytes.rate"))
+                        .alias("{{computation_id}}/{{stream_id}} - timer")
+                )
                     .unit("UNIT_BYTES_SI_PER_SECOND"))
     )
+
 
 def build_computation_resources():
     return (Rowset()
         .stack(True)
         .all("computation_id")
+        .aggr("host")
         .row()
             .cell(
-                "Computation cpu usage",
-                MonitoringExpr(FlowController("yt.flow.controller.computation.cpu_usage"))
+                "Computation cpu time",
+                MonitoringExpr(FlowWorker("yt.flow.worker.computation.cpu_time.rate"))
                     .alias("{{computation_id}}")
                     .unit("UNIT_PERCENT_UNIT"))
             .cell(
                 "Computation memory usage",
-                MonitoringExpr(FlowController("yt.flow.controller.computation.memory_usage"))
+                MonitoringExpr(FlowWorker("yt.flow.worker.computation.memory_usage"))
                     .alias("{{computation_id}}")
                     .unit("UNIT_BYTES_SI"))
             .cell(
                 "Input buffers size",
                 MonitoringExpr(FlowWorker("yt.flow.worker.buffer_state.computations.input_buffer_message_size"))
-                    .aggr("host")
                     .alias("{{computation_id}}")
                     .unit("UNIT_BYTES_SI"))
             .cell(
                 "Output buffers size",
                 MonitoringExpr(FlowWorker("yt.flow.worker.buffer_state.computations.output_buffer_message_size"))
-                    .aggr("host")
                     .alias("{{computation_id}}")
                     .unit("UNIT_BYTES_SI"))
     )
@@ -337,9 +349,8 @@ def build_pipeline():
     d.add(build_resource_usage())
     d.add(build_flow_layout())
     d.add(build_flow_layout_mutations())
-    d.add(build_watermarks())
-    d.add(build_lags())
     d.add(build_streams())
+    d.add(build_computations())
     d.add(build_computation_resources())
     d.add(build_partition_store_commits())
     d.add(build_heartbeats())
@@ -356,6 +367,4 @@ def build_pipeline():
 
     return (d
         .value("project", TemplateTag("project"))
-        .value("cluster", TemplateTag("cluster"))
-        .value("proxy", TemplateTag("proxy"))
-        .value("pipeline_path", TemplateTag("pipeline_path")))
+        .value("cluster", TemplateTag("cluster")))
