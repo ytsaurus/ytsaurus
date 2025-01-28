@@ -5458,11 +5458,7 @@ void TOperationControllerBase::OnJobUniquenessViolated(TError error)
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(CancelableInvokerPool);
 
-    if (Config->JobTracker->EnableGracefulAbort) {
-        GracefullyFailOperation(std::move(error));
-    } else {
-        DoFailOperation(std::move(error));
-    }
+    GracefullyFailOperation(std::move(error));
 }
 
 void TOperationControllerBase::GracefullyFailOperation(TError error)

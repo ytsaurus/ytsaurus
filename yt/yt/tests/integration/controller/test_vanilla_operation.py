@@ -1428,7 +1428,6 @@ class TestGangManager(YTEnvSetup):
 
     @authors("pogorelov")
     def test_gang_manager_with_controller_in_failing_state(self):
-        update_controller_agent_config("job_tracker/enable_graceful_abort", True)
         update_controller_agent_config("job_tracker/node_disconnection_timeout", 50000)
         update_nodes_dynamic_config(
             path="exec_node/controller_agent_connector/heartbeat_executor",

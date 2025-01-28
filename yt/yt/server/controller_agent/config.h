@@ -747,7 +747,6 @@ public:
 
     TDuration DurationBeforeJobConsideredDisappearedFromNode;
 
-    bool EnableGracefulAbort;
     bool CheckNodeHeartbeatSequenceNumber;
 
     int HeavyInvokerThreadCount;
