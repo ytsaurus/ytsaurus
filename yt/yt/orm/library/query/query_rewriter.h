@@ -15,6 +15,7 @@ using TFunctionRewriter = std::function<NQueryClient::NAst::TExpressionPtr(
     NQueryClient::NAst::TFunctionExpression*)>;
 
 NQueryClient::NAst::TExpressionPtr DummyFunctionRewriter(NQueryClient::NAst::TFunctionExpression*);
+NQueryClient::NAst::TExpressionPtr DummyReferenceMapping(const NQueryClient::NAst::TReference&);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -24,7 +25,7 @@ class TQueryRewriter
 public:
     explicit TQueryRewriter(
         TObjectsHolder* holder,
-        TReferenceMapping referenceMapping,
+        TReferenceMapping referenceMapping = DummyReferenceMapping,
         TFunctionRewriter functionRewriter = DummyFunctionRewriter);
 
     NQueryClient::NAst::TExpressionPtr Run(const NQueryClient::NAst::TExpressionPtr& expr);

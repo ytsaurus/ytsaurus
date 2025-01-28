@@ -11,6 +11,11 @@ TExpressionPtr DummyFunctionRewriter(TFunctionExpression*)
     return nullptr;
 }
 
+TExpressionPtr DummyReferenceMapping(const TReference&)
+{
+    return nullptr;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TQueryRewriter::TQueryRewriter(
@@ -33,7 +38,10 @@ TExpressionPtr TQueryRewriter::Run(const TExpressionPtr& expr)
 
 TExpressionPtr TQueryRewriter::OnReference(TReferenceExpressionPtr referenceExpr)
 {
-    return ReferenceMapping_(referenceExpr->Reference);
+    if (auto* newExpr = ReferenceMapping_(referenceExpr->Reference)) {
+        return newExpr;
+    }
+    return referenceExpr;
 }
 
 TExpressionPtr TQueryRewriter::OnFunction(TFunctionExpressionPtr functionExpr)
