@@ -2,8 +2,6 @@
 
 #include "config.h"
 
-#include <yt/yt/server/lib/signature/key_stores/cypress.h>
-
 namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////

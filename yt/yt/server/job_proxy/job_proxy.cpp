@@ -25,7 +25,7 @@
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 #include <yt/yt/server/lib/rpc_proxy/security_manager.h>
 
-#include <yt/yt/server/lib/signature/key_stores/cypress.h>
+#include <yt/yt/server/lib/signature/cypress_key_store.h>
 #include <yt/yt/server/lib/signature/signature_validator.h>
 
 #include <yt/yt/server/lib/user_job/config.h>

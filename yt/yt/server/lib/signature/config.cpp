@@ -5,6 +5,9 @@ namespace NYT::NSignature {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NYTree;
+using namespace NYPath;
+
+static constexpr TYPathBuf DefaultKeyPath = "//sys/public_keys/by_owner";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,6 +37,34 @@ void TKeyRotatorConfig::Register(TRegistrar registrar)
     registrar.Parameter("key_rotation_interval", &TThis::KeyRotationInterval)
         .Default(TDuration::Days(1))
         .GreaterThan(TDuration::MilliSeconds(100));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCypressKeyReaderConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path", &TThis::Path)
+        .Default(TYPath(DefaultKeyPath))
+        .NonEmpty();
+}
+
+void TCypressKeyWriterConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("path", &TThis::Path)
+        .Default(TYPath(DefaultKeyPath))
+        .NonEmpty();
+
+    registrar.Parameter("owner_id", &TThis::OwnerId)
+        .CheckThat([] (const TOwnerId& owner) { return !owner.Underlying().empty(); });
+
+    registrar.Parameter("key_deletion_delay", &TThis::KeyDeletionDelay)
+        .Default(TDuration::Days(1))
+        .GreaterThanOrEqual(TDuration::Zero());
+
+    // TODO(pavook) implement.
+    registrar.Parameter("max_key_count", &TThis::MaxKeyCount)
+        .Default(100)
+        .GreaterThan(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

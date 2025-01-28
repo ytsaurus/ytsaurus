@@ -1,7 +1,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/lib/signature/key_stores/cypress.h>
+#include <yt/yt/server/lib/signature/cypress_key_store.h>
 
+#include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/key_info.h>
 
 #include <yt/yt/client/unittests/mock/client.h>

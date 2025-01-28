@@ -14,6 +14,7 @@ SRCS(
     signature_generator_ut.cpp
     signature_validator_ut.cpp
     signature_preprocess_ut.cpp
+    stub_keystore.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)

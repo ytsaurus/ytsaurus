@@ -1,4 +1,4 @@
-#include "stub.h"
+#include "stub_keystore.h"
 
 #include <yt/yt/server/lib/signature/key_info.h>
 

@@ -1,8 +1,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/lib/signature/signature_validator.h>
+#include "stub_keystore.h"
 
-#include <yt/yt/server/lib/signature/key_stores/stub.h>
+#include <yt/yt/server/lib/signature/signature_validator.h>
 
 #include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/key_pair.h>

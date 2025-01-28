@@ -12,10 +12,7 @@ SRCS(
     signature_header.cpp
     signature_preprocess.cpp
     signature_validator.cpp
-
-    key_stores/cypress.cpp
-    key_stores/stub.cpp
-
+    cypress_key_store.cpp
     instance_config.cpp
 )
 
