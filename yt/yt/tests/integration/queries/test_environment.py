@@ -9,6 +9,8 @@ from yt.common import YtError
 from yt_commands import (wait, authors, ls, get, set, assert_yt_error, remove, select_rows, insert_rows, exists,
                          create_tablet_cell_bundle, sync_create_cells)
 
+from yt.yson import YsonEntity
+
 import yt_error_codes
 
 
@@ -164,3 +166,24 @@ class TestMigration(YTEnvSetup):
             assert get(f"//sys/query_tracker/{table}/@min_data_ttl") == 60000
             assert get(f"//sys/query_tracker/{table}/@merge_rows_on_flush")
             assert get(f"//sys/query_tracker/{table}/@auto_compaction_period") == 3600000
+
+    @authors("lucius")
+    def test_full_result_migration(self, query_tracker):
+        create_tablet_cell_bundle("sys")
+        sync_create_cells(1, tablet_cell_bundle="sys")
+
+        remove("//sys/query_tracker", recursive=True, force=True)
+
+        client = query_tracker.query_tracker.env.create_native_client()
+        create_tables_required_version(client, 11)
+
+        insert_rows("//sys/query_tracker/finished_query_results", [{"query_id": "test_query_id", "result_index": 1}])
+        run_migration(client, 12)
+
+        results = list(select_rows("* from [//sys/query_tracker/finished_query_results]"))
+        assert len(results) == 1
+
+        assert results[0]["query_id"] == "test_query_id"
+        assert results[0]["result_index"] == 1
+        assert "full_result" in results[0]
+        assert results[0]["full_result"] == YsonEntity()

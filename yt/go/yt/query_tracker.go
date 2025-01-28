@@ -26,6 +26,8 @@ type (
 		Err            yterrors.Error `yson:"error"`
 		Schema         schema.Schema  `yson:"schema"`
 		DataStatistics DataStatistics `yson:"data_statistics"`
+		IsTruncated    bool           `yson:"is_truncated"`
+		FullResult     map[string]any `yson:"full_result"`
 	}
 
 	Query struct {

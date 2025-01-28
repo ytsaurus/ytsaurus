@@ -24,7 +24,6 @@
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/core/ytree/convert.h>
-#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -59,26 +58,6 @@ using namespace NChunkClient;
 static constexpr auto& Logger = YqlAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TYqlRef
-    : public TYsonStruct
-{
-    std::vector<TString> Reference;
-    std::optional<std::vector<std::string>> Columns;
-
-    REGISTER_YSON_STRUCT(TYqlRef);
-
-    static void Register(TRegistrar registrar)
-    {
-        // Note that YQL does not follow our lowercase YSON field naming convention.
-        registrar.Parameter("Reference", &TThis::Reference);
-        registrar.Parameter("Columns", &TThis::Columns)
-            .Default();
-    }
-};
-
-DECLARE_REFCOUNTED_STRUCT(TYqlRef)
-DEFINE_REFCOUNTED_TYPE(TYqlRef)
 
 void ReorderAndSaveRows(
     TRowBufferPtr rowBuffer,
@@ -118,6 +97,13 @@ void ReorderAndSaveRows(
         resultRows.push_back(reorderedRow);
     }
 };
+
+void TYqlRef::Register(TRegistrar registrar) {
+    // Note that YQL does not follow our lowercase YSON field naming convention.
+    registrar.Parameter("Reference", &TThis::Reference);
+    registrar.Parameter("Columns", &TThis::Columns)
+        .Default();
+}
 
 TYqlRowset BuildRowsetByRef(
     const TClientDirectoryPtr& clientDirectory,
@@ -199,6 +185,7 @@ TYqlRowset BuildRowsetByRef(
         .ResultRows = resultRows,
         .RowBuffer = rowBuffer,
         .Incomplete = incomplete,
+        .References = references,
     };
 }
 
@@ -330,7 +317,11 @@ TWireYqlRowset MakeWireYqlRowset(const TYqlRowset& rowset)
     auto refs = wireWriter->Finish();
 
     struct TYqlRefMergeTag {};
-    return {.WireRowset = MergeRefsToRef<TYqlRefMergeTag>(refs), .Incomplete = rowset.Incomplete};
+    return {
+        .WireRowset = MergeRefsToRef<TYqlRefMergeTag>(refs),
+        .Incomplete = rowset.Incomplete,
+        .References = rowset.References,
+    };
 }
 
 std::vector<TWireYqlRowset> BuildRowsets(

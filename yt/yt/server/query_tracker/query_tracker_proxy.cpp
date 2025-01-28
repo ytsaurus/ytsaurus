@@ -930,6 +930,7 @@ TQueryResult TQueryTrackerProxy::GetQueryResult(
         queryResult.Schema = schemaNode && schemaNode->GetType() == ENodeType::List ? ConvertTo<TTableSchemaPtr>(schemaNode) : nullptr;
         queryResult.Error = record.Error;
         queryResult.IsTruncated = record.IsTruncated;
+        queryResult.FullResult = record.FullResult;
         queryResult.DataStatistics = ConvertTo<TDataStatistics>(record.DataStatistics);
     }
 

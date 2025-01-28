@@ -272,7 +272,15 @@ private:
         for (int index = 0; index < rsp->rowset_errors_size(); ++index) {
             auto error = FromProto<TError>(rsp->rowset_errors()[index]);
             if (error.IsOK()) {
-                wireRowsetOrErrors.push_back(TWireRowset{.Rowset = rsp->Attachments()[index], .IsTruncated = rsp->incomplete()[index]});
+                std::optional<TYsonString> fullResult;
+                if (const auto rawFullResult = rsp->full_result()[index]) {
+                    fullResult = TYsonString(rawFullResult);
+                }
+                wireRowsetOrErrors.push_back(TWireRowset{
+                    .Rowset = rsp->Attachments()[index],
+                    .IsTruncated = rsp->incomplete()[index],
+                    .FullResult = std::move(fullResult),
+                });
             } else {
                 wireRowsetOrErrors.push_back(error);
             }

@@ -133,7 +133,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, GetQueryResult)
     {
         YT_VERIFY(NRpcProxy::NProto::TReqGetQueryResult::GetDescriptor()->field_count() == 3);
-        YT_VERIFY(NRpcProxy::NProto::TRspGetQueryResult::GetDescriptor()->field_count() == 6);
+        YT_VERIFY(NRpcProxy::NProto::TRspGetQueryResult::GetDescriptor()->field_count() == 7);
 
         auto rpcRequest = request->rpc_proxy_request();
         auto* rpcResponse = response->mutable_rpc_proxy_response();
@@ -156,6 +156,9 @@ private:
         }
         ToProto(rpcResponse->mutable_error(), queryResult.Error);
         rpcResponse->set_is_truncated(queryResult.IsTruncated);
+        if (queryResult.FullResult) {
+            rpcResponse->set_full_result(queryResult.FullResult->AsStringBuf());
+        }
         ToProto(rpcResponse->mutable_data_statistics(), queryResult.DataStatistics);
 
         context->Reply();
