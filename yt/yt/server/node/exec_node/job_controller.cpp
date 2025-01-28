@@ -1233,23 +1233,6 @@ private:
             }
         }
 
-        // COMPAT(arkady-e1ppa): Remove in 24.2.
-        for (const auto& protoJobToFail : response->jobs_to_fail()) {
-            auto jobId = FromProto<TJobId>(protoJobToFail.job_id());
-
-            if (auto job = FindJob(jobId)) {
-                YT_LOG_DEBUG(
-                    "Controller agent requested to fail job (JobId: %v)",
-                    jobId);
-
-                job->Fail(std::nullopt);
-            } else {
-                YT_LOG_WARNING(
-                    "Controller agent requested to fail a non-existent job (JobId: %v)",
-                    jobId);
-            }
-        }
-
         for (const auto& protoJobToAbort : response->jobs_to_abort()) {
             auto jobToAbort = FromProto<NControllerAgent::TJobToAbort>(protoJobToAbort);
 
