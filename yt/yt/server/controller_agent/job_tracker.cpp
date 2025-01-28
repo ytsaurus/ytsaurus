@@ -1113,7 +1113,7 @@ TJobTrackerOperationHandlerPtr TJobTracker::RegisterOperation(
     TOperationId operationId,
     TWeakPtr<IOperationController> operationController)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
     auto cancelableInvoker = GetCancelableInvoker();
 
@@ -1129,7 +1129,7 @@ TJobTrackerOperationHandlerPtr TJobTracker::RegisterOperation(
 void TJobTracker::UnregisterOperation(
     TOperationId operationId)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
     GetCancelableInvoker()->Invoke(BIND(
         &TJobTracker::DoUnregisterOperation,
@@ -1141,7 +1141,7 @@ void TJobTracker::UpdateExecNodes(TRefCountedExecNodeDescriptorMapPtr newExecNod
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    GetCancelableInvoker()->Invoke(BIND(
+    GetInvoker()->Invoke(BIND(
         &TJobTracker::DoUpdateExecNodes,
         MakeStrong(this),
         Passed(std::move(newExecNodes))));
