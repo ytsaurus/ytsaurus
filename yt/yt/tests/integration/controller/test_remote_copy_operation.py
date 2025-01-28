@@ -1859,10 +1859,13 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
         sync_mount_table("//tmp/t1", driver=self.remote_driver)
         sync_mount_table("//tmp/t2")
 
-        for tablet_index in range(2):
+        def _check_statistics(tablet_index):
             tablet_statistics1 = get(f"//tmp/t1/@tablets/{tablet_index}/statistics", driver=self.remote_driver)
             tablet_statistics2 = get(f"//tmp/t2/@tablets/{tablet_index}/statistics")
-            assert tablet_statistics1 == tablet_statistics2
+            return tablet_statistics1 == tablet_statistics2
+
+        for tablet_index in range(2):
+            wait(lambda: _check_statistics(tablet_index))
 
         assert get("//tmp/t1/@hunk_statistics", driver=self.remote_driver) == get("//tmp/t2/@hunk_statistics")
 
