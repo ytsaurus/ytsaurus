@@ -89,7 +89,7 @@ public:
 private:
     struct TConfig final
     {
-        NYPath::TYPath TablePath;
+        std::optional<NYPath::TYPath> TablePath;
         TDuration ReportBackoffTime;
     };
 
@@ -138,9 +138,9 @@ private:
         ReportTime_.Record(timer.GetElapsedTime());
     }
 
-    void DoReportStatistics(const TYPath& tablePath, const std::vector<TString>& batch)
+    void DoReportStatistics(const std::optional<TYPath>& tablePath, const std::vector<TString>& batch)
     {
-        if (tablePath.empty() || batch.empty()) {
+        if (!tablePath || batch.empty()) {
             return;
         }
 
@@ -158,7 +158,7 @@ private:
             .ValueOrThrow();
 
         transaction->WriteRows(
-            tablePath,
+            *tablePath,
             QueryCorpusNameTable,
             MakeSharedRange(TRange(rows, std::ssize(batch)), rowBuffer));
 

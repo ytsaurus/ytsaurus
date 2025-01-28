@@ -83,7 +83,7 @@ public:
     TDuration Splay;
     double Jitter;
     TDuration ReportBackoffTime;
-    NYPath::TYPath TablePath;
+    std::optional<NYPath::TYPath> TablePath;
 
     REGISTER_YSON_STRUCT(TQueryCorpusReporterConfig);
     static void Register(TRegistrar registrar);
