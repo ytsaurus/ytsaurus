@@ -173,8 +173,7 @@ jobs:
       - name: Run tests
         id: run-tests
         run: |
-          source ../venv/bin/activate
-          pip install boto3==1.35.99 Jinja2==3.1.5 ytsaurus-client ytsaurus-yson
+          source ~/venv_for_github_actions/bin/activate
 
           python3 ../ytsaurus/ytsaurus/.github/scripts/run_tests.py \
                   --yt-root ../ytsaurus/ytsaurus \
