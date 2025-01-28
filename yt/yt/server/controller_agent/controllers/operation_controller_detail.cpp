@@ -7138,9 +7138,10 @@ void TOperationControllerBase::ValidateUserFileSizes()
         if (static_cast<i64>(chunkCount) > userFileLimits->MaxChunkCount) {
             THROW_ERROR_EXCEPTION(
                 "User file %v exceeds chunk count limit: %v > %v",
-                file.Path,
+                file.Path.GetPath(),
                 chunkCount,
-                userFileLimits->MaxChunkCount);
+                userFileLimits->MaxChunkCount)
+                << TErrorAttribute("full_path", file.Path);
         }
         if (file.Type == NObjectClient::EObjectType::Table) {
             i64 dataWeight = 0;
@@ -7150,9 +7151,10 @@ void TOperationControllerBase::ValidateUserFileSizes()
             if (dataWeight > userFileLimits->MaxTableDataWeight) {
                 THROW_ERROR_EXCEPTION(
                     "User file table %v exceeds data weight limit: %v > %v",
-                    file.Path,
+                    file.Path.GetPath(),
                     dataWeight,
-                    userFileLimits->MaxTableDataWeight);
+                    userFileLimits->MaxTableDataWeight)
+                    << TErrorAttribute("full_path", file.Path);
             }
         } else {
             i64 uncompressedSize = 0;
