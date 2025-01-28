@@ -1946,7 +1946,10 @@ private:
             queuePath.GetPath(),
             nameTable,
             filteredRows,
-            TModifyRowsOptions{ .WriteViaQueueProducer = true });
+            TModifyRowsOptions{
+                .RequireSyncReplica = options.RequireSyncReplica,
+                .WriteViaQueueProducer = true,
+            });
 
         QueueProducerSessionToSequenceNumber_[std::tuple(producerPath, queuePath, sessionId)] = validateResult.LastSequenceNumber;
 
