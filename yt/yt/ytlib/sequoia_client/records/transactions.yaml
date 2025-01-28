@@ -24,7 +24,7 @@ types:
         column_type: Any
 
       - cpp_name: Attributes
-        cpp_type: NYTree::IMapNodePtr
+        cpp_type: NYson::TYsonString
         column_name: attributes
         column_type: Any
 

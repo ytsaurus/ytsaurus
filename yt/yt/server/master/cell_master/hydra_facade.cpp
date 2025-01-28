@@ -294,9 +294,7 @@ public:
         AutomatonQueue_->Reconfigure(newConfig->AutomatonThreadBucketWeights);
 
         auto newExpectedMutationCommitDuration = newConfig->ExpectedMutationCommitDuration;
-        if (newExpectedMutationCommitDuration != ExpectedMutationCommitDuration_.load(std::memory_order::relaxed)) {
-            ExpectedMutationCommitDuration_.store(newExpectedMutationCommitDuration, std::memory_order::release);
-        }
+        ExpectedMutationCommitDuration_.store(newExpectedMutationCommitDuration, std::memory_order::release);
     }
 
     IInvokerPtr CreateEpochInvoker(IInvokerPtr underlyingInvoker) override

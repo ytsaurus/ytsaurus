@@ -19,6 +19,8 @@ struct IWorldInitializerCache
     virtual TFuture<void> ValidateWorldInitialized() = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(IWorldInitializerCache)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 IWorldInitializerCachePtr CreateWorldInitializerCache(TBootstrap* bootstrap);
