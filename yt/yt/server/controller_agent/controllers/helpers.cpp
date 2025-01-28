@@ -532,4 +532,16 @@ void AdjustSamplingFromConfig(const TOperationSpecBasePtr& spec, const TControll
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableSchema::TSystemColumnOptions ControlAttributesToColumnOptions(
+    const NFormats::TControlAttributesConfig& controlAttributes)
+{
+    return {
+        .EnableTableIndex = controlAttributes.EnableTableIndex,
+        .EnableRowIndex = controlAttributes.EnableRowIndex,
+        .EnableRangeIndex = controlAttributes.EnableRangeIndex,
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers

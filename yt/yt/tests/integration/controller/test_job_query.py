@@ -12,6 +12,7 @@ import yt_error_codes
 
 from yt_helpers import skip_if_renaming_disabled
 
+import yt.yson as yson
 from yt.common import YtError
 from yt.test_helpers import assert_items_equal
 
@@ -121,6 +122,168 @@ class TestJobQuery(YTEnvSetup):
 
         expected = [{"a": "1", "b": "1", "c": None}, {"a": "2", "b": None, "c": "2"}]
         assert_items_equal(read_table("//tmp/t_out"), expected)
+
+    @authors("psushin", "lucius")
+    def test_query_system_columns(self):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "b", "type": "string"},
+                ]
+            },
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "c", "type": "string"},
+                ]
+            },
+        )
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t1", {"a": "1", "b": "1"})
+        write_table("//tmp/t2", [{"a": "2", "c": "2"}, {"a": "3", "c": "3"}])
+
+        # Test $range_index and $row_index passing through query.
+        op = map(
+            in_=["<ranges=[{lower_limit= {row_index=1}}; {upper_limit= {row_index=1}}]>//tmp/t2"],
+            out="//tmp/t_out",
+            ordered=True,
+            command="cat >&2",
+            spec={
+                "input_query": "*",
+                "input_query_options": {
+                    "use_system_columns": True,
+                },
+                "mapper": {
+                    "enable_input_table_index": False,
+                    "format": yson.loads(b"<format=text>yson"),
+                },
+                "job_io": {
+                    "control_attributes" : {
+                        "enable_row_index" : True,
+                        "enable_range_index" : True,
+                    },
+                },
+            },
+        )
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        stderr_bytes = op.read_stderr(job_ids[0])
+        assert stderr_bytes == \
+            b"""<"range_index"=0;>#;
+<"row_index"=1;>#;
+{"a"="3";"c"="3";};
+<"range_index"=1;>#;
+<"row_index"=0;>#;
+{"a"="2";"c"="2";};
+"""
+
+    @authors("psushin", "lucius")
+    def test_query_table_index_exception(self):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "b", "type": "string"},
+                ]
+            },
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "c", "type": "string"},
+                ]
+            },
+        )
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t1", {"a": "1", "b": "1"})
+        write_table("//tmp/t2", [{"a": "2", "c": "2"}, {"a": "3", "c": "3"}])
+
+        with raises_yt_error("Error validating output schema of input query"):
+            # Test $table_index column cannot be emitted from query.
+            map(
+                in_=["//tmp/t1", "//tmp/t2"],
+                out="//tmp/t_out",
+                command="cat >&2",
+                spec={
+                    "input_query": "*",
+                    "input_query_options": {
+                        "use_system_columns": True,
+                    },
+                    "mapper": {
+                        # This is actually the default for map with multiple input tables.
+                        "enable_input_table_index": True,
+                    },
+                },
+            )
+
+    @authors("psushin", "lucius")
+    def test_query_system_columns_predicate(self):
+        create(
+            "table",
+            "//tmp/t1",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "b", "type": "string"},
+                ]
+            },
+        )
+        create(
+            "table",
+            "//tmp/t2",
+            attributes={
+                "schema": [
+                    {"name": "a", "type": "string"},
+                    {"name": "c", "type": "string"},
+                ]
+            },
+        )
+        create("table", "//tmp/t_out")
+        write_table("//tmp/t1", {"a": "1", "b": "1"})
+        write_table("//tmp/t2", [{"a": "2", "c": "2"}, {"a": "3", "c": "3"}])
+
+        # Use $table_index and $row_index in predicate.
+        op = map(
+            in_=["//tmp/t1", "//tmp/t2"],
+            out="//tmp/t_out",
+            command="cat >&2",
+            spec={
+                "input_query": "a, [$row_index] where [$table_index]=1 and [$row_index]=1",
+                "input_query_options": {
+                    "use_system_columns": True,
+                },
+                "mapper": {
+                    # This is actually the default for map with multiple input tables.
+                    "enable_input_table_index": True,
+                    "format": yson.loads(b"<format=text>yson"),
+                },
+                "job_io": {
+                    "control_attributes" : {
+                        "enable_row_index" : True,
+                    },
+                },
+            },
+        )
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        stderr_bytes = op.read_stderr(job_ids[0])
+        assert stderr_bytes == \
+            b"""<"row_index"=1;>#;
+{"a"="3";};
+"""
 
     @authors("savrus", "lukyan")
     def test_query_reader_projection(self):

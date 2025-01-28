@@ -832,6 +832,52 @@ class TestMapOnDynamicTables(YTEnvSetup):
 
         assert_items_equal(read_table(output), [{"k0": "1", "v4": "42"}, {"k0": "1", "v4": "2"}])
 
+    @authors("lucius")
+    def test_map_input_query_row_index(self):
+        sync_create_cells(1)
+        create(
+            "table",
+            "//tmp/t",
+            attributes={
+                "dynamic": True,
+                "optimize_for": "scan",
+                "schema": [
+                    {"name": "a", "type": "int64", "sort_order": "ascending"},
+                    {"name": "b", "type": "int64"},
+                ],
+            },
+        )
+        sync_mount_table("//tmp/t")
+        insert_rows("//tmp/t", [{"a": 1, "b": 2}])
+        sync_flush_table("//tmp/t")
+
+        create("table", "//tmp/t_out")
+
+        # Shouldn't have row_index in result even with use_system_columns and enable_row_index
+        op = map(
+            in_="//tmp/t",
+            out="//tmp/t_out",
+            command="cat >&2",
+            spec={
+                "input_query": "*",
+                "input_query_options": {
+                    "use_system_columns": True,
+                },
+                "mapper": {
+                    "format": yson.loads(b"<format=text>yson"),
+                },
+                "job_io": {
+                    "control_attributes" : {
+                        "enable_row_index" : True,
+                    },
+                },
+            },
+        )
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        stderr_bytes = op.read_stderr(job_ids[0])
+        assert stderr_bytes == b'{"a"=1;"b"=2;};\n'
+
 
 ##################################################################
 
