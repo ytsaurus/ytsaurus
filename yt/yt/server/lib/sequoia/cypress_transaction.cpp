@@ -549,7 +549,7 @@ public:
         subrequest->set_upload(false);
         subrequest->set_enable_native_tx_externalization(true);
 
-        const auto& attributes = cypressTransaction.Attributes;
+        auto attributes = ConvertTo<IMapNodePtr>(cypressTransaction.Attributes);
 
         #define MAYBE_SET_ATTRIBUTE(attribute_name) \
             if (auto attributeValue = \
@@ -1139,7 +1139,7 @@ private:
         auto createdTransaction = NRecords::TTransaction{
             .Key = {.TransactionId = transactionId},
             .AncestorIds = std::move(ancestorIds),
-            .Attributes = attributes->ToMap(),
+            .Attributes = NYson::ConvertToYsonString(attributes->ToMap()),
             .PrerequisiteTransactionIds = PrerequisiteTransactionIds_,
         };
 

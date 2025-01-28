@@ -81,7 +81,7 @@ void TBranchedNodeSet::EraseOrCrash(NCypressServer::TCypressNode* node)
     if (index < std::ssize(Nodes_) - 1) {
         // Move last element to the place of removed element.
         GetOrCrash(NodeToIndex_, Nodes_.back()) = index;
-        Nodes_[index] = Nodes_.back();
+        std::swap(Nodes_[index], Nodes_.back());
     }
 
     Nodes_.pop_back();
