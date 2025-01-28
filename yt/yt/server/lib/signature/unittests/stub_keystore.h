@@ -1,12 +1,12 @@
 #pragma once
 
-#include "public.h"
-
 #include <yt/yt/server/lib/signature/key_store.h>
 
 namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_STRUCT(TStubKeyStore)
 
 struct TStubKeyStore
     : public IKeyStoreReader

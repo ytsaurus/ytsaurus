@@ -18,7 +18,7 @@
 #include <yt/yt/server/lib/signature/signature_generator.h>
 #include <yt/yt/server/lib/signature/signature_validator.h>
 
-#include <yt/yt/server/lib/signature/key_stores/cypress.h>
+#include <yt/yt/server/lib/signature/cypress_key_store.h>
 
 #include <yt/yt/server/lib/shuffle_server/shuffle_service.h>
 

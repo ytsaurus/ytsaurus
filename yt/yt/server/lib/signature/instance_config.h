@@ -1,7 +1,5 @@
 #include "public.h"
 
-#include <yt/yt/server/lib/signature/key_stores/public.h>
-
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NSignature {
