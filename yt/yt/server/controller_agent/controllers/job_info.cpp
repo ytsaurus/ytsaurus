@@ -25,7 +25,8 @@ using namespace NYTree;
 
 TJobNodeDescriptor::TJobNodeDescriptor(const TExecNodeDescriptorPtr& other)
     : Id(other->Id)
-    , Address(other->Address)
+    , Address(other->Address) // COMPAT(aleksandr.gaev) Remove after 25.2
+    , Addresses(other->Addresses)
     , IOWeight(other->IOWeight)
 { }
 
@@ -34,7 +35,8 @@ void TJobNodeDescriptor::Persist(const TPersistenceContext& context)
     using NYT::Persist;
 
     Persist(context, Id);
-    Persist(context, Address);
+    Persist(context, Address); // COMPAT(aleksandr.gaev) Remove after 25.2
+    Persist(context, Addresses);
     Persist(context, IOWeight);
 }
 

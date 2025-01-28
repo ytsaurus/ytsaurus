@@ -1614,7 +1614,8 @@ void TJob::HandleJobReport(TNodeJobReport&& jobReport)
         jobReport
             .OperationId(GetOperationId())
             .JobId(GetId())
-            .Address(Bootstrap_->GetLocalDescriptor().GetDefaultAddress()));
+            .Address(Bootstrap_->GetLocalDescriptor().GetDefaultAddress()) // COMPAT(aleksandr.gaev) Remove after 25.2
+            .Addresses(Bootstrap_->GetLocalDescriptor().Addresses()));
 }
 
 void TJob::ReportSpec()

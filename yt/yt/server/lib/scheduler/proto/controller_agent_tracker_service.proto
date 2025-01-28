@@ -12,7 +12,8 @@ import "yt/ytlib/controller_agent/proto/controller_agent_service.proto";
 message TExecNodeDescriptor
 {
     required uint32 node_id = 1;
-    required string address = 2;
+    required string address = 2; // COMPAT(aleksandr.gaev) Remove after 25.2
+    required NNodeTrackerClient.NProto.TAddressMap addresses = 8;
     required double io_weight = 3;
     required bool online = 6;
     required TJobResources resource_limits = 4;

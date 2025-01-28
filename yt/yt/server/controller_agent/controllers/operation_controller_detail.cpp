@@ -3916,7 +3916,8 @@ void TOperationControllerBase::BuildJobAttributes(
     fluent
         .Item("job_type").Value(joblet->JobType)
         .Item("state").Value(state)
-        .Item("address").Value(joblet->NodeDescriptor.Address)
+        .Item("address").Value(joblet->NodeDescriptor.Address) // COMPAT(aleksandr.gaev) Remove after 25.2
+        .Item("addresses").Value(joblet->NodeDescriptor.Addresses)
         .Item("start_time").Value(joblet->StartTime)
         .Item("account").Value(joblet->DebugArtifactsAccount)
         .Item("progress").Value(joblet->Progress)
@@ -11028,6 +11029,7 @@ void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TContro
             .OperationId(OperationId)
             .JobId(joblet->JobId)
             .Address(joblet->NodeDescriptor.Address)
+            .Addresses(joblet->NodeDescriptor.Addresses)
             .Ttl(joblet->ArchiveTtl));
 }
 

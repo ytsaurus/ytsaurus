@@ -48,7 +48,7 @@ def get_first_job_node(op):
     wait(lambda: len(op.get_running_jobs()) >= 1)
     jobs = op.get_running_jobs()
     job = jobs[list(jobs)[0]]
-    return job["address"]
+    return job["addresses"]["default"]
 
 
 ##################################################################
@@ -349,7 +349,7 @@ class TestSchedulingSegments(YTEnvSetup):
             wait(lambda: len(op.get_running_jobs()) >= 1)
             jobs = op.get_running_jobs()
             job = jobs[list(jobs)[0]]
-            return job["address"]
+            return job["addresses"]["default"]
 
         expected_node = get_first_job_node(blocking_op1)
         wait(lambda: get(scheduler_orchid_node_path(expected_node) + "/scheduling_segment", default=None) == "large_gpu")
@@ -420,7 +420,7 @@ class TestSchedulingSegments(YTEnvSetup):
             wait(lambda: len(op.get_running_jobs()) >= 1)
             jobs = op.get_running_jobs()
             job = jobs[list(jobs)[0]]
-            return job["address"]
+            return job["addresses"]["default"]
 
         # Two jobs from different segments share a node from large GPU segment.
         wait(lambda: get_first_job_node(sharing_large_op) == get_first_job_node(sharing_small_op))
@@ -1245,7 +1245,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         wait(lambda: len(op.get_running_jobs()) == 5)
         jobs = op.get_running_jobs()
         for _, job in jobs.items():
-            assert self._get_node_module(job["address"]) == module
+            assert self._get_node_module(job["addresses"]["default"]) == module
 
     @authors("eshcherbin")
     def test_no_module_locality_for_small_multihost_operations(self):
@@ -1773,7 +1773,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             jobs = op.get_running_jobs()
             assert len(jobs) == 3
             for _, job in jobs.items():
-                assert self._get_node_module(job["address"]) != op_module
+                assert self._get_node_module(job["addresses"]["default"]) != op_module
 
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 3.0 / 7.0))
 

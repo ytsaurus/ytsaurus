@@ -2268,7 +2268,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         for job_id in op.list_jobs():
             job = get_job(op.id, job_id)
 
-            profiler = profiler_factory().at_node(job["address"])
+            profiler = profiler_factory().at_node(job["addresses"]["default"])
             wait(lambda: profiler.get("exec_node/throttler_manager/distributed_throttler/limit", {"throttler_id": "bandwidth_{}".format(self.REMOTE_CLUSTER_NAME)}) is not None)
             wait(lambda: profiler.get("exec_node/throttler_manager/distributed_throttler/usage", {"throttler_id": "bandwidth_{}".format(self.REMOTE_CLUSTER_NAME)}) is not None)
 

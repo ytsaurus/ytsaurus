@@ -839,12 +839,12 @@ class TestTmpfsLayerCache(YTEnvSetup):
 
         job = get_job(op.id, job_id)
 
-        regular_cache_hits = profiler_factory().at_node(job["address"]).get("exec_node/layer_cache/tmpfs_cache_hits", {"cache_name": "regular"})
-        nirvana_cache_hits = profiler_factory().at_node(job["address"]).get("exec_node/layer_cache/tmpfs_cache_hits", {"cache_name": "nirvana"})
+        regular_cache_hits = profiler_factory().at_node(job["addresses"]["default"]).get("exec_node/layer_cache/tmpfs_cache_hits", {"cache_name": "regular"})
+        nirvana_cache_hits = profiler_factory().at_node(job["addresses"]["default"]).get("exec_node/layer_cache/tmpfs_cache_hits", {"cache_name": "nirvana"})
         assert regular_cache_hits > 0 or nirvana_cache_hits > 0
 
-        regular_tmpfs_layer_hits = profiler_factory().at_node(job["address"]).get("exec_node/layer_cache/tmpfs_layer_hits", {"cache_name": "regular", "cypress_path": "//tmp/layer1"})
-        nirvanta_tmpfs_layer_hits = profiler_factory().at_node(job["address"]).get("exec_node/layer_cache/tmpfs_layer_hits", {"cache_name": "nirvana", "cypress_path": "//tmp/layer1"})
+        regular_tmpfs_layer_hits = profiler_factory().at_node(job["addresses"]["default"]).get("exec_node/layer_cache/tmpfs_layer_hits", {"cache_name": "regular", "cypress_path": "//tmp/layer1"})
+        nirvanta_tmpfs_layer_hits = profiler_factory().at_node(job["addresses"]["default"]).get("exec_node/layer_cache/tmpfs_layer_hits", {"cache_name": "nirvana", "cypress_path": "//tmp/layer1"})
         assert regular_tmpfs_layer_hits > 0 or nirvanta_tmpfs_layer_hits > 0
 
         remove("//tmp/cached_layers/layer1")
@@ -1202,7 +1202,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
 
         # Check solomon counters.
         job = get_job(op.id, job_id)
-        profiler = profiler_factory().at_node(job["address"])
+        profiler = profiler_factory().at_node(job["addresses"]["default"])
         tags = {'type': 'squashfs', 'file_path': '//tmp/squashfs.img'}
 
         wait(lambda: profiler.get("volumes/created", tags) is not None)
@@ -1245,7 +1245,7 @@ class TestLocalSquashFSLayers(YTEnvSetup):
         assert len(job_ids) == 1
 
         job = get_job(op.id, job_ids[0])
-        profiler = profiler_factory().at_node(job["address"])
+        profiler = profiler_factory().at_node(job["addresses"]["default"])
         tags = {'type': 'squashfs', 'file_path': '//tmp/corrupted_squashfs.img'}
         wait(lambda: profiler.get("volumes/created", tags) is not None)
         wait(lambda: profiler.get("volumes/create_errors", tags) is not None)
@@ -1367,7 +1367,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
 
         # Check solomon counters.
         job = get_job(op.id, job_id)
-        profiler = profiler_factory().at_node(job["address"])
+        profiler = profiler_factory().at_node(job["addresses"]["default"])
         tags = {'file_path': '//tmp/squashfs.img'}
 
         wait(lambda: profiler.get("nbd/server/count") is not None)
@@ -1429,7 +1429,7 @@ class TestNbdSquashFSLayers(YTEnvSetup):
         assert len(job_ids) == 1
 
         job = get_job(op.id, job_ids[0])
-        profiler = profiler_factory().at_node(job["address"])
+        profiler = profiler_factory().at_node(job["addresses"]["default"])
         tags = {'type': 'nbd', 'file_path': '//tmp/corrupted_squashfs.img'}
         wait(lambda: profiler.get("volumes/created", tags) is not None)
         wait(lambda: profiler.get("volumes/create_errors", tags) is not None)

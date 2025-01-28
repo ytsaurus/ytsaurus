@@ -128,7 +128,8 @@ def has_failed_jobs(alias, client, interval, logger):
     for job in jobs:
         error = YtError(**job["error"]) if "error" in job else None
         error_text = represent_error(error)
-        info = "  Job {} at {} {}: {}".format(job["id"], job["address"], job["state"], error_text)
+        # COMPAT(aleksandr.gaev) remove "address" fallback after everyone is migrated to 25.2
+        info = "  Job {} at {} {}: {}".format(job["id"], job["address"] if "address" in job else job["addresses"]["default"], job["state"], error_text)
         logger.info(info)
 
     return True

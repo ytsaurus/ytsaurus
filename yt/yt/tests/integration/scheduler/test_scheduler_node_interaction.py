@@ -143,7 +143,7 @@ class TestReplacementCpuToVCpu(YTEnvSetup):
         wait(lambda: len(op.get_running_jobs()) >= 1)
         jobs = op.get_running_jobs()
         job = jobs[list(jobs)[0]]
-        return job["address"]
+        return job["addresses"]["default"]
 
     def _init_dynamic_config(self):
         update_nodes_dynamic_config({
@@ -314,7 +314,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
 
         jobs = self._wait_for_jobs(op.id)
         job_id = next(iter(jobs.keys()))
-        address = jobs[job_id]["address"]
+        address = jobs[job_id]["addresses"]["default"]
 
         set("//sys/cluster_nodes/{0}/@resource_limits_overrides/cpu".format(address), 0)
         op.track()
@@ -340,7 +340,7 @@ class TestResourceLimitsOverrides(YTEnvSetup):
 
         jobs = self._wait_for_jobs(op.id)
         job_id = next(iter(jobs.keys()))
-        address = jobs[job_id]["address"]
+        address = jobs[job_id]["addresses"]["default"]
 
         set(
             "//sys/cluster_nodes/{0}/@resource_limits_overrides/user_memory".format(address),
@@ -491,7 +491,7 @@ class TestSchedulingTags(YTEnvSetup):
         job_ids = op.list_jobs()
         assert len(job_ids) == 1
         for job_id in job_ids:
-            job_addr = get_job(op.id, job_id)["address"]
+            job_addr = get_job(op.id, job_id)["addresses"]["default"]
             assert "tagA" in get("//sys/cluster_nodes/{0}/@user_tags".format(job_addr))
 
         # We do not support detection of the fact that no node satisfies pool scheduling tag filter.
@@ -744,7 +744,7 @@ class TestOperationNodeBan(YTEnvSetup):
 
         jobs = list_jobs(op.id)["jobs"]
         assert all(job["state"] == "failed" for job in jobs)
-        assert len(builtins.set(job["address"] for job in jobs)) == 3
+        assert len(builtins.set(job["addresses"]["default"] for job in jobs)) == 3
 
 
 class TestSchedulingHeartbeatThrottling(YTEnvSetup):

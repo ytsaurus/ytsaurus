@@ -194,7 +194,7 @@ class TestListJobsBase(YTEnvSetup):
         jobs = checked_list_jobs(op.id)["jobs"]
         prefix_to_expected_job_list = defaultdict(list)
         for prefix in prefixes:
-            prefix_to_expected_job_list[prefix] = [job["id"] for job in jobs if job["address"].startswith(prefix)]
+            prefix_to_expected_job_list[prefix] = [job["id"] for job in jobs if ["addresses"]["default"].startswith(prefix)]
 
         for prefix, expected_jobs in prefix_to_expected_job_list.items():
             actual_jobs_for_address = checked_list_jobs(op.id, address=prefix)["jobs"]

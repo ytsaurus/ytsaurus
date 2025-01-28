@@ -643,7 +643,7 @@ class TestSchedulerPreemption(YTEnvSetup):
         time.sleep(1.5)
         assert get(scheduler_orchid_operation_path(op2.id) + "/resource_usage/cpu") == 0.0
 
-        last_node_jobs = sorted([(job["start_time"], job_id) for job_id, job in op1.get_running_jobs().items() if job["address"] == nodes[2]])
+        last_node_jobs = sorted([(job["start_time"], job_id) for job_id, job in op1.get_running_jobs().items() if job["addresses"]["default"] == nodes[2]])
         earlier_job = last_node_jobs[0][1]
         run_sleeping_vanilla(task_patch={"cpu_limit": 0.5}, spec={"pool": "production", "scheduling_tag_filter": nodes[2]})
         wait(lambda: len(op1.get_running_jobs()) == 5)
@@ -2044,9 +2044,9 @@ class TestSsdPriorityPreemption(BaseTestDiskPreemption):
         wait(lambda: get(scheduler_orchid_operation_path(regular_op.id) + "/are_regular_jobs_on_ssd_nodes_allowed"))
 
         for _, job in protected_op.get_running_jobs().items():
-            assert TestSsdPriorityPreemption.SSD_NODE_TAG not in get("//sys/cluster_nodes/{}/@tags".format(job["address"]))
+            assert TestSsdPriorityPreemption.SSD_NODE_TAG not in get("//sys/cluster_nodes/{}/@tags".format(job["addresses"]["default"]))
         for _, job in regular_op.get_running_jobs().items():
-            assert TestSsdPriorityPreemption.SSD_NODE_TAG in get("//sys/cluster_nodes/{}/@tags".format(job["address"]))
+            assert TestSsdPriorityPreemption.SSD_NODE_TAG in get("//sys/cluster_nodes/{}/@tags".format(job["addresses"]["default"]))
 
         regular_op.abort(wait_until_finished=True)
 

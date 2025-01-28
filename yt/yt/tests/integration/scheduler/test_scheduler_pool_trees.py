@@ -889,7 +889,7 @@ class TestTentativePoolTrees(YTEnvSetup):
         result = []
         for job_id in jobs:
             try:
-                job_node = get("{0}/{1}".format(jobs_path, job_id))["address"]
+                job_node = get("{0}/{1}".format(jobs_path, job_id))["addresses"]["default"]
             except YtError:
                 continue  # The job has already completed, Orchid is lagging.
 
@@ -935,7 +935,7 @@ class TestTentativePoolTrees(YTEnvSetup):
 
         tentative_job_count = 0
         for job_id in dummy["jobs"]:
-            job_node = get("{0}/{1}".format(jobs_path, job_id))["address"]
+            job_node = get("{0}/{1}".format(jobs_path, job_id))["addresses"]["default"]
             if job_node in other_nodes:
                 tentative_job_count += 1
 
@@ -1195,7 +1195,7 @@ class TestSchedulingTagFilterOnPerPoolTreeConfiguration(YTEnvSetup):
 
         jobs = op.get_running_jobs()
         assert len(jobs) == 1
-        assert jobs[next(iter(jobs.keys()))]["address"] == runnable_custom_node
+        assert jobs[next(iter(jobs.keys()))]["addresses"]["default"] == runnable_custom_node
 
         release_breakpoint()
 
@@ -1287,7 +1287,7 @@ class TestSchedulerScheduleInSingleTree(YTEnvSetup):
                 wait(lambda: exists(scheduler_orchid_pool_tree_path(tree)))
 
     def _get_tree_for_job(self, job):
-        node = job["address"]
+        node = job["addresses"]["default"]
         tag = get("//sys/cluster_nodes/" + node + "/@user_tags")[0]
         assert tag.endswith("_tag")
         tree = tag[:-4]
@@ -2120,7 +2120,7 @@ class TestOffloadingPools(YTEnvSetup):
         wait(lambda: not exists(scheduler_orchid_operation_path(op.id, "offload_tree")))
 
         for job in op.get_running_jobs().values():
-            assert job["address"] != offload_node
+            assert job["addresses"]["default"] != offload_node
 
         release_breakpoint()
         op.track()
@@ -2150,7 +2150,7 @@ class TestOffloadingPools(YTEnvSetup):
         wait(lambda: exists(scheduler_orchid_operation_path(op.id, "offload_tree")))
 
         for job in op.get_running_jobs().values():
-            assert job["address"] == offload_node
+            assert job["addresses"]["default"] == offload_node
 
         release_breakpoint()
         op.track()
@@ -2232,7 +2232,7 @@ class TestOffloadingPools(YTEnvSetup):
         wait(lambda: not exists(scheduler_orchid_operation_path(op.id, "offload_tree")))
 
         for job in op.get_running_jobs().values():
-            assert job["address"] != offload_node
+            assert job["addresses"]["default"] != offload_node
 
         release_breakpoint()
         op.track()

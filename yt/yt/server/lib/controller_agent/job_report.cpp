@@ -39,9 +39,16 @@ TControllerJobReport TControllerJobReport::JobCookie(ui64 jobCookie)
     return std::move(*this);
 }
 
+// COMPAT(aleksandr.gaev) remove after 25.2
 TControllerJobReport TControllerJobReport::Address(std::optional<std::string> address)
 {
     Address_ = address;
+    return std::move(*this);
+}
+
+TControllerJobReport TControllerJobReport::Addresses(std::optional<NNodeTrackerClient::TAddressMap> addresses)
+{
+    Addresses_ = addresses;
     return std::move(*this);
 }
 

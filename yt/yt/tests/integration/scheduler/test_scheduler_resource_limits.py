@@ -918,7 +918,7 @@ class TestSchedulerGpu(YTEnvSetup):
 
         jobs = op.get_running_jobs()
         assert len(jobs) == 1
-        assert next(iter(jobs.values()))["address"] == gpu_node
+        assert next(iter(jobs.values()))["addresses"]["default"] == gpu_node
 
     @authors("ignat")
     def test_min_share_resources(self):
@@ -932,7 +932,7 @@ class TestSchedulerGpu(YTEnvSetup):
             jobs = op.get_running_jobs()
             if len(jobs) != 1:
                 return False
-            assert next(iter(jobs.values()))["address"] == gpu_node
+            assert next(iter(jobs.values()))["addresses"]["default"] == gpu_node
             job_info = get(
                 "//sys/cluster_nodes/{}/orchid/exec_node/job_controller/active_jobs/{}".format(gpu_node, next(iter(jobs.keys())))
             )

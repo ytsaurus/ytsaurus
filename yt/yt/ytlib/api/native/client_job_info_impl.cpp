@@ -102,7 +102,8 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "state",
     "start_time",
     "finish_time",
-    "address",
+    "address", // COMPAT(aleksandr.gaev) Remove after 25.2
+    "addresses",
     "has_spec",
     "progress",
     "stderr_size",
@@ -135,6 +136,7 @@ static const THashMap<TString, int> CompatListJobsAttributesToArchiveVersion = {
     {"controller_state", 48},
     {"interruption_info", 50},
     {"archive_features", 51},
+    {"addresses", 55},
 };
 
 static const auto SupportedJobAttributes = DefaultGetJobAttributes;
@@ -295,12 +297,31 @@ TErrorOr<IChannelPtr> TClient::TryCreateChannelToJobNode(
         ValidateOperationAccess(operationId, jobId, requiredPermissions);
 
         TGetJobOptions options;
-        options.Attributes = {"address"};
+        // COMPAT(aleksandr.gaev) Remove "address" after 25.2
+        options.Attributes = {"address", "addresses"};
         // TODO(ignat): support structured return value in GetJob.
         auto jobYsonString = WaitFor(GetJob(operationId, jobId, options))
             .ValueOrThrow();
-        auto address = ConvertToNode(jobYsonString)->AsMap()->GetChildValueOrThrow<TString>("address");
-        return ChannelFactory_->CreateChannel(address);
+        auto jobYsonMap = ConvertToNode(jobYsonString)->AsMap();
+        if (jobYsonMap->FindChild("addresses")) {
+            auto addresses = jobYsonMap->GetChildValueOrThrow<TAddressMap>("addresses");
+            YT_LOG_DEBUG(
+                jobNodeDescriptorOrError,
+                "Getting node address from address map (OperationId: %v, JobId: %v, Addresses: %Qv)",
+                operationId,
+                jobId,
+                addresses);
+            return ChannelFactory_->CreateChannel(addresses);
+        } else { // COMPAT(aleksandr.gaev) Remove this branch after 25.2
+            auto address = ConvertToNode(jobYsonString)->AsMap()->GetChildValueOrThrow<TString>("address");
+            YT_LOG_DEBUG(
+                jobNodeDescriptorOrError,
+                "Getting node address from address field (OperationId: %v, JobId: %v, Address: %v)",
+                operationId,
+                jobId,
+                address);
+            return ChannelFactory_->CreateChannel(address);
+        }
     } catch (const std::exception& ex) {
         auto error = TError(ex);
         YT_LOG_DEBUG(error, "Failed to create node channel to job using address from archive (OperationId: %v, JobId: %v)",
@@ -1450,9 +1471,13 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.ArchiveState = ParseEnum<EJobState>(*nodeState);
         }
 
-        if (responseIdMapping.Address) {
+        if (responseIdMapping.Address) { // COMPAT(aleksandr.gaev) Remove after 25.2
             // This field previously was non-optional.
             job.Address = record.Address.value_or("");
+        }
+
+        if (responseIdMapping.Addresses) {
+            job.Addresses = ConvertTo<TAddressMap>(record.Addresses.value_or(TYsonString()));
         }
 
         if (record.StartTime) {
@@ -1540,7 +1565,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     builder.AddSelectExpression("type", "job_type");
     builder.AddSelectExpression("start_time");
     builder.AddSelectExpression("finish_time");
-    builder.AddSelectExpression("address");
+    builder.AddSelectExpression("address"); // COMPAT(aleksandr.gaev) Remove after 25.2
     builder.AddSelectExpression("error");
     if (GetOrDefault(CompatListJobsAttributesToArchiveVersion, "interruption_info") <= archiveVersion) {
         builder.AddSelectExpression("interruption_info");
@@ -1576,6 +1601,9 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
 
     if (GetOrDefault(CompatListJobsAttributesToArchiveVersion, "archive_features") <= archiveVersion) {
         builder.AddSelectExpression("archive_features");
+    }
+    if (GetOrDefault(CompatListJobsAttributesToArchiveVersion, "addresses") <= archiveVersion) {
+        builder.AddSelectExpression("addresses");
     }
 
     if (options.WithStderr) {
@@ -1662,7 +1690,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
                 case EJobSortField::FinishTime:
                     return {"finish_time"};
                 case EJobSortField::Address:
-                    return {"address"};
+                    return {"address"}; // COMPAT(aleksandr.gaev) Change to "addresses" after 25.2
                 case EJobSortField::Duration:
                     return {Format("if(is_null(finish_time), %v, finish_time) - start_time", TInstant::Now().MicroSeconds())};
                 case EJobSortField::Id:
@@ -1705,7 +1733,8 @@ static void ParseJobsFromControllerAgentResponse(
     auto needState = attributes.contains("state");
     auto needStartTime = attributes.contains("start_time");
     auto needFinishTime = attributes.contains("finish_time");
-    auto needAddress = attributes.contains("address");
+    auto needAddress = attributes.contains("address"); // COMPAT(aleksandr.gaev) Remove after 25.2
+    auto needAddresses = attributes.contains("addresses");
     auto needHasSpec = attributes.contains("has_spec");
     auto needProgress = attributes.contains("progress");
     auto needStderrSize = attributes.contains("stderr_size");
@@ -1747,8 +1776,13 @@ static void ParseJobsFromControllerAgentResponse(
                 job.FinishTime = childNode->GetValue<TInstant>();
             }
         }
-        if (needAddress) {
-            job.Address = jobMapNode->GetChildValueOrThrow<TString>("address");
+        if (needAddress) { // COMPAT(aleksandr.gaev) Remove after 25.2
+            job.Address = jobMapNode->FindChildValue<std::string>("address");
+        }
+        if (needAddresses) {
+            if (auto childNode = jobMapNode->FindChild("addresses")) {
+                job.Addresses = childNode->GetValue<TAddressMap>();
+            }
         }
         if (needHasSpec) {
             job.HasSpec = true;
@@ -1833,7 +1867,8 @@ static void ParseJobsFromControllerAgentResponse(
 
     auto filter = [&] (const INodePtr& jobNode) -> bool {
         const auto& jobMap = jobNode->AsMap();
-        auto address = jobMap->GetChildValueOrThrow<TString>("address");
+        auto address = jobMap->FindChildValue<std::string> ("address"); // COMPAT(aleksandr.gaev) Remove after 25.2
+        auto addresses = jobMap->GetChildValueOrDefault("addresses", TAddressMap());
         auto type = ConvertTo<EJobType>(jobMap->GetChildOrThrow("job_type"));
         auto state = ConvertTo<EJobState>(jobMap->GetChildOrThrow("state"));
         auto stderrSize = jobMap->GetChildValueOrThrow<i64>("stderr_size");
@@ -1844,7 +1879,7 @@ static void ParseJobsFromControllerAgentResponse(
         auto monitoringDescriptor = jobMap->FindChildValue<TString>("monitoring_descriptor");
         auto startTime = jobMap->GetChildValueOrThrow<TInstant>("start_time");
         return
-            (!options.Address || options.Address == address) &&
+            (!options.Address || options.Address == address || options.Address == FindDefaultAddress(addresses)) && // COMPAT(aleksandr.gaev) Remove address after 25.2
             (!options.Type || options.Type == type) &&
             (!options.State || options.State == state) &&
             (!options.WithStderr || *options.WithStderr == (stderrSize > 0)) &&
@@ -1985,7 +2020,18 @@ static TJobComparator GetJobsComparator(
         case EJobSortField::FinishTime:
             return makeLessByField(&TJob::FinishTime);
         case EJobSortField::Address:
-            return makeLessByField(&TJob::Address);
+            return makeLessBy([] (const TJob& job) -> std::optional<std::string> {
+                if (job.Addresses) {
+                    auto defaultAddress = FindDefaultAddress(*job.Addresses);
+                    if (defaultAddress) {
+                        return *defaultAddress;
+                    }
+                }
+                if (job.Address) { // COMPAT(aleksandr.gaev) Remove after 25.2
+                    return *job.Address;
+                }
+                return std::nullopt;
+            });
         case EJobSortField::Progress:
             return makeLessByField(&TJob::Progress);
         case EJobSortField::None:
@@ -2027,7 +2073,8 @@ static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
     mergeNullableField(&TJob::Progress);
     mergeNullableField(&TJob::StartTime);
     mergeNullableField(&TJob::FinishTime);
-    mergeNullableField(&TJob::Address);
+    mergeNullableField(&TJob::Address); // COMPAT(aleksandr.gaev) Remove after 25.2
+    mergeNullableField(&TJob::Addresses);
     mergeNullableField(&TJob::Progress);
     mergeNullableField(&TJob::Error);
     mergeNullableField(&TJob::BriefStatistics);
