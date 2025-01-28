@@ -404,10 +404,24 @@ private:
                         wireRowsets.push_back(rowset.WireRowset);
                         response.add_rowset_errors();
                         response.add_incomplete(rowset.Incomplete);
+
+                        if (!rowset.References || rowset.References->Reference.size() != 3 || rowset.References->Reference[0] != "yt") {
+                            response.add_full_result();
+                        } else {
+                            const auto& cluster = rowset.References->Reference[1];
+                            const auto& table = rowset.References->Reference[2];
+                            const auto fullResult = NYTree::BuildYsonStringFluently()
+                                .BeginMap()
+                                    .Item("cluster").Value(cluster)
+                                    .Item("table_path").Value(table)
+                                .EndMap();
+                            ToProto(response.add_full_result(), fullResult.AsStringBuf());
+                        }
                     } else {
                         wireRowsets.push_back(TSharedRef());
                         ToProto(response.add_rowset_errors(), rowset.Error);
                         response.add_incomplete(false);
+                        response.add_full_result();
                     }
                 }
             }

@@ -303,6 +303,10 @@ class QueryResult:
         """Returns whether the result is truncated."""
         return self.get_meta().get("is_truncated", False)
 
+    def full_result(self) -> Optional[dict]:
+        """Returns table with full result. For yql it's yson containing 'cluster' and 'table_path'"""
+        return self.get_meta().get("full_result")
+
     def read_rows(self, validate_not_truncated: bool = True, format: Optional[str] = None, raw: Optional[bool] = None):
         error = self.get_error()
         if error:

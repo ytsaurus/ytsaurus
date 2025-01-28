@@ -11,6 +11,7 @@ import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.common.YTsaurusError;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.rpcproxy.TRspGetQueryResult;
+import tech.ytsaurus.ysontree.YTreeNode;
 
 /**
  * Immutable metadata about query result.
@@ -25,6 +26,8 @@ public class QueryResult {
     private final TableSchema schema;
     private final DataStatistics.TDataStatistics dataStatistics;
     private final boolean isTruncated;
+    @Nullable
+    private final YTreeNode fullResult;
 
     public QueryResult(TRspGetQueryResult rsp) {
         this.queryId = RpcUtil.fromProto(rsp.getQueryId());
@@ -33,6 +36,7 @@ public class QueryResult {
         this.schema = rsp.hasSchema() ? ApiServiceUtil.deserializeTableSchema(rsp.getSchema()) : null;
         this.dataStatistics = rsp.getDataStatistics();
         this.isTruncated = rsp.getIsTruncated();
+        this.fullResult = rsp.hasFullResult() ? RpcUtil.parseByteString(rsp.getFullResult()) : null;
     }
 
     /**
@@ -87,5 +91,14 @@ public class QueryResult {
      */
     public boolean isTruncated() {
         return isTruncated;
+    }
+
+    /**
+     * Table with full result. For yql it's yson containing 'cluster' and 'table_path'
+     *
+     * @return optional YSON map.
+     */
+    public Optional<YTreeNode> fullResult() {
+        return Optional.ofNullable(fullResult);
     }
 }
