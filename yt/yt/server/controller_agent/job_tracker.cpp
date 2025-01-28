@@ -2043,18 +2043,13 @@ void TJobTracker::ProcessGracefulAbortRequest(
 
     ++heartbeatCounters->JobFailureRequestCount;
 
-    if (Config_->EnableGracefulAbort) {
-        NProto::ToProto(
-            response->add_jobs_to_abort(),
-            TJobToAbort{
-                .JobId = jobId,
-                .AbortReason = requestOptions.Reason,
-                .Graceful = true,
-            });
-    } else {
-        auto* protoJobToFail = response->add_jobs_to_fail();
-        ToProto(protoJobToFail->mutable_job_id(), jobId);
-    }
+    NProto::ToProto(
+        response->add_jobs_to_abort(),
+        TJobToAbort{
+            .JobId = jobId,
+            .AbortReason = requestOptions.Reason,
+            .Graceful = true,
+        });
 }
 
 void TJobTracker::DoRegisterOperation(
