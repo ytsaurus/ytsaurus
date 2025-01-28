@@ -806,11 +806,20 @@ private:
 
                     auto remoteFeatureFlags = RequestFeatureFlags_;
 
-                    YT_LOG_DEBUG("Profiling query (CommonKeyPrefix: %v, MinKeyWidth: %v)",
-                        joinClause->CommonKeyPrefix,
-                        minKeyWidth);
+                    std::vector<TColumnSchema> definedKeyColumns = Query_->GetRenamedSchema()->Columns();
+                    definedKeyColumns.resize(minKeyWidth);
 
-                    if (joinClause->CommonKeyPrefix >= minKeyWidth && minKeyWidth > 0 && !orderedExecution) {
+                    bool lhsQueryCanBeSelective = SplitPredicateByColumnSubset(Query_->WhereClause, TTableSchema(definedKeyColumns))
+                        .second->As<TLiteralExpression>() == nullptr;
+                    bool inferredRangesCompletelyDefineRhsRanges = joinClause->CommonKeyPrefix >= minKeyWidth && minKeyWidth > 0;
+                    bool canUseMergeJoin = inferredRangesCompletelyDefineRhsRanges && !orderedExecution && !lhsQueryCanBeSelective;
+
+                    YT_LOG_DEBUG("Profiling query (CommonKeyPrefix: %v, MinKeyWidth: %v, LhsQueryCanBeSelective: %v)",
+                        joinClause->CommonKeyPrefix,
+                        minKeyWidth,
+                        lhsQueryCanBeSelective);
+
+                    if (canUseMergeJoin) {
                         auto dataSource = GetPrefixReadItems(dataSplits, joinClause->CommonKeyPrefix);
                         dataSource.ObjectId = joinClause->ForeignObjectId;
                         dataSource.CellId = joinClause->ForeignCellId;
