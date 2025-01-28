@@ -268,8 +268,6 @@ public:
         // COMPAT(pogorelov)
         const NScheduler::NProto::TScheduleAllocationSpec& allocationSpec) const;
 
-    void ResetJobIndexGenerator();
-
     virtual TDuration GetTotalDuration() const;
 
     virtual TDuration GetPausedSchedulingDuration() const;
