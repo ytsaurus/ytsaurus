@@ -100,6 +100,20 @@ DEFINE_REFCOUNTED_TYPE(TRowDigestCompactionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TGradualCompactionConfig
+    : public NYTree::TYsonStructLite
+{
+public:
+    TInstant StartTime;
+    TDuration Duration;
+
+    REGISTER_YSON_STRUCT_LITE(TGradualCompactionConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBuiltinTableMountConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -193,6 +207,8 @@ public:
     int MaxCompactionStoreCount;
     i64 CompactionDataSizeBase;
     double CompactionDataSizeRatio;
+
+    TGradualCompactionConfig GlobalCompaction;
 
     NConcurrency::TThroughputThrottlerConfigPtr PartitioningThrottler;
     NConcurrency::TThroughputThrottlerConfigPtr CompactionThrottler;

@@ -575,6 +575,32 @@ private:
         return revision <= forcedCompactionRevision.value_or(NHydra::NullRevision);
     }
 
+    static bool IsStoreGlobalCompactionNeeded(const TStore* store)
+    {
+        const auto& globalConfig = store->GetTablet()->GetMountConfig()->GlobalCompaction;
+
+        auto now = TInstant::Now();
+
+        if (now < globalConfig.StartTime || globalConfig.StartTime < store->GetCreationTime()) {
+            return false;
+        }
+
+        if (now >= globalConfig.StartTime + globalConfig.Duration) {
+            YT_LOG_DEBUG("Found store that was supposed to be compacted by now (%v, StoreId: %v, StartTime: %v, Duration: %v, Now: %v)",
+                store->GetTablet()->GetLoggingTag(),
+                store->GetId(),
+                globalConfig.StartTime,
+                globalConfig.Duration,
+                now);
+
+            return true;
+        }
+
+        double hash = ComputeHash(store->GetId());
+
+        return globalConfig.StartTime + globalConfig.Duration * (hash / std::numeric_limits<size_t>::max()) <= now;
+    }
+
     bool IsStorePeriodicCompactionNeeded(const TStore* store) const
     {
         auto mountConfig = store->GetTablet()->GetMountConfig();
@@ -618,6 +644,10 @@ private:
     {
         if (IsStoreCompactionForced(store)) {
             return EStoreCompactionReason::Forced;
+        }
+
+        if (IsStoreGlobalCompactionNeeded(store)) {
+            return EStoreCompactionReason::Global;
         }
 
         if (IsStorePeriodicCompactionNeeded(store)) {
