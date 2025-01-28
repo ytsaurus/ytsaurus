@@ -282,7 +282,7 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("job_throttler", &TThis::JobThrottler)
-        .Default();
+        .DefaultNew();
 
     registrar.Parameter("host_name", &TThis::HostName)
         .Default();
