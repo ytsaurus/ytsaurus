@@ -525,4 +525,16 @@ bool HasCompressionDictionaries(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTableSchema::TSystemColumnOptions ControlAttributesToColumnOptions(
+    const NFormats::TControlAttributesConfig& controlAttributes)
+{
+    return {
+        .EnableTableIndex = controlAttributes.EnableTableIndex,
+        .EnableRowIndex = controlAttributes.EnableRowIndex,
+        .EnableRangeIndex = controlAttributes.EnableRangeIndex,
+    };
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers

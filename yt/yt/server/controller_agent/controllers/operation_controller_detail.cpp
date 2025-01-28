@@ -7569,11 +7569,19 @@ void TOperationControllerBase::ParseInputQuery(
     InputQuery->ExternalCGInfo = std::move(externalCGInfo);
     InputQuery->QueryFilterOptions = std::move(queryFilterOptions);
 
-    ValidateTableSchema(
-        *InputQuery->Query->GetTableSchema(),
-        /*isTableDynamic*/ false,
-        /*allowUnversionedUpdateColumns*/ true,
-        allowTimestampColumns);
+    try {
+        ValidateTableSchema(
+            *InputQuery->Query->GetTableSchema(),
+            /*isTableDynamic*/ false,
+            /*options*/ {
+                .AllowUnversionedUpdateColumns = true,
+                .AllowTimestampColumns = allowTimestampColumns,
+                .AllowOperationColumns = true,
+            });
+    } catch (const std::exception& ex) {
+        THROW_ERROR_EXCEPTION("Error validating output schema of input query")
+            << ex;
+    }
 }
 
 void TOperationControllerBase::WriteInputQueryToJobSpec(TJobSpecExt* jobSpecExt)

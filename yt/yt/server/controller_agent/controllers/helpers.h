@@ -138,6 +138,10 @@ bool HasCompressionDictionaries(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NTableClient::TTableSchema::TSystemColumnOptions ControlAttributesToColumnOptions(const NFormats::TControlAttributesConfig& controlAttributes);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers
 
 #define HELPERS_INL_H

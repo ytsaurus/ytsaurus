@@ -4379,6 +4379,9 @@ private:
     void PrepareInputQuery() override
     {
         if (Spec->InputQuery) {
+            if (Spec->InputQueryOptions->UseSystemColumns) {
+                InputManager->AdjustSchemas(ControlAttributesToColumnOptions(*Spec->PartitionJobIO->ControlAttributes));
+            }
             ParseInputQuery(
                 *Spec->InputQuery,
                 Spec->InputSchema,

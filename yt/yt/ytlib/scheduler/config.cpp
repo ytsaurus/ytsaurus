@@ -1361,6 +1361,14 @@ void TQueryFilterOptions::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TInputQueryOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("use_system_columns", &TThis::UseSystemColumns)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TInputlyQueryableSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("input_query", &TThis::InputQuery)
@@ -1368,6 +1376,8 @@ void TInputlyQueryableSpec::Register(TRegistrar registrar)
     registrar.Parameter("input_schema", &TThis::InputSchema)
         .Default();
     registrar.Parameter("input_query_filter_options", &TThis::InputQueryFilterOptions)
+        .DefaultNew();
+    registrar.Parameter("input_query_options", &TThis::InputQueryOptions)
         .DefaultNew();
 
     registrar.Postprocessor([] (TInputlyQueryableSpec* spec) {
