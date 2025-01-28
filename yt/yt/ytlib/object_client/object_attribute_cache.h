@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include "config.h"
-
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/client/api/client.h>
@@ -16,12 +14,79 @@ namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TObjectAttributeCache
-    : public TAsyncExpiringCache<NYPath::TYPath, NYTree::IAttributeDictionaryPtr>
+template <class Key, class Value>
+class TObjectAttributeCacheBase
+    : public TAsyncExpiringCache<Key, Value>
 {
 public:
-    DEFINE_BYREF_RO_PROPERTY(std::vector<TString>, AttributeNames);
+    TObjectAttributeCacheBase(
+        TObjectAttributeCacheConfigPtr config,
+        NApi::NNative::IClientPtr client,
+        IInvokerPtr invoker,
+        const NLogging::TLogger& logger = {},
+        NProfiling::TProfiler profiler = {});
 
+    //! Same as GetMany, but does not affect the internal cache state and allows substituting the client.
+    TFuture<std::vector<TErrorOr<Value>>> GetFromClient(const std::vector<Key>& keys, const NApi::NNative::IClientPtr& client) noexcept;
+
+protected:
+    //! Should return the path on which to fetch attributes for the given key.
+    virtual NYPath::TYPath GetPath(const Key& key) const = 0;
+    //! Should construct cache value from the given set of fetched attributes.
+    //! Can throw if value cannot be constructed, this error will be propagated to the caller.
+    virtual Value ParseValue(const NYTree::IAttributeDictionaryPtr& attributes) const = 0;
+
+    //! Should return a list of attribute names to fetch.
+    virtual const std::vector<TString>& GetAttributeNames() const = 0;
+
+private:
+    const TObjectAttributeCacheConfigPtr Config_;
+    const NLogging::TLogger Logger;
+
+    NApi::NNative::IClientPtr Client_;
+    IInvokerPtr Invoker_;
+
+    //! TAsyncExpiringCache<Key, Value> implementation.
+    TFuture<Value> DoGet(
+        const Key& key,
+        bool isPeriodicUpdate) noexcept override;
+    TFuture<std::vector<TErrorOr<Value>>> DoGetMany(
+        const std::vector<Key>& keys,
+        bool isPeriodicUpdate) noexcept override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! This base derives the list of attributes from the list of registerd fields in a YsonStruct value,
+//! and uses classic ConvertTo to build construct the value from fetched attributes.
+//! For now, the provided YsonStruct must provide defaults for every field, otherwise we cannot use
+//! the value type to infer attribute names.
+template <class Key, class Value>
+    requires std::derived_from<typename Value::TUnderlying, NYTree::TYsonStruct>
+class TObjectAttributeAsYsonStructCacheBase
+    : public TObjectAttributeCacheBase<Key, Value>
+{
+public:
+    TObjectAttributeAsYsonStructCacheBase(
+        TObjectAttributeCacheConfigPtr config,
+        NApi::NNative::IClientPtr client,
+        IInvokerPtr invoker,
+        const NLogging::TLogger& logger,
+        NProfiling::TProfiler profiler);
+
+private:
+    std::vector<TString> AttributeNames_;
+
+    //! TObjectAttributeCacheBase<Key, Value> implementation.
+    Value ParseValue(const NYTree::IAttributeDictionaryPtr& attributes) const override;
+    const std::vector<TString>& GetAttributeNames() const override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TObjectAttributeCache
+    : public TObjectAttributeCacheBase<NYPath::TYPath, NYTree::IAttributeDictionaryPtr>
+{
 public:
     TObjectAttributeCache(
         TObjectAttributeCacheConfigPtr config,
@@ -31,29 +96,12 @@ public:
         const NLogging::TLogger& logger = {},
         NProfiling::TProfiler profiler = {});
 
-    // Method with signature similar to GetMany which goes directly to master.
-    static TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> GetFromClient(
-        const std::vector<NYPath::TYPath>& paths,
-        const NApi::NNative::IClientPtr& client,
-        const IInvokerPtr& invoker,
-        const std::vector<TString>& attributeNames,
-        const NLogging::TLogger& logger,
-        const NApi::TMasterReadOptions& options = NApi::TMasterReadOptions{});
-
-protected:
-    TFuture<NYTree::IAttributeDictionaryPtr> DoGet(
-        const NYPath::TYPath& path,
-        bool isPeriodicUpdate) noexcept override;
-    TFuture<std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>>> DoGetMany(
-        const std::vector<NYPath::TYPath>& paths,
-        bool isPeriodicUpdate) noexcept override;
-
 private:
-    const TObjectAttributeCacheConfigPtr Config_;
-    const NLogging::TLogger Logger;
+    const std::vector<TString> AttributeNames_;
 
-    NApi::NNative::IClientPtr Client_;
-    IInvokerPtr Invoker_;
+    NYPath::TYPath GetPath(const NYPath::TYPath& key) const override;
+    NYTree::IAttributeDictionaryPtr ParseValue(const NYTree::IAttributeDictionaryPtr& attributes) const override;
+    const std::vector<TString>& GetAttributeNames() const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TObjectAttributeCache)
@@ -61,3 +109,7 @@ DEFINE_REFCOUNTED_TYPE(TObjectAttributeCache)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectClient
+
+#define OBJECT_ATTRIBUTE_CACHE_INL_H_
+#include "object_attribute_cache-inl.h"
+#undef OBJECT_ATTRIBUTE_CACHE_INL_H_

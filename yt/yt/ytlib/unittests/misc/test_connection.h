@@ -178,6 +178,7 @@ public:
     MOCK_METHOD(const NTransactionClient::ITimestampProviderPtr&, GetTimestampProvider, (), (override));
     MOCK_METHOD(const NJobProberClient::TJobShellDescriptorCachePtr&, GetJobShellDescriptorCache, (), (override));
     MOCK_METHOD(const NSecurityClient::TPermissionCachePtr&, GetPermissionCache, (), (override));
+    MOCK_METHOD(const NSecurityClient::TUserAttributeCachePtr&, GetUserAttributeCache, (), (override));
     MOCK_METHOD(const TStickyGroupSizeCachePtr&, GetStickyGroupSizeCache, (), (override));
     MOCK_METHOD(const TSyncReplicaCachePtr&, GetSyncReplicaCache, (), (override));
     MOCK_METHOD(const TTabletSyncReplicaCachePtr&, GetTabletSyncReplicaCache, (), (override));

@@ -43,7 +43,12 @@ TBatchAttributeFetcher::TBatchAttributeFetcher(
     , MasterReadOptions_(options)
     , Logger(logger)
 {
-    YT_VERIFY(std::find(AttributeNames_.begin(), AttributeNames_.end(), "type") != AttributeNames_.end());
+    // We need the "type" attribute to distinguish links from regular nodes. If it is not requested, we fetch it, but
+    // later remove it from the externally visible result.
+    if (std::find(AttributeNames_.begin(), AttributeNames_.end(), "type") == AttributeNames_.end()) {
+        AddedTypeAttribute_ = true;
+        AttributeNames_.push_back("type");
+    }
 
     int invalidPathCount = 0;
 
@@ -330,6 +335,10 @@ void TBatchAttributeFetcher::FillResult()
             Attributes_[entry.Index] = std::move(entry.Error);
         } else {
             YT_VERIFY(entry.Attributes);
+            // We are modifying internal state here, but we don't care anymore.
+            if (AddedTypeAttribute_) {
+                entry.Attributes->Remove("type");
+            }
             Attributes_[entry.Index] = std::move(entry.Attributes);
         }
     }
