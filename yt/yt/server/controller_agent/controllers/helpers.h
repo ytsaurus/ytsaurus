@@ -142,6 +142,10 @@ void AdjustSamplingFromConfig(const TOperationSpecBasePtr& spec, const TControll
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NTableClient::TTableSchema::TSystemColumnOptions ControlAttributesToColumnOptions(const NFormats::TControlAttributesConfig& controlAttributes);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers
 
 #define HELPERS_INL_H
