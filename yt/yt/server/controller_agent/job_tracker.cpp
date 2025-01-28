@@ -1074,7 +1074,7 @@ void TJobTracker::SettleJob(const TJobTracker::TCtxSettleJobPtr& context)
     allocationInfo = nodeInfo->Jobs.FindAllocation(allocationId);
     if (!allocationInfo) {
         // Means that allocation has finished concurrently. Such a job will be aborted in controller.
-        YT_LOG_INFO("Allocation is unknown; skip settle job request");
+        YT_LOG_INFO("Allocation is unknown at the end of request processing; skip settle job request");
 
         THROW_ERROR_EXCEPTION("No such allocation %v", allocationId);
     }
