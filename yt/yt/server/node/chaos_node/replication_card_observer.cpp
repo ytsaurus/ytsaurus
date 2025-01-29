@@ -101,9 +101,8 @@ private:
             std::ssize(replicationCardIds),
             roundCount);
 
+        std::vector<TExpiredReplicaHistory> expiredHistories;
         for (i64 roundIndex = 0; roundIndex < roundCount; ++roundIndex) {
-            std::vector<TExpiredReplicaHistory> expiredHistories;
-
             for (i64 index = roundIndex * cardsPerRound;
                 index < (roundIndex + 1)* cardsPerRound && index < std::ssize(replicationCardIds);
                 ++index)
@@ -111,13 +110,14 @@ private:
                 ObserveReplicationCard(replicationCardIds[index], &expiredHistories);
             }
 
-            if (!expiredHistories.empty() > 0) {
+            if (!expiredHistories.empty()) {
                 NProto::TReqRemoveExpiredReplicaHistory request;
                 ToProto(request.mutable_expired_replica_histories(), expiredHistories);
 
                 const auto& hydraManager = Slot_->GetHydraManager();
                 auto mutation = CreateMutation(hydraManager, request);
                 YT_UNUSED_FUTURE(mutation->CommitAndLog(Logger()));
+                expiredHistories.clear();
             }
 
             YT_LOG_DEBUG("Replication card observer finished round (RoundIndex: %v, WillYield: %v)",
