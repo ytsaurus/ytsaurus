@@ -10039,16 +10039,16 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         TDockerImageSpec dockerImageSpec(*jobSpecConfig->DockerImage, Config->DockerRegistry);
         if (dockerImageSpec.IsInternal() && Config->DockerRegistry->ForwardYtTokensToInternalRegistry) {
             auto environmentValue = [&](const char *key) -> const TString * {
-                for (auto &environment : {jobSpecConfig->Environment, Config->Environment}) {
-                    auto found = environment.find(key);
-                    if (found != environment.end()) {
+                for (auto *environment : {&jobSpecConfig->Environment, &Config->Environment}) {
+                    auto found = environment->find(key);
+                    if (found != environment->end()) {
                         return &found->second;
                     }
                 }
                 return nullptr;
             };
             if (!environmentValue("YT_SECURE_VAULT_docker_auth")) {
-                auto token = environmentValue("YT_TOKEN");
+                auto token = environmentValue("YT_SECURE_VAULT_YT_TOKEN");
                 if (token) {
                     jobSpec->add_environment(Format("YT_SECURE_VAULT_docker_auth={username=%Qv; password=%Qv}", AuthenticatedUser, *token));
                 }
