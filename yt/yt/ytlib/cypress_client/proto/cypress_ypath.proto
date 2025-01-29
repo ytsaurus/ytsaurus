@@ -72,6 +72,7 @@ message TReqCopy
     optional bool lock_existing = 13 [default = false];
     optional bool pessimistic_quota_check = 9 [default = true];
     optional bool enable_cross_cell_copying = 15 [default = true];
+    optional bool allow_secondary_index_abandonment = 16 [default = false];
 
     reserved 1;
 }

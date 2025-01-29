@@ -213,6 +213,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixBuiltinAdminsGroupId)                                      (2823))  // cherepashka
     ((StableOrderedSecondaryIndicesDestruction)                     (2824))  // koloshmet
     ((FixExportedObjectsRefs)                                       (2825))  // aleksandra-zh
+    ((SecondaryIndexAbandonment)                                    (2826))  // sabdenovch
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

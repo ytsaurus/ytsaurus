@@ -71,6 +71,7 @@
 #include <yt/yt/server/master/table_server/cypress_integration.h>
 #include <yt/yt/server/master/table_server/master_table_schema.h>
 #include <yt/yt/server/master/table_server/replicated_table_node_type_handler.h>
+#include <yt/yt/server/master/table_server/secondary_index.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
 #include <yt/yt/server/master/table_server/table_node.h>
 #include <yt/yt/server/master/table_server/table_node_type_handler.h>
@@ -337,6 +338,11 @@ public:
         auto preserveAclDuringMove = cloneMode == ENodeCloneMode::Move && config->EnablePreserveAclDuringMove;
 
         return preserveAclDuringMove || Options_.PreserveAcl;
+    }
+
+    bool ShouldAllowSecondaryIndexAbandonment() const override
+    {
+        return Options_.AllowSecondaryIndexAbandonment;
     }
 
     TAccount* GetNewNodeAccount() const override
@@ -4318,7 +4324,7 @@ private:
         auto* account = securityManager->GetAccount(accountId);
 
         auto factory = CreateNodeFactory(
-            nullptr,
+            /*shard*/ nullptr,
             clonedTransaction,
             account,
             TNodeFactoryOptions(),

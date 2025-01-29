@@ -6,7 +6,8 @@ from yt_commands import (
     create, create_secondary_index, create_table_replica, create_table_collocation, create_user,
     authors, set, get, exists, remove, copy, get_driver, alter_table,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_enable_table_replica,
-    select_rows, explain_query, insert_rows, delete_rows, commit_transaction, start_transaction,
+    select_rows, explain_query, insert_rows, delete_rows,
+    commit_transaction, start_transaction,
     sorted_dicts, raises_yt_error,
 )
 
@@ -132,6 +133,9 @@ class TestSecondaryIndexBase(DynamicTablesBase):
         }
         return create("table", table_path, attributes=attributes)
 
+    def _create_map_node(self, path):
+        create("map_node", path)
+
     def _create_secondary_index(
         self,
         table_path="//tmp/table",
@@ -167,6 +171,43 @@ class TestSecondaryIndexBase(DynamicTablesBase):
             self._mount(table_path, index_table_path)
 
         return table_id, index_table_id, index_id, None
+
+    def _validate_index_state(self, table_path, index_table_path, **kwargs):
+        attrs = get(index_table_path, attributes=["ref_counter", "id", "index_to"], **kwargs).attributes
+        if "tx" not in kwargs:
+            # Transactions create extra references.
+            assert attrs["ref_counter"] == 1
+        assert attrs["index_to"]["table_path"] == table_path
+        index_table_id = attrs["id"]
+        secondary_index_id = attrs["index_to"]["index_id"]
+
+        attrs = get(table_path, attributes=["ref_counter", "id", "secondary_indices"], **kwargs).attributes
+        if "tx" not in kwargs:
+            # Transactions create extra references.
+            assert attrs["ref_counter"] == 1
+        table_id = attrs["id"]
+        assert attrs["secondary_indices"][secondary_index_id] == {
+            "index_path": index_table_path,
+            "kind": "full_sync",
+        }
+
+        attrs = get(f"#{secondary_index_id}", attributes=[
+            "ref_counter",
+            "table_path",
+            "table_id",
+            "index_table_path",
+            "index_table_id",
+        ]).attributes
+        assert attrs["ref_counter"] == 1
+        if "tx" not in kwargs:
+            # Secondary index is an unversioned master object - its proxy has no transactional awareness and
+            # cannot resolve the paths correctly in this case.
+            assert attrs["table_path"] == table_path
+            assert attrs["index_table_path"] == index_table_path
+        assert attrs["table_id"] == table_id
+        assert attrs["index_table_id"] == index_table_id
+
+        return table_id, index_table_id, secondary_index_id
 
 
 ##################################################################
@@ -225,6 +266,10 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
         sync_enable_table_replica(replica_id)
 
         return table_id
+
+    def _create_map_node(self, path):
+        create("map_node", path)
+        create("map_node", path, driver=self.REPLICA_DRIVER)
 
     def _create_secondary_index(
         self,
@@ -412,13 +457,26 @@ class TestSecondaryIndexMaster(TestSecondaryIndexBase):
         alter_table("//tmp/table", schema=PRIMARY_SCHEMA + [{"name": "extraValue", "type": "int64"}])
         alter_table("//tmp/index_table", schema=INDEX_ON_VALUE_SCHEMA + [{"name": "extraValue", "type": "int64"}])
 
+    @authors("sabdenovch")
+    def test_copy_with_abandonment(self):
+        self._create_basic_tables()
+
+        with raises_yt_error("Cannot copy table"):
+            copy("//tmp/table", "//tmp/table_copy")
+        with raises_yt_error("Cannot copy table"):
+            copy("//tmp/index_table", "//tmp/index_table_copy")
+
+        copy("//tmp/table", "//tmp/table_copy", allow_secondary_index_abandonment=True)
+        assert not exists("//tmp/table_copy/@secondary_indices")
+        copy("//tmp/index_table", "//tmp/index_table_copy", allow_secondary_index_abandonment=True)
+        assert not exists("//tmp/index_table_copy/@index_to")
 
 ##################################################################
 
 
 # This test suite is not iterated over with replicated tables, because:
 # 1) Collocations beyond portals are not supported yet;
-# 2) Replicated tables cannot be moved or copied.
+# 2) Replicated tables cannot be moved.
 @pytest.mark.enabled_multidaemon
 class TestSecondaryIndexPortal(TestSecondaryIndexBase):
     ENABLE_MULTIDAEMON = True

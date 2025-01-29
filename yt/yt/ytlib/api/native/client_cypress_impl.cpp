@@ -110,6 +110,7 @@ void SetCopyNodeRequestParameters(
 {
     SetCopyNodeBaseRequestParameters(req, options);
     req->set_mode(ToProto(ENodeCloneMode::Copy));
+    req->set_allow_secondary_index_abandonment(options.AllowSecondaryIndexAbandonment);
 }
 
 void SetCopyNodeRequestParameters(
@@ -118,6 +119,7 @@ void SetCopyNodeRequestParameters(
 {
     SetMoveNodeBaseRequestParameters(req, options);
     req->set_mode(ToProto(ENodeCloneMode::Move));
+    req->set_allow_secondary_index_abandonment(options.AllowSecondaryIndexAbandonment);
 }
 
 // COMPAT(h0pless): IntroduceNewPipelineForCrossCellCopy.

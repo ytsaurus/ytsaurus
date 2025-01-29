@@ -2084,6 +2084,9 @@ private:
         if (request->has_enable_cross_cell_copying()) {
             options.EnableCrossCellCopying = request->enable_cross_cell_copying();
         }
+        if (request->has_allow_secondary_index_abandonment()) {
+            options.AllowSecondaryIndexAbandonment = request->allow_secondary_index_abandonment();
+        }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -2151,6 +2154,9 @@ private:
         }
         if (request->has_enable_cross_cell_copying()) {
             options.EnableCrossCellCopying = request->enable_cross_cell_copying();
+        }
+        if (request->has_allow_secondary_index_abandonment()) {
+            options.AllowSecondaryIndexAbandonment = request->allow_secondary_index_abandonment();
         }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());

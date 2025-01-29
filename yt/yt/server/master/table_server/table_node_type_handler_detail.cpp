@@ -21,6 +21,7 @@
 #include <yt/yt/server/master/chunk_server/config.h>
 
 #include <yt/yt/server/master/cypress_server/config.h>
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/helpers.h>
 
 #include <yt/yt/server/master/tablet_server/chaos_helpers.h>
@@ -33,6 +34,8 @@
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
@@ -491,6 +494,19 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     ENodeCloneMode mode,
     TAccount* account)
 {
+    if (!factory->ShouldAllowSecondaryIndexAbandonment() && !NHiveServer::IsHiveMutation()) {
+        if (sourceNode->GetIndexTo()) {
+            THROW_ERROR_EXCEPTION("Cannot copy table %v because it acts as an index to table %v, consider specifying "
+                "\"allow_secondary_index_abandonment\" option",
+                sourceNode->GetId(),
+                sourceNode->GetIndexTo()->GetTableId());
+        } else if (!sourceNode->SecondaryIndices().empty()) {
+            THROW_ERROR_EXCEPTION("Cannot copy table %v because it has secondary indices, consider specifying "
+                "\"allow_secondary_index_abandonment\" option",
+                sourceNode->GetId());
+        }
+    }
+
     // Order is important: table schema might be used in TChunkOwnerTypeHandler::DoClone.
     TSchemafulNodeTypeHandler::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
     TTabletOwnerTypeHandler::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);

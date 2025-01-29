@@ -2318,11 +2318,13 @@ TNodeFactoryOptions TNontemplateCypressNodeProxyBase::GetFactoryOptionsAndLog(co
     auto preserveExpirationTimeout = request->preserve_expiration_timeout();
     auto preserveOwner = request->preserve_owner();
     auto pessimisticQuotaCheck = request->pessimistic_quota_check();
-    bool preserveAcl = request->preserve_acl();
+    auto preserveAcl = request->preserve_acl();
+    auto allowSecondaryIndexAbandonment= request->allow_secondary_index_abandonment();
 
     context->SetIncrementalRequestInfo(
         "PreserveAccount: %v, PreserveCreationTime: %v, PreserveModificationTime: %v, PreserveExpirationTime: %v, "
-        "PreserveExpirationTimeout: %v, PreserveOwner: %v, PreserveAcl: %v, PessimisticQuotaCheck: %v",
+        "PreserveExpirationTimeout: %v, PreserveOwner: %v, PreserveAcl: %v, PessimisticQuotaCheck: %v, "
+        "AllowSecondaryIndexAbandonment: %v",
         preserveAccount,
         preserveCreationTime,
         preserveModificationTime,
@@ -2330,7 +2332,8 @@ TNodeFactoryOptions TNontemplateCypressNodeProxyBase::GetFactoryOptionsAndLog(co
         preserveExpirationTimeout,
         preserveOwner,
         preserveAcl,
-        pessimisticQuotaCheck);
+        pessimisticQuotaCheck,
+        allowSecondaryIndexAbandonment);
 
     return TNodeFactoryOptions{
         .PreserveAccount = preserveAccount,
@@ -2340,7 +2343,8 @@ TNodeFactoryOptions TNontemplateCypressNodeProxyBase::GetFactoryOptionsAndLog(co
         .PreserveExpirationTimeout = preserveExpirationTimeout,
         .PreserveOwner = preserveOwner,
         .PreserveAcl = preserveAcl,
-        .PessimisticQuotaCheck = pessimisticQuotaCheck
+        .PessimisticQuotaCheck = pessimisticQuotaCheck,
+        .AllowSecondaryIndexAbandonment = allowSecondaryIndexAbandonment,
     };
 }
 
