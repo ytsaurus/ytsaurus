@@ -15,6 +15,8 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/rpc/retrying_channel.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NHiveClient;
@@ -123,10 +125,16 @@ private:
 
     TFuture<void> SendMasterActions(const TTransactionPtr& owner, const IChannelPtr& channel)
     {
-        TTransactionServiceProxy proxy(channel);
+        const auto& connection = Client_->GetNativeConnection();
+        const auto& config = connection->GetConfig()->TransactionManager;
+        auto retryingChannel = CreateRetryingChannel(config, channel);
+
+        TTransactionServiceProxy proxy(retryingChannel);
         auto req = proxy.RegisterTransactionActions();
         req->SetResponseHeavy(true);
         req->SetTimeout(Client_->GetNativeConnection()->GetConfig()->DefaultRegisterTransactionActionsTimeout);
+        GenerateMutationId(req);
+        req->SetRetry(true);
         ToProto(req->mutable_transaction_id(), owner->GetId());
         ToProto(req->mutable_actions(), Actions_);
         return req->Invoke().As<void>();
