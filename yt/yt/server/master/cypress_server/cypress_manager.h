@@ -47,6 +47,7 @@ struct TNodeFactoryOptions
     bool PreserveOwner : 1 = false;
     bool PreserveAcl : 1 = false;
     bool PessimisticQuotaCheck : 1 = true;
+    bool AllowSecondaryIndexAbandonment : 1 = false;
 };
 
 DEFINE_ENUM(EPathRootType,

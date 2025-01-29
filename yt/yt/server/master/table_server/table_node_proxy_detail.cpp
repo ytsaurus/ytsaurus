@@ -1063,7 +1063,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
         }
 
         case EInternedAttributeKey::SecondaryIndices: {
-            if (!table->IsDynamic() || table->SecondaryIndices().empty() || table->IsForeign()) {
+            if (!table->IsDynamic() || trunkTable->SecondaryIndices().empty() || table->IsForeign()) {
                 return false;
             }
 
@@ -1072,11 +1072,11 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
             BuildYsonFluently(consumer)
                 .DoMapFor(
-                    table->SecondaryIndices(),
+                    trunkTable->SecondaryIndices(),
                     [&] (auto fluent, TSecondaryIndex* secondaryIndex) {
                         auto indexPath = cypressManager->GetNodePath(
                             tableManager->GetTableNodeOrThrow(secondaryIndex->GetIndexTableId()),
-                            /*transaction*/ nullptr);
+                            GetTransaction());
                         auto kind = secondaryIndex->GetKind();
 
                         fluent
@@ -1091,17 +1091,17 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
         }
 
         case EInternedAttributeKey::IndexTo: {
-            if (!table->IsDynamic() || !table->GetIndexTo() || table->IsForeign()) {
+            if (!table->IsDynamic() || !trunkTable->GetIndexTo() || table->IsForeign()) {
                 return false;
             }
 
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             const auto& tableManager = Bootstrap_->GetTableManager();
 
-            auto* secondaryIndex = table->GetIndexTo();
+            auto* secondaryIndex = trunkTable->GetIndexTo();
             auto tablePath = cypressManager->GetNodePath(
                 tableManager->GetTableNodeOrThrow(secondaryIndex->GetTableId()),
-                /*transaction*/ nullptr);
+                GetTransaction());
             auto kind = secondaryIndex->GetKind();
 
             BuildYsonFluently(consumer)

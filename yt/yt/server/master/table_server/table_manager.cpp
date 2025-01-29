@@ -765,6 +765,12 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
+        YT_LOG_DEBUG("Creating secondary index (TableId: %v, IndexTableId: %v, Kind: %Qlv, Predicate: %v)",
+            tableId,
+            indexTableId,
+            kind,
+            predicate);
+
         const auto& tableManager = Bootstrap_->GetTableManager();
 
         auto* table = tableManager->GetTableNodeOrThrow(tableId);
