@@ -43,6 +43,7 @@ message TReqCloneNode
         optional bool preserve_expiration_time = 10 [default = false];
         optional bool preserve_expiration_timeout = 11 [default = false];
         optional bool pessimistic_quota_check = 12 [default = true];
+        optional bool allow_secondary_index_abandonment = 13 [default = false];
     }
 
     required NYT.NProto.TGuid src_id = 1;

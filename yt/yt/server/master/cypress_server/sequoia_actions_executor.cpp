@@ -639,6 +639,7 @@ private:
             .PreserveOwner = requestOptions->preserve_owner(),
             .PreserveAcl = requestOptions->preserve_acl(),
             .PessimisticQuotaCheck = requestOptions->pessimistic_quota_check(),
+            .AllowSecondaryIndexAbandonment = requestOptions->allow_secondary_index_abandonment(),
         };
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
