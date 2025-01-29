@@ -946,7 +946,9 @@ private:
             return true;
         }
 
-        YT_VERIFY(StreamEncoder_->ArrowDictionaryIds().size() == TypedColumns_.size());
+        if (StreamEncoder_->ArrowDictionaryIds().size() != TypedColumns_.size()) {
+            THROW_ERROR_EXCEPTION("Reading tables in arrow format is not supported if chunks have different schemas, try to merge your table");
+        }
 
         bool result = StreamEncoder_->IsFirstBatch();
         for (int index = 0; index < std::ssize(TypedColumns_); ++index) {
