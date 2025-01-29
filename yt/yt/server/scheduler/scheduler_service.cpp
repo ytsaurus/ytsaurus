@@ -5,6 +5,7 @@
 #include "bootstrap.h"
 
 #include <yt/yt/client/scheduler/operation_id_or_alias.h>
+#include <yt/yt/client/scheduler/spec_patch.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -53,6 +54,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CompleteOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateOperationParameters));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PatchOperationSpec));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetAllocationBriefInfo));
     }
 
@@ -239,6 +241,30 @@ private:
         context->ReplyFrom(asyncResult);
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NProto, PatchOperationSpec)
+    {
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
+
+        TSpecPatchList patches;
+        for (const auto& protoChange : request->patches()) {
+            patches.emplace_back(New<TSpecPatch>());
+            FromProto(patches.back(), &protoChange);
+        }
+        context->SetRequestInfo(
+            "OperationId: %v, Patches: %v",
+            operationIdOrAlias,
+            MakeFormattableView(patches, TDefaultFormatter()));
+
+        auto scheduler = Bootstrap_->GetScheduler();
+        scheduler->ValidateConnected();
+
+        if (ResponseKeeper_->TryReplyFrom(context)) {
+            return;
+        }
+
+        context->Reply(TError("PatchSpec is not yet implemented"));
+    }
+
     DECLARE_RPC_SERVICE_METHOD(NProto, GetAllocationBriefInfo)
     {
         auto allocationId = FromProto<TAllocationId>(request->allocation_id());
@@ -278,4 +304,3 @@ IServicePtr CreateOperationService(TBootstrap* bootstrap, const IResponseKeeperP
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
-

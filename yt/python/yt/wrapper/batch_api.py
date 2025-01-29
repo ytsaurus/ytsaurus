@@ -12,7 +12,8 @@ from .dynamic_table_commands import (  # noqa
     trim_rows, alter_table_replica, get_in_sync_replicas, get_tablet_infos, get_tablet_errors,
     create_table_backup, restore_table_backup)
 from .operation_commands import (  # noqa
-    suspend_operation, resume_operation, get_operation_attributes, update_operation_parameters,
+    suspend_operation, resume_operation, get_operation_attributes,
+    update_operation_parameters, patch_operation_spec,
     get_operation, list_operations)
 from .job_commands import get_job, list_jobs  # noqa
 from .transaction_commands import start_transaction, abort_transaction, commit_transaction, ping_transaction  # noqa
