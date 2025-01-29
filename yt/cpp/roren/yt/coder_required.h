@@ -1,0 +1,17 @@
+#pragma once
+
+#include "require_link.h"
+
+#include <yt/cpp/roren/interface/private/fwd.h>
+
+namespace NRoren::NPrivate {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T>
+struct TIsRowCoderRequired<T, void> : public std::true_type
+{ };
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NRoren::NPrivate

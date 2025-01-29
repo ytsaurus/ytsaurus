@@ -14,6 +14,7 @@
 #include "transforms.h"
 #include "yt_io_private.h"
 #include "yt_proto_io.h"
+#include "coder_required.h"
 
 namespace NRoren {
 

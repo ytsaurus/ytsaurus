@@ -5,6 +5,8 @@ SRCS(
     connectors.cpp
     dependency_runner.cpp
     depricated/level_runner.cpp
+    GLOBAL require_link.cpp
+    GLOBAL prevent_link.cpp
     depricated/yt_graph.cpp
     dot.cpp
     jobs.cpp

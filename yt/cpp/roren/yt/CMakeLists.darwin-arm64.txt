@@ -49,3 +49,24 @@ target_sources(cpp-roren-yt PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/yt_proto_io.cpp
 )
 
+
+add_global_library_for(cpp-roren-yt.global
+  cpp-roren-yt)
+
+
+target_link_libraries(cpp-roren-yt.global PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  cpp-threading-future
+  threading-future-subscription
+  cpp-roren-interface
+  roren-yt-proto
+  cpp-mapreduce-client
+  cpp-mapreduce-util
+)
+
+target_sources(cpp-roren-yt.global PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/require_link.cpp
+  ${PROJECT_SOURCE_DIR}/yt/cpp/roren/yt/prevent_link.cpp
+)
+
