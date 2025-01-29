@@ -72,7 +72,7 @@ IStorePtr TFetchCandidateQueue::PopAndGet()
 void TFetchCandidateQueue::Clear()
 {
     while (!Queue_.empty()) {
-        ChangeInQueueStatus(Queue_.back().Lock(), false);
+        ChangeInQueueStatus(Queue_.front().Lock(), false);
         Queue_.pop();
     }
     UpdateSize();
