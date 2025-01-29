@@ -159,6 +159,13 @@ struct TGetQueryTrackerInfoResult
     std::vector<TString> AccessControlObjects;
 };
 
+struct TCredetials
+{
+    TString Catecory;
+    TString Subcategory;
+    TString ContentOrUrl;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IQueryTrackerClient
@@ -168,7 +175,8 @@ struct IQueryTrackerClient
     virtual TFuture<NQueryTrackerClient::TQueryId> StartQuery(
         NQueryTrackerClient::EQueryEngine engine,
         const TString& query,
-        const TStartQueryOptions& options = {}) = 0;
+        const TStartQueryOptions& options = {},
+        const THashMap<TString, TCredetials>& extraCredentials = {}) = 0;
 
     virtual TFuture<void> AbortQuery(
         NQueryTrackerClient::TQueryId queryId,
