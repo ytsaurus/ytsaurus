@@ -922,6 +922,119 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             return False
         wait(_background_memory_is_zero)
 
+    @authors("dave11ar")
+    def test_global_compaction(self):
+        sync_create_cells(1)
+
+        table_count = 3
+        tablet_count = 33
+        chunk_count = table_count * tablet_count
+
+        threshold = 0.2
+
+        table_paths = builtins.set()
+        all_chunk_ids = builtins.set()
+
+        def _create_table():
+            nonlocal table_paths
+            nonlocal all_chunk_ids
+
+            table = f"//tmp/t{generate_uuid()}"
+            table_paths.add(table)
+
+            self._create_simple_table(table)
+
+            tablet_keys = [[]]
+            for tablet in range(1, tablet_count):
+                tablet_keys.append([tablet])
+
+            sync_reshard_table(table, tablet_keys)
+            sync_mount_table(table)
+
+            insert_rows(table, [{"key": index, "value": str(index)} for index in range(tablet_count)])
+            sync_flush_table(table)
+
+            chunk_ids = builtins.set(get(f"{table}/@chunk_ids"))
+            all_chunk_ids.update(chunk_ids)
+
+            return table, chunk_ids
+
+        tables = [_create_table() for _ in range(table_count)]
+
+        assert len(all_chunk_ids) == chunk_count
+
+        delay = 5
+        post_delay = 5
+        start_time = time() + delay
+        duration = 30
+
+        start_time_ms = start_time * 1000
+        duration_ms = duration * 1000
+
+        set(
+            "//sys/@config/tablet_manager/table_config_experiments/global_compaction",
+            {
+                "auto_apply": True,
+                "patch": {
+                    "mount_config_patch": {
+                        "global_compaction": {
+                            "start_time": start_time_ms,
+                            "duration": duration_ms,
+                        }
+                    }
+                },
+                "fraction": 1,
+            },
+        )
+
+        sleep(delay * 0.9)
+        wait(lambda: time() < start_time)
+
+        def _check():
+            now = time()
+            compacted = 0
+
+            for table, chunk_ids in tables:
+                for chunk_id in get(f"{table}/@chunk_ids"):
+                    compacted += chunk_id not in chunk_ids
+
+            current_ratio = compacted / chunk_count
+            expected_ratio = (now - start_time) / duration
+
+            assert abs(current_ratio - expected_ratio) <= threshold
+
+            return now - start_time > duration
+
+        wait(_check)
+
+        sleep(post_delay)
+
+        node_addresses = builtins.set()
+
+        for table, chunk_ids in tables:
+            for index in range(tablet_count):
+                node_addresses.add(get(f"{table}/@tablets/{index}/cell_leader_address"))
+
+            for chunk_id in get(f"{table}/@chunk_ids"):
+                assert chunk_id not in chunk_ids
+
+        compacted = 0
+
+        for node_address in node_addresses:
+            completed_tasks = get(f"//sys/cluster_nodes/{node_address}/orchid/store_compactor/compaction_tasks/completed_tasks")
+
+            for task in completed_tasks:
+                if task["table_path"] not in table_paths:
+                    continue
+
+                assert task["reason"] == "global"
+
+                for chunk_id in task["store_ids"]:
+                    assert chunk_id in all_chunk_ids
+                    compacted += 1
+
+        assert compacted == chunk_count
+
 
 ################################################################################
 
