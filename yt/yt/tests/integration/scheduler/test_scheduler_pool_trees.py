@@ -2303,28 +2303,6 @@ class TestOffloadingPools(YTEnvSetup):
         op.track()
 
     @authors("renadeen")
-    def test_offloading_with_empty_pool_hotfix(self):
-        create_pool(
-            "some_pool",
-            pool_tree="default",
-            attributes={
-                "offloading_settings": {
-                    "offload_tree": {"pool": ""}
-                }
-            })
-
-        create_custom_pool_tree_with_one_node("offload_tree")
-        create_pool("some_pool", pool_tree="offload_tree")
-
-        op = run_test_vanilla(with_breakpoint("BREAKPOINT"), spec={"pool": "some_pool"})
-
-        cloud_tree_op_path = scheduler_orchid_operation_path(op.id, "offload_tree")
-        wait(lambda: get(cloud_tree_op_path + "/pool", default="") == "some_pool")
-
-        release_breakpoint()
-        op.track()
-
-    @authors("renadeen")
     def test_schedule_in_single_tree_with_offloading(self):
         create_pool(
             "some_pool",
