@@ -30,9 +30,9 @@ PEERDIR(
     yt/yql/providers/yt/gateway/file
     yt/yql/providers/yt/provider
     yt/yql/providers/yt/codec/codegen
-    yt/yql/providers/yt/comp_nodes/llvm14
-    yql/essentials/minikql/comp_nodes/llvm14
-    yql/essentials/minikql/invoke_builtins/llvm14
+    yt/yql/providers/yt/comp_nodes/llvm16
+    yql/essentials/minikql/comp_nodes/llvm16
+    yql/essentials/minikql/invoke_builtins/llvm16
     yql/essentials/sql/pg
     yql/essentials/udfs/common/string
 )
