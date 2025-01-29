@@ -3,6 +3,7 @@
 from yt.testlib import authors
 
 import yt.yson as yson
+import yt_yson_bindings as yson_bindings
 
 from yt.wrapper.string_iter_io import StringIterIO
 from yt.wrapper.format import extract_key, create_format
@@ -12,6 +13,7 @@ import yt.wrapper as yt
 import pytest
 import random
 import time
+from functools import partial
 from flaky import flaky
 from io import BytesIO
 from itertools import chain
@@ -463,3 +465,40 @@ def test_default_encoding():
     jf = yt.JsonFormat(encode_utf8=True)
     expected = b'{"x": "\\u00d0\\u00ab"}\n'
     assert expected == jf.dumps_rows(rows)
+
+
+@authors("denvr")
+def test_yson_escape():
+    def _safe_call(f, s):
+        try:
+            return f(s)
+        except Exception:
+            return None
+
+    safe_bindings = partial(_safe_call, yson_bindings.loads)
+    safe_python = partial(_safe_call, yson.parser.loads)
+
+    quoted_parts = [
+        # unicode
+        (b"\"\\u0041\"", "A"),
+        # hex
+        (b"\"\\x410\"", "A0"),
+        # oct
+        (b"\"\\07510\"", "=10"),
+        # spec
+        (b"\"\\n\"", "\n"),
+        (b"\"\\r\"", "\r"),
+        (b"\"\\t\"", "\t"),
+        (b"\"\\\\\"", "\\"),  # "\\"
+        (b"\"\\\"\"", "\""),  # "\""
+        (b"\"\\'\"", "'"),  # "'"
+        # regular
+        (b"\"\\z\"", "z"),
+        (b"\"\\;\"", ";"),
+    ]
+    assert all(map(lambda i: i[1] == safe_bindings(i[0]) == safe_python(i[0]) , quoted_parts))
+
+    quoted_simbols = list(map(str.encode, ["\"\\" + chr(i) + "\"" for i in range(0, 255) if i not in b'Uux']))
+    bindings_string = list(map(partial(_safe_call, yson_bindings.loads), quoted_simbols))
+    python_string = list(map(partial(_safe_call, yson.parser.loads), quoted_simbols))
+    assert bindings_string == python_string
