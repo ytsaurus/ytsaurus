@@ -35,8 +35,6 @@ DECLARE_REFCOUNTED_CLASS(TSignatureValidator)
 
 DECLARE_REFCOUNTED_STRUCT(IKeyStoreReader)
 DECLARE_REFCOUNTED_STRUCT(IKeyStoreWriter)
-DECLARE_REFCOUNTED_CLASS(TCypressKeyReader)
-DECLARE_REFCOUNTED_CLASS(TCypressKeyWriter)
 
 ////////////////////////////////////////////////////////////////////////////////
 

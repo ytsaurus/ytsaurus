@@ -4,6 +4,7 @@
 
 #include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/key_info.h>
+#include <yt/yt/server/lib/signature/key_store.h>
 
 #include <yt/yt/client/unittests/mock/client.h>
 
@@ -68,7 +69,7 @@ TEST_F(TCypressKeyReaderTest, FindKey)
     EXPECT_CALL(*Client, GetNode("//sys/public_keys/by_owner/test/4-3-2-1", _))
         .WillOnce(Return(MakeFuture(ConvertToYsonString(simpleKeyInfo))));
 
-    auto reader = New<TCypressKeyReader>(Config, Client);
+    auto reader = CreateCypressKeyReader(Config, Client);
 
     auto keyInfo = WaitFor(reader->FindKey(OwnerId, KeyId));
     EXPECT_THAT(keyInfo.ValueOrThrow(), Pointee(*simpleKeyInfo));
@@ -81,7 +82,7 @@ TEST_F(TCypressKeyReaderTest, FindKeyNotFound)
     EXPECT_CALL(*Client, GetNode(_, _))
         .WillOnce(Return(MakeFuture<TYsonString>(TError("Key not found"))));
 
-    auto reader = New<TCypressKeyReader>(Config, Client);
+    auto reader = CreateCypressKeyReader(Config, Client);
 
     auto keyInfo = WaitFor(reader->FindKey(OwnerId, KeyId));
     EXPECT_FALSE(keyInfo.IsOK());
@@ -95,7 +96,7 @@ TEST_F(TCypressKeyReaderTest, FindKeyInvalidString)
     EXPECT_CALL(*Client, GetNode(_, _))
         .WillOnce(Return(MakeFuture<TYsonString>(ConvertToYsonString("abacaba"))));
 
-    auto reader = New<TCypressKeyReader>(Config, Client);
+    auto reader = CreateCypressKeyReader(Config, Client);
 
     auto keyInfo = WaitFor(reader->FindKey(OwnerId, KeyId));
     EXPECT_FALSE(keyInfo.IsOK());
@@ -144,8 +145,8 @@ struct TCypressKeyWriterTest
 
 TEST_F(TCypressKeyWriterTest, Init)
 {
-    auto writer = New<TCypressKeyWriter>(Config, Client);
-    WaitFor(writer->Initialize()).ThrowOnError();
+    auto writer = CreateCypressKeyWriter(Config, Client);
+    EXPECT_TRUE(WaitFor(writer).IsOK());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,19 +156,18 @@ TEST_F(TCypressKeyWriterNoInitTest, InitFailed)
     EXPECT_CALL(*Client, CreateNode("//sys/public_keys/by_owner/test", _, _))
         .WillOnce(Return(MakeFuture<TNodeId>(TError("failure"))));
 
-    auto writer = New<TCypressKeyWriter>(Config, Client);
-    auto error = WaitFor(writer->Initialize());
+    auto writer = WaitFor(CreateCypressKeyWriter(Config, Client));
 
-    EXPECT_FALSE(error.IsOK());
-    EXPECT_THAT(error.GetMessage(), HasSubstr("failure"));
+    EXPECT_FALSE(writer.IsOK());
+    EXPECT_THAT(writer.GetMessage(), HasSubstr("failure"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST_F(TCypressKeyWriterTest, GetOwner)
 {
-    auto writer = New<TCypressKeyWriter>(Config, Client);
-    WaitFor(writer->Initialize()).ThrowOnError();
+    auto writer = WaitFor(CreateCypressKeyWriter(Config, Client))
+        .ValueOrThrow();
 
     EXPECT_EQ(writer->GetOwner(), OwnerId);
 }
@@ -190,8 +190,8 @@ TEST_F(TCypressKeyWriterTest, RegisterKey)
     EXPECT_CALL(*Client, SetNode("//sys/public_keys/by_owner/test/4-3-2-1", ConvertToYsonString(keyInfo), _))
         .WillOnce(Return(VoidFuture));
 
-    auto writer = New<TCypressKeyWriter>(Config, Client);
-    WaitFor(writer->Initialize()).ThrowOnError();
+    auto writer = WaitFor(CreateCypressKeyWriter(Config, Client))
+        .ValueOrThrow();
 
     EXPECT_TRUE(WaitFor(writer->RegisterKey(keyInfo)).IsOK());
 }
@@ -203,8 +203,8 @@ TEST_F(TCypressKeyWriterTest, RegisterKeyFailed)
     EXPECT_CALL(*Client, CreateNode("//sys/public_keys/by_owner/test/4-3-2-1", _, _))
         .WillOnce(Return(MakeFuture<TNodeId>(TError("some error"))));
 
-    auto writer = New<TCypressKeyWriter>(Config, Client);
-    WaitFor(writer->Initialize()).ThrowOnError();
+    auto writer = WaitFor(CreateCypressKeyWriter(Config, Client))
+        .ValueOrThrow();
 
     auto keyInfo = New<TKeyInfo>(TPublicKey{}, Meta);
 
@@ -217,9 +217,8 @@ TEST_F(TCypressKeyWriterTest, RegisterKeyFailed)
 
 TEST_F(TCypressKeyWriterTest, RegisterKeyWrongOwner)
 {
-    auto writer = New<TCypressKeyWriter>(Config, Client);
-    WaitFor(writer->Initialize())
-        .ThrowOnError();
+    auto writer = WaitFor(CreateCypressKeyWriter(Config, Client))
+        .ValueOrThrow();
 
     // TODO(pavook): enable this test when we can replace YT_VERIFY with exceptions.
     if (false) {
