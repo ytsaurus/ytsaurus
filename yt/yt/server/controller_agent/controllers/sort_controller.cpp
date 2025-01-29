@@ -4198,8 +4198,6 @@ private:
         InitJobIOConfigs();
         InitStreamDescriptors();
 
-        Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
-
         InitPartitioningParametersEvaluator();
 
         // Due to the sampling it is possible that TotalEstimatedInputDataWeight > 0
