@@ -1387,7 +1387,7 @@ private:
             for (const auto& protoAgentDescriptor : response->registered_controller_agents()) {
                 auto descriptorOrError = TryParseControllerAgentDescriptor(
                     protoAgentDescriptor,
-                    Bootstrap_->GetLocalNetworks());
+                    Bootstrap_->GetNetworks());
                 YT_LOG_FATAL_IF(
                     !descriptorOrError.IsOK(),
                     descriptorOrError,

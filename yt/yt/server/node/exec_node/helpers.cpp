@@ -215,14 +215,14 @@ namespace {
 
 TErrorOr<std::string> TryParseControllerAgentAddress(
     const NNodeTrackerClient::NProto::TAddressMap& proto,
-    const NNodeTrackerClient::TNetworkPreferenceList& localNetworks)
+    const NNodeTrackerClient::TNetworkPreferenceList& networks)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     auto addresses = FromProto<NNodeTrackerClient::TAddressMap>(proto);
 
     try {
-        return GetAddressOrThrow(addresses, localNetworks);
+        return GetAddressOrThrow(addresses, networks);
     } catch (const std::exception& ex) {
         return TError(
             "No suitable controller agent address exists from %v",
@@ -255,7 +255,7 @@ void FormatValue(
 
 TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
     const NControllerAgent::NProto::TControllerAgentDescriptor& proto,
-    const NNodeTrackerClient::TNetworkPreferenceList& localNetworks)
+    const NNodeTrackerClient::TNetworkPreferenceList& networks)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -266,7 +266,7 @@ TErrorOr<TControllerAgentDescriptor> TryParseControllerAgentDescriptor(
             << TErrorAttribute("incarnation_id", incarnationId);
     }
 
-    auto addressOrError = TryParseControllerAgentAddress(proto.addresses(), localNetworks);
+    auto addressOrError = TryParseControllerAgentAddress(proto.addresses(), networks);
     if (!addressOrError.IsOK()) {
         return TError{std::move(addressOrError)}
             << TErrorAttribute("incarnation_id", incarnationId);
