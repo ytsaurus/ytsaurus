@@ -1037,6 +1037,62 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
 
         assert compacted == chunk_count
 
+    @authors("dave11ar")
+    def test_timestamp_digest_disabling(self):
+        cell_id = sync_create_cells(1)[0]
+        cell_node = get(f"#{cell_id}/@peers/0/address")
+        profiler = profiler_factory().at_node(cell_node)
+
+        chunk_count = 2
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "store_compactor": {
+                    "use_row_digests": True,
+                    "row_digest_request_throttler": {
+                        "limit": 0,
+                    },
+                },
+            },
+        })
+        table = "//tmp/t"
+
+        self._create_simple_table(
+            table,
+            chunk_writer={
+                "versioned_row_digest": {
+                    "enable": True,
+                },
+            },
+        )
+
+        sync_mount_table(table)
+
+        def _insert_flush(i):
+            insert_rows(table, [{"key": i, "value": "v"}])
+            sync_flush_table(table)
+
+        for i in range(chunk_count):
+            _insert_flush(i)
+
+        def _check_stores_queue_size(size):
+            def _check():
+                return abs(profiler.get("tablet_node/chunk_row_digest_fetcher/queue_size") - size) < 1e-6
+
+            return _check
+
+        wait(_check_stores_queue_size(chunk_count))
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "store_compactor": {
+                    "use_row_digests": False,
+                },
+            },
+        })
+
+        wait(_check_stores_queue_size(0))
+
 
 ################################################################################
 
