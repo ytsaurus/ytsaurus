@@ -74,6 +74,7 @@
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/scheduler/operation_id_or_alias.h>
+#include <yt/yt/client/scheduler/spec_patch.h>
 
 #include <yt/yt/client/ypath/rich.h>
 
@@ -699,6 +700,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CompleteOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(UpdateOperationParameters));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(PatchOperationSpec));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetOperation));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ListOperations));
 
@@ -2909,6 +2911,35 @@ private:
                 return client->UpdateOperationParameters(
                     operationIdOrAlias,
                     parameters,
+                    options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, PatchOperationSpec)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
+
+        TSpecPatchList patches;
+        for (const auto& patch : request->patches()) {
+            patches.emplace_back(New<TSpecPatch>());
+            NScheduler::FromProto(patches.back(), &patch);
+        }
+
+        TPatchOperationSpecOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("OperationId: %v, Patches: %v",
+            operationIdOrAlias,
+            MakeFormattableView(patches, TDefaultFormatter()));
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->PatchOperationSpec(
+                    operationIdOrAlias,
+                    patches,
                     options);
             });
     }

@@ -571,6 +571,11 @@ public: \
         const NYson::TYsonString& parameters,
         const TUpdateOperationParametersOptions& options),
         (operationIdOrAlias, parameters, options))
+    IMPLEMENT_METHOD(void, PatchOperationSpec, (
+        const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
+        const NScheduler::TSpecPatchList& patches,
+        const TPatchOperationSpecOptions& options),
+        (operationIdOrAlias, patches, options))
     IMPLEMENT_METHOD(TOperation, GetOperation, (
         const NScheduler::TOperationIdOrAlias& operationIdOrAlias,
         const TGetOperationOptions& options),

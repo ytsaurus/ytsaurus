@@ -1,6 +1,7 @@
 #include "client_impl.h"
 
 #include <yt/yt/client/scheduler/operation_id_or_alias.h>
+#include <yt/yt/client/scheduler/spec_patch.h>
 
 namespace NYT::NApi::NNative {
 
@@ -83,6 +84,21 @@ void TClient::DoUpdateOperationParameters(
     auto req = SchedulerOperationProxy_->UpdateOperationParameters();
     ToProto(req, operationIdOrAlias);
     req->set_parameters(parameters.ToString());
+
+    WaitFor(req->Invoke())
+        .ThrowOnError();
+}
+
+void TClient::DoPatchOperationSpec(
+    const TOperationIdOrAlias& operationIdOrAlias,
+    const TSpecPatchList& patches,
+    const TPatchOperationSpecOptions& /*options*/)
+{
+    auto req = SchedulerOperationProxy_->PatchOperationSpec();
+    ToProto(req, operationIdOrAlias);
+    for (const auto& patch : patches) {
+        ToProto(req->add_patches(), patch);
+    }
 
     WaitFor(req->Invoke())
         .ThrowOnError();

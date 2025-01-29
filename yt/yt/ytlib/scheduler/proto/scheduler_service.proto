@@ -3,6 +3,7 @@ package NYT.NScheduler.NProto;
 import "yt/ytlib/controller_agent/proto/controller_agent_descriptor.proto";
 
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+import "yt_proto/yt/client/scheduler/proto/spec_patch.proto";
 
 import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
@@ -113,6 +114,23 @@ message TReqUpdateOperationParameters
 }
 
 message TRspUpdateOperationParameters
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Changes operation spec at runtime.
+
+message TReqPatchOperationSpec
+{
+    oneof operation_id_or_alias {
+        NYT.NProto.TGuid operation_id = 1;
+        string operation_alias = 2;
+    }
+    // Patch in YSON.
+    repeated TSpecPatch patches = 3;
+}
+
+message TRspPatchOperationSpec
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
