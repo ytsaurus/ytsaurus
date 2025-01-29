@@ -4198,8 +4198,6 @@ private:
         InitJobIOConfigs();
         InitStreamDescriptors();
 
-        Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
-
         InitPartitioningParametersEvaluator();
 
         // Due to the sampling it is possible that TotalEstimatedInputDataWeight > 0
@@ -4379,6 +4377,9 @@ private:
     void PrepareInputQuery() override
     {
         if (Spec->InputQuery) {
+            if (Spec->InputQueryOptions->UseSystemColumns) {
+                InputManager->AdjustSchemas(ControlAttributesToColumnOptions(*Spec->PartitionJobIO->ControlAttributes));
+            }
             ParseInputQuery(
                 *Spec->InputQuery,
                 Spec->InputSchema,

@@ -476,6 +476,9 @@ protected:
     void PrepareInputQuery() override
     {
         if (Spec->InputQuery) {
+            if (Spec->InputQueryOptions->UseSystemColumns) {
+                InputManager->AdjustSchemas(ControlAttributesToColumnOptions(*Spec->JobIO->ControlAttributes));
+            }
             ParseInputQuery(
                 *Spec->InputQuery,
                 Spec->InputSchema,
@@ -837,6 +840,9 @@ private:
     void PrepareInputQuery() override
     {
         if (Spec->InputQuery) {
+            if (Spec->InputQueryOptions->UseSystemColumns) {
+                InputManager->AdjustSchemas(ControlAttributesToColumnOptions(*Spec->JobIO->ControlAttributes));
+            }
             ParseInputQuery(
                 *Spec->InputQuery,
                 Spec->InputSchema,

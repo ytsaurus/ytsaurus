@@ -207,6 +207,15 @@ def update_operation_parameters(operation_id, parameters, client=None):
         {"operation_id": operation_id, "parameters": parameters},
         client=client)
 
+
+def patch_operation_spec(operation_id, patches, client=None):
+    """Patches operation spec."""
+    command_name = "patch_operation_spec" if get_api_version(client) == "v4" else "patch_op_spec"
+    return make_request(
+        command_name,
+        {"operation_id": operation_id, "patches": patches},
+        client=client)
+
 # Helpers
 
 

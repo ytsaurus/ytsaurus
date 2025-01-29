@@ -65,6 +65,16 @@ bool operator==(const TRowDigestCompactionConfig& lhs, const TRowDigestCompactio
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TGradualCompactionConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("start_time", &TThis::StartTime)
+        .Default();
+    registrar.Parameter("duration", &TThis::Duration)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TBuiltinTableMountConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("tablet_cell_bundle", &TThis::TabletCellBundle)
@@ -184,6 +194,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("compaction_data_size_ratio", &TThis::CompactionDataSizeRatio)
         .Default(2.0)
         .GreaterThan(1.0);
+
+    registrar.Parameter("global_compaction", &TThis::GlobalCompaction)
+        .Default();
 
     registrar.Parameter("flush_throttler", &TThis::FlushThrottler)
         .DefaultNew();

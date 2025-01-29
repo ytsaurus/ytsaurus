@@ -24,10 +24,6 @@ class TestDirtableCommands(object):
 
         dirtable_commands.upload_directory_to_yt(
             directory=str(dir1),
-            store_full_path=False,
-            exact_filenames=None,
-            filter_by_regexp=None,
-            exclude_by_regexp=None,
             recursive=True,
             yt_table=yt_table,
             part_size=4 * MB,
@@ -43,7 +39,6 @@ class TestDirtableCommands(object):
         dirtable_commands.append_single_file(
             yt_table=yt_table,
             fs_path=str(dir1.join("file3")),
-            store_full_path=False,
             yt_name="file3",
             process_count=4,
             client=None,

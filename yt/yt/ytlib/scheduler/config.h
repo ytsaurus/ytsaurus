@@ -1495,6 +1495,21 @@ DEFINE_REFCOUNTED_TYPE(TQueryFilterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TInputQueryOptions
+    : public virtual NYTree::TYsonStruct
+{
+public:
+    bool UseSystemColumns;
+
+    REGISTER_YSON_STRUCT(TInputQueryOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TInputQueryOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TInputlyQueryableSpec
     : public virtual NYTree::TYsonStruct
 {
@@ -1502,6 +1517,7 @@ public:
     std::optional<TString> InputQuery;
     std::optional<NTableClient::TTableSchema> InputSchema;
     TQueryFilterOptionsPtr InputQueryFilterOptions;
+    TInputQueryOptionsPtr InputQueryOptions;
 
     REGISTER_YSON_STRUCT(TInputlyQueryableSpec);
 

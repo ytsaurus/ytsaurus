@@ -191,8 +191,8 @@ def download_table(table_path, directory, client_config, transaction_id):
                 f.close()
 
 
-def upload_directory_to_yt(directory, store_full_path, recursive, yt_table, part_size, process_count, exact_filenames,
-                           filter_by_regexp, exclude_by_regexp, force, prepare_for_sky_share,
+def upload_directory_to_yt(directory, recursive, yt_table, part_size, process_count, force, prepare_for_sky_share,
+                           store_full_path=False, exact_filenames=None, filter_by_regexp=None, exclude_by_regexp=None,
                            chunk_count=None, process_pool_class=mp.Pool, client=None):
     start_time = time.time()
     if not chunk_count:
@@ -327,7 +327,7 @@ def list_files_from_yt(yt_table, raw=False, client=None):
             print(f"{filename:<{max_filename_length}} | {size:>{max_size_length},}")
 
 
-def append_single_file(yt_table, fs_path, yt_name, store_full_path, process_count, process_pool_class=mp.Pool, client=None):
+def append_single_file(yt_table, fs_path, yt_name, process_count, process_pool_class=mp.Pool, store_full_path=False, client=None):
     start_time = time.time()
     assert os.path.isfile(fs_path), "{} must be existing file".format(fs_path)
     assert store_full_path or yt_name is not None, "`yt_name` must be specified if `store-full-path` is `False`"
@@ -385,7 +385,7 @@ def add_upload_parser(parsers):
     parser = parsers.add_parser("upload", help="Upload directory to YT")
     parser.set_defaults(func=upload_directory_to_yt)
     parser.add_argument("--directory", required=True)
-    parser.add_argument("--store-full-path", action="store_true", help="Storing files' full path as provided in --directory")
+    parser.add_argument("--store-full-path", action="store_true", help="Store full path to the uploaded file. Makes --yt-name equal to the --fs-path value")
     parser.add_argument("--part-size", type=int, default=4 * 1024 * 1024)
 
     parser.set_defaults(recursive=True)
@@ -419,7 +419,7 @@ def add_list_files_parser(parsers):
     parser = parsers.add_parser("list-files", help="List files from YT")
     parser.set_defaults(func=list_files_from_yt)
     parser.add_argument("--yt-table", required=True)
-    parser.add_argument("--raw", action="store_true", help="Raw output with file list only")
+    parser.add_argument("--raw", action="store_true", help="Displays only file names list. If omitted, prints filenames and sizes in human-readable format")
 
 
 def add_append_single_file(parsers):

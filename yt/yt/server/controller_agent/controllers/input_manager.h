@@ -173,6 +173,9 @@ public:
     void Prepare();
     TFetchInputTablesStatistics FetchInputTables();
 
+    // Appends system columns to the schemas of all input tables.
+    void AdjustSchemas(const NTableClient::TTableSchema::TSystemColumnOptions& systemColumnOptions);
+
     bool CanInterruptJobs() const;
 
     void RegisterInputStripe(const NChunkPools::TChunkStripePtr& stripe, const TTaskPtr& task);
