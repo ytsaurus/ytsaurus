@@ -68,6 +68,11 @@ class TCoGbkResult;
 template <typename T>
 class TCoder;
 
+struct TNonCodableTag;
+
+template <typename>
+struct TIsManuallyNonCodable;
+
 class IExecutionContext;
 using IExecutionContextPtr = ::TIntrusivePtr<IExecutionContext>;
 
