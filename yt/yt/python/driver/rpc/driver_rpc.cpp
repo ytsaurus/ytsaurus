@@ -13,6 +13,9 @@
 
 #include <yt/yt/client/driver/config.h>
 
+#include <yt/yt/client/signature/generator.h>
+#include <yt/yt/client/signature/validator.h>
+
 #include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/logging/config.h>
 
@@ -28,6 +31,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NConcurrency;
 using namespace NApi;
+using namespace NSignature;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,7 +66,14 @@ public:
             auto connection = NRpcProxy::CreateConnection(connectionConfig);
 
             auto driverConfig = ConvertTo<TDriverConfigPtr>(configNode);
-            driver = CreateDriver(connection, driverConfig);
+
+            // NB(pavook): signature generation and validation is unsupported
+            // as we do not have the neccessary accesses anyway.
+            driver = CreateDriver(
+                connection,
+                driverConfig,
+                CreateAlwaysThrowingSignatureGenerator(),
+                CreateAlwaysThrowingSignatureValidator());
         } catch(const std::exception& ex) {
             throw Py::RuntimeError(TString("Error creating driver\n") + ex.what());
         }
