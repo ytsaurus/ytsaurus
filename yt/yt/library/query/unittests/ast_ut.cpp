@@ -28,9 +28,9 @@ protected:
     void TestQuery(const TString& source)
     {
         auto parsedSource1 = ParseSource(source, EParseMode::Query);
-        auto formattedSource = FormatQuery(std::get<TQuery>(parsedSource1->AstHead.Ast));
+        auto formattedSource = FormatQuery(std::get<NAst::TQuery>(parsedSource1->AstHead.Ast));
         auto parsedSource2 = ParseSource(formattedSource, EParseMode::Query);
-        EXPECT_TRUE(std::get<TQuery>(parsedSource1->AstHead.Ast) == std::get<TQuery>(parsedSource2->AstHead.Ast))
+        EXPECT_TRUE(std::get<NAst::TQuery>(parsedSource1->AstHead.Ast) == std::get<NAst::TQuery>(parsedSource2->AstHead.Ast))
             << source << " -> " << formattedSource;
     }
 };

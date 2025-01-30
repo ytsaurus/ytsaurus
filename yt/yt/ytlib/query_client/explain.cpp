@@ -187,7 +187,7 @@ void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query, TFeatureFlags f
 
 NYson::TYsonString BuildExplainQueryYson(
     NApi::NNative::IConnectionPtr connection,
-    const std::unique_ptr<TPlanFragment>& fragment,
+    const TPlanFragmentPtr& fragment,
     TStringBuf udfRegistryPath,
     const NApi::TExplainQueryOptions& options,
     const IMemoryChunkProviderPtr& memoryChunkProvider,

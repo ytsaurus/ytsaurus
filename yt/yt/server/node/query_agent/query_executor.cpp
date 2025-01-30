@@ -837,9 +837,11 @@ private:
                         auto asyncResult = BIND(
                             &IExecutor::Execute,
                             remoteExecutor,
-                            joinSubquery,
+                            TPlanFragment{
+                                .Query = std::move(joinSubquery),
+                                .DataSource = std::move(dataSource),
+                            },
                             ExternalCGInfo_,
-                            std::move(dataSource),
                             writer,
                             remoteOptions,
                             remoteFeatureFlags)
@@ -896,9 +898,11 @@ private:
                             auto asyncResult = BIND(
                                 &IExecutor::Execute,
                                 remoteExecutor,
-                                foreignQuery,
+                                TPlanFragment{
+                                    .Query = std::move(foreignQuery),
+                                    .DataSource = std::move(dataSource),
+                                },
                                 ExternalCGInfo_,
-                                std::move(dataSource),
                                 pipe->GetWriter(),
                                 remoteOptions,
                                 remoteFeatureFlags)

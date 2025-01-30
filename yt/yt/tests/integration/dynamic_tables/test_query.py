@@ -2455,6 +2455,56 @@ class TestQuery(DynamicTablesBase):
         assert_items_equal(select_rows(query), expected)
         assert_items_equal(select_rows(query_eva, allow_join_without_index=True), expected)
 
+    @authors("sabdenovch")
+    def test_subquery(self):
+        sync_create_cells(1)
+
+        create_dynamic_table("//tmp/t", schema=[
+            make_sorted_column("k_1", "int64"),
+            make_sorted_column("k_2", "int64"),
+            make_column("v", "string"),
+        ])
+
+        sync_mount_table("//tmp/t")
+        rowset = [
+            {"k_1": 0, "k_2": 4, "v": "Cecil"},
+            {"k_1": 0, "k_2": 5, "v": "Quarantine"},
+            {"k_1": 0, "k_2": 6, "v": "Boulevard"},
+            {"k_1": 0, "k_2": 7, "v": "Limbo"},
+            {"k_1": 1, "k_2": 4, "v": "Genos"},
+            {"k_1": 1, "k_2": 5, "v": "Alpha"},
+            {"k_1": 1, "k_2": 6, "v": "Enigma"},
+            {"k_1": 1, "k_2": 7, "v": "Diaspora"},
+
+        ]
+        insert_rows("//tmp/t", rowset)
+
+        assert rowset == select_rows("* FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM [//tmp/t])))")
+        assert [{"k": 0}] == select_rows("B.[A.k_1] AS k FROM (SELECT A.k_1 from [//tmp/t] AS A limit 1) AS B limit 1")
+
+        assert [{"v": "Alpha"}] == select_rows(
+            "min(v) as v FROM (SELECT min(v) as v from [//tmp/t] group by k_1) group by 1")
+        assert [{"v": "Quarantine"}] == select_rows(
+            "max(v) as v FROM (SELECT max(v) as v from [//tmp/t] group by k_2) group by 1")
+        assert [{"k_1": 0, "v": "Diaspora"}] == select_rows(
+            "k_1, max(v) as v FROM (SELECT min(k_1) as k_1, min(v) as v from [//tmp/t] group by k_2) group by k_1")
+        assert [{"k_1": 1, "v": "Enigma"}] == select_rows(
+            "k_1, min(v) as v FROM (SELECT max(k_1) as k_1, max(v) as v from [//tmp/t] group by k_2) group by k_1")
+
+        create_dynamic_table("//tmp/d", schema=[make_sorted_column("k_1", "int64"), make_column("s", "string")])
+        sync_mount_table("//tmp/d")
+        insert_rows("//tmp/d", [
+            {"k_1": 0, "s": "Blind"},
+            {"k_1": 0, "s": "Warrior"},
+            {"k_1": 1, "s": "Traitor"},
+            {"k_1": 3, "s": "Post Mortem"},
+        ])
+
+        assert_items_equal(
+            [{"small": "Boulevard", "big": "Warrior"}, {"small": "Alpha", "big": "Traitor"}],
+            select_rows("min(X.[T.v]) AS small, max(X.[D.s]) as big FROM "
+                        "(SELECT T.k_1 as k_1, T.v, D.s FROM [//tmp/t] T JOIN [//tmp/d] D on T.k_1 = D.k_1) X group by X.k_1"))
+
 
 class TestQueryRpcProxy(TestQuery):
     DRIVER_BACKEND = "rpc"

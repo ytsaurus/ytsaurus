@@ -307,7 +307,7 @@ public:
         : Underlying_(std::move(underlying))
     { }
 
-    TFuture<TTableMountInfoPtr> GetTableInfo(const NYPath::TYPath& path)
+    TFuture<TTableMountInfoPtr> GetTableInfo(const TYPath& path)
     {
         auto guard = Guard(SpinLock_);
 
@@ -320,32 +320,55 @@ private:
     const ITableMountCachePtr Underlying_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    THashMap<NYPath::TYPath, TFuture<TTableMountInfoPtr>> TableInfoMap_;
+    THashMap<TYPath, TFuture<TTableMountInfoPtr>> TableInfoMap_;
 };
 
 using TStickyTableMountInfoCachePtr = TIntrusivePtr<TStickyTableMountInfoCache>;
 
-std::vector<TTableMountInfoPtr> GetQueryTableInfos(
-    NAst::TQuery* query,
+// The order of tables is as follows:
+// [index_table] (main_table|{subquery_tables}) {join_tables};
+// here [] - optional, {} - array, | - alternative;
+// subquery_tables follow the same order.
+std::pair<std::vector<TTableMountInfoPtr>, TTableMountInfoPtr> GetQueryTableInfos(
+    const NAst::TQuery& query,
     const TStickyTableMountInfoCachePtr& cache)
 {
-    std::vector<TYPath> paths{query->Table.Path};
-    if (query->WithIndex) {
-        paths.push_back(query->WithIndex->Path);
-    }
-    for (const auto& join : query->Joins) {
-        if (const auto* tableJoin = std::get_if<NAst::TJoin>(&join)) {
-            paths.push_back(tableJoin->Table.Path);
+    std::vector<TYPath> paths;
+    TFuture<TTableMountInfoPtr> mainTableFuture;
+
+    std::function<void(const NAst::TQuery&)> fillInfos = [&] (const NAst::TQuery& query) {
+        if (query.WithIndex) {
+            paths.push_back(query.WithIndex->Path);
         }
-    }
+
+        if (auto* table = std::get_if<NAst::TTableDescriptor>(&query.FromClause)) {
+            paths.push_back(table->Path);
+            mainTableFuture = cache->GetTableInfo(table->Path);
+        } else {
+            fillInfos(std::get<NAst::TQueryAstHeadPtr>(query.FromClause)->Ast);
+        }
+
+        for (const auto& join : query.Joins) {
+            if (const auto* tableJoin = std::get_if<NAst::TJoin>(&join)) {
+                paths.push_back(tableJoin->Table.Path);
+            }
+        }
+    };
+
+    fillInfos(query);
 
     std::vector<TFuture<TTableMountInfoPtr>> asyncTableInfos;
     for (const auto& path : paths) {
         asyncTableInfos.push_back(cache->GetTableInfo(path));
     }
 
-    return WaitFor(AllSucceeded(asyncTableInfos))
+    auto tableInfos = WaitForFast(AllSucceeded(std::move(asyncTableInfos)))
         .ValueOrThrow();
+
+    auto mainTableInfo = WaitForFast(mainTableFuture)
+        .ValueOrThrow();
+
+    return {std::move(tableInfos), std::move(mainTableInfo)};
 }
 
 std::optional<i64> TryReserveMemory(
@@ -1532,8 +1555,7 @@ TSelectRowsResult TClient::DoSelectRows(
 }
 
 TDuration TClient::CheckPermissionsForQuery(
-    const TQueryPtr& query,
-    const NQueryClient::TDataSource& dataSource,
+    const TPlanFragment& fragment,
     const TSelectRowsOptions& options)
 {
     NProfiling::TWallTimer timer;
@@ -1553,12 +1575,21 @@ TDuration TClient::CheckPermissionsForQuery(
             .Columns = std::move(columns),
         });
     };
-    addTableForPermissionCheck(dataSource.ObjectId, query->Schema);
-    for (const auto& joinClause : query->JoinClauses) {
-        if (joinClause->ArrayExpressions.empty()) {
-            addTableForPermissionCheck(joinClause->ForeignObjectId, joinClause->Schema);
+
+    std::function<void(const TPlanFragment&)> grabTablesFromQueryForPermissionCheck = [&] (const TPlanFragment& fragment) {
+        if (fragment.SubqueryFragment) {
+            grabTablesFromQueryForPermissionCheck(*fragment.SubqueryFragment);
+        } else {
+            addTableForPermissionCheck(fragment.DataSource.ObjectId, fragment.Query->Schema);
         }
-    }
+        for (const auto& joinClause : fragment.Query->JoinClauses) {
+            if (joinClause->ArrayExpressions.empty()) {
+                addTableForPermissionCheck(joinClause->ForeignObjectId, joinClause->Schema);
+            }
+        }
+    };
+
+    grabTablesFromQueryForPermissionCheck(fragment);
 
     if (options.ExecutionPool) {
         permissionKeys.push_back(NSecurityClient::TPermissionKey{
@@ -1620,20 +1651,14 @@ TQueryOptions GetQueryOptions(const TSelectRowsOptions& options, const TConnecti
 
 void TClient::FallbackToReplica(
     NAst::TQuery* astQuery,
-    TMutableRange<TTableReplicaInfoPtrList> replicaCandidates,
-    TRange<TTableMountInfoPtr> tableInfos,
+    TMutableRange<TMountAndReplicasInfo> tableInfos,
     TSelectRowsOptionsBase* options,
     std::function<TError(const TString&, const TString&, const TSelectRowsOptionsBase&)> callback)
 {
-    std::vector<TYPath> paths;
-    for (const auto& tableInfo : tableInfos) {
-        paths.push_back(tableInfo->Path);
-    }
-
     options->ReplicaConsistency = EReplicaConsistency::None;
 
     int retryCountLimit = 0;
-    for (const auto& tableInfo : tableInfos) {
+    for (const auto& [tableInfo, _] : tableInfos) {
         if (tableInfo->ReplicationCardId) {
             retryCountLimit = GetNativeConnection()->GetConfig()->ReplicaFallbackRetryCount;
             break;
@@ -1641,27 +1666,27 @@ void TClient::FallbackToReplica(
     }
 
     THashMap<TTableReplicaId, TTableId> replicaIdToTableId;
-    for (int index = 0; index < std::ssize(tableInfos); ++index) {
-        const auto& tableInfo = tableInfos[index];
-        if (tableInfo->ReplicationCardId) {
-            for (const auto& replicaInfo : replicaCandidates[index]) {
-                replicaIdToTableId[replicaInfo->ReplicaId] = tableInfo->TableId;
+    for (const auto& tableInfo : tableInfos) {
+        if (tableInfo.MountInfo->ReplicationCardId) {
+            for (const auto& replicaInfo : tableInfo.Replicas) {
+                replicaIdToTableId[replicaInfo->ReplicaId] = tableInfo.MountInfo->TableId;
             }
         }
     }
 
     for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
         YT_LOG_DEBUG("Picking cluster for replica fallback (Tables: %v, Attempt: %v)",
-            paths,
+            MakeFormattableView(tableInfos, [] (TStringBuilderBase* builder, const TMountAndReplicasInfo& tableInfo) {
+                builder->AppendString(tableInfo.MountInfo->Path);
+            }),
             retryCount);
 
-        for (auto& tableReplicaCandidates : replicaCandidates) {
+        for (auto& [_, tableReplicaCandidates] : tableInfos) {
             std::random_shuffle(tableReplicaCandidates.begin(), tableReplicaCandidates.end());
         }
 
         auto [clusterName, expectedTableSchemas] = PickInSyncClusterAndPatchQuery(
             tableInfos,
-            replicaCandidates,
             astQuery);
         options->ExpectedTableSchemas = std::move(expectedTableSchemas);
 
@@ -1699,16 +1724,15 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         EParseMode::Query,
         options.PlaceholderValues,
         options.SyntaxVersion);
-    auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
+    auto& astQuery = std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
 
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
 
     NProfiling::TWallTimer timer;
-    auto tableInfos = GetQueryTableInfos(astQuery, cache);
-    auto mainTableMountInfo = tableInfos[0];
+    auto [tableInfos, mainTableInfo] = GetQueryTableInfos(astQuery, cache);
     auto getMountInfoTime = timer.GetElapsedTime();
 
-    TransformWithIndexStatement(&parsedQuery->AstHead, tableInfos);
+    TransformWithIndexStatement(&astQuery, tableInfos, &parsedQuery->AstHead);
 
     auto dynamicConfig = GetNativeConnection()->GetConfig();
 
@@ -1716,7 +1740,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     if (!replicaCandidates.empty()) {
         TErrorOr<TSelectRowsResult> resultOrError;
         auto optionsCopy = options;
-        FallbackToReplica(astQuery, replicaCandidates, tableInfos, &optionsCopy, [this, &resultOrError] (
+        FallbackToReplica(&astQuery, replicaCandidates, &optionsCopy, [this, &resultOrError] (
             const TString& clusterName,
             const TString& updatedQuery,
             const TSelectRowsOptionsBase& options)
@@ -1749,9 +1773,13 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         options.DetailedProfilingInfo,
         options.ExpectedTableSchemas);
 
-    auto fragment = PreparePlanFragment(queryPreparer.Get(), *parsedQuery, QueryMemoryTracker_);
+    auto fragment = PreparePlanFragment(
+        queryPreparer.Get(),
+        parsedQuery->Source,
+        astQuery,
+        parsedQuery->AstHead.AliasMap,
+        QueryMemoryTracker_);
     const auto& query = fragment->Query;
-    const auto& dataSource = fragment->DataSource;
 
     THROW_ERROR_EXCEPTION_IF(
         query->GetTableSchema()->HasComputedColumns() && options.UseCanonicalNullRelations,
@@ -1769,12 +1797,12 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         }
     }
 
-    auto permissionCacheWaitTime = CheckPermissionsForQuery(query, dataSource, options);
+    auto permissionCacheWaitTime = CheckPermissionsForQuery(*fragment, options);
 
     if (options.DetailedProfilingInfo) {
-        if (mainTableMountInfo->EnableDetailedProfiling) {
+        if (mainTableInfo->EnableDetailedProfiling) {
             options.DetailedProfilingInfo->EnableDetailedTableProfiling = true;
-            options.DetailedProfilingInfo->TablePath = mainTableMountInfo->Path;
+            options.DetailedProfilingInfo->TablePath = mainTableInfo->Path;
             options.DetailedProfilingInfo->MountCacheWaitTime += getMountInfoTime;
             options.DetailedProfilingInfo->PermissionCacheWaitTime += permissionCacheWaitTime;
         }
@@ -1796,9 +1824,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         FunctionImplCache_.Get());
 
     auto statistics = queryExecutor->Execute(
-        query,
+        *fragment,
         queryPreparer->GetExternalCGInfo(),
-        dataSource,
         writer,
         queryOptions,
         requestFeatureFlags);
@@ -1836,23 +1863,25 @@ NYson::TYsonString TClient::DoExplainQuery(
         /*placeholderValues*/ {},
         options.SyntaxVersion);
 
+    // TODO(sabdenovch): support subqueries in explain-query
+
     auto cache = New<TStickyTableMountInfoCache>(Connection_->GetTableMountCache());
 
-    auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
+    auto& astQuery = std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
 
-    auto tableInfos = GetQueryTableInfos(astQuery, cache);
+    auto [tableInfos, _] = GetQueryTableInfos(astQuery, cache);
 
     auto udfRegistryPath = options.UdfRegistryPath
         ? *options.UdfRegistryPath
         : GetNativeConnection()->GetConfig()->UdfRegistryPath;
 
-    TransformWithIndexStatement(&parsedQuery->AstHead, tableInfos);
+    TransformWithIndexStatement(&astQuery, tableInfos, &parsedQuery->AstHead);
 
     auto replicaCandidates = PrepareInSyncReplicaCandidates(options, tableInfos);
     if (!replicaCandidates.empty()) {
         TErrorOr<NYson::TYsonString> resultOrError;
         auto optionsCopy = options;
-        FallbackToReplica(astQuery, replicaCandidates, tableInfos, &optionsCopy, [this, &resultOrError] (
+        FallbackToReplica(&astQuery, replicaCandidates, &optionsCopy, [this, &resultOrError] (
             const TString& clusterName,
             const TString& updatedQuery,
             const TSelectRowsOptionsBase& options)
@@ -1884,7 +1913,9 @@ NYson::TYsonString TClient::DoExplainQuery(
 
     auto fragment = PreparePlanFragment(
         queryPreparer.Get(),
-        *parsedQuery,
+        parsedQuery->Source,
+        astQuery,
+        parsedQuery->AstHead.AliasMap,
         QueryMemoryTracker_);
 
     auto memoryChunkProvider = MemoryProvider_->GetProvider(
@@ -2380,7 +2411,7 @@ void TClient::DoAlterTableReplica(
 }
 
 TYsonString TClient::DoGetTablePivotKeys(
-    const NYPath::TYPath& path,
+    const TYPath& path,
     const TGetTablePivotKeysOptions& options)
 {
     const auto& tableMountCache = Connection_->GetTableMountCache();
@@ -2568,7 +2599,9 @@ IQueueRowsetPtr TClient::DoPullQueueImpl(
             ? Connection_->GetBannedReplicaTrackerCache()->GetTracker(tableInfo->TableId)
             : nullptr;
 
-        auto pickedSyncReplicas = PrepareInSyncReplicaCandidates(options, {tableInfo})[0];
+        auto pickedSyncReplicas = PrepareInSyncReplicaCandidates(
+            options,
+            std::vector{tableInfo}).front().Replicas;
 
         auto retryCountLimit = tableInfo->ReplicationCardId
             ? Connection_->GetConfig()->ReplicaFallbackRetryCount

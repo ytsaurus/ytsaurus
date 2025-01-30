@@ -207,4 +207,17 @@ using TJoinLayerDataSourceSet = std::vector<NQueryClient::TDataSource>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPlanFragment;
+
+using TPlanFragmentPtr = TIntrusivePtr<TPlanFragment>;
+
+struct TPlanFragment final
+{
+    TQueryPtr Query;
+    TDataSource DataSource;
+    TPlanFragmentPtr SubqueryFragment;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient
