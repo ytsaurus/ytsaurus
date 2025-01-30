@@ -39,23 +39,20 @@ std::unique_ptr<TParsedSource> ParseSource(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPlanFragment
-{
-    TQueryPtr Query;
-    TDataSource DataSource;
-};
-
-std::unique_ptr<TPlanFragment> PreparePlanFragment(
+TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TString& source,
     NYson::TYsonStringBuf placeholderValues = {},
     int syntaxVersion = 1,
     IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
-std::unique_ptr<TPlanFragment> PreparePlanFragment(
+TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
-    const TParsedSource& parsedSource,
-    IMemoryUsageTrackerPtr memoryTracker = nullptr);
+    const TString& source,
+    const NAst::TQuery& query,
+    const NAst::TAliasMap& aliasMap,
+    IMemoryUsageTrackerPtr memoryTracker = nullptr,
+    int depth = 0);
 
 ////////////////////////////////////////////////////////////////////////////////
 

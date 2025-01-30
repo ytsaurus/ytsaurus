@@ -677,7 +677,20 @@ void FormatQuery(TStringBuilderBase* builder, const TQuery& query)
     }
 
     builder->AppendString(" FROM ");
-    FormatTableDescriptor(builder, query.Table);
+    Visit(query.FromClause,
+        [&] (const TTableDescriptor& tableDescriptor) {
+            FormatTableDescriptor(builder, tableDescriptor);
+        },
+        [&] (const TQueryAstHeadPtr& subquery) {
+            builder->AppendChar('(');
+            builder->AppendString("SELECT ");
+            FormatQuery(builder, subquery->Ast);
+            builder->AppendChar(')');
+            if (subquery->Alias) {
+                builder->AppendString(" AS ");
+                FormatId(builder, *subquery->Alias);
+            }
+        });
 
     if (query.WithIndex) {
         builder->AppendString(" WITH INDEX ");

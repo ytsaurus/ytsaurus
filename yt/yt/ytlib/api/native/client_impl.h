@@ -68,6 +68,14 @@ namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMountAndReplicasInfo
+{
+    NTabletClient::TTableMountInfoPtr MountInfo;
+    TTableReplicaInfoPtrList Replicas;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DECLARE_REFCOUNTED_CLASS(TClient)
 
 class TClient
@@ -1114,27 +1122,24 @@ private:
         THashMap<NTabletClient::TTableReplicaId, int> replicaIdToCount,
         const std::vector<NQueryClient::TQueryServiceProxy::TRspGetTabletInfoPtr>& responses);
 
-    std::vector<TTableReplicaInfoPtrList> PrepareInSyncReplicaCandidates(
+    std::vector<TMountAndReplicasInfo> PrepareInSyncReplicaCandidates(
         const TTabletReadOptions& options,
-        const std::vector<NTabletClient::TTableMountInfoPtr>& tableInfos);
+        TRange<NTabletClient::TTableMountInfoPtr> tableInfos);
 
     std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> PickInSyncClusterAndPatchQuery(
-        TRange<NTabletClient::TTableMountInfoPtr> tableInfos,
-        TRange<TTableReplicaInfoPtrList> candidates,
+        TRange<TMountAndReplicasInfo> tableInfos,
         NQueryClient::NAst::TQuery* query);
 
     NApi::NNative::IConnectionPtr GetReplicaConnectionOrThrow(const TString& clusterName);
     NApi::IClientPtr GetOrCreateReplicaClient(const TString& clusterName);
 
     TDuration CheckPermissionsForQuery(
-        const NQueryClient::TQueryPtr& query,
-        const NQueryClient::TDataSource& dataSource,
+        const NQueryClient::TPlanFragment& fragment,
         const TSelectRowsOptions& options);
 
     void FallbackToReplica(
         NQueryClient::NAst::TQuery* astQuery,
-        TMutableRange<TTableReplicaInfoPtrList> replicaCandidates,
-        TRange<NTabletClient::TTableMountInfoPtr> tableInfos,
+        TMutableRange<TMountAndReplicasInfo> replicaCandidates,
         TSelectRowsOptionsBase* options,
         std::function<TError(const TString&, const TString&, const TSelectRowsOptionsBase&)> callback);
 

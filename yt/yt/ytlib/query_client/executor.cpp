@@ -28,6 +28,7 @@
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
+#include <yt/yt/client/table_client/pipe.h>
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/versioned_io_options.h>
@@ -456,12 +457,66 @@ public:
     { }
 
     TQueryStatistics Execute(
-        TConstQueryPtr query,
-        TConstExternalCGInfoPtr externalCGInfo,
-        TDataSource dataSource,
-        IUnversionedRowsetWriterPtr writer,
+        const TPlanFragment& planFragment,
+        const TConstExternalCGInfoPtr& externalCGInfo,
+        const IUnversionedRowsetWriterPtr& writer,
         const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags) override
+    {
+        if (planFragment.DataSource.ObjectId) {
+            YT_VERIFY(!planFragment.SubqueryFragment);
+
+            return Execute(
+                planFragment.Query,
+                externalCGInfo,
+                planFragment.DataSource,
+                writer,
+                options,
+                requestFeatureFlags);
+        }
+
+        if (planFragment.SubqueryFragment) {
+            auto pipe = New<TSchemafulPipe>(MemoryChunkProvider_);
+
+            auto subqueryStatistics = Execute(
+                *planFragment.SubqueryFragment,
+                externalCGInfo,
+                pipe->GetWriter(),
+                options,
+                requestFeatureFlags);
+
+            auto queryStatistics = Execute(
+                planFragment.Query,
+                externalCGInfo,
+                pipe->GetReader(),
+                writer,
+                options,
+                requestFeatureFlags);
+
+            queryStatistics.AddInnerStatistics(std::move(subqueryStatistics));
+
+            return queryStatistics;
+        }
+
+        YT_ABORT();
+    }
+
+private:
+    const IMemoryChunkProviderPtr MemoryChunkProvider_;
+    const NNative::IConnectionPtr Connection_;
+    const IInvokerPtr Invoker_;
+    const IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
+    const IEvaluatorPtr Evaluator_;
+    const INodeChannelFactoryPtr NodeChannelFactory_;
+    const TFunctionImplCachePtr FunctionImplCache_;
+
+    TQueryStatistics Execute(
+        const TConstQueryPtr& query,
+        const TConstExternalCGInfoPtr& externalCGInfo,
+        const TDataSource& dataSource,
+        const IUnversionedRowsetWriterPtr& writer,
+        const TQueryOptions& options,
+        const TFeatureFlags& requestFeatureFlags)
     {
         NTracing::TChildTraceContextGuard guard("QueryClient.Execute");
 
@@ -561,14 +616,55 @@ public:
             std::move(groupedDataSplits));
     }
 
-private:
-    const IMemoryChunkProviderPtr MemoryChunkProvider_;
-    const NNative::IConnectionPtr Connection_;
-    const IInvokerPtr Invoker_;
-    const IColumnEvaluatorCachePtr ColumnEvaluatorCache_;
-    const IEvaluatorPtr Evaluator_;
-    const INodeChannelFactoryPtr NodeChannelFactory_;
-    const TFunctionImplCachePtr FunctionImplCache_;
+    TQueryStatistics Execute(
+        TConstQueryPtr query,
+        TConstExternalCGInfoPtr externalCGInfo,
+        ISchemafulUnversionedReaderPtr reader,
+        IUnversionedRowsetWriterPtr writer,
+        TQueryOptions options,
+        TFeatureFlags requestFeatureFlags)
+    {
+        NTracing::TChildTraceContextGuard guard("QueryClient.Execute");
+
+        auto Logger = MakeQueryLogger(query);
+
+        auto rowBuffer = New<TRowBuffer>(
+            TQueryExecutorRowBufferTag{},
+            MemoryChunkProvider_);
+
+        auto functionGenerators = New<TFunctionProfilerMap>();
+        auto aggregateGenerators = New<TAggregateProfilerMap>();
+        MergeFrom(functionGenerators.Get(), *GetBuiltinFunctionProfilers());
+        MergeFrom(aggregateGenerators.Get(), *GetBuiltinAggregateProfilers());
+
+        TClientChunkReadOptions chunkReadOptions{
+            .WorkloadDescriptor = options.WorkloadDescriptor,
+            .ReadSessionId = options.ReadSessionId,
+        };
+
+        FetchFunctionImplementationsFromCypress(
+            functionGenerators,
+            aggregateGenerators,
+            externalCGInfo,
+            FunctionImplCache_,
+            chunkReadOptions);
+
+        // TODO(sabdenovch): Support SELECT FROM (SELECT...) JOIN ...
+        THROW_ERROR_EXCEPTION_IF(!query->JoinClauses.empty(),
+            "Joins are currently not supported when selecting from subquery");
+
+        return Evaluator_->Run(
+            query,
+            reader,
+            writer,
+            nullptr,
+            functionGenerators,
+            aggregateGenerators,
+            MemoryChunkProvider_,
+            options,
+            requestFeatureFlags,
+            MakeFuture(MostFreshFeatureFlags()));
+    }
 
     TQueryStatistics DoCoordinateAndExecute(
         const TConstQueryPtr& query,

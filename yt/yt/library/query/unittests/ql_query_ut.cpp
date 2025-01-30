@@ -1253,6 +1253,37 @@ TEST_F(TQueryPrepareTest, FormatQueryDepthLimit)
         HasSubstr("Maximum expression depth exceeded"));
 }
 
+TEST_F(TQueryPrepareTest, SubqueryAliases)
+{
+    auto split = MakeSplit({
+        {"a", EValueType::String}
+    });
+
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillOnce(Return(MakeFuture(split)));
+
+    TString source = "b as c from (SELECT a as b from [//t])";
+
+    auto parsedSource = ParseSource(source, EParseMode::Query);
+
+    auto& topQuery = std::get<NAst::TQuery>(parsedSource->AstHead.Ast);
+    auto& topAliasMap = parsedSource->AstHead.AliasMap;
+
+    auto planFragment = PreparePlanFragment(
+        &PrepareMock_,
+        source,
+        topQuery,
+        topAliasMap);
+
+    EXPECT_TRUE(topAliasMap.contains("c"));
+    EXPECT_EQ(topAliasMap.size(), 1ul);
+
+    auto& subAliasMap = std::get<NAst::TQueryAstHeadPtr>(topQuery.FromClause)->AliasMap;
+
+    EXPECT_TRUE(subAliasMap.contains("b"));
+    EXPECT_EQ(subAliasMap.size(), 1ul);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobQueryPrepareTest
