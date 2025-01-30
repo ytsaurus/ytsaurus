@@ -30,6 +30,7 @@ DEFINE_ENUM(ESequoiaTable,
     (PathForks)
     (ChildForks)
     (ResponseKeeper)
+    (ChunkRefreshQueue)
 );
 
 DEFINE_ENUM(EGroundUpdateQueue,

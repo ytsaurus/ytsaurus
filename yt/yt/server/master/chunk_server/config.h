@@ -492,6 +492,9 @@ public:
     //! If true, removed replicas won't be removed from DestroyedReplicas_.
     bool DisableRemovingReplicasFromDestroyedQeueue;
 
+    //! If true, Sequoia refresh queues are not drained.
+    bool DisableSequoiaChunkRefresh;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerTestingConfig);
 
     static void Register(TRegistrar registrar);
@@ -518,6 +521,10 @@ public:
     bool ProcessRemovedSequoiaReplicasOnMaster;
 
     bool EnableChunkPurgatory;
+
+    bool EnableSequoiaChunkRefresh;
+    TDuration SequoiaChunkRefreshPeriod;
+    int SequoiaChunkCountToFetchFromRefreshQueue;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 

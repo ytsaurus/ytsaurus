@@ -417,6 +417,15 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_chunk_purgatory", &TThis::EnableChunkPurgatory)
         .Default(true);
 
+    registrar.Parameter("enable_sequoia_chunk_refresh", &TThis::EnableSequoiaChunkRefresh)
+        .Default(false);
+
+    registrar.Parameter("sequoia_chunk_refresh_period", &TThis::SequoiaChunkRefreshPeriod)
+        .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("sequoia_chunk_count_to_fetch_from_refresh_queue", &TThis::SequoiaChunkCountToFetchFromRefreshQueue)
+        .Default(1'000);
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
             THROW_ERROR_EXCEPTION("Cannot disable removed Sequoia replicas processing on master while master still stores "
@@ -470,6 +479,9 @@ void TDynamicChunkManagerTestingConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("disable_removing_replicas_from_destroyed_queue", &TThis::DisableRemovingReplicasFromDestroyedQeueue)
+        .Default(false);
+
+    registrar.Parameter("disable_sequoia_chunk_refresh", &TThis::DisableSequoiaChunkRefresh)
         .Default(false);
 }
 

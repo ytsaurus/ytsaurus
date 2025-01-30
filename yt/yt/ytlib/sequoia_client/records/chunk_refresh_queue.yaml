@@ -1,0 +1,25 @@
+namespace: NYT::NSequoiaClient::NRecords
+
+types:
+  - table_name: chunk_refresh_queue
+    table_group: refresh_chunk_tables
+    type_name: TChunkRefreshQueue
+    sorted: false
+    fields:
+      - cpp_name: TabletIndex
+        cpp_type: i32
+        column_name: $tablet_index
+        column_type: Int32
+
+      - cpp_name: ChunkId
+        cpp_type: NChunkClient::TChunkId
+        column_name: chunk_id
+        column_type: String
+
+      - cpp_name: ConfirmationTime
+        cpp_type: TInstant
+        column_name: confirmation_time
+        column_type: Uint64
+
+    verbatim: |
+      static constexpr auto Table = ESequoiaTable::ChunkRefreshQueue;

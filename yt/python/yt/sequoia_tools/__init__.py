@@ -66,6 +66,9 @@ def _build_column_from_field(field: Field) -> Dict[str, Any]:
 def _build_schema_from_fields(fields: List[Field]) -> List[Dict[str, Any]]:
     schema = []
     for field in fields:
+        # To remove $tablet_index and other system columns from schema, as they are magically created on their own.
+        if field.column_name.lower()[0] == "$":
+            continue
         schema.append(_build_column_from_field(field))
     return schema
 

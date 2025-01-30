@@ -29,6 +29,7 @@ RESOURCE_FILES(
     yt/yt/ytlib/sequoia_client/records/path_forks.yaml
     yt/yt/ytlib/sequoia_client/records/child_forks.yaml
     yt/yt/ytlib/sequoia_client/records/response_keeper.yaml
+    yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.yaml
 )
 
 END()

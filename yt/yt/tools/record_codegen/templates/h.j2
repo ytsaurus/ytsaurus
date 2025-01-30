@@ -35,6 +35,9 @@ struct {{type.type_name}}IdMapping
 {% for field in type.fields if not field.expression %}
     const std::optional<int> {{field.cpp_name}};
 {%- endfor %}
+{% if type.sorted is not none and not type.sorted %}
+    const std::optional<int> RowIndex;
+{% endif %}
 };
 
 class {{type.type_name}}Descriptor
@@ -101,7 +104,9 @@ struct {{type.type_name}}
 {% for field in type.fields if not field.sort_order and not field.expression %}
     {{field.cpp_type}} {{field.cpp_name}}{};
 {%- endfor %}
-
+{% if type.sorted is not none and not type.sorted %}
+    i64 RowIndex = -1;
+{% endif %}
     NYT::NTableClient::TUnversionedRow ToUnversionedRow(
         const NYT::NTableClient::TRowBufferPtr& rowBuffer,
         const {{type.type_name}}IdMapping& idMapping,

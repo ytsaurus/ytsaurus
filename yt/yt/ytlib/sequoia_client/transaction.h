@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "table_descriptor.h"
 #include "helpers.h"
 
 #include <yt/yt/ytlib/api/native/transaction.h>
@@ -61,9 +62,19 @@ struct ISequoiaTransaction
         ESequoiaTable table,
         NTableClient::TUnversionedRow row,
         NTableClient::ELockType lockType = NTableClient::ELockType::Exclusive) = 0;
+    virtual void WriteRow(
+        TSequoiaTablePathDescriptor tableDescriptor,
+        NTableClient::TUnversionedRow row,
+        NTableClient::ELockType lockType = NTableClient::ELockType::Exclusive) = 0;
 
     template <class TRecord>
     void WriteRow(
+        const TRecord& record,
+        NTableClient::ELockType lockType = NTableClient::ELockType::Exclusive,
+        NTableClient::EValueFlags flags = NTableClient::EValueFlags::None);
+    template <class TRecord>
+    void WriteRow(
+        NObjectClient::TCellTag masterCellTag,
         const TRecord& record,
         NTableClient::ELockType lockType = NTableClient::ELockType::Exclusive,
         NTableClient::EValueFlags flags = NTableClient::EValueFlags::None);
