@@ -1544,7 +1544,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 }
 
 TSelectRowsResult TClient::DoSelectRows(
-    const TString& queryString,
+    const std::string& queryString,
     const TSelectRowsOptions& options)
 {
     return CallAndRetryIfMetadataCacheIsInconsistent(
@@ -1710,7 +1710,7 @@ void TClient::FallbackToReplica(
 }
 
 TSelectRowsResult TClient::DoSelectRowsOnce(
-    const TString& queryString,
+    const std::string& queryString,
     const TSelectRowsOptions& options)
 {
     if (options.RetentionTimestamp > options.Timestamp) {
@@ -1854,7 +1854,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 }
 
 NYson::TYsonString TClient::DoExplainQuery(
-    const TString& queryString,
+    const std::string& queryString,
     const TExplainQueryOptions& options)
 {
     auto parsedQuery = ParseSource(

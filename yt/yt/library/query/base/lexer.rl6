@@ -232,7 +232,7 @@ namespace {
 } // namespace anonymous
 
 TBaseLexer::TBaseLexer(
-    const TString& source,
+    TStringBuf source,
     TParser::token_type strayToken,
     int syntaxVersion)
     : StrayToken_(strayToken)
@@ -246,7 +246,7 @@ TBaseLexer::TBaseLexer(
     , rd(0)
     , s(nullptr)
 {
-    Initialize(source.c_str(), source.c_str() + source.length());
+    Initialize(source.begin(), source.begin() + source.length());
 }
 
 void TBaseLexer::Initialize(const char* begin, const char* end)
@@ -286,7 +286,7 @@ TParser::token_type TBaseLexer::GetNextToken(
 }
 
 TLexer::TLexer(
-    const TString& source,
+    TStringBuf source,
     TParser::token_type strayToken,
     THashMap<TString, TString> placeholderValues,
     int syntaxVersion)

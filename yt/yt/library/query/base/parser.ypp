@@ -14,7 +14,7 @@
 
 %parse-param {TLexer& lexer}
 %parse-param {TAstHead* head}
-%parse-param {const TString& source}
+%parse-param {TStringBuf source}
 %parse-param {std::stack<TAliasMap> aliasMapStack}
 
 %code requires {

@@ -166,7 +166,7 @@ public: \
         const TMultiLookupOptions& options),
         (subrequests, options))
     IMPLEMENT_METHOD(TSelectRowsResult, SelectRows, (
-        const TString& query,
+        const std::string& query,
         const TSelectRowsOptions& options),
         (query, options))
     IMPLEMENT_METHOD(TPullRowsResult, PullRows, (
@@ -174,7 +174,7 @@ public: \
         const TPullRowsOptions& options),
         (path, options))
     IMPLEMENT_METHOD(NYson::TYsonString, ExplainQuery, (
-        const TString& query,
+        const std::string& query,
         const TExplainQueryOptions& options),
         (query, options))
     IMPLEMENT_OVERLOADED_METHOD(std::vector<NTabletClient::TTableReplicaId>, GetInSyncReplicas, DoGetInSyncReplicasWithKeys, (
@@ -1144,7 +1144,7 @@ private:
         std::function<TError(const TString&, const TString&, const TSelectRowsOptionsBase&)> callback);
 
     TSelectRowsResult DoSelectRowsOnce(
-        const TString& queryString,
+        const std::string& queryString,
         const TSelectRowsOptions& options);
 
     static bool IsReplicaInSync(
