@@ -2540,13 +2540,11 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("update_preemptible_allocations_list_logging_period", &TThis::UpdatePreemptibleAllocationsListLoggingPeriod)
         .Alias("update_preemptible_jobs_list_logging_period")
-        .Alias("update_preemptable_jobs_list_logging_period")
         .Default(1000);
     registrar.Parameter("custom_profiling_tag", &TThis::CustomProfilingTag)
         .Default();
     registrar.Parameter("max_unpreemptible_allocation_count", &TThis::MaxUnpreemptibleRunningAllocationCount)
         .Alias("max_unpreemptible_job_count")
-        .Alias("max_unpreemptable_job_count")
         .Default();
     registrar.Parameter("try_avoid_duplicating_jobs", &TThis::TryAvoidDuplicatingJobs)
         .Default();
@@ -2603,10 +2601,9 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         // COMPAT(eshcherbin)
         if (spec->MaxUnpreemptibleRunningAllocationCount) {
             if (*spec->MaxUnpreemptibleRunningAllocationCount != 0) {
-                THROW_ERROR_EXCEPTION("%Qv, %Qv or %Qv cannot be set to a non-zero value, use %Qv instead",
+                THROW_ERROR_EXCEPTION("%Qv or %Qv cannot be set to a non-zero value, use %Qv instead",
                     "max_unpreemptible_allocation_count",
                     "max_unpreemptible_job_count",
-                    "max_unpreemptable_job_count",
                     "non_preemptible_resource_usage_threshold");
             }
 
