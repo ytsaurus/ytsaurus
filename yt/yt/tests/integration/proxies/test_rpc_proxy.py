@@ -907,18 +907,25 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
         assert read_table("//tmp/table") == data
 
     @authors("faucct")
+    def test_writing_large_rows_129(self):
+        data = [{"index": 0, "str": "F" * (129 << 20)}]
+        create("table", "//tmp/table", attributes={"dynamic": False, "schema": self._schema})
+        with raises_yt_error(f'Expected <= {128 << 20}, found {130 << 20}'):
+            write_table("//tmp/table", data, table_writer={"max_row_weight": 130 << 20})
+        with raises_yt_error() as e:
+            write_table("//tmp/table", data, table_writer={"max_row_weight": 128 << 20})
+        assert 'Memory limit exceeded while parsing YSON stream: ' in str(e[0]) or 'Row weight is too large' in str(e[0])
+        assert read_table("//tmp/table") == []
+
+    @authors("faucct")
     @pytest.mark.parametrize("atomicity", ["none", "full"])
     def test_writing_large_dynamic_rows(self, atomicity):
         data = [{"index": 0, "str": "F" * (17 << 20)}]
         create("table", "//tmp/dynamic", attributes={"dynamic": True, "schema": self._schema, "atomicity": atomicity})
         sync_create_cells(1)
         sync_mount_table("//tmp/dynamic")
-        try:
+        with raises_yt_error(f'Value of type "string" is too long: length {17 << 20}, limit {16 << 20}'):
             insert_rows("//tmp/dynamic", data, table_writer={"max_row_weight": 20 << 20})
-        except YtResponseError as err:
-            assert f'Value of type "string" is too long: length {17 << 20}, limit {16 << 20}' in str(err)
-        else:
-            assert False, "Failed to catch response error"
         sync_unmount_table("//tmp/dynamic")
         assert read_table("//tmp/dynamic") == []
 
