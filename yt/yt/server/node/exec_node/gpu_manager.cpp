@@ -9,6 +9,8 @@
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
+#include <yt/yt/server/node/job_agent/job_resource_manager.h>
+
 #include <yt/yt/server/lib/exec_node/gpu_helpers.h>
 #include <yt/yt/server/lib/exec_node/config.h>
 
@@ -116,19 +118,19 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
     , DynamicConfig_(New<TGpuManagerDynamicConfig>())
     , HealthCheckExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
-        BIND(&TGpuManager::OnHealthCheck, MakeWeak(this)),
+        BIND_NO_PROPAGATE(&TGpuManager::OnHealthCheck, MakeWeak(this)),
         DynamicConfig_.Acquire()->HealthCheckPeriod))
     , FetchDriverLayerExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
-        BIND(&TGpuManager::OnFetchDriverLayerInfo, MakeWeak(this)),
+        BIND_NO_PROPAGATE(&TGpuManager::OnFetchDriverLayerInfo, MakeWeak(this)),
         DynamicConfig_.Acquire()->DriverLayerFetching))
     , RdmaDeviceInfoUpdateExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
-        BIND(&TGpuManager::OnRdmaDeviceInfoUpdate, MakeWeak(this)),
+        BIND_NO_PROPAGATE(&TGpuManager::OnRdmaDeviceInfoUpdate, MakeWeak(this)),
         DynamicConfig_.Acquire()->RdmaDeviceInfoUpdatePeriod))
     , TestGpuInfoUpdateExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetJobInvoker(),
-        BIND(&TGpuManager::OnTestGpuInfoUpdate, MakeWeak(this)),
+        BIND_NO_PROPAGATE(&TGpuManager::OnTestGpuInfoUpdate, MakeWeak(this)),
         StaticConfig_->Testing->TestGpuInfoUpdatePeriod))
     , GpuInfoProvider_(CreateGpuInfoProvider(StaticConfig_->GpuInfoSource))
 {
@@ -175,7 +177,8 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
     if (StaticConfig_->DriverLayerDirectoryPath) {
         DriverLayerPath_ = *StaticConfig_->DriverLayerDirectoryPath + "/" + DriverVersionString_;
 
-        YT_LOG_INFO("GPU driver layer specified (Path: %v, Version: %v)",
+        YT_LOG_INFO(
+            "GPU driver layer specified (Path: %v, Version: %v)",
             DriverLayerPath_,
             DriverVersionString_);
 
@@ -219,7 +222,7 @@ TGpuManager::TGpuManager(IBootstrap* bootstrap)
     RdmaDeviceInfoUpdateExecutor_->Start();
 
     Bootstrap_->SubscribePopulateAlerts(
-        BIND(&TGpuManager::PopulateAlerts, MakeStrong(this)));
+        BIND_NO_PROPAGATE(&TGpuManager::PopulateAlerts, MakeStrong(this)));
 }
 
 void TGpuManager::OnDynamicConfigChanged(
@@ -301,6 +304,7 @@ void TGpuManager::OnHealthCheck()
         auto gpuInfos = GpuInfoProvider_.Acquire()->GetGpuInfos(GetHealthCheckTimeout());
 
         THashSet<int> deviceIndices;
+        deviceIndices.reserve(size(gpuInfos));
         for (const auto& info : gpuInfos) {
             deviceIndices.insert(info.Index);
         }
@@ -308,7 +312,8 @@ void TGpuManager::OnHealthCheck()
         std::vector<int> freeDeviceIndices;
         std::vector<int> unknownDeviceIndices;
 
-        YT_LOG_DEBUG("Updating healthy GPU devices (DeviceIndices: %v)",
+        YT_LOG_DEBUG(
+            "Updating healthy GPU devices (DeviceIndices: %v)",
             deviceIndices);
 
         {
@@ -319,7 +324,7 @@ void TGpuManager::OnHealthCheck()
             std::vector<int> deviceIndicesToAdd;
             std::vector<int> deviceIndicesToRemove;
             for (const auto& [index, _] : HealthyGpuInfoMap_) {
-                if (deviceIndices.find(index) == deviceIndices.end()) {
+                if (!deviceIndices.contains(index)) {
                     deviceIndicesToRemove.push_back(index);
                     LostGpuDeviceIndices_.insert(index);
                 }
@@ -345,7 +350,8 @@ void TGpuManager::OnHealthCheck()
 
             for (auto& gpuInfo : gpuInfos) {
                 if (!GpuDeviceIndices_.contains(gpuInfo.Index)) {
-                    YT_LOG_WARNING("Found unknown GPU device (DeviceIndex: %v)",
+                    YT_LOG_WARNING(
+                        "Found unknown GPU device (DeviceIndex: %v)",
                         gpuInfo.Index);
                     unknownDeviceIndices.push_back(gpuInfo.Index);
                     continue;
@@ -362,6 +368,10 @@ void TGpuManager::OnHealthCheck()
                     freeDeviceIndices.push_back(index);
                     newFreeSlotIndices.emplace_back(std::move(index));
                 }
+            }
+
+            if (size(newFreeSlotIndices) > size(FreeSlots_)) {
+                Bootstrap_->GetJobResourceManager()->OnNewSlotsAvailable();
             }
 
             FreeSlots_ = std::move(newFreeSlotIndices);
@@ -512,7 +522,8 @@ std::vector<TRdmaDeviceInfo> TGpuManager::GetRdmaDevices() const
 
 void TGpuManager::ReleaseGpuSlot(int deviceIndex)
 {
-    YT_LOG_DEBUG("Released GPU slot (DeviceIndex: %v)",
+    YT_LOG_DEBUG(
+        "Released GPU slot (DeviceIndex: %v)",
         deviceIndex);
 
     auto guard = Guard(SpinLock_);
@@ -520,7 +531,8 @@ void TGpuManager::ReleaseGpuSlot(int deviceIndex)
     if (AcquiredGpuDeviceIndices_.erase(deviceIndex) > 0) {
         if (!HealthyGpuInfoMap_.contains(deviceIndex)) {
             LostGpuDeviceIndices_.insert(deviceIndex);
-            YT_LOG_WARNING("Found lost GPU device (DeviceIndex: %v)",
+            YT_LOG_WARNING(
+                "Found lost GPU device (DeviceIndex: %v)",
                 deviceIndex);
         } else {
             FreeSlots_.push_back(deviceIndex);
@@ -561,7 +573,8 @@ TErrorOr<TGpuSlotPtr> TGpuManager::AcquireGpuSlot()
 
     InsertOrCrash(AcquiredGpuDeviceIndices_, deviceIndex);
 
-    YT_LOG_DEBUG("Acquired GPU slot (DeviceIndex: %v)",
+    YT_LOG_DEBUG(
+        "Acquired GPU slot (DeviceIndex: %v)",
         deviceIndex);
     return New<TGpuSlot>(MakeStrong(this), deviceIndex);
 }
@@ -610,7 +623,8 @@ TErrorOr<std::vector<TGpuSlotPtr>> TGpuManager::AcquireGpuSlots(int slotCount)
     YT_VERIFY(found);
     YT_VERIFY(std::ssize(resultDeviceIndices) == slotCount);
 
-    YT_LOG_DEBUG("Acquired GPU slots (DeviceIndices: %v)",
+    YT_LOG_DEBUG(
+        "Acquired GPU slots (DeviceIndices: %v)",
         resultDeviceIndices);
 
     std::vector<TGpuSlotPtr> resultSlots;
@@ -676,7 +690,8 @@ void TGpuManager::VerifyCudaToolkitDriverVersion(const TString& toolkitVersion)
     auto actualVersion = TGpuDriverVersion::FromString(DriverVersionString_);
 
     if (actualVersion < minVersion) {
-        THROW_ERROR_EXCEPTION("Unsupported GPU driver version for CUDA toolkit %v: required %v, actual %v",
+        THROW_ERROR_EXCEPTION(
+            "Unsupported GPU driver version for CUDA toolkit %v: required %v, actual %v",
             toolkitVersion,
             minVersionString,
             DriverVersionString_);

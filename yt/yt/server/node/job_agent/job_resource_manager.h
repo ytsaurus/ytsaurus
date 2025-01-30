@@ -54,6 +54,8 @@ public:
     //! Set resource limits overrides.
     virtual void SetResourceLimitsOverrides(const NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides& resourceLimits) = 0;
 
+    virtual void OnNewSlotsAvailable() = 0;
+
     virtual double GetCpuToVCpuFactor() const = 0;
 
     //! Returns resource usage of running jobs.
@@ -73,6 +75,7 @@ public:
     virtual void OnDynamicConfigChanged(
         const NClusterNode::TClusterNodeDynamicConfigPtr& oldConfig,
         const NClusterNode::TClusterNodeDynamicConfigPtr& newConfig) = 0;
+
 
     static TJobResourceManagerPtr CreateJobResourceManager(NClusterNode::IBootstrapBase* bootstrap);
 
