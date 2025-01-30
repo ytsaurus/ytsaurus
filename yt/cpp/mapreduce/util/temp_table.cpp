@@ -12,9 +12,8 @@ TTempTable::TTempTable(
     IClientBasePtr client,
     const TString& prefix,
     const TYPath& path,
-    const TCreateOptions& options,
-    bool needGuid)
-    : Client_(client)
+    const TCreateOptions& options)
+    : Client_(std::move(client))
 {
     if (path) {
         if (!options.Recursive_ && !Client_->Exists(path)) {
@@ -27,12 +26,17 @@ TTempTable::TTempTable(
             TCreateOptions().IgnoreExisting(true).Recursive(true));
     }
 
-    if (needGuid) {
-        Name_ += "/";
-        Name_ += prefix;
-        Name_ += CreateGuidAsString();
-    }
+    Name_ += "/";
+    Name_ += prefix;
+    Name_ += CreateGuidAsString();
 
+    Client_->Create(Name_, NT_TABLE, options);
+}
+
+TTempTable::TTempTable(TTempTable::TPrivateConstuctorTag, IClientBasePtr client, TYPath path, const TCreateOptions& options)
+    : Client_(std::move(client))
+    , Name_(std::move(path))
+{
     Client_->Create(Name_, NT_TABLE, options);
 }
 
@@ -61,6 +65,11 @@ TTempTable& TTempTable::operator=(TTempTable&& sourceTable)
     sourceTable.Owns_ = false;
 
     return *this;
+}
+
+TTempTable TTempTable::CreateAutoremovingTable(IClientBasePtr client, TYPath path, const TCreateOptions& options)
+{
+    return TTempTable(TTempTable::TPrivateConstuctorTag(), std::move(client), std::move(path), options);
 }
 
 void TTempTable::RemoveTable()
