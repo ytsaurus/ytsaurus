@@ -387,7 +387,7 @@ private:
         TSchedulerMutations mutations;
         ScheduleBundles(inputState, &mutations);
 
-        if (!inputState.SysConfig || !inputState.SysConfig->DisableBundleController ) {
+        if (!inputState.SysConfig || !inputState.SysConfig->DisableBundleController) {
             Mutate(transaction, mutations);
         } else {
             YT_LOG_WARNING("Bundle controller is disabled");
@@ -464,7 +464,9 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         CreateHulkRequests<TAllocationRequest>(transaction, Config_->HulkAllocationsPath, mutations.NewAllocations);
+        ChangeHulkRequests<TAllocationRequest>(transaction, Config_->HulkAllocationsPath, mutations.ChangedAllocations);
         CreateHulkRequests<TDeallocationRequest>(transaction, Config_->HulkDeallocationsPath, mutations.NewDeallocations);
+        CompleteHulkRequests(transaction, Config_->HulkAllocationsPath, mutations.CompletedAllocations);
         CypressSet(transaction, GetBundlesStatePath(), mutations.ChangedStates);
 
         SetNodeAttributes(transaction, AttributeBundleControllerAnnotations, mutations.ChangeNodeAnnotations);
@@ -1110,7 +1112,6 @@ private:
             inputState.SystemAccounts = CypressList<TSystemAccount>(transaction, BundleSystemQuotasPath);
         }
 
-
         YT_PROFILE_TIMING("/bundle_controller/load_timings/system_quotas_parent_account") {
             inputState.RootSystemAccount = GetRootSystemAccount(transaction);
         }
@@ -1342,6 +1343,35 @@ private:
             createOptions.Attributes->Set("value", ConvertToYsonString(requestBody));
             createOptions.Recursive = true;
             WaitFor(transaction->CreateNode(path, EObjectType::Document, createOptions))
+                .ThrowOnError();
+        }
+    }
+
+    template <typename TEntryInfo>
+    static void ChangeHulkRequests(
+        const ITransactionPtr& transaction,
+        const TYPath& basePath,
+        const TIndexedEntries<TEntryInfo>& requests)
+    {
+        for (const auto& [requestId, requestBody] : requests) {
+            auto path = Format("%v/%v", basePath, NYPath::ToYPathLiteral(requestId));
+
+            TSetNodeOptions setOptions;
+            setOptions.Recursive = true;
+            WaitFor(transaction->SetNode(path, ConvertToYsonString(requestBody)))
+                .ThrowOnError();
+        }
+    }
+
+    static void CompleteHulkRequests(
+        const ITransactionPtr& transaction,
+        const TYPath& basePath,
+        const THashSet<std::string>& requestIds)
+    {
+        for (const auto& requestId : requestIds) {
+            auto path = Format("%v/%v", basePath, NYPath::ToYPathLiteral(requestId));
+
+            WaitFor(transaction->RemoveNode(path, {}))
                 .ThrowOnError();
         }
     }
