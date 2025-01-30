@@ -4586,54 +4586,6 @@ class TestFifoPools(YTEnvSetup):
         wait(lambda: schedulable_operation_count_sensor.get() == 2)
 
     @authors("eshcherbin")
-    def test_fifo_pool_scheduling_order(self):
-        update_pool_tree_config("default", {
-            "non_preemptible_resource_usage_threshold": {"user_slots": 10},
-        })
-
-        create_pool("first", attributes={"mode": "fifo"})
-        create_pool("second", attributes={"mode": "fifo", "fifo_pool_scheduling_order": "fifo"})
-
-        wait(lambda: get(scheduler_orchid_pool_path("second") + "/effective_fifo_pool_scheduling_order", default=None) == "fifo")
-        wait(lambda: get(scheduler_orchid_pool_path("first") + "/effective_fifo_pool_scheduling_order") == "satisfaction")
-        wait(lambda: get(scheduler_orchid_pool_path("<Root>") + "/effective_fifo_pool_scheduling_order") == "satisfaction")
-
-        set("//sys/pool_trees/default/first/@resource_limits", {"user_slots": 1})
-        set("//sys/pool_trees/default/second/@resource_limits", {"user_slots": 1})
-
-        wait(lambda: get(scheduler_orchid_pool_path("second") + "/resource_limits/user_slots") == 1)
-
-        op_a1 = run_sleeping_vanilla(job_count=2, spec={"pool": "first"})
-        op_b1 = run_sleeping_vanilla(job_count=2, spec={"pool": "second"})
-
-        wait(lambda: get(scheduler_orchid_operation_path(op_a1.id) + "/resource_usage/user_slots", default=None) == 1)
-        wait(lambda: get(scheduler_orchid_operation_path(op_b1.id) + "/resource_usage/user_slots") == 1)
-
-        op_a2 = run_sleeping_vanilla(spec={"pool": "first"})
-        op_b2 = run_sleeping_vanilla(spec={"pool": "second"})
-
-        blocking_op = run_sleeping_vanilla(task_patch={"cpu_limit": 8.0})
-        wait(lambda: get(scheduler_orchid_operation_path(blocking_op.id) + "/resource_usage/user_slots", default=None) == 1)
-
-        remove("//sys/pool_trees/default/first/@resource_limits")
-        remove("//sys/pool_trees/default/second/@resource_limits")
-
-        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op_a1.id) + "/satisfaction_ratio"), 0.5))
-        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op_b1.id) + "/satisfaction_ratio"), 0.5))
-        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op_a2.id) + "/satisfaction_ratio"), 0.0))
-        wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(op_b2.id) + "/satisfaction_ratio"), 0.0))
-
-        @wait_no_assert
-        def check():
-            op_a1_index = get(scheduler_orchid_operation_path(op_a1.id) + "/scheduling_index")
-            op_a2_index = get(scheduler_orchid_operation_path(op_a2.id) + "/scheduling_index")
-            op_b1_index = get(scheduler_orchid_operation_path(op_b1.id) + "/scheduling_index")
-            op_b2_index = get(scheduler_orchid_operation_path(op_b2.id) + "/scheduling_index")
-
-            assert op_a2_index < op_a1_index
-            assert op_a2_index < op_b1_index < op_b2_index
-
-    @authors("eshcherbin")
     def test_allow_gang_operations_only_in_fifo_pools(self):
         update_pool_tree_config("default", {"allow_gang_operations_only_in_fifo_pools": True})
         create_pool("fair_share", attributes={"mode": "fair_share"})

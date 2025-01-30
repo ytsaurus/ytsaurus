@@ -216,7 +216,6 @@
     XX(FairShareStarvationTolerance, fair_share_starvation_tolerance) \
     XX(FaultyStorageDataCenters, faulty_storage_data_centers) \
     XX(FifoSortParameters, fifo_sort_parameters) \
-    XX(FifoPoolSchedulingOrder, fifo_pool_scheduling_order) \
     XX(FileName, file_name) \
     XX(Flavors, flavors) \
     XX(FlushLagTime, flush_lag_time) \

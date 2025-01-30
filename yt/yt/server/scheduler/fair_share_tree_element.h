@@ -418,7 +418,6 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TNonOwningElementList, SchedulableChildren);
 
     // Computed in post update and used in schedule allocations.
-    DEFINE_BYVAL_RO_PROPERTY(EFifoPoolSchedulingOrder, EffectiveFifoPoolSchedulingOrder);
     DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveUsePoolSatisfactionForScheduling);
 
 protected:
@@ -510,13 +509,11 @@ public:
 
     bool IsSchedulable() const override;
 
-    virtual std::optional<EFifoPoolSchedulingOrder> GetSpecifiedFifoPoolSchedulingOrder() const = 0;
     virtual std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const = 0;
 
     virtual std::optional<bool> IsAggressiveStarvationEnabled() const = 0;
 
     //! Schedule allocations related methods.
-    bool ShouldUseFifoSchedulingOrder() const;
     bool HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
 
     NYPath::TYPath GetFullPath(bool explicitOnly, bool withTreeId = true) const;
@@ -698,7 +695,6 @@ public:
 
     TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
 
-    std::optional<EFifoPoolSchedulingOrder> GetSpecifiedFifoPoolSchedulingOrder() const override;
     std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const override;
 
     //! Other methods.
@@ -1052,7 +1048,6 @@ public:
 
     TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
 
-    std::optional<EFifoPoolSchedulingOrder> GetSpecifiedFifoPoolSchedulingOrder() const override;
     std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const override;
 
     void BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext);
