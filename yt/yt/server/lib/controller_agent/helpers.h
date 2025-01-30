@@ -19,6 +19,8 @@
 
 namespace NYT::NControllerAgent {
 
+static constexpr TStringBuf YT_SECURE_VAULT_docker_auth("YT_SECURE_VAULT_docker_auth");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NNodeTrackerClient::TNodeId NodeIdFromJobId(TJobId jobId);

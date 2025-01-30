@@ -628,7 +628,7 @@ void TOperation::SetTemporaryToken(const TString& token, const TNodeId& nodeId)
 {
     YT_VERIFY(State_ == EOperationState::Starting);
     YT_VERIFY(Spec_->IssueTemporaryToken);
-    // Now we allow issuing unused temporary tokens to support enabling them globally.
+    // We allow issuing unused temporary tokens to support enabling this option by default.
     AddSecureVaultEntry(Spec_->TemporaryTokenEnvironmentVariableName, ConvertToNode(token));
 
     TemporaryTokenNodeId_ = nodeId;
