@@ -3058,7 +3058,7 @@ NAst::TAstHead ParseQueryString(
     }
 
     NAst::TLexer lexer(source, strayToken, std::move(queryLiterals), syntaxVersion);
-    NAst::TParser parser(lexer, &head, /*aliasMapStack*/ {}, source);
+    NAst::TParser parser(lexer, &head, source, /*aliasMapStack*/ {});
 
     int result = parser.parse();
 

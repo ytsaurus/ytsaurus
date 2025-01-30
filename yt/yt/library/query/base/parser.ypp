@@ -14,8 +14,8 @@
 
 %parse-param {TLexer& lexer}
 %parse-param {TAstHead* head}
-%parse-param {std::stack<TAliasMap> aliasMapStack}
 %parse-param {const TString& source}
+%parse-param {std::stack<TAliasMap> aliasMapStack}
 
 %code requires {
     #pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
