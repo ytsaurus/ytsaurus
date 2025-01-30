@@ -158,9 +158,6 @@ struct IOperationStrategyHost
 
     virtual void EraseTrees(const std::vector<TString>& treeIds) = 0;
 
-    // COMPAT(eshcherbin)
-    virtual std::optional<TJobResources> GetAggregatedInitialMinNeededResources() const = 0;
-
 protected:
     friend class TFairShareStrategyOperationState;
 };
@@ -374,8 +371,6 @@ public:
         const TString& treeId,
         const TOperationPoolTreeAttributes& operationPoolTreeAttributes) override;
 
-    std::optional<TJobResources> GetAggregatedInitialMinNeededResources() const override;
-
     NYson::TYsonString BuildAlertsString() const;
     bool HasAlert(EOperationAlertType alertType) const;
     bool HasAlertResetCookie(EOperationAlertType alertType) const;
@@ -449,8 +444,6 @@ public:
         EOperationState state = EOperationState::None,
         const std::vector<TOperationEvent>& events = {},
         bool suspended = false,
-        // COMPAT(eshcherbin)
-        const std::optional<TJobResources>& aggregatedInitialMinNeededResources = {},
         int registrationIndex = 0,
         const THashMap<EOperationAlertType, TOperationAlert>& alerts = {});
 

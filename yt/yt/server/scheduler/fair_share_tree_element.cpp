@@ -2233,11 +2233,6 @@ TJobResourcesWithQuotaList TSchedulerOperationElement::GetDetailedInitialMinNeed
 
 TJobResources TSchedulerOperationElement::GetAggregatedInitialMinNeededResources() const
 {
-    // COMPAT(eshcherbin)
-    if (auto cypressMinNeededResources = OperationHost_->GetAggregatedInitialMinNeededResources()) {
-        return *cypressMinNeededResources;
-    }
-
     return Controller_->GetAggregatedInitialMinNeededAllocationResources();
 }
 
