@@ -1834,7 +1834,7 @@ class YTEnvSetup(object):
             "min_child_heap_size": 3,
             "batch_operation_scheduling": {
                 "batch_size": 3,
-                "fallback_min_spare_job_resources": {
+                "fallback_min_spare_allocation_resources": {
                     "cpu": 1.5,
                     "user_slots": 1,
                     "memory": 512 * 1024 * 1024,

@@ -58,8 +58,6 @@ void Serialize(const TCustomJobMetricDescription& customJobMetricDescription, NY
             .Item("statistics_path").Value(customJobMetricDescription.StatisticsPath)
             .Item("profiling_name").Value(customJobMetricDescription.ProfilingName)
             .Item("summary_value_type").Value(FormatEnum<ESummaryValueType>(customJobMetricDescription.SummaryValueType))
-            // COMPAT(ignat)
-            .Item("aggregate_type").Value(FormatEnum<ESummaryValueType>(customJobMetricDescription.SummaryValueType))
             .Item("job_state_filter").Value(customJobMetricDescription.JobStateFilter)
         .EndMap();
 }
@@ -70,17 +68,11 @@ void Deserialize(TCustomJobMetricDescription& customJobMetricDescription, NYTree
     customJobMetricDescription.StatisticsPath = mapNode->GetChildValueOrThrow<TStatisticPath>("statistics_path");
     customJobMetricDescription.ProfilingName = mapNode->GetChildValueOrThrow<TString>("profiling_name");
 
-    auto summaryValueTypeNode = mapNode->FindChild("summary_value_type");
-    if (!summaryValueTypeNode) {
-        // COMPAT(ignat)
-        summaryValueTypeNode = mapNode->FindChild("aggregate_type");
-    }
-    if (summaryValueTypeNode) {
+    if (auto summaryValueTypeNode = mapNode->FindChild("summary_value_type")) {
         customJobMetricDescription.SummaryValueType = summaryValueTypeNode->GetValue<ESummaryValueType>();
     }
 
-    auto jobStateFilterNode = mapNode->FindChild("job_state_filter");
-    if (jobStateFilterNode) {
+    if (auto jobStateFilterNode = mapNode->FindChild("job_state_filter")) {
         customJobMetricDescription.JobStateFilter = jobStateFilterNode->GetValue<std::optional<EJobState>>();
     }
 }
