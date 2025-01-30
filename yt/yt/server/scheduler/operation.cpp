@@ -108,7 +108,6 @@ TOperation::TOperation(
     EOperationState state,
     const std::vector<TOperationEvent>& events,
     bool suspended,
-    const std::optional<TJobResources>& aggregatedInitialMinNeededResources,
     int registrationIndex,
     const THashMap<EOperationAlertType, TOperationAlert>& alerts)
     : MutationId_(mutationId)
@@ -137,7 +136,6 @@ TOperation::TOperation(
     , State_(state)
     , RuntimeParameters_(std::move(runtimeParameters))
     , Alerts_(alerts.begin(), alerts.end())
-    , AggregatedInitialMinNeededResources_(aggregatedInitialMinNeededResources)
 {
     YT_VERIFY(SpecString_);
     Restart(TError()); // error is fake
@@ -380,11 +378,6 @@ bool TOperation::IsRunningInStrategy() const
 void TOperation::SetRunningInStrategy()
 {
     RunningInStrategy_= true;
-}
-
-std::optional<TJobResources> TOperation::GetAggregatedInitialMinNeededResources() const
-{
-    return AggregatedInitialMinNeededResources_;
 }
 
 void TOperation::SetRuntimeParameters(TOperationRuntimeParametersPtr parameters)

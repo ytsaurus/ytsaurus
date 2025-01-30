@@ -968,21 +968,6 @@ class TestSchedulingSegments(YTEnvSetup):
         time.sleep(5.0)
         wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.0))
 
-    # COMPAT(eshcherin)
-    @authors("eshcherbin")
-    def test_read_initial_min_needed_resources_from_cypress(self):
-        op = run_sleeping_vanilla(
-            spec={"pool": "large_gpu"},
-            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
-        )
-        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment", default=None) == "large_gpu")
-        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.1))
-
-        with Restarter(self.Env, SCHEDULERS_SERVICE):
-            set(op.get_path() + "/@initial_aggregated_min_needed_resources", {"gpu": 1})
-
-        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment", default=None) == "default")
-
     @authors("omgronny")
     def test_gpu_event_log(self):
         before_start_time = datetime.datetime.utcnow()

@@ -1183,8 +1183,6 @@ private:
                 "suspended",
                 "erased_trees",
                 "banned",
-                // COMPAT(eshcherbin)
-                "initial_aggregated_min_needed_resources",
                 "registration_index",
                 "alerts",
                 "provided_spec",
@@ -1397,7 +1395,6 @@ private:
                 attributes.Get<EOperationState>("state"),
                 attributes.Get<std::vector<TOperationEvent>>("events", {}),
                 attributes.Get<bool>("suspended", false),
-                attributes.Find<TJobResources>("initial_aggregated_min_needed_resources"),
                 attributes.Get<int>("registration_index", 0),
                 attributes.Get<THashMap<EOperationAlertType, TOperationAlert>>("alerts", {}));
 
