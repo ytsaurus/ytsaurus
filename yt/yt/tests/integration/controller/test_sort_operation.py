@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_fast_intermediate_medium_base import TestFastIntermediateMediumBase
 
 from yt_commands import (
     authors, create, get, set, copy, remove, exists, wait,
@@ -85,16 +85,19 @@ def sort_2_phase(in_, out, sort_by, spec=None):
     return op
 
 
-def sort_2_phase_depth_2(in_, out, sort_by):
+def sort_2_phase_depth_2(in_, out, sort_by, spec=None):
+    spec = spec or {}
+    spec.update({
+        "partition_job_count": 2,
+        "partition_count": 4,
+        "max_partition_factor": 2,
+    })
+
     op = sort(
         in_=in_,
         out=out,
         sort_by=sort_by,
-        spec={
-            "partition_job_count": 2,
-            "partition_count": 4,
-            "max_partition_factor": 2,
-        },
+        spec=spec,
     )
     op.track()
     assert builtins.set(get_operation_job_types(op.id)) == {
@@ -105,22 +108,25 @@ def sort_2_phase_depth_2(in_, out, sort_by):
     return op
 
 
-def sort_3_phase(in_, out, sort_by):
+def sort_3_phase(in_, out, sort_by, spec=None):
+    spec = spec or {}
+    spec.update({
+        "partition_job_count": 10,
+        "partition_count": 10,
+        "data_weight_per_sort_job": 1,
+        "partition_job_io": {
+            "table_writer": {
+                "desired_chunk_size": 1,
+                "block_size": 1024,
+            }
+        },
+    })
+
     op = sort(
         in_=in_,
         out=out,
         sort_by=sort_by,
-        spec={
-            "partition_job_count": 10,
-            "partition_count": 10,
-            "data_weight_per_sort_job": 1,
-            "partition_job_io": {
-                "table_writer": {
-                    "desired_chunk_size": 1,
-                    "block_size": 1024,
-                }
-            },
-        },
+        spec=spec,
     )
     op.track()
     assert builtins.set(get_operation_job_types(op.id)) == {
@@ -132,24 +138,27 @@ def sort_3_phase(in_, out, sort_by):
     return op
 
 
-def sort_3_phase_depth_2(in_, out, sort_by):
+def sort_3_phase_depth_2(in_, out, sort_by, spec=None):
+    spec = spec or {}
+    spec.update({
+        "partition_job_count": 10,
+        "partition_count": 10,
+        "max_partition_factor": 4,
+        "data_weight_per_sort_job": 1,
+        "data_weight_per_intermediate_partition_job": 10,
+        "partition_job_io": {
+            "table_writer": {
+                "desired_chunk_size": 1,
+                "block_size": 1024,
+            }
+        },
+    })
+
     op = sort(
         in_=in_,
         out=out,
         sort_by=sort_by,
-        spec={
-            "partition_job_count": 10,
-            "partition_count": 10,
-            "max_partition_factor": 4,
-            "data_weight_per_sort_job": 1,
-            "data_weight_per_intermediate_partition_job": 10,
-            "partition_job_io": {
-                "table_writer": {
-                    "desired_chunk_size": 1,
-                    "block_size": 1024,
-                }
-            },
-        },
+        spec=spec,
     )
     op.track()
     assert builtins.set(get_operation_job_types(op.id)) == {
@@ -215,15 +224,17 @@ def sort_maniac(in_, out, sort_by, validate_types=False):
     return op
 
 
-class TestSchedulerSortCommands(YTEnvSetup):
+class TestSchedulerSortCommands(TestFastIntermediateMediumBase):
     NUM_TEST_PARTITIONS = 18
     NUM_MASTERS = 1
-    NUM_NODES = 5
+    NUM_NODES = 9
     NUM_SCHEDULERS = 1
     USE_DYNAMIC_TABLES = True
 
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
+            "fast_intermediate_medium": "ssd_blobs",
+            "fast_intermediate_medium_limit": TestFastIntermediateMediumBase.FAST_INTERMEDIATE_MEDIUM_LIMIT,
             "sort_operation_options": {
                 "min_uncompressed_block_size": 1,
                 "min_partition_size": 1,
@@ -2521,8 +2532,20 @@ class TestSchedulerSortCommands(YTEnvSetup):
         "2_phase_hierarchical",
         "3_phase",
         "3_phase_hierarchical"])
-    def test_descending_sort_order(self, sort_type):
+    @pytest.mark.parametrize("erasure_codec", [None, "isa_reed_solomon_6_3"])
+    def test_descending_sort_order(self, sort_type, erasure_codec):
         skip_if_no_descending(self.Env)
+
+        spec = {}
+        if erasure_codec is not None:
+            if self.Env.get_component_version("ytserver-controller-agent").abi <= (24, 2) or self.Env.get_component_version("ytserver-job-proxy").abi <= (24, 2):
+                pytest.skip()
+            spec = {
+                "fast_intermediate_medium_table_writer_config": {
+                    "erasure_codec": erasure_codec,
+                },
+                "fast_intermediate_medium_limit": self.FAST_INTERMEDIATE_MEDIUM_LIMIT,
+            }
 
         rows = [{"x": str(x), "y": str(y), "z": "A" * 1000} for x in range(7, 0, -1) for y in range(8)]
         expected = deepcopy(rows)
@@ -2540,35 +2563,38 @@ class TestSchedulerSortCommands(YTEnvSetup):
         ]
 
         if sort_type == "simple_sort_1_phase":
-            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by)
+            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec=spec)
             op.track()
             assert check_operation_tasks(op, ["simple_sort"])
         elif sort_type == "simple_sort_2_phase":
             self.skip_if_legacy_sorted_pool()
-            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec={
+            spec.update({
                 "data_weight_per_sort_job": 5000,
             })
+            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec=spec)
             op.track()
             assert check_operation_tasks(op, ["simple_sort", "sorted_merge"])
         elif sort_type == "2_phase":
             self.skip_if_legacy_sorted_pool()
-            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec={
+            spec.update({
                 "partition_count": 3,
                 "data_weight_per_sort_job": 10 ** 8,
             })
+            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec=spec)
             op.track()
             assert check_operation_tasks(op, ["partition(0)", "final_sort"])
         elif sort_type == "2_phase_hierarchical":
-            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec={
+            spec.update({
                 "partition_count": 3,
                 "max_partition_factor": 2,
                 "data_weight_per_sort_job": 10 ** 8,
             })
+            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec=spec)
             op.track()
             assert check_operation_tasks(op, ["partition(0)", "partition(1)", "final_sort"])
         elif sort_type == "3_phase":
             self.skip_if_legacy_sorted_pool()
-            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec={
+            spec.update({
                 "partition_count": 2,
                 "data_weight_per_sort_job": 5000,
                 "partition_job_io": {
@@ -2578,11 +2604,12 @@ class TestSchedulerSortCommands(YTEnvSetup):
                     }
                 },
             })
+            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec=spec)
             op.track()
             assert check_operation_tasks(op, ["partition(0)", "intermediate_sort", "sorted_merge"])
         elif sort_type == "3_phase_hierarchical":
             self.skip_if_legacy_sorted_pool()
-            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec={
+            spec.update({
                 "partition_count": 3,
                 "max_partition_factor": 2,
                 "data_weight_per_sort_job": 5000,
@@ -2593,6 +2620,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
                     }
                 },
             })
+            op = sort(in_="//tmp/in", out="//tmp/out", sort_by=sort_by, spec=spec)
             op.track()
             assert check_operation_tasks(op, ["partition(0)", "partition(1)", "intermediate_sort", "sorted_merge"])
 
@@ -2644,6 +2672,55 @@ class TestSchedulerSortCommands(YTEnvSetup):
                 "data_weight_per_sort_job": 10 ** 8,
                 "schema_inference_mode": "auto",
             })
+
+    @authors("galtsev")
+    @pytest.mark.timeout(200)
+    @pytest.mark.parametrize(
+        "sort_func",
+        [
+            simple_sort_1_phase,
+            simple_sort_2_phase,
+            sort_2_phase,
+            sort_2_phase_depth_2,
+            sort_3_phase,
+            sort_3_phase_depth_2,
+        ],
+    )
+    def test_intermediate_erasure(self, sort_func):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (24, 2) or self.Env.get_component_version("ytserver-job-proxy").abi <= (24, 2):
+            pytest.skip()
+
+        create(
+            "table",
+            "//tmp/in",
+            attributes={
+                "schema": [
+                    {"name": "key", "type_v3": "int64"},
+                    {"name": "value", "type_v3": "string"},
+                ]
+            },
+        )
+
+        expected = [{"key": i, "value": "v" * 1000} for i in range(0, 100)]
+        data = deepcopy(expected)
+        random.shuffle(data)
+        for d in data:
+            write_table("<append=%true>//tmp/in", [d])
+        create("table", "//tmp/out")
+
+        sort_func(
+            in_="//tmp/in",
+            out="//tmp/out",
+            sort_by="key",
+            spec={
+                "fast_intermediate_medium_table_writer_config": {
+                    "erasure_codec": "isa_reed_solomon_6_3",
+                },
+                "fast_intermediate_medium_limit": self.FAST_INTERMEDIATE_MEDIUM_LIMIT,
+            },
+        )
+
+        assert read_table("//tmp/out") == expected
 
 
 ##################################################################

@@ -35,6 +35,8 @@
 
 #include <yt/yt/core/phoenix/type_decl.h>
 
+#include <yt/yt/library/erasure/public.h>
+
 #include <yt/yt/library/formats/format.h>
 
 #include <yt/yt/library/vector_hdrf/public.h>
@@ -948,6 +950,25 @@ DEFINE_REFCOUNTED_TYPE(TJobFailsTolerance);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFastIntermediateMediumTableWriterConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    int MinUploadReplicationFactor;
+    int UploadReplicationFactor;
+    NErasure::ECodec ErasureCodec;
+    bool EnableStripedErasure;
+
+    REGISTER_YSON_STRUCT(TFastIntermediateMediumTableWriterConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DECLARE_REFCOUNTED_TYPE(TFastIntermediateMediumTableWriterConfig)
+DEFINE_REFCOUNTED_TYPE(TFastIntermediateMediumTableWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationSpecBase
     : public TStrategyOperationSpec
 {
@@ -968,6 +989,9 @@ public:
     bool IntermediateDataSyncOnClose;
 
     TString IntermediateDataMediumName;
+
+    //! Table writer config for the data that will be written to the fast medium (SSD) in the default intermediate account.
+    TFastIntermediateMediumTableWriterConfigPtr FastIntermediateMediumTableWriterConfig;
 
     //! Limit for the data that will be written to the fast medium (SSD) in the default intermediate account.
     i64 FastIntermediateMediumLimit;

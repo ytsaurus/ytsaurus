@@ -10679,28 +10679,29 @@ TOutputStreamDescriptorPtr TOperationControllerBase::GetIntermediateStreamDescri
     descriptor->CellTags = IntermediateOutputCellTagList;
 
     descriptor->TableWriterOptions = GetIntermediateTableWriterOptions();
-    if (Spec_->IntermediateDataAccount == NSecurityClient::IntermediateAccountName &&
-        GetFastIntermediateMediumLimit() > 0)
-    {
+
+    bool fastIntermediateMediumEnabled = Spec_->IntermediateDataAccount == NSecurityClient::IntermediateAccountName &&
+        GetFastIntermediateMediumLimit() > 0;
+
+    if (fastIntermediateMediumEnabled) {
         descriptor->SlowMedium = descriptor->TableWriterOptions->MediumName;
         descriptor->TableWriterOptions->MediumName = Config->FastIntermediateMedium;
-        YT_LOG_INFO("Fast intermediate medium enabled (FastMedium: %v, SlowMedium: %v, FastMediumLimit: %v)",
+        if (auto tableWriterConfig = Spec_->FastIntermediateMediumTableWriterConfig) {
+            descriptor->TableWriterOptions->ReplicationFactor = tableWriterConfig->UploadReplicationFactor;
+            descriptor->TableWriterOptions->ErasureCodec = tableWriterConfig->ErasureCodec;
+            descriptor->TableWriterOptions->EnableStripedErasure = tableWriterConfig->EnableStripedErasure;
+        }
+        YT_LOG_INFO("Fast intermediate medium enabled (FastMedium: %v, SlowMedium: %v, FastMediumLimit: %v, "
+            "ReplicationFactor: %v, ErasureCodec: %v, EnableStripedErasure: %v)",
             descriptor->TableWriterOptions->MediumName,
             descriptor->SlowMedium,
-            GetFastIntermediateMediumLimit());
+            GetFastIntermediateMediumLimit(),
+            descriptor->TableWriterOptions->ReplicationFactor,
+            descriptor->TableWriterOptions->ErasureCodec,
+            descriptor->TableWriterOptions->EnableStripedErasure);
     }
 
-    descriptor->TableWriterConfig = BuildYsonStringFluently()
-        .BeginMap()
-            .Item("upload_replication_factor").Value(Spec_->IntermediateDataReplicationFactor)
-            .Item("min_upload_replication_factor").Value(Spec_->IntermediateMinDataReplicationFactor)
-            .Item("populate_cache").Value(true)
-            .Item("sync_on_close").Value(Spec_->IntermediateDataSyncOnClose)
-            .DoIf(Spec_->IntermediateDataReplicationFactor > 1, [&] (TFluentMap fluent) {
-                // Set reduced rpc_timeout if replication_factor is greater than one.
-                fluent.Item("node_rpc_timeout").Value(TDuration::Seconds(120));
-            })
-        .EndMap();
+    descriptor->TableWriterConfig = MakeIntermediateTableWriterConfig(Spec_, fastIntermediateMediumEnabled);
 
     descriptor->RequiresRecoveryInfo = true;
     return descriptor;

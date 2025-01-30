@@ -537,4 +537,32 @@ TTableSchema::TSystemColumnOptions ControlAttributesToColumnOptions(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TYsonString MakeIntermediateTableWriterConfig(
+    const TOperationSpecBasePtr& spec,
+    bool fastIntermediateMediumEnabled)
+{
+    auto uploadReplicationFactor = spec->IntermediateDataReplicationFactor;
+    auto minUploadReplicationFactor = spec->IntermediateMinDataReplicationFactor;
+
+    auto tableWriterConfig = spec->FastIntermediateMediumTableWriterConfig;
+    if (tableWriterConfig && fastIntermediateMediumEnabled) {
+        uploadReplicationFactor = tableWriterConfig->UploadReplicationFactor;
+        minUploadReplicationFactor = tableWriterConfig->MinUploadReplicationFactor;
+    }
+
+    return BuildYsonStringFluently()
+        .BeginMap()
+            .Item("upload_replication_factor").Value(uploadReplicationFactor)
+            .Item("min_upload_replication_factor").Value(minUploadReplicationFactor)
+            .Item("populate_cache").Value(true)
+            .Item("sync_on_close").Value(spec->IntermediateDataSyncOnClose)
+            .DoIf(uploadReplicationFactor > 1, [&] (TFluentMap fluent) {
+                // Set reduced rpc_timeout if replication_factor is greater than one.
+                fluent.Item("node_rpc_timeout").Value(TDuration::Seconds(120));
+            })
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers
