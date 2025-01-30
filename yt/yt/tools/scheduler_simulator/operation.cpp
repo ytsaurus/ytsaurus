@@ -146,11 +146,6 @@ void TOperation::EraseTrees(const std::vector<TString>& /*treeIds*/)
     YT_UNIMPLEMENTED();
 }
 
-std::optional<NScheduler::TJobResources> TOperation::GetAggregatedInitialMinNeededResources() const
-{
-    return std::nullopt;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSchedulerSimulator

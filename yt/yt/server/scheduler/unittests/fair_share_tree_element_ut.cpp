@@ -426,11 +426,6 @@ public:
     void EraseTrees(const std::vector<TString>& /*treeIds*/) override
     { }
 
-    std::optional<TJobResources> GetAggregatedInitialMinNeededResources() const override
-    {
-        return std::nullopt;
-    }
-
 private:
     TInstant StartTime_;
     NYson::TYsonString TrimmedAnnotations_;
