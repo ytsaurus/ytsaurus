@@ -461,8 +461,6 @@ public:
 
     TBatchOperationSchedulingConfigPtr BatchOperationScheduling;
 
-    EFifoPoolSchedulingOrder FifoPoolSchedulingOrder;
-
     bool UsePoolSatisfactionForScheduling;
 
     THistogramDigestConfigPtr PerPoolSatisfactionDigest;

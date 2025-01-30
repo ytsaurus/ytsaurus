@@ -3070,10 +3070,6 @@ private:
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "aggressive_starvation_enabled", element->IsAggressiveStarvationEnabled())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
                 filter,
-                "effective_fifo_pool_scheduling_order",
-                element->GetEffectiveFifoPoolSchedulingOrder())
-            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
-                filter,
                 "effective_use_pool_satisfaction_for_scheduling",
                 element->GetEffectiveUsePoolSatisfactionForScheduling())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "lightweight_operations_enabled", element->AreLightweightOperationsEnabled())

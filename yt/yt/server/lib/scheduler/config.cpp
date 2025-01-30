@@ -605,9 +605,6 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .Alias("prioritized_regular_scheduling")
         .Default();
 
-    registrar.Parameter("fifo_pool_scheduling_order", &TThis::FifoPoolSchedulingOrder)
-        .Default(EFifoPoolSchedulingOrder::Satisfaction);
-
     registrar.Parameter("use_pool_satisfaction_for_scheduling", &TThis::UsePoolSatisfactionForScheduling)
         .Default(false);
 
