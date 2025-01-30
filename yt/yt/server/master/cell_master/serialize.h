@@ -214,6 +214,7 @@ DEFINE_ENUM(EMasterReign,
     ((StableOrderedSecondaryIndicesDestruction)                     (2824))  // koloshmet
     ((FixExportedObjectsRefs)                                       (2825))  // aleksandra-zh
     ((SecondaryIndexAbandonment)                                    (2826))  // sabdenovch
+    ((SequoiaRefreshQueues)                                         (2827))  // aleksandra-zh
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

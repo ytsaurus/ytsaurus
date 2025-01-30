@@ -15,6 +15,7 @@
 #include <yt/yt/ytlib/sequoia_client/records/node_snapshots.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/child_forks.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/response_keeper.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.record.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -27,6 +28,15 @@
 namespace NYT::NSequoiaClient {
 
 using namespace NQueryClient;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSequoiaTablePathDescriptor::operator size_t() const
+{
+    return MultiHash(
+        Table,
+        MasterCellTag);
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -84,6 +94,7 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
         XX(NodeSnapshot, "node_snapshots", NodeSnapshots)
         XX(ChildFork, "child_forks", ChildForks)
         XX(SequoiaResponseKeeper, "response_keeper", ResponseKeeper)
+        XX(ChunkRefreshQueue, "chunk_refresh_queue", ChunkRefreshQueue)
         default:
             YT_ABORT();
     }
@@ -93,10 +104,17 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYPath::TYPath GetSequoiaTablePath(const NApi::NNative::IClientPtr& client, const ITableDescriptor* tableDescriptor)
+NYPath::TYPath GetSequoiaTablePath(
+    const NApi::NNative::IClientPtr& client,
+    const TSequoiaTablePathDescriptor& tablePathDescriptor)
 {
     const auto& rootPath = client->GetNativeConnection()->GetConfig()->SequoiaConnection->SequoiaRootPath;
-    return rootPath + "/" + NYPath::ToYPathLiteral(tableDescriptor->GetTableName());
+    const auto* tableDescriptor = ITableDescriptor::Get(tablePathDescriptor.Table);
+    auto path = rootPath + "/" + NYPath::ToYPathLiteral(tableDescriptor->GetTableName());
+    if (tablePathDescriptor.MasterCellTag) {
+        path += "_" + ToString(tablePathDescriptor.MasterCellTag);
+    }
+    return path;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

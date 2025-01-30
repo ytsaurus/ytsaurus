@@ -8,6 +8,8 @@
 
 #include <yt/yt/ytlib/sequoia_client/public.h>
 
+#include <yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.record.h>
+
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -56,6 +58,10 @@ struct IChunkReplicaFetcher
 
     virtual TFuture<std::vector<TSequoiaChunkReplica>> GetUnapprovedSequoiaChunkReplicas(
         const std::vector<TChunkId>& chunkIds) const = 0;
+
+    virtual TFuture<std::vector<NSequoiaClient::NRecords::TChunkRefreshQueue>> GetChunksToRefresh(
+        int replicatorShard,
+        int limit) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkReplicaFetcher)

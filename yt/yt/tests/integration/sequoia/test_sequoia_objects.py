@@ -264,7 +264,7 @@ class TestSequoiaReplicas(YTEnvSetup):
         remove("//tmp/t")
 
     @authors("aleksandra-zh")
-    @pytest.mark.parametrize("erasure_codec", ["lrc_12_2_2"])
+    @pytest.mark.parametrize("erasure_codec", ["none", "lrc_12_2_2"])
     def test_refresh(self, erasure_codec):
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
@@ -326,6 +326,35 @@ class TestSequoiaReplicas(YTEnvSetup):
         sync_unmount_table(unapproved_replicas_path, driver=ground_driver)
         set("{}/@mount_config/min_data_versions".format(unapproved_replicas_path), 0, driver=ground_driver)
         sync_mount_table(unapproved_replicas_path, driver=ground_driver)
+
+        remove("//tmp/t")
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("erasure_codec", ["none", "lrc_12_2_2"])
+    def test_sequoia_refresh(self, erasure_codec):
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
+        set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_sequoia_chunk_refresh", True)
+        set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
+
+        set("//sys/@config/chunk_manager/testing/disable_sequoia_chunk_refresh", True)
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1, "erasure_codec": erasure_codec})
+
+        write_table("//tmp/t", [{"x": 1}])
+
+        chunk_id = get_singular_chunk_id("//tmp/t")
+        parts = chunk_id.split("-")
+        cell_tag = parts[2][:-4]
+
+        queue_path = DESCRIPTORS.chunk_refresh_queue.get_default_path() + "_" + str(int(cell_tag, 16))
+        wait(lambda: len(select_rows_from_ground(f"* from [{queue_path}] where [$tablet_index] >= -1")) > 0)
+
+        set("//sys/@config/chunk_manager/testing/disable_sequoia_chunk_refresh", False)
+
+        with Restarter(self.Env, NODES_SERVICE):
+            wait(lambda: chunk_id in get("//sys/lost_chunks"))
+
+        wait(lambda: chunk_id not in get("//sys/lost_chunks"))
+        wait(lambda: len(select_rows_from_ground(f"* from [{queue_path}] where [$tablet_index] >= -1")) == 0)
 
         remove("//tmp/t")
 

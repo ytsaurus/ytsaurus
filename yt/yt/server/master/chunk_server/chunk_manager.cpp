@@ -112,6 +112,7 @@
 #include <yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/location_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.record.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -145,6 +146,8 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/yson/string.h>
+
+#include <library/cpp/iterator/zip.h>
 
 #include <util/generic/cast.h>
 
@@ -2473,10 +2476,12 @@ private:
     TShardedGlobalChunkList BlobChunks_;
     TShardedGlobalChunkList JournalChunks_;
 
+    TPeriodicExecutorPtr SequoiaChunkRefreshExecutor_;
     TPeriodicExecutorPtr SequoiaReplicaRemovalExecutor_;
     THashMap<TChunkId, TCompactVector<TSequoiaChunkReplica, 3>> SequoiaChunkPurgatory_;
     // Transient.
     bool ChunksBeingPurged_ = false;
+    std::atomic<bool> FetchingSequoiaChunksToRefresh_ = false;
 
     NHydra::TEntityMap<TChunk> ChunkMap_;
     NHydra::TEntityMap<TChunkView> ChunkViewMap_;
@@ -3142,17 +3147,24 @@ private:
         if (config->StoreSequoiaReplicasOnMaster) {
             ProcessAddedReplicas(locationDirectory, node, request->added_chunks());
         }
-        // This could be under 'else', but it is not.
-        refreshSequoiaChunks(request->added_chunks());
+        if (!config->EnableSequoiaChunkRefresh) {
+            refreshSequoiaChunks(request->added_chunks());
+        }
 
-        ProcessRemovedReplicas(
-            locationDirectory,
-            node,
-            request->removed_chunks(),
-            // TODO(danilalexeev or aleksandra-zh): Make this uniform.
-            request->caused_by_node_disposal()
-                ? ERemoveReplicaReason::NodeDisposed
-                : ERemoveReplicaReason::IncrementalHeartbeat);
+        // If the node is being disposed we will remove all of its destroyed replicas anyway
+        // during location disposal.
+        // If replica removal is caused by IncrementalHeartbeat we still need to
+        // ProcessRemovedReplicas to remove it from destroyed replicas queue.
+        if (config->ProcessRemovedSequoiaReplicasOnMaster || !request->caused_by_node_disposal() || !config->EnableSequoiaChunkRefresh) {
+            ProcessRemovedReplicas(
+                locationDirectory,
+                node,
+                request->removed_chunks(),
+                // TODO(danilalexeev or aleksandra-zh): Make this uniform.
+                request->caused_by_node_disposal()
+                    ? ERemoveReplicaReason::NodeDisposed
+                    : ERemoveReplicaReason::IncrementalHeartbeat);
+        }
     }
 
     static void BuildReplicasListYson(
@@ -3373,6 +3385,13 @@ private:
                         };
                         transaction->DeleteRow(locationReplicaKey);
                     }
+
+                    NRecords::TChunkRefreshQueue refreshQueueEntry{
+                        .TabletIndex = GetChunkShardIndex(chunkId),
+                        .ChunkId = chunkId,
+                        .ConfirmationTime = TInstant::Now(),
+                    };
+                    transaction->WriteRow(Bootstrap_->GetCellTag(), refreshQueueEntry);
                 }
 
                 transaction->AddTransactionAction(
@@ -3383,6 +3402,7 @@ private:
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
                 };
+
                 auto result = WaitFor(transaction->Commit(commitOptions));
                 if (IsRetriableSequoiaReplicasError(result)) {
                     THROW_ERROR_EXCEPTION(
@@ -5235,6 +5255,12 @@ private:
         ChunkPlacement_->Initialize();
 
         ChunkReplicator_->OnEpochStarted();
+
+        SequoiaChunkRefreshExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
+            BIND(&TChunkManager::OnSequoiaChunkRefresh, MakeWeak(this)),
+            GetDynamicConfig()->SequoiaChunkReplicas->SequoiaChunkRefreshPeriod);
+        SequoiaChunkRefreshExecutor_->Start();
     }
 
     void OnEpochFinished()
@@ -5244,6 +5270,12 @@ private:
         ChunkReplicator_->OnEpochFinished();
 
         ChunksBeingPurged_ = false;
+        if (SequoiaChunkRefreshExecutor_) {
+            YT_UNUSED_FUTURE(SequoiaChunkRefreshExecutor_->Stop());
+            SequoiaChunkRefreshExecutor_.Reset();
+        }
+
+        FetchingSequoiaChunksToRefresh_ = false;
     }
 
     void RegisterChunk(TChunk* chunk)
@@ -5317,6 +5349,104 @@ private:
             YT_LOG_DEBUG(result, "Error purging dead Sequoia chunks");
             ChunksBeingPurged_ = false;
         }
+    }
+
+    void OnSequoiaChunkRefresh()
+    {
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+        if (!config->Enable || !config->EnableSequoiaChunkRefresh) {
+            return;
+        }
+
+        if (GetDynamicConfig()->Testing->DisableSequoiaChunkRefresh) {
+            return;
+        }
+
+        if (FetchingSequoiaChunksToRefresh_) {
+            YT_LOG_INFO("Sequoia chunks are still being fetched for refresh");
+            return;
+        }
+        FetchingSequoiaChunksToRefresh_ = true;
+
+        auto limit = config->SequoiaChunkCountToFetchFromRefreshQueue;
+        const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
+        std::vector<TFuture<std::vector<NRecords::TChunkRefreshQueue>>> getChunksFutures;
+        std::vector<int> indices;
+        for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+            if (incumbentManager->HasIncumbency(EIncumbentType::ChunkReplicator, shardIndex)) {
+                getChunksFutures.push_back(ChunkReplicaFetcher_->GetChunksToRefresh(shardIndex, limit));
+                indices.push_back(shardIndex);
+            }
+        }
+
+        AllSet(getChunksFutures)
+            .Subscribe(BIND([this, this_ = MakeStrong(this), indices = std::move(indices)] (const TErrorOr<std::vector<TErrorOr<std::vector<NRecords::TChunkRefreshQueue>>>>& allSetResult) {
+                auto finallyGuard = Finally([&] {
+                    FetchingSequoiaChunksToRefresh_ = false;
+                });
+
+                if (!allSetResult.IsOK()) {
+                    YT_LOG_WARNING(allSetResult, "Error getting chunks to refresh");
+                    return;
+                }
+
+                const auto& results = allSetResult.Value();
+                std::vector<TChunkId> chunkIdsToRefresh;
+                THashMap<int, i64> indexToTrimmedRowCount;
+                for (const auto& [result, shardIndex] : Zip(results, indices)) {
+                    if (!result.IsOK()) {
+                        YT_LOG_WARNING(result, "Error getting chunks to refresh from shard (ShardIndex: %v)",
+                            shardIndex);
+                        continue;
+                    }
+
+                    const auto& refreshRecords = result.Value();
+                    for (const auto& refreshRecord : refreshRecords) {
+                        chunkIdsToRefresh.push_back(refreshRecord.ChunkId);
+                    }
+
+                    if (!refreshRecords.empty()) {
+                        indexToTrimmedRowCount[shardIndex] = refreshRecords.back().RowIndex + 1;
+                    }
+                }
+                SortUnique(chunkIdsToRefresh);
+
+                auto refreshChunks = BIND([chunkIdsToRefresh = std::move(chunkIdsToRefresh), this, this_ = MakeStrong(this)] {
+                    for (auto chunkId : chunkIdsToRefresh) {
+                        auto* chunk = FindChunk(chunkId);
+                        if (IsObjectAlive(chunk)) {
+                            ScheduleChunkRefresh(chunk);
+                        }
+                    }
+                });
+                auto refreshResult = WaitFor(refreshChunks
+                    .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkManager))
+                    .Run());
+                if (!refreshResult.IsOK()) {
+                    YT_LOG_WARNING(refreshResult, "Error refreshing Sequoia chunks");
+                    return;
+                }
+
+                TSequoiaTablePathDescriptor descriptor{
+                    .Table = ESequoiaTable::ChunkRefreshQueue,
+                    .MasterCellTag = Bootstrap_->GetCellTag(),
+                };
+                std::vector<TFuture<void>> trimFutures;
+                trimFutures.reserve(indexToTrimmedRowCount.size());
+                for (auto [index, trimmedRowCount] : indexToTrimmedRowCount) {
+                    YT_LOG_DEBUG("Trimming table (Index: %v, TrimmedRowCount: %v)",
+                        index,
+                        trimmedRowCount);
+                    // Index is both replicator shard index and tablet index.
+                    trimFutures.push_back(Bootstrap_
+                        ->GetSequoiaClient()
+                        ->TrimTable(descriptor, index, trimmedRowCount));
+                }
+                auto trimResult = WaitFor(AllSucceeded(trimFutures));
+                if (!trimResult.IsOK()) {
+                    YT_LOG_WARNING(trimResult, "Error trimming refresh table");
+                }
+            }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
     TFuture<void> RemoveDeadSequoiaChunkReplicas(std::unique_ptr<NProto::TReqRemoveDeadSequoiaChunkReplicas> request)

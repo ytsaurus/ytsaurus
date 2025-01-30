@@ -1,5 +1,5 @@
 #include "lazy_client.h"
-
+#include "table_descriptor.h"
 #include "client.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
@@ -47,6 +47,21 @@ public:
         NTransactionClient::TTimestamp timestamp) override
     {
         FORWARD_METHOD(SelectRows, (table, query, timestamp))
+    }
+    virtual TFuture<NApi::TSelectRowsResult> SelectRows(
+        const TSequoiaTablePathDescriptor& descriptor,
+        const TSelectRowsQuery& query,
+        NTransactionClient::TTimestamp timestamp) override
+    {
+        FORWARD_METHOD(SelectRows, (descriptor, query, timestamp))
+    }
+
+    TFuture<void> TrimTable(
+        const TSequoiaTablePathDescriptor& descriptor,
+        int tabletIndex,
+        i64 trimmedRowCount) override
+    {
+        FORWARD_METHOD(TrimTable, (descriptor, tabletIndex, trimmedRowCount))
     }
 
     virtual TFuture<ISequoiaTransactionPtr> StartTransaction(
