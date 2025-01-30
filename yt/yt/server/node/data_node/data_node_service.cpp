@@ -765,7 +765,7 @@ private:
             }
 
             auto diskThrottling = chunk
-                ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*incrementCounter*/ false)
+                ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*isProbing*/ true)
                 : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
             subresponse->set_disk_throttling(diskThrottling.Enabled);
             subresponse->set_disk_queue_size(diskThrottling.QueueSize);
@@ -830,7 +830,7 @@ private:
         response->set_has_complete_chunk(hasCompleteChunk);
 
         auto diskThrottling = chunk
-            ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*incrementCounter*/ false)
+            ? chunk->GetLocation()->CheckReadThrottling(workloadDescriptor, /*isProbing*/ true)
             : TChunkLocation::TDiskThrottlingResult{.Enabled = false, .QueueSize = 0};
         response->set_disk_throttling(diskThrottling.Enabled);
         response->set_disk_queue_size(diskThrottling.QueueSize);
