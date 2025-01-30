@@ -2367,9 +2367,7 @@ void TPoolConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("historic_usage_aggregation_period", &TThis::HistoricUsageAggregationPeriod)
-        .Optional();
-    registrar.Parameter("infer_children_weights_from_historic_usage", &TThis::InferChildrenWeightsFromHistoricUsage)
-        .Default(false);
+        .Default();
 
     registrar.Parameter("allowed_profiling_tags", &TThis::AllowedProfilingTags)
         .Default();
@@ -2427,14 +2425,6 @@ void TPoolConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
-        // COMPAT(arkady-e1ppa)
-        if (config->InferChildrenWeightsFromHistoricUsage) {
-            config->HistoricUsageAggregationPeriod =
-                config->HistoricUsageAggregationPeriod.value_or(TAdjustedExponentialMovingAverage::DefaultHalflife);
-        } else {
-            config->HistoricUsageAggregationPeriod.reset();
-        }
-
         // COMPAT(omgronny)
         if (config->ConfigPreset && !config->ConfigPresets.empty()) {
             THROW_ERROR_EXCEPTION("Cannot specify both %Qv and %Qv at the same time",

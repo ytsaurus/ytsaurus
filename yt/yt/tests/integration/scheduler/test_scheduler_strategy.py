@@ -3007,7 +3007,6 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
     def setup_method(self, method):
         super(TestSchedulerInferChildrenWeightsFromHistoricUsage, self).setup_method(method)
         create_pool("parent")
-        set("//sys/pools/parent/@infer_children_weights_from_historic_usage", True)
         set(
             "//sys/pools/parent/@historic_usage_aggregation_period",
             1000,  # 1 sec
@@ -3087,14 +3086,6 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
 
         # change config and wait for it to be applied
         set(
-            "//sys/pools/parent/@infer_children_weights_from_historic_usage",
-            new_config["infer_children_weights_from_historic_usage"],
-        )
-        wait(
-            lambda: get("//sys/pools/parent/@infer_children_weights_from_historic_usage")
-            == new_config["infer_children_weights_from_historic_usage"]
-        )
-        set(
             "//sys/pools/parent/@historic_usage_aggregation_period",
             new_config["historic_usage_aggregation_period"],
         )
@@ -3120,7 +3111,6 @@ class TestSchedulerInferChildrenWeightsFromHistoricUsage(YTEnvSetup):
     ):
         self._test_equal_fair_share_after_disabling_config_change_base(
             {
-                "infer_children_weights_from_historic_usage": False,
                 "historic_usage_aggregation_period": 1000,  # 1 sec
             }
         )
