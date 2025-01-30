@@ -753,9 +753,9 @@ class YtClient(ClientState):
         :param output_file: path to output file, this option is deprecated, please use output_path
         :type output_file: str
         :param output_path: If option enable_several_files is disabled, you need to put the path to the file here,
-        otherwise the path to the directory where the files in the parquet format will be placed
+        otherwise the path to the directory where the files in the Parquet format will be placed
         :type output_path: str
-        :param enable_several_files: allowing parquet to be written to multiple files,
+        :param enable_several_files: allowing Parquet to be written to multiple files,
         only makes sense for better acceleration in parallel mode
         :type enable_several_files: bool
         :param unordered: if the option is set to false, the order will be as in the original table
