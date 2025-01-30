@@ -155,19 +155,19 @@ DEFINE_REFCOUNTED_TYPE(TQueueControllerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueStaticTableExportManagerDynamicConfig
+class TQueueExportManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
     //! Maximum number of export starting per second.
     std::optional<double> ExportRateLimit;
 
-    REGISTER_YSON_STRUCT(TQueueStaticTableExportManagerDynamicConfig);
+    REGISTER_YSON_STRUCT(TQueueExportManagerDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueueStaticTableExportManagerDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TQueueExportManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,7 +185,7 @@ public:
     TQueueControllerDynamicConfigPtr Controller;
 
     //! Configuration of queue static table export manager.
-    TQueueStaticTableExportManagerDynamicConfigPtr QueueStaticTableExportManager;
+    TQueueExportManagerDynamicConfigPtr QueueExportManager;
 
     //! Controls whether replicated objects are handled by this queue agent instance.
     //! NB: Even when set to true, mutating requests are only performed for objects with the corresponding stage.

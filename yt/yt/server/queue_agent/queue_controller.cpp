@@ -5,8 +5,8 @@
 #include "config.h"
 #include "helpers.h"
 #include "profile_manager.h"
-#include "queue_static_table_exporter.h"
-#include "queue_static_table_export_manager.h"
+#include "queue_exporter.h"
+#include "queue_export_manager.h"
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -362,7 +362,7 @@ public:
         TQueueTableRow queueRow,
         std::optional<TReplicatedTableMappingTableRow> replicatedTableMappingRow,
         const IObjectStore* store,
-        const IQueueStaticTableExportManagerPtr& queueStaticTableExportManager,
+        const IQueueExportManagerPtr& queueExportManager,
         const TQueueControllerDynamicConfigPtr& dynamicConfig,
         TQueueAgentClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker)
@@ -396,7 +396,7 @@ public:
             Invoker_))
         , TrimAlertCollector_(CreateAlertCollector(AlertManager_))
         , QueueExportsAlertCollector_(CreateAlertCollector(AlertManager_))
-        , QueueStaticTableExportManager_(queueStaticTableExportManager)
+        , QueueExportManager_(queueExportManager)
     {
         // Prepare initial erroneous snapshot.
         auto queueSnapshot = New<TQueueSnapshot>();
@@ -513,11 +513,11 @@ private:
     const IAlertCollectorPtr TrimAlertCollector_;
     const IAlertCollectorPtr QueueExportsAlertCollector_;
 
-    using QueueExportsMappingOrError = TErrorOr<THashMap<TString, IQueueStaticTableExporterPtr>>;
+    using QueueExportsMappingOrError = TErrorOr<THashMap<TString, IQueueExporterPtr>>;
     QueueExportsMappingOrError QueueExports_;
     TReaderWriterSpinLock QueueExportsLock_;
 
-    const IQueueStaticTableExportManagerPtr QueueStaticTableExportManager_;
+    const IQueueExportManagerPtr QueueExportManager_;
 
     void Pass()
     {
@@ -617,14 +617,14 @@ private:
         auto& queueExports = QueueExports_.Value();
         for (const auto& [name, exportConfig] : *staticExportConfig) {
             if (queueExports.find(name) == queueExports.end()) {
-                queueExports[name] = CreateQueueStaticTableExporter(
+                queueExports[name] = CreateQueueExporter(
                     name,
                     QueueRef_,
                     exportConfig,
                     queueExporterConfig,
                     ClientDirectory_->GetUnderlyingClientDirectory(),
                     Invoker_,
-                    QueueStaticTableExportManager_,
+                    QueueExportManager_,
                     CreateAlertCollector(AlertManager_),
                     ProfileManager_->GetQueueProfiler(),
                     Logger);
@@ -1528,7 +1528,7 @@ bool UpdateQueueController(
     const TQueueTableRow& row,
     const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     const IObjectStore* store,
-    const IQueueStaticTableExportManagerPtr& queueStaticTableExportManager,
+    const IQueueExportManagerPtr& queueExportManager,
     const TQueueControllerDynamicConfigPtr& dynamicConfig,
     const TQueueAgentClientDirectoryPtr& clientDirectory,
     IInvokerPtr invoker)
@@ -1561,7 +1561,7 @@ bool UpdateQueueController(
                 row,
                 replicatedTableMappingRow,
                 store,
-                queueStaticTableExportManager,
+                queueExportManager,
                 dynamicConfig,
                 std::move(clientDirectory),
                 std::move(invoker));

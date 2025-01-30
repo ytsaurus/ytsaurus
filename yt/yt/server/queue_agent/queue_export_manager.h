@@ -7,20 +7,20 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct IQueueStaticTableExportManager
+struct IQueueExportManager
     : public TRefCounted
 {
     virtual NConcurrency::IThroughputThrottlerPtr GetExportThrottler() const = 0;
 
     virtual void OnDynamicConfigChanged(
-        const TQueueStaticTableExportManagerDynamicConfigPtr& oldConfig,
-        const TQueueStaticTableExportManagerDynamicConfigPtr& newConfig) = 0;
+        const TQueueExportManagerDynamicConfigPtr& oldConfig,
+        const TQueueExportManagerDynamicConfigPtr& newConfig) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IQueueStaticTableExportManager)
+DEFINE_REFCOUNTED_TYPE(IQueueExportManager)
 
-IQueueStaticTableExportManagerPtr CreateQueueStaticTableExportManager(
-    const TQueueStaticTableExportManagerDynamicConfigPtr& config);
+IQueueExportManagerPtr CreateQueueExportManager(
+    const TQueueExportManagerDynamicConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 

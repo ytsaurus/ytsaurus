@@ -95,7 +95,7 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TQueueStaticTableExportManagerDynamicConfig::Register(TRegistrar registrar)
+void TQueueExportManagerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("export_rate_limit", &TThis::ExportRateLimit)
         .Default(4);
@@ -112,7 +112,7 @@ void TQueueAgentDynamicConfig::Register(TRegistrar registrar)
         .Default(4);
     registrar.Parameter("controller", &TThis::Controller)
         .DefaultNew();
-    registrar.Parameter("queue_static_table_export_manager", &TThis::QueueStaticTableExportManager)
+    registrar.Parameter("queue_export_manager", &TThis::QueueExportManager)
         .DefaultNew();
     registrar.Parameter("handle_replicated_objects", &TThis::HandleReplicatedObjects)
         .Default(false);

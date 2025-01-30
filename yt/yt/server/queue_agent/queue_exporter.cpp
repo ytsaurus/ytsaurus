@@ -1,7 +1,7 @@
-#include "queue_static_table_exporter.h"
+#include "queue_exporter.h"
 
 #include "private.h"
-#include "queue_static_table_export_manager.h"
+#include "queue_export_manager.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_spec_fetcher.h>
 #include <yt/yt/ytlib/chunk_client/chunk_teleporter.h>
@@ -67,12 +67,18 @@ namespace {
 // Queue rows are divided in ranges. Each range
 // is described by unix timestamp range [period * k; period * (k + 1)).
 // For a fixed period, right bound is used to describe this unix timestamp range and is called export unix timestamp, e.g. export unix timestamp T corresponds
-// to range [T - period; T). Row belongs to the range with export unix timestamp T,
-// iff max(next_export_unix_ts(last_export_unix_ts), next_export_unix_ts(chunk_max_ts)) == T, where next_export_unix_ts(t) is export unix ts that should follow t,
-// last_export_unix_ts is export unix ts of last exported table and chunk_max_ts is row's chunk max ts.
-
+// to range [T - period; T).
+//
 // Row belongs to the range with export unix timestamp T, iff unix timestamp from its chunk max timestamp
-// lies in [T - period; period), or exported table with such
+// lies in [T - period; T) or, in case there already is an exported table with such export unix timestamp T, first vacant export unix timestamp.
+// The latter can happen if row was flushed too late to be a part of exported table with export unix timestamp T.
+//
+// The following convention is used for handling time.
+//
+// Both TInstant and Unix Time measure time since epoch (timezone is UTC).
+// TInstant has granularity in milliseconds and we convert it to Unix Time by discarding milliseconds.
+// Unix timestamp T corresponds to TInstant::Seconds(T).
+// Most of calculations are done with unix time, since we chose our granularity to be in seconds.
 
 //! Find export unix ts range containing #unixTs for a given #exportPeriod.
 //!
@@ -87,6 +93,12 @@ std::pair<ui64, ui64> GetExportUnixTsRange(ui64 unixTs, TDuration exportPeriod)
     result.first = (unixTs / period) * period;
     result.second = result.first + period;
     return result;
+}
+
+//! The greatest export unix ts lower than #now according to #exportPeriod.
+ui64 GetExportUnixTsUpperBound(TInstant now, TDuration exportPeriod)
+{
+    return GetExportUnixTsRange(now.Seconds(), exportPeriod).first;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -213,7 +225,7 @@ private:
     const TLogger Logger;
 
     //! Options used for Cypress requests.
-    NApi::TTransactionalOptions Options_;
+    TTransactionalOptions Options_;
 
     //! Instant of current export task.
     TInstant TaskInstant_;
@@ -276,9 +288,6 @@ private:
     //! exported into later tables, which is perfectly fine.
     void DoRun()
     {
-        // FIXME(apachee): Remove this comment if everything is ok.
-        // TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(10));
-
         YT_LOG_INFO("Started export task");
         auto logFinally = Finally([&] {
             YT_LOG_INFO("Finished export task");
@@ -292,8 +301,8 @@ private:
             .ValueOrThrow()
             .NodeId;
 
-        // Since shared lock is taken for the export directory, only one queue agent instance will succeed in taking it,
-        // so we can take for granted that only this instance does this export.
+        // We take a shared lock with some fixed fictional attribute key (#ExporterAttributeName_),
+        // which acts as exclusive lock for this export directory across all queue agent instances.
         WaitFor(transaction->LockNode(
             ExportConfig_->ExportDirectory,
             ELockMode::Shared,
@@ -308,7 +317,7 @@ private:
             transactionId);
 
         TaskInstant_ = TInstant::Now();
-        ComputeExportUnixTsUpperBound();
+        ExportUnixTsUpperBound_ = GetExportUnixTsUpperBound(TaskInstant_, ExportConfig_->ExportPeriod);
 
         QueueObject_ = TUserObject(FromObjectId(queueObjectId), transactionId);
 
@@ -334,6 +343,7 @@ private:
             for (auto& taskPart : TaskParts_) {
                 auto taskPartError = RunTaskPart(taskPart, transaction);
                 if (!taskPartError.IsOK()) {
+                    YT_LOG_ERROR(taskPartError);
                     ExportError_ = taskPartError;
                     break;
                 }
@@ -346,13 +356,12 @@ private:
 
         int skippedTableCount = std::ssize(TaskParts_) - exportedTableCount;
 
-        if (exportedTableCount > 0) {
-            // Update last export task instant, since at least one table was created.
-            newExportProgress->LastExportTaskInstant = TaskInstant_;
-        }
+        newExportProgress->LastExportTaskInstant = TaskInstant_;
         if (skippedTableCount == 0) {
             newExportProgress->LastSuccessfulExportTaskInstant = TaskInstant_;
             newExportProgress->LastSuccessfulExportIterationInstant = TaskInstant_;
+        } else {
+            YT_VERIFY(!ExportError_.IsOK());
         }
 
         auto diff = UpdateCypressExportProgress(currentExportProgress, newExportProgress);
@@ -363,6 +372,8 @@ private:
             "Error committing main export task transaction for queue %v",
             Queue_);
 
+        QueueExportProgress_ = newExportProgress;
+
         YT_LOG_DEBUG("Finished creating exported tables (PreparedTableCount: %v, ExportedTableCount: %v, SkippedTableCount: %v)",
             TaskParts_.size(),
             exportedTableCount,
@@ -372,8 +383,6 @@ private:
         ProfilingCounters_->ExportedChunks.Increment(diff.ChunkCount);
         ProfilingCounters_->ExportedTables.Increment(exportedTableCount);
         ProfilingCounters_->SkippedTables.Increment(skippedTableCount);
-
-        QueueExportProgress_ = newExportProgress;
     }
 
     void PrepareTaskParts()
@@ -462,12 +471,6 @@ private:
         // NB: The timestamp is in range [unixTs, unixTs + 1). Since our granularity is in seconds, we can compute the
         // next export unix ts as the strict next tick for the lower bound.
         return GetExportUnixTsRange(UnixTimeFromTimestamp(timestamp), ExportConfig_->ExportPeriod).second;
-    }
-
-    void ComputeExportUnixTsUpperBound()
-    {
-        // NB: The export unix ts of the most recent export range, which can be exported into a static table now.
-        ExportUnixTsUpperBound_ = GetExportUnixTsRange(TaskInstant_.Seconds(), ExportConfig_->ExportPeriod).first;
     }
 
     static void GetAndFillBasicAttributes(
@@ -717,8 +720,12 @@ private:
         createOptions.TransactionId = taskPart.TransactionOptions.TransactionId;
         createOptions.Attributes = CreateEphemeralAttributes();
         if (ExportConfig_->ExportTtl) {
-            // XXX(apachee): Do we keep it as is or change?
-            createOptions.Attributes->Set("expiration_time", TaskInstant_ + ExportConfig_->ExportTtl);
+            // NB(apachee): We use task part export ts to calculate expiration time for easier #ExportTtl logic. This may potentially
+            // lead to exported table being deleted right away leading to some overhead for queue agent and master, but this should
+            // rarely be the case, so we ignore it at this moment.
+            // NB(apachee): For TInstant <-> Unix Time conversion clarification see the comment at the top.
+            // TODO(apachee): Implement exported table skipping mechanics to further reduce queue agent and master load.
+            createOptions.Attributes->Set("expiration_time", TInstant::Seconds(taskPart.ExportUnixTs) + ExportConfig_->ExportTtl);
         }
         WaitFor(Client_->CreateNode(taskPart.DestinationObject.GetPath(), EObjectType::Table, createOptions))
             .ThrowOnError();
@@ -960,25 +967,27 @@ TQueueExportProfilingCounters::TQueueExportProfilingCounters(const TProfiler& pr
     , ExportedTables(profiler.Counter("/exported_tables"))
     , SkippedTables(profiler.Counter("/skipped_tables"))
     , ExportTaskErrors(profiler.Counter("/export_task_errors"))
+    , TimeLag(profiler.TimeGauge("/time_lag"))
+    , TableLag(profiler.Gauge("/table_lag"))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueStaticTableExporter
-    : public virtual IQueueStaticTableExporter
+class TQueueExporter
+    : public virtual IQueueExporter
 {
 public:
-    TQueueStaticTableExporter(
+    TQueueExporter(
         TString exportName,
-        NQueueClient::TCrossClusterReference queue,
+        TCrossClusterReference queue,
         TQueueStaticExportConfigPtr exportConfig,
         TQueueExporterDynamicConfig dynamicConfig,
         TClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker,
-        IQueueStaticTableExportManagerPtr queueStaticTableExportManager,
+        IQueueExportManagerPtr queueExportManager,
         IAlertCollectorPtr alertCollector,
-        const NProfiling::TProfiler& queueProfiler,
-        const NLogging::TLogger& logger)
+        const TProfiler& queueProfiler,
+        const TLogger& logger)
         : ExportConfig_(std::move(exportConfig))
         , DynamicConfig_(std::move(dynamicConfig))
         , ExportProgress_(New<TQueueExportProgress>())
@@ -986,15 +995,15 @@ public:
         , Queue_(std::move(queue))
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , QueueStaticTableExportManager_(std::move(queueStaticTableExportManager))
+        , QueueExportManager_(std::move(queueExportManager))
         , AlertCollector_(std::move(alertCollector))
         , ProfilingCounters_(New<TQueueExportProfilingCounters>(queueProfiler.WithPrefix("/static_export").WithTag("export_name", ExportName_)))
         , Executor_(New<TPeriodicExecutor>(
                 Invoker_,
-                BIND_NO_PROPAGATE(&TQueueStaticTableExporter::Pass, MakeWeak(this)),
+                BIND_NO_PROPAGATE(&TQueueExporter::Pass, MakeWeak(this)),
                 /*interval*/ std::nullopt
             ))
-        , Logger(QueueStaticTableExporterLogger().WithTag("%v, ExportName: %v",
+        , Logger(QueueExporterLogger().WithTag("%v, ExportName: %v",
             logger.GetTag(),
             ExportName_))
     {
@@ -1044,15 +1053,15 @@ private:
     ui64 LastSuccessfulExportUnixTs_ = 0;
 
     const TString ExportName_;
-    const NQueueClient::TCrossClusterReference Queue_;
-    const NHiveClient::TClientDirectoryPtr ClientDirectory_;
+    const TCrossClusterReference Queue_;
+    const TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr Invoker_;
-    const IQueueStaticTableExportManagerPtr QueueStaticTableExportManager_;
-    const NAlertManager::IAlertCollectorPtr AlertCollector_;
+    const IQueueExportManagerPtr QueueExportManager_;
+    const IAlertCollectorPtr AlertCollector_;
     const TQueueExportProfilingCountersPtr ProfilingCounters_;
-    const NConcurrency::TPeriodicExecutorPtr Executor_;
+    const TPeriodicExecutorPtr Executor_;
 
-    const NLogging::TLogger Logger;
+    const TLogger Logger;
 
     //! Pass that is executed regularly to check whether an export can be started.
     //!
@@ -1075,7 +1084,7 @@ private:
         int exportTaskErrors = 0;
 
         try {
-            GuardedExport(exportUnixTs);
+            GuardedExport(exportConfig, exportUnixTs);
         } catch (const std::exception& ex) {
             AlertCollector_->StageAlert(CreateAlert(
                 NAlerts::EErrorCode::QueueAgentQueueControllerStaticExportFailed,
@@ -1087,19 +1096,18 @@ private:
 
         AlertCollector_->PublishAlerts();
 
-        ProfilingCounters_->ExportTaskErrors.Increment(exportTaskErrors);
+        ProfileExport(exportConfig, exportTaskErrors);
     }
 
-    void GuardedExport(ui64 exportUnixTs)
+    void GuardedExport(const TQueueStaticExportConfigPtr& exportConfig, ui64 exportUnixTs)
     {
         // NB(apachee): It is essential that we throttle before doing any requests to the master,
         // otherwise all exports would start sending requests to master without any throttling from our side.
         // TODO(apachee): Develop more sophisticated scheme for throttling exports.
-        auto throttler = QueueStaticTableExportManager_->GetExportThrottler();
+        auto throttler = QueueExportManager_->GetExportThrottler();
         WaitFor(throttler->Throttle(1))
             .ThrowOnError();
 
-        auto exportConfig = GetExportConfig();
         auto dynamicConfig = GetDynamicConfig();
 
         TQueueExportTaskPtr exportTask = New<TQueueExportTask>(
@@ -1107,13 +1115,14 @@ private:
             Invoker_,
             Queue_.Path,
             exportConfig,
-            dynamicConfig,
+            std::move(dynamicConfig),
             ProfilingCounters_,
             Logger);
 
         auto exportTaskError = WaitFor(exportTask->Run());
 
         auto newExportProgress = exportTask->GetExportProgress();
+        bool newExportProgressNonNull = static_cast<bool>(newExportProgress);
 
         {
             auto guard = Guard(Lock_);
@@ -1122,10 +1131,10 @@ private:
             }
             if (!exportTaskError.IsOK() || !exportTask->GetExportError().IsOK()) {
                 THROW_ERROR_EXCEPTION("Export task has errors")
-                        << TErrorAttribute("TaskError", exportTaskError)
-                        << TErrorAttribute("ExportError", exportTask->GetExportError());
+                        << TErrorAttribute("task_error", exportTaskError)
+                        << TErrorAttribute("export_error", exportTask->GetExportError());
             }
-            if (!newExportProgress) {
+            if (!newExportProgressNonNull) {
                 THROW_ERROR_EXCEPTION("Export task result is missing new export progress without any errors");
             }
         }
@@ -1143,6 +1152,28 @@ private:
         LastSuccessfulExportUnixTs_ = exportUnixTs;
     }
 
+    void ProfileExport(const TQueueStaticExportConfigPtr& exportConfig, int exportTaskErrors)
+    {
+        auto now = TInstant::Now();
+        auto exportUnixTsUpperBound = GetExportUnixTsUpperBound(now, exportConfig->ExportPeriod);
+
+        ui64 timeLagSeconds = 0;
+        auto exportProgress = GetExportProgress();
+        if (exportProgress->LastExportUnixTs <= exportUnixTsUpperBound) {
+            timeLagSeconds = exportUnixTsUpperBound - exportProgress->LastExportUnixTs;
+        }
+
+        // NB(apachee): Table lag is rounded up, since export period could've changed after the last successful export task.
+        auto exportPeriodSeconds = exportConfig->ExportPeriod.Seconds();
+        ui64 tableLag = (timeLagSeconds + exportPeriodSeconds - 1) / exportPeriodSeconds;
+
+        if (exportTaskErrors) {
+            ProfilingCounters_->ExportTaskErrors.Increment(exportTaskErrors);
+        }
+        ProfilingCounters_->TimeLag.Update(TDuration::Seconds(timeLagSeconds));
+        ProfilingCounters_->TableLag.Update(tableLag);
+    }
+
     TQueueStaticExportConfigPtr GetExportConfig() const
     {
         auto guard = Guard(Lock_);
@@ -1156,30 +1187,30 @@ private:
     }
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueueStaticTableExporter)
+DEFINE_REFCOUNTED_TYPE(TQueueExporter)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IQueueStaticTableExporterPtr CreateQueueStaticTableExporter(
+IQueueExporterPtr CreateQueueExporter(
     TString exportName,
-    NQueueClient::TCrossClusterReference queue,
+    TCrossClusterReference queue,
     TQueueStaticExportConfigPtr exportConfig,
     TQueueExporterDynamicConfig dynamicConfig,
     TClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker,
-    IQueueStaticTableExportManagerPtr queueStaticTableExportManager,
+    IQueueExportManagerPtr queueExportManager,
     IAlertCollectorPtr alertCollector,
-    const NProfiling::TProfiler& queueProfiler,
-    const NLogging::TLogger& logger)
+    const TProfiler& queueProfiler,
+    const TLogger& logger)
 {
-    return New<TQueueStaticTableExporter>(
+    return New<TQueueExporter>(
         std::move(exportName),
         std::move(queue),
         std::move(exportConfig),
         std::move(dynamicConfig),
         std::move(clientDirectory),
         std::move(invoker),
-        std::move(queueStaticTableExportManager),
+        std::move(queueExportManager),
         std::move(alertCollector),
         queueProfiler,
         logger);

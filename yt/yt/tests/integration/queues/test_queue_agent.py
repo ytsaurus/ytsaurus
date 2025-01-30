@@ -10,7 +10,7 @@ from yt_commands import (authors, commit_transaction, get, get_batch_output, get
                          sync_unfreeze_table, advance_consumer, sync_flush_table, sync_create_cells, lock,
                          execute_batch, make_batch_request, abort_transaction)
 
-from yt.common import YtError, update_inplace
+from yt.common import YtError, update, update_inplace
 
 import builtins
 import copy
@@ -3193,7 +3193,13 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self.remove_export_destination(export_dir)
 
     @authors("apachee")
-    def test_export_retries(self):
+    @pytest.mark.parametrize("should_export_second_table", [
+        False,
+        True,
+    ])
+    def test_export_retries(self, should_export_second_table):
+        queue_agent_orchid = QueueAgentOrchid()
+
         _, queue_id = self._create_queue("//tmp/q")
 
         export_dir = "//tmp/export"
@@ -3213,13 +3219,35 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         insert_rows("//tmp/q", [{"data": "sample"}] * 2)
         self._flush_table("//tmp/q")
 
+        self._sleep_until_next_export_instant(export_period_seconds, offset=1.5)
         self._sleep_until_next_export_instant(export_period_seconds)
-        time.sleep(export_period_seconds)
 
-        # XXX(apachee): Is it really enough to check that retry is scheduled way before the next export iteration?
+        alerts = queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts()
+        alerts.assert_matching(
+            "queue_agent_queue_controller_static_export_failed",
+            text="Cannot take lock for attribute \"queue_static_exporter\" of node //tmp/export since this attribute is locked by concurrent transaction",
+            attributes={"export_name": "default"}
+        )
+
         assert len(ls(export_dir)) == 0
+
+        if should_export_second_table:
+            insert_rows("//tmp/q", [{"data": "second sample"}] * 2)
+            self._flush_table("//tmp/q")
+
+        self._sleep_until_next_export_instant(export_period_seconds)
         abort_transaction(tx)
-        wait(lambda: len(ls(export_dir)) == 1)
+        expected_table_count = 2 if should_export_second_table else 1
+
+        def check_table_count(actual_table_count):
+            assert expected_table_count > 0
+            if actual_table_count == 0:
+                return False
+            elif actual_table_count == expected_table_count:
+                return True
+            raise Exception("Tables were created separately")
+
+        wait(lambda: check_table_count(len(ls(export_dir))))
 
         self.remove_export_destination(export_dir)
 
@@ -3515,7 +3543,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             "default": {
                 "export_directory": export_dir,
                 "export_period": export_period_seconds * 1000,
-                "output_table_name_pattern": "%ISO-period-is-%PERIOD-fmt-%Y.%d.%m.%H.%M.%S",
+                "output_table_name_pattern": "%ISO-period-is-%PERIOD-fmt-%Y.%m.%d.%H.%M.%S",
                 "use_upper_bound_for_table_names": use_upper_bound_for_table_names,
             }
         })
@@ -3523,8 +3551,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         wait(lambda: len(ls(export_dir)) == 1)
         output_table_name = ls(export_dir)[0]
 
-        def fmt_time(dt):
-            return f"{dt.isoformat(timespec='seconds')}Z-period-is-3-fmt-{dt.strftime('%Y.%d.%m.%H.%M.%S')}"
+        def fmt_time(dt: datetime.datetime):
+            return f"{dt.strftime("%Y-%m-%dT%H:%M:%SZ")}-period-is-3-fmt-{dt.strftime('%Y.%m.%d.%H.%M.%S')}"
 
         if not use_upper_bound_for_table_names:
             # NB(apachee): It might be possible that export will happen right away, and if
@@ -3532,7 +3560,9 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             # then in the worst case the resulting timestamp will be lower by #export_period_seconds than #start.
             start -= datetime.timedelta(seconds=export_period_seconds)
 
-        assert fmt_time(start) <= output_table_name <= fmt_time(end)
+        print_debug(f"start = {fmt_time(start)}, actual_name = {output_table_name}, end = {fmt_time(end)}")
+        assert fmt_time(start) <= output_table_name
+        assert output_table_name <= fmt_time(end)
 
         self.remove_export_destination(export_dir)
 
@@ -3594,6 +3624,40 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self.remove_export_destination(export_dir)
 
     @authors("apachee")
+    def test_export_ttl_for_old_data(self):
+        _, queue_id = self._create_queue("//tmp/q")
+
+        export_dir = "//tmp/export"
+        self._create_export_destination(export_dir, queue_id)
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 3)
+        self._flush_table("//tmp/q")
+
+        self._sleep_until_next_export_instant(period=3)
+        time.sleep(6)
+
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 3 * 1000,
+                "export_ttl":  6 * 1000,
+            }
+        })
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "bar"}] * 2)
+        self._flush_table("//tmp/q")
+
+        chunk_id = get("//tmp/q/@chunk_ids")[-1]
+        wait(lambda: exists(f"{export_dir}/@queue_static_export_progress") and get(f"{export_dir}/@queue_static_export_progress/tablets/0/last_chunk") == chunk_id)
+
+        # Sleep for 1 second just in case (to make sure first exported table is deleted by ttl)
+        time.sleep(1)
+
+        self._check_export(export_dir, [["bar"] * 2], expected_removed_rows=3)
+
+        self.remove_export_destination(export_dir)
+
+    @authors("apachee")
     def test_export_with_no_data(self):
         """
         queue_static_export_progress.last_successful_export_task_instant should be updated every time queue_agent tries to
@@ -3613,7 +3677,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             },
         })
 
-        # COMPAT(apachee): We check "last_successful_export_iteration_instant" until third parties rely on this field.
+        # COMPAT(apachee): We check "last_successful_export_iteration_instant" until third parties stop relying on this field.
 
         # Writing something so that all attributes are properly set by at least one iteration.
         insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}])
@@ -3627,6 +3691,7 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         assert last_export_task_instant == last_successful_export_task_instant
 
         previous_exported_task_instant = last_export_task_instant
+        previous_successful_exported_task_instant = last_export_task_instant
 
         time.sleep(10)
 
@@ -3635,8 +3700,9 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         last_successful_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_task_instant"])
         assert last_successful_export_task_instant == datetime.datetime.fromisoformat(export_progress["last_successful_export_iteration_instant"])  # Compat.
 
-        assert last_export_task_instant == previous_exported_task_instant
-        assert last_export_task_instant < last_successful_export_task_instant
+        assert last_export_task_instant > previous_exported_task_instant
+        assert last_successful_export_task_instant > previous_successful_exported_task_instant
+        assert last_export_task_instant == last_successful_export_task_instant
 
         # 2-second exports, comparing to 3 to account for edge-cases.
         # time.sleep(10) above should be enough to check the required behavior.
@@ -3725,6 +3791,261 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self._check_export(export_dir, expected_data)
 
         self.remove_export_destination(export_dir)
+
+    @authors("apachee")
+    def test_partially_succeeded_export_tasks(self):
+        queue_agent_orchid = QueueAgentOrchid()
+
+        queue_path = "//tmp/q"
+        _, queue_id = self._create_queue(queue_path)
+
+        export_dir = "//tmp/export"
+
+        self._create_export_destination(export_dir, queue_id, account="export")
+
+        num_exports = 3
+        export_period_seconds = 1
+        for _ in range(num_exports):
+            insert_rows(queue_path, [{"data": "test"}])
+            self._flush_table(queue_path)
+            time.sleep(export_period_seconds + 0.5)
+
+        chunk_ids = get("//tmp/q/@chunk_ids")
+        export_unix_tses = [get(f"#{chunk_id}/@max_timestamp") >> 30 for chunk_id in chunk_ids]
+        assert len(export_unix_tses) == num_exports, "Test setup invariant failed: expected 3 chunks"
+
+        print_debug(f"{export_unix_tses=}")
+
+        export_output_table_name_pattern = "%UNIX_TS-%PERIOD"
+
+        # Stop export task from succeeding by creating dummy documents with the same name
+        exported_table_names = []
+        for export_unix_ts in export_unix_tses:
+            exported_table_name = export_output_table_name_pattern.replace("%UNIX_TS", str(export_unix_ts)).replace("%PERIOD", str(export_period_seconds))
+            exported_table_names.append(exported_table_name)
+            create("document", f"{export_dir}/{exported_table_name}")
+
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": export_period_seconds * 1000,
+                "output_table_name_pattern": export_output_table_name_pattern,
+            },
+        })
+
+        wait(lambda: queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts().check_matching(
+            "queue_agent_queue_controller_static_export_failed",
+            text=f"Node //tmp/export/{exported_table_names[0]} already exist",
+            attributes={"export_name": "default"}
+        ), timeout=5, ignore_exceptions=True)
+
+        export_progress = get("//tmp/export/@queue_static_export_progress")
+        export_task_instant = datetime.datetime.fromisoformat(export_progress["last_export_task_instant"])
+        last_successful_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_task_instant"])
+
+        def assert_exported_table_count(count):
+            assert len(ls(export_dir)) == len(exported_table_names)
+            assert count == sum((get(f"{export_dir}/{exported_table_name}/@type") == "table" for exported_table_name in exported_table_names), start=0)
+
+        assert_exported_table_count(0)
+
+        remove(f"{export_dir}/{exported_table_names[0]}")
+
+        wait(lambda: queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts().check_matching(
+            "queue_agent_queue_controller_static_export_failed",
+            text=f"Node //tmp/export/{exported_table_names[1]} already exist",
+            attributes={"export_name": "default"}
+        ), timeout=5, ignore_exceptions=True)
+
+        export_progress = get("//tmp/export/@queue_static_export_progress")
+        new_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_export_task_instant"])
+        new_last_successful_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_task_instant"])
+
+        assert new_export_task_instant > export_task_instant
+        export_task_instant = new_export_task_instant
+        assert new_last_successful_export_task_instant == last_successful_export_task_instant
+
+        assert_exported_table_count(1)
+
+        # Remove first table to check it is not re-exported
+        remove(f"{export_dir}/{exported_table_names[0]}")
+        exported_table_names = exported_table_names[1:]
+
+        # Remove in reverse order so that both tables are exported in single export task
+        remove(f"{export_dir}/{exported_table_names[1]}")
+        remove(f"{export_dir}/{exported_table_names[0]}")
+
+        wait(lambda: len(queue_agent_orchid.get_queue_orchid("primary://tmp/q").get_alerts()) == 0, timeout=5)
+
+        export_progress = get("//tmp/export/@queue_static_export_progress")
+        new_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_export_task_instant"])
+        new_last_successful_export_task_instant = datetime.datetime.fromisoformat(export_progress["last_successful_export_task_instant"])
+
+        assert new_export_task_instant > export_task_instant
+        assert new_last_successful_export_task_instant > last_successful_export_task_instant
+        last_successful_export_task_instant = new_last_successful_export_task_instant
+
+        assert (datetime.datetime.now(pytz.UTC) - last_successful_export_task_instant).seconds <= 2
+
+        # At this point there should be 2 exported tables from exported_table_names and nothing else in the export directory
+        assert len(exported_table_names) == 2
+        assert_exported_table_count(2)
+
+        self.remove_export_destination(export_dir)
+
+
+class TestQueueExportTaskConfig(TestQueueStaticExportBase):
+    ENABLE_MULTIDAEMON = True
+
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = update(TestQueueStaticExportBase.DELTA_QUEUE_AGENT_DYNAMIC_CONFIG, {
+        "queue_agent": {
+            "controller": {
+                "queue_exporter": {
+                    "pass_period": 100_000,  # 100 seconds
+                },
+            },
+        },
+    })
+
+    @authors("apachee")
+    @pytest.mark.parametrize("max_exported_table_count_per_task", [1, 2, 3])
+    def test_max_exported_table_count_per_task(self, max_exported_table_count_per_task):
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "queue_exporter": {
+                        "max_exported_table_count_per_task": max_exported_table_count_per_task,
+                    },
+                },
+            },
+        })
+
+        queue_path = "//tmp/q"
+        _, queue_id = self._create_queue(queue_path)
+
+        # To make sure test don't interfere with one another
+        self._wait_for_global_sync()
+
+        export_dir = "//tmp/export"
+
+        self._create_export_destination(export_dir, queue_id)
+
+        num_exports = max_exported_table_count_per_task + 1
+        export_period_seconds = 1
+        for _ in range(num_exports):
+            insert_rows(queue_path, [{"data": "test"}])
+            self._flush_table(queue_path)
+            time.sleep(export_period_seconds + 0.5)
+
+        chunk_ids = get("//tmp/q/@chunk_ids")
+        assert len(chunk_ids) == num_exports
+
+        # We rely on the fact exporter periodic executor starts right away
+
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": export_period_seconds * 1000,
+            },
+        })
+
+        def check_exported_table_count():
+            exported_table_count = len(ls(export_dir))
+            if exported_table_count == 0:
+                return False
+            if exported_table_count == max_exported_table_count_per_task:
+                return True
+            assert False
+
+        wait(lambda: check_exported_table_count())
+
+        self.remove_export_destination(export_dir)
+
+
+class TestQueueExportManager(TestQueueStaticExportBase):
+    ENABLE_MULTIDAEMON = True
+
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = update(TestQueueStaticExportBase.DELTA_QUEUE_AGENT_DYNAMIC_CONFIG, {
+        "queue_agent": {
+            "controller": {
+                "queue_exporter": {
+                    "max_exported_table_count_per_task": 1,
+                },
+            },
+        },
+    })
+
+    @authors("apachee")
+    @pytest.mark.parametrize("export_rate_limit", [5, 10, 20])
+    @pytest.mark.timeout(150)
+    def test_export_rate_limit(self, export_rate_limit):
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "queue_export_manager": {
+                    "export_rate_limit": float(export_rate_limit),
+                },
+            },
+        })
+
+        num_exports = 5
+        num_queues = 20
+        export_period_seconds = 1
+
+        queue_paths = [f"//tmp/q_{i}" for i in range(num_queues)]
+        export_dirs = [f"//tmp/export_{i}" for i in range(num_queues)]
+
+        queue_ids = [self._create_queue(queue_path)[1] for queue_path in queue_paths]
+        for queue_id, export_dir in zip(queue_ids, export_dirs):
+            self._create_export_destination(export_dir, queue_id)
+
+        start_insertion = time.time()
+
+        for _ in range(num_exports):
+            for queue_path in queue_paths:
+                insert_rows(queue_path, [{"data": "test"}])
+            self._flush_tables(queue_paths)
+            time.sleep(export_period_seconds + 0.5)
+
+        finish_insertion = time.time()
+
+        print_debug(f"row insertion took {finish_insertion - start_insertion} seconds")
+
+        tx = start_transaction()
+        for export_dir in export_dirs:
+            lock(export_dir, mode="shared", tx=tx, attribute_key="queue_static_exporter")
+
+        for queue_path, export_dir in zip(queue_paths, export_dirs):
+            assert len(get(f"{queue_path}/@chunk_ids")) == num_exports
+            set(f"{queue_path}/@static_export_config", {
+                "default": {
+                    "export_directory": export_dir,
+                    "export_period": export_period_seconds * 1000,
+                },
+            })
+
+        self._wait_for_global_sync()
+        abort_transaction(tx)
+
+        start = time.time()
+
+        def check_exported_table_count(expected):
+            result = sum(len(ls(export_dir)) for export_dir in export_dirs)
+            print_debug(f"exported table count {result}, expected = {expected}")
+            return result == expected
+
+        wait(lambda: check_exported_table_count(num_queues * num_exports))
+
+        finish = time.time()
+        elapsed = finish - start
+
+        expected_time_per_task = (1 / export_rate_limit)
+        expected_time_elapsed = num_exports * num_queues * expected_time_per_task
+        expected_relative_error = 0.25
+        print_debug(f"{elapsed=}, {expected_time_elapsed=}, {expected_relative_error=}")
+
+        assert 1 - expected_relative_error <= elapsed / expected_time_elapsed <= 1 + expected_relative_error
+
+        self.remove_export_destinations(export_dirs)
 
 
 @pytest.mark.enabled_multidaemon

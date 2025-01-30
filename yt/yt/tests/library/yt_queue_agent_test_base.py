@@ -2,7 +2,7 @@ from operator import itemgetter
 from yt_env_setup import YTEnvSetup
 from yt_chaos_test_base import ChaosTestBase
 
-from yt_commands import (get, read_table, set, ls, wait, create, remove, sync_mount_table, sync_create_cells, exists,
+from yt_commands import (freeze_table, get, read_table, set, ls, unfreeze_table, wait, create, remove, sync_mount_table, sync_create_cells, exists,
                          select_rows, sync_reshard_table, print_debug, get_driver, register_queue_consumer,
                          sync_freeze_table, sync_unfreeze_table, create_table_replica, sync_enable_table_replica,
                          advance_consumer, insert_rows, wait_for_tablet_state)
@@ -92,6 +92,24 @@ class ObjectAlertHelper:
     def __init__(self, alerts):
         self.alerts = alerts
 
+    def check_matching(self, category, text=None, attributes=None):
+        if category not in self.alerts:
+            raise Exception(f"Could not match alert category {category} against collected alerts {list(self.alerts.keys())}")
+
+        errors = self.alerts[category]["inner_errors"]
+
+        text = text or ""
+        attributes = attributes or dict()
+
+        def is_matching_error(error):
+            print_debug(str(error), text in str(error), update(error["attributes"], attributes), error["attributes"])
+            return text in str(error) and update(error["attributes"], attributes) == error["attributes"]
+
+        if not any(map(is_matching_error, errors)):
+            raise Exception(f"Could not find matching error in category {category} with substring \"{text}\" and attributes {attributes} in {errors}")
+
+        return True
+
     def assert_matching(self, category, text=None, attributes=None):
         assert category in self.alerts, f"Could not match alert category {category} against collected alerts {list(self.alerts.keys())}"
 
@@ -108,6 +126,9 @@ class ObjectAlertHelper:
 
     def get_alert_count(self):
         return sum(map(lambda alert: len(alert["inner_errors"]), self.alerts.values()))
+
+    def __len__(self):
+        return len(self.alerts)
 
     def __str__(self):
         return str(self.alerts)
@@ -285,8 +306,41 @@ class QueueStaticExportHelpers:
         assert not exists(export_directory, driver=kwargs.pop("driver", None))
 
     @staticmethod
+    def remove_export_destinations(export_directories, **kwargs):
+        is_removed_list = [False] * len(export_directories)
+
+        def try_remove():
+            last_exception = None
+            for i, is_removed in enumerate(is_removed_list):
+                if is_removed:
+                    continue
+                try:
+                    remove(export_directories[i], **kwargs)
+                    is_removed_list[i] = True
+                except Exception as ex:
+                    last_exception = ex
+
+            if all(is_removed_list):
+                return True
+            raise last_exception
+
+        wait(try_remove, ignore_exceptions=True)
+        assert all(not exists(export_directory, driver=kwargs.pop("driver", None)) for export_directory in export_directories)
+
+    @staticmethod
     # NB: The last two options should be used carefully: currently they strictly check that all timestamps are within [ts - period, ts], which might not generally be the case.
-    def _check_export(export_directory, expected_data, queue_path=None, use_upper_bound_for_table_names=False, check_lower_bound=False, last_export_unix_ts_field_name="last_export_unix_ts", **kwargs):
+    def _check_export(
+        export_directory,
+        expected_data,
+        queue_path=None,
+        use_upper_bound_for_table_names=False,
+        check_lower_bound=False,
+        last_export_unix_ts_field_name="last_export_unix_ts",
+        expected_removed_rows=None,
+        **kwargs
+    ):
+        expected_removed_rows = expected_removed_rows or 0
+
         exported_tables = [name for name in sorted(ls(export_directory, **kwargs)) if f"{export_directory}/{name}" != queue_path]
         assert len(exported_tables) == len(expected_data)
 
@@ -340,7 +394,8 @@ class QueueStaticExportHelpers:
             total_row_count += len(rows)
 
         assert max(map(itemgetter("max_timestamp"), export_progress["tablets"].values())) == max_timestamp
-        assert sum(map(itemgetter("row_count"), export_progress["tablets"].values())) == total_row_count
+        assert sum(map(itemgetter("row_count"), export_progress["tablets"].values())) == total_row_count + expected_removed_rows, \
+            f"{list(map(itemgetter("row_count"), export_progress["tablets"].values()))=}, {total_row_count=}"
 
     # Sleeps until next instant which is at the specified offset (in seconds) in the specified periodic cycle.
     def _sleep_until_next_export_instant(self, period, offset=0.0):
@@ -380,9 +435,9 @@ class TestQueueAgentBase(YTEnvSetup):
                     "max_export_count_per_iteration": 10,
                 }
             },
-        },
-        "queue_static_table_export_manager": {
-            "export_rate_limit": 100,
+            "queue_export_manager": {
+                "export_rate_limit": 100.0,
+            },
         },
         "cypress_synchronizer": {
             # List of clusters for the watching policy.
@@ -394,6 +449,20 @@ class TestQueueAgentBase(YTEnvSetup):
     INSTANCES = None
 
     DO_PREPARE_TABLES_ON_SETUP = True
+
+    @classmethod
+    def _calculate_diff(cls, obj1, obj2):
+        if isinstance(obj1, dict) and isinstance(obj2, dict):
+            keys = builtins.set(obj1.keys()) | builtins.set(obj2.keys())
+            result_l = {}
+            result_r = {}
+            for key in keys:
+                diff_l, diff_r = cls._calculate_diff(obj1.get(key, None), obj2.get(key, None))
+                if diff_l != diff_r:
+                    result_l[key] = diff_l
+                    result_r[key] = diff_r
+            return result_l, result_r
+        return obj1, obj2
 
     @classmethod
     def modify_queue_agent_config(cls, config):
@@ -468,10 +537,10 @@ class TestQueueAgentBase(YTEnvSetup):
                     "{}/instances/{}/orchid/dynamic_config_manager/effective_config".format(cls.root_path, instance))
                 effective_config = update(cypress_config_base, effective_config)
                 if update(effective_config, config) != effective_config:
-                    return False
+                    raise Exception(f"diff = {cls._calculate_diff(update(effective_config, config), effective_config)}")
             return True
 
-        wait(config_updated_on_all_instances)
+        wait(config_updated_on_all_instances, ignore_exceptions=True)
 
     def _prepare_tables(self, queue_table_schema=None, consumer_table_schema=None, **kwargs):
         assert queue_table_schema is None and consumer_table_schema is None, \
@@ -548,6 +617,17 @@ class TestQueueAgentBase(YTEnvSetup):
     def _flush_table(path, first_tablet_index=None, last_tablet_index=None):
         sync_freeze_table(path, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
         sync_unfreeze_table(path, first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index)
+
+    @staticmethod
+    def _flush_tables(paths):
+        def do_for_all_paths(f):
+            for path in paths:
+                f(path)
+
+        do_for_all_paths(freeze_table)
+        do_for_all_paths(lambda path: wait_for_tablet_state(path, "frozen"))
+        do_for_all_paths(unfreeze_table)
+        do_for_all_paths(lambda path: wait_for_tablet_state(path, "mounted"))
 
     @staticmethod
     def _wait_for_row_count(path, tablet_index, count):
