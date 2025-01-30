@@ -1447,7 +1447,7 @@ public:
 
 public:
     TBuilderCtx(
-        const TString& source,
+        TStringBuf source,
         const TConstTypeInferrerMapPtr& functions,
         const NAst::TAliasMap& aliasMap,
         const TTableSchema& schema,
@@ -3045,7 +3045,7 @@ THashMap<TString, TString> ConvertYsonPlaceholdersToQueryLiterals(TYsonStringBuf
 }
 
 NAst::TAstHead ParseQueryString(
-    const TString& source,
+    TStringBuf source,
     NAst::TParser::token::yytokentype strayToken,
     TYsonStringBuf placeholderValues = {},
     int syntaxVersion = 1)
@@ -3093,13 +3093,13 @@ void DefaultFetchFunctions(TRange<TString> /*names*/, const TTypeInferrerMapPtr&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TParsedSource::TParsedSource(const TString& source, NAst::TAstHead astHead)
+TParsedSource::TParsedSource(TStringBuf source, NAst::TAstHead astHead)
     : Source(source)
     , AstHead(std::move(astHead))
 { }
 
 std::unique_ptr<TParsedSource> ParseSource(
-    const TString& source,
+    TStringBuf source,
     EParseMode mode,
     TYsonStringBuf placeholderValues,
     int syntaxVersion)
@@ -3444,7 +3444,7 @@ TJoinClausePtr BuildArrayJoinClause(
 
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
-    const TString& source,
+    TStringBuf source,
     TYsonStringBuf placeholderValues,
     int syntaxVersion,
     IMemoryUsageTrackerPtr memoryTracker)
@@ -3646,7 +3646,7 @@ TPlanFragmentPtr PreparePlanFragment(
 }
 
 TQueryPtr PrepareJobQuery(
-    const TString& source,
+    TStringBuf source,
     const TTableSchemaPtr& tableSchema,
     const TFunctionsFetcher& functionsFetcher)
 {
@@ -3691,7 +3691,7 @@ TQueryPtr PrepareJobQuery(
 }
 
 TConstExpressionPtr PrepareExpression(
-    const TString& source,
+    TStringBuf source,
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions,
     THashSet<std::string>* references)

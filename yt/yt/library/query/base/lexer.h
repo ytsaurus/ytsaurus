@@ -12,7 +12,7 @@ class TBaseLexer
 {
 public:
     TBaseLexer(
-        const TString& source,
+        TStringBuf source,
         TParser::token_type strayToken,
         int syntaxVersion);
 
@@ -53,7 +53,7 @@ class TLexer
 {
 public:
     TLexer(
-        const TString& source,
+        TStringBuf source,
         TParser::token_type strayToken,
         THashMap<TString, TString> placeholderValues,
         int syntaxVersion);
