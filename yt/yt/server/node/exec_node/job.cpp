@@ -1770,7 +1770,7 @@ void TJob::DoInterrupt(
     }
 }
 
-void TJob::Fail(std::optional<TError> error)
+void TJob::Fail(TError error)
 {
     YT_LOG_INFO("Fail job (Error: %v)", error);
 
@@ -1781,28 +1781,25 @@ void TJob::Fail(std::optional<TError> error)
     }
 }
 
-void TJob::DoFail(std::optional<TError> error)
+void TJob::DoFail(TError error)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
     if (JobPhase_ != EJobPhase::Running) {
-        if (!error) {
-            error = TError("Failing job that is not running");
-        }
+        error = TError("Failing job that is not running") << std::move(error);
 
-        Terminate(EJobState::Failed, std::move(*error));
+        Terminate(EJobState::Failed, std::move(error));
 
         return;
     }
 
     try {
-        GetJobProbeOrThrow()->Fail();
+        GetJobProbeOrThrow()->Fail(error);
     } catch (const std::exception& ex) {
         auto abortionError = TError("Error failing job on job proxy")
-            << ex;
-        if (error) {
-            abortionError = abortionError << *error;
-        }
+            << ex
+            << std::move(error);
+
         Abort(std::move(abortionError));
     }
 }

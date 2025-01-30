@@ -268,10 +268,10 @@ void TJobProxy::GracefulAbort(TError error)
     job->GracefulAbort(std::move(error));
 }
 
-void TJobProxy::Fail()
+void TJobProxy::Fail(TError error)
 {
     auto job = GetJobOrThrow();
-    job->Fail();
+    job->Fail(std::move(error));
 }
 
 TSharedRef TJobProxy::DumpSensors()
