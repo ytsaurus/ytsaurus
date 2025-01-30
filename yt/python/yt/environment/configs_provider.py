@@ -1703,6 +1703,7 @@ def _build_cluster_connection_config(yt_config,
             "is_client_mode_active" : True,
         },
         "upload_transaction_timeout": 5000,
+        #"networks": ["exec-nodes-network", "default"],
     }
 
     if len(cypress_proxy_rpc_ports) > 0:
