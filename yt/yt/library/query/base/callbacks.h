@@ -24,13 +24,11 @@ struct IExecutor
     : public virtual TRefCounted
 {
     virtual TQueryStatistics Execute(
-        TConstQueryPtr query,
-        TConstExternalCGInfoPtr externalCGInfo,
-        TDataSource dataSource,
-        IUnversionedRowsetWriterPtr writer,
+        const TPlanFragment& planFragment,
+        const TConstExternalCGInfoPtr& externalCGInfo,
+        const IUnversionedRowsetWriterPtr& writer,
         const TQueryOptions& options,
         const TFeatureFlags& requestFeatureFlags) = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IExecutor)

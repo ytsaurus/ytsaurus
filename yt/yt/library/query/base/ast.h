@@ -482,9 +482,11 @@ struct TArrayJoin
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(TQueryAstHead);
+
 struct TQuery
 {
-    TTableDescriptor Table;
+    std::variant<TTableDescriptor, TQueryAstHeadPtr> FromClause;
     std::optional<TTableDescriptor> WithIndex;
     std::vector<std::variant<TJoin, TArrayJoin>> Joins;
 
@@ -513,6 +515,17 @@ struct TAstHead
     std::variant<TQuery, TExpressionPtr> Ast;
     TAliasMap AliasMap;
 };
+
+struct TQueryAstHead
+    : public TObjectsHolder
+    , public TRefCounted
+{
+    TQuery Ast;
+    TAliasMap AliasMap;
+    std::optional<TString> Alias;
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueryAstHead);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -18,7 +18,7 @@ TEST(TQueryOptimizerTest, OptimizeJoin)
     select.push_back(objectsHolder.New<TReferenceExpression>(NQueryClient::TSourceLocation(), "meta.id", "p"));
     select.push_back(objectsHolder.New<TReferenceExpression>(NQueryClient::TSourceLocation(), "book_id", "i"));
 
-    query.Table = TTableDescriptor("//index", "i");
+    query.FromClause = TTableDescriptor("//index", "i");
     query.Joins.push_back(TJoin(
         false,
         TTableDescriptor("//books", "p"),
@@ -82,7 +82,7 @@ TEST(TQueryOptimizerTest, DoesNotOptimizeJoin)
     select.push_back(objectsHolder.New<TReferenceExpression>(NQueryClient::TSourceLocation(), "meta.id", "p"));
     select.push_back(objectsHolder.New<TReferenceExpression>(NQueryClient::TSourceLocation(), "book_id", "i"));
 
-    query.Table = TTableDescriptor("//index", "i");
+    query.FromClause = TTableDescriptor("//index", "i");
     query.Joins.push_back(TJoin(
         false,
         TTableDescriptor("//books", "p"),
@@ -116,7 +116,7 @@ TEST(TQueryOptimizerTest, OptimizeWhenUsingSelectExpressionInOrderBy)
             objectsHolder.New<TReferenceExpression>(NQueryClient::TSourceLocation(), "meta.id", "p"),
             "meta_id"));
 
-    query.Table = TTableDescriptor("//index", "i");
+    query.FromClause = TTableDescriptor("//index", "i");
     query.Joins.push_back(TJoin(
         false,
         TTableDescriptor("//books", "p"),

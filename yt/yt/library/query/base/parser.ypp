@@ -14,12 +14,15 @@
 
 %parse-param {TLexer& lexer}
 %parse-param {TAstHead* head}
+%parse-param {std::stack<TAliasMap> aliasMapStack}
 %parse-param {const TString& source}
 
 %code requires {
     #pragma GCC diagnostic ignored "-Wimplicit-fallthrough"
 
     #include <yt/yt/library/query/base/ast.h>
+
+    #include <stack>
 
     namespace NYT::NQueryClient::NAst {
 
@@ -152,8 +155,10 @@
 %token OpGreater 62 "`>`"
 %token OpGreaterOrEqual "`>=`"
 
+
+%type <TQuery> full-query
 %type <TNullableExpressionList> select-clause
-%type <TTableDescriptor> from-clause
+%type <std::variant<TTableDescriptor, TQueryAstHeadPtr>> from-clause
 %type <std::optional<TTableDescriptor>> with-index-clause
 %type <std::vector<std::variant<TJoin, TArrayJoin>>> join-clause
 %type <TNullableExpressionList> where-clause
@@ -163,6 +168,7 @@
 %type <std::optional<i64>> limit-clause
 
 %type <TTableDescriptor> table-descriptor
+%type <std::optional<TString>> optional-alias
 
 %type <bool> is-desc
 %type <bool> is-left
@@ -225,8 +231,14 @@ head
 ;
 
 parse-query
-    :
-        select-clause[select]
+    : optional-select-keyword full-query[query]
+        {
+            head->Ast = std::move($query);
+        }
+;
+
+full-query
+    : select-clause[select]
         from-clause[from]
         with-index-clause[withIndex]
         join-clause[joins]
@@ -236,8 +248,8 @@ parse-query
         offset-clause[offset]
         limit-clause[limit]
         {
-            head->Ast = TQuery{
-                .Table = std::move($from),
+            $$ = TQuery{
+                .FromClause = std::move($from),
                 .WithIndex = std::move($withIndex),
                 .Joins = std::move($joins),
 
@@ -277,11 +289,11 @@ parse-expression
 ;
 
 select-clause
-    : optional-select-keyword comma-expr[projections]
+    : comma-expr[projections]
         {
             $$ = std::move($projections);
         }
-    | optional-select-keyword Asterisk
+    | Asterisk
         {
             $$ = std::nullopt;
         }
@@ -292,18 +304,22 @@ optional-select-keyword
     |
 ;
 
+optional-alias
+    : KwAs Identifier[alias]
+        {
+            $$ = std::move($alias);
+        }
+    | Identifier[alias]
+        {
+            $$ = std::move($alias);
+        }
+    | { }
+;
+
 table-descriptor
-    : Identifier[path] Identifier[alias]
+    : Identifier[path] optional-alias[alias]
         {
-            $$ = TTableDescriptor($path, $alias);
-        }
-    | Identifier[path] KwAs Identifier[alias]
-        {
-            $$ = TTableDescriptor($path, $alias);
-        }
-    | Identifier[path]
-        {
-            $$ = TTableDescriptor($path);
+            $$ = TTableDescriptor(std::move($path), std::move($alias));
         }
 ;
 
@@ -311,6 +327,20 @@ from-clause
     : KwFrom table-descriptor[table]
         {
             $$ = std::move($table);
+        }
+    | KwFrom LeftParenthesis
+        {
+            aliasMapStack.push(std::move(head->AliasMap));
+        }
+        KwSelect full-query[query] RightParenthesis optional-alias[alias]
+        {
+            auto subqueryHead = New<TQueryAstHead>();
+            subqueryHead->Ast = std::move($query);
+            subqueryHead->AliasMap = std::move(head->AliasMap);
+            subqueryHead->Alias = std::move($alias);
+            $$ = std::move(subqueryHead);
+            head->AliasMap = std::move(aliasMapStack.top());
+            aliasMapStack.pop();
         }
 ;
 
