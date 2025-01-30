@@ -562,8 +562,7 @@ protected:
     void BuildElementMapping(TFairSharePostUpdateContext* context) override;
 
     // Used to implement GetWeight.
-    virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const = 0;
-    virtual TDuration GetHistoricUsageAggregatorPeriod() const = 0;
+    virtual std::optional<TDuration> GetMaybeHistoricUsageAggregatorPeriod() const = 0;
 
 private:
     friend class TSchedulerElement;
@@ -726,8 +725,7 @@ protected:
 private:
     TPoolConfigPtr Config_;
 
-    bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
-    TDuration GetHistoricUsageAggregatorPeriod() const override;
+    std::optional<TDuration> GetMaybeHistoricUsageAggregatorPeriod() const override;
 
     std::optional<double> GetSpecifiedWeight() const override;
 
@@ -1079,8 +1077,7 @@ private:
 
     TJobResourcesConfigPtr GetSpecifiedResourceLimitsConfig() const override;
 
-    bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
-    TDuration GetHistoricUsageAggregatorPeriod() const override;
+    std::optional<TDuration> GetMaybeHistoricUsageAggregatorPeriod() const override;
 
     bool CanAcceptFreeVolume() const override;
     bool ShouldDistributeFreeVolumeAmongChildren() const override;

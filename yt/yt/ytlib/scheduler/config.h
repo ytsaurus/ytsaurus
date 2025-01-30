@@ -279,8 +279,6 @@ public:
     std::optional<TEphemeralSubpoolConfigPtr> EphemeralSubpoolConfig;
 
     std::optional<TDuration> HistoricUsageAggregationPeriod;
-    // COMPAT(arkady-e1ppa)
-    bool InferChildrenWeightsFromHistoricUsage;
 
     THashSet<TString> AllowedProfilingTags;
 

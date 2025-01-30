@@ -260,7 +260,6 @@
     XX(IndexTo, index_to) \
     XX(IndexTableId, index_table_id) \
     XX(IndexTablePath, index_table_path) \
-    XX(InferChildrenWeightsFromHistoricUsage, infer_children_weights_from_historic_usage) \
     XX(InheritAcl, inherit_acl) \
     XX(IntegralGuarantees, integral_guarantees) \
     XX(IOStatistics, io_statistics) \
