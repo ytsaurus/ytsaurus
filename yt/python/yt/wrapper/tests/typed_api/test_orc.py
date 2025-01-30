@@ -89,7 +89,7 @@ class TestOrc(object):
             client = yt.YtClient(config=yt.config.config)
 
             client.config["write_retries"]["chunk_size"] = 500
-            client.config["arrow_options"]["write_arrow_batch_size"] = 10
+            client.config["upload_table_options"]["write_arrow_batch_size"] = 10
 
             filename = temp_file.name
             input_table = "//tmp/dump_orc"

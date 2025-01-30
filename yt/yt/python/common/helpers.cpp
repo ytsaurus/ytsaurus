@@ -195,6 +195,11 @@ void ValidateArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs)
     }
 }
 
+bool AreArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs)
+{
+    return args.length() == 0 && kwargs.length() == 0;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TGilGuard::TGilGuard()

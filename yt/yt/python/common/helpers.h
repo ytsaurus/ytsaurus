@@ -53,6 +53,7 @@ namespace NYT::NPython {
 Py::Object ExtractArgument(Py::Tuple& args, Py::Dict& kwargs, const std::string& name);
 bool HasArgument(const Py::Tuple& args, const Py::Dict& kwargs, const std::string& name);
 void ValidateArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs);
+bool AreArgumentsEmpty(const Py::Tuple& args, const Py::Dict& kwargs);
 
 ////////////////////////////////////////////////////////////////////////////////
 

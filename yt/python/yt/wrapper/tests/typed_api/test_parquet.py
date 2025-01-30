@@ -298,6 +298,34 @@ class TestParquet(object):
             assert list(yt.read_table(output_table)) == list(yt.read_table(input_table))
 
     @authors("nadya02")
+    @pytest.mark.parametrize("enable_parallel", [True, False])
+    def test_parquet_min_row_length_option(self, enable_parallel):
+        with tempfile.NamedTemporaryFile() as temp_file:
+            filename = temp_file.name
+
+            input_table = TEST_DIR + "/table"
+
+            schema = TableSchema() \
+                .add_column("key", type_info.Optional[type_info.Int64]) \
+                .add_column("value", type_info.Optional[type_info.String])
+
+            yt.create("table", input_table, attributes={"schema": schema})
+            rows_in_chunk = 10
+
+            for i in range(5):
+                rows = []
+                for j in range(rows_in_chunk):
+                    rows.append({"key": i * rows_in_chunk + j, "value": generate_random_string(5)})
+                yt.write_table(yt.TablePath(input_table, append=True), rows)
+
+            with set_config_option("read_parallel/enable", enable_parallel):
+                with set_config_option("dump_table_options/min_batch_row_count", 50):
+                    yt.dump_parquet(input_table, filename, enable_several_files=False)
+
+            parquet_file = pyarrow.parquet.ParquetFile(filename)
+            assert parquet_file.num_row_groups == 1
+
+    @authors("nadya02")
     def test_upload_parquet(self):
         with tempfile.NamedTemporaryFile() as temp_file:
             filename = temp_file.name
@@ -515,7 +543,7 @@ class TestParquet(object):
             client = yt.YtClient(config=yt.config.config)
 
             client.config["write_retries"]["chunk_size"] = 500
-            client.config["arrow_options"]["write_arrow_batch_size"] = 10
+            client.config["upload_table_options"]["write_arrow_batch_size"] = 10
 
             filename = temp_file.name
             input_table = "//tmp/dump_parquet"

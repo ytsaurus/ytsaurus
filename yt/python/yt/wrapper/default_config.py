@@ -710,8 +710,14 @@ default_config = {
     # NB: this option can be overridden with settings from cluster.
     "strawberry_cluster_name": RemotePatchableString(None, "strawberry_cluster_name"),
 
-    "arrow_options": {
+    "upload_table_options": {
+        # Only for tests.
         "write_arrow_batch_size": 64 * 1024,
+    },
+
+    "dump_table_options": {
+        # When dumping a table, the size of the result row groups will exceed the set value.
+        "min_batch_row_count": 0,
     },
 }
 
