@@ -68,8 +68,10 @@ inline static const std::string PeerStateLeading = "leading";
 
 inline static const std::string DeallocationStrategyHulkRequest = "hulk_deallocation_request";
 inline static const std::string DeallocationStrategyReturnToBB = "return_to_bundle_balancer";
+inline static const std::string DeallocationStrategyReturnToSpareBundle = "return_to_spare_bundle";
 
 inline static const std::string TrashRole = "trash-role";
+inline static const std::string DefaultRole = "default";
 
 ////////////////////////////////////////////////////////////////////////////////
 

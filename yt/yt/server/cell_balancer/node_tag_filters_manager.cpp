@@ -92,7 +92,7 @@ TPerDataCenterSpareNodesInfo GetSpareNodesInfo(
         }
     }
 
-    const auto& spareBundleState = mutations->ChangedStates[spareBundle];
+    const auto& spareBundleState = GetOrInsert(mutations->ChangedStates, spareBundle, New<TBundleControllerState>);
 
     auto zoneAliveNodes = GetAliveNodes(
         spareBundle,
@@ -150,6 +150,10 @@ TPerDataCenterSpareNodesInfo GetSpareNodesInfo(
                 continue;
             }
 
+            if (!mutations->ChangedStates.contains(bundleName)) {
+                continue;
+            }
+
             const auto& bundleState = GetOrCrash(mutations->ChangedStates, bundleName);
 
             if (bundleState->SpareNodeReleasements.count(spareNodeName)) {
@@ -180,13 +184,16 @@ bool ProcessNodeAssignment(
         auto tags = nodeInfo->UserTags;
         tags.insert(nodeTagFilter);
         mutations->ChangedNodeUserTags[nodeName] = std::move(tags);
-        mutations->ChangedDecommissionedFlag[nodeName] = true;
+        if (input.Config->DecommissionReleasedNodes) {
+            mutations->ChangedDecommissionedFlag[nodeName] = true;
+        }
 
-        YT_LOG_INFO("Setting node tag filter "
-            "(Bundle: %v, TabletNode: %v, NodeTagFilter: %v)",
+        YT_LOG_INFO("Setting node tag filter and decommission "
+            "(Bundle: %v, TabletNode: %v, NodeTagFilter: %v, Decommissioned: %v)",
             bundleName,
             nodeName,
-            nodeTagFilter);
+            nodeTagFilter,
+            input.Config->DecommissionReleasedNodes);
 
         return false;
     }
@@ -482,19 +489,25 @@ void ProcessNodesReleasements(
         const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
 
         if (nodeInfo->UserTags.count(nodeTagFilter) != 0) {
-            if (!nodeInfo->Decommissioned) {
-                mutations->ChangedDecommissionedFlag[nodeName] = true;
-                YT_LOG_DEBUG("Releasing node: setting decommissioned flag (Bundle: %v, NodeName: %v)",
-                    bundleName,
-                    nodeName);
-                continue;
-            }
+            if (input.Config->DecommissionReleasedNodes) {
+                if (!nodeInfo->Decommissioned) {
+                    mutations->ChangedDecommissionedFlag[nodeName] = true;
+                    YT_LOG_DEBUG("Releasing node: setting decommissioned flag (Bundle: %v, NodeName: %v)",
+                        bundleName,
+                        nodeName);
+                    continue;
+                }
 
-            if (!AllTabletSlotsAreEmpty(nodeInfo)) {
-                YT_LOG_DEBUG("Releasing node: not all tablet cells are empty (Bundle: %v, NodeName: %v)",
+                if (!AllTabletSlotsAreEmpty(nodeInfo)) {
+                    YT_LOG_DEBUG("Releasing node: not all tablet cells are empty (Bundle: %v, NodeName: %v)",
+                        bundleName,
+                        nodeName);
+                    continue;
+                }
+            } else {
+                YT_LOG_DEBUG("Releasing node: will not decommission (Bundle: %v, NodeName: %v)",
                     bundleName,
                     nodeName);
-                continue;
             }
 
             YT_LOG_INFO("Releasing node: Removing node tag filter (Bundle: %v, NodeName: %v)",
@@ -867,14 +880,14 @@ void SetNodeTagFilter(
     ProcessNodesReleasements(
         bundleName,
         input,
-        LeaveNodesDecommissioned,
+        LeaveNodesDecommissioned && input.Config->DecommissionReleasedNodes,
         &bundleState->SpareNodeReleasements,
         mutations);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* mutations)
+void InitializeZoneToSpareNodes(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     for (const auto& [zoneName, _] : input.Zones) {
         input.ZoneToSpareNodes[zoneName] = GetSpareNodesInfo(zoneName, input, mutations);
@@ -904,7 +917,12 @@ void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* muta
             }
         }
     }
+}
 
+////////////////////////////////////////////////////////////////////////////////
+
+void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* mutations)
+{
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         if (!bundleInfo->EnableBundleController || !bundleInfo->EnableNodeTagFilterManagement) {
             continue;

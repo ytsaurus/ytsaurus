@@ -63,6 +63,22 @@ bool Contains(const auto& container, const auto& item)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+int CountAlertsExcept(const std::vector<TAlert>& alerts, const THashSet<std::string>& idsToIgnore)
+{
+    int result = 0;
+
+    for (const auto& alert : alerts) {
+        if (idsToIgnore.contains(alert.Id)) {
+            continue;
+        }
+        ++result;
+    }
+
+    return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBundleInfoPtr SetBundleInfo(
     TSchedulerInputState& input,
     const std::string& bundleName,
@@ -969,6 +985,132 @@ TEST_P(TBundleSchedulerTest, AllocationProgressTrackStaledAllocation)
 
     EXPECT_EQ(GetDataCenterCount(), std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "stuck_instance_allocation");
+}
+
+TEST_P(TBundleSchedulerTest, DisableAllocationsCausesAllocationFromSpare)
+{
+    if (GetDataCenterCount() != 1) {
+        GTEST_SKIP_("This feature is for 1-DC clusters only");
+    }
+    constexpr int TabletCellCount = 3;
+
+    {
+        auto input = GenerateInputContext(1, TabletCellCount);
+        const std::string bundleName = "bigd";
+        input.Bundles[bundleName]->TargetConfig->RpcProxyCount = 1;
+        auto dataCenters = GetDataCenters(input);
+
+        for (const auto& [zoneName, zoneInfo] : input.Zones) {
+            const std::string& spareBundleName = zoneInfo->SpareBundleName;
+            for (const auto& dataCenterName : dataCenters) {
+                GenerateNodesForBundle(input, spareBundleName, 3, {.SlotCount = 0, .DC = dataCenterName});
+                GenerateProxiesForBundle(input, spareBundleName, 3, false, dataCenterName);
+            }
+        }
+
+        const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
+        bundleInfo->EnableNodeTagFilterManagement = true;
+
+        input.Config->HasInstanceAllocatorService = false;
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+
+        EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+
+        EXPECT_EQ(/*nodeCount=*/ 1 + /*proxyCount=*/ 1, std::ssize(mutations.NewAllocations));
+        EXPECT_EQ(0, std::ssize(mutations.ChangeNodeAnnotations));
+    }
+    {
+        auto input = GenerateInputContext(1, TabletCellCount);
+        const std::string bundleName = "bigd";
+        input.Bundles[bundleName]->TargetConfig->RpcProxyCount = 1;
+        auto dataCenters = GetDataCenters(input);
+
+        for (const auto& [zoneName, zoneInfo] : input.Zones) {
+            const std::string spareBundleName = zoneInfo->SpareBundleName;
+            for (const auto& dataCenterName : dataCenters) {
+                GenerateNodesForBundle(input, spareBundleName, 3, {.SlotCount = 0, .DC = dataCenterName});
+                GenerateProxiesForBundle(input, spareBundleName, 3, false, dataCenterName);
+            }
+        }
+
+        GenerateNodeAllocationsForBundle(input, bundleName, 1);
+        GenerateProxyAllocationsForBundle(input, bundleName, 1);
+
+        const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
+        bundleInfo->EnableNodeTagFilterManagement = true;
+
+        input.Config->HasInstanceAllocatorService = false;
+
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+
+        EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+
+        EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
+        EXPECT_EQ(1, std::ssize(mutations.ChangeNodeAnnotations));
+        EXPECT_EQ(1, std::ssize(mutations.ChangedProxyAnnotations));
+        for (const auto& annotations : mutations.ChangeNodeAnnotations) {
+            EXPECT_EQ(bundleName, annotations.second->AllocatedForBundle);
+        }
+    }
+}
+
+TEST_P(TBundleSchedulerTest, DisableAllocationsCausesDeallocationToSpare)
+{
+    if (GetDataCenterCount() != 1) {
+        GTEST_SKIP_("This feature is for 1-DC clusters only");
+    }
+
+    constexpr int SpareNodeSlotCount = 10;
+    constexpr int TabletCellCount = 3;
+
+    auto input = GenerateInputContext(1, TabletCellCount);
+    auto dataCenters = GetDataCenters(input);
+    const std::string bundleName = "bigd";
+
+    GenerateTabletCellsForBundle(input, bundleName, TabletCellCount);
+
+    for (const auto& [zoneName, zoneInfo] : input.Zones) {
+        const std::string spareBundleName = zoneInfo->SpareBundleName;
+        for (const auto& dataCenterName : dataCenters) {
+            auto nodes = GenerateNodesForBundle(input, spareBundleName, 2, {.SlotCount = SpareNodeSlotCount, .DC = dataCenterName});
+            for (const auto& nodeName : nodes) {
+                auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+                nodeInfo->UserTags.insert(Format("%v/%v", zoneName, bundleName));
+            }
+        }
+    }
+
+    const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
+    bundleInfo->EnableNodeTagFilterManagement = true;
+
+    input.Config->HasInstanceAllocatorService = false;
+
+    {
+        TSchedulerMutations mutations;
+        ScheduleBundles(input, &mutations);
+
+        // For test debug purposes.
+        for (const auto& alert : mutations.AlertsToFire) {
+            if (alert.Id == "no_free_spare_nodes") {
+                continue;
+            }
+            Cerr << Format("New alert (Id: %v, BundleName: %v, Description: %v)", alert.Id, alert.BundleName, alert.Description) << Endl;
+        }
+        EXPECT_EQ(0, CountAlertsExcept(mutations.AlertsToFire, {"no_free_spare_nodes"}));
+        EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+        EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+        EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+        EXPECT_EQ(0, std::ssize(mutations.ChangeNodeAnnotations));
+        EXPECT_EQ(std::ssize(mutations.ChangeNodeAnnotations), std::ssize(mutations.ChangedDecommissionedFlag));
+        // TODO: check proxy
+
+        for (const auto& [nodeName, annotations] : mutations.ChangeNodeAnnotations) {
+            EXPECT_EQ(SpareBundleName, annotations->AllocatedForBundle);
+        }
+    }
 }
 
 TEST_P(TBundleSchedulerTest, DoNotCreateNewDeallocationsWhileInProgress)
@@ -3509,7 +3651,9 @@ TEST_P(TProxyRoleManagement, TestFreeSpareProxiesExhausted)
     ScheduleBundles(input, &mutations);
 
     EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.AlertsToFire));
-    EXPECT_EQ(mutations.AlertsToFire.front().Id, "no_free_spare_proxies");
+    for (const auto& alert : mutations.AlertsToFire) {
+        EXPECT_EQ(alert.Id, "no_free_spare_proxies");
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4703,7 +4847,9 @@ TEST_P(TNodeTagsFilterManager, SpareNodesDecommissionedAfterAssigning)
     ScheduleBundles(input, &mutations);
 
     EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.AlertsToFire));
-    EXPECT_EQ(mutations.AlertsToFire.front().Id, "externally_decommissioned_spare_nodes");
+    for (const auto& alert : mutations.AlertsToFire) {
+        EXPECT_EQ(alert.Id, "externally_decommissioned_spare_nodes");
+    }
 
     EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.ChangedDecommissionedFlag));
     EXPECT_EQ(GetActiveDataCenterCount(), std::ssize(mutations.ChangedNodeUserTags));

@@ -428,7 +428,7 @@ void SetProxyRole(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutations)
+void InitializeZoneToSpareProxies(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     TProxyRoleToBundle proxyRoleToBundle;
 
@@ -462,7 +462,12 @@ void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutat
             }
         }
     }
+}
 
+////////////////////////////////////////////////////////////////////////////////
+
+void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutations)
+{
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
         if (!bundleInfo->EnableBundleController || !bundleInfo->EnableRpcProxyManagement) {
             continue;

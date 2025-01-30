@@ -75,6 +75,7 @@ public:
     std::string Cluster;
     TDuration BundleScanPeriod;
     TDuration BundleScanTransactionTimeout;
+    // TODO(grachevkirill): Rename to AllocatorRequestTimeout
     TDuration HulkRequestTimeout;
     TDuration CellRemovalTimeout;
     TDuration NodeAssignmentTimeout;
@@ -82,10 +83,13 @@ public:
 
     NYPath::TYPath RootPath;
 
+    bool HasInstanceAllocatorService;
     NYPath::TYPath HulkAllocationsPath;
     NYPath::TYPath HulkAllocationsHistoryPath;
     NYPath::TYPath HulkDeallocationsPath;
     NYPath::TYPath HulkDeallocationsHistoryPath;
+
+    bool DecommissionReleasedNodes;
 
     int NodeCountPerCell;
     int ChunkCountPerCell;

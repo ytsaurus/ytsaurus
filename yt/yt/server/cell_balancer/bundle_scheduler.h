@@ -20,6 +20,16 @@ struct TSpareNodesInfo
     std::vector<std::string> ExternallyDecommissioned;
     THashMap<std::string, std::vector<std::string>> UsedByBundle;
     THashMap<std::string, std::vector<std::string>> ReleasingByBundle;
+
+    std::vector<std::string>& FreeInstances()
+    {
+        return FreeNodes;
+    }
+
+    const std::vector<std::string>& FreeInstances() const
+    {
+        return FreeNodes;
+    }
 };
 
 using TPerDataCenterSpareNodesInfo = THashMap<std::string, TSpareNodesInfo>;
@@ -30,6 +40,16 @@ struct TSpareProxiesInfo
 {
     std::vector<std::string> FreeProxies;
     THashMap<std::string, std::vector<std::string>> UsedByBundle;
+
+    std::vector<std::string>& FreeInstances()
+    {
+        return FreeProxies;
+    }
+
+    const std::vector<std::string>& FreeInstances() const
+    {
+        return FreeProxies;
+    }
 };
 
 using TPerDataCenterSpareProxiesInfo = THashMap<std::string, TSpareProxiesInfo>;
@@ -137,10 +157,13 @@ struct TSchedulerInputState
 struct TSchedulerMutations
 {
     TIndexedEntries<TAllocationRequest> NewAllocations;
+    TIndexedEntries<TAllocationRequest> ChangedAllocations;
     TIndexedEntries<TDeallocationRequest> NewDeallocations;
     TIndexedEntries<TBundleControllerState> ChangedStates;
     TIndexedEntries<TInstanceAnnotations> ChangeNodeAnnotations;
     TIndexedEntries<TInstanceAnnotations> ChangedProxyAnnotations;
+
+    THashSet<std::string> CompletedAllocations;
 
     using TUserTags = THashSet<std::string>;
     THashMap<std::string, TUserTags> ChangedNodeUserTags;
@@ -184,8 +207,10 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
 
 std::string GetSpareBundleName(const TZoneInfoPtr& zoneInfo);
 
+void InitializeZoneToSpareNodes(TSchedulerInputState& input, TSchedulerMutations* mutations);
 void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* mutations);
 
+void InitializeZoneToSpareProxies(TSchedulerInputState& input, TSchedulerMutations* mutations);
 void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutations);
 
 DEFINE_ENUM(EGracePeriodBehaviour,
@@ -226,7 +251,7 @@ std::string GetInstanceSize(const NBundleControllerClient::TInstanceResourcesPtr
 
 // TODO(capone212): remove after
 THashSet<std::string> FlattenAliveInstancies(const THashMap<std::string, THashSet<std::string>>& instancies);
-std::vector<std::string> FlattenBundleInstancies(const THashMap<std::string,std::vector<std::string>>& instancies);
+std::vector<std::string> FlattenBundleInstancies(const THashMap<std::string, std::vector<std::string>>& instancies);
 
 std::string GetDrillsNodeTagFilter(const TBundleInfoPtr& bundleInfo, const std::string& bundleName);
 std::string GetReleasedProxyRole(const std::string& rpcProxyRole);

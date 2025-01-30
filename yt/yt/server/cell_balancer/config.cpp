@@ -59,6 +59,8 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
     registrar.Parameter("root_path", &TThis::RootPath)
         .NonEmpty();
 
+    registrar.Parameter("has_instance_allocator_service", &TThis::HasInstanceAllocatorService)
+        .Default(true);
     registrar.Parameter("hulk_allocations_path", &TThis::HulkAllocationsPath)
         .NonEmpty();
     registrar.Parameter("hulk_allocations_history_path", &TThis::HulkAllocationsHistoryPath)
@@ -67,6 +69,9 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
         .NonEmpty();
     registrar.Parameter("hulk_deallocations_history_path", &TThis::HulkDeallocationsHistoryPath)
         .NonEmpty();
+
+    registrar.Parameter("decommission_released_nodes", &TThis::DecommissionReleasedNodes)
+        .Default(true);
 
     registrar.Parameter("node_count_per_cell", &TThis::NodeCountPerCell)
         .GreaterThan(0)
