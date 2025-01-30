@@ -12,6 +12,19 @@ namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSequoiaTablePathDescriptor
+{
+    ESequoiaTable Table;
+    // Used to create Sequoia table name for tables that are automatically created
+    // for each master cell (refresh queues for now).
+    std::optional<NObjectClient::TCellTag> MasterCellTag;
+
+    operator size_t() const;
+    bool operator==(const TSequoiaTablePathDescriptor&) const = default;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct ITableDescriptor
 {
     virtual ~ITableDescriptor() = default;
@@ -26,7 +39,9 @@ struct ITableDescriptor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYPath::TYPath GetSequoiaTablePath(const NApi::NNative::IClientPtr& client, const ITableDescriptor* tableDescriptor);
+NYPath::TYPath GetSequoiaTablePath(
+    const NApi::NNative::IClientPtr& client,
+    const TSequoiaTablePathDescriptor& tablePathDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

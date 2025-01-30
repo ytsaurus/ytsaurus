@@ -23,6 +23,7 @@
 #include <yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/location_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.record.h>
 
 #include <yt/yt/client/table_client/public.h>
 #include <yt/yt/client/table_client/row_base.h>
@@ -437,6 +438,38 @@ public:
                 return ParseReplicas(okReplicaRecords, [] (const NRecords::TUnapprovedChunkReplicas& replicaRecord) {
                     return replicaRecord.StoredReplicas;
                 });
+            })
+            .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+    }
+
+    TFuture<std::vector<NRecords::TChunkRefreshQueue>> GetChunksToRefresh(int replicatorShard, int limit) const override
+    {
+        YT_VERIFY(!HasMutationContext());
+        Bootstrap_->VerifyPersistentStateRead();
+
+        if (!GetDynamicConfig()->Enable) {
+            return MakeFuture<std::vector<NRecords::TChunkRefreshQueue>>({});
+        }
+
+        return Bootstrap_
+            ->GetSequoiaClient()
+            ->SelectRows<NRecords::TChunkRefreshQueue>(
+                Bootstrap_->GetCellTag(),
+                {
+                    .WhereConjuncts = {
+                        Format("[$tablet_index] = %v", replicatorShard),
+                    },
+                    .Limit = limit,
+                }
+            )
+            .Apply(BIND([] (const TErrorOr<std::vector<NRecords::TChunkRefreshQueue>>& chunkRecordsOrError) {
+                if (IsRetriableSequoiaReplicasError(chunkRecordsOrError)) {
+                    THROW_ERROR_EXCEPTION(
+                        NRpc::EErrorCode::TransientFailure,
+                        "Sequoia retriable error")
+                        << chunkRecordsOrError;
+                }
+                return chunkRecordsOrError.ValueOrThrow();
             })
             .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }

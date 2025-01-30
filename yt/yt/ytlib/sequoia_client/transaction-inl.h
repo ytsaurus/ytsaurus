@@ -76,6 +76,27 @@ void ISequoiaTransaction::WriteRow(
         lockType);
 }
 
+template <class TRecord>
+void ISequoiaTransaction::WriteRow(
+    NObjectClient::TCellTag masterCellTag,
+    const TRecord& record,
+    NTableClient::ELockType lockType,
+    NTableClient::EValueFlags flags)
+{
+    TSequoiaTablePathDescriptor descriptor{
+        .Table = TRecord::Table,
+        .MasterCellTag = masterCellTag,
+    };
+    WriteRow(
+        descriptor,
+        NTableClient::FromRecord(
+            record,
+            GetRowBuffer(),
+            TRecord::TRecordDescriptor::Get()->GetIdMapping(),
+            flags),
+        lockType);
+}
+
 template <class TRecordKey>
 void ISequoiaTransaction::DeleteRow(const TRecordKey& key)
 {

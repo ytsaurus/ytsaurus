@@ -929,7 +929,7 @@ class YTEnvSetup(object):
         yt_commands.is_multicell = cls.is_multicell()
         yt_commands.path_to_run_tests = cls.path_to_run
 
-        cls.combined_envs = cls.ground_envs + cluster_envs
+        cls.combined_envs = cluster_envs + cls.ground_envs
         yt_commands.init_drivers(cls.combined_envs)
 
         for env in cls.ground_envs:
@@ -1017,20 +1017,31 @@ class YTEnvSetup(object):
         yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_count", 10000, driver=ground_driver)
         yt_commands.set("//sys/accounts/sequoia/@resource_limits/tablet_static_memory", 4 * (2**30), driver=ground_driver)
 
-        for descriptor in DESCRIPTORS.as_dict().values():
+        yt.logger.error(cluster_index)
+        config = cls.combined_envs[cluster_index].get_cluster_configuration()["master"]
+        yt.logger.error(config)
+
+        def get_table_paths(descriptor):
             table_path = descriptor.get_default_path()
-            yt_commands.create(
-                "table",
-                table_path,
-                attributes={
-                    "dynamic": True,
-                    "schema": descriptor.schema,
-                    "tablet_cell_bundle": "sequoia",
-                    "account": "sequoia",
-                    "enable_shared_write_locks": True,
-                    "in_memory_mode": "uncompressed",
-                },
-                driver=ground_driver)
+            if "chunk_refresh_queue" in table_path:
+                cell_tags = [config["primary_cell_tag"]] + config["secondary_cell_tags"]
+                yt.logger.error(cell_tags)
+                return ["{}_{}".format(table_path, cell_tag) for cell_tag in cell_tags]
+            return [table_path]
+
+        for descriptor in DESCRIPTORS.as_dict().values():
+            for table_path in get_table_paths(descriptor):
+                yt_commands.create(
+                    "table",
+                    table_path,
+                    attributes={
+                        "dynamic": True,
+                        "schema": descriptor.schema,
+                        "tablet_cell_bundle": "sequoia",
+                        "account": "sequoia",
+                        "in_memory_mode": "uncompressed",
+                    },
+                    driver=ground_driver)
 
         unapproved_chunk_replicas_path = DESCRIPTORS.unapproved_chunk_replicas.get_default_path()
         yt_commands.set(f"{unapproved_chunk_replicas_path}/@mount_config/min_data_versions", 0, driver=ground_driver)
@@ -1044,9 +1055,12 @@ class YTEnvSetup(object):
         yt_commands.set(f"{response_keeper_path}/@mount_config/min_data_ttl", 0, driver=ground_driver)
         yt_commands.set(f"{response_keeper_path}/@mount_config/max_data_ttl", 1000, driver=ground_driver)
 
+        for table_path in get_table_paths(DESCRIPTORS.chunk_refresh_queue):
+            yt_commands.sync_reshard_table(table_path, 60, driver=ground_driver)
+
         for descriptor in DESCRIPTORS.as_dict().values():
-            table_path = descriptor.get_default_path()
-            yt_commands.sync_mount_table(table_path, driver=ground_driver)
+            for table_path in get_table_paths(descriptor):
+                yt_commands.sync_mount_table(table_path, driver=ground_driver)
 
     @classmethod
     def apply_node_dynamic_config_patches(cls, config, ytserver_version, cluster_index):

@@ -550,6 +550,12 @@ GENERATE_YT_RECORD(
 )
 
 GENERATE_YT_RECORD(
+    sequoia_client/records/chunk_refresh_queue.yaml
+    OUTPUT_INCLUDES
+        yt/yt/ytlib/sequoia_client/public.h
+)
+
+GENERATE_YT_RECORD(
     sequoia_client/records/child_node.yaml
     OUTPUT_INCLUDES
         yt/yt/ytlib/sequoia_client/public.h

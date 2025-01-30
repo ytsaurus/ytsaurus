@@ -20,6 +20,9 @@ using namespace NTableClient::NDetail;
 {%- for field in type.fields if not field.expression %}
     {{":" if loop.index0 == 0 else ","}} {{field.cpp_name}}(nameTable->FindId("{{field.column_name}}"))
 {%- endfor %}
+{% if type.sorted is not none and not type.sorted %}
+    , RowIndex(nameTable->FindId("$row_index"))
+{% endif %}
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -149,6 +152,13 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
     }
     {% endif %}
 {%- endfor %}
+
+{% if type.sorted is not none and not type.sorted %}
+    if (idMapping.RowIndex) {
+        auto id = *idMapping.RowIndex;
+        FromUnversionedValue(&result.RowIndex, row[id]);
+    }
+{% endif %}
     return result;
 }
 
