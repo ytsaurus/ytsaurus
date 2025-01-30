@@ -329,13 +329,7 @@ IRowStreamDecoderPtr CreateRowStreamDecoder(
 {
     switch (rowsetFormat) {
         case NApi::NRpcProxy::NProto::RF_YT_WIRE:
-        {
-            TWireProtocolOptions wireProtocolOptions;
-            wireProtocolOptions.MaxStringValueLength = std::numeric_limits<i64>::max();
-            wireProtocolOptions.MaxAnyValueLength = std::numeric_limits<i64>::max();
-            wireProtocolOptions.MaxCompositeValueLength = std::numeric_limits<i64>::max();
-            return CreateWireRowStreamDecoder(std::move(nameTable), wireProtocolOptions);
-        }
+            return CreateWireRowStreamDecoder(std::move(nameTable), CreateUnlimitedWireProtocolOptions());
 
         case NApi::NRpcProxy::NProto::RF_ARROW:
             return CreateArrowRowStreamDecoder(std::move(schema), std::move(nameTable));
