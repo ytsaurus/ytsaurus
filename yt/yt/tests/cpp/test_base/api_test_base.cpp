@@ -75,6 +75,19 @@ void TApiTestBase::SetUpTestCase()
 
             writerConfig->ReplaceChild(oldPathNode, ConvertToNode(newPath));
         }
+
+        auto stderrConfig = New<NLogging::TStderrLogWriterConfig>();
+        stderrConfig->EnableSourceLocation = true;
+        config->GetChildOrThrow("writers")->AsMap()->AddChild("stderr", ConvertToNode(stderrConfig));
+
+        auto ruleConfig = New<NLogging::TRuleConfig>();
+        ruleConfig->IncludeCategories = {"CppTests"};
+        ruleConfig->Writers = {"stderr"};
+        config
+            ->GetChildOrThrow("rules")
+            ->AsList()
+            ->AddChild(ConvertToNode(ruleConfig));
+
         NLogging::TLogManager::Get()->Configure(ConvertTo<NLogging::TLogManagerConfigPtr>(config));
     }
 
