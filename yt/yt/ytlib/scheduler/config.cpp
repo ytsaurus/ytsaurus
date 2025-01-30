@@ -2357,9 +2357,6 @@ void TPoolConfig::Register(TRegistrar registrar)
         .Default({EFifoSortParameter::Weight, EFifoSortParameter::StartTime})
         .NonEmpty();
 
-    registrar.Parameter("fifo_pool_scheduling_order", &TThis::FifoPoolSchedulingOrder)
-        .Default();
-
     registrar.Parameter("forbid_immediate_operations", &TThis::ForbidImmediateOperations)
         .Default(false);
 

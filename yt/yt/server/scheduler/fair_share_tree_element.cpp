@@ -833,10 +833,6 @@ void TSchedulerCompositeElement::ComputeSatisfactionRatioAtUpdate()
     TSchedulerElement::ComputeSatisfactionRatioAtUpdate();
 
     auto isBetterChild = [&] (const TSchedulerElement* lhs, const TSchedulerElement* rhs) {
-        if (ShouldUseFifoSchedulingOrder()) {
-            return HasHigherPriorityInFifoMode(lhs, rhs);
-        }
-
         return lhs->PostUpdateAttributes().SatisfactionRatio < rhs->PostUpdateAttributes().SatisfactionRatio;
     };
 
@@ -1096,12 +1092,6 @@ bool TSchedulerCompositeElement::ContainsChild(
     return map.find(child) != map.end();
 }
 
-bool TSchedulerCompositeElement::ShouldUseFifoSchedulingOrder() const
-{
-    return Mode_ == ESchedulingMode::Fifo &&
-        EffectiveFifoPoolSchedulingOrder_ == EFifoPoolSchedulingOrder::Fifo;
-}
-
 bool TSchedulerCompositeElement::HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const
 {
     for (auto parameter : FifoSortParameters_) {
@@ -1317,11 +1307,6 @@ TJobResourcesConfigPtr TSchedulerPoolElement::GetSpecifiedNonPreemptibleResource
     return Config_->NonPreemptibleResourceUsageThreshold;
 }
 
-std::optional<EFifoPoolSchedulingOrder> TSchedulerPoolElement::GetSpecifiedFifoPoolSchedulingOrder() const
-{
-    return Config_->FifoPoolSchedulingOrder;
-}
-
 std::optional<bool> TSchedulerPoolElement::ShouldUsePoolSatisfactionForScheduling() const
 {
     return Config_->UsePoolSatisfactionForScheduling;
@@ -1370,9 +1355,6 @@ ESchedulableStatus TSchedulerPoolElement::GetStatus() const
 void TSchedulerPoolElement::UpdateRecursiveAttributes()
 {
     YT_VERIFY(Mutable_);
-
-    EffectiveFifoPoolSchedulingOrder_ = GetSpecifiedFifoPoolSchedulingOrder().value_or(
-        Parent_->GetEffectiveFifoPoolSchedulingOrder());
 
     EffectiveUsePoolSatisfactionForScheduling_ = ShouldUsePoolSatisfactionForScheduling().value_or(
         Parent_->GetEffectiveUsePoolSatisfactionForScheduling());
@@ -2512,9 +2494,6 @@ void TSchedulerRootElement::UpdateRecursiveAttributes()
     YT_VERIFY(GetSpecifiedNonPreemptibleResourceUsageThresholdConfig());
     EffectiveNonPreemptibleResourceUsageThresholdConfig_ = GetSpecifiedNonPreemptibleResourceUsageThresholdConfig();
 
-    YT_VERIFY(GetSpecifiedFifoPoolSchedulingOrder());
-    EffectiveFifoPoolSchedulingOrder_ = *GetSpecifiedFifoPoolSchedulingOrder();
-
     YT_VERIFY(ShouldUsePoolSatisfactionForScheduling());
     EffectiveUsePoolSatisfactionForScheduling_ = *ShouldUsePoolSatisfactionForScheduling();
 
@@ -2564,11 +2543,6 @@ std::optional<bool> TSchedulerRootElement::IsAggressiveStarvationEnabled() const
 TJobResourcesConfigPtr TSchedulerRootElement::GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const
 {
     return TreeConfig_->NonPreemptibleResourceUsageThreshold;
-}
-
-std::optional<EFifoPoolSchedulingOrder> TSchedulerRootElement::GetSpecifiedFifoPoolSchedulingOrder() const
-{
-    return TreeConfig_->FifoPoolSchedulingOrder;
 }
 
 std::optional<bool> TSchedulerRootElement::ShouldUsePoolSatisfactionForScheduling() const

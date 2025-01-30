@@ -342,7 +342,6 @@ TSchedulableChildSet::TSchedulableChildSet(
     bool useHeap)
     : OwningElement_(owningElement)
     , DynamicAttributesList_(dynamicAttributesList)
-    , UseFifoSchedulingOrder_(OwningElement_->ShouldUseFifoSchedulingOrder())
     , UseHeap_(useHeap)
     , Children_(std::move(children))
 {
@@ -423,10 +422,6 @@ bool TSchedulableChildSet::Comparator(const TSchedulerElement* lhs, const TSched
 
     if (lhsAttributes.Active != rhsAttributes.Active) {
         return rhsAttributes.Active < lhsAttributes.Active;
-    }
-
-    if (UseFifoSchedulingOrder_) {
-        return OwningElement_->HasHigherPriorityInFifoMode(lhs, rhs);
     }
 
     return lhsAttributes.SatisfactionRatio < rhsAttributes.SatisfactionRatio;
@@ -717,31 +712,6 @@ TSchedulerElement* TDynamicAttributesManager::GetBestActiveChild(TSchedulerCompo
         return childSet->GetBestActiveChild();
     }
 
-    // COMPAT(eshcherbin)
-    if (element->ShouldUseFifoSchedulingOrder()) {
-        return GetBestActiveChildFifo(element);
-    }
-
-    return GetBestActiveChildFairShare(element);
-}
-
-TSchedulerElement* TDynamicAttributesManager::GetBestActiveChildFifo(TSchedulerCompositeElement* element) const
-{
-    TSchedulerElement* bestChild = nullptr;
-    for (auto* child : element->SchedulableChildren()) {
-        if (!AttributesOf(child).Active) {
-            continue;
-        }
-
-        if (!bestChild || element->HasHigherPriorityInFifoMode(child, bestChild)) {
-            bestChild = child;
-        }
-    }
-    return bestChild;
-}
-
-TSchedulerElement* TDynamicAttributesManager::GetBestActiveChildFairShare(TSchedulerCompositeElement* element) const
-{
     TSchedulerElement* bestChild = nullptr;
     double bestChildSatisfactionRatio = InfiniteSatisfactionRatio;
     for (auto* child : element->SchedulableChildren()) {
@@ -755,6 +725,7 @@ TSchedulerElement* TDynamicAttributesManager::GetBestActiveChildFairShare(TSched
             bestChildSatisfactionRatio = childSatisfactionRatio;
         }
     }
+
     return bestChild;
 }
 

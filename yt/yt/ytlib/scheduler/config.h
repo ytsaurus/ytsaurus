@@ -271,7 +271,6 @@ public:
     std::optional<int> MaxOperationCount;
 
     std::vector<EFifoSortParameter> FifoSortParameters;
-    std::optional<EFifoPoolSchedulingOrder> FifoPoolSchedulingOrder;
 
     bool ForbidImmediateOperations;
 

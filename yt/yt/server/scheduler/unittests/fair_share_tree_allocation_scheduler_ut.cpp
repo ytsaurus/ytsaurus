@@ -1298,27 +1298,22 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableOperationsOrder)
 
     // For both pools create 10 operations, each with 1 demanded allocation.
     constexpr int OperationCount = 10;
-    static const std::vector<int> ExpectedOperationIndicesFifo{3, 5, 6, 7, 0, 1, 8, 4, 9, 2};
-    static const std::vector<int> ExpectedOperationIndicesFairShare{7, 0, 8, 1, 5, 2, 9, 4, 6, 3};
+    static const std::vector<int> ExpectedOperationIndices{7, 0, 8, 1, 5, 2, 9, 4, 6, 3};
     std::vector<TOperationStrategyHostMockPtr> operations;
     std::vector<TSchedulerOperationElementPtr> operationElements;
     TNonOwningOperationElementList nonOwningOperationElements;
     for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
-        auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
-        operationOptions->Weight = static_cast<double>(OperationCount - ExpectedOperationIndicesFifo[opIndex]);
-
         operations.push_back(New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, operationAllocationResources)));
         operationElements.push_back(CreateTestOperationElement(
             strategyHost.Get(),
             treeScheduler,
             operations.back().Get(),
-            pool.Get(),
-            std::move(operationOptions)));
+            pool.Get()));
         nonOwningOperationElements.push_back(operationElements.back().Get());
     }
 
     for (int opIndex = 0; opIndex < OperationCount; ++opIndex) {
-        const int allocationCount = ExpectedOperationIndicesFairShare[opIndex];
+        const int allocationCount = ExpectedOperationIndices[opIndex];
         for (int allocationIndex = 0; allocationIndex < allocationCount; ++allocationIndex) {
             treeScheduler->OnAllocationStartedInTest(operationElements[opIndex].Get(), TAllocationId(TGuid::Create()), operationAllocationResources);
         }
@@ -1403,12 +1398,8 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableOperationsOrder)
     auto fifoPoolConfig = New<TPoolConfig>();
     fifoPoolConfig->Mode = ESchedulingMode::Fifo;
     fifoPoolConfig->FifoSortParameters = {EFifoSortParameter::Weight};
-    fifoPoolConfig->FifoPoolSchedulingOrder = EFifoPoolSchedulingOrder::Fifo;
 
-    auto fifoPoolWithSatisfactionOrderConfig = NYTree::CloneYsonStruct(fifoPoolConfig);
-    fifoPoolWithSatisfactionOrderConfig->FifoPoolSchedulingOrder = EFifoPoolSchedulingOrder::Satisfaction;
-
-    for (const auto& poolConfig : {New<TPoolConfig>(), fifoPoolConfig, fifoPoolWithSatisfactionOrderConfig}) {
+    for (const auto& poolConfig : {New<TPoolConfig>(), fifoPoolConfig}) {
         pool->SetConfig(poolConfig);
 
         for (int minChildHeapSize : {3, 100}) {
@@ -1417,19 +1408,12 @@ TEST_F(TFairShareTreeAllocationSchedulerTest, TestSchedulableOperationsOrder)
             for (const auto& consideredOperations : {{}, std::optional(nonOwningOperationElements)}) {
                 YT_LOG_INFO(
                     "Testing schedulable operations order "
-                    "(PoolMode: %v, FifoPoolSchedulingOrder: %v, MinChildHeapSize: %v, UseConsideredOperations: %v)",
+                    "(PoolMode: %v, MinChildHeapSize: %v, UseConsideredOperations: %v)",
                     pool->GetConfig()->Mode,
-                    pool->GetConfig()->FifoPoolSchedulingOrder,
                     TreeConfig_->MinChildHeapSize,
                     consideredOperations.has_value());
 
-                bool shouldUseFifoOrder = pool->GetConfig()->Mode == ESchedulingMode::Fifo &&
-                    pool->GetConfig()->FifoPoolSchedulingOrder == EFifoPoolSchedulingOrder::Fifo;
-                checkOrder(
-                    consideredOperations,
-                    shouldUseFifoOrder
-                        ? ExpectedOperationIndicesFifo
-                        : ExpectedOperationIndicesFairShare);
+                checkOrder(consideredOperations, ExpectedOperationIndices);
             }
         }
     }
