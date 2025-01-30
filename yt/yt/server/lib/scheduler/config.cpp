@@ -326,15 +326,10 @@ void TFairShareStrategySsdPriorityPreemptionConfig::Register(TRegistrar registra
 void TBatchOperationSchedulingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("batch_size", &TThis::BatchSize)
-        // COMPAT(eshcherbin)
-        .Alias("medium_priority_operation_count_limit")
         .GreaterThanOrEqual(0)
         .Default(1000);
 
     registrar.Parameter("fallback_min_spare_allocation_resources", &TThis::FallbackMinSpareAllocationResources)
-        .Alias("fallback_min_spare_job_resources")
-        // COMPAT(eshcherbin)
-        .Alias("low_priority_fallback_min_spare_job_resources")
         .DefaultCtor(&GetDefaultLowPriorityFallbackMinSpareAllocationResources);
 }
 
@@ -601,8 +596,6 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
 
     registrar.Parameter("batch_operation_scheduling", &TThis::BatchOperationScheduling)
-        // COMPAT(eshcherbin)
-        .Alias("prioritized_regular_scheduling")
         .Default();
 
     registrar.Parameter("use_pool_satisfaction_for_scheduling", &TThis::UsePoolSatisfactionForScheduling)

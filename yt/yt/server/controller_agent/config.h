@@ -994,9 +994,6 @@ public:
     //! Maximum number of files per user job.
     int MaxUserFileCount;
 
-    // COMPAT(ignat)
-    std::optional<i64> MaxUserFileSize;
-
     //! Don't check resource demand for sanity if the number of online
     //! nodes is less than this bound.
     // TODO(ignat): rename to SafeExecNodeCount.
