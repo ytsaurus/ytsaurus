@@ -1,8 +1,7 @@
-from yt_env_setup import YTEnvSetup
+from yt_fast_intermediate_medium_base import TestFastIntermediateMediumBase
 
 from yt_commands import (
-    authors, create, create_domestic_medium, get, get_account_disk_space_limit,
-    map_reduce, release_breakpoint, set, set_account_disk_space_limit,
+    authors, create, exists, get, ls, map_reduce, release_breakpoint,
     wait, wait_breakpoint, with_breakpoint, write_table,
 )
 
@@ -35,15 +34,11 @@ def get_operation_tasks(op):
 
 
 @pytest.mark.enabled_multidaemon
-class TestIntermediateMediumSwitch(YTEnvSetup):
+class TestFastIntermediateMedium(TestFastIntermediateMediumBase):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1
-    NUM_NODES = 5
+    NUM_NODES = 9
     NUM_SCHEDULERS = 1
-    STORE_LOCATION_COUNT = 2
-
-    FAST_MEDIUM = "ssd_blobs"
-    SLOW_MEDIUM = "default"
 
     INTERMEDIATE_ACCOUNT_USAGE_UPDATE_PERIOD = 0.1
 
@@ -51,33 +46,17 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
         "controller_agent": {
             "intermediate_account_usage_update_period": INTERMEDIATE_ACCOUNT_USAGE_UPDATE_PERIOD,
             "fast_intermediate_medium": "ssd_blobs",
-            "fast_intermediate_medium_limit": 1 << 30,
+            "fast_intermediate_medium_limit": TestFastIntermediateMediumBase.FAST_INTERMEDIATE_MEDIUM_LIMIT,
         }
     }
 
     @classmethod
     def setup_class(cls):
-        super(TestIntermediateMediumSwitch, cls).setup_class()
-        disk_space_limit = get_account_disk_space_limit("tmp", "default")
-        set_account_disk_space_limit("tmp", disk_space_limit, TestIntermediateMediumSwitch.FAST_MEDIUM)
-
-    @classmethod
-    def modify_node_config(cls, config, cluster_index):
-        assert len(config["data_node"]["store_locations"]) == 2
-
-        config["data_node"]["store_locations"][0]["medium_name"] = cls.SLOW_MEDIUM
-        config["data_node"]["store_locations"][1]["medium_name"] = cls.FAST_MEDIUM
-
-    @classmethod
-    def on_masters_started(cls):
-        create_domestic_medium(cls.FAST_MEDIUM)
+        super(TestFastIntermediateMedium, cls).setup_class()
 
     @authors("galtsev")
     @pytest.mark.timeout(600)
     def test_intermediate_medium_switch(self):
-        def set_limit(account, medium, limit):
-            set(f"//sys/accounts/{account}/@resource_limits/disk_space_per_medium/{medium}", limit)
-
         def get_usage(account, medium, usage_type):
             return get(f"//sys/accounts/{account}/@{usage_type}/disk_space_per_medium/{medium}")
 
@@ -87,7 +66,7 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
             """
             sleep(10 * self.INTERMEDIATE_ACCOUNT_USAGE_UPDATE_PERIOD)
 
-        account = "intermediate"
+        account = self.INTERMEDIATE_ACCOUNT
         fast_medium = self.FAST_MEDIUM
         slow_medium = self.SLOW_MEDIUM
 
@@ -96,8 +75,6 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
                 get_usage(account, medium, "resource_usage") -
                 get_usage(account, medium, "committed_resource_usage")
             )
-
-        set_limit(account, fast_medium, 1 << 30)
 
         in_table = "//tmp/in"
         out_table = "//tmp/out"
@@ -168,3 +145,64 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
 
         for medium in [fast_medium, slow_medium]:
             assert get_intermediate_usage(medium) > 0, f"the medium '{medium}' was not used at all"
+
+    @authors("galtsev")
+    @pytest.mark.parametrize("fast_intermediate_config", [(1, None), (4, None), (1, "isa_reed_solomon_6_3")])
+    def test_intermediate_writer_config(self, fast_intermediate_config):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (24, 2) or self.Env.get_component_version("ytserver-job-proxy").abi <= (24, 2):
+            pytest.skip()
+
+        (upload_replication_factor, erasure_codec) = fast_intermediate_config
+
+        create("table", "//tmp/t_in")
+        create("table", "//tmp/t_out")
+
+        row_count = 3
+        write_table("//tmp/t_in", [{"x": x, "y": 1} for x in range(row_count)])
+
+        fast_intermediate_medium_table_writer_config = {
+            "upload_replication_factor": upload_replication_factor,
+        }
+        if erasure_codec is not None:
+            fast_intermediate_medium_table_writer_config["erasure_codec"] = erasure_codec
+
+        def find_intermediate_chunks():
+            return [
+                str(chunk)
+                for chunk in ls("//sys/chunks", attributes=["requisition"])
+                if chunk.attributes["requisition"][0]["account"] == self.INTERMEDIATE_ACCOUNT
+            ]
+
+        assert not find_intermediate_chunks()
+
+        op = map_reduce(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
+            reduce_by="x",
+            sort_by="x",
+            spec={
+                "fast_intermediate_medium_limit": self.FAST_INTERMEDIATE_MEDIUM_LIMIT,
+                "fast_intermediate_medium_table_writer_config": fast_intermediate_medium_table_writer_config,
+                "data_size_per_map_job": 1,
+                "map_job_io": {"table_writer": {"desired_chunk_size": 1}}
+            },
+            mapper_command="cat",
+            reducer_command=with_breakpoint("BREAKPOINT; cat"),
+            track=False,
+        )
+
+        wait(lambda: len(find_intermediate_chunks()) >= row_count)
+
+        def get_chunk_erasure_codec(chunk):
+            path = f"#{intermediate_chunk}/@erasure_codec"
+            if exists(path):
+                return get(path)
+            else:
+                return None
+
+        for intermediate_chunk in find_intermediate_chunks():
+            assert get_chunk_erasure_codec(intermediate_chunk) == erasure_codec
+            assert get(f"#{intermediate_chunk}/@media/{self.FAST_MEDIUM}/replication_factor") == upload_replication_factor
+
+        release_breakpoint()
+        op.track()
