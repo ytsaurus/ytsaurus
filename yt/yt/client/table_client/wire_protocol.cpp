@@ -1055,7 +1055,8 @@ auto IWireProtocolReader::GetSchemaData(const TTableSchema& schema) -> TSchemaDa
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TWireProtocolOptions CreateUnlimitedWireProtocolOptions() {
+TWireProtocolOptions CreateUnlimitedWireProtocolOptions()
+{
     return {
         .MaxStringValueLength = std::numeric_limits<i64>::max(),
         .MaxAnyValueLength = std::numeric_limits<i64>::max(),
