@@ -88,6 +88,7 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
         }
     }
 
+    ThrottledProbing = profiler.Counter("/throttled_probing");
     ThrottledReads = profiler.Counter("/throttled_reads");
     ThrottledWrites = profiler.Counter("/throttled_writes");
 
@@ -141,6 +142,11 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
     AvailableSpace = profiler.Gauge("/available_space");
     ChunkCount = profiler.Gauge("/chunk_count");
     Full = profiler.Gauge("/full");
+}
+
+void TLocationPerformanceCounters::ReportThrottledProbing()
+{
+    ThrottledProbing.Increment();
 }
 
 void TLocationPerformanceCounters::ReportThrottledRead()
@@ -1263,7 +1269,7 @@ void TChunkLocation::InitializeUuid()
 
 TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
     const TWorkloadDescriptor& workloadDescriptor,
-    bool incrementCounter) const
+    bool isProbing) const
 {
     auto readQueueSize =
         GetPendingIOSize(EIODirection::Read, workloadDescriptor) +
@@ -1307,8 +1313,12 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
         throttled = false;
     }
 
-    if (throttled && incrementCounter) {
-        ReportThrottledRead();
+    if (throttled) {
+        if (isProbing) {
+            ReportThrottledProbing();
+        } else {
+            ReportThrottledRead();
+        }
     }
 
     return TDiskThrottlingResult{
@@ -1316,6 +1326,11 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckReadThrottling(
         .QueueSize = readQueueSize,
         .Error = std::move(error),
     };
+}
+
+void TChunkLocation::ReportThrottledProbing() const
+{
+    PerformanceCounters_->ReportThrottledProbing();
 }
 
 void TChunkLocation::ReportThrottledRead() const
@@ -1326,8 +1341,7 @@ void TChunkLocation::ReportThrottledRead() const
 TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
     TSessionId sessionId,
     const TWorkloadDescriptor& workloadDescriptor,
-    bool blocksWindowShifted,
-    bool incrementCounter) const
+    bool blocksWindowShifted) const
 {
     bool throttled = true;
     bool memoryOvercommit = false;
@@ -1391,7 +1405,7 @@ TChunkLocation::TDiskThrottlingResult TChunkLocation::CheckWriteThrottling(
         throttled = false;
     }
 
-    if (throttled && incrementCounter) {
+    if (throttled) {
         ReportThrottledWrite();
     }
 
