@@ -461,8 +461,6 @@ public:
 
     TBatchOperationSchedulingConfigPtr BatchOperationScheduling;
 
-    bool UsePoolSatisfactionForScheduling;
-
     THistogramDigestConfigPtr PerPoolSatisfactionDigest;
     std::vector<double> PerPoolSatisfactionProfilingQuantiles;
 

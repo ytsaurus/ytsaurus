@@ -418,7 +418,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TNonOwningElementList, SchedulableChildren);
 
     // Computed in post update and used in schedule allocations.
-    DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveUsePoolSatisfactionForScheduling);
+    // Something was here, but now it's gone.
 
 protected:
     // Used in fair share update.
@@ -508,8 +508,6 @@ public:
     void MarkImmutable() override;
 
     bool IsSchedulable() const override;
-
-    virtual std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const = 0;
 
     virtual std::optional<bool> IsAggressiveStarvationEnabled() const = 0;
 
@@ -693,8 +691,6 @@ public:
     std::optional<bool> IsAggressiveStarvationEnabled() const override;
 
     TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
-
-    std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const override;
 
     //! Other methods.
     void BuildResourceMetering(
@@ -1045,8 +1041,6 @@ public:
     std::optional<bool> IsAggressiveStarvationEnabled() const override;
 
     TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
-
-    std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const override;
 
     void BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext);
 
