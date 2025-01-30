@@ -2400,9 +2400,6 @@ void TPoolConfig::Register(TRegistrar registrar)
     registrar.Parameter("offloading_settings", &TThis::OffloadingSettings)
         .Default();
 
-    registrar.Parameter("use_pool_satisfaction_for_scheduling", &TThis::UsePoolSatisfactionForScheduling)
-        .Default();
-
     registrar.Parameter("allow_idle_cpu_policy", &TThis::AllowIdleCpuPolicy)
         .Default();
 
