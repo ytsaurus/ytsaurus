@@ -311,10 +311,19 @@ private:
             JobSpecHelper_->GetJobSpecExt(),
             JobSpecHelper_->GetDataSourceDirectory());
 
+        std::vector<std::optional<std::vector<TString>>> columns;
+        if (JobSpecHelper_->GetDataSourceDirectory()) {
+            columns.reserve(JobSpecHelper_->GetDataSourceDirectory()->DataSources().size());
+            for (const auto& dataSource : JobSpecHelper_->GetDataSourceDirectory()->DataSources()) {
+                columns.push_back(dataSource.Columns());
+            }
+        }
+
         auto writer = CreateStaticTableWriterForFormat(
             format,
             Reader_->GetNameTable(),
             schemas,
+            columns,
             asyncOutput,
             IsContextSavingEnabled(),
             JobSpecHelper_->GetJobIOConfig()->ControlAttributes,
@@ -401,6 +410,7 @@ private:
                         format,
                         std::move(nameTable),
                         {std::move(schema)},
+                        /*columns*/ {std::nullopt},
                         asyncOutput,
                         IsContextSavingEnabled(),
                         JobSpecHelper_->GetJobIOConfig()->ControlAttributes,

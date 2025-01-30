@@ -284,7 +284,8 @@ void GuardedMain(int argc, char** argv)
     auto writer = NFormats::CreateStaticTableWriterForFormat(
         format,
         reader.GetReader()->GetNameTable(),
-        { schema },
+        {schema},
+        /*columns*/ {std::nullopt},
         writerStream,
         false, New<TControlAttributesConfig>(),
         0);

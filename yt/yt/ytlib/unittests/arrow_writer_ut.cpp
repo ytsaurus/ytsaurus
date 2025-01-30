@@ -128,6 +128,7 @@ ISchemalessFormatWriterPtr CreateArrowWriter(TNameTablePtr nameTable,
     return CreateWriterForArrow(
         nameTable,
         schemas,
+        /*columns*/ {},
         NConcurrency::CreateAsyncAdapter(static_cast<IOutputStream*>(outputStream)),
         false,
         controlAttributes,
@@ -146,6 +147,7 @@ ISchemalessFormatWriterPtr CreateArrowWriteWithSystemColumns(TNameTablePtr nameT
     return CreateWriterForArrow(
         nameTable,
         schemas,
+        /*columns*/ {},
         NConcurrency::CreateAsyncAdapter(static_cast<IOutputStream*>(outputStream)),
         false,
         controlAttributes,
@@ -884,24 +886,24 @@ TEST(TArrowWriterTest, SimpleMultiTypes)
 
     // Check first batch
 
-    EXPECT_EQ(ReadStringArray(batches[0]->column(0)), stringColumn1);
+    EXPECT_EQ(ReadStringArray(batches[0]->column(1)), stringColumn1);
 
     // Check second batch
 
-    EXPECT_EQ(ReadInteger64Array(batches[1]->column(0)), intColumn1);
+    EXPECT_EQ(ReadInteger64Array(batches[1]->column(1)), intColumn1);
 
     // Check third batch
 
-    EXPECT_EQ(ReadInteger64Array(batches[2]->column(0)), intColumn2);
-    EXPECT_EQ(ReadStringArray(batches[2]->column(1)), stringColumn2);
+    EXPECT_EQ(ReadInteger64Array(batches[2]->column(1)), intColumn2);
+    EXPECT_EQ(ReadStringArray(batches[2]->column(2)), stringColumn2);
 
     // Check fourth batch
 
-    EXPECT_EQ(ReadStringArray(batches[3]->column(0)), stringColumn3);
+    EXPECT_EQ(ReadStringArray(batches[3]->column(1)), stringColumn3);
 
     // Check fifth batch
 
-    EXPECT_EQ(ReadInteger64Array(batches[4]->column(0)), intColumn3);
+    EXPECT_EQ(ReadInteger64Array(batches[4]->column(1)), intColumn3);
 
 }
 

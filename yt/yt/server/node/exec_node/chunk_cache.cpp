@@ -1331,6 +1331,7 @@ private:
             /*partitionTag*/ std::nullopt);
 
         auto schema = dataSource.Schema();
+        auto columns = dataSource.Columns();
         auto format = ConvertTo<NFormats::TFormat>(TYsonString(key.format()));
 
         return [=] (IOutputStream* output) {
@@ -1338,6 +1339,7 @@ private:
                 format,
                 nameTable,
                 {schema ? schema : New<TTableSchema>()},
+                {columns},
                 CreateAsyncAdapter(output),
                 false, /*enableContextSaving*/
                 New<TControlAttributesConfig>(),

@@ -295,7 +295,8 @@ public:
         return CreateStaticTableWriterForFormat(
             format,
             datasetNameTable,
-            {},
+            /*tableSchemas*/ {},
+            /*columns*/ {},
             writerStream,
             true,
             New<TControlAttributesConfig>(),
