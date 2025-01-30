@@ -54,6 +54,11 @@ void TStockpileDynamicConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.BaseClassParameter("period", &TThis::Period)
         .Optional();
+
+    registrar.Parameter("total_memory_fraction_override", &TThis::TotalMemoryFractionOverride)
+        .Optional()
+        .GreaterThanOrEqual(0)
+        .LessThanOrEqual(1.0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -32,6 +32,7 @@ struct TStockpileDynamicConfig
     std::optional<int> ThreadCount;
     std::optional<EStockpileStrategy> Strategy;
     std::optional<TDuration> Period;
+    std::optional<double> TotalMemoryFractionOverride;
 
     REGISTER_YSON_STRUCT(TStockpileDynamicConfig);
 
