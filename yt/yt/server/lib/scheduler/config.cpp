@@ -420,7 +420,6 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(1);
 
     registrar.Parameter("update_preemptible_list_duration_logging_threshold", &TThis::UpdatePreemptibleListDurationLoggingThreshold)
-        .Alias("update_preemptable_list_duration_logging_threshold")
         .Default(TDuration::MilliSeconds(100));
 
     registrar.Parameter("enable_operations_profiling", &TThis::EnableOperationsProfiling)
