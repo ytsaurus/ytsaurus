@@ -1211,12 +1211,12 @@ class TestSchedulerProfilingOnOperationFinished(YTEnvSetup, PrepareTables):
                 {
                     "statistics_path": "/custom/value_completed",
                     "profiling_name": "metric_completed",
-                    "aggregate_type": "sum",
+                    "summary_value_type": "sum",
                 },
                 {
                     "statistics_path": "/custom/value_failed",
                     "profiling_name": "metric_failed",
-                    "aggregate_type": "sum",
+                    "summary_value_type": "sum",
                 },
             ],
         }

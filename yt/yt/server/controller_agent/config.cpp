@@ -924,8 +924,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_user_file_count", &TThis::MaxUserFileCount)
         .Default(1'000)
         .GreaterThan(0);
-    registrar.Parameter("max_user_file_size", &TThis::MaxUserFileSize)
-        .Default();
 
     registrar.Parameter("max_input_table_count", &TThis::MaxInputTableCount)
         .Default(1'000)
@@ -1342,10 +1340,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
         if (config->TotalControllerMemoryLimit) {
             config->MemoryWatchdog->TotalControllerMemoryLimit = config->TotalControllerMemoryLimit;
-        }
-
-        if (config->MaxUserFileSize) {
-            config->UserFileLimits->MaxSize = *config->MaxUserFileSize;
         }
     });
 }

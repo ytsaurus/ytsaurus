@@ -2085,7 +2085,7 @@ def create_pool_tree(name, config=None, wait_for_orchid=True, allow_patching=Tru
         if "batch_operation_scheduling" not in config:
             config["batch_operation_scheduling"] = {
                 "batch_size": 3,
-                "fallback_min_spare_job_resources": {
+                "fallback_min_spare_allocation_resources": {
                     "cpu": 1.5,
                     "user_slots": 1,
                     "memory": 512 * 1024 * 1024,
