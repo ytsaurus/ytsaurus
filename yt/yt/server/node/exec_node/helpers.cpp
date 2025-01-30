@@ -73,7 +73,8 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     userObject.Path = path;
 
     {
-        YT_LOG_INFO("Fetching layer basic attributes (LayerPath: %v, OldContentRevision: %x)",
+        YT_LOG_INFO(
+            "Fetching layer basic attributes (LayerPath: %v, OldContentRevision: %x)",
             path,
             contentRevision);
 
@@ -90,7 +91,8 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
             options);
 
         if (userObject.Type != EObjectType::File) {
-            THROW_ERROR_EXCEPTION("Invalid type of layer object %v: expected %Qlv, actual %Qlv",
+            THROW_ERROR_EXCEPTION(
+                "Invalid type of layer object %v: expected %Qlv, actual %Qlv",
                 path,
                 EObjectType::File,
                 userObject.Type)
@@ -109,7 +111,8 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
         try {
             FetchContentRevision(bootstrap, &userObject);
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error fetching revision for layer %v", path)
+            THROW_ERROR_EXCEPTION(
+                "Error fetching revision for layer %v", path)
                 << ex;
         }
     }
@@ -119,13 +122,15 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     };
 
     if (contentRevision == userObject.ContentRevision) {
-        YT_LOG_INFO("Layer revision not changed, using cached (LayerPath: %v, ObjectId: %v)",
+        YT_LOG_INFO(
+            "Layer revision not changed, using cached (LayerPath: %v, ObjectId: %v)",
             path,
             objectId);
         return result;
     }
 
-    YT_LOG_INFO("Fetching layer chunk specs (LayerPath: %v, ObjectId: %v, ContentRevision: %x)",
+    YT_LOG_INFO(
+        "Fetching layer chunk specs (LayerPath: %v, ObjectId: %v, ContentRevision: %x)",
         path,
         objectId,
         userObject.ContentRevision);
@@ -169,7 +174,9 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     }
 
     auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error fetching chunks for layer %v",
+    THROW_ERROR_EXCEPTION_IF_FAILED(
+        GetCumulativeError(batchRspOrError),
+        "Error fetching chunks for layer %v",
         path);
 
     const auto& batchRsp = batchRspOrError.Value();

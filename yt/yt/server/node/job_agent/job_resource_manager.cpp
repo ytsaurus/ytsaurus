@@ -140,7 +140,7 @@ public:
         }
     }
 
-    void Initialize() override
+    void Initialize() final
     {
         auto dynamicConfig = GetDynamicConfig();
 
@@ -160,7 +160,7 @@ public:
             std::nullopt);
     }
 
-    void Start() override
+    void Start() final
     {
         ProfilingExecutor_->Start();
         ReservedMappedMemoryChecker_->Start();
@@ -172,7 +172,7 @@ public:
 
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& oldConfig,
-        const TClusterNodeDynamicConfigPtr& newConfig) override
+        const TClusterNodeDynamicConfigPtr& newConfig) final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -248,7 +248,7 @@ public:
         resources.VCpu = static_cast<double>(NVectorHdrf::TCpuResource(resources.Cpu * GetCpuToVCpuFactor()));
     }
 
-    TJobResources GetResourceLimits() const override
+    TJobResources GetResourceLimits() const final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -326,7 +326,7 @@ public:
         return occupiedResources.UserSlots;
     }
 
-    TJobResources GetResourceUsage(std::initializer_list<EResourcesState> statesToInclude) const override
+    TJobResources GetResourceUsage(std::initializer_list<EResourcesState> statesToInclude) const final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -375,7 +375,7 @@ public:
             }));
     }
 
-    bool CheckMemoryOverdraft(const TJobResources& delta) override
+    bool CheckMemoryOverdraft(const TJobResources& delta) final
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -412,7 +412,7 @@ public:
     }
 
 
-    TDiskResources GetDiskResources() const override
+    TDiskResources GetDiskResources() const final
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -424,7 +424,7 @@ public:
         }
     }
 
-    void SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits) override
+    void SetResourceLimitsOverrides(const TNodeResourceLimitsOverrides& resourceLimits) final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -435,6 +435,13 @@ public:
             YT_LOG_DEBUG("Resource limits overrides has been changed");
             Bootstrap_->GetJobInvoker()->Invoke(BIND(&TJobResourceManager::TImpl::NotifyResourcesReleased, MakeStrong(this)));
         }
+    }
+
+    void OnNewSlotsAvailable() final
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        NotifyResourcesReleased();
     }
 
     TNodeResourceLimitsOverrides ComputeEffectiveResourceLimitsOverrides() const
@@ -461,7 +468,7 @@ public:
         return resourceLimits;
     }
 
-    double GetCpuToVCpuFactor() const override
+    double GetCpuToVCpuFactor() const final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1057,7 +1064,7 @@ public:
         DoReleasePorts(Logger, ports);
     }
 
-    TResourceAcquiringContext GetResourceAcquiringContext() override
+    TResourceAcquiringContext GetResourceAcquiringContext() final
     {
         return TResourceAcquiringContext{this};
     }
@@ -1070,12 +1077,12 @@ public:
         return PendingResourceHolderCount_;
     }
 
-    void RegisterResourcesConsumer(TClosure onResourcesReleased, EResourcesConsumerType consumerType) override
+    void RegisterResourcesConsumer(TClosure onResourcesReleased, EResourcesConsumerType consumerType) final
     {
         ResourcesConsumerCallbacks_[consumerType].Subscribe(std::move(onResourcesReleased));
     }
 
-    IYPathServicePtr GetOrchidService() const override
+    IYPathServicePtr GetOrchidService() const final
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1300,6 +1307,8 @@ private:
 
     void NotifyResourcesReleased()
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         ResourcesReleased_.Fire();
         for (const auto& callbacks : ResourcesConsumerCallbacks_) {
             callbacks.Fire();
@@ -1442,64 +1451,64 @@ public:
         YT_VERIFY(MemoryCategory_ == EMemoryCategory::SystemJobs || MemoryCategory_ == EMemoryCategory::UserJobs);
     }
 
-    bool Acquire(i64 size) override
+    bool Acquire(i64 size) final
     {
         TJobResources resources;
         GetMemory(resources) = size;
         return ResourceHolder_->UpdateAdditionalResourceUsage(resources);
     }
 
-    TError TryAcquire(i64 /*size*/) override
+    TError TryAcquire(i64 /*size*/) final
     {
         YT_UNIMPLEMENTED();
     }
 
-    TError TryChange(i64 /*size*/) override
+    TError TryChange(i64 /*size*/) final
     {
         YT_UNIMPLEMENTED();
     }
 
-    void Release(i64 size) override
+    void Release(i64 size) final
     {
         TJobResources resources;
         GetMemory(resources) = -size;
         ResourceHolder_->UpdateAdditionalResourceUsage(resources);
     }
 
-    i64 GetFree() const override
+    i64 GetFree() const final
     {
         return GetMemory(ResourceHolder_->GetFreeResources());
     }
 
-    void SetLimit(i64 /*size*/) override
+    void SetLimit(i64 /*size*/) final
     {
         YT_UNIMPLEMENTED();
     }
 
-    i64 GetLimit() const override
+    i64 GetLimit() const final
     {
         auto resource = ResourceHolder_->GetResourceLimits();
         return GetMemory(resource) ? GetMemory(resource) : std::numeric_limits<i64>::max();
     }
 
-    i64 GetUsed() const override
+    i64 GetUsed() const final
     {
         auto resource = ResourceHolder_->GetResourceUsage();
         return GetMemory(resource);
     }
 
-    bool IsExceeded() const override
+    bool IsExceeded() const final
     {
         return GetFree() <= 0;
     }
 
-    TSharedRef Track(TSharedRef reference, bool /*keepExistingTracking*/) override
+    TSharedRef Track(TSharedRef reference, bool /*keepExistingTracking*/) final
     {
         // TODO(pogorelov): Support shared ref tracking.
         return reference;
     }
 
-    TErrorOr<TSharedRef> TryTrack(TSharedRef reference, bool /*keepExistingTracking*/) override
+    TErrorOr<TSharedRef> TryTrack(TSharedRef reference, bool /*keepExistingTracking*/) final
     {
         // TODO(pogorelov): Support shared ref tracking.
         return reference;
