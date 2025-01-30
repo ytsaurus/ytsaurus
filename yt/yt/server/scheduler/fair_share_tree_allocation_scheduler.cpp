@@ -685,10 +685,6 @@ void TDynamicAttributesManager::UpdateAttributesAtCompositeElement(TSchedulerCom
         attributes.Active = true;
         attributes.BestLeafDescendant = bestChildAttributes.BestLeafDescendant;
         attributes.SatisfactionRatio = bestChildAttributes.SatisfactionRatio;
-
-        if (element->GetEffectiveUsePoolSatisfactionForScheduling()) {
-            attributes.SatisfactionRatio = std::min(attributes.SatisfactionRatio, attributes.LocalSatisfactionRatio);
-        }
     } else {
         // Declare the element passive if all children are passive.
         attributes.Active = false;

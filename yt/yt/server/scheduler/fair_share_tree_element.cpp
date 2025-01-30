@@ -853,11 +853,6 @@ void TSchedulerCompositeElement::ComputeSatisfactionRatioAtUpdate()
     }
 
     PostUpdateAttributes_.SatisfactionRatio = bestChild->PostUpdateAttributes().SatisfactionRatio;
-    if (EffectiveUsePoolSatisfactionForScheduling_) {
-        PostUpdateAttributes_.SatisfactionRatio  = std::min(
-            PostUpdateAttributes_.SatisfactionRatio,
-            PostUpdateAttributes_.LocalSatisfactionRatio);
-    }
 }
 
 void TSchedulerCompositeElement::BuildElementMapping(TFairSharePostUpdateContext* context)
@@ -1305,12 +1300,6 @@ TJobResourcesConfigPtr TSchedulerPoolElement::GetSpecifiedNonPreemptibleResource
 {
     return Config_->NonPreemptibleResourceUsageThreshold;
 }
-
-std::optional<bool> TSchedulerPoolElement::ShouldUsePoolSatisfactionForScheduling() const
-{
-    return Config_->UsePoolSatisfactionForScheduling;
-}
-
 TString TSchedulerPoolElement::GetId() const
 {
     return Id_;
@@ -1354,9 +1343,6 @@ ESchedulableStatus TSchedulerPoolElement::GetStatus() const
 void TSchedulerPoolElement::UpdateRecursiveAttributes()
 {
     YT_VERIFY(Mutable_);
-
-    EffectiveUsePoolSatisfactionForScheduling_ = ShouldUsePoolSatisfactionForScheduling().value_or(
-        Parent_->GetEffectiveUsePoolSatisfactionForScheduling());
 
     EffectiveFairShareStarvationTolerance_ = GetSpecifiedFairShareStarvationTolerance().value_or(
         Parent_->GetEffectiveFairShareStarvationTolerance());
@@ -2488,9 +2474,6 @@ void TSchedulerRootElement::UpdateRecursiveAttributes()
     YT_VERIFY(GetSpecifiedNonPreemptibleResourceUsageThresholdConfig());
     EffectiveNonPreemptibleResourceUsageThresholdConfig_ = GetSpecifiedNonPreemptibleResourceUsageThresholdConfig();
 
-    YT_VERIFY(ShouldUsePoolSatisfactionForScheduling());
-    EffectiveUsePoolSatisfactionForScheduling_ = *ShouldUsePoolSatisfactionForScheduling();
-
     TSchedulerCompositeElement::UpdateRecursiveAttributes();
 }
 
@@ -2537,11 +2520,6 @@ std::optional<bool> TSchedulerRootElement::IsAggressiveStarvationEnabled() const
 TJobResourcesConfigPtr TSchedulerRootElement::GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const
 {
     return TreeConfig_->NonPreemptibleResourceUsageThreshold;
-}
-
-std::optional<bool> TSchedulerRootElement::ShouldUsePoolSatisfactionForScheduling() const
-{
-    return TreeConfig_->UsePoolSatisfactionForScheduling;
 }
 
 void TSchedulerRootElement::BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext)

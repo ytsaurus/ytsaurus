@@ -598,9 +598,6 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("batch_operation_scheduling", &TThis::BatchOperationScheduling)
         .Default();
 
-    registrar.Parameter("use_pool_satisfaction_for_scheduling", &TThis::UsePoolSatisfactionForScheduling)
-        .Default(false);
-
     registrar.Parameter("per_pool_satisfaction_digest", &TThis::PerPoolSatisfactionDigest)
         .DefaultCtor(&GetDefaultPerPoolSatisfactionDigestConfig);
 

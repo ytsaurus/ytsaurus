@@ -301,8 +301,6 @@ public:
 
     TOffloadingSettings OffloadingSettings;
 
-    std::optional<bool> UsePoolSatisfactionForScheduling;
-
     std::optional<bool> AllowIdleCpuPolicy;
 
     bool ComputePromisedGuaranteeFairShare;
