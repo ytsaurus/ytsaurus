@@ -152,7 +152,7 @@ void TJob::GracefulAbort(TError /*error*/)
     THROW_ERROR_EXCEPTION("Graceful abort is not supported for built-in jobs");
 }
 
-void TJob::Fail()
+void TJob::Fail(TError /*error*/)
 {
     THROW_ERROR_EXCEPTION("Failing is not supported for built-in jobs");
 }

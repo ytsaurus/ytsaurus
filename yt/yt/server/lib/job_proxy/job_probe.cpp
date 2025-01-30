@@ -103,11 +103,13 @@ public:
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);
     }
 
-    void Fail() override
+    void Fail(TError error) override
     {
         auto* proxy = GetOrCreateJobProberProxy();
 
         auto req = proxy->Fail();
+
+        ToProto(req->mutable_error(), error);
 
         auto rspOrError = WaitFor(req->Invoke());
         THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError);

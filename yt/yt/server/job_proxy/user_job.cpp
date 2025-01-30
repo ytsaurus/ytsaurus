@@ -1033,11 +1033,12 @@ private:
         UserJobReadController_->InterruptReader();
     }
 
-    void Fail() override
+    void Fail(TError error) override
     {
-        YT_LOG_DEBUG("User job failed");
-        auto error = TError("Job failed by external request");
-        JobErrorPromise_.TrySet(error);
+        auto jobError = TError("Job failed by node request")
+            << std::move(error);
+        YT_LOG_DEBUG(jobError, "User job failed");
+        JobErrorPromise_.TrySet(std::move(jobError));
         CleanupUserProcesses();
     }
 

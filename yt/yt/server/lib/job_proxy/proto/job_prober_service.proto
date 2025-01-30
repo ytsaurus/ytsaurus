@@ -57,7 +57,9 @@ message TRspInterrupt
 { }
 
 message TReqFail
-{ }
+{
+    required NYT.NProto.TError error = 1;
+}
 
 message TRspFail
 { }

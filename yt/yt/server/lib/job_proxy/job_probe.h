@@ -32,7 +32,7 @@ struct IJobProbe
 
     virtual void GracefulAbort(TError error) = 0;
 
-    virtual void Fail() = 0;
+    virtual void Fail(TError error) = 0;
 
     virtual TSharedRef DumpSensors() = 0;
 };
