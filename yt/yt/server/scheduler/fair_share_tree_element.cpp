@@ -177,7 +177,7 @@ double TSchedulerElement::GetWeight() const
     auto specifiedWeight = GetSpecifiedWeight();
 
     if (auto parent = GetParent();
-        parent && parent->IsInferringChildrenWeightsFromHistoricUsageEnabled())
+        parent && parent->GetMaybeHistoricUsageAggregatorPeriod().has_value())
     {
         // TODO(eshcherbin): Make the method of calculating weights from historic usage configurable.
         auto multiplier = Exp2(-1.0 * PersistentAttributes_.HistoricUsageAggregator.GetAverage());
@@ -742,10 +742,9 @@ void TSchedulerCompositeElement::InitializeUpdate(TInstant now)
         ResourceDemand_ += child->GetResourceDemand();
         PendingAllocationCount_ += child->GetPendingAllocationCount();
 
-        if (IsInferringChildrenWeightsFromHistoricUsageEnabled()) {
+        if (auto historicUsageAggregationPeriod = GetMaybeHistoricUsageAggregatorPeriod()) {
             // NB(eshcherbin): This is a lazy parameters update so it has to be done every time.
-            child->PersistentAttributes_.HistoricUsageAggregator.SetHalflife(
-                GetHistoricUsageAggregatorPeriod());
+            child->PersistentAttributes_.HistoricUsageAggregator.SetHalflife(*historicUsageAggregationPeriod);
 
             // TODO(eshcherbin): Should we use vectors instead of ratios?
             // Yes, but nobody uses this feature yet, so it's not really important.
@@ -1498,14 +1497,9 @@ bool TSchedulerPoolElement::ShouldComputePromisedGuaranteeFairShare() const
     return Config_->ComputePromisedGuaranteeFairShare;
 }
 
-bool TSchedulerPoolElement::IsInferringChildrenWeightsFromHistoricUsageEnabled() const
+std::optional<TDuration> TSchedulerPoolElement::GetMaybeHistoricUsageAggregatorPeriod() const
 {
-    return Config_->InferChildrenWeightsFromHistoricUsage;
-}
-
-TDuration TSchedulerPoolElement::GetHistoricUsageAggregatorPeriod() const
-{
-    return Config_->HistoricUsageAggregationPeriod.value_or(TDuration::Zero());
+    return Config_->HistoricUsageAggregationPeriod;
 }
 
 void TSchedulerPoolElement::BuildResourceMetering(
@@ -2649,19 +2643,14 @@ bool TSchedulerRootElement::ShouldDistributeFreeVolumeAmongChildren() const
     return false;
 }
 
-bool TSchedulerRootElement::IsInferringChildrenWeightsFromHistoricUsageEnabled() const
-{
-    return false;
-}
-
 TJobResourcesConfigPtr TSchedulerRootElement::GetSpecifiedResourceLimitsConfig() const
 {
     return {};
 }
 
-TDuration TSchedulerRootElement::GetHistoricUsageAggregatorPeriod() const
+std::optional<TDuration> TSchedulerRootElement::GetMaybeHistoricUsageAggregatorPeriod() const
 {
-    return TDuration::Zero();
+    return {};
 }
 
 void TSchedulerRootElement::BuildResourceMetering(
