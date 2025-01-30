@@ -1313,7 +1313,7 @@ void TJobTracker::DoUpdateConfig(const TControllerAgentConfigPtr& config)
 
 void TJobTracker::DoUpdateExecNodes(TRefCountedExecNodeDescriptorMapPtr newExecNodes)
 {
-    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     std::swap(newExecNodes, ExecNodes_);
 
