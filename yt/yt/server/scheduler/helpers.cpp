@@ -266,9 +266,6 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
         {"job_proxy/aggregated_preemptible_cpu_x100", "Internal statistic of job CPU monitor", ""},
         {"job_proxy/aggregated_preempted_cpu_x100", "Internal statistic of job CPU monitor", ""},
         {"job_proxy/preemptible_cpu_x100", "Internal statistic of job CPU monitor", ""},
-        // COMPAT(eshcherbin)
-        {"job_proxy/aggregated_preemptable_cpu_x100", "Internal statistic of job CPU monitor", ""},
-        {"job_proxy/preemptable_cpu_x100", "Internal statistic of job CPU monitor", ""},
         {"job_proxy/smoothed_cpu_usage_x100", "Internal statistic of job CPU monitor", ""},
         {"job_proxy/memory_reserve_factor_x10000", "Internal statistic", ""},
         {"job_proxy/max_memory", "Maximum amount of memory used by the job proxy process", "bytes"},
