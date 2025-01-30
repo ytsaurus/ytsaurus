@@ -58,6 +58,9 @@
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
+#include <yt/yt/client/signature/generator.h>
+#include <yt/yt/client/signature/validator.h>
+
 #include <yt/yt/core/bus/tcp/server.h>
 
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
@@ -98,6 +101,7 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NAdmin;
 using namespace NFusion;
+using namespace NSignature;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -240,13 +244,22 @@ void TBootstrap::DoInitialize()
 
     AccessChecker_ = CreateAccessChecker(this);
 
+    // TODO(pavook): replace signature instances with proper ones.
     auto driverV3Config = CloneYsonStruct(Config_->Driver);
     driverV3Config->ApiVersion = ApiVersion3;
-    DriverV3_ = CreateDriver(Connection_, driverV3Config);
+    DriverV3_ = CreateDriver(
+        Connection_,
+        driverV3Config,
+        CreateAlwaysThrowingSignatureGenerator(),
+        CreateAlwaysThrowingSignatureValidator());
 
     auto driverV4Config = CloneYsonStruct(Config_->Driver);
     driverV4Config->ApiVersion = ApiVersion4;
-    DriverV4_ = CreateDriver(Connection_, driverV4Config);
+    DriverV4_ = CreateDriver(
+        Connection_,
+        driverV4Config,
+        CreateAlwaysThrowingSignatureGenerator(),
+        CreateAlwaysThrowingSignatureValidator());
 
     AuthenticationManager_ = CreateAuthenticationManager(
         Config_->Auth,
