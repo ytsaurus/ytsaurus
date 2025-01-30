@@ -625,6 +625,20 @@ void TJobFailsTolerance::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TFastIntermediateMediumTableWriterConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("upload_replication_factor", &TThis::UploadReplicationFactor)
+        .Default(DefaultIntermediateDataReplicationFactor);
+    registrar.Parameter("min_upload_replication_factor", &TThis::MinUploadReplicationFactor)
+        .Default(1);
+    registrar.Parameter("erasure_codec", &TThis::ErasureCodec)
+        .Default(NErasure::ECodec::None);
+    registrar.Parameter("enable_striped_erasure", &TThis::EnableStripedErasure)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TOperationSpecBase::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -643,6 +657,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("intermediate_data_medium", &TThis::IntermediateDataMediumName)
         .NonEmpty()
         .Default(NChunkClient::DefaultStoreMediumName);
+    registrar.Parameter("fast_intermediate_medium_table_writer_config", &TThis::FastIntermediateMediumTableWriterConfig)
+        .Default();
     registrar.Parameter("fast_intermediate_medium_limit", &TThis::FastIntermediateMediumLimit)
         .Default();
 

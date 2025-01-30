@@ -146,6 +146,12 @@ NTableClient::TTableSchema::TSystemColumnOptions ControlAttributesToColumnOption
 
 ////////////////////////////////////////////////////////////////////////////////
 
+NYson::TYsonString MakeIntermediateTableWriterConfig(
+    const TOperationSpecBasePtr& spec,
+    bool fastIntermediateMediumEnabled);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers
 
 #define HELPERS_INL_H

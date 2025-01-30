@@ -36,6 +36,7 @@ PY_SRCS(
     yt_scheduler_helpers.py
     yt_dynamic_tables_base.py
     yt_chaos_test_base.py
+    yt_fast_intermediate_medium_base.py
     yt_queries.py
     yt_queue_agent_test_base.py
     yt_mock_server.py

@@ -447,6 +447,10 @@ void TTask::SwitchIntermediateMedium()
     for (const auto& streamDescriptor : OutputStreamDescriptors_) {
         if (!streamDescriptor->SlowMedium.empty()) {
             streamDescriptor->TableWriterOptions->MediumName = streamDescriptor->SlowMedium;
+            streamDescriptor->TableWriterOptions->ReplicationFactor = TaskHost_->GetSpec()->IntermediateDataReplicationFactor;
+            streamDescriptor->TableWriterConfig = MakeIntermediateTableWriterConfig(
+                TaskHost_->GetSpec(),
+                /*fastIntermediateMediumEnabled*/ false);
         }
     }
 }
