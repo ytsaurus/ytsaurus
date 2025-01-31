@@ -252,7 +252,6 @@ class TestQueryTrackerResults(YTEnvSetup):
     DELTA_DRIVER_CONFIG = {
         "cluster_connection_dynamic_config_policy": "from_cluster_directory",
     }
-    ENABLE_MULTIDAEMON = True
 
     @authors("lucius")
     def test_query_tracker_results(self, query_tracker):
@@ -967,7 +966,6 @@ class TestQueryTrackerResultsRpcProxy(TestQueryTrackerResults):
     DRIVER_BACKEND = "rpc"
     ENABLE_RPC_PROXY = True
     NUM_RPC_PROXIES = 1
-    ENABLE_MULTIDAEMON = True
 
 
 @authors("apollo1321")
