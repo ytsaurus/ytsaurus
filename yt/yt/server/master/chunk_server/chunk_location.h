@@ -51,6 +51,11 @@ public:
     //!   Indicates an unsealed chunk.
     DEFINE_BYREF_RW_PROPERTY(TChunkQueue, ChunkSealQueue);
 
+    //! Chunk replica announcement requests that should be sent to the node upon next heartbeat.
+    //! Non-null revision means that the request was already sent and is pending confirmation.
+    using TEndorsementMap = THashMap<TChunk*, NHydra::TRevision>;
+    DEFINE_BYREF_RW_PROPERTY(TEndorsementMap, ReplicaEndorsements);
+
     DEFINE_BYVAL_RW_PROPERTY(bool, BeingDisposed);
     DEFINE_BYVAL_RW_PROPERTY(TNode*, Node);
 

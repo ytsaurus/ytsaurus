@@ -316,11 +316,17 @@ class TDynamicDataNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
 public:
+    // COMPAT(danilalexeev): YT-23781.
     int MaxConcurrentFullHeartbeats;
+
+    int MaxConcurrentLocationFullHeartbeats;
 
     int MaxConcurrentIncrementalHeartbeats;
 
     TDanglingLocationCleanerConfigPtr DanglingLocationCleaner;
+
+    // COMPAT(danilalexeev): YT-23781.
+    bool EnablePerLocationFullHeartbeats;
 
     REGISTER_YSON_STRUCT(TDynamicDataNodeTrackerConfig);
 

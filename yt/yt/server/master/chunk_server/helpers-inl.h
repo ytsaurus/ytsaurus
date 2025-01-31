@@ -120,9 +120,14 @@ TCompactVector<TChunkLocation*, TypicalChunkLocationCount> ParseLocationDirector
     locationDirectory.reserve(request.location_directory_size());
 
     for (auto uuid : rawLocationDirectory.Uuids()) {
-        // All locations were checked in `TDataNodeTracker::Hydra*Heartbeat()`
-        // so it should be safe to use `GetChunkLocationByUuid()` here.
-        locationDirectory.push_back(dataNodeTracker->GetChunkLocationByUuid(uuid));
+        // TODO(danilalexeev): YT-23781. Reorganize location directory parsing and validation.
+        auto* location = dataNodeTracker->FindChunkLocationByUuid(uuid);
+        if (!location) {
+            THROW_ERROR_EXCEPTION(
+                "Unknown location in location directory")
+                << TErrorAttribute("location_uuid", uuid);
+        }
+        locationDirectory.push_back(location);
     }
 
     return locationDirectory;

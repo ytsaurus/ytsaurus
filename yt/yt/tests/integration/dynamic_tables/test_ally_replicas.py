@@ -185,6 +185,19 @@ class TestAllyReplicas(YTEnvSetup):
         assert not banned_nodes
 
 
+# COMPAT(danilalexeev): YT-23781.
+@pytest.mark.enabled_multidaemon
+class TestAllyReplicasOldHeartbeats(TestAllyReplicas):
+    ENABLE_MULTIDAEMON = True
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "chunk_manager": {
+            "data_node_tracker": {
+                "enable_per_location_full_heartbeats": False,
+            },
+        }
+    }
+
+
 ##################################################################
 
 
