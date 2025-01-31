@@ -1250,8 +1250,8 @@ public:
 
         UnregisterChunk(chunk);
 
-        if (auto* node = chunk->GetNodeWithEndorsement()) {
-            RemoveEndorsement(chunk, node);
+        if (auto* location = chunk->GetLocationWithEndorsement()) {
+            RemoveEndorsement(chunk, location);
         }
 
         ++ChunksDestroyed_;
@@ -2746,9 +2746,10 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         node->Reset(nodeTracker);
 
-        DiscardEndorsements(node);
 
         for (auto* location : node->ChunkLocations()) {
+            DiscardEndorsements(location);
+
             // maybe all of this is normal for some reason and we should just dispose it, idk
             if (!location->Replicas().empty()) {
                 YT_LOG_ALERT("Cleared location still has replicas (NodeId: %v, LocationMediumIndex: %v, ReplicasCount: %v)",
@@ -2884,15 +2885,15 @@ private:
         return physicalReplicaCount == approvedReplicaCount;
     }
 
-    void DiscardEndorsements(TNode* node)
+    void DiscardEndorsements(TChunkLocation* location)
     {
         // This node might be the last replica for some chunks.
-        for (auto [chunk, revision] : node->ReplicaEndorsements()) {
-            YT_VERIFY(chunk->GetNodeWithEndorsement() == node);
-            chunk->SetNodeWithEndorsement(nullptr);
+        for (auto [chunk, revision] : location->ReplicaEndorsements()) {
+            YT_VERIFY(chunk->GetLocationWithEndorsement() == location);
+            chunk->SetLocationWithEndorsement(nullptr);
         }
-        EndorsementCount_ -= ssize(node->ReplicaEndorsements());
-        node->ReplicaEndorsements().clear();
+        EndorsementCount_ -= ssize(location->ReplicaEndorsements());
+        location->ReplicaEndorsements().clear();
     }
 
     bool IsClusterStableEnoughForImmediateReplicaAnnounces() const
@@ -2921,7 +2922,7 @@ private:
     template <class TResponse>
     void SetAnnounceReplicaRequests(
         TResponse* response,
-        TNode* node,
+        TRange<TChunkLocation*> locationDirectory,
         const std::vector<TChunk*>& chunks)
     {
         auto isSequoia = chunks.empty() ? false : chunks[0]->IsSequoia();
@@ -2972,13 +2973,16 @@ private:
 
         if (clusterIsStableEnough) {
             auto currentRevision = GetCurrentMutationContext()->GetVersion().ToRevision();
-            for (auto& [chunk, revision] : node->ReplicaEndorsements()) {
-                revision = currentRevision;
-                onChunk(chunk, true);
+            for (auto* location : locationDirectory) {
+                for (auto& [chunk, revision] : location->ReplicaEndorsements()) {
+                    revision = currentRevision;
+                    onChunk(chunk, true);
+                }
             }
         }
     }
 
+    // COMPAT(danilalexeev): YT-23781.
     void ProcessFullDataNodeHeartbeat(
         TNode* node,
         NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request,
@@ -2992,13 +2996,36 @@ private:
             location->ReserveReplicas(stats.chunk_count());
         }
 
-        // We've checked everything in TDataNodeTracker::ProcessFullHeartbeat.
+        // We've checked everything in TDataNodeTracker::HydraFullDataNodeHeartbeat.
         auto locationDirectory = ParseLocationDirectory(dataNodeTracker, *request);
 
         auto announceReplicaRequests = ProcessAddedReplicas(locationDirectory, node, request->chunks());
 
-        SetAnnounceReplicaRequests(response, node, announceReplicaRequests);
+        SetAnnounceReplicaRequests(response, node->ChunkLocations(), announceReplicaRequests);
 
+        FinalizeDataNodeFullHeartbeatSession(node);
+    }
+
+    void ProcessLocationFullDataNodeHeartbeat(
+        TNode* node,
+        NDataNodeTrackerClient::NProto::TReqLocationFullHeartbeat* request,
+        NDataNodeTrackerClient::NProto::TRspLocationFullHeartbeat* response) override
+    {
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+
+        auto locationUuid = FromProto<TChunkLocationUuid>(request->location_uuid());
+        // We've checked everything in TDataNodeTracker::HydraProcessLocationFullHeartbeat.
+        auto* location = dataNodeTracker->GetChunkLocationByUuid(locationUuid);
+        location->ReserveReplicas(request->chunks_size());
+
+        auto locationDirectory = {location};
+        auto announceReplicaRequests = ProcessAddedReplicas(locationDirectory, node, request->chunks());
+
+        SetAnnounceReplicaRequests(response, locationDirectory, announceReplicaRequests);
+    }
+
+    void FinalizeDataNodeFullHeartbeatSession(TNode* node) override
+    {
         ChunkPlacement_->OnNodeRegistered(node);
         ChunkPlacement_->OnNodeUpdated(node);
 
@@ -3034,7 +3061,7 @@ private:
 
     void RegisterEndorsement(TChunk* chunk)
     {
-        TNode* nodeWithMaxId = nullptr;
+        TChunkLocation* locationWithMaxId = nullptr;
 
         for (auto replica : chunk->StoredReplicas()) {
             auto* medium = FindMediumByIndex(replica.GetPtr()->GetEffectiveMediumIndex());
@@ -3043,21 +3070,21 @@ private:
             }
 
             // We do not care about approvedness.
-            auto* node = replica.GetPtr()->GetNode();
-            if (!nodeWithMaxId || node->GetId() > nodeWithMaxId->GetId()) {
-                nodeWithMaxId = node;
+            auto* location = replica.GetPtr();
+            if (!locationWithMaxId || location->GetId() > locationWithMaxId->GetId()) {
+                locationWithMaxId = location;
             }
         }
 
-        if (!nodeWithMaxId) {
+        if (!locationWithMaxId) {
             return;
         }
 
-        if (auto* formerNode = chunk->GetNodeWithEndorsement()) {
-            if (formerNode == nodeWithMaxId) {
+        if (auto* formerLocation = chunk->GetLocationWithEndorsement()) {
+            if (formerLocation == locationWithMaxId) {
                 // If there is an in-flight request to the node that is waiting for
                 // confirmation, we should treat it as outdated and send a new one.
-                auto& revision = GetOrCrash(formerNode->ReplicaEndorsements(), chunk);
+                auto& revision = GetOrCrash(formerLocation->ReplicaEndorsements(), chunk);
                 if (revision) {
                     revision = NullRevision;
                 }
@@ -3065,29 +3092,29 @@ private:
                 return;
             }
 
-            EraseOrCrash(formerNode->ReplicaEndorsements(), chunk);
+            EraseOrCrash(formerLocation->ReplicaEndorsements(), chunk);
             --EndorsementCount_;
         }
 
-        chunk->SetNodeWithEndorsement(nodeWithMaxId);
-        nodeWithMaxId->ReplicaEndorsements().emplace(chunk, NullRevision);
+        chunk->SetLocationWithEndorsement(locationWithMaxId);
+        locationWithMaxId->ReplicaEndorsements().emplace(chunk, NullRevision);
         ++EndorsementsAdded_;
         ++EndorsementCount_;
 
         YT_LOG_TRACE(
-            "Chunk replica endorsement added (ChunkId: %v, NodeId: %v, Address: %v)",
+            "Chunk replica endorsement added (ChunkId: %v, NodeAddress: %v, LocationUuid: %v)",
             chunk->GetId(),
-            nodeWithMaxId->GetId(),
-            nodeWithMaxId->GetDefaultAddress());
+            locationWithMaxId->GetNode()->GetDefaultAddress(),
+            locationWithMaxId->GetUuid());
     }
 
-    void RemoveEndorsement(TChunk* chunk, TNode* node)
+    void RemoveEndorsement(TChunk* chunk, TChunkLocation* location)
     {
-        if (chunk->GetNodeWithEndorsement() != node) {
+        if (chunk->GetLocationWithEndorsement() != location) {
             return;
         }
-        EraseOrCrash(node->ReplicaEndorsements(), chunk);
-        chunk->SetNodeWithEndorsement(nullptr);
+        EraseOrCrash(location->ReplicaEndorsements(), chunk);
+        chunk->SetLocationWithEndorsement(nullptr);
         --EndorsementCount_;
     }
 
@@ -3418,7 +3445,7 @@ private:
     }
 
     std::vector<TChunk*> ProcessAddedReplicas(
-        const TCompactVector<TChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
+        TRange<TChunkLocation*> locationDirectory,
         TNode* node,
         const auto& addedReplicas)
     {
@@ -3498,25 +3525,36 @@ private:
     {
         node->ShrinkHashTables();
 
-        for (const auto& protoRequest : request->confirmed_replica_announcement_requests()) {
-            auto chunkId = FromProto<TChunkId>(protoRequest.chunk_id());
-            auto revision = FromProto<NHydra::TRevision>(protoRequest.revision());
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        // We checked everything in TDataNodeTracker::HydraIncrementalDataNodeHeartbeat.
+        auto locationDirectory = ParseLocationDirectory(dataNodeTracker, *request);
 
-            if (auto* chunk = FindChunk(chunkId); IsObjectAlive(chunk)) {
-                auto it = node->ReplicaEndorsements().find(chunk);
-                if (it != node->ReplicaEndorsements().end() && it->second == revision) {
-                    RemoveEndorsement(chunk, node);
-                    ++EndorsementsConfirmed_;
-                }
+        auto maybeRemoveEndorsement = [&] (
+            TChunkLocation* location, TChunk* chunk, NHydra::TRevision revision)
+        {
+            auto it = location->ReplicaEndorsements().find(chunk);
+            if (it != location->ReplicaEndorsements().end() && it->second == revision) {
+                RemoveEndorsement(chunk, location);
+                ++EndorsementsConfirmed_;
+            }
+        };
+
+        for (const auto& protoRequest : request->confirmed_replica_announcement_requests()) {
+            auto* chunk = FindChunk(FromProto<TChunkId>(protoRequest.chunk_id()));
+            if (!IsObjectAlive(chunk)) {
+                continue;
+            }
+
+            auto revision = FromProto<NHydra::TRevision>(protoRequest.revision());
+            // COMPAT(danilalexeev): YT-23781.
+            for (auto* location : node->ChunkLocations()) {
+                maybeRemoveEndorsement(location, chunk, revision);
             }
         }
 
-        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        // We checked everything in TDataNodeTracker::ProcessIncrementalHeartbeat.
-        auto locationDirectory = ParseLocationDirectory(dataNodeTracker, *request);
         auto announceReplicaRequests = ProcessAddedReplicas(locationDirectory, node, request->added_chunks());
 
-        SetAnnounceReplicaRequests(response, node, announceReplicaRequests);
+        SetAnnounceReplicaRequests(response, node->ChunkLocations(), announceReplicaRequests);
 
         const auto& counters = GetIncrementalHeartbeatCounters(node);
         counters.RemovedChunks.Increment(request->removed_chunks().size());
@@ -4818,13 +4856,12 @@ private:
                     continue;
                 }
 
-                for (auto [chunk, revision] : node->ReplicaEndorsements()) {
-                    YT_VERIFY(!chunk->GetNodeWithEndorsement());
-                    chunk->SetNodeWithEndorsement(node);
-                }
-                EndorsementCount_ += ssize(node->ReplicaEndorsements());
-
                 for (auto* location : node->ChunkLocations()) {
+                    for (auto [chunk, revision] : location->ReplicaEndorsements()) {
+                        YT_VERIFY(!chunk->GetLocationWithEndorsement());
+                        chunk->SetLocationWithEndorsement(location);
+                    }
+                    EndorsementCount_ += ssize(location->ReplicaEndorsements());
                     DestroyedReplicaCount_ += location->GetDestroyedReplicasCount();
                 }
             }
@@ -5757,7 +5794,7 @@ private:
 
     TChunk* ProcessAddedChunk(
         TNode* node,
-        const TCompactVector<TChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
+        TRange<TChunkLocation*> locationDirectory,
         const TChunkAddInfo& chunkAddInfo,
         bool incremental)
     {

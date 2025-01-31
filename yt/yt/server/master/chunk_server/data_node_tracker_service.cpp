@@ -37,6 +37,11 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FullHeartbeat)
             .SetHeavy(true)
             .SetPooled(false));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(LocationFullHeartbeat)
+            .SetHeavy(true)
+            .SetPooled(false));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FinalizeFullHeartbeatSession)
+            .SetPooled(false));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(IncrementalHeartbeat)
             .SetQueueSizeLimit(10000)
             .SetConcurrencyLimit(10000)
@@ -45,6 +50,7 @@ public:
     }
 
 private:
+    // COMPAT(danilalexeev): YT-23781.
     DECLARE_RPC_SERVICE_METHOD(NDataNodeTrackerClient::NProto, FullHeartbeat)
     {
         ValidateClusterInitialized();
@@ -65,7 +71,54 @@ private:
             node->GetDefaultAddress());
 
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        dataNodeTracker->ProcessFullHeartbeat(context);
+        dataNodeTracker->ProcessFullHeartbeat(node, context);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NDataNodeTrackerClient::NProto, LocationFullHeartbeat)
+    {
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+        SyncWithUpstream();
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->ValidateRegisteredMasterCell();
+
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        auto* node = nodeTracker->GetNodeOrThrow(nodeId);
+
+        auto locationUuid = FromProto<TChunkLocationUuid>(request->location_uuid());
+
+        context->SetRequestInfo("NodeId: %v, Address: %v, LocationUuid: %v",
+            nodeId,
+            node->GetDefaultAddress(),
+            locationUuid);
+
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        dataNodeTracker->ProcessLocationFullHeartbeat(node, context);
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NDataNodeTrackerClient::NProto, FinalizeFullHeartbeatSession)
+    {
+        ValidateClusterInitialized();
+        ValidatePeer(EPeerKind::Leader);
+        SyncWithUpstream();
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->ValidateRegisteredMasterCell();
+
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+        auto* node = nodeTracker->GetNodeOrThrow(nodeId);
+
+        context->SetRequestInfo("NodeId: %v, Address: %v",
+            nodeId,
+            node->GetDefaultAddress());
+
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        dataNodeTracker->FinalizeFullHeartbeatSession(node, context);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NDataNodeTrackerClient::NProto, IncrementalHeartbeat)

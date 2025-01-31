@@ -158,7 +158,7 @@ public:
     bool ReportedCellarNodeHeartbeat() const;
     bool ReportedTabletNodeHeartbeat() const;
 
-    void ValidateRegistered();
+    void ValidateRegistered() const;
 
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TClusterNodeStatistics, ClusterNodeStatistics);
     void SetClusterNodeStatistics(NNodeTrackerClient::NProto::TClusterNodeStatistics&& statistics);
@@ -230,11 +230,6 @@ public:
     // Used for CRP-enabled chunks only.
     using TChunkPullReplicationSet = THashMap<TChunkId, TMediumMap<int>>;
     DEFINE_BYREF_RW_PROPERTY(TChunkPullReplicationSet, ChunksBeingPulled);
-
-    //! Chunk replica announcement requests that should be sent to the node upon next heartbeat.
-    //! Non-null revision means that the request was already sent and is pending confirmation.
-    using TEndorsementMap = THashMap<TChunk*, NHydra::TRevision>;
-    DEFINE_BYREF_RW_PROPERTY(TEndorsementMap, ReplicaEndorsements);
 
     // Cell Manager stuff.
     struct TCellSlot

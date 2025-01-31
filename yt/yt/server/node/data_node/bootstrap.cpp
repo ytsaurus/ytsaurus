@@ -426,6 +426,11 @@ public:
         MasterConnector_->SetLocationUuidsRequired(value);
     }
 
+    void SetPerLocationFullHeartbeatsEnabled(bool value) override
+    {
+        MasterConnector_->SetPerLocationFullHeartbeatsEnabled(value);
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 

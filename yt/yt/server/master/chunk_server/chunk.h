@@ -113,7 +113,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TConsistentReplicaPlacementHash, ConsistentReplicaPlacementHash, NullConsistentReplicaPlacementHash);
 
-    DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerServer::TNode*, NodeWithEndorsement);
+    DEFINE_BYVAL_RW_PROPERTY(TChunkLocation*, LocationWithEndorsement);
 
     DEFINE_BYVAL_RW_PROPERTY(i64, DiskSpace);
 

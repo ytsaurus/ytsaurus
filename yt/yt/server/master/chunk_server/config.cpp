@@ -311,11 +311,16 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_concurrent_full_heartbeats", &TThis::MaxConcurrentFullHeartbeats)
         .Default(1)
         .GreaterThan(0);
+    registrar.Parameter("max_concurrent_location_full_heartbeats", &TThis::MaxConcurrentLocationFullHeartbeats)
+        .Default(20)
+        .GreaterThan(0);
     registrar.Parameter("max_concurrent_incremental_heartbeats", &TThis::MaxConcurrentIncrementalHeartbeats)
         .Default(10)
         .GreaterThan(0);
     registrar.Parameter("dangling_location_cleaner", &TThis::DanglingLocationCleaner)
         .DefaultNew();
+    registrar.Parameter("enable_per_location_full_heartbeats", &TThis::EnablePerLocationFullHeartbeats)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

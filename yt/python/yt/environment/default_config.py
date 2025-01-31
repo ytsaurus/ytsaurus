@@ -82,6 +82,10 @@ def get_dynamic_master_config():
         removal_job_schedule_delay = 0;
         replicator_enabled_check_period = 1000;
         enable_chunk_schemas = %true;
+
+        data_node_tracker = {
+            enable_per_location_full_heartbeats = %true;
+        };
     };
 
     node_tracker = {

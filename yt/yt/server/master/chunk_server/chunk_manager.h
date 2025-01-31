@@ -338,10 +338,16 @@ struct IChunkManager
         TNode* node,
         NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat* request,
         NDataNodeTrackerClient::NProto::TRspIncrementalHeartbeat* response) = 0;
+    // COMPAT(danilalexeev): YT-23781.
     virtual void ProcessFullDataNodeHeartbeat(
         TNode* node,
         NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request,
         NDataNodeTrackerClient::NProto::TRspFullHeartbeat* response) = 0;
+    virtual void ProcessLocationFullDataNodeHeartbeat(
+        TNode* node,
+        NDataNodeTrackerClient::NProto::TReqLocationFullHeartbeat* request,
+        NDataNodeTrackerClient::NProto::TRspLocationFullHeartbeat* response) = 0;
+    virtual void FinalizeDataNodeFullHeartbeatSession(TNode* node) = 0;
 
     virtual TFuture<NDataNodeTrackerClient::NProto::TRspModifyReplicas> ModifySequoiaReplicas(
         std::unique_ptr<NDataNodeTrackerClient::NProto::TReqModifyReplicas> request) = 0;

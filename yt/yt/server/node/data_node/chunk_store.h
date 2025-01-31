@@ -147,6 +147,11 @@ public:
     //! Get registered chunks by location.
     std::vector<IChunkPtr> GetLocationChunks(const TChunkLocationPtr& location);
 
+    using TPerLocationChunkMap = std::map<TStoreLocationPtr, std::vector<IChunkPtr>>;
+
+    //! Returns registered chunks per location. Empty locations are omitted.
+    TPerLocationChunkMap GetPerLocationChunks();
+
     //! Physically removes or move to trash the location chunk. This method called with registering in location actions.
     /*!
      *  This call also evicts the reader from the cache thus hopefully closing the file.
