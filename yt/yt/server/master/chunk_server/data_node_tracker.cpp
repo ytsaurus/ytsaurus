@@ -95,6 +95,8 @@ public:
     {
         RegisterMethod(BIND_NO_PROPAGATE(&TDataNodeTracker::HydraIncrementalDataNodeHeartbeat, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TDataNodeTracker::HydraFullDataNodeHeartbeat, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TDataNodeTracker::HydraProcessLocationFullHeartbeat, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TDataNodeTracker::HydraFinalizeFullHeartbeatSession, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TDataNodeTracker::HydraCleanExpiredDanglingLocations, Unretained(this)));
 
         RegisterLoader(
@@ -138,16 +140,22 @@ public:
         alertManager->RegisterAlertSource(BIND(&TDataNodeTracker::GetAlerts, MakeStrong(this)));
     }
 
-    void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context) override
+    // COMPAT(danilalexeev): YT-23781.
+    template <class TFullHeartbeatContextPtr>
+    void DoProcessFullHeartbeat(TFullHeartbeatContextPtr context, TRange<TChunkLocation*> locationDirectory)
     {
+        static_assert(
+            std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr> ||
+            std::is_same_v<TFullHeartbeatContextPtr, TCtxLocationFullHeartbeatPtr>);
+
+        using TFullHeartbeatRequest = TFullHeartbeatRequest<
+            typename TFullHeartbeatContextPtr::TUnderlying::TTypedRequest::TMessage,
+            typename TFullHeartbeatContextPtr::TUnderlying::TTypedResponse::TMessage>;
+
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
         const auto& originalRequest = context->Request();
-        auto nodeId = FromProto<TNodeId>(originalRequest.node_id());
-        auto* node = nodeTracker->GetNodeOrThrow(nodeId);
-        auto locationDirectory = ParseLocationDirectoryOrThrow(node, this, originalRequest);
         THashSet<int> sequoiaLocationIndices;
         for (int i = 0; i < std::ssize(locationDirectory); ++i) {
             if (chunkReplicaFetcher->CanHaveSequoiaReplicas(locationDirectory[i])) {
@@ -169,7 +177,9 @@ public:
             preparedRequest->NonSequoiaRequest.mutable_chunks()->Clear();
 
             preparedRequest->SequoiaRequest->set_node_id(originalRequest.node_id());
-            preparedRequest->SequoiaRequest->mutable_location_directory()->CopyFrom(originalRequest.location_directory());
+            for (auto* location : locationDirectory) {
+                ToProto(preparedRequest->SequoiaRequest->add_location_directory(), location->GetUuid());
+            }
 
             for (const auto& chunkInfo : originalRequest.chunks()) {
                 auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
@@ -208,14 +218,22 @@ public:
 
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         hydraFacade->CommitMutationWithSemaphore(
-            FullHeartbeatSemaphore_,
+            std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr>
+                ? FullHeartbeatSemaphore_
+                : LocationFullHeartbeatSemaphore_,
             context,
             BIND([=, this, this_ = MakeStrong(this)] {
                 return CreateMutation(
                     Bootstrap_->GetHydraFacade()->GetHydraManager(),
                     &preparedRequest->NonSequoiaRequest,
                     &preparedRequest->NonSequoiaResponse,
-                    &TDataNodeTracker::HydraFullDataNodeHeartbeat,
+                    [&] {
+                        if constexpr (std::is_same_v<TFullHeartbeatContextPtr, TCtxFullHeartbeatPtr>) {
+                            return &TDataNodeTracker::HydraFullDataNodeHeartbeat;
+                        } else {
+                            return &TDataNodeTracker::HydraProcessLocationFullHeartbeat;
+                        }
+                    }(),
                     this);
             }),
             BIND([=] (const TMutationResponse& /*response*/) {
@@ -225,10 +243,46 @@ public:
             }));
     }
 
+    // COMPAT(danilalexeev): YT-23781.
+    void ProcessFullHeartbeat(
+        const TNode* node,
+        const TCtxFullHeartbeatPtr& context) override
+    {
+        auto locationDirectory = ParseLocationDirectoryOrThrow(node, this, context->Request());
+        DoProcessFullHeartbeat(context, locationDirectory);
+    }
+
+    void ProcessLocationFullHeartbeat(
+        const TNode* node,
+        const TCtxLocationFullHeartbeatPtr& context) override
+    {
+        if (!GetDynamicConfig()->EnablePerLocationFullHeartbeats) {
+            THROW_ERROR_EXCEPTION("Per-location full data node heartbeats are disabled");
+        }
+
+        auto* location = ParseLocationOrThrow(node, this, context->Request());
+        DoProcessFullHeartbeat(context, {location});
+    }
+
+    void FinalizeFullHeartbeatSession(
+        const TNode* /*node*/,
+        const TCtxFinalizeFullHeartbeatSessionPtr& context) override
+    {
+        auto mutation = CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            context,
+            &TDataNodeTracker::HydraFinalizeFullHeartbeatSession,
+            this);
+        mutation->SetCurrentTraceContext();
+
+        YT_UNUSED_FUTURE(mutation->CommitAndReply(context));
+    }
+
+    // COMPAT(danilalexeev): YT-23781.
     void ProcessFullHeartbeat(
         TNode* node,
         TReqFullHeartbeat* request,
-        TRspFullHeartbeat* response) override
+        TRspFullHeartbeat* response)
     {
         YT_VERIFY(node->IsDataNode() || node->IsExecNode());
 
@@ -461,6 +515,7 @@ public:
             SerializeMediumOverrides(node, dataNodeInfoExt->mutable_medium_overrides());
 
             dataNodeInfoExt->set_require_location_uuids(false);
+            dataNodeInfoExt->set_per_location_full_heartbeats_enabled(GetDynamicConfig()->EnablePerLocationFullHeartbeats);
         }
     }
 
@@ -595,6 +650,7 @@ public:
 
 private:
     const TAsyncSemaphorePtr FullHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
+    const TAsyncSemaphorePtr LocationFullHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
     const TAsyncSemaphorePtr IncrementalHeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
 
     NHydra::TEntityMap<TChunkLocation> ChunkLocationMap_;
@@ -607,6 +663,7 @@ private:
     // COMPAT(koloshmet)
     TInstant DanglingLocationsDefaultLastSeenTime_;
 
+    template <class TReqFullHeartbeat, class TRspFullHeartbeat>
     struct TFullHeartbeatRequest
         : public TRefCounted
     {
@@ -673,53 +730,57 @@ private:
         auto locationDirectory = FromProto<TChunkLocationDirectory>(protoDirectory);
         YT_ASSERT(locationDirectory.IsValid());
 
-        TCompactVector<TChunkLocation*, TypicalChunkLocationCount> locations;
-
         for (auto uuid : locationDirectory.Uuids()) {
-            auto* location = FindChunkLocationByUuid(uuid);
-            if (!location) {
-                YT_LOG_ALERT(
-                    "Data node reported %v heartbeat with invalid location directory: "
-                    "location does not exist (NodeAddress: %v, LocationUuid: %v)",
-                    fullHeartbeat ? "full" : "incremental",
-                    node->GetDefaultAddress(),
-                    uuid);
-                THROW_ERROR_EXCEPTION(
-                    "Heartbeats with unknown location in location directory are invalid")
-                    << TErrorAttribute("location_uuid", uuid);
-            }
+            ValidateLocationUuid(node, uuid, fullHeartbeat);
+        }
+    }
 
-            auto* locationNode = location->GetNode();
+    void ValidateLocationUuid(
+        const TNode* node,
+        TGuid uuid,
+        bool fullHeartbeat)
+    {
+        auto* location = FindChunkLocationByUuid(uuid);
+        if (!location) {
+            YT_LOG_ALERT(
+                "Data node reported %v heartbeat with invalid location directory: "
+                "location does not exist (NodeAddress: %v, LocationUuid: %v)",
+                fullHeartbeat ? "full" : "incremental",
+                node->GetDefaultAddress(),
+                uuid);
+            THROW_ERROR_EXCEPTION(
+                "Heartbeats with unknown location in location directory are invalid")
+                << TErrorAttribute("location_uuid", uuid);
+        }
 
-            if (!locationNode) {
-                YT_LOG_ALERT(
-                    "Data node reported %v heartbeat with invalid location directory: "
-                    "location does not have owning node "
-                    "(NodeAddress: %v, LocationUuid: %v)",
-                    fullHeartbeat ? "full" : "incremental",
-                    node->GetDefaultAddress(),
-                    uuid);
-                THROW_ERROR_EXCEPTION(
-                    "Heartbeats with dangling locations in location directory are invalid")
-                    << TErrorAttribute("location_uuid", uuid);
-            }
+        auto* locationNode = location->GetNode();
 
-            if (locationNode != node) {
-                YT_LOG_ALERT(
-                    "Data node reported %v heartbeat with invalid location directory: "
-                    "location belongs to another node "
-                    "(NodeAddress: %v, LocationUuid: %v, AnotherNodeAddress: %v)",
-                    fullHeartbeat ? "full" : "incremental",
-                    node->GetDefaultAddress(),
-                    uuid,
-                    locationNode->GetDefaultAddress());
-                THROW_ERROR_EXCEPTION(
-                    "Heartbeat's location directory cannot contain location which belongs to other node")
-                    << TErrorAttribute("location_uuid", uuid)
-                    << TErrorAttribute("node", locationNode->GetDefaultAddress());
-            }
+        if (!locationNode) {
+            YT_LOG_ALERT(
+                "Data node reported %v heartbeat with invalid location directory: "
+                "location does not have owning node "
+                "(NodeAddress: %v, LocationUuid: %v)",
+                fullHeartbeat ? "full" : "incremental",
+                node->GetDefaultAddress(),
+                uuid);
+            THROW_ERROR_EXCEPTION(
+                "Heartbeats with dangling locations in location directory are invalid")
+                << TErrorAttribute("location_uuid", uuid);
+        }
 
-            locations.push_back(location);
+        if (locationNode != node) {
+            YT_LOG_ALERT(
+                "Data node reported %v heartbeat with invalid location directory: "
+                "location belongs to another node "
+                "(NodeAddress: %v, LocationUuid: %v, AnotherNodeAddress: %v)",
+                fullHeartbeat ? "full" : "incremental",
+                node->GetDefaultAddress(),
+                uuid,
+                locationNode->GetDefaultAddress());
+            THROW_ERROR_EXCEPTION(
+                "Heartbeat's location directory cannot contain location which belongs to other node")
+                << TErrorAttribute("location_uuid", uuid)
+                << TErrorAttribute("node", locationNode->GetDefaultAddress());
         }
     }
 
@@ -758,6 +819,7 @@ private:
         }
     }
 
+    // COMPAT(danilalexeev): YT-23781.
     void HydraFullDataNodeHeartbeat(
         const TCtxFullHeartbeatPtr& /*context*/,
         TReqFullHeartbeat* request,
@@ -791,6 +853,85 @@ private:
 
             ProcessFullHeartbeat(node, request, response);
         }
+    }
+
+    void HydraProcessLocationFullHeartbeat(
+        const TCtxLocationFullHeartbeatPtr& /*context*/,
+        TReqLocationFullHeartbeat* request,
+        TRspLocationFullHeartbeat* response)
+    {
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+        auto* node = nodeTracker->GetNodeOrThrow(nodeId);
+
+        node->ValidateRegistered();
+
+        if (node->ReportedDataNodeHeartbeat()) {
+            THROW_ERROR_EXCEPTION(
+                NNodeTrackerClient::EErrorCode::InvalidState,
+                "Full data node heartbeat is already sent");
+        }
+
+        auto locationUuid = FromProto<TChunkLocationUuid>(request->location_uuid());
+        ValidateLocationUuid(
+            node,
+            locationUuid,
+            /*fullHeartbeat*/ true);
+
+        YT_PROFILE_TIMING("/node_tracker/data_node_location_full_heartbeat_time") {
+            YT_LOG_DEBUG("Processing data node location full heartbeat"
+                " (NodeId: %v, Address: %v, LocationUuid: %v, State: %v)",
+                nodeId,
+                node->GetDefaultAddress(),
+                locationUuid,
+                node->GetLocalState());
+
+            nodeTracker->UpdateLastSeenTime(node);
+
+            const auto& chunkManager = Bootstrap_->GetChunkManager();
+            PopulateChunkLocationStatistics(node, request->statistics());
+
+            chunkManager->ProcessLocationFullDataNodeHeartbeat(node, request, response);
+        }
+    }
+
+    void HydraFinalizeFullHeartbeatSession(
+        const TCtxFinalizeFullHeartbeatSessionPtr&  /*context*/,
+        TReqFinalizeFullHeartbeatSession* request,
+        TRspFinalizeFullHeartbeatSession* response)
+    {
+        const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+
+        auto nodeId = FromProto<TNodeId>(request->node_id());
+        auto* node = nodeTracker->GetNodeOrThrow(nodeId);
+
+        node->ValidateRegistered();
+
+        if (node->ReportedDataNodeHeartbeat()) {
+            THROW_ERROR_EXCEPTION(
+                NNodeTrackerClient::EErrorCode::InvalidState,
+                "Full data node heartbeat is already sent");
+        }
+
+        YT_LOG_DEBUG("Finalizing data node full heartbeat session (NodeId: %v, Address: %v)",
+            nodeId,
+            node->GetDefaultAddress());
+
+        nodeTracker->UpdateLastSeenTime(node);
+
+        auto& statistics = *request->mutable_statistics();
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        node->SetDataNodeStatistics(std::move(statistics), chunkManager);
+
+        nodeTracker->OnNodeHeartbeat(node, ENodeHeartbeatType::Data);
+
+        if (Bootstrap_->GetMulticellManager()->IsPrimaryMaster()) {
+            SerializeMediumDirectory(response->mutable_medium_directory(), chunkManager);
+            SerializeMediumOverrides(node, response->mutable_medium_overrides());
+        }
+
+        chunkManager->FinalizeDataNodeFullHeartbeatSession(node);
     }
 
     void HydraCleanExpiredDanglingLocations(NProto::TReqRemoveDanglingChunkLocations* request)
@@ -881,6 +1022,24 @@ private:
         }
     }
 
+    void PopulateChunkLocationStatistics(
+        TNode* node,
+        const NNodeTrackerClient::NProto::TChunkLocationStatistics& statistics)
+    {
+        auto locationUuid = FromProto<TChunkLocationUuid>(statistics.location_uuid());
+        auto* location = FindChunkLocationByUuid(locationUuid);
+        if (!IsObjectAlive(location)) {
+            YT_LOG_ALERT("Node reports statistics for non-existing chunk location (NodeAddress: %v, LocationUuid: %v)",
+                node->GetDefaultAddress(),
+                locationUuid);
+            THROW_ERROR_EXCEPTION(
+                "Chunk statistics reports with unknown location are invalid")
+                << TErrorAttribute("location_uuid", locationUuid);
+        }
+        location->Statistics() = statistics;
+        UpdateLocationDiskFamilyAlert(location);
+    }
+
     template <std::ranges::input_range TStatisticsRange>
         requires std::same_as<
             std::ranges::range_value_t<TStatisticsRange>,
@@ -888,16 +1047,7 @@ private:
     void PopulateChunkLocationStatistics(TNode* node, const TStatisticsRange& statistics)
     {
         for (const auto& chunkLocationStatistics : statistics) {
-            auto locationUuid = FromProto<TChunkLocationUuid>(chunkLocationStatistics.location_uuid());
-            auto* location = FindChunkLocationByUuid(locationUuid);
-            if (!IsObjectAlive(location)) {
-                YT_LOG_ALERT("Node reports statistics for non-existing chunk location (NodeAddress: %v, LocationUuid: %v)",
-                    node->GetDefaultAddress(),
-                    locationUuid);
-                continue;
-            }
-            location->Statistics() = chunkLocationStatistics;
-            UpdateLocationDiskFamilyAlert(location);
+            PopulateChunkLocationStatistics(node, chunkLocationStatistics);
         }
     }
 
@@ -909,6 +1059,7 @@ private:
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         FullHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentFullHeartbeats);
+        LocationFullHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentLocationFullHeartbeats);
         IncrementalHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentIncrementalHeartbeats);
 
         if (DanglingLocationsCleaningExecutor_) {

@@ -69,6 +69,9 @@ message TDataNodeInfoExt
 
     // COMPAT(kvk1920): Remove after location directory will be enabled everywhere.
     optional bool require_location_uuids = 3 [default = true];
+
+    // COMPAT(danilalexeev): YT-23781.
+    optional bool per_location_full_heartbeats_enabled = 4 [default = false];
 }
 
 ////////////////////////////////////////////////////////////////////////////////

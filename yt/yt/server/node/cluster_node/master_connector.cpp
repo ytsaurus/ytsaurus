@@ -644,8 +644,10 @@ private:
                 mediumUpdater->UpdateLocationMedia(dataNodeInfoExt.medium_overrides(), /*onInitialize*/ true);
 
                 dataNodeBootstrap->SetLocationUuidsRequired(dataNodeInfoExt.require_location_uuids());
+                dataNodeBootstrap->SetPerLocationFullHeartbeatsEnabled(dataNodeInfoExt.per_location_full_heartbeats_enabled());
             } else {
                 dataNodeBootstrap->SetLocationUuidsRequired(true);
+                dataNodeBootstrap->SetPerLocationFullHeartbeatsEnabled(false);
                 mediumUpdater->UpdateLocationMedia({}, /*onInitialize*/ true);
             }
         }

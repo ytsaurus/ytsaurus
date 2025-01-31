@@ -64,6 +64,7 @@ message TLocationChunkStatistics
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(danilalexeev): YT-23781.
 message TReqFullHeartbeat
 {
     required uint32 node_id = 1;
@@ -92,6 +93,34 @@ message TRspFullHeartbeat
 
     optional NChunkClient.NProto.TMediumDirectory medium_directory = 4;
     optional TMediumOverrides medium_overrides = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqLocationFullHeartbeat
+{
+    required uint32 node_id = 1;
+    required NYT.NProto.TGuid location_uuid = 2;
+    required NNodeTrackerClient.NProto.TChunkLocationStatistics statistics = 3;
+    repeated NChunkClient.NProto.TChunkAddInfo chunks = 4;
+}
+
+message TRspLocationFullHeartbeat
+{
+    // TODO(danilalexeev): YT-23781. Make required.
+    optional TReplicaAnnouncements replica_announcements = 1;
+}
+
+message TReqFinalizeFullHeartbeatSession
+{
+    required uint32 node_id = 1;
+    required NNodeTrackerClient.NProto.TDataNodeStatistics statistics = 2;
+}
+
+message TRspFinalizeFullHeartbeatSession
+{
+    optional NChunkClient.NProto.TMediumDirectory medium_directory = 1;
+    optional TMediumOverrides medium_overrides = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -65,6 +65,29 @@ static const double ChunkListTombstoneAbsoluteThreshold = 16;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TChunkLocation* ParseLocationOrThrow(
+    const TNode* node,
+    const IDataNodeTrackerPtr& dataNodeTracker,
+    const NDataNodeTrackerClient::NProto::TReqLocationFullHeartbeat& request)
+{
+    using NYT::FromProto;
+
+    static constexpr int SingleLocationDirectorySize = 1;
+    for (const auto& chunkInfo : request.chunks()) {
+        AlertAndThrowOnInvalidLocationIndex<true>(chunkInfo, node, SingleLocationDirectorySize);
+    }
+
+    auto locationUuid = FromProto<TChunkLocationUuid>(request.location_uuid());
+    // TODO(danilalexeev): YT-23781. Prefer using TDataNodeTracker::ValidateLocationUuid.
+    auto* location = dataNodeTracker->FindChunkLocationByUuid(locationUuid);
+    if (!location) {
+        THROW_ERROR_EXCEPTION(
+            "Heartbeats with unknown location in location directory are invalid")
+            << TErrorAttribute("location_uuid", locationUuid);
+    }
+    return location;
+}
+
 bool CanUnambiguouslyDetachChild(TChunkList* rootChunkList, const TChunkTree* child)
 {
     // Flush just once, avoid flushing in loop below.
