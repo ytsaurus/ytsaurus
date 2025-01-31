@@ -2,6 +2,7 @@ from yt_env_setup import (
     YTEnvSetup,
     Restarter,
     CONTROLLER_AGENTS_SERVICE,
+    NODES_SERVICE
 )
 
 from yt_commands import (
@@ -10,10 +11,13 @@ from yt_commands import (
     create,
     create_user,
     get,
+    get_job,
     join_reduce,
     raises_yt_error,
     read_table,
     release_breakpoint,
+    remove,
+    set,
     wait_breakpoint,
     with_breakpoint,
     write_table,
@@ -25,14 +29,17 @@ from yt_commands import (
     merge,
     reduce,
     sort,
+    wait_for_nodes,
+    wait,
 )
 
-from yt_helpers import skip_if_no_descending
+from yt_helpers import skip_if_no_descending, profiler_factory
 import yt.yson as yson
 
 from textwrap import dedent
 import pytest
 from random import Random
+import time
 
 
 ##################################################################
@@ -648,3 +655,129 @@ class TestSchedulerRemoteOperationAllowedForEveryoneCluster(TestSchedulerRemoteO
 
         assert read_table("//tmp/t2") == []
         assert not get("//tmp/t2/@sorted")
+
+
+class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOperationCommandsBase):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            # Enable job throttler on exe node.
+            "job_throttler": {
+            },
+        }
+    }
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "operations_update_period": 100,
+        }
+    }
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "operations_update_period": 100,
+            "operation_alerts_push_period": 100,
+            "alert_manager": {
+                "period": 100,
+                "task_paused_scheduling_ratio_threshold": 0.01,
+            },
+            "remote_copy_operation_options": {
+                "spec_template": {
+                    "use_remote_master_caches": True,
+                },
+            },
+            "disallow_remote_operations": {
+                "allowed_users": ["root"],
+                "allowed_clusters": ["remote_0"],
+            }
+        },
+    }
+
+    CHUNK_COUNT = 3
+    BANDWIDTH_LIMIT = 10 ** 6
+    THROTTLER_JITTER_MULTIPLIER = 0.5
+    DATA_WEIGHT_SIZE_PER_CHUNK = 10 ** 7
+
+    # Setup //sys/cluster_throttlers on local cluster.
+    def setup_cluster_throttlers(self):
+        remove('//sys/cluster_throttlers', force=True)
+        cluster_throttlers_config = {
+            "enabled": True,
+            "cluster_limits": {
+                # Limit bandwidth from remote cluster to local cluster.
+                self.REMOTE_CLUSTER_NAME: {
+                    "bandwidth": {
+                        "limit": self.BANDWIDTH_LIMIT,
+                    },
+                },
+            },
+            "distributed_throttler": {
+                "member_client": {
+                    "heartbeat_period": 50,
+                    "attribute_update_period": 300,
+                    "heartbeat_throttler_count_limit": 2,
+                },
+                "limit_update_period": 100,
+                "leader_update_period": 1500,
+            },
+        }
+        set('//sys/cluster_throttlers', cluster_throttlers_config)
+
+    @authors("yuryalekseev")
+    def test_cluster_throttlers(self):
+        self.setup_cluster_throttlers()
+
+        # Restart exe nodes to initialize cluster throttlers after //sys/cluster_throttlers setup.
+        with Restarter(self.Env, NODES_SERVICE):
+            time.sleep(1)
+
+        wait_for_nodes()
+
+        # Create table on remote cluster.
+        create(
+            "table",
+            "//tmp/remote_table",
+            attributes={"compression_codec": "none"},
+            chunk_reader={"enable_local_throttling": True},
+            driver=self.remote_driver)
+
+        # Fill up table on remote cluster.
+        for c in range(self.CHUNK_COUNT):
+            write_table("<append=%true>//tmp/remote_table", {"v": "0" * self.DATA_WEIGHT_SIZE_PER_CHUNK}, driver=self.remote_driver)
+
+        # Create table on local cluster.
+        create("table", "//tmp/local_table")
+
+        operation_start_time = time.time()
+
+        op = map(
+            in_=self.to_remote_path("//tmp/remote_table"),
+            out="//tmp/local_table",
+            command="cat",
+            spec={
+                "job_io": {
+                    "table_reader": {
+                        "enable_local_throttling": True,
+                    },
+                },
+                "job_count": 1,
+            },
+        )
+
+        operation_end_time = time.time()
+
+        # Check result table on local cluster.
+        assert read_table("//tmp/local_table") == [{"v": "0" * self.DATA_WEIGHT_SIZE_PER_CHUNK} for c in range(self.CHUNK_COUNT)]
+        assert not get("//tmp/local_table/@sorted")
+
+        # Check that throttling has happened.
+        assert (operation_end_time - operation_start_time) > (self.CHUNK_COUNT * self.DATA_WEIGHT_SIZE_PER_CHUNK * self.THROTTLER_JITTER_MULTIPLIER / self.BANDWIDTH_LIMIT)
+
+        # Check that solomon counters have showed up.
+        for job_id in op.list_jobs():
+            job = get_job(op.id, job_id)
+
+            profiler = profiler_factory().at_node(job["address"])
+            wait(lambda: profiler.get("exec_node/throttler_manager/distributed_throttler/limit", {"throttler_id": "bandwidth_{}".format(self.REMOTE_CLUSTER_NAME)}) is not None)
+            wait(lambda: profiler.get("exec_node/throttler_manager/distributed_throttler/usage", {"throttler_id": "bandwidth_{}".format(self.REMOTE_CLUSTER_NAME)}) is not None)
