@@ -838,6 +838,11 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     auto estimatedResourceUsage = GetNeededResources(joblet);
     joblet->EstimatedResourceUsage = estimatedResourceUsage;
 
+    TaskHost_->UpdateWriteBufferMemoryAlert(
+        joblet->JobId,
+        estimatedResourceUsage.GetJobProxyMemory(),
+        estimatedResourceUsage.GetJobProxyMemoryWithFixedWriteBufferSize());
+
     TJobResourcesWithQuota neededResources = ApplyMemoryReserve(
         estimatedResourceUsage,
         *joblet->JobProxyMemoryReserveFactor,

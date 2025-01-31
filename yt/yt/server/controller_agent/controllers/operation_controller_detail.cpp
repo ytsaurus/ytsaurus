@@ -398,7 +398,18 @@ TExtendedJobResources TOperationControllerBase::GetAutoMergeResources(
     result.SetCpu(1);
     // TODO(max42): this way to estimate memory of an auto-merge job is wrong as it considers each
     // auto-merge task writing to all output tables.
-    result.SetJobProxyMemory(GetFinalIOMemorySize(Spec_->AutoMerge->JobIO, AggregateStatistics(statistics)));
+    auto jobProxyMemory = GetFinalIOMemorySize(
+        Spec_->AutoMerge->JobIO,
+        /*useEstimatedBufferSize*/ true,
+        AggregateStatistics(statistics));
+    auto jobProxyMemoryWithFixedWriteBufferSize = GetFinalIOMemorySize(
+        Spec_->AutoMerge->JobIO,
+        /*useEstimatedBufferSize*/ false,
+        AggregateStatistics(statistics));
+
+    result.SetJobProxyMemory(jobProxyMemory);
+    result.SetJobProxyMemoryWithFixedWriteBufferSize(jobProxyMemoryWithFixedWriteBufferSize);
+
     return result;
 }
 
@@ -6527,6 +6538,30 @@ void TOperationControllerBase::PrepareInputTables()
     }
 }
 
+void TOperationControllerBase::PatchTableWriteBuffer(
+    TTableWriterOptionsPtr& writerOptions,
+    const TEpochSchema& schema) const
+{
+    if (writerOptions->OptimizeFor == EOptimizeFor::Scan) {
+        THashSet<TString> groups;
+        int singleColumnGroupCount = 0;
+
+        for (const auto& column : schema->Columns()) {
+            if (column.Group()) {
+                groups.emplace(*column.Group());
+            } else {
+                ++singleColumnGroupCount;
+            }
+        }
+
+        int dataBlockWriterCount = singleColumnGroupCount + groups.size();
+        writerOptions->BufferSize = std::min(
+            dataBlockWriterCount * Config->DesiredBlockSize,
+            Config->MaxEstimatedWriteBufferSize);
+        writerOptions->BlockSize = Config->DesiredBlockSize;
+    }
+}
+
 void TOperationControllerBase::PrepareOutputTables()
 { }
 
@@ -6791,6 +6826,12 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             {
                 table->TableWriterOptions->OptimizeFor = EOptimizeFor::Lookup;
                 table->TableWriterOptions->ChunkFormat = {};
+            }
+
+            if (Spec_->EnableWriteBufferSizeEstimation) {
+                PatchTableWriteBuffer(
+                    table->TableWriterOptions,
+                    table->TableUploadOptions.TableSchema);
             }
 
             table->EffectiveAcl = attributes->GetYson("effective_acl");
@@ -10140,14 +10181,20 @@ void TOperationControllerBase::AddCoreOutputSpecs(
     coreTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).ToString());
 }
 
-i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const
+i64 TOperationControllerBase::GetFinalOutputIOMemorySize(
+    TJobIOConfigPtr ioConfig,
+    bool useEstimatedBufferSize) const
 {
     i64 result = 0;
     for (const auto& outputTable : OutputTables_) {
+        auto bufferSize = useEstimatedBufferSize
+            ? GetWriteBufferSize(ioConfig->TableWriter, outputTable->TableWriterOptions)
+            : ioConfig->TableWriter->MaxBufferSize;
+
         if (outputTable->TableWriterOptions->ErasureCodec == NErasure::ECodec::None) {
             i64 maxBufferSize = std::max(
                 ioConfig->TableWriter->MaxRowWeight,
-                ioConfig->TableWriter->MaxBufferSize);
+                bufferSize);
             result += GetOutputWindowMemorySize(ioConfig) + maxBufferSize;
         } else {
             auto* codec = NErasure::GetCodec(outputTable->TableWriterOptions->ErasureCodec);
@@ -10172,15 +10219,53 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfi
     return result;
 }
 
+void TOperationControllerBase::UpdateWriteBufferMemoryAlert(TJobId jobId, i64 curentMemoryLimit, i64 previousMemory)
+{
+    constexpr int subAlertCount = 5;
+    constexpr int alertLimit = 5;
+
+    TOverrunTableWriteBufferMemoryInfo overrunTableWriteBufferMemoryInfo(
+        jobId,
+        previousMemory,
+        curentMemoryLimit);
+
+    if (overrunTableWriteBufferMemoryInfo.GetRelativeDifference() > Config->WriteBufferMemoryOverrunAlertFactor)
+    {
+        auto guard = Guard(OverrunWriteBufferMemoryPerJobLock);
+        OverrunWriteBufferMemoryPerJob.emplace(std::move(overrunTableWriteBufferMemoryInfo));
+
+        if (std::size(OverrunWriteBufferMemoryPerJob) > alertLimit) {
+            OverrunWriteBufferMemoryPerJob.erase(std::prev(OverrunWriteBufferMemoryPerJob.end()));
+        }
+
+        auto alert = TError("Some jobs began to consume more memory to write tables");
+
+        std::for_each_n(
+            OverrunWriteBufferMemoryPerJob.begin(),
+            std::min<int>(subAlertCount, std::ssize(OverrunWriteBufferMemoryPerJob)),
+            [&] (const TOverrunTableWriteBufferMemoryInfo& info) {
+                auto subAlert = TError("More memory was allocated for write buffers with an estimated size than for buffers with a fixed size")
+                    << TErrorAttribute("job_id", ToString(info.GetJobId()))
+                    << TErrorAttribute("difference", info.GetRelativeDifference())
+                    << TErrorAttribute("memory_with_fixed_buffers", info.GetReservedMemoryForJobProxyWithFixedBuffer())
+                    << TErrorAttribute("memory_with_estimated_buffers", info.GetReservedMemoryForJobProxyWithEstimatedBuffer());
+                alert.MutableInnerErrors()->emplace_back(std::move(subAlert));
+            });
+
+        SetOperationAlert(EOperationAlertType::WriteBufferMemoryOverrun, std::move(alert));
+    }
+}
+
 i64 TOperationControllerBase::GetFinalIOMemorySize(
     TJobIOConfigPtr ioConfig,
+    bool useEstimatedBufferSize,
     const TChunkStripeStatisticsVector& stripeStatistics) const
 {
     i64 result = 0;
     for (const auto& stat : stripeStatistics) {
         result += GetInputIOMemorySize(ioConfig, stat);
     }
-    result += GetFinalOutputIOMemorySize(ioConfig);
+    result += GetFinalOutputIOMemorySize(ioConfig, useEstimatedBufferSize);
     return result;
 }
 
@@ -10635,6 +10720,9 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
         .SinceVersion(ESnapshotVersion::JobFailTolerance));
     PHOENIX_REGISTER_FIELD(75, FailCountsPerKnownExitCode_,
         .SinceVersion(ESnapshotVersion::JobFailTolerance));
+
+    PHOENIX_REGISTER_FIELD(76, OverrunWriteBufferMemoryPerJob,
+        .SinceVersion(ESnapshotVersion::TableWriteBufferEstimation));
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.

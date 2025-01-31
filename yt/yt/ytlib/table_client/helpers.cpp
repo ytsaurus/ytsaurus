@@ -1014,4 +1014,16 @@ std::vector<TTableSchemaPtr> GetJobInputTableSchemas(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 GetWriteBufferSize(const TChunkWriterConfigPtr& config, const TChunkWriterOptionsPtr& options)
+{
+    return options->BufferSize.value_or(config->MaxBufferSize);
+}
+
+i64 GetWriteBlockSize(const TChunkWriterConfigPtr& config, const TChunkWriterOptionsPtr& options)
+{
+    return options->BlockSize.value_or(config->BlockSize);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient

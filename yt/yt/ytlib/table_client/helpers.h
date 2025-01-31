@@ -269,6 +269,12 @@ std::vector<TTableSchemaPtr> GetJobInputTableSchemas(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 GetWriteBufferSize(const TChunkWriterConfigPtr& config, const TChunkWriterOptionsPtr& options);
+
+i64 GetWriteBlockSize(const TChunkWriterConfigPtr& config, const TChunkWriterOptionsPtr& options);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
 
 #define HELPERS_INL_H_

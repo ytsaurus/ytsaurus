@@ -106,6 +106,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((JobIsNotDeterministic)                       (38))
     ((IncompatibleStatistics)                      (39))
     ((UnavailableNetworkBandwidthToClusters)       (40))
+    ((WriteBufferMemoryOverrun)                    (41))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,

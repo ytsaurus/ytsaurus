@@ -824,6 +824,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("allow_output_dynamic_tables", &TThis::AllowOutputDynamicTables)
         .Default();
 
+    registrar.Parameter("enable_write_buffer_size_estimation", &TThis::EnableWriteBufferSizeEstimation)
+        .Default(false);
+
     registrar.Parameter("job_cpu_monitor", &TThis::JobCpuMonitor)
         .DefaultNew();
 
