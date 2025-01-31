@@ -1155,6 +1155,10 @@ public:
     TDuration DynamicTableLockCheckingIntervalDurationMin;
     TDuration DynamicTableLockCheckingIntervalDurationMax;
 
+    i64 DesiredBlockSize;
+    i64 MaxEstimatedWriteBufferSize;
+    double WriteBufferMemoryOverrunAlertFactor;
+
     bool EnableOperationProgressArchivation;
     TDuration OperationProgressArchivationTimeout;
 

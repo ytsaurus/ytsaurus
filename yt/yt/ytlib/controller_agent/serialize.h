@@ -42,6 +42,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PhoenixSchema)                        (301702))
     ((PreserveJobCookieForAllocationInGangs)(301703))
     ((ThrottlingOfRemoteReads)              (301704))
+    ((TableWriteBufferEstimation)           (301705))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

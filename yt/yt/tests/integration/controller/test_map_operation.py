@@ -2448,6 +2448,109 @@ class TestSchedulerMapCommandsMirroredTx(TestSchedulerMapCommandsShardedTxCTxS):
 
 
 @pytest.mark.enabled_multidaemon
+class TestWriteBufferEstimation(YTEnvSetup):
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    @authors("don-dron")
+    def test_write_buffer_estimation(self):
+        columns = []
+
+        for i in range(32):
+            columns.append("c{}".format(i))
+
+        schema = []
+
+        for c in columns:
+            schema.append({"name": c, "type": "string"})
+
+        create("table", "//tmp/t_input", attributes={"schema": schema, "optimize_for": "scan", "replication_factor": 1})
+        create("table", "//tmp/t_output", attributes={"schema": schema, "optimize_for": "scan", "replication_factor": 1})
+
+        for row in range(1):
+            values = []
+
+            for c in columns:
+                values.append({c: "{}".format(row)})
+
+            write_table("<append=true>//tmp/t_input", values, verbose=False)
+
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command="cat",
+            spec={
+                "mapper": {"format": "dsv"},
+                "resource_limits": {"user_slots": 10},
+                "job_count": 10,
+                "max_speculative_job_count_per_task": 0,
+                "enable_job_splitting": False,
+                "auto_merge": {
+                    "mode": "disabled"
+                }
+            },
+        )
+
+        op.track()
+
+        statistics = get(op.get_path() + "/controller_orchid/progress/job_statistics_v2")
+
+        old_memory_reserve_statistics = extract_statistic_v2(
+            statistics,
+            key="job_proxy.memory_reserve",
+            summary_type="sum")
+        # GetInputIOMemorySize + GetFinalOutputIOMemorySize.
+        # base + 10 job, fixed buffer with 16 megabytes.
+        print_debug("Memory reserve with fixed wrtie buffers {}".format(old_memory_reserve_statistics))
+        assert old_memory_reserve_statistics >= 1751063386 + 16 * 10 * 1024**2
+
+        op = map(
+            in_="//tmp/t_input",
+            out="//tmp/t_output",
+            command="cat",
+            spec={
+                "enable_write_buffer_size_estimation": True,
+                "mapper": {"format": "dsv"},
+                "resource_limits": {"user_slots": 10},
+                "max_speculative_job_count_per_task": 0,
+                "enable_job_splitting": False,
+                "job_count": 10,
+                "auto_merge": {
+                    "mode": "disabled"
+                }
+            },
+        )
+
+        op.track()
+
+        statistics = get(op.get_path() + "/controller_orchid/progress/job_statistics_v2")
+
+        memory_reserve_statistics = extract_statistic_v2(
+            statistics,
+            key="job_proxy.memory_reserve",
+            summary_type="sum")
+        # GetInputIOMemorySize + GetFinalOutputIOMemorySize.
+        # This diff is due to a change in the size of the write buffer
+        # base + 10 job, 32 columns, 2 megabytes.
+        print_debug("Memory reserve with estimated wrtie buffers {}".format(memory_reserve_statistics))
+        assert memory_reserve_statistics >= 1751063386 + 10 * 32 * 2 * 1024**2
+
+        alerts = op.get_alerts()
+        assert "write_buffer_memory_overrun" in alerts
+        assert len(alerts) == 1
+
+        alert = alerts["write_buffer_memory_overrun"]
+
+        for inner in alert["inner_errors"]:
+            estimated = inner["attributes"]["memory_with_estimated_buffers"]
+            fixed = inner["attributes"]["memory_with_fixed_buffers"]
+            print_debug("Write buffers {} {}".format(estimated, fixed))
+            assert estimated - fixed == 32 * 2 * 1024**2 - 16 * 1024**2
+
+
+##################################################################
+
+
 class TestJobSizeAdjuster(YTEnvSetup):
     ENABLE_MULTIDAEMON = True
     NUM_MASTERS = 1

@@ -3690,6 +3690,9 @@ private:
         result.SetJobProxyMemory(GetInputIOMemorySize(PartitionJobIOConfig, stat)
             + outputBufferSize
             + GetOutputWindowMemorySize(PartitionJobIOConfig));
+
+        // Partition map jobs don't use estimated writer buffer size.
+        result.SetJobProxyMemoryWithFixedWriteBufferSize(result.GetJobProxyMemory());
         return result;
     }
 
@@ -3698,10 +3701,15 @@ private:
         TExtendedJobResources result;
         result.SetUserSlots(1);
         result.SetCpu(GetSortCpuLimit());
-        result.SetJobProxyMemory(GetSortInputIOMemorySize(stat) +
-            GetFinalOutputIOMemorySize(FinalSortJobIOConfig) +
+
+        auto memory = GetSortInputIOMemorySize(stat) +
             // Row data memory footprint inside SchemalessSortingReader.
-            16 * stat.ValueCount + 16 * stat.RowCount);
+            16 * stat.ValueCount + 16 * stat.RowCount;
+
+        result.SetJobProxyMemory(
+            memory + GetFinalOutputIOMemorySize(FinalSortJobIOConfig, /*useEstimatedBufferSize*/ true));
+        result.SetJobProxyMemoryWithFixedWriteBufferSize(
+            memory + GetFinalOutputIOMemorySize(FinalSortJobIOConfig, /*useEstimatedBufferSize*/ false));
         return result;
     }
 
@@ -3712,17 +3720,21 @@ private:
         i64 jobProxyMemory =
             GetSortBuffersMemorySize(stat) +
             GetSortInputIOMemorySize(stat);
+        i64 jobProxyMemoryWithFixedWriteBufferSize = jobProxyMemory;
 
         if (isFinalSort) {
-            jobProxyMemory += GetFinalOutputIOMemorySize(FinalSortJobIOConfig);
+            jobProxyMemory += GetFinalOutputIOMemorySize(FinalSortJobIOConfig, /*useEstimatedBufferSize*/ true);
+            jobProxyMemoryWithFixedWriteBufferSize += GetFinalOutputIOMemorySize(FinalSortJobIOConfig, /*useEstimatedBufferSize*/ false);
         } else {
             jobProxyMemory += GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig);
+            jobProxyMemoryWithFixedWriteBufferSize += GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig);
         }
 
         TExtendedJobResources result;
         result.SetUserSlots(1);
         result.SetCpu(GetSortCpuLimit());
         result.SetJobProxyMemory(jobProxyMemory);
+        result.SetJobProxyMemoryWithFixedWriteBufferSize(jobProxyMemoryWithFixedWriteBufferSize);
 
         if (Config->EnableNetworkInOperationDemand) {
             result.SetNetwork(Spec->ShuffleNetworkLimit);
@@ -3737,7 +3749,18 @@ private:
         TExtendedJobResources result;
         result.SetUserSlots(1);
         result.SetCpu(GetMergeCpuLimit());
-        result.SetJobProxyMemory(GetFinalIOMemorySize(SortedMergeJobIOConfig, stat));
+        auto jobProxyMemory = GetFinalIOMemorySize(
+            SortedMergeJobIOConfig,
+            /*useEstimatedBufferSize*/ true,
+            stat);
+        auto jobProxyMemoryWithFixedWriteBufferSize = GetFinalIOMemorySize(
+            SortedMergeJobIOConfig,
+            /*useEstimatedBufferSize*/ false,
+            stat);
+
+        result.SetJobProxyMemory(jobProxyMemory);
+        result.SetJobProxyMemoryWithFixedWriteBufferSize(jobProxyMemoryWithFixedWriteBufferSize);
+
         return result;
     }
 
@@ -3761,7 +3784,18 @@ private:
         TExtendedJobResources result;
         result.SetUserSlots(1);
         result.SetCpu(GetMergeCpuLimit());
-        result.SetJobProxyMemory(GetFinalIOMemorySize(UnorderedMergeJobIOConfig, AggregateStatistics(stat)));
+        auto jobProxyMemory = GetFinalIOMemorySize(
+            UnorderedMergeJobIOConfig,
+            /*useEstimatedBufferSize*/ true,
+            stat);
+        auto jobProxyMemoryWithFixedWriteBufferSize = GetFinalIOMemorySize(
+            UnorderedMergeJobIOConfig,
+            /*useEstimatedBufferSize*/ false,
+            stat);
+
+        result.SetJobProxyMemory(jobProxyMemory);
+        result.SetJobProxyMemoryWithFixedWriteBufferSize(jobProxyMemoryWithFixedWriteBufferSize);
+
         return result;
     }
 
@@ -4628,6 +4662,9 @@ private:
                 GetOutputWindowMemorySize(PartitionJobIOConfig) +
                 bufferSize);
         }
+
+        // Partition map jobs don't use estimated writer buffer size.
+        result.SetJobProxyMemoryWithFixedWriteBufferSize(result.GetJobProxyMemory());
         return result;
     }
 
@@ -4664,22 +4701,29 @@ private:
         TExtendedJobResources result;
         result.SetUserSlots(1);
 
-        i64 memory =
+        i64 jobProxyMemory =
             GetSortInputIOMemorySize(stat) +
             GetSortBuffersMemorySize(stat);
+        i64 jobProxyMemoryWithFixedWriteBufferSize = jobProxyMemory;
 
         if (isFinalSort) {
             result.SetCpu(Spec->Reducer->CpuLimit);
-            memory += GetFinalOutputIOMemorySize(FinalSortJobIOConfig);
-            result.SetJobProxyMemory(memory);
-        } else if (Spec->HasNontrivialReduceCombiner()) {
-            result.SetCpu(Spec->ReduceCombiner->CpuLimit);
-            memory += GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig);
-            result.SetJobProxyMemory(memory);
+            jobProxyMemory += GetFinalOutputIOMemorySize(FinalSortJobIOConfig, /*useEstimatedBufferSize*/ true);
+            jobProxyMemoryWithFixedWriteBufferSize += GetFinalOutputIOMemorySize(FinalSortJobIOConfig, /*useEstimatedBufferSize*/ false);
+            result.SetJobProxyMemory(jobProxyMemory);
+            result.SetJobProxyMemoryWithFixedWriteBufferSize(jobProxyMemoryWithFixedWriteBufferSize);
         } else {
-            result.SetCpu(1);
-            memory += GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig);
-            result.SetJobProxyMemory(memory);
+            auto diff = GetIntermediateOutputIOMemorySize(IntermediateSortJobIOConfig);
+            jobProxyMemory += diff;
+            jobProxyMemoryWithFixedWriteBufferSize += diff;
+            result.SetJobProxyMemory(jobProxyMemory);
+            result.SetJobProxyMemoryWithFixedWriteBufferSize(jobProxyMemoryWithFixedWriteBufferSize);
+
+            if (Spec->HasNontrivialReduceCombiner()) {
+                result.SetCpu(Spec->ReduceCombiner->CpuLimit);
+            } else {
+                result.SetCpu(1);
+            }
         }
 
         if (Config->EnableNetworkInOperationDemand) {
@@ -4695,7 +4739,18 @@ private:
         TExtendedJobResources result;
         result.SetUserSlots(1);
         result.SetCpu(Spec->Reducer->CpuLimit);
-        result.SetJobProxyMemory(GetFinalIOMemorySize(SortedMergeJobIOConfig, statistics));
+        auto jobProxyMemory = GetFinalIOMemorySize(
+            SortedMergeJobIOConfig,
+            /*useEstimatedBufferSize*/ true,
+            statistics);
+        auto jobProxyMemoryWithFixedWriteBufferSize = GetFinalIOMemorySize(
+            SortedMergeJobIOConfig,
+            /*useEstimatedBufferSize*/ false,
+            statistics);
+
+        result.SetJobProxyMemory(jobProxyMemory);
+        result.SetJobProxyMemoryWithFixedWriteBufferSize(jobProxyMemoryWithFixedWriteBufferSize);
+
         return result;
     }
 

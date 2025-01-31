@@ -1143,6 +1143,9 @@ public:
     //! Should match the atomicity of output dynamic tables.
     NTransactionClient::EAtomicity Atomicity;
 
+    //! Estimate size of writer's buffer using the formula: data block writer * optimal block size.
+    bool EnableWriteBufferSizeEstimation;
+
     //! If explicitly set, overrides the default behaviour or locking output dynamic tables depending
     //! on their atomicity.
     std::optional<bool> LockOutputDynamicTables;

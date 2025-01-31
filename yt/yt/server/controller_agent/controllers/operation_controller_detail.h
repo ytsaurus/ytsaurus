@@ -9,6 +9,7 @@
 #include "helpers.h"
 #include "input_manager.h"
 #include "job_info.h"
+#include "job_memory.h"
 #include "task.h"
 #include "task_host.h"
 
@@ -476,6 +477,8 @@ public:
     void InitializeJobExperiment();
     TJobExperimentBasePtr GetJobExperiment() override;
 
+    void UpdateWriteBufferMemoryAlert(TJobId jobId, i64 currentMemory, i64 previousMemory) override;
+
     std::expected<TJobId, EScheduleFailReason> GenerateJobId(NScheduler::TAllocationId allocationId, TJobId previousJobId) override;
 
     TJobletPtr CreateJoblet(
@@ -747,6 +750,9 @@ protected:
     void ValidateOutputDynamicTablesAllowed() const;
     void GetOutputTablesSchema();
     virtual void PrepareOutputTables();
+    void PatchTableWriteBuffer(
+        NTableClient::TTableWriterOptionsPtr& writerOptions,
+        const NTableClient::TEpochSchema& schema) const;
     void LockOutputTablesAndGetAttributes();
     void LockUserFiles();
     void GetUserFilesAttributes();
@@ -1013,10 +1019,13 @@ protected:
         TJobletPtr joblet) const;
 
     // Amount of memory reserved for output table writers in job proxy.
-    i64 GetFinalOutputIOMemorySize(NScheduler::TJobIOConfigPtr ioConfig) const;
+    i64 GetFinalOutputIOMemorySize(
+        NScheduler::TJobIOConfigPtr ioConfig,
+        bool useEstimatedBufferSize) const;
 
     i64 GetFinalIOMemorySize(
         NScheduler::TJobIOConfigPtr ioConfig,
+        bool useEstimatedBufferSize,
         const NTableClient::TChunkStripeStatisticsVector& stripeStatistics) const;
 
     void ValidateUserFileCount(NScheduler::TUserJobSpecPtr spec, const TString& operation);
@@ -1104,6 +1113,9 @@ private:
 
     NThreading::TAtomicObject<TCompositePendingJobCount> CachedPendingJobCount = {};
     int CachedTotalJobCount = 0;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OverrunWriteBufferMemoryPerJobLock);
+    std::set<TOverrunTableWriteBufferMemoryInfo> OverrunWriteBufferMemoryPerJob;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedNeededResourcesLock);
     NScheduler::TCompositeNeededResources CachedNeededResources;

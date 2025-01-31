@@ -428,7 +428,18 @@ protected:
         TExtendedJobResources result;
         result.SetUserSlots(1);
         result.SetCpu(GetCpuLimit());
-        result.SetJobProxyMemory(GetFinalIOMemorySize(Spec->JobIO, AggregateStatistics(statistics)));
+
+        auto jobProxyMemory = GetFinalIOMemorySize(
+            Spec->JobIO,
+            /*useEstimatedBufferSize*/ true,
+            AggregateStatistics(statistics));
+        auto jobProxyMemoryWithFixedWriteBufferSize = GetFinalIOMemorySize(
+            Spec->JobIO,
+            /*useEstimatedBufferSize*/ false,
+            AggregateStatistics(statistics));
+
+        result.SetJobProxyMemory(jobProxyMemory);
+        result.SetJobProxyMemoryWithFixedWriteBufferSize(jobProxyMemoryWithFixedWriteBufferSize);
         return result;
     }
 

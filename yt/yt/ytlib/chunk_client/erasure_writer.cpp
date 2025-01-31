@@ -238,15 +238,15 @@ public:
         ECodec codecId,
         const std::vector<IChunkWriterPtr>& writers,
         const TWorkloadDescriptor& workloadDescriptor)
-        : Config_(config)
+        : Config_(std::move(config))
         , SessionId_(sessionId)
         , CodecId_(codecId)
         , Codec_(NErasure::GetCodec(CodecId_))
         , WorkloadDescriptor_(workloadDescriptor)
-        , ErasureWindowSize_(RoundUp<i64>(config->ErasureWindowSize, Codec_->GetWordSize()))
+        , ErasureWindowSize_(RoundUp<i64>(Config_->ErasureWindowSize, Codec_->GetWordSize()))
         , ReadyEvent_(VoidFuture)
         , Writers_(writers)
-        , BlockReorderer_(config)
+        , BlockReorderer_(Config_)
     {
         YT_VERIFY(std::ssize(writers) == Codec_->GetTotalPartCount());
         YT_ASSERT_INVOKER_THREAD_AFFINITY(TDispatcher::Get()->GetWriterInvoker(), WriterThread);
