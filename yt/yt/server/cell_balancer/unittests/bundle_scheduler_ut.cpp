@@ -1963,7 +1963,7 @@ TEST_P(TBundleSchedulerTest, ProxyCreateNewDeallocations)
     }
 }
 
-TEST_P(TBundleSchedulerTest, ProxyCreateNewDeallocationsLegacyInstancies)
+TEST_P(TBundleSchedulerTest, ProxyCreateNewDeallocationsLegacyInstances)
 {
     auto input = GenerateInputContext(DefaultNodeCount, DefaultCellCount, 2 * GetDataCenterCount());
     auto dataCenters = GetDataCenters(input);
@@ -2549,7 +2549,7 @@ TEST_P(TBundleSchedulerTest, DeallocateOutdatedNodes)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(std::ssize(nodesToRemove), std::ssize(mutations.ChangedStates["bigd"]->NodeDeallocations));
 
-    // Verify that only outdated nodes are peeked
+    // Verify that only outdated nodes are picked
     for (const auto& [_, deallocation] : mutations.ChangedStates["bigd"]->NodeDeallocations) {
         EXPECT_TRUE(nodesToRemove.count(deallocation->InstanceName));
         nodesToRemove.erase(deallocation->InstanceName);
@@ -2589,7 +2589,7 @@ TEST_P(TBundleSchedulerTest, DeallocateOutdatedProxies)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(std::ssize(proxiesToRemove), std::ssize(mutations.ChangedStates["bigd"]->ProxyDeallocations));
 
-    // Verify that only outdated proxies are peeked
+    // Verify that only outdated proxies are picked
     for (const auto& [_, deallocation] : mutations.ChangedStates["bigd"]->ProxyDeallocations) {
         EXPECT_TRUE(proxiesToRemove.count(deallocation->InstanceName));
         proxiesToRemove.erase(deallocation->InstanceName);
@@ -2712,7 +2712,7 @@ TEST_P(TBundleSchedulerTest, DeallocateNodesUnderMaintenance)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(std::ssize(nodesToRemove), std::ssize(mutations.ChangedStates["bigd"]->NodeDeallocations));
 
-    // Verify that only nodes under maintenance are peeked
+    // Verify that only nodes under maintenance are picked
     for (const auto& [_, deallocation] : mutations.ChangedStates["bigd"]->NodeDeallocations) {
         EXPECT_TRUE(nodesToRemove.count(deallocation->InstanceName));
         nodesToRemove.erase(deallocation->InstanceName);
@@ -2748,7 +2748,7 @@ TEST_P(TBundleSchedulerTest, DeallocateProxiesUnderMaintenance)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(std::ssize(proxiesToRemove), std::ssize(mutations.ChangedStates["bigd"]->ProxyDeallocations));
 
-    // Verify that only outdated proxies are peeked
+    // Verify that only outdated proxies are picked
     for (const auto& [_, deallocation] : mutations.ChangedStates["bigd"]->ProxyDeallocations) {
         EXPECT_TRUE(proxiesToRemove.count(deallocation->InstanceName));
         proxiesToRemove.erase(deallocation->InstanceName);
@@ -3097,7 +3097,7 @@ TEST_P(TBundleSchedulerTest, DeallocateAdoptedNodes)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(std::ssize(nodesToRemove), std::ssize(mutations.ChangedStates["bigd"]->NodeDeallocations));
 
-    // Verify that only outdated nodes are peeked
+    // Verify that only outdated nodes are picked
     for (const auto& [_, deallocation] : mutations.ChangedStates["bigd"]->NodeDeallocations) {
         EXPECT_TRUE(nodesToRemove.count(deallocation->InstanceName));
         EXPECT_TRUE(!deallocation->InstanceName.empty());

@@ -926,10 +926,10 @@ private:
                 zoneSensor->FreeSpareNodeCount.Update(std::ssize(spareInfo.FreeNodes));
                 zoneSensor->ExternallyDecommissionedNodeCount.Update(std::ssize(spareInfo.ExternallyDecommissioned));
 
-                for (const auto& [bundleName, instancies] : spareInfo.UsedByBundle) {
+                for (const auto& [bundleName, instances] : spareInfo.UsedByBundle) {
                     // TODO: make per dc bundle sensors here
                     auto bundleSensors = GetBundleSensors(bundleName);
-                    bundleSensors->UsingSpareNodeCount.Update(std::ssize(instancies));
+                    bundleSensors->UsingSpareNodeCount.Update(std::ssize(instances));
                 }
             }
         }
@@ -939,10 +939,10 @@ private:
                 auto zoneSensor = GetZoneSensors(zoneName, dataCenter);
                 zoneSensor->FreeSpareProxyCount.Update(std::ssize(spareInfo.FreeProxies));
 
-                for (const auto& [bundleName, instancies] : spareInfo.UsedByBundle) {
+                for (const auto& [bundleName, instances] : spareInfo.UsedByBundle) {
                     // TODO: make per dc bundle sensors here
                     auto bundleSensors = GetBundleSensors(bundleName);
-                    bundleSensors->UsingSpareProxyCount.Update(std::ssize(instancies));
+                    bundleSensors->UsingSpareProxyCount.Update(std::ssize(instances));
                 }
             }
         }
@@ -1403,9 +1403,9 @@ private:
         const ITransactionPtr& transaction,
         const TYPath& instanceBasePath,
         const std::string& attributeName,
-        const THashSet<std::string>& instancies)
+        const THashSet<std::string>& instances)
     {
-        for (const auto& instanceName : instancies) {
+        for (const auto& instanceName : instances) {
             auto path = Format("%v/%v/@%v",
                 instanceBasePath,
                 NYPath::ToYPathLiteral(instanceName),
@@ -1532,9 +1532,9 @@ private:
         }
     }
 
-    static void RemoveInstanceCypressNode(const ITransactionPtr& transaction, const TYPath& basePath, const THashSet<std::string>& instanciesToRemove)
+    static void RemoveInstanceCypressNode(const ITransactionPtr& transaction, const TYPath& basePath, const THashSet<std::string>& instancesToRemove)
     {
-        for (const auto& instanceName : instanciesToRemove) {
+        for (const auto& instanceName : instancesToRemove) {
             WaitFor(transaction->RemoveNode(Format("%v/%v", basePath, instanceName)))
                 .ThrowOnError();
         }
