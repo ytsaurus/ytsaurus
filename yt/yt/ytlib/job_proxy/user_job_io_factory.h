@@ -19,27 +19,13 @@
 
 #include <yt/yt/core/actions/public.h>
 
-#include <yt/yt/core/concurrency/throughput_throttler.h>
-
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCreateUserJobReaderResult
-{
-    NTableClient::ISchemalessMultiChunkReaderPtr Reader;
-    std::optional<NChunkClient::NProto::TDataStatistics> PreparationDataStatistics;
-};
-
-struct IUserJobIOFactory
+struct IUserJobWriterFactory
     : public virtual TRefCounted
 {
-    virtual TCreateUserJobReaderResult CreateReader(
-        const IJobSpecHelperPtr& jobSpecHelper,
-        TClosure onNetworkReleased,
-        NTableClient::TNameTablePtr nameTable,
-        const NTableClient::TColumnFilter& columnFilter) = 0;
-
     virtual NTableClient::ISchemalessMultiChunkWriterPtr CreateWriter(
         NApi::NNative::IClientPtr client,
         NTableClient::TTableWriterConfigPtr config,
@@ -53,16 +39,40 @@ struct IUserJobIOFactory
         NChunkClient::IChunkWriter::TWriteBlocksOptions writeBlocksOptions) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(IUserJobIOFactory)
+DEFINE_REFCOUNTED_TYPE(IUserJobWriterFactory)
 
-////////////////////////////////////////////////////////////////////////////////
-
-IUserJobIOFactoryPtr CreateUserJobIOFactory(
+IUserJobWriterFactoryPtr CreateUserJobWriterFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
-    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     NChunkClient::TChunkReaderHostPtr chunkReaderHost,
     TString localHostName,
     NConcurrency::IThroughputThrottlerPtr outBandwidthThrottler);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCreateUserJobReaderResult
+{
+    NTableClient::ISchemalessMultiChunkReaderPtr Reader;
+    std::optional<NChunkClient::NProto::TDataStatistics> PreparationDataStatistics;
+};
+
+TCreateUserJobReaderResult CreateUserJobReader(
+    const IJobSpecHelperPtr& jobSpecHelper,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
+    TClosure onNetworkReleased,
+    NTableClient::TNameTablePtr nameTable,
+    const NTableClient::TColumnFilter& columnFilter);
+
+TCreateUserJobReaderResult CreateMapJobReader(
+    bool isParallel,
+    const std::vector<NChunkClient::TDataSliceDescriptor>& dataSliceDescriptors,
+    const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory,
+    const NTableClient::TTableReaderOptionsPtr& tableReaderOptions,
+    const NTableClient::TTableReaderConfigPtr& tableReaderConfig,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
+    NTableClient::TNameTablePtr nameTable,
+    const NTableClient::TColumnFilter& columnFilter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -290,6 +290,8 @@ DECLARE_REFCOUNTED_STRUCT(IClientChunkMetaCache)
 
 YT_DECLARE_RECONFIGURABLE_SINGLETON(TDispatcherConfig, TDispatcherDynamicConfig);
 
+class TDataSink;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkClient
