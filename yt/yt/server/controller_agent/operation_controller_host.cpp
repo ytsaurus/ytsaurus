@@ -531,20 +531,6 @@ TFuture<void> TOperationControllerHost::UpdateAccountResourceUsageLease(
         diskQuota);
 }
 
-void TOperationControllerHost::SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
-    const TClusterName& clusterName,
-    const TCallback<void()>& callback)
-{
-    return Bootstrap_->GetControllerAgent()->SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(clusterName, callback);
-}
-
-void TOperationControllerHost::UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
-    const TClusterName& clusterName,
-    const TCallback<void()>& callback)
-{
-    return Bootstrap_->GetControllerAgent()->UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(clusterName, callback);
-}
-
 std::shared_ptr<const THashMap<TClusterName, bool>> TOperationControllerHost::GetClusterToNetworkBandwidthAvailability() const
 {
     return Bootstrap_->GetControllerAgent()->GetClusterToNetworkBandwidthAvailability();
@@ -564,6 +550,20 @@ bool TOperationControllerHost::IsNetworkBandwidthAvailable(const TClusterName& c
     }
 
     return true;
+}
+
+void TOperationControllerHost::SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
+    const TClusterName& clusterName,
+    const TCallback<void()>& callback)
+{
+    return Bootstrap_->GetControllerAgent()->SubscribeToClusterNetworkBandwidthAvailabilityUpdated(clusterName, callback);
+}
+
+void TOperationControllerHost::UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
+    const TClusterName& clusterName,
+    const TCallback<void()>& callback)
+{
+    return Bootstrap_->GetControllerAgent()->UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(clusterName, callback);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

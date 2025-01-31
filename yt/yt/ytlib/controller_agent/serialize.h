@@ -41,6 +41,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((OperationIncarnationIsStrongTypedef)  (301701))
     ((PhoenixSchema)                        (301702))
     ((PreserveJobCookieForAllocationInGangs)(301703))
+    ((ThrottlingOfRemoteReads)              (301704))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

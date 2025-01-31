@@ -1238,6 +1238,8 @@ public:
     //! If |true|, scheduler will fail the operation if any of specified pools doesn't exist.
     std::optional<bool> RequireSpecifiedPoolsExistence;
 
+    bool UseClusterThrottlers;
+
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);
@@ -2039,8 +2041,6 @@ public:
 
     // COMPAT(yuryalekseev)
     bool AllowClusterConnection;
-
-    bool UseClusterThrottlers;
 
     REGISTER_YSON_STRUCT(TRemoteCopyOperationSpec);
 

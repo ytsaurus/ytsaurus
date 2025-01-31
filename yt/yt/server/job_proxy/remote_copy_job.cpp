@@ -1047,7 +1047,7 @@ private:
                 endBlockIndex += 1;
             }
 
-            if (RemoteCopyJobSpecExt_.use_cluster_throttlers()) {
+            if (JobSpecExt_.use_cluster_throttlers()) {
                 ReadBlocksOptions_.EstimatedSize = sizeToRead;
             }
 
@@ -1122,10 +1122,10 @@ private:
     {
         YT_LOG_DEBUG("Creating chunk reader host (RemoteClusterName: %v, UseClusterThrottlers: %v)",
             RemoteCopyJobSpecExt_.remote_cluster_name(),
-            RemoteCopyJobSpecExt_.use_cluster_throttlers());
+            JobSpecExt_.use_cluster_throttlers());
 
         auto clusterName = LocalClusterName;
-        if (RemoteCopyJobSpecExt_.has_remote_cluster_name() && RemoteCopyJobSpecExt_.use_cluster_throttlers()) {
+        if (RemoteCopyJobSpecExt_.has_remote_cluster_name() && JobSpecExt_.use_cluster_throttlers()) {
             clusterName = FromProto<TClusterName>(RemoteCopyJobSpecExt_.remote_cluster_name());
         }
 

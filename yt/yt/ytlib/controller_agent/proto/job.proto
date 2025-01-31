@@ -483,6 +483,8 @@ message TJobSpecExt
 
     optional bool disable_rename_columns_compatibility_code = 44;
 
+    optional bool use_cluster_throttlers = 46;
+
     reserved 8, 28;
 }
 
@@ -745,8 +747,6 @@ message TRemoteCopyJobSpecExt
     repeated THunkChunkIdMapping hunk_chunk_id_mapping = 7;
 
     optional string remote_cluster_name = 8;
-
-    optional bool use_cluster_throttlers = 9;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

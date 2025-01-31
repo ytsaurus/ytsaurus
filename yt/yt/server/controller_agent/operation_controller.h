@@ -241,13 +241,16 @@ struct IOperationControllerHost
         NSecurityClient::TAccountResourceUsageLeaseId leaseId,
         const NScheduler::TDiskQuota& diskQuota) = 0;
 
-    virtual void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
+    virtual void SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName& clusterName,
         const TCallback<void()>& callback) = 0;
-    virtual void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+
+    virtual void UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName& clusterName,
         const TCallback<void()>& callback) = 0;
+
     virtual std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const = 0;
+
     virtual bool IsNetworkBandwidthAvailable(const NScheduler::TClusterName& clusterName) const = 0;
 };
 

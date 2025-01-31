@@ -53,7 +53,7 @@ public:
         AnalyzeScheduleJobStatistics();
         AnalyzeControllerQueues();
         AnalyzeInvalidatedJobs();
-        AnalyzeTasksPausedSchedulingDuration();
+        AnalyzeTasksUnavailableNetworkBandwidthToClustersDuration();
     }
 
 private:
@@ -807,36 +807,32 @@ private:
         }
     }
 
-    void AnalyzeTasksPausedSchedulingDuration()
+    void AnalyzeTasksUnavailableNetworkBandwidthToClustersDuration()
     {
-        if (Host_->GetOperationType() != EOperationType::RemoteCopy) {
-            return;
-        }
-
-        std::optional<TString> taskWithLongPausedScheduling;
+        std::optional<TString> taskWithLongUnavailableNetworkBandwidth;
         for (const auto& task : Host_->GetTasks()) {
             auto totalDuration = task->GetTotalDuration();
-            auto pausedSchedulingDuration = task->GetPausedSchedulingDuration();
+            auto unavailableNetworkBandwidthDuration = task->GetUnavailableNetworkBandwidthDuration();
 
-            double pausedSchedulingRatio = 0;
-            if (totalDuration < pausedSchedulingDuration) {
-                // Scheduling has been paused from the beginning of operation.
-                pausedSchedulingRatio = 1.0;
+            double unavailableNetworkBandwidthRatio = 0;
+            if (totalDuration < unavailableNetworkBandwidthDuration) {
+                // Network bandwidth has been unavailable from the beginning of task.
+                unavailableNetworkBandwidthRatio = 1.0;
             } else if (TDuration::Zero() < totalDuration) {
-                pausedSchedulingRatio = pausedSchedulingDuration / totalDuration;
+                unavailableNetworkBandwidthRatio = unavailableNetworkBandwidthDuration / totalDuration;
             }
-            if (Host_->GetConfig()->AlertManager->TaskPausedSchedulingRatioThreshold < pausedSchedulingRatio) {
-                taskWithLongPausedScheduling = task->GetTitle();
+            if (Host_->GetConfig()->AlertManager->TaskUnavailableNetworkBandwidthRatioThreshold < unavailableNetworkBandwidthRatio) {
+                taskWithLongUnavailableNetworkBandwidth = task->GetTitle();
                 break;
             }
         }
 
-        if (taskWithLongPausedScheduling) {
-            auto error = TError("Operation has task with long paused scheduling")
-                << TErrorAttribute("task_with_long_paused_scheduling", *taskWithLongPausedScheduling);
+        if (taskWithLongUnavailableNetworkBandwidth) {
+            auto error = TError("Operation has task with long unavailable network bandwidth to remote clusters")
+                << TErrorAttribute("task_with_long_unavailable_network_bandwidth", *taskWithLongUnavailableNetworkBandwidth);
 
             Host_->SetOperationAlert(
-                EOperationAlertType::HasTaskWithLongPausedScheduling,
+                EOperationAlertType::UnavailableNetworkBandwidthToClusters,
                 error);
         }
     }
