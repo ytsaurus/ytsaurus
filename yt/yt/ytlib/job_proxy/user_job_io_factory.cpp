@@ -228,16 +228,17 @@ IMultiReaderMemoryManagerPtr CreateMultiReaderMemoryManager(i64 totalReaderMemor
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TUserJobIOFactoryBase
-    : public IUserJobIOFactory
+struct TCreateSortedReduceJobReaderTag
+{ };
+
+struct TSimpleJobWriterFactory
+    : public IUserJobWriterFactory
 {
-    TUserJobIOFactoryBase(
-        const TClientChunkReadOptions& chunkReadOptions,
+    TSimpleJobWriterFactory(
         TChunkReaderHostPtr chunkReaderHost,
         TString localHostName,
         IThroughputThrottlerPtr outBandwidthThrottler)
-        : ChunkReadOptions_(chunkReadOptions)
-        , ChunkReaderHost_(std::move(chunkReaderHost))
+        : ChunkReaderHost_(std::move(chunkReaderHost))
         , LocalHostName_(std::move(localHostName))
         , OutBandwidthThrottler_(std::move(outBandwidthThrottler))
     { }
@@ -272,7 +273,6 @@ struct TUserJobIOFactoryBase
     }
 
 protected:
-    const TClientChunkReadOptions ChunkReadOptions_;
     const TChunkReaderHostPtr ChunkReaderHost_;
     const TString LocalHostName_;
     const IThroughputThrottlerPtr OutBandwidthThrottler_;
@@ -280,341 +280,297 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMapJobIOFactory
-    : public TUserJobIOFactoryBase
+TCreateUserJobReaderResult CreateMapJobReader(
+    bool isParallel,
+    const std::vector<TDataSliceDescriptor>& dataSliceDescriptors,
+    const TDataSourceDirectoryPtr& dataSourceDirectory,
+    const TTableReaderOptionsPtr& tableReaderOptions,
+    const TTableReaderConfigPtr& tableReaderConfig,
+    const TClientChunkReadOptions& chunkReadOptions,
+    TChunkReaderHostPtr chunkReaderHost,
+    TNameTablePtr nameTable,
+    const TColumnFilter& columnFilter)
 {
-public:
-    TMapJobIOFactory(
-        bool useParallelReader,
-        const TClientChunkReadOptions& chunkReadOptions,
-        TChunkReaderHostPtr chunkReaderHost,
-        TString localHostName,
-        IThroughputThrottlerPtr outBandwidthThrottler)
-        : TUserJobIOFactoryBase(
-            chunkReadOptions,
-            std::move(chunkReaderHost),
-            std::move(localHostName),
-            std::move(outBandwidthThrottler))
-        , UseParallelReader_(useParallelReader)
-    { }
+    auto multiReaderMemoryManager = CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize);
 
-    TCreateUserJobReaderResult CreateReader(
-        const IJobSpecHelperPtr& jobSpecHelper,
-        TClosure /*onNetworkReleased*/,
-        TNameTablePtr nameTable,
-        const TColumnFilter& columnFilter) override
-    {
-        auto multiReaderMemoryManager = CreateMultiReaderMemoryManager(jobSpecHelper->GetJobIOConfig()->TableReader->MaxBufferSize);
+    return {
+        CreateRegularReader(
+            dataSliceDescriptors,
+            dataSourceDirectory,
+            tableReaderOptions,
+            tableReaderConfig,
+            chunkReaderHost,
+            isParallel,
+            std::move(nameTable),
+            columnFilter,
+            chunkReadOptions,
+            multiReaderMemoryManager),
+        std::nullopt
+    };
+}
+
+TCreateUserJobReaderResult CreateMapJobReader(
+    bool isParallel,
+    const IJobSpecHelperPtr& jobSpecHelper,
+    const TClientChunkReadOptions& chunkReadOptions,
+    TChunkReaderHostPtr chunkReaderHost,
+    TNameTablePtr nameTable,
+    const TColumnFilter& columnFilter)
+{
+    return CreateMapJobReader(
+        isParallel,
+        jobSpecHelper->UnpackDataSliceDescriptors(),
+        jobSpecHelper->GetDataSourceDirectory(),
+        jobSpecHelper->GetTableReaderOptions(),
+        jobSpecHelper->GetJobIOConfig()->TableReader,
+        chunkReadOptions,
+        std::move(chunkReaderHost),
+        std::move(nameTable),
+        columnFilter);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TCreateUserJobReaderResult CreateSortedReduceJobReader(
+    bool interruptAtKeyEdge,
+    const IJobSpecHelperPtr& jobSpecHelper,
+    const TClientChunkReadOptions& chunkReadOptions,
+    TChunkReaderHostPtr chunkReaderHost,
+    TNameTablePtr nameTable,
+    const TColumnFilter& columnFilter)
+{
+    auto& Logger = JobProxyClientLogger();
+    auto rowBuffer = New<TRowBuffer>(TCreateSortedReduceJobReaderTag());
+
+    YT_VERIFY(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
+
+    const auto& reduceJobSpecExt = jobSpecHelper->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+    auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
+    auto sortColumns = FromProto<TSortColumns>(reduceJobSpecExt.sort_columns());
+    auto getTotalReaderMemoryLimit = [] (const IJobSpecHelperPtr& jobSpecHelper) {
+        auto readerMemoryLimit = jobSpecHelper->GetJobIOConfig()->TableReader->MaxBufferSize;
+        const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
+        auto readerCount = jobSpecExt.input_table_specs_size() + jobSpecExt.foreign_input_table_specs_size();
+        return readerMemoryLimit * readerCount;
+    };
+    auto multiReaderMemoryManager = CreateMultiReaderMemoryManager(getTotalReaderMemoryLimit(jobSpecHelper));
+    std::optional<NChunkClient::NProto::TDataStatistics> preparationDataStatistics;
+
+    // COMPAT(gritukan)
+    if (sortColumns.empty()) {
+        for (const auto& keyColumn : keyColumns) {
+            sortColumns.push_back({keyColumn, ESortOrder::Ascending});
+        }
+    }
+
+    nameTable = TNameTable::FromSortColumns(sortColumns);
+    const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
+    auto dataSourceDirectory = jobSpecHelper->GetDataSourceDirectory();
+
+    // COMPAT(max42, onionalex): remove after all CAs are 22.2+.
+    for (auto& dataSource : dataSourceDirectory->DataSources()) {
+        if (!dataSource.Schema() || dataSource.Schema()->Columns().empty()) {
+            dataSource.Schema() = TTableSchema::FromSortColumns(sortColumns);
+        }
+    }
+
+    if (reduceJobSpecExt.disable_sorted_input() && jobSpecExt.foreign_input_table_specs_size() == 0) {
+        // Input tables are currently sorted, although this property is not utilized by this reader.
+        // Intermediate sorting is necessary to distribute chunks among sorted reduce jobs
+        // in the current implementation.
+
         return {
             CreateRegularReader(
                 jobSpecHelper->UnpackDataSliceDescriptors(),
                 jobSpecHelper->GetDataSourceDirectory(),
                 jobSpecHelper->GetTableReaderOptions(),
                 jobSpecHelper->GetJobIOConfig()->TableReader,
-                ChunkReaderHost_,
-                UseParallelReader_,
+                chunkReaderHost,
+                /*isParallel*/ true,
                 std::move(nameTable),
                 columnFilter,
-                ChunkReadOptions_,
+                chunkReadOptions,
                 multiReaderMemoryManager),
-            std::nullopt
+            preparationDataStatistics
         };
     }
 
-private:
-    const bool UseParallelReader_;
-};
+    auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
+        jobSpecExt.table_reader_options()));
 
-////////////////////////////////////////////////////////////////////////////////
+    // We must always enable table index to merge rows with the same index in the proper order.
+    options->EnableTableIndex = true;
 
-class TSortedReduceJobIOFactory
-    : public TUserJobIOFactoryBase
-{
-    struct TSortedReduceJobIOFactoryTag
-    { };
+    // We must always enable key widening to prevent out of range access of key prefixes in sorted merging/joining readers.
+    options->EnableKeyWidening = true;
 
-public:
-    TSortedReduceJobIOFactory(
-        bool interruptAtKeyEdge,
-        const TClientChunkReadOptions& chunkReadOptions,
-        TChunkReaderHostPtr chunkReaderHost,
-        TString localHostName,
-        IThroughputThrottlerPtr outBandwidthThrottler)
-        : TUserJobIOFactoryBase(
-            chunkReadOptions,
-            std::move(chunkReaderHost),
-            std::move(localHostName),
-            std::move(outBandwidthThrottler))
-        , InterruptAtKeyEdge_(interruptAtKeyEdge)
-    { }
-
-    TCreateUserJobReaderResult CreateReader(
-        const IJobSpecHelperPtr& jobSpecHelper,
-        TClosure /*onNetworkReleased*/,
-        TNameTablePtr nameTable,
-        const TColumnFilter& columnFilter) override
-    {
-        auto& Logger = JobProxyClientLogger();
-        auto rowBuffer = New<TRowBuffer>(TSortedReduceJobIOFactoryTag());
-
-        YT_VERIFY(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
-
-        const auto& reduceJobSpecExt = jobSpecHelper->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
-        auto sortColumns = FromProto<TSortColumns>(reduceJobSpecExt.sort_columns());
-        auto getTotalReaderMemoryLimit = [] (const IJobSpecHelperPtr& jobSpecHelper) {
-            auto readerMemoryLimit = jobSpecHelper->GetJobIOConfig()->TableReader->MaxBufferSize;
-            const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
-            auto readerCount = jobSpecExt.input_table_specs_size() + jobSpecExt.foreign_input_table_specs_size();
-            return readerMemoryLimit * readerCount;
-        };
-        auto multiReaderMemoryManager = CreateMultiReaderMemoryManager(getTotalReaderMemoryLimit(jobSpecHelper));
-        std::optional<NChunkClient::NProto::TDataStatistics> preparationDataStatistics;
-
-        // COMPAT(gritukan)
-        if (sortColumns.empty()) {
-            for (const auto& keyColumn : keyColumns) {
-                sortColumns.push_back({keyColumn, ESortOrder::Ascending});
-            }
-        }
-
-        nameTable = TNameTable::FromSortColumns(sortColumns);
-        const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
-        auto dataSourceDirectory = jobSpecHelper->GetDataSourceDirectory();
-
-        // COMPAT(max42, onionalex): remove after all CAs are 22.2+.
-        for (auto& dataSource : dataSourceDirectory->DataSources()) {
-            if (!dataSource.Schema() || dataSource.Schema()->Columns().empty()) {
-                dataSource.Schema() = TTableSchema::FromSortColumns(sortColumns);
-            }
-        }
-
-        if (reduceJobSpecExt.disable_sorted_input() && jobSpecExt.foreign_input_table_specs_size() == 0) {
-            // Input tables are currently sorted, although this property is not utilized by this reader.
-            // Intermediate sorting is necessary to distribute chunks among sorted reduce jobs
-            // in the current implementation.
-
-            return {
-                CreateRegularReader(
-                    jobSpecHelper->UnpackDataSliceDescriptors(),
-                    jobSpecHelper->GetDataSourceDirectory(),
-                    jobSpecHelper->GetTableReaderOptions(),
-                    jobSpecHelper->GetJobIOConfig()->TableReader,
-                    ChunkReaderHost_,
-                    /*isParallel*/ true,
-                    std::move(nameTable),
-                    columnFilter,
-                    ChunkReadOptions_,
-                    multiReaderMemoryManager),
-                preparationDataStatistics
-            };
-        }
-
-        auto options = ConvertTo<TTableReaderOptionsPtr>(TYsonString(
-            jobSpecExt.table_reader_options()));
-
-        // We must always enable table index to merge rows with the same index in the proper order.
-        options->EnableTableIndex = true;
-
-        // We must always enable key widening to prevent out of range access of key prefixes in sorted merging/joining readers.
-        options->EnableKeyWidening = true;
-
-        // If the primary table is small, read it out completely into the memory to obtain
-        // join keys.
-        i64 inputRowCount = 0;
-        i64 inputDataWeight = 0;
-        for (const auto& inputSpec : jobSpecExt.input_table_specs()) {
-            for (const auto& chunkSpec : inputSpec.chunk_specs()) {
-                auto chunkSpecRowCount = GetChunkSpecRowCount(chunkSpec);
-                if (!chunkSpecRowCount) {
-                    // No estimate possible.
-                    inputRowCount = std::numeric_limits<decltype(inputRowCount)>::max();
-                    break;
-                }
-                inputRowCount += *chunkSpecRowCount;
-                auto chunkSpecDataWeight = GetChunkSpecDataWeight(chunkSpec);
-                if (!chunkSpecDataWeight) {
-                    inputDataWeight = std::numeric_limits<decltype(inputDataWeight)>::max();
-                    break;
-                }
-                inputDataWeight += *chunkSpecDataWeight;
-            }
-            if (inputRowCount == std::numeric_limits<decltype(inputRowCount)>::max() ||
-                inputDataWeight == std::numeric_limits<decltype(inputDataWeight)>::max()) {
+    // If the primary table is small, read it out completely into the memory to obtain
+    // join keys.
+    i64 inputRowCount = 0;
+    i64 inputDataWeight = 0;
+    for (const auto& inputSpec : jobSpecExt.input_table_specs()) {
+        for (const auto& chunkSpec : inputSpec.chunk_specs()) {
+            auto chunkSpecRowCount = GetChunkSpecRowCount(chunkSpec);
+            if (!chunkSpecRowCount) {
+                // No estimate possible.
+                inputRowCount = std::numeric_limits<decltype(inputRowCount)>::max();
                 break;
             }
-        }
-
-        std::vector<std::vector<TUnversionedRow>> primaryKeyPrefixes;
-        std::optional<THintKeyPrefixes> hintKeyPrefixes;
-
-        int foreignKeyColumnCount = reduceJobSpecExt.join_key_column_count();
-        auto sortComparator = GetComparator(sortColumns);
-        auto reduceComparator = sortComparator.Trim(reduceJobSpecExt.reduce_key_column_count());
-        auto joinComparator = sortComparator.Trim(foreignKeyColumnCount);
-
-        if (reduceJobSpecExt.has_foreign_table_lookup_keys_threshold() &&
-            inputRowCount < reduceJobSpecExt.foreign_table_lookup_keys_threshold() &&
-            inputDataWeight < reduceJobSpecExt.foreign_table_lookup_data_weight_threshold() &&
-            jobSpecExt.foreign_input_table_specsSize() > 0)
-        {
-            primaryKeyPrefixes.resize(jobSpecExt.input_table_specs_size());
-            i64 primaryRowCount = 0;
-            // TODO(orlovorlov): surface it in `yt get-job` output that a preliminary
-            // pass was performed.
-
-            YT_LOG_INFO(
-                "Starting preliminary pass to read all keys from primary table (ForeignTableCount: %v)",
-                jobSpecExt.foreign_input_table_specsSize());
-
-            NChunkClient::NProto::TDataStatistics statistics;
-            for (int i = 0; i < jobSpecExt.input_table_specs_size(); i++) {
-                const auto& inputSpec = jobSpecExt.input_table_specs(i);
-                auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
-                const auto& tableReaderConfig = jobSpecHelper->GetJobIOConfig()->TableReader;
-                auto memoryManager = multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize);
-
-                // TODO(orlovorlov) YT-18240: only read key columns here.
-                auto reader = CreateSchemalessSequentialMultiReader(
-                    tableReaderConfig,
-                    options,
-                    ChunkReaderHost_,
-                    dataSourceDirectory,
-                    std::move(dataSliceDescriptors),
-                    /*hintKeyPrefixes*/ std::nullopt,
-                    nameTable,
-                    ChunkReadOptions_,
-                    TReaderInterruptionOptions::InterruptibleWithKeyLength(std::ssize(sortColumns)),
-                    columnFilter,
-                    /*partitionTag*/ std::nullopt,
-                    memoryManager);
-
-                primaryKeyPrefixes[i] = FetchReaderKeyPrefixes(reader, reduceJobSpecExt.join_key_column_count(), rowBuffer);
-                statistics += reader->GetDataStatistics();
-                primaryRowCount += std::ssize(primaryKeyPrefixes[i]);
+            inputRowCount += *chunkSpecRowCount;
+            auto chunkSpecDataWeight = GetChunkSpecDataWeight(chunkSpec);
+            if (!chunkSpecDataWeight) {
+                inputDataWeight = std::numeric_limits<decltype(inputDataWeight)>::max();
+                break;
             }
-            hintKeyPrefixes = THintKeyPrefixes(DedupRows(joinComparator, primaryKeyPrefixes, rowBuffer));
-
-            YT_LOG_INFO(
-                "Read all keys from primary table in a preliminary pass "
-                "(EstimatedRowCount: %v, ActualRowCount: %v, DedupedRowCount: %v, "
-                "NumForeignTables: %v)",
-                inputRowCount, primaryRowCount, std::ssize(hintKeyPrefixes->HintPrefixes),
-                jobSpecExt.foreign_input_table_specsSize());
-
-            if (preparationDataStatistics) {
-                *preparationDataStatistics += statistics;
-            } else {
-                preparationDataStatistics = statistics;
-            }
+            inputDataWeight += *chunkSpecDataWeight;
         }
+        if (inputRowCount == std::numeric_limits<decltype(inputRowCount)>::max() ||
+            inputDataWeight == std::numeric_limits<decltype(inputDataWeight)>::max()) {
+            break;
+        }
+    }
 
-        std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
-        for (const auto& inputSpec : jobSpecExt.input_table_specs()) {
-            // ToDo(psushin): validate that input chunks are sorted.
+    std::vector<std::vector<TUnversionedRow>> primaryKeyPrefixes;
+    std::optional<THintKeyPrefixes> hintKeyPrefixes;
+
+    int foreignKeyColumnCount = reduceJobSpecExt.join_key_column_count();
+    auto sortComparator = GetComparator(sortColumns);
+    auto reduceComparator = sortComparator.Trim(reduceJobSpecExt.reduce_key_column_count());
+    auto joinComparator = sortComparator.Trim(foreignKeyColumnCount);
+
+    if (reduceJobSpecExt.has_foreign_table_lookup_keys_threshold() &&
+        inputRowCount < reduceJobSpecExt.foreign_table_lookup_keys_threshold() &&
+        inputDataWeight < reduceJobSpecExt.foreign_table_lookup_data_weight_threshold() &&
+        jobSpecExt.foreign_input_table_specsSize() > 0)
+    {
+        primaryKeyPrefixes.resize(jobSpecExt.input_table_specs_size());
+        i64 primaryRowCount = 0;
+        // TODO(orlovorlov): surface it in `yt get-job` output that a preliminary
+        // pass was performed.
+
+        YT_LOG_INFO(
+            "Starting preliminary pass to read all keys from primary table (ForeignTableCount: %v)",
+            jobSpecExt.foreign_input_table_specsSize());
+
+        NChunkClient::NProto::TDataStatistics statistics;
+        for (int i = 0; i < jobSpecExt.input_table_specs_size(); i++) {
+            const auto& inputSpec = jobSpecExt.input_table_specs(i);
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
             const auto& tableReaderConfig = jobSpecHelper->GetJobIOConfig()->TableReader;
             auto memoryManager = multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize);
 
+            // TODO(orlovorlov) YT-18240: only read key columns here.
             auto reader = CreateSchemalessSequentialMultiReader(
                 tableReaderConfig,
                 options,
-                ChunkReaderHost_,
+                chunkReaderHost,
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
                 /*hintKeyPrefixes*/ std::nullopt,
                 nameTable,
-                ChunkReadOptions_,
+                chunkReadOptions,
                 TReaderInterruptionOptions::InterruptibleWithKeyLength(std::ssize(sortColumns)),
                 columnFilter,
                 /*partitionTag*/ std::nullopt,
                 memoryManager);
 
-            primaryReaders.emplace_back(reader);
+            primaryKeyPrefixes[i] = FetchReaderKeyPrefixes(reader, reduceJobSpecExt.join_key_column_count(), rowBuffer);
+            statistics += reader->GetDataStatistics();
+            primaryRowCount += std::ssize(primaryKeyPrefixes[i]);
         }
+        hintKeyPrefixes = THintKeyPrefixes(DedupRows(joinComparator, primaryKeyPrefixes, rowBuffer));
 
-        std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
+        YT_LOG_INFO(
+            "Read all keys from primary table in a preliminary pass "
+            "(EstimatedRowCount: %v, ActualRowCount: %v, DedupedRowCount: %v, "
+            "NumForeignTables: %v)",
+            inputRowCount, primaryRowCount, std::ssize(hintKeyPrefixes->HintPrefixes),
+            jobSpecExt.foreign_input_table_specsSize());
 
-        for (const auto& inputSpec : jobSpecExt.foreign_input_table_specs()) {
-            auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
-
-            const auto& tableReaderConfig = jobSpecHelper->GetJobIOConfig()->TableReader;
-
-            auto reader = CreateSchemalessSequentialMultiReader(
-                tableReaderConfig,
-                options,
-                ChunkReaderHost_,
-                dataSourceDirectory,
-                std::move(dataSliceDescriptors),
-                hintKeyPrefixes,
-                nameTable,
-                ChunkReadOptions_,
-                TReaderInterruptionOptions::NonInterruptible(),
-                columnFilter,
-                /*partitionTag*/ std::nullopt,
-                multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
-
-            foreignReaders.emplace_back(reader);
+        if (preparationDataStatistics) {
+            *preparationDataStatistics += statistics;
+        } else {
+            preparationDataStatistics = statistics;
         }
-
-        return {
-            CreateSortedJoiningReader(
-                primaryReaders,
-                sortComparator,
-                reduceComparator,
-                foreignReaders,
-                joinComparator,
-                InterruptAtKeyEdge_),
-            preparationDataStatistics
-        };
     }
 
-private:
-    const bool InterruptAtKeyEdge_;
-};
+    std::vector<ISchemalessMultiChunkReaderPtr> primaryReaders;
+    for (const auto& inputSpec : jobSpecExt.input_table_specs()) {
+        // ToDo(psushin): validate that input chunks are sorted.
+        auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
+        const auto& tableReaderConfig = jobSpecHelper->GetJobIOConfig()->TableReader;
+        auto memoryManager = multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize);
+
+        auto reader = CreateSchemalessSequentialMultiReader(
+            tableReaderConfig,
+            options,
+            chunkReaderHost,
+            dataSourceDirectory,
+            std::move(dataSliceDescriptors),
+            /*hintKeyPrefixes*/ std::nullopt,
+            nameTable,
+            chunkReadOptions,
+            TReaderInterruptionOptions::InterruptibleWithKeyLength(std::ssize(sortColumns)),
+            columnFilter,
+            /*partitionTag*/ std::nullopt,
+            memoryManager);
+
+        primaryReaders.emplace_back(reader);
+    }
+
+    std::vector<ISchemalessMultiChunkReaderPtr> foreignReaders;
+
+    for (const auto& inputSpec : jobSpecExt.foreign_input_table_specs()) {
+        auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
+
+        const auto& tableReaderConfig = jobSpecHelper->GetJobIOConfig()->TableReader;
+
+        auto reader = CreateSchemalessSequentialMultiReader(
+            tableReaderConfig,
+            options,
+            chunkReaderHost,
+            dataSourceDirectory,
+            std::move(dataSliceDescriptors),
+            hintKeyPrefixes,
+            nameTable,
+            chunkReadOptions,
+            TReaderInterruptionOptions::NonInterruptible(),
+            columnFilter,
+            /*partitionTag*/ std::nullopt,
+            multiReaderMemoryManager->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize));
+
+        foreignReaders.emplace_back(reader);
+    }
+
+    return {
+        CreateSortedJoiningReader(
+            primaryReaders,
+            sortComparator,
+            reduceComparator,
+            foreignReaders,
+            joinComparator,
+            interruptAtKeyEdge),
+        preparationDataStatistics
+    };
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPartitionMapJobIOFactory
-    : public TUserJobIOFactoryBase
+class TPartitionMapJobWriterFactory
+    : public TSimpleJobWriterFactory
 {
 public:
-    explicit TPartitionMapJobIOFactory(
+    explicit TPartitionMapJobWriterFactory(
         const IJobSpecHelperPtr& jobSpecHelper,
-        const TClientChunkReadOptions& chunkReadOptions,
         TChunkReaderHostPtr chunkReaderHost,
         TString localHostName,
         IThroughputThrottlerPtr outBandwidthThrottler)
-        : TUserJobIOFactoryBase(
-            chunkReadOptions,
+        : TSimpleJobWriterFactory(
             std::move(chunkReaderHost),
             std::move(localHostName),
             std::move(outBandwidthThrottler))
         , PartitionJobSpecExt_(jobSpecHelper->GetJobSpec().GetExtension(TPartitionJobSpecExt::partition_job_spec_ext))
     { }
-
-    TCreateUserJobReaderResult CreateReader(
-        const IJobSpecHelperPtr& jobSpecHelper,
-        TClosure /*onNetworkReleased*/,
-        TNameTablePtr nameTable,
-        const TColumnFilter& columnFilter) override
-    {
-        auto multiReaderMemoryManager = CreateMultiReaderMemoryManager(jobSpecHelper->GetJobIOConfig()->TableReader->MaxBufferSize);
-        return {
-            CreateRegularReader(
-                jobSpecHelper->UnpackDataSliceDescriptors(),
-                jobSpecHelper->GetDataSourceDirectory(),
-                jobSpecHelper->GetTableReaderOptions(),
-                jobSpecHelper->GetJobIOConfig()->TableReader,
-                ChunkReaderHost_,
-                /*isParallel*/ !PartitionJobSpecExt_.use_sequential_reader(),
-                std::move(nameTable),
-                columnFilter,
-                ChunkReadOptions_,
-                multiReaderMemoryManager),
-            std::nullopt
-        };
-    }
 
     ISchemalessMultiChunkWriterPtr CreateWriter(
         NNative::IClientPtr client,
@@ -696,131 +652,87 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPartitionReduceJobIOFactory
-    : public TUserJobIOFactoryBase
+TCreateUserJobReaderResult CreatePartitionReduceJobReader(
+    const IJobSpecHelperPtr& jobSpecHelper,
+    const TClientChunkReadOptions& chunkReadOptions,
+    TChunkReaderHostPtr chunkReaderHost,
+    TClosure onNetworkReleased,
+    TNameTablePtr nameTable,
+    const TColumnFilter& columnFilter)
 {
-public:
-    TPartitionReduceJobIOFactory(
-        const TClientChunkReadOptions& chunkReadOptions,
-        TChunkReaderHostPtr chunkReaderHost,
-        TString localHostName,
-        IThroughputThrottlerPtr outBandwidthThrottler)
-        : TUserJobIOFactoryBase(
-            chunkReadOptions,
-            std::move(chunkReaderHost),
-            std::move(localHostName),
-            std::move(outBandwidthThrottler))
-    { }
+    YT_VERIFY(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
 
-    TCreateUserJobReaderResult CreateReader(
-        const IJobSpecHelperPtr& jobSpecHelper,
-        TClosure onNetworkReleased,
-        TNameTablePtr nameTable,
-        const TColumnFilter& columnFilter) override
-    {
-        YT_VERIFY(nameTable->GetSize() == 0 && columnFilter.IsUniversal());
+    const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
 
-        const auto& jobSpecExt = jobSpecHelper->GetJobSpecExt();
+    YT_VERIFY(jobSpecExt.input_table_specs_size() == 1);
 
-        YT_VERIFY(jobSpecExt.input_table_specs_size() == 1);
+    const auto& inputSpec = jobSpecExt.input_table_specs(0);
+    auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
+    auto dataSourceDirectory = jobSpecHelper->GetDataSourceDirectory();
 
-        const auto& inputSpec = jobSpecExt.input_table_specs(0);
-        auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
-        auto dataSourceDirectory = jobSpecHelper->GetDataSourceDirectory();
+    const auto& reduceJobSpecExt = jobSpecHelper->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
+    auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
+    auto sortColumns = FromProto<TSortColumns>(reduceJobSpecExt.sort_columns());
 
-        const auto& reduceJobSpecExt = jobSpecHelper->GetJobSpec().GetExtension(TReduceJobSpecExt::reduce_job_spec_ext);
-        auto keyColumns = FromProto<TKeyColumns>(reduceJobSpecExt.key_columns());
-        auto sortColumns = FromProto<TSortColumns>(reduceJobSpecExt.sort_columns());
-
-        // COMPAT(gritukan)
-        if (sortColumns.empty()) {
-            for (const auto& keyColumn : keyColumns) {
-                sortColumns.push_back({keyColumn, ESortOrder::Ascending});
-            }
+    // COMPAT(gritukan)
+    if (sortColumns.empty()) {
+        for (const auto& keyColumn : keyColumns) {
+            sortColumns.push_back({keyColumn, ESortOrder::Ascending});
         }
+    }
 
-        nameTable = TNameTable::FromKeyColumns(keyColumns);
+    nameTable = TNameTable::FromKeyColumns(keyColumns);
 
-        std::optional<int> partitionTag;
-        if (jobSpecExt.has_partition_tag()) {
-            partitionTag = jobSpecExt.partition_tag();
-        } else if (reduceJobSpecExt.has_partition_tag()) {
-            partitionTag = reduceJobSpecExt.partition_tag();
-        }
-        YT_VERIFY(partitionTag);
+    std::optional<int> partitionTag;
+    if (jobSpecExt.has_partition_tag()) {
+        partitionTag = jobSpecExt.partition_tag();
+    } else if (reduceJobSpecExt.has_partition_tag()) {
+        partitionTag = reduceJobSpecExt.partition_tag();
+    }
+    YT_VERIFY(partitionTag);
 
-        auto multiReaderMemoryManager = CreateMultiReaderMemoryManager(jobSpecHelper->GetJobIOConfig()->TableReader->MaxBufferSize);
+    auto multiReaderMemoryManager = CreateMultiReaderMemoryManager(jobSpecHelper->GetJobIOConfig()->TableReader->MaxBufferSize);
 
-        if (reduceJobSpecExt.disable_sorted_input()) {
-            return {
-                CreateRegularReader(
-                    jobSpecHelper->UnpackDataSliceDescriptors(),
-                    jobSpecHelper->GetDataSourceDirectory(),
-                    jobSpecHelper->GetTableReaderOptions(),
-                    jobSpecHelper->GetJobIOConfig()->TableReader,
-                    ChunkReaderHost_,
-                    /*isParallel*/ true,
-                    std::move(nameTable),
-                    columnFilter,
-                    ChunkReadOptions_,
-                    multiReaderMemoryManager,
-                    partitionTag),
-                std::nullopt
-            };
-        }
-
+    if (reduceJobSpecExt.disable_sorted_input()) {
         return {
-            CreatePartitionSortReader(
+            CreateRegularReader(
+                jobSpecHelper->UnpackDataSliceDescriptors(),
+                jobSpecHelper->GetDataSourceDirectory(),
+                jobSpecHelper->GetTableReaderOptions(),
                 jobSpecHelper->GetJobIOConfig()->TableReader,
-                ChunkReaderHost_,
-                GetComparator(sortColumns),
-                nameTable,
-                onNetworkReleased,
-                dataSourceDirectory,
-                std::move(dataSliceDescriptors),
-                jobSpecExt.input_row_count(),
-                jobSpecExt.is_approximate(),
-                *partitionTag,
-                ChunkReadOptions_,
-                multiReaderMemoryManager),
+                chunkReaderHost,
+                /*isParallel*/ true,
+                std::move(nameTable),
+                columnFilter,
+                chunkReadOptions,
+                multiReaderMemoryManager,
+                partitionTag),
             std::nullopt
         };
     }
-};
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TVanillaJobIOFactory
-    : public TUserJobIOFactoryBase
-{
-public:
-    TVanillaJobIOFactory(
-        const TClientChunkReadOptions& chunkReadOptions,
-        TChunkReaderHostPtr chunkReaderHost,
-        TString localHostName,
-        IThroughputThrottlerPtr outBandwidthThrottler)
-        : TUserJobIOFactoryBase(
+    return {
+        CreatePartitionSortReader(
+            jobSpecHelper->GetJobIOConfig()->TableReader,
+            chunkReaderHost,
+            GetComparator(sortColumns),
+            nameTable,
+            onNetworkReleased,
+            dataSourceDirectory,
+            std::move(dataSliceDescriptors),
+            jobSpecExt.input_row_count(),
+            jobSpecExt.is_approximate(),
+            *partitionTag,
             chunkReadOptions,
-            std::move(chunkReaderHost),
-            std::move(localHostName),
-            std::move(outBandwidthThrottler))
-    { }
-
-    TCreateUserJobReaderResult CreateReader(
-        const IJobSpecHelperPtr& /*jobSpecHelper*/,
-        TClosure /*onNetworkReleased*/,
-        TNameTablePtr /*nameTable*/,
-        const TColumnFilter& /*columnFilter*/) override
-    {
-        return {};
-    }
-};
+            multiReaderMemoryManager),
+        std::nullopt
+    };
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IUserJobIOFactoryPtr CreateUserJobIOFactory(
+IUserJobWriterFactoryPtr CreateUserJobWriterFactory(
     const IJobSpecHelperPtr& jobSpecHelper,
-    const TClientChunkReadOptions& chunkReadOptions,
     TChunkReaderHostPtr chunkReaderHost,
     TString localHostName,
     IThroughputThrottlerPtr outBandwidthThrottler)
@@ -828,60 +740,92 @@ IUserJobIOFactoryPtr CreateUserJobIOFactory(
     const auto jobType = jobSpecHelper->GetJobType();
     switch (jobType) {
         case EJobType::Map:
-            return New<TMapJobIOFactory>(
-                true,
-                chunkReadOptions,
-                std::move(chunkReaderHost),
-                std::move(localHostName),
-                std::move(outBandwidthThrottler));
-
         case EJobType::OrderedMap:
-            return New<TMapJobIOFactory>(
-                false,
-                chunkReadOptions,
-                std::move(chunkReaderHost),
-                std::move(localHostName),
-                std::move(outBandwidthThrottler));
-
         case EJobType::SortedReduce:
-            return New<TSortedReduceJobIOFactory>(
-                true,
-                chunkReadOptions,
-                std::move(chunkReaderHost),
-                std::move(localHostName),
-                std::move(outBandwidthThrottler));
-
         case EJobType::JoinReduce:
-            return New<TSortedReduceJobIOFactory>(
-                false,
-                chunkReadOptions,
+
+        // ToDo(psushin): handle separately to form job result differently.
+        case EJobType::ReduceCombiner:
+        case EJobType::PartitionReduce:
+
+        case EJobType::Vanilla:
+            return New<TSimpleJobWriterFactory>(
                 std::move(chunkReaderHost),
                 std::move(localHostName),
                 std::move(outBandwidthThrottler));
 
         case EJobType::PartitionMap:
-            return New<TPartitionMapJobIOFactory>(
+            return New<TPartitionMapJobWriterFactory>(
+                jobSpecHelper,
+                std::move(chunkReaderHost),
+                std::move(localHostName),
+                std::move(outBandwidthThrottler));
+
+        default:
+            THROW_ERROR_EXCEPTION(
+                "Job has an invalid type %Qlv while a user job is expected",
+                jobType);
+    }
+}
+
+TCreateUserJobReaderResult CreateUserJobReader(
+    const IJobSpecHelperPtr& jobSpecHelper,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    NChunkClient::TChunkReaderHostPtr chunkReaderHost,
+    TClosure onNetworkReleased,
+    NTableClient::TNameTablePtr nameTable,
+    const NTableClient::TColumnFilter& columnFilter)
+{
+    const auto jobType = jobSpecHelper->GetJobType();
+    switch (jobType) {
+        case EJobType::Map:
+        case EJobType::OrderedMap: {
+            auto isParallel = jobType == EJobType::Map;
+            return CreateMapJobReader(
+                isParallel,
                 jobSpecHelper,
                 chunkReadOptions,
                 std::move(chunkReaderHost),
-                std::move(localHostName),
-                std::move(outBandwidthThrottler));
+                std::move(nameTable),
+                columnFilter);
+        }
 
-        // ToDo(psushin): handle separately to form job result differently.
+        case EJobType::SortedReduce:
+        case EJobType::JoinReduce: {
+            auto interruptAtKeyEdge = jobType == EJobType::SortedReduce;
+            return CreateSortedReduceJobReader(
+                interruptAtKeyEdge,
+                jobSpecHelper,
+                chunkReadOptions,
+                std::move(chunkReaderHost),
+                std::move(nameTable),
+                columnFilter);
+        }
+
+        case EJobType::PartitionMap: {
+            auto isParallel = !jobSpecHelper->GetJobSpec().GetExtension(TPartitionJobSpecExt::partition_job_spec_ext).use_sequential_reader();
+
+            return CreateMapJobReader(
+                isParallel,
+                jobSpecHelper,
+                chunkReadOptions,
+                chunkReaderHost,
+                nameTable,
+                columnFilter);
+        }
+
         case EJobType::ReduceCombiner:
         case EJobType::PartitionReduce:
-            return New<TPartitionReduceJobIOFactory>(
+            return CreatePartitionReduceJobReader(
+                jobSpecHelper,
                 chunkReadOptions,
                 std::move(chunkReaderHost),
-                std::move(localHostName),
-                std::move(outBandwidthThrottler));
+                onNetworkReleased,
+                nameTable,
+                columnFilter);
 
         case EJobType::Vanilla:
-            return New<TVanillaJobIOFactory>(
-                chunkReadOptions,
-                std::move(chunkReaderHost),
-                std::move(localHostName),
-                std::move(outBandwidthThrottler));
+            return {};
 
         default:
             THROW_ERROR_EXCEPTION(
