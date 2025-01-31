@@ -4762,6 +4762,8 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
     jobSpecExt->set_disable_rename_columns_compatibility_code(Spec_->DisableRenameColumnsCompatibilityCode);
 
+    jobSpecExt->set_use_cluster_throttlers(Spec_->UseClusterThrottlers);
+
     if (OutputTransaction) {
         ToProto(jobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
     }
@@ -5167,8 +5169,21 @@ void TOperationControllerBase::IncreaseNeededResources(const TCompositeNeededRes
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    auto zeroOutNeededResources = false;
+    for (const auto& task : Tasks) {
+        if (!task->IsNetworkBandwidthToClustersAvailable()) {
+            zeroOutNeededResources = true;
+            break;
+        }
+    }
+
     auto guard = WriterGuard(CachedNeededResourcesLock);
-    CachedNeededResources = CachedNeededResources + resourcesDelta;
+    if (zeroOutNeededResources) {
+        // Network bandwidth to some clusters is not available. So zero out needed resources, to temporarily stop scheduling jobs.
+        CachedNeededResources = {};
+    } else {
+        CachedNeededResources = CachedNeededResources + resourcesDelta;
+    }
 }
 
 void TOperationControllerBase::IncreaseAccountResourceUsageLease(const std::optional<TString>& account, const TDiskQuota& delta)
@@ -5834,6 +5849,30 @@ TJobletPtr TOperationControllerBase::CreateJoblet(
     joblet->PoolPath = std::move(poolPath);
 
     return joblet;
+}
+
+std::shared_ptr<const THashMap<TClusterName, bool>> TOperationControllerBase::GetClusterToNetworkBandwidthAvailability() const
+{
+    return Host->GetClusterToNetworkBandwidthAvailability();
+}
+
+bool TOperationControllerBase::IsNetworkBandwidthAvailable(const TClusterName& clusterName) const
+{
+    return Host->IsNetworkBandwidthAvailable(clusterName);
+}
+
+void TOperationControllerBase::SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
+        const TClusterName& clusterName,
+        const TCallback<void()>& callback) const
+{
+    Host->SubscribeToClusterNetworkBandwidthAvailabilityUpdated(clusterName, callback);
+}
+
+void TOperationControllerBase::UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
+        const TClusterName& clusterName,
+        const TCallback<void()>& callback) const
+{
+    Host->UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(clusterName, callback);
 }
 
 TJobFailsTolerancePtr TOperationControllerBase::GetJobFailsTolerance() const
@@ -11305,9 +11344,29 @@ void TOperationControllerBase::OnOperationRevived()
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
 }
 
-void TOperationControllerBase::BuildControllerInfoYson(TFluentMap /*fluent*/) const
+void TOperationControllerBase::BuildControllerInfoYson(TFluentMap fluent) const
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
+
+    std::set<TClusterName> networkBandwidthAvailability;
+    if (Spec_->UseClusterThrottlers) {
+        for (const auto& task : GetTasks()) {
+            auto availability = task->GetClusterToNetworkBandwidthAvailability();
+            for (const auto& [cluster, isAvailable] : availability) {
+                // Do not overwrite false by true from another task. We need only false values here any way.
+                if (isAvailable) {
+                    continue;
+                }
+                networkBandwidthAvailability.insert(cluster);
+            }
+        }
+    }
+
+    fluent
+        .Item("network_bandwidth_availability")
+            .DoMapFor(networkBandwidthAvailability, [] (TFluentMap fluent, const TClusterName& clusterName) {
+                fluent.Item(clusterName.Underlying()).Value(false);
+            });
 }
 
 bool TOperationControllerBase::ShouldProcessJobEvents() const

@@ -201,7 +201,7 @@ public:
     TDuration QueueTotalTimeEstimateThreshold;
 
     // Ratio.
-    double TaskPausedSchedulingRatioThreshold;
+    double TaskUnavailableNetworkBandwidthRatioThreshold;
 
     REGISTER_YSON_STRUCT(TAlertManagerConfig);
 

@@ -334,12 +334,12 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
+    void SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName&,
         const TCallback<void()>&) override
     { }
 
-    void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    void UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName& /*clusterName*/,
         const TCallback<void()>& /*callback*/) override
     { }

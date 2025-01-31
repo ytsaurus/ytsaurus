@@ -105,7 +105,7 @@ DEFINE_ENUM(EOperationAlertType,
     ((UseChunkSliceStatisticsDisabled)             (37))
     ((JobIsNotDeterministic)                       (38))
     ((IncompatibleStatistics)                      (39))
-    ((HasTaskWithLongPausedScheduling)             (40))
+    ((UnavailableNetworkBandwidthToClusters)       (40))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,
