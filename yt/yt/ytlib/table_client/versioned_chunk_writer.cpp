@@ -74,6 +74,8 @@ public:
         : Logger(TableClientLogger().WithTag("ChunkWriterId: %v", TGuid::Create()))
         , Options_(std::move(options))
         , Config_(std::move(config))
+        , BlockSize_(GetWriteBlockSize(Config_, Options_))
+        , BufferSize_(GetWriteBufferSize(Config_, Options_))
         , Schema_(std::move(schema))
         , SamplesMemoryUsageGuard_(
             TMemoryUsageTrackerGuard::Acquire(
@@ -217,6 +219,9 @@ protected:
 
     const TChunkWriterOptionsPtr Options_;
     const TChunkWriterConfigPtr Config_;
+    const i64 BlockSize_;
+    const i64 BufferSize_;
+
     const TTableSchemaPtr Schema_;
 
     TMemoryUsageTrackerGuard SamplesMemoryUsageGuard_;
@@ -600,7 +605,7 @@ private:
 
     void FinishBlockIfLarge(TVersionedRow row)
     {
-        if (BlockWriter_->GetBlockSize() < Config_->BlockSize) {
+        if (BlockWriter_->GetBlockSize() < BlockSize_) {
             return;
         }
 
@@ -678,7 +683,7 @@ public:
             std::move(writeBlocksOptions),
             std::move(blockCache),
             dataSink)
-        , DataToBlockFlush_(std::min(Config_->BlockSize, Config_->MaxBufferSize))
+        , DataToBlockFlush_(std::min(BlockSize_, BufferSize_))
     {
         THROW_ERROR_EXCEPTION_IF(!Options_->EnableColumnMetaInChunkMeta && !Options_->EnableSegmentMetaInBlocks,
             "Bad chunk writer options. At least one of \"enable_column_meta_in_chunk_meta\" or "
@@ -848,10 +853,10 @@ private:
 
             YT_VERIFY(maxWriterIndex >= 0);
 
-            if (totalSize >= Config_->MaxBufferSize || maxWriterSize >= Config_->BlockSize) {
+            if (totalSize >= BufferSize_ || maxWriterSize >= BlockSize_) {
                 FinishBlock(maxWriterIndex, lastRow.Keys());
             } else {
-                DataToBlockFlush_ = std::min(Config_->MaxBufferSize - totalSize, Config_->BlockSize - maxWriterSize);
+                DataToBlockFlush_ = std::min(BufferSize_ - totalSize, BlockSize_ - maxWriterSize);
                 break;
             }
         }

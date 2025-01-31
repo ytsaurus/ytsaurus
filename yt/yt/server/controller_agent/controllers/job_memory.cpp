@@ -84,4 +84,66 @@ i64 GetSortInputIOMemorySize(const TChunkStripeStatistics& stat)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TOverrunTableWriteBufferMemoryInfo::TOverrunTableWriteBufferMemoryInfo(
+    TJobId jobId,
+    i64 reservedMemoryForJobProxyWithFixedBuffer,
+    i64 reservedMemoryForJobProxyWithEstimatedBuffer)
+    : JobId_(jobId)
+    , ReservedMemoryForJobProxyWithFixedBuffer_(reservedMemoryForJobProxyWithFixedBuffer)
+    , ReservedMemoryForJobProxyWithEstimatedBuffer_(reservedMemoryForJobProxyWithEstimatedBuffer)
+{ }
+
+std::strong_ordering TOverrunTableWriteBufferMemoryInfo::operator <=> (const TOverrunTableWriteBufferMemoryInfo& other) const
+{
+    auto relativeDifference = GetRelativeDifference();
+    auto otherRelativeDifference = other.GetRelativeDifference();
+
+    if (relativeDifference < otherRelativeDifference) {
+        return std::strong_ordering::greater;
+    } else if (relativeDifference > otherRelativeDifference) {
+        return std::strong_ordering::less;
+    } else {
+        auto jobId = GetJobId();
+        auto otherJobId = other.GetJobId();
+
+        return jobId <=> otherJobId;
+    }
+}
+
+double TOverrunTableWriteBufferMemoryInfo::GetRelativeDifference() const
+{
+    if (ReservedMemoryForJobProxyWithFixedBuffer_ > 0) {
+        double difference = ReservedMemoryForJobProxyWithEstimatedBuffer_ - ReservedMemoryForJobProxyWithFixedBuffer_;
+        return difference / ReservedMemoryForJobProxyWithFixedBuffer_;
+    } else {
+        return 0;
+    }
+}
+
+TJobId TOverrunTableWriteBufferMemoryInfo::GetJobId() const
+{
+    return JobId_;
+}
+
+i64 TOverrunTableWriteBufferMemoryInfo::GetReservedMemoryForJobProxyWithFixedBuffer() const
+{
+    return ReservedMemoryForJobProxyWithFixedBuffer_;
+}
+
+i64 TOverrunTableWriteBufferMemoryInfo::GetReservedMemoryForJobProxyWithEstimatedBuffer() const
+{
+    return ReservedMemoryForJobProxyWithEstimatedBuffer_;
+}
+
+void TOverrunTableWriteBufferMemoryInfo::Persist(const NPhoenix::TPersistenceContext& context)
+{
+    using NYT::Persist;
+
+    Persist(context, JobId_);
+    Persist(context, ReservedMemoryForJobProxyWithFixedBuffer_);
+    Persist(context, ReservedMemoryForJobProxyWithEstimatedBuffer_);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NControllerAgent::NControllers

@@ -18,6 +18,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NVectorHdrf::TCpuResource, Cpu);
     DEFINE_BYVAL_RW_PROPERTY(int, Gpu);
     DEFINE_BYVAL_RW_PROPERTY(i64, JobProxyMemory);
+    DEFINE_BYVAL_RW_PROPERTY(i64, JobProxyMemoryWithFixedWriteBufferSize);
     DEFINE_BYVAL_RW_PROPERTY(i64, UserJobMemory);
     DEFINE_BYVAL_RW_PROPERTY(i64, FootprintMemory);
     DEFINE_BYVAL_RW_PROPERTY(i64, Network);

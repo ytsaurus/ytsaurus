@@ -1153,6 +1153,15 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("dynamic_table_lock_checking_interval_duration_max", &TThis::DynamicTableLockCheckingIntervalDurationMax)
         .Default(TDuration::Seconds(30));
 
+    registrar.Parameter("desired_block_size", &TThis::DesiredBlockSize)
+        .Default(2_MB);
+
+    registrar.Parameter("max_estimated_write_buffer_size", &TThis::MaxEstimatedWriteBufferSize)
+        .Default(128_MB);
+    registrar.Parameter("write_buffer_memory_overrun_alert_factor", &TThis::WriteBufferMemoryOverrunAlertFactor)
+        .GreaterThan(0.0)
+        .Default(0.1);
+
     registrar.Parameter("enable_operation_progress_archivation", &TThis::EnableOperationProgressArchivation)
         .Default(true);
     registrar.Parameter("operation_progress_archivation_timeout", &TThis::OperationProgressArchivationTimeout)

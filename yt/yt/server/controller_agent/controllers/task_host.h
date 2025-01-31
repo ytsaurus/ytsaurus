@@ -195,6 +195,8 @@ struct ITaskHost
     virtual void UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName& clusterName,
         const TCallback<void()>& callback) const = 0;
+
+    virtual void UpdateWriteBufferMemoryAlert(TJobId jobId, i64 currentMemory, i64 previousMemory) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost)

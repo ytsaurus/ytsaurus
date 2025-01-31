@@ -146,6 +146,8 @@ public:
         , ChunkNameTable_(nameTable ? std::move(nameTable) : TNameTable::FromSchemaStable(*Schema_))
         , Config_(std::move(config))
         , Options_(std::move(options))
+        , BlockSize_(GetWriteBlockSize(Config_, Options_))
+        , BufferSize_(GetWriteBufferSize(Config_, Options_))
         , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
         , FinishGuard_(TraceContext_)
         , RandomGenerator_(RandomNumber<ui64>())
@@ -262,6 +264,9 @@ protected:
 
     const TChunkWriterConfigPtr Config_;
     const TChunkWriterOptionsPtr Options_;
+
+    const i64 BlockSize_;
+    const i64 BufferSize_;
 
     i64 RowCount_ = 0;
     i64 DataWeight_ = 0;
@@ -568,7 +573,7 @@ public:
             ++RowCount_;
             BlockWriter_->WriteRow(row);
 
-            if (BlockWriter_->GetBlockSize() >= Config_->BlockSize ||
+            if (BlockWriter_->GetBlockSize() >= BlockSize_ ||
                 DataWeightSinceLastBlockFlush_ > Config_->MaxDataWeightBetweenBlocks)
             {
                 DataWeightSinceLastBlockFlush_ = 0;
@@ -634,7 +639,7 @@ public:
             std::move(nameTable),
             chunkTimestamps,
             dataSink)
-        , DataToBlockFlush_(std::min(Config_->BlockSize, Config_->MaxBufferSize))
+        , DataToBlockFlush_(std::min(BlockSize_, BufferSize_))
     {
         TCurrentTraceContextGuard traceGuard(TraceContext_);
 
@@ -771,13 +776,13 @@ private:
 
             YT_VERIFY(maxWriterIndex >= 0);
 
-            if (totalSize >= Config_->MaxBufferSize ||
-                maxWriterSize >= Config_->BlockSize ||
+            if (totalSize >= BufferSize_ ||
+                maxWriterSize >= BlockSize_ ||
                 DataWeightSinceLastBlockFlush_ >= Config_->MaxDataWeightBetweenBlocks)
             {
                 FinishBlock(maxWriterIndex, lastRow);
             } else {
-                DataToBlockFlush_ = std::min(Config_->MaxBufferSize - totalSize, Config_->BlockSize - maxWriterSize);
+                DataToBlockFlush_ = std::min(BufferSize_ - totalSize, BlockSize_ - maxWriterSize);
                 if (Options_->ConsiderMinRowRangeDataWeight) {
                     DataToBlockFlush_ = std::max(MinRowRangeDataWeight, DataToBlockFlush_);
                 }
@@ -1453,7 +1458,9 @@ public:
             std::move(throttler),
             blockCache)
         , Partitioner_(std::move(partitioner))
-        , BlockReserveSize_(std::max(Config_->MaxBufferSize / Partitioner_->GetPartitionCount() / 2, i64(1)))
+        , BlockSize_(GetWriteBlockSize(Config_, Options_))
+        , BufferSize_(GetWriteBufferSize(Config_, Options_))
+        , BlockReserveSize_(std::max(BufferSize_ / Partitioner_->GetPartitionCount() / 2, i64(1)))
     {
         Logger.AddTag("PartitionMultiChunkWriterId: %v", TGuid::Create());
 
@@ -1523,6 +1530,8 @@ public:
 
 private:
     const IPartitionerPtr Partitioner_;
+    const i64 BlockSize_;
+    const i64 BufferSize_;
     const i64 BlockReserveSize_;
 
     std::function<TPartitionChunkWriterPtr(IChunkWriterPtr)> ChunkWriterFactory_;
@@ -1594,7 +1603,7 @@ private:
         CurrentBufferCapacity_ += blockWriter->GetCapacity();
 
         if (blockWriter->GetRowCount() >= PartitionRowCountThreshold ||
-            blockWriter->GetBlockSize() > Config_->BlockSize)
+            blockWriter->GetBlockSize() > BlockSize_)
         {
             LargePartitions_.insert(partitionIndex);
         }
@@ -1608,7 +1617,7 @@ private:
         }
         LargePartitions_.clear();
 
-        while (CurrentBufferCapacity_ > Config_->MaxBufferSize) {
+        while (CurrentBufferCapacity_ > BufferSize_) {
             i64 largestPartitionSize = -1;
             int largestPartitionIndex = -1;
             for (int partitionIndex = 0; partitionIndex < std::ssize(BlockWriters_); ++partitionIndex) {

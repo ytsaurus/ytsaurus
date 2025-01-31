@@ -405,6 +405,7 @@ TExtendedJobResources TVanillaTask::GetMinNeededResourcesHeavy() const
     result.SetCpu(Spec_->CpuLimit);
     // NB: JobProxyMemory is the only memory that is related to IO. Footprint is accounted below.
     result.SetJobProxyMemory(0);
+    result.SetJobProxyMemoryWithFixedWriteBufferSize(0);
     AddFootprintAndUserJobResources(result);
     return result;
 }
