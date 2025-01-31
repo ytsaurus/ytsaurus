@@ -1543,7 +1543,11 @@ TChunkReaderHostPtr TJobProxy::GetChunkReaderHost() const
             return IThroughputThrottlerPtr();
         }
 
-        return GetInBandwidthThrottler(clusterName);
+        if (JobSpecHelper_->GetJobSpecExt().use_cluster_throttlers()) {
+            return GetInBandwidthThrottler(clusterName);
+        }
+
+        return GetInBandwidthThrottler(LocalClusterName);
     });
 
     return New<TChunkReaderHost>(

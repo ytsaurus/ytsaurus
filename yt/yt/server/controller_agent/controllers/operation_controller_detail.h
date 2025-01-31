@@ -486,6 +486,18 @@ public:
         std::optional<TString> poolPath,
         bool treeIsTentative) override;
 
+    virtual std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const override;
+
+    virtual bool IsNetworkBandwidthAvailable(const NScheduler::TClusterName& clusterName) const override;
+
+    virtual void SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) const override;
+
+    virtual void UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) const override;
+
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;

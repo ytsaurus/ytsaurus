@@ -1024,14 +1024,14 @@ public:
         .Run();
     }
 
-    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    void SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
         const TClusterName& clusterName,
         const TCallback<void()>& callback)
     {
         GetNetworkBandwidthAvailabilityCallbackList(clusterName).Subscribe(callback);
     }
 
-    void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    void UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
         const TClusterName& clusterName,
         const TCallback<void()>& callback)
     {
@@ -2524,18 +2524,18 @@ bool TControllerAgent::ReleaseJobMonitoringDescriptor(TOperationId operationId, 
     return Impl_->ReleaseJobMonitoringDescriptor(operationId, descriptor);
 }
 
-void TControllerAgent::SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+void TControllerAgent::SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
     const TClusterName& clusterName,
     const TCallback<void()>& callback)
 {
-    return Impl_->SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(clusterName, callback);
+    return Impl_->SubscribeToClusterNetworkBandwidthAvailabilityUpdated(clusterName, callback);
 }
 
-void TControllerAgent::UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+void TControllerAgent::UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
     const TClusterName& clusterName,
     const TCallback<void()>& callback)
 {
-    return Impl_->UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(clusterName, callback);
+    return Impl_->UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(clusterName, callback);
 }
 
 std::shared_ptr<const THashMap<TClusterName, bool>> TControllerAgent::GetClusterToNetworkBandwidthAvailability() const

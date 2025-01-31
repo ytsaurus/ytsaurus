@@ -2184,7 +2184,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
             "operation_alerts_push_period": 100,
             "alert_manager": {
                 "period": 100,
-                "task_paused_scheduling_ratio_threshold": 0.01,
+                "task_unavailable_network_bandwidth_to_clusters_ratio_threshold": 0.01,
             },
             "remote_copy_operation_options": {
                 "spec_template": {
@@ -2459,10 +2459,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         def is_not_available(cluster, op):
             value = get(op.get_orchid_path() + "/controller/network_bandwidth_availability")
             assert cluster in value
-            if str(value[cluster]) == "false":
-                return True
-            else:
-                return False
+            return str(value[cluster]) == "false"
 
         wait(lambda: is_not_available(self.REMOTE_CLUSTER_NAME, op))
 
@@ -2473,4 +2470,4 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         assert 'Operation is running for too long' in str(err)
 
         # Check that operation scheduling was paused due to unavailable network bandwidth.
-        assert 'has_task_with_long_paused_scheduling' in op.get_alerts()
+        assert 'unavailable_network_bandwidth_to_clusters' in op.get_alerts()

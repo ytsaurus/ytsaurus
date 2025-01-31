@@ -334,14 +334,14 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    void SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName&,
         const TCallback<void()>&) override
     { }
 
-    void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
-        const NScheduler::TClusterName& /* clusterName */,
-        const TCallback<void()>& /* callback */) override
+    void UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
+        const NScheduler::TClusterName& /*clusterName*/,
+        const TCallback<void()>& /*callback*/) override
     { }
 
     std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const override

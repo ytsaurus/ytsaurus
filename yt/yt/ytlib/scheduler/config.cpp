@@ -913,6 +913,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("require_specified_pools_existence", &TThis::RequireSpecifiedPoolsExistence)
         .Default();
 
+    registrar.Parameter("use_cluster_throttlers", &TThis::UseClusterThrottlers)
+        .Default(false);
+
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             spec->UnavailableChunkTactics == EUnavailableChunkAction::Skip)
@@ -2098,8 +2101,6 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("allow_cluster_connection", &TThis::AllowClusterConnection)
         .Default(true);
-    registrar.Parameter("use_cluster_throttlers", &TThis::UseClusterThrottlers)
-        .Default(false);
 
     registrar.Preprocessor([] (TRemoteCopyOperationSpec* spec) {
         // NB: In remote copy operation chunks are never decompressed,
