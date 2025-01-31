@@ -12,6 +12,7 @@
 #include <yt/yt/ytlib/table_client/schemaless_multi_chunk_reader.h>
 
 #include <yt/yt/ytlib/chunk_client/data_source.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 
 #include <yt/yt/library/query/base/query.h>
 
@@ -56,15 +57,17 @@ public:
     TUserJobReadController(
         IJobSpecHelperPtr jobSpecHelper,
         IInvokerPtr invoker,
+        TClientChunkReadOptions chunkReadOptions,
+        TChunkReaderHostPtr chunkReaderHost,
         TClosure onNetworkRelease,
-        IUserJobIOFactoryPtr userJobIOFactory,
         std::optional<TString> udfDirectory,
         TDuration threshold,
         i64 adaptiveRowCountUpperBound)
         : JobSpecHelper_(std::move(jobSpecHelper))
         , SerializedInvoker_(CreateSerializedInvoker(std::move(invoker), "user_job_read_controller"))
+        , ChunkReadOptions_(std::move(chunkReadOptions))
+        , ChunkReaderHost_(std::move(chunkReaderHost))
         , OnNetworkRelease_(std::move(onNetworkRelease))
-        , UserJobIOFactory_(std::move(userJobIOFactory))
         , UdfDirectory_(std::move(udfDirectory))
         , Guesser_(
             JobSpecHelper_->GetJobIOConfig()->UseAdaptiveRowCount.value_or(false)
@@ -214,8 +217,9 @@ public:
 private:
     const IJobSpecHelperPtr JobSpecHelper_;
     const IInvokerPtr SerializedInvoker_;
+    const TClientChunkReadOptions ChunkReadOptions_;
+    const TChunkReaderHostPtr ChunkReaderHost_;
     const TClosure OnNetworkRelease_;
-    const IUserJobIOFactoryPtr UserJobIOFactory_;
 
     ISchemalessMultiChunkReaderPtr Reader_;
     std::optional<NChunkClient::NProto::TDataStatistics> PreparationDataStatistics_;
@@ -438,8 +442,10 @@ private:
     void InitializeReader(TNameTablePtr nameTable, const TColumnFilter& columnFilter)
     {
         YT_VERIFY(!Reader_);
-        auto result = UserJobIOFactory_->CreateReader(
+        auto result = CreateUserJobReader(
             JobSpecHelper_,
+            ChunkReadOptions_,
+            ChunkReaderHost_,
             OnNetworkRelease_,
             std::move(nameTable),
             columnFilter);
@@ -517,7 +523,7 @@ IUserJobReadControllerPtr CreateUserJobReadController(
     TClosure onNetworkRelease,
     std::optional<TString> udfDirectory,
     TClientChunkReadOptions chunkReadOptions,
-    TString localHostName,
+    TString /*localHostName*/,
     TDuration adaptiveConfigTimeoutThreshold,
     i64 adaptiveRowCountUpperBound)
 {
@@ -534,13 +540,9 @@ IUserJobReadControllerPtr CreateUserJobReadController(
         return New<TUserJobReadController>(
             jobSpecHelper,
             invoker,
+            std::move(chunkReadOptions),
+            std::move(chunkReaderHost),
             onNetworkRelease,
-            CreateUserJobIOFactory(
-                jobSpecHelper,
-                std::move(chunkReadOptions),
-                std::move(chunkReaderHost),
-                std::move(localHostName),
-                nullptr),
             udfDirectory,
             adaptiveConfigTimeoutThreshold,
             adaptiveRowCountUpperBound);

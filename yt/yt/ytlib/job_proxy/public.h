@@ -7,7 +7,7 @@ namespace NYT::NJobProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(IJobSpecHelper)
-DECLARE_REFCOUNTED_STRUCT(IUserJobIOFactory)
+DECLARE_REFCOUNTED_STRUCT(IUserJobWriterFactory)
 DECLARE_REFCOUNTED_STRUCT(IUserJobReadController)
 DECLARE_REFCOUNTED_CLASS(TJobTestingOptions)
 

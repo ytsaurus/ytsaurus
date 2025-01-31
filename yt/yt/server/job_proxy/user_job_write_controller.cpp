@@ -210,9 +210,8 @@ void TUserJobWriteController::Init()
         Initialized_ = true;
     });
 
-    auto userJobIOFactory = CreateUserJobIOFactory(
+    auto userJobIOFactory = CreateUserJobWriterFactory(
         Host_->GetJobSpecHelper(),
-        TClientChunkReadOptions(),
         Host_->GetChunkReaderHost(),
         Host_->GetLocalHostName(),
         Host_->GetOutBandwidthThrottler());
