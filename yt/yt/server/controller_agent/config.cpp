@@ -695,6 +695,10 @@ void TDockerRegistryConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("internal_registry_address", &TThis::InternalRegistryAddress)
         .Default();
+    registrar.Parameter("use_yt_token_for_internal_registry", &TThis::UseYtTokenForInternalRegistry)
+        .Default(false);
+    registrar.Parameter("forward_internal_images_to_job_specs", &TThis::ForwardInternalImagesToJobSpecs)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

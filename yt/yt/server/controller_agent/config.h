@@ -769,6 +769,10 @@ public:
     //! FQDN of internal docker registry for docker images stored in Cypress.
     std::string InternalRegistryAddress;
 
+    bool UseYtTokenForInternalRegistry = false;
+
+    bool ForwardInternalImagesToJobSpecs = false;
+
     REGISTER_YSON_STRUCT(TDockerRegistryConfig);
 
     static void Register(TRegistrar registrar);
