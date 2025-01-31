@@ -117,6 +117,33 @@ IAttributeDictionaryPtr GetControllerLogsTableAttributes()
     return attributes;
 }
 
+IAttributeDictionaryPtr GetFlowStateTableAttributes()
+{
+    auto attributes = CreateDynamicTableAttributes(TTableSchema(
+        std::vector{
+            TColumnSchema("sequence_id", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("state_name", EValueType::String),
+            TColumnSchema("key_left", EValueType::String),
+            TColumnSchema("key_right", EValueType::String),
+            TColumnSchema("value", EValueType::Any),
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ true));
+    return attributes;
+}
+
+IAttributeDictionaryPtr GetFlowStateObsoleteTableAttributes()
+{
+    auto attributes = CreateDynamicTableAttributes(TTableSchema(
+        std::vector{
+            TColumnSchema("key", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("value", EValueType::Any),
+        },
+        /*strict*/ true,
+        /*uniqueKeys*/ true));
+    return attributes;
+}
+
 auto GetTables()
 {
     return std::vector<std::tuple<TStringBuf, IAttributeDictionaryPtr>>{
@@ -125,6 +152,8 @@ auto GetTables()
         {CheckpointsTableName, GetCheckpointsTableAttributes()},
         {TimerMessagesTableName, GetTimerMessagesTableAttributes()},
         {ControllerLogsTableName, GetControllerLogsTableAttributes()},
+        {FlowStateTableName, GetFlowStateTableAttributes()},
+        {FlowStateObsoleteTableName, GetFlowStateObsoleteTableAttributes()},
     };
 }
 
