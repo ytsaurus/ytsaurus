@@ -186,7 +186,7 @@ class TInstanceManager
 public:
     using TInstanceAllocator = TSpareInstanceAllocator<typename TInstanceTypeAdapter::TSpareInstanceInfo>;
 
-    void ManageInstancies(
+    void ManageInstances(
         const std::string& bundleName,
         TInstanceTypeAdapter* adapter,
         TInstanceAllocator& spareInstances,
@@ -293,7 +293,7 @@ private:
             return;
         }
 
-        int aliveInstanceCount = std::ssize(adapter->GetAliveInstancies(dataCenterName));
+        int aliveInstanceCount = std::ssize(adapter->GetAliveInstances(dataCenterName));
         int targetInstanceCount = adapter->GetTargetInstanceCount(bundleInfo, zoneInfo);
         int currentDataCenterAllocations = GetAllocationCountInDataCenter(allocationsState, dataCenterName);
         int instanceCountToAllocate = targetInstanceCount - aliveInstanceCount - currentDataCenterAllocations;
@@ -393,7 +393,7 @@ private:
         int count = 0;
         const auto& targetResource = adapter->GetResourceGuarantee(bundleInfo);
 
-        for (const auto& instanceName : adapter->GetAliveInstancies(dataCenterName)) {
+        for (const auto& instanceName : adapter->GetAliveInstances(dataCenterName)) {
             const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
             const auto& instanceResource = instanceInfo->Annotations->Resource;
 
@@ -431,7 +431,7 @@ private:
         TSchedulerMutations* mutations)
     {
         std::vector<std::string> knownPodIds;
-        for (const auto& instanceName : adapter->GetInstancies(dataCenterName)) {
+        for (const auto& instanceName : adapter->GetInstances(dataCenterName)) {
             knownPodIds.push_back(GetPodIdForInstance(instanceName));
         }
 
@@ -507,7 +507,7 @@ private:
                         allocationId),
                 });
                 // It is better to keep this allocation, otherwise there is a chance to
-                // create create unbounded amount of new instancies.
+                // create create unbounded amount of new instances.
                 aliveAllocations[allocationId] = allocationState;
                 continue;
             }
@@ -916,9 +916,9 @@ private:
             return;
         }
 
-        auto aliveInstancies = adapter->GetAliveInstancies(dataCenterName);
+        auto aliveInstances = adapter->GetAliveInstances(dataCenterName);
         auto targetInstanceCount = adapter->GetTargetInstanceCount(bundleInfo, zoneInfo);
-        auto instanceCountToDeallocate = std::ssize(aliveInstancies) - targetInstanceCount;
+        auto instanceCountToDeallocate = std::ssize(aliveInstances) - targetInstanceCount;
         auto& deallocationsState = adapter->DeallocationsState();
 
         YT_LOG_DEBUG("Scheduling deallocations (BundleName: %v, DataCenter: %v, InstanceType: %v, TargetInstanceCount: %v, AliveInstances: %v, "
@@ -927,7 +927,7 @@ private:
             dataCenterName,
             adapter->GetInstanceType(),
             targetInstanceCount,
-            std::ssize(aliveInstancies),
+            std::ssize(aliveInstances),
             instanceCountToDeallocate,
             std::ssize(deallocationsState));
 
@@ -935,13 +935,13 @@ private:
             return;
         }
 
-        const auto instanciesToRemove = adapter->PeekInstanciesToDeallocate(
+        const auto instancesToRemove = adapter->PickInstancesToDeallocate(
             instanceCountToDeallocate,
             dataCenterName,
             bundleInfo,
             input);
 
-        for (const auto& instanceName : instanciesToRemove) {
+        for (const auto& instanceName : instancesToRemove) {
             const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
 
             std::string deallocationId = ToString(TGuid::Create());
@@ -997,7 +997,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TCollection>
-TSchedulerInputState::TBundleToInstanceMapping MapBundlesToInstancies(const TCollection& collection)
+TSchedulerInputState::TBundleToInstanceMapping MapBundlesToInstances(const TCollection& collection)
 {
     TSchedulerInputState::TBundleToInstanceMapping result;
 
@@ -1016,7 +1016,7 @@ TSchedulerInputState::TBundleToInstanceMapping MapBundlesToInstancies(const TCol
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TCollection>
-TSchedulerInputState::TZoneToInstanceMap MapZonesToInstancies(
+TSchedulerInputState::TZoneToInstanceMap MapZonesToInstances(
     const TSchedulerInputState& input,
     const TCollection& collection)
 {
@@ -1278,10 +1278,10 @@ void CalculateResourceUsage(TSchedulerInputState& input)
                 bundleState,
                 EGracePeriodBehaviour::Wait);
 
-            auto aliveNodes = FlattenAliveInstancies(perDCaliveNodes);
+            auto aliveNodes = FlattenAliveInstances(perDCaliveNodes);
             calculateResources(aliveNodes, input.TabletNodes, aliveResourceUsage, input.AliveNodesBySize[bundleName]);
 
-            auto aliveProxies = FlattenAliveInstancies(GetAliveProxies(input.BundleProxies[bundleName], input, EGracePeriodBehaviour::Wait));
+            auto aliveProxies = FlattenAliveInstances(GetAliveProxies(input.BundleProxies[bundleName], input, EGracePeriodBehaviour::Wait));
             calculateResources(aliveProxies, input.RpcProxies, aliveResourceUsage, input.AliveProxiesBySize[bundleName]);
 
             aliveResources[bundleName] = aliveResourceUsage;
@@ -1290,8 +1290,8 @@ void CalculateResourceUsage(TSchedulerInputState& input)
         {
             auto allocated = New<NBundleControllerClient::TInstanceResources>();
             allocated->Clear();
-            calculateResources(FlattenBundleInstancies(input.BundleNodes[bundleName]), input.TabletNodes, allocated, input.AllocatedNodesBySize[bundleName]);
-            calculateResources(FlattenBundleInstancies(input.BundleProxies[bundleName]), input.RpcProxies, allocated, input.AllocatedProxiesBySize[bundleName]);
+            calculateResources(FlattenBundleInstances(input.BundleNodes[bundleName]), input.TabletNodes, allocated, input.AllocatedNodesBySize[bundleName]);
+            calculateResources(FlattenBundleInstances(input.BundleProxies[bundleName]), input.RpcProxies, allocated, input.AllocatedProxiesBySize[bundleName]);
 
             allocatedResources[bundleName] = allocated;
         }
@@ -1490,7 +1490,7 @@ std::string GetHostNodeForCell(const TTabletCellInfoPtr& cellInfo, const THashSe
     return nodeName;
 }
 
-std::vector<std::string> PeekTabletCellsToRemove(
+std::vector<std::string> PickTabletCellsToRemove(
     int cellCountToRemove,
     const std::vector<std::string>& bundleCellIds)
 {
@@ -1573,7 +1573,7 @@ void CreateRemoveTabletCells(
 
     const auto& zoneInfo = GetOrCrash(input.Zones, bundleInfo->Zone);
 
-    auto aliveNodes = FlattenAliveInstancies(GetAliveNodes(
+    auto aliveNodes = FlattenAliveInstances(GetAliveNodes(
         bundleName,
         bundleNodes,
         input,
@@ -1602,7 +1602,7 @@ void CreateRemoveTabletCells(
         std::ssize(bundleInfo->TabletCellIds));
 
     if (cellCountDiff < 0) {
-        auto cellsToRemove = PeekTabletCellsToRemove(std::abs(cellCountDiff), bundleInfo->TabletCellIds);
+        auto cellsToRemove = PickTabletCellsToRemove(std::abs(cellCountDiff), bundleInfo->TabletCellIds);
 
         YT_LOG_INFO("Removing tablet cells (BundleName: %v, CellIds: %v)",
             bundleName,
@@ -2018,11 +2018,11 @@ public:
         }
 
         if (bundleInfo->EnableNodeTagFilterManagement) {
-            // Check that all alive instancies have appropriate node_tag_filter and slots count
+            // Check that all alive instances have appropriate node_tag_filter and slots count
             auto expectedSlotCount = bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize;
 
             std::vector<std::string> notReadyNodes;
-            const auto aliveDataCenterNodes = GetAliveInstancies(dataCenterName);
+            const auto aliveDataCenterNodes = GetAliveInstances(dataCenterName);
 
             for (const auto& nodeName : aliveDataCenterNodes) {
                 const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
@@ -2216,7 +2216,7 @@ public:
             return false;
         }
 
-        if (GetAliveInstancies(dataCenterName).count(nodeName) == 0) {
+        if (GetAliveInstances(dataCenterName).count(nodeName) == 0) {
             return false;
         }
 
@@ -2262,8 +2262,7 @@ public:
         mutations->ChangedNodeUserTags[nodeName] = {};
     }
 
-    // TODO(grachevkirill): Rename {Instancies => Instances}.
-    const THashSet<std::string>& GetAliveInstancies(const std::string& dataCenterName) const
+    const THashSet<std::string>& GetAliveInstances(const std::string& dataCenterName) const
     {
         const static THashSet<std::string> Dummy;
 
@@ -2275,7 +2274,7 @@ public:
         return Dummy;
     }
 
-    const std::vector<std::string>& GetInstancies(const std::string& dataCenterName) const
+    const std::vector<std::string>& GetInstances(const std::string& dataCenterName) const
     {
         const static std::vector<std::string> Dummy;
 
@@ -2287,14 +2286,13 @@ public:
         return Dummy;
     }
 
-    // TODO(grachevkirill): Rename {Peek => Pick}.
-    std::vector<std::string> PeekInstanciesToDeallocate(
+    std::vector<std::string> PickInstancesToDeallocate(
         int nodeCountToRemove,
         const std::string& dataCenterName,
         const TBundleInfoPtr& bundleInfo,
         const TSchedulerInputState& input) const
     {
-        const auto& aliveDataCenterNodes = GetAliveInstancies(dataCenterName);
+        const auto& aliveDataCenterNodes = GetAliveInstances(dataCenterName);
 
         std::vector<TNodeRemoveOrder> nodesOrder;
 
@@ -2530,7 +2528,7 @@ public:
             return false;
         }
 
-        if (GetAliveInstancies(dataCenterName).count(proxyName) == 0) {
+        if (GetAliveInstances(dataCenterName).count(proxyName) == 0) {
             return false;
         }
 
@@ -2568,7 +2566,7 @@ public:
         mutations->ChangedProxyRole[proxyName] = DefaultRole;
     }
 
-    const THashSet<std::string>& GetAliveInstancies(const std::string& dataCenterName) const
+    const THashSet<std::string>& GetAliveInstances(const std::string& dataCenterName) const
     {
         const static THashSet<std::string> Dummy;
 
@@ -2580,7 +2578,7 @@ public:
         return Dummy;
     }
 
-    const std::vector<std::string>& GetInstancies(const std::string& dataCenterName) const
+    const std::vector<std::string>& GetInstances(const std::string& dataCenterName) const
     {
         const static std::vector<std::string> Dummy;
 
@@ -2592,13 +2590,13 @@ public:
         return Dummy;
     }
 
-    std::vector<std::string> PeekInstanciesToDeallocate(
+    std::vector<std::string> PickInstancesToDeallocate(
         int proxyCountToRemove,
         const std::string& dataCenterName,
         const TBundleInfoPtr& bundleInfo,
         const TSchedulerInputState& input) const
     {
-        const auto& aliveProxies = GetAliveInstancies(dataCenterName);
+        const auto& aliveProxies = GetAliveInstances(dataCenterName);
         YT_VERIFY(std::ssize(aliveProxies) >= proxyCountToRemove);
 
         std::vector<TProxyRemoveOrder> proxyOrder;
@@ -2704,7 +2702,7 @@ void InitializeVirtualSpareBundle(TSchedulerInputState& input)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutations)
+void ManageInstances(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
     TSpareInstanceAllocator<TSpareNodesInfo> spareNodesAllocator(input.ZoneToSpareNodes);
     TInstanceManager<TTabletNodeAllocatorAdapter> nodeAllocator;
@@ -2741,12 +2739,12 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
             bundleState,
             EGracePeriodBehaviour::Wait);
         TTabletNodeAllocatorAdapter nodeAdapter(bundleState, bundleNodes, aliveNodes);
-        nodeAllocator.ManageInstancies(bundleName, &nodeAdapter, spareNodesAllocator, input, mutations);
+        nodeAllocator.ManageInstances(bundleName, &nodeAdapter, spareNodesAllocator, input, mutations);
 
         const auto& bundleProxies = input.BundleProxies[bundleName];
         auto aliveProxies = GetAliveProxies(bundleProxies, input, EGracePeriodBehaviour::Wait);
         TRpcProxyAllocatorAdapter proxyAdapter(bundleState, bundleProxies, aliveProxies);
-        proxyAllocator.ManageInstancies(bundleName, &proxyAdapter, spareProxiesAllocator, input, mutations);
+        proxyAllocator.ManageInstances(bundleName, &proxyAdapter, spareProxiesAllocator, input, mutations);
     }
 
     if (input.Config->HasInstanceAllocatorService) {
@@ -3197,10 +3195,10 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
 {
     InitDefaultDataCenter(&input);
 
-    input.ZoneNodes = MapZonesToInstancies(input, input.TabletNodes);
-    input.ZoneProxies = MapZonesToInstancies(input, input.RpcProxies);
-    input.BundleNodes = MapBundlesToInstancies(input.TabletNodes);
-    input.BundleProxies = MapBundlesToInstancies(input.RpcProxies);
+    input.ZoneNodes = MapZonesToInstances(input, input.TabletNodes);
+    input.ZoneProxies = MapZonesToInstances(input, input.RpcProxies);
+    input.BundleNodes = MapBundlesToInstances(input.TabletNodes);
+    input.BundleProxies = MapBundlesToInstances(input.RpcProxies);
     input.PodIdToInstanceName = MapPodIdToInstanceName(input);
 
     input.ZoneToRacks = MapZonesToRacks(input, mutations);
@@ -3221,7 +3219,7 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
     }
 
     ManageBundlesDynamicConfig(input, mutations);
-    ManageInstancies(input, mutations);
+    ManageInstances(input, mutations);
     ManageCells(input, mutations);
     ManageSystemAccountLimit(input, mutations);
     ManageResourceLimits(input, mutations);
@@ -3257,12 +3255,12 @@ TIndexedEntries<TBundleControllerState> MergeBundleStates(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashSet<std::string> FlattenAliveInstancies(const THashMap<std::string, THashSet<std::string>>& instancies)
+THashSet<std::string> FlattenAliveInstances(const THashMap<std::string, THashSet<std::string>>& instances)
 {
     THashSet<std::string> result;
 
-    for (const auto& [_, dataCenterInstancies] : instancies) {
-        for (const auto& instance : dataCenterInstancies) {
+    for (const auto& [_, dataCenterInstances] : instances) {
+        for (const auto& instance : dataCenterInstances) {
             result.insert(instance);
         }
     }
@@ -3270,12 +3268,12 @@ THashSet<std::string> FlattenAliveInstancies(const THashMap<std::string, THashSe
     return result;
 }
 
-std::vector<std::string> FlattenBundleInstancies(const THashMap<std::string, std::vector<std::string>>& instancies)
+std::vector<std::string> FlattenBundleInstances(const THashMap<std::string, std::vector<std::string>>& instances)
 {
     std::vector<std::string> result;
 
-    for (const auto& [_, dataCenterInstancies] : instancies) {
-        for (const auto& instance : dataCenterInstancies) {
+    for (const auto& [_, dataCenterInstances] : instances) {
+        for (const auto& instance : dataCenterInstances) {
             result.push_back(instance);
         }
     }
