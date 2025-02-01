@@ -15,20 +15,6 @@ class ChaosTestBase(DynamicTablesBase):
     NUM_MASTER_CACHES = 1
     NUM_NODES = 4
     NUM_CHAOS_NODES = 1
-    DELTA_NODE_CONFIG = {
-        "cluster_connection": {
-            "replication_card_cache": {
-                "enable_watching": True,
-            },
-        },
-    }
-    DELTA_RPC_PROXY_CONFIG = {
-        "cluster_connection": {
-            "replication_card_cache": {
-                "enable_watching": True,
-            },
-        },
-    }
 
     def _get_drivers(self):
         return [get_driver(cluster=cluster_name) for cluster_name in self.get_cluster_names()]
