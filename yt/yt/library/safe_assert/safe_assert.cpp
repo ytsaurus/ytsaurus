@@ -114,7 +114,7 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void MaybeThrowSafeAssertionException(const char* message, int length)
+void MaybeThrowSafeAssertionException(TStringBuf message)
 {
     // A meaningful override for a weak symbol located in yt/yt/core/misc/assert.cpp.
 
@@ -141,7 +141,7 @@ void MaybeThrowSafeAssertionException(const char* message, int length)
     DumpStackTrace([&stackTrace] (TStringBuf str) {
         stackTrace.AppendString(str);
     });
-    TString expression(message, length);
+    TString expression(message);
     throw TAssertionFailedException(std::move(expression), stackTrace.Flush(), std::move(corePath));
 }
 
