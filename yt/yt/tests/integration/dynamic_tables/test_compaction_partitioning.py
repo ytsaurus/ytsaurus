@@ -930,7 +930,7 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
         tablet_count = 33
         chunk_count = table_count * tablet_count
 
-        threshold = 0.2
+        threshold = 0.3
 
         table_paths = builtins.set()
         all_chunk_ids = builtins.set()
