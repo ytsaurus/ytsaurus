@@ -1231,7 +1231,7 @@ void TDecoratedAutomaton::PublishMutationApplicationResults(std::vector<TMutatio
 
 TSharedRef TDecoratedAutomaton::SanitizeLocalHostName() const
 {
-    auto localHost = ReadLocalHostName();
+    auto localHost = GetLocalHostName();
 
     if (Options_.EnableLocalHostSanitizing) {
         THashSet<std::string> hosts;
