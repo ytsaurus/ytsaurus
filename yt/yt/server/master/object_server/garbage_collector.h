@@ -1,6 +1,7 @@
 #pragma once
 
 #include "public.h"
+#include "object.h"
 
 #include <yt/yt/server/master/cell_master/public.h>
 
@@ -11,8 +12,6 @@
 
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
-
-#include <set>
 
 namespace NYT::NObjectServer {
 
@@ -55,11 +54,11 @@ public:
     void RegisterZombie(TObject* object);
     void UnregisterZombie(TObject* object);
     void DestroyZombie(TObject* object);
-    const THashSet<TObject*>& GetZombies() const;
+    const THashSet<TObjectRawPtr>& GetZombies() const;
 
     void RegisterRemovalAwaitingCellsSyncObject(TObject* object);
     void UnregisterRemovalAwaitingCellsSyncObject(TObject* object);
-    const THashSet<TObject*>& GetRemovalAwaitingCellsSyncObjects() const;
+    const THashSet<TObjectRawPtr>& GetRemovalAwaitingCellsSyncObjects() const;
 
     TObject* GetWeakGhostObject(TObjectId id);
 
@@ -84,7 +83,7 @@ private:
 
     //! Contains objects with zero ref counter.
     //! These are ready for IObjectTypeHandler::Destroy call.
-    THashSet<TObject*> Zombies_;
+    THashSet<TObjectRawPtr> Zombies_;
 
     //! Contains objects with zero ref counter, zero weak ref counter, and positive ephemeral ref counter.
     //! These were already destroyed (via IObjectTypeHandler::Destroy) and await disposal (via |delete|).
@@ -104,7 +103,7 @@ private:
     std::atomic<int> LockedObjectCount_ = 0;
 
     //! Objects in |RemovalAwaitingCellsSync| life stage.
-    THashSet<TObject*> RemovalAwaitingCellsSyncObjects_;
+    THashSet<TObjectRawPtr> RemovalAwaitingCellsSyncObjects_;
 
     //! List of the ephemeral ghosts waiting for ephemeral unref.
     TMpscStack<std::pair<TObject*, TEpoch>> EphemeralGhostUnrefQueue_;

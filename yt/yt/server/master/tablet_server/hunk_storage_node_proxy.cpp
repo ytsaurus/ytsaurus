@@ -206,7 +206,7 @@ DEFINE_YPATH_SERVICE_METHOD(THunkStorageNodeProxy, GetMountInfo)
     ToProto(response->mutable_table_id(), trunkNode->GetId());
 
     THashSet<TTabletCell*> cells;
-    for (const auto* tablet : trunkNode->Tablets()) {
+    for (auto tablet : trunkNode->Tablets()) {
         auto* cell = tablet->GetCell();
         auto* protoTablet = response->add_tablets();
         ToProto(protoTablet->mutable_tablet_id(), tablet->GetId());

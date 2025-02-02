@@ -53,7 +53,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NScheduler::TPoolConfigPtr, FullConfig);
 
     // Pointer from root pool object to pool tree object.
-    DEFINE_BYVAL_RW_PROPERTY(TSchedulerPoolTree*, MaybePoolTree, nullptr);
+    DEFINE_BYVAL_RW_PROPERTY(TSchedulerPoolTreeRawPtr, MaybePoolTree);
 
     void GuardedUpdatePoolAttribute(
         NYTree::TInternedAttributeKey key,
@@ -72,6 +72,8 @@ private:
     void DoValidateStrongGuarantees(const NScheduler::TFairShareStrategyTreeConfigPtr& poolTreeConfig, bool recursive) const;
 };
 
+DEFINE_MASTER_OBJECT_TYPE(TSchedulerPool)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerPoolTree
@@ -89,7 +91,7 @@ public:
     void Load(NCellMaster::TLoadContext& context);
 
     DEFINE_BYVAL_RW_PROPERTY(std::string, TreeName);
-    DEFINE_BYVAL_RW_PROPERTY(TSchedulerPool*, RootPool, nullptr);
+    DEFINE_BYVAL_RW_PROPERTY(TSchedulerPoolRawPtr, RootPool);
 
     DEFINE_BYREF_RO_PROPERTY(NYson::TYsonString, SpecifiedConfig);
 
@@ -103,6 +105,8 @@ private:
 
     mutable NScheduler::TFairShareStrategyTreeConfigPtr MemoizedDeserializedPoolTreeConfig_;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TSchedulerPoolTree)
 
 ////////////////////////////////////////////////////////////////////////////////
 

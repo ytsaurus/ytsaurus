@@ -332,7 +332,7 @@ public:
 
     void ResetTableSchema(TSchemafulNode* table) override
     {
-        auto* oldSchema = table->GetSchema();
+        auto oldSchema = table->GetSchema();
         if (!oldSchema) {
             return;
         }
@@ -815,8 +815,8 @@ public:
                 }
 
                 case EObjectType::ReplicatedTable: {
-                    auto* tableCollocation = table->GetReplicationCollocation();
-                    auto* indexCollocation = indexTable->GetReplicationCollocation();
+                    auto tableCollocation = table->GetReplicationCollocation();
+                    auto indexCollocation = indexTable->GetReplicationCollocation();
 
                     if (tableCollocation == nullptr || tableCollocation != indexCollocation) {
                         auto tableCollocationId = tableCollocation ? tableCollocation->GetId() : NullObjectId;
@@ -906,7 +906,7 @@ public:
     TTableCollocation* CreateTableCollocation(
         TObjectId hintId,
         ETableCollocationType type,
-        THashSet<TTableNode*> collocatedTables) override
+        THashSet<TTableNodeRawPtr> collocatedTables) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -923,7 +923,7 @@ public:
         }
 
         TCellTag externalCellTag = InvalidCellTag;
-        for (auto* table : GetValuesSortedByKey(collocatedTables)) {
+        for (auto table : GetValuesSortedByKey(collocatedTables)) {
             switch (type) {
                 case ETableCollocationType::Replication:
                     if (!table->IsReplicated()) {
@@ -933,7 +933,7 @@ public:
                             table->GetType());
                     }
 
-                    if (auto* collocation = table->GetReplicationCollocation()) {
+                    if (auto collocation = table->GetReplicationCollocation()) {
                         YT_VERIFY(IsObjectAlive(collocation));
                         THROW_ERROR_EXCEPTION("Table %v already belongs to replication collocation %v",
                             table->GetId(),
@@ -978,7 +978,7 @@ public:
         collocation->SetType(type);
         switch (type) {
             case ETableCollocationType::Replication:
-                for (auto* table : collocation->Tables()) {
+                for (auto table : collocation->Tables()) {
                     table->SetReplicationCollocation(collocation);
                 }
                 OnReplicationCollocationCreated(collocation);
@@ -1006,7 +1006,7 @@ public:
 
         switch (collocation->GetType()) {
             case ETableCollocationType::Replication:
-                for (auto* table : collocation->Tables()) {
+                for (auto table : collocation->Tables()) {
                     YT_VERIFY(!table->GetIndexTo() && table->SecondaryIndices().empty());
                     table->SetReplicationCollocation(nullptr);
                 }
@@ -1063,7 +1063,7 @@ public:
         auto collocationType = collocation->GetType();
         switch (collocationType) {
             case ETableCollocationType::Replication:
-                if (auto* tableCollocation = table->GetReplicationCollocation()) {
+                if (auto tableCollocation = table->GetReplicationCollocation()) {
                     YT_VERIFY(IsObjectAlive(tableCollocation));
                     if (tableCollocation != collocation) {
                         THROW_ERROR_EXCEPTION("Table %v already belongs to replication collocation %v",
@@ -1166,7 +1166,7 @@ public:
         return collocation;
     }
 
-    const THashSet<TTableNode*>& GetQueues() const override
+    const THashSet<TTableNodeRawPtr>& GetQueues() const override
     {
         VerifyPersistentStateRead();
 
@@ -1197,7 +1197,7 @@ public:
         }
     }
 
-    const THashSet<TTableNode*>& GetQueueConsumers() const override
+    const THashSet<TTableNodeRawPtr>& GetQueueConsumers() const override
     {
         VerifyPersistentStateRead();
 
@@ -1230,7 +1230,7 @@ public:
         }
     }
 
-    const THashSet<TTableNode*>& GetQueueProducers() const override
+    const THashSet<TTableNodeRawPtr>& GetQueueProducers() const override
     {
         VerifyPersistentStateRead();
 
@@ -1273,13 +1273,15 @@ public:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& chaosManager = Bootstrap_->GetChaosManager();
 
-        using ObjectRevisionMap = THashMap<TString, THashMap<TString, TRevision>>;
+        using TObjectRevisionMap = THashMap<TString, THashMap<TString, TRevision>>;
 
-        ObjectRevisionMap objectRevisions;
+        TObjectRevisionMap objectRevisions;
         auto addToObjectRevisions = [&] <typename T>(const TString& key, const THashSet<T>& nodes) {
-            static_assert(std::is_same_v<T, TTableNode*> || std::is_same_v<T, NChaosServer::TChaosReplicatedTableNode*>,
-                "Templated type T has to be TTableNode* or TChaosReplicatedTableNode");
-            for (auto* node : nodes) {
+            static_assert(
+                std::is_same_v<T, TTableNodeRawPtr> ||
+                std::is_same_v<T, NChaosServer::TChaosReplicatedTableNodeRawPtr>,
+                "T must be a pointer to TTableNode or TChaosReplicatedTableNode");
+            for (auto node : nodes) {
                 if (IsObjectAlive(node)) {
                     EPathRootType pathRootType;
                     auto path = cypressManager->GetNodePath(node, /*transaction*/ nullptr, /*pathRootType*/ &pathRootType);
@@ -1316,7 +1318,7 @@ public:
             }
             return AllSucceeded(std::move(asyncResults)).Apply(BIND([objectRevisions] (const std::vector<TYPathProxy::TRspGetPtr>& responses) mutable {
                 for (const auto& rsp : responses) {
-                    auto objects = ConvertTo<ObjectRevisionMap>(TYsonString{rsp->value()});
+                    auto objects = ConvertTo<TObjectRevisionMap>(TYsonString{rsp->value()});
                     for (const auto& [key, items] : objects) {
                         objectRevisions[key].insert(items.begin(), items.end());
                     }
@@ -1403,11 +1405,11 @@ private:
     bool NeedToFindUnfoldedColumnName_ = false;
 
     //! Contains native trunk nodes for which IsQueue() is true.
-    THashSet<TTableNode*> Queues_;
+    THashSet<TTableNodeRawPtr> Queues_;
     //! Contains native trunk nodes for which IsQueueConsumer() is true.
-    THashSet<TTableNode*> QueueConsumers_;
+    THashSet<TTableNodeRawPtr> QueueConsumers_;
     //! Contains native trunk nodes for which IsQueueProducer() is true.
-    THashSet<TTableNode*> QueueProducers_;
+    THashSet<TTableNodeRawPtr> QueueProducers_;
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
@@ -1936,7 +1938,7 @@ private:
         // Schema can be staged in a transaction.
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         for (auto [transactionId, transaction] : transactionManager->Transactions()) {
-            for (auto* object : transaction->StagedObjects()) {
+            for (auto object : transaction->StagedObjects()) {
                 if (object->GetType() == EObjectType::MasterTableSchema) {
                     auto* schema = object->As<TMasterTableSchema>();
                     ++schemaToRefCounter[schema];
@@ -2118,7 +2120,7 @@ private:
     {
         std::vector<TTableId> tableIds;
         tableIds.reserve(collocation->Tables().size());
-        for (auto* table : collocation->Tables()) {
+        for (auto table : collocation->Tables()) {
             if (IsObjectAlive(table)) {
                 tableIds.push_back(table->GetId());
             }

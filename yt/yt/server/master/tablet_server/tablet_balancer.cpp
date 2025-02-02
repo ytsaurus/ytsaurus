@@ -271,7 +271,7 @@ private:
         const auto& tabletManager = Bootstrap_->GetTabletManager();
         for (auto [actionId, action] : tabletManager->TabletActions()) {
             if (!action->IsFinished()) {
-                for (const auto* tablet : action->Tablets()) {
+                for (auto tablet : action->Tablets()) {
                     YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
                     TablesWithActiveActions_.insert(tablet->As<TTablet>()->GetTable());
                     break;
@@ -608,7 +608,7 @@ private:
             if (cell->Tablets().empty()) {
                 haveEmptyCells = true;
             }
-            for (auto* tablet : cell->Tablets()) {
+            for (auto tablet : cell->Tablets()) {
                 if (tablet->GetType() != EObjectType::Tablet) {
                     continue;
                 }

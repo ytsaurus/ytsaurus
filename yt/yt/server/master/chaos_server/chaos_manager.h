@@ -35,15 +35,15 @@ struct IChaosManager
 
     virtual void SetChaosCellBundle(TChaosReplicatedTableNode* node, TChaosCellBundle* cellBundle) = 0;
 
-    virtual const THashSet<TChaosReplicatedTableNode*>& GetQueues() const = 0;
+    virtual const THashSet<TChaosReplicatedTableNodeRawPtr>& GetQueues() const = 0;
     virtual void RegisterQueue(TChaosReplicatedTableNode* node) =  0;
     virtual void UnregisterQueue(TChaosReplicatedTableNode* node) = 0;
 
-    virtual const THashSet<TChaosReplicatedTableNode*>& GetQueueConsumers() const = 0;
+    virtual const THashSet<TChaosReplicatedTableNodeRawPtr>& GetQueueConsumers() const = 0;
     virtual void RegisterQueueConsumer(TChaosReplicatedTableNode* node) = 0;
     virtual void UnregisterQueueConsumer(TChaosReplicatedTableNode* node) = 0;
 
-    virtual const THashSet<TChaosReplicatedTableNode*>& GetQueueProducers() const = 0;
+    virtual const THashSet<TChaosReplicatedTableNodeRawPtr>& GetQueueProducers() const = 0;
     virtual void RegisterQueueProducer(TChaosReplicatedTableNode* node) = 0;
     virtual void UnregisterQueueProducer(TChaosReplicatedTableNode* node) = 0;
 };

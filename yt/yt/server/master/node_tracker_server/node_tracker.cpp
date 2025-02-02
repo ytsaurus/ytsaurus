@@ -441,12 +441,12 @@ public:
     void SetHostRack(THost* host, TRack* rack) override
     {
         if (host->GetRack() != rack) {
-            auto* oldRack = host->GetRack();
+            auto oldRack = host->GetRack();
             host->SetRack(rack);
             HostRackChanged_.Fire(host, oldRack);
 
             const auto& nodes = host->Nodes();
-            for (auto* node : nodes) {
+            for (auto node : nodes) {
                 UpdateNodeCounters(node, -1);
                 node->RebuildTags();
                 NodeTagsChanged_.Fire(node);
@@ -481,7 +481,7 @@ public:
     {
         std::vector<TNode*> nodes;
         for (const auto* host : GetRackHosts(rack)) {
-            for (auto* node : host->Nodes()) {
+            for (auto node : host->Nodes()) {
                 if (!IsObjectAlive(node)) {
                     continue;
                 }
@@ -506,7 +506,7 @@ public:
         return result;
     }
 
-    const THashSet<TNode*>& GetNodesWithFlavor(ENodeFlavor flavor) const override
+    const THashSet<TNodeRawPtr>& GetNodesWithFlavor(ENodeFlavor flavor) const override
     {
         return NodesWithFlavor_[flavor];
     }
@@ -549,7 +549,7 @@ public:
     void SetNodeHost(TNode* node, THost* host) override
     {
         if (node->GetHost() != host) {
-            auto* oldHost = node->GetHost();
+            auto oldHost = node->GetHost();
             UpdateNodeCounters(node, -1);
             node->SetHost(host);
             YT_LOG_INFO("Node host changed (NodeId: %v, Address: %v, Host: %v -> %v)",
@@ -725,7 +725,7 @@ public:
     void SetRackDataCenter(TRack* rack, TDataCenter* dataCenter) override
     {
         if (rack->GetDataCenter() != dataCenter) {
-            auto* oldDataCenter = rack->GetDataCenter();
+            auto oldDataCenter = rack->GetDataCenter();
             rack->SetDataCenter(dataCenter);
 
             // Node's tags take into account not only its rack, but also its
@@ -885,7 +885,7 @@ public:
         return AggregatedOnlineNodeCount_;
     }
 
-    const std::vector<TNode*>& GetNodesForRole(ENodeRole nodeRole) override
+    const std::vector<TNodeRawPtr>& GetNodesForRole(ENodeRole nodeRole) override
     {
         return NodeListPerRole_[nodeRole].Nodes();
     }
@@ -1009,7 +1009,7 @@ private:
 
     TEnumIndexedArray<ENodeRole, TNodeListForRole> NodeListPerRole_;
 
-    TEnumIndexedArray<ENodeFlavor, THashSet<TNode*>> NodesWithFlavor_;
+    TEnumIndexedArray<ENodeFlavor, THashSet<TNodeRawPtr>> NodesWithFlavor_;
 
     struct TNodeGroup
     {
@@ -1749,7 +1749,7 @@ private:
 
         if (auto* rack = node->GetRack()) {
             response->set_rack(rack->GetName());
-            if (auto* dc = rack->GetDataCenter()) {
+            if (auto dc = rack->GetDataCenter()) {
                 response->set_data_center(dc->GetName());
             }
         }
@@ -2139,7 +2139,7 @@ private:
 
     void RegisterLeaseTransaction(TNode* node)
     {
-        auto* transaction = node->GetLeaseTransaction();
+        auto transaction = node->GetLeaseTransaction();
         YT_VERIFY(transaction);
         YT_VERIFY(transaction->GetPersistentState() == ETransactionState::Active);
         EmplaceOrCrash(TransactionToNodeMap_, transaction, node);
@@ -2147,7 +2147,7 @@ private:
 
     TTransaction* UnregisterLeaseTransaction(TNode* node)
     {
-        auto* transaction = node->GetLeaseTransaction();
+        auto transaction = node->GetLeaseTransaction();
         if (transaction) {
             EraseOrCrash(TransactionToNodeMap_, transaction);
         }
@@ -2371,7 +2371,7 @@ private:
         ToProto(request.mutable_flavors(), node->Flavors());
 
         request.mutable_chunk_location_uuids()->Reserve(node->ChunkLocations().size());
-        for (const auto* location : node->ChunkLocations()) {
+        for (auto location : node->ChunkLocations()) {
             ToProto(request.add_chunk_location_uuids(), location->GetUuid());
         }
 
@@ -2487,7 +2487,7 @@ private:
         ToProto(request.mutable_flavors(), node->Flavors());
 
         request.mutable_chunk_location_uuids()->Reserve(node->ChunkLocations().size());
-        for (const auto* location : node->ChunkLocations()) {
+        for (auto location : node->ChunkLocations()) {
             ToProto(request.add_chunk_location_uuids(), location->GetUuid());
         }
 

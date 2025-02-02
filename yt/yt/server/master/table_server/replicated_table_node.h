@@ -21,13 +21,15 @@ public:
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;
 
-    using TReplicaSet = THashSet<NTabletServer::TTableReplica*>;
+    using TReplicaSet = THashSet<NTabletServer::TTableReplicaRawPtr>;
     const TReplicaSet& Replicas() const;
     TReplicaSet& Replicas();
 
 private:
     TReplicaSet Replicas_;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TReplicatedTableNode)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -30,10 +30,10 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(ETabletActionState, State);
 
     //! Participating tablets.
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TTabletBase*>, Tablets);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TTabletBaseRawPtr>, Tablets);
 
     //! Tablet cells to mount tablet into (if present).
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TTabletCell*>, TabletCells);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TTabletCellRawPtr>, TabletCells);
 
     //! Pivot keys for reshard (if present).
     DEFINE_BYREF_RW_PROPERTY(std::vector<NTableClient::TLegacyOwningKey>, PivotKeys);
@@ -57,7 +57,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, ExpirationTime);
 
     //! Tablet cell bundle of the participating tablets.
-    DEFINE_BYVAL_RW_PROPERTY(TTabletCellBundle*, TabletCellBundle);
+    DEFINE_BYVAL_RW_PROPERTY(TTabletCellBundleRawPtr, TabletCellBundle);
 
     //! When finished, action will not be destroyed for the specified amount of time.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, ExpirationTimeout);
@@ -85,6 +85,8 @@ private:
     //! either resulting or initial ones.
     std::optional<std::vector<TTabletId>> SavedTabletIds_;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TTabletAction)
 
 ////////////////////////////////////////////////////////////////////////////////
 

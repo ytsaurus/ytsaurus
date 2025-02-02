@@ -219,7 +219,7 @@ bool TTabletProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
             return true;
 
         case EInternedAttributeKey::AuxiliaryCellId: {
-            auto* cell = tablet->AuxiliaryServant().GetCell();
+            auto cell = tablet->AuxiliaryServant().GetCell();
             if (!cell) {
                 break;
             }

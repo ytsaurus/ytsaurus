@@ -324,7 +324,7 @@ public:
 
     TTransaction* StartTransaction(
         TTransaction* parent,
-        std::vector<TTransaction*> prerequisiteTransactions,
+        std::vector<TTransactionRawPtr> prerequisiteTransactions,
         const TCellTagList& replicatedToCellTags,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
@@ -351,7 +351,7 @@ public:
 
     TTransaction* StartUploadTransaction(
         TTransaction* parent,
-        std::vector<TTransaction*> prerequisiteTransactions,
+        std::vector<TTransactionRawPtr> prerequisiteTransactions,
         const TCellTagList& replicatedToCellTags,
         std::optional<TDuration> timeout,
         const std::optional<std::string>& title,
@@ -389,7 +389,7 @@ public:
 
     void ValidateNativeTransactionStart(
         TTransaction* parent,
-        const std::vector<TTransaction*>& prerequisiteTransactions)
+        const std::vector<TTransactionRawPtr>& prerequisiteTransactions)
     {
         ValidateGenericTransactionStart(parent);
 
@@ -405,7 +405,7 @@ public:
                 << TErrorAttribute("expected_cell_tag", thisCellTag);
         }
 
-        for (auto* prerequisiteTransaction : prerequisiteTransactions) {
+        for (auto prerequisiteTransaction : prerequisiteTransactions) {
             if (CellTagFromId(prerequisiteTransaction->GetId()) != thisCellTag) {
                 THROW_ERROR_EXCEPTION(
                     NTransactionClient::EErrorCode::ForeignPrerequisiteTransaction,
@@ -425,7 +425,7 @@ public:
     TTransaction* DoStartTransaction(
         bool upload,
         TTransaction* parent,
-        std::vector<TTransaction*> prerequisiteTransactions,
+        std::vector<TTransactionRawPtr> prerequisiteTransactions,
         TCellTagList replicatedToCellTags,
         std::optional<TDuration> timeout,
         std::optional<TInstant> deadline,
@@ -537,7 +537,7 @@ public:
 
         transaction->SetPersistentState(ETransactionState::Active);
         transaction->PrerequisiteTransactions() = std::move(prerequisiteTransactions);
-        for (auto* prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
+        for (auto prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
             // NB: Duplicates are fine; prerequisite transactions may be duplicated.
             prerequisiteTransaction->DependentTransactions().insert(transaction);
         }
@@ -602,7 +602,7 @@ public:
             "MirroredToSequoia: %v, NativeTxExternalizationEnabled: %v)",
             transactionId,
             GetObjectId(parent),
-            MakeFormattableView(transaction->PrerequisiteTransactions(), [] (auto* builder, const auto* prerequisiteTransaction) {
+            MakeFormattableView(transaction->PrerequisiteTransactions(), [] (auto* builder, auto prerequisiteTransaction) {
                 FormatValue(builder, prerequisiteTransaction->GetId(), TStringBuf());
             }),
             replicatedToCellTags,
@@ -762,7 +762,7 @@ public:
             Bootstrap_->GetTransactionSupervisor()->UnregisterPreparedSequoiaTx(transaction->GetId());
         }
 
-        if (auto* parent = transaction->GetParent()) {
+        if (auto parent = transaction->GetParent()) {
             parent->ExportedObjects().insert(
                 parent->ExportedObjects().end(),
                 transaction->ExportedObjects().begin(),
@@ -776,7 +776,7 @@ public:
             securityManager->RecomputeTransactionAccountResourceUsage(parent);
         } else {
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            for (auto* object : transaction->ImportedObjects()) {
+            for (auto object : transaction->ImportedObjects()) {
                 objectManager->UnrefObject(object);
             }
             // Remove extra reference.
@@ -910,14 +910,14 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& entry : transaction->ExportedObjects()) {
-            auto* object = entry.Object;
+            auto object = entry.Object;
             objectManager->UnrefObject(object);
             // Remove extra reference.
             objectManager->UnrefObject(object);
             const auto& handler = objectManager->GetHandler(object);
             handler->UnexportObject(object, entry.DestinationCellTag, 1);
         }
-        for (auto* object : transaction->ImportedObjects()) {
+        for (auto object : transaction->ImportedObjects()) {
             objectManager->UnrefObject(object);
             object->ImportUnrefObject();
         }
@@ -2041,7 +2041,7 @@ private:
         auto* parent = parentId ? GetTransactionOrThrow(parentId) : nullptr;
 
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
-        std::vector<TTransaction*> prerequisiteTransactions;
+        std::vector<TTransactionRawPtr> prerequisiteTransactions;
         for (auto id : prerequisiteTransactionIds) {
             auto* prerequisiteTransaction = GetAndValidatePrerequisiteTransaction(id);
             prerequisiteTransactions.push_back(prerequisiteTransaction);
@@ -2110,7 +2110,7 @@ private:
         auto* parent = parentId ? GetTransactionOrThrow(parentId) : nullptr;
 
         auto prerequisiteTransactionIds = FromProto<std::vector<TTransactionId>>(request->prerequisite_transaction_ids());
-        std::vector<TTransaction*> prerequisiteTransactions;
+        std::vector<TTransactionRawPtr> prerequisiteTransactions;
         for (auto id : prerequisiteTransactionIds) {
             auto* prerequisiteTransaction = GetAndValidatePrerequisiteTransaction(id);
             prerequisiteTransactions.push_back(prerequisiteTransaction);
@@ -2717,19 +2717,19 @@ public:
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
 
-        for (auto* object : transaction->StagedObjects()) {
+        for (auto object : transaction->StagedObjects()) {
             const auto& handler = objectManager->GetHandler(object);
             handler->UnstageObject(object, false);
             objectManager->UnrefObject(object);
         }
         transaction->StagedObjects().clear();
 
-        for (auto* node : transaction->StagedNodes()) {
+        for (auto node : transaction->StagedNodes()) {
             objectManager->UnrefObject(node);
         }
         transaction->StagedNodes().clear();
 
-        auto* parent = transaction->GetParent();
+        auto parent = transaction->GetParent();
         if (parent) {
             EraseOrCrash(parent->NestedTransactions(), transaction);
             objectManager->UnrefObject(transaction);
@@ -2747,7 +2747,7 @@ public:
             EraseOrCrash(ForeignTransactions_, transaction);
         }
 
-        for (auto* prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
+        for (auto prerequisiteTransaction : transaction->PrerequisiteTransactions()) {
             // NB: Duplicates are fine; prerequisite transactions may be duplicated.
             prerequisiteTransaction->DependentTransactions().erase(transaction);
         }
@@ -2856,7 +2856,7 @@ private:
             transaction->SetSuccessorTransactionLeaseCount(
                 transaction->GetSuccessorTransactionLeaseCount() + 1);
         };
-        IteratePredecessorTransactions(transaction, BIND(accountTransactionLease));
+        IteratePredecessorTransactions(transaction, accountTransactionLease);
 
         YT_LOG_DEBUG(
             "Transaction lease registered (TransactionId: %v, CellId: %v)",
@@ -3210,7 +3210,7 @@ private:
             auto* currentTransaction = queue.Pop();
             callback(currentTransaction);
 
-            for (auto* nextTransaction : currentTransaction->NestedTransactions()) {
+            for (auto nextTransaction : currentTransaction->NestedTransactions()) {
                 tryEnqueue(nextTransaction);
             }
             TCompactVector<TTransaction*, 16> dependentTransactions(
@@ -3228,12 +3228,12 @@ private:
 
     void IteratePredecessorTransactions(
         TTransaction* transaction,
-        TCallback<void(TTransaction*)> callback)
+        auto callback)
     {
         TCompactSet<TTransaction*, 16> visitedTransactions;
         TCompactQueue<TTransaction*, 16> queue;
 
-        auto tryEnqueue = [&] (TTransaction* transaction) {
+        auto tryEnqueue = [&] (auto transaction) {
             if (visitedTransactions.insert(transaction).second) {
                 queue.Push(transaction);
             }
@@ -3244,7 +3244,7 @@ private:
             auto* currentTransaction = queue.Pop();
             callback(currentTransaction);
 
-            if (auto* nextTransaction = currentTransaction->GetParent()) {
+            if (auto nextTransaction = currentTransaction->GetParent()) {
                 tryEnqueue(nextTransaction);
             }
 

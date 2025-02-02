@@ -174,7 +174,7 @@ void RecomputeSubtreeSize(TNonversionedMapObjectBase<TSelf>* mapObject, bool val
     static constexpr auto& Logger = ObjectServerLogger;
     int subtreeSize = 1;
     for (const auto& [_, child] : mapObject->KeyToChild()) {
-        RecomputeSubtreeSize(child, validateMatch);
+        RecomputeSubtreeSize(child.Get(), validateMatch);
         subtreeSize += child->GetSubtreeSize();
     }
     auto oldSubtreeSize = mapObject->GetSubtreeSize();

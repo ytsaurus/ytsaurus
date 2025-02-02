@@ -258,20 +258,13 @@ void TChunkLocation::Load(NCellMaster::TLoadContext& context)
     ResetDestroyedReplicasIterator();
 }
 
-TChunkLocation* TChunkLocation::LoadPtr(NCellMaster::TLoadContext& context)
-{
-    TChunkLocation* ptr;
-    TRawNonversionedObjectPtrSerializer::Load(context, ptr);
-    return ptr;
-}
-
 TNode* TChunkLocation::SkipImaginaryChunkLocation(NCellMaster::TLoadContext& context)
 {
     YT_VERIFY(context.GetVersion() < EMasterReign::DropImaginaryChunkLocations);
 
     using NYT::Load;
 
-    auto* owningNode = Load<TNode*>(context);
+    auto owningNode = Load<NNodeTrackerServer::TNodeRawPtr>(context);
 
     // NB: Some compats are too old for trunk.
 #if 0

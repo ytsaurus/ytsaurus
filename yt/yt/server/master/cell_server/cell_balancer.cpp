@@ -158,7 +158,7 @@ public:
         const auto& descriptor = cell->Peers()[peerId].Descriptor;
 
         if (Provider_->IsVerboseLoggingEnabled()) {
-            auto* node = cell->Peers()[peerId].Node;
+            auto node = cell->Peers()[peerId].Node;
             YT_LOG_DEBUG(reason, "Tablet tracker revoking peer (CellId: %v, PeerId: %v, Node: %v, DescriptorAddress: %v)",
                 cell->GetId(),
                 peerId,
@@ -418,7 +418,7 @@ private:
 
     TNodeHolder* TryAllocateNode(const TCellBase* cell)
     {
-        auto* area = cell->GetArea();
+        auto area = cell->GetArea();
 
         auto it = FreeNodes_.find(area);
         if (it == FreeNodes_.end()) {
@@ -621,7 +621,7 @@ private:
             }
 
             const auto* dstCell = dstNode->GetSlots()[dstIndex].first;
-            const auto* dstArea = dstCell->GetArea();
+            auto dstArea = dstCell->GetArea();
             if (dstArea == area ||
                 NodeInPeers(dstCell, srcNode) ||
                 srcNode->GetCellCount(dstArea) >= dstNode->GetCellCount(dstArea) ||

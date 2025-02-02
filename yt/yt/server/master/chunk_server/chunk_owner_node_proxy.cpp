@@ -297,7 +297,7 @@ void BuildDynamicStoreSpec(
     NChunkClient::NProto::TChunkSpec* chunkSpec)
 {
     const auto& tabletManager = bootstrap->GetTabletManager();
-    auto* tablet = dynamicStore->GetTablet();
+    auto tablet = dynamicStore->GetTablet();
 
     ToProto(chunkSpec->mutable_chunk_id(), dynamicStore->GetId());
     ToProto(chunkSpec->mutable_tablet_id(), GetObjectId(tablet));
@@ -544,7 +544,7 @@ private:
         YT_VERIFY(ContentType_ != EChunkListContentType::Hunk);
 
         if (dynamicStore->IsFlushed()) {
-            if (auto* chunk = dynamicStore->GetFlushedChunk()) {
+            if (auto chunk = dynamicStore->GetFlushedChunk()) {
                 auto relativeLowerLimit = lowerLimit;
                 auto relativeUpperLimit = upperLimit;
 
@@ -1785,7 +1785,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, BeginUpload)
         chunkSchema,
         chunkSchemaId);
 
-    std::vector<TTransaction*> prerequisiteTransactions;
+    std::vector<TTransactionRawPtr> prerequisiteTransactions;
     prerequisiteTransactions.reserve(request->upload_prerequisite_transaction_ids_size());
     for (auto id : request->upload_prerequisite_transaction_ids()) {
         auto transactionId = FromProto<TTransactionId>(id);
@@ -2020,11 +2020,11 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
         case EChunkListKind::SortedDynamicRoot: {
             auto* trunkChunkList = node->GetTrunkNode()->As<TChunkOwnerBase>()->GetChunkList();
 
-            for (auto* tabletList : trunkChunkList->Children()) {
+            for (auto tabletList : trunkChunkList->Children()) {
                 ToProto(response->add_pivot_keys(), tabletList->AsChunkList()->GetPivotKey());
             }
 
-            for (auto* tabletList : chunkList->Children()) {
+            for (auto tabletList : chunkList->Children()) {
                 auto chunkListKind = tabletList->AsChunkList()->GetKind();
                 if (chunkListKind != EChunkListKind::SortedDynamicSubtablet &&
                     chunkListKind != EChunkListKind::SortedDynamicTablet)
@@ -2050,7 +2050,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, GetUploadParams)
             THROW_ERROR_EXCEPTION("Requested hunk chunk list ids when there is no root hunk chunk list");
         }
 
-        for (auto* tabletList : hunkChunkList->Children()) {
+        for (auto tabletList : hunkChunkList->Children()) {
             auto chunkListKind = tabletList->AsChunkList()->GetKind();
             if (chunkListKind != EChunkListKind::Hunk) {
                 THROW_ERROR_EXCEPTION("Chunk list %v has unexpected kind %Qlv when %Qv expected",

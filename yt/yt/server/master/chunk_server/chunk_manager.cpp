@@ -265,7 +265,7 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTree*> children) override
+        TRange<TChunkTreeRawPtr> children) override
     {
         Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, children);
     }
@@ -1357,7 +1357,7 @@ public:
                 YT_VERIFY(!modifier.GetTransactionId());
 
                 auto* baseChunkView = underlyingTree->AsChunkView();
-                auto* underlyingTree = baseChunkView->GetUnderlyingTree();
+                auto underlyingTree = baseChunkView->GetUnderlyingTree();
                 auto adjustedModifier = baseChunkView->Modifier().RestrictedWith(modifier);
                 auto* chunkView = DoCreateChunkView(underlyingTree, std::move(adjustedModifier));
                 YT_LOG_DEBUG("Chunk view created (ChunkViewId: %v, ChunkId: %v, BaseChunkViewId: %v)",
@@ -1376,7 +1376,7 @@ public:
     {
         YT_VERIFY(!chunkView->GetStagingTransaction());
 
-        auto* underlyingTree = chunkView->GetUnderlyingTree();
+        auto underlyingTree = chunkView->GetUnderlyingTree();
         const auto& objectManager = Bootstrap_->GetObjectManager();
         ResetChunkTreeParent(chunkView, underlyingTree);
         objectManager->UnrefObject(underlyingTree);
@@ -1408,7 +1408,7 @@ public:
     {
         YT_VERIFY(!dynamicStore->GetStagingTransaction());
 
-        if (auto* chunk = dynamicStore->GetFlushedChunk()) {
+        if (auto chunk = dynamicStore->GetFlushedChunk()) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             objectManager->UnrefObject(chunk);
         }
@@ -1431,7 +1431,7 @@ public:
 
         // Drop references to children.
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* child : chunkList->Children()) {
+        for (auto child : chunkList->Children()) {
             if (child) {
                 ResetChunkTreeParent(chunkList, child);
                 objectManager->UnrefObject(child);
@@ -1448,7 +1448,7 @@ public:
         chunkList->IncrementVersion();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* child : chunkList->Children()) {
+        for (auto child : chunkList->Children()) {
             if (child) {
                 ResetChunkTreeParent(chunkList, child);
                 objectManager->UnrefObject(child);
@@ -1491,25 +1491,25 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTree*> children) override
+        TRange<TChunkTreeRawPtr> children) override
     {
         NChunkServer::AttachToChunkList(chunkList, children);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* child : children) {
+        for (auto child : children) {
             objectManager->RefObject(child);
         }
     }
 
     void DetachFromChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTree*> children,
+        TRange<TChunkTreeRawPtr> children,
         EChunkDetachPolicy policy) override
     {
         NChunkServer::DetachFromChunkList(chunkList, children, policy);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* child : children) {
+        for (auto child : children) {
             objectManager->UnrefObject(child);
         }
     }
@@ -1519,7 +1519,7 @@ public:
         int childIndex,
         TChunkTree* child) override
     {
-        auto* oldChild = chunkList->Children()[childIndex];
+        auto oldChild = chunkList->Children()[childIndex];
 
         if (oldChild == child) {
             return;
@@ -1585,7 +1585,7 @@ public:
 
         if (recursive) {
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            for (auto* child : chunkList->Children()) {
+            for (auto child : chunkList->Children()) {
                 if (child) {
                     transactionManager->UnstageObject(child->GetStagingTransaction(), child, recursive);
                 }
@@ -2747,10 +2747,10 @@ private:
         node->Reset(nodeTracker);
 
 
-        for (auto* location : node->ChunkLocations()) {
+        for (auto location : node->ChunkLocations()) {
             DiscardEndorsements(location);
 
-            // maybe all of this is normal for some reason and we should just dispose it, idk
+            // TODO(aleksandra-zh): maybe all of this is normal for some reason and we should just dispose it, idk
             if (!location->Replicas().empty()) {
                 YT_LOG_ALERT("Cleared location still has replicas (NodeId: %v, LocationMediumIndex: %v, ReplicasCount: %v)",
                     node->GetId(),
@@ -2779,7 +2779,7 @@ private:
         ChunkReplicator_->OnNodeDisposed(node);
     }
 
-    void DisposeLocation(NChunkServer::TChunkLocation* location) override
+    void DisposeLocation(TChunkLocation* location) override
     {
         YT_VERIFY(HasMutationContext());
 
@@ -2922,7 +2922,7 @@ private:
     template <class TResponse>
     void SetAnnounceReplicaRequests(
         TResponse* response,
-        TRange<TChunkLocation*> locationDirectory,
+        TRange<TChunkLocationRawPtr> locationDirectory,
         const std::vector<TChunk*>& chunks)
     {
         auto isSequoia = chunks.empty() ? false : chunks[0]->IsSequoia();
@@ -2973,7 +2973,7 @@ private:
 
         if (clusterIsStableEnough) {
             auto currentRevision = GetCurrentMutationContext()->GetVersion().ToRevision();
-            for (auto* location : locationDirectory) {
+            for (auto location : locationDirectory) {
                 for (auto& [chunk, revision] : location->ReplicaEndorsements()) {
                     revision = currentRevision;
                     onChunk(chunk, true);
@@ -3018,10 +3018,15 @@ private:
         auto* location = dataNodeTracker->GetChunkLocationByUuid(locationUuid);
         location->ReserveReplicas(request->chunks_size());
 
-        auto locationDirectory = {location};
-        auto announceReplicaRequests = ProcessAddedReplicas(locationDirectory, node, request->chunks());
+        auto announceReplicaRequests = ProcessAddedReplicas(
+            {location},
+            node,
+            request->chunks());
 
-        SetAnnounceReplicaRequests(response, locationDirectory, announceReplicaRequests);
+        SetAnnounceReplicaRequests(
+            response,
+            {TChunkLocationRawPtr(location)},
+            announceReplicaRequests);
     }
 
     void FinalizeDataNodeFullHeartbeatSession(TNode* node) override
@@ -3070,7 +3075,7 @@ private:
             }
 
             // We do not care about approvedness.
-            auto* location = replica.GetPtr();
+            auto location = replica.GetPtr();
             if (!locationWithMaxId || location->GetId() > locationWithMaxId->GetId()) {
                 locationWithMaxId = location;
             }
@@ -3547,7 +3552,7 @@ private:
 
             auto revision = FromProto<NHydra::TRevision>(protoRequest.revision());
             // COMPAT(danilalexeev): YT-23781.
-            for (auto* location : node->ChunkLocations()) {
+            for (auto location : node->ChunkLocations()) {
                 maybeRemoveEndorsement(location, chunk, revision);
             }
         }
@@ -3572,7 +3577,7 @@ private:
         const auto& dynamicConfig = GetDynamicConfig();
 
         int removedUnapprovedReplicaCount = 0;
-        for (auto* location : node->ChunkLocations()) {
+        for (auto location : node->ChunkLocations()) {
             auto& unapprovedReplicas = location->UnapprovedReplicas();
             for (auto it = unapprovedReplicas.begin(); it != unapprovedReplicas.end();) {
                 auto jt = it++;
@@ -4057,7 +4062,7 @@ private:
 
     void ExportChunks(
         TTransaction* transaction,
-        TRange<TChunk*> chunks,
+        TRange<TChunkRawPtr> chunks,
         TCellTag destinationCellTag,
         google::protobuf::RepeatedPtrField<TChunkImportData>* importRequests) override
     {
@@ -4071,7 +4076,7 @@ private:
 
         std::vector<std::pair<TChunk*, TCellTag>> request;
         request.reserve(chunks.size());
-        for (auto* chunk : chunks) {
+        for (auto chunk : chunks) {
             YT_VERIFY(chunk->IsNative());
             request.emplace_back(chunk, destinationCellTag);
         }
@@ -4599,7 +4604,7 @@ private:
             ? FromProto<TTransactionId>(subrequest->transaction_id())
             : NullTransactionId;
 
-        std::vector<TChunkTree*> children;
+        std::vector<TChunkTreeRawPtr> children;
         children.reserve(subrequest->child_ids_size());
         for (const auto& protoChildId : subrequest->child_ids()) {
             auto childId = FromProto<TChunkTreeId>(protoChildId);
@@ -4633,7 +4638,7 @@ private:
             // YT-6542: Make sure we never attach a chunk list to its parent more than once.
             if (child->GetType() == EObjectType::ChunkList) {
                 auto* chunkListChild = child->AsChunkList();
-                for (auto* someParent : chunkListChild->Parents()) {
+                for (auto someParent : chunkListChild->Parents()) {
                     if (someParent == parent) {
                         THROW_ERROR_EXCEPTION("Chunk list %v already has %v as its parent",
                             chunkListChild->GetId(),
@@ -4825,7 +4830,7 @@ private:
 
             const auto& nodeTracker = Bootstrap_->GetNodeTracker();
             for (auto [_, node] : nodeTracker->Nodes()) {
-                for (auto* location : node->ChunkLocations()) {
+                for (auto location : node->ChunkLocations()) {
                     runner.Add(location);
                 }
             }
@@ -4856,7 +4861,7 @@ private:
                     continue;
                 }
 
-                for (auto* location : node->ChunkLocations()) {
+                for (auto location : node->ChunkLocations()) {
                     for (auto [chunk, revision] : location->ReplicaEndorsements()) {
                         YT_VERIFY(!chunk->GetLocationWithEndorsement());
                         chunk->SetLocationWithEndorsement(location);
@@ -5032,7 +5037,7 @@ private:
             YT_ABORT();
         }
 
-        for (auto* child : chunkList->Children()) {
+        for (auto child : chunkList->Children()) {
             YT_VERIFY(child);
             auto childStatistics = GetChunkTreeStatistics(child);
             statistics.Accumulate(childStatistics);
@@ -5076,7 +5081,7 @@ private:
         };
 
         TCumulativeStatisticsEntry beforeFirst{chunkList->Statistics()};
-        for (auto* child : chunkList->Children()) {
+        for (auto child : chunkList->Children()) {
             auto childEntry = getChildStatisticsEntry(child);
             beforeFirst = beforeFirst - childEntry;
         }
@@ -5090,7 +5095,7 @@ private:
         cumulativeStatistics.TrimFront(1);
 
         auto currentStatistics = beforeFirst;
-        for (auto* child : chunkList->Children()) {
+        for (auto child : chunkList->Children()) {
             auto childEntry = getChildStatisticsEntry(child);
             currentStatistics = currentStatistics + childEntry;
             cumulativeStatistics.PushBack(childEntry);
@@ -5142,7 +5147,7 @@ private:
                     stack.pop_back();
                 } else {
                     ++stack.back().second;
-                    auto* child = chunkList->Children()[childIndex];
+                    auto child = chunkList->Children()[childIndex];
                     if (child && child->GetType() == EObjectType::ChunkList) {
                         visit(child->AsChunkList());
                     }
@@ -5163,7 +5168,7 @@ private:
 
             for (int childIndex = 0; childIndex < childCount; ++childIndex) {
                 // TODO(ifsmirnov): think of it in context of nullptrs and cumulative statistics.
-                auto* child = chunkList->Children()[childIndex];
+                auto child = chunkList->Children()[childIndex];
                 if (!child) {
                     continue;
                 }
@@ -5630,7 +5635,7 @@ private:
         EAddReplicaReason reason)
     {
         auto* chunk = replica.GetPtr();
-        auto* node = chunkLocation->GetNode();
+        auto node = chunkLocation->GetNode();
         auto nodeId = node->GetId();
 
         if (!chunkLocation->AddReplica(replica)) {
@@ -5668,7 +5673,7 @@ private:
         TChunkPtrWithReplicaInfo chunkWithIndexes)
     {
         auto* chunk = chunkWithIndexes.GetPtr();
-        auto* node = location->GetNode();
+        auto node = location->GetNode();
         TChunkLocationPtrWithReplicaInfo locationWithIndexes(
             location,
             chunkWithIndexes.GetReplicaIndex(),
@@ -5694,7 +5699,7 @@ private:
     {
         auto* chunk = replica.GetPtr();
         YT_VERIFY(chunk);
-        auto* node = chunkLocation->GetNode();
+        auto node = chunkLocation->GetNode();
         auto nodeId = node->GetId();
         TChunkLocationPtrWithReplicaIndex locationWithIndex(chunkLocation, replica.GetReplicaIndex());
 

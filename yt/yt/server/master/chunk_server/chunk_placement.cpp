@@ -180,7 +180,7 @@ public:
         int mediumIndex = medium->GetIndex();
         for (auto replica : replicas) {
             if (replica.GetPtr()->GetEffectiveMediumIndex() == mediumIndex) {
-                auto* node = replica.GetPtr()->GetNode();
+                auto node = replica.GetPtr()->GetNode();
                 if (!AllowMultipleReplicasPerNode_) {
                     ForbiddenNodes_.push_back(node);
                 }
@@ -1016,7 +1016,7 @@ TChunkLocation* TChunkPlacement::GetRemovalTarget(
 
         if (const auto* rack = replica.GetPtr()->GetNode()->GetRack()) {
             ++perRackCounters[rack->GetIndex()];
-            if (const auto* dataCenter = rack->GetDataCenter()) {
+            if (auto dataCenter = rack->GetDataCenter()) {
                 ++perDataCenterCounters[dataCenter];
             }
         }
@@ -1077,7 +1077,7 @@ TChunkLocation* TChunkPlacement::GetRemovalTarget(
         }
 
         auto* location = replica.GetPtr();
-        auto* node = location->GetNode();
+        auto node = location->GetNode();
         if (!IsValidRemovalTarget(node)) {
             continue;
         }
@@ -1091,7 +1091,7 @@ TChunkLocation* TChunkPlacement::GetRemovalTarget(
                 rackWinner = location;
             }
 
-            if (const auto* dataCenter = rack->GetDataCenter()) {
+            if (auto dataCenter = rack->GetDataCenter()) {
                 auto maxReplicasPerDataCenter = GetMaxReplicasPerDataCenter(mediumIndex, chunk, dataCenter);
                 if (perDataCenterCounters[dataCenter] > maxReplicasPerDataCenter) {
                     dataCenterWinner = location;
@@ -1435,7 +1435,7 @@ int TChunkPlacement::CapTotalReplicationFactor(
     const TMedium* medium) const
 {
    const auto& config = medium->AsDomestic()->Config();
-   return std::min({replicationFactor, config->MaxReplicationFactor, NChunkServer::MaxReplicationFactor});
+   return std::min({replicationFactor, config->MaxReplicationFactor, MaxReplicationFactor});
 }
 
 int TChunkPlacement::CapPerRackReplicationFactor(
@@ -1445,7 +1445,7 @@ int TChunkPlacement::CapPerRackReplicationFactor(
 {
     const auto& config = medium->AsDomestic()->Config();
     // TODO(danilalexeev): introduce bounds to the chunk server config options.
-    auto result = std::min({replicationFactor, config->MaxReplicasPerRack, NChunkServer::MaxReplicationFactor});
+    auto result = std::min({replicationFactor, config->MaxReplicasPerRack, MaxReplicationFactor});
 
     switch (chunk->GetType()) {
         case EObjectType::Chunk:

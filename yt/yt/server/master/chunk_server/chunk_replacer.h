@@ -18,7 +18,7 @@ struct IChunkReplacerCallbacks
 {
     virtual void AttachToChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTree*> children) = 0;
+        TRange<TChunkTreeRawPtr> children) = 0;
     virtual TChunkList* CreateChunkList(
         EChunkListKind kind) = 0;
     // TODO(shakurov): remove these, make TChunkReplacer own its new root chunk

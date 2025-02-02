@@ -341,7 +341,7 @@ void TTablet::ValidateUnmount()
     TTabletBase::ValidateUnmount();
 
     for (auto it : GetIteratorsSortedByKey(Replicas())) {
-        const auto* replica = it->first;
+        auto replica = it->first;
         const auto& replicaInfo = it->second;
         if (replica->TransitioningTablets().count(this) > 0) {
             THROW_ERROR_EXCEPTION("Cannot unmount tablet %v since replica %v is in %Qlv state",

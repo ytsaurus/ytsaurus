@@ -274,7 +274,7 @@ bool HasParent(const TChunkTree* chunkTree, TChunkList* potentialParent)
 
 void AttachToChunkList(
     TChunkList* chunkList,
-    TRange<TChunkTree*> children)
+    TRange<TChunkTreeRawPtr> children)
 {
     // A shortcut.
     if (children.empty()) {
@@ -283,10 +283,10 @@ void AttachToChunkList(
 
     if (chunkList->GetKind() == EChunkListKind::JournalRoot) {
         // Make sure all new children have the same value of "sealed" and "overlayed" flags.
-        const auto* firstChild = children[0];
+        auto firstChild = children[0];
         bool childrenSealed = firstChild->IsSealed();
         bool childrenOverlayed = firstChild->GetOverlayed();
-        for (const auto* child : children) {
+        for (auto child : children) {
             if (bool childSealed = child->IsSealed(); childSealed != childrenSealed) {
                 THROW_ERROR_EXCEPTION("Improper sealed flag for child %v: expected %Qlv, actual %Qlv",
                     child->GetId(),
@@ -324,7 +324,7 @@ void AttachToChunkList(
                     chunkList->GetId());
             }
             if (!chunkList->IsSealed()) {
-                const auto* lastExistingChild = chunkList->Children().back();
+                auto lastExistingChild = chunkList->Children().back();
                 if (!lastExistingChild->GetOverlayed()) {
                     THROW_ERROR_EXCEPTION("Cannot append child %v to unsealed chunk list %v since its last child %v is not overlayed",
                         firstChild->GetId(),
@@ -336,7 +336,7 @@ void AttachToChunkList(
     }
 
     if (chunkList->HasChildToIndexMapping()) {
-        for (auto* child : children) {
+        for (auto child : children) {
             if (chunkList->HasChild(child)) {
                 THROW_ERROR_EXCEPTION("Cannot append a duplicate child %v to chunk list %v",
                     child->GetId(),
@@ -347,7 +347,7 @@ void AttachToChunkList(
 
     // NB: Accumulate statistics from left to right to get Sealed flag correct.
     TChunkTreeStatistics statisticsDelta;
-    for (auto* child : children) {
+    for (auto child : children) {
         AppendChunkTreeChild(chunkList, child, &statisticsDelta);
         SetChunkTreeParent(chunkList, child);
     }
@@ -361,7 +361,7 @@ void AttachToChunkList(
 
 void DetachFromChunkList(
     TChunkList* chunkList,
-    TRange<TChunkTree*> children,
+    TRange<TChunkTreeRawPtr> children,
     EChunkDetachPolicy policy)
 {
     // A shortcut.
@@ -372,7 +372,7 @@ void DetachFromChunkList(
     chunkList->IncrementVersion();
 
     TChunkTreeStatistics statisticsDelta;
-    for (auto* child : children) {
+    for (auto child : children) {
         statisticsDelta.Accumulate(GetChunkTreeStatistics(child));
         ResetChunkTreeParent(chunkList, child);
     }
@@ -409,7 +409,7 @@ void DetachFromChunkList(
             YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
 
             int childIndex = chunkList->GetTrimmedChildCount();
-            for (auto* child : children) {
+            for (auto child : children) {
                 YT_VERIFY(child == existingChildren[childIndex]);
                 existingChildren[childIndex] = nullptr;
                 ++childIndex;
@@ -455,7 +455,7 @@ void DetachFromChunkList(
             // Used in sorted tablet compaction.
             YT_VERIFY(chunkList->HasChildToIndexMapping());
             auto& childToIndex = chunkList->ChildToIndex();
-            for (auto* child : children) {
+            for (auto child : children) {
                 auto indexIt = childToIndex.find(child);
                 YT_VERIFY(indexIt != childToIndex.end());
                 int index = indexIt->second;
@@ -500,7 +500,7 @@ void ReplaceChunkListChild(TChunkList* chunkList, int childIndex, TChunkTree* ne
 {
     auto& children = chunkList->Children();
 
-    auto* oldChild = children[childIndex];
+    auto oldChild = children[childIndex];
 
     children[childIndex] = newChild;
 
@@ -680,12 +680,12 @@ void RecomputeChunkListStatistics(TChunkList* chunkList)
         chunkList->CumulativeStatistics().DeclareTrimmable();
     }
 
-    std::vector<TChunkTree*> children;
+    std::vector<TChunkTreeRawPtr> children;
     children.swap(chunkList->Children());
     chunkList->ChildToIndex().clear();
 
     TChunkTreeStatistics statistics;
-    for (auto* child : children) {
+    for (auto child : children) {
         AppendChunkTreeChild(chunkList, child, &statistics);
     }
 
@@ -703,7 +703,7 @@ void RecomputeChildToIndexMapping(TChunkList* chunkList)
 
     const auto& children = chunkList->Children();
     for (int index = 0; index < std::ssize(children); ++index) {
-        auto* child = children[index];
+        auto child = children[index];
         YT_VERIFY(mapping.emplace(child, index).second);
     }
 }
@@ -736,14 +736,14 @@ std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
                 break;
             }
             case EObjectType::ChunkView: {
-                for (auto* parent : chunkTree->AsChunkView()->Parents()) {
+                for (auto parent : chunkTree->AsChunkView()->Parents()) {
                     visit(parent);
                 }
                 break;
             }
             case EObjectType::SortedDynamicTabletStore:
             case EObjectType::OrderedDynamicTabletStore: {
-                for (auto* parent : chunkTree->AsDynamicStore()->Parents()) {
+                for (auto parent : chunkTree->AsDynamicStore()->Parents()) {
                     visit(parent);
                 }
                 break;
@@ -752,7 +752,7 @@ std::vector<TChunkOwnerBase*> GetOwningNodes(TChunkTree* chunkTree)
                 auto* chunkList = chunkTree->AsChunkList();
                 owningNodes.insert(chunkList->TrunkOwningNodes().begin(), chunkList->TrunkOwningNodes().end());
                 owningNodes.insert(chunkList->BranchedOwningNodes().begin(), chunkList->BranchedOwningNodes().end());
-                for (auto* parent : chunkList->Parents()) {
+                for (auto parent : chunkList->Parents()) {
                     visit(parent);
                 }
                 break;
@@ -962,7 +962,7 @@ TLegacyOwningKey GetUpperBoundKeyOrThrow(const TChunkTree* chunkTree, std::optio
     auto getLastNonemptyChild = [] (const TChunkList* chunkList) {
         const auto& children = chunkList->Children();
         for (auto it = children.rbegin(); it != children.rend(); ++it) {
-            const auto* child = *it;
+            auto child = *it;
             if (!IsEmpty(child)) {
                 return child;
             }
@@ -1052,7 +1052,7 @@ TLegacyOwningKey GetMinKeyOrThrow(const TChunkTree* chunkTree, std::optional<int
     auto getFirstNonemptyChild = [] (const TChunkList* chunkList) {
         const auto& children = chunkList->Children();
         for (auto it = children.begin(); it != children.end(); ++it) {
-            const auto* child = *it;
+            auto child = *it;
             if (!IsEmpty(child)) {
                 return child;
             }
@@ -1113,7 +1113,7 @@ TLegacyOwningKey GetMaxKeyOrThrow(const TChunkTree* chunkTree)
     auto getLastNonemptyChild = [] (const TChunkList* chunkList) {
         const auto& children = chunkList->Children();
         for (auto it = children.rbegin(); it != children.rend(); ++it) {
-            const auto* child = *it;
+            auto child = *it;
             if (!IsEmpty(child)) {
                 return child;
             }
@@ -1155,14 +1155,14 @@ std::pair<TUnversionedOwningRow, TUnversionedOwningRow> GetBoundaryKeysOrThrow(c
 
 std::vector<TChunkViewMergeResult> MergeAdjacentChunkViewRanges(std::vector<TChunkView*> chunkViews)
 {
-    auto lowerLimitOrEmptyKey = [] (const NChunkServer::TChunkView* chunkView) {
+    auto lowerLimitOrEmptyKey = [] (const TChunkView* chunkView) {
         if (const auto& lowerLimit = chunkView->ReadRange().LowerLimit(); lowerLimit.HasLegacyKey()) {
             return lowerLimit.GetLegacyKey();
         }
         return EmptyKey();
     };
 
-    auto upperLimitOrMaxKey = [] (const NChunkServer::TChunkView* chunkView) {
+    auto upperLimitOrMaxKey = [] (const TChunkView* chunkView) {
         if (const auto& upperLimit = chunkView->ReadRange().UpperLimit(); upperLimit.HasLegacyKey()) {
             return upperLimit.GetLegacyKey();
         }
@@ -1256,7 +1256,7 @@ void SerializeMediumOverrides(
     TNode* node,
     NDataNodeTrackerClient::NProto::TMediumOverrides* protoMediumOverrides)
 {
-    for (auto* location : node->ChunkLocations()) {
+    for (auto location : node->ChunkLocations()) {
         if (const auto& mediumOverride = location->MediumOverride()) {
             auto* protoMediumOverride = protoMediumOverrides->add_overrides();
             ToProto(protoMediumOverride->mutable_location_uuid(), location->GetUuid());

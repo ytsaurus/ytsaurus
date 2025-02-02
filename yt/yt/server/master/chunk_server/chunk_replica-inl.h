@@ -213,10 +213,10 @@ template <class C>
 Y_FORCE_INLINE void TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::Save(C& context) const
 {
     using NYT::Save;
-    Save(context, GetPtr());
-    Save<uint8_t>(context, GetIndex<1>());
+    SaveWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, GetPtr());
+    Save<ui8>(context, GetIndex<1>());
     if constexpr (IndexCount == 2) {
-        Save<uint8_t>(context, GetIndex<2>());
+        Save<ui8>(context, GetIndex<2>());
     }
     if constexpr (WithReplicaState) {
         Save(context, GetReplicaState());
@@ -228,10 +228,10 @@ template <class C>
 Y_FORCE_INLINE void TAugmentedPtr<T, WithReplicaState, IndexCount, TAugmentationAccessor>::Load(C& context)
 {
     using NYT::Load;
-    auto* ptr = Load<T*>(context);
-    int firstIndex = Load<uint8_t>(context);
+    auto* ptr = LoadWith<NCellMaster::TRawNonversionedObjectPtrSerializer, T*>(context);
+    int firstIndex = Load<ui8>(context);
     if constexpr (IndexCount == 2) {
-        int secondIndex = Load<uint8_t>(context);
+        int secondIndex = Load<ui8>(context);
         if constexpr (WithReplicaState) {
             auto state = Load<EChunkReplicaState>(context);
             *this = TAugmentedPtr(ptr, firstIndex, secondIndex, state);
@@ -452,7 +452,7 @@ void TSerializerTraits<NChunkServer::TPtrWithReplicaInfo<T>, C>::TSerializer::Sa
     const NChunkServer::TPtrWithReplicaInfo<T>& replica)
 {
     using NYT::Save;
-    Save(context, replica.GetPtr());
+    SaveWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, replica.GetPtr());
     Save(context, replica.GetReplicaIndex());
     Save(context, replica.GetReplicaState());
 }
@@ -464,7 +464,8 @@ void TSerializerTraits<NChunkServer::TPtrWithReplicaInfo<T>, C>::TSerializer::Lo
 {
     using NYT::Load;
     using namespace NChunkServer;
-    auto* ptr = Load<T*>(context);
+    using namespace NObjectServer;
+    auto ptr = Load<TRawObjectPtr<T>>(context);
     auto replicaIndex = Load<int>(context);
     auto replicaState = Load<EChunkReplicaState>(context);
     replica = TPtrWithReplicaInfo<T>(ptr, replicaIndex, replicaState);

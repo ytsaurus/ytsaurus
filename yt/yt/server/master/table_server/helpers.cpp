@@ -136,7 +136,7 @@ void RecomputeTabletStatistics(TTableNode* table)
 {
     table->ResetTabletStatistics();
 
-    for (const auto* tablet : table->Tablets()) {
+    for (auto tablet : table->Tablets()) {
         table->AccountTabletStatistics(tablet->GetTabletStatistics());
     }
 }

@@ -404,7 +404,7 @@ std::vector<TTabletMoveDescriptor> ReassignInMemoryTablets(
 
         std::vector<TTablet*> tablets;
         tablets.reserve(cell->Tablets().size());
-        for (auto* tablet : cell->Tablets()) {
+        for (auto tablet : cell->Tablets()) {
             if (tablet->GetType() != EObjectType::Tablet) {
                 continue;
             }

@@ -25,7 +25,7 @@ class TAccountResourceUsageLease
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransactionRawPtr, Transaction);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccountPtr, Account);
     DEFINE_BYREF_RW_PROPERTY(TClusterResources, Resources);
 
@@ -45,6 +45,8 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TAccountResourceUsageLease)
 
 ////////////////////////////////////////////////////////////////////////////////
 

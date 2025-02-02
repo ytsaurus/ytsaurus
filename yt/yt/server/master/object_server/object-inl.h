@@ -13,15 +13,20 @@ namespace NYT::NObjectServer {
 inline TObject::TObject(TObjectId id)
     : Id_(id)
     , EphemeralRefCounter_(Id_)
-{
-    // This is reset to false in TCypressNode ctor for non-trunk nodes.
-    Flags_.Trunk = true;
-}
+    , Flags_{.Trunk = true}
+#ifdef YT_ROPSAN_ENABLE_PTR_TAGGING
+    , RopSanTag_(GenerateRopSanTag())
+#endif
+{ }
 
 inline TObject::~TObject()
 {
     // To make debugging easier.
     Flags_.Disposed = true;
+
+#ifdef YT_ROPSAN_ENABLE_PTR_TAGGING
+    RopSanTag_ = DeadRopSanTag;
+#endif
 }
 
 inline TObjectDynamicData* TObject::GetDynamicData() const
@@ -235,9 +240,10 @@ std::vector<TObjectId> ToObjectIds(const TObjectPtrs& objects, size_t sizeLimit)
 {
     std::vector<TObjectId> result;
     result.reserve(std::min(objects.size(), sizeLimit));
-    for (auto* object : objects) {
-        if (result.size() == sizeLimit)
+    for (const auto& object : objects) {
+        if (result.size() == sizeLimit) {
             break;
+        }
         result.push_back(object->GetId());
     }
     return result;
@@ -258,13 +264,13 @@ std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValu
     return values;
 }
 
-template <class TValue>
-std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities)
+template <class TValuePtr>
+std::vector<TValuePtr> GetValuesSortedByKey(const THashSet<TValuePtr>& entities)
 {
-    std::vector<TValue*> values;
+    std::vector<TValuePtr> values;
     values.reserve(entities.size());
 
-    for (auto* object : entities) {
+    for (const auto& object : entities) {
         if (IsObjectAlive(object)) {
             values.push_back(object);
         }
@@ -273,10 +279,10 @@ std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities)
     return values;
 }
 
-template <typename TKey, class TValue>
-std::vector<TValue*> GetValuesSortedById(const THashMap<TKey, TValue*>& entities)
+template <typename TKey, class TValuePtr>
+std::vector<TValuePtr> GetValuesSortedById(const THashMap<TKey, TValuePtr>& entities)
 {
-    std::vector<TValue*> values;
+    std::vector<TValuePtr> values;
     values.reserve(entities.size());
 
     for (const auto& [_, object] : entities) {
@@ -288,10 +294,10 @@ std::vector<TValue*> GetValuesSortedById(const THashMap<TKey, TValue*>& entities
     return values;
 }
 
-template <class TObject, class TValue>
-std::vector<typename THashMap<TObject*, TValue>::iterator> GetIteratorsSortedByKey(THashMap<TObject*, TValue>& entities)
+template <class TObjectPtr, class TValue>
+std::vector<typename THashMap<TObjectPtr, TValue>::iterator> GetIteratorsSortedByKey(THashMap<TObjectPtr, TValue>& entities)
 {
-    std::vector<typename THashMap<TObject*, TValue>::iterator> iterators;
+    std::vector<typename THashMap<TObjectPtr, TValue>::iterator> iterators;
     iterators.reserve(entities.size());
 
     for (auto it = entities.begin(); it != entities.end(); ++it) {
@@ -538,12 +544,132 @@ bool TObjectPtr<T, C>::operator==(const TObjectPtr<U, C>& other) const noexcept
 
 template <class T, class C>
 template <class U>
+bool TObjectPtr<T, C>::operator==(TRawObjectPtr<U> other) const noexcept
+{
+    return *this == other.Get();
+}
+
+template <class T, class C>
+template <class U>
 bool TObjectPtr<T, C>::operator==(U* other) const noexcept
 {
     AssertPersistentStateRead();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
     NDetail::AssertObjectValidOrNull(ToObject(other));
     return Ptr_ == other;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+#ifdef YT_ROPSAN_ENABLE_PTR_TAGGING
+
+template <class T>
+TRawObjectPtr<T>::TRawObjectPtr(T* ptr) noexcept
+    : TaggedPtr_(MakeTaggedPtr(ptr))
+{ }
+
+template <class T>
+TRawObjectPtr<T>::operator bool() const noexcept
+{
+    return TaggedPtr_ != 0;
+}
+
+template <class T>
+T* TRawObjectPtr<T>::Get() const noexcept
+{
+    auto* ptr = GetUnsafe();
+#ifdef YT_ROPSAN_ENABLE_ACCESS_CHECK
+    if (!ptr) {
+        return nullptr;
+    }
+    YT_VERIFY(ToObject(ptr)->RopSanTag_ == GetTag());
+#endif
+    return ptr;
+}
+
+template <class T>
+T* TRawObjectPtr<T>::GetUnsafe() const noexcept
+{
+    return reinterpret_cast<T*>(TaggedPtr_ & ((1ULL << PtrBitWidth) - 1));
+}
+
+template <class T>
+TRawObjectPtr<T>::operator T*() const noexcept
+{
+    // TODO(babenko): consider replacing with Get().
+    return GetUnsafe();
+}
+
+template <class T>
+void TRawObjectPtr<T>::VerifyRopSanTag() const noexcept
+{
+    if (const auto* ptr = GetUnsafe()) {
+        YT_VERIFY(ToObject(ptr)->RopSanTag_ == GetTag());
+    }
+}
+
+template <class T>
+uintptr_t TRawObjectPtr<T>::MakeTaggedPtr(T* ptr) noexcept
+{
+    if (!ptr) {
+        return 0;
+    }
+    return
+        reinterpret_cast<uintptr_t>(ptr) |
+        static_cast<uintptr_t>(ToObject(ptr)->RopSanTag_) << PtrBitWidth;
+}
+
+template <class T>
+TRopSanTag TRawObjectPtr<T>::GetTag() const noexcept
+{
+    return static_cast<TRopSanTag>(TaggedPtr_ >> PtrBitWidth);
+}
+
+#else
+
+template <class T>
+TRawObjectPtr<T>::TRawObjectPtr(T* ptr) noexcept
+    : Ptr_(ptr)
+{ }
+
+template <class T>
+TRawObjectPtr<T>::operator bool() const noexcept
+{
+    return Ptr_ != nullptr;
+}
+
+template <class T>
+T* TRawObjectPtr<T>::Get() const noexcept
+{
+    return Ptr_;
+}
+
+template <class T>
+T* TRawObjectPtr<T>::GetUnsafe() const noexcept
+{
+    return Ptr_;
+}
+
+template <class T>
+TRawObjectPtr<T>::operator T*() const noexcept
+{
+    return Get();
+}
+
+#endif
+
+template <class T>
+template <class U>
+    requires std::derived_from<T, U>
+TRawObjectPtr<T>::operator TRawObjectPtr<U>() const noexcept
+{
+    return TRawObjectPtr<U>(Get());
+}
+
+template <class T>
+T* TRawObjectPtr<T>::operator->() const noexcept
+{
+    return Get();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -562,18 +688,30 @@ inline TObjectId GetObjectId(const TObjectPtr<T, C>& ptr)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+YT_ATTRIBUTE_USED Y_FORCE_INLINE TObject* ToObject(TObject* obj)
+{
+    return obj;
+}
+
+YT_ATTRIBUTE_USED Y_FORCE_INLINE const TObject* ToObject(const TObject* obj)
+{
+    return obj;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NObjectServer
 
 //! Hasher for TObjectPtr.
 template <class T, class C>
 struct THash<NYT::NObjectServer::TObjectPtr<T, C>>
 {
-    Y_FORCE_INLINE size_t operator () (const NYT::NObjectServer::TObjectPtr<T, C>& ptr) const
+    Y_FORCE_INLINE size_t operator()(const NYT::NObjectServer::TObjectPtr<T, C>& ptr) const
     {
         return THash<T*>()(ptr.Get());
     }
 
-    Y_FORCE_INLINE size_t operator () (T* ptr) const
+    Y_FORCE_INLINE size_t operator()(T* ptr) const
     {
         return THash<T*>()(ptr);
     }
@@ -583,17 +721,33 @@ struct THash<NYT::NObjectServer::TObjectPtr<T, C>>
 template <class T, class C>
 struct TEqualTo<NYT::NObjectServer::TObjectPtr<T, C>>
 {
-    Y_FORCE_INLINE bool operator () (
+    Y_FORCE_INLINE bool operator()(
         const NYT::NObjectServer::TObjectPtr<T, C>& lhs,
         const NYT::NObjectServer::TObjectPtr<T, C>& rhs) const
     {
         return lhs == rhs;
     }
 
-    Y_FORCE_INLINE bool operator () (
+    Y_FORCE_INLINE bool operator()(
         const NYT::NObjectServer::TObjectPtr<T, C>& lhs,
         T* rhs) const
     {
         return lhs == rhs;
+    }
+};
+
+//! Hasher for TRawObjectPtr.
+template <class T>
+struct THash<NYT::NObjectServer::TRawObjectPtr<T>>
+{
+    Y_FORCE_INLINE size_t operator()(const NYT::NObjectServer::TRawObjectPtr<T>& ptr) const
+    {
+        // TODO(babenko): we're sometimes removing dead pointers from hashtables.
+        return THash<T*>()(ptr.GetUnsafe());
+    }
+
+    Y_FORCE_INLINE size_t operator()(T* ptr) const
+    {
+        return THash<T*>()(ptr);
     }
 };

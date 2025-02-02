@@ -21,7 +21,7 @@ namespace NYT::NTabletServer {
 class TTabletServant
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
+    DEFINE_BYVAL_RW_PROPERTY(TTabletCellRawPtr, Cell);
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State, ETabletState::Unmounted);
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, MountRevision);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, MountTime);
@@ -69,9 +69,9 @@ public:
     //! Only makes sense for unmounted tablets.
     DEFINE_BYVAL_RW_PROPERTY(bool, WasForcefullyUnmounted);
 
-    DEFINE_BYVAL_RW_PROPERTY(TTabletAction*, Action);
+    DEFINE_BYVAL_RW_PROPERTY(TTabletActionRawPtr, Action);
 
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, StoresUpdatePreparedTransaction);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransactionRawPtr, StoresUpdatePreparedTransaction);
 
     DEFINE_BYVAL_RW_PROPERTY(NHiveServer::TAvenueEndpointId, TabletwiseAvenueEndpointId);
 
@@ -150,7 +150,7 @@ public:
     void CheckInvariants(NCellMaster::TBootstrap* bootstrap) const override;
 
 private:
-    TTabletOwnerBase* Owner_ = nullptr;
+    TTabletOwnerBaseRawPtr Owner_;
 
     ETabletState State_ = ETabletState::Unmounted;
     ETabletState ExpectedState_ = ETabletState::Unmounted;
@@ -159,6 +159,8 @@ private:
 
     NHiveServer::TAvenueEndpointId NodeAvenueEndpointId_;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TTabletBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 

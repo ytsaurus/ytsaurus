@@ -62,7 +62,7 @@ void THost::RemoveNode(TNode* node)
 TCompactVector<TNode*, 1> THost::GetNodesWithFlavor(ENodeFlavor flavor) const
 {
     TCompactVector<TNode*, 1> result;
-    for (auto* node : Nodes_) {
+    for (auto node : Nodes_) {
         if (node->Flavors().contains(flavor)) {
             result.push_back(node);
         }

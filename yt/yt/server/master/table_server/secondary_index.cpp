@@ -47,8 +47,8 @@ void TSecondaryIndex::Load(TLoadContext& context)
         Load(context, TableId_);
         Load(context, IndexTableId_);
     } else {
-        Load<TTableNode*>(context, CompatTable_);
-        Load<TTableNode*>(context, CompatIndexTable_);
+        Load(context, CompatTable_);
+        Load(context, CompatIndexTable_);
     }
     Load(context, Kind_);
     // COMPAT(sabdenovch)

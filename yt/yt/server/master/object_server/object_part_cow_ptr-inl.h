@@ -4,6 +4,8 @@
 #include "object_part_cow_ptr.h"
 #endif
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
 namespace NYT::NObjectServer {
 
 ////////////////////////////////////////////////////////////////////////////////

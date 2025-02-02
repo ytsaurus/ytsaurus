@@ -270,7 +270,7 @@ private:
 
         using NYT::Load;
 
-        auto* chaosCellBundle = Load<TChaosCellBundle*>(*context);
+        auto chaosCellBundle = Load<TChaosCellBundleRawPtr>(*context);
         const auto& chaosManager = GetBootstrap()->GetChaosManager();
         chaosManager->SetChaosCellBundle(trunkNode, chaosCellBundle);
 

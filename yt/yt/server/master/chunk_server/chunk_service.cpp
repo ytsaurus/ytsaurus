@@ -413,7 +413,7 @@ private:
             }
 
             if (dynamicStore->IsFlushed()) {
-                if (auto* chunk = dynamicStore->GetFlushedChunk()) {
+                if (auto chunk = dynamicStore->GetFlushedChunk()) {
                     auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
 
                     auto* spec = subresponse->mutable_chunk_spec();
@@ -449,7 +449,7 @@ private:
             } else {
                 const auto& tabletManager = Bootstrap_->GetTabletManager();
                 auto* chunkSpec = subresponse->mutable_chunk_spec();
-                auto* tablet = dynamicStore->GetTablet();
+                auto tablet = dynamicStore->GetTablet();
 
                 ToProto(chunkSpec->mutable_chunk_id(), dynamicStore->GetId());
                 if (auto* node = tabletManager->FindTabletLeaderNode(tablet)) {

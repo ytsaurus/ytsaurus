@@ -283,7 +283,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& chunkReplicaFetcher = chunkManager->GetChunkReplicaFetcher();
 
-        auto* location = node->ChunkLocations()[locationIndex];
+        auto location = node->ChunkLocations()[locationIndex];
         if (location->GetBeingDisposed()) {
             return;
         }
@@ -347,7 +347,7 @@ private:
                         return;
                     }
 
-                    auto* location = node->ChunkLocations()[locationIndex];
+                    auto location = node->ChunkLocations()[locationIndex];
                     location->SetBeingDisposed(false);
                     return;
                 }
@@ -374,7 +374,7 @@ private:
         YT_VERIFY(HasMutationContext());
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        for (auto* location : node->ChunkLocations()) {
+        for (auto location : node->ChunkLocations()) {
             chunkManager->DisposeLocation(location);
         }
     }
@@ -463,7 +463,7 @@ private:
             YT_VERIFY(locationIndex == request->location_index());
             YT_VERIFY(locationIndex < std::ssize(node->ChunkLocations()));
 
-            auto* location = node->ChunkLocations()[locationIndex];
+            auto location = node->ChunkLocations()[locationIndex];
             if (IsLeader()) {
                 YT_VERIFY(location->GetBeingDisposed());
             }

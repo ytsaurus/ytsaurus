@@ -21,12 +21,18 @@ namespace NYT::NCypressServer {
 namespace NDetail {
 
 template <class TChild>
-using TKeyToCypressNodeImpl =
-    THashMap<std::string, TChild, THash<std::string_view>, TEqualTo<std::string_view>>;
+using TKeyToCypressNodeImpl = THashMap<
+    std::string,
+    TChild,
+    THash<std::string_view>,
+    TEqualTo<std::string_view>
+>;
 
 } // namespace NDetail
 
-using TKeyToCypressNode = NDetail::TKeyToCypressNodeImpl<TCypressNode*>;
+////////////////////////////////////////////////////////////////////////////////
+
+using TKeyToCypressNode = NDetail::TKeyToCypressNodeImpl<TCypressNodeRawPtr>;
 using TKeyToCypressNodeId = NDetail::TKeyToCypressNodeImpl<TNodeId>;
 
 const TKeyToCypressNode& GetMapNodeChildMap(
@@ -35,7 +41,7 @@ const TKeyToCypressNode& GetMapNodeChildMap(
     NTransactionServer::TTransaction* transaction,
     TKeyToCypressNode* storage);
 
-std::vector<TCypressNode*> GetMapNodeChildList(
+std::vector<TCypressNodeRawPtr> GetMapNodeChildList(
     const ICypressManagerPtr& cypressManager,
     TCypressMapNode* trunkNode,
     NTransactionServer::TTransaction* transaction);
@@ -46,7 +52,7 @@ const TKeyToCypressNodeId& GetMapNodeChildMap(
     NTransactionServer::TTransaction* transaction,
     TKeyToCypressNodeId* storage);
 
-const std::vector<TCypressNode*>& GetListNodeChildList(
+const std::vector<TCypressNodeRawPtr>& GetListNodeChildList(
     const ICypressManagerPtr& cypressManager,
     TListNode* trunkNode,
     NTransactionServer::TTransaction* transaction);

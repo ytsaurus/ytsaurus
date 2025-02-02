@@ -46,7 +46,7 @@ public:
     using TAccountStatistics = THashMap<NSecurityServer::TAccountPtr, TCypressShardAccountStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TAccountStatistics, AccountStatistics);
 
-    DEFINE_BYVAL_RW_PROPERTY(TCypressNode*, Root);
+    DEFINE_BYVAL_RW_PROPERTY(TCypressNodeRawPtr, Root);
 
     DEFINE_BYVAL_RW_PROPERTY(std::string, Name);
 
@@ -63,6 +63,8 @@ public:
 
     NYPath::TYPath MaybeRewritePath(const NYPath::TYPath& path);
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TCypressShard)
 
 ////////////////////////////////////////////////////////////////////////////////
 

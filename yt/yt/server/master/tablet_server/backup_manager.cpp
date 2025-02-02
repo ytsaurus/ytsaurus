@@ -138,7 +138,7 @@ public:
             THROW_ERROR_EXCEPTION("Checkpoint timestamp cannot be null");
         }
 
-        for (auto* tabletBase : table->GetTrunkNode()->Tablets()) {
+        for (auto tabletBase : table->GetTrunkNode()->Tablets()) {
             auto* tablet = tabletBase->As<TTablet>();
             if (tablet->GetBackupState() != ETabletBackupState::None) {
                 THROW_ERROR_EXCEPTION("Cannot set backup checkpoint since tablet %v "
@@ -200,7 +200,7 @@ public:
         table->SetBackupMode(backupMode);
         table->MutableReplicaBackupDescriptors() = replicaBackupDescriptors;
 
-        for (auto* tabletBase : table->GetTrunkNode()->Tablets()) {
+        for (auto tabletBase : table->GetTrunkNode()->Tablets()) {
             auto* tablet = tabletBase->As<TTablet>();
             if (auto* cell = tablet->GetCell()) {
                 tablet->CheckedSetBackupState(
@@ -280,7 +280,7 @@ public:
         TTableNode* table,
         TTransaction* transaction) override
     {
-        for (auto* tabletBase : table->GetTrunkNode()->Tablets()) {
+        for (auto tabletBase : table->GetTrunkNode()->Tablets()) {
             auto* tablet = tabletBase->As<TTablet>();
 
             tablet->BackupCutoffDescriptor() = std::nullopt;
@@ -854,7 +854,7 @@ private:
             currentReq = {};
         };
 
-        for (auto* tablet : table->GetTrunkNode()->Tablets()) {
+        for (auto tablet : table->GetTrunkNode()->Tablets()) {
             YT_LOG_DEBUG("Schedule backup task for tablet (Task: %v, TabletId: %v)",
                 taskName,
                 tablet->GetId());
@@ -888,7 +888,7 @@ private:
         }
 
         // NB: ReleaseBackupCheckpoint modifies transaction->TablesWithBackupCheckpoints.
-        for (auto* table : GetValuesSortedByKey(transaction->TablesWithBackupCheckpoints())) {
+        for (auto table : GetValuesSortedByKey(transaction->TablesWithBackupCheckpoints())) {
             if (!IsObjectAlive(table)) {
                 continue;
             }
@@ -913,7 +913,7 @@ private:
             "Table backup transaction was committed manually before cloning (TransactionId: %v)",
             transaction->GetId());
 
-        for (auto* table : GetValuesSortedByKey(transaction->TablesWithBackupCheckpoints())) {
+        for (auto table : GetValuesSortedByKey(transaction->TablesWithBackupCheckpoints())) {
             if (!IsObjectAlive(table)) {
                 continue;
             }

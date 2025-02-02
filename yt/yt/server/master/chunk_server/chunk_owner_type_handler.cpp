@@ -636,7 +636,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoSerializeNode(
 
     const auto& chunkManager = this->GetBootstrap()->GetChunkManager();
     auto* medium = chunkManager->GetMediumByIndexOrThrow(node->GetPrimaryMediumIndex());
-    Save(*context, medium);
+    SaveWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(*context, medium);
 
     Save(*context, node->Replication());
     Save(*context, node->SnapshotStatistics());
@@ -664,7 +664,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoMaterializeNode(
 
     using NYT::Load;
 
-    auto* medium = Load<TMedium*>(*context);
+    auto medium = Load<TMediumRawPtr>(*context);
     trunkNode->SetPrimaryMediumIndex(medium->GetIndex());
 
     Load(*context, trunkNode->Replication());

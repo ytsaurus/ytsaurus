@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/master/security_server/public.h>
 
+#include <yt/yt/server/master/object_server/object.h>
+
 #include <yt/yt/core/misc/property.h>
 
 namespace NYT::NTableServer {
@@ -16,8 +18,9 @@ class TSchemafulNode
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETableSchemaMode, SchemaMode, NTableClient::ETableSchemaMode::Weak);
-    DEFINE_BYVAL_RW_PROPERTY(TMasterTableSchema*, Schema, nullptr);
+    DEFINE_BYVAL_RW_PROPERTY(TMasterTableSchemaRawPtr, Schema);
 
+public:
     virtual NSecurityServer::TAccount* GetAccount() const = 0;
 
     // COMPAT(h0pless): This is a temporary workaround until schemaful node typehandler is introduced.

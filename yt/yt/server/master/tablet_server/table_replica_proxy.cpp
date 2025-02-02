@@ -49,7 +49,7 @@ private:
     void ValidateRemoval() override
     {
         auto* replica = GetThisImpl();
-        auto* table = replica->GetTable();
+        auto table = replica->GetTable();
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         cypressManager->LockNode(table, nullptr, TLockRequest(ELockMode::Exclusive));
@@ -82,7 +82,7 @@ private:
     bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         auto* replica = GetThisImpl();
-        auto* table = replica->GetTable();
+        auto table = replica->GetTable();
         const auto& timestampProvider = Bootstrap_->GetTimestampProvider();
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
@@ -187,7 +187,7 @@ private:
     TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(NYTree::TInternedAttributeKey key) override
     {
         auto* replica = GetThisImpl();
-        auto* table = replica->GetTable();
+        auto table = replica->GetTable();
 
         switch (key) {
             case EInternedAttributeKey::TablePath:

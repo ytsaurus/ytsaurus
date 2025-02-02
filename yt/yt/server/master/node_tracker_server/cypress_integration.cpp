@@ -463,7 +463,7 @@ private:
         const auto& nodes = nodeTracker->GetNodesWithFlavor(*Flavor_);
         std::vector<std::string> keys;
         keys.reserve(std::min(limit, std::ssize(nodes)));
-        for (auto* node : nodes) {
+        for (auto node : nodes) {
             if (std::ssize(keys) >= limit) {
                 break;
             }

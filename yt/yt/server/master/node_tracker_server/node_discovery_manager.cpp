@@ -30,7 +30,7 @@ using namespace NNodeTrackerClient;
 void TNodeListForRole::UpdateAddresses()
 {
     Addresses_.clear();
-    for (const auto* node : Nodes_) {
+    for (auto node : Nodes_) {
         Addresses_.push_back(node->GetDefaultAddress());
     }
 }
@@ -137,7 +137,7 @@ void TNodeDiscoveryManager::UpdateNodeList()
         return !rack || nodeCountPerRack[rack] < rackLimit;
     };
 
-    for (auto* node : nodes) {
+    for (auto node : nodes) {
         if (isRackLimitSatisfied(node, Config_->MaxPeersPerRack)) {
             ++nodeCountPerRack[node->GetRack()];
         } else {

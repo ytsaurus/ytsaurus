@@ -1,6 +1,7 @@
 #include "object.h"
 
 #include "garbage_collector.h"
+#include "object.h"
 #include "object_manager.h"
 
 #include <yt/yt/server/master/cell_master/serialize.h>
@@ -14,6 +15,10 @@
 #include <util/generic/algorithm.h>
 
 #include <library/cpp/yt/misc/tls.h>
+
+#ifdef YT_ROPSAN_ENABLE_PTR_TAGGING
+#include <yt/yt/core/misc/random.h>
+#endif
 
 namespace NYT::NObjectServer {
 
@@ -152,6 +157,16 @@ void TEpochRefCounter::Persist(const TStreamPersistenceContext& context)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+#ifdef YT_ROPSAN_ENABLE_PTR_TAGGING
+
+YT_PREVENT_TLS_CACHING TRopSanTag TObject::GenerateRopSanTag()
+{
+    thread_local TRandomGenerator generator(::time(nullptr));
+    return generator.Generate<TRopSanTag>();
+}
+
+#endif
 
 TCellTag TObject::GetNativeCellTag() const
 {
@@ -360,6 +375,9 @@ void TObject::SaveEctoplasm(TStreamSaveContext& context) const
     Save(context, Flags_.Trunk);
     Save(context, WeakRefCounter_);
     Save(context, EphemeralRefCounter_);
+#ifdef YT_ROPSAN_ENABLE_PTR_TAGGING
+    Save(context, RopSanTag_);
+#endif
 }
 
 void TObject::LoadEctoplasm(TStreamLoadContext& context)
@@ -369,6 +387,9 @@ void TObject::LoadEctoplasm(TStreamLoadContext& context)
     Flags_.Trunk = Load<bool>(context);
     Load(context, WeakRefCounter_);
     Load(context, EphemeralRefCounter_);
+#ifdef YT_ROPSAN_ENABLE_PTR_TAGGING
+    Load(context, RopSanTag_);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

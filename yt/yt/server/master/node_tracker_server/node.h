@@ -169,15 +169,15 @@ public:
     DEFINE_BYREF_RO_PROPERTY(NNodeTrackerClient::NProto::TNodeResources, ResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides, ResourceLimitsOverrides);
 
-    DEFINE_BYREF_RW_PROPERTY(std::vector<NChunkServer::TChunkLocation*>, ChunkLocations);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<NChunkServer::TChunkLocationRawPtr>, ChunkLocations);
 
     // COMPAT(kvk1920): remove after 24.2.
     DEFINE_BYVAL_RW_PROPERTY(bool, UseImaginaryChunkLocations);
 
-    DEFINE_BYVAL_RO_PROPERTY(THost*, Host);
+    DEFINE_BYVAL_RO_PROPERTY(THostRawPtr, Host);
 
     // Lease tracking.
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, LeaseTransaction);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransactionRawPtr, LeaseTransaction);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, LastSeenLeaseTransactionTimeout);
 
     // Exec Node stuff.
@@ -234,7 +234,7 @@ public:
     // Cell Manager stuff.
     struct TCellSlot
     {
-        NCellServer::TCellBase* Cell = nullptr;
+        NCellServer::TCellBaseRawPtr Cell;
         NHydra::EPeerState PeerState = NHydra::EPeerState::None;
         int PeerId = NHydra::InvalidPeerId;
 
