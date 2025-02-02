@@ -1101,7 +1101,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
                 CypressManager_,
                 node->As<TListNode>(),
                 Transaction_);
-            for (auto* child : childList) {
+            for (auto child : childList) {
                 Writer_.OnListItem();
                 VisitAny(node, child);
             }
@@ -1283,7 +1283,7 @@ void TNontemplateCypressNodeProxyBase::ValidatePermission(
     // NB: Suppress permission checks for nodes upon construction.
     // Cf. YT-1191, YT-4628.
     auto* trunkNode = node->GetTrunkNode();
-    auto* shard = trunkNode->GetShard();
+    auto shard = trunkNode->GetShard();
     if (trunkNode->GetParent() ||
         shard && trunkNode == shard->GetRoot())
     {
@@ -2195,7 +2195,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, AssembleTreeCopy)
     auto* rootNode = cypressManager->GetNode({rootNodeId, Transaction_->GetId()});
 
     auto assembleTreeCopy = [&] (ICypressNodeFactory* /*factory*/, IAttributeDictionary* /*inheritedAttributes*/) {
-        auto* shard = TrunkNode_->GetShard();
+        auto shard = TrunkNode_->GetShard();
         auto finishAttachingNode = [&] (TCypressNode* node) {
             auto* trunkNode = node->GetTrunkNode();
 
@@ -3507,7 +3507,7 @@ void TListNodeProxy::Clear()
 
     // Lock children and collect impls.
     std::vector<TCypressNode*> children;
-    for (auto* trunkChild : impl->IndexToChild()) {
+    for (auto trunkChild : impl->IndexToChild()) {
         children.push_back(LockImpl(trunkChild));
     }
 
@@ -3536,7 +3536,7 @@ std::vector<INodePtr> TListNodeProxy::GetChildren() const
     const auto* impl = GetThisImpl();
     const auto& indexToChild = impl->IndexToChild();
     result.reserve(indexToChild.size());
-    for (auto* child : indexToChild) {
+    for (auto child : indexToChild) {
         result.push_back(GetProxy(child));
     }
     return result;
@@ -3587,7 +3587,7 @@ bool TListNodeProxy::RemoveChild(int index)
         return false;
     }
 
-    auto* trunkChildImpl = list[index];
+    auto trunkChildImpl = list[index];
     auto* childImpl = LockImpl(trunkChildImpl, ELockMode::Exclusive, true);
 
     // Update the indices.

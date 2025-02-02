@@ -36,9 +36,11 @@ public:
     void SetIdsFromCompat();
 
 private:
-    TTableNode* CompatTable_ = nullptr;
-    TTableNode* CompatIndexTable_ = nullptr;
+    TTableNodeRawPtr CompatTable_;
+    TTableNodeRawPtr CompatIndexTable_;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TSecondaryIndex)
 
 ////////////////////////////////////////////////////////////////////////////////
 

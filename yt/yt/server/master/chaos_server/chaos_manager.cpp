@@ -131,7 +131,7 @@ public:
     {
         YT_ASSERT(cellBundle->MetadataCells().size() <= 2);
 
-        for (auto* metadataCell : cellBundle->MetadataCells()) {
+        for (auto metadataCell : cellBundle->MetadataCells()) {
             if (IsMetadataCellInEnabledCluster(metadataCell)) {
                 return metadataCell;
             }
@@ -152,7 +152,7 @@ public:
             THROW_ERROR_EXCEPTION("Metadata cells should be siblings");
         }
 
-        std::vector<TChaosCell*> metadataCells;
+        std::vector<TChaosCellRawPtr> metadataCells;
         for (auto cellId : metadataCellIds) {
             auto* cell = GetChaosCellByIdOrThrow(cellId);
             if (cell->CellBundle() != cellBundle) {
@@ -261,27 +261,27 @@ private:
     THashSet<std::string> EnabledMetadataClusters_;
 
     //! Contains native trunk nodes for which IsQueue() is true.
-    THashSet<TChaosReplicatedTableNode*> Queues_;
+    THashSet<TChaosReplicatedTableNodeRawPtr> Queues_;
     //! Contains native trunk nodes for which IsQueueConsumer() is true.
-    THashSet<TChaosReplicatedTableNode*> Consumers_;
+    THashSet<TChaosReplicatedTableNodeRawPtr> Consumers_;
     //! Contains native trunk nodes for which IsQueueProducer() is true.
-    THashSet<TChaosReplicatedTableNode*> Producers_;
+    THashSet<TChaosReplicatedTableNodeRawPtr> Producers_;
 
-    const THashSet<TChaosReplicatedTableNode*>& GetQueues() const override
+    const THashSet<TChaosReplicatedTableNodeRawPtr>& GetQueues() const override
     {
         VerifyPersistentStateRead();
 
         return Queues_;
     }
 
-    const THashSet<TChaosReplicatedTableNode*>& GetQueueConsumers() const override
+    const THashSet<TChaosReplicatedTableNodeRawPtr>& GetQueueConsumers() const override
     {
         VerifyPersistentStateRead();
 
         return Consumers_;
     }
 
-    const THashSet<TChaosReplicatedTableNode*>& GetQueueProducers() const override
+    const THashSet<TChaosReplicatedTableNodeRawPtr>& GetQueueProducers() const override
     {
         VerifyPersistentStateRead();
 
@@ -542,7 +542,7 @@ private:
         updateNode(nullptr);
 
         const auto& lockingState = trunkTable->LockingState();
-        for (auto* lock : lockingState.AcquiredLocks) {
+        for (auto lock : lockingState.AcquiredLocks) {
             updateNode(lock->GetTransaction());
         }
     }

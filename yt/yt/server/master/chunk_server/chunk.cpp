@@ -173,7 +173,7 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     Save(context, GetHistoricallyNonVital());
     {
         // COMPAT(shakurov)
-        TCompactVector<TChunkTree*, TypicalChunkParentCount> parents;
+        TCompactVector<TChunkTreeRawPtr, TypicalChunkParentCount> parents;
         for (auto [chunkTree, refCount] : Parents_) {
             for (auto i = 0; i < refCount; ++i) {
                 parents.push_back(chunkTree);
@@ -222,8 +222,8 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
     SetSealable(Load<bool>(context));
     SetHistoricallyNonVital(Load<bool>(context));
 
-    auto parents = Load<TCompactVector<TChunkTree*, TypicalChunkParentCount>>(context);
-    for (auto* parent : parents) {
+    auto parents = Load<TCompactVector<TChunkTreeRawPtr, TypicalChunkParentCount>>(context);
+    for (auto parent : parents) {
         ++Parents_[parent];
     }
 

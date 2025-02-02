@@ -19,10 +19,10 @@ class TDynamicStore
     , public TRefTracked<TDynamicStore>
 {
 public:
-    using TParents = TCompactVector<TChunkTree*, TypicalChunkParentCount>;
+    using TParents = TCompactVector<TChunkTreeRawPtr, TypicalChunkParentCount>;
 
     DECLARE_BYVAL_RW_PROPERTY(NTabletServer::TTablet*, Tablet);
-    DEFINE_BYVAL_RO_PROPERTY(TChunk*, FlushedChunk);
+    DEFINE_BYVAL_RO_PROPERTY(TChunkRawPtr, FlushedChunk);
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
     //! Used for flushed ordered dynamic stores. Denotes the (tablet-wise) row index
     //! of the first row in the chunk.
@@ -52,9 +52,11 @@ public:
     TChunkTreeStatistics GetStatistics() const;
 
 private:
-    NTabletServer::TTablet* Tablet_ = nullptr;
+    NTabletServer::TTabletRawPtr Tablet_;
     bool Flushed_ = false;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TDynamicStore)
 
 ////////////////////////////////////////////////////////////////////////////////
 

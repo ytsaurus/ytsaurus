@@ -17,7 +17,7 @@ class TGroup
     : public TSubject
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TSubject*>, Members);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TSubjectRawPtr>, Members);
 
 public:
     using TSubject::TSubject;
@@ -32,6 +32,8 @@ public:
     //! COMPAT(cherepashka)
     void SetId(NObjectServer::TObjectId id);
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TGroup)
 
 ////////////////////////////////////////////////////////////////////////////////
 

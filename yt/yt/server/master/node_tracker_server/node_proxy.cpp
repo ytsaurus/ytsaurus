@@ -625,7 +625,7 @@ private:
                 const auto& chunkManager = Bootstrap_->GetChunkManager();
 
                 BuildYsonFluently(consumer)
-                    .DoMapFor(node->ChunkLocations(), [&] (TFluentMap fluent, const auto* location) {
+                    .DoMapFor(node->ChunkLocations(), [&] (TFluentMap fluent, auto location) {
                         fluent
                             .Item(ToString(location->GetUuid()))
                             .BeginMap()
@@ -703,7 +703,7 @@ private:
 
             case EInternedAttributeKey::Rack: {
                 auto rackName = ConvertTo<std::string>(value);
-                auto* host = node->GetHost();
+                auto host = node->GetHost();
                 if (!host) {
                     THROW_ERROR_EXCEPTION("Cannot set rack for a node without host");
                 }
@@ -741,7 +741,7 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::Rack: {
-                if (auto* host = node->GetHost()) {
+                if (auto host = node->GetHost()) {
                     nodeTracker->SetHostRack(host, nullptr);
                 }
                 return true;
@@ -762,7 +762,7 @@ private:
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* location : node->ChunkLocations()) {
+        for (auto location : node->ChunkLocations()) {
             objectManager->ValidateObjectLifeStage(location);
         }
     }

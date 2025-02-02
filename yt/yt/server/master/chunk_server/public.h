@@ -92,16 +92,14 @@ DECLARE_ENTITY_TYPE(TMedium, TMediumId, NObjectClient::TObjectIdEntropyHash)
 DECLARE_MASTER_OBJECT_TYPE(TChunkLocation)
 DECLARE_MASTER_OBJECT_TYPE(TChunk)
 DECLARE_MASTER_OBJECT_TYPE(TChunkList)
+DECLARE_MASTER_OBJECT_TYPE(TChunkTree)
 DECLARE_MASTER_OBJECT_TYPE(TChunkOwnerBase)
+DECLARE_MASTER_OBJECT_TYPE(TMedium)
 DECLARE_MASTER_OBJECT_TYPE(TDomesticMedium)
 DECLARE_MASTER_OBJECT_TYPE(TS3Medium)
-
-class TChunkLocation;
+DECLARE_MASTER_OBJECT_TYPE(TDynamicStore)
 
 using TChunkLocationList = TCompactVector<TChunkLocation*, TypicalReplicaCount>;
-
-class TChunkTree;
-class TChunkOwnerBase;
 
 struct TChunkViewMergeResult;
 class TChunkViewModifier;

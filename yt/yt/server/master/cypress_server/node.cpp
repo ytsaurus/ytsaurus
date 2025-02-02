@@ -261,8 +261,8 @@ void TCypressNode::Save(NCellMaster::TSaveContext& context) const
 
     using NYT::Save;
     Save(context, ExternalCellTag_);
-    TUniquePtrSerializer<>::Save(context, LockingState_);
-    TRawNonversionedObjectPtrSerializer::Save(context, Parent_);
+    SaveWith<TUniquePtrSerializer<>>(context, LockingState_);
+    SaveWith<TRawNonversionedObjectPtrSerializer>(context, Parent_);
     Save(context, LockMode_);
     Save(context, ExpirationTime_);
     Save(context, ExpirationTimeout_);
@@ -295,8 +295,8 @@ void TCypressNode::Load(NCellMaster::TLoadContext& context)
 
     using NYT::Load;
     Load(context, ExternalCellTag_);
-    TUniquePtrSerializer<>::Load(context, LockingState_);
-    TRawNonversionedObjectPtrSerializer::Load(context, Parent_);
+    LoadWith<TUniquePtrSerializer<>>(context, LockingState_);
+    LoadWith<TRawNonversionedObjectPtrSerializer>(context, Parent_);
 
     // COMPAT(cherepashka)
     if (context.GetVersion() >= EMasterReign::EnumsAndChunkReplicationReductionsInTTableNode) {

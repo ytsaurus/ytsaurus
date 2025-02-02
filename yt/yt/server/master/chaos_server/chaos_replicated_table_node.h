@@ -57,6 +57,8 @@ public:
     bool HasNonEmptySchema() const;
 };
 
+DEFINE_MASTER_OBJECT_TYPE(TChaosReplicatedTableNode)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChaosServer

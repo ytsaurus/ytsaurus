@@ -1674,7 +1674,7 @@ private:
                         .Options = table->GetReplicatedTableOptions(),
                     });
 
-                    for (auto* replica : table->Replicas()) {
+                    for (auto replica : table->Replicas()) {
                         snapshot.Replicas.push_back(TReplicaData{
                             .TableId = table->GetId(),
                             .Id = replica->GetId(),
@@ -1695,7 +1695,7 @@ private:
                     if (tableCollocation->GetType() == ETableCollocationType::Replication) {
                         std::vector<TTableId> tableIds;
                         tableIds.reserve(tableCollocation->Tables().size());
-                        for (auto* table : tableCollocation->Tables()) {
+                        for (auto table : tableCollocation->Tables()) {
                             if (IsObjectAlive(table)) {
                                 tableIds.push_back(table->GetId());
                             }

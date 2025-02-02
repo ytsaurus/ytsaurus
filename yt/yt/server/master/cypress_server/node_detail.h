@@ -692,7 +692,11 @@ private:
     struct TAttributes
     {
         template <class T>
-        using TPtr = std::conditional_t<Transient, T*, NObjectServer::TStrongObjectPtr<T>>;
+        using TPtr = std::conditional_t<
+            Transient,
+            NObjectServer::TRawObjectPtr<T>,
+            NObjectServer::TStrongObjectPtr<T>
+        >;
 
         TVersionedBuiltinAttribute<NCompression::ECodec> CompressionCodec;
         TVersionedBuiltinAttribute<NErasure::ECodec> ErasureCodec;
@@ -865,18 +869,28 @@ template <class TNonOwnedChild>
 class TMapNodeChildren
 {
 private:
-    using TMaybeOwnedChild = std::conditional_t<
-        std::is_pointer_v<TNonOwnedChild>,
-        NObjectServer::TStrongObjectPtr<std::remove_pointer_t<TNonOwnedChild>>,
-        TNonOwnedChild
-    >;
+    template <class TNonOwnedChild_>
+    struct TChildTraits
+    {
+        using T = TNonOwnedChild_;
+        static constexpr bool IsPointer = false;
+    };
+
+    template <class TObject>
+    struct TChildTraits<NObjectServer::TRawObjectPtr<TObject>>
+    {
+        using T = NObjectServer::TStrongObjectPtr<TObject>;
+        static constexpr bool IsPointer = true;
+    };
+
+    using TMaybeOwnedChild = typename TChildTraits<TNonOwnedChild>::T;
 
     static TMaybeOwnedChild ToOwnedOnLoad(TNonOwnedChild child);
     static TMaybeOwnedChild Clone(const TMaybeOwnedChild& child);
     static void MaybeVerifyIsTrunk(TNonOwnedChild child);
 
 public:
-    static constexpr bool ChildIsPointer = std::is_pointer_v<TNonOwnedChild>;
+    static constexpr bool ChildIsPointer = TChildTraits<TNonOwnedChild>::IsPointer;
     using TKeyToChild = THashMap<std::string, TNonOwnedChild, THash<std::string_view>, TEqualTo<std::string_view>>;
     using TChildToKey = THashMap<TMaybeOwnedChild, std::string>;
 
@@ -1083,8 +1097,8 @@ private:
     using TBase = TCompositeNodeBase;
 
 public:
-    using TIndexToChild = std::vector<TCypressNode*>;
-    using TChildToIndex = THashMap<TCypressNode*, int>;
+    using TIndexToChild = std::vector<TCypressNodeRawPtr>;
+    using TChildToIndex = THashMap<TCypressNodeRawPtr, int>;
 
     DEFINE_BYREF_RW_PROPERTY(TIndexToChild, IndexToChild);
     DEFINE_BYREF_RW_PROPERTY(TChildToIndex, ChildToIndex);

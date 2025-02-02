@@ -201,7 +201,7 @@ public:
     virtual std::vector<TRack*> GetDataCenterRacks(const TDataCenter* dc) = 0;
 
     //! Returns the set of all nodes with a given flavor.
-    virtual const THashSet<TNode*>& GetNodesWithFlavor(ENodeFlavor flavor) const = 0;
+    virtual const THashSet<TNodeRawPtr>& GetNodesWithFlavor(ENodeFlavor flavor) const = 0;
 
     //! Sets last seen time of the node to now.
     virtual void UpdateLastSeenTime(TNode* node) = 0;
@@ -262,7 +262,7 @@ public:
     virtual int GetOnlineNodeCount() = 0;
 
     //! Returns the list of nodes with the given role.
-    virtual const std::vector<TNode*>& GetNodesForRole(NNodeTrackerClient::ENodeRole nodeRole) = 0;
+    virtual const std::vector<TNodeRawPtr>& GetNodesForRole(NNodeTrackerClient::ENodeRole nodeRole) = 0;
 
     //! Returns the list of default addresses of nodes with the given role.
     virtual const std::vector<std::string>& GetNodeAddressesForRole(NNodeTrackerClient::ENodeRole nodeRole) = 0;

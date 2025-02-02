@@ -21,7 +21,7 @@ class TRack
 public:
     DEFINE_BYVAL_RW_PROPERTY(std::string, Name);
     DEFINE_BYVAL_RW_PROPERTY(int, Index, -1);
-    DEFINE_BYVAL_RW_PROPERTY(TDataCenter*, DataCenter);
+    DEFINE_BYVAL_RW_PROPERTY(TDataCenterRawPtr, DataCenter);
 
 public:
     using TObject::TObject;
@@ -33,6 +33,8 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TRack)
 
 ////////////////////////////////////////////////////////////////////////////////
 

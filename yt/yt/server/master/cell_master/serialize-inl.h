@@ -21,12 +21,28 @@ namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace NDetail {
+
+template <class T>
+[[nodiscard]]
+T* MaybeVerifyAndUnwrapRawObjectPtrOnSerialization(NObjectServer::TRawObjectPtr<T> ptr)
+{
+#if defined(YT_ROPSAN_ENABLE_SERIALIZATION_CHECK) && !defined(YT_ROPSAN_ENABLE_ACCESS_CHECK)
+    ptr.VerifyRopSanTag();
+#else
+    // NB: If YT_ROPSAN_ENABLE_ACCESS_CHECK is defined then Get() will do the job.
+#endif
+    return ptr.Get();
+}
+
+} // namespace NDetail
+
 struct TRawNonversionedObjectPtrSerializer
 {
     static constexpr TEntitySerializationKey DestroyedKey = TEntitySerializationKey(-2);
 
     template <class T>
-    static void Save(NCellMaster::TSaveContext& context, T* object)
+    static void Save(NCellMaster::TSaveContext& context, const T* object)
     {
         if (object) {
             // Zombies are serialized as usual, but ghosts need special treatment.
@@ -47,7 +63,13 @@ struct TRawNonversionedObjectPtrSerializer
     }
 
     template <class T>
-    static void Save(NCypressServer::TSerializeNodeContext& context, T* object)
+    static void Save(NCellMaster::TSaveContext& context, NObjectServer::TRawObjectPtr<T> object)
+    {
+        Save(context, NDetail::MaybeVerifyAndUnwrapRawObjectPtrOnSerialization(object));
+    }
+
+    template <class T>
+    static void Save(NCypressServer::TSerializeNodeContext& context, const T* object)
     {
         using NYT::Save;
         if (object && !NObjectServer::IsObjectAlive(object)) {
@@ -58,50 +80,65 @@ struct TRawNonversionedObjectPtrSerializer
     }
 
     template <class T>
+    static void Save(NCypressServer::TSerializeNodeContext& context, NObjectServer::TRawObjectPtr<T> object)
+    {
+        Save(context, NDetail::MaybeVerifyAndUnwrapRawObjectPtrOnSerialization(object));
+    }
+
+    template <class T>
     static void Load(NCellMaster::TLoadContext& context, T*& object)
     {
-        using TObject = typename std::remove_pointer<T>::type;
         auto key = LoadSuspended<TEntitySerializationKey>(context);
         if (key == NullEntitySerializationKey) {
             object = nullptr;
             SERIALIZATION_DUMP_WRITE(context, "objref <null>");
         } else if (key == DestroyedKey) {
             auto objectId = LoadSuspended<NObjectServer::TObjectId>(context);
-            object = context.GetWeakGhostObject(objectId)->template As<TObject>();
+            object = context.GetWeakGhostObject(objectId)->template As<T>();
             SERIALIZATION_DUMP_WRITE(context, "objref %v <destroyed>", objectId);
         } else {
-            object = context.template GetRawEntity<TObject>(key);
+            object = context.template GetRawEntity<T>(key);
             SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetId(), key);
         }
+    }
+
+    template <class T>
+    static void Load(NCellMaster::TLoadContext& context, NObjectServer::TRawObjectPtr<T>& object)
+    {
+        object = LoadWith<TRawNonversionedObjectPtrSerializer, T*>(context);
     }
 
     template <class T>
     static void Load(NCypressServer::TMaterializeNodeContext& context, T*& object)
     {
         using NYT::Load;
-        using TObject = typename std::remove_pointer<T>::type;
         auto id = Load<NObjectServer::TObjectId>(context);
         object = id
-            ? context.template GetObject<TObject>(id)
+            ? context.template GetObject<T>(id)
             : nullptr;
+    }
+
+    template <class T>
+    static void Load(NCypressServer::TMaterializeNodeContext& context, NObjectServer::TRawObjectPtr<T>& object)
+    {
+        object = LoadWith<TRawNonversionedObjectPtrSerializer, T*>(context);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TStrongNonversionedObjectPtrSerializer
+struct TNonversionedObjectPtrSerializer
 {
-    template <class C, class T>
-    static void Save(C& context, const T& object)
+    template <class C1, class C2, class T>
+    static void Save(C1& context, const NObjectServer::TObjectPtr<T, C2>& object)
     {
-        TRawNonversionedObjectPtrSerializer::Save(context, object.GetUnsafe());
+        SaveWith<TRawNonversionedObjectPtrSerializer>(context, object.GetUnsafe());
     }
 
-    template <class C, class T>
-    static void Load(C& context, T& object)
+    template <class C1, class C2, class T>
+    static void Load(C1& context, NObjectServer::TObjectPtr<T, C2>& object)
     {
-        typename NObjectServer::TObjectPtrTraits<T>::TUnderlying* rawObject;
-        TRawNonversionedObjectPtrSerializer::Load(context, rawObject);
+        auto* rawObject = LoadWith<TRawNonversionedObjectPtrSerializer, T*>(context);
         object.Assign(rawObject, NObjectServer::TObjectPtrLoadTag());
     }
 };
@@ -111,7 +148,7 @@ struct TStrongNonversionedObjectPtrSerializer
 struct TRawVersionedObjectPtrSerializer
 {
     template <class T, class C>
-    static void Save(C& context, T object)
+    static void Save(C& context, const T* object)
     {
         auto key = object
             ? object->GetDynamicData()->SerializationKey
@@ -120,17 +157,28 @@ struct TRawVersionedObjectPtrSerializer
     }
 
     template <class T, class C>
-    static void Load(C& context, T& object)
+    static void Save(C& context, NObjectServer::TRawObjectPtr<T> object)
     {
-        using TObject = typename std::remove_pointer<T>::type;
+        Save(context, NDetail::MaybeVerifyAndUnwrapRawObjectPtrOnSerialization(object));
+    }
+
+    template <class T, class C>
+    static void Load(C& context, T*& object)
+    {
         auto key = NYT::Load<TEntitySerializationKey>(context);
         if (key == NullEntitySerializationKey) {
             object = nullptr;
             SERIALIZATION_DUMP_WRITE(context, "objref <null>");
         } else {
-            object = context.template GetRawEntity<TObject>(key);
+            object = context.template GetRawEntity<T>(key);
             SERIALIZATION_DUMP_WRITE(context, "objref %v aka %v", object->GetVersionedId(), key);
         }
+    }
+
+    template <class T, class C>
+    static void Load(C& context, NObjectServer::TRawObjectPtr<T>& object)
+    {
+        object = LoadWith<TRawVersionedObjectPtrSerializer, T*>(context);
     }
 };
 
@@ -139,16 +187,15 @@ struct TRawVersionedObjectPtrSerializer
 struct TStrongVersionedObjectPtrSerializer
 {
     template <class C, class T>
-    static void Save(C& context, const T& object)
+    static void Save(C& context, const NObjectServer::TStrongObjectPtr<T>& object)
     {
-        TRawVersionedObjectPtrSerializer::Save(context, object.GetUnsafe());
+        SaveWith<TRawVersionedObjectPtrSerializer>(context, object.GetUnsafe());
     }
 
     template <class C, class T>
-    static void Load(C& context, T& object)
+    static void Load(C& context, NObjectServer::TStrongObjectPtr<T>& object)
     {
-        typename NObjectServer::TObjectPtrTraits<T>::TUnderlying* rawObject;
-        TRawVersionedObjectPtrSerializer::Load(context, rawObject);
+        auto* rawObject = LoadWith<TRawVersionedObjectPtrSerializer, T*>(context);
         object.Assign(rawObject, NObjectServer::TObjectPtrLoadTag());
     }
 };
@@ -204,36 +251,32 @@ struct TInternedYsonStringSerializer
 
 struct TMasterTableSchemaRefSerializer
 {
-    template <class T>
-    static void Save(NCellMaster::TSaveContext& context, T object)
+    static void Save(NCellMaster::TSaveContext& context, NTableServer::TMasterTableSchemaRawPtr schema)
     {
-        TRawNonversionedObjectPtrSerializer::Save(context, object);
+        SaveWith<TRawNonversionedObjectPtrSerializer>(context, schema);
     }
 
-    template <class T>
-    static void Load(NCellMaster::TLoadContext& context, T& object)
+    static void Load(NCellMaster::TLoadContext& context, NTableServer::TMasterTableSchemaRawPtr& schema)
     {
-        TRawNonversionedObjectPtrSerializer::Load(context, object);
+        LoadWith<TRawNonversionedObjectPtrSerializer>(context, schema);
     }
 
-    template <class T>
-    static void Save(NCypressServer::TSerializeNodeContext& context, T object)
+    static void Save(NCypressServer::TSerializeNodeContext& context, NTableServer::TMasterTableSchemaRawPtr schema)
     {
-        YT_VERIFY(object);
+        YT_VERIFY(schema);
 
         // NB: Each SerializeNodeContext contains a single node,
         // thus no more than one schema should be saved.
         YT_VERIFY(!context.GetSchemaId());
 
-        auto id = object->GetId();
+        auto id = schema->GetId();
         context.RegisterSchema(id);
     }
 
-    template <class T>
-    static void Load(NCypressServer::TMaterializeNodeContext& context, T& object)
+    static void Load(NCypressServer::TMaterializeNodeContext& context, NTableServer::TMasterTableSchemaRawPtr& schema)
     {
         // NB: See comment in Save.
-        object = context.GetSchema();
+        schema = context.GetSchema();
     }
 };
 
@@ -246,82 +289,45 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T, class C>
-struct TSerializerTraits<
-    T,
-    C,
-    typename std::enable_if_t<
-        std::conjunction_v<
-            std::is_convertible<T, const NObjectServer::TObject*>,
-            std::conjunction<
-                std::negation<
-                    std::is_convertible<T, const NCypressServer::TCypressNode*>
-                >,
-                std::negation<
-                    std::is_convertible<T, const NTableServer::TMasterTableSchema*>
-                >
-            >
-        >
-    >
->
+    requires
+        (!std::derived_from<T, NCypressServer::TCypressNode>) &&
+        (!std::is_same_v<T, NTableServer::TMasterTableSchema>)
+struct TSerializerTraits<NObjectServer::TRawObjectPtr<T>, C>
 {
     using TSerializer = NCellMaster::TRawNonversionedObjectPtrSerializer;
     using TComparer = NObjectServer::TObjectIdComparer;
 };
 
 template <class T, class C>
-struct TSerializerTraits<
-    T,
-    C,
-    typename std::enable_if_t<
-        std::conjunction_v<
-            std::is_convertible<typename NObjectServer::TObjectPtrTraits<T>::TUnderlying*, NObjectServer::TObject*>,
-            std::negation<
-                std::is_convertible<typename NObjectServer::TObjectPtrTraits<T>::TUnderlying*, NCypressServer::TCypressNode*>
-            >
-        >
-    >
->
-{
-    using TSerializer = NCellMaster::TStrongNonversionedObjectPtrSerializer;
-    using TComparer = NObjectServer::TObjectIdComparer;
-};
-
-template <class T, class C>
-struct TSerializerTraits<
-    T,
-    C,
-    typename std::enable_if_t<
-        std::is_convertible_v<typename NObjectServer::TObjectPtrTraits<T>::TUnderlying*, NCypressServer::TCypressNode*>
-    >
->
-{
-    using TSerializer = NCellMaster::TStrongVersionedObjectPtrSerializer;
-    using TComparer = NCypressServer::TCypressNodeIdComparer;
-};
-
-template <class T, class C>
-struct TSerializerTraits<
-    T,
-    C,
-    typename std::enable_if_t<
-        std::is_convertible_v<T, const NCypressServer::TCypressNode*>
-    >
->
+    requires
+        std::derived_from<T, NCypressServer::TCypressNode>
+struct TSerializerTraits<NObjectServer::TRawObjectPtr<T>, C>
 {
     using TSerializer = NCellMaster::TRawVersionedObjectPtrSerializer;
     using TComparer = NCypressServer::TCypressNodeIdComparer;
 };
 
+template <class T, class C1, class C2>
+    requires
+        (!std::derived_from<T, NCypressServer::TCypressNode>)
+struct TSerializerTraits<NObjectServer::TObjectPtr<T, C1>, C2>
+{
+    using TSerializer = NCellMaster::TNonversionedObjectPtrSerializer;
+    using TComparer = NObjectServer::TObjectIdComparer;
+};
+
+template <class T, class C>
+    requires std::derived_from<T, NCypressServer::TCypressNode>
+struct TSerializerTraits<NObjectServer::TStrongObjectPtr<T>, C>
+{
+    using TSerializer = NCellMaster::TStrongVersionedObjectPtrSerializer;
+    using TComparer = NCypressServer::TCypressNodeIdComparer;
+};
+
 // Unlike most (non-versioned) objects, schemas are cell-local, which necessitates
 // special handling for cross-cell copying.
-template <class T, class C>
-struct TSerializerTraits<
-    T,
-    C,
-    typename std::enable_if_t<
-        std::is_convertible_v<T, const NTableServer::TMasterTableSchema*>
-    >
->
+template <class C>
+struct TSerializerTraits<NTableServer::TMasterTableSchemaRawPtr, C>
 {
     using TSerializer = NCellMaster::TMasterTableSchemaRefSerializer;
     using TComparer = NObjectServer::TObjectIdComparer;

@@ -453,7 +453,7 @@ public:
 
         AreaDestroyed_.Fire(area);
 
-        auto* cellBundle = area->GetCellBundle();
+        auto cellBundle = area->GetCellBundle();
         if (cellBundle->GetDefaultArea() == area) {
             cellBundle->SetDefaultArea(nullptr);
         }
@@ -672,7 +672,7 @@ public:
                         }
                     }
                 }
-            } else if (auto* transaction = cell->GetPrerequisiteTransaction()) {
+            } else if (auto transaction = cell->GetPrerequisiteTransaction()) {
                 TransactionToCellMap_.erase(transaction);
                 cell->SetPrerequisiteTransaction(nullptr);
             }
@@ -698,7 +698,7 @@ public:
             chaosCellBundle->RemoveMetadataCell(chaosCell);
         }
 
-        auto* area = cell->GetArea();
+        auto area = cell->GetArea();
         EraseOrCrash(area->Cells(), cell);
         cell->SetArea(nullptr);
 
@@ -1157,7 +1157,7 @@ public:
 
         ValidateAreaName(newName);
 
-        auto* cellBundle = area->GetCellBundle();
+        auto cellBundle = area->GetCellBundle();
 
         if (cellBundle->Areas().contains(newName)) {
             THROW_ERROR_EXCEPTION(
@@ -1193,7 +1193,7 @@ public:
 
     void UpdateCellArea(TCellBase* cell, TArea* area) override
     {
-        auto* oldArea = cell->GetArea();
+        auto oldArea = cell->GetArea();
         if (oldArea == area) {
             return;
         }
@@ -1384,13 +1384,13 @@ private:
 
             if (cell->IsIndependent()) {
                 for (int peerId = 0; peerId < std::ssize(cell->Peers()); ++peerId) {
-                    auto* transaction = cell->Peers()[peerId].PrerequisiteTransaction;
+                    auto transaction = cell->Peers()[peerId].PrerequisiteTransaction;
                     if (transaction) {
                         EmplaceOrCrash(TransactionToCellMap_, transaction, std::pair(cell, peerId));
                     }
                 }
             } else {
-                if (auto* transaction = cell->GetPrerequisiteTransaction(); transaction) {
+                if (auto transaction = cell->GetPrerequisiteTransaction(); transaction) {
                     EmplaceOrCrash(TransactionToCellMap_, transaction, std::pair(cell, std::nullopt));
                 }
             }
@@ -1612,7 +1612,7 @@ private:
 
             for (int index = newSize; index < oldSize; ++index) {
                 const auto& slot = cellar[index];
-                auto* cell = slot.Cell;
+                auto cell = slot.Cell;
                 if (cell) {
                     YT_LOG_DEBUG("Slot destroyed, detaching cell peer (Address: %v, CellarType: %v, CellId: %v, PeerId: %v)",
                         node->GetDefaultAddress(),
@@ -1810,7 +1810,7 @@ private:
         // Our expectations.
         THashSet<TCellBase*> expectedCells;
         for (const auto& slot : *cellar) {
-            auto* cell = slot.Cell;
+            auto cell = slot.Cell;
             if (!IsObjectAlive(cell)) {
                 continue;
             }

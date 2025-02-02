@@ -245,7 +245,7 @@ public:
         TCompactVector<
             std::pair<TChunkLocation*, TChunkLocation::TChunkQueue::iterator>,
             TypicalChunkLocationCount> locations;
-        for (auto* location : node->ChunkLocations()) {
+        for (auto location : node->ChunkLocations()) {
             auto& queue = location->ChunkSealQueue();
             if (!queue.empty()) {
                 locations.emplace_back(location, queue.begin());

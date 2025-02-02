@@ -71,7 +71,7 @@ TDuration TTableReplica::ComputeReplicationLagTime(TTimestamp latestTimestamp) c
         return TDuration::Zero();
     }
     auto result = TDuration::Zero();
-    for (auto* tablet : Table_->Tablets()) {
+    for (auto tablet : Table_->Tablets()) {
         const auto* replicaInfo = tablet->As<TTablet>()->GetReplicaInfo(this);
         result = std::max(result, tablet->As<TTablet>()->ComputeReplicationLagTime(latestTimestamp, *replicaInfo));
     }
@@ -81,7 +81,7 @@ TDuration TTableReplica::ComputeReplicationLagTime(TTimestamp latestTimestamp) c
 int TTableReplica::GetErrorCount() const
 {
     int errorCount = 0;
-    for (auto* tablet : Table_->Tablets()) {
+    for (auto tablet : Table_->Tablets()) {
         const auto* replicaInfo = tablet->As<TTablet>()->GetReplicaInfo(this);
         errorCount += replicaInfo->GetHasError();
     }

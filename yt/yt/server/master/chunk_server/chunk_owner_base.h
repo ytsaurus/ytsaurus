@@ -141,7 +141,7 @@ public:
 private:
     int HunkPrimaryMediumIndex_ = NChunkClient::GenericMediumIndex;
     std::unique_ptr<TChunkOwnerDataStatistics> DeltaStatistics_;
-    TEnumIndexedArray<EChunkListContentType, NChunkServer::TChunkListPtr> ChunkLists_;
+    TEnumIndexedArray<EChunkListContentType, TChunkListPtr> ChunkLists_;
 
     TChunkOwnerDataStatistics ComputeUpdateStatistics() const;
 

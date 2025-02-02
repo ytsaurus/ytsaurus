@@ -84,7 +84,7 @@ ICompositeNodePtr TNonversionedMapObjectProxyBase<TObject>::GetParent() const
 template <class TObject>
 TIntrusivePtr<TNonversionedMapObjectProxyBase<TObject>> TNonversionedMapObjectProxyBase<TObject>::DoGetParent() const
 {
-    auto* parent = TBase::GetThisImpl()->GetParent();
+    auto parent = TBase::GetThisImpl()->GetParent();
     return parent ? GetProxy(parent) : nullptr;
 }
 
@@ -408,7 +408,7 @@ bool TNonversionedMapObjectProxyBase<TObject>::GetBuiltinAttribute(
         }
 
         case EInternedAttributeKey::ParentName: {
-            auto* parent = impl->GetParent();
+            auto parent = impl->GetParent();
             if (!parent) {
                 return false;
             }
@@ -434,7 +434,7 @@ template <class TObject>
 void TNonversionedMapObjectProxyBase<TObject>::RenameSelf(const std::string& newName)
 {
     auto* impl = TBase::GetThisImpl();
-    auto* parent = impl->GetParent();
+    auto parent = impl->GetParent();
     if (!parent) {
         THROW_ERROR_EXCEPTION("Cannot rename %v as it has no parent", impl->GetLowercaseObjectName());
     }
@@ -453,7 +453,7 @@ void TNonversionedMapObjectProxyBase<TObject>::DoRenameSelf(const std::string& n
     auto* impl = TBase::GetThisImpl();
     auto oldName = impl->GetName();
     auto handler = GetTypeHandler();
-    auto* parent = impl->GetParent();
+    auto parent = impl->GetParent();
 
     handler->UnregisterName(oldName, impl);
     parent->RenameChild(impl, newName);
@@ -583,7 +583,7 @@ int TNonversionedMapObjectProxyBase<TObject>::GetDepth(const TObject* object) co
 {
     YT_VERIFY(object);
     auto depth = 0;
-    for (auto* current = object->GetParent(); current; current = current->GetParent()) {
+    for (auto current = object->GetParent(); current; current = current->GetParent()) {
         ++depth;
     }
 

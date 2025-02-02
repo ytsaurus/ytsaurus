@@ -66,10 +66,10 @@ bool HasParent(const TChunkTree* chunkTree, TChunkList* potentialParent);
 
 void AttachToChunkList(
     TChunkList* chunkList,
-    TRange<TChunkTree*> children);
+    TRange<TChunkTreeRawPtr> children);
 void DetachFromChunkList(
     TChunkList* chunkList,
-    TRange<TChunkTree*> children,
+    TRange<TChunkTreeRawPtr> children,
     EChunkDetachPolicy policy);
 
 //! Set |childIndex|-th child of |chunkList| to |newChild|. It is up to caller

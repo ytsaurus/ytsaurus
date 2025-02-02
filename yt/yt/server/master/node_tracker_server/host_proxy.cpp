@@ -64,7 +64,7 @@ private:
                 return true;
 
             case EInternedAttributeKey::Rack: {
-                if (auto* rack = host->GetRack()) {
+                if (auto rack = host->GetRack()) {
                     BuildYsonFluently(consumer)
                         .Value(rack->GetName());
                     return true;

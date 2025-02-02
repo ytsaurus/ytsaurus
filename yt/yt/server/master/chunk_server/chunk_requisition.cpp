@@ -548,7 +548,7 @@ TSerializableChunkRequisition::TSerializableChunkRequisition(
 {
     Entries_.reserve(requisition.GetEntryCount());
     for (const auto& entry : requisition) {
-        auto* account = entry.Account;
+        auto account = entry.Account;
         if (!IsObjectAlive(account)) {
             continue;
         }

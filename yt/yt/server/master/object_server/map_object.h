@@ -19,10 +19,10 @@ class TNonversionedMapObjectBase
     : public TObject
 {
 public:
-    using TKeyToChild = THashMap<std::string, TSelf*>;
-    using TChildToKey = THashMap<const TSelf*, std::string>;
+    using TKeyToChild = THashMap<std::string, TRawObjectPtr<TSelf>>;
+    using TChildToKey = THashMap<TRawObjectPtr<const TSelf>, std::string>;
 
-    DEFINE_BYVAL_RW_PROPERTY(TSelf*, Parent);
+    DEFINE_BYVAL_RW_PROPERTY(TRawObjectPtr<TSelf>, Parent);
     DEFINE_BYREF_RW_PROPERTY(TKeyToChild, KeyToChild);
     DEFINE_BYREF_RW_PROPERTY(TChildToKey, ChildToKey);
 

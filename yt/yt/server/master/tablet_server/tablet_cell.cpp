@@ -56,7 +56,7 @@ void TTabletCell::Load(TLoadContext& context)
     Load(context, GossipStatistics_);
 }
 
-TTabletCellBundle* TTabletCell::GetTabletCellBundle() const
+TTabletCellBundleRawPtr TTabletCell::GetTabletCellBundle() const
 {
     const auto& cellBundle = CellBundle();
     YT_VERIFY(cellBundle->GetType() == EObjectType::TabletCellBundle);

@@ -619,7 +619,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
 
     const auto* trunkTable = GetThisImpl();
 
-    auto* schema = trunkTable->GetSchema();
+    auto schema = trunkTable->GetSchema();
     if (!schema || schema->AsTableSchema()->Columns().empty()) {
         THROW_ERROR_EXCEPTION("Table schema is not specified");
     }

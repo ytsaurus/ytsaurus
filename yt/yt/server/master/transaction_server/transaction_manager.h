@@ -68,7 +68,7 @@ struct ITransactionManager
 
     virtual TTransaction* StartUploadTransaction(
         TTransaction* parent,
-        std::vector<TTransaction*> prerequisiteTransactions,
+        std::vector<TTransactionRawPtr> prerequisiteTransactions,
         const NObjectClient::TCellTagList& replicatedToCellTags,
         std::optional<TDuration> timeout,
         const std::optional<std::string>& title,

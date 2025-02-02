@@ -173,21 +173,22 @@ void TraverseChunkTree(
 //! Appends the chunks found in subtree at #root to #chunks.
 void EnumerateChunksInChunkTree(
     TChunkList* root,
-    std::vector<TChunk*>* chunks);
+    std::vector<TChunkRawPtr>* chunks);
 
 //! Returns the list of all chunks in subtree at #root.
-std::vector<TChunk*> EnumerateChunksInChunkTree(
+std::vector<TChunkRawPtr> EnumerateChunksInChunkTree(
     TChunkList* root);
 
 //! Appends the chunks (including hunks), chunk views, and dynamic stores
 //! found in subtree at #root to #stores.
 void EnumerateStoresInChunkTree(
     TChunkList* root,
-    std::vector<TChunkTree*>* stores);
+    std::vector<TChunkTreeRawPtr>* stores);
 
 //! Similar to #EnumerateStoresInChunkTree but returns a new vector
 //! instead of appending to the existing one.
-std::vector<TChunkTree*> EnumerateStoresInChunkTree(TChunkList* root);
+std::vector<TChunkTreeRawPtr> EnumerateStoresInChunkTree(
+    TChunkList* root);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -76,7 +76,7 @@ private:
 
         switch (key) {
             case EInternedAttributeKey::NodeAddress: {
-                const auto* node = location->GetNode();
+                auto node = location->GetNode();
                 if (!IsObjectAlive(node)) {
                     return false;
                 }

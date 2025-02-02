@@ -44,6 +44,7 @@ DECLARE_ENTITY_TYPE(TChaosCell, TChaosCellId, NObjectClient::TObjectIdEntropyHas
 
 DECLARE_MASTER_OBJECT_TYPE(TChaosCellBundle)
 DECLARE_MASTER_OBJECT_TYPE(TChaosCell)
+DECLARE_MASTER_OBJECT_TYPE(TChaosReplicatedTableNode)
 
 constexpr int TypicalAlienPeerCount = 2;
 

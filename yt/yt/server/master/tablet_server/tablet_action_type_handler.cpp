@@ -83,8 +83,8 @@ public:
             THROW_ERROR_EXCEPTION("Attribute \"freeze\" cannot be specified by user");
         }
 
-        std::vector<TTabletBase*> tablets;
-        std::vector<TTabletCell*> cells;
+        std::vector<TTabletBaseRawPtr> tablets;
+        std::vector<TTabletCellRawPtr> cells;
 
         for (auto tabletId : tabletIds) {
             tablets.push_back(tabletManager->GetTabletOrThrow(tabletId));

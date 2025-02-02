@@ -28,12 +28,12 @@ using NYT::ToProto;
 
 void AttachToChunkListAndRef(
     TChunkList* chunkList,
-    TRange<TChunkTree*> children)
+    TRange<TChunkTreeRawPtr> children)
 {
     NChunkServer::AttachToChunkList(
         chunkList,
         children);
-    for (auto* child : children) {
+    for (auto child : children) {
         child->RefObject();
     }
 }
@@ -109,7 +109,7 @@ public:
 
     void ClearChunkList(TChunkList* chunkList) override
     {
-        for (auto* child : chunkList->Children()) {
+        for (auto child : chunkList->Children()) {
             ResetChunkTreeParent(chunkList, child);
             UnrefObject(child);
         }
@@ -119,7 +119,7 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTree*> children) override
+        TRange<TChunkTreeRawPtr> children) override
     {
         NChunkServer::AttachToChunkList(
             chunkList,
@@ -176,7 +176,7 @@ TEST(TChunkTreeBalancerTest, ManyChunkLists)
         return chunkStorage.back().get();
     };
 
-    std::vector<TChunkTree*> chunkLists;
+    std::vector<TChunkTreeRawPtr> chunkLists;
     auto root = bootstrap->CreateChunkList();
     bootstrap->RefObject(root);
     for (int i = 0; i < ChunkListCount; ++i) {
@@ -201,7 +201,7 @@ TEST(TChunkTreeBalancerTest, EmptyChunkLists)
 
     std::vector<std::unique_ptr<TChunkList>> chunkListStorage;
     auto bootstrap = New<TChunkTreeBalancerCallbacksMock>(&chunkListStorage);
-    std::vector<TChunkTree*> chunkLists;
+    std::vector<TChunkTreeRawPtr> chunkLists;
     auto root = bootstrap->CreateChunkList();
     bootstrap->RefObject(root);
     for (int i = 0; i < ChunkListCount; ++i) {
@@ -234,7 +234,7 @@ TEST(TChunkTreeBalancerTest, PermissiveMode)
         return chunkStorage.back().get();
     };
 
-    std::vector<TChunkTree*> chunkLists;
+    std::vector<TChunkTreeRawPtr> chunkLists;
     auto root = bootstrap->CreateChunkList();
     bootstrap->RefObject(root);
     for (int i = 0; i < ChunkListCount; ++i) {

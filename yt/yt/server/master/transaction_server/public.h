@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/transaction_server/public.h>
 
+#include <yt/yt/server/master/object_server/public.h>
+
 #include <yt/yt/ytlib/cypress_transaction_client/public.h>
 
 namespace NYT::NTransactionServer {
@@ -41,6 +43,8 @@ DECLARE_REFCOUNTED_CLASS(TTransactionReplicationSessionWithoutBoomerangs)
 DECLARE_REFCOUNTED_CLASS(TTransactionReplicationSessionWithBoomerangs)
 
 DECLARE_ENTITY_TYPE(TTransaction, TTransactionId, ::THash<TTransactionId>)
+
+DECLARE_MASTER_OBJECT_TYPE(TTransaction)
 
 using TBoomerangWaveId = TGuid;
 

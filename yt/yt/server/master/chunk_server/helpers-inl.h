@@ -50,7 +50,7 @@ void VisitAncestors(TChunkList* chunkList, F functor)
         auto* chunkList = queue.Pop();
 
         // Fast lane: handle unique parents.
-        while (chunkList != nullptr) {
+        while (chunkList) {
             functor(chunkList);
             const auto& parents = chunkList->Parents();
             if (parents.Size() != 1) {
@@ -59,9 +59,9 @@ void VisitAncestors(TChunkList* chunkList, F functor)
             chunkList = *parents.begin();
         }
 
-        if (chunkList != nullptr) {
+        if (chunkList) {
             // Proceed to parents.
-            for (auto* parent : chunkList->Parents()) {
+            for (auto parent : chunkList->Parents()) {
                 queue.Push(parent);
             }
         }

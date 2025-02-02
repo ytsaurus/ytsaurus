@@ -40,6 +40,8 @@ public:
     virtual void Load(NCellMaster::TLoadContext& context);
 };
 
+DEFINE_MASTER_OBJECT_TYPE(TMedium)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

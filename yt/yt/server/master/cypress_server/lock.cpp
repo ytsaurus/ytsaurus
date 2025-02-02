@@ -306,7 +306,7 @@ bool TCypressNodeLockingState::HasExclusiveLock(TTransaction* transaction) const
 bool TCypressNodeLockingState::HasSharedLock(TTransaction* transaction) const
 {
     auto it = TransactionAndKeyToSharedLocks.lower_bound(transaction);
-    return it != TransactionAndKeyToSharedLocks.end() && get<TTransaction*>(*it) == transaction;
+    return it != TransactionAndKeyToSharedLocks.end() && get<TTransactionRawPtr>(*it) == transaction;
 }
 
 bool TCypressNodeLockingState::HasSnapshotLock(TTransaction* transaction) const
@@ -357,7 +357,7 @@ void TLock::Save(TSaveContext& context) const
     Save(context, CreationTime_);
     Save(context, AcquisitionTime_);
     Save(context, Request_);
-    TRawNonversionedObjectPtrSerializer::Save(context, TrunkNode_);
+    SaveWith<TRawNonversionedObjectPtrSerializer>(context, TrunkNode_);
     Save(context, Transaction_);
 }
 
@@ -377,7 +377,7 @@ void TLock::Load(NCellMaster::TLoadContext& context)
     Load(context, CreationTime_);
     Load(context, AcquisitionTime_);
     Load(context, Request_);
-    TRawNonversionedObjectPtrSerializer::Load(context, TrunkNode_);
+    LoadWith<TRawNonversionedObjectPtrSerializer>(context, TrunkNode_);
     Load(context, Transaction_);
 }
 
