@@ -142,6 +142,7 @@ private:
             .CoordinatorCellId = rootstockCellId,
             .Force2PC = true,
             .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
+            .StronglyOrdered = true,
         };
         WaitFor(sequoiaTransaction->Commit(commitOptions))
             .ThrowOnError();

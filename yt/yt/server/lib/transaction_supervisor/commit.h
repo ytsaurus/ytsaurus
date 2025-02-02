@@ -32,6 +32,7 @@ DEFINE_ENUM(ECommitState,
     ((Aborting)                  (4)) // transient only
     ((Abort)                     (5))
     ((Finishing)                 (6)) // transient only
+    ((ReadyToCommit)             (7))
 );
 
 class TCommit
@@ -50,6 +51,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(bool, InheritCommitTimestamp);
     DEFINE_BYVAL_RO_PROPERTY(NApi::ETransactionCoordinatorPrepareMode, CoordinatorPrepareMode);
     DEFINE_BYVAL_RO_PROPERTY(NApi::ETransactionCoordinatorCommitMode, CoordinatorCommitMode);
+    DEFINE_BYVAL_RO_PROPERTY(bool, StronglyOrdered);
+    DEFINE_BYVAL_RW_PROPERTY(i64, StronglyOrderedSequenceNumber);
     DEFINE_BYVAL_RW_PROPERTY(TTimestamp, MaxAllowedCommitTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(bool, Persistent);
     DEFINE_BYREF_RW_PROPERTY(TTimestamp, PrepareTimestamp);
@@ -75,6 +78,7 @@ public:
         bool inheritCommitTimestamp,
         NApi::ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
         NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
+        bool stronglyOrdered,
         TTimestamp maxAllowedCommitTimestamp,
         NRpc::TAuthenticationIdentity identity,
         std::vector<TTransactionId> prerequisiteTransactionIds = {});
