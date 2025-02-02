@@ -758,9 +758,6 @@ public:
         auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
 
         RunCommitTransactionActions(transaction, options);
-        if (IsSequoiaTxBarrierEnabled() && transaction->IsSequoiaTransaction()) {
-            Bootstrap_->GetTransactionSupervisor()->UnregisterPreparedSequoiaTx(transaction->GetId());
-        }
 
         if (auto parent = transaction->GetParent()) {
             parent->ExportedObjects().insert(
@@ -904,9 +901,6 @@ public:
         TransactionAborted_.Fire(transaction);
 
         RunAbortTransactionActions(transaction, options);
-        if (IsSequoiaTxBarrierEnabled() && transaction->IsSequoiaTransaction()) {
-            Bootstrap_->GetTransactionSupervisor()->UnregisterPreparedSequoiaTx(transaction->GetId());
-        }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         for (const auto& entry : transaction->ExportedObjects()) {
@@ -1418,9 +1412,6 @@ public:
 
         auto sequoiaContextGuard = MaybeCreateSequoiaContextGuard(transaction);
 
-        if (IsSequoiaTxBarrierEnabled() && transaction->IsSequoiaTransaction()) {
-            Bootstrap_->GetTransactionSupervisor()->RegisterPreparedSequoiaTx(transaction->GetId());
-        }
         RunPrepareTransactionActions(transaction, options);
 
         if (persistent) {
@@ -2973,22 +2964,6 @@ private:
             }
         }
 
-        if (IsSequoiaTxBarrierEnabled()) {
-            const auto& txSupervisor = Bootstrap_->GetTransactionSupervisor();
-            txSupervisor->ClearSequoiaTxRegistry();
-            for (auto [id, transaction] : TransactionMap_) {
-                if (transaction->IsSequoiaTransaction() &&
-                    transaction->GetPersistentState() == ETransactionState::PersistentCommitPrepared)
-                {
-                    txSupervisor->RegisterPreparedSequoiaTx(id);
-                }
-            }
-        }
-    }
-
-    bool IsSequoiaTxBarrierEnabled() const noexcept
-    {
-        return Bootstrap_->GetConfig()->TransactionSupervisor->EnableWaitUntilPreparedTransactionsFinished;
     }
 
     void Clear() override

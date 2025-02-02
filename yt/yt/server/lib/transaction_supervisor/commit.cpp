@@ -32,6 +32,7 @@ TCommit::TCommit(
     bool inheritCommitTimestamp,
     NApi::ETransactionCoordinatorPrepareMode coordinatorPrepareMode,
     NApi::ETransactionCoordinatorCommitMode coordinatorCommitMode,
+    bool stronglyOrdered,
     TTimestamp maxAllowedCommitTimestamp,
     NRpc::TAuthenticationIdentity identity,
     std::vector<TTransactionId> prerequisiteTransactionIds)
@@ -45,6 +46,7 @@ TCommit::TCommit(
     , InheritCommitTimestamp_(inheritCommitTimestamp)
     , CoordinatorPrepareMode_(coordinatorPrepareMode)
     , CoordinatorCommitMode_(coordinatorCommitMode)
+    , StronglyOrdered_(stronglyOrdered)
     , MaxAllowedCommitTimestamp_(maxAllowedCommitTimestamp)
     , AuthenticationIdentity_(std::move(identity))
     , PrerequisiteTransactionIds_(std::move(prerequisiteTransactionIds))
@@ -89,6 +91,7 @@ void TCommit::Save(TSaveContext& context) const
     Save(context, MaxAllowedCommitTimestamp_);
     Save(context, AuthenticationIdentity_.User);
     Save(context, AuthenticationIdentity_.UserTag);
+    Save(context, StronglyOrdered_);
 }
 
 void TCommit::Load(TLoadContext& context)
@@ -130,6 +133,11 @@ void TCommit::Load(TLoadContext& context)
     }
     Load(context, AuthenticationIdentity_.User);
     Load(context, AuthenticationIdentity_.UserTag);
+
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= 14) {
+        Load(context, StronglyOrdered_);
+    }
 }
 
 void TCommit::BuildOrchidYson(IYsonConsumer* consumer) const
@@ -166,6 +174,7 @@ void TCommit::BuildOrchidYson(IYsonConsumer* consumer) const
             .Item("transient_state").Value(TransientState_)
             .Item("persistent_state").Value(PersistentState_)
             .Item("responded_cell_ids").Value(RespondedCellIds_)
+            .Item("strongly_ordered").Value(StronglyOrdered_)
             .DoIf(!PrerequisiteTransactionIds_.empty(), [&] (auto fluent) {
                 fluent
                     .Item("prerequisite_transaction_ids")

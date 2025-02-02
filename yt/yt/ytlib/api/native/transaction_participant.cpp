@@ -76,6 +76,7 @@ public:
         TTransactionId transactionId,
         TTimestamp prepareTimestamp,
         TClusterTag prepareTimestampClusterTag,
+        bool stronglyOrdered,
         const std::vector<TCellId>& cellIdsToSyncWith,
         const NRpc::TAuthenticationIdentity& identity) override
     {
@@ -90,6 +91,7 @@ public:
                 ToProto(req->mutable_transaction_id(), transactionId);
                 req->set_prepare_timestamp(prepareTimestamp);
                 req->set_prepare_timestamp_cluster_tag(ToProto(prepareTimestampClusterTag));
+                req->set_strongly_ordered(stronglyOrdered);
                 ToProto(req->mutable_cell_ids_to_sync_with(), cellIdsToSyncWith);
                 return req;
             });
@@ -99,6 +101,7 @@ public:
         TTransactionId transactionId,
         TTimestamp commitTimestamp,
         TClusterTag commitTimestampClusterTag,
+        bool stronglyOrdered,
         const NRpc::TAuthenticationIdentity& identity) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqCommitTransaction>(
@@ -112,12 +115,15 @@ public:
                 ToProto(req->mutable_transaction_id(), transactionId);
                 req->set_commit_timestamp(commitTimestamp);
                 req->set_commit_timestamp_cluster_tag(ToProto(commitTimestampClusterTag));
+                req->set_strongly_ordered(stronglyOrdered);
+
                 return req;
             });
     }
 
     TFuture<void> AbortTransaction(
         TTransactionId transactionId,
+        bool stronglyOrdered,
         const NRpc::TAuthenticationIdentity& identity) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqAbortTransaction>(
@@ -129,6 +135,7 @@ public:
                 PrepareRequest(req);
                 NRpc::SetAuthenticationIdentity(req, identity);
                 ToProto(req->mutable_transaction_id(), transactionId);
+                req->set_strongly_ordered(stronglyOrdered);
                 return req;
             });
     }
