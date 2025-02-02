@@ -3372,7 +3372,7 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
         return GetRequisitionFromCache(chunk);
     }
 
-    bool found = false;
+    auto found = false;
     TChunkRequisition requisition;
 
     // Unique number used to distinguish already visited chunk lists.
@@ -3412,16 +3412,34 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
         }
     }
 
+    const auto isHunkChunk = chunk->GetChunkType() == EChunkType::Hunk;
+    const auto isJournalChunk = chunk->GetChunkType() == EChunkType::Journal;
+
     // The main BFS loop.
     while (!queue.Empty()) {
         auto* chunkList = queue.Pop();
         // Examine owners, if any.
         for (auto owningNode : chunkList->TrunkOwningNodes()) {
-            if (auto* account = owningNode->Account().Get()) {
-                requisition.AggregateWith(owningNode->Replication(), account, true);
-            }
-
             found = true;
+            auto isHunkChunkList = owningNode->GetHunkChunkList() == chunkList;
+
+            YT_LOG_ALERT_IF(isHunkChunk && !isHunkChunkList,
+                "Encountered a hunk chunk in non-hunk chunk list tree (NodeId: %v, ChunkId: %v)",
+                owningNode->GetId(),
+                chunk->GetId());
+            YT_LOG_ALERT_IF(isHunkChunkList && !(isHunkChunk || isJournalChunk),
+                "Encountered chunk of a wrong type in hunk chunk list tree (NodeId: %v, ChunkId: %v, ChunkType: %v)",
+                owningNode->GetId(),
+                chunk->GetId(),
+                chunk->GetChunkType());
+
+            if (auto* account = owningNode->Account().Get()) {
+                const auto& replication = isHunkChunkList &&
+                    GetDynamicConfig()->UseHunkSpecificMediaForRequisitionUpdates
+                    ? owningNode->EffectiveHunkReplication()
+                    : owningNode->Replication();
+                requisition.AggregateWith(replication, account, true);
+            }
         }
         // Proceed to parents.
         for (auto parent : chunkList->Parents()) {
@@ -3435,12 +3453,18 @@ TChunkRequisition TChunkReplicator::ComputeChunkRequisition(const TChunk* chunk)
         requisition.ForceReplicationFactor(1);
     }
 
-    if (found) {
-        YT_ASSERT(requisition.ToReplication().IsValid());
-    } else {
-        // Chunks that aren't linked to any trunk owner are assigned empty requisition.
-        // This doesn't mean the replicator will act upon it, though, as the chunk will
-        // remember its last non-empty aggregated requisition.
+    if (!found || !requisition.ToReplication().IsValid()) {
+        // Chunk that *are* linked to a trunk owner yet still somehow end up
+        // having an invalid requisition mean there's a bug.
+        YT_LOG_ALERT_IF(found,
+            "Invalid requisition computed for a chunk (ChunkId: %v, ChunkType: %v, UseHunkSpecificMediaForRequisitionUpdates: %v)",
+            chunk->GetId(),
+            chunk->GetChunkType(),
+            GetDynamicConfig()->UseHunkSpecificMediaForRequisitionUpdates);
+
+        // Chunks that *aren't* linked to any trunk owner are assigned empty
+        // requisition. This doesn't mean the replicator will act upon it, though,
+        // as the chunk will remember its last non-empty aggregated requisition.
         requisition = GetChunkRequisitionRegistry()->GetRequisition(EmptyChunkRequisitionIndex);
     }
 

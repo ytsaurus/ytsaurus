@@ -108,8 +108,19 @@ TTableSettings GetTableSettings(
 
     const auto& chunkReplication = table->Replication();
     auto primaryMediumIndex = table->GetPrimaryMediumIndex();
-    auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
+    auto* primaryMedium = chunkManager->GetMediumByIndexOrThrow(primaryMediumIndex);
     auto replicationFactor = chunkReplication.Get(primaryMediumIndex).GetReplicationFactor();
+
+    // COMPAT(shakurov)
+    const auto enableHunkSpecificMedia = dynamicConfig->EnableHunkSpecificMedia;
+    const auto& hunkChunkReplication = enableHunkSpecificMedia
+        ? table->EffectiveHunkReplication()
+        : table->Replication();
+    auto hunkPrimaryMediumIndex = enableHunkSpecificMedia
+        ? table->GetEffectiveHunkPrimaryMediumIndex()
+        : table->GetPrimaryMediumIndex();
+    auto* hunkPrimaryMedium = chunkManager->GetMediumByIndexOrThrow(hunkPrimaryMediumIndex);
+    auto hunkReplicationFactor = hunkChunkReplication.Get(hunkPrimaryMediumIndex).GetReplicationFactor();
 
     try {
         // Prepare store writer options.
@@ -141,8 +152,8 @@ TTableSettings GetTableSettings(
     try {
         // Prepare hunk writer options.
         result.Provided.HunkWriterOptions = New<NTabletNode::TTabletHunkWriterOptions>();
-        result.Provided.HunkWriterOptions->ReplicationFactor = replicationFactor;
-        result.Provided.HunkWriterOptions->MediumName = primaryMedium->GetName();
+        result.Provided.HunkWriterOptions->ReplicationFactor = hunkReplicationFactor;
+        result.Provided.HunkWriterOptions->MediumName = hunkPrimaryMedium->GetName();
         result.Provided.HunkWriterOptions->Account = table->GetAccount()->GetName();
         result.Provided.HunkWriterOptions->CompressionCodec = table->GetCompressionCodec();
         result.Provided.HunkWriterOptions->ErasureCodec = table->GetHunkErasureCodec();

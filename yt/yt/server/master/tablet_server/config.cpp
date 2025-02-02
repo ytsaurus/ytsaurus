@@ -252,6 +252,9 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_chunks_per_mounted_tablet", &TThis::MaxChunksPerMountedTablet)
         .Default(15000);
 
+    registrar.Parameter("enable_hunk_specific_media", &TThis::EnableHunkSpecificMedia)
+        .Default(true);
+
     registrar.Preprocessor([] (TThis* config) {
         config->StoreChunkReader->SuspiciousNodeGracePeriod = TDuration::Minutes(5);
         config->StoreChunkReader->BanPeersPermanently = false;

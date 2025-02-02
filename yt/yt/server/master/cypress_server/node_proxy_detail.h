@@ -223,16 +223,15 @@ protected:
     //! Validates an attempt to set #newPrimaryMedium as a primary medium.
     /*!
      * On failure, throws.
-     * If there's nothing to be done, return false.
-     * On success, returns true and modifies *newReplication accordingly.
+     * If there's nothing to be done, returns false.
+     * On success, returns true. Additionally, modifies *newReplication
+     * accordingly if oldReplication is not null.
      */
     bool ValidatePrimaryMediumChange(
-        NChunkServer::TMedium* newPrimaryMedium,
-        const NChunkServer::TChunkReplication& oldReplication,
+        NChunkServer::TMedium& newPrimaryMedium,
         std::optional<int> oldPrimaryMediumIndex,
         NChunkServer::TChunkReplication* newReplication,
-        const NChunkServer::TChunkOwnerDataStatistics& statistics = {},
-        bool force = false);
+        const std::optional<NChunkServer::TChunkReplication>& oldReplication);
 
     void SetModified(NObjectServer::EModificationType modificationType) override;
 
@@ -295,16 +294,16 @@ protected:
 
 private:
     void SetReplicationFactor(int replicationFactor);
+
+    template <bool IsHunk>
     void SetPrimaryMedium(const std::string& primaryMediumName);
-    void SetHunkPrimaryMedium(const std::string& hunkPrimaryMediumName);
-    std::optional<NChunkServer::TChunkReplication> DoSetMedia(const NChunkServer::TSerializableChunkReplication& serializableReplication);
-    std::optional<int> DoSetPrimaryMedium(TCompositeNodeBase* node,
-        const std::optional<NChunkServer::TChunkReplication>& replication,
-        const std::string& primaryMediumName,
-        std::optional<int> oldPrimaryMediumIndex,
-        NChunkServer::TChunkReplication& newReplication);
+
+    template <bool IsHunk>
+    void RemovePrimaryMedium();
+
+    template <bool IsHunk>
     void SetMedia(const NChunkServer::TSerializableChunkReplication& serializableReplication);
-    void SetHunkMedia(const NChunkServer::TSerializableChunkReplication& serializableReplication);
+
     void ThrowReplicationFactorMismatch(int mediumIndex) const;
 };
 

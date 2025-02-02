@@ -33,7 +33,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NChunkClient::EUpdateMode, UpdateMode, NChunkClient::EUpdateMode::None);
     DEFINE_BYREF_RW_PROPERTY(TChunkReplication, Replication);
     DEFINE_BYREF_RW_PROPERTY(TChunkReplication, HunkReplication);
-    DEFINE_BYVAL_RW_PROPERTY(int, PrimaryMediumIndex, NChunkClient::DefaultStoreMediumIndex);
     DEFINE_BYREF_RW_PROPERTY(TChunkOwnerDataStatistics, SnapshotStatistics);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TInternedSecurityTags, SnapshotSecurityTags);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TInternedSecurityTags, DeltaSecurityTags);
@@ -75,13 +74,36 @@ public:
 
     NSecurityServer::TSecurityTags ComputeSecurityTags() const;
 
+    int GetPrimaryMediumIndex() const;
+    void SetPrimaryMediumIndex(int primaryMediumIndex);
+
+    // Hunk-specific primary medium being null (signified by GenericMediumIndex
+    // for compactness) means "respect the main (non-hunk-specific) primary
+    // medium and replication".
+    //
+    // Hunk-specific primary medium should be null when and only when
+    // hunk-specific replication is empty. Resetting hunk primary medium to null
+    // should empty hunk replication, and it should otherwise be impossible to
+    // manually make hunk replication empty.
+    //
+    // Similarly to (main) primary medium, setting a (non-null) hunk primary
+    // medium while hunk replication is empty is interpreted as a request to
+    // move hunk chunks to that medium. The specified medium is thus
+    // automatically added to hunk replication in such case.
+
     std::optional<int> GetHunkPrimaryMediumIndex() const;
     void SetHunkPrimaryMediumIndex(std::optional<int> hunkPrimaryMediumIndex);
-    void RemoveHunkPrimaryMediumIndex();
+    void ResetHunkPrimaryMediumIndex();
 
+    //! Returns hunk primary medium index unless it's null, in which case
+    //! returns (main) primary medium index.
     int GetEffectiveHunkPrimaryMediumIndex() const;
 
-    // COMPAT (h0pless): Once clients are sending table schema options during begin upload:
+    //! Returns hunk replication unless hunk primary medium index is null, in
+    //! which case returns (main) replication.
+    const TChunkReplication& EffectiveHunkReplication() const;
+
+    // COMPAT(h0pless): Once clients are sending table schema options during begin upload:
     //   - move fields from TCommonUploadContext to TBeginUploadContext;
     //   - remove inheritance by TEndUploadContext;
     //   - delete ParseCommonUploadContext function.
@@ -139,6 +161,7 @@ public:
     void Load(NCellMaster::TLoadContext& context) override;
 
 private:
+    int PrimaryMediumIndex_ = NChunkClient::DefaultStoreMediumIndex;
     int HunkPrimaryMediumIndex_ = NChunkClient::GenericMediumIndex;
     std::unique_ptr<TChunkOwnerDataStatistics> DeltaStatistics_;
     TEnumIndexedArray<EChunkListContentType, TChunkListPtr> ChunkLists_;
