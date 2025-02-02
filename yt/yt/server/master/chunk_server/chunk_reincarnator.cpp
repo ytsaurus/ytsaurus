@@ -321,7 +321,7 @@ public:
                         ? chunkTree->AsChunkList()->Parents()
                         : TRange(chunkTree->AsChunkView()->Parents());
 
-                    for (auto* parent : parents) {
+                    for (auto parent : parents) {
                         auto result = VisitChunkAncestorOnPrepare(
                             parent,
                             &traversalState);
@@ -399,7 +399,7 @@ public:
             auto* chunkTree = TraversalStack_.back();
             TraversalStack_.pop_back();
 
-            TRange<TChunkList*> parents;
+            TRange<TChunkListRawPtr> parents;
 
             if (chunkTree->GetType() == EObjectType::ChunkList) {
                 auto* chunkList = chunkTree->AsChunkList();
@@ -407,7 +407,7 @@ public:
                 parents = chunkList->Parents();
 
                 for (auto owners : {chunkList->TrunkOwningNodes(), chunkList->BranchedOwningNodes()}) {
-                    for (auto* owner : owners) {
+                    for (auto owner : owners) {
                         if (owner->GetType() == EObjectType::Table) {
                             RecomputeTabletStatistics(owner->As<TTableNode>());
                         }
@@ -417,7 +417,7 @@ public:
                 parents = chunkTree->AsChunkView()->Parents();
             }
 
-            for (auto* parent : parents) {
+            for (auto parent : parents) {
                 VisitChunkAncestorOnCommit(parent);
             }
         }
@@ -461,7 +461,7 @@ private:
             auto* chunkList = parent->AsChunkList();
             for (auto owners : {chunkList->TrunkOwningNodes(), chunkList->BranchedOwningNodes()})
             {
-                for (auto* owner : owners) {
+                for (auto owner : owners) {
                     if (decrementAncestorVisitBudgetAndWarning()) {
                         return EReincarnationResult::TooManyAncestors;
                     }
@@ -824,7 +824,7 @@ public:
                     ChunkScanner_.EnqueueChunk({chunkTree->AsChunk(), options});
                     break;
                 case EObjectType::ChunkList:
-                    for (auto* child : chunkTree->AsChunkList()->Children()) {
+                    for (auto child : chunkTree->AsChunkList()->Children()) {
                         if (child) {
                             visitChild(child);
                         }
@@ -2265,7 +2265,7 @@ private:
 
         using TPerCellReincarnationInfo = TCompactFlatMap<
             TCellTag,
-            std::pair<std::vector<TChunk*>, std::vector<TChunk*>>,
+            std::pair<std::vector<TChunkRawPtr>, std::vector<TChunkRawPtr>>,
             MaxSecondaryMasterCells>;
         TPerCellReincarnationInfo perCellReincarnationInfo;
 

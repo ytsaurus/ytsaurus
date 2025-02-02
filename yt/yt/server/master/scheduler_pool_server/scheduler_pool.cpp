@@ -152,7 +152,7 @@ void TSchedulerPool::DoValidateStrongGuarantees(const TFairShareStrategyTreeConf
 TFairShareStrategyTreeConfigPtr TSchedulerPool::GetPoolTreeConfig() const
 {
     const TSchedulerPool* schedulerPool = this;
-    while (auto* parent = schedulerPool->GetParent()) {
+    while (auto parent = schedulerPool->GetParent()) {
         schedulerPool = parent;
     }
 

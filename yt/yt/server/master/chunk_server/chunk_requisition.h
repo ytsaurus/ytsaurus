@@ -303,7 +303,7 @@ struct TRequisitionEntry
     // #IsObjectAlive() checks are a must. Entries with dead accounts may be
     // safely ignored for accounting purposes but not for the purposes of
     // hashing and comparisons.
-    NSecurityServer::TAccount* Account = nullptr;
+    NSecurityServer::TAccountRawPtr Account;
     int MediumIndex = NChunkClient::GenericMediumIndex;
     TReplicationPolicy ReplicationPolicy;
     // The 'committed' flag is necessary in order to decide which quota usage to

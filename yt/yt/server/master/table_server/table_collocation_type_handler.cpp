@@ -62,7 +62,7 @@ public:
 
         const auto& tableManager = Bootstrap_->GetTableManager();
 
-        THashSet<TTableNode*> collocatedTables;
+        THashSet<TTableNodeRawPtr> collocatedTables;
         collocatedTables.reserve(tableIds.size());
         for (auto tableId : tableIds) {
             auto* table = tableManager->GetTableNodeOrThrow(tableId);

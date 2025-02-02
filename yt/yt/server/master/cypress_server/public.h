@@ -51,8 +51,18 @@ struct ICypressNodeFactory;
 DECLARE_ENTITY_TYPE(TCypressNode, TVersionedNodeId, NObjectClient::TVersionedObjectIdEntropyHash)
 DECLARE_ENTITY_TYPE(TLock, TLockId, NObjectClient::TObjectIdEntropyHash)
 DECLARE_ENTITY_TYPE(TCypressShard, NObjectClient::TObjectId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TAccessControlObject, TAccessControlObjectId, NObjectClient::TObjectIdEntropyHash)
+DECLARE_ENTITY_TYPE(TAccessControlObjectNamespace, TAccessControlObjectNamespaceId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TCypressNode)
+DECLARE_MASTER_OBJECT_TYPE(TLock)
+DECLARE_MASTER_OBJECT_TYPE(TCypressShard)
+DECLARE_MASTER_OBJECT_TYPE(TAccessControlObject)
+DECLARE_MASTER_OBJECT_TYPE(TAccessControlObjectNamespace)
+DECLARE_MASTER_OBJECT_TYPE(TPortalEntranceNode)
+DECLARE_MASTER_OBJECT_TYPE(TPortalExitNode)
+DECLARE_MASTER_OBJECT_TYPE(TRootstockNode)
+DECLARE_MASTER_OBJECT_TYPE(TScionNode)
 
 using TCypressNodeList = TCompactVector<TCypressNode*, 8>;
 using TCypressNodeExpirationMap = std::multimap<TInstant, TCypressNode*>;
@@ -61,7 +71,7 @@ struct TLockRequest;
 
 template <class TChild>
 class TMapNodeImpl;
-using TCypressMapNode = TMapNodeImpl<TCypressNode*>;
+using TCypressMapNode = TMapNodeImpl<TCypressNodeRawPtr>;
 using TSequoiaMapNode = TMapNodeImpl<TNodeId>;
 
 class TListNode;
@@ -73,12 +83,6 @@ using TInt64Node   = TScalarNode<i64>;
 using TUint64Node  = TScalarNode<ui64>;
 using TDoubleNode  = TScalarNode<double>;
 using TBooleanNode = TScalarNode<bool>;
-
-DECLARE_MASTER_OBJECT_TYPE(TAccessControlObject)
-DECLARE_ENTITY_TYPE(TAccessControlObject, TAccessControlObjectId, NObjectClient::TObjectIdEntropyHash)
-
-DECLARE_MASTER_OBJECT_TYPE(TAccessControlObjectNamespace)
-DECLARE_ENTITY_TYPE(TAccessControlObjectNamespace, TAccessControlObjectNamespaceId, NObjectClient::TObjectIdEntropyHash)
 
 class TLinkNode;
 class TDocumentNode;

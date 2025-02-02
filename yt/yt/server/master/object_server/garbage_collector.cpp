@@ -329,7 +329,7 @@ void TGarbageCollector::DestroyZombie(TObject* object)
     }
 }
 
-const THashSet<TObject*>& TGarbageCollector::GetZombies() const
+const THashSet<TObjectRawPtr>& TGarbageCollector::GetZombies() const
 {
     VerifyPersistentStateRead();
 
@@ -359,7 +359,7 @@ void TGarbageCollector::UnregisterRemovalAwaitingCellsSyncObject(TObject* object
     }
 }
 
-const THashSet<TObject*>& TGarbageCollector::GetRemovalAwaitingCellsSyncObjects() const
+const THashSet<TObjectRawPtr>& TGarbageCollector::GetRemovalAwaitingCellsSyncObjects() const
 {
     VerifyPersistentStateRead();
 
@@ -448,7 +448,7 @@ void TGarbageCollector::SweepZombies()
     // Extract up to MaxWeightPerGCSweep and post a mutation.
     int totalWeight = 0;
     std::vector<TObjectId> objectIds;
-    for (const auto* object : Zombies_) {
+    for (auto object : Zombies_) {
         objectIds.push_back(object->GetId());
         totalWeight += object->GetGCWeight();
         if (totalWeight >= GetDynamicConfig()->MaxWeightPerGCSweep) {
@@ -494,7 +494,7 @@ void TGarbageCollector::OnObjectRemovalCellsSync()
 
     std::vector<TObjectId> objectIds;
     objectIds.reserve(RemovalAwaitingCellsSyncObjects_.size());
-    for (auto* object : RemovalAwaitingCellsSyncObjects_) {
+    for (auto object : RemovalAwaitingCellsSyncObjects_) {
         objectIds.push_back(object->GetId());
     }
 

@@ -155,21 +155,21 @@ private:
 
             case EInternedAttributeKey::NestedTransactionIds:
                 BuildYsonFluently(consumer)
-                    .DoListFor(transaction->NestedTransactions(), [=] (TFluentList fluent, TTransaction* nestedTransaction) {
+                    .DoListFor(transaction->NestedTransactions(), [=] (TFluentList fluent, auto nestedTransaction) {
                         fluent.Item().Value(nestedTransaction->GetId());
                     });
                 return true;
 
             case EInternedAttributeKey::PrerequisiteTransactionIds:
                 BuildYsonFluently(consumer)
-                    .DoListFor(transaction->PrerequisiteTransactions(), [=] (auto fluent, const auto* transaction) {
+                    .DoListFor(transaction->PrerequisiteTransactions(), [=] (auto fluent, auto transaction) {
                         fluent.Item().Value(transaction->GetId());
                     });
                 return true;
 
             case EInternedAttributeKey::DependentTransactionIds:
                 BuildYsonFluently(consumer)
-                    .DoListFor(transaction->DependentTransactions(), [=] (auto fluent, const auto* transaction) {
+                    .DoListFor(transaction->DependentTransactions(), [=] (auto fluent, auto transaction) {
                         fluent.Item().Value(transaction->GetId());
                     });
                 return true;
@@ -189,7 +189,7 @@ private:
 
             case EInternedAttributeKey::AccountResourceUsageLeaseIds:
                 BuildYsonFluently(consumer)
-                    .DoListFor(transaction->AccountResourceUsageLeases(), [=] (auto fluent, const auto* accountResourceUsageLease) {
+                    .DoListFor(transaction->AccountResourceUsageLeases(), [=] (auto fluent, auto accountResourceUsageLease) {
                         fluent.Item().Value(accountResourceUsageLease->GetId());
                     });
                 return true;

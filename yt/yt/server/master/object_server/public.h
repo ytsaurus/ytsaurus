@@ -105,6 +105,9 @@ struct TEphemeralObjectPtrContext;
 template <class T>
 using TEphemeralObjectPtr = TObjectPtr<T, TEphemeralObjectPtrContext>;
 
+template <class T>
+class TRawObjectPtr;
+
 class TObjectProxyBase;
 
 class TAttributeSet;
@@ -126,16 +129,56 @@ static constexpr int MaxClusterNameLength = 128;
 // NB: Changing this value requires promoting master reign.
 static constexpr size_t DefaultYsonStringInternLengthThreshold = 1_KB;
 
+/*
+    These macros control the behavior of Raw Object Pointer Sanitizer (ROPSan).
+
+    * YT_ROPSAN_ENABLE_ACCESS_CHECK
+    Enforces tag checks on each access via TRawObjectPtr (e.g. dereference).
+
+    * YT_ROPSAN_ENABLE_SERIALIZATION_CHECK
+    Minimally-intrusive mode. Only enforces tag checks when TRawObjectPtr
+    is being persisted to a snapshot.
+*/
+
+// Turning assertions on enables all ROPSan features automatically.
+#if !defined(NDEBUG)
+#   define YT_ROPSAN_ENABLE_ACCESS_CHECK
+#   define YT_ROPSAN_ENABLE_SERIALIZATION_CHECK
+#endif
+
+/*
+    If YT_ROPSAN_ENABLE_PTR_TAGGING is set then
+    * all object are annotated with random tags
+    * these tags are reset to "dead" sentinel on object destruction
+    * TRawObjectPtr becomes a tagged pointer
+
+    This does not imply any runtime checks on its own but is a prerequisite for any
+    of YT_ROPSAN_ENABLE_ACCESS_CHECK and YT_ROPSAN_ENABLE_SERIALIZATION_CHECK modes.
+*/
+#if defined(YT_ROPSAN_ENABLE_ACCESS_CHECK) ||  defined(YT_ROPSAN_ENABLE_SERIALIZATION_CHECK)
+#   define YT_ROPSAN_ENABLE_PTR_TAGGING
+#endif
+
+using TRopSanTag = ui16;
+constexpr TRopSanTag DeadRopSanTag = 0xdead;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DECLARE_MASTER_OBJECT_TYPE(type) \
     class type; \
     using type ## Ptr = ::NYT::NObjectServer::TStrongObjectPtr<type>; \
+    using type ## RawPtr = ::NYT::NObjectServer::TRawObjectPtr<type>; \
     \
-    YT_ATTRIBUTE_USED ::NYT::NObjectServer::TObject* ToObject(type* obj);
+    YT_ATTRIBUTE_USED ::NYT::NObjectServer::TObject* ToObject(type* obj); \
+    YT_ATTRIBUTE_USED const ::NYT::NObjectServer::TObject* ToObject(const type* obj);
 
 #define DEFINE_MASTER_OBJECT_TYPE(type) \
     YT_ATTRIBUTE_USED Y_FORCE_INLINE ::NYT::NObjectServer::TObject* ToObject(type* obj) \
+    { \
+        return obj; \
+    } \
+    \
+    YT_ATTRIBUTE_USED Y_FORCE_INLINE const ::NYT::NObjectServer::TObject* ToObject(const type* obj) \
     { \
         return obj; \
     }

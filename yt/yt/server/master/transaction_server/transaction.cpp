@@ -438,7 +438,7 @@ void DumpTransaction(TFluent fluent, const TTransaction* transaction, bool dumpP
             .OptionalItem("title", transaction->GetTitle())
             .DoIf(dumpParents, [&] (auto fluent) {
                 std::vector<TTransaction*> parents;
-                auto* parent = transaction->GetParent();
+                auto parent = transaction->GetParent();
                 while (parent) {
                     parents.push_back(parent);
                     parent = parent->GetParent();

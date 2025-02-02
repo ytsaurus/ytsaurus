@@ -274,8 +274,19 @@ protected:
     };
     TFlags Flags_ = {};
 
+#ifdef YT_ROPSAN_ENABLE_PTR_TAGGING
+    template <class T>
+    friend class TRawObjectPtr;
+
+    TRopSanTag RopSanTag_;
+
+    static TRopSanTag GenerateRopSanTag();
+#endif
+
     std::unique_ptr<TAttributeSet> Attributes_;
 };
+
+using TObjectRawPtr = ::NYT::NObjectServer::TRawObjectPtr<TObject>;
 
 // Think twice before increasing this.
 YT_STATIC_ASSERT_SIZEOF_SANITY(TObject, 88);
@@ -302,14 +313,14 @@ std::vector<TObjectId> ToObjectIds(
 template <class TValue>
 std::vector<TValue*> GetValuesSortedByKey(const NHydra::TReadOnlyEntityMap<TValue>& entities);
 
-template <class TValue>
-std::vector<TValue*> GetValuesSortedByKey(const THashSet<TValue*>& entities);
+template <class TValuePtr>
+std::vector<TValuePtr> GetValuesSortedByKey(const THashSet<TValuePtr>& entities);
 
-template <typename TKey, class TValue>
-std::vector<TValue*> GetValuesSortedById(const THashMap<TKey, TValue*>& entities);
+template <typename TKey, class TValuePtr>
+std::vector<TValuePtr> GetValuesSortedById(const THashMap<TKey, TValuePtr>& entities);
 
-template <class TObject, class TValue>
-std::vector<typename THashMap<TObject*, TValue>::iterator> GetIteratorsSortedByKey(THashMap<TObject*, TValue>& entities);
+template <class TObjectPtr, class TValue>
+std::vector<typename THashMap<TObjectPtr, TValue>::iterator> GetIteratorsSortedByKey(THashMap<TObjectPtr, TValue>& entities);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -394,6 +405,8 @@ public:
     template <class U>
     bool operator==(const TObjectPtr<U, C>& other) const noexcept;
     template <class U>
+    bool operator==(TRawObjectPtr<U> other) const noexcept;
+    template <class U>
     bool operator==(U* other) const noexcept;
 
 private:
@@ -404,23 +417,58 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+class TRawObjectPtr
+{
+public:
+    TRawObjectPtr() noexcept = default;
+    TRawObjectPtr(const TRawObjectPtr& other) noexcept = default;
+    TRawObjectPtr(TRawObjectPtr&& other) noexcept = default;
+    // Intentionally implicit.
+    TRawObjectPtr(T* ptr) noexcept;
+
+    TRawObjectPtr& operator=(const TRawObjectPtr& other) = default;
+    TRawObjectPtr& operator=(TRawObjectPtr&& other) = default;
+
+    T* operator->() const noexcept;
+
+    operator T*() const noexcept;
+
+    template <class U>
+        requires std::derived_from<T, U>
+    operator TRawObjectPtr<U>() const noexcept;
+
+    explicit operator bool() const noexcept;
+
+    T* Get() const noexcept;
+
+    //! Same as |Get| but does not check tags.
+    T* GetUnsafe() const noexcept;
+
+#ifdef YT_ROPSAN_ENABLE_PTR_TAGGING
+    void VerifyRopSanTag() const noexcept;
+#endif
+
+private:
+#ifdef YT_ROPSAN_ENABLE_PTR_TAGGING
+    static constexpr int PtrBitWidth = 48;
+    uintptr_t TaggedPtr_ = 0;
+
+    static uintptr_t MakeTaggedPtr(T* ptr) noexcept;
+
+    TRopSanTag GetTag() const noexcept;
+#else
+    T* Ptr_ = nullptr;
+#endif
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T, class C>
 bool IsObjectAlive(const TObjectPtr<T, C>& ptr);
 
 template <class T, class C>
 TObjectId GetObjectId(const TObjectPtr<T, C>& ptr);
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class>
-struct TObjectPtrTraits
-{ };
-
-template <class T, class C>
-struct TObjectPtrTraits<TObjectPtr<T, C>>
-{
-    using TUnderlying = T;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -26,10 +26,10 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(std::string, ClusterName);
     DEFINE_BYVAL_RW_PROPERTY(NYPath::TYPath, ReplicaPath);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, StartReplicationTimestamp);
-    DEFINE_BYVAL_RW_PROPERTY(NTableServer::TReplicatedTableNode*, Table);
+    DEFINE_BYVAL_RW_PROPERTY(NTableServer::TReplicatedTableNodeRawPtr, Table);
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaState, State, ETableReplicaState::None);
     DEFINE_BYVAL_RW_PROPERTY(ETableReplicaMode, Mode, ETableReplicaMode::Async);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TTablet*>, TransitioningTablets);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletRawPtr>, TransitioningTablets);
     DEFINE_BYVAL_RW_PROPERTY(bool, EnableReplicatedTableTracker, true);
     DEFINE_BYVAL_RW_PROPERTY(bool, PreserveTimestamps, true);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::EAtomicity, Atomicity, NTransactionClient::EAtomicity::Full);
@@ -48,6 +48,8 @@ public:
     TDuration ComputeReplicationLagTime(NTransactionClient::TTimestamp latestTimestamp) const;
     int GetErrorCount() const;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TTableReplica)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -229,7 +229,7 @@ public:
 
     //! The shard this node belongs to.
     //! Always null for foreign and non-trunk nodes.
-    DEFINE_BYVAL_RW_PROPERTY(TCypressShard*, Shard);
+    DEFINE_BYVAL_RW_PROPERTY(TCypressShardRawPtr, Shard);
 
     //! The corresponding node in Resolve Cache, if any.
     //! Always null for non-trunk nodes.
@@ -367,8 +367,8 @@ public:
     void VerifySequoia() const;
 
 private:
-    TCypressNode* Parent_ = nullptr;
-    TCypressNode* Originator_ = nullptr;
+    TCypressNodeRawPtr Parent_;
+    TCypressNodeRawPtr Originator_;
     std::unique_ptr<TCypressNodeLockingState> LockingState_;
     NTransactionServer::TTransactionId TransactionId_;
     NHydra::TRevision NativeContentRevision_ = NHydra::NullRevision;

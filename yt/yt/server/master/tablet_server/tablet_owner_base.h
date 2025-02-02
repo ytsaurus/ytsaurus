@@ -22,7 +22,7 @@ private:
         int,
         NTabletClient::MinValidTabletState,
         NTabletClient::MaxValidTabletState>;
-    using TTabletList = std::vector<TTabletBase*>;
+    using TTabletList = std::vector<TTabletBaseRawPtr>;
 
     struct TTabletOwnerAttributes
     {
@@ -134,6 +134,8 @@ public:
 private:
     void ValidateExpectedTabletState(TStringBuf message, bool allowFrozen) const;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TTabletOwnerBase)
 
 // Think twice before increasing this.
 YT_STATIC_ASSERT_SIZEOF_SANITY(TTabletOwnerBase, 624);

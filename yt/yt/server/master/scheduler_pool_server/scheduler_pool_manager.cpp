@@ -254,7 +254,7 @@ public:
 
     std::optional<std::string> GetMaybePoolTreeName(const TSchedulerPool* schedulerPool) noexcept override
     {
-        while (auto* parent = schedulerPool->GetParent()) {
+        while (auto parent = schedulerPool->GetParent()) {
             schedulerPool = parent;
         }
 
@@ -510,7 +510,7 @@ private:
         }
 
         for (const auto& [_, schedulerPoolTree] : PoolTrees_) {
-            RecomputeSubtreeSize(schedulerPoolTree->GetRootPool(), /*validateMatch*/ true);
+            RecomputeSubtreeSize(schedulerPoolTree->GetRootPool().Get(), /*validateMatch*/ true);
         }
     }
 

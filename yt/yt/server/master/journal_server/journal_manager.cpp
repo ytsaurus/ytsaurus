@@ -159,7 +159,7 @@ private:
         newChunkList->AddOwningNode(trunkNode);
 
         i64 appendedRowCount = 0;
-        for (auto* child : chunkList->Children()) {
+        for (auto child : chunkList->Children()) {
             YT_VERIFY(appendedRowCount <= desiredRowCount);
             if (appendedRowCount == desiredRowCount) {
                 YT_LOG_DEBUG(

@@ -40,7 +40,7 @@ void TChunkList::ValidateLastChunkSealed()
         return;
     }
 
-    const auto* lastChunk = Children_.back();
+    auto lastChunk = Children_.back();
     YT_VERIFY(IsJournalChunkType(lastChunk->GetType()));
     if (!lastChunk->IsSealed()) {
         THROW_ERROR_EXCEPTION("Last chunk %v of chunk list %v is not sealed",
@@ -92,7 +92,7 @@ void TChunkList::CheckInvariants(TBootstrap* bootstrap) const
         YT_VERIFY(Parents_.IsEmpty());
     }
     if (kind == EChunkListKind::SortedDynamicTablet || kind == EChunkListKind::OrderedDynamicTablet) {
-        for (auto* parent : Parents_) {
+        for (auto parent : Parents_) {
             if (kind == EChunkListKind::SortedDynamicTablet) {
                 YT_VERIFY(parent->GetKind() == EChunkListKind::SortedDynamicRoot);
             } else {
@@ -101,7 +101,7 @@ void TChunkList::CheckInvariants(TBootstrap* bootstrap) const
         }
     }
     if (kind == EChunkListKind::Static) {
-        for (auto* parent : Parents_) {
+        for (auto parent : Parents_) {
             YT_VERIFY(parent->GetKind() == EChunkListKind::Static);
         }
     }
@@ -139,14 +139,14 @@ void TChunkList::Load(NCellMaster::TLoadContext& context)
     Load(context, PivotKey_);
 
     for (int index = 0; index < std::ssize(Children_); ++index) {
-        auto* child = Children_[index];
+        auto child = Children_[index];
         if (HasChildToIndexMapping()) {
             YT_VERIFY(ChildToIndex_.emplace(child, index).second);
         }
     }
 }
 
-TRange<TChunkList*> TChunkList::Parents() const
+TRange<TChunkListRawPtr> TChunkList::Parents() const
 {
     return TRange(Parents_.begin(), Parents_.end());
 }
@@ -179,12 +179,12 @@ void TChunkList::RemoveOwningNode(TChunkOwnerBase* node)
     }
 }
 
-TRange<TChunkOwnerBase*> TChunkList::TrunkOwningNodes() const
+TRange<TChunkOwnerBaseRawPtr> TChunkList::TrunkOwningNodes() const
 {
     return TRange(TrunkOwningNodes_.begin(), TrunkOwningNodes_.end());
 }
 
-TRange<TChunkOwnerBase*> TChunkList::BranchedOwningNodes() const
+TRange<TChunkOwnerBaseRawPtr> TChunkList::BranchedOwningNodes() const
 {
     return TRange(BranchedOwningNodes_.begin(), BranchedOwningNodes_.end());
 }
@@ -223,7 +223,7 @@ bool TChunkList::IsSealed() const
     if (Children_.empty()) {
         return true;
     }
-    const auto* lastChild = Children_.back();
+    auto lastChild = Children_.back();
     // NB: Nulls are possible in ordered tablets.
     return !lastChild || lastChild->IsSealed();
 }

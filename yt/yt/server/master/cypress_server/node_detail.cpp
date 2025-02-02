@@ -163,7 +163,7 @@ void TNontemplateCypressNodeTypeHandlerBase::SerializeNodeCore(
     Save(*context, node->GetExternalCellTag());
 
     // These are loaded in type handler.
-    Save(*context, node->Account().Get());
+    Save(*context, node->Account());
     Save(*context, node->GetTotalResourceUsage());
     // NB: ACDs can not be set under transaction.
     Save(*context, node->GetTrunkNode()->Acd());
@@ -202,7 +202,7 @@ TCypressNode* TNontemplateCypressNodeTypeHandlerBase::MaterializeNodeCore(
         trunkNode = factory->InstantiateNode(clonedId, context->GetExternalCellTag());
     }
 
-    auto* sourceAccount = Load<TAccount*>(*context);
+    auto sourceAccount = Load<TAccountRawPtr>(*context);
     auto sourceResourceUsage = Load<TClusterResources>(*context);
 
     auto* clonedAccount = factory->GetClonedNodeAccount(sourceAccount);
@@ -1285,7 +1285,7 @@ template <class TNonOwnedChild>
     return dstChildren;
 }
 
-template class TMapNodeChildren<TCypressNode*>;
+template class TMapNodeChildren<TCypressNodeRawPtr>;
 template class TMapNodeChildren<TNodeId>;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1371,7 +1371,7 @@ bool TMapNodeImpl<TChild>::IsNull(TChild child) noexcept
     return TChildren::IsNull(child);
 }
 
-template class TMapNodeImpl<TCypressNode*>;
+template class TMapNodeImpl<TCypressNodeRawPtr>;
 template class TMapNodeImpl<TNodeId>;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1813,22 +1813,16 @@ void TListNode::Save(NCellMaster::TSaveContext& context) const
 {
     TCompositeNodeBase::Save(context);
 
-    using NYT::Save;
-    TVectorSerializer<
-        TRawNonversionedObjectPtrSerializer
-    >::Save(context, IndexToChild_);
+    SaveWith<TVectorSerializer<TRawNonversionedObjectPtrSerializer>>(context, IndexToChild_);
 }
 
 void TListNode::Load(NCellMaster::TLoadContext& context)
 {
     TCompositeNodeBase::Load(context);
 
-    using NYT::Load;
-    TVectorSerializer<
-        TRawNonversionedObjectPtrSerializer
-    >::Load(context, IndexToChild_);
+    LoadWith<TVectorSerializer<TRawNonversionedObjectPtrSerializer>>(context, IndexToChild_);
 
-    // Reconstruct ChildToIndex.
+    // Reconstruct ChildToIndex_.
     for (int index = 0; index < std::ssize(IndexToChild_); ++index) {
         YT_VERIFY(ChildToIndex_.emplace(IndexToChild_[index], index).second);
     }
@@ -1877,7 +1871,7 @@ void TListNodeTypeHandler::DoDestroy(TListNode* node)
 {
     // Drop references to the children.
     const auto& objectManager = GetBootstrap()->GetObjectManager();
-    for (auto* child : node->IndexToChild()) {
+    for (auto child : node->IndexToChild()) {
         objectManager->UnrefObject(child);
     }
 
@@ -1896,7 +1890,7 @@ void TListNodeTypeHandler::DoBranch(
 
     // Reference all children.
     const auto& objectManager = GetBootstrap()->GetObjectManager();
-    for (auto* child : originatingNode->IndexToChild()) {
+    for (auto child : originatingNode->IndexToChild()) {
         objectManager->RefObject(child);
     }
 }
@@ -1909,7 +1903,7 @@ void TListNodeTypeHandler::DoMerge(
 
     // Drop all references held by the originator.
     const auto& objectManager = GetBootstrap()->GetObjectManager();
-    for (auto* child : originatingNode->IndexToChild()) {
+    for (auto child : originatingNode->IndexToChild()) {
         objectManager->UnrefObject(child);
     }
 
@@ -1944,7 +1938,7 @@ void TListNodeTypeHandler::DoClone(
     const auto& indexToChild = sourceNode->IndexToChild();
 
     for (int index = 0; index < std::ssize(indexToChild); ++index) {
-        auto* childNode = indexToChild[index];
+        auto childNode = indexToChild[index];
         auto* clonedChildNode = factory->CloneNode(childNode, mode, inheritedAttributes);
         auto* clonedChildTrunkNode = clonedChildNode->GetTrunkNode();
 

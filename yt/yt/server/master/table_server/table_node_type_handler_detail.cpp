@@ -391,7 +391,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
     // Since the deletion and attribute alteration is replicated to the external cell,
     // we must only unref it once - on the native cell.
     if (table->IsNative()) {
-        if (auto* secondaryIndex = table->GetIndexTo()) {
+        if (auto secondaryIndex = table->GetIndexTo()) {
             secondaryIndex->SetIndexTableId({});
             int refCounter = objectManager->UnrefObject(secondaryIndex);
 
@@ -404,7 +404,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
             table->SetIndexTo(nullptr);
         }
 
-        for (auto* secondaryIndex : GetValuesSortedByKey(table->SecondaryIndices())) {
+        for (auto secondaryIndex : GetValuesSortedByKey(table->SecondaryIndices())) {
             secondaryIndex->SetTableId({});
             int refCounter = objectManager->UnrefObject(secondaryIndex);
 

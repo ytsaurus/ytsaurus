@@ -300,7 +300,7 @@ void TCellTrackerImpl::SchedulePeerAssignment(TCellBase* cell, ICellBalancer* ba
     bool hasFollower = false;
     bool hasLeader = false;
     for (const auto& peer : peers) {
-        auto* node = peer.Node;
+        auto node = peer.Node;
         if (!node) {
             continue;
         }

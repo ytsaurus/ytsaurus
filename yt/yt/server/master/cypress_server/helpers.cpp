@@ -100,7 +100,7 @@ const TKeyToCypressNodeId& GetMapNodeChildMap(
     return GetMapNodeChildMapImpl(cypressManager, trunkNode, transaction, storage);
 }
 
-std::vector<TCypressNode*> GetMapNodeChildList(
+std::vector<TCypressNodeRawPtr> GetMapNodeChildList(
     const ICypressManagerPtr& cypressManager,
     TCypressMapNode* trunkNode,
     TTransaction* transaction)
@@ -116,7 +116,7 @@ std::vector<TCypressNode*> GetMapNodeChildList(
     return GetValues(keyToChildMap);
 }
 
-const std::vector<TCypressNode*>& GetListNodeChildList(
+const std::vector<TCypressNodeRawPtr>& GetListNodeChildList(
     const ICypressManagerPtr& cypressManager,
     TListNode* trunkNode,
     NTransactionServer::TTransaction* transaction)
@@ -503,7 +503,7 @@ TCypressShardId MakeCypressShardId(
 
 std::string SuggestCypressShardName(TCypressShard* shard)
 {
-    const auto* root = shard->GetRoot();
+    auto root = shard->GetRoot();
     switch (root->GetType()) {
         case EObjectType::MapNode:
             return Format("root:%v", root->GetNativeCellTag());

@@ -26,10 +26,10 @@ public:
 
     virtual void DestroyExitNode(TPortalExitNode* trunkNode) = 0;
 
-    using TEntranceNodeMap = THashMap<TNodeId, TPortalEntranceNode*>;
+    using TEntranceNodeMap = THashMap<TNodeId, TPortalEntranceNodeRawPtr>;
     virtual const TEntranceNodeMap& GetEntranceNodes() = 0;
 
-    using TExitNodeMap = THashMap<TNodeId, TPortalExitNode*>;
+    using TExitNodeMap = THashMap<TNodeId, TPortalExitNodeRawPtr>;
     virtual const TExitNodeMap& GetExitNodes() = 0;
 
     virtual void ValidateNoNodesBehindRemovedMastersPortal(const THashSet<NObjectClient::TCellTag>& removedMasterCellTags) const = 0;

@@ -87,7 +87,7 @@ bool TTabletOwnerProxyBase::DoGetBuiltinAttribute(
 
     auto validateTabletStatistics = [&] {
         TTabletStatistics oldFashionedStatistics;
-        for (const auto* tablet : trunkTable->Tablets()) {
+        for (auto tablet : trunkTable->Tablets()) {
             oldFashionedStatistics += tablet->GetTabletStatistics();
         }
 

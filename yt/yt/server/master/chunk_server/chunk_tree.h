@@ -37,6 +37,8 @@ public:
     void Load(NCellMaster::TLoadContext& context);
 };
 
+DEFINE_MASTER_OBJECT_TYPE(TChunkTree)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer

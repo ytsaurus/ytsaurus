@@ -166,7 +166,7 @@ private:
                 action->GetState() != ETabletActionState::Completed &&
                 action->GetState() != ETabletActionState::Failed)
             {
-                for (const auto* tablet : action->Tablets()) {
+                for (auto tablet : action->Tablets()) {
                     if (tablet->GetState() != ETabletState::Unmounted) {
                         for (auto* cell : tablet->GetCells()) {
                             if (cell->IsDecommissionStarted()) {
@@ -177,7 +177,7 @@ private:
                 }
 
                 // When cell is decommissioned all tablet actions should be unlinked.
-                for (const auto* cell : action->TabletCells()) {
+                for (auto cell : action->TabletCells()) {
                     if (cell->IsDecommissionStarted()) {
                         YT_LOG_ERROR("Tablet action target cell is decommissioned (ActionId: %v, CellId: %v)",
                             action->GetId(),
@@ -194,7 +194,7 @@ private:
 
     void MoveTabletsToOtherCells(const TTabletCell* cell) const
     {
-        for (auto* tablet : cell->Tablets()) {
+        for (auto tablet : cell->Tablets()) {
             if (!DecommissionThrottler_->TryAcquire(1)) {
                 return;
             }

@@ -451,7 +451,7 @@ public:
         for (auto locationUuid : chunkLocationUuids) {
             if (auto* existingLocation = FindChunkLocationByUuid(locationUuid); IsObjectAlive(existingLocation)) {
                 objectManager->ValidateObjectLifeStage(existingLocation);
-                if (auto* existingNode = existingLocation->GetNode(); IsObjectAlive(existingNode)) {
+                if (auto existingNode = existingLocation->GetNode(); IsObjectAlive(existingNode)) {
                     if (existingNode->GetDefaultAddress() != address) {
                         THROW_ERROR_EXCEPTION("Cannot register node %Qv: there is another cluster node %Qv with the same location uuid %v",
                             address,
@@ -525,7 +525,7 @@ public:
     {
         YT_VERIFY(node->IsDataNode() || node->IsExecNode());
 
-        for (auto* location : node->ChunkLocations()) {
+        for (auto location : node->ChunkLocations()) {
             location->SetState(EChunkLocationState::Dangling);
             location->SetNode(nullptr);
         }
@@ -541,7 +541,7 @@ public:
                 continue;
             }
 
-            if (auto* existingNode = location->GetNode(); IsObjectAlive(existingNode) && existingNode != node) {
+            if (auto existingNode = location->GetNode(); IsObjectAlive(existingNode) && existingNode != node) {
                 // It was already checked in DataNodeTracker::ValidateRegisterNode().
                 YT_LOG_FATAL("Chunk location is already bound to another node (NodeAddress: %v, LocationUuid: %v, BoundNodeAddress: %v)",
                     node->GetDefaultAddress(),
@@ -565,7 +565,7 @@ public:
     {
         YT_VERIFY(node->IsDataNode() || node->IsExecNode());
 
-        for (auto* location : node->ChunkLocations()) {
+        for (auto location : node->ChunkLocations()) {
             YT_VERIFY(location->GetState() == EChunkLocationState::Offline);
             location->SetState(EChunkLocationState::Online);
         }
@@ -617,7 +617,7 @@ public:
 
     void DestroyChunkLocation(TChunkLocation* location) override
     {
-        auto* node = location->GetNode();
+        auto node = location->GetNode();
 
         YT_LOG_DEBUG("Chunk location destroyed (LocationId: %v, LocationUuid: %v, NodeAddress: %v)",
             location->GetId(),
@@ -753,8 +753,7 @@ private:
                 << TErrorAttribute("location_uuid", uuid);
         }
 
-        auto* locationNode = location->GetNode();
-
+        auto locationNode = location->GetNode();
         if (!locationNode) {
             YT_LOG_ALERT(
                 "Data node reported %v heartbeat with invalid location directory: "
@@ -958,7 +957,7 @@ private:
     {
         auto mutationContext = GetCurrentMutationContext();
 
-        for (auto* location : node->ChunkLocations()) {
+        for (auto location : node->ChunkLocations()) {
             location->SetState(EChunkLocationState::Offline);
             location->SetLastSeenTime(mutationContext->GetTimestamp());
         }
@@ -966,14 +965,14 @@ private:
 
     void OnNodeZombified(TNode* node)
     {
-        for (auto* location : node->ChunkLocations()) {
+        for (auto location : node->ChunkLocations()) {
             location->SetNode(nullptr);
             location->SetState(EChunkLocationState::Dangling);
         }
 
         if (Bootstrap_->IsPrimaryMaster()) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            for (auto* location : node->ChunkLocations()) {
+            for (auto location : node->ChunkLocations()) {
                 objectManager->RemoveObject(location);
             }
         }

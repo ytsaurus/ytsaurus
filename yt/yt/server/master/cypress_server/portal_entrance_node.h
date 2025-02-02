@@ -24,6 +24,8 @@ public:
     void Load(NCellMaster::TLoadContext& context) override;
 };
 
+DEFINE_MASTER_OBJECT_TYPE(TPortalEntranceNode)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

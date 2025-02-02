@@ -27,7 +27,7 @@ class TChaosCellBundle
 public:
     DEFINE_BYREF_RW_PROPERTY(TChaosHydraConfigPtr, ChaosOptions);
 
-    using TMetadataCells = std::vector<TChaosCell*>;
+    using TMetadataCells = std::vector<TChaosCellRawPtr>;
     DEFINE_BYREF_RW_PROPERTY(TMetadataCells, MetadataCells);
 
 public:

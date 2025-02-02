@@ -64,11 +64,11 @@ public:
     struct TPeer
     {
         NNodeTrackerClient::TNodeDescriptor Descriptor;
-        NNodeTrackerServer::TNode* Node = nullptr;
+        NNodeTrackerServer::TNodeRawPtr Node;
         TInstant LastSeenTime;
         EPeerState LastSeenState = EPeerState::None;
         TError LastRevocationReason;
-        NTransactionServer::TTransaction* PrerequisiteTransaction = nullptr;
+        NTransactionServer::TTransactionRawPtr PrerequisiteTransaction;
 
         void Persist(const NCellMaster::TPersistenceContext& context);
     };
@@ -79,10 +79,10 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(int, ConfigVersion);
 
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, PrerequisiteTransaction);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransactionRawPtr, PrerequisiteTransaction);
 
     DEFINE_BYREF_RW_PROPERTY(TCellBundlePtr, CellBundle);
-    DEFINE_BYVAL_RW_PROPERTY(TArea*, Area);
+    DEFINE_BYVAL_RW_PROPERTY(TAreaRawPtr, Area);
 
     DEFINE_BYVAL_RW_PROPERTY(ECellLifeStage, CellLifeStage, ECellLifeStage::Running);
 
@@ -180,6 +180,8 @@ protected:
     ECellHealth GetCumulativeIndependentPeersHealth() const;
     ECellHealth GetCumulativeDependentPeersHealth() const;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TCellBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 

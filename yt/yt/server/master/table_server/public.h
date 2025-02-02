@@ -43,7 +43,11 @@ DECLARE_REFCOUNTED_CLASS(TTabletBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TPartitionConfig)
 DECLARE_REFCOUNTED_CLASS(TMountConfigAttributeDictionary)
 
-DECLARE_MASTER_OBJECT_TYPE(TMasterTableSchema);
+DECLARE_MASTER_OBJECT_TYPE(TMasterTableSchema)
+DECLARE_MASTER_OBJECT_TYPE(TTableCollocation)
+DECLARE_MASTER_OBJECT_TYPE(TSecondaryIndex)
+DECLARE_MASTER_OBJECT_TYPE(TTableNode)
+DECLARE_MASTER_OBJECT_TYPE(TReplicatedTableNode)
 
 using NTableClient::ETableCollocationType;
 using NTabletClient::ESecondaryIndexKind;

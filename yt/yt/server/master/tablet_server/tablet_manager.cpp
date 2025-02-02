@@ -399,7 +399,7 @@ public:
 
         YT_VERIFY(!tablet->GetOwner());
 
-        if (auto* action = tablet->GetAction()) {
+        if (auto action = tablet->GetAction()) {
             OnTabletActionTabletsTouched(
                 action,
                 THashSet<TTabletBase*>{tablet},
@@ -434,7 +434,7 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        for (const auto* replica : GetValuesSortedByKey(table->Replicas())) {
+        for (auto replica : GetValuesSortedByKey(table->Replicas())) {
             if (replica->GetClusterName() == clusterName &&
                 replica->GetReplicaPath() == replicaPath)
             {
@@ -527,11 +527,11 @@ public:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        if (auto* table = replica->GetTable()) {
+        if (auto table = replica->GetTable()) {
             EraseOrCrash(table->Replicas(), replica);
 
             const auto& hiveManager = Bootstrap_->GetHiveManager();
-            for (auto* tablet : table->Tablets()) {
+            for (auto tablet : table->Tablets()) {
                 EraseOrCrash(tablet->As<TTablet>()->Replicas(), replica);
 
                 if (!tablet->IsActive()) {
@@ -567,7 +567,7 @@ public:
             THROW_ERROR_EXCEPTION("Invalid replica mode %Qlv", *mode);
         }
 
-        auto* table = replica->GetTable();
+        auto table = replica->GetTable();
         auto state = replica->GetState();
 
         table->ValidateNotBackup("Cannot alter replica of a backup table");
@@ -605,7 +605,7 @@ public:
                 }
             }
 
-            for (auto* tablet : table->Tablets()) {
+            for (auto tablet : table->Tablets()) {
                 if (tablet->GetState() == ETabletState::Unmounting) {
                     THROW_ERROR_EXCEPTION("Cannot alter \"enabled\" replica flag since tablet %v is in %Qlv state",
                         tablet->GetId(),
@@ -678,7 +678,7 @@ public:
         }
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
-        for (auto* tabletBase : table->Tablets()) {
+        for (auto tabletBase : table->Tablets()) {
             if (!tabletBase->IsActive()) {
                 continue;
             }
@@ -727,8 +727,8 @@ public:
     TTabletAction* CreateTabletAction(
         TObjectId hintId,
         ETabletActionKind kind,
-        const std::vector<TTabletBase*>& tablets,
-        const std::vector<TTabletCell*>& cells,
+        const std::vector<TTabletBaseRawPtr>& tablets,
+        const std::vector<TTabletCellRawPtr>& cells,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const std::optional<int>& tabletCount,
         bool skipFreezing,
@@ -756,13 +756,13 @@ public:
         table->ValidateNoCurrentMountTransaction("Cannot create tablet action");
 
         THashSet<TTabletId> tabletIds;
-        for (const auto* tablet : tablets) {
+        for (auto tablet : tablets) {
             if (tablet->GetOwner() != table) {
                 THROW_ERROR_EXCEPTION("Tablets %v and %v belong to different tables",
                     tablets[0]->GetId(),
                     tablet->GetId());
             }
-            if (auto* action = tablet->GetAction()) {
+            if (auto action = tablet->GetAction()) {
                 THROW_ERROR_EXCEPTION("Tablet %v already participating in action %v",
                     tablet->GetId(),
                     action->GetId());
@@ -785,7 +785,7 @@ public:
         bool freeze;
         {
             auto state = tablets[0]->GetState();
-            for (const auto* tablet : tablets) {
+            for (auto tablet : tablets) {
                 if (tablet->GetState() != state) {
                     THROW_ERROR_EXCEPTION("Tablets are in mixed state");
                 }
@@ -795,7 +795,7 @@ public:
 
         const auto& bundle = table->TabletCellBundle();
 
-        for (auto* cell : cells) {
+        for (auto cell : cells) {
             if (!IsCellActive(cell)) {
                 THROW_ERROR_EXCEPTION("Tablet cell %v is not active", cell->GetId());
             }
@@ -883,7 +883,7 @@ public:
                 THROW_ERROR_EXCEPTION("Destination cell must be specified");
             }
 
-            const auto* tablet = tablets[0];
+            auto tablet = tablets[0];
 
             if (tablet->GetCell() == cells[0]) {
                 THROW_ERROR_EXCEPTION("Tablet already belongs to cell %v",
@@ -946,7 +946,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         UnbindTabletAction(action);
-        if (auto* bundle = action->GetTabletCellBundle()) {
+        if (auto bundle = action->GetTabletCellBundle()) {
             bundle->TabletActions().erase(action);
             if (!action->IsFinished()) {
                 bundle->DecreaseActiveTabletActionCount();
@@ -1029,7 +1029,7 @@ public:
 
         auto maxChunkCount = GetDynamicConfig()->MaxChunksPerMountedTablet;
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tabletBase = allTablets[index];
+            auto tabletBase = allTablets[index];
             tabletBase->ValidateMount(freeze);
 
             if (tabletBase->GetType() == EObjectType::Tablet) {
@@ -1140,16 +1140,16 @@ public:
 
         if (!targetCellIds.empty()) {
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-                auto* tablet = allTablets[index];
+                auto tablet = allTablets[index];
                 if (!tablet->GetCell()) {
                     auto* cell = FindTabletCell(targetCellIds[index - firstTabletIndex]);
                     assignment.emplace_back(tablet, cell);
                 }
             }
         } else {
-            std::vector<TTabletBase*> tabletsToMount;
+            std::vector<TTabletBaseRawPtr> tabletsToMount;
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-                auto* tablet = allTablets[index];
+                auto tablet = allTablets[index];
                 if (!tablet->GetCell()) {
                     tabletsToMount.push_back(tablet);
                 }
@@ -1202,7 +1202,7 @@ public:
 
         if (!force) {
             for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-                auto* tablet = table->Tablets()[index];
+                auto tablet = table->Tablets()[index];
                 tablet->ValidateUnmount();
             }
         }
@@ -1328,7 +1328,7 @@ public:
         ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tablet = table->Tablets()[index];
+            auto tablet = table->Tablets()[index];
             tablet->ValidateFreeze();
         }
 
@@ -1352,7 +1352,7 @@ public:
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tablet = table->Tablets()[index];
+            auto tablet = table->Tablets()[index];
             DoFreezeTablet(tablet);
         }
 
@@ -1381,7 +1381,7 @@ public:
         ParseTabletRangeOrThrow(table, &firstTabletIndex, &lastTabletIndex); // may throw
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tablet = table->Tablets()[index];
+            auto tablet = table->Tablets()[index];
             tablet->ValidateUnfreeze();
         }
 
@@ -1405,7 +1405,7 @@ public:
         ParseTabletRange(table, &firstTabletIndex, &lastTabletIndex);
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tablet = table->Tablets()[index];
+            auto tablet = table->Tablets()[index];
             DoUnfreezeTablet(tablet);
         }
 
@@ -1473,13 +1473,13 @@ public:
             TTabletResources().SetTabletCount(newTabletCount - oldTabletCount));
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tablet = tablets[index];
+            auto tablet = tablets[index];
             tablet->ValidateReshard();
         }
 
         if (newTabletCount < oldTabletCount) {
             for (int index = firstTabletIndex + newTabletCount; index < firstTabletIndex + oldTabletCount; ++index) {
-                auto* tablet = tablets[index];
+                auto tablet = tablets[index];
                 tablet->ValidateReshardRemove();
             }
         }
@@ -1522,7 +1522,7 @@ public:
 
         const auto& hiveManager = Bootstrap_->GetHiveManager();
 
-        for (auto* tablet : table->Tablets()) {
+        for (auto tablet : table->Tablets()) {
             if (tablet->GetState() == ETabletState::Unmounted) {
                 continue;
             }
@@ -1554,7 +1554,7 @@ public:
                 lastTabletIndex,
                 /*onDestroy*/ true);
 
-            for (auto* tablet : table->Tablets()) {
+            for (auto tablet : table->Tablets()) {
                 tablet->SetOwner(nullptr);
                 YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
                 objectManager->UnrefObject(tablet);
@@ -1572,7 +1572,7 @@ public:
 
         if (table->GetType() == EObjectType::ReplicatedTable) {
             auto* replicatedTable = table->As<TReplicatedTableNode>();
-            for (auto* replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
+            for (auto replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
                 objectManager->UnrefObject(replica);
             }
             YT_VERIFY(replicatedTable->Replicas().empty());
@@ -1591,7 +1591,7 @@ public:
                 transaction->LockedDynamicTables().erase(typedTable);
             }
 
-            if (auto* replicationCollocation = typedTable->GetReplicationCollocation()) {
+            if (auto replicationCollocation = typedTable->GetReplicationCollocation()) {
                 YT_VERIFY(table->GetType() == EObjectType::ReplicatedTable);
                 const auto& tableManager = Bootstrap_->GetTableManager();
                 tableManager->RemoveTableFromCollocation(typedTable, replicationCollocation);
@@ -1629,7 +1629,7 @@ public:
 
         // Deaccumulate old tablet statistics.
         for (int index = 0; index < std::ssize(originatingNode->Tablets()); ++index) {
-            auto* tablet = originatingNode->Tablets()[index];
+            auto tablet = originatingNode->Tablets()[index];
 
             auto tabletStatistics = tablet->GetTabletStatistics();
             originatingNode->DiscountTabletStatistics(tabletStatistics);
@@ -1658,7 +1658,7 @@ public:
                 AbandonDynamicStores(tablet);
             }
 
-            std::vector<TChunkTree*> stores;
+            std::vector<TChunkTreeRawPtr> stores;
             for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
                 if (updateMode == EUpdateMode::Append && contentType == EChunkListContentType::Hunk) {
                     continue;
@@ -1721,7 +1721,7 @@ public:
             req.set_update_mode(ToProto(updateMode));
 
             i64 startingRowIndex = 0;
-            for (const auto* store : stores) {
+            for (auto store : stores) {
                 auto* descriptor = req.add_stores_to_add();
                 FillStoreDescriptor(originatingNode, store, descriptor, &startingRowIndex);
             }
@@ -1795,7 +1795,7 @@ public:
             auto* action = CreateTabletAction(
                 TObjectId{},
                 ETabletActionKind::Reshard,
-                std::vector<TTabletBase*>(tablets.begin(), tablets.end()),
+                std::vector<TTabletBaseRawPtr>(tablets.begin(), tablets.end()),
                 /*cells*/ {},
                 /*pivotKeys*/ {},
                 descriptor.TabletCount,
@@ -1900,7 +1900,7 @@ public:
 
         std::vector<TTablet*> tablets;
         tablets.reserve(table->Tablets().size());
-        for (auto* tablet : table->Tablets()) {
+        for (auto tablet : table->Tablets()) {
             tablets.push_back(tablet->As<TTablet>());
         }
 
@@ -2092,14 +2092,14 @@ public:
         }
 
         for (int index = 0; index < std::ssize(sourceTablets); ++index) {
-            auto* sourceTablet = sourceTablets[index];
+            auto sourceTablet = sourceTablets[index];
 
             auto* clonedTablet = CreateTablet(trunkClonedTable, EObjectType::Tablet)->As<TTablet>();
             clonedTablet->CopyFrom(*sourceTablet);
 
             for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
                 auto* sourceRootChunkList = trunkSourceTable->GetChunkList(contentType);
-                auto* tabletChunkList = sourceRootChunkList->Children()[index];
+                auto tabletChunkList = sourceRootChunkList->Children()[index];
                 chunkManager->AttachToChunkList(clonedRootChunkLists[contentType], {tabletChunkList});
             }
 
@@ -2131,7 +2131,7 @@ public:
 
             YT_VERIFY(mode != ENodeCloneMode::Move);
 
-            for (const auto* replica : GetValuesSortedByKey(trunkReplicatedSourceTable->Replicas())) {
+            for (auto replica : GetValuesSortedByKey(trunkReplicatedSourceTable->Replicas())) {
                 const TTableReplicaBackupDescriptor* replicaBackupDescriptor = nullptr;
 
                 if (isBackupAction) {
@@ -2322,7 +2322,7 @@ public:
             return;
         }
 
-        for (auto* tablet : table->Tablets()) {
+        for (auto tablet : table->Tablets()) {
             table->DiscountTabletStatistics(tablet->GetTabletStatistics());
         }
 
@@ -2331,7 +2331,7 @@ public:
         TabletChunkManager_->MakeTableStatic(table);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* tablet : table->Tablets()) {
+        for (auto tablet : table->Tablets()) {
             tablet->SetOwner(nullptr);
             objectManager->UnrefObject(tablet);
         }
@@ -2373,7 +2373,7 @@ public:
         const auto& hiveManager = Bootstrap_->GetHiveManager();
         int pendingTabletCount = 0;
 
-        for (auto* tablet : table->Tablets()) {
+        for (auto tablet : table->Tablets()) {
             if (tablet->GetState() == ETabletState::Unmounted) {
                 continue;
             }
@@ -2414,7 +2414,7 @@ public:
     void RecomputeTableTabletStatistics(TTabletOwnerBase* table)
     {
         table->ResetTabletStatistics();
-        for (const auto* tablet : table->Tablets()) {
+        for (auto tablet : table->Tablets()) {
             table->AccountTabletStatistics(tablet->GetTabletStatistics());
         }
     }
@@ -2453,7 +2453,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto actions = cell->Actions();
-        for (auto* action : actions) {
+        for (auto action : actions) {
             // NB: If destination cell disappears, don't drop action - let it continue with some other cells.
             UnbindTabletActionFromCells(action);
             OnTabletActionDisturbed(action, TError("Tablet cell %v has been removed", cell->GetId()));
@@ -2539,7 +2539,7 @@ public:
     {
         YT_VERIFY(table->IsTrunk());
 
-        auto* oldBundle = table->TabletCellBundle().Get();
+        auto oldBundle = table->TabletCellBundle().Get();
         if (oldBundle == newBundle) {
             return;
         }
@@ -2626,7 +2626,7 @@ public:
             YT_VERIFY(cellBase->GetType() == EObjectType::TabletCell);
             auto* cell = cellBase->As<TTabletCell>();
             cell->GossipStatistics().Local() = NTabletServer::TTabletCellStatistics();
-            for (const auto* tablet : cell->Tablets()) {
+            for (auto tablet : cell->Tablets()) {
                 if (tablet->Servant().GetCell() == cell) {
                     cell->GossipStatistics().Local() += tablet->GetTabletStatistics();
                 } else if (tablet->AuxiliaryServant().GetCell() == cell) {
@@ -2663,7 +2663,7 @@ public:
         }
 
         for (auto* table : tableNodes) {
-            for (auto* tablet : table->Tablets()) {
+            for (auto tablet : table->Tablets()) {
                 auto tabletStatistics = tablet->GetTabletStatistics();
                 table->DiscountTabletStatistics(tabletStatistics);
             }
@@ -2676,7 +2676,7 @@ public:
         for (auto* table : tableNodes) {
             RecomputeTableSnapshotStatistics(table);
 
-            for (auto* tablet : table->Tablets()) {
+            for (auto tablet : table->Tablets()) {
                 auto* tabletHunkChunkList = tablet->GetHunkChunkList();
                 // TODO(aleksandra-zh): remove linear search if someday chunks will have a lot of parents.
                 auto it = std::find_if(parents.begin(), parents.end(), [tabletHunkChunkList] (auto parent) {
@@ -2723,7 +2723,7 @@ public:
         tablet->GetTable()->AccountTabletStatisticsDelta(statisticsDelta);
 
         tablet->GetCell()->GossipStatistics().Local() += statisticsDelta;
-        if (auto* cell = tablet->AuxiliaryServant().GetCell()) {
+        if (auto cell = tablet->AuxiliaryServant().GetCell()) {
             cell->GossipStatistics().Local() += statisticsDelta;
         }
     }
@@ -2899,7 +2899,7 @@ private:
 
         auto* cell = cellBase->As<TTabletCell>();
         auto actions = cell->Actions();
-        for (auto* action : actions) {
+        for (auto action : actions) {
             // NB: If destination cell disappears, don't drop action - let it continue with some other cells.
             UnbindTabletActionFromCells(action);
             OnTabletActionDisturbed(action, TError("Tablet cell %v has been decommissioned", cell->GetId()));
@@ -2950,8 +2950,8 @@ private:
         TObjectId hintId,
         ETabletActionKind kind,
         ETabletActionState state,
-        const std::vector<TTabletBase*>& tablets,
-        const std::vector<TTabletCell*>& cells,
+        const std::vector<TTabletBaseRawPtr>& tablets,
+        const std::vector<TTabletCellRawPtr>& cells,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         std::optional<int> tabletCount,
         bool freeze,
@@ -2969,7 +2969,7 @@ private:
         auto* action = TabletActionMap_.Insert(id, std::move(actionHolder));
         objectManager->RefObject(action);
 
-        for (auto* tablet : tablets) {
+        for (auto tablet : tablets) {
             YT_VERIFY(tablet->GetType() == EObjectType::Tablet);
 
             tablet->SetAction(action);
@@ -2983,7 +2983,7 @@ private:
                     : ETabletState::Mounted);
             }
         }
-        for (auto* cell : cells) {
+        for (auto cell : cells) {
             cell->Actions().insert(action);
         }
 
@@ -3013,7 +3013,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        for (auto* cell : action->TabletCells()) {
+        for (auto cell : action->TabletCells()) {
             cell->Actions().erase(action);
         }
 
@@ -3024,7 +3024,7 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-        for (auto* tablet : action->Tablets()) {
+        for (auto tablet : action->Tablets()) {
             YT_VERIFY(tablet->GetAction() == action);
             tablet->SetAction(nullptr);
         }
@@ -3073,7 +3073,7 @@ private:
                 tablet->EdenStoreIds().end());
 
             auto chunksOrViews = EnumerateStoresInChunkTree(tablet->GetChunkList());
-            for (const auto* chunkOrView : chunksOrViews) {
+            for (auto chunkOrView : chunksOrViews) {
                 const auto* chunk = chunkOrView->GetType() == EObjectType::ChunkView
                     ? chunkOrView->AsChunkView()->GetUnderlyingTree()->AsChunk()
                     : chunkOrView->AsChunk();
@@ -3125,7 +3125,7 @@ private:
 
     void MountMissedInActionTablets(TTabletAction* action)
     {
-        for (auto* tablet : action->Tablets()) {
+        for (auto tablet : action->Tablets()) {
             try {
                 if (!IsObjectAlive(tablet)) {
                     continue;
@@ -3172,7 +3172,7 @@ private:
         const TError& error)
     {
         bool touched = false;
-        for (auto* tablet : action->Tablets()) {
+        for (auto tablet : action->Tablets()) {
             if (touchedTablets.find(tablet) != touchedTablets.end()) {
                 YT_VERIFY(tablet->GetAction() == action);
                 tablet->SetAction(nullptr);
@@ -3195,7 +3195,7 @@ private:
                 std::remove_if(
                     tablets.begin(),
                     tablets.end(),
-                    [&] (auto* tablet) {
+                    [&] (auto tablet) {
                         return touchedTablets.find(tablet) != touchedTablets.end();
                     }),
                 tablets.end());
@@ -3219,7 +3219,7 @@ private:
             touchedTablets.insert(table->Tablets()[index]);
         }
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            if (auto* action = table->Tablets()[index]->GetAction()) {
+            if (auto action = table->Tablets()[index]->GetAction()) {
                 OnTabletActionTabletsTouched(action, touchedTablets, error);
             }
         }
@@ -3329,7 +3329,7 @@ private:
                     YT_VERIFY(action->Tablets().size() == 1);
                     YT_VERIFY(action->TabletCells().size() == 1);
 
-                    auto* cell = action->TabletCells()[0];
+                    auto cell = action->TabletCells()[0];
                     YT_VERIFY(action->Tablets()[0]->GetType() == EObjectType::Tablet);
 
                     auto* tablet = action->Tablets()[0]->As<TTablet>();
@@ -3369,7 +3369,7 @@ private:
                     break;
                 }
 
-                for (auto* tablet : action->Tablets()) {
+                for (auto tablet : action->Tablets()) {
                     DoFreezeTablet(tablet);
                 }
 
@@ -3379,7 +3379,7 @@ private:
 
             case ETabletActionState::Freezing: {
                 int freezingCount = 0;
-                for (const auto* tablet : action->Tablets()) {
+                for (auto tablet : action->Tablets()) {
                     YT_VERIFY(IsObjectAlive(tablet));
                     if (tablet->GetState() == ETabletState::Freezing) {
                         ++freezingCount;
@@ -3395,7 +3395,7 @@ private:
             }
 
             case ETabletActionState::Frozen: {
-                for (auto* tablet : action->Tablets()) {
+                for (auto tablet : action->Tablets()) {
                     YT_VERIFY(IsObjectAlive(tablet));
                     UnmountTablet(tablet, /*force*/ false, /*onDestroy*/ false);
                 }
@@ -3406,7 +3406,7 @@ private:
 
             case ETabletActionState::Unmounting: {
                 int unmountingCount = 0;
-                for (const auto* tablet : action->Tablets()) {
+                for (auto tablet : action->Tablets()) {
                     YT_VERIFY(IsObjectAlive(tablet));
                     if (tablet->GetState() == ETabletState::Unmounting) {
                         ++unmountingCount;
@@ -3438,12 +3438,12 @@ private:
 
                         auto expectedState = action->GetFreeze() ? ETabletState::Frozen : ETabletState::Mounted;
 
-                        std::vector<TTabletBase*> oldTablets;
+                        std::vector<TTabletBaseRawPtr> oldTablets;
                         oldTablets.swap(action->Tablets());
-                        for (auto* tablet : oldTablets) {
+                        for (auto tablet : oldTablets) {
                             tablet->SetAction(nullptr);
                         }
-                        for (auto* tablet : oldTablets) {
+                        for (auto tablet : oldTablets) {
                             if (tablet->GetExpectedState() != expectedState) {
                                 YT_LOG_ALERT_IF(tablet->GetExpectedState() != expectedState,
                                     "Unexpected tablet expected state, try fixing with unmount plus mount "
@@ -3481,7 +3481,7 @@ private:
                                 action->PivotKeys(),
                                 /*trimmedRowCounts*/ {});
                         } catch (const std::exception& ex) {
-                            for (auto* tablet : oldTablets) {
+                            for (auto tablet : oldTablets) {
                                 YT_VERIFY(IsObjectAlive(tablet));
                                 tablet->SetAction(action);
                             }
@@ -3489,10 +3489,10 @@ private:
                             throw;
                         }
 
-                        action->Tablets() = std::vector<TTabletBase*>(
+                        action->Tablets() = std::vector<TTabletBaseRawPtr>(
                             table->Tablets().begin() + firstTabletIndex,
                             table->Tablets().begin() + firstTabletIndex + newTabletCount);
-                        for (auto* tablet : action->Tablets()) {
+                        for (auto tablet : action->Tablets()) {
                             tablet->SetAction(action);
                             tablet->SetExpectedState(expectedState);
                         }
@@ -3556,7 +3556,7 @@ private:
 
             case ETabletActionState::Mounting: {
                 int mountedCount = 0;
-                for (const auto* tablet : action->Tablets()) {
+                for (auto tablet : action->Tablets()) {
                     YT_VERIFY(IsObjectAlive(tablet));
                     if (tablet->GetState() == ETabletState::Mounted ||
                         tablet->GetState() == ETabletState::Frozen)
@@ -3595,7 +3595,7 @@ private:
 
             case ETabletActionState::Failed: {
                 UnbindTabletAction(action);
-                if (auto* bundle = action->GetTabletCellBundle()) {
+                if (auto bundle = action->GetTabletCellBundle()) {
                     bundle->DecreaseActiveTabletActionCount();
                 }
                 const auto now = GetCurrentMutationContext()->GetTimestamp();
@@ -3607,12 +3607,12 @@ private:
             }
 
             case ETabletActionState::MountingAuxiliary: {
-                auto* tablet = action->Tablets()[0];
+                auto tablet = action->Tablets()[0];
                 if (tablet->AuxiliaryServant().GetState() != ETabletState::Mounted) {
                     break;
                 }
 
-                auto* cell = action->TabletCells()[0];
+                auto cell = action->TabletCells()[0];
                 YT_VERIFY(tablet->AuxiliaryServant().GetCell() == cell);
 
                 TReqStartSmoothMovement req;
@@ -3643,8 +3643,8 @@ private:
             }
 
             case ETabletActionState::WaitingForSmoothMove: {
-                auto* cell = action->TabletCells()[0];
-                auto* tablet = action->Tablets()[0];
+                auto cell = action->TabletCells()[0];
+                auto tablet = action->Tablets()[0];
                 if (tablet->AuxiliaryServant()) {
                     break;
                 }
@@ -3656,7 +3656,7 @@ private:
             }
 
             case ETabletActionState::AbortingSmoothMove: {
-                auto* tablet = action->Tablets()[0];
+                auto tablet = action->Tablets()[0];
                 YT_VERIFY(tablet->Servant());
 
                 if (tablet->AuxiliaryServant()) {
@@ -3739,7 +3739,7 @@ private:
         auto assignment = ComputeTabletAssignment(
             table,
             cell,
-            std::vector<TTabletBase*>{tablet});
+            std::vector<TTabletBaseRawPtr>{tablet});
 
         DoMountTablets(table, serializedTableSettings, assignment, freeze);
     }
@@ -3813,8 +3813,8 @@ private:
                     TObjectId(),
                     ETabletActionKind::Move,
                     ETabletActionState::Orphaned,
-                    std::vector<TTabletBase*>{tablet},
-                    std::vector<TTabletCell*>{},
+                    std::vector<TTabletBaseRawPtr>{tablet},
+                    std::vector<TTabletCellRawPtr>{},
                     std::vector<NTableClient::TLegacyOwningKey>{},
                     /*tabletCount*/ std::nullopt,
                     freeze,
@@ -3996,7 +3996,7 @@ private:
 
             if (table->IsReplicated()) {
                 auto* replicatedTable = table->As<TReplicatedTableNode>();
-                for (auto* replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
+                for (auto replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
                     const auto* replicaInfo = tablet->GetReplicaInfo(replica);
                     PopulateTableReplicaDescriptor(req.add_replicas(), replica, *replicaInfo);
                 }
@@ -4028,12 +4028,12 @@ private:
             const auto& chunkListStatistics = chunkList->Statistics();
             i64 startingRowIndex = chunkListStatistics.LogicalRowCount - chunkListStatistics.RowCount;
 
-            std::vector<TChunkTree*> chunksOrViews;
+            std::vector<TChunkTreeRawPtr> chunksOrViews;
             for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
                 auto* chunkList = tablet->GetChunkList(contentType);
                 EnumerateStoresInChunkTree(chunkList, &chunksOrViews);
             }
-            for (const auto* chunkOrView : chunksOrViews) {
+            for (auto chunkOrView : chunksOrViews) {
                 if (IsHunkChunk(tablet, chunkOrView)) {
                     FillHunkChunkDescriptor(chunkOrView->AsChunk(), reqReplicatable.add_hunk_chunks());
                 } else {
@@ -4102,7 +4102,7 @@ private:
         }
 
         for (auto it : GetIteratorsSortedByKey(tablet->Replicas())) {
-            auto* replica = it->first;
+            auto replica = it->first;
             auto& replicaInfo = it->second;
             switch (replica->GetState()) {
                 case ETableReplicaState::Enabled:
@@ -4151,7 +4151,7 @@ private:
         FillHunkStorageSettings(&request, serializedSettings);
 
         auto chunks = EnumerateChunksInChunkTree(tablet->GetChunkList());
-        for (auto* chunk : chunks) {
+        for (auto chunk : chunks) {
             ToProto(request.add_store_ids(), chunk->GetId());
         }
 
@@ -4339,12 +4339,12 @@ private:
             transaction->LockedDynamicTables(),
             TObjectIdComparer()))
         {
-            auto* table = *tableIt;
+            auto table = *tableIt;
             if (!IsObjectAlive(table)) {
                 continue;
             }
 
-            for (auto* tablet : table->Tablets()) {
+            for (auto tablet : table->Tablets()) {
                 if (tablet->GetState() == ETabletState::Unmounted) {
                     continue;
                 }
@@ -4376,7 +4376,7 @@ private:
         auto currentRevision = GetCurrentMutationContext()->GetVersion().ToRevision();
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tablet = table->Tablets()[index];
+            auto tablet = table->Tablets()[index];
 
             if (tablet->GetState() == ETabletState::Unmounted) {
                 continue;
@@ -4414,7 +4414,7 @@ private:
         auto serializedTableSettings = SerializeTableSettings(tableSettings);
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tablet = table->Tablets()[index];
+            auto tablet = table->Tablets()[index];
             auto* cell = tablet->GetCell();
             auto state = tablet->GetState();
 
@@ -4532,7 +4532,7 @@ private:
 
         // Drop old tablets.
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tablet = tablets[index];
+            auto tablet = tablets[index];
             hunkStorage->DiscountTabletStatistics(tablet->GetTabletStatistics());
             tablet->SetOwner(nullptr);
 
@@ -4545,7 +4545,7 @@ private:
 
         // Update tablet indices.
         for (int index = 0; index < std::ssize(tablets); ++index) {
-            auto* tablet = tablets[index];
+            auto tablet = tablets[index];
             tablet->SetIndex(index);
         }
 
@@ -4642,7 +4642,7 @@ private:
 
             if (table->IsReplicated()) {
                 const auto* replicatedTable = table->As<TReplicatedTableNode>();
-                for (auto* replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
+                for (auto replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
                     YT_VERIFY(newTablet->Replicas().emplace(replica, TTableReplicaInfo()).second);
                 }
             }
@@ -4715,7 +4715,7 @@ private:
         tablets.insert(tablets.begin() + firstTabletIndex, newTablets.begin(), newTablets.end());
         // Update all indexes.
         for (int index = 0; index < std::ssize(tablets); ++index) {
-            auto* tablet = tablets[index];
+            auto tablet = tablets[index];
             tablet->SetIndex(index);
         }
 
@@ -5189,7 +5189,7 @@ private:
             YT_VERIFY(tabletBase->GetType() == EObjectType::Tablet);
             auto* tablet = tabletBase->As<TTablet>();
 
-            auto* cell = servant->GetCell();
+            auto cell = servant->GetCell();
             if (!IsObjectAlive(cell)){
                 continue;
             }
@@ -5916,7 +5916,7 @@ private:
 
         DeallocateAuxiliaryServant(tablet);
 
-        if (auto* action = tablet->GetAction()) {
+        if (auto action = tablet->GetAction()) {
             OnTabletActionDisturbed(action, error);
         }
     }
@@ -6069,7 +6069,7 @@ private:
             return;
         }
 
-        auto* table = replica->GetTable();
+        auto table = replica->GetTable();
 
         switch (state) {
             case ETableReplicaState::Enabling:
@@ -6097,8 +6097,8 @@ private:
     {
         auto stores = EnumerateStoresInChunkTree(tablet->GetChunkList());
 
-        std::vector<TChunkTree*> dynamicStores;
-        for (auto* store : stores) {
+        std::vector<TChunkTreeRawPtr> dynamicStores;
+        for (auto store : stores) {
             if (IsDynamicTabletStoreType(store->GetType())) {
                 dynamicStores.push_back(store);
                 store->AsDynamicStore()->SetFlushedChunk(nullptr);
@@ -6141,7 +6141,7 @@ private:
         // Making a copy since store->Abandon() will remove elements from tablet->DynamicStores().
         auto stores = tablet->DynamicStores();
 
-        for (auto* store : stores) {
+        for (auto store : stores) {
             store->Abandon();
         }
     }
@@ -6170,7 +6170,7 @@ private:
     void DoTabletServantUnmounted(TTabletBase* tablet, TTabletServant* servant, bool force)
     {
         auto* table = tablet->GetOwner();
-        auto* cell = servant->GetCell();
+        auto cell = servant->GetCell();
         YT_VERIFY(cell);
 
         YT_LOG_DEBUG(
@@ -6309,7 +6309,7 @@ private:
         }
 
         for (auto it : GetIteratorsSortedByKey(tablet->Replicas())) {
-            auto* replica = it->first;
+            auto replica = it->first;
             auto& replicaInfo = it->second;
             if (replica->TransitioningTablets().erase(tablet) == 1) {
                 YT_LOG_ALERT("Table replica is still transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v)",
@@ -6348,7 +6348,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         auto chunks = EnumerateChunksInChunkTree(tablet->GetChunkList());
-        for (auto* chunk : chunks) {
+        for (auto chunk : chunks) {
             chunk->SetSealable(true);
             chunkManager->ScheduleChunkSeal(chunk);
         }
@@ -6740,8 +6740,8 @@ private:
             FromProto(&correlationId, request->correlation_id());
         }
 
-        std::vector<TTabletBase*> tablets;
-        std::vector<TTabletCell*> cells;
+        std::vector<TTabletBaseRawPtr> tablets;
+        std::vector<TTabletCellRawPtr> cells;
 
         for (auto tabletId : tabletIds) {
             tablets.push_back(GetTabletOrThrow(tabletId));
@@ -7084,13 +7084,13 @@ private:
     std::vector<std::pair<TTabletBase*, TTabletCell*>> ComputeTabletAssignment(
         TTabletOwnerBase* table,
         TTabletCell* hintCell,
-        std::vector<TTabletBase*> tabletsToMount)
+        std::vector<TTabletBaseRawPtr> tabletsToMount)
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         if (IsCellActive(hintCell)) {
             std::vector<std::pair<TTabletBase*, TTabletCell*>> assignment;
-            for (auto* tablet : tabletsToMount) {
+            for (auto tablet : tabletsToMount) {
                 assignment.emplace_back(tablet, hintCell);
             }
             return assignment;
@@ -7187,7 +7187,7 @@ private:
         // Assign tablets to cells iteratively looping over cell array.
         int cellIndex = 0;
         std::vector<std::pair<TTabletBase*, TTabletCell*>> assignment;
-        for (auto* tablet : tabletsToMount) {
+        for (auto tablet : tabletsToMount) {
             assignment.emplace_back(tablet, cellKeys[cellIndex].Cell);
             if (++cellIndex == std::ssize(cellKeys)) {
                 cellIndex = 0;
@@ -7205,7 +7205,7 @@ private:
         bool onDestroy)
     {
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            auto* tablet = table->Tablets()[index];
+            auto tablet = table->Tablets()[index];
             UnmountTablet(tablet, force, onDestroy);
         }
     }
@@ -7223,7 +7223,7 @@ private:
 
         auto* table = tablet->GetOwner();
 
-        auto* cell = tablet->Servant().GetCell();
+        auto cell = tablet->Servant().GetCell();
         YT_VERIFY(cell);
 
         YT_LOG_DEBUG(
@@ -7260,7 +7260,7 @@ private:
             }
         }
 
-        auto* cell = servant.GetCell();
+        auto cell = servant.GetCell();
         if (!cell) {
             return;
         }
@@ -7278,7 +7278,7 @@ private:
         hiveManager->PostMessage(mailbox, request);
 
         for (auto it : GetIteratorsSortedByKey(tablet->Replicas())) {
-            auto* replica = it->first;
+            auto replica = it->first;
             auto& replicaInfo = it->second;
             if (replica->TransitioningTablets().count(tablet) > 0) {
                 StopReplicaTransition(tablet, replica, &replicaInfo, ETableReplicaState::None);
@@ -7357,7 +7357,7 @@ private:
         i64 memorySize = 0;
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-            const auto* tablet = table->Tablets()[index];
+            auto tablet = table->Tablets()[index];
             if (tablet->GetState() != ETabletState::Unmounted) {
                 continue;
             }
@@ -7923,8 +7923,8 @@ std::vector<TTabletActionId> TTabletManager::SyncBalanceTablets(TTableNode* tabl
 TTabletAction* TTabletManager::CreateTabletAction(
     NObjectClient::TObjectId hintId,
     ETabletActionKind kind,
-    const std::vector<TTabletBase*>& tablets,
-    const std::vector<TTabletCell*>& cells,
+    const std::vector<TTabletBaseRawPtr>& tablets,
+    const std::vector<TTabletCellRawPtr>& cells,
     const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
     const std::optional<int>& tabletCount,
     bool skipFreezing,

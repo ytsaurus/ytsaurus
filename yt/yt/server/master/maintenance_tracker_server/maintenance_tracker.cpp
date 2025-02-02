@@ -71,11 +71,11 @@ public:
             auto* host = nodeTracker->GetHostByNameOrThrow(address);
             ValidatePermission(host, EPermission::Read);
 
-            for (auto* node : host->Nodes()) {
+            for (auto node : host->Nodes()) {
                 ValidatePermission(node, EPermission::Write);
             }
 
-            for (auto* node : host->Nodes()) {
+            for (auto node : host->Nodes()) {
                 targets.emplace_back(
                     GenerateMaintenanceId(node),
                     EMaintenanceComponent::ClusterNode,
@@ -120,12 +120,12 @@ public:
             auto* host = nodeTracker->GetHostByNameOrThrow(address);
             ValidatePermission(host, EPermission::Read);
 
-            for (auto* node : host->Nodes()) {
+            for (auto node : host->Nodes()) {
                 ValidatePermission(node, EPermission::Write);
             }
 
             targets.reserve(host->Nodes().size());
-            for (auto* node : host->Nodes()) {
+            for (auto node : host->Nodes()) {
                 targets.emplace_back(
                     EMaintenanceComponent::ClusterNode,
                     node->GetDefaultAddress(),

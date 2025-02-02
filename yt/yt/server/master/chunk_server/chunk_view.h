@@ -51,9 +51,9 @@ class TChunkView
     : public TChunkTree
     , public TRefTracked<TChunkView>
 {
-    DEFINE_BYVAL_RO_PROPERTY(TChunkTree*, UnderlyingTree);
+    DEFINE_BYVAL_RO_PROPERTY(TChunkTreeRawPtr, UnderlyingTree);
 
-    using TParents = TCompactVector<TChunkList*, TypicalChunkParentCount>;
+    using TParents = TCompactVector<TChunkListRawPtr, TypicalChunkParentCount>;
     DEFINE_BYREF_RO_PROPERTY(TParents, Parents);
 
     DEFINE_BYREF_RW_PROPERTY(TChunkViewModifier, Modifier);

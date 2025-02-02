@@ -14,7 +14,7 @@ void TraverseMapObjectSubtreeTopDown(TObject* object, TFunctor functor)
     functor(object);
 
     for (const auto& [key, child] : object->KeyToChild()) {
-        TraverseMapObjectSubtreeTopDown(child, functor);
+        TraverseMapObjectSubtreeTopDown(child.Get(), functor);
     }
 }
 

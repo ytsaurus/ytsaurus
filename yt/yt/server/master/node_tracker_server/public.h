@@ -60,6 +60,9 @@ DECLARE_ENTITY_TYPE(THost, THostId, NObjectClient::TObjectIdEntropyHash)
 DECLARE_ENTITY_TYPE(TRack, TRackId, NObjectClient::TObjectIdEntropyHash)
 DECLARE_ENTITY_TYPE(TDataCenter, TDataCenterId, NObjectClient::TObjectIdEntropyHash)
 
+DECLARE_MASTER_OBJECT_TYPE(TDataCenter)
+DECLARE_MASTER_OBJECT_TYPE(TRack)
+DECLARE_MASTER_OBJECT_TYPE(THost)
 DECLARE_MASTER_OBJECT_TYPE(TNode)
 
 using TNodeList = TCompactVector<TNode*, NChunkClient::UpperReplicaCountBound>;

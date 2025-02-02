@@ -120,7 +120,7 @@ private:
                     trunkNode->As<TListNode>(),
                     Transaction_.Get());
                 entry.TrunkChildren.reserve(children.size());
-                for (auto* child : children) {
+                for (auto child : children) {
                     entry.TrunkChildren.emplace_back(child);
                 }
                 break;

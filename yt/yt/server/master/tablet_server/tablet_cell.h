@@ -30,13 +30,13 @@ class TTabletCell
     : public NCellServer::TCellBase
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletBase*>, Tablets);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletAction*>, Actions);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletBaseRawPtr>, Tablets);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTabletActionRawPtr>, Actions);
 
     using TGossipStatistics = NCellMaster::TGossipValue<TTabletCellStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TGossipStatistics, GossipStatistics);
 
-    DECLARE_BYVAL_RO_PROPERTY(TTabletCellBundle*, TabletCellBundle);
+    DECLARE_BYVAL_RO_PROPERTY(TTabletCellBundleRawPtr, TabletCellBundle);
 
 public:
     using TCellBase::TCellBase;
@@ -53,6 +53,8 @@ public:
     //! Recompute cluster statistics from multicell statistics.
     void RecomputeClusterStatistics();
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TTabletCell)
 
 ////////////////////////////////////////////////////////////////////////////////
 

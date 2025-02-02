@@ -68,6 +68,8 @@ DECLARE_ENTITY_TYPE(TCellBundle, TCellBundleId, NObjectClient::TObjectIdEntropyH
 DECLARE_ENTITY_TYPE(TCellBase, TTamedCellId, NObjectClient::TObjectIdEntropyHash)
 DECLARE_ENTITY_TYPE(TArea, TAreaId, NObjectClient::TObjectIdEntropyHash)
 
+DECLARE_MASTER_OBJECT_TYPE(TArea)
+DECLARE_MASTER_OBJECT_TYPE(TCellBase)
 DECLARE_MASTER_OBJECT_TYPE(TCellBundle)
 
 extern const std::string DefaultCellBundleName;

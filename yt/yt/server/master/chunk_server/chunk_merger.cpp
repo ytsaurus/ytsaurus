@@ -202,7 +202,7 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTree*> children) override
+        TRange<TChunkTreeRawPtr> children) override
     {
         Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, children);
     }
@@ -1678,7 +1678,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
     TChunkMergerWriterOptions chunkMergerWriterOptions;
     if (chunkOwner->GetType() == EObjectType::Table) {
         const auto* table = chunkOwner->As<TTableNode>();
-        const auto* schema = table->GetSchema();
+        auto schema = table->GetSchema();
         ToProto(chunkMergerWriterOptions.mutable_schema(), *schema->AsTableSchema());
         ToProto(chunkMergerWriterOptions.mutable_schema_id(), schema->GetId());
         chunkMergerWriterOptions.set_optimize_for(ToProto(table->GetOptimizeFor()));

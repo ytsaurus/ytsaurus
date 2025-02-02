@@ -199,7 +199,7 @@ protected:
 
             YT_LOG_TRACE("Current entry (Entry: %v)", entry);
 
-            auto* child = chunkList->Children()[entry.ChildIndex];
+            auto child = chunkList->Children()[entry.ChildIndex];
 
             // YT-4840: Skip empty children since Get(Min|Max)Key will not work for them.
             if (IsEmpty(child)) {
@@ -274,7 +274,7 @@ protected:
         // segment of unsealed chunks.
         const auto& chunkList = entry.ChunkList;
         for (int index = entry.ChildIndex; index < std::ssize(chunkList->Children()); ++index) {
-            auto* child = chunkList->Children()[index];
+            auto child = chunkList->Children()[index];
             if (!IsPhysicalChunkType(child->GetType())) {
                 break;
             }
@@ -308,7 +308,7 @@ protected:
 
         const auto& chunkList = entry.ChunkList;
         const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
-        const auto* child = chunkList->Children()[entry.ChildIndex];
+        const auto child = chunkList->Children()[entry.ChildIndex];
         YT_VERIFY(IsJournalChunkType(child->GetType()));
         const auto* chunk = child->AsChunk();
 
@@ -321,7 +321,7 @@ protected:
         } else {
             // Compute start row index.
             if (entry.ChildIndex > 0) {
-                const auto* prevChild = chunkList->Children()[entry.ChildIndex - 1];
+                auto prevChild = chunkList->Children()[entry.ChildIndex - 1];
                 YT_VERIFY(IsJournalChunkType(prevChild->GetType()));
                 auto* prevChunk = prevChild->AsChunk();
                 if (prevChunk->IsSealed()) {
@@ -381,7 +381,7 @@ protected:
 
         const auto& chunkList = entry.ChunkList;
         const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
-        const auto* child = chunkList->Children()[entry.ChildIndex];
+        auto child = chunkList->Children()[entry.ChildIndex];
         auto childType = child->GetType();
 
         auto lowerStatistics = cumulativeStatistics.GetPreviousSum(entry.ChildIndex);
@@ -400,7 +400,7 @@ protected:
     {
         const auto& chunkList = entry->ChunkList;
         auto childIndex = entry->ChildIndex;
-        auto* child = chunkList->Children()[childIndex];
+        auto child = chunkList->Children()[childIndex];
         auto childType = child->GetType();
 
         TReadLimit subtreeStartLimit;
@@ -542,7 +542,7 @@ protected:
         const auto& chunkList = entry->ChunkList;
         const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
         auto childIndex = entry->ChildIndex;
-        auto* child = chunkList->Children()[childIndex];
+        auto child = chunkList->Children()[childIndex];
         bool isOrdered = chunkList->GetKind() == EChunkListKind::OrderedDynamicRoot;
         bool isSorted = chunkList->GetKind() == EChunkListKind::SortedDynamicRoot;
 
@@ -676,7 +676,7 @@ protected:
     {
         const auto& chunkList = entry->ChunkList;
         auto childIndex = entry->ChildIndex;
-        auto* child = chunkList->Children()[childIndex];
+        auto child = chunkList->Children()[childIndex];
         auto childType = child->GetType();
         const auto& cumulativeStatistics = chunkList->CumulativeStatistics();
 
@@ -1189,7 +1189,7 @@ protected:
                         statistics.LogicalRowCount);
 
                     while (chunkIndex > 0) {
-                        auto* child = chunkList->Children()[chunkIndex - 1];
+                        auto child = chunkList->Children()[chunkIndex - 1];
                         if (child && child->GetType() == EObjectType::OrderedDynamicTabletStore) {
                             --chunkIndex;
                         } else {
@@ -1256,7 +1256,7 @@ protected:
     {
         YT_VERIFY(EnforceBounds_);
 
-        const auto* child = entry.ChunkList->Children()[entry.ChildIndex];
+        auto child = entry.ChunkList->Children()[entry.ChildIndex];
 
         // Row index.
 
@@ -1796,7 +1796,7 @@ class TEnumeratingChunkVisitor
     : public IChunkVisitor
 {
 public:
-    explicit TEnumeratingChunkVisitor(std::vector<TChunk*>* chunks)
+    explicit TEnumeratingChunkVisitor(std::vector<TChunkRawPtr>* chunks)
         : Chunks_(chunks)
     { }
 
@@ -1833,12 +1833,12 @@ public:
     }
 
 private:
-    std::vector<TChunk*>* const Chunks_;
+    std::vector<TChunkRawPtr>* const Chunks_;
 };
 
 void EnumerateChunksInChunkTree(
     TChunkList* root,
-    std::vector<TChunk*>* chunks)
+    std::vector<TChunkRawPtr>* chunks)
 {
     auto visitor = New<TEnumeratingChunkVisitor>(chunks);
     TraverseChunkTree(
@@ -1847,10 +1847,10 @@ void EnumerateChunksInChunkTree(
         root);
 }
 
-std::vector<TChunk*> EnumerateChunksInChunkTree(
+std::vector<TChunkRawPtr> EnumerateChunksInChunkTree(
     TChunkList* root)
 {
-    std::vector<TChunk*> chunks;
+    std::vector<TChunkRawPtr> chunks;
     EnumerateChunksInChunkTree(root, &chunks);
     return chunks;
 }
@@ -1859,13 +1859,13 @@ std::vector<TChunk*> EnumerateChunksInChunkTree(
 
 void EnumerateStoresInChunkTree(
     TChunkList* root,
-    std::vector<TChunkTree*>* chunks)
+    std::vector<TChunkTreeRawPtr>* chunks)
 {
     class TVisitor
         : public IChunkVisitor
     {
     public:
-        explicit TVisitor(std::vector<TChunkTree*>* stores)
+        explicit TVisitor(std::vector<TChunkTreeRawPtr>* stores)
             : Stores_(stores)
         { }
 
@@ -1904,7 +1904,7 @@ void EnumerateStoresInChunkTree(
         }
 
     private:
-        std::vector<TChunkTree*>* const Stores_;
+        std::vector<TChunkTreeRawPtr>* const Stores_;
     };
 
     auto visitor = New<TVisitor>(chunks);
@@ -1914,10 +1914,10 @@ void EnumerateStoresInChunkTree(
         root);
 }
 
-std::vector<TChunkTree*> EnumerateStoresInChunkTree(
+std::vector<TChunkTreeRawPtr> EnumerateStoresInChunkTree(
     TChunkList* root)
 {
-    std::vector<TChunkTree*> stores;
+    std::vector<TChunkTreeRawPtr> stores;
     stores.reserve(root->Statistics().ChunkCount);
     EnumerateStoresInChunkTree(root, &stores);
     return stores;

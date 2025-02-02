@@ -20,7 +20,7 @@ class TTableCollocation
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TCellTag, ExternalCellTag, NObjectClient::InvalidCellTag);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<TTableNode*>, Tables);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<TTableNodeRawPtr>, Tables);
     DEFINE_BYVAL_RW_PROPERTY(ETableCollocationType, Type);
 
     DEFINE_BYREF_RW_PROPERTY(
@@ -37,6 +37,8 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TTableCollocation)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/yt/server/master/object_server/public.h>
+#include <yt/yt/server/master/object_server/object.h>
 
 #include <yt/yt/server/master/cypress_server/public.h>
 
@@ -22,9 +22,6 @@ namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const int TypicalSubjectCount = 4;
-using TSubjectList = TCompactVector<TSubject*, TypicalSubjectCount>;
-
 struct TAccessControlEntry
 {
     TAccessControlEntry();
@@ -40,8 +37,10 @@ struct TAccessControlEntry
     // objects has no bearing on comparison.
     bool operator==(const TAccessControlEntry& rhs) const;
 
+    static constexpr int TypicalSubjectCount = 4;
+
     ESecurityAction Action;
-    TSubjectList Subjects;
+    TCompactVector<TSubjectRawPtr, TypicalSubjectCount> Subjects;
     EPermissionSet Permissions;
     EAceInheritanceMode InheritanceMode;
     std::optional<TBooleanFormula> SubjectTagFilter;
@@ -89,7 +88,7 @@ class TAccessControlDescriptor
 {
     DEFINE_BYREF_RO_PROPERTY(TAccessControlList, Acl);
     DEFINE_BYREF_RO_PROPERTY(bool, Inherit, true);
-    DEFINE_BYVAL_RO_PROPERTY(NObjectServer::TObject*, Object);
+    DEFINE_BYVAL_RO_PROPERTY(NObjectServer::TObjectRawPtr, Object);
 
 public:
     explicit TAccessControlDescriptor(NObjectServer::TObject* object = nullptr);
@@ -111,7 +110,7 @@ public:
     void Persist(const NCypressServer::TCopyPersistenceContext& context);
 
 private:
-    TSubject* Owner_ = nullptr;
+    TSubjectRawPtr Owner_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
