@@ -179,18 +179,50 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     Load(context, UpdatedSinceLastMerge_);
     Load(context, ChunkMergerTraversalInfo_);
 
-    // COMPAT(kivedernikov)
+    // COMPAT(shakurov)
     if (context.GetVersion() >= EMasterReign::HunkMedia) {
         Load(context, HunkReplication_);
         Load(context, HunkPrimaryMediumIndex_);
 
-        // COMPAT(kazachonok)
-        auto optionalHunkPrimaryMediumIndex = GetHunkPrimaryMediumIndex();
-        if (context.GetVersion() < EMasterReign::OptionalHunkPrimaryMedium
-            && optionalHunkPrimaryMediumIndex
-            && *optionalHunkPrimaryMediumIndex == PrimaryMediumIndex_)
-        {
-            RemoveHunkPrimaryMediumIndex();
+        // COMPAT(shakurov)
+        if (context.GetVersion() < EMasterReign::OptionalHunkPrimaryMedium) {
+            auto optionalHunkPrimaryMediumIndex = GetHunkPrimaryMediumIndex();
+            // Prior to hunk primary medium index becoming optional (with
+            // GenericMediumIndex signifying absence of value), the default
+            // value for it was DefaultStoreMediumIndex.
+            YT_VERIFY(optionalHunkPrimaryMediumIndex);
+
+            if (*optionalHunkPrimaryMediumIndex == PrimaryMediumIndex_) {
+                ResetHunkPrimaryMediumIndex();
+                HunkReplication_.ClearEntries();
+            }
+        }
+    }
+
+    // Force invariant: null hunk primary index <=> empty hunk replication.
+    if (context.GetVersion() < EMasterReign::HunkSpecificMediaFixes) {
+        if (auto hunkPrimaryIndex = GetHunkPrimaryMediumIndex()) {
+            if (HunkReplication().GetSize() == 0) {
+                YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet empty hunk replication encountered; assuming default replication factor"
+                    "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
+                    GetId(),
+                    hunkPrimaryIndex);
+                HunkReplication().Set(*hunkPrimaryIndex, TReplicationPolicy(DefaultReplicationFactor, /* dataPartsOnly */ false));
+            } else if (!HunkReplication().Get(*hunkPrimaryIndex)) {
+                YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet zero hunk replication factor encountered; assuming default replication factor"
+                    "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
+                    GetId(),
+                    hunkPrimaryIndex);
+                HunkReplication().Set(*hunkPrimaryIndex, TReplicationPolicy(DefaultReplicationFactor, /* dataPartsOnly */ false));
+            }
+        } else {
+            if (HunkReplication().GetSize() != 0) {
+                YT_LOG_ALERT("Chunk owner node with null hunk primary index yet non-empty hunk replication encountered; resetting replication to empty"
+                    "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
+                    GetId(),
+                    hunkPrimaryIndex);
+                HunkReplication().ClearEntries();
+            }
         }
     }
 }
@@ -315,6 +347,16 @@ TSecurityTags TChunkOwnerBase::ComputeSecurityTags() const
     return *SnapshotSecurityTags_ + *DeltaSecurityTags_;
 }
 
+int TChunkOwnerBase::GetPrimaryMediumIndex() const
+{
+    return PrimaryMediumIndex_;
+}
+
+void TChunkOwnerBase::SetPrimaryMediumIndex(int primaryMediumIndex)
+{
+    PrimaryMediumIndex_ = primaryMediumIndex;
+}
+
 std::optional<int> TChunkOwnerBase::GetHunkPrimaryMediumIndex() const
 {
     return HunkPrimaryMediumIndex_ == GenericMediumIndex
@@ -327,11 +369,11 @@ void TChunkOwnerBase::SetHunkPrimaryMediumIndex(std::optional<int> hunkPrimaryMe
     if (hunkPrimaryMediumIndex) {
         HunkPrimaryMediumIndex_ = *hunkPrimaryMediumIndex;
     } else {
-        RemoveHunkPrimaryMediumIndex();
+        ResetHunkPrimaryMediumIndex();
     }
 }
 
-void TChunkOwnerBase::RemoveHunkPrimaryMediumIndex()
+void TChunkOwnerBase::ResetHunkPrimaryMediumIndex()
 {
     HunkPrimaryMediumIndex_ = GenericMediumIndex;
 }
@@ -341,6 +383,20 @@ int TChunkOwnerBase::GetEffectiveHunkPrimaryMediumIndex() const
     return HunkPrimaryMediumIndex_ == GenericMediumIndex
         ? PrimaryMediumIndex_
         : HunkPrimaryMediumIndex_;
+}
+
+const TChunkReplication& TChunkOwnerBase::EffectiveHunkReplication() const
+{
+    if (HunkPrimaryMediumIndex_ == GenericMediumIndex) {
+        return Replication_;
+    } else {
+        YT_LOG_ALERT_UNLESS(HunkReplication_.IsValid(),
+            "Chunk owner node has invalid hunk replication despite having non-null hunk primary medium index (ChunkOwnerNodeId: %v, HunkReplication: %v, HunkPrimaryMediumIndex: %v)",
+            GetId(),
+            HunkReplication_,
+            HunkPrimaryMediumIndex_);
+        return HunkReplication_;
+    }
 }
 
 void TChunkOwnerBase::ParseCommonUploadContext(const TCommonUploadContext& /*context*/)

@@ -133,20 +133,13 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
 
     auto primaryMediumName = combinedAttributes->GetAndRemove<std::string>("primary_medium", NChunkClient::DefaultStoreMediumName);
-    auto hunkPrimaryMediumName = combinedAttributes->FindAndRemove<std::string>("hunk_primary_medium");
     auto* primaryMedium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
+    auto primaryMediumIndex = primaryMedium->GetIndex();
+
+    auto hunkPrimaryMediumName = combinedAttributes->FindAndRemove<std::string>("hunk_primary_medium");
     auto* hunkPrimaryMedium = hunkPrimaryMediumName
         ? chunkManager->GetMediumByNameOrThrow(*hunkPrimaryMediumName)
         : nullptr;
-
-    auto primaryMediumIndex = primaryMedium->GetIndex();
-    auto hunkPrimaryMediumIndex = hunkPrimaryMedium
-        ? std::make_optional(hunkPrimaryMedium->GetIndex())
-        : std::nullopt;
-
-    auto effectiveHunkPrimaryMediumIndex = hunkPrimaryMediumIndex
-        ? *hunkPrimaryMediumIndex
-        : primaryMediumIndex;
 
     const auto& securityManager = this->GetBootstrap()->GetSecurityManager();
     securityManager->ValidatePermission(primaryMedium, EPermission::Use);
@@ -162,9 +155,12 @@ std::unique_ptr<TChunkOwner> TChunkOwnerTypeHandler<TChunkOwner>::DoCreateImpl(
 
     try {
         node->SetPrimaryMediumIndex(primaryMediumIndex);
-        node->SetHunkPrimaryMediumIndex(hunkPrimaryMediumIndex);
         node->Replication().Set(primaryMediumIndex, TReplicationPolicy(replicationFactor, false));
-        node->HunkReplication().Set(effectiveHunkPrimaryMediumIndex, TReplicationPolicy(replicationFactor, false));
+        if (hunkPrimaryMedium) {
+            auto hunkPrimaryMediumIndex = hunkPrimaryMedium->GetIndex();
+            node->SetHunkPrimaryMediumIndex(hunkPrimaryMediumIndex);
+            node->HunkReplication().Set(hunkPrimaryMediumIndex, TReplicationPolicy(DefaultReplicationFactor, false));
+        }
 
         node->SetCompressionCodec(compressionCodec);
         node->SetErasureCodec(erasureCodec);

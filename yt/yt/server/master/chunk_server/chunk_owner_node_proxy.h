@@ -111,12 +111,21 @@ private:
     void OnStorageParametersUpdated();
 
     void SetReplicationFactor(int replicationFactor);
+
     void SetVital(bool vital);
-    std::string DoSetReplication(TChunkReplication* replicationStorage, const TChunkReplication& replication, int mediumIndex);
-    void SetReplication(const TChunkReplication& replication);
-    void SetHunkReplication(const TChunkReplication& replication);
-    void SetPrimaryMedium(TMedium* medium, bool force = false);
-    void SetHunkPrimaryMedium(TMedium* medium);
+
+    template <bool IsHunk>
+    void SetReplication(const TSerializableChunkReplication& serializableReplication);
+
+    template <bool IsHunk>
+    void SetPrimaryMedium(const std::string& mediumName, bool force);
+
+    void RemoveHunkPrimaryMedium();
+
+    void ValidateResourceUsageIncreaseOnPrimaryMediumChange(
+        TMedium* newPrimaryMedium,
+        const TChunkReplication& newReplication);
+
     void MaybeScheduleChunkMerge();
 
     void ScheduleRequisitionUpdate();
