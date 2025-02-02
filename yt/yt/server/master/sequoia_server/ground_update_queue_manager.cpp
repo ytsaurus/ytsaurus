@@ -361,6 +361,7 @@ private:
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
+                    .StronglyOrdered = true,
                 };
                 return transaction->Commit(commitOptions);
             }).AsyncVia(EpochAutomatonInvoker_))));

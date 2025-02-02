@@ -40,12 +40,6 @@ struct ITransactionSupervisor
     //! Returns future which is set when all currently prepared transactions are
     //! finished.
     virtual TFuture<void> WaitUntilPreparedTransactionsFinished() = 0;
-
-    // Awfull hack for tests only.
-    // TODO(aleksandra-zh): remove when Sequoia tx sequencer will be implemented.
-    virtual void ClearSequoiaTxRegistry() = 0;
-    virtual void RegisterPreparedSequoiaTx(TTransactionId id) = 0;
-    virtual void UnregisterPreparedSequoiaTx(TTransactionId id) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransactionSupervisor)

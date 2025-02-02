@@ -939,6 +939,7 @@ protected:
         return SequoiaTransaction_->Commit({
             .CoordinatorCellId = CoordinatorCellId_,
             .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
+            .StronglyOrdered = true,
         });
     }
 

@@ -1199,6 +1199,7 @@ private:
         req->set_coordinator_commit_mode(ToProto(options.CoordinatorCommitMode));
         req->set_max_allowed_commit_timestamp(options.MaxAllowedCommitTimestamp);
         req->set_clock_cluster_tag(ToProto(ClockClusterTag_));
+        req->set_strongly_ordered(options.StronglyOrdered);
         SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
         return req->Invoke().Apply(

@@ -3268,6 +3268,7 @@ private:
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
+                    .StronglyOrdered = true,
                 };
 
                 auto result = WaitFor(transaction->Commit(commitOptions));
@@ -3433,6 +3434,7 @@ private:
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
+                    .StronglyOrdered = true,
                 };
 
                 auto result = WaitFor(transaction->Commit(commitOptions));
@@ -5527,6 +5529,7 @@ private:
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
+                    .StronglyOrdered = true,
                 };
                 WaitFor(transaction->Commit(commitOptions))
                     .ThrowOnError();
