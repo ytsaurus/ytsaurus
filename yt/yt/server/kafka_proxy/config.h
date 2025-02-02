@@ -83,7 +83,7 @@ public:
     int PollerThreadCount;
     int AcceptorThreadCount;
 
-    std::optional<TString> LocalHostName;
+    std::optional<std::string> LocalHostName;
 
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 

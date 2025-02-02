@@ -168,7 +168,7 @@ private:
     std::string GetLocalHostName() const
     {
         auto dynamicConfig = GetDynamicConfig();
-        return dynamicConfig->LocalHostName ? *dynamicConfig->LocalHostName : NNet::GetLocalHostName();
+        return dynamicConfig->LocalHostName.value_or(NNet::GetLocalHostName());
     }
 
     void AsyncAcceptConnection()
