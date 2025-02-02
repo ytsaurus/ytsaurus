@@ -126,6 +126,7 @@ struct IBootstrapBase
     virtual const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const = 0;
 
     // Network stuff.
+    virtual NNodeTrackerClient::TNetworkPreferenceList GetNetworks() const = 0;
     virtual NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const = 0;
 
     // Servers.
@@ -285,6 +286,7 @@ public:
 
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const override;
 
+    NNodeTrackerClient::TNetworkPreferenceList GetNetworks() const override;
     NNodeTrackerClient::TNetworkPreferenceList GetLocalNetworks() const override;
 
     const NHttp::IServerPtr& GetHttpServer() const override;
