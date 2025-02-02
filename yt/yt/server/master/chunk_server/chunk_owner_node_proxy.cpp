@@ -689,6 +689,7 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetWritable(true)
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::HunkMedia)
+        .SetPresent(node->GetHunkPrimaryMediumIndex().has_value())
         .SetWritable(true)
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PrimaryMedium)
@@ -808,12 +809,11 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
         }
 
         case EInternedAttributeKey::HunkMedia: {
+            if (!node->GetHunkPrimaryMediumIndex()) {
+                break;
+            }
             const auto& chunkManager = Bootstrap_->GetChunkManager();
             auto replication = node->HunkReplication();
-            auto defaultMedium = chunkManager->GetMediumByNameOrThrow(NChunkClient::DefaultStoreMediumName);
-            if (!replication.Contains(defaultMedium->GetIndex())) {
-                replication.Aggregate(defaultMedium->GetIndex(), TReplicationPolicy(DefaultReplicationFactor, false));
-            }
             BuildYsonFluently(consumer)
                 .Value(TSerializableChunkReplication(replication, chunkManager));
             return true;
@@ -1098,38 +1098,28 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         case EInternedAttributeKey::PrimaryMedium: {
             ValidateStorageParametersUpdate();
             auto mediumName = ConvertTo<std::string>(value);
-            auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-            SetPrimaryMedium(medium, force);
+            SetPrimaryMedium</*IsHunk*/ false>(mediumName, force);
             return true;
         }
 
         case EInternedAttributeKey::HunkPrimaryMedium: {
             ValidateStorageParametersUpdate();
             auto mediumName = ConvertTo<std::string>(value);
-            auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
-            SetHunkPrimaryMedium(medium);
+            SetPrimaryMedium</*IsHunk*/ true>(mediumName, force);
             return true;
         }
 
         case EInternedAttributeKey::Media: {
             ValidateStorageParametersUpdate();
             auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
-            // Copying for modification.
-            auto replication = GetThisImpl<TChunkOwnerBase>()->Replication();
-            // Preserves vitality.
-            serializableReplication.ToChunkReplication(&replication, chunkManager);
-            SetReplication(replication);
+            SetReplication</*IsHunk*/ false>(serializableReplication);
             return true;
         }
 
         case EInternedAttributeKey::HunkMedia: {
             ValidateStorageParametersUpdate();
             auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
-            // Copying for modification.
-            auto replication = GetThisImpl<TChunkOwnerBase>()->HunkReplication();
-            // Preserves vitality.
-            serializableReplication.ToChunkReplication(&replication, chunkManager);
-            SetHunkReplication(replication);
+            SetReplication</*IsHunk*/ true>(serializableReplication);
             return true;
         }
 
@@ -1283,11 +1273,10 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
 
 bool TChunkOwnerNodeProxy::RemoveBuiltinAttribute(NYTree::TInternedAttributeKey key)
 {
-    auto* node = GetThisImpl<TChunkOwnerBase>();
-
     switch (key) {
         case EInternedAttributeKey::HunkPrimaryMedium: {
-            node->RemoveHunkPrimaryMediumIndex();
+            ValidateStorageParametersUpdate();
+            RemoveHunkPrimaryMedium();
             return true;
         }
 
@@ -1351,98 +1340,146 @@ void TChunkOwnerNodeProxy::SetVital(bool vital)
     OnStorageParametersUpdated();
 }
 
-std::string TChunkOwnerNodeProxy::DoSetReplication(
-    TChunkReplication* replicationStorage,
-    const TChunkReplication& replication,
-    int mediumIndex)
+template <bool IsHunk>
+void TChunkOwnerNodeProxy::SetReplication(const TSerializableChunkReplication& serializableReplication)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
+    YT_VERIFY(node->IsTrunk());
+
     const auto& chunkManager = Bootstrap_->GetChunkManager();
+    auto& replication = IsHunk ? node->HunkReplication() : node->Replication();
 
-    YT_VERIFY(node->IsTrunk());
+    // Copying for modification.
+    auto newReplication = replication;
+    // Preserves vitality.
+    serializableReplication.ToChunkReplication(&newReplication, chunkManager);
 
-    ValidateMediaChange(*replicationStorage, mediumIndex, replication);
+    // Hunk primary medium index is nullable and requires additional validation.
+    if constexpr (IsHunk) {
+        if (!node->GetHunkPrimaryMediumIndex()) {
+            THROW_ERROR_EXCEPTION("Cannot modify %v since %v is not set, consider setting it first",
+                EInternedAttributeKey::HunkMedia.Unintern(),
+                EInternedAttributeKey::HunkPrimaryMedium.Unintern());
+        }
+    }
 
-    *replicationStorage = replication;
+    auto mediumIndex = IsHunk ? *node->GetHunkPrimaryMediumIndex() : node->GetPrimaryMediumIndex();
+
+    ValidateMediaChange(replication, mediumIndex, newReplication);
+
+    replication = newReplication;
+    // NB: this is excessive both when IsHunk and when !IsHunk but the code cleaner.
     OnStorageParametersUpdated();
 
-    const auto* primaryMedium = chunkManager->GetMediumByIndex(mediumIndex);
-    return primaryMedium->GetName();
-}
-
-void TChunkOwnerNodeProxy::SetReplication(const TChunkReplication& replication)
-{
-    auto* node = GetThisImpl<TChunkOwnerBase>();
-    auto name = DoSetReplication(&node->Replication(), replication, node->GetPrimaryMediumIndex());
+    const auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
     YT_LOG_DEBUG(
-        "Chunk owner replication changed (NodeId: %v, PrimaryMedium: %v, Replication: %v)",
+        IsHunk
+            ? "Chunk owner hunk replication changed (NodeId: %v, HunkPrimaryMedium: %v, HunkReplication %v)"
+            : "Chunk owner replication changed (NodeId: %v, PrimaryMedium: %v, Replication %v)",
         node->GetId(),
-        name,
-        node->Replication());
+        medium->GetName(),
+        replication);
 }
 
-void TChunkOwnerNodeProxy::SetHunkReplication(const TChunkReplication& replication)
-{
-    auto* node = GetThisImpl<TChunkOwnerBase>();
-    auto effectiveMediumIndex = node->GetEffectiveHunkPrimaryMediumIndex();
-    auto name = DoSetReplication(&node->HunkReplication(), replication, effectiveMediumIndex);
-    YT_LOG_DEBUG(
-        "Chunk owner hunk replication changed (NodeId: %v, Replication: %v, HunkReplication %v)",
-        node->GetId(),
-        name,
-        node->HunkReplication());
-}
-
-void TChunkOwnerNodeProxy::SetHunkPrimaryMedium(TMedium* medium)
+template <bool IsHunk>
+void TChunkOwnerNodeProxy::SetPrimaryMedium(const std::string& mediumName, bool force)
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->IsTrunk());
 
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    auto* medium = chunkManager->GetMediumByNameOrThrow(mediumName);
+
     TChunkReplication newReplication;
-    if (!ValidatePrimaryMediumChange(
-        medium,
-        node->HunkReplication(),
-        node->GetHunkPrimaryMediumIndex(),
-        &newReplication))
-    {
+    auto shouldProceed = IsHunk
+        ? ValidatePrimaryMediumChange(
+            *medium,
+            node->GetHunkPrimaryMediumIndex(),
+            &newReplication,
+            node->HunkReplication())
+        : ValidatePrimaryMediumChange(
+            *medium,
+            node->GetPrimaryMediumIndex(),
+            &newReplication,
+            node->Replication());
+
+    if (!shouldProceed) {
         return;
     }
 
-    node->HunkReplication() = newReplication;
-    node->SetHunkPrimaryMediumIndex(medium->GetIndex());
+    // TODO(shakurov): do chunk owner's TotalStatistics include hunks? Or are they
+    // completely unaccounted atm? In any case, this validation is not entirely correct.
+    if constexpr (!IsHunk) {
+        if (!force) {
+            ValidateResourceUsageIncreaseOnPrimaryMediumChange(medium, newReplication);
+        }
+    }
+
+    if constexpr (IsHunk) {
+        node->HunkReplication() = newReplication;
+        node->SetHunkPrimaryMediumIndex(medium->GetIndex());
+    } else {
+        node->Replication() = newReplication;
+        node->SetPrimaryMediumIndex(medium->GetIndex());
+    }
+
     OnStorageParametersUpdated();
 
     YT_LOG_DEBUG(
-        "Chunk owner hunk primary medium changed (NodeId: %v, PrimaryMedium: %v)",
+        IsHunk
+        ? "Chunk owner hunk primary medium changed (NodeId: %v, PrimaryMedium: %v)"
+        : "Chunk owner primary medium changed (NodeId: %v, PrimaryMedium: %v)",
         node->GetId(),
         medium->GetName());
 }
 
-void TChunkOwnerNodeProxy::SetPrimaryMedium(TMedium* medium, bool force)
+void TChunkOwnerNodeProxy::RemoveHunkPrimaryMedium()
 {
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->IsTrunk());
 
-    TChunkReplication newReplication;
-    if (!ValidatePrimaryMediumChange(
-        medium,
-        node->Replication(),
-        node->GetPrimaryMediumIndex(),
-        &newReplication,
-        node->ComputeTotalStatistics(),
-        force))
-    {
+    auto hunkPrimaryMediumIndex = node->GetHunkPrimaryMediumIndex();
+    if (!hunkPrimaryMediumIndex) {
         return;
     }
 
-    node->Replication() = newReplication;
-    node->SetPrimaryMediumIndex(medium->GetIndex());
+    node->ResetHunkPrimaryMediumIndex();
+    node->HunkReplication().ClearEntries();
+
     OnStorageParametersUpdated();
 
-    YT_LOG_DEBUG(
-        "Chunk owner primary medium changed (NodeId: %v, PrimaryMedium: %v)",
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    auto* hunkPrimaryMedium = chunkManager->GetMediumByIndex(*hunkPrimaryMediumIndex);
+    auto* primaryMedium = chunkManager->GetMediumByIndex(node->GetPrimaryMediumIndex());
+
+    YT_LOG_DEBUG("Chunk owner hunk primary medium removed, falling back to main primary medium (NodeId: %v, HunkPrimaryMedium: %v, MainPrimaryMedium: %v)",
         node->GetId(),
-        medium->GetName());
+        hunkPrimaryMedium->GetName(),
+        primaryMedium->GetName());
+}
+
+void TChunkOwnerNodeProxy::ValidateResourceUsageIncreaseOnPrimaryMediumChange(TMedium* newPrimaryMedium, const TChunkReplication& newReplication)
+{
+    auto* node = GetThisImpl<TChunkOwnerBase>();
+    YT_VERIFY(node->IsTrunk());
+
+    // COMPAT(danilalexeev)
+    const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
+    if (!config->ValidateResourceUsageIncreaseOnPrimaryMediumChange) {
+        return;
+    }
+
+    auto newPrimaryMediumIndex = newPrimaryMedium->GetIndex();
+    auto* account = node->Account().Get();
+    auto statistics = node->ComputeTotalStatistics();
+
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    securityManager->ValidateResourceUsageIncrease(account, TClusterResources().SetMediumDiskSpace(
+        newPrimaryMediumIndex,
+        CalculateDiskSpaceUsage(
+            newReplication.Get(newPrimaryMediumIndex).GetReplicationFactor(),
+            statistics.RegularDiskSpace,
+            statistics.ErasureDiskSpace)));
 }
 
 void TChunkOwnerNodeProxy::ValidateReadLimit(const NChunkClient::NProto::TReadLimit& /*readLimit*/) const

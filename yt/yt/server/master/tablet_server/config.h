@@ -334,6 +334,9 @@ public:
 
     int MaxChunksPerMountedTablet;
 
+    // COMPAT(shakurov)
+    bool EnableHunkSpecificMedia;
+
     REGISTER_YSON_STRUCT(TDynamicTabletManagerConfig);
 
     static void Register(TRegistrar registrar);

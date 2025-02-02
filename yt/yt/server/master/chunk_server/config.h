@@ -754,7 +754,11 @@ public:
     bool EnableTwoRandomChoicesWriteTargetAllocation;
     int NodesToCheckBeforeGivingUpOnWriteTargetAllocation;
 
+    // COMPAT(danilalexeev)
     bool ValidateResourceUsageIncreaseOnPrimaryMediumChange;
+
+    // COMPAT(shakurov)
+    bool UseHunkSpecificMediaForRequisitionUpdates;
 
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 

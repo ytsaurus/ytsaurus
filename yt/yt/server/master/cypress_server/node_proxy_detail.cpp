@@ -1352,47 +1352,62 @@ void TNontemplateCypressNodeProxyBase::ValidateMediaChange(
 }
 
 bool TNontemplateCypressNodeProxyBase::ValidatePrimaryMediumChange(
-    TMedium* newPrimaryMedium,
-    const TChunkReplication& oldReplication,
+    TMedium& newPrimaryMedium,
     std::optional<int> oldPrimaryMediumIndex,
     TChunkReplication* newReplication,
-    const TChunkOwnerDataStatistics& statistics,
-    bool force)
+    const std::optional<TChunkReplication>& oldReplication)
 {
-    auto newPrimaryMediumIndex = newPrimaryMedium->GetIndex();
-    if (newPrimaryMediumIndex == oldPrimaryMediumIndex) {
+    YT_VERIFY(newReplication);
+
+    ValidateNoTransaction();
+
+    auto tweakReplicationOnPrimaryMediumChange = [] (
+        int newPrimaryMediumIndex,
+        std::optional<int> oldPrimaryMediumIndex,
+        const TChunkReplication& oldReplication)
+    {
+        auto result = oldReplication;
+        if (!result.Get(newPrimaryMediumIndex)) {
+            // The user is trying to set a medium with zero replication factor as primary.
+            //
+            // If primary medium *has* already been set, this is regarded as a
+            // request to move from one medium to another.
+            //
+            // If primary medium *has not* been set previously (which happens for
+            // composite nodes and hunk media on chunk owner nodes), this is treated
+            // as a request to use default settings (namely, replication factor)
+            // when making the medium primary.
+
+            if (oldPrimaryMediumIndex) {
+                result.Set(newPrimaryMediumIndex, result.Get(*oldPrimaryMediumIndex));
+                result.Erase(*oldPrimaryMediumIndex);
+            } else {
+                result.Set(newPrimaryMediumIndex, TReplicationPolicy(DefaultReplicationFactor, /*dataPartsOnly*/ false));
+            }
+        }
+
+        return result;
+    };
+
+    if (newPrimaryMedium.GetIndex() == oldPrimaryMediumIndex) {
         return false;
     }
 
-    ValidatePermission(newPrimaryMedium, EPermission::Use);
+    ValidatePermission(&newPrimaryMedium, EPermission::Use);
 
-    auto copiedReplication = oldReplication;
-    if (!copiedReplication.Get(newPrimaryMediumIndex) && oldPrimaryMediumIndex) {
-        // The user is trying to set a medium with zero replication count
-        // as primary. This is regarded as a request to move from one medium to
-        // another.
-        copiedReplication.Set(newPrimaryMediumIndex, copiedReplication.Get(*oldPrimaryMediumIndex));
-        copiedReplication.Erase(*oldPrimaryMediumIndex);
+    if (!oldReplication) {
+        return true;
     }
+
+    auto tweakedReplication = tweakReplicationOnPrimaryMediumChange(
+        newPrimaryMedium.GetIndex(),
+        oldPrimaryMediumIndex,
+        *oldReplication);
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    ValidateChunkReplication(chunkManager, copiedReplication, newPrimaryMediumIndex);
+    ValidateChunkReplication(chunkManager, tweakedReplication, newPrimaryMedium.GetIndex());
 
-    const auto& config = Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager;
-    if (!force && config->ValidateResourceUsageIncreaseOnPrimaryMediumChange) {
-        auto* account = GetThisImpl()->Account().Get();
-
-        const auto& securityManager = Bootstrap_->GetSecurityManager();
-        securityManager->ValidateResourceUsageIncrease(account, TClusterResources().SetMediumDiskSpace(
-            newPrimaryMediumIndex,
-            CalculateDiskSpaceUsage(
-                copiedReplication.Get(newPrimaryMediumIndex).GetReplicationFactor(),
-                statistics.RegularDiskSpace,
-                statistics.ErasureDiskSpace)));
-    }
-
-    *newReplication = copiedReplication;
-
+    *newReplication = std::move(tweakedReplication);
     return true;
 }
 
@@ -2687,25 +2702,25 @@ bool TNontemplateCompositeCypressNodeProxyBase::SetBuiltinAttribute(TInternedAtt
     switch (key) {
         case EInternedAttributeKey::PrimaryMedium: {
             auto primaryMediumName = ConvertTo<std::string>(value);
-            SetPrimaryMedium(primaryMediumName);
+            SetPrimaryMedium</*IsHunk*/ false>(primaryMediumName);
             return true;
         }
 
         case EInternedAttributeKey::HunkPrimaryMedium: {
             auto primaryMediumName = ConvertTo<std::string>(value);
-            SetHunkPrimaryMedium(primaryMediumName);
+            SetPrimaryMedium</*IsHunk*/ true>(primaryMediumName);
             return true;
         }
 
         case EInternedAttributeKey::Media: {
             auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
-            SetMedia(serializableReplication);
+            SetMedia</*IsHunk*/ false>(serializableReplication);
             return true;
         }
 
         case EInternedAttributeKey::HunkMedia: {
             auto serializableReplication = ConvertTo<TSerializableChunkReplication>(value);
-            SetHunkMedia(serializableReplication);
+            SetMedia</*IsHunk*/ true>(serializableReplication);
             return true;
         }
 
@@ -2798,120 +2813,111 @@ void TNontemplateCompositeCypressNodeProxyBase::SetReplicationFactor(int replica
     node->SetReplicationFactor(replicationFactor);
 }
 
-std::optional<int> TNontemplateCompositeCypressNodeProxyBase::DoSetPrimaryMedium(TCompositeNodeBase* node,
-    const std::optional<NChunkServer::TChunkReplication>& replication,
-    const std::string& primaryMediumName,
-    std::optional<int> oldPrimaryMediumIndex,
-    TChunkReplication& newReplication)
-{
-    ValidateNoTransaction();
-
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
-
-    auto* medium = chunkManager->GetMediumByNameOrThrow(primaryMediumName);
-    auto mediumIndex = medium->GetIndex();
-
-    if (!replication) {
-        ValidatePermission(medium, EPermission::Use);
-        return mediumIndex;
-    }
-
-    if (ValidatePrimaryMediumChange(
-            medium,
-            *replication,
-            oldPrimaryMediumIndex, // may be null
-            &newReplication))
-    {
-        auto replicationFactor = node->TryGetReplicationFactor();
-        if (replicationFactor &&
-            *replicationFactor != newReplication.Get(mediumIndex).GetReplicationFactor())
-        {
-            ThrowReplicationFactorMismatch(mediumIndex);
-        }
-        return mediumIndex;
-    } // else no change is required
-    return std::nullopt;
-}
-
-
+template <bool IsHunk>
 void TNontemplateCompositeCypressNodeProxyBase::SetPrimaryMedium(const std::string& primaryMediumName)
 {
+    const auto& chunkManager = Bootstrap_->GetChunkManager();
+    auto& newPrimaryMedium = *chunkManager->GetMediumByNameOrThrow(primaryMediumName);
     auto* node = GetThisImpl<TCompositeNodeBase>();
+
+    auto oldPrimaryMediumIndex = IsHunk
+        ? node->TryGetHunkPrimaryMediumIndex()
+        : node->TryGetPrimaryMediumIndex();
+    auto oldReplication = IsHunk
+        ? node->TryGetHunkMedia()
+        : node->TryGetMedia();
+
     TChunkReplication newReplication;
-    auto replication = node->TryGetMedia();
-    auto mediumIndex = DoSetPrimaryMedium(node, replication, primaryMediumName, node->TryGetPrimaryMediumIndex(), newReplication);
-    if (mediumIndex) {
-        node->SetPrimaryMediumIndex(*mediumIndex);
-        if (replication) {
+    if (!ValidatePrimaryMediumChange(
+        newPrimaryMedium,
+        oldPrimaryMediumIndex,
+        &newReplication,
+        oldReplication))
+    {
+        return;
+    }
+
+    auto newPrimaryMediumIndex = newPrimaryMedium.GetIndex();
+
+    if constexpr (!IsHunk) { // There's no dedicated replication factor for hunks.
+        if (auto replicationFactor = node->TryGetReplicationFactor();
+            replicationFactor &&
+            *replicationFactor != newReplication.Get(newPrimaryMediumIndex).GetReplicationFactor())
+        {
+            ThrowReplicationFactorMismatch(newPrimaryMediumIndex);
+        }
+    }
+
+    if constexpr (IsHunk) {
+        node->SetHunkPrimaryMediumIndex(newPrimaryMediumIndex);
+        if (newReplication.GetSize() != 0) {
+            node->SetHunkMedia(newReplication);
+        }
+    } else {
+        node->SetPrimaryMediumIndex(newPrimaryMediumIndex);
+        if (newReplication.GetSize() != 0) {
             node->SetMedia(newReplication);
         }
     }
 }
 
-void TNontemplateCompositeCypressNodeProxyBase::SetHunkPrimaryMedium(const std::string& hunkPrimaryMediumName)
+template <bool IsHunk>
+void TNontemplateCompositeCypressNodeProxyBase::RemovePrimaryMedium()
 {
+    ValidateNoTransaction();
+
     auto* node = GetThisImpl<TCompositeNodeBase>();
-    TChunkReplication newReplication;
-    auto replication = node->TryGetHunkMedia();
-    auto mediumIndex = DoSetPrimaryMedium(node, replication, hunkPrimaryMediumName, node->TryGetPrimaryMediumIndex(), newReplication);
-    if (mediumIndex) {
-        node->SetHunkPrimaryMediumIndex(*mediumIndex);
-        if (replication) {
-            node->SetHunkMedia(newReplication);
-        }
+
+    if constexpr (IsHunk) {
+        node->RemoveHunkPrimaryMediumIndex();
+    } else {
+        node->RemovePrimaryMediumIndex();
     }
 }
 
-std::optional<NChunkServer::TChunkReplication> TNontemplateCompositeCypressNodeProxyBase::DoSetMedia(const NChunkServer::TSerializableChunkReplication& serializableReplication)
+template <bool IsHunk>
+void TNontemplateCompositeCypressNodeProxyBase::SetMedia(const TSerializableChunkReplication& serializableReplication)
 {
     ValidateNoTransaction();
 
     auto* node = GetThisImpl<TCompositeNodeBase>();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-    TChunkReplication replication;
+    TChunkReplication newReplication;
     // Vitality isn't a part of TSerializableChunkReplication, assume true.
-    replication.SetVital(true);
-    serializableReplication.ToChunkReplication(&replication, chunkManager);
+    newReplication.SetVital(true);
+    serializableReplication.ToChunkReplication(&newReplication, chunkManager);
 
-    auto oldReplication = node->TryGetMedia();
-    if (replication == oldReplication) {
-        return std::nullopt;
-    }
-    return replication;
-}
+    auto primaryMediumIndex = IsHunk
+        ? node->TryGetHunkPrimaryMediumIndex()
+        : node->TryGetPrimaryMediumIndex();
+    auto oldReplication = IsHunk
+        ? node->TryGetHunkMedia()
+        : node->TryGetMedia();
 
-void TNontemplateCompositeCypressNodeProxyBase::SetMedia(const TSerializableChunkReplication& serializableReplication)
-{
-    auto optionalReplication = DoSetMedia(serializableReplication);
-    if (!optionalReplication) {
+    if (newReplication == oldReplication) {
         return;
     }
-    auto replication = *optionalReplication;
-    auto* node = GetThisImpl<TCompositeNodeBase>();
-    auto primaryMediumIndex = node->TryGetPrimaryMediumIndex();
-    auto replicationFactor = node->TryGetReplicationFactor();
-    if (primaryMediumIndex && replicationFactor) {
-        if (replication.Get(*primaryMediumIndex).GetReplicationFactor() != *replicationFactor) {
+
+    if constexpr (!IsHunk) { // There's no dedicated replication factor for hunks.
+        if (auto replicationFactor = node->TryGetReplicationFactor();
+            primaryMediumIndex &&
+            replicationFactor &&
+            newReplication.Get(*primaryMediumIndex).GetReplicationFactor() != *replicationFactor)
+        {
             ThrowReplicationFactorMismatch(*primaryMediumIndex);
         }
     }
 
     // NB: primary medium index may be null, in which case corresponding
     // parts of validation will be skipped.
-    ValidateMediaChange(node->TryGetMedia(), primaryMediumIndex, replication);
-    node->SetMedia(replication);
-}
+    ValidateMediaChange(oldReplication, primaryMediumIndex, newReplication);
 
-void TNontemplateCompositeCypressNodeProxyBase::SetHunkMedia(const TSerializableChunkReplication& serializableReplication)
-{
-    auto optionalReplication = DoSetMedia(serializableReplication);
-    if (!optionalReplication) {
-        return;
+    if constexpr (IsHunk) {
+        node->SetHunkMedia(newReplication);
+    } else {
+        node->SetMedia(newReplication);
     }
-    auto replication = *optionalReplication;
-    auto* node = GetThisImpl<TCompositeNodeBase>();
-    node->SetHunkMedia(replication);
 }
 
 void TNontemplateCompositeCypressNodeProxyBase::ThrowReplicationFactorMismatch(int mediumIndex) const
@@ -2951,13 +2957,11 @@ bool TNontemplateCompositeCypressNodeProxyBase::RemoveBuiltinAttribute(TInterned
             return true;
 
         case EInternedAttributeKey::PrimaryMedium:
-            ValidateNoTransaction();
-            node->RemovePrimaryMediumIndex();
+            RemovePrimaryMedium</*IsHunk*/ false>();
             return true;
 
         case EInternedAttributeKey::HunkPrimaryMedium:
-            ValidateNoTransaction();
-            node->RemoveHunkPrimaryMediumIndex();
+            RemovePrimaryMedium</*IsHunk*/ true>();
             return true;
 
         case EInternedAttributeKey::TabletCellBundle: {

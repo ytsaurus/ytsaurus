@@ -3018,23 +3018,42 @@ class TestCypress(YTEnvSetup):
         with pytest.raises(YtError):
             set(
                 "//tmp/dir1/@media",
-                {"default": {"replication_factor": 3, "data_parts_only": True}},
+                {"default": {"replication_factor": 5, "data_parts_only": True}},
             )
         set(
             "//tmp/dir1/@media",
-            {"default": {"replication_factor": 3, "data_parts_only": False}},
+            {"default": {"replication_factor": 5, "data_parts_only": False}},
         )
-        assert get("//tmp/dir1/@media") == {"default": {"replication_factor": 3, "data_parts_only": False}}
-        with pytest.raises(YtError):
-            set("//tmp/dir1/@primary_medium", "ssd")
-        assert not exists("//tmp/dir1/@primary_medium")
+        assert get("//tmp/dir1/@media") == {"default": {"replication_factor": 5, "data_parts_only": False}}
         set("//tmp/dir1/@primary_medium", "default")
         assert get("//tmp/dir1/@primary_medium") == "default"
+
+        remove("//tmp/dir1/@primary_medium")
+        # Setting previously not set primary_medium assigns defaults.
+        set("//tmp/dir1/@primary_medium", "ssd")
+        assert get("//tmp/dir1/@primary_medium") == "ssd"
+        assert get("//tmp/dir1/@media") == {
+            "default": {"replication_factor": 5, "data_parts_only": False},
+            "ssd": {"replication_factor": 3, "data_parts_only": False},
+        }
+
+        # Setting previously set primary_medium either simply sets it...
+        set("//tmp/dir1/@primary_medium", "default")
+        assert get("//tmp/dir1/@primary_medium") == "default"
+        assert get("//tmp/dir1/@media") == {
+            "default": {"replication_factor": 5, "data_parts_only": False},
+            "ssd": {"replication_factor": 3, "data_parts_only": False},
+        }
+        # ...or is regarded as a move if the new primary_medium is not configured.
+        remove("//tmp/dir1/@media/ssd")
+        set("//tmp/dir1/@primary_medium", "ssd")
+        assert get("//tmp/dir1/@media") == {"ssd": {"replication_factor": 5, "data_parts_only": False}}
+
         with pytest.raises(YtError):
-            set("//tmp/dir1/@replication_factor", 5)
+            set("//tmp/dir1/@replication_factor", 3)
         assert not exists("//tmp/dir1/@replication_factor")
-        set("//tmp/dir1/@replication_factor", 3)
-        assert get("//tmp/dir1/@replication_factor") == 3
+        set("//tmp/dir1/@replication_factor", 5)
+        assert get("//tmp/dir1/@replication_factor") == 5
 
         # media - replication_factor - primary_medium
         create("map_node", "//tmp/dir2")
