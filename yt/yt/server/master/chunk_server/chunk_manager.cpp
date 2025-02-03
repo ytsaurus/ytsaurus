@@ -1471,7 +1471,6 @@ public:
 
             // Restoring statistics.
             newChunkList->Statistics().LogicalRowCount = chunkList->Statistics().LogicalRowCount;
-            newChunkList->Statistics().LogicalChunkCount = chunkList->Statistics().LogicalChunkCount;
             newChunkList->Statistics().LogicalDataWeight = chunkList->Statistics().LogicalDataWeight;
             newChunkList->CumulativeStatistics() = chunkList->CumulativeStatistics();
             newChunkList->CumulativeStatistics().TrimFront(chunkList->GetTrimmedChildCount());
@@ -2417,6 +2416,9 @@ private:
 
     // COMPAT(h0pless)
     bool NeedRecomputeChunkWeightStatisticsHistogram_ = false;
+
+    // COMPAT(ifsmirnov)
+    bool NeedRecomputeOrderedTabletStatistics_ = false;
 
     TPeriodicExecutorPtr ProfilingExecutor_;
 
@@ -4708,6 +4710,9 @@ private:
         MediumMap_.LoadKeys(context);
         ChunkViewMap_.LoadKeys(context);
         DynamicStoreMap_.LoadKeys(context);
+
+        // COMPAT(ifsmirnov)
+        NeedRecomputeOrderedTabletStatistics_ = context.GetVersion() < EMasterReign::RipLogicalChunkCount;
     }
 
     void LoadHistogramValues(
@@ -4901,6 +4906,19 @@ private:
 
             YT_LOG_INFO("Finished initializing chunk placement");
         }
+
+        // COMPAT(ifsmirnov)
+        if (NeedRecomputeOrderedTabletStatistics_) {
+            YT_LOG_INFO("Started initializing chunk lists");
+
+            for (auto [_, chunkList] : ChunkListMap_) {
+                if (chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet) {
+                    RecomputeOrderedTabletCumulativeStatistics(chunkList);
+                }
+            }
+
+            YT_LOG_INFO("Finished initializing chunk lists");
+        }
     }
 
 
@@ -4961,6 +4979,7 @@ private:
         DefaultStoreMedium_ = nullptr;
 
         NeedRecomputeChunkWeightStatisticsHistogram_ = false;
+        NeedRecomputeOrderedTabletStatistics_ = false;
     }
 
     void SetZeroState() override
@@ -5071,7 +5090,6 @@ private:
         }
     }
 
-    // Fix for YT-10619.
     void RecomputeOrderedTabletCumulativeStatistics(TChunkList* chunkList)
     {
         YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
@@ -5079,7 +5097,7 @@ private:
         auto getChildStatisticsEntry = [] (TChunkTree* child) {
             return child
                 ? TCumulativeStatisticsEntry{child->AsChunk()->GetStatistics()}
-                : TCumulativeStatisticsEntry(0 /*RowCount*/, 1 /*ChunkCount*/, 0 /*DataSize*/);
+                : TCumulativeStatisticsEntry();
         };
 
         TCumulativeStatisticsEntry beforeFirst{chunkList->Statistics()};
@@ -5199,7 +5217,7 @@ private:
                 if (childIndex + 1 < childCount && chunkList->HasCumulativeStatistics()) {
                     cumulativeStatistics.PushBack(TCumulativeStatisticsEntry{
                         childStatistics.LogicalRowCount,
-                        childStatistics.LogicalChunkCount,
+                        childStatistics.ChunkCount,
                         childStatistics.UncompressedDataSize
                     });
                 }

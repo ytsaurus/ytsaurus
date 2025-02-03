@@ -217,6 +217,7 @@ DEFINE_ENUM(EMasterReign,
     ((SequoiaRefreshQueues)                                         (2827))  // aleksandra-zh
     ((PerLocationNodeHeartbeat)                                     (2828))  // danilalexeev
     ((HunkSpecificMediaFixes)                                       (2829))  // shakurov
+    ((RipLogicalChunkCount)                                         (2830))  // ifsmirnov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
