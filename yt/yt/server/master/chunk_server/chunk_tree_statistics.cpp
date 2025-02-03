@@ -25,7 +25,6 @@ void TChunkTreeStatistics::Accumulate(const TChunkTreeStatistics& other)
     RegularDiskSpace += other.RegularDiskSpace;
     ErasureDiskSpace += other.ErasureDiskSpace;
     ChunkCount += other.ChunkCount;
-    LogicalChunkCount += other.LogicalChunkCount;
     ChunkListCount += other.ChunkListCount;
     Rank = std::max(Rank, other.Rank);
 
@@ -50,7 +49,6 @@ void TChunkTreeStatistics::Deaccumulate(const TChunkTreeStatistics& other)
     RegularDiskSpace -= other.RegularDiskSpace;
     ErasureDiskSpace -= other.ErasureDiskSpace;
     ChunkCount -= other.ChunkCount;
-    LogicalChunkCount -= other.LogicalChunkCount;
     ChunkListCount -= other.ChunkListCount;
     // NB: Rank is ignored intentionally since there's no way to deaccumulate it.
 
@@ -91,7 +89,11 @@ void TChunkTreeStatistics::Persist(const NCellMaster::TPersistenceContext& conte
     Persist(context, RegularDiskSpace);
     Persist(context, ErasureDiskSpace);
     Persist(context, ChunkCount);
-    Persist(context, LogicalChunkCount);
+    // COMPAT(ifsmirnov)
+    if (context.IsLoad() && context.GetVersion() < NCellMaster::EMasterReign::RipLogicalChunkCount) {
+        i64 dummyLogicalChunkCount;
+        Persist(context, dummyLogicalChunkCount);
+    }
     Persist(context, ChunkListCount);
     Persist(context, Rank);
 }
@@ -106,7 +108,6 @@ bool TChunkTreeStatistics::operator == (const TChunkTreeStatistics& other) const
         RegularDiskSpace == other.RegularDiskSpace &&
         ErasureDiskSpace == other.ErasureDiskSpace &&
         ChunkCount == other.ChunkCount &&
-        LogicalChunkCount == other.LogicalChunkCount &&
         ChunkListCount == other.ChunkListCount &&
         Rank == other.Rank &&
         (DataWeight == -1 || other.DataWeight == -1 || DataWeight == other.DataWeight) &&
@@ -134,7 +135,6 @@ void Serialize(const TChunkTreeStatistics& statistics, NYson::IYsonConsumer* con
             .Item("regular_disk_space").Value(statistics.RegularDiskSpace)
             .Item("erasure_disk_space").Value(statistics.ErasureDiskSpace)
             .Item("chunk_count").Value(statistics.ChunkCount)
-            .Item("logical_chunk_count").Value(statistics.LogicalChunkCount)
             .Item("chunk_list_count").Value(statistics.ChunkListCount)
             .Item("rank").Value(statistics.Rank)
         .EndMap();

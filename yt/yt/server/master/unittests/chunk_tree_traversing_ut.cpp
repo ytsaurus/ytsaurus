@@ -1220,6 +1220,7 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
     DetachFromChunkList(root, {chunk1}, EChunkDetachPolicy::OrderedTabletPrefix);
     root->Children().erase(root->Children().begin());
     root->CumulativeStatistics().TrimFront(1);
+    root->SetTrimmedChildCount(0);
     YT_VERIFY(root->Children().size() == 3);
     YT_VERIFY(root->CumulativeStatistics().Size() == 3);
 
@@ -1237,6 +1238,10 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
 
         std::set<TChunkInfo> correctResult;
+        correctResult.insert(TChunkInfo(
+            chunk2,
+            1));
+
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }
 
@@ -1254,7 +1259,10 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
         std::set<TChunkInfo> correctResult{
             TChunkInfo(
                 chunk2,
-                1)
+                1),
+            TChunkInfo(
+                chunk3,
+                2),
         };
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }
@@ -1272,8 +1280,8 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
 
         std::set<TChunkInfo> correctResult{
             TChunkInfo(
-                chunk2,
-                1)
+                chunk3,
+                2)
         };
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }
@@ -1295,7 +1303,32 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
                 1),
             TChunkInfo(
                 chunk3,
-                2)
+                2),
+            TChunkInfo(
+                chunk4,
+                3)
+        };
+        EXPECT_EQ(correctResult, visitor->GetChunkInfos());
+    }
+
+    {
+        auto visitor = New<TTestChunkVisitor>();
+
+        TLegacyReadLimit lowerLimit;
+        lowerLimit.SetRowIndex(0);
+
+        TLegacyReadLimit upperLimit;
+        upperLimit.SetRowIndex(3);
+
+        TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
+
+        std::set<TChunkInfo> correctResult{
+            TChunkInfo(
+                chunk2,
+                1),
+            TChunkInfo(
+                chunk3,
+                2),
         };
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }
@@ -2019,6 +2052,9 @@ TEST_F(TChunkTreeTraversingStressTest, OrderedDynamicWithTabletIndex)
 
             // These functions implement DetachFromChunkList with force detach.
             tabletToTrim->Children().erase(tabletToTrim->Children().begin());
+            TCumulativeStatisticsEntry delta;
+            delta.ChunkCount = -1;
+            tabletToTrim->CumulativeStatistics().UpdateBeforeBeginning(delta);
             tabletToTrim->CumulativeStatistics().TrimFront(1);
             tabletToTrim->SetTrimmedChildCount(0);
         }

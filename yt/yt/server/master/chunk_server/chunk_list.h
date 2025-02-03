@@ -43,8 +43,9 @@ public:
     using TChildToIndexMap = THashMap<TChunkTreeRawPtr, int>;
     DEFINE_BYREF_RW_PROPERTY(TChildToIndexMap, ChildToIndex);
 
-    //! The i-th value is equal to the sum of statistics for children 0..i
-    //! for all i in [0..Children.size() - 1]
+    //! The i-th value is, roughly speaking, equal to the sum of statistics
+    //! for children 0..i for all i in [0..Children.size() - 1]. See detailed
+    //! description in cumulative_statistics.h.
     DEFINE_BYREF_RW_PROPERTY(TCumulativeStatistics, CumulativeStatistics);
 
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);

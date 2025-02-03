@@ -63,6 +63,11 @@ static constexpr auto& Logger = ChunkServerLogger;
 static const double ChunkListTombstoneRelativeThreshold = 0.5;
 static const double ChunkListTombstoneAbsoluteThreshold = 16;
 
+static const TCumulativeStatisticsEntry MinusOneChunkDelta(
+    /*rowCount*/ 0,
+    /*chunkCount*/ -1,
+    /*dataSize*/ 0);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunkLocation* ParseLocationOrThrow(
@@ -413,7 +418,9 @@ void DetachFromChunkList(
                 YT_VERIFY(child == existingChildren[childIndex]);
                 existingChildren[childIndex] = nullptr;
                 ++childIndex;
+                chunkList->CumulativeStatistics().UpdateBeforeBeginning(MinusOneChunkDelta);
             }
+
             int newTrimmedChildCount = chunkList->GetTrimmedChildCount() + std::ssize(children);
             if (newTrimmedChildCount > ChunkListTombstoneAbsoluteThreshold &&
                 newTrimmedChildCount > existingChildren.size() * ChunkListTombstoneRelativeThreshold)
@@ -428,9 +435,9 @@ void DetachFromChunkList(
             } else {
                 chunkList->SetTrimmedChildCount(newTrimmedChildCount);
             }
-            // NB: Do not change logical row count, chunk count and data weight.
+
+            // NB: Do not change logical row count and data weight.
             statisticsDelta.LogicalRowCount = 0;
-            statisticsDelta.LogicalChunkCount = 0;
             statisticsDelta.LogicalDataWeight = 0;
             break;
         }
@@ -894,7 +901,11 @@ void SerializeNodePath(
 
 bool IsEmpty(const TChunkList* chunkList)
 {
-    return !chunkList || chunkList->Statistics().LogicalChunkCount == 0;
+    // NB: Dynamic stores have zero row count. Trimmed ordered tablets
+    // have zero chunk count.
+    return !chunkList || (
+        chunkList->Statistics().LogicalRowCount == 0 &&
+        chunkList->Statistics().ChunkCount == 0);
 }
 
 bool IsEmpty(const TChunkTree* chunkTree)

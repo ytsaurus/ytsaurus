@@ -61,7 +61,7 @@ class TestOrderedDynamicTablesBase(DynamicTablesBase):
         statistics = attrs["statistics"]
         cumulative_statistics = attrs["cumulative_statistics"]
         assert len(cumulative_statistics) > 0
-        assert cumulative_statistics[-1]["chunk_count"] == statistics["logical_chunk_count"]
+        assert cumulative_statistics[-1]["chunk_count"] == statistics["chunk_count"]
         assert cumulative_statistics[-1]["row_count"] == statistics["logical_row_count"]
         # Intentionally not compared because it is not "logical" and contains garbage after trim.
         # assert cumulative_statistics[-1]["data_size"] == statistics["uncompressed_data_size"]
@@ -74,11 +74,15 @@ class TestOrderedDynamicTablesBase(DynamicTablesBase):
         assert statistics["row_count"] == sum([c["row_count"] for c in tablet_statistics])
         assert statistics["chunk_count"] == sum([c["chunk_count"] for c in tablet_statistics])
         assert statistics["logical_row_count"] == sum([c["logical_row_count"] for c in tablet_statistics])
-        assert statistics["logical_chunk_count"] == sum([c["logical_chunk_count"] for c in tablet_statistics])
 
         self._verify_cumulative_statistics_match_statistics(chunk_list_id)
         for tablet_chunk_list in tablet_chunk_lists:
             self._verify_cumulative_statistics_match_statistics(tablet_chunk_list)
+
+    def _get_single_tablet_cumulative_statistics(self, table):
+        root_chunk_list_id = get(f"{table}/@chunk_list_id")
+        tablet_chunk_list_id = get(f"#{root_chunk_list_id}/@child_ids/0")
+        return get(f"#{tablet_chunk_list_id}/@cumulative_statistics")
 
 
 ##################################################################
@@ -704,16 +708,43 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         assert list(read_table(path)) == [{"a": 0}, {"a": 1}]
 
         trim_rows("//tmp/t", 0, 1)
-        wait(lambda: list(read_table(path)) == [{"a": 1}])
+        wait(lambda: list(read_table(path)) == [{"a": 1}, {"a": 2}])
 
         tx = start_transaction(timeout=60000)
         lock("//tmp/t", mode="snapshot", tx=tx)
 
         insert_rows("//tmp/t", [{"a": 3}])
         sync_flush_table("//tmp/t")
-        assert list(read_table(path)) == [{"a": 1}]
+        assert list(read_table(path)) == [{"a": 1}, {"a": 2}]
 
         self._verify_chunk_tree_statistics("//tmp/t")
+
+    @authors("ifsmirnov")
+    def test_reshard_fully_trimmed(self):
+        sync_create_cells(1)
+        self._create_simple_table("//tmp/t", schema=[{"name": "a", "type": "int64"}])
+        sync_mount_table("//tmp/t")
+
+        insert_rows("//tmp/t", [{"a": 0}])
+        sync_flush_table("//tmp/t")
+        insert_rows("//tmp/t", [{"a": 1}])
+        sync_flush_table("//tmp/t")
+        trim_rows("//tmp/t", 0, 2)
+        wait(lambda: get("//tmp/t/@chunk_ids") == [])
+
+        def _get_cumulative(entry_type):
+            return [s[entry_type] for s in self._get_single_tablet_cumulative_statistics("//tmp/t")]
+
+        # Do not forget two dynamic stores.
+        assert _get_cumulative("chunk_count") == [-2, -1, 0] + [1, 2]
+        assert _get_cumulative("row_count") == [0, 1, 2] + [2, 2]
+
+        sync_unmount_table("//tmp/t")
+
+        for i in range(2):
+            sync_reshard_table("//tmp/t", 1)
+            assert _get_cumulative("chunk_count") == [0]
+            assert _get_cumulative("row_count") == [2]
 
     @authors("ifsmirnov")
     def test_chunk_read_limit_after_trim(self):
@@ -722,7 +753,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         sync_mount_table("//tmp/t")
 
         expected_rows = []
-        trimmed_row_count = [0]  # Cannot otherwise modify this variable from _trim_chunks.
+        trimmed_row_count = 0
 
         def _add_chunk():
             idx = len(expected_rows)
@@ -731,21 +762,34 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
             sync_flush_table("//tmp/t")
 
         def _trim_chunks(count):
-            while trimmed_row_count[0] < count:
-                expected_rows[trimmed_row_count[0]] = None
-                trimmed_row_count[0] += 1
-            trim_rows("//tmp/t", 0, trimmed_row_count[0])
+            nonlocal trimmed_row_count
+            while trimmed_row_count < count:
+                expected_rows[trimmed_row_count] = None
+                trimmed_row_count += 1
+            trim_rows("//tmp/t", 0, trimmed_row_count)
 
         def _validate_read(lower_chunk_index, upper_chunk_index):
-            expected = [i for i in expected_rows[lower_chunk_index:upper_chunk_index] if i is not None]
-            # str.format doesn't like extra {}-s in the format string.
-            ranges = "<ranges=[{lower_limit={chunk_index=" + str(lower_chunk_index) + "};"
-            ranges += "upper_limit={chunk_index=" + str(upper_chunk_index) + "}}]>"
+            expected = expected_rows[lower_chunk_index + trimmed_row_count:upper_chunk_index + trimmed_row_count]
+            ranges = "<ranges=[{{lower_limit={{chunk_index={}}};upper_limit={{chunk_index={}}}}}]>".format(
+                lower_chunk_index,
+                upper_chunk_index)
             actual = [x["a"] for x in read_table(ranges + "//tmp/t")]
             assert expected == actual
 
+        def _validate_cumulative_chunk_count(expected):
+            cumulative_statistics = self._get_single_tablet_cumulative_statistics("//tmp/t")
+            assert [s["chunk_count"] for s in cumulative_statistics] == expected
+
+        def _validate_cumulative_row_count(expected):
+            cumulative_statistics = self._get_single_tablet_cumulative_statistics("//tmp/t")
+            assert [s["row_count"] for s in cumulative_statistics] == expected
+
         for i in range(20):
             _add_chunk()
+
+        # Do not forget take two dynamic stores into account.
+        _validate_cumulative_chunk_count(list(range(23)))
+        _validate_cumulative_row_count(list(range(21)) + [20, 20])
 
         _trim_chunks(8)
         wait(lambda: len(get("//tmp/t/@chunk_ids")) == 20 - 8)
@@ -759,6 +803,10 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         _validate_read(18, 18)
         _validate_read(18, 20)
 
+        # [-7, -6, ..., 12]
+        _validate_cumulative_chunk_count([x - 8 for x in range(23)])
+        _validate_cumulative_row_count(list(range(21)) + [20, 20])
+
         # NB: Chunks are physically removed from the chunk list in portions of at least 17 pcs.
         _trim_chunks(17)
         wait(lambda: len(get("//tmp/t/@chunk_ids")) == 20 - 17)
@@ -768,6 +816,19 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         _validate_read(16, 17)
         _validate_read(18, 18)
         _validate_read(18, 20)
+
+        _validate_cumulative_chunk_count([0, 1, 2, 3] + [4, 5])
+        _validate_cumulative_row_count([17, 18, 19, 20] + [20, 20])
+
+        _trim_chunks(18)
+        wait(lambda: len(get("//tmp/t/@chunk_ids")) == 20 - 18)
+        _validate_cumulative_chunk_count([-1, 0, 1, 2] + [3, 4])
+        _validate_cumulative_row_count([17, 18, 19, 20] + [20, 20])
+
+        _trim_chunks(19)
+        wait(lambda: len(get("//tmp/t/@chunk_ids")) == 20 - 19)
+        _validate_cumulative_chunk_count([-2, -1, 0, 1] + [2, 3])
+        _validate_cumulative_row_count([17, 18, 19, 20] + [20, 20])
 
     @authors("ifsmirnov")
     def test_cumulative_statistics_after_cow(self):
@@ -781,16 +842,10 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         wait(lambda: len(get("//tmp/t/@chunk_ids")) == 0)
         sync_unmount_table("//tmp/t")
 
-        def _get_cumulative_statistics():
-            root_chunk_list = get("//tmp/t/@chunk_list_id")
-            tablet_chunk_list = get("#{}/@child_ids/0".format(root_chunk_list))
-            cumulative_statistics = get("#{}/@cumulative_statistics".format(tablet_chunk_list))
-            return cumulative_statistics
-
-        assert len(_get_cumulative_statistics()) == 2
+        assert len(self._get_single_tablet_cumulative_statistics("//tmp/t")) == 2
 
         sync_reshard_table("//tmp/t", 1)
-        assert len(_get_cumulative_statistics()) == 1
+        assert len(self._get_single_tablet_cumulative_statistics("//tmp/t")) == 1
         assert get("//tmp/t/@chunk_ids") == []
         self._verify_chunk_tree_statistics("//tmp/t")
 

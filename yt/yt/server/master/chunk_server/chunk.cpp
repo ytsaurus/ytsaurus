@@ -97,7 +97,6 @@ TChunkTreeStatistics TChunk::GetStatistics() const
             result.RegularDiskSpace = GetDiskSpace();
         }
         result.ChunkCount = 1;
-        result.LogicalChunkCount = 1;
         result.Rank = 0;
     }
     return result;
