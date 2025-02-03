@@ -851,6 +851,12 @@ void TSuspendOperationCommand::Register(TRegistrar registrar)
             return command->Options.AbortRunningJobs;
         })
         .Optional(/*init*/ false);
+    registrar.ParameterWithUniversalAccessor<TString>(
+        "reason",
+        [] (TThis* command) -> auto& {
+            return command->Options.Reason;
+        })
+        .Optional(/*init*/ "");
 }
 
 void TSuspendOperationCommand::DoExecute(ICommandContextPtr context)
