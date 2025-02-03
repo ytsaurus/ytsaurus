@@ -16,6 +16,13 @@
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
+#include <yt/yt/server/lib/signature/config.h>
+#include <yt/yt/server/lib/signature/cypress_key_store.h>
+#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/key_rotator.h>
+#include <yt/yt/server/lib/signature/signature_generator.h>
+#include <yt/yt/server/lib/signature/signature_validator.h>
+
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
 
 #include <yt/yt/library/coredumper/public.h>
@@ -97,6 +104,7 @@ using namespace NMonitoring;
 using namespace NNative;
 using namespace NOrchid;
 using namespace NProfiling;
+using namespace NSignature;
 using namespace NYson;
 using namespace NYTree;
 using namespace NAdmin;
@@ -244,22 +252,51 @@ void TBootstrap::DoInitialize()
 
     AccessChecker_ = CreateAccessChecker(this);
 
-    // TODO(pavook): replace signature instances with proper ones.
+    if (Config_->SignatureValidation) {
+        auto cypressKeyReader = CreateCypressKeyReader(
+            Config_->SignatureValidation->CypressKeyReader,
+            RootClient_);
+        SignatureValidator_ = New<TSignatureValidator>(
+            Config_->SignatureValidation->Validator,
+            std::move(cypressKeyReader));
+    } else {
+        // NB(pavook): we cannot do any meaningful signature operations safely.
+        SignatureValidator_ = CreateAlwaysThrowingSignatureValidator();
+    }
+
+    if (Config_->SignatureGeneration) {
+        auto cypressKeyWriter = WaitFor(CreateCypressKeyWriter(
+            Config_->SignatureGeneration->CypressKeyWriter,
+            RootClient_))
+            .ValueOrThrow();
+        auto signatureGenerator = New<TSignatureGenerator>(
+            Config_->SignatureGeneration->Generator,
+            std::move(cypressKeyWriter));
+        SignatureKeyRotator_ = New<TKeyRotator>(
+            Config_->SignatureGeneration->KeyRotator,
+            GetControlInvoker(),
+            signatureGenerator);
+        SignatureGenerator_ = std::move(signatureGenerator);
+    } else {
+        // NB(pavook): we cannot do any meaningful signature operations safely.
+        SignatureGenerator_ = CreateAlwaysThrowingSignatureGenerator();
+    }
+
     auto driverV3Config = CloneYsonStruct(Config_->Driver);
     driverV3Config->ApiVersion = ApiVersion3;
     DriverV3_ = CreateDriver(
         Connection_,
         driverV3Config,
-        CreateAlwaysThrowingSignatureGenerator(),
-        CreateAlwaysThrowingSignatureValidator());
+        SignatureGenerator_,
+        SignatureValidator_);
 
     auto driverV4Config = CloneYsonStruct(Config_->Driver);
     driverV4Config->ApiVersion = ApiVersion4;
     DriverV4_ = CreateDriver(
         Connection_,
         driverV4Config,
-        CreateAlwaysThrowingSignatureGenerator(),
-        CreateAlwaysThrowingSignatureValidator());
+        SignatureGenerator_,
+        SignatureValidator_);
 
     AuthenticationManager_ = CreateAuthenticationManager(
         Config_->Auth,
@@ -437,6 +474,10 @@ void TBootstrap::DoStart()
     DynamicConfigManager_->Start();
 
     MonitoringServer_->Start();
+
+    if (SignatureKeyRotator_) {
+        SignatureKeyRotator_->Start();
+    }
 
     ApiHttpServer_->Start();
     if (ApiHttpsServer_) {
