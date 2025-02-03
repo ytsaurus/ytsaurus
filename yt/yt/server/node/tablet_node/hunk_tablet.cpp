@@ -74,19 +74,17 @@ void THunkTablet::Load(TLoadContext& context)
 
 TFuture<std::vector<TJournalHunkDescriptor>> THunkTablet::WriteHunks(std::vector<TSharedRef> payloads)
 {
-    ++WriteLockCount_;
-    auto writeLockGuard = Finally([this] {
-        --WriteLockCount_;
-        YT_VERIFY(WriteLockCount_ >= 0);
-    });
-
     auto automatonInvoker = GetCurrentInvoker();
+
+    ++WriteLockCount_;
+    auto writeLockGuard = Finally([=, this] {
+        YT_VERIFY(--WriteLockCount_ >= 0);
+    });
 
     auto doWriteHunks = [
         =, this, writeLockGuard = std::move(writeLockGuard)
     ] (std::vector<TSharedRef> payloads, const THunkStorePtr& store) mutable
     {
-        auto tabletId = GetId();
         store->SetLastWriteTime(TInstant::Now());
 
         auto future = store->WriteHunks(std::move(payloads));
@@ -105,7 +103,7 @@ TFuture<std::vector<TJournalHunkDescriptor>> THunkTablet::WriteHunks(std::vector
 
                         RotateActiveStore();
 
-                        Host_->ScheduleScanTablet(tabletId);
+                        Host_->ScheduleScanTablet(GetId());
                     }
                 } else {
                     YT_LOG_DEBUG("Hunks are written to hunk store (DescriptorCount: %v)",

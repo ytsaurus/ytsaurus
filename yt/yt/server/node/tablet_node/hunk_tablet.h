@@ -98,7 +98,7 @@ private:
 
     //! Number of active writes. Tablet cannot be unmounted when
     //! write is in progress.
-    int WriteLockCount_ = 0;
+    std::atomic<int> WriteLockCount_ = 0;
 
     TPromise<THunkStorePtr> ActiveStorePromise_;
     TFuture<THunkStorePtr> ActiveStoreFuture_;
