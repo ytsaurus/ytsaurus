@@ -774,11 +774,9 @@ class TestCriDockerImage(TestLayersBase):
         job_id = job_ids[0]
 
         time.sleep(1)
-        env = self._poll_until_shell_exited(job_id, poll_job_shell(
-           job_id,
-           operation="spawn",
-           command="env",
-        )["shell_id"])
+        env = self._poll_until_shell_exited(
+            job_id, poll_job_shell(job_id, operation="spawn", command="env")["shell_id"]
+        )
         env = {
             key: value
             for line in env.splitlines()
@@ -791,7 +789,6 @@ class TestCriDockerImage(TestLayersBase):
             assert test(env[name]), "Failed test for {}={}".format(name, env[name])
 
         abort_job(job_id)
-
 
 
 @authors("psushin")
