@@ -85,15 +85,6 @@ public:
         }
     }
 
-    void Initialize()
-    {
-        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
-            .AsyncVia(ControlInvoker_)
-            .Run()
-            .Get()
-            .ThrowOnError();
-    }
-
     TFuture<void> Run() final
     {
         return BIND(&TBootstrap::DoRun, MakeStrong(this))
@@ -155,145 +146,146 @@ private:
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
-    void DoInitialize();
-    void DoRun();
-
-    void RegisterInstance();
-};
-
-void TBootstrap::DoInitialize()
-{
-    YT_LOG_INFO("Starting tablet balancer process (ClusterName: %v)",
-        Config_->ClusterConnection->Static->ClusterName);
-
-    LocalAddress_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
-
-    NNative::TConnectionOptions connectionOptions;
-    connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
-    Connection_ = NNative::CreateConnection(
-        Config_->ClusterConnection,
-        connectionOptions);
-    Connection_->GetMasterCellDirectorySynchronizer()->Start();
-
-    NativeAuthenticator_ = NNative::CreateNativeAuthenticator(Connection_);
-
-    auto clientOptions = TClientOptions::FromUser(Config_->ClusterUser);
-    Client_ = Connection_->CreateNativeClient(clientOptions);
-
-    NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
-
-    BusServer_ = CreateBusServer(Config_->BusServer);
-
-    RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
-
-    HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
-
-    DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, this);
-    DynamicConfigManager_->Start();
-
-    TabletBalancer_ = CreateTabletBalancer(
-        this,
-        Config_->TabletBalancer,
-        ControlInvoker_);
-
-    IMapNodePtr orchidRoot;
-    NMonitoring::Initialize(
-        HttpServer_,
-        ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
-        &MonitoringManager_,
-        &orchidRoot);
-
-    auto coreDumper = ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>();
-    if (coreDumper) {
-        SetNodeByYPath(
-            orchidRoot,
-            "/core_dumper",
-            CreateVirtualNode(coreDumper->CreateOrchidService()));
+    void DoRun()
+    {
+        DoInitialize();
+        DoStart();
     }
 
-    SetNodeByYPath(
-        orchidRoot,
-        "/tablet_balancer",
-        CreateVirtualNode(TabletBalancer_->GetOrchidService()));
+    void DoInitialize()
+    {
+        YT_LOG_INFO("Starting tablet balancer process (ClusterName: %v)",
+            Config_->ClusterConnection->Static->ClusterName);
 
-    if (Config_->ExposeConfigInOrchid) {
+        LocalAddress_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
+
+        NNative::TConnectionOptions connectionOptions;
+        connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
+        Connection_ = NNative::CreateConnection(
+            Config_->ClusterConnection,
+            connectionOptions);
+        Connection_->GetMasterCellDirectorySynchronizer()->Start();
+
+        NativeAuthenticator_ = NNative::CreateNativeAuthenticator(Connection_);
+
+        auto clientOptions = TClientOptions::FromUser(Config_->ClusterUser);
+        Client_ = Connection_->CreateNativeClient(clientOptions);
+
+        NLogging::GetDynamicTableLogWriterFactory()->SetClient(Client_);
+
+        BusServer_ = CreateBusServer(Config_->BusServer);
+
+        RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
+
+        HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
+
+        DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, this);
+        DynamicConfigManager_->Start();
+
+        TabletBalancer_ = CreateTabletBalancer(
+            this,
+            Config_->TabletBalancer,
+            ControlInvoker_);
+
+        IMapNodePtr orchidRoot;
+        NMonitoring::Initialize(
+            HttpServer_,
+            ServiceLocator_->GetServiceOrThrow<NProfiling::TSolomonExporterPtr>(),
+            &MonitoringManager_,
+            &orchidRoot);
+
+        auto coreDumper = ServiceLocator_->FindService<NCoreDump::ICoreDumperPtr>();
+        if (coreDumper) {
+            SetNodeByYPath(
+                orchidRoot,
+                "/core_dumper",
+                CreateVirtualNode(coreDumper->CreateOrchidService()));
+        }
+
         SetNodeByYPath(
             orchidRoot,
-            "/config",
-            CreateVirtualNode(ConfigNode_));
-        SetNodeByYPath(
+            "/tablet_balancer",
+            CreateVirtualNode(TabletBalancer_->GetOrchidService()));
+
+        if (Config_->ExposeConfigInOrchid) {
+            SetNodeByYPath(
+                orchidRoot,
+                "/config",
+                CreateVirtualNode(ConfigNode_));
+            SetNodeByYPath(
+                orchidRoot,
+                "/dynamic_config_manager",
+                CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+        }
+        SetBuildAttributes(
             orchidRoot,
-            "/dynamic_config_manager",
-            CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+            "tablet_balancer");
+
+        RpcServer_->RegisterService(NAdmin::CreateAdminService(
+            ControlInvoker_,
+            coreDumper,
+            NativeAuthenticator_));
+        RpcServer_->RegisterService(NOrchid::CreateOrchidService(
+            orchidRoot,
+            ControlInvoker_,
+            NativeAuthenticator_));
     }
-    SetBuildAttributes(
-        orchidRoot,
-        "tablet_balancer");
 
-    RpcServer_->RegisterService(NAdmin::CreateAdminService(
-        ControlInvoker_,
-        coreDumper,
-        NativeAuthenticator_));
-    RpcServer_->RegisterService(NOrchid::CreateOrchidService(
-        orchidRoot,
-        ControlInvoker_,
-        NativeAuthenticator_));
-}
+    void DoStart()
+    {
+        YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
+        HttpServer_->Start();
 
-void TBootstrap::DoRun()
-{
-    YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
-    HttpServer_->Start();
+        YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
+        RpcServer_->Configure(Config_->RpcServer);
+        RpcServer_->Start();
 
-    YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
-    RpcServer_->Configure(Config_->RpcServer);
-    RpcServer_->Start();
+        RegisterInstance();
 
-    RegisterInstance();
+        TCypressElectionManagerOptionsPtr options = New<TCypressElectionManagerOptions>();
+        options->GroupName = "TabletBalancer";
+        options->MemberName = LocalAddress_;
+        options->TransactionAttributes = CreateEphemeralAttributes();
+        options->TransactionAttributes->Set("host", LocalAddress_);
 
-    TCypressElectionManagerOptionsPtr options = New<TCypressElectionManagerOptions>();
-    options->GroupName = "TabletBalancer";
-    options->MemberName = LocalAddress_;
-    options->TransactionAttributes = CreateEphemeralAttributes();
-    options->TransactionAttributes->Set("host", LocalAddress_);
+        ElectionManager_ = CreateCypressElectionManager(
+            Client_,
+            ControlInvoker_,
+            Config_->ElectionManager,
+            options);
 
-    ElectionManager_ = CreateCypressElectionManager(
-        Client_,
-        ControlInvoker_,
-        Config_->ElectionManager,
-        options);
+        ElectionManager_->SubscribeLeadingStarted(BIND(&ITabletBalancer::Start, TabletBalancer_));
+        ElectionManager_->SubscribeLeadingEnded(BIND(&ITabletBalancer::Stop, TabletBalancer_));
 
-    ElectionManager_->SubscribeLeadingStarted(BIND(&ITabletBalancer::Start, TabletBalancer_));
-    ElectionManager_->SubscribeLeadingEnded(BIND(&ITabletBalancer::Stop, TabletBalancer_));
+        ElectionManager_->Start();
 
-    ElectionManager_->Start();
+        YT_LOG_INFO("Finished initializing bootstrap");
+    }
 
-    YT_LOG_INFO("Finished initializing bootstrap");
-}
+    void RegisterInstance()
+    {
+        TCypressRegistrarOptions options{
+            .RootPath = Format("%v/instances/%v", Config_->RootPath, ToYPathLiteral(LocalAddress_)),
+            .OrchidRemoteAddresses = TAddressMap{{NNodeTrackerClient::DefaultNetworkName, LocalAddress_}},
+        };
 
-void TBootstrap::RegisterInstance()
-{
-    TCypressRegistrarOptions options{
-        .RootPath = Format("%v/instances/%v", Config_->RootPath, ToYPathLiteral(LocalAddress_)),
-        .OrchidRemoteAddresses = TAddressMap{{NNodeTrackerClient::DefaultNetworkName, LocalAddress_}},
-    };
+        auto registrar = CreateCypressRegistrar(
+            std::move(options),
+            New<TCypressRegistrarConfig>(),
+            Client_,
+            GetCurrentInvoker());
 
-    auto registrar = CreateCypressRegistrar(
-        std::move(options),
-        New<TCypressRegistrarConfig>(),
-        Client_,
-        GetCurrentInvoker());
+        while (true) {
+            auto error = WaitFor(registrar->CreateNodes());
 
-    while (true) {
-        auto error = WaitFor(registrar->CreateNodes());
-
-        if (error.IsOK()) {
-            break;
-        } else {
-            YT_LOG_DEBUG(error, "Error updating Cypress node");
+            if (error.IsOK()) {
+                break;
+            } else {
+                YT_LOG_DEBUG(error, "Error updating Cypress node");
+            }
         }
     }
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -302,12 +294,10 @@ IBootstrapPtr CreateTabletBalancerBootstrap(
     INodePtr configNode,
     IServiceLocatorPtr serviceLocator)
 {
-    auto bootstrap = New<TBootstrap>(
+    return New<TBootstrap>(
         std::move(config),
         std::move(configNode),
         std::move(serviceLocator));
-    bootstrap->Initialize();
-    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

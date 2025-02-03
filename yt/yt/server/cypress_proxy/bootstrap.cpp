@@ -102,15 +102,6 @@ public:
         }
     }
 
-    void Initialize()
-    {
-        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
-            .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
-    }
-
     TFuture<void> Run() override
     {
         return BIND(&TBootstrap::DoRun, MakeStrong(this))
@@ -246,6 +237,12 @@ private:
     TUserDirectoryPtr UserDirectory_;
     IUserDirectorySynchronizerPtr UserDirectorySynchronizer_;
 
+    void DoRun()
+    {
+        DoInitialize();
+        DoStart();
+    }
+
     void DoInitialize()
     {
         BusServer_ = NBus::CreateBusServer(Config_->BusServer);
@@ -326,7 +323,7 @@ private:
         RpcServer_->RegisterService(ObjectService_->GetService());
     }
 
-    void DoRun()
+    void DoStart()
     {
         if (const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName) {
             NativeConnection_->GetClusterDirectory()->SubscribeOnClusterUpdated(
@@ -371,12 +368,10 @@ IBootstrapPtr CreateCypressProxyBootstrap(
     INodePtr configNode,
     IServiceLocatorPtr serviceLocator)
 {
-    auto bootstrap = New<TBootstrap>(
+    return New<TBootstrap>(
         std::move(config),
         std::move(configNode),
         std::move(serviceLocator));
-    bootstrap->Initialize();
-    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

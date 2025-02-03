@@ -269,7 +269,7 @@ public:
             TDuration::MilliSeconds(500)))
     { }
 
-    void Initialize()
+    void Initialize() final
     {
         BIND(&TBootstrap::DoInitialize, MakeStrong(this))
             .AsyncVia(GetControlInvoker())
@@ -779,6 +779,12 @@ private:
 
     bool Decommissioned_ = false;
 
+    void DoRun()
+    {
+        DoInitialize();
+        DoStart();
+    }
+
     void DoInitialize()
     {
         auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
@@ -1136,7 +1142,7 @@ private:
         YT_LOG_INFO("Cluster node initialization completed");
     }
 
-    void DoRun()
+    void DoStart()
     {
         auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 
@@ -1155,22 +1161,18 @@ private:
             Config_->Tags);
 
         // Do not start subsystems until everything is initialized.
-
-        YT_LOG_INFO("Loading dynamic config for the first time");
-
         // Start MasterConnector to register at Master.
         MasterConnector_->Start();
 
         {
+            YT_LOG_INFO("Loading dynamic config for the first time");
             auto error = WaitFor(DynamicConfigManager_->GetConfigLoadedFuture());
-
             YT_LOG_FATAL_UNLESS(
                 error.IsOK(),
                 error,
                 "Unexpected failure while waiting for the first dynamic config loaded");
+            YT_LOG_INFO("Dynamic config loaded");
         }
-
-        YT_LOG_INFO("Dynamic config loaded");
 
         DoValidateConfig();
 
@@ -1277,12 +1279,6 @@ private:
 #endif
 
         YT_LOG_INFO("Node started successfully");
-    }
-
-    void DoStart()
-    {
-        DoInitialize();
-        DoRun();
     }
 
     IYPathServicePtr GetSecondaryMasterConnectionConfigsOrchidService()
@@ -1714,12 +1710,10 @@ IBootstrapPtr CreateNodeBootstrap(
     INodePtr configNode,
     IServiceLocatorPtr serviceLocator)
 {
-    auto bootstrap = New<TBootstrap>(
+    return New<TBootstrap>(
         std::move(config),
         std::move(configNode),
         std::move(serviceLocator));
-    bootstrap->Initialize();
-    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

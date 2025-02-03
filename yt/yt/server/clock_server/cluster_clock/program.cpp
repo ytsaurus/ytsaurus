@@ -89,6 +89,8 @@ private:
         if (IsDryRunMode()) {
             NBus::TTcpDispatcher::Get()->DisableNetworking();
 
+            bootstrap->Initialize();
+
             if (IsDumpSnapshotMode()) {
                 bootstrap->LoadSnapshot(LoadSnapshotPath_, true);
                 return;

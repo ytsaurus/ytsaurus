@@ -75,15 +75,6 @@ public:
         }
     }
 
-    void Initialize()
-    {
-        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
-            .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
-    }
-
     TFuture<void> Run() final
     {
         return BIND(&TBootstrap::DoRun, MakeStrong(this))
@@ -108,6 +99,12 @@ private:
     const IInvokerPtr& GetControlInvoker() const
     {
         return ControlQueue_->GetInvoker();
+    }
+
+    void DoRun()
+    {
+        DoInitialize();
+        DoStart();
     }
 
     void DoInitialize()
@@ -162,7 +159,7 @@ private:
             /*authenticator*/ nullptr));
     }
 
-    void DoRun()
+    void DoStart()
     {
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
@@ -179,12 +176,10 @@ IBootstrapPtr CreateTimestampProviderBootstrap(
     NYTree::INodePtr configNode,
     IServiceLocatorPtr serviceLocator)
 {
-    auto bootstrap = New<TBootstrap>(
+    return New<TBootstrap>(
         std::move(config),
         std::move(configNode),
         std::move(serviceLocator));
-    bootstrap->Initialize();
-    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

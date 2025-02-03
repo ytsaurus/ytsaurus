@@ -15,7 +15,7 @@ class TCypressProxyProgram
 public:
     TCypressProxyProgram()
     {
-        SetMainThreadName("CypressProxyProg");
+        SetMainThreadName("CypProxyProg");
     }
 
 protected:

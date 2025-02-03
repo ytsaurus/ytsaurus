@@ -52,7 +52,6 @@ public:
 
     void OnDynamicConfigChanged(const TControllerAgentConfigPtr& config);
 
-    void Initialize();
     TFuture<void> Run() final;
 
 private:
@@ -74,8 +73,9 @@ private:
     NCoreDump::ICoreDumperPtr CoreDumper_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
-    void DoInitialize();
     void DoRun();
+    void DoInitialize();
+    void DoStart();
 };
 
 DEFINE_REFCOUNTED_TYPE(TBootstrap)

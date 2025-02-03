@@ -85,15 +85,6 @@ public:
         }
     }
 
-    void Initialize()
-    {
-        BIND(&TBootstrap::DoInitialize, MakeStrong(this))
-            .AsyncVia(GetControlInvoker())
-            .Run()
-            .Get()
-            .ThrowOnError();
-    }
-
     TFuture<void> Run() final
     {
         return BIND(&TBootstrap::DoRun, MakeStrong(this))
@@ -129,6 +120,12 @@ private:
     const IInvokerPtr& GetWorkerInvoker()
     {
         return WorkerPool_->GetInvoker();
+    }
+
+    void DoRun()
+    {
+        DoInitialize();
+        DoStart();
     }
 
     void DoInitialize()
@@ -183,7 +180,7 @@ private:
             /*authenticator*/ nullptr));
     }
 
-    void DoRun()
+    void DoStart()
     {
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
@@ -200,12 +197,10 @@ IBootstrapPtr CreateDiscoveryServerBootstrap(
     INodePtr configNode,
     IServiceLocatorPtr serviceLocator)
 {
-    auto bootstrap = New<TBootstrap>(
+    return New<TBootstrap>(
         std::move(config),
         std::move(configNode),
         std::move(serviceLocator));
-    bootstrap->Initialize();
-    return bootstrap;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
