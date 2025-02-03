@@ -7,6 +7,7 @@ DEPENDS(yt/yt/core/rpc/unittests/bin)
 SRCS(
     bus.go
     client.go
+    proto.go
     send_options.go
 )
 
