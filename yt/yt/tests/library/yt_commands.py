@@ -403,6 +403,7 @@ def execute_command(
         "resume_op": "resume_operation",
         "complete_op": "complete_operation",
         "update_op_parameters": "update_operation_parameters",
+        "patch_op_spec": "patch_operation_spec",
     }
     if driver.get_config()["api_version"] == 4 and command_name in command_rewrites:
         command_name = command_rewrites[command_name]
@@ -1794,6 +1795,11 @@ def get_operation(is_raw=False, **kwargs):
 @resolve_operation_id_or_alias
 def update_op_parameters(**kwargs):
     execute_command("update_op_parameters", kwargs)
+
+
+@resolve_operation_id_or_alias
+def patch_op_spec(**kwargs):
+    execute_command("patch_op_spec", kwargs)
 
 
 def map(**kwargs):

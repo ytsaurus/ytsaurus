@@ -4232,8 +4232,6 @@ private:
         InitJobIOConfigs();
         InitStreamDescriptors();
 
-        Spec->Sampling->MaxTotalSliceCount = Spec->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
-
         InitPartitioningParametersEvaluator();
 
         // Due to the sampling it is possible that TotalEstimatedInputDataWeight > 0
@@ -4884,6 +4882,7 @@ IOperationControllerPtr CreateMapReduceController(
 {
     auto options = config->MapReduceOperationOptions;
     auto spec = ParseOperationSpec<TMapReduceOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    AdjustSamplingFromConfig(spec, config);
     return New<TMapReduceController>(spec, config, options, host, operation);
 }
 

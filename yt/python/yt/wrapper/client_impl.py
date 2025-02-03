@@ -1718,6 +1718,16 @@ class YtClient(ClientState):
             partition_mode=partition_mode, data_weight_per_partition=data_weight_per_partition, max_partition_count=max_partition_count,
             enable_key_guarantee=enable_key_guarantee, adjust_data_weight_per_partition=adjust_data_weight_per_partition)
 
+    def patch_operation_spec(
+            self,
+            operation_id, patches):
+        """
+        Patches operation spec.
+        """
+        return client_api.patch_operation_spec(
+            operation_id, patches,
+            client=self)
+
     def pause_pipeline(
             self,
             pipeline_path):

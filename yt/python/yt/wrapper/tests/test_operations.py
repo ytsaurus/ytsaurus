@@ -982,6 +982,27 @@ class TestOperationCommands(object):
             yt.get_operation(op.id, include_scheduler=True)["progress"]["scheduling_info_per_pool_tree"]["default"].get("weight", 0.0),
             10.0))
 
+    @authors("coteeq")
+    def test_patch_operation_spec(self):
+        table = TEST_DIR + "/table"
+        yt.write_table("<create=%true>" + table, [{"x": 1}])
+        op = yt.run_map("cat; sleep 10", table, table)
+        with pytest.raises(yt.YtError, match="not yet implemented"):
+            yt.patch_operation_spec(
+                op.id,
+                patches=[
+                    {
+                        "path": "/max_failed_job_count",
+                        "value": 10,
+                    }
+                ]
+            )
+        with pytest.raises(yt.YtError, match='Missing required parameter'):
+            yt.patch_operation_spec(
+                op.id,
+                patches=[{"value": "value", "not_path": "not_path"}]
+            )
+
     @authors("ignat")
     def test_abort_operation(self):
         table = TEST_DIR + "/table"

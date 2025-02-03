@@ -142,6 +142,10 @@ NTableClient::TTableSchema::TSystemColumnOptions ControlAttributesToColumnOption
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void AdjustSamplingFromConfig(const TOperationSpecBasePtr& spec, const TControllerAgentConfigPtr& config);
+
+////////////////////////////////////////////////////////////////////////////////
+
 NYson::TYsonString MakeIntermediateTableWriterConfig(
     const TOperationSpecBasePtr& spec,
     bool fastIntermediateMediumEnabled);

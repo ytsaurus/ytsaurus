@@ -364,8 +364,6 @@ protected:
 
     void CalculateSizes()
     {
-        Spec_->Sampling->MaxTotalSliceCount = Spec_->Sampling->MaxTotalSliceCount.value_or(Config->MaxTotalSliceCount);
-
         switch (OperationType) {
             case EOperationType::Merge:
                 JobSizeConstraints_ = CreateMergeJobSizeConstraints(
@@ -1016,6 +1014,7 @@ IOperationControllerPtr CreateSortedMergeController(
 {
     auto options = config->SortedMergeOperationOptions;
     auto spec = ParseOperationSpec<TSortedMergeOperationSpec>(UpdateSpec(options->SpecTemplate, operation->GetSpec()));
+    AdjustSamplingFromConfig(spec, config);
     return New<TSortedMergeController>(spec, config, options, host, operation);
 }
 
@@ -1417,6 +1416,7 @@ IOperationControllerPtr CreateReduceController(
     auto options = isJoinReduce ? config->JoinReduceOperationOptions : config->ReduceOperationOptions;
     auto mergedSpec = UpdateSpec(options->SpecTemplate, operation->GetSpec());
     auto spec = ParseOperationSpec<TReduceOperationSpec>(mergedSpec);
+    AdjustSamplingFromConfig(spec, config);
     if (!spec->EnableKeyGuarantee) {
         spec->EnableKeyGuarantee = !isJoinReduce;
     }
