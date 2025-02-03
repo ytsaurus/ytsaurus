@@ -2374,7 +2374,8 @@ private:
         auto uploadTransactionId = FromProto<TTransactionId>(rsp->upload_transaction_id());
         UploadTransaction_ = Client_->TransactionManager_->Attach(uploadTransactionId, TTransactionAttachOptions{
             .AutoAbort = true,
-            .PingAncestors = Options_.PingAncestors
+            .PingPeriod = Client_->Connection_->GetConfig()->UploadTransactionPingPeriod,
+            .PingAncestors = Options_.PingAncestors,
         });
     }
 

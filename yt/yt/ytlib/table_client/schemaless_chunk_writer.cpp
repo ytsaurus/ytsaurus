@@ -2768,7 +2768,8 @@ private:
             /*setUploadTxTimeout*/ true);
 
         UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, TTransactionAttachOptions{
-            .AutoAbort = true
+            .AutoAbort = true,
+            .PingPeriod = Client_->GetNativeConnection()->GetConfig()->UploadTransactionPingPeriod,
         });
 
         StartListenTransaction(UploadTransaction_);

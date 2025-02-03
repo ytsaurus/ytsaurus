@@ -303,6 +303,7 @@ public:
     ssize_t MaxRequestWindowSize;
 
     TDuration UploadTransactionTimeout;
+    std::optional<TDuration> UploadTransactionPingPeriod;
     TDuration HiveSyncRpcTimeout;
 
     TAsyncExpiringCacheConfigPtr JobShellDescriptorCache;

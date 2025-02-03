@@ -608,6 +608,7 @@ private:
             uploadTransactionId,
             TTransactionAttachOptions{
                 .AutoAbort = true,
+                .PingPeriod = Connection_->GetConfig()->UploadTransactionPingPeriod,
                 .Ping = true,
                 .PingAncestors = true,
             });
