@@ -376,6 +376,7 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
     registrar.Parameter("allow_everyone_create_secondary_indices", &TThis::AllowEveryoneCreateSecondaryIndices)
         .Default(false);
     registrar.Parameter("enable_stable_secondary_index_destruction", &TThis::EnableStableSecondaryIndexDestruction)
+        .DontSerializeDefault()
         .Default(false);
 
     registrar.Parameter("chunk_manager", &TThis::ChunkManager)
