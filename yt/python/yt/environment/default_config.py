@@ -33,6 +33,10 @@ def get_master_config():
         create_virtual_cell_maps_by_default = %true;
     };
 
+    table_manager = {
+        make_schema_attribute_opaque = %true;
+    };
+
     timestamp_manager = {
         commit_advance = 2000;
         request_backoff_time = 100;
