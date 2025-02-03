@@ -337,10 +337,11 @@ TFuture<TDistributedWriteSessionWithCookies> TClient::StartDistributedWriteSessi
         cookies.emplace_back(TSignedWriteFragmentCookiePtr(DummySignatureGenerator_->Sign(ConvertToYsonString(session.CookieFromThis()))));
     }
 
-    return MakeFuture(TDistributedWriteSessionWithCookies{
-        .Session = TSignedDistributedWriteSessionPtr(DummySignatureGenerator_->Sign(ConvertToYsonString(session))),
-        .Cookies = std::move(cookies),
-    });
+    TDistributedWriteSessionWithCookies result;
+    result.Session = TSignedDistributedWriteSessionPtr(DummySignatureGenerator_->Sign(ConvertToYsonString(session)));
+    result.Cookies = std::move(cookies);
+
+    return MakeFuture(std::move(result));
 }
 
 TFuture<void> TClient::FinishDistributedWriteSession(
