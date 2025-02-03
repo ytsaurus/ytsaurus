@@ -1038,7 +1038,7 @@ protected:
                     chunkList,
                     ChunkCountMember,
                     *lowerChunkIndex,
-                    statistics.LogicalChunkCount);
+                    statistics.ChunkCount);
             }
 
             // Offset.
@@ -1129,7 +1129,7 @@ protected:
                 chunkList,
                 ChunkCountMember,
                 *lowerChunkIndex,
-                statistics.LogicalChunkCount);
+                statistics.ChunkCount);
         }
 
         // Key.
@@ -1206,7 +1206,7 @@ protected:
                     chunkList,
                     ChunkCountMember,
                     *lowerChunkIndex,
-                    chunkList->Statistics().LogicalChunkCount);
+                    chunkList->Statistics().ChunkCount);
             }
 
             // NB: Tablet index lower bound is checked above in tablet root.

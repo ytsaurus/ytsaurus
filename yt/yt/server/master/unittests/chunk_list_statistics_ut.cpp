@@ -44,6 +44,17 @@ void CheckCumulativeStatistics(TChunkList* chunkList)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+[[maybe_unused]]
+std::ostream& operator << (std::ostream& os, const TCumulativeStatisticsEntry& entry)
+{
+    return os << Format("{RowCount=%v;ChunkCount=%v;DataSize=%v}",
+        entry.RowCount,
+        entry.ChunkCount,
+        entry.DataSize).data();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkListCumulativeStatisticsTest
     : public TChunkGeneratorTestBase
 { };
@@ -179,7 +190,8 @@ TEST_F(TChunkListCumulativeStatisticsTest, OrderedTabletTrim)
 
     auto* chunk3 = CreateChunk(3, 3, 3, 3);
     AttachToChunkList(root, {chunk3});
-    EXPECT_EQ(root->CumulativeStatistics()[1], TCumulativeStatisticsEntry(3, 2, 3));
+    EXPECT_EQ(root->CumulativeStatistics()[1], TCumulativeStatisticsEntry(3, 1, 3));
+    EXPECT_EQ(root->CumulativeStatistics()[2], TCumulativeStatisticsEntry(6, 2, 6));
 }
 
 TEST_F(TChunkListCumulativeStatisticsTest, OrderedTabletPhysicalTrim)
@@ -199,7 +211,8 @@ TEST_F(TChunkListCumulativeStatisticsTest, OrderedTabletPhysicalTrim)
 
     // Children are erased from the chunk list in portions of at least 17 chunks.
     EXPECT_LT(root->Children().size(), 18u);
-    EXPECT_EQ(root->CumulativeStatistics().Back(), TCumulativeStatisticsEntry(18, 18, 18));
+    int actualChunkCount = root->Children().size();
+    EXPECT_EQ(root->CumulativeStatistics().Back(), TCumulativeStatisticsEntry(18, actualChunkCount, 18));
 }
 
 TEST_F(TChunkListCumulativeStatisticsTest, UnconfirmedChunk)

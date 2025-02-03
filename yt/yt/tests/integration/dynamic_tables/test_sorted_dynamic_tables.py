@@ -1189,9 +1189,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         del statistics2["regular_disk_space"]
         # Chunk count includes dynamic stores
         del statistics1["chunk_count"]
-        del statistics1["logical_chunk_count"]
         del statistics2["chunk_count"]
-        del statistics2["logical_chunk_count"]
         assert statistics1 == statistics2
 
     @authors("babenko")

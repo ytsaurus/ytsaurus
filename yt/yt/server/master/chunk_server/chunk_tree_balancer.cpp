@@ -96,7 +96,6 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
     YT_VERIFY(newStatistics.RegularDiskSpace == oldStatistics.RegularDiskSpace);
     YT_VERIFY(newStatistics.ErasureDiskSpace == oldStatistics.ErasureDiskSpace);
     YT_VERIFY(newStatistics.ChunkCount == oldStatistics.ChunkCount);
-    YT_VERIFY(newStatistics.LogicalChunkCount == oldStatistics.LogicalChunkCount);
 
     // Should we schedule a requisition update here? We shouldn't. Here's why.
     // First of all, it would be prohibitively expensive (trust me, I checked).

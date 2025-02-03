@@ -24,10 +24,13 @@ struct TCumulativeStatisticsEntry
 
     TCumulativeStatisticsEntry(i64 rowCount, i64 chunkCount, i64 dataSize);
 
+    bool operator==(const TCumulativeStatisticsEntry& other) const = default;
+
     TCumulativeStatisticsEntry operator+(const TCumulativeStatisticsEntry& other) const;
     TCumulativeStatisticsEntry operator-(const TCumulativeStatisticsEntry& other) const;
 
-    bool operator==(const TCumulativeStatisticsEntry& other) const = default;
+    TCumulativeStatisticsEntry& operator+=(const TCumulativeStatisticsEntry& other);
+    TCumulativeStatisticsEntry& operator-=(const TCumulativeStatisticsEntry& other);
 
     void Persist(const NYT::TStreamPersistenceContext& context);
 };
@@ -48,7 +51,10 @@ void Serialize(const TCumulativeStatisticsEntry& entry, NYson::IYsonConsumer* co
 //! `Modifiable` structure stores a Fenwick tree and allows efficient aggregate modifications
 //! at any point at the cost of additional O(log |size|) factor.
 //!
-//! `Trimmable` structure is the same as `Modifiable` but allows removing entries from both sides.
+//! `Trimmable` structure is the same as `Appendable` but allows extra operations:
+//!  - trim entries from the back;
+//!  - trim entries from the front (takes linear time);
+//!  - virtually increase or decrease all sums (as if certain value was added to the beginning).
 class TCumulativeStatistics
 {
 public:
@@ -84,12 +90,26 @@ public:
     TCumulativeStatisticsEntry Back() const;
 
     // Interface for Trimmable.
-    void TrimFront(int entryCount);
+
     void TrimBack(int entryCount);
+    //! NB: Takes O(|Size()|) time.
+    void TrimFront(int entryCount);
+
+    //! Add |delta| to all sums (as-if add |delta| to the first entry).
+    void UpdateBeforeBeginning(const TCumulativeStatisticsEntry& delta);
 
 private:
+    //! Vector with |n| entries for a chunk list with |n| children, where |i|-th
+    //! of them denotes the |i|-th partial sum, inclusive.
     using TAppendableCumulativeStatistics = std::vector<TCumulativeStatisticsEntry>;
+    //! Fenwick tree with |n| entries for a chunk list with |n| children, where |i|-th
+    //! of them denotes the |i|-th partial sum, inclusive.
     using TModifiableCumulativeStatistics = TFenwickTree<TCumulativeStatisticsEntry>;
+    //! Vector with |n+1| entries for a chunk list with |n| children (some of which
+    //! possibly nullptr-s).
+    //! The first entry denotes the partial sum before the beginning. The |i+1|-th
+    //! entry denotes the |i|-th partial sum minus the first entry. That is, actual
+    //! |i|-th partial sum is stats[0] + stats[i+1].
     using TTrimmableCumulativeStatistics = std::vector<TCumulativeStatisticsEntry>;
 
     static constexpr size_t AppendableAlternativeIndex = 0;
