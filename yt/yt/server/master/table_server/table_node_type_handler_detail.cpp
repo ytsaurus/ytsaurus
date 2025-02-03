@@ -393,15 +393,23 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
             table->SetIndexTo(nullptr);
         }
 
-        for (auto* secondaryIndex : GetValuesSortedByKey(table->SecondaryIndices())) {
-            secondaryIndex->SetTableId({});
-            int refCounter = objectManager->UnrefObject(secondaryIndex);
+        auto zombifyIndices = [&] (auto&& indexRange) {
+            for (auto* secondaryIndex : indexRange) {
+                secondaryIndex->SetTableId({});
+                int refCounter = objectManager->UnrefObject(secondaryIndex);
 
-            YT_LOG_ALERT_IF(refCounter > 0,
-                "Failed to drop secondary index upon table removal (TableId: %v, IndexId: %v, IndexRefCounter: %v)",
-                table->GetId(),
-                secondaryIndex->GetId(),
-                refCounter);
+                YT_LOG_ALERT_IF(refCounter > 0,
+                    "Failed to drop secondary index upon table removal (TableId: %v, IndexId: %v, IndexRefCounter: %v)",
+                    table->GetId(),
+                    secondaryIndex->GetId(),
+                    refCounter);
+                }
+        };
+
+        if (this->GetBootstrap()->GetDynamicConfig()->EnableStableSecondaryIndexDestruction) {
+            zombifyIndices(GetValuesSortedByKey(table->SecondaryIndices()));
+        } else {
+            zombifyIndices(table->SecondaryIndices());
         }
 
         table->MutableSecondaryIndices().clear();

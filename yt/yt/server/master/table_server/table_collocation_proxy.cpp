@@ -2,6 +2,8 @@
 #include "table_collocation.h"
 #include "table_manager.h"
 
+#include <yt/yt/server/master/cell_master/config.h>
+
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
 #include <yt/yt/server/master/object_server/object_detail.h>
@@ -35,12 +37,21 @@ private:
         ValidatePermission(EPermissionCheckScope::This, EPermission::Remove);
 
         const auto* collocation = GetThisImpl();
-        for (const auto* table : GetValuesSortedByKey(collocation->Tables())) {
-            if (table->GetIndexTo() || !table->SecondaryIndices().empty()) {
-                THROW_ERROR_EXCEPTION("Cannot remove collocation %v because table %v has an index or is one itself",
-                    collocation->GetId(),
-                    table->GetId());
+
+        auto validateTables = [&] (auto&& tableRange) {
+            for (const auto* table : tableRange) {
+                if (table->GetIndexTo() || !table->SecondaryIndices().empty()) {
+                    THROW_ERROR_EXCEPTION("Cannot remove collocation %v because table %v has an index or is one itself",
+                        collocation->GetId(),
+                        table->GetId());
+                }
             }
+        };
+
+        if (Bootstrap_->GetDynamicConfig()->EnableStableSecondaryIndexDestruction) {
+            validateTables(GetValuesSortedByKey(collocation->Tables()));
+        } else {
+            validateTables(collocation->Tables());
         }
     }
 
