@@ -901,7 +901,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 
     @authors("faucct")
     def test_writing_large_rows(self):
-        MB = 1 << 20
+        MB = 1024 ** 2
         data = [{"index": 0, "str": "F" * (17 * MB)}]
         create("table", "//tmp/table", attributes={"dynamic": False, "schema": self._schema})
         write_table("//tmp/table", data, table_writer={"max_row_weight": 20 * MB})
@@ -909,7 +909,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
 
     @authors("faucct")
     def test_writing_large_rows_129(self):
-        MB = 1 << 20
+        MB = 1024 ** 2
         data = [{"index": 0, "str": "F" * (129 * MB)}]
         create("table", "//tmp/table", attributes={"dynamic": False, "schema": self._schema})
         with raises_yt_error(f'Expected <= {128 * MB}, found {130 * MB}'):
@@ -922,7 +922,7 @@ class TestOperationsRpcProxy(TestRpcProxyBase):
     @authors("faucct")
     @pytest.mark.parametrize("atomicity", ["none", "full"])
     def test_writing_large_dynamic_rows(self, atomicity):
-        MB = 1 << 20
+        MB = 1024 ** 2
         data = [{"index": 0, "str": "F" * (17 * MB)}]
         create("table", "//tmp/dynamic", attributes={"dynamic": True, "schema": self._schema, "atomicity": atomicity})
         sync_create_cells(1)
