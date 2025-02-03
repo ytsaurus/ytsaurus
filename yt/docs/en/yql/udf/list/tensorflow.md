@@ -1,8 +1,5 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/udf/list/tensorflow.md
-sourcePath: yql-product/udf/list/tensorflow.md
----
 # TensorFlow UDF
+
 Using [TensorFlow](https://www.tensorflow.org) computational graphs.
 ```yql
 TensorFlow::InitSession(
@@ -123,7 +120,7 @@ $input = (
 
 $processed = (PROCESS $input
 USING TensorFlow::RunBatch( -- Apply TensorFlow graph in batches
-    $session,     
+    $session,
     TableRows(), -- Special name for the iterator over table rows
     -- Description of graph output to compute:
     Struct<network_output:List<Float>>,
