@@ -970,7 +970,8 @@ void TDecoratedAutomaton::LoadSnapshot(
     ui64 randomSeed,
     ui64 stateHash,
     TInstant timestamp,
-    IAsyncZeroCopyInputStreamPtr reader)
+    IAsyncZeroCopyInputStreamPtr reader,
+    bool prepareState)
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -994,22 +995,23 @@ void TDecoratedAutomaton::LoadSnapshot(
 
         Automaton_->LoadSnapshot(snapshotLoadContext);
 
-        // Snapshot preparation is a "mutation" that is executed before first mutation
-        // in changelog.
-        TVersion hydraContextVersion(snapshotId, -1);
-        // NB: #randomSeed is used as a random seed for the first mutation
-        // in changelog, so ad-hoc seed is used here.
-        auto hydraContextRandomSeed = randomSeed;
-        HashCombine(hydraContextRandomSeed, snapshotId);
+        if (prepareState){
+            // Snapshot preparation is a "mutation" that is executed before first mutation
+            // in changelog.
+            TVersion hydraContextVersion(snapshotId, -1);
+            // NB: #randomSeed is used as a random seed for the first mutation
+            // in changelog, so ad-hoc seed is used here.
+            auto hydraContextRandomSeed = randomSeed;
+            HashCombine(hydraContextRandomSeed, snapshotId);
 
-        THydraContext hydraContext(
-            hydraContextVersion,
-            timestamp,
-            hydraContextRandomSeed,
-            SanitizedLocalHostName_);
-        THydraContextGuard hydraContextGuard(&hydraContext);
-
-        Automaton_->PrepareState();
+            THydraContext hydraContext(
+                hydraContextVersion,
+                timestamp,
+                hydraContextRandomSeed,
+                SanitizedLocalHostName_);
+            THydraContextGuard hydraContextGuard(&hydraContext);
+            Automaton_->PrepareState();
+        }
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Snapshot load failed; clearing state");
         ClearState();

@@ -236,7 +236,8 @@ public:
         ui64 randomSeed,
         ui64 stateHash,
         TInstant timestamp,
-        NConcurrency::IAsyncZeroCopyInputStreamPtr reader);
+        NConcurrency::IAsyncZeroCopyInputStreamPtr reader,
+        bool prepareState = true);
 
     TFuture<TMutationResponse> TryBeginKeptRequest(const TMutationRequest& request);
 

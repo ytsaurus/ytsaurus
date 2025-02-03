@@ -1240,7 +1240,14 @@ void TBootstrap::DoLoadSnapshot(
     const auto& automaton = HydraFacade_->GetAutomaton();
     automaton->SetSerializationDumpEnabled(dump);
 
-    dryRunHydraManager->DryRunLoadSnapshot(std::move(snapshotReader), *snapshotId);
+    dryRunHydraManager->DryRunLoadSnapshot(
+        std::move(snapshotReader),
+        *snapshotId,
+        /*prepareState*/ !dump);
+
+    if (!dump) {
+        dryRunHydraManager->DryRunCheckInvariants();
+    }
 }
 
 void TBootstrap::DoReplayChangelogs(const std::vector<TString>& changelogFileNames)
