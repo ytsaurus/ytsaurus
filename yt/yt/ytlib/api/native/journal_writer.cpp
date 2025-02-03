@@ -533,6 +533,7 @@ private:
                     TTransactionAttachOptions options;
                     options.PingAncestors = Options_.PingAncestors;
                     options.AutoAbort = true;
+                    options.PingPeriod = Client_->GetNativeConnection()->GetConfig()->UploadTransactionPingPeriod;
                     UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, options);
                     StartListenTransaction(UploadTransaction_);
 
