@@ -22,7 +22,9 @@ public:
     ~THydraFacade();
 
     void Initialize();
-    void LoadSnapshot(NHydra::ISnapshotReaderPtr reader, bool dump);
+    void LoadSnapshot(
+        NHydra::ISnapshotReaderPtr reader,
+        ESerializationDumpMode dumpMode);
 
     const TClockAutomatonPtr& GetAutomaton() const;
     const NElection::IElectionManagerPtr& GetElectionManager() const;

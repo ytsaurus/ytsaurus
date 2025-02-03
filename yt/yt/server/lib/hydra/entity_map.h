@@ -186,6 +186,8 @@ private:
     void FreeDynamicData(TDynamicData* data);
 
     void DoClear();
+
+    static std::string GetTypeName();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
