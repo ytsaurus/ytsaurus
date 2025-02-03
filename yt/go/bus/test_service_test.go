@@ -12,11 +12,17 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/stretchr/testify/require"
 
+	"go.ytsaurus.tech/yt/go/yson"
+
 	"go.ytsaurus.tech/yt/go/bus/tcptest"
 	testservice "go.ytsaurus.tech/yt/go/proto/core/rpc/unittests"
 )
 
-func StartTestService(t *testing.T) (addr string, stop func()) {
+type BusServerConfig struct {
+	Port int `yson:"port"`
+}
+
+func StartTestServiceWithConfig(t *testing.T, config BusServerConfig) (addr string, stop func()) {
 	t.Helper()
 
 	binary := GetTestServiceBinary(t)
@@ -25,7 +31,12 @@ func StartTestService(t *testing.T) (addr string, stop func()) {
 	require.NoError(t, err, "unable to get free port")
 	addr = net.JoinHostPort("localhost", strconv.Itoa(port))
 
-	cmd := exec.Command(binary, strconv.Itoa(port))
+	config.Port = port
+
+	configText, err := yson.Marshal(&config)
+	require.NoError(t, err, "cannot marshal config")
+
+	cmd := exec.Command(binary, string(configText))
 	cmd.Stdout = nil
 	cmd.Stderr = os.Stderr
 
@@ -49,6 +60,10 @@ func StartTestService(t *testing.T) (addr string, stop func()) {
 	t.Logf("started service on port %d", port)
 
 	return
+}
+
+func StartTestService(t *testing.T) (addr string, stop func()) {
+	return StartTestServiceWithConfig(t, BusServerConfig{})
 }
 
 type TestServiceClient interface {
