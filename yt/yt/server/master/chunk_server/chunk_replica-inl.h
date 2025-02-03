@@ -476,12 +476,8 @@ bool TSerializerTraits<NChunkServer::TPtrWithReplicaInfo<T>, C>::TComparer::Comp
     const NChunkServer::TPtrWithReplicaInfo<T>& lhs,
     const NChunkServer::TPtrWithReplicaInfo<T>& rhs)
 {
-    using TPtrComparer = typename TSerializerTraits<T*, C>::TComparer;
-    if (TPtrComparer::Compare(lhs.GetPtr(), rhs.GetPtr())) {
-        return true;
-    }
-    if (TPtrComparer::Compare(rhs.GetPtr(), lhs.GetPtr())) {
-        return false;
+    if (auto cmp = lhs.GetPtr()->GetId() <=> rhs.GetPtr()->GetId(); cmp != 0) {
+        return cmp < 0;
     }
 
     if (auto cmp = lhs.GetReplicaIndex() <=> rhs.GetReplicaIndex(); cmp != 0) {
