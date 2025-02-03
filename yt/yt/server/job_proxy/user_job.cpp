@@ -731,7 +731,8 @@ private:
             }
             if (JobEnvironmentType_ == EJobEnvironmentType::Cri
                 ? !variable.StartsWith("YT_") || !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment()
-                // FIXME: HOME breaks shell start in porto
+                // TODO: investigate why $HOME breaks shell start in porto tests
+                // https://github.com/ytsaurus/ytsaurus/pull/1041#issuecomment-2608440987
                 : variable.StartsWith("YT_") && !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment())
             {
                 shellEnvironment.push_back(variable);
