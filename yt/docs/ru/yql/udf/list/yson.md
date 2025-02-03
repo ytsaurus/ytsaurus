@@ -1,6 +1,7 @@
 # Yson
 
-{% include [_includes/yson/intro_header.md](_includes/yson/intro_header.md) %}
+[YSON](../../../user-guide/storage/yson.md) — разработанный в Яндексе формат данных, похожий на JSON.
+
 
 * Сходства с JSON:
     * не имеет строгой схемы;
@@ -29,7 +30,8 @@
 * `Yson::Parse*** -> Yson::Lookup -> Yson::Serialize***` — извлечение значения указанного поддерева в исходном дереве YSON;
 * `Yson::Parse*** -> Yson::ConvertToList -> ListMap -> Yson::Lookup***` — извлечение элементов по ключу из YSON списка.
 
-{% include [_includes/yson/intro_footer.md](_includes/yson/intro_footer.md) %}
+<!--смотрите также примеры комбинирования YSON-функций в [tutorial](https://cluster-name.yql/Tutorial/yt_17_Yson_and_Json).-->
+
 
 **Примеры**
 
@@ -177,7 +179,7 @@ $data = Yson(@@{
         "user_agent" = "Mozilla/5.0"
     }
 }@@);
-SELECT Yson::ConvertTo($data, 
+SELECT Yson::ConvertTo($data,
     Struct<
         name: String,
         age: Uint32,
@@ -221,7 +223,8 @@ Yson::YPathList(Resource<'Yson2.Node'>{Flags:AutoMap}, String) -> List<Resource<
 ```
 Позволяет по входному ресурсу и пути на языке YPath получить ресурс, указывающий на соответствующую пути часть исходного ресурса.
 
-{% include [_includes/yson/ypath_overlay.md](_includes/yson/ypath_overlay.md) %}
+[Информация про YPath](../../../user-guide/storage/ypath.md).
+
 
 ## Yson::Attributes {#ysonattributes}
 ``` yql
