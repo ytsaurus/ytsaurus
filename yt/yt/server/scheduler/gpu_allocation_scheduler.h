@@ -9,9 +9,10 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGpuAllocationSchedulerHost
+// TODO(eshcherbin): Introduce new namespace and get rid of the prefix everywhere.
+// Also move to a subfolder.
+struct IGpuAllocationSchedulerHost
 {
-public:
     virtual void ResetOperationModule(const TGpuSchedulerOperationStatePtr& operation) = 0;
 
     virtual void RemoveOperationFromNodes(const TGpuSchedulerOperationStatePtr& operation) = 0;
@@ -23,30 +24,28 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): Rename while we can. This should not be a context. And it should be unit testable.
 class TGpuSchedulingContext
 {
 public:
     TGpuSchedulingContext(
-        TGpuAllocationSchedulerHost* schedulerHost,
+        TInstant now,
         TGpuSchedulerOperationStateMap* operationStates,
         TGpuSchedulerNodeStateMap* nodeStates,
-        TInstant now,
-        NLogging::TLogger logger,
-        TGpuAllocationSchedulerConfigPtr config);
+        IGpuAllocationSchedulerHost* host,
+        TGpuAllocationSchedulerConfigPtr config,
+        NLogging::TLogger logger);
 
     void ScheduleAllocations();
 
 private:
     const TInstant Now_;
+    TGpuSchedulerOperationStateMap* const Operations_;
+    TGpuSchedulerNodeStateMap* const Nodes_;
 
+    IGpuAllocationSchedulerHost* const Host_;
+    const TGpuAllocationSchedulerConfigPtr Config_;
     const NLogging::TLogger Logger;
-
-    TGpuAllocationSchedulerConfigPtr Config_;
-
-    TGpuAllocationSchedulerHost* SchedulerHost_;
-
-    TGpuSchedulerOperationStateMap* OperationStates_;
-    TGpuSchedulerNodeStateMap* NodeStates_;
 
     // Large operations that are ready for module assignment.
     std::vector<TGpuSchedulerOperationStatePtr> LargeOperationsToAssign_;
@@ -57,7 +56,7 @@ private:
 
     // NB(omgronny): SortedNodeStates initializes after the module assignment.
     using TNodeComparator = std::function<bool(const TGpuSchedulerNodeStatePtr&, const TGpuSchedulerNodeStatePtr&)>;
-    std::optional<std::set<TGpuSchedulerNodeStatePtr, TNodeComparator>> SortedNodeStates_;
+    std::optional<std::set<TGpuSchedulerNodeStatePtr, TNodeComparator>> SortedNodes_;
 
     THashMap<TSchedulingModule, double> TotalCapacityPerModule_;
     THashMap<TSchedulingModule, double> RemainingCapacityPerModule_;
@@ -117,17 +116,13 @@ private:
     bool CanSatisfyDiskQuotaRequests(
         const TDiskResources& diskResources,
         const THashMap<TGpuAllocationStatePtr, TDiskQuota>& diskQuotaRequests);
-
-    bool CompareGpuSchedulerOperationStatesForPreSchedulingSort(
-        const TGpuSchedulerOperationStatePtr& lhs,
-        const TGpuSchedulerOperationStatePtr& rhs) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TGpuAllocationScheduler
     : public TRefCounted
-    , public TGpuAllocationSchedulerHost
+    , public IGpuAllocationSchedulerHost
 {
 public:
     TGpuAllocationScheduler(
@@ -136,7 +131,7 @@ public:
         NLogging::TLogger logger);
 
     // TODO(omgronny): Node descriptor may change.
-    void RegisterNode(NNodeTrackerClient::TNodeId nodeId, const TFairShareTreeAllocationSchedulerNodeState& node);
+    void RegisterNode(NNodeTrackerClient::TNodeId nodeId, const TFairShareTreeAllocationSchedulerNodeState& allocationSchedulerNodeState);
     void UnregisterNode(NNodeTrackerClient::TNodeId nodeId);
 
     void RegisterOperation(
@@ -152,14 +147,12 @@ public:
 
     void UpdateConfig(TGpuAllocationSchedulerConfigPtr config);
 
-    THashSet<TGpuAllocationStatePtr> GetScheduledAllocationsForNode(NNodeTrackerClient::TNodeId nodeId) const;
-
     void OnAllocationFinished(TOperationId operationId, const TGpuAllocationStatePtr& allocation, NNodeTrackerClient::TNodeId nodeId);
 
     // NB(omgronny): Only for testing.
     THashMap<NNodeTrackerClient::TNodeId, THashSet<TGpuAllocationStatePtr>> GetScheduledAllocations() const;
-    TGpuSchedulerNodeStatePtr GetNodeState(NNodeTrackerClient::TNodeId nodeId) const;
-    TGpuSchedulerOperationStatePtr GetOperationState(TOperationId operationId);
+    const TGpuSchedulerNodeStatePtr& GetNodeState(NNodeTrackerClient::TNodeId nodeId) const;
+    const TGpuSchedulerOperationStatePtr& GetOperationState(TOperationId operationId);
 
 private:
     const IInvokerPtr Invoker_;
@@ -169,10 +162,10 @@ private:
     TGpuAllocationSchedulerConfigPtr Config_;
 
     // Owning map for all operations.
-    TGpuSchedulerOperationStateMap OperationStates_;
+    TGpuSchedulerOperationStateMap Operations_;
 
     // Owning map for all nodes.
-    TGpuSchedulerNodeStateMap NodeStates_;
+    TGpuSchedulerNodeStateMap Nodes_;
 
     void ResetOperationModuleAssignments(TInstant now);
     void ResetOperationModule(const TGpuSchedulerOperationStatePtr& operation) override;

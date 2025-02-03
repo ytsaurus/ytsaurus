@@ -17,26 +17,72 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool CompareGpuSchedulerOperationStatesForPreSchedulingSort(
+    const TGpuSchedulerOperationStatePtr& lhs,
+    const TGpuSchedulerOperationStatePtr& rhs)
+{
+    if (lhs->SchedulingModule().has_value() !=
+        rhs->SchedulingModule().has_value())
+    {
+        return lhs->SchedulingModule().has_value();
+    }
+
+    if (lhs->GetOperationHasPriority() != rhs->GetOperationHasPriority()) {
+        return lhs->GetOperationHasPriority();
+    }
+
+    // TODO(eshcherbin): Remove this check?
+    if (lhs->GetIsGang() != rhs->GetIsGang()) {
+        return lhs->GetIsGang();
+    }
+
+    const auto& lhsMinNeededResources = lhs->AggregatedInitialMinNeededResources();
+    const auto& rhsMinNeededResources = rhs->AggregatedInitialMinNeededResources();
+    if (lhsMinNeededResources.has_value() != rhsMinNeededResources.has_value()) {
+        return lhsMinNeededResources.has_value();
+    }
+
+    if (lhsMinNeededResources->GetGpu() != rhsMinNeededResources->GetGpu()) {
+        return lhsMinNeededResources->GetGpu() > rhsMinNeededResources->GetGpu();
+    }
+
+    if (lhs->GetNeededResources() != rhs->GetNeededResources()) {
+        return lhs->GetNeededResources() > rhs->GetNeededResources();
+    }
+
+    return lhs->OperationId() < rhs->OperationId();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 TGpuSchedulingContext::TGpuSchedulingContext(
-    TGpuAllocationSchedulerHost* schedulerHost,
-    TGpuSchedulerOperationStateMap* operationStates,
-    TGpuSchedulerNodeStateMap* nodeStates,
     TInstant now,
-    NLogging::TLogger logger,
-    TGpuAllocationSchedulerConfigPtr config)
+    TGpuSchedulerOperationStateMap* operations,
+    TGpuSchedulerNodeStateMap* nodes,
+    IGpuAllocationSchedulerHost* host,
+    TGpuAllocationSchedulerConfigPtr config,
+    NLogging::TLogger logger)
     : Now_(std::move(now))
-    , Logger(logger)
+    , Operations_(operations)
+    , Nodes_(nodes)
+    , Host_(host)
     , Config_(std::move(config))
-    , SchedulerHost_(schedulerHost)
-    , OperationStates_(operationStates)
-    , NodeStates_(nodeStates)
+    , Logger(logger)
 { }
 
 void TGpuSchedulingContext::SetNodeUsage(const TGpuSchedulerNodeStatePtr& node, const TJobResources& usage)
 {
-    SortedNodeStates_->erase(node);
+    SortedNodes_->erase(node);
     node->ResourceUsage = usage;
-    SortedNodeStates_->insert(node);
+    SortedNodes_->insert(node);
 }
 
 bool TGpuSchedulingContext::CanSatisfyDiskQuotaRequests(
@@ -52,7 +98,7 @@ bool TGpuSchedulingContext::CanSatisfyDiskQuotaRequests(
 
 void TGpuSchedulingContext::ResetOperationModule(const TGpuSchedulerOperationStatePtr& operation)
 {
-    SchedulerHost_->ResetOperationModule(operation);
+    Host_->ResetOperationModule(operation);
 
     double operationFairResourceAmount = operation->RuntimeAttributes()->FairResourceAmount;
     RemainingCapacityPerModule_[operation->SchedulingModule()] += operationFairResourceAmount;
@@ -60,7 +106,7 @@ void TGpuSchedulingContext::ResetOperationModule(const TGpuSchedulerOperationSta
     for (auto& [_, operations] : LargeOperationsToSchedulePerModule_) {
         operations.erase(operation);
     }
-    SchedulerHost_->RemoveOperationFromNodes(operation);
+    Host_->RemoveOperationFromNodes(operation);
 }
 
 void TGpuSchedulingContext::ScheduleAllocations()
@@ -74,12 +120,12 @@ void TGpuSchedulingContext::ScheduleAllocations()
 
 void TGpuSchedulingContext::PrepareGpuSchedulingContext()
 {
-    for (auto& [nodeId, node] : *NodeStates_) {
+    for (const auto& [nodeId, node] : *Nodes_) {
         if (!node->Descriptor) {
             continue;
         }
 
-        auto nodeModule = SchedulerHost_->GetNodeModule(*node);
+        auto nodeModule = Host_->GetNodeModule(*node);
         if (!nodeModule) {
             continue;
         }
@@ -87,9 +133,10 @@ void TGpuSchedulingContext::PrepareGpuSchedulingContext()
         auto limit = node->Descriptor->ResourceLimits.GetGpu();
         TotalCapacityPerModule_[nodeModule] += limit;
     }
+
     RemainingCapacityPerModule_ = TotalCapacityPerModule_;
 
-    for (auto& [operationId, operation] : *OperationStates_) {
+    for (const auto& [operationId, operation] : *Operations_) {
         if (!IsOperationReady(operation)) {
             continue;
         }
@@ -107,33 +154,27 @@ void TGpuSchedulingContext::PrepareGpuSchedulingContext()
 
         if (IsLargeOperation(operation)) {
             if (const auto& module = operation->SchedulingModule()) {
-                YT_LOG_DEBUG("Operation is ready for scheduling in module "
-                    "(OperationId: %v, SchedulingModule: %v)",
+                YT_LOG_DEBUG("Operation is ready for scheduling in module (OperationId: %v, SchedulingModule: %v)",
                     operationId,
                     *module);
 
                 LargeOperationsToSchedulePerModule_[*module].insert(operation);
             } else {
-                YT_LOG_DEBUG("Operation is ready for assigning to module "
-                    "(OperationId: %v)",
-                    operationId);
+                YT_LOG_DEBUG("Operation is ready for assigning to module (OperationId: %v)", operationId);
 
                 LargeOperationsToAssign_.push_back(operation);
             }
         } else {
-            YT_LOG_DEBUG("Operation is ready for scheduling "
-                "(OperationId: %v)",
-                operationId);
+            YT_LOG_DEBUG("Operation is ready for scheduling (OperationId: %v)", operationId);
 
             SmallOperationsToSchedule_.insert(operation);
         }
     }
 
-    YT_LOG_INFO("Gpu scheduling context prepared "
-        "(TotalCapacityPerModule %v, "
-        "RemainingCapacityPerModule %v, "
-        "LargeOperationsToAssignCount: %v, "
-        "SmallOperationsToScheduleCount: %v, )",
+    YT_LOG_INFO(
+        "Gpu scheduling context prepared "
+        "(TotalCapacityPerModule %v, RemainingCapacityPerModule %v, "
+        "LargeOperationsToAssignCount: %v, SmallOperationsToScheduleCount: %v)",
         TotalCapacityPerModule_,
         RemainingCapacityPerModule_,
         LargeOperationsToAssign_.size(),
@@ -163,8 +204,8 @@ void TGpuSchedulingContext::AssignOperationsToModules()
             return lhs->RuntimeAttributes()->Demand.GetGpu() > rhs->RuntimeAttributes()->Demand.GetGpu();
         });
 
-    for (auto& operationState : LargeOperationsToAssign_) {
-        auto operationDemand = operationState->RuntimeAttributes()->Demand.GetGpu();
+    for (const auto& operation : LargeOperationsToAssign_) {
+        auto operationDemand = operation->RuntimeAttributes()->Demand.GetGpu();
 
         std::function<bool(double, double)> isModuleBetter;
         double initialBestRemainingCapacity;
@@ -186,7 +227,7 @@ void TGpuSchedulingContext::AssignOperationsToModules()
 
         TSchedulingModule bestModule;
         auto bestRemainingCapacity = initialBestRemainingCapacity;
-        const auto& specifiedModules = operationState->SpecifiedSchedulingModules();
+        const auto& specifiedModules = operation->SpecifiedSchedulingModules();
         for (const auto& SchedulingModule : Config_->GetModules()) {
             auto it = RemainingCapacityPerModule_.find(SchedulingModule);
             auto remainingCapacity = it != RemainingCapacityPerModule_.end() ? it->second : 0.0;
@@ -201,17 +242,17 @@ void TGpuSchedulingContext::AssignOperationsToModules()
             }
         }
 
-        if (!bestModule && operationState->GetOperationHasPriority()) {
-            if (auto operationsToPreempt = FindBestOperationsToPreempt(operationState)) {
-                PreemptNonPriorityOperationsFromModuleForOperation(operationState->OperationId(), operationsToPreempt->Operations);
+        if (!bestModule && operation->GetOperationHasPriority()) {
+            if (auto operationsToPreempt = FindBestOperationsToPreempt(operation)) {
+                PreemptNonPriorityOperationsFromModuleForOperation(operation->OperationId(), operationsToPreempt->Operations);
                 bestModule = operationsToPreempt->Module;
             }
         }
 
         if (!bestModule) {
             LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::FailedToAssignOperation)
-                .Item("operation_id").Value(operationState->OperationId())
-                .Item("specified_modules").Value(operationState->SpecifiedSchedulingModules())
+                .Item("operation_id").Value(operation->OperationId())
+                .Item("specified_modules").Value(operation->SpecifiedSchedulingModules())
                 .Item("remaining_capacity_per_module").Value(RemainingCapacityPerModule_)
                 .Item("total_capacity_per_module").Value(TotalCapacityPerModule_);
 
@@ -220,54 +261,53 @@ void TGpuSchedulingContext::AssignOperationsToModules()
                 "(AvailableModules: %v, SpecifiedModules: %v, OperationDemand: %v, "
                 "RemainingCapacityPerModule: %v, TotalCapacityPerModule: %v, OperationId: %v)",
                 Config_->GetModules(),
-                operationState->SpecifiedSchedulingModules(),
+                operation->SpecifiedSchedulingModules(),
                 operationDemand,
                 RemainingCapacityPerModule_,
                 TotalCapacityPerModule_,
-                operationState->OperationId());
+                operation->OperationId());
 
-            if (!operationState->FailingToAssignToModuleSince()) {
-                operationState->FailingToAssignToModuleSince() = Now_;
+            if (!operation->FailingToAssignToModuleSince()) {
+                operation->FailingToAssignToModuleSince() = Now_;
             }
 
-            SetOperationEligibleForPriorityModuleAssignment(operationState);
+            SetOperationEligibleForPriorityModuleAssignment(operation);
             continue;
         }
 
-        operationState->SchedulingModule() = bestModule;
-        RemainingCapacityPerModule_[operationState->SchedulingModule()] -= operationDemand;
+        operation->SchedulingModule() = bestModule;
+        RemainingCapacityPerModule_[operation->SchedulingModule()] -= operationDemand;
 
-        operationState->FailingToAssignToModuleSince().reset();
+        operation->FailingToAssignToModuleSince().reset();
 
-        LargeOperationsToSchedulePerModule_[*bestModule].insert(operationState);
+        LargeOperationsToSchedulePerModule_[*bestModule].insert(operation);
     }
 }
 
 void TGpuSchedulingContext::PrepareNodeStatesInGpuSchedulingContext()
 {
-    YT_VERIFY(!SortedNodeStates_);
+    YT_VERIFY(!SortedNodes_);
 
-    TGpuSchedulingContext::TNodeComparator nodeComparator =
-        [&] (const TGpuSchedulerNodeStatePtr& lhs, const TGpuSchedulerNodeStatePtr& rhs) -> bool {
-            auto lhsHasDescriptor = lhs->Descriptor != nullptr;
-            auto rhsHasDescriptor = rhs->Descriptor != nullptr;
-            if (lhsHasDescriptor != rhsHasDescriptor) {
-                return lhsHasDescriptor;
-            }
+    auto nodeComparator = [&] (const TGpuSchedulerNodeStatePtr& lhs, const TGpuSchedulerNodeStatePtr& rhs) {
+        auto lhsHasDescriptor = lhs->Descriptor != nullptr;
+        auto rhsHasDescriptor = rhs->Descriptor != nullptr;
+        if (lhsHasDescriptor != rhsHasDescriptor) {
+            return lhsHasDescriptor;
+        }
 
-            auto lshResources = lhs->Descriptor->ResourceLimits - lhs->ResourceUsage;
-            auto rshResources = rhs->Descriptor->ResourceLimits - rhs->ResourceUsage;
+        auto lshResources = lhs->Descriptor->ResourceLimits - lhs->ResourceUsage;
+        auto rshResources = rhs->Descriptor->ResourceLimits - rhs->ResourceUsage;
 
-            if (lshResources.GetGpu() != rshResources.GetGpu()) {
-                return lshResources.GetGpu() > rshResources.GetGpu();
-            }
+        if (lshResources.GetGpu() != rshResources.GetGpu()) {
+            return lshResources.GetGpu() > rshResources.GetGpu();
+        }
 
-            return lhs->NodeId < rhs->NodeId;
-        };
+        return lhs->NodeId < rhs->NodeId;
+    };
 
-    SortedNodeStates_ = std::set<TGpuSchedulerNodeStatePtr, TGpuSchedulingContext::TNodeComparator>(nodeComparator);
+    SortedNodes_ = std::set<TGpuSchedulerNodeStatePtr, TGpuSchedulingContext::TNodeComparator>(nodeComparator);
 
-    for (const auto& [nodeId, node] : *NodeStates_) {
+    for (const auto& [nodeId, node] : *Nodes_) {
         node->PreemptibleResourceUsage = TJobResources();
         node->PreemptibleAllocations.clear();
         for (auto allocation : node->RunningAllocations) {
@@ -276,13 +316,13 @@ void TGpuSchedulingContext::PrepareNodeStatesInGpuSchedulingContext()
                 node->PreemptibleResourceUsage += allocation->Resources;
             }
         }
-        SortedNodeStates_->insert(node);
+        SortedNodes_->insert(node);
     }
 }
 
 void TGpuSchedulingContext::ScheduleLargeAllocationsToNodes()
 {
-    for (auto& [module, operations] : LargeOperationsToSchedulePerModule_) {
+    for (const auto& [module, operations] : LargeOperationsToSchedulePerModule_) {
         DoScheduleAllocationsToNodes(operations);
     }
 }
@@ -295,18 +335,15 @@ void TGpuSchedulingContext::ScheduleSmallAllocationsToNodes()
 void TGpuSchedulingContext::DoScheduleAllocationsToNodes(
     const THashSet<TGpuSchedulerOperationStatePtr>& operations)
 {
-    std::vector<TGpuSchedulerOperationStatePtr> operationStates(
+    std::vector<TGpuSchedulerOperationStatePtr> sortedOperations(
         operations.begin(),
         operations.end());
-
     std::sort(
-        operationStates.begin(),
-        operationStates.end(),
-        [&] (const TGpuSchedulerOperationStatePtr& lhs, const TGpuSchedulerOperationStatePtr& rhs) {
-            return CompareGpuSchedulerOperationStatesForPreSchedulingSort(lhs, rhs);
-        });
+        sortedOperations.begin(),
+        sortedOperations.end(),
+        &CompareGpuSchedulerOperationStatesForPreSchedulingSort);
 
-    for (auto& operation : operationStates) {
+    for (const auto& operation : sortedOperations) {
         UpdateOperationAllocationsToSchedule(operation);
 
         auto allocationToSchedule = operation->AllocationsToSchedule().begin();
@@ -337,8 +374,7 @@ void TGpuSchedulingContext::DoScheduleAllocationsToNodes(
 
         // NB(omgronny): Do not schedule large operations partially.
         if (IsLargeOperation(operation) && allocationToSchedule != operation->AllocationsToSchedule().end()) {
-            YT_LOG_INFO("Operation allocations are partially scheduled "
-                "(OperationId: %v, AllocationsToScheduleCount: %v)",
+            YT_LOG_DEBUG("Operation allocations are partially scheduled (OperationId: %v, AllocationsToScheduleCount: %v)",
                 operation->OperationId(),
                 operation->AllocationsToSchedule().size());
 
@@ -349,35 +385,35 @@ void TGpuSchedulingContext::DoScheduleAllocationsToNodes(
         }
         operation->FailingToScheduleAtModuleSince().reset();
 
-        YT_LOG_INFO("Operation allocations are fully scheduled "
+        YT_LOG_DEBUG(
+            "Operation allocations are fully scheduled "
             "(OperationId: %v, ScheduledAllocationsCount: %v, NodeCount: %v)",
             operation->OperationId(),
             operation->AllocationsToSchedule().size(),
             suitableNodes.size());
 
-        for (auto& [nodeId, suitableNode] : suitableNodes) {
-            auto& node = suitableNode.Node;
+        for (const auto& [nodeId, suitableNode] : suitableNodes) {
+            const auto& node = suitableNode.Node;
 
-            SortedNodeStates_->erase(node);
+            SortedNodes_->erase(node);
 
-            for (auto allocation : suitableNode.AllocationsToPreempt) {
-                SchedulerHost_->RemoveAllocationFromNode(
-                    allocation,
-                    node);
+            for (const auto& allocation : suitableNode.AllocationsToPreempt) {
+                Host_->RemoveAllocationFromNode(allocation, node);
             }
 
-            for (auto allocation : suitableNode.Allocations) {
+            for (const auto& allocation : suitableNode.Allocations) {
                 operation->OnAllocationScheduled(allocation, node->NodeId);
 
                 node->ResourceUsage += allocation->Resources.ToJobResources();
                 if (allocation->Resources.DiskQuota() != TDiskQuota()) {
                     EmplaceOrCrash(node->DiskRequests, allocation, allocation->Resources.DiskQuota());
                 }
+
                 node->RunningAllocations.insert(allocation);
             }
 
             // NB(omgronny): Update node order.
-            SortedNodeStates_->insert(node);
+            SortedNodes_->insert(node);
         }
     }
 }
@@ -390,12 +426,12 @@ TGpuSchedulingContext::TBestNodeForAllocation TGpuSchedulingContext::FindBestSui
     const auto& allocationResources = allocation->Resources;
 
     TBestNodeForAllocation result;
-    for (auto& node : *SortedNodeStates_) {
+    for (const auto& node : *SortedNodes_) {
         if (!node->Descriptor) {
             continue;
         }
 
-        if (auto nodeModule = SchedulerHost_->GetNodeModule(*node);
+        if (auto nodeModule = Host_->GetNodeModule(*node);
             operation->SchedulingModule() &&
             (!nodeModule || *nodeModule != *operation->SchedulingModule()))
         {
@@ -473,8 +509,7 @@ bool TGpuSchedulingContext::IsNodeWithSmallAllocations(
         return false;
     }
 
-    auto& operation = GetOrCrash(*OperationStates_, (*allocations.begin())->OperationId);
-
+    const auto& operation = GetOrCrash(*Operations_, (*allocations.begin())->OperationId);
     return !IsLargeOperation(operation);
 }
 
@@ -483,8 +518,7 @@ void TGpuSchedulingContext::UpdateOperationAllocationsToSchedule(const TGpuSched
     operation->AllocationsToSchedule().clear();
     auto neededResources = operation->GetNeededResources();
 
-    YT_LOG_DEBUG("Update operation allocations to schedule "
-        "(OperationId: %v, NeededResources: %v)",
+    YT_LOG_DEBUG("Update operation allocations to schedule (OperationId: %v, NeededResources: %v)",
         operation->OperationId(),
         neededResources);
 
@@ -496,8 +530,7 @@ void TGpuSchedulingContext::UpdateOperationAllocationsToSchedule(const TGpuSched
         }
     }
 
-    YT_LOG_DEBUG("Operation allocations to schedule updated "
-        "(OperationId: %v, AllocationsToScheduleCount: %v)",
+    YT_LOG_DEBUG("Operation allocations to schedule updated (OperationId: %v, AllocationsToScheduleCount: %v)",
         operation->OperationId(),
         operation->AllocationsToSchedule().size());
 }
@@ -520,17 +553,14 @@ void TGpuSchedulingContext::PreemptNonPriorityOperationsFromModuleForOperation(
     TOperationId priorityOperationId,
     const std::vector<TGpuSchedulerOperationStatePtr>& operations)
 {
-    for (auto& operation : operations) {
+    for (const auto& operation : operations) {
         auto module = operation->SchedulingModule();
 
         ResetOperationModule(operation);
 
         YT_LOG_DEBUG(
             "Operation preempted from module "
-            "(OperationId: %v, "
-            "Module: %v, "
-            "RemainingCapacityPerModule: %v, "
-            "PriorityOperationId: %v)",
+            "(OperationId: %v, Module: %v, RemainingCapacityPerModule: %v, PriorityOperationId: %v)",
             operation->OperationId(),
             module,
             RemainingCapacityPerModule_,
@@ -579,7 +609,7 @@ std::optional<TGpuSchedulingContext::TOperationsToPreempt> TGpuSchedulingContext
     }
 
     if (!bestOperationsToPreempt) {
-        YT_LOG_INFO(
+        YT_LOG_DEBUG(
             "Failed to find a suitable operation set in any module to preempt for a priority operation "
             "(OperationId: %v)",
             operation->OperationId());
@@ -587,7 +617,7 @@ std::optional<TGpuSchedulingContext::TOperationsToPreempt> TGpuSchedulingContext
         return {};
     }
 
-    YT_LOG_INFO(
+    YT_LOG_DEBUG(
         "Found operations to preempt for a priority operation "
         "(OperationId: %v, BestOperationsToPreemptSize: %v, TotalPenalty: %v)",
         operation->OperationId(),
@@ -604,8 +634,8 @@ std::optional<TGpuSchedulingContext::TOperationsToPreempt> TGpuSchedulingContext
     YT_VERIFY(module);
 
     std::vector<TGpuSchedulerOperationStatePtr> assignedOperationElements;
-    assignedOperationElements.reserve(OperationStates_->size());
-    for (const auto& [_, operation] : *OperationStates_) {
+    assignedOperationElements.reserve(Operations_->size());
+    for (const auto& [_, operation] : *Operations_) {
         auto operationScheduledToModule = !operation->ScheduledAllocations().empty() &&
             operation->SchedulingModule() == module;
         if (LargeOperationsToSchedulePerModule_[*module].contains(operation) ||
@@ -658,42 +688,6 @@ std::optional<TGpuSchedulingContext::TOperationsToPreempt> TGpuSchedulingContext
         .Operations = std::move(bestOperationsToPreempt),
         .Module = module,
     };
-}
-
-bool TGpuSchedulingContext::CompareGpuSchedulerOperationStatesForPreSchedulingSort(
-    const TGpuSchedulerOperationStatePtr& lhs,
-    const TGpuSchedulerOperationStatePtr& rhs) const
-{
-    if (lhs->SchedulingModule().has_value() !=
-        rhs->SchedulingModule().has_value())
-    {
-        return lhs->SchedulingModule().has_value();
-    }
-
-    if (lhs->GetOperationHasPriority() != rhs->GetOperationHasPriority()) {
-        return lhs->GetOperationHasPriority();
-    }
-
-    // TODO: Remove this check?
-    if (lhs->GetIsGang() != rhs->GetIsGang()) {
-        return lhs->GetIsGang();
-    }
-
-    const auto& lhsMinNeededResources = lhs->AggregatedInitialMinNeededResources();
-    const auto& rhsMinNeededResources = rhs->AggregatedInitialMinNeededResources();
-    if (lhsMinNeededResources.has_value() != rhsMinNeededResources.has_value()) {
-        return lhsMinNeededResources.has_value();
-    }
-
-    if (lhsMinNeededResources->GetGpu() != rhsMinNeededResources->GetGpu()) {
-        return lhsMinNeededResources->GetGpu() > rhsMinNeededResources->GetGpu();
-    }
-
-    if (lhs->GetNeededResources() != rhs->GetNeededResources()) {
-        return lhs->GetNeededResources() > rhs->GetNeededResources();
-    }
-
-    return lhs->OperationId() < rhs->OperationId();
 }
 
 bool TGpuSchedulingContext::IsLargeOperation(const TGpuSchedulerOperationStatePtr& operation) const
@@ -758,63 +752,54 @@ void TGpuAllocationScheduler::RegisterOperation(
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-    YT_LOG_INFO("Registering operation "
-        "(OperationId: %v, IsGang: %v)",
+    YT_LOG_INFO("Registering operation (OperationId: %v, IsGang: %v)",
         operationId,
         isGang);
 
     auto operation = New<TGpuSchedulerOperationState>(operationId, isGang, specifiedSchedulingModules);
 
-    OperationStates_.emplace(operationId, operation);
+    Operations_.emplace(operationId, operation);
 }
 
 void TGpuAllocationScheduler::UnregisterOperation(TOperationId operationId)
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-    YT_LOG_INFO("Unregistering operation "
-        "(OperationId: %v)",
-        operationId);
+    YT_LOG_INFO("Unregistering operation (OperationId: %v)", operationId);
 
-    auto& operation = GetOrCrash(OperationStates_, operationId);
-
+    const auto& operation = GetOrCrash(Operations_, operationId);
     RemoveOperationFromNodes(operation);
 
-    OperationStates_.erase(operationId);
+    Operations_.erase(operationId);
 }
 
-void TGpuAllocationScheduler::RegisterNode(TNodeId nodeId, const TFairShareTreeAllocationSchedulerNodeState& node)
+void TGpuAllocationScheduler::RegisterNode(TNodeId nodeId, const TFairShareTreeAllocationSchedulerNodeState& allocationSchedulerNodeState)
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-    YT_LOG_INFO("Registering node "
-        "(NodeId: %v)",
-        nodeId);
+    YT_LOG_INFO("Registering node (NodeId: %v)", nodeId);
 
-    auto nodeState = New<TGpuSchedulerNodeState>();
-    nodeState->NodeId = nodeId;
-    nodeState->Descriptor = node.Descriptor;
+    auto node = New<TGpuSchedulerNodeState>();
+    node->NodeId = nodeId;
+    node->Descriptor = allocationSchedulerNodeState.Descriptor;
 
-    EmplaceOrCrash(NodeStates_, nodeId, nodeState);
+    EmplaceOrCrash(Nodes_, nodeId, node);
 }
 
 void TGpuAllocationScheduler::UnregisterNode(TNodeId nodeId)
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-    YT_LOG_INFO("Unregistering node "
-        "(NodeId: %v)",
-        nodeId);
+    YT_LOG_INFO("Unregistering node (NodeId: %v)", nodeId);
 
-    auto& node = GetOrCrash(NodeStates_, nodeId);
-
+    const auto& node = GetOrCrash(Nodes_, nodeId);
     RemoveAllAllocationsFromNode(node);
 
-    NodeStates_.erase(nodeId);
+    Nodes_.erase(nodeId);
 }
 
-// TODO: Persistent state.
-// TODO: More structured logging.
+// TODO(eshcherbin): Persistent state.
+// TODO(eshcherbin): More structured logging.
 void TGpuAllocationScheduler::ScheduleAllocations()
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
@@ -824,27 +809,27 @@ void TGpuAllocationScheduler::ScheduleAllocations()
     ResetOperationModuleAssignments(now);
 
     TGpuSchedulingContext context(
-        this,
-        &OperationStates_,
-        &NodeStates_,
         now,
-        Logger,
-        Config_);
+        &Operations_,
+        &Nodes_,
+        /*host*/ this,
+        Config_,
+        Logger);
 
     context.ScheduleAllocations();
 
-    // TODO: Profiling and etc.
+    // TODO(eshcherbin): Profiling and etc.
 }
 
 void TGpuAllocationScheduler::ResetOperationModuleAssignments(TInstant now)
 {
-    for (auto& [operationId, operation] : OperationStates_) {
+    for (const auto& [operationId, operation] : Operations_) {
         if (!operation->RuntimeAttributes()) {
             continue;
         }
         const auto& runtimeAttributes = *operation->RuntimeAttributes();
 
-        auto& schedulingModule = operation->SchedulingModule();
+        const auto& schedulingModule = operation->SchedulingModule();
         if (!schedulingModule) {
             continue;
         }
@@ -856,7 +841,7 @@ void TGpuAllocationScheduler::ResetOperationModuleAssignments(TInstant now)
             }
 
             if (*failingToRunAllocationsAtModuleSince + Config_->ModuleReconsiderationTimeout < now) {
-                YT_LOG_INFO(
+                YT_LOG_DEBUG(
                     "Operation has failed to schedule all allocations for too long, revoking its module assignment "
                     "(OperationId: %v, PreviousModule: %v, ResourceUsage: %v, ResourceDemand: %v, Timeout: %v)",
                     operationId,
@@ -890,7 +875,7 @@ void TGpuAllocationScheduler::ResetOperationModuleAssignments(TInstant now)
 
 void TGpuAllocationScheduler::ResetOperationModule(const TGpuSchedulerOperationStatePtr& operation)
 {
-    auto& operationModule = operation->SchedulingModule();
+    const auto& operationModule = operation->SchedulingModule();
     YT_VERIFY(operationModule);
 
     LogStructuredGpuEventFluently(EGpuSchedulingLogEventType::OperationModuleAssignmentRevoked)
@@ -913,8 +898,7 @@ void TGpuAllocationScheduler::UpdateOperationRuntimeAttributes(TOperationId oper
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-    auto& operation = GetOrCrash(OperationStates_, operationId);
-
+    const auto& operation = GetOrCrash(Operations_, operationId);
     operation->RuntimeAttributes() = std::move(attributes);
 }
 
@@ -922,14 +906,8 @@ void TGpuAllocationScheduler::UpdateOperationMinNeededResources(TOperationId ope
 {
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
-    auto& operation = GetOrCrash(OperationStates_, operationId);
-
+    const auto& operation = GetOrCrash(Operations_, operationId);
     operation->AggregatedInitialMinNeededResources() = std::move(minNeededResources);
-}
-
-THashSet<TGpuAllocationStatePtr> TGpuAllocationScheduler::GetScheduledAllocationsForNode(NNodeTrackerClient::TNodeId nodeId) const
-{
-    return GetOrCrash(NodeStates_, nodeId)->RunningAllocations;
 }
 
 void TGpuAllocationScheduler::OnAllocationFinished(
@@ -940,29 +918,32 @@ void TGpuAllocationScheduler::OnAllocationFinished(
     YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
     // NB(omgronny): Race with operation unregistering is possible.
-    if (!OperationStates_.contains(operationId)) {
+    if (!Operations_.contains(operationId)) {
         return;
     }
 
-    auto& operation = GetOrCrash(OperationStates_, operationId);
+    const auto& operation = GetOrCrash(Operations_, operationId);
+
     YT_VERIFY(!operation->ScheduledAllocations().empty());
 
-    auto& nodeState = GetOrCrash(NodeStates_, nodeId);
-    RemoveAllocationFromNode(allocation, nodeState);
+    const auto& node = GetOrCrash(Nodes_, nodeId);
+    RemoveAllocationFromNode(allocation, node);
 }
 
 void TGpuAllocationScheduler::RemoveOperationFromNodes(const TGpuSchedulerOperationStatePtr& operation)
 {
-    YT_LOG_DEBUG("Removing operation from all nodes "
+    YT_LOG_DEBUG(
+        "Removing operation from all nodes "
         "(OperationId: %v, ScheduledAllocationsCount: %v, ResourceUsage: %v)",
         operation->OperationId(),
         operation->GetResourceUsage(),
         operation->ScheduledAllocations().size());
 
-    for (const auto& [allocationId, nodeId] : operation->ScheduledAllocations()) {
-        auto& nodeState = GetOrCrash(NodeStates_, nodeId);
-        RemoveAllocationFromNode(allocationId, nodeState);
+    for (auto [allocationId, nodeId] : operation->ScheduledAllocations()) {
+        const auto& node = GetOrCrash(Nodes_, nodeId);
+        RemoveAllocationFromNode(allocationId, node);
     }
+
     YT_VERIFY(operation->GetResourceUsage() == 0.0);
 }
 
@@ -970,7 +951,7 @@ void TGpuAllocationScheduler::RemoveAllocationFromNode(
     const TGpuAllocationStatePtr& allocation,
     const TGpuSchedulerNodeStatePtr& node)
 {
-    auto& operation = GetOrCrash(OperationStates_, allocation->OperationId);
+    const auto& operation = GetOrCrash(Operations_, allocation->OperationId);
 
     auto allocationResources = allocation->Resources;
     node->ResourceUsage -= allocationResources;
@@ -984,17 +965,18 @@ void TGpuAllocationScheduler::RemoveAllocationFromNode(
 void TGpuAllocationScheduler::RemoveAllAllocationsFromNode(
     const TGpuSchedulerNodeStatePtr& node)
 {
-    YT_LOG_DEBUG("Removing all operations from node "
+    YT_LOG_DEBUG(
+        "Removing all operations from node "
         "(NodeId: %v, RunningAllocationsCount: %v, ResourceUsage: %v)",
         node->NodeId,
         node->RunningAllocations.size(),
         node->ResourceUsage);
 
     for (const auto& allocationState : node->RunningAllocations) {
-        auto& operation = GetOrCrash(OperationStates_, allocationState->OperationId);
-
+        const auto& operation = GetOrCrash(Operations_, allocationState->OperationId);
         operation->RemoveAllocation(allocationState);
     }
+
     node->RunningAllocations.clear();
 }
 
@@ -1020,30 +1002,30 @@ const TSchedulingModule& TGpuAllocationScheduler::GetNodeModule(
 
 const TSchedulingModule& TGpuAllocationScheduler::GetNodeModule(const TGpuSchedulerNodeState& node) const
 {
-    YT_ASSERT(node.Descriptor);
+    YT_VERIFY(node.Descriptor);
 
     return GetNodeModule(node.Descriptor, Config_->ModuleType);
 }
 
-THashMap<NNodeTrackerClient::TNodeId, THashSet<TGpuAllocationStatePtr>> TGpuAllocationScheduler::GetScheduledAllocations() const
+THashMap<TNodeId, THashSet<TGpuAllocationStatePtr>> TGpuAllocationScheduler::GetScheduledAllocations() const
 {
-    THashMap<NNodeTrackerClient::TNodeId, THashSet<TGpuAllocationStatePtr>> result;
-    for (auto& [nodeId, nodeState] : NodeStates_) {
-        if (!nodeState->RunningAllocations.empty()) {
-            result[nodeId] = nodeState->RunningAllocations;
+    THashMap<TNodeId, THashSet<TGpuAllocationStatePtr>> result;
+    for (const auto& [nodeId, node] : Nodes_) {
+        if (!node->RunningAllocations.empty()) {
+            result[nodeId] = node->RunningAllocations;
         }
     }
     return result;
 }
 
-TGpuSchedulerNodeStatePtr TGpuAllocationScheduler::GetNodeState(NNodeTrackerClient::TNodeId nodeId) const
+const TGpuSchedulerNodeStatePtr& TGpuAllocationScheduler::GetNodeState(TNodeId nodeId) const
 {
-    return GetOrDefault(NodeStates_, nodeId);
+    return GetOrCrash(Nodes_, nodeId);
 }
 
-TGpuSchedulerOperationStatePtr TGpuAllocationScheduler::GetOperationState(TOperationId operationId)
+const TGpuSchedulerOperationStatePtr& TGpuAllocationScheduler::GetOperationState(TOperationId operationId)
 {
-    return GetOrCrash(OperationStates_, operationId);
+    return GetOrCrash(Operations_, operationId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
