@@ -12,25 +12,25 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_executable(bin)
+add_executable(rpc-test-service)
 
 
-target_compile_options(bin PRIVATE
+target_compile_options(rpc-test-service PRIVATE
   -Wdeprecated-this-capture
   -Wimplicit-fallthrough
 )
 
-target_link_libraries(bin PUBLIC
+target_link_libraries(rpc-test-service PUBLIC
   contrib-libs-cxxsupp
   yutil
   rpc-unittests-lib
 )
 
-target_allocator(bin
+target_allocator(rpc-test-service
   system_allocator
 )
 
-target_link_options(bin PRIVATE
+target_link_options(rpc-test-service PRIVATE
   -Wl,-platform_version,macos,11.0,11.0
   -fPIC
   -fPIC
@@ -38,9 +38,9 @@ target_link_options(bin PRIVATE
   CoreFoundation
 )
 
-target_sources(bin PRIVATE
+target_sources(rpc-test-service PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/core/rpc/unittests/bin/main.cpp
 )
 
 
-vcs_info(bin)
+vcs_info(rpc-test-service)
