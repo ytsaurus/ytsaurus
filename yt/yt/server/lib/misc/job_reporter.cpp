@@ -82,7 +82,8 @@ public:
             Report_.StartTime(),
             Report_.FinishTime(),
             /*updateTime*/ TInstant::Now().MicroSeconds(),
-            Report_.Address(),
+            Report_.Address(), // COMPAT(aleksandr.gaev) Remove after 25.2
+            Report_.Addresses(),
             Report_.StderrSize(),
             Report_.HasCompetitors(),
             Report_.HasProbingCompetitors(),
@@ -185,6 +186,10 @@ public:
         // COMPAT(omgronny)
         if (archiveVersion >= 53 && Report_.Ttl()) {
             record.Ttl = Report_.Ttl()->MilliSeconds();
+        }
+        // COMPAT(aleksandr.gaev)
+        if (archiveVersion >= 55 && Report_.Addresses()) {
+            record.Addresses = ConvertToYsonString(*Report_.Addresses());
         }
 
         return FromRecord(record);

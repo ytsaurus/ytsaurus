@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/scheduler/public.h>
 
+#include "yt/yt/client/node_tracker_client/public.h"
+
 namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -363,7 +365,8 @@ struct TJob
     std::optional<NJobTrackerClient::EJobState> ArchiveState;
     std::optional<TInstant> StartTime;
     std::optional<TInstant> FinishTime;
-    std::optional<TString> Address;
+    std::optional<TString> Address; // COMPAT(aleksandr.gaev) Remove after 25.2
+    std::optional<NNodeTrackerClient::TAddressMap> Addresses;
     std::optional<double> Progress;
     std::optional<ui64> StderrSize;
     std::optional<ui64> FailContextSize;

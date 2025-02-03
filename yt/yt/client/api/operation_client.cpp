@@ -284,7 +284,8 @@ void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey
             .OptionalItem("state", job.GetState())
             .OptionalItem("controller_state", job.ControllerState)
             .OptionalItem("archive_state", job.ArchiveState)
-            .OptionalItem("address", job.Address)
+            .OptionalItem("address", job.Address) // COMPAT(aleksandr.gaev) Remove after 25.2
+            .OptionalItem("addresses", job.Addresses)
             .OptionalItem("start_time", job.StartTime)
             .OptionalItem("finish_time", job.FinishTime)
             .OptionalItem("has_spec", job.HasSpec)

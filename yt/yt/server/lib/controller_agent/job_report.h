@@ -14,7 +14,8 @@ public:
     TControllerJobReport JobId(TJobId jobId);
     TControllerJobReport HasCompetitors(bool hasCompetitors, EJobCompetitionType competitionType);
     TControllerJobReport JobCookie(ui64 jobCookie);
-    TControllerJobReport Address(std::optional<std::string> address);
+    TControllerJobReport Address(std::optional<std::string> address); // COMPAT(aleksandr.gaev) Remove after 25.2
+    TControllerJobReport Addresses(std::optional<NNodeTrackerClient::TAddressMap> addresses);
     TControllerJobReport ControllerState(EJobState controllerState);
     TControllerJobReport Ttl(std::optional<TDuration> ttl);
 };

@@ -2429,7 +2429,7 @@ class TestUserJobMonitoring(YTEnvSetup):
 
         expected_time = 10 * 1000  # 10 seconds.
         job_info = get_job(op.id, job_id)
-        node = job_info["address"]
+        node = job_info["addresses"]["default"]
         descriptor = job_info["monitoring_descriptor"]
 
         profiler = profiler_factory().at_node(node)
@@ -2487,7 +2487,7 @@ class TestUserJobMonitoring(YTEnvSetup):
 
         expected_time = 10 * 1000  # 10 seconds.
         job_info = get_job(op.id, job_id)
-        node = job_info["address"]
+        node = job_info["addresses"]["default"]
         descriptor = job_info["monitoring_descriptor"]
 
         profiler = profiler_factory().at_node(node)
@@ -2667,7 +2667,7 @@ class TestUserJobMonitoring(YTEnvSetup):
         job_id, = wait_breakpoint()
 
         job_info = get_job(op.id, job_id)
-        node = job_info["address"]
+        node = job_info["addresses"]["default"]
         descriptor = job_info["monitoring_descriptor"]
 
         profiler = profiler_factory().at_node(node)
@@ -2721,7 +2721,7 @@ class TestUserJobMonitoring(YTEnvSetup):
         wait(lambda: "monitoring_descriptor" in get_job(op.id, job_id))
 
         job = get_job(op.id, job_id)
-        node = job["address"]
+        node = job["addresses"]["default"]
         descriptor = job["monitoring_descriptor"]
 
         profiler = profiler_factory().at_node(node)
@@ -2763,7 +2763,7 @@ class TestUserJobMonitoring(YTEnvSetup):
         wait(lambda: "monitoring_descriptor" in get_job(op.id, job_id))
 
         job = get_job(op.id, job_id)
-        node = job["address"]
+        node = job["addresses"]["default"]
         descriptor = job["monitoring_descriptor"]
 
         profiler = profiler_factory().at_node(node)
@@ -2799,7 +2799,7 @@ class TestUserJobMonitoring(YTEnvSetup):
         wait(lambda: "monitoring_descriptor" in get_job(op.id, job_id))
 
         job = get_job(op.id, job_id)
-        node = job["address"]
+        node = job["addresses"]["default"]
         descriptor = job["monitoring_descriptor"]
 
         profiler = profiler_factory().at_node(node)
@@ -3324,7 +3324,7 @@ class TestIdleSlots(YTEnvSetup):
         assert len(job_ids) >= 1
         job_id = job_ids[0]
 
-        return (job_id, job["address"])
+        return (job_id, job["addresses"]["default"])
 
     def _check_slot_count(self, node, common_used, idle_used):
         slot_count = get(f"//sys/cluster_nodes/{node}/orchid/exec_node/slot_manager/slot_count")
@@ -3501,7 +3501,7 @@ class TestCpuSet(YTEnvSetup):
         assert len(job_ids) >= 1
         job_id = job_ids[0]
 
-        return (job_id, job["address"])
+        return (job_id, job["addresses"]["default"])
 
     def _get_actual_cpu_set(self, op, job_id):
         return op.read_stderr(job_id).decode("utf-8").strip()

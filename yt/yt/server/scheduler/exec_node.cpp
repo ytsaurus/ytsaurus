@@ -29,6 +29,11 @@ const std::string& TExecNode::GetDefaultAddress() const
     return NodeDescriptor_.GetDefaultAddress();
 }
 
+const TAddressMap& TExecNode::GetAddresses() const
+{
+    return NodeDescriptor_.Addresses();
+}
+
 bool TExecNode::CanSchedule(const TSchedulingTagFilter& filter) const
 {
     return filter.IsEmpty() || filter.CanSchedule(Tags_);
@@ -38,7 +43,8 @@ TExecNodeDescriptorPtr TExecNode::BuildExecDescriptor() const
 {
     return New<TExecNodeDescriptor>(
         Id_,
-        GetDefaultAddress(),
+        GetDefaultAddress(), // COMPAT(aleksandr.gaev) Remove after 25.2
+        GetAddresses(),
         NodeDescriptor_.GetDataCenter(),
         IOWeight_,
         MasterState_ == NNodeTrackerClient::ENodeState::Online && SchedulerState_ == ENodeState::Online,

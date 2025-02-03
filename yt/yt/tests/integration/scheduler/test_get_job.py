@@ -570,7 +570,7 @@ class TestGetJobMonitoring(_TestGetJobBase):
         descriptor = job["monitoring_descriptor"]
 
         wait(
-            lambda: profiler_factory().at_node(job["address"]).get("user_job/cpu/user", {"job_descriptor": descriptor})
+            lambda: profiler_factory().at_node(job["addresses"]["default"]).get("user_job/cpu/user", {"job_descriptor": descriptor})
             is not None)
 
 

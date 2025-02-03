@@ -444,7 +444,7 @@ def get_jobs_with_error_or_stderr(operation, only_failed_jobs, client=None):
 
     def get_stderr_from_job(job, yt_client):
         job_with_stderr = {}
-        job_with_stderr["host"] = job.attributes["address"]
+        job_with_stderr["host"] = job.attributes["addresses"]["default"]
 
         if only_failed_jobs and "error" in job.attributes:
             job_with_stderr["error"] = job.attributes["error"]
@@ -496,7 +496,7 @@ def get_jobs_with_error_or_stderr(operation, only_failed_jobs, client=None):
 
     jobs = []
     for info in response["jobs"]:
-        attributes = {"address": info["address"]}
+        attributes = {"address": info["addresses"]["default"]}
         if "error" not in info and "stderr_size" not in info:
             continue
         if "error" in info:

@@ -1467,7 +1467,7 @@ class TestJobRevival(TestJobRevivalBase):
             result = []
             for job_id in jobs:
                 try:
-                    job_node = get("{0}/{1}".format(jobs_path, job_id))["address"]
+                    job_node = get("{0}/{1}".format(jobs_path, job_id))["addresses"]["default"]
                 except YtError:
                     continue  # The job has already completed, Orchid is lagging.
 
