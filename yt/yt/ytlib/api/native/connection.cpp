@@ -70,6 +70,7 @@
 #include <yt/yt/ytlib/bundle_controller/bundle_controller_channel.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
+#include <yt/yt/ytlib/security_client/user_attribute_cache.h>
 
 #include <yt/yt/ytlib/tablet_client/native_table_mount_cache.h>
 
@@ -262,6 +263,13 @@ public:
             config->PermissionCache,
             this);
 
+        UserAttributeCache_ = New<TUserAttributeCache>(
+            config->UserAttributeCache,
+            CreateNativeClient(TClientOptions::FromUser(RootUserName)),
+            GetInvoker(),
+            Logger,
+            Profiler_.WithPrefix("/user_attribute_cache"));
+
         JobShellDescriptorCache_ = New<TJobShellDescriptorCache>(
             config->JobShellDescriptorCache,
             MakeWeak(this),
@@ -448,6 +456,11 @@ public:
         return PermissionCache_;
     }
 
+    const TUserAttributeCachePtr& GetUserAttributeCache() override
+    {
+        return UserAttributeCache_;
+    }
+
     const TStickyGroupSizeCachePtr& GetStickyGroupSizeCache() override
     {
         return StickyGroupSizeCache_;
@@ -487,6 +500,7 @@ public:
     {
         TableMountCache_->Clear();
         PermissionCache_->Clear();
+        UserAttributeCache_->Clear();
     }
 
     // NNative::IConnection implementation.
@@ -927,6 +941,7 @@ private:
     IClockManagerPtr ClockManager_;
     TJobShellDescriptorCachePtr JobShellDescriptorCache_;
     TPermissionCachePtr PermissionCache_;
+    TUserAttributeCachePtr UserAttributeCache_;
     TSyncReplicaCachePtr SyncReplicaCache_;
 
     ICellDirectoryPtr CellDirectory_;
@@ -1410,6 +1425,26 @@ TFuture<TTableMountInfoPtr> GetTableMountInfo(const TRichYPath& objectPath, cons
     YT_VERIFY(objectConnection);
     auto objectTableMountCache = objectConnection->GetTableMountCache();
     return objectTableMountCache->GetTableInfo(objectPath.GetPath());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<bool> IsSuperuser(const IConnectionPtr& connection, const TString& user)
+{
+    return connection->GetUserAttributeCache()->Get(user)
+        .Apply(BIND([] (const TUserAttributesPtr& attributes) {
+            YT_VERIFY(attributes);
+            return attributes->MemberOfClosure.contains(SuperusersGroupName);
+        }));
+}
+
+TFuture<bool> IsUserBanned(const IConnectionPtr &connection, const TString &user)
+{
+    return connection->GetUserAttributeCache()->Get(user)
+        .Apply(BIND([] (const TUserAttributesPtr& attributes) {
+            YT_VERIFY(attributes);
+            return attributes->Banned;
+        }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

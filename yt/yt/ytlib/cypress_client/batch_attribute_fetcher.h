@@ -43,6 +43,7 @@ private:
         TString BaseName;
         bool FetchAsBatch = false;
         TError Error;
+        NCypressClient::EObjectType Type;
         NYTree::IAttributeDictionaryPtr Attributes;
         //! Index in original path order.
         int Index;
@@ -65,6 +66,8 @@ private:
     std::vector<TListEntry> ListEntries_;
 
     std::vector<TString> AttributeNames_;
+    //! Used to track if we added the "type" attribute to the list of requested attributes manually.
+    bool AddedTypeAttribute_ = false;
     NApi::NNative::IClientPtr Client_;
     IInvokerPtr Invoker_;
     NApi::TMasterReadOptions MasterReadOptions_;

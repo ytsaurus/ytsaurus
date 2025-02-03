@@ -309,6 +309,7 @@ public:
     TAsyncExpiringCacheConfigPtr JobShellDescriptorCache;
 
     NSecurityClient::TPermissionCacheConfigPtr PermissionCache;
+    NSecurityClient::TUserAttributeCacheConfigPtr UserAttributeCache;
 
     int MaxChunksPerFetch;
     int MaxChunksPerLocateRequest;
