@@ -610,8 +610,9 @@ bool UpdateConsumerController(
     const TConsumerTableRow& row,
     const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     const IObjectStore* store,
+    const IQueueExportManagerPtr& /*queueExportManager*/,
     const TQueueControllerDynamicConfigPtr& dynamicConfig,
-    TQueueAgentClientDirectoryPtr clientDirectory,
+    const TQueueAgentClientDirectoryPtr& clientDirectory,
     IInvokerPtr invoker)
 {
     if (controller && controller->IsLeading() == leading) {

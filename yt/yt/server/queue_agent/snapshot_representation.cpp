@@ -1,7 +1,7 @@
 #include "snapshot_representation.h"
 #include "snapshot.h"
 
-#include "queue_static_table_exporter.h"
+#include "queue_exporter.h"
 
 #include <yt/yt/core/ytree/fluent.h>
 

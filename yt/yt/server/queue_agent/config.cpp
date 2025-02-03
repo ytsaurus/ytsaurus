@@ -61,6 +61,11 @@ void TQueueExporterDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
+    registrar.Parameter("pass_period", &TThis::PassPeriod)
+        .Default(TDuration::Seconds(1))
+        .GreaterThan(TDuration::Zero());
+    registrar.Parameter("max_exported_table_count_per_task", &TThis::MaxExportedTableCountPerTask)
+        .Default(10);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -90,6 +95,14 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQueueExportManagerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("export_rate_limit", &TThis::ExportRateLimit)
+        .Default(4);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TQueueAgentDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("pass_period", &TThis::PassPeriod)
@@ -98,6 +111,8 @@ void TQueueAgentDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("controller_thread_count", &TThis::ControllerThreadCount)
         .Default(4);
     registrar.Parameter("controller", &TThis::Controller)
+        .DefaultNew();
+    registrar.Parameter("queue_export_manager", &TThis::QueueExportManager)
         .DefaultNew();
     registrar.Parameter("handle_replicated_objects", &TThis::HandleReplicatedObjects)
         .Default(false);
