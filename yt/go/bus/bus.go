@@ -517,7 +517,7 @@ func (c *Bus) receiveSSLAck() error {
 	return nil
 }
 
-func (c *Bus) establishEncryption() error {
+func (c *Bus) establishEncryption(isServer bool) error {
 	if err := c.sendHandshake(); err != nil {
 		return err
 	}
@@ -536,7 +536,12 @@ func (c *Bus) establishEncryption() error {
 		return err
 	}
 
-	conn := tls.Client(c.conn, c.options.TLSConfig)
+	var conn *tls.Conn
+	if isServer {
+		conn = tls.Server(c.conn, c.options.TLSConfig)
+	} else {
+		conn = tls.Client(c.conn, c.options.TLSConfig)
+	}
 	if err := conn.Handshake(); err != nil {
 		return fmt.Errorf("bus: error performing SSL handshake: %w", err)
 	}
@@ -553,7 +558,7 @@ func Dial(ctx context.Context, options Options) (*Bus, error) {
 	}
 
 	bus := NewBus(conn, options)
-	if err := bus.establishEncryption(); err != nil {
+	if err := bus.establishEncryption(false); err != nil {
 		bus.Close()
 		return nil, err
 	}
