@@ -216,6 +216,10 @@ public: \
         const NYPath::TYPath& path,
         const TUnfreezeTableOptions& options),
         (path, options))
+    IMPLEMENT_METHOD(void, CancelTabletTransition, (
+        NTabletClient::TTabletId tabletId,
+        const TCancelTabletTransitionOptions& options),
+        (tabletId, options))
     IMPLEMENT_OVERLOADED_METHOD(void, ReshardTable, DoReshardTableWithPivotKeys, (
         const NYPath::TYPath& path,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,

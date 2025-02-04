@@ -504,6 +504,7 @@ SRCS(
     tablet_client/proto/master_tablet_service.proto
     tablet_client/proto/table_replica_ypath.proto
     tablet_client/proto/tablet_cell_bundle_ypath.proto
+    tablet_client/proto/tablet_ypath.proto
     tablet_client/proto/tablet_service.proto
 
     tablet_node_tracker_client/proto/tablet_node_tracker_service.proto
