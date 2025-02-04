@@ -19,6 +19,10 @@ ELSE()
     YT_SPEC(yt/yt/tests/integration/spec_os.yson)
 ENDIF()
 
+IF (NOT OPENSOURCE)
+    ENV(YT_DISABLE_MULTIDAEMON=true)
+ENDIF()
+
 SIZE(LARGE)
 
 REQUIREMENTS(
