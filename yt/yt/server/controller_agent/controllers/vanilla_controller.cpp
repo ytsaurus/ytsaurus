@@ -53,7 +53,7 @@ public:
 
     void TrySwitchToNewIncarnation(bool operationIsReviving);
 
-    void TrySwitchToNewIncarnation(const TOperationIncarnation& consideredIncarnation, bool operationIsReviving);
+    void TrySwitchToNewIncarnation(const std::optional<TOperationIncarnation>& consideredIncarnation, bool operationIsReviving);
 
     void UpdateConfig(const TVanillaOperationOptionsPtr& config) noexcept;
 
@@ -301,7 +301,7 @@ void TGangManager::TrySwitchToNewIncarnation(bool operationIsReviving)
     VanillaOperationController_->OnOperationIncarnationChanged(operationIsReviving);
 }
 
-void TGangManager::TrySwitchToNewIncarnation(const TOperationIncarnation& consideredIncarnation, bool operationIsReviving)
+void TGangManager::TrySwitchToNewIncarnation(const std::optional<TOperationIncarnation>& consideredIncarnation, bool operationIsReviving)
 {
     if (consideredIncarnation == Incarnation_) {
         TrySwitchToNewIncarnation(operationIsReviving);
@@ -726,7 +726,10 @@ void TVanillaController::InitUserJobSpec(
     YT_ASSERT_INVOKER_AFFINITY(GetJobSpecBuildInvoker());
 
     TOperationControllerBase::InitUserJobSpec(proto, joblet);
-    proto->add_environment(Format("YT_OPERATION_INCARNATION=%v", joblet->OperationIncarnation));
+
+    if (joblet->OperationIncarnation) {
+        proto->add_environment(Format("YT_OPERATION_INCARNATION=%v", *joblet->OperationIncarnation));
+    }
 }
 
 bool TVanillaController::OnJobCompleted(

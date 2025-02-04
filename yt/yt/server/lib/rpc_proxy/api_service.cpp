@@ -3135,6 +3135,9 @@ private:
         if (request->has_task_name()) {
             options.TaskName = request->task_name();
         }
+        if (request->has_operation_incarnation()) {
+            options.OperationIncarnation = request->operation_incarnation();
+        }
         if (request->has_from_time()) {
             options.FromTime = FromProto<TInstant>(request->from_time());
         }
