@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/master/object_server/proto/object_manager.pb.h>
 
+#include <yt/yt/server/lib/hive/hive_manager.h>
+
 #include <yt/yt/server/lib/hydra/mutation_context.h>
 #include <yt/yt/server/lib/hydra/persistent_response_keeper.h>
 
@@ -25,37 +27,13 @@ namespace NYT::NTransactionServer {
 using namespace NObjectServer;
 using namespace NCellMaster;
 using namespace NConcurrency;
+using namespace NHiveServer;
 using namespace NHydra;
 using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto& Logger = TransactionServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static NConcurrency::TFlsSlot<bool> BoomerangMutationSlot;
-
-bool IsBoomerangMutation()
-{
-    return *BoomerangMutationSlot;
-}
-
-class TBoomerangMutationGuard
-    : private TNonCopyable
-{
-public:
-    TBoomerangMutationGuard()
-    {
-        YT_VERIFY(!*BoomerangMutationSlot);
-        *BoomerangMutationSlot = true;
-    }
-
-    ~TBoomerangMutationGuard()
-    {
-        *BoomerangMutationSlot = false;
-    }
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -242,7 +220,7 @@ void TBoomerangTracker::ApplyBoomerangMutation(NProto::TReqReturnBoomerang* requ
     {
         TMutationContextGuard mutationContextGuard(&mutationContext);
 
-        TBoomerangMutationGuard boomerangMutationGuard;
+        TInverseHiveMutationGuard inverseHiveMutationGuard;
 
         const auto& automaton = hydraFacade->GetAutomaton();
         StaticPointerCast<IAutomaton>(automaton)->ApplyMutation(&mutationContext);

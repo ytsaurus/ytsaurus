@@ -36,6 +36,18 @@ public:
     ~THiveMutationGuard();
 };
 
+//! Removes the mutation sender id from FLS. Restores it in destructor.
+class TInverseHiveMutationGuard
+    : private TNonCopyable
+{
+public:
+    TInverseHiveMutationGuard();
+    ~TInverseHiveMutationGuard();
+
+private:
+    const TCellId SenderId_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSerializedMessage

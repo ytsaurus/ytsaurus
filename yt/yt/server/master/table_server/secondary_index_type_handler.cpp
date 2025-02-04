@@ -18,6 +18,7 @@
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
+using namespace NHiveServer;
 using namespace NHydra;
 using namespace NObjectClient;
 using namespace NObjectServer;
@@ -86,7 +87,7 @@ public:
 
     void ValidateUserAllowedToCreateSecondaryIndex()
     {
-        if (NHiveServer::IsHiveMutation()) {
+        if (IsHiveMutation()) {
             return;
         }
 

@@ -47,6 +47,8 @@
 #include <yt/yt/server/master/transaction_server/transaction.h>
 #include <yt/yt/server/master/transaction_server/transaction_manager.h>
 
+#include <yt/yt/server/lib/hive/hive_manager.h>
+
 #include <yt/yt/server/lib/node_tracker_server/name_helpers.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -761,7 +763,7 @@ public:
                 name);
         }
 
-        if (DataCenterMap_.GetSize() >= MaxDataCenterCount) {
+        if (DataCenterMap_.GetSize() >= MaxDataCenterCount && !IsHiveMutation()) {
             THROW_ERROR_EXCEPTION("Data center count limit %v is reached",
                 MaxDataCenterCount);
         }
