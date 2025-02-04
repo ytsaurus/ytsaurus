@@ -1226,6 +1226,9 @@ public:
 
     //! Options for cuda profiler.
     std::optional<TString> CudaProfilerLayerPath;
+
+    THashMap<std::string, std::string> CudaProfilerEnvironmentVariables;
+    // COMPAT(omgronnny)
     TCudaProfilerEnvironmentPtr CudaProfilerEnvironment;
 
     //! Read input tables via exec node.

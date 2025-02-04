@@ -1236,6 +1236,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("cuda_profiler_layer_path", &TThis::CudaProfilerLayerPath)
         .Default();
 
+    registrar.Parameter("cuda_profiler_environment_variables", &TThis::CudaProfilerEnvironmentVariables)
+        .Default();
+
     registrar.Parameter("cuda_profiler_environment", &TThis::CudaProfilerEnvironment)
         .Default();
 
@@ -1349,6 +1352,14 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
         if (config->TotalControllerMemoryLimit) {
             config->MemoryWatchdog->TotalControllerMemoryLimit = config->TotalControllerMemoryLimit;
+        }
+
+        // COMPAT(omgronny)
+        if (config->CudaProfilerEnvironmentVariables.empty() && config->CudaProfilerEnvironment) {
+            EmplaceOrCrash(
+                config->CudaProfilerEnvironmentVariables,
+                config->CudaProfilerEnvironment->PathEnvironmentVariableName,
+                config->CudaProfilerEnvironment->PathEnvironmentVariableValue);
         }
     });
 }

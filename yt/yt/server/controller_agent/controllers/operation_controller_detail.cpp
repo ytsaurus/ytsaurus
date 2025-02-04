@@ -10105,14 +10105,13 @@ void TOperationControllerBase::InitUserJobSpec(
     }
 
     if (joblet->EnabledJobProfiler && joblet->EnabledJobProfiler->Type == EProfilerType::Cuda) {
-        auto cudaProfilerEnvironment = Spec_->CudaProfilerEnvironment
-            ? Spec_->CudaProfilerEnvironment
-            : Config->CudaProfilerEnvironment;
+        auto cudaProfilerEnvironment = !Spec_->CudaProfilerEnvironmentVariables.empty()
+            ? Spec_->CudaProfilerEnvironmentVariables
+            : Config->CudaProfilerEnvironmentVariables;
 
-        if (cudaProfilerEnvironment) {
-            jobSpec->add_environment(Format("%v=%v",
-                cudaProfilerEnvironment->PathEnvironmentVariableName,
-                cudaProfilerEnvironment->PathEnvironmentVariableValue));
+        for (const auto& [name, value] : cudaProfilerEnvironment) {
+            jobSpec->add_environment(
+                Format("%v=%v", name, value));
         }
     }
 
