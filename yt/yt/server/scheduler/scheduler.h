@@ -120,7 +120,7 @@ public:
         TOperationPtr operation,
         const std::string& user,
         bool abortRunningAllocations,
-        const std::string& reason);
+        const std::optional<std::string>& reason);
     TFuture<void> ResumeOperation(TOperationPtr operation, const std::string& user);
     TFuture<void> CompleteOperation(
         TOperationPtr operation,

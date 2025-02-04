@@ -48,7 +48,9 @@ void TClient::DoSuspendOperation(
     auto req = SchedulerOperationProxy_->SuspendOperation();
     ToProto(req, operationIdOrAlias);
     req->set_abort_running_jobs(options.AbortRunningJobs);
-    req->set_reason(options.Reason);
+    if (options.Reason) {
+        req->set_reason(*options.Reason);
+    }
 
     WaitFor(req->Invoke())
         .ThrowOnError();

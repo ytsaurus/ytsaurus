@@ -26,7 +26,7 @@ struct TSuspendOperationOptions
     : public TTimeoutOptions
 {
     bool AbortRunningJobs = false;
-    TString Reason;
+    std::optional<TString> Reason;
 };
 
 struct TResumeOperationOptions

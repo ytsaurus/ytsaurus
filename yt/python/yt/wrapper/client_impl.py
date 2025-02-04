@@ -2929,7 +2929,7 @@ class YtClient(ClientState):
             self,
             operation,
             abort_running_jobs=False,
-            reason=""):
+            reason=None):
         """
         Suspends operation.
 
