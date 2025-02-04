@@ -1144,6 +1144,8 @@ class TestGangManager(YTEnvSetup):
         (job_a, ) = wait_breakpoint(breakpoint_name="task_a")
         (job_b, ) = wait_breakpoint(breakpoint_name="task_b")
 
+        op.wait_for_fresh_snapshot()
+
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
