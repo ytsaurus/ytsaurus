@@ -563,6 +563,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TLegacyOwningKey, NextPivotKey);
 
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
+    DEFINE_BYVAL_RW_PROPERTY(ETabletState, LastStableState);
 
     DEFINE_BYVAL_RO_PROPERTY(TCancelableContextPtr, CancelableContext);
 

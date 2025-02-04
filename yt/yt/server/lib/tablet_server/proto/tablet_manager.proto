@@ -83,6 +83,13 @@ message TRspUnfreezeTablet
     optional uint64 mount_revision = 2;
 }
 
+message TRspCancelTabletTransition
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required int32 actual_tablet_state = 2; // ETabletState;
+    required uint64 mount_revision = 3;
+}
+
 message TRspLockTablet
 {
     required NYT.NProto.TGuid tablet_id = 1;

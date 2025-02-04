@@ -398,6 +398,11 @@ public:
         const TUnfreezeTableOptions& options),
         (override));
 
+    MOCK_METHOD(TFuture<void>, CancelTabletTransition, (
+        NTabletClient::TTabletId tabletId,
+        const TCancelTabletTransitionOptions& options),
+        (override));
+
     MOCK_METHOD(TFuture<void>, ReshardTable, (
         const NYPath::TYPath& path,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,

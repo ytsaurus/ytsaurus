@@ -856,6 +856,7 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, TablePath_);
     Save(context, MasterAvenueEndpointId_);
     Save(context, GetPersistentState());
+    Save(context, LastStableState_);
     TNonNullableIntrusivePtrSerializer<>::Save(context, TableSchema_);
     Save(context, Atomicity_);
     Save(context, CommitOrdering_);
@@ -930,6 +931,20 @@ void TTablet::Load(TLoadContext& context)
     Load(context, TablePath_);
     Load(context, MasterAvenueEndpointId_);
     Load(context, State_);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::CancelTabletTransition) {
+        Load(context, LastStableState_);
+    } else {
+        // If current state is stable, we're good. Otherwise we guess that
+        // the tablet was more likely mounted than frozen.
+        if (State_ == ETabletState::Frozen) {
+            LastStableState_ = ETabletState::Frozen;
+        } else {
+            LastStableState_ = ETabletState::Mounted;
+        }
+    }
+
     TNonNullableIntrusivePtrSerializer<>::Load(context, TableSchema_);
     Load(context, Atomicity_);
     Load(context, CommitOrdering_);

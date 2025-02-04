@@ -218,6 +218,7 @@ DEFINE_ENUM(EMasterReign,
     ((PerLocationNodeHeartbeat)                                     (2828))  // danilalexeev
     ((HunkSpecificMediaFixes)                                       (2829))  // shakurov
     ((RipLogicalChunkCount)                                         (2830))  // ifsmirnov
+    ((CancelTabletTransition)                                       (2831))  // ifsmirnov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

@@ -1081,6 +1081,11 @@ def unfreeze_table(path, **kwargs):
     return execute_command("unfreeze_table", kwargs)
 
 
+def cancel_tablet_transition(tablet_id, **kwargs):
+    kwargs["tablet_id"] = tablet_id
+    return execute_command("cancel_tablet_transition", kwargs)
+
+
 def reshard_table(path, arg=None, **kwargs):
     clear_metadata_caches(kwargs.get("driver"))
     kwargs["path"] = path
