@@ -688,6 +688,10 @@ class YTEnvSetup(object):
         else:
             use_slot_user_id = cls.USE_SLOT_USER_ID
 
+        enable_multidaemon = cls.ENABLE_MULTIDAEMON and not cls.USE_PORTO  # TODO(nadya73): Remove porto condition when it will be fixed.
+        if os.environ.get("YT_DISABLE_MULTIDAEMON"):
+            enable_multidaemon = False
+
         yt_config = LocalYtConfig(
             use_porto_for_servers=cls.USE_PORTO,
             jobs_environment_type="porto" if cls.USE_PORTO else cls.JOB_ENVIRONMENT_TYPE,
@@ -753,7 +757,7 @@ class YTEnvSetup(object):
                     "expire_after_access_time": 300000,
                 },
             } if cls._is_ground_cluster(index) else None,
-            enable_multidaemon=cls.ENABLE_MULTIDAEMON and not cls.USE_PORTO,  # TODO(nadya73): Remove porto condition when it will be fixed.
+            enable_multidaemon=enable_multidaemon,
         )
 
         if yt_config.jobs_environment_type == "porto" and not porto_available():
