@@ -6559,9 +6559,14 @@ void TOperationControllerBase::PrepareInputTables()
 
 void TOperationControllerBase::PatchTableWriteBuffer(
     TTableWriterOptionsPtr& writerOptions,
+    ETableSchemaMode schemaMode,
     const TEpochSchema& schema) const
 {
-    if (writerOptions->OptimizeFor == EOptimizeFor::Scan) {
+    // This is the only reliable case when column count from schema will match column count of data.
+    if (writerOptions->OptimizeFor == EOptimizeFor::Scan &&
+        !schema->Columns().empty() &&
+        schemaMode == NTableClient::ETableSchemaMode::Strong)
+    {
         THashSet<TString> groups;
         int singleColumnGroupCount = 0;
 
@@ -6850,6 +6855,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             if (Spec_->EnableWriteBufferSizeEstimation) {
                 PatchTableWriteBuffer(
                     table->TableWriterOptions,
+                    table->TableUploadOptions.SchemaMode,
                     table->TableUploadOptions.TableSchema);
             }
 
