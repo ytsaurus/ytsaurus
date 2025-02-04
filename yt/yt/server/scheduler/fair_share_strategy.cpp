@@ -1418,7 +1418,7 @@ public:
         for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
             auto tree = GetTree(treeId);
             if (auto error = tree->CheckOperationSchedulingInSeveralTreesAllowed(operationId); !error.IsOK()) {
-                multiTreeSchedulingErrors.push_back(TError("Scheduling in several trees is forbidden by %Qlv tree's configuration", treeId)
+                multiTreeSchedulingErrors.push_back(TError("Scheduling in several trees is forbidden by %Qv tree's configuration", treeId)
                     << std::move(error));
             }
         }
