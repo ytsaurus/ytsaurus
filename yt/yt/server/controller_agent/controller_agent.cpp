@@ -1447,6 +1447,11 @@ private:
         AllocationEventsInbox_.reset();
         OperationEventsInbox_.reset();
         ScheduleAllocationRequestsInbox_.reset();
+
+        {
+            auto guard = Guard(ClusterToNetworkBandwidthAvailabilityLock_);
+            ClusterToNetworkBandwidthAvailabilityCallbackLists_.clear();
+        }
     }
 
     struct TPreparedHeartbeatRequest

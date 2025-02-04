@@ -80,8 +80,6 @@ public:
         std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
         std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors);
 
-    virtual ~TTask();
-
     //! This method is called on task object creation (both at clean creation and at revival).
     //! It may be used when calling virtual method is needed, but not allowed.
     virtual void Initialize();
@@ -249,6 +247,8 @@ public:
     void BuildFeatureYson(NYTree::TFluentAny fluent) const;
 
     void FinalizeFeatures();
+
+    void FinalizeSubscriptions();
 
     void StopTiming();
 
