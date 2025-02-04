@@ -50,7 +50,7 @@ class TestMasterCellAdditionWithoutDowntime(TestMasterCellAddition):
     DOWNTIME_ALL_COMPONENTS = False
 
 
-class TestMasterCellsListChangeWithoutDowntime(TestMasterCellAddition):
+class TestMasterCellsListChangeWithoutDowntime(MasterCellAdditionBaseChecks):
     ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
     STASHED_CELL_CONFIGS = []
@@ -67,6 +67,15 @@ class TestMasterCellsListChangeWithoutDowntime(TestMasterCellAddition):
             },
         },
     }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "13": {"roles": []},
+    }
+
+    @authors("shakurov", "cherepashka")
+    @pytest.mark.timeout(200)
+    def test_add_new_cell(self):
+        self.execute_checks_with_cell_addition(downtime=self.DOWNTIME_ALL_COMPONENTS)
 
 
 ##################################################################

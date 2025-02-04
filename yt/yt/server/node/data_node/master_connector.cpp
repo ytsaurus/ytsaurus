@@ -1139,7 +1139,7 @@ private:
                     JobHeartbeatJobTrackerIndex_ = (JobHeartbeatJobTrackerIndex_ + 1) % jobTrackerAddresses.size();
                 }
 
-                if (IsRetriableError(rspOrError)) {
+                if (IsRetriableError(rspOrError) || rspOrError.FindMatching(HeartbeatRetriableErrors)) {
                     DoScheduleJobHeartbeat(/*immediately*/ false);
                 } else {
                     Bootstrap_->ResetAndRegisterAtMaster();
