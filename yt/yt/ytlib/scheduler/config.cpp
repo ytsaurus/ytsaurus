@@ -904,6 +904,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("cuda_profiler_layer_path", &TThis::CudaProfilerLayerPath)
         .Default();
 
+    registrar.Parameter("cuda_profiler_environment_variables", &TThis::CudaProfilerEnvironmentVariables)
+        .Default();
+
     registrar.Parameter("cuda_profiler_environment", &TThis::CudaProfilerEnvironment)
         .Default();
 
@@ -995,6 +998,14 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
         if (spec->BatchRowCount && spec->Sampling && spec->Sampling->SamplingRate) {
             THROW_ERROR_EXCEPTION("Option \"batch_row_count\" cannot be used with input sampling");
+        }
+
+        // COMPAT(omgronny)
+        if (spec->CudaProfilerEnvironmentVariables.empty() && spec->CudaProfilerEnvironment) {
+            EmplaceOrCrash(
+                spec->CudaProfilerEnvironmentVariables,
+                spec->CudaProfilerEnvironment->PathEnvironmentVariableName,
+                spec->CudaProfilerEnvironment->PathEnvironmentVariableValue);
         }
     });
 }
