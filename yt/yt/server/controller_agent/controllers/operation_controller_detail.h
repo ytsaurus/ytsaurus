@@ -752,6 +752,7 @@ protected:
     virtual void PrepareOutputTables();
     void PatchTableWriteBuffer(
         NTableClient::TTableWriterOptionsPtr& writerOptions,
+        NTableClient::ETableSchemaMode schemaMode,
         const NTableClient::TEpochSchema& schema) const;
     void LockOutputTablesAndGetAttributes();
     void LockUserFiles();
