@@ -1763,15 +1763,18 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             schema=schema,
             mount_config={
                 "min_data_ttl": 0,
-                "max_data_ttl": 1000,
+                "max_data_ttl": 0,
                 "min_data_versions": 0,
-                "max_data_versions": 1,
+                "max_data_versions": 0,
                 "row_merger_type": "watermark",
                 "auto_compaction_period": 1,
             },
         )
 
         sync_mount_table("//tmp/t")
+
+        # Set initial watermark value to prevent rows getting deleted by max_data_ttl=0
+        self._sync_set_watermark(0)
 
         rows = [
             {"key": 0, "watermark": 10},
