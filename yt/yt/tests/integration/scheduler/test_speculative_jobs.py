@@ -272,7 +272,6 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
     ROW_COUNT_TO_FILL_PIPE = 1000000
 
     @authors("renadeen")
-    @pytest.mark.xfail(run=False, reason="YT-24062")
     def test_speculative_on_residual_job(self):
         op = self.run_op_with_residual_speculative_job()
         regular, speculative = get_sorted_jobs(op)
@@ -281,7 +280,6 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         op.track()
 
     @authors("renadeen")
-    @pytest.mark.xfail(run=False, reason="YT-24062")
     def test_speculative_with_automerge(self):
         op = self.run_op_with_residual_speculative_job(spec={"auto_merge": {"mode": "relaxed"}})
         regular, speculative = get_sorted_jobs(op)
@@ -290,7 +288,6 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
         op.track()
 
     @authors("renadeen")
-    @pytest.mark.xfail(run=False, reason="YT-24062")
     @flaky(max_runs=3)
     def test_aborted_speculative_job_is_restarted(self):
         op = self.run_op_with_residual_speculative_job()
@@ -350,6 +347,7 @@ class TestSpeculativeJobSplitter(YTEnvSetup):
     def run_op_with_residual_speculative_job(self, command="BREAKPOINT; cat", spec=None):
         spec = {} if spec is None else spec
         spec["job_io"] = {"buffer_row_count": 1}
+        spec["data_weight_per_job"] = self.ROW_COUNT_TO_FILL_PIPE * 100
         create_test_tables(row_count=self.ROW_COUNT_TO_FILL_PIPE)
 
         # Job is unslplittable since min_total_data_size is very large
