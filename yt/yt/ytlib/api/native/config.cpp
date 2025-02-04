@@ -350,8 +350,7 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("upload_transaction_timeout", &TThis::UploadTransactionTimeout)
         .Default(TDuration::Seconds(15));
-    // NB: its default value is |UploadTransactionTimeout| / 2.
-    // See postprocessor.
+    // NB: its default value is |UploadTransactionTimeout| / 2. See postprocessor.
     registrar.Parameter("upload_transaction_ping_period", &TThis::UploadTransactionPingPeriod)
         .Optional();
     registrar.Parameter("hive_sync_rpc_timeout", &TThis::HiveSyncRpcTimeout)
