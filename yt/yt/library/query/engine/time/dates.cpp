@@ -5,7 +5,6 @@
 
 #include <library/cpp/yt/error/error.h>
 
-
 namespace NYT::NQueryClient::NRoutines {
 
 using namespace NTableClient;

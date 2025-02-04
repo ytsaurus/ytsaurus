@@ -59,7 +59,6 @@ void PrintTo(TIdentityComparableVersionedRow row, ::std::ostream* os)
 
 } // namespace NYT::NTableClient
 
-
 namespace NYT::NTableClient {
 namespace {
 

@@ -10,7 +10,6 @@
 
 #include <library/cpp/yt/threading/spin_lock.h>
 
-
 namespace NYT::NObjectServer {
 
 using namespace NYson;
