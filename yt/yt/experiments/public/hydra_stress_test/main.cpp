@@ -29,7 +29,6 @@
 
 #include <random>
 
-
 namespace NYT::NHydraStressTest {
 
 using namespace NBus;

@@ -18,7 +18,6 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-
 namespace NYT::NRpcProxy {
 
 using namespace NConcurrency;

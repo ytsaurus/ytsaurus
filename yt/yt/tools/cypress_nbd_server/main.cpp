@@ -36,7 +36,6 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
-
 namespace NYT::NNbd {
 
 using namespace NApi;

@@ -68,7 +68,6 @@ extern "C" void* yt__emutls_get_address(__emutls_control* control) Y_NO_SANITIZE
     return p;
 }
 
-
 namespace NYT::NCodegen {
 
 ////////////////////////////////////////////////////////////////////////////////
