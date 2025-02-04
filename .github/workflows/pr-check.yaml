@@ -155,7 +155,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
-      build-ytsaurus-integration-tests: true
+      build-ytsaurus-tests: true
       build-query-tracker: ${{ github.ref_name == 'main' }}
       build-python: true
     secrets:
@@ -169,10 +169,9 @@ jobs:
       - start-vm
       - build-strawberry
       - build-ya-make
-      - build-cmake
       - notify-start
       - checkout
-    if: ${{ needs.build-ya-make.result == 'success' && needs.build-cmake.result == 'success'}}
+    if: ${{ needs.build-ya-make.result == 'success' }}
     uses: ./.github/workflows/pr-tests.yaml
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
