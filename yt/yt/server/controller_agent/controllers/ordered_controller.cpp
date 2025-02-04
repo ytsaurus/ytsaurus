@@ -1318,6 +1318,8 @@ protected:
 
         void OnTaskCompleted() override
         {
+            TTask::OnTaskCompleted();
+
             ValidateAllDataHaveBeenCopied();
             RemoveDependents();
         }
