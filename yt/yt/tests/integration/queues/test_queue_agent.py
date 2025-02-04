@@ -3592,6 +3592,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
 
     @authors("apachee")
     def test_crashes_fix_yt_23930(self):
+        pytest.skip()
+        # TODO(apachee): Remove skip after fixing another bug with queue re-creation (YT-24042)
         export_dir = "//tmp/export"
 
         _, queue_id = self._create_queue("//tmp/q")
