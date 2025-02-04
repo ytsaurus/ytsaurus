@@ -24,11 +24,11 @@ jobs:
     name: Fast tests
     runs-on: ${{ inputs.runs-on-value }}
     steps:
-      - name: Unittests
+      - name: Unittests (ya-make)
         shell: bash
         run: |
-          cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build_cmake_release
-          ln -s $(pwd)/../build_cmake_release $(pwd)/../build
+          cp ./ytsaurus/yt/yt/scripts/run_unittests.sh ../build_ya-make_release
+          ln -s $(pwd)/../build_ya-make_release $(pwd)/../build
           cd ../build
           ./run_unittests.sh
 

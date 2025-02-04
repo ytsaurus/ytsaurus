@@ -18,7 +18,7 @@ on:
         default: false
         required: false
         type: boolean
-      build-ytsaurus-integration-tests:
+      build-ytsaurus-tests:
         default: false
         required: false
         type: boolean
@@ -299,12 +299,24 @@ jobs:
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/yt/server/all
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ../ytsaurus/ytsaurus/yt/chyt/server/bin
 
-      - name: Build ytsaurus integration tests dependencies (ya-make, ${{ matrix.build-type }})
-        if: ${{ (inputs.build-ytsaurus || inputs.build-query-tracker) && inputs.build-ytsaurus-integration-tests && (matrix.build-type == 'release') }}
+      - name: Build ytsaurus tests dependencies (ya-make, ${{ matrix.build-type }})
+        if: ${{ (inputs.build-ytsaurus || inputs.build-query-tracker) && inputs.build-ytsaurus-tests && (matrix.build-type == 'release') }}
         run: |
           cd ../build_${{ inputs.cpp-build-system}}_${{ matrix.build-type }}
 
           BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
+
+          FOLDERS_WITH_UNITTESTS=""
+          for makefile in $(find ../ytsaurus/ytsaurus/ -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
+            folder=$(dirname ${makefile})
+            echo ${folder}
+            FOLDERS_WITH_UNITTESTS="${FOLDERS_WITH_UNITTESTS} ${folder}"
+          done
+
+          if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare --bazel-remote-put ${FOLDERS_WITH_UNITTESTS}
+          fi
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare ${FOLDERS_WITH_UNITTESTS}
 
           for build_folder in yt/yt/tests/integration/size_s \
                               yt/yt/tests/integration/size_m \
