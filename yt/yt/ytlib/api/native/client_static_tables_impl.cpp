@@ -47,7 +47,7 @@ TFuture<ITableReaderPtr> TClient::CreateTableReader(
         /*columnFilter*/ {},
         /*bandwidthThrottler*/ GetUnlimitedThrottler(),
         /*rpsThrottler*/ GetUnlimitedThrottler(),
-        ReadTableMemoryTracker_);
+        HeavyRequestMemoryUsageTracker_);
 }
 
 TFuture<TSkynetSharePartsLocationsPtr> TClient::LocateSkynetShare(

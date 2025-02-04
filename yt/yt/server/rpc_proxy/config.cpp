@@ -189,11 +189,7 @@ void TProxyMemoryLimits::Register(TRegistrar registrar)
 {
     registrar.Parameter("total", &TThis::Total)
         .Optional();
-    registrar.Parameter("rpc", &TThis::Rpc)
-        .Optional();
-    registrar.Parameter("lookup", &TThis::Lookup)
-        .Optional();
-    registrar.Parameter("query", &TThis::Query)
+    registrar.Parameter("heavy_request", &TThis::HeavyRequest)
         .Optional();
 }
 

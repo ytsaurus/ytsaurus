@@ -971,9 +971,7 @@ private:
 
     const std::vector<ITypeHandlerPtr> TypeHandlers_;
 
-    const IMemoryUsageTrackerPtr LookupMemoryTracker_;
-    const IMemoryUsageTrackerPtr QueryMemoryTracker_;
-    const IMemoryUsageTrackerPtr ReadTableMemoryTracker_;
+    const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
     const NQueryClient::TMemoryProviderMapByTagPtr MemoryProvider_ = New<NQueryClient::TMemoryProviderMapByTag>();
 
     using TChannels = THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>;

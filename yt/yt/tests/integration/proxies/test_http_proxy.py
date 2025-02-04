@@ -372,27 +372,53 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
 
     @authors("nadya73")
     def test_basic(self):
+        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
+        config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
+
+        def config_updated(expected_total_memory_limit):
+            config = requests.get(config_url).json()
+            return config.get("memory_limits", {}).get("total", 0) == expected_total_memory_limit
+
+        create("table", "//tmp/test")
+
         wait(lambda: requests.get(f"{self._get_proxy_address()}/api/v4/get?path=//@").ok)
 
         # No memory limits.
         self._execute_command("GET", "get", {"path": "//@"})
+        self._execute_command("GET", "read_table", {"path": "//tmp/test"})
+
+        total_memory_limit = 1000000
+        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit}})
+        wait(lambda: config_updated(total_memory_limit))
+
+        # Total memory limit was not reached.
+        self._execute_command("GET", "get", {"path": "//@"})
+        self._execute_command("GET", "read_table", {"path": "//tmp/test"})
+
+        total_memory_limit = 2000000
+        heavy_request_memory_limit = 0
+        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit, "heavy_request": heavy_request_memory_limit}})
+        wait(lambda: config_updated(total_memory_limit))
+
+        # Heavy request limit does not affect get request.
+        self._execute_command("GET", "get", {"path": "//@"})
+
+        # Heavy request limit was reached.
+        with raises_yt_error("Request is dropped due to high memory pressure") as err:
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"})
+        assert err[0].is_rpc_unavailable()
 
         total_memory_limit = 100
         set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit}})
+        wait(lambda: config_updated(total_memory_limit))
 
-        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
-        config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
-
-        def config_updated():
-            config = requests.get(config_url).json()
-            return config.get("memory_limits", {}).get("total", 0) == total_memory_limit
-        wait(config_updated)
-
-        with pytest.raises(YtResponseError) as err:
+        with raises_yt_error("Request is dropped due to high memory pressure") as err:
             self._execute_command("GET", "get", {"path": "//@"})
+        assert err[0].is_rpc_unavailable()
 
-        assert err.value.is_rpc_unavailable()
-        assert err.value.is_rpc_response_memory_pressure()
+        with raises_yt_error("Request is dropped due to high memory pressure") as err:
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"})
+        assert err[0].is_rpc_unavailable()
 
 
 class TestFullDiscoverVersions(HttpProxyTestBase):
