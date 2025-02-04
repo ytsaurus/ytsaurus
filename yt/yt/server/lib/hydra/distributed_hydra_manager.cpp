@@ -835,7 +835,7 @@ private:
                     }
 
                     if (owner->GetReadOnly()) {
-                        owner->ScheduleRestart(owner->ControlEpochContext_, TError("Exited read only mode"));
+                        owner->ScheduleQuorumRestart(owner->ControlEpochContext_, TError("Exited read-only mode"));
                     }
                     context->Reply();
                 }).Via(owner->ControlInvoker_));
@@ -1745,6 +1745,39 @@ private:
 
         if (auto epochContext = weakEpochContext.Lock()) {
             ScheduleRestart(epochContext, error);
+        }
+    }
+
+    //! Restarts Hydra in a fast way.
+    void ScheduleQuorumRestart(const TEpochContextPtr& epochContext, const TError& error)
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        // NB: Leader lease remains active after restart and is transfered to
+        // a newly selected leader without delay.
+
+        ScheduleRestart(epochContext, error);
+
+        const auto& cellManager = epochContext->CellManager;
+        for (int peerId = 0; peerId < cellManager->GetTotalPeerCount(); ++peerId) {
+            if (peerId == cellManager->GetSelfPeerId()) {
+                continue;
+            }
+
+            auto peerChannel = cellManager->GetPeerChannel(peerId);
+            if (!peerChannel) {
+                continue;
+            }
+
+            YT_LOG_DEBUG(error, "Requesting Hydra instance restart for peer (PeerId: %v)",
+                peerId);
+
+            THydraServiceProxy proxy(std::move(peerChannel));
+            auto req = proxy.ForceRestart();
+            ToProto(req->mutable_reason(), error);
+
+            // Fire-and-forget.
+            YT_UNUSED_FUTURE(req->Invoke());
         }
     }
 
