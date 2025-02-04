@@ -13,7 +13,6 @@ SRCS(
     cell_master/config.cpp
     cell_master/disk_space_sensor_producer.cpp
     cell_master/epoch_history_manager.cpp
-    cell_master/helpers.cpp
     cell_master/hydra_facade.cpp
     cell_master/master_hydra_service.cpp
     cell_master/multi_phase_cell_sync_session.cpp

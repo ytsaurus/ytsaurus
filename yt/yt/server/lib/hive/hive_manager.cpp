@@ -20,7 +20,6 @@ TCellId GetHiveMutationSenderId()
     return *HiveMutationSenderId;
 }
 
-
 THiveMutationGuard::THiveMutationGuard(TCellId senderId)
 {
     YT_VERIFY(!*HiveMutationSenderId);
@@ -30,6 +29,18 @@ THiveMutationGuard::THiveMutationGuard(TCellId senderId)
 THiveMutationGuard::~THiveMutationGuard()
 {
     *HiveMutationSenderId = {};
+}
+
+TInverseHiveMutationGuard::TInverseHiveMutationGuard()
+    : SenderId_(*HiveMutationSenderId)
+{
+    YT_VERIFY(SenderId_);
+    *HiveMutationSenderId = {};
+}
+
+TInverseHiveMutationGuard::~TInverseHiveMutationGuard()
+{
+    *HiveMutationSenderId = SenderId_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
