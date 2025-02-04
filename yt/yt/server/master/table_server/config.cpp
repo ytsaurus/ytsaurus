@@ -12,7 +12,7 @@ void TDynamicTableManagerConfig::Register(TRegistrar registrar)
         .DontSerializeDefault();
 
     registrar.Parameter("make_schema_attribute_opaque", &TThis::MakeSchemaAttributeOpaque)
-        .Default(true);
+        .Default(false);
 }
 
 void TTableManagerConfig::Register(TRegistrar /*registrar*/)
