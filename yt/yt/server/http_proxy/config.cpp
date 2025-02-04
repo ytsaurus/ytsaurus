@@ -180,6 +180,8 @@ void TProxyMemoryLimitsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("total", &TThis::Total)
         .Optional();
+    registrar.Parameter("heavy_request", &TThis::HeavyRequest)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

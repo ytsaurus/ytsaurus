@@ -849,13 +849,22 @@ void TContext::Run()
         driverRequest.AuthenticatedUser = NSecurityClient::RootUserName;
     }
 
-    if (Descriptor_->Heavy && Api_->GetMemoryUsageTracker() && Api_->GetMemoryUsageTracker()->IsTotalExceeded()) {
+    if (Api_->GetMemoryUsageTracker()) {
         // We use Unavailable code here, as it is already retryable in all clients.
-        THROW_ERROR_EXCEPTION(
-            NRpc::EErrorCode::Unavailable,
-            "Request is dropped due to high memory pressure")
-            << TErrorAttribute("total_memory_limit", Api_->GetMemoryUsageTracker()->GetTotalLimit())
-            << TErrorAttribute("memory_usage", Api_->GetMemoryUsageTracker()->GetTotalUsed());
+        auto error = TError(NRpc::EErrorCode::Unavailable,
+            "Request is dropped due to high memory pressure");
+
+        if (Api_->GetMemoryUsageTracker()->IsTotalExceeded()) {
+            THROW_ERROR_EXCEPTION(error)
+                << TErrorAttribute("total_memory_limit", Api_->GetMemoryUsageTracker()->GetTotalLimit())
+                << TErrorAttribute("total_memory_usage", Api_->GetMemoryUsageTracker()->GetTotalUsed());
+        }
+
+        if (Descriptor_->Heavy && Api_->GetMemoryUsageTracker()->IsExceeded(EMemoryCategory::HeavyRequest)) {
+            THROW_ERROR_EXCEPTION(error)
+                << TErrorAttribute("heavy_request_memory_limit", Api_->GetMemoryUsageTracker()->GetLimit(EMemoryCategory::HeavyRequest))
+                << TErrorAttribute("heavy_request_memory_usage", Api_->GetMemoryUsageTracker()->GetUsed(EMemoryCategory::HeavyRequest));
+        }
     }
 
     if (*ApiVersion_ == 4) {

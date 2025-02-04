@@ -1106,7 +1106,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
     std::vector<TSortedKey> sortedKeys;
     sortedKeys.reserve(keys.Size());
     auto sortedKeysGuard = TMemoryUsageTrackerGuard::TryAcquire(
-        LookupMemoryTracker_,
+        HeavyRequestMemoryUsageTracker_,
         keys.Size() * sizeof(TSortedKey))
         .ValueOrThrow();
 
@@ -1115,7 +1115,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
     auto inputRowBuffer = New<TRowBuffer>(
         TLookupRowsInputBufferTag(),
         TChunkedMemoryPool::DefaultStartChunkSize,
-        LookupMemoryTracker_);
+        HeavyRequestMemoryUsageTracker_);
 
     auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
     auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
@@ -1252,7 +1252,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
     auto outputRowBuffer = New<TRowBuffer>(
         TLookupRowsOutputBufferTag(),
         TChunkedMemoryPool::DefaultStartChunkSize,
-        LookupMemoryTracker_);
+        HeavyRequestMemoryUsageTracker_);
 
     std::vector<TTypeErasedRow> uniqueResultRows;
 
@@ -1340,7 +1340,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
             std::vector<TLegacyKey> rows;
             rows.reserve(endItemsIt - itemsIt);
             auto rowsGuard = TMemoryUsageTrackerGuard::TryAcquire(
-                LookupMemoryTracker_,
+                HeavyRequestMemoryUsageTracker_,
                 rows.capacity() * sizeof(TLegacyKey))
                 .ValueOrThrow();
 
@@ -1503,7 +1503,7 @@ TLookupRowsResult<IRowset> TClient::DoLookupRowsOnce(
 
                 auto responseData = responseCodec->Decompress(attachment);
                 auto responseDataGuard = TMemoryUsageTrackerGuard::TryAcquire(
-                    LookupMemoryTracker_,
+                    HeavyRequestMemoryUsageTracker_,
                     responseData.Size())
                     .ValueOrThrow();
 
@@ -1763,7 +1763,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     auto memoryChunkProvider = MemoryProvider_->GetProvider(
         ToString(queryOptions.ReadSessionId),
         options.MemoryLimitPerNode,
-        QueryMemoryTracker_);
+        HeavyRequestMemoryUsageTracker_);
 
     auto queryPreparer = New<TQueryPreparer>(
         cache,
@@ -1779,7 +1779,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
         parsedQuery->Source,
         astQuery,
         parsedQuery->AstHead.AliasMap,
-        QueryMemoryTracker_);
+        HeavyRequestMemoryUsageTracker_);
     const auto& query = fragment->Query;
 
     THROW_ERROR_EXCEPTION_IF(
@@ -1917,12 +1917,12 @@ NYson::TYsonString TClient::DoExplainQuery(
         parsedQuery->Source,
         astQuery,
         parsedQuery->AstHead.AliasMap,
-        QueryMemoryTracker_);
+        HeavyRequestMemoryUsageTracker_);
 
     auto memoryChunkProvider = MemoryProvider_->GetProvider(
         ToString(TReadSessionId::Create()),
         ExplainQueryMemoryLimit,
-        QueryMemoryTracker_);
+        HeavyRequestMemoryUsageTracker_);
 
     return BuildExplainQueryYson(
         GetNativeConnection(),

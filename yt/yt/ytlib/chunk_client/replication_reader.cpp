@@ -2572,6 +2572,7 @@ private:
 
         TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
+        proxy.SetDefaultMemoryUsageTracker(SessionOptions_.MemoryUsageTracker);
 
         auto req = proxy.GetBlockRange();
         req->SetResponseHeavy(true);
@@ -2882,6 +2883,7 @@ private:
 
         TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(ReaderConfig_->MetaRpcTimeout);
+        proxy.SetDefaultMemoryUsageTracker(SessionOptions_.MemoryUsageTracker);
 
         auto req = proxy.GetChunkMeta();
         req->SetResponseHeavy(true);
@@ -3266,6 +3268,7 @@ private:
 
         TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(ReaderConfig_->LookupRpcTimeout);
+        proxy.SetDefaultMemoryUsageTracker(SessionOptions_.MemoryUsageTracker);
 
         auto req = proxy.LookupRows();
         req->SetResponseHeavy(true);

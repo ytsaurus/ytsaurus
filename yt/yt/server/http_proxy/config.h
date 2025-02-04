@@ -259,6 +259,7 @@ class TProxyMemoryLimitsConfig
 {
 public:
     std::optional<i64> Total;
+    std::optional<i64> HeavyRequest;
 
     REGISTER_YSON_STRUCT(TProxyMemoryLimitsConfig);
 
