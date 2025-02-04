@@ -2380,6 +2380,7 @@ void TOperationControllerBase::CommitFeatures()
 void TOperationControllerBase::FinalizeFeatures()
 {
     FinishTime_ = TInstant::Now();
+
     for (const auto& task : Tasks) {
         task->FinalizeFeatures();
     }
@@ -2403,6 +2404,13 @@ void TOperationControllerBase::FinalizeFeatures()
         BuildYsonNodeFluently().Value(GetTotalJobCounter()));
 }
 
+void TOperationControllerBase::FinalizeSubscriptions()
+{
+    for (const auto& task : Tasks) {
+        task->FinalizeSubscriptions();
+    }
+}
+
 void TOperationControllerBase::SafeCommit()
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
@@ -2412,6 +2420,8 @@ void TOperationControllerBase::SafeCommit()
     SleepInCommitStage(EDelayInsideOperationCommitStage::Start);
 
     RemoveRemainingJobsOnOperationFinished();
+
+    FinalizeSubscriptions();
 
     FinalizeFeatures();
 
@@ -4282,6 +4292,7 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
     RemoveRemainingJobsOnOperationFinished();
 
     if (Spec_->TestingOperationOptions->ThrowExceptionDuringOperationAbort) {
+        // NB: Task subscriptions are not finalized on test exception.
         THROW_ERROR_EXCEPTION("Test exception");
     }
 
@@ -4292,6 +4303,12 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
 
     // Skip committing anything if operation controller already tried to commit results.
     if (!CommitFinished) {
+        try {
+            FinalizeSubscriptions();
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Failed to finalize subscriptions");
+        }
+
         try {
             FinalizeFeatures();
             CommitFeatures();

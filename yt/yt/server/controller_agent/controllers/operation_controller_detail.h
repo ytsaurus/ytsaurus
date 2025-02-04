@@ -819,6 +819,8 @@ protected:
     void CommitFeatures();
     void FinalizeFeatures();
 
+    void FinalizeSubscriptions();
+
     // Revival.
     void ReinstallLivePreview();
 

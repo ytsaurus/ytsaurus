@@ -107,16 +107,6 @@ TTask::TTask(
     }
 }
 
-TTask::~TTask()
-{
-    if (TaskHost_->GetSpec()->UseClusterThrottlers) {
-        auto guard = ReaderGuard(ClusterToNetworkBandwidthAvailabilityLock_);
-        for (const auto& [clusterName, _] : ClusterToNetworkBandwidthAvailability_) {
-            UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(clusterName);
-        }
-    }
-}
-
 const std::vector<TOutputStreamDescriptorPtr>& TTask::GetOutputStreamDescriptors() const
 {
     return OutputStreamDescriptors_;
@@ -2639,6 +2629,17 @@ void TTask::UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(const TClu
     TaskHost_->UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
         clusterName,
         ClusterToNetworkBandwidthAvailabilityUpdatedCallback_);
+}
+
+void TTask::FinalizeSubscriptions()
+{
+    if (TaskHost_->GetSpec()->UseClusterThrottlers) {
+        auto guard = WriterGuard(ClusterToNetworkBandwidthAvailabilityLock_);
+        for (const auto& [clusterName, _] : ClusterToNetworkBandwidthAvailability_) {
+            UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(clusterName);
+        }
+        ClusterToNetworkBandwidthAvailability_.clear();
+    }
 }
 
 void TTask::UpdateNetworkAndTask()
