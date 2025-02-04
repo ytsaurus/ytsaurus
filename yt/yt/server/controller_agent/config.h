@@ -1224,6 +1224,9 @@ public:
     bool EnableJobProfiling;
 
     std::optional<TString> CudaProfilerLayerPath;
+
+    THashMap<std::string, std::string> CudaProfilerEnvironmentVariables;
+    // COMPAT(omgronnny)
     NScheduler::TCudaProfilerEnvironmentPtr CudaProfilerEnvironment;
 
     int MaxRunningJobStatisticsUpdateCountPerHeartbeat;
