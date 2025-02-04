@@ -289,7 +289,4 @@ def get_controller_logs(pipeline_path, count, offset=None, client=None):
         raw=False,
         client=client))
 
-    if not result:
-        return [], None
-
     return result, offset + len(result)
