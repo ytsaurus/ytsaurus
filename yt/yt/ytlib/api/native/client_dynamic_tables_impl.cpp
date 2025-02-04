@@ -61,6 +61,7 @@
 #include <yt/yt/ytlib/tablet_client/pivot_keys_picker.h>
 #include <yt/yt/ytlib/tablet_client/tablet_cell_bundle_ypath_proxy.h>
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
+#include <yt/yt/ytlib/tablet_client/tablet_ypath_proxy.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
 #include <yt/yt/ytlib/transaction_client/helpers.h>
@@ -2125,6 +2126,20 @@ void TClient::DoUnfreezeTable(
     }
 
     ExecuteTabletServiceRequest(path, "Unfreezing", &req);
+}
+
+void TClient::DoCancelTabletTransition(
+    NTabletClient::TTabletId tabletId,
+    const TCancelTabletTransitionOptions& options)
+{
+    auto req = TTabletYPathProxy::CancelTabletTransition(FromObjectId(tabletId));
+    SetMutationId(req, options);
+
+    auto cellTag = CellTagFromId(tabletId);
+    auto proxy = CreateObjectServiceWriteProxy(cellTag);
+
+    WaitFor(proxy.Execute(req))
+        .ThrowOnError();
 }
 
 NTabletClient::NProto::TReqReshard TClient::MakeReshardRequest(

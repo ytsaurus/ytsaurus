@@ -231,6 +231,7 @@ target_proto_messages(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/master_tablet_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/table_replica_ypath.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_cell_bundle_ypath.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_ypath.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/transaction_client/proto/action.proto
@@ -740,6 +741,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/master_tablet_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/table_replica_ypath.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_cell_bundle_ypath.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_ypath.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_client/proto/tablet_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/tablet_node_tracker_client/proto/tablet_node_tracker_service.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/ytlib/transaction_client/proto/action.pb.h

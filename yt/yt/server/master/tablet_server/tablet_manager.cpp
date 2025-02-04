@@ -220,6 +220,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTabletUnmounted, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTabletFrozen, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTabletUnfrozen, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTabletTransitionCanceled, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraUpdateTableReplicaStatistics, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTableReplicaEnabled, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TImpl::HydraOnTableReplicaDisabled, Unretained(this)));
@@ -1512,6 +1513,67 @@ public:
             trimmedRowCounts);
 
         UpdateTabletState(table);
+    }
+
+    void CancelTabletTransition(TTablet* tablet)
+    {
+        auto* table = tablet->GetTable();
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        securityManager->ValidatePermission(table, EPermission::Mount);
+
+        switch (tablet->GetState()) {
+            case ETabletState::Mounting:
+            case ETabletState::FrozenMounting:
+            case ETabletState::Unfreezing:
+                THROW_ERROR_EXCEPTION("Cannot cancel transition of tablet %v in state %Qlv",
+                    tablet->GetId(),
+                    tablet->GetState());
+                break;
+
+            case ETabletState::Freezing:
+            case ETabletState::Unmounting:
+                break;
+
+            default:
+                YT_LOG_DEBUG("Attempted to cancel transition of tablet in inappropriate state, ignored "
+                    "(TabletId: %v, State: %v)",
+                    tablet->GetId(),
+                    tablet->GetState());
+                return;
+        }
+
+        tablet->ValidateNotSmoothlyMoved("Cannot cancel transition");
+
+        const auto& hiveManager = Bootstrap_->GetHiveManager();
+
+        if (auto action = tablet->GetAction()) {
+            tablet->SetAction(nullptr);
+            auto& tablets = action->Tablets();
+            auto it = std::find(tablets.begin(), tablets.end(), tablet);
+            YT_VERIFY(it != tablets.end());
+            tablets.erase(it);
+
+            OnTabletActionDisturbed(
+                action,
+                TError("Tablet transition was canceled by user request")
+                    << TErrorAttribute("tablet_id", tablet->GetId()));
+        }
+
+        NTabletNode::NProto::TReqCancelTabletTransition req;
+        ToProto(req.mutable_tablet_id(), tablet->GetId());
+
+        if (IsDynamicStoreReadEnabled(table, GetDynamicConfig())) {
+            CreateAndAttachDynamicStores(tablet, &req);
+        }
+
+        YT_LOG_DEBUG("Canceling tablet transition (TabletId: %v, TableId: %v, State: %v, MountRevision: %x)",
+            tablet->GetId(),
+            table->GetId(),
+            tablet->GetState(),
+            tablet->Servant().GetMountRevision());
+
+        auto mailbox = hiveManager->GetMailbox(tablet->GetNodeEndpointId());
+        hiveManager->PostMessage(mailbox, req);
     }
 
     void SetCustomRuntimeData(TTableNode* table, NYson::TYsonString data)
@@ -5755,6 +5817,58 @@ private:
         UpdateTabletState(table);
     }
 
+    void HydraOnTabletTransitionCanceled(NProto::TRspCancelTabletTransition* response)
+    {
+        auto tabletId = FromProto<TTabletId>(response->tablet_id());
+        YT_VERIFY(TypeFromId(tabletId) == EObjectType::Tablet);
+
+        auto* tablet = FindTablet(tabletId);
+        if (!IsObjectAlive(tablet)) {
+            return;
+        }
+
+        auto senderId = GetHiveMutationSenderId();
+        auto* servant = FindServantForStateTransition(
+            tablet,
+            FromProto<NHydra::TRevision>(response->mount_revision()),
+            senderId,
+            /*senderIsCell*/ false,
+            "Cancel");
+        if (!servant) {
+            YT_LOG_DEBUG("Failed to cancel tablet transition: invalid mount revision "
+                "(TabletId: %v, TabletMountRevision: %x, RequestMountRevision: %x)",
+                tablet->GetId(),
+                tablet->Servant().GetMountRevision(),
+                response->mount_revision());
+            return;
+        }
+
+        if (tablet->GetState() != ETabletState::Freezing && tablet->GetState() != ETabletState::Unmounting) {
+            YT_LOG_ALERT("Tablet transition cancelation response received by a tablet in wrong state, ignored "
+                "(TabletId: %v, State: %v)",
+                tablet->GetId(),
+                tablet->GetState());
+            return;
+        }
+
+        YT_VERIFY(!tablet->AuxiliaryServant());
+        YT_VERIFY(!tablet->GetAction());
+
+        auto previousState = tablet->GetState();
+        auto newState = FromProto<ETabletState>(response->actual_tablet_state());
+
+        tablet->SetState(newState);
+        servant->SetState(newState);
+
+        YT_LOG_DEBUG("Tablet transition canceled (TableId: %v, TabletId: %v, PreviousState: %v, NewState: %v)",
+            tablet->GetOwner()->GetId(),
+            tablet->GetId(),
+            previousState,
+            newState);
+
+        UpdateTabletState(tablet->GetOwner());
+    }
+
     void HydraSwitchServant(NProto::TReqSwitchServant* request)
     {
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
@@ -7637,6 +7751,11 @@ void TTabletManager::PrepareReshard(
         pivotKeys,
         trimmedRowCounts,
         create);
+}
+
+void TTabletManager::CancelTabletTransition(TTablet* tablet)
+{
+    Impl_->CancelTabletTransition(tablet);
 }
 
 void TTabletManager::ValidateMakeTableDynamic(TTableNode* table)

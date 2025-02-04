@@ -210,6 +210,12 @@ message TReqUnfreezeTablet
     repeated NYT.NProto.TGuid dynamic_store_ids = 2;
 }
 
+message TReqCancelTabletTransition
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    repeated NYT.NProto.TGuid dynamic_store_ids = 2;
+}
+
 message TReqReportTabletLocked
 {
     required NYT.NProto.TGuid tablet_id = 1;

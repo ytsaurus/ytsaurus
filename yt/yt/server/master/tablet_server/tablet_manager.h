@@ -75,6 +75,8 @@ public:
         const std::vector<i64>& trimmedRowCounts,
         bool create = false);
 
+    void CancelTabletTransition(TTablet* tablet);
+
     void ValidateMakeTableDynamic(NTableServer::TTableNode* table);
     void ValidateMakeTableStatic(NTableServer::TTableNode* table);
 
