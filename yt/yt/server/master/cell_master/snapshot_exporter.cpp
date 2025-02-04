@@ -8,6 +8,8 @@
 #include <yt/yt/server/master/cypress_server/node_detail.h>
 #include <yt/yt/server/master/cypress_server/node.h>
 
+#include <yt/yt/server/master/security_server/group.h>
+
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
@@ -16,6 +18,8 @@
 #include <yt/yt/core/ytree/public.h>
 
 #include <library/cpp/yt/misc/numeric_helpers.h>
+
+#include <util/system/env.h>
 
 namespace NYT::NCellMaster {
 
@@ -34,6 +38,12 @@ using namespace NYTree;
 
 namespace {
 
+int GetOutputTableFD(int tableIndex)
+{
+    int firstOutputTableFD = FromString<int>(GetEnv("YT_FIRST_OUTPUT_TABLE_FD", "1"));
+    return firstOutputTableFD + tableIndex * 3;
+}
+
 DECLARE_REFCOUNTED_CLASS(TExportArgumentsConfig)
 
 class TExportArgumentsConfig
@@ -48,6 +58,7 @@ public:
     std::vector<std::string> Attributes;
     std::vector<std::string> AdditionalAttributes;
     bool CalculateExtendedBranchStatistics;
+    bool ExportUsers;
 
     REGISTER_YSON_STRUCT(TExportArgumentsConfig);
 
@@ -73,6 +84,8 @@ public:
             .Default();
         registrar.Parameter("calculate_extended_branch_statistics", &TThis::CalculateExtendedBranchStatistics)
             .Default(true);
+        registrar.Parameter("export_users", &TThis::ExportUsers)
+            .Default(false);
 
         registrar.Postprocessor([] (TThis* config) {
             if ((config->JobIndex.has_value() || config->JobCount.has_value()) &&
@@ -142,8 +155,28 @@ static const std::vector<std::string> PresetKeys = {
     "versioned_resource_usage"
 };
 
+void ExportUsers(TBootstrap* bootstrap)
+{
+    TFileOutput os(TFile(GetOutputTableFD(1)));
+    auto writer = std::make_unique<TYsonWriter>(&os, EYsonFormat::Binary, EYsonType::ListFragment);
+    const auto& securityManager = bootstrap->GetSecurityManager();
+    BuildYsonListFragmentFluently(writer.get())
+        .DoFor(securityManager->Users(), [](TFluentList fluent, const auto& item) {
+            const auto& [userId, user] = item;
+            fluent.Item()
+                .BeginMap()
+                    .Item("name")
+                        .Value(user->GetName())
+                    .Item("member_of_closure")
+                        .DoListFor(user->RecursiveMemberOf(), [] (TFluentList fluent, const auto& group) {
+                            fluent.Item().Value(group->GetName());
+                        })
+                .EndMap();
+        });
+}
+
 void ExportNode(
-    TYsonWriter* writer,
+    TFluentList& fluent,
     TCypressNode* node,
     const TExportArgumentsConfigPtr& config,
     const ICypressNodeProxyPtr& nodeProxy,
@@ -152,7 +185,7 @@ void ExportNode(
     const ICypressManagerPtr& cypressManager)
 {
     auto transaction = node->GetTransaction();
-    BuildYsonFluently(writer)
+    fluent.Item()
         .BeginMap()
         .DoIf(transaction, [&] (TFluentMap fluent) {
             fluent
@@ -240,6 +273,10 @@ void DoExportSnapshot(
     std::vector<std::string> searchedKeys,
     const THashSet<EObjectType>& searchedTypes)
 {
+    if ((!config->JobIndex.has_value() || config->JobIndex == 0) && config->ExportUsers) {
+        ExportUsers(bootstrap);
+    }
+
     const auto& cypressManager = bootstrap->GetCypressManager();
 
     std::vector<TCypressNode*> sortedNodes;
@@ -298,6 +335,12 @@ void DoExportSnapshot(
         return;
     }
 
+    TFileOutput os(TFile(GetOutputTableFD(0)));
+    auto writer = std::make_unique<TYsonWriter>(
+        &os,
+        EYsonFormat::Binary,
+        EYsonType::ListFragment);
+    auto fluent = BuildYsonListFragmentFluently(writer.get());
     do {
         auto node = sortedNodes[nodeIdx];
         ++nodeIdx;
@@ -329,17 +372,12 @@ void DoExportSnapshot(
             }
         }
 
-        auto writer = std::make_unique<TYsonWriter>(
-            &Cout,
-            EYsonFormat::Text,
-            EYsonType::Node);
-
         auto nodeProxy = cypressManager->GetNodeProxy(node->GetTrunkNode(), node->GetTransaction());
         const auto& nodeAttributes = nodeProxy->Attributes();
         auto keys = searchedKeys.empty() ? nodeAttributes.ListKeys() : searchedKeys;
 
         ExportNode(
-            writer.get(),
+            fluent,
             node,
             config,
             nodeProxy,
@@ -347,8 +385,6 @@ void DoExportSnapshot(
             extraNodesHeld,
             cypressManager);
 
-        writer->Flush();
-        Cout << ";" << Endl;
     } while (nodeIdx < sortedNodesSize &&
             (nodeIdx < *upperIndex || !sortedNodes[nodeIdx - 1]->IsTrunk()));
 }
