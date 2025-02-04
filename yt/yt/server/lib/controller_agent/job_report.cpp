@@ -57,6 +57,12 @@ TControllerJobReport TControllerJobReport::Ttl(std::optional<TDuration> ttl)
     return std::move(*this);
 }
 
+TControllerJobReport TControllerJobReport::OperationIncarnation(std::string incarnation)
+{
+    OperationIncarnation_ = std::move(incarnation);
+    return std::move(*this);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent

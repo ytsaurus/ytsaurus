@@ -106,6 +106,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, ControllerState);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, ArchiveFeatures);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TDuration>, Ttl);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<std::string>, OperationIncarnation);
 
 protected:
     TJobReport() = default;
