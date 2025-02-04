@@ -153,6 +153,9 @@ public:
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
         , ColumnarStatistics_(TColumnarStatistics::MakeEmpty(ChunkNameTable_->GetSize(), Options_->EnableColumnarValueStatistics, Config_->EnableLargeColumnarStatistics))
     {
+        YT_VERIFY(BlockSize_ > 0);
+        YT_VERIFY(BufferSize_ > 0);
+
         if (dataSink) {
             PackBaggageForChunkWriter(
                 TraceContext_,
@@ -1461,6 +1464,9 @@ public:
         , BufferSize_(GetWriteBufferSize(Config_, Options_))
         , BlockReserveSize_(std::max(BufferSize_ / Partitioner_->GetPartitionCount() / 2, i64(1)))
     {
+        YT_VERIFY(BlockSize_ > 0);
+        YT_VERIFY(BufferSize_ > 0);
+
         Logger.AddTag("PartitionMultiChunkWriterId: %v", TGuid::Create());
 
         int partitionCount = Partitioner_->GetPartitionCount();

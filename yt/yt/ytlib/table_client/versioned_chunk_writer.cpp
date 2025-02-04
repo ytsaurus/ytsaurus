@@ -99,6 +99,9 @@ public:
         , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
         , FinishGuard_(TraceContext_)
     {
+        YT_VERIFY(BlockSize_ > 0);
+        YT_VERIFY(BufferSize_ > 0);
+
         if (dataSink) {
             PackBaggageForChunkWriter(
                 TraceContext_,
