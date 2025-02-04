@@ -3475,8 +3475,10 @@ private:
             awaitingChunkIds.erase(it);
 
             EraseOrCrash(lockedChunkIds, chunkId);
-            YT_LOG_DEBUG("Unlocked removing replicas for chunk (ChunkId: %v, SequenceNumber: %v < %v)",
+            YT_LOG_DEBUG("Unlocked removing replicas for chunk"
+                " (ChunkId: %v, NodeAddress: %v, SequenceNumber: %v < %v)",
                 chunkId,
+                node->GetDefaultAddress(),
                 sequenceNumber,
                 heartbeatSequenceNumber);
 
