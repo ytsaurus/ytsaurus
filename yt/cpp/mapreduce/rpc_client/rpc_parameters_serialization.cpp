@@ -665,6 +665,9 @@ NApi::TListJobsOptions SerializeOptionsForListJobs(const TListJobsOptions& optio
     if (options.WithMonitoringDescriptor_) {
         result.WithMonitoringDescriptor = *options.WithMonitoringDescriptor_;
     }
+    if (options.OperationIncarnation_) {
+        result.OperationIncarnation = *options.OperationIncarnation_;
+    }
     if (options.FromTime_) {
         result.FromTime = *options.FromTime_;
     }

@@ -3094,6 +3094,7 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobletPtr& joblet)
     IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, joblet->DiskQuota);
 
     ReportJobCookieToArchive(joblet);
+    ReportOperationIncarnationToArchive(joblet);
     ReportControllerStateToArchive(joblet, EJobState::Running);
 
     LogEventFluently(ELogEventType::JobStarted)
@@ -3967,7 +3968,8 @@ void TOperationControllerBase::BuildJobAttributes(
             fluent
                 .Item("predecessor_type").Value(joblet->PredecessorType)
                 .Item("predecessor_job_id").Value(joblet->PredecessorJobId);
-        });
+        })
+        .OptionalItem("operation_incarnation", joblet->OperationIncarnation);
 }
 
 void TOperationControllerBase::BuildFinishedJobAttributes(
@@ -11093,7 +11095,7 @@ void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason reaso
         /*timeout*/ TDuration::Zero());
 }
 
-void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport)
+void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport) const
 {
     Host->GetJobReporter()->HandleJobReport(
         jobReport
@@ -11345,16 +11347,24 @@ bool TOperationControllerBase::IsMemoryLimitExceeded() const
     return MemoryLimitExceeded_;
 }
 
-void TOperationControllerBase::ReportJobCookieToArchive(const TJobletPtr& joblet)
+void TOperationControllerBase::ReportJobCookieToArchive(const TJobletPtr& joblet) const
 {
     HandleJobReport(joblet, TControllerJobReport()
         .JobCookie(joblet->OutputCookie));
 }
 
-void TOperationControllerBase::ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state)
+void TOperationControllerBase::ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const
 {
     HandleJobReport(joblet, TControllerJobReport()
         .ControllerState(state));
+}
+
+void TOperationControllerBase::ReportOperationIncarnationToArchive(const TJobletPtr& joblet) const
+{
+    if (joblet->OperationIncarnation) {
+        HandleJobReport(joblet, TControllerJobReport()
+            .OperationIncarnation(static_cast<const std::string&>(*joblet->OperationIncarnation)));
+    }
 }
 
 void TOperationControllerBase::SendRunningAllocationTimeStatisticsUpdates()

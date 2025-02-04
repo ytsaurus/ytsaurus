@@ -186,3 +186,8 @@ types:
         cpp_type: ui64
         column_name: $ttl
         column_type: Uint64
+
+      - cpp_name: OperationIncarnation
+        cpp_type: std::string
+        column_name: operation_incarnation
+        column_type: String

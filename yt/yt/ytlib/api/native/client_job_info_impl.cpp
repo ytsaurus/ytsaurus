@@ -120,6 +120,7 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "core_infos",
     "job_cookie",
     "controller_state",
+    "operation_incarnation",
 };
 
 static const auto DefaultGetJobAttributes = [] {
@@ -1432,6 +1433,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             .MonitoringDescriptor = record.MonitoringDescriptor,
             .JobCookie = record.JobCookie,
             .ArchiveFeatures = record.ArchiveFeatures.value_or(TYsonString()),
+            .OperationIncarnation = record.OperationIncarnation,
         };
 
         if (responseIdMapping.OperationIdHi) {
@@ -1557,6 +1559,7 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     builder.AddSelectExpression("task_name");
     builder.AddSelectExpression("pool_tree");
     builder.AddSelectExpression("monitoring_descriptor");
+    builder.AddSelectExpression("operation_incarnation");
     builder.AddSelectExpression("core_infos");
     builder.AddSelectExpression("job_cookie");
     builder.AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
@@ -1641,6 +1644,10 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
         builder.AddWhereConjunct(Format("task_name = %Qv", *options.TaskName));
     }
 
+    if (options.OperationIncarnation) {
+        builder.AddWhereConjunct(Format("operation_incarnation = %Qv", *options.OperationIncarnation));
+    }
+
     if (options.SortField != EJobSortField::None) {
         auto orderByDirection = [&] {
             switch (options.SortOrder) {
@@ -1719,6 +1726,7 @@ static void ParseJobsFromControllerAgentResponse(
     auto needCoreInfos = attributes.contains("core_infos");
     auto needJobCookie = attributes.contains("job_cookie");
     auto needMonitoringDescriptor = attributes.contains("monitoring_descriptor");
+    auto needOperationIncarnation = attributes.contains("operation_incarnation");
 
     for (const auto& [jobIdString, jobNode] : jobNodes) {
         if (!filter(jobNode)) {
@@ -1788,15 +1796,13 @@ static void ParseJobsFromControllerAgentResponse(
             }
         }
         if (needJobCookie) {
-            // COMPAT(renadeen): remove this condition in 23.1.
-            if (auto childNode = jobMapNode->FindChild("job_cookie")) {
-                job.JobCookie = jobMapNode->GetChildValueOrThrow<ui64>("job_cookie");
-            }
+            job.JobCookie = jobMapNode->FindChildValue<ui64>("job_cookie");
         }
         if (needMonitoringDescriptor) {
-            if (auto childNode = jobMapNode->FindChild("monitoring_descriptor")) {
-                job.MonitoringDescriptor = jobMapNode->GetChildValueOrThrow<TString>("monitoring_descriptor");
-            }
+            job.MonitoringDescriptor = jobMapNode->FindChildValue<TString>("monitoring_descriptor");
+        }
+        if (needOperationIncarnation) {
+            job.OperationIncarnation = jobMapNode->FindChildValue<std::string>("operation_incarnation");
         }
     }
 }
@@ -1843,6 +1849,7 @@ static void ParseJobsFromControllerAgentResponse(
         auto taskName = jobMap->GetChildValueOrThrow<TString>("task_name");
         auto monitoringDescriptor = jobMap->FindChildValue<TString>("monitoring_descriptor");
         auto startTime = jobMap->GetChildValueOrThrow<TInstant>("start_time");
+        auto operationIncarnation = jobMap->FindChildValue<std::string>("operation_incarnation");
         return
             (!options.Address || options.Address == address) &&
             (!options.Type || options.Type == type) &&
@@ -1854,7 +1861,8 @@ static void ParseJobsFromControllerAgentResponse(
             (!options.TaskName || options.TaskName == taskName) &&
             (!options.WithMonitoringDescriptor || *options.WithMonitoringDescriptor == monitoringDescriptor.has_value()) &&
             (!options.FromTime || startTime >= *options.FromTime) &&
-            (!options.ToTime || startTime <= *options.ToTime);
+            (!options.ToTime || startTime <= *options.ToTime) &&
+            (!options.OperationIncarnation || options.OperationIncarnation == operationIncarnation);
     };
 
     ParseJobsFromControllerAgentResponse(
@@ -2041,6 +2049,7 @@ static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
     mergeNullableField(&TJob::TaskName);
     mergeNullableField(&TJob::PoolTree);
     mergeNullableField(&TJob::JobCookie);
+    mergeNullableField(&TJob::OperationIncarnation);
     if (controllerAgentJob.StderrSize && archiveJob->StderrSize.value_or(0) < controllerAgentJob.StderrSize) {
         archiveJob->StderrSize = controllerAgentJob.StderrSize;
     }

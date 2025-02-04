@@ -1475,7 +1475,7 @@ private:
     void MaybeCancel(NScheduler::ECancelationStage cancelationStage) override;
     const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const override;
 
-    void HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport);
+    void HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport) const;
 
     void ReportJobHasCompetitors(const TJobletPtr& joblet, EJobCompetitionType competitionType);
 
@@ -1495,8 +1495,9 @@ private:
     bool WasJobGracefullyAborted(const std::unique_ptr<TAbortedJobSummary>& jobSummary);
     void OnJobStartTimeReceived(const TJobletPtr& joblet, const std::unique_ptr<TRunningJobSummary>& jobSummary);
 
-    void ReportJobCookieToArchive(const TJobletPtr& joblet);
-    void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state);
+    void ReportJobCookieToArchive(const TJobletPtr& joblet) const;
+    void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const;
+    void ReportOperationIncarnationToArchive(const TJobletPtr& joblet) const;
 
     std::unique_ptr<TAbortedJobSummary> RegisterOutputChunkReplicas(
         const TJobSummary& jobSummary,

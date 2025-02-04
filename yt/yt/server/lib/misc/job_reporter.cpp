@@ -103,7 +103,8 @@ public:
             Report_.JobCookie(),
             Report_.ControllerState(),
             Report_.ArchiveFeatures(),
-            Report_.Ttl());
+            Report_.Ttl(),
+            Report_.OperationIncarnation());
     }
 
     TUnversionedOwningRow ToRow(int archiveVersion) const override
@@ -185,6 +186,10 @@ public:
         // COMPAT(omgronny)
         if (archiveVersion >= 53 && Report_.Ttl()) {
             record.Ttl = Report_.Ttl()->MilliSeconds();
+        }
+        // COMPAT(eshcherbin)
+        if (archiveVersion >= 55 && Report_.OperationIncarnation()) {
+            record.OperationIncarnation = Report_.OperationIncarnation();
         }
 
         return FromRecord(record);
