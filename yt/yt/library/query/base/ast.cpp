@@ -17,14 +17,14 @@ bool operator == (TNullLiteralValue, TNullLiteralValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 TDoubleOrDotIntToken::AsDotInt() const
+TTupleItemIndexAccessor TDoubleOrDotIntToken::AsDotInt() const
 {
     if (Representation.empty() || Representation[0] != '.') {
         THROW_ERROR_EXCEPTION("Expected dot token and then integer token, but got %Qv",
             Representation);
     }
 
-    return FromString<ui64>(Representation.substr(1));
+    return FromString<TTupleItemIndexAccessor>(Representation.substr(1));
 }
 
 double TDoubleOrDotIntToken::AsDouble() const

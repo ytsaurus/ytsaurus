@@ -86,7 +86,7 @@ struct TDoubleOrDotIntToken
 {
     TString Representation;
 
-    i64 AsDotInt() const;
+    TTupleItemIndexAccessor AsDotInt() const;
     double AsDouble() const;
 };
 

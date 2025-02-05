@@ -220,7 +220,7 @@ void TCompositeMemberAccessorPath::AppendStructMember(TStructMemberAccessor name
     TupleItemIndices.push_back(-1); // Dummy.
 }
 
-void TCompositeMemberAccessorPath::AppendTupleItem(int index)
+void TCompositeMemberAccessorPath::AppendTupleItem(TTupleItemIndexAccessor index)
 {
     NestedTypes.push_back(ELogicalMetatype::Tuple);
     NamedStructMembers.emplace_back(); // Dummy.
