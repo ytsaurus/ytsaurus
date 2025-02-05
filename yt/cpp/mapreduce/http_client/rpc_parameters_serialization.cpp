@@ -442,7 +442,7 @@ TNode SerializeParamsForSuspendOperation(
     if (options.AbortRunningJobs_) {
         result["abort_running_jobs"] = *options.AbortRunningJobs_;
     }
-    if (!options.Reason_->empty()) {
+    if (options.Reason_) {
         result["reason"] = *options.Reason_;
     }
     return result;
