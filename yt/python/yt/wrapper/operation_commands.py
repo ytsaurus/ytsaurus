@@ -77,8 +77,7 @@ def suspend_operation(operation, abort_running_jobs=False, reason=None, client=N
     """
     command_name = "suspend_operation" if get_api_version(client) == "v4" else "suspend_op"
     params = {"operation_id": operation, "abort_running_jobs": abort_running_jobs}
-    if not (reason is None):
-        params["reason"] = reason
+    set_param(params, "reason", reason)
     return make_request(command_name, params, client=client)
 
 

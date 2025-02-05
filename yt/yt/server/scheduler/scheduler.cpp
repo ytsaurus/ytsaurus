@@ -804,7 +804,7 @@ public:
             operation,
             error,
             abortRunningAllocations,
-            /*setAlert*/ !!reason);
+            /*setAlert*/ reason.has_value());
 
         return MasterConnector_->FlushOperationNode(operation);
     }

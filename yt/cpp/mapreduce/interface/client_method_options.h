@@ -386,7 +386,7 @@ struct TSuspendOperationOptions
     ///
     /// @brief Something to show in the alert.
     ///
-    FLUENT_FIELD_OPTION(TString, Reason);
+    FLUENT_FIELD_OPTION(std::optional<TString>, Reason);
 };
 
 ///
