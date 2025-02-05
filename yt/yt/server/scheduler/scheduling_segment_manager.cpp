@@ -1201,6 +1201,8 @@ void TSchedulingSegmentManager::LogAndProfileSegments(const TUpdateSchedulingSeg
             context->TotalCapacityPerModule,
             context->FairResourceAmountPerSegment,
             context->CurrentResourceAmountPerSegment);
+
+        LogSegmentsStructured(context);
     } else {
         YT_LOG_DEBUG("Segmented scheduling is disabled in tree, skipping");
     }
@@ -1245,8 +1247,6 @@ void TSchedulingSegmentManager::LogAndProfileSegments(const TUpdateSchedulingSeg
     }
 
     SensorProducer_->Update(std::move(sensorBuffer));
-
-    LogSegmentsStructured(context);
 }
 
 void TSchedulingSegmentManager::LogSegmentsStructured(const TUpdateSchedulingSegmentsContext* context) const
@@ -1273,6 +1273,11 @@ void TSchedulingSegmentManager::BuildGpuOperationInfo(
         .Item(ToString(operationId)).BeginMap()
             .Item("scheduling_segment").Value(operationState->SchedulingSegment)
             .Item("scheduling_segment_module").Value(operationState->SchedulingSegmentModule)
+            .Item("specified_scheduling_segment_modules").Value(operationState->SpecifiedSchedulingSegmentModules)
+            .Item("gang").Value(operationState->IsGang)
+            .Item("failing_to_assign_to_module_since").Value(operationState->FailingToAssignToModuleSince)
+            .Item("failing_to_schedule_at_module_since").Value(operationState->FailingToScheduleAtModuleSince)
+            .Item("aggregated_initial_min_needed_resources").Value(operationState->AggregatedInitialMinNeededResources)
         .EndMap();
 }
 
@@ -1289,7 +1294,12 @@ void TSchedulingSegmentManager::BuildGpuNodeInfo(
             .Item("scheduling_segment").Value(nodeState.SchedulingSegment)
             .Item("specified_scheduling_segment").Value(nodeState.SpecifiedSchedulingSegment)
             .Item("scheduling_segment_module").Value(GetNodeModule(nodeState))
+            .Item("resource_usage").Value(nodeState.Descriptor->ResourceUsage)
+            .Item("resource_limits").Value(nodeState.Descriptor->ResourceLimits)
+            .Item("disk_resources").Value(nodeState.Descriptor->DiskResources)
+            .Item("online").Value(nodeState.Descriptor->Online)
             .Item("running_allocations").Value(nodeState.RunningAllocations)
+            .Item("running_allocation_statistics").Value(nodeState.RunningAllocationStatistics)
         .EndMap();
 }
 
