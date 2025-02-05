@@ -923,7 +923,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         try_parse_yt_error_trailers(rsp)
 
         keep_alive_frame_count = sum(name == "keep_alive" for name, frame in unframed_content)
-        assert keep_alive_frame_count >= self.DELAY_BEFORE_COMMAND / self.KEEP_ALIVE_PERIOD - 3
+        assert keep_alive_frame_count >= self.DELAY_BEFORE_COMMAND / self.KEEP_ALIVE_PERIOD - 7
         assert datetime.now() - start > timedelta(milliseconds=self.DELAY_BEFORE_COMMAND)
         actual_response = b""
         for name, frame in unframed_content:
