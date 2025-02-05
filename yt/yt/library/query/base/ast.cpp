@@ -225,6 +225,12 @@ TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source)
     return source.substr(begin, end - begin);
 }
 
+void TTableHint::Register(TRegistrar registrar)
+{
+    registrar.Parameter("require_sync_replica", &TThis::RequireSyncReplica)
+        .Default(true);
+}
+
 bool operator == (const TTableDescriptor& lhs, const TTableDescriptor& rhs)
 {
     return
@@ -813,6 +819,19 @@ TString InferColumnName(const TReference& ref)
     TStringBuilder builder;
     FormatReference(&builder, ref, /*depth*/ 0, /*isFinal*/ true);
     return builder.Flush();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYPath::TYPath GetMainTable(const TQuery& query)
+{
+    return Visit(query.FromClause,
+        [] (const TTableDescriptor& table) {
+            return table.Path;
+        },
+        [] (const TQueryAstHeadPtr& subquery) {
+            return GetMainTable(subquery->Ast);
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

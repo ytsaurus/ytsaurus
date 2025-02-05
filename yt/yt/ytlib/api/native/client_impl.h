@@ -960,6 +960,7 @@ private:
     friend class TTabletActionTypeHandler;
     friend class TChaosReplicatedTableTypeHandler;
     friend class TDefaultTypeHandler;
+    friend class TTableReplicaSynchronicityCache;
 
     const IConnectionPtr Connection_;
     const TClientOptions Options_;
@@ -1112,47 +1113,16 @@ private:
         TDecoderWithMapping decoderWithMapping,
         TReplicaFallbackHandler<TLookupRowsResult<IRowset>> replicaFallbackHandler);
 
-    static NTabletClient::TTableReplicaInfoPtr PickRandomReplica(
-        const TTableReplicaInfoPtrList& replicas);
-    static TString PickRandomCluster(
-        const std::vector<TString>& clusterNames);
-
-    TTableReplicaInfoPtrList OnTabletInfosReceived(
-        const NTabletClient::TTableMountInfoPtr& tableInfo,
-        int totalTabletCount,
-        std::optional<TInstant> cachedSyncReplicasAt,
-        THashMap<NTabletClient::TTableReplicaId, int> replicaIdToCount,
-        const std::vector<NQueryClient::TQueryServiceProxy::TRspGetTabletInfoPtr>& responses);
-
-    std::vector<TMountAndReplicasInfo> PrepareInSyncReplicaCandidates(
-        const TTabletReadOptions& options,
-        TRange<NTabletClient::TTableMountInfoPtr> tableInfos);
-
-    std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> PickInSyncClusterAndPatchQuery(
-        TRange<TMountAndReplicasInfo> tableInfos,
-        NQueryClient::NAst::TQuery* query);
-
-    NApi::NNative::IConnectionPtr GetReplicaConnectionOrThrow(const TString& clusterName);
-    NApi::IClientPtr GetOrCreateReplicaClient(const TString& clusterName);
+    NApi::NNative::IConnectionPtr GetReplicaConnectionOrThrow(const std::string& clusterName);
+    NApi::IClientPtr GetOrCreateReplicaClient(const std::string& clusterName);
 
     TDuration CheckPermissionsForQuery(
         const NQueryClient::TPlanFragment& fragment,
         const TSelectRowsOptions& options);
 
-    void FallbackToReplica(
-        NQueryClient::NAst::TQuery* astQuery,
-        TMutableRange<TMountAndReplicasInfo> replicaCandidates,
-        TSelectRowsOptionsBase* options,
-        std::function<TError(const TString&, const TString&, const TSelectRowsOptionsBase&)> callback);
-
     TSelectRowsResult DoSelectRowsOnce(
         const std::string& queryString,
         const TSelectRowsOptions& options);
-
-    static bool IsReplicaInSync(
-        const NQueryClient::NProto::TReplicaInfo& replicaInfo,
-        const NQueryClient::NProto::TTabletInfo& tabletInfo,
-        NTransactionClient::TTimestamp timestamp);
 
     std::vector<NTabletClient::TTableReplicaId> DoGetInSyncReplicas(
         const NYPath::TYPath& path,
@@ -1194,25 +1164,12 @@ private:
     friend class TClusterBackupSession;
     friend class TBackupSession;
 
-    TSharedRange<NTableClient::TUnversionedRow> PermuteAndEvaluateKeys(
-        const NTabletClient::TTableMountInfoPtr& tableInfo,
-        const NTableClient::TNameTablePtr& nameTable,
-        const TSharedRange<NTableClient::TLegacyKey>& keys);
-
     std::vector<NTabletClient::TTableReplicaId> GetReplicatedTableInSyncReplicas(
         const NTabletClient::TTableMountInfoPtr& tableInfo,
         const NTableClient::TNameTablePtr& nameTable,
         const TSharedRange<NTableClient::TLegacyKey>& keys,
         bool allKeys,
         const TGetInSyncReplicasOptions& options);
-
-    std::vector<NTabletClient::TTableReplicaId> GetChaosTableInSyncReplicas(
-        const NTabletClient::TTableMountInfoPtr& tableInfo,
-        const NChaosClient::TReplicationCardPtr& replicationCard,
-        const NTableClient::TNameTablePtr& nameTable,
-        const TSharedRange<NTableClient::TLegacyKey>& keys,
-        bool allKeys,
-        NTransactionClient::TTimestamp userTimestamp = NTransactionClient::NullTimestamp);
 
     //
     // Queues
@@ -1254,7 +1211,6 @@ private:
     NRpc::IChannelPtr GetChaosChannelByCardId(
         NChaosClient::TReplicationCardId replicationCardId,
         NHydra::EPeerKind peerKind = NHydra::EPeerKind::Leader);
-    NChaosClient::TReplicationCardPtr GetSyncReplicationCard(const NTabletClient::TTableMountInfoPtr& tableInfo);
 
     //
     // Cypress

@@ -1011,8 +1011,9 @@ private:
 
             const auto& rowBuffer = transaction->RowBuffer_;
 
-            auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
-            auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
+            auto evaluator = tableInfo->NeedKeyEvaluation
+                ? Connection_->GetColumnEvaluatorCache()->Find(primarySchema)
+                : nullptr;
 
             auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
 
@@ -1581,7 +1582,7 @@ private:
 
     //! Maps replica cluster name to sync replica transaction.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ClusterNameToSyncReplicaTransactionPromiseSpinLock_);
-    THashMap<TString, TPromise<NApi::ITransactionPtr>> ClusterNameToSyncReplicaTransactionPromise_;
+    THashMap<std::string, TPromise<NApi::ITransactionPtr>> ClusterNameToSyncReplicaTransactionPromise_;
 
     //! Caches mappings from name table ids to schema ids.
     THashMap<std::tuple<TTableId, TNameTablePtr, ETableSchemaKind, bool>, TNameTableToSchemaIdMapping> IdMappingCache_;

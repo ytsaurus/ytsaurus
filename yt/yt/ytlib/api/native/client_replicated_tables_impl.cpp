@@ -1,7 +1,9 @@
+#include "chaos_helpers.h"
 #include "client_impl.h"
-#include "connection.h"
-#include "tablet_helpers.h"
 #include "config.h"
+#include "connection.h"
+#include "private.h"
+#include "tablet_helpers.h"
 
 #include <yt/yt/library/query/engine_api/column_evaluator.h>
 
@@ -16,6 +18,8 @@
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
+
+#include <yt/yt/core/misc/range_formatters.h>
 
 #include <util/random/random.h>
 
@@ -32,23 +36,6 @@ using namespace NYPath;
 using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-bool TClient::IsReplicaInSync(
-    const NQueryClient::NProto::TReplicaInfo& replicaInfo,
-    const NQueryClient::NProto::TTabletInfo& tabletInfo,
-    TTimestamp timestamp)
-{
-    if (IsReplicaSync(replicaInfo, tabletInfo)) {
-        return true;
-    }
-    if (timestamp >= MinTimestamp &&
-        timestamp <= MaxTimestamp &&
-        replicaInfo.last_replication_timestamp() >= timestamp)
-    {
-        return true;
-    }
-    return false;
-}
 
 std::vector<TTableReplicaId> TClient::DoGetInSyncReplicasWithKeys(
     const TYPath& path,
@@ -76,44 +63,21 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicasWithoutKeys(
         options);
 }
 
-TSharedRange<TUnversionedRow> TClient::PermuteAndEvaluateKeys(
-    const TTableMountInfoPtr& tableInfo,
-    const TNameTablePtr& nameTable,
-    const TSharedRange<TLegacyKey>& keys)
+bool IsReplicaInSync(
+    const NQueryClient::NProto::TReplicaInfo& replicaInfo,
+    const NQueryClient::NProto::TTabletInfo& tabletInfo,
+    TTimestamp timestamp)
 {
-    if (keys.empty()) {
-        return {};
+    if (IsReplicaSync(replicaInfo, tabletInfo)) {
+        return true;
     }
-
-    const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
-    auto idMapping = BuildColumnIdMapping(*schema, nameTable);
-
-    auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
-    auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(schema) : nullptr;
-
-    struct TGetInSyncReplicasTag
-    { };
-    auto rowBuffer = New<TRowBuffer>(TGetInSyncReplicasTag());
-    std::vector<TUnversionedRow> evaluatedKeys;
-    evaluatedKeys.reserve(keys.size());
-
-    for (auto key : keys) {
-        ValidateClientKey(key, *schema, idMapping, nameTable);
-        auto capturedKey = rowBuffer->CaptureAndPermuteRow(
-            key,
-            *schema,
-            schema->GetKeyColumnCount(),
-            idMapping,
-            /*validateDuplicateAndRequiredValueColumns*/ false);
-
-        if (evaluator) {
-            evaluator->EvaluateKeys(capturedKey, rowBuffer, /*preserveColumnsIds*/ false);
-        }
-
-        evaluatedKeys.push_back(capturedKey);
+    if (timestamp >= MinTimestamp &&
+        timestamp <= MaxTimestamp &&
+        replicaInfo.last_replication_timestamp() >= timestamp)
+    {
+        return true;
     }
-
-    return MakeSharedRange(std::move(evaluatedKeys), std::move(rowBuffer));
+    return false;
 }
 
 std::vector<TTableReplicaId> TClient::GetReplicatedTableInSyncReplicas(
@@ -143,7 +107,10 @@ std::vector<TTableReplicaId> TClient::GetReplicatedTableInSyncReplicas(
             registerTablet(tabletInfo);
         }
     } else {
-        auto evaluatedKeys = PermuteAndEvaluateKeys(tableInfo, nameTable, keys);
+        auto evaluator = tableInfo->NeedKeyEvaluation
+            ? Connection_->GetColumnEvaluatorCache()->Find(tableInfo->Schemas[ETableSchemaKind::Primary])
+            : nullptr;
+        auto evaluatedKeys = PermuteAndEvaluateKeys(tableInfo, nameTable, keys, evaluator);
         for (auto capturedKey : evaluatedKeys) {
             registerTablet(tableInfo->GetTabletForRow(capturedKey));
         }
@@ -225,63 +192,6 @@ std::vector<TTableReplicaId> TClient::GetReplicatedTableInSyncReplicas(
     return replicaIds;
 }
 
-std::vector<TTableReplicaId> TClient::GetChaosTableInSyncReplicas(
-    const TTableMountInfoPtr& tableInfo,
-    const TReplicationCardPtr& replicationCard,
-    const TNameTablePtr& nameTable,
-    const TSharedRange<TLegacyKey>& keys,
-    bool allKeys,
-    TTimestamp userTimestamp)
-{
-    auto evaluatedKeys = PermuteAndEvaluateKeys(tableInfo, nameTable, keys);
-    std::vector<TTableReplicaId> replicaIds;
-
-    auto isTimestampInSync = [&] (const auto& replica, auto timestamp) {
-        if (const auto& item = replica.History.back(); item.IsSync() && timestamp >= item.Timestamp) {
-            return true;
-        }
-
-        if (userTimestamp >= MinTimestamp &&
-            userTimestamp <= MaxTimestamp &&
-            timestamp >= userTimestamp)
-        {
-            return true;
-        }
-
-        return false;
-    };
-
-    auto isReplicaInSync = [&] (const auto& replica) {
-        if (allKeys) {
-            auto timestamp = GetReplicationProgressMinTimestamp(replica.ReplicationProgress);
-            if (!isTimestampInSync(replica, timestamp)) {
-                return false;
-            }
-        } else {
-            for (auto key : evaluatedKeys) {
-                auto timestamp = GetReplicationProgressTimestampForKeyOrThrow(replica.ReplicationProgress, key);
-                if (!isTimestampInSync(replica, timestamp)) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    };
-
-    for (const auto& [replicaId, replica] : replicationCard->Replicas) {
-        if (tableInfo->IsSorted() && replica.ContentType != ETableReplicaContentType::Data) {
-            continue;
-        } else if (!tableInfo->IsSorted() && replica.ContentType != ETableReplicaContentType::Queue) {
-            continue;
-        }
-        if (isReplicaInSync(replica)) {
-            replicaIds.push_back(replicaId);
-        }
-    }
-
-    return replicaIds;
-}
-
 std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
     const TYPath& path,
     bool allKeys,
@@ -294,10 +204,10 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
     const auto& tableMountCache = Connection_->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
         .ValueOrThrow();
-    bool isChaos = static_cast<bool>(tableInfo->ReplicationCardId);
+    auto isChaos = static_cast<bool>(tableInfo->ReplicationCardId);
 
     auto replicationCard = isChaos
-        ? GetSyncReplicationCard(tableInfo)
+        ? GetSyncReplicationCard(Connection_, tableInfo)
         : nullptr;
 
     tableInfo->ValidateDynamic();
@@ -327,9 +237,27 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
     if (!allKeys && keys.Empty()) {
         replicaIds = getAllReplicaIds();
     } else {
+        auto evaluator = tableInfo->NeedKeyEvaluation && isChaos
+            ? GetNativeConnection()
+                ->GetColumnEvaluatorCache()
+                ->Find(tableInfo->Schemas[ETableSchemaKind::Primary])
+            : nullptr;
+
         replicaIds = isChaos
-            ? GetChaosTableInSyncReplicas(tableInfo, replicationCard, nameTable, keys, allKeys, options.Timestamp)
-            : GetReplicatedTableInSyncReplicas(tableInfo, nameTable, keys, allKeys, options);
+            ? GetChaosTableInSyncReplicas(
+                tableInfo,
+                replicationCard,
+                nameTable,
+                evaluator,
+                keys,
+                allKeys,
+                options.Timestamp)
+            : GetReplicatedTableInSyncReplicas(
+                tableInfo,
+                nameTable,
+                keys,
+                allKeys,
+                options);
     }
 
     YT_LOG_DEBUG("Got table in-sync replicas (TableId: %v, Replicas: %v, Timestamp: %v)",
@@ -340,7 +268,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
     return replicaIds;
 }
 
-TTableReplicaInfoPtr TClient::PickRandomReplica(
+TTableReplicaInfoPtr PickRandomReplica(
     const TTableReplicaInfoPtrList& replicas)
 {
     YT_VERIFY(!replicas.empty());
@@ -358,238 +286,7 @@ TClient::TReplicaFallbackInfo TClient::GetReplicaFallbackInfo(
     };
 }
 
-TString TClient::PickRandomCluster(const std::vector<TString>& clusterNames) {
-    YT_VERIFY(!clusterNames.empty());
-    return clusterNames[RandomNumber<size_t>() % clusterNames.size()];
-}
-
-std::vector<TMountAndReplicasInfo> TClient::PrepareInSyncReplicaCandidates(
-    const TTabletReadOptions& options,
-    TRange<TTableMountInfoPtr> tableInfos)
-{
-    bool someReplicated = false;
-    bool someNotReplicated = false;
-    for (const auto& tableInfo : tableInfos) {
-        if (tableInfo->IsReplicationLog()) {
-            THROW_ERROR_EXCEPTION("Replication log table is not supported for this type of query");
-        }
-        if (tableInfo->IsReplicated() ||
-            tableInfo->IsChaosReplicated() ||
-            (tableInfo->ReplicationCardId && options.ReplicaConsistency == EReplicaConsistency::Sync))
-        {
-            someReplicated = true;
-        } else {
-            someNotReplicated = true;
-        }
-    }
-
-    if (someReplicated && someNotReplicated) {
-        THROW_ERROR_EXCEPTION("Query involves both replicated and non-replicated tables");
-    }
-
-    if (!someReplicated) {
-        return {};
-    }
-
-    auto pickInSyncReplicas = [&] (const TTableMountInfoPtr& tableInfo) {
-        if (!tableInfo->ReplicationCardId) {
-            return PickInSyncReplicas(Connection_, tableInfo, options);
-        }
-
-        TTableReplicaInfoPtrList inSyncReplicas;
-        auto replicationCard = GetSyncReplicationCard(tableInfo);
-        auto replicaIds = GetChaosTableInSyncReplicas(
-            tableInfo,
-            replicationCard,
-            /*nameTable*/ nullptr,
-            /*keys*/ {},
-            /*allKeys*/ true,
-            options.Timestamp);
-
-        auto bannedReplicaTracker = Connection_->GetBannedReplicaTrackerCache()->GetTracker(tableInfo->TableId);
-        bannedReplicaTracker->SyncReplicas(replicationCard);
-
-        YT_LOG_DEBUG("Picked in-sync replicas for query (ReplicaIds: %v, Timestamp: %v, ReplicationCard: %v)",
-            replicaIds,
-            options.Timestamp,
-            *replicationCard);
-
-        for (auto replicaId : replicaIds) {
-            const auto& replica = GetOrCrash(replicationCard->Replicas, replicaId);
-            auto replicaInfo = New<TTableReplicaInfo>();
-            replicaInfo->ReplicaId = replicaId;
-            replicaInfo->ClusterName = replica.ClusterName;
-            replicaInfo->ReplicaPath = replica.ReplicaPath;
-            replicaInfo->Mode = replica.Mode;
-            inSyncReplicas.push_back(std::move(replicaInfo));
-        }
-
-        return MakeFuture(std::move(inSyncReplicas));
-    };
-
-    std::vector<TFuture<TTableReplicaInfoPtrList>> asyncCandidates;
-    for (const auto& tableInfo : tableInfos) {
-        asyncCandidates.push_back(pickInSyncReplicas(tableInfo));
-    }
-
-    auto candidates = WaitFor(AllSucceeded(asyncCandidates))
-        .ValueOrThrow();
-
-    int size = tableInfos.size();
-    std::vector<TMountAndReplicasInfo> mountAndReplicasInfos(size);
-    for (int index = 0; index < size; ++index) {
-        mountAndReplicasInfos[index] = TMountAndReplicasInfo{
-            .MountInfo = tableInfos[index],
-            .Replicas = std::move(candidates[index]),
-        };
-    }
-
-    return mountAndReplicasInfos;
-}
-
-std::pair<TString, TSelectRowsOptions::TExpectedTableSchemas> TClient::PickInSyncClusterAndPatchQuery(
-    TRange<TMountAndReplicasInfo> tableInfos,
-    NAst::TQuery* query)
-{
-    int size = tableInfos.size();
-
-    auto pathsView = MakeFormattableView(
-        tableInfos,
-        [] (TStringBuilderBase* builder, const TMountAndReplicasInfo& info) {
-            builder->AppendString(info.MountInfo->Path);
-        });
-
-    const auto& bannedReplicaTrackerCache = Connection_->GetBannedReplicaTrackerCache();
-    auto emptyBannedReplicaTracker = CreateEmptyBannedReplicaTracker();
-
-    std::vector<IBannedReplicaTrackerPtr> bannedReplicaTrackers;
-    for (const auto& tableInfo : tableInfos) {
-        const auto& bannedReplicaTracker = tableInfo.MountInfo->ReplicationCardId
-            ? bannedReplicaTrackerCache->GetTracker(tableInfo.MountInfo->TableId)
-            : emptyBannedReplicaTracker;
-        bannedReplicaTrackers.push_back(bannedReplicaTracker);
-    }
-
-    std::vector<std::vector<TTableReplicaId>> bannedSyncReplicaIds(tableInfos.size());
-
-    THashMap<TString, int> clusterNameToCount;
-    for (int index = 0; index < size; ++index) {
-        const auto& tableInfo = tableInfos[index];
-        const auto& replicaInfos = tableInfo.Replicas;
-        const auto& bannedReplicaTracker = bannedReplicaTrackers[index];
-        auto& bannedIds = bannedSyncReplicaIds[index];
-
-        THashSet<TString> clusterNames;
-        for (const auto& replicaInfo : replicaInfos) {
-            if (bannedReplicaTracker->IsReplicaBanned(replicaInfo->ReplicaId)) {
-                bannedIds.push_back(replicaInfo->ReplicaId);
-            } else {
-                clusterNames.insert(replicaInfo->ClusterName);
-            }
-        }
-        for (const auto& clusterName : clusterNames) {
-            ++clusterNameToCount[clusterName];
-        }
-    }
-
-    YT_LOG_DEBUG("Gathered banned replicas while selecting in-sync cluster (Tables: %v, BannedReplicaIds: %v)",
-        pathsView,
-        bannedSyncReplicaIds);
-
-    std::vector<TString> inSyncClusterNames;
-    for (const auto& [name, count] : clusterNameToCount) {
-        if (count == std::ssize(tableInfos)) {
-            inSyncClusterNames.push_back(name);
-        }
-    }
-
-    if (inSyncClusterNames.empty()) {
-        std::vector<TError> replicaErrors;
-        std::vector<TTableReplicaId> flatBannedReplicaIds;
-
-        for (int index = 0; index < size; ++index) {
-            const auto& bannedReplicaIds = bannedSyncReplicaIds[index];
-            const auto& bannedReplicaTracker = bannedReplicaTrackers[index];
-            for (auto bannedReplicaId : bannedReplicaIds) {
-                if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
-                    replicaErrors.push_back(std::move(error));
-                    flatBannedReplicaIds.push_back(bannedReplicaId);
-                }
-            }
-        }
-
-        auto error = TError(
-            NTabletClient::EErrorCode::NoInSyncReplicas,
-            "No single cluster contains in-sync replicas for all involved tables %v",
-            pathsView)
-            << TErrorAttribute("banned_replicas", flatBannedReplicaIds);
-        *error.MutableInnerErrors() = std::move(replicaErrors);
-        THROW_ERROR error;
-    }
-
-    auto inSyncClusterName = PickRandomCluster(inSyncClusterNames);
-
-    auto chaosTableSchemas = std::vector<TTableSchemaPtr>(size);
-    for (int index = 0; index < size; ++index) {
-        const auto& [mountInfo, _] = tableInfos[index];
-        if (mountInfo->ReplicationCardId) {
-            chaosTableSchemas[index] = mountInfo->Schemas[ETableSchemaKind::Primary];
-        }
-    }
-
-    TSelectRowsOptions::TExpectedTableSchemas expectedTableSchemas;
-    std::vector<TTableReplicaId> pickedReplicaIds;
-    int index = 0;
-
-    auto patchTableDescriptor = [&] (NAst::TTableDescriptor* descriptor) {
-        const auto& replicaInfos = tableInfos[index].Replicas;
-        const auto& chaosTableSchema = chaosTableSchemas[index];
-        const auto& bannedIds = bannedSyncReplicaIds[index];
-        index++;
-
-        for (const auto& replicaInfo : replicaInfos) {
-            if (replicaInfo->ClusterName == inSyncClusterName &&
-                std::find(bannedIds.begin(), bannedIds.end(), replicaInfo->ReplicaId) == bannedIds.end())
-            {
-                pickedReplicaIds.push_back(replicaInfo->ReplicaId);
-                descriptor->Path = replicaInfo->ReplicaPath;
-                if (chaosTableSchema) {
-                    expectedTableSchemas.insert({replicaInfo->ReplicaPath, chaosTableSchema});
-                }
-                return;
-            }
-        }
-
-        YT_ABORT();
-    };
-
-    std::function<void (NAst::TQuery& query)> patchQuery = [&] (NAst::TQuery& query) {
-        Visit(query.FromClause,
-            [&] (NAst::TTableDescriptor& table) {
-                patchTableDescriptor(&table);
-            },
-            [&] (NAst::TQueryAstHeadPtr& subquery) {
-                patchQuery(subquery->Ast);
-            });
-
-        for (auto& join : query.Joins) {
-            if (auto* tableJoin = std::get_if<NAst::TJoin>(&join)) {
-                patchTableDescriptor(&tableJoin->Table);
-            }
-        }
-    };
-
-    patchQuery(*query);
-
-    YT_LOG_DEBUG("In-sync cluster selected (Paths: %v, ClusterName: %v, ReplicaIds: %v)",
-        pathsView,
-        inSyncClusterName,
-        pickedReplicaIds);
-
-    return {std::move(inSyncClusterName), std::move(expectedTableSchemas)};
-}
-
-NApi::NNative::IConnectionPtr TClient::GetReplicaConnectionOrThrow(const TString& clusterName)
+NApi::NNative::IConnectionPtr TClient::GetReplicaConnectionOrThrow(const std::string& clusterName)
 {
     const auto& clusterDirectory = Connection_->GetClusterDirectory();
     auto replicaConnection = clusterDirectory->FindConnection(clusterName);
@@ -608,7 +305,7 @@ bool TClient::TReplicaClient::IsTerminated() const
     return Client->GetNativeConnection()->IsTerminated();
 }
 
-NApi::IClientPtr TClient::GetOrCreateReplicaClient(const TString& clusterName)
+NApi::IClientPtr TClient::GetOrCreateReplicaClient(const std::string& clusterName)
 {
     TIntrusivePtr<TReplicaClient> replicaClient;
 

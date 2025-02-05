@@ -1,4 +1,5 @@
 #pragma once
+
 #include "public.h"
 
 #include <yt/yt/client/api/client.h>
@@ -52,6 +53,12 @@ NTableClient::TNameTableToSchemaIdMapping BuildColumnIdMapping(
     const NTableClient::TNameTablePtr& nameTable,
     bool allowKeyExtension = false);
 
+TSharedRange<NTableClient::TUnversionedRow> PermuteAndEvaluateKeys(
+    const NTabletClient::TTableMountInfoPtr& tableInfo,
+    const NTableClient::TNameTablePtr& nameTable,
+    const TSharedRange<NTableClient::TLegacyKey>& keys,
+    const NQueryClient::TColumnEvaluatorPtr& columnEvaluator);
+
 NTabletClient::TTabletInfoPtr GetSortedTabletForRow(
     const NTabletClient::TTableMountInfoPtr& tableInfo,
     NTableClient::TUnversionedRow row,
@@ -70,6 +77,10 @@ NTabletClient::TTabletInfoPtr GetOrderedTabletForRow(
     bool validateWrite = false);
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool IsTimestampInSync(
+    NHiveClient::TTimestamp userTimestamp,
+    NHiveClient::TTimestamp replicationTimestamp);
 
 bool IsReplicaSync(
     const NQueryClient::NProto::TReplicaInfo& replicaInfo,

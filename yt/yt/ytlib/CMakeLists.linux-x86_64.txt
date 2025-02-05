@@ -247,6 +247,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/backup_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/bundle_controller_client_impl.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/cell_commit_session.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/chaos_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/chaos_replicated_table_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/chaos_table_replica_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/client_admin_impl.cpp
@@ -283,6 +284,7 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/journal_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/list_operations.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/partition_tables.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/pick_replica_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/pipeline_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/queue_producer_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/replicated_table_replica_type_handler.cpp
@@ -292,9 +294,11 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/skynet.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/secondary_index_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/secondary_index_modification.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/sticky_mount_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/sync_replica_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/table_collocation_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/table_reader.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/table_replica_synchronicity_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_action_type_handler.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_commit_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/api/native/tablet_helpers.cpp
