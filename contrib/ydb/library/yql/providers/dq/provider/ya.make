@@ -1,0 +1,77 @@
+LIBRARY()
+
+SRCS(
+    yql_dq_control.cpp
+    yql_dq_control.h
+    yql_dq_datasink_constraints.cpp
+    yql_dq_datasink_type_ann.cpp
+    yql_dq_datasink_type_ann.h
+    yql_dq_datasource_constraints.cpp
+    yql_dq_datasource_type_ann.cpp
+    yql_dq_datasource_type_ann.h
+    yql_dq_gateway.cpp
+    yql_dq_gateway.h
+    yql_dq_provider.cpp
+    yql_dq_provider.h
+    yql_dq_datasink.cpp
+    yql_dq_datasink.h
+    yql_dq_datasource.cpp
+    yql_dq_datasource.h
+    yql_dq_recapture.cpp
+    yql_dq_recapture.h
+    yql_dq_statistics.cpp
+    yql_dq_statistics.h
+    yql_dq_statistics_json.cpp
+    yql_dq_statistics_json.h
+    yql_dq_validate.cpp
+)
+
+PEERDIR(
+    contrib/ydb/public/sdk/cpp/src/library/grpc/client
+    library/cpp/threading/task_scheduler
+    library/cpp/threading/future
+    library/cpp/svnversion
+    library/cpp/yson/node
+    library/cpp/yson
+    contrib/ydb/public/lib/yson_value
+    contrib/ydb/public/sdk/cpp/src/client/driver
+    yql/essentials/ast
+    yql/essentials/core
+    yql/essentials/core/issue
+    yql/essentials/utils/backtrace
+    yql/essentials/utils/failure_injector
+    yql/essentials/core/dq_integration
+    yql/essentials/core/dq_integration/transform
+    contrib/ydb/library/yql/dq/transform
+    contrib/ydb/library/yql/dq/tasks
+    contrib/ydb/library/yql/dq/type_ann
+    yql/essentials/providers/common/gateway
+    yql/essentials/providers/common/metrics
+    yql/essentials/providers/common/schema/expr
+    yql/essentials/providers/common/transform
+    yql/essentials/providers/common/activation
+    yql/essentials/providers/common/proto
+    contrib/ydb/library/yql/providers/dq/api/grpc
+    contrib/ydb/library/yql/providers/dq/api/protos
+    contrib/ydb/library/yql/providers/dq/common
+    contrib/ydb/library/yql/providers/dq/config
+    contrib/ydb/library/yql/providers/dq/expr_nodes
+    contrib/ydb/library/yql/providers/dq/opt
+    contrib/ydb/library/yql/providers/dq/planner
+    contrib/ydb/library/yql/providers/dq/actors
+    yql/essentials/providers/result/expr_nodes
+    yql/essentials/minikql
+    yql/essentials/public/issue
+)
+
+YQL_LAST_ABI_VERSION()
+
+END()
+
+RECURSE(
+    exec
+)
+
+RECURSE_FOR_TESTS(
+    ut
+)

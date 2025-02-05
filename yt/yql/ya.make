@@ -5,6 +5,8 @@ RECURSE(
     plugin
     providers
     tools
+    dq_vanilla_job
+    dq_vanilla_job.lite
 )
 
 RECURSE_FOR_TESTS(

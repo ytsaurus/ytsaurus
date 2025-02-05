@@ -8,4 +8,6 @@ END()
 
 RECURSE(
     bridge
+    dynamic
+    native
 )
