@@ -1,6 +1,6 @@
 #include "cell_statistics.h"
 
-#include <yt/yt/server/master/cell_master/proto/multicell_manager.pb.h>
+#include <yt/yt/server/master/cell_master/proto/multicell_node_statistics.pb.h>
 
 #include <library/cpp/yt/string/format.h>
 
