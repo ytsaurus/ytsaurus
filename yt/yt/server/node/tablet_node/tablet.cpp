@@ -933,7 +933,10 @@ void TTablet::Load(TLoadContext& context)
     Load(context, State_);
 
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= ETabletReign::CancelTabletTransition) {
+    if (context.GetVersion() >= ETabletReign::CancelTabletTransition ||
+        (context.GetVersion() < ETabletReign::Start_25_2 &&
+            context.GetVersion() >= ETabletReign::CancelTabletTransition_25_1))
+    {
         Load(context, LastStableState_);
     } else {
         // If current state is stable, we're good. Otherwise we guess that
