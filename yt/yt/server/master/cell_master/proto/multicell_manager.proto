@@ -31,24 +31,6 @@ message TReqReplicateDynamicallyPropagatedMasterCellTags
 
 ////////////////////////////////////////////////////////////////////////////////
 
-message TCellStatistics
-{
-    required int64 chunk_count = 1;
-    required int64 lost_vital_chunk_count = 2;
-    optional int32 online_node_count = 3;
-}
-
-message TReqSetCellStatistics
-{
-    required uint32 cell_tag = 1;
-    required TCellStatistics statistics = 2;
-}
-
-message TReqSetMulticellStatistics
-{
-    repeated TReqSetCellStatistics statistics = 1;
-}
-
 message TReqSyncHiveClocksAtMasters
 {
     required bool is_reply_from_secondary = 1 [default = false];

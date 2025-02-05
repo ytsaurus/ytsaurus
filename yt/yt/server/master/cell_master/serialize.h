@@ -219,6 +219,7 @@ DEFINE_ENUM(EMasterReign,
     ((HunkSpecificMediaFixes)                                       (2829))  // shakurov
     ((RipLogicalChunkCount)                                         (2830))  // ifsmirnov
     ((CancelTabletTransition)                                       (2831))  // ifsmirnov
+    ((MulticellStatisticsCollector)                                 (2832))  // koloshmet
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

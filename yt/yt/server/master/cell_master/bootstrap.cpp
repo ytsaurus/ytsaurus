@@ -7,6 +7,7 @@
 #include "hydra_facade.h"
 #include "master_hydra_service.h"
 #include "multicell_manager.h"
+#include "multicell_statistics_collector.h"
 #include "response_keeper_manager.h"
 #include "world_initializer.h"
 #include "world_initializer_cache.h"
@@ -338,6 +339,11 @@ const TDynamicClusterConfigPtr& TBootstrap::GetDynamicConfig() const
 const IMulticellManagerPtr& TBootstrap::GetMulticellManager() const
 {
     return MulticellManager_;
+}
+
+const IMulticellStatisticsCollectorPtr& TBootstrap::GetMulticellStatisticsCollector() const
+{
+    return MulticellStatisticsCollector_;
 }
 
 const IIncumbentManagerPtr& TBootstrap::GetIncumbentManager() const
@@ -885,6 +891,8 @@ void TBootstrap::DoInitialize()
 
     IncumbentManager_ = CreateIncumbentManager(this);
 
+    MulticellStatisticsCollector_ = CreateMulticellStatisticsCollector(this);
+
     HiveManager_ = CreateHiveManager(
         Config_->HiveManager,
         CellDirectory_,
@@ -1019,6 +1027,7 @@ void TBootstrap::DoInitialize()
     SchedulerPoolManager_->Initialize();
     GroundUpdateQueueManager_->Initialize();
     GraftingManager_->Initialize();
+    MulticellStatisticsCollector_->Initialize();
     SequoiaActionsExecutor_->Initialize();
 
     // NB: Keep Config Manager initialization last and prevent

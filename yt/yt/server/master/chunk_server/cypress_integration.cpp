@@ -7,9 +7,11 @@
 #include "chunk_list.h"
 #include "chunk_replicator.h"
 #include "domestic_medium.h"
+#include "lost_vital_chunks_sample.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
+#include <yt/yt/server/master/cell_master/multicell_statistics_collector.h>
 
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/data_node_tracker.h>
@@ -105,6 +107,111 @@ INodeTypeHandlerPtr CreateChunkLocationMapTypeHandler(TBootstrap* bootstrap)
                 bootstrap,
                 owningNode,
                 chunkLocations);
+        }),
+        EVirtualNodeOptions::RedirectSelf);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVirtualLostVitalChunksSampleMap
+    : public TVirtualSinglecellMapBase
+{
+public:
+    TVirtualLostVitalChunksSampleMap(
+        TBootstrap* bootstrap,
+        INodePtr owningNode,
+        std::reference_wrapper<const TLostVitalChunksSampleMap> chunksSample)
+        : TVirtualSinglecellMapBase(bootstrap, std::move(owningNode))
+        , LostVitalChunksSample_(chunksSample)
+    { }
+
+private:
+    const TLostVitalChunksSampleMap& LostVitalChunksSample_;
+
+    std::vector<std::string> GetKeys(i64 limit) const override
+    {
+        std::vector<TCellTag> cellTags;
+        cellTags.resize(LostVitalChunksSample_.size());
+        std::ranges::copy(LostVitalChunksSample_ | std::views::keys, cellTags.begin());
+        std::ranges::sort(cellTags, [this] (const auto& cellTag1, const auto& cellTag2) {
+            auto cellTag1SampleSize = GetOrCrash(LostVitalChunksSample_, cellTag1).size();
+            auto cellTag2SampleSize = GetOrCrash(LostVitalChunksSample_, cellTag2).size();
+            return cellTag1SampleSize > cellTag2SampleSize;
+        });
+
+        std::ptrdiff_t maxChunks = 0;
+        if (!cellTags.empty()) {
+            maxChunks = std::ranges::min(std::ssize(GetOrCrash(LostVitalChunksSample_, cellTags.front())), limit);
+        }
+        std::vector<std::string> keys;
+        keys.reserve(std::min(limit, GetSize()));
+        for (std::ptrdiff_t i = 0; i < maxChunks; ++i) {
+            for (auto cellTag : cellTags) {
+                if (std::ssize(keys) >= limit) {
+                    return keys;
+                }
+
+                const auto& cellChunks = GetOrCrash(LostVitalChunksSample_, cellTag);
+                // CellTags are descending sorted by the number of chunks.
+                if (std::ssize(cellChunks) <= i) {
+                    break;
+                }
+
+                keys.push_back(ToString(cellChunks[i]));
+            }
+        }
+
+        return keys;
+    }
+
+    i64 GetSize() const override
+    {
+        i64 size = 0;
+        for (const auto& [cellTag, chunkIds] : LostVitalChunksSample_) {
+            size += std::ssize(chunkIds);
+        }
+        return size;
+    }
+
+    IYPathServicePtr FindItemService(const std::string& key) const override
+    {
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        auto objectId = TObjectId::FromString(key);
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto cellTag = CellTagFromId(objectId);
+        if (cellTag == multicellManager->GetCellTag() || multicellManager->IsRegisteredMasterCell(cellTag)) {
+            if (multicellManager->IsPrimaryMaster() && cellTag != multicellManager->GetCellTag()) {
+                return objectManager->CreateRemoteProxy(cellTag);
+            }
+
+            auto* object = objectManager->GetObjectOrThrow(objectId);
+
+            return objectManager->GetProxy(object, nullptr);
+        } else {
+            THROW_ERROR_EXCEPTION("Incorrect object id, no such cell");
+        }
+
+        THROW_ERROR_EXCEPTION("Incorrect object id, no such object");
+    }
+};
+
+INodeTypeHandlerPtr CreateLostVitalChunksSampleMapTypeHandler(TBootstrap* bootstrap)
+{
+    YT_VERIFY(bootstrap);
+
+    return CreateVirtualTypeHandler(
+        bootstrap,
+        EObjectType::LostVitalChunksSampleMap,
+        BIND_NO_PROPAGATE([=] (INodePtr owningNode) -> IYPathServicePtr {
+            YT_VERIFY(owningNode);
+            const auto& statisticsCollector = bootstrap->GetMulticellStatisticsCollector();
+            const auto& lvcSampleValue = statisticsCollector->GetLostVitalChunksSample();
+
+            return New<TVirtualLostVitalChunksSampleMap>(
+                bootstrap,
+                owningNode,
+                lvcSampleValue.GetCellLostVitalChunks());
         }),
         EVirtualNodeOptions::RedirectSelf);
 }

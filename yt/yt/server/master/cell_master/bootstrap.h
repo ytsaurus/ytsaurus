@@ -110,6 +110,7 @@ public:
     const IConfigManagerPtr& GetConfigManager() const;
     const TDynamicClusterConfigPtr& GetDynamicConfig() const;
     const IMulticellManagerPtr& GetMulticellManager() const;
+    const IMulticellStatisticsCollectorPtr& GetMulticellStatisticsCollector() const;
     const NIncumbentServer::IIncumbentManagerPtr& GetIncumbentManager() const;
     const NRpc::IServerPtr& GetRpcServer() const;
     const NRpc::IChannelPtr& GetLocalRpcChannel() const;
@@ -203,6 +204,7 @@ protected:
     IAlertManagerPtr AlertManager_;
     IConfigManagerPtr ConfigManager_;
     IMulticellManagerPtr MulticellManager_;
+    IMulticellStatisticsCollectorPtr MulticellStatisticsCollector_;
     NIncumbentServer::IIncumbentManagerPtr IncumbentManager_;
     NRpc::IServerPtr RpcServer_;
     NRpc::IChannelPtr LocalRpcChannel_;

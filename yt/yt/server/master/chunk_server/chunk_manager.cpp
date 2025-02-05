@@ -43,7 +43,7 @@
 
 #include <yt/yt/server/master/table_server/table_manager.h>
 
-#include <yt/yt/server/master/cell_master/proto/multicell_manager.pb.h>
+#include <yt/yt/server/master/cell_master/proto/multicell_node_statistics.pb.h>
 
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
