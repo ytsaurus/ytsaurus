@@ -6,6 +6,7 @@
 #include "save_loadable_pointer_wrapper.h"
 
 #include "../coder.h"
+#include "../noncodable.h"
 
 #include <util/generic/buffer.h>
 #include <util/generic/string.h>
@@ -54,6 +55,7 @@ public:
     THashFunction Hash = nullptr;
     TEqualFunction Equal = nullptr;
     TRawCoderFactoryFunction RawCoderFactory = &CrashingCoderFactory;
+    bool IsManuallyNoncodable = false;
     ssize_t KeyOffset = NotKv;
     ssize_t ValueOffset = NotKv;
     TRowVtableFactoryFunction KeyVtableFactory = &CrashingGetVtableFactory;
@@ -72,6 +74,7 @@ public:
         SaveLoadablePointer(Hash),
         SaveLoadablePointer(Equal),
         SaveLoadablePointer(RawCoderFactory),
+        IsManuallyNoncodable,
         KeyOffset,
         ValueOffset,
         SaveLoadablePointer(KeyVtableFactory),
@@ -121,6 +124,7 @@ TRowVtable MakeRowVtable()
             new(destination) T(std::move(*reinterpret_cast<T*>(source)));
         };
         vtable.RawCoderFactory = &MakeDefaultRawCoder<T>;
+        vtable.IsManuallyNoncodable = CManuallyNonCodable<T>;
         vtable.CopyToUniquePtr = [] (const void* p) {
             return TRowVtable::TUniquePtr(
                 new T(*reinterpret_cast<const T*>(p)),
