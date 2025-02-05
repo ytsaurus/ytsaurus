@@ -116,6 +116,10 @@ void SignalHandler(int sig, siginfo_t* /*info*/, void* threadContext)
 {
     YT_VERIFY(sig == SIGUSR1);
 
+    auto finallyGuard = Finally([originalErrno = errno] {
+        errno = originalErrno;
+    });
+
     SignalHandlerContext->FiberId = GetCurrentFiberId();
     SignalHandlerContext->ThreadName = GetCurrentThreadName();
     if (const auto* traceContext = TryGetCurrentTraceContext()) {
