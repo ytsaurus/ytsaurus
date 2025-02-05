@@ -47,6 +47,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((Profiling)                  (32))
     ((Logging)                    (33))
     ((ChunkReplicaCache)          (34))
+    ((HeavyRequest)               (35))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

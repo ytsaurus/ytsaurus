@@ -646,7 +646,7 @@ public:
             config->TestingOptions
             ? config->TestingOptions->HeapProfiler
             : nullptr)
-        , LookupMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Lookup))
+        , HeavyRequestMemoryUsageTracker_(WithCategory(memoryTracker, EMemoryCategory::HeavyRequest))
         , SignatureValidator_(std::move(signatureValidator))
         , SignatureGenerator_(std::move(signatureGenerator))
         , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
@@ -881,7 +881,7 @@ private:
     const NNative::TClientCachePtr AuthenticatedClientCache_;
     const IInvokerPtr ControlInvoker_;
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
-    const IMemoryUsageTrackerPtr LookupMemoryTracker_;
+    const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
 
     const ISignatureValidatorPtr SignatureValidator_;
     const ISignatureGeneratorPtr SignatureGenerator_;
@@ -3670,7 +3670,7 @@ private:
             &keys,
             &options,
             request->Attachments(),
-            LookupMemoryTracker_);
+            HeavyRequestMemoryUsageTracker_);
 
         context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %v, ReplicaConsistency: %v",
             request->path(),
@@ -3735,7 +3735,7 @@ private:
             &keys,
             &options,
             request->Attachments(),
-            LookupMemoryTracker_);
+            HeavyRequestMemoryUsageTracker_);
 
         context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %v, ReplicaConsistency: %v",
             request->path(),
@@ -3828,7 +3828,7 @@ private:
                 &subrequest.Keys,
                 &subrequest.Options,
                 attachments,
-                LookupMemoryTracker_);
+                HeavyRequestMemoryUsageTracker_);
 
             beginAttachmentIndex = endAttachmentIndex;
         }

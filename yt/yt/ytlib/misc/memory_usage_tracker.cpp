@@ -360,7 +360,7 @@ i64 TNodeMemoryTracker::GetTotalFree() const
 
 bool TNodeMemoryTracker::IsTotalExceeded() const
 {
-    return GetTotalUsed() > GetTotalLimit();
+    return GetTotalUsed() >= GetTotalLimit();
 }
 
 i64 TNodeMemoryTracker::GetExplicitLimit(ECategory category) const
@@ -473,7 +473,7 @@ bool TNodeMemoryTracker::IsExceeded(ECategory category, const std::optional<TPoo
         return true;
     }
 
-    if (DoGetUsed(category) > DoGetLimit(category)) {
+    if (DoGetUsed(category) >= DoGetLimit(category)) {
         return true;
     }
 
@@ -489,7 +489,7 @@ bool TNodeMemoryTracker::IsExceeded(ECategory category, const std::optional<TPoo
         return false;
     }
 
-    return DoGetUsed(category, pool) > DoGetLimit(category, pool);
+    return DoGetUsed(category, pool) >= DoGetLimit(category, pool);
 }
 
 void TNodeMemoryTracker::SetTotalLimit(i64 newLimit)

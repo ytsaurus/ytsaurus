@@ -150,9 +150,7 @@ TClient::TClient(
         CreateTabletActionTypeHandler(this),
         CreateDefaultTypeHandler(this)
     }
-    , LookupMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Lookup))
-    , QueryMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Query))
-    , ReadTableMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::ReadTable))
+    , HeavyRequestMemoryUsageTracker_(WithCategory(memoryTracker, EMemoryCategory::HeavyRequest))
     , FunctionImplCache_(BIND(CreateFunctionImplCache,
         Connection_->GetConfig()->FunctionImplCache,
         MakeWeak(this)))

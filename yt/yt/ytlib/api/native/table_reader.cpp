@@ -68,7 +68,7 @@ public:
         TColumnFilter columnFilter,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler,
-        IMemoryUsageTrackerPtr readTableMemoryTracker)
+        IMemoryUsageTrackerPtr memoryUsageTracker)
         : Config_(std::move(config))
         , Options_(std::move(options))
         , Client_(std::move(client))
@@ -79,7 +79,7 @@ public:
         , BandwidthThrottler_(std::move(bandwidthThrottler))
         , RpsThrottler_(std::move(rpsThrottler))
         , TransactionId_(Transaction_ ? Transaction_->GetId() : NullTransactionId)
-        , ReadTableMemoryTracker_(std::move(readTableMemoryTracker))
+        , MemoryUsageTracker_(std::move(memoryUsageTracker))
     {
         YT_VERIFY(Config_);
         YT_VERIFY(Client_);
@@ -164,7 +164,7 @@ private:
     const IThroughputThrottlerPtr BandwidthThrottler_;
     const IThroughputThrottlerPtr RpsThrottler_;
     const TTransactionId TransactionId_;
-    const IMemoryUsageTrackerPtr ReadTableMemoryTracker_;
+    const IMemoryUsageTrackerPtr MemoryUsageTracker_;
 
     TFuture<void> ReadyEvent_;
     ISchemalessMultiChunkReaderPtr Reader_;
@@ -202,7 +202,7 @@ private:
         };
 
         TClientChunkReadOptions chunkReadOptions;
-        chunkReadOptions.MemoryUsageTracker = ReadTableMemoryTracker_;
+        chunkReadOptions.MemoryUsageTracker = MemoryUsageTracker_;
         chunkReadOptions.WorkloadDescriptor = tableReaderConfig->WorkloadDescriptor;
         chunkReadOptions.WorkloadDescriptor.Annotations.push_back(Format("TablePath: %v", RichPath_.GetPath()));
         chunkReadOptions.ReadSessionId = readSessionId;
@@ -247,7 +247,7 @@ TFuture<ITableReaderPtr> CreateTableReader(
     const TColumnFilter& columnFilter,
     IThroughputThrottlerPtr bandwidthThrottler,
     IThroughputThrottlerPtr rpsThrottler,
-    IMemoryUsageTrackerPtr readTableMemoryTracker)
+    IMemoryUsageTrackerPtr memoryUsageTracker)
 {
     NApi::ITransactionPtr transaction;
     if (options.TransactionId) {
@@ -267,7 +267,7 @@ TFuture<ITableReaderPtr> CreateTableReader(
         columnFilter,
         bandwidthThrottler,
         rpsThrottler,
-        std::move(readTableMemoryTracker));
+        std::move(memoryUsageTracker));
 
     return reader->GetReadyEvent().Apply(BIND([=] () -> ITableReaderPtr {
         return reader;

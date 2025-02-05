@@ -376,7 +376,16 @@ void TBootstrap::SetupClients()
 
 void TBootstrap::ReconfigureMemoryLimits(const TProxyMemoryLimitsConfigPtr& memoryLimits)
 {
-    MemoryUsageTracker_->SetTotalLimit(memoryLimits->Total.value_or(std::numeric_limits<i64>::max()));
+    if (memoryLimits->Total) {
+        MemoryUsageTracker_->SetTotalLimit(*memoryLimits->Total);
+    }
+
+    const auto& staticLimits = Config_->MemoryLimits;
+    auto totalLimit = MemoryUsageTracker_->GetTotalLimit();
+
+    MemoryUsageTracker_->SetCategoryLimit(
+        EMemoryCategory::HeavyRequest,
+        memoryLimits->HeavyRequest.value_or(staticLimits->HeavyRequest.value_or(totalLimit)));
 }
 
 void TBootstrap::OnDynamicConfigChanged(
