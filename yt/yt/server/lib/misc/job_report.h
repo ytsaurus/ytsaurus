@@ -52,7 +52,7 @@ struct TJobInterruptionInfo
         NControllerAgent::TOperationId OperationId;
     };
 
-    NScheduler::EInterruptReason InterruptionReason;
+    NScheduler::EInterruptionReason InterruptionReason;
 
     std::optional<TDuration> InterruptionTimeout;
 

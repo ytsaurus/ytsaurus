@@ -2509,7 +2509,7 @@ void TJobTracker::TryRequestJobAction(
 void TJobTracker::RequestJobInterruption(
     TJobId jobId,
     TOperationId operationId,
-    EInterruptReason reason,
+    EInterruptionReason reason,
     TDuration timeout)
 {
     TryRequestJobAction(
@@ -2525,7 +2525,7 @@ void TJobTracker::DoRequestJobInterruption(
     TRequestedActionInfo& requestedActionInfo,
     TJobId jobId,
     TOperationId operationId,
-    NScheduler::EInterruptReason reason,
+    NScheduler::EInterruptionReason reason,
     TDuration timeout)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
@@ -3377,7 +3377,7 @@ void TJobTrackerOperationHandler::RequestJobAbortion(
 
 void TJobTrackerOperationHandler::RequestJobInterruption(
     TJobId jobId,
-    EInterruptReason reason,
+    EInterruptionReason reason,
     TDuration timeout)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();

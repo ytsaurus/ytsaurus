@@ -50,7 +50,7 @@ public:
     i64 GetTotal() const;
     i64 GetRunning() const;
     i64 GetCompletedTotal() const;
-    i64 GetCompleted(EInterruptReason reason) const;
+    i64 GetCompleted(EInterruptionReason reason) const;
     i64 GetInterruptedTotal() const;
     i64 GetPending() const;
     i64 GetSuspended() const;
@@ -65,7 +65,7 @@ public:
     i64 GetBlocked() const;
 
     void AddRunning(i64 value);
-    void AddCompleted(i64 value, EInterruptReason reason = EInterruptReason::None);
+    void AddCompleted(i64 value, EInterruptionReason reason = EInterruptionReason::None);
     void AddFailed(i64 value);
     void AddPending(i64 value);
     void SetPending(i64 value);
@@ -92,7 +92,7 @@ public:
 
 private:
     i64 Running_ = 0;
-    TEnumIndexedArray<EInterruptReason, i64> Completed_;
+    TEnumIndexedArray<EInterruptionReason, i64> Completed_;
     i64 Failed_ = 0;
     i64 Pending_ = 0;
     i64 Suspended_ = 0;
@@ -136,7 +136,7 @@ public:
 
     void SetCategory(EProgressCategory newState);
 
-    void SetCompletedCategory(EInterruptReason interruptReason);
+    void SetCompletedCategory(EInterruptionReason interruptionReason);
 
     void OnFailed();
 
@@ -153,7 +153,7 @@ private:
 
     EProgressCategory Category_ = EProgressCategory::None;
 
-    EInterruptReason InterruptReason_ = EInterruptReason::None;
+    EInterruptionReason InterruptionReason_ = EInterruptionReason::None;
 
     void UpdateProgressCounter(i64 multiplier);
 

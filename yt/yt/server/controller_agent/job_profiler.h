@@ -38,7 +38,7 @@ private:
     using TFailedJobCounterKey = std::tuple<EJobType, TString>;
     using TFailedJobCounters = THashMap<TFailedJobCounterKey, NProfiling::TCounter>;
 
-    using TCompletedJobCounterKey = std::tuple<EJobType, EInterruptReason, TString>;
+    using TCompletedJobCounterKey = std::tuple<EJobType, EInterruptionReason, TString>;
     using TCompletedJobCounters = THashMap<TCompletedJobCounterKey, NProfiling::TCounter>;
 
     using TInProgressJobCounterKey = std::tuple<EJobState, EJobType, TString>;
@@ -61,7 +61,7 @@ private:
     void DoProfileRevivedJob(EJobType jobType, TString treeId, EJobState jobState);
     void DoProfileCompletedJob(
         EJobType jobType,
-        EInterruptReason interruptionReason,
+        EInterruptionReason interruptionReason,
         TString treeId,
         TDuration duration,
         std::optional<EJobState> previousJobState);

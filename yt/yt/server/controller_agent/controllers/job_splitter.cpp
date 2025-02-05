@@ -173,7 +173,7 @@ public:
             return 1;
         }
 
-        if (summary.InterruptionReason == EInterruptReason::UserRequest) {
+        if (summary.InterruptionReason == EInterruptionReason::UserRequest) {
             return 1;
         }
 

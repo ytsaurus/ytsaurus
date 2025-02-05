@@ -443,7 +443,7 @@ public:
     void AbortJob(TJobId jobId, EAbortReason abortReason) override;
 
     bool CanInterruptJobs() const override;
-    void InterruptJob(TJobId jobId, EInterruptReason reason) override;
+    void InterruptJob(TJobId jobId, EInterruptionReason reason) override;
 
     void OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType) override;
 
@@ -1523,7 +1523,7 @@ private:
 
     bool ShouldProcessJobEvents() const;
 
-    void InterruptJob(TJobId jobId, EInterruptReason interruptionReason, TDuration timeout);
+    void InterruptJob(TJobId jobId, EInterruptionReason interruptionReason, TDuration timeout);
 
     void ClearEmptyAllocationsInRevive();
 

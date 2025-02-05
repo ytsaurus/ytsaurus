@@ -55,7 +55,7 @@ message TJobToInterrupt
 {
     required NYT.NProto.TGuid job_id = 1;
     required int64 timeout = 2;
-    required int32 reason = 3; // NScheduler::EInterruptReason
+    required int32 reason = 3; // NScheduler::EInterruptionReason
 }
 
 message TJobToStore

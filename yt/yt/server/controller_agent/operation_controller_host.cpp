@@ -207,7 +207,7 @@ void TOperationControllerHost::Disconnect(const TError& error)
     Bootstrap_->GetControlInvoker()->Invoke(BIND(&TControllerAgent::Disconnect, Bootstrap_->GetControllerAgent(), error));
 }
 
-void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout)
+void TOperationControllerHost::InterruptJob(TJobId jobId, EInterruptionReason reason, TDuration timeout)
 {
     JobTrackerOperationHandler_->RequestJobInterruption(jobId, reason, timeout);
 
