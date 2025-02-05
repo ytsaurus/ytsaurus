@@ -63,6 +63,14 @@ func GetCredentials(r *http.Request) (yt.Credentials, error) {
 		return credentials, nil
 	}
 
+	if cookie, err := r.Cookie("access_token"); err == nil {
+		credentials := &yt.CookieCredentials{
+			Cookie:    cookie,
+			CSRFToken: r.Header.Get(yt.XCSRFToken),
+		}
+		return credentials, nil
+	}
+
 	if r.Header.Get(yt.XYaUserTicket) != "" {
 		return &yt.UserTicketCredentials{Ticket: r.Header.Get(yt.XYaUserTicket)}, nil
 	}
