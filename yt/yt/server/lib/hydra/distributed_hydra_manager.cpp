@@ -1774,6 +1774,7 @@ private:
 
             THydraServiceProxy proxy(std::move(peerChannel));
             auto req = proxy.ForceRestart();
+            req->SetTimeout(Config_->Get()->ControlRpcTimeout);
             ToProto(req->mutable_reason(), error);
 
             // Fire-and-forget.
@@ -2987,6 +2988,7 @@ private:
 
             TElectionServiceProxy proxy(std::move(peerChannel));
             auto req = proxy.Discombobulate();
+            req->SetTimeout(Config_->Get()->ControlRpcTimeout);
             req->set_sequence_number(DecoratedAutomaton_->GetSequenceNumber());
             futures.push_back(req->Invoke());
         }
