@@ -5095,9 +5095,7 @@ private:
         YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
 
         auto getChildStatisticsEntry = [] (TChunkTree* child) {
-            return child
-                ? TCumulativeStatisticsEntry{child->AsChunk()->GetStatistics()}
-                : TCumulativeStatisticsEntry();
+            return TCumulativeStatisticsEntry(GetChunkTreeStatistics(child));
         };
 
         TCumulativeStatisticsEntry beforeFirst{chunkList->Statistics()};
