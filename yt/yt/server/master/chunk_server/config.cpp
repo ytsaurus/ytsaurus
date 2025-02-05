@@ -591,6 +591,11 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("finished_chunk_lists_requisition_traverse_flush_period", &TThis::FinishedChunkListsRequisitionTraverseFlushPeriod)
         .Default(TDuration::Seconds(1));
 
+    registrar.Parameter("lost_vital_chunks_sample_update_period", &TThis::LostVitalChunksSampleUpdatePeriod)
+        .Default(TDuration::Seconds(30));
+    registrar.Parameter("max_lost_vital_chunks_sample_size_per_cell", &TThis::MaxLostVitalChunksSampleSizePerCell)
+        .Default(TThis::DefaultMaxLostVitalChunksSampleSizePerCell);
+
     registrar.Parameter("chunk_seal_backoff_time", &TThis::ChunkSealBackoffTime)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("journal_rpc_timeout", &TThis::JournalRpcTimeout)

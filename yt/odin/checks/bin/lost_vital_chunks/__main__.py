@@ -4,8 +4,13 @@ from yt_odin_checks.lib.check_runner import main
 def run_check(yt_client, logger, options, states):
     yt_client.config["proxy"]["request_timeout"] = 40000
 
-    lost_vital_chunks = yt_client.list("//sys/lost_vital_chunks", max_size=options["max_size"])
-    lost_vital_chunks_count = max(yt_client.get("//sys/lost_vital_chunks/@count"), len(lost_vital_chunks))
+    # COMPAT(koloshmet)
+    if yt_client.exists("//sys/lost_vital_chunks_sample"):
+        lost_vital_chunks = yt_client.list("//sys/lost_vital_chunks_sample", max_size=options["max_size"])
+        lost_vital_chunks_count = yt_client.get("//sys/@lost_vital_chunk_count")
+    else:
+        lost_vital_chunks = yt_client.list("//sys/lost_vital_chunks", max_size=options["max_size"])
+        lost_vital_chunks_count = max(yt_client.get("//sys/lost_vital_chunks/@count"), len(lost_vital_chunks))
     logger.info("Lost vital chunks number is %s", lost_vital_chunks_count)
     if lost_vital_chunks:
         logger.info("Sample of lost vital chunks: %s", " ".join(lost_vital_chunks[:options["max_size"]]))

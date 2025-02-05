@@ -343,7 +343,9 @@ class TestChunkServer(YTEnvSetup):
         set_node_banned(node, True)
 
         wait(lambda: chunk_id in get("//sys/lost_chunks"))
+        assert get("//sys/@lost_vital_chunk_count") == 0
         assert chunk_id not in get("//sys/lost_vital_chunks")
+        assert chunk_id not in get("//sys/lost_vital_chunks_sample")
 
     @authors("achulkov2")
     def test_historically_non_vital_with_erasure(self):
@@ -358,9 +360,14 @@ class TestChunkServer(YTEnvSetup):
         for node in nodes:
             set_node_banned(node, True)
 
+        wait(lambda: get("//sys/@lost_vital_chunk_count") == 1)
+        wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 1)
         wait(lambda: chunk_id in get("//sys/lost_vital_chunks"))
+        wait(lambda: chunk_id in get("//sys/lost_vital_chunks_sample"))
 
         set("//tmp/t/@vital", False)
+        wait(lambda: get("//sys/@lost_vital_chunk_count") == 0)
+        wait(lambda: chunk_id not in get("//sys/lost_vital_chunks_sample"))
         wait(lambda: chunk_id not in get("//sys/lost_vital_chunks"))
         assert chunk_id in get("//sys/lost_chunks")
 
@@ -391,11 +398,16 @@ class TestChunkServer(YTEnvSetup):
         for node in nodes:
             set_node_banned(node, True)
 
+        wait(lambda: get("//sys/@lost_vital_chunk_count") == 1)
+        wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 1)
+        wait(lambda: chunk_id in get("//sys/lost_vital_chunks_sample"))
         wait(lambda: chunk_id in get("//sys/lost_vital_chunks"))
 
         for node in nodes:
             set_node_banned(node, False)
 
+        wait(lambda: get("//sys/@lost_vital_chunk_count") == 0)
+        wait(lambda: chunk_id not in get("//sys/lost_vital_chunks_sample"))
         wait(lambda: chunk_id not in get("//sys/lost_vital_chunks"))
 
     @authors("danilalexeev")
@@ -931,6 +943,51 @@ class TestChunkServerMulticell(TestChunkServer):
                     assert get("{0}/@native_cell_tag".format(changelog_path)) == expected_cell_tag
                 for chunk_id in get("{0}/@chunk_ids".format(changelog_path)):
                     assert get("#{}/@native_cell_tag".format(chunk_id)) == expected_cell_tag
+
+    @authors("koloshmet")
+    def test_lost_vital_chunks_sample(self):
+        set("//sys/@config/chunk_manager/lost_vital_chunks_sample_update_period", 1000)
+
+        create("table", "//tmp/t0", attributes={"external": False})
+        create("table", "//tmp/t1", attributes={"external_cell_tag": 11})
+        create("table", "//tmp/t2", attributes={"external_cell_tag": 12})
+        create("table", "//tmp/t3", attributes={"external_cell_tag": 11})
+
+        write_table("//tmp/t0", {"a": "b"})
+        write_table("//tmp/t1", {"c": "d"})
+        write_table("//tmp/t2", {"e": "f"})
+        write_table("//tmp/t3", {"g": "h"})
+
+        chunk_id0 = get_singular_chunk_id("//tmp/t0")
+        chunk_id1 = get_singular_chunk_id("//tmp/t1")
+        chunk_id2 = get_singular_chunk_id("//tmp/t2")
+        chunk_id3 = get_singular_chunk_id("//tmp/t3")
+
+        nodes = list(get("//sys/cluster_nodes"))
+        for node in nodes:
+            set_node_banned(node, True)
+
+        wait(lambda: get("//sys/@lost_vital_chunk_count") == 4)
+        wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 4)
+        lost_vital_chunks_sample = get("//sys/lost_vital_chunks_sample")
+        assert chunk_id0 in lost_vital_chunks_sample
+        assert chunk_id1 in lost_vital_chunks_sample
+        assert chunk_id2 in lost_vital_chunks_sample
+        assert chunk_id3 in lost_vital_chunks_sample
+
+        set("//sys/@config/chunk_manager/max_lost_vital_chunks_sample_size_per_cell", 1)
+
+        wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 3)
+        assert get("//sys/@lost_vital_chunk_count") == 4
+        lost_vital_chunks_sample = get("//sys/lost_vital_chunks_sample")
+        assert chunk_id0 in lost_vital_chunks_sample and chunk_id2 in lost_vital_chunks_sample
+        assert chunk_id1 in lost_vital_chunks_sample or chunk_id3 in lost_vital_chunks_sample
+
+        for node in nodes:
+            set_node_banned(node, False)
+
+        wait(lambda: get("//sys/@lost_vital_chunk_count") == 0)
+        wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 0)
 
 
 ##################################################################

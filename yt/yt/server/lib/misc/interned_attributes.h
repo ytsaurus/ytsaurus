@@ -300,6 +300,7 @@
     XX(LockMode, lock_mode) \
     XX(LockedNodeIds, locked_node_ids) \
     XX(Locks, locks) \
+    XX(LostVitalChunkCount, lost_vital_chunk_count) \
     XX(LowerLimit, lower_limit) \
     XX(MaintenanceRequests, maintenance_requests) \
     XX(MasterAlerts, master_alerts) \

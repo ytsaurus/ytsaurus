@@ -1069,6 +1069,7 @@ public:
 
         RegisterHandler(CreateSysNodeTypeHandler(Bootstrap_));
         RegisterHandler(CreateChunkLocationMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateLostVitalChunksSampleMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::ChunkMap));
         RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LostChunkMap));
         RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LostVitalChunkMap));

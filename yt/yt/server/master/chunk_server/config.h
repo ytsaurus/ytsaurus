@@ -573,6 +573,7 @@ class TDynamicChunkManagerConfig
 {
 public:
     static constexpr auto DefaultProfilingPeriod = TDuration::MilliSeconds(1000);
+    static constexpr auto DefaultMaxLostVitalChunksSampleSizePerCell = 10;
 
     //! If set to false, disables scheduling new chunk jobs (replication, removal).
     bool EnableChunkReplicator;
@@ -640,6 +641,10 @@ public:
     TDuration MaxTimePerJournalChunkRequisitionUpdate;
     //! Chunk requisition update finish mutations are batched within this period.
     TDuration FinishedChunkListsRequisitionTraverseFlushPeriod;
+    //! Chunks sample are propagated to primary master within this period.
+    TDuration LostVitalChunksSampleUpdatePeriod;
+    //! Maximum amount of сhunks in sample.
+    int MaxLostVitalChunksSampleSizePerCell;
 
     //! Interval between consequent seal attempts.
     TDuration ChunkSealBackoffTime;
