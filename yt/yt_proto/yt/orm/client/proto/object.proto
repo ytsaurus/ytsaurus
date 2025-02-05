@@ -569,6 +569,24 @@ message TReferenceOption
         // initialize the columns to the default value); use an separate bool "present" field.
     }
 
+    // How we handle duplicate entries in multirefs.
+    enum EDuplicatePolicy
+    {
+        // Most suitable option (or an exception demanding an explicit choice) selected by codegen.
+        DP_DEFAULT = 0;
+
+        // Throw an exception on duplicate write; silently ignore duplicate entries on read.
+        // Default where applicable.
+        DP_DENY = 1;
+
+        // Silently discard duplicate entries on write; silently ignore duplicate entries on read.
+        // NB: May lose auxiliary data in proto multirefs.
+        DP_DEDUPLICATE = 2;
+
+        // Allow duplicate entries. Attach/detach foreign backref only on first/last entry.
+        DP_ALLOW = 3;
+    }
+
     optional string foreign_type = 1;
 
     // Path to the matching reference in the foreign object. If the matching reference is not,
@@ -591,6 +609,7 @@ message TReferenceOption
     optional bool allow_non_empty_removal = 12;
     optional bool local_modification_only = 13;
     optional EPresencePolicy presence_policy = 14;
+    optional EDuplicatePolicy duplicate_policy = 15;
 }
 
 message TReference
