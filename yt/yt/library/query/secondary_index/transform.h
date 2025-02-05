@@ -11,7 +11,7 @@ namespace NYT::NQueryClient {
 
 void TransformWithIndexStatement(
     NAst::TQuery* query,
-    TRange<NTabletClient::TTableMountInfoPtr> mountInfos,
+    const NTabletClient::ITableMountCachePtr& cache,
     TObjectsHolder* holder);
 
 ////////////////////////////////////////////////////////////////////////////////
