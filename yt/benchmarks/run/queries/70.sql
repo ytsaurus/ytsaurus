@@ -20,7 +20,7 @@ select
  and s_state in
              ( select s_state
                from  (select store.s_state as s_state,
- 			    rank() over ( partition by s_state order by sum(ss_net_profit) desc) as ranking
+ 			    rank() over ( partition by store.s_state order by sum(ss_net_profit) desc) as ranking
                       from   store_sales cross join store cross join date_dim
                       where  d_month_seq between 1218 and 1218+11
  			    and d_date_sk = ss_sold_date_sk
