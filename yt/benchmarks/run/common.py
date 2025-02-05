@@ -93,27 +93,28 @@ def get_runnable_queries(
             logging.warning(f"Unknown queries {unknown_queries}")
 
     if not use_hand_optimized:
-        return [RunnableQuery(num, False, original_pragmas) for num in queries if num in original_set]
+        runset = [RunnableQuery(num, False, original_pragmas) for num in queries if num in original_set]
+    else:
+        # Override the original queries with hand-optimized when present.
+        optimized_queries = list_all_queries(optimized_path, query_source)
+        optimized_pragmas = combine_pragma_settings(
+            (ROOT_RESOURCE / "pragmas" / "optimized.sql").read_text() + "\n",
+            pragma_add,
+            pragma_file,
+            pragma_preset
+        )
+        optimized_set = set(optimized_queries)
 
-    # Override the original queries with hand-optimized when present.
+        runset = []
+        for num in queries:
+            if num not in original_set:
+                continue
 
-    optimized_queries = list_all_queries(optimized_path, query_source)
-    optimized_pragmas = combine_pragma_settings(
-        (ROOT_RESOURCE / "pragmas" / "optimized.sql").read_text() + "\n",
-        pragma_add,
-        pragma_file,
-        pragma_preset
-    )
-    optimized_set = set(optimized_queries)
+            optimized = num in optimized_set
+            pragma_set = optimized_pragmas if optimized else original_pragmas
+            runset.append(RunnableQuery(num, optimized, pragma_set))
 
-    runset = []
-    for num in queries:
-        if num not in original_set:
-            continue
-
-        optimized = num in optimized_set
-        pragma_set = optimized_pragmas if optimized else original_pragmas
-        runset.append(RunnableQuery(num, optimized, pragma_set))
+    runset.sort(key=lambda query: (query.index, query.hand_optimized))
     return runset
 
 
