@@ -426,6 +426,8 @@ class OperationRequestRetrier(Retrier):
         retry_config = get_config(client)["start_operation_retries"]
         timeout = get_config(client)["start_operation_request_timeout"]
 
+        self.request_timeout = timeout
+
         exceptions = (
             YtConcurrentOperationsLimitExceeded,
             YtMasterDisconnectedError)
@@ -440,6 +442,7 @@ class OperationRequestRetrier(Retrier):
             {"operation_type": self.operation_type, "spec": self.spec},
             format=None,
             mutation_id=self.mutation_id,
+            timeout=self.request_timeout,
             client=self.client)
         return result["operation_id"] if get_api_version(self.client) == "v4" else result
 
