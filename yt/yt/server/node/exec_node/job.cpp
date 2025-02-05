@@ -1659,13 +1659,13 @@ void TJob::ReportProfile()
 
 void TJob::DoInterrupt(
     TDuration timeout,
-    EInterruptReason interruptionReason,
+    EInterruptionReason interruptionReason,
     std::optional<TString> preemptionReason,
     const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-    YT_VERIFY(interruptionReason != EInterruptReason::None);
+    YT_VERIFY(interruptionReason != EInterruptionReason::None);
 
     if (InterruptionDeadline_ && InterruptionDeadline_ < TInstant::Now() + timeout) {
         YT_LOG_DEBUG(
@@ -1701,14 +1701,14 @@ void TJob::DoInterrupt(
             << TErrorAttribute("interruption_reason", InterruptionReason_)
             << TErrorAttribute("abort_reason", EAbortReason::InterruptionUnsupported);
 
-        if (interruptionReason == EInterruptReason::Preemption) {
+        if (interruptionReason == EInterruptionReason::Preemption) {
             error = TError("Job preempted") << error;
             error = error
                 << TErrorAttribute("preemption_reason", preemptionReason)
                 << TErrorAttribute("abort_reason", EAbortReason::Preemption);
         }
 
-        if (interruptionReason == EInterruptReason::JobsDisabledOnNode) {
+        if (interruptionReason == EInterruptionReason::JobsDisabledOnNode) {
             error = TError("Jobs disabled on node")
                 << error;
         }
@@ -1723,7 +1723,7 @@ void TJob::DoInterrupt(
         auto error = TError(NJobProxy::EErrorCode::InterruptionFailed, "Interrupting job that has not started yet")
             << TErrorAttribute("interruption_reason", InterruptionReason_);
 
-        if (interruptionReason == EInterruptReason::Preemption) {
+        if (interruptionReason == EInterruptionReason::Preemption) {
             error = TError("Job preempted") << error;
             error = error
                 << TErrorAttribute("preemption_reason", preemptionReason)
@@ -1910,7 +1910,7 @@ bool TJob::IsInterruptible() const noexcept
 }
 
 void TJob::OnJobInterruptionTimeout(
-    EInterruptReason interruptionReason,
+    EInterruptionReason interruptionReason,
     const std::optional<TString>& preemptionReason)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
@@ -1919,7 +1919,7 @@ void TJob::OnJobInterruptionTimeout(
         << TErrorAttribute("interruption_reason", InterruptionReason_)
         << TErrorAttribute("abort_reason", EAbortReason::InterruptionTimeout);
 
-    if (interruptionReason == EInterruptReason::Preemption) {
+    if (interruptionReason == EInterruptionReason::Preemption) {
         error = TError("Job preempted") << error;
         error = error
             << TErrorAttribute("preemption_reason", preemptionReason)
@@ -1938,7 +1938,7 @@ TControllerAgentConnectorPool::TControllerAgentConnectorPtr TJob::GetControllerA
 
 void TJob::Interrupt(
     TDuration timeout,
-    EInterruptReason interruptionReason,
+    EInterruptionReason interruptionReason,
     std::optional<TString> preemptionReason,
     const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
 {
@@ -1956,14 +1956,14 @@ void TJob::Interrupt(
     }
 }
 
-NScheduler::EInterruptReason TJob::GetInterruptionReason() const noexcept
+NScheduler::EInterruptionReason TJob::GetInterruptionReason() const noexcept
 {
     return InterruptionReason_;
 }
 
 bool TJob::IsInterrupted() const noexcept
 {
-    return InterruptionReason_ != EInterruptReason::None;
+    return InterruptionReason_ != EInterruptionReason::None;
 }
 
 const std::optional<NScheduler::TPreemptedFor>& TJob::GetPreemptedFor() const noexcept
@@ -2067,7 +2067,7 @@ void TJob::StartUserJobMonitoring()
 
 void TJob::ReportJobInterruptionInfo(
     TDuration timeout,
-    NScheduler::EInterruptReason interruptionReason,
+    NScheduler::EInterruptionReason interruptionReason,
     const std::optional<TString>& preemptionReason,
     const std::optional<NScheduler::TPreemptedFor>& preemptedFor)
 {

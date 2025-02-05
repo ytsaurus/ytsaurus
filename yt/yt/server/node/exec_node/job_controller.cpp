@@ -1213,7 +1213,7 @@ private:
 
         for (const auto& protoJobToInterrupt : response->jobs_to_interrupt()) {
             auto jobId = FromProto<TJobId>(protoJobToInterrupt.job_id());
-            auto interruptionReason = FromProto<EInterruptReason>(protoJobToInterrupt.reason());
+            auto interruptionReason = FromProto<EInterruptionReason>(protoJobToInterrupt.reason());
             auto timeout = FromProto<TDuration>(protoJobToInterrupt.timeout());
 
             if (auto job = FindJob(jobId)) {
@@ -1632,7 +1632,7 @@ private:
         job->GetAllocation()->AbortJob(std::move(abortionError), graceful, requestNewJob);
     }
 
-    void InterruptJob(const TJobPtr& job, EInterruptReason interruptionReason, TDuration interruptionTimeout)
+    void InterruptJob(const TJobPtr& job, EInterruptionReason interruptionReason, TDuration interruptionTimeout)
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
@@ -1865,7 +1865,7 @@ private:
                 YT_LOG_DEBUG(error, "Trying to interrupt job (JobId: %v)", job->GetId());
                 InterruptJob(
                     job,
-                    EInterruptReason::JobsDisabledOnNode,
+                    EInterruptionReason::JobsDisabledOnNode,
                     GetDynamicConfig()->DisabledJobsInterruptionTimeout);
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Failed to interrupt job");

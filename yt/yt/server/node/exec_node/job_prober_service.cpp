@@ -177,9 +177,9 @@ private:
                 job->GetType());
         }
 
-        EInterruptReason interruptionReason = EInterruptReason::None;
+        EInterruptionReason interruptionReason = EInterruptionReason::None;
         if (request->has_interruption_reason()) {
-            interruptionReason = FromProto<EInterruptReason>(request->interruption_reason());
+            interruptionReason = FromProto<EInterruptionReason>(request->interruption_reason());
         }
 
         job->Interrupt(

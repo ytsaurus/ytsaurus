@@ -35,14 +35,14 @@ i64 TProgressCounter::GetCompletedTotal() const
     return std::accumulate(Completed_.begin(), Completed_.end(), 0LL);
 }
 
-i64 TProgressCounter::GetCompleted(EInterruptReason reason) const
+i64 TProgressCounter::GetCompleted(EInterruptionReason reason) const
 {
     return Completed_[reason];
 }
 
 i64 TProgressCounter::GetInterruptedTotal() const
 {
-    return GetCompletedTotal() - Completed_[EInterruptReason::None];
+    return GetCompletedTotal() - Completed_[EInterruptionReason::None];
 }
 
 i64 TProgressCounter::GetPending() const
@@ -114,7 +114,7 @@ void TProgressCounter::AddRunning(i64 value)
     }
 }
 
-void TProgressCounter::AddCompleted(i64 value, EInterruptReason reason)
+void TProgressCounter::AddCompleted(i64 value, EInterruptionReason reason)
 {
     Completed_[reason] += value;
     for (const auto& parent : Parents_) {
@@ -242,7 +242,7 @@ void TProgressCounter::RegisterMetadata(auto&& registrar)
 void TProgressCounter::Propagate(TProgressCounterPtr parent, int multiplier)
 {
     parent->AddRunning(Running_ * multiplier);
-    for (auto reason : TEnumTraits<EInterruptReason>::GetDomainValues()) {
+    for (auto reason : TEnumTraits<EInterruptionReason>::GetDomainValues()) {
         parent->AddCompleted(Completed_[reason] * multiplier, reason);
     }
     parent->AddFailed(Failed_ * multiplier);
@@ -286,14 +286,14 @@ void Serialize(const TProgressCounterPtr& counter, IYsonConsumer* consumer)
             .Item("running").Value(counter->GetRunning())
             .Item("completed").BeginMap()
                 .Item("interrupted").BeginMap()
-                    .DoFor(TEnumTraits<EInterruptReason>::GetDomainValues(), [&] (TFluentMap fluent, EInterruptReason reason) {
-                        if (reason != EInterruptReason::None) {
+                    .DoFor(TEnumTraits<EInterruptionReason>::GetDomainValues(), [&] (TFluentMap fluent, EInterruptionReason reason) {
+                        if (reason != EInterruptionReason::None) {
                             fluent
                                 .Item(FormatEnum(reason)).Value(counter->GetCompleted(reason));
                         }
                     })
                 .EndMap()
-                .Item("non-interrupted").Value(counter->GetCompleted(EInterruptReason::None))
+                .Item("non-interrupted").Value(counter->GetCompleted(EInterruptionReason::None))
                 .Item("total").Value(counter->GetCompletedTotal())
             .EndMap()
             .Item("failed").Value(counter->GetFailed())
@@ -373,11 +373,11 @@ void TProgressCounterGuard::SetCategory(EProgressCategory newCategory)
     UpdateProgressCounter(+1);
 }
 
-void TProgressCounterGuard::SetCompletedCategory(EInterruptReason interruptReason)
+void TProgressCounterGuard::SetCompletedCategory(EInterruptionReason interruptionReason)
 {
     UpdateProgressCounter(-1);
     Category_ = EProgressCategory::Completed;
-    InterruptReason_ = interruptReason;
+    InterruptionReason_ = interruptionReason;
     UpdateProgressCounter(+1);
 }
 
@@ -401,7 +401,7 @@ void TProgressCounterGuard::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(1, ProgressCounter_);
     PHOENIX_REGISTER_FIELD(2, Value_);
     PHOENIX_REGISTER_FIELD(3, Category_);
-    PHOENIX_REGISTER_FIELD(4, InterruptReason_);
+    PHOENIX_REGISTER_FIELD(4, InterruptionReason_);
 }
 
 void TProgressCounterGuard::UpdateProgressCounter(i64 multiplier)
@@ -418,7 +418,7 @@ void TProgressCounterGuard::UpdateProgressCounter(i64 multiplier)
             ProgressCounter_->AddRunning(value);
             break;
         case EProgressCategory::Completed:
-            ProgressCounter_->AddCompleted(value, InterruptReason_);
+            ProgressCounter_->AddCompleted(value, InterruptionReason_);
             break;
         case EProgressCategory::Pending:
             ProgressCounter_->AddPending(value);

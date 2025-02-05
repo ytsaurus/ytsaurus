@@ -159,7 +159,7 @@ struct ITaskHost
     virtual void AbortJob(TJobId jobId, EAbortReason abortReason) = 0;
 
     virtual bool CanInterruptJobs() const = 0;
-    virtual void InterruptJob(TJobId jobId, EInterruptReason reason) = 0;
+    virtual void InterruptJob(TJobId jobId, EInterruptionReason reason) = 0;
 
     virtual void OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType) = 0;
 

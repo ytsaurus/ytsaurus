@@ -100,7 +100,7 @@ public:
 
     void InterruptJob(
         TJobId /*jobId*/,
-        EInterruptReason /*reason*/,
+        EInterruptionReason /*reason*/,
         TDuration /*timeout*/) override
     {
         YT_UNIMPLEMENTED();

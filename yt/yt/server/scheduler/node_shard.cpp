@@ -92,7 +92,7 @@ void AddAllocationToPreempt(
     allocationToPreempt->set_timeout(ToProto(duration));
 
     // COMPAT(pogorelov): Remove after 23.3 will be everywhere.
-    allocationToPreempt->set_interruption_reason(ToProto(EInterruptReason::Preemption));
+    allocationToPreempt->set_interruption_reason(ToProto(EInterruptionReason::Preemption));
 
     if (preemptionReason) {
         allocationToPreempt->set_preemption_reason(*preemptionReason);
