@@ -1021,9 +1021,6 @@ class TestListJobs(TestListJobsBase):
         assert frozenset(job["id"] for job in jobs) == frozenset(job_ids)
         assert all([job["operation_incarnation"] == incarnation for job in jobs])
 
-        print_debug("LORDF")
-        print_debug({job["id"]: job["operation_incarnation"] for job in jobs})
-
         first_job_id = job_ids[0]
 
         print_debug("aborting job ", first_job_id)
