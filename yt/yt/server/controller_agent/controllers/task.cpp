@@ -756,14 +756,14 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     };
 
     if (treeIsTentative && !TentativeTreeEligibility_.CanScheduleJob(allocation.TreeId, /*tentative*/ true)) {
-        abortJob(EAbortReason::Other);
+        abortJob(EAbortReason::SchedulingOther);
         return std::unexpected(EScheduleFailReason::TentativeTreeDeclined);
     }
 
     auto chunkPoolOutput = GetChunkPoolOutput();
     bool speculative = chunkPoolOutput->GetJobCounter()->GetPending() == 0;
     if (speculative && treeIsTentative) {
-        abortJob(EAbortReason::Other);
+        abortJob(EAbortReason::SchedulingOther);
         return std::unexpected(EScheduleFailReason::TentativeSpeculativeForbidden);
     }
 
