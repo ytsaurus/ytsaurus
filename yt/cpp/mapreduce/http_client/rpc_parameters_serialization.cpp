@@ -443,7 +443,7 @@ TNode SerializeParamsForSuspendOperation(
         result["abort_running_jobs"] = *options.AbortRunningJobs_;
     }
     if (options.Reason_) {
-        result["reason"] = *options.Reason_;
+        result["reason"] = **options.Reason_;
     }
     return result;
 }
