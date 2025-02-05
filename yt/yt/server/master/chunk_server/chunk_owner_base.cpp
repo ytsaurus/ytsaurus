@@ -203,13 +203,13 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
     if (context.GetVersion() < EMasterReign::HunkSpecificMediaFixes) {
         if (auto hunkPrimaryIndex = GetHunkPrimaryMediumIndex()) {
             if (HunkReplication().GetSize() == 0) {
-                YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet empty hunk replication encountered; assuming default replication factor"
+                YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet empty hunk replication encountered; assuming default replication factor "
                     "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
                     GetId(),
                     hunkPrimaryIndex);
                 HunkReplication().Set(*hunkPrimaryIndex, TReplicationPolicy(DefaultReplicationFactor, /* dataPartsOnly */ false));
             } else if (!HunkReplication().Get(*hunkPrimaryIndex)) {
-                YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet zero hunk replication factor encountered; assuming default replication factor"
+                YT_LOG_ALERT("Chunk owner node with non-null hunk primary index yet zero hunk replication factor encountered; assuming default replication factor "
                     "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
                     GetId(),
                     hunkPrimaryIndex);
@@ -217,10 +217,10 @@ void TChunkOwnerBase::Load(NCellMaster::TLoadContext& context)
             }
         } else {
             if (HunkReplication().GetSize() != 0) {
-                YT_LOG_ALERT("Chunk owner node with null hunk primary index yet non-empty hunk replication encountered; resetting replication to empty"
-                    "(ChunkOwnerNodeId: %v, HunkPrimaryIndex: %v)",
+                YT_LOG_ALERT("Chunk owner node with null hunk primary index yet non-empty hunk replication encountered; resetting replication to empty "
+                    "(ChunkOwnerNodeId: %v, HunkReplication: %v)",
                     GetId(),
-                    hunkPrimaryIndex);
+                    HunkReplication());
                 HunkReplication().ClearEntries();
             }
         }

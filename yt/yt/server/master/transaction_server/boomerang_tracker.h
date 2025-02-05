@@ -10,12 +10,6 @@ namespace NYT::NTransactionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Returns |true| if the current fiber currently handles a mutation returned as
-//! a boomerang.
-bool IsBoomerangMutation();
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! A device for tracking "boomerang waves".
 /*!
  *  A "boomerang" is a mutating request that is routed through a transaction

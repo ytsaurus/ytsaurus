@@ -14,7 +14,6 @@
 
 #include <yt/yt/server/master/cell_master/automaton.h>
 #include <yt/yt/server/master/cell_master/bootstrap.h>
-#include <yt/yt/server/master/cell_master/helpers.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -89,24 +88,25 @@
 
 namespace NYT::NObjectServer {
 
+using namespace NBus;
+using namespace NCellMaster;
+using namespace NChunkServer;
+using namespace NConcurrency;
+using namespace NCypressClient;
+using namespace NCypressServer;
+using namespace NHiveServer;
+using namespace NHydra;
+using namespace NObjectClient;
+using namespace NObjectClient;
+using namespace NProfiling;
+using namespace NRpc;
+using namespace NSecurityServer;
+using namespace NSequoiaClient;
+using namespace NTransactionServer;
+using namespace NTransactionSupervisor;
+using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
-using namespace NYPath;
-using namespace NHydra;
-using namespace NRpc;
-using namespace NBus;
-using namespace NCypressServer;
-using namespace NCypressClient;
-using namespace NObjectClient;
-using namespace NTransactionServer;
-using namespace NSecurityServer;
-using namespace NChunkServer;
-using namespace NObjectClient;
-using namespace NCellMaster;
-using namespace NConcurrency;
-using namespace NProfiling;
-using namespace NTransactionSupervisor;
-using namespace NSequoiaClient;
 
 using TYPath = NYPath::TYPath;
 
@@ -146,11 +146,6 @@ TPathResolver::TResolveResult ResolvePath(
             populateResult.UnresolvedPathSuffix);
     }
     return result;
-}
-
-bool IsObjectLifeStageValidationSuppressed()
-{
-    return IsSubordinateMutation();
 }
 
 } // namespace
@@ -1564,7 +1559,7 @@ bool TObjectManager::IsObjectLifeStageValid(const TObject* object) const
 {
     YT_VERIFY(IsObjectAlive(object));
 
-    if (IsObjectLifeStageValidationSuppressed()) {
+    if (IsHiveMutation()) {
         return true;
     }
 

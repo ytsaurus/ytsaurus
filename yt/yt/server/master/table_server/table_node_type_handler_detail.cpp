@@ -12,7 +12,6 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
-#include <yt/yt/server/master/cell_master/helpers.h>
 
 #include <yt/yt/server/master/chunk_server/chunk.h>
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
@@ -55,6 +54,7 @@ using namespace NChunkClient::NProto;
 using namespace NChunkServer;
 using namespace NCypressServer;
 using namespace NCypressServer::NProto;
+using namespace NHiveServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
@@ -494,7 +494,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     ENodeCloneMode mode,
     TAccount* account)
 {
-    if (!factory->ShouldAllowSecondaryIndexAbandonment() && !NHiveServer::IsHiveMutation()) {
+    if (!factory->ShouldAllowSecondaryIndexAbandonment() && !IsHiveMutation()) {
         if (sourceNode->GetIndexTo()) {
             THROW_ERROR_EXCEPTION("Cannot copy table %v because it acts as an index to table %v, consider specifying "
                 "\"allow_secondary_index_abandonment\" option",

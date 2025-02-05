@@ -8,11 +8,12 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
-#include <yt/yt/server/master/cell_master/helpers.h>
 
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 
 #include <yt/yt/server/master/table_server/table_node.h>
+
+#include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
@@ -21,6 +22,8 @@
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
+using namespace NCypressClient;
+using namespace NHiveServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
@@ -521,7 +524,7 @@ void ValidateCompressionCodec(
     const std::optional<THashSet<NCompression::ECodec>>& configuredForbiddenCodecs,
     const std::optional<THashMap<std::string, std::string>>& configuredForbiddenCodecNameToAlias)
 {
-    if (NCellMaster::IsSubordinateMutation()) {
+    if (IsHiveMutation()) {
         return;
     }
 
@@ -551,11 +554,12 @@ void ValidateErasureCodec(
     auto codecId = ConvertTo<NErasure::ECodec>(value);
     ValidateErasureCodec(codecId, forbiddenCodecs);
 }
+
 void ValidateErasureCodec(
     NErasure::ECodec codecId,
     const THashSet<NErasure::ECodec>& forbiddenCodecs)
 {
-    if (!NCellMaster::IsSubordinateMutation() && forbiddenCodecs.contains(codecId)) {
+    if (!IsHiveMutation() && forbiddenCodecs.contains(codecId)) {
         THROW_ERROR_EXCEPTION(NChunkClient::EErrorCode::ForbiddenErasureCodec, "Erasure codec %Qlv is forbidden", codecId);
     }
 }
