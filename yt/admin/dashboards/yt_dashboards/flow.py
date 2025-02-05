@@ -178,6 +178,7 @@ def build_computation_resources():
             .cell(
                 "Input buffers size",
                 MonitoringExpr(FlowWorker("yt.flow.worker.buffer_state.computations.input.size"))
+                    .all("stream_id")
                     .alias("{{computation_id}} / {{stream_id}}")
                     .unit("UNIT_BYTES_SI"))
             .cell(
