@@ -61,6 +61,24 @@ TEST(TParallelFileWriterTest, JustWriteFile)
     EXPECT_EQ(data, read);
 }
 
+TEST(TParallelFileWriterTest, WriteFileSmallConcatenateBatchSize)
+{
+    TTestFixture fixture;
+    auto fileName = "temp_ParallelFileWriter";
+    TTempFileHandle file(fileName);
+    TFileOutput output(file);
+    auto data = GenerateRandomData(10 * 1024 * 1024);
+    output << data;
+    output.Flush();
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+    TRichYPath path = workingDir + "/file";
+    WriteFileParallel(client, fileName, path, TParallelFileWriterOptions().ThreadCount(5).ConcatenateBatchSize(1));
+    auto reader = client->CreateFileReader(path);
+    auto read = reader->ReadAll();
+    EXPECT_EQ(data, read);
+}
+
 TEST(TParallelFileWriterTest, SpecifyTemporaryDirectory)
 {
     TTestFixture fixture;
