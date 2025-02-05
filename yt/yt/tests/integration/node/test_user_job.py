@@ -827,6 +827,52 @@ class TestTmpfsWithDiskLimit(YTEnvSetup):
 ##################################################################
 
 
+class TestSandboxDiskUsage(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    USE_PORTO = True
+
+    DELTA_NODE_CONFIG = {
+        "exec_node": {
+            "slot_manager": {
+                "disk_resources_update_period": 100,
+            },
+        },
+        "data_node": {
+            "volume_manager": {
+                "enable_disk_quota": False
+            },
+        },
+    }
+
+    @authors("abodrov")
+    def test_error_message(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "slot_manager": {
+                    "check_disk_space_limit": True,
+                },
+            },
+        })
+
+        with raises_yt_error("Disk usage overdraft occurred: "):
+            run_test_vanilla(
+                track=True,
+                command=" ; ".join([
+                    "dd if=/dev/zero of=local_file  bs=2M  count=1; sleep 5",
+                ]),
+                task_patch={
+                    "disk_request": {
+                        "disk_space": 1000 ** 2,
+                    },
+                },
+                spec={"max_failed_job_count": 1},
+            )
+
+##################################################################
+
+
 class TestSandboxTmpfsOverflow(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 3

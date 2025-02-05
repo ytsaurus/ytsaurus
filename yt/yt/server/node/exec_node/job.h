@@ -93,7 +93,7 @@ public:
     bool IsStarted() const;
 
     void Abort(TError error, bool graceful = false);
-    void Fail(std::optional<TError> error);
+    void Fail(TError error);
 
     void OnJobProxySpawned();
 
@@ -217,7 +217,7 @@ public:
         std::optional<TString> preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
-    void DoFail(std::optional<TError> error);
+    void DoFail(TError error);
 
     void RequestGracefulAbort(TError error);
     void DoRequestGracefulAbort(TError error);
