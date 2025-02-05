@@ -216,14 +216,24 @@ public:
             auto imageFuture = cookie.GetValue();
 
             if (auto entryOrError = imageFuture.TryGet(); entryOrError && entryOrError->IsOK()) {
-                auto entry = std::move(entryOrError->Value());
-                YT_LOG_DEBUG("Docker image found in cache (Image: %v, ImageId: %v, LastPullTime: %v, LastUsageTime: %v)",
-                    entry->ImageName(),
-                    entry->ImageId(),
-                    entry->GetLastPullTime(),
-                    entry->GetLastUsageTime());
-                TouchImage(entry);
-                return imageFuture;
+                return Executor_->GetImageStatus(image)
+                    .Apply(BIND([=, this, this_ = MakeStrong(this), entry = std::move(entryOrError->Value())] (
+                                const TCriImageApi::TRspImageStatusPtr& imageStatus) mutable {
+                        if (!imageStatus->has_image()) {
+                            YT_LOG_DEBUG("Docker image was removed externally (Image: %v, ImageId: %v)",
+                                image,
+                                imageStatus->image().id());
+                            TryRemove(image.Image, /*forbidResurrection*/ true);
+                            return PullImage(image, std::move(authConfig), pullPolicy);
+                        }
+                        YT_LOG_DEBUG("Docker image found in cache (Image: %v, ImageId: %v, LastPullTime: %v, LastUsageTime: %v)",
+                            entry->ImageName(),
+                            entry->ImageId(),
+                            entry->GetLastPullTime(),
+                            entry->GetLastUsageTime());
+                        TouchImage(entry);
+                        return MakeFuture<TCriImageCacheEntryPtr>(std::move(entry));
+                    }));
             }
 
             YT_LOG_DEBUG("Waiting for in-flight docker image pull (Image: %v)", image);
