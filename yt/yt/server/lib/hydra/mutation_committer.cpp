@@ -309,7 +309,7 @@ void TLeaderCommitter::SerializeMutations()
         return;
     }
 
-    YT_LOG_DEBUG("Started serializing mutations");
+    YT_LOG_TRACE("Started serializing mutations");
 
     if (!LeaderLease_->IsValid() || EpochContext_->LeaderLeaseExpired) {
         auto error = TError(
@@ -483,7 +483,7 @@ void TLeaderCommitter::FlushMutations()
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    YT_LOG_DEBUG("Started flushing mutations");
+    YT_LOG_TRACE("Started flushing mutations");
 
     for (auto followerId = 0; followerId < CellManager_->GetTotalPeerCount(); ++followerId) {
         if (followerId == CellManager_->GetSelfPeerId()) {
