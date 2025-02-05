@@ -495,6 +495,11 @@ public:
         return Connection_->GetNodeDirectory();
     }
 
+    TNetworkPreferenceList GetNetworks() const override
+    {
+        return Connection_->GetNetworks();
+    }
+
     TNetworkPreferenceList GetLocalNetworks() const override
     {
         return Config_->Addresses.empty()
@@ -1887,6 +1892,11 @@ TMasterEpoch TBootstrapBase::GetMasterEpoch() const
 const TNodeDirectoryPtr& TBootstrapBase::GetNodeDirectory() const
 {
     return Bootstrap_->GetNodeDirectory();
+}
+
+TNetworkPreferenceList TBootstrapBase::GetNetworks() const
+{
+    return Bootstrap_->GetNetworks();
 }
 
 TNetworkPreferenceList TBootstrapBase::GetLocalNetworks() const
