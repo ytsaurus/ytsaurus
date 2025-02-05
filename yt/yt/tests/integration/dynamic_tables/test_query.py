@@ -2467,6 +2467,8 @@ class TestQuery(DynamicTablesBase):
             make_column("v", "string"),
         ])
 
+        reshard_table("//tmp/t", [[], [0, 5], [1, 7]])
+
         sync_mount_table("//tmp/t")
         rowset = [
             {"k_1": 0, "k_2": 4, "v": "Cecil"},
@@ -2481,7 +2483,7 @@ class TestQuery(DynamicTablesBase):
         ]
         insert_rows("//tmp/t", rowset)
 
-        assert rowset == select_rows("* FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM [//tmp/t])))")
+        assert rowset == select_rows("* FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM [//tmp/t] limit 100) limit 100) limit 100)")
         assert [{"k": 0}] == select_rows("B.[A.k_1] AS k FROM (SELECT A.k_1 from [//tmp/t] AS A limit 1) AS B limit 1")
 
         assert [{"v": "Alpha"}] == select_rows(

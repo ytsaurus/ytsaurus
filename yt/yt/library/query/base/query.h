@@ -212,17 +212,17 @@ struct TLikeExpression
 };
 
 using TStructMemberAccessor = TString;
-using TTupleItemIndexAccessor = i64;
+using TTupleItemIndexAccessor = int;
 
 struct TCompositeMemberAccessorPath
 {
     std::vector<NTableClient::ELogicalMetatype> NestedTypes;
     std::vector<TStructMemberAccessor> NamedStructMembers;
     std::vector<int> PositionalStructMembers;
-    std::vector<int> TupleItemIndices;
+    std::vector<TTupleItemIndexAccessor> TupleItemIndices;
 
     void AppendStructMember(TStructMemberAccessor name, int position);
-    void AppendTupleItem(int index);
+    void AppendTupleItem(TTupleItemIndexAccessor index);
     void Reserve(int length);
 
     bool operator == (const TCompositeMemberAccessorPath& other) const = default;
