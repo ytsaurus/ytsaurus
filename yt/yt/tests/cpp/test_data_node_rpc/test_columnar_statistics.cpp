@@ -502,7 +502,7 @@ TEST_F(TReadSizeEstimationTest, HorizontalChunkStrict)
         {"small"}});
 
     EXPECT_NEAR(GetReadSizeEstimation({"small"}), 4580, 50);
-    EXPECT_EQ(GetReadSizeEstimation({"unknown"}), 0);
+    EXPECT_EQ(GetReadSizeEstimation({"unknown"}), GetReadSizeEstimation({"small"}));
 
     EXPECT_EQ(
         GetReadSizeEstimation({"small"}),

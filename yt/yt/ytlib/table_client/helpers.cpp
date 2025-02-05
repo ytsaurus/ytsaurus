@@ -451,55 +451,107 @@ ui32 GetHeavyColumnStatisticsHash(ui32 salt, const TColumnStableName& stableName
 }
 
 TColumnarStatistics GetColumnarStatistics(
-    const NProto::THeavyColumnStatisticsExt& statistics,
+    const TInputChunkPtr& chunk,
     const std::vector<TColumnStableName>& columnNames,
-    i64 chunkRowCount)
+    const TTableSchemaPtr& tableSchema)
 {
-    YT_VERIFY(statistics.version() == 1);
+    const auto* statistics = chunk->HeavyColumnarStatisticsExt().get();
+    YT_VERIFY(statistics);
+    YT_VERIFY(statistics->version() == 1);
 
-    auto salt = statistics.salt();
+    auto salt = statistics->salt();
 
     THashMap<ui32, i64> columnNameHashToDataWeight;
     i64 minHeavyColumnWeight = std::numeric_limits<i64>::max();
 
-    for (int columnIndex = 0; columnIndex < statistics.column_name_hashes_size(); ++columnIndex) {
-        auto columnDataWeight = statistics.data_weight_unit() * static_cast<ui8>(statistics.column_data_weights()[columnIndex]);
-        auto columnNameHash = statistics.column_name_hashes(columnIndex);
+    for (int columnIndex = 0; columnIndex < statistics->column_name_hashes_size(); ++columnIndex) {
+        auto columnDataWeight = statistics->data_weight_unit() * static_cast<ui8>(statistics->column_data_weights()[columnIndex]);
+        auto columnNameHash = statistics->column_name_hashes(columnIndex);
         minHeavyColumnWeight = std::min<i64>(minHeavyColumnWeight, columnDataWeight);
         columnNameHashToDataWeight[columnNameHash] = std::max<i64>(columnNameHashToDataWeight[columnNameHash], columnDataWeight);
     }
 
-    TColumnarStatistics columnarStatistics;
-    columnarStatistics.ColumnDataWeights.reserve(columnNames.size());
-    for (const auto& columnName : columnNames) {
+    auto estimateColumnDataWeight = [&] (const TColumnStableName& columnName) -> i64 {
+        if (columnName.Underlying() == NonexistentColumnName) {
+            return 0;
+        }
         auto columnNameHash = GetHeavyColumnStatisticsHash(salt, columnName);
         auto it = columnNameHashToDataWeight.find(columnNameHash);
         if (it == columnNameHashToDataWeight.end()) {
-            columnarStatistics.ColumnDataWeights.push_back(minHeavyColumnWeight);
+            return minHeavyColumnWeight;
         } else {
-            columnarStatistics.ColumnDataWeights.push_back(it->second);
+            return it->second;
+        }
+    };
+
+    TColumnarStatistics columnarStatistics;
+    columnarStatistics.ColumnDataWeights.reserve(columnNames.size());
+    for (const auto& columnName : columnNames) {
+        columnarStatistics.ColumnDataWeights.push_back(estimateColumnDataWeight(columnName));
+    }
+    columnarStatistics.ChunkRowCount = chunk->GetTotalRowCount();
+
+    auto chunkFormat = chunk->GetChunkFormat();
+    if (!tableSchema || IsTableChunkFormatVersioned(chunkFormat)) {
+        // Versioned chunk format is not yet supported.
+        return columnarStatistics;
+    }
+
+    if (chunkFormat != EChunkFormat::TableUnversionedColumnar) {
+        columnarStatistics.ReadDataSizeEstimate = chunk->GetCompressedDataSize();
+        return columnarStatistics;
+    }
+
+    i64 totalDataWeight = 0;
+    THashMap<std::string_view, i64> columnGroupToDataWeight;
+    for (const auto& column : tableSchema->Columns()) {
+        i64 columnDataWeight = estimateColumnDataWeight(column.StableName());
+        totalDataWeight += columnDataWeight;
+        if (!column.Group()) {
+            continue;
+        }
+        columnGroupToDataWeight[*column.Group()] += columnDataWeight;
+    }
+
+    i64 uncompressedReadDataSizeEstimate = 0;
+    bool shouldCountOtherColumns = false;
+    THashSet<std::string_view> visitedColumnGroups;
+    for (const auto& columnName : columnNames) {
+        const auto* column = tableSchema->FindColumnByStableName(columnName);
+        if (!column && !tableSchema->GetStrict()) {
+            shouldCountOtherColumns = true;
+        } else if (column && !column->Group()) {
+            uncompressedReadDataSizeEstimate += estimateColumnDataWeight(columnName);
+        } else if (column && visitedColumnGroups.insert(*column->Group()).second) {
+            uncompressedReadDataSizeEstimate += columnGroupToDataWeight[*column->Group()];
         }
     }
-    columnarStatistics.ChunkRowCount = chunkRowCount;
+
+    if (shouldCountOtherColumns) {
+        uncompressedReadDataSizeEstimate += std::max<i64>(0, chunk->GetUncompressedDataSize() - totalDataWeight);
+    }
+
+    double compressionRatio = chunk->GetCompressedDataSize() / chunk->GetUncompressedDataSize();
+    columnarStatistics.ReadDataSizeEstimate = uncompressedReadDataSizeEstimate * compressionRatio;
 
     return columnarStatistics;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 EstimateReadDataSizeForColumns(
+std::optional<i64> EstimateReadDataSizeForColumns(
     const std::vector<TColumnStableName>& columnStableNames,
     const TChunkMeta& meta,
     TTableSchemaPtr schema,
     TChunkId chunkId,
     const TLogger& Logger)
 {
-    i64 compressedDataSize = GetProtoExtension<TMiscExt>(meta.extensions()).compressed_data_size();
-
     if (IsTableChunkFormatVersioned(FromProto<EChunkFormat>(meta.format()))) {
         // Versioned chunk format is not yet supported.
-        return compressedDataSize;
+        return std::nullopt;
     }
+
+    i64 compressedDataSize = GetProtoExtension<TMiscExt>(meta.extensions()).compressed_data_size();
 
     if (!schema) {
         auto optionalSchemaExt = FindProtoExtension<TTableSchemaExt>(meta.extensions());
@@ -514,17 +566,7 @@ i64 EstimateReadDataSizeForColumns(
 
     auto optionalColumnMetaExt = FindProtoExtension<TColumnMetaExt>(meta.extensions());
     if (!optionalColumnMetaExt) {
-        if (!schema->GetStrict()) {
-            return compressedDataSize;
-        }
-
-        for (const auto& stableName : columnStableNames) {
-            if (schema->FindColumnByStableName(stableName)) {
-                return compressedDataSize;
-            }
-        }
-
-        return 0;
+        return compressedDataSize;
     }
 
     const auto& columnMeta = *optionalColumnMetaExt;
@@ -544,18 +586,13 @@ i64 EstimateReadDataSizeForColumns(
         return compressedDataSize;
     }
 
-    THashSet<TStringBuf> uniqueColumnStableNames;
-    for (const auto& column : columnStableNames) {
-        uniqueColumnStableNames.insert(column.Underlying());
-    }
-
     THashSet<int> blockIndexes;
 
     bool otherColumnsBlocksAdded = false;
 
-    for (const auto& columnName : uniqueColumnStableNames) {
+    for (const auto& columnName : columnStableNames) {
         int columnIndex;
-        const auto* columnSchema = schema->FindColumnByStableName(TColumnStableName(std::string(columnName)));
+        const auto* columnSchema = schema->FindColumnByStableName(columnName);
         if (!columnSchema) {
             if (otherColumnsBlocksAdded || schema->GetStrict()) {
                 continue;

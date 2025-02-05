@@ -1,7 +1,7 @@
 #include "columnar_statistics_fetcher.h"
 
-#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 
@@ -9,6 +9,7 @@
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
+#include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/rpc/helpers.h>
@@ -143,6 +144,10 @@ void TColumnarStatisticsFetcher::OnResponse(
                 subresponse.columnar_statistics(),
                 &subresponse.large_columnar_statistics(),
                 Chunks_[chunkIndex]->GetTotalRowCount());
+
+            if (subresponse.has_read_data_size_estimate()) {
+                statistics.ReadDataSizeEstimate = subresponse.read_data_size_estimate();
+            }
         }
         if (Options_.StoreChunkStatistics) {
             ChunkStatistics_[chunkIndex] = statistics;
@@ -181,32 +186,44 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
         } else {
             statistics = LightweightChunkStatistics_[index];
         }
-        if (statistics.LegacyChunkDataWeight == 0) {
-            // We have columnar statistics, so we can adjust input chunk data weight by setting column selectivity factor.
-            i64 totalColumnDataWeight = 0;
-            switch (chunk->GetChunkFormat()) {
-                case EChunkFormat::TableUnversionedSchemalessHorizontal:
-                case EChunkFormat::TableUnversionedColumnar:
-                    // NB: We should add total row count to the column data weights because otherwise for the empty column list
-                    // there will be zero data weight which does not allow unordered pool to work properly.
-                    totalColumnDataWeight += chunk->GetTotalRowCount();
-                    break;
-                case EChunkFormat::TableVersionedSimple:
-                case EChunkFormat::TableVersionedColumnar:
-                case EChunkFormat::TableVersionedIndexed:
-                case EChunkFormat::TableVersionedSlim:
-                    // Default value of sizeof(TTimestamp) = 8 is used for versioned chunks that were written before
-                    // we started to save the timestamp statistics to columnar statistics extension.
-                    totalColumnDataWeight += statistics.TimestampTotalWeight.value_or(sizeof(TTimestamp));
-                    break;
-                default:
-                    THROW_ERROR_EXCEPTION("Cannot apply column selectivity factor for chunk of an unexpected format")
-                        << TErrorAttribute("chunk_id", chunk->GetChunkId())
-                        << TErrorAttribute("chunk_format", chunk->GetChunkFormat());
-            }
-            totalColumnDataWeight += statistics.ColumnDataWeightsSum;
-            auto totalDataWeight = chunk->GetTotalDataWeight();
-            chunk->SetColumnSelectivityFactor(std::min(static_cast<double>(totalColumnDataWeight) / totalDataWeight, 1.0));
+        if (statistics.LegacyChunkDataWeight != 0) {
+            return;
+        }
+
+        // We have columnar statistics, so we can adjust input chunk data weight by setting column selectivity factor.
+        i64 totalColumnDataWeight = 0;
+        switch (chunk->GetChunkFormat()) {
+            case EChunkFormat::TableUnversionedSchemalessHorizontal:
+            case EChunkFormat::TableUnversionedColumnar:
+                // NB: We should add total row count to the column data weights because otherwise for the empty column list
+                // there will be zero data weight which does not allow unordered pool to work properly.
+                totalColumnDataWeight += chunk->GetTotalRowCount();
+                break;
+            case EChunkFormat::TableVersionedSimple:
+            case EChunkFormat::TableVersionedColumnar:
+            case EChunkFormat::TableVersionedIndexed:
+            case EChunkFormat::TableVersionedSlim:
+                // Default value of sizeof(TTimestamp) = 8 is used for versioned chunks that were written before
+                // we started to save the timestamp statistics to columnar statistics extension.
+                totalColumnDataWeight += statistics.TimestampTotalWeight.value_or(sizeof(TTimestamp));
+                break;
+            default:
+                THROW_ERROR_EXCEPTION("Cannot apply column selectivity factor for chunk of an unexpected format")
+                    << TErrorAttribute("chunk_id", chunk->GetChunkId())
+                    << TErrorAttribute("chunk_format", chunk->GetChunkFormat());
+        }
+
+        auto totalDataWeight = chunk->GetTotalDataWeight();
+        totalColumnDataWeight += statistics.ColumnDataWeightsSum;
+        chunk->SetColumnSelectivityFactor(std::min(static_cast<double>(totalColumnDataWeight) / totalDataWeight, 1.0));
+
+        if (statistics.ReadDataSizeEstimate) {
+            chunk->SetReadSizeSelectivityFactor(static_cast<double>(*statistics.ReadDataSizeEstimate) / chunk->GetCompressedDataSize());
+        } else if (chunk->GetChunkFormat() == EChunkFormat::TableUnversionedColumnar ||
+            chunk->GetChunkFormat() == EChunkFormat::TableVersionedColumnar)
+        {
+            // Versioned tables are currently not supported; default to the previous estimation method.
+            chunk->SetReadSizeSelectivityFactor(chunk->GetColumnSelectivityFactor());
         }
     }
 }
@@ -230,7 +247,10 @@ void TColumnarStatisticsFetcher::OnFetchingStarted()
     }
 }
 
-void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TColumnStableName> columnStableNames)
+void TColumnarStatisticsFetcher::AddChunk(
+    TInputChunkPtr chunk,
+    std::vector<TColumnStableName> columnStableNames,
+    const TTableSchemaPtr& tableSchema)
 {
     if (!NeedFetchFromNode_.emplace(chunk, true).second) {
         // We already know about this chunk.
@@ -248,16 +268,16 @@ void TColumnarStatisticsFetcher::AddChunk(TInputChunkPtr chunk, std::vector<TCol
         Chunks_.emplace_back(std::move(chunk));
         NeedFetchFromNode_[chunk] = false;
     } else {
-        const NProto::THeavyColumnStatisticsExt* heavyColumnStatistics = nullptr;
+        bool hasHeavyColumnStatistics = false;
         if (Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster ||
             Options_.Mode == EColumnarStatisticsFetcherMode::Fallback)
         {
-            heavyColumnStatistics = chunk->HeavyColumnarStatisticsExt().get();
+            hasHeavyColumnStatistics = static_cast<bool>(chunk->HeavyColumnarStatisticsExt());
         }
-        if (heavyColumnStatistics || Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster) {
+        if (hasHeavyColumnStatistics || Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster) {
             TColumnarStatistics columnarStatistics;
-            if (heavyColumnStatistics) {
-                columnarStatistics = GetColumnarStatistics(*heavyColumnStatistics, columnStableNames, chunk->GetTotalRowCount());
+            if (hasHeavyColumnStatistics) {
+                columnarStatistics = GetColumnarStatistics(chunk, columnStableNames, tableSchema);
             } else {
                 YT_VERIFY(Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster);
                 columnarStatistics = TColumnarStatistics::MakeLegacy(columnStableNames.size(), chunk->GetDataWeight(), chunk->GetTotalRowCount());
