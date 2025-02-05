@@ -1849,6 +1849,28 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_unmount_table("//tmp/h")
         wait(lambda: not exists("#{}".format(cell_id)))
 
+    @authors("akozhikhov")
+    def test_altering_queue_to_static_is_forbidden(self):
+        sync_create_cells(1)
+        self._create_table()
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/h")
+
+        remove("//tmp/t/@hunk_storage_id")
+
+        with raises_yt_error("table schema contains hunk columns"):
+            alter_table("//tmp/t", dynamic=False)
+
 
 ################################################################################
 
