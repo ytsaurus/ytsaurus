@@ -1,8 +1,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/lib/signature/signature_generator.h>
+#include "stub_keystore.h"
 
-#include <yt/yt/server/lib/signature/key_stores/stub.h>
+#include <yt/yt/server/lib/signature/signature_generator.h>
 
 #include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/signature_header.h>
@@ -57,55 +57,53 @@ TEST_F(TSignatureGeneratorTest, Rotate)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(arkady-e1pa): Whenever trivial signature generator/validator are present, uncomment.
-// TEST_F(TSignatureGeneratorTest, SimpleSign)
-// {
-//     WaitFor(Gen->Rotate()).ThrowOnError();
+TEST_F(TSignatureGeneratorTest, SimpleSign)
+{
+    WaitFor(Gen->Rotate()).ThrowOnError();
 
-//     auto data = ConvertToYsonString("MyImportantData");
-//     auto signature = New<TSignature>(TYsonString(data));
-//     Gen->Sign(signature);
-//     EXPECT_EQ(signature->Payload(), data);
+    auto data = ConvertToYsonString("MyImportantData");
+    auto signature = Gen->Sign(data);
+    EXPECT_EQ(signature->Payload(), data);
 
-//     auto signatureYson = ConvertToNode(ConvertToYsonString(signature));
-//     auto headerString = signatureYson->AsMap()->GetChildValueOrThrow<TString>("header");
-//     auto header = ConvertTo<TSignatureHeader>(TYsonString(headerString));
-//     // Sanity check.
-//     EXPECT_EQ(
-//         std::visit([] (const auto& header_) {
-//             return TOwnerId(header_.Issuer);
-//         }, header),
-//         Store->GetOwner());
+    auto signatureYson = ConvertToNode(ConvertToYsonString(signature));
+    auto headerString = signatureYson->AsMap()->GetChildValueOrThrow<TString>("header");
+    auto header = ConvertTo<TSignatureHeader>(TYsonString(headerString));
 
-//     EXPECT_TRUE(std::visit(
-//         [] (const auto& header_) {
-//             auto now = Now();
-//             return header_.ValidAfter < now && now < header_.ExpiresAt;
-//         },
-//         header));
+    // Sanity check.
+    EXPECT_EQ(
+        std::visit([] (const auto& header_) {
+            return TOwnerId(header_.Issuer);
+        }, header),
+        Store->GetOwner());
 
-//     auto toSign = PreprocessSignature(TYsonString(headerString), signature->Payload());
+    EXPECT_TRUE(std::visit(
+        [] (const auto& header_) {
+            auto now = Now();
+            return header_.ValidAfter < now && now < header_.ExpiresAt;
+        },
+        header));
 
-//     auto signatureNode = ConvertToNode(ConvertToYsonString(signature));
-//     auto signatureByteString = signatureNode->AsMap()->GetChildValueOrThrow<TString>("signature");
-//     auto signatureBytes = std::as_bytes(std::span(TStringBuf(signatureByteString)));
-//     EXPECT_EQ(signatureBytes.size(), SignatureSize);
+    auto toSign = PreprocessSignature(TYsonString(headerString), signature->Payload());
 
-//     EXPECT_TRUE(Store->Data[Store->GetOwner()][0]->Verify(
-//         toSign,
-//         signatureBytes.template first<SignatureSize>()));
-// }
+    auto signatureNode = ConvertToNode(ConvertToYsonString(signature));
+    auto signatureByteString = signatureNode->AsMap()->GetChildValueOrThrow<TString>("signature");
+    auto signatureBytes = std::as_bytes(std::span(TStringBuf(signatureByteString)));
+    EXPECT_EQ(signatureBytes.size(), SignatureSize);
 
-// ////////////////////////////////////////////////////////////////////////////////
+    EXPECT_TRUE(Store->Data[Store->GetOwner()][0]->Verify(
+        toSign,
+        signatureBytes.template first<SignatureSize>()));
+}
 
-// TEST_F(TSignatureGeneratorTest, UninitializedSign)
-// {
-//     EXPECT_TRUE(Store->Data.empty());
+////////////////////////////////////////////////////////////////////////////////
 
-//     auto data = NYson::ConvertToYsonString("MyImportantData");
-//     auto signature = New<TSignature>(TYsonString(data));
-//     EXPECT_THROW_WITH_SUBSTRING(Gen->Sign(signature), "uninitialized generator");
-// }
+TEST_F(TSignatureGeneratorTest, UninitializedSign)
+{
+    EXPECT_TRUE(Store->Data.empty());
+
+    auto data = ConvertToYsonString("MyImportantData");
+    EXPECT_THROW_WITH_SUBSTRING(Y_UNUSED(Gen->Sign(data)), "uninitialized generator");
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -28,6 +28,7 @@ target_link_libraries(server-lib-signature PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
+  yt-yt-core
   yt-yt-ytlib
   contrib-libs-libsodium
   cpp-string_utils-secret_string
@@ -43,8 +44,7 @@ target_sources(server-lib-signature PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/signature_header.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/signature_preprocess.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/signature_validator.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_stores/cypress.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/key_stores/stub.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/cypress_key_store.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/instance_config.cpp
 )
 

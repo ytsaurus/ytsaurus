@@ -8,6 +8,19 @@
             timeout_backoff_lead_time = 100;
         };
     };
+    DELTA_RPC_PROXY_CONFIG = {
+        signature_validation = {
+            cypress_key_reader = {};
+            validator = {};
+        };
+        signature_generation = {
+            cypress_key_writer = {
+                owner_id = test-rpc-proxy;
+            };
+            generator = {};
+            key_rotator = {};
+        };
+    };
     DRIVER_BACKEND = rpc;
     NUM_RPC_PROXIES = 2;
     ENABLE_RPC_PROXY = %true;

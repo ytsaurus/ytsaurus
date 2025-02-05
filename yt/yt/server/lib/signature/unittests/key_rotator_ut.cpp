@@ -1,10 +1,10 @@
 #include <yt/yt/core/test_framework/framework.h>
 
+#include "stub_keystore.h"
+
 #include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/key_rotator.h>
 #include <yt/yt/server/lib/signature/signature_generator.h>
-
-#include <yt/yt/server/lib/signature/key_stores/stub.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>

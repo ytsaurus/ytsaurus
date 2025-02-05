@@ -61,6 +61,7 @@ target_sources(unittester-signature-service PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/signature_generator_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/signature_validator_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/signature_preprocess_ut.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/lib/signature/unittests/stub_keystore.cpp
 )
 
 

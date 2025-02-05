@@ -1,8 +1,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/lib/signature/signature_validator.h>
+#include "stub_keystore.h"
 
-#include <yt/yt/server/lib/signature/key_stores/stub.h>
+#include <yt/yt/server/lib/signature/signature_validator.h>
 
 #include <yt/yt/server/lib/signature/config.h>
 #include <yt/yt/server/lib/signature/key_pair.h>
@@ -44,15 +44,14 @@ struct TSignatureValidatorTest
         : Store(New<TStubKeyStore>())
         , KeyId(TGuid::Create())
         , Key(TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
-            .Owner = Store->Owner,
-            .Id = KeyId,
+            .OwnerId = Store->OwnerId,
+            .KeyId = KeyId,
             .CreatedAt = Now(),
             .ValidAfter = Now() - 10h,
             .ExpiresAt = Now() + 10h})
         , Config(New<TSignatureValidatorConfig>())
         , Validator(New<TSignatureValidator>(Config, Store))
-    {
-    }
+    { }
 
     TSignatureHeader SimpleHeader(
         TDuration delta_created,
@@ -61,7 +60,7 @@ struct TSignatureValidatorTest
     {
         auto now = Now();
         return TSignatureHeaderImpl<TSignatureVersion{0, 1}>{
-            .Issuer = Store->Owner.Underlying(),
+            .Issuer = Store->OwnerId.Underlying(),
             .KeypairId = KeyId.Underlying(),
             .SignatureId = TGuid::Create(),
             .IssuedAt = now + delta_created,

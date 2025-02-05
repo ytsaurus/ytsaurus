@@ -31,6 +31,7 @@ import struct
 import socket
 from datetime import datetime, timedelta
 import time
+from typing import Any
 
 
 def try_parse_yt_error_headers(rsp):
@@ -1475,6 +1476,71 @@ class TestHttpProxyNullApiTestingOptions(TestHttpProxyHeapUsageStatisticsBase):
         create("table", self.PATH)
         write_table(f"<append=%true>{self.PATH}", [{"key": "x"}])
         self._execute_command("GET", "read_table")
+
+
+class TestHttpProxySignaturesBase(HttpProxyTestBase):
+    DELTA_PROXY_CONFIG = {
+        "signature_validation": {
+            "cypress_key_reader": dict(),
+            "validator": dict(),
+        },
+        "signature_generation": {
+            "cypress_key_writer": {
+                "owner_id": "test-http-proxy",
+            },
+            "generator": dict(),
+        },
+    }
+
+    # NB(pavook): to avoid owner collision.
+    NUM_HTTP_PROXIES = 1
+
+    OWNERS_PATH = "//sys/public_keys/by_owner"
+    KEYS_PATH = f"{OWNERS_PATH}/test-http-proxy"
+
+
+def deep_update(source: dict[Any, Any], overrides: dict[Any, Any]) -> dict[Any, Any]:
+    """
+    Update a nested dictionary.
+    """
+    result = source.copy()
+    for key, value in overrides.items():
+        if isinstance(value, dict) and value:
+            returned = deep_update(source.get(key, {}), value)
+            result[key] = returned
+        else:
+            result[key] = value
+    return result
+
+
+class TestHttpProxySignaturesKeyCreation(TestHttpProxySignaturesBase):
+    DELTA_PROXY_CONFIG = deep_update(TestHttpProxySignaturesBase.DELTA_PROXY_CONFIG, {
+        "signature_generation": {
+            "key_rotator": {
+                "key_rotation_interval": "2h",
+            },
+        },
+    })
+
+    @authors("pavook")
+    @pytest.mark.timeout(60)
+    def test_public_key_appears(self):
+        wait(lambda: len(ls(self.KEYS_PATH)) == 1)
+
+
+class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
+    DELTA_PROXY_CONFIG = deep_update(TestHttpProxySignaturesBase.DELTA_PROXY_CONFIG, {
+        "signature_generation": {
+            "key_rotator": {
+                "key_rotation_interval": "200ms",
+            },
+        },
+    })
+
+    @authors("pavook")
+    @pytest.mark.timeout(60)
+    def test_public_key_rotates(self):
+        wait(lambda: len(ls(self.KEYS_PATH)) > 1)
 
 
 class TestHttpsProxy(HttpProxyTestBase):

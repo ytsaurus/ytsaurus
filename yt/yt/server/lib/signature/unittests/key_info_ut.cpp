@@ -54,7 +54,7 @@ TEST(TKeyPairMetadataTest, SerializeDeserialize)
 TEST(TKeyPairMetadataTest, DeserializeFail)
 {
     constexpr static TStringBuf MetadataString =
-        R"({version="0.999";owner="owner";id="4-3-2-1";created_at="2024-10-21T16:19:41Z";)"
+        R"({version="0.999";owner_id="owner";key_id="4-3-2-1";created_at="2024-10-21T16:19:41Z";)"
         R"(valid_after="2024-10-21T16:19:41Z";expires_at="2024-10-21T16:19:41Z";})";
 
     EXPECT_THROW(ConvertTo<TKeyPairMetadata>("{}"), std::exception);

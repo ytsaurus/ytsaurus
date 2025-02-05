@@ -18,7 +18,7 @@
 #include <yt/yt/server/lib/signature/signature_generator.h>
 #include <yt/yt/server/lib/signature/signature_validator.h>
 
-#include <yt/yt/server/lib/signature/key_stores/cypress.h>
+#include <yt/yt/server/lib/signature/cypress_key_store.h>
 
 #include <yt/yt/server/lib/shuffle_server/shuffle_service.h>
 
@@ -201,7 +201,7 @@ void TBootstrap::DoInitialize()
     }
 
     if (Config_->SignatureValidation) {
-        CypressKeyReader_ = New<TCypressKeyReader>(
+        CypressKeyReader_ = CreateCypressKeyReader(
             Config_->SignatureValidation->CypressKeyReader,
             RootClient_);
         SignatureValidator_ = New<TSignatureValidator>(
@@ -210,9 +210,10 @@ void TBootstrap::DoInitialize()
     }
 
     if (Config_->SignatureGeneration) {
-        CypressKeyWriter_ = New<TCypressKeyWriter>(
+        CypressKeyWriter_ = WaitFor(CreateCypressKeyWriter(
             Config_->SignatureGeneration->CypressKeyWriter,
-            RootClient_);
+            RootClient_))
+            .ValueOrThrow();
         SignatureGenerator_ = New<TSignatureGenerator>(
             Config_->SignatureGeneration->Generator,
             CypressKeyWriter_);
@@ -221,7 +222,6 @@ void TBootstrap::DoInitialize()
             GetControlInvoker(),
             SignatureGenerator_);
 
-        YT_UNUSED_FUTURE(CypressKeyWriter_->Initialize());
         SignatureKeyRotator_->Start();
     }
 
@@ -335,8 +335,8 @@ void TBootstrap::DoStart()
             TraceSampler_,
             RpcProxyLogger(),
             RpcProxyProfiler(),
-            SignatureValidator_,
-            SignatureGenerator_,
+            (SignatureValidator_ ? SignatureValidator_ : CreateAlwaysThrowingSignatureValidator()),
+            (SignatureGenerator_ ? SignatureGenerator_ : CreateAlwaysThrowingSignatureGenerator()),
             MemoryUsageTracker_,
             /*stickyTransactionPool*/ {},
             QueryCorpusReporter_);

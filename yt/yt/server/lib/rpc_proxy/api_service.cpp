@@ -617,8 +617,8 @@ public:
         TProfiler profiler,
         INodeMemoryTrackerPtr memoryTracker,
         IStickyTransactionPoolPtr stickyTransactionPool,
-        ISignatureValidatorPtr signatureValidator,
-        ISignatureGeneratorPtr signatureGenerator,
+        TSignatureValidatorBasePtr signatureValidator,
+        TSignatureGeneratorBasePtr signatureGenerator,
         IQueryCorpusReporterPtr queryCorpusReporter)
         : TServiceBase(
             std::move(workerInvoker),
@@ -882,9 +882,8 @@ private:
     const IInvokerPtr ControlInvoker_;
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
-
-    const ISignatureValidatorPtr SignatureValidator_;
-    const ISignatureGeneratorPtr SignatureGenerator_;
+    const TSignatureValidatorBasePtr SignatureValidator_;
+    const TSignatureGeneratorBasePtr SignatureGenerator_;
 
     static const TStructuredLoggingMethodDynamicConfigPtr DefaultMethodConfig;
 
@@ -6084,16 +6083,13 @@ private:
     template <std::constructible_from<TSignaturePtr> TFinal>
     TFinal GenerateSignature(TSignaturePtr&& emptySignature) const
     {
-        // TODO(arkady-e1ppa): When dummy generator/validator are
-        // added, uncomment.
-        // SignatureGenerator_->Sign(emptySignature);
+        SignatureGenerator_->Sign(emptySignature);
         return TFinal(std::move(emptySignature));
     }
 
-    TFuture<bool> ValidateSignature(const TSignaturePtr& /* signedValue */) const
+    TFuture<bool> ValidateSignature(const TSignaturePtr& signedValue) const
     {
-        return MakeFuture(true);
-        // return SignatureValidator_->Validate(signedValue);
+        return SignatureValidator_->Validate(signedValue);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, StartDistributedWriteSession)
@@ -6947,12 +6943,13 @@ IApiServicePtr CreateApiService(
     NTracing::TSamplerPtr traceSampler,
     NLogging::TLogger logger,
     TProfiler profiler,
-    ISignatureValidatorPtr signatureValidator,
-    ISignatureGeneratorPtr signatureGenerator,
+    TSignatureValidatorBasePtr signatureValidator,
+    TSignatureGeneratorBasePtr signatureGenerator,
     INodeMemoryTrackerPtr memoryUsageTracker,
     IStickyTransactionPoolPtr stickyTransactionPool,
     IQueryCorpusReporterPtr queryCorpusReporter)
 {
+    YT_VERIFY(signatureValidator && signatureGenerator);
     return New<TApiService>(
         std::move(config),
         std::move(controlInvoker),

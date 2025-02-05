@@ -362,10 +362,12 @@ TEST_F(TDistributedTableApiTest, StartWriteFinishAbort)
         auto tx = WaitFor(
             Client_->StartTransaction(ETransactionType::Master))
                 .ValueOrThrow();
-        auto [session, cookies] = StartDistributedWriteSession(
+        auto sessionWithCookies = StartDistributedWriteSession(
             /*append*/ false,
             /*cookieCount*/ 1,
             /*txId*/ tx->GetId());
+        auto session = std::move(sessionWithCookies.Session);
+        auto cookies = std::move(sessionWithCookies.Cookies);
 
         auto cookie = std::move(cookies[0]);
         auto result = DistributedWriteTable(
@@ -415,10 +417,12 @@ TEST_F(TDistributedTableApiTest, StartWriteAbortFinish)
         auto tx = WaitFor(
             Client_->StartTransaction(ETransactionType::Master))
                 .ValueOrThrow();
-        auto [session, cookies] = StartDistributedWriteSession(
+        auto sessionWithCookies = StartDistributedWriteSession(
             /*append*/ false,
             /*cookieCount*/ 1,
             /*txId*/ tx->GetId());
+        auto session = std::move(sessionWithCookies.Session);
+        auto cookies = std::move(sessionWithCookies.Cookies);
 
         auto cookie = std::move(cookies[0]);
         auto result = DistributedWriteTable(
@@ -465,9 +469,11 @@ TEST_F(TDistributedTableApiTest, StartWriteTwiceFinishSameCookie)
     }
 
     {
-        auto [session, cookies] = StartDistributedWriteSession(
+        auto sessionWithCookies = StartDistributedWriteSession(
             /*append*/ true,
             /*cookieCount*/ 1);
+        auto session = std::move(sessionWithCookies.Session);
+        auto cookies = std::move(sessionWithCookies.Cookies);
 
         auto cookie = std::move(cookies[0]);
         auto result1 = DistributedWriteTable(
@@ -525,9 +531,11 @@ TEST_F(TDistributedTableApiTest, StartWriteTwiceFinishDifferentCookies)
     }
 
     {
-        auto [session, cookies] = StartDistributedWriteSession(
+        auto sessionWithCookies = StartDistributedWriteSession(
             /*append*/ true,
             /*cookieCount*/ 2);
+        auto session = std::move(sessionWithCookies.Session);
+        auto cookies = std::move(sessionWithCookies.Cookies);
 
         auto cookie1 = cookies[0];
         auto cookie2 = cookies[1];
@@ -586,9 +594,11 @@ TEST_F(TDistributedTableApiTest, StartWriteFailWriteSuccessFinish)
     }
 
     {
-        auto [session, cookies] = StartDistributedWriteSession(
+        auto sessionWithCookies = StartDistributedWriteSession(
             /*append*/ true,
             /*cookieCount*/ 1);
+        auto session = std::move(sessionWithCookies.Session);
+        auto cookies = std::move(sessionWithCookies.Cookies);
 
         auto cookie = cookies[0];
         EXPECT_ANY_THROW(DistributedWriteTable(
@@ -648,9 +658,11 @@ TEST_F(TDistributedTableApiTest, ManyChunksToAttach)
     }
 
     {
-        auto [session, cookies] = StartDistributedWriteSession(
+        auto sessionWithCookies = StartDistributedWriteSession(
             /*append*/ true,
             /*cookieCount*/ 1);
+        auto session = std::move(sessionWithCookies.Session);
+        auto cookies = std::move(sessionWithCookies.Cookies);
 
         auto cookie = cookies[0];
         std::vector<TSignedWriteFragmentResultPtr> results;
@@ -700,9 +712,11 @@ TEST_F(TDistributedTableApiTest, SortedTableSimpleDistributedWrite)
     }
 
     {
-        auto [session, cookies] = StartDistributedWriteSession(
+        auto sessionWithCookies = StartDistributedWriteSession(
             /*append*/ true,
             /*cookieCount*/ 1);
+        auto session = std::move(sessionWithCookies.Session);
+        auto cookies = std::move(sessionWithCookies.Cookies);
 
         auto cookie = cookies[0];
 
@@ -745,9 +759,11 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOneCookie)
     }
 
     {
-        auto [session, cookies] = StartDistributedWriteSession(
+        auto sessionWithCookies = StartDistributedWriteSession(
             /*append*/ true,
             /*cookieCount*/ 1);
+        auto session = std::move(sessionWithCookies.Session);
+        auto cookies = std::move(sessionWithCookies.Cookies);
 
         auto cookie = cookies[0];
 
@@ -802,9 +818,11 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOneCookieInverte
     }
 
     {
-        auto [session, cookies] = StartDistributedWriteSession(
+        auto sessionWithCookies = StartDistributedWriteSession(
             /*append*/ true,
             /*cookieCount*/ 1);
+        auto session = std::move(sessionWithCookies.Session);
+        auto cookies = std::move(sessionWithCookies.Cookies);
 
         auto cookie = cookies[0];
 
@@ -859,9 +877,11 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesTwoCookies)
     }
 
     {
-        auto [session, cookies] = StartDistributedWriteSession(
+        auto sessionWithCookies = StartDistributedWriteSession(
             /*append*/ true,
             /*cookieCount*/ 2);
+        auto session = std::move(sessionWithCookies.Session);
+        auto cookies = std::move(sessionWithCookies.Cookies);
 
         auto cookie1 = cookies[0];
         auto cookie2 = cookies[1];
@@ -918,9 +938,11 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesTwoCookiesInvert
     }
 
     {
-        auto [session, cookies] = StartDistributedWriteSession(
+        auto sessionWithCookies = StartDistributedWriteSession(
             /*append*/ true,
             /*cookieCount*/ 2);
+        auto session = std::move(sessionWithCookies.Session);
+        auto cookies = std::move(sessionWithCookies.Cookies);
 
         auto cookie1 = cookies[0];
         auto cookie2 = cookies[1];
@@ -978,9 +1000,11 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesViolateUniquenes
     }
 
     {
-        auto [session, cookies] = StartDistributedWriteSession(
+        auto sessionWithCookies = StartDistributedWriteSession(
             /*append*/ true,
             /*cookieCount*/ 2);
+        auto session = std::move(sessionWithCookies.Session);
+        auto cookies = std::move(sessionWithCookies.Cookies);
 
         auto cookie1 = cookies[0];
         auto cookie2 = cookies[1];
@@ -1040,9 +1064,11 @@ TEST_F(TDistributedTableApiTest, SortedTableTwoDistributedWritesOverlapKeyRanges
     }
 
     {
-        auto [session, cookies] = StartDistributedWriteSession(
+        auto sessionWithCookies = StartDistributedWriteSession(
             /*append*/ true,
             /*cookieCount*/ 2);
+        auto session = std::move(sessionWithCookies.Session);
+        auto cookies = std::move(sessionWithCookies.Cookies);
 
         auto cookie1 = cookies[0];
         auto cookie2 = cookies[1];
@@ -1101,9 +1127,11 @@ TEST_F(TDistributedTableApiTest, StartWriteCookieDuplicateResult)
     }
 
     {
-        auto [session, cookies] = StartDistributedWriteSession(
+        auto sessionWithCookies = StartDistributedWriteSession(
             /*append*/ true,
             /*cookieCount*/ 1);
+        auto session = std::move(sessionWithCookies.Session);
+        auto cookies = std::move(sessionWithCookies.Cookies);
 
         auto cookie = std::move(cookies[0]);
         auto result1 = DistributedWriteTable(

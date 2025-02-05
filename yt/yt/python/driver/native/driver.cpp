@@ -30,6 +30,9 @@
 
 #include <yt/yt/client/driver/config.h>
 
+#include <yt/yt/client/signature/generator.h>
+#include <yt/yt/client/signature/validator.h>
+
 namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,6 +45,7 @@ using namespace NConcurrency;
 using namespace NTabletClient;
 using namespace NJobTrackerClient;
 using namespace NApi;
+using namespace NSignature;
 
 using NApi::NNative::EClusterConnectionDynamicConfigPolicy;
 
@@ -114,7 +118,13 @@ public:
                 }
             }
 
-            driver = CreateDriver(std::move(connection), std::move(driverConfig));
+            // NB(pavook): no actual signature validation is needed for the native driver,
+            // as it already is inside of the security perimeter.
+            driver = CreateDriver(
+                std::move(connection),
+                std::move(driverConfig),
+                CreateDummySignatureGenerator(),
+                CreateDummySignatureValidator());
         } catch (const std::exception& ex) {
             throw Py::RuntimeError(TString("Error creating driver\n") + ex.what());
         }

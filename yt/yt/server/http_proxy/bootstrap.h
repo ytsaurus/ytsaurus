@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
+#include <yt/yt/server/lib/signature/public.h>
+
 #include <yt/yt/ytlib/api/public.h>
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -143,6 +145,10 @@ private:
     IAccessCheckerPtr AccessChecker_;
 
     INodeMemoryTrackerPtr MemoryUsageTracker_;
+
+    NSignature::TSignatureGeneratorBasePtr SignatureGenerator_;
+    NSignature::TSignatureValidatorBasePtr SignatureValidator_;
+    NSignature::TKeyRotatorPtr SignatureKeyRotator_;
 
     void DoRun();
     void DoInitialize();

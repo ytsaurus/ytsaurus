@@ -25,6 +25,9 @@
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 #include <yt/yt/server/lib/rpc_proxy/security_manager.h>
 
+#include <yt/yt/server/lib/signature/cypress_key_store.h>
+#include <yt/yt/server/lib/signature/signature_validator.h>
+
 #include <yt/yt/server/lib/user_job/config.h>
 
 #include <yt/yt/server/exec/user_job_synchronizer.h>
@@ -83,6 +86,9 @@
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/client/signature/generator.h>
+#include <yt/yt/client/signature/validator.h>
 
 #include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/column_rename_descriptor.h>
@@ -156,6 +162,7 @@ using namespace NProfiling;
 using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NStatisticPath;
+using namespace NSignature;
 using namespace NUserJob;
 using namespace NLogging;
 using namespace NServer;
@@ -786,8 +793,10 @@ void TJobProxy::EnableRpcProxyInJobProxy(int rpcProxyWorkerThreadPoolSize)
         New<TSampler>(),
         proxyLogger,
         TProfiler(),
-        /*signatureValidator*/ nullptr,
-        /*signatureGenerator*/ nullptr);
+        NSignature::CreateAlwaysThrowingSignatureValidator(),
+        NSignature::CreateAlwaysThrowingSignatureGenerator());
+    // TODO(pavook) do signature validation in job proxies.
+
     GetRpcServer()->RegisterService(std::move(apiService));
     YT_LOG_INFO("RPC proxy API service registered (ThreadCount: %v)", rpcProxyWorkerThreadPoolSize);
 }

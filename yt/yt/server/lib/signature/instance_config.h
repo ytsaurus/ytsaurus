@@ -1,6 +1,6 @@
-#include "public.h"
+#pragma once
 
-#include <yt/yt/server/lib/signature/key_stores/public.h>
+#include "public.h"
 
 #include <yt/yt/core/ytree/yson_struct.h>
 

@@ -47,8 +47,8 @@ IApiServicePtr CreateApiService(
     NTracing::TSamplerPtr traceSampler,
     NLogging::TLogger logger,
     NProfiling::TProfiler profiler,
-    NSignature::ISignatureValidatorPtr validator,
-    NSignature::ISignatureGeneratorPtr generator,
+    NSignature::TSignatureValidatorBasePtr signatureValidator,
+    NSignature::TSignatureGeneratorBasePtr signatureGenerator,
     INodeMemoryTrackerPtr memoryUsageTracker = {},
     NApi::IStickyTransactionPoolPtr stickyTransactionPool = {},
     IQueryCorpusReporterPtr queryCorpusReporter = {});

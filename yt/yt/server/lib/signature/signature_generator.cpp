@@ -22,13 +22,13 @@ using namespace std::chrono_literals;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSignatureGenerator::TSignatureGenerator(TSignatureGeneratorConfigPtr config, IKeyStoreWriterPtr store)
+TSignatureGenerator::TSignatureGenerator(TSignatureGeneratorConfigPtr config, IKeyStoreWriterPtr keyWriter)
     : Config_(std::move(config))
-    , Store_(std::move(store))
-    , Owner_(Store_->GetOwner())
+    , KeyWriter_(std::move(keyWriter))
+    , OwnerId_(KeyWriter_->GetOwner())
 {
     InitializeCryptography();
-    YT_LOG_INFO("Signature generator initialized (Owner: %v)", Owner_);
+    YT_LOG_INFO("Signature generator initialized (Owner: %v)", OwnerId_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -41,14 +41,14 @@ TFuture<void> TSignatureGenerator::Rotate()
 
     auto now = Now();
     TKeyPair newKeyPair(TKeyPairMetadataImpl<TKeyPairVersion{0, 1}>{
-        .Owner = Owner_,
-        .Id = TKeyId{TGuid::Create()},
+        .OwnerId = OwnerId_,
+        .KeyId = TKeyId{TGuid::Create()},
         .CreatedAt = now,
         .ValidAfter = now - Config_->TimeSyncMargin,
         .ExpiresAt = now + Config_->KeyExpirationDelta,
     });
 
-    return Store_->RegisterKey(newKeyPair.KeyInfo()).Apply(
+    return KeyWriter_->RegisterKey(newKeyPair.KeyInfo()).Apply(
         BIND([this, keyPair = std::move(newKeyPair), this_ = MakeStrong(this)] () mutable {
             {
                 auto guard = WriterGuard(KeyPairLock_);
@@ -70,9 +70,6 @@ TKeyInfoPtr TSignatureGenerator::KeyInfo() const
 
 void TSignatureGenerator::Sign(const TSignaturePtr& signature)
 {
-    // Make sure that we are not overwriting an existing signature.
-    YT_VERIFY(!GetHeader(signature));
-
     auto signatureId = TGuid::Create();
     auto now = Now();
     TSignatureHeader header;
@@ -85,7 +82,7 @@ void TSignatureGenerator::Sign(const TSignaturePtr& signature)
         }
 
         header = TSignatureHeaderImpl<TSignatureVersion{0, 1}>{
-            .Issuer = Owner_.Underlying(),
+            .Issuer = OwnerId_.Underlying(),
             .KeypairId = GetKeyId(KeyPair_->KeyInfo()->Meta()).Underlying(),
             .SignatureId = signatureId,
             .IssuedAt = now,

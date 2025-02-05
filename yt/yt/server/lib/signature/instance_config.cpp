@@ -2,8 +2,6 @@
 
 #include "config.h"
 
-#include <yt/yt/server/lib/signature/key_stores/cypress.h>
-
 namespace NYT::NSignature {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,6 +14,7 @@ void TSignatureValidationConfig::Register(TRegistrar registrar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
 void TSignatureGenerationConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("cypress_key_writer", &TThis::CypressKeyWriter);
