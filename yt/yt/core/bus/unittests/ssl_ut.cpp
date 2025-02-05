@@ -7,7 +7,6 @@
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/client.h>
 #include <yt/yt/core/bus/tcp/server.h>
-#include <yt/yt/core/bus/tcp/ssl_context.h>
 
 #include <library/cpp/testing/common/network.h>
 
@@ -526,9 +525,6 @@ TEST_F(TSslTest, OptionalAndDisabledEncryptionMode)
 
 TEST_F(TSslTest, CAVerificationModeFailure)
 {
-    // Reset ctx in order to unload possibly loaded CA.
-    TSslContext::Get()->Reset();
-
     auto serverConfig = TBusServerConfig::CreateTcp(Port);
     serverConfig->EncryptionMode = EEncryptionMode::Required;
     serverConfig->VerificationMode = EVerificationMode::None;
@@ -554,9 +550,6 @@ TEST_F(TSslTest, CAVerificationModeFailure)
 
 TEST_F(TSslTest, CAVerificationModeSuccess)
 {
-    // Reset ctx in order to unload possibly loaded CA.
-    TSslContext::Get()->Reset();
-
     auto serverConfig = TBusServerConfig::CreateTcp(Port);
     serverConfig->EncryptionMode = EEncryptionMode::Required;
     serverConfig->VerificationMode = EVerificationMode::None;
@@ -592,9 +585,6 @@ TEST_F(TSslTest, CAVerificationModeSuccess)
 
 TEST_F(TSslTest, FullVerificationModeByHostName)
 {
-    // Reset ctx in order to unload possibly loaded CA.
-    TSslContext::Get()->Reset();
-
     auto serverConfig = TBusServerConfig::CreateTcp(Port);
     serverConfig->EncryptionMode = EEncryptionMode::Required;
     serverConfig->VerificationMode = EVerificationMode::None;
@@ -628,9 +618,6 @@ TEST_F(TSslTest, FullVerificationModeByHostName)
 
 TEST_F(TSslTest, FullVerificationModeByIpAddress)
 {
-    // Reset ctx in order to unload possibly loaded CA.
-    TSslContext::Get()->Reset();
-
     // Connect via ipv4 and ipv6 addresses.
     for (const auto& address : {AddressWithIpV4, AddressWithIpV6}) {
         auto serverConfig = TBusServerConfig::CreateTcp(Port);
@@ -667,9 +654,6 @@ TEST_F(TSslTest, FullVerificationModeByIpAddress)
 
 TEST_F(TSslTest, FullVerificationByAlternativeHostName)
 {
-    // Reset ctx in order to unload possibly loaded CA.
-    TSslContext::Get()->Reset();
-
     for (const auto& address : {AddressWithIpV4, AddressWithIpV6}) {
         auto serverConfig = TBusServerConfig::CreateTcp(Port);
         serverConfig->EncryptionMode = EEncryptionMode::Required;
