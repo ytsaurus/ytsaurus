@@ -355,6 +355,13 @@ public:
             });
         }
 
+        if (NFS::Exists("/dev/net/tun")) {
+            devices.push_back(TDevice{
+                .DeviceName = "/dev/net/tun",
+                .Access = "rw",
+            });
+        }
+
         if (Options_.EnableFuse && NFS::Exists("/dev/fuse")) {
             launcher->SetEnableFuse(true);
         }
