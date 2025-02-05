@@ -247,6 +247,10 @@ void TJoblet::Persist(const TPersistenceContext& context)
         TString operationIncarnationStr;
         Persist(context, operationIncarnationStr);
         OperationIncarnation = TOperationIncarnation(std::move(operationIncarnationStr));
+    } else if (context.GetVersion() < ESnapshotVersion::OperationIncarnationIsOptional) {
+        TOperationIncarnation operationIncarnation;
+        Persist(context, operationIncarnation);
+        OperationIncarnation = std::move(operationIncarnation);
     } else {
         Persist(context, OperationIncarnation);
     }

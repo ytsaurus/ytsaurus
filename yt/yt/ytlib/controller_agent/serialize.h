@@ -43,6 +43,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((PreserveJobCookieForAllocationInGangs)(301703))
     ((ThrottlingOfRemoteReads)              (301704))
     ((TableWriteBufferEstimation)           (301705))
+    ((OperationIncarnationIsOptional)       (301706))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
