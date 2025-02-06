@@ -1,3 +1,4 @@
+from collections import defaultdict
 from .test_lookup import TestLookupCache
 
 from yt_env_setup import find_ut_file, skip_if_rpc_driver_backend
@@ -2508,6 +2509,47 @@ class TestQuery(DynamicTablesBase):
             [{"small": "Boulevard", "big": "Warrior"}, {"small": "Alpha", "big": "Traitor"}],
             select_rows("min(X.[T.v]) AS small, max(X.[D.s]) as big FROM "
                         "(SELECT T.k_1 as k_1, T.v, D.s FROM [//tmp/t] T JOIN [//tmp/d] D on T.k_1 = D.k_1) X group by X.k_1"))
+
+    @authors("sabdenovch")
+    def test_push_down_group_by_primary_key(self):
+        sync_create_cells(1)
+
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "v", "type": "int64"},
+            ],
+            [{"k": i, "v": 0} for i in range(10)],
+        )
+
+        create(
+            "table",
+            "//tmp/d",
+            attributes={
+                "dynamic": True,
+                "schema": [
+                    {"name": "k", "type": "int64", "sort_order": "ascending"},
+                    {"name": "k_extra", "type": "int64", "sort_order": "ascending"},
+                    {"name": "clicks", "type": "int64"},
+                ],
+            },
+        )
+        reshard_table("//tmp/d", [[], [2, 0], [3, 1], [4, 1]])
+        sync_mount_table("//tmp/d")
+        insert_rows("//tmp/d", [{"k": i // 10, "k_extra": i % 10, "clicks": i} for i in range(66)])
+
+        query = """
+            k, sum(D.clicks) AS sum FROM [//tmp/t] T
+            LEFT JOIN [//tmp/d] D WITH HINT \"{push_down_group_by=%true}\" on T.k = D.k
+            GROUP BY T.k AS k
+            ORDER BY sum DESC LIMIT 2000"""
+        result = defaultdict(int)
+        for i in range(66):
+            result[i // 10] += i
+        for i in range(7, 10):
+            result[i] = None
+        assert_items_equal(select_rows(query), [{"k": k, "sum": v} for k, v in result.items()])
 
 
 @pytest.mark.enabled_multidaemon

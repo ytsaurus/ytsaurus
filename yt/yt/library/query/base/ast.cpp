@@ -229,6 +229,8 @@ void TTableHint::Register(TRegistrar registrar)
 {
     registrar.Parameter("require_sync_replica", &TThis::RequireSyncReplica)
         .Default(true);
+    registrar.Parameter("push_down_group_by", &TThis::PushDownGroupBy)
+        .Default(false);
 }
 
 bool operator == (const TTableDescriptor& lhs, const TTableDescriptor& rhs)

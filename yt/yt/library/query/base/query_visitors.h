@@ -86,28 +86,28 @@ struct TVisitor
 
     void OnFunction(const TFunctionExpression* functionExpr)
     {
-        for (auto argument : functionExpr->Arguments) {
+        for (const auto& argument : functionExpr->Arguments) {
             Visit(argument);
         }
     }
 
     void OnIn(const TInExpression* inExpr)
     {
-        for (auto argument : inExpr->Arguments) {
+        for (const auto& argument : inExpr->Arguments) {
             Visit(argument);
         }
     }
 
     void OnBetween(const TBetweenExpression* betweenExpr)
     {
-        for (auto argument : betweenExpr->Arguments) {
+        for (const auto& argument : betweenExpr->Arguments) {
             Visit(argument);
         }
     }
 
     void OnTransform(const TTransformExpression* transformExpr)
     {
-        for (auto argument : transformExpr->Arguments) {
+        for (const auto& argument : transformExpr->Arguments) {
             Visit(argument);
         }
     }
