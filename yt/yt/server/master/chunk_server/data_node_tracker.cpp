@@ -17,8 +17,11 @@
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/helpers.h>
 #include <yt/yt/server/master/chunk_server/chunk_replica_fetcher.h>
+
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 #include <yt/yt/server/master/chunk_server/proto/data_node_tracker.pb.h>
+
+#include <yt/yt/server/master/object_server/object_service.h>
 
 #include <yt/yt/server/master/sequoia_server/config.h>
 
@@ -167,7 +170,7 @@ public:
         auto isSequoiaEnabled = sequoiaChunkReplicasConfig->Enable;
         auto sequoiaChunkProbability = sequoiaChunkReplicasConfig->ReplicasPercentage;
 
-        auto splitRequest = BIND([=, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] {
+        auto splitRequest = BIND([&, sequoiaLocationIndices = std::move(sequoiaLocationIndices)] {
             auto preparedRequest = NewWithOffloadedDtor<TFullHeartbeatRequest>(NRpc::TDispatcher::Get()->GetHeavyInvoker());
             preparedRequest->NonSequoiaRequest.CopyFrom(originalRequest);
             if (!isSequoiaEnabled) {
@@ -200,17 +203,25 @@ public:
             .ValueOrThrow();
 
         if (preparedRequest->SequoiaRequest->removed_chunks_size() + preparedRequest->SequoiaRequest->added_chunks_size() > 0) {
-            for (const auto& protoChunkId : preparedRequest->SequoiaRequest->removed_chunks()) {
-                if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
-                    *preparedRequest->SequoiaRequest->add_dead_chunk_ids() = protoChunkId.chunk_id();
+            auto modifyDeadChunks = BIND([&] {
+                for (const auto& protoChunkId : preparedRequest->SequoiaRequest->removed_chunks()) {
+                    if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
+                        *preparedRequest->SequoiaRequest->add_dead_chunk_ids() = protoChunkId.chunk_id();
+                    }
                 }
-            }
 
-            for (const auto& protoChunkId : preparedRequest->SequoiaRequest->added_chunks()) {
-                if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
-                    *preparedRequest->SequoiaRequest->add_dead_chunk_ids() = protoChunkId.chunk_id();
+                for (const auto& protoChunkId : preparedRequest->SequoiaRequest->added_chunks()) {
+                    if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
+                        *preparedRequest->SequoiaRequest->add_dead_chunk_ids() = protoChunkId.chunk_id();
+                    }
                 }
-            }
+            });
+
+            const auto& objectService = Bootstrap_->GetObjectService();
+            WaitFor(modifyDeadChunks
+                .AsyncVia(objectService->GetLocalReadOffloadInvoker())
+                .Run())
+                .ThrowOnError();
 
             WaitFor(chunkManager->ModifySequoiaReplicas(std::move(preparedRequest->SequoiaRequest)))
                 .ThrowOnError();
@@ -367,17 +378,25 @@ public:
             .ValueOrThrow();
 
         if (preparedRequest->SequoiaRequest->removed_chunks_size() + preparedRequest->SequoiaRequest->added_chunks_size() > 0) {
-            for (const auto& protoChunkId : preparedRequest->SequoiaRequest->removed_chunks()) {
-                if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
-                    *preparedRequest->SequoiaRequest->add_dead_chunk_ids() = protoChunkId.chunk_id();
+            auto modifyDeadChunks = BIND([&] {
+                for (const auto& protoChunkId : preparedRequest->SequoiaRequest->removed_chunks()) {
+                    if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
+                        *preparedRequest->SequoiaRequest->add_dead_chunk_ids() = protoChunkId.chunk_id();
+                    }
                 }
-            }
 
-            for (const auto& protoChunkId : preparedRequest->SequoiaRequest->added_chunks()) {
-                if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
-                    *preparedRequest->SequoiaRequest->add_dead_chunk_ids() = protoChunkId.chunk_id();
+                for (const auto& protoChunkId : preparedRequest->SequoiaRequest->added_chunks()) {
+                    if (!IsObjectAlive(chunkManager->FindChunk(FromProto<TChunkId>(protoChunkId.chunk_id())))) {
+                        *preparedRequest->SequoiaRequest->add_dead_chunk_ids() = protoChunkId.chunk_id();
+                    }
                 }
-            }
+            });
+
+            const auto& objectService = Bootstrap_->GetObjectService();
+            WaitFor(modifyDeadChunks
+                .AsyncVia(objectService->GetLocalReadOffloadInvoker())
+                .Run())
+                .ThrowOnError();
 
             WaitFor(chunkManager->ModifySequoiaReplicas(std::move(preparedRequest->SequoiaRequest)))
                 .ThrowOnError();
