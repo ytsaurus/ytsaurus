@@ -1,5 +1,9 @@
 #pragma once
 
+#include "public.h"
+
+#include "wire_string.h"
+
 #include <yt/yt/core/ypath/public.h>
 #include <yt/yt/core/yson/protobuf_interop_options.h>
 #include <yt/yt/core/ytree/public.h>
@@ -38,10 +42,15 @@ void ClearFieldByPath(T&& from, NYPath::TYPathBuf path);
 //! Sets the field that the `path` points to in the `message`.
 //! Throws an error if path is invalid, or there is a missing key along the path and `recursive` is false.
 void SetProtobufFieldByPath(
-    google::protobuf::Message& message,
+    NProtoBuf::Message& message,
     const NYPath::TYPath& path,
     const NYTree::INodePtr& value,
     const NYson::TProtobufWriterOptions& options = {},
+    bool recursive = false);
+void SetProtobufFieldByPath(
+    NProtoBuf::Message& message,
+    const NYPath::TYPath& path,
+    const TWireString& value,
     bool recursive = false);
 
 template <class T>

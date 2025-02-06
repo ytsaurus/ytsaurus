@@ -66,9 +66,10 @@ YT_DEFINE_ERROR_ENUM(
 
 // How to proceed when the path leads into missing fields.
 DEFINE_ENUM(EMissingFieldPolicy,
-    (Throw)  // Throw an error.
-    (Skip)   // Quietly return.
-    (Force)  // Visit the field anyway (visit the default if const/populate the field if mutable).
+    (Throw)     // Throw an error.
+    (Skip)      // Quietly return.
+    (Force)     // Visit the field anyway (visit the default if const/populate the field if mutable).
+    (ForceLeaf) // Visit the leaf field anyway, otherwise `Throw`.
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -80,6 +81,11 @@ template <typename TWrappedMessage, typename TSelf>
 class TProtoVisitor;
 
 struct TIndexParseResult;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TWireString;
+class TWireStringPart;
 
 ////////////////////////////////////////////////////////////////////////////////
 

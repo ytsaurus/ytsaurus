@@ -95,17 +95,30 @@ TError SetScalarField(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     const NYTree::INodePtr& value);
+TError SetScalarField(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    const TWireString& wireString);
 
 TError SetScalarRepeatedFieldEntry(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     int index,
     const NYTree::INodePtr& value);
+TError SetScalarRepeatedFieldEntry(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    int index,
+    const TWireString& wireString);
 
 TError AddScalarRepeatedFieldEntry(
     NProtoBuf::Message* message,
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     const NYTree::INodePtr& value);
+TError AddScalarRepeatedFieldEntry(
+    NProtoBuf::Message* message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    TWireStringPart wireStringPart);
 
 std::pair<int, TError> FindAttributeDictionaryEntry(
     NProtoBuf::Message* message,

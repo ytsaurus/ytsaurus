@@ -2,7 +2,13 @@
 
 #include "public.h"
 
+#include <yt/yt/core/yson/protobuf_interop_options.h>
+
 #include <yt/yt/core/ypath/public.h>
+
+#include <yt/yt/core/yson/public.h>
+
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NOrm::NAttributes {
 
@@ -10,16 +16,17 @@ namespace NYT::NOrm::NAttributes {
 
 // Non-owning continuous view of serialized protobuf message part.
 class TWireStringPart
-    : public std::span<const ui8>
 {
 public:
     TWireStringPart();
     TWireStringPart(const ui8* data, size_t size);
 
-    TWireStringPart Skip(int count) const;
-
+    std::span<const ui8> AsSpan() const;
     std::string_view AsStringView() const;
     static TWireStringPart FromStringView(std::string_view view);
+
+private:
+    std::span<const ui8> Span_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -46,10 +53,34 @@ public:
 
     static TWireString FromSerialized(std::string_view serializedProto);
     static TWireString FromSerialized(const std::vector<std::string_view>& serializedProtos);
+    static TWireString FromSerialized(const std::vector<std::string>& serializedProtos);
     static TWireString FromSerialized(const std::vector<TString>& serializedProtos);
 
     bool operator==(const TWireString& other) const;
+
+    TWireStringPart LastOrEmptyPart() const;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Returns whether parsing was successful.
+// NB! Caller should guarantee that provided element type refers to appropriate
+// cpp type (e.g. FieldDescriptor::TYPE_UINT32 is valid argument for ParseUint64, but not others).
+bool ParseUint64(ui64* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart);
+bool ParseInt64(i64* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart);
+bool ParseDouble(double* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart);
+bool ParseBoolean(bool* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart);
+
+std::string SerializeUint64(ui64 value, NYson::TProtobufElementType type);
+std::string SerializeInt64(i64 value, NYson::TProtobufElementType type);
+std::string SerializeDouble(double value, NYson::TProtobufElementType type);
+std::string SerializeBoolean(bool value, NYson::TProtobufElementType type);
+
+std::string SerializeAttributeDictionary(const NYTree::IAttributeDictionary& attributeDictionary);
+std::string SerializeMessage(
+    const NYTree::INodePtr& message,
+    const NYson::TProtobufMessageType* messageType,
+    NYson::TProtobufWriterOptions options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1,5 +1,7 @@
 #include "helpers.h"
 
+#include "wire_string.h"
+
 #include <yt/yt/core/ypath/token.h>
 #include <yt/yt/core/ypath/tokenizer.h>
 
@@ -610,6 +612,52 @@ TError SetScalarField(
     }
 }
 
+TError SetScalarField(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    const TWireString& wireString)
+{
+    auto wireStringPart = wireString.LastOrEmptyPart();
+    if (wireStringPart.AsSpan().empty()) {
+        return SetDefaultScalarFieldValue(message, fieldDescriptor);
+    }
+
+    switch (fieldDescriptor->cpp_type()) {
+        case NProtoBuf::FieldDescriptor::CPPTYPE_STRING:
+            return SetScalarField(message, fieldDescriptor, TString{wireStringPart.AsStringView()});
+        case NProtoBuf::FieldDescriptor::CPPTYPE_INT32:
+        case NProtoBuf::FieldDescriptor::CPPTYPE_INT64:
+        case NProtoBuf::FieldDescriptor::CPPTYPE_ENUM:
+            if (i64 value; ParseInt64(&value, TProtobufElementType{fieldDescriptor->type()}, wireStringPart)) {
+                return SetScalarField(message, fieldDescriptor, value);
+            }
+            break;
+        case NProtoBuf::FieldDescriptor::CPPTYPE_UINT32:
+        case NProtoBuf::FieldDescriptor::CPPTYPE_UINT64:
+            if (ui64 value; ParseUint64(&value, TProtobufElementType{fieldDescriptor->type()}, wireStringPart)) {
+                return SetScalarField(message, fieldDescriptor, value);
+            }
+            break;
+        case NProtoBuf::FieldDescriptor::CPPTYPE_DOUBLE:
+        case NProtoBuf::FieldDescriptor::CPPTYPE_FLOAT:
+            if (double value; ParseDouble(&value, TProtobufElementType{fieldDescriptor->type()}, wireStringPart)) {
+                return SetScalarField(message, fieldDescriptor, value);
+            }
+            break;
+        case NProtoBuf::FieldDescriptor::CPPTYPE_BOOL:
+            if (bool value; ParseBoolean(&value, TProtobufElementType{fieldDescriptor->type()}, wireStringPart)) {
+                return SetScalarField(message, fieldDescriptor, value);
+            }
+            break;
+        case NProtoBuf::FieldDescriptor::CPPTYPE_MESSAGE:
+            YT_ABORT();
+    }
+
+    return TError(NAttributes::EErrorCode::InvalidData,
+        "Cannot parse %v from wire string",
+        google::protobuf::FieldDescriptor::TypeName(fieldDescriptor->type()));
+}
+
 TError SetScalarRepeatedFieldEntry(
     Message* message,
     const FieldDescriptor* fieldDescriptor,
@@ -636,6 +684,54 @@ TError SetScalarRepeatedFieldEntry(
     }
 }
 
+TError SetScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    int index,
+    const TWireString& wireString)
+{
+    auto wireStringPart = wireString.LastOrEmptyPart();
+
+    if (wireStringPart.AsSpan().empty()) {
+        return SetDefaultScalarRepeatedFieldEntryValue(message, fieldDescriptor, index);
+    }
+
+    switch (fieldDescriptor->cpp_type()) {
+        case NProtoBuf::FieldDescriptor::CPPTYPE_STRING:
+            return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, TString{wireStringPart.AsStringView()});
+        case NProtoBuf::FieldDescriptor::CPPTYPE_INT32:
+        case NProtoBuf::FieldDescriptor::CPPTYPE_INT64:
+        case NProtoBuf::FieldDescriptor::CPPTYPE_ENUM:
+            if (i64 value; ParseInt64(&value, TProtobufElementType{fieldDescriptor->type()}, wireStringPart)) {
+                return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, value);
+            }
+            break;
+        case NProtoBuf::FieldDescriptor::CPPTYPE_UINT32:
+        case NProtoBuf::FieldDescriptor::CPPTYPE_UINT64:
+            if (ui64 value; ParseUint64(&value, TProtobufElementType{fieldDescriptor->type()}, wireStringPart)) {
+                return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, value);
+            }
+            break;
+        case NProtoBuf::FieldDescriptor::CPPTYPE_DOUBLE:
+        case NProtoBuf::FieldDescriptor::CPPTYPE_FLOAT:
+            if (double value; ParseDouble(&value, TProtobufElementType{fieldDescriptor->type()}, wireStringPart)) {
+                return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, value);
+            }
+            break;
+        case NProtoBuf::FieldDescriptor::CPPTYPE_BOOL:
+            if (bool value; ParseBoolean(&value, TProtobufElementType{fieldDescriptor->type()}, wireStringPart)) {
+                return SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, value);
+            }
+            break;
+        case NProtoBuf::FieldDescriptor::CPPTYPE_MESSAGE:
+            YT_ABORT();
+    }
+
+    return TError(NAttributes::EErrorCode::InvalidData,
+        "Cannot parse %v from wire string",
+        google::protobuf::FieldDescriptor::TypeName(fieldDescriptor->type()));
+}
+
 TError AddScalarRepeatedFieldEntry(
     Message* message,
     const FieldDescriptor* fieldDescriptor,
@@ -659,6 +755,51 @@ TError AddScalarRepeatedFieldEntry(
                 "Cannot convert yson value of type %v to a proto field",
                 value->GetType());
     }
+}
+
+TError AddScalarRepeatedFieldEntry(
+    Message* message,
+    const FieldDescriptor* fieldDescriptor,
+    TWireStringPart wireStringPart)
+{
+    if (wireStringPart.AsSpan().empty()) {
+        return AddDefaultScalarFieldEntryValue(message, fieldDescriptor);
+    }
+
+    switch (fieldDescriptor->cpp_type()) {
+        case NProtoBuf::FieldDescriptor::CPPTYPE_STRING:
+            return AddScalarRepeatedFieldEntry(message, fieldDescriptor, TString{wireStringPart.AsStringView()});
+        case NProtoBuf::FieldDescriptor::CPPTYPE_INT32:
+        case NProtoBuf::FieldDescriptor::CPPTYPE_INT64:
+        case NProtoBuf::FieldDescriptor::CPPTYPE_ENUM:
+            if (i64 value; ParseInt64(&value, TProtobufElementType{fieldDescriptor->type()}, wireStringPart)) {
+                return AddScalarRepeatedFieldEntry(message, fieldDescriptor, value);
+            }
+            break;
+        case NProtoBuf::FieldDescriptor::CPPTYPE_UINT32:
+        case NProtoBuf::FieldDescriptor::CPPTYPE_UINT64:
+            if (ui64 value; ParseUint64(&value, TProtobufElementType{fieldDescriptor->type()}, wireStringPart)) {
+                return AddScalarRepeatedFieldEntry(message, fieldDescriptor, value);
+            }
+            break;
+        case NProtoBuf::FieldDescriptor::CPPTYPE_DOUBLE:
+        case NProtoBuf::FieldDescriptor::CPPTYPE_FLOAT:
+            if (double value; ParseDouble(&value, TProtobufElementType{fieldDescriptor->type()}, wireStringPart)) {
+                return AddScalarRepeatedFieldEntry(message, fieldDescriptor, value);
+            }
+            break;
+        case NProtoBuf::FieldDescriptor::CPPTYPE_BOOL:
+            if (bool value; ParseBoolean(&value, TProtobufElementType{fieldDescriptor->type()}, wireStringPart)) {
+                return AddScalarRepeatedFieldEntry(message, fieldDescriptor, value);
+            }
+            break;
+        case NProtoBuf::FieldDescriptor::CPPTYPE_MESSAGE:
+            YT_ABORT();
+    }
+
+    return TError(NAttributes::EErrorCode::InvalidData,
+        "Cannot parse %v from wire string",
+        NProtoBuf::FieldDescriptor::TypeName(fieldDescriptor->type()));
 }
 
 std::pair<int, TError> FindAttributeDictionaryEntry(
