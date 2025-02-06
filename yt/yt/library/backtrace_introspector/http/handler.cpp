@@ -28,6 +28,7 @@ public:
             auto dump = WaitFor(dumpFuture)
                 .ValueOrThrow();
 
+            rsp->SetStatus(EStatusCode::OK);
             WaitFor(rsp->WriteBody(TSharedRef::FromString(dump)))
                 .ThrowOnError();
 
