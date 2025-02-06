@@ -1511,6 +1511,37 @@ class Operation(object):
                 and date_string_to_datetime(get(snapshot_path + "/@creation_time", driver=self._driver)) > timepoint
             )
 
+    def wait_for_job_revival_finished(self):
+        print_debug("Waiting for job revival to finish")
+
+        operation_controller_registered_check_path = self.get_path() + "/controller_orchid/progress/state"
+        wait(lambda: exists(operation_controller_registered_check_path))
+
+        controller_agent_address = self.get_controller_agent_address()
+
+        job_tracker_orchid_path = f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker"
+
+        def check():
+            allocation_ids = get(f"{job_tracker_orchid_path}/operations/{self.id}/allocations")
+
+            print_debug(f"Allocations are: {allocation_ids}")
+
+            for allocation_id in allocation_ids:
+                allocation = get(f"{job_tracker_orchid_path}/allocations/{allocation_id}")
+
+                for job_id, job_info in allocation["jobs"].items():
+                    if job_info["stage"] == "waiting_for_confirmation":
+                        print_debug(f"Job {job_id} is waiting for confirmation yet")
+                        return False
+
+            return True
+
+        wait(lambda: get(f"{job_tracker_orchid_path}/operations/{self.id}/jobs_ready"))
+
+        wait(check)
+
+        print_debug("Job revival finished")
+
     def wait_presence_in_scheduler(self):
         wait(lambda: exists("//sys/scheduler/orchid/scheduler/operations/" + self.id, driver=self._driver))
 

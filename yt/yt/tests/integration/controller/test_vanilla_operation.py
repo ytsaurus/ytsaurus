@@ -1249,9 +1249,7 @@ class TestGangManager(YTEnvSetup):
             with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
                 pass
 
-            # Waiting for operation revival
-            check_path = op.get_path() + "/controller_orchid/progress/jobs"
-            wait(lambda: exists(check_path))
+            op.wait_for_job_revival_finished()
 
         # We create it after CA restart to not compare new value of sensor with value before restart.
         restarted_job_profiler = JobCountProfiler(
