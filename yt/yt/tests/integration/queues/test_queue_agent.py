@@ -3,7 +3,7 @@ from yt_queue_agent_test_base import (OrchidWithRegularPasses, TestQueueAgentBas
                                       CypressSynchronizerOrchid, AlertManagerOrchid, QueueAgentShardingManagerOrchid,
                                       ObjectAlertHelper)
 
-from yt_commands import (authors, get, get_batch_output, get_driver, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
+from yt_commands import (authors, commit_transaction, get, get_batch_output, get_driver, set, ls, wait, assert_yt_error, create, sync_mount_table, insert_rows,
                          delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
                          sync_unmount_table, trim_rows, print_debug, alter_table, register_queue_consumer,
                          unregister_queue_consumer, mount_table, wait_for_tablet_state, sync_freeze_table,
@@ -3540,6 +3540,90 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         # 2-second exports, comparing to 3 to account for edge-cases.
         # time.sleep(10) above should be enough to check the required behavior.
         assert (datetime.datetime.now(pytz.UTC) - last_successful_export_iteration_instant).seconds <= 3
+
+        self.remove_export_destination(export_dir)
+
+    @authors("apachee")
+    def test_crashes_fix_yt_23930(self):
+        pytest.skip()
+        # TODO(apachee): Remove skip after fixing another bug with queue re-creation (YT-24042)
+        export_dir = "//tmp/export"
+
+        _, queue_id = self._create_queue("//tmp/q")
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 1 * 1000,
+            },
+        })
+
+        self._create_export_destination(export_dir, queue_id)
+
+        insert_rows("//tmp/q", [{"data": str(i)} for i in range(100)])
+        self._flush_table("//tmp/q")
+
+        wait(lambda: len(ls(export_dir)) == 1)
+
+        remove("//tmp/q")
+        _, queue_id = self._create_queue("//tmp/q")
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 1 * 1000,
+            },
+        })
+
+        set(f"{export_dir}/@queue_static_export_destination/originating_queue_id", queue_id)
+
+        insert_rows("//tmp/q", [{"data": str(i)} for i in range(10)])
+        self._flush_table("//tmp/q")
+
+        wait(lambda: len(ls(export_dir)) == 2)  # Queue agent crashes after this line prior to YT-23930
+
+        insert_rows("//tmp/q", [{"data": str(i)} for i in range(10)])
+        self._flush_table("//tmp/q")
+
+        wait(lambda: len(ls(export_dir)) == 3)
+
+        self.remove_export_destination(export_dir)
+
+    @authors("apachee")
+    def test_compat_yt_23930(self):
+        export_dir = "//tmp/export"
+
+        _, queue_id = self._create_queue("//tmp/q")
+        set("//tmp/q/@static_export_config", {
+            "default": {
+                "export_directory": export_dir,
+                "export_period": 1 * 1000,
+            },
+        })
+
+        self._create_export_destination(export_dir, queue_id)
+
+        insert_rows("//tmp/q", [{"data": "test_123"}])
+        self._flush_table("//tmp/q")
+        wait(lambda: len(ls(export_dir)) == 1)
+
+        expected_data = [["test_123"]]
+
+        self._check_export(export_dir, expected_data)
+
+        assert get(f"{export_dir}/@queue_static_export_progress/queue_object_id") == queue_id
+
+        tx = start_transaction()
+        lock_id = lock(export_dir, mode="shared", tx=tx, waitable=True, attribute_key="queue_static_export_progress")["lock_id"]
+        wait(lambda: get("#" + lock_id + "/@state") == "acquired")
+        remove(f"{export_dir}/@queue_static_export_progress/queue_object_id", tx=tx)
+        commit_transaction(tx)
+
+        insert_rows("//tmp/q", [{"data": "test_456"}])
+        self._flush_table("//tmp/q")
+        wait(lambda: len(ls(export_dir)) == 2)
+
+        expected_data.append(["test_456"])
+
+        self._check_export(export_dir, expected_data)
 
         self.remove_export_destination(export_dir)
 
