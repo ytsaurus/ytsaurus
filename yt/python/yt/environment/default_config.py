@@ -70,8 +70,6 @@ def get_master_config():
     };
 
     expose_testing_facilities = %true;
-
-    enable_secondary_master_registration = %true;
 }
 """)
 
