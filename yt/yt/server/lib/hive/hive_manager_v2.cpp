@@ -1247,6 +1247,9 @@ private:
         for (auto cellId : secondaryMasterCellsForRemoval) {
             if (Config_->AllowedForRemovalMasterCells.contains(CellTagFromId(cellId))) {
                 CellMailboxMap_.Release(cellId);
+
+                YT_LOG_INFO("Master cell mailbox removed (CellTag: %v)",
+                    CellTagFromId(cellId));
             }
         }
 
