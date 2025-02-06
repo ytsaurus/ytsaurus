@@ -5,6 +5,7 @@
 #include "helpers.h"
 #include "lexer.h"
 #include "private.h"
+#include "push_down_group_by.h"
 #include "query_helpers.h"
 #include "query_visitors.h"
 
@@ -3628,6 +3629,8 @@ TPlanFragmentPtr PreparePlanFragment(
             THROW_ERROR_EXCEPTION("OFFSET used without LIMIT");
         }
     }
+
+    TryPushDownGroupBy(query, queryAst, Logger);
 
     auto queryFingerprint = InferName(query, {.OmitValues = true});
     YT_LOG_DEBUG("Prepared query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",

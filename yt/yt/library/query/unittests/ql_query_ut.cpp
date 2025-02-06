@@ -1895,7 +1895,7 @@ protected:
                 TQueryPtr preparedSubquery;
                 std::tie(preparedSubquery, dataSource) = GetForeignQuery(
                     std::move(keys),
-                    permanentBuffer,
+                    std::move(permanentBuffer),
                     *joinClause);
 
                 auto pipe = New<NTableClient::TSchemafulPipe>(GetDefaultMemoryChunkProvider());

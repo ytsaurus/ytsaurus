@@ -403,6 +403,8 @@ std::pair<TQueryPtr, TDataSource> GetForeignQuery(
         newQuery->Limit = OrderedReadWithPrefetchHint;
     }
 
+    newQuery->GroupClause = joinClause.GroupClause;
+
     return std::make_pair(std::move(newQuery), std::move(dataSource));
 }
 
