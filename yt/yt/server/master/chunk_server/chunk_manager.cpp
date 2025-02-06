@@ -3287,6 +3287,9 @@ private:
     {
         YT_VERIFY(request->added_chunks_size() + request->removed_chunks_size() > 0);
 
+        const auto& config = GetDynamicConfig();
+        auto enableChunkRefresh = config->SequoiaChunkReplicas->EnableSequoiaChunkRefresh;
+
         return Bootstrap_
             ->GetSequoiaClient()
             ->StartTransaction({.CellTag = Bootstrap_->GetCellTag()})
@@ -3420,13 +3423,14 @@ private:
                         };
                         transaction->DeleteRow(locationReplicaKey);
                     }
-
-                    NRecords::TChunkRefreshQueue refreshQueueEntry{
-                        .TabletIndex = GetChunkShardIndex(chunkId),
-                        .ChunkId = chunkId,
-                        .ConfirmationTime = TInstant::Now(),
-                    };
-                    transaction->WriteRow(Bootstrap_->GetCellTag(), refreshQueueEntry);
+                    if (enableChunkRefresh) {
+                        NRecords::TChunkRefreshQueue refreshQueueEntry{
+                            .TabletIndex = GetChunkShardIndex(chunkId),
+                            .ChunkId = chunkId,
+                            .ConfirmationTime = TInstant::Now(),
+                        };
+                        transaction->WriteRow(Bootstrap_->GetCellTag(), refreshQueueEntry);
+                    }
                 }
 
                 transaction->AddTransactionAction(
