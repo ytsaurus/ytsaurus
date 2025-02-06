@@ -36,6 +36,7 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/downed_cell_tracker.h>
 
 #include <yt/yt/ytlib/queue_client/records/queue_producer_session.record.h>
 
@@ -2216,7 +2217,8 @@ private:
                 }
 
                 if (!coordinatorCellId) {
-                    coordinatorCellId = coordinatorCellIds[RandomNumber(coordinatorCellIds.size())];
+                    const auto& downedCellTracker = Client_->GetNativeConnection()->GetDownedCellTracker();
+                    coordinatorCellId = downedCellTracker->ChooseOne(coordinatorCellIds);
                     selectedCellIds.insert(coordinatorCellId);
                     Transaction_->RegisterParticipant(coordinatorCellId);
                 }

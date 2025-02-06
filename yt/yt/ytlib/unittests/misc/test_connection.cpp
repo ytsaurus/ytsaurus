@@ -115,7 +115,7 @@ const NHiveClient::ICellDirectoryPtr& TTestConnection::GetCellDirectory()
     return CellDirectory_;
 }
 
-const NHiveClient::TCellTrackerPtr& TTestConnection::GetDownedCellTracker()
+const NHiveClient::TDownedCellTrackerPtr& TTestConnection::GetDownedCellTracker()
 {
     return DownedCellTracker_;
 }

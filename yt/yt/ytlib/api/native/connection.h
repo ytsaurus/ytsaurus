@@ -85,7 +85,7 @@ struct IConnection
     virtual std::pair<IClientPtr, NYPath::TYPath> GetQueryTrackerStage(const TString& stage) = 0;
     virtual NRpc::IChannelPtr GetQueryTrackerChannelOrThrow(const TString& stage) = 0;
 
-    virtual const NHiveClient::TCellTrackerPtr& GetDownedCellTracker() = 0;
+    virtual const NHiveClient::TDownedCellTrackerPtr& GetDownedCellTracker() = 0;
 
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,

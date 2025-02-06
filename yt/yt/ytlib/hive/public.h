@@ -38,8 +38,9 @@ DECLARE_REFCOUNTED_CLASS(TClientDirectory)
 DECLARE_REFCOUNTED_CLASS(TCellDirectoryConfig)
 DECLARE_REFCOUNTED_CLASS(TClusterDirectorySynchronizerConfig)
 DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizerConfig)
+DECLARE_REFCOUNTED_CLASS(TDownedCellTrackerConfig)
 
-DECLARE_REFCOUNTED_CLASS(TCellTracker)
+DECLARE_REFCOUNTED_CLASS(TDownedCellTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
