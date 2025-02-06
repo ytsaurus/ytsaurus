@@ -69,7 +69,9 @@ def get_master_config():
         thread_count = 2;
     };
 
-    expose_testing_facilities = %true
+    expose_testing_facilities = %true;
+
+    enable_secondary_master_registration = %true;
 }
 """)
 
