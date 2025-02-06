@@ -221,8 +221,6 @@ void TBootstrap::DoInitialize()
             Config_->SignatureGeneration->KeyRotator,
             GetControlInvoker(),
             SignatureGenerator_);
-
-        SignatureKeyRotator_->Start();
     }
 
     ProxyCoordinator_ = CreateProxyCoordinator();
@@ -321,6 +319,11 @@ void TBootstrap::DoStart()
         Logger());
 
     QueryCorpusReporter_ = MakeQueryCorpusReporter(RootClient_);
+
+    if (SignatureKeyRotator_) {
+        WaitFor(SignatureKeyRotator_->Start())
+            .ThrowOnError();
+    }
 
     auto createApiService = [&] (const NAuth::IAuthenticationManagerPtr& authenticationManager) {
         return CreateApiService(
