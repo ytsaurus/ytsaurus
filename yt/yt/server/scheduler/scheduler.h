@@ -116,7 +116,11 @@ public:
         TPreprocessedSpec preprocessedSpec);
 
     TFuture<void> AbortOperation(TOperationPtr operation, const TError& error, const std::string& user);
-    TFuture<void> SuspendOperation(TOperationPtr operation, const std::string& user, bool abortRunningAllocations);
+    TFuture<void> SuspendOperation(
+        TOperationPtr operation,
+        const std::string& user,
+        bool abortRunningAllocations,
+        const std::optional<std::string>& reason);
     TFuture<void> ResumeOperation(TOperationPtr operation, const std::string& user);
     TFuture<void> CompleteOperation(
         TOperationPtr operation,

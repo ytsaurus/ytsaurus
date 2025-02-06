@@ -1749,6 +1749,7 @@ def add_suspend_op_parser(add_parser):
     parser = add_parser("suspend-op", yt.suspend_operation)
     operation_id_args(parser)
     parser.add_argument("--abort-running-jobs", help="abort running jobs", action="store_true")
+    parser.add_argument("--reason", help="suspend reason")
 
 
 def add_resume_op_parser(add_parser):
