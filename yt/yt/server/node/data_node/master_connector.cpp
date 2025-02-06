@@ -684,8 +684,13 @@ protected:
                 return future.AsVoid();
             }
 
-            default:
-                YT_ABORT();
+            default: {
+                YT_LOG_ALERT("Skipping heartbeat report to master, since node is in incorrect state (CellTag: %v, DataNodeState: %v)",
+                    cellTag,
+                    state);
+
+                return MakeFuture(TError("Incorrect node state") << TErrorAttribute("data_node_state", state));
+            }
         }
     }
 
