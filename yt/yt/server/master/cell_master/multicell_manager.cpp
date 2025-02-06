@@ -856,6 +856,10 @@ private:
             if (MasterEntryExists(cellTag))  {
                 THROW_ERROR_EXCEPTION("Attempted to re-register secondary master %v", cellTag);
             }
+
+            if (const auto& config = Bootstrap_->GetConfig(); !config->EnableSecondaryMasterRegistration) {
+                THROW_ERROR_EXCEPTION("Adding new master cells is temporarily broken in 24.2 pending a fix in 25.1");
+            }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Error registering secondary master (CellTag: %v)",
                 cellTag);
