@@ -294,7 +294,7 @@ public:
                                     .Item("stage").Value(
                                         runningJob->Confirmed
                                         ? "running"
-                                        : "confirmation")
+                                        : "waiting_for_confirmation")
                                 .EndMap();
                         }
 
@@ -418,7 +418,7 @@ public:
         if (const auto* allocation = nodeJobs.FindAllocation(jobId)) {
             std::optional<TString> jobStageString;
             if (allocation->HasRunningJob(jobId)) {
-                jobStageString = allocation->GetRunningJob()->Confirmed ? FormatEnum(EJobStage::Running) : "confirmation";
+                jobStageString = allocation->GetRunningJob()->Confirmed ? FormatEnum(EJobStage::Running) : "waiting_for_confirmation";
             } else if (allocation->GetFinishedJobs().contains(jobId)) {
                 jobStageString = FormatEnum(EJobStage::Finished);
             }
