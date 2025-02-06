@@ -81,6 +81,8 @@ void TQueueExportProgress::Register(TRegistrar registrar)
         .Default(0);
     registrar.Parameter("tablets", &TThis::Tablets)
         .Default();
+    registrar.Parameter("queue_object_id", &TThis::QueueObjectId)
+        .Default(NullObjectId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -222,6 +224,7 @@ private:
 
         FetchChunkSpecs();
         auto newExportProgress = SelectChunkSpecsToExport(currentExportProgress);
+        YT_VERIFY(newExportProgress->QueueObjectId == QueueObject_.ObjectId);
 
         if (ChunkSpecsToExport_.empty()) {
             YT_LOG_DEBUG("No chunks to export, aborting export transaction (TransactionId: %v)", transactionId);
@@ -383,7 +386,17 @@ private:
                 currentExportProgress->LastExportedFragmentUnixTs);
         }
 
-        return currentExportProgress ? currentExportProgress : New<TQueueExportProgress>();
+        // COMPAT(apachee): There are exports without "queue_object_id" field set. We do not want to ignore export progress in this case.
+        if (currentExportProgress && currentExportProgress->QueueObjectId == NullObjectId) {
+            currentExportProgress->QueueObjectId = QueueObject_.ObjectId;
+        }
+
+        // NB(apachee): If export progress corresponds to different queue, then assume it's the first export in this directory.
+        if (currentExportProgress && currentExportProgress->QueueObjectId == QueueObject_.ObjectId) {
+            return currentExportProgress;
+        }
+
+        return New<TQueueExportProgress>();
     }
 
     TQueueExportProgressPtr SelectChunkSpecsToExport(const TQueueExportProgressPtr& currentExportProgress)
@@ -432,6 +445,7 @@ private:
 
         newExportProgress->LastExportedFragmentUnixTs = ExportFragmentUnixTs_;
         newExportProgress->LastExportIterationInstant = ExportInstant_;
+        newExportProgress->QueueObjectId = QueueObject_.ObjectId;
         return newExportProgress;
     }
 

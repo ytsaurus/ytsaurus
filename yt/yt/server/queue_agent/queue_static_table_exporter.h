@@ -46,6 +46,8 @@ public:
     TInstant LastExportIterationInstant;
     ui64 LastExportedFragmentUnixTs;
     THashMap<i64, TQueueTabletExportProgressPtr> Tablets;
+    //! Queue id corresponding to this export progress.
+    NObjectClient::TObjectId QueueObjectId;
 
     void Update(i64 tabletIndex, NChunkClient::TChunkId chunkId, NHiveClient::TTimestamp maxTimestamp, i64 rowCount);
 
