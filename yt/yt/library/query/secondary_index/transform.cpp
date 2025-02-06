@@ -136,14 +136,14 @@ struct TTableReferenceReplacer
 
 void TransformWithIndexStatement(
     NAst::TQuery* query,
-    TRange<TTableMountInfoPtr> mountInfos,
+    const ITableMountCachePtr& cache,
     TObjectsHolder* holder)
 {
     if (auto* fromSubquery = std::get_if<NAst::TQueryAstHeadPtr>(&query->FromClause)) {
         THROW_ERROR_EXCEPTION_IF(query->WithIndex,
             "WITH INDEX clause is not supported with subqueries at the moment");
 
-        TransformWithIndexStatement(&fromSubquery->Get()->Ast, mountInfos, holder);
+        TransformWithIndexStatement(&fromSubquery->Get()->Ast, cache, holder);
         return;
     }
 
@@ -154,8 +154,10 @@ void TransformWithIndexStatement(
     auto& index = *(query->WithIndex);
     auto& table = std::get<TTableDescriptor>(query->FromClause);
 
-    auto& indexTableInfo = mountInfos[0];
-    auto& tableInfo = mountInfos[1];
+    auto indexTableInfo = WaitForFast(cache->GetTableInfo(index.Path))
+        .ValueOrThrow();
+    auto tableInfo = WaitForFast(cache->GetTableInfo(table.Path))
+        .ValueOrThrow();
 
     indexTableInfo->ValidateDynamic();
     indexTableInfo->ValidateSorted();

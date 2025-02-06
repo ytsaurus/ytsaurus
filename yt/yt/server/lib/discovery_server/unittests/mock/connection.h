@@ -261,6 +261,10 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+    const NApi::NNative::TTableReplicaSynchronicityCachePtr& GetTableReplicaSynchronicityCache() override
+    {
+        YT_UNIMPLEMENTED();
+    }
 
     NApi::NNative::IClientPtr CreateNativeClient(const NApi::TClientOptions& /*options*/) override
     {

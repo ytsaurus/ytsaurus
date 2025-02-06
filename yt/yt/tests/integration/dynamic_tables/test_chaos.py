@@ -30,6 +30,8 @@ from yt.common import YtError, YtResponseError, WaitFailed
 
 import yt.yson as yson
 
+import yt_error_codes
+
 from yt_driver_bindings import Driver
 
 import pytest
@@ -4444,6 +4446,146 @@ class TestChaos(ChaosTestBase):
         assert len(tablet_infos) == 1
         assert tablet_infos[0]["total_row_count"] == 1
         assert tablet_infos[0]["trimmed_row_count"] == 1
+
+    @authors("sabdenovch")
+    def test_chaos_async_hint(self):
+        remote_driver = get_driver(cluster="remote_0")
+        sync_create_cells(1)
+        sync_create_cells(1, driver=remote_driver)
+
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"},
+        ])
+
+        for mode in ("sync", "async"):
+            path = "//tmp/chaos_" + mode
+            create(
+                "chaos_replicated_table",
+                path,
+                attributes={"chaos_cell_bundle": "chaos_bundle", "schema": schema})
+
+            replicas = [
+                {
+                    "cluster_name": "remote_0",
+                    "content_type": "data",
+                    "mode": mode,
+                    "enabled": True,
+                    "replica_path": f"{path}_data",
+                },
+                {
+                    "cluster_name": "remote_0",
+                    "content_type": "queue",
+                    "mode": "sync",
+                    "enabled": True,
+                    "replica_path": f"{path}_queue",
+                },
+            ]
+            replica_ids = self._create_chaos_table_replicas(replicas, table_path=path)
+            self._create_replica_tables(replicas, replica_ids, schema=schema)
+
+            card_id = get(f"{path}/@replication_card_id")
+            self._sync_replication_era(card_id, replicas)
+
+            path = "//tmp/regular_" + mode
+            create("replicated_table", path, attributes={"schema": schema, "dynamic": True})
+            replica_id = create_table_replica(path, "remote_0", f"{path}_replica", attributes={"mode": mode})
+            create(
+                "table",
+                f"{path}_replica",
+                attributes={"dynamic": True, "schema": schema, "upstream_replica_id": replica_id},
+                driver=remote_driver)
+            sync_enable_table_replica(replica_id)
+            sync_mount_table(path)
+            sync_mount_table(f"{path}_replica", driver=remote_driver)
+
+        for kind in ("chaos", "regular"):
+            for mode in ("sync", "async"):
+                path = f"//tmp/{kind}_{mode}"
+                insert_rows(path, [{"key": 0, "value": 1}, {"key": 1, "value": 10}], require_sync_replica=False)
+
+        hint = "with hint \"{require_sync_replica=%false;}\""
+
+        for left_mode in ("sync", "async"):
+            for right_mode in ("sync", "async"):
+                for left_kind in ("chaos", "regular"):
+                    for right_kind in ("chaos", "regular"):
+                        left_path = f"//tmp/{left_kind}_{left_mode}"
+                        right_path = f"//tmp/{right_kind}_{right_mode}"
+                        left_hint = hint if left_mode == "async" else ""
+                        right_hint = hint if right_mode == "async" else ""
+
+                        result = select_rows(f"""
+                            T.value + D.value as s from [{left_path}] AS T {left_hint}
+                            join [{right_path}] AS D {right_hint}
+                            on T.key + 1 = D.key""")
+
+                        assert len(result) in (0, 1)
+                        if result:
+                            assert result[0]["s"] == 11
+
+                        select_rows(f"* from [{left_path}] {hint} join [{right_path}] {hint} using key, value")
+
+                        if left_mode == "async" or right_mode == "async":
+                            with raises_yt_error(yt_error_codes.NoInSyncReplicas):
+                                select_rows(f"* from [{left_path}] join [{right_path}] using key, value")
+
+    @authors("sabdenovch")
+    def test_chaos_async_preference(self):
+        _, remote_driver_0, _ = self._get_drivers()
+        cell_id = self._sync_create_chaos_bundle_and_cell(name="chaos_bundle")
+        set("//sys/chaos_cell_bundles/chaos_bundle/@metadata_cell_id", cell_id)
+
+        schema = yson.YsonList([
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "int64"},
+        ])
+        path = "//tmp/t"
+        create(
+            "chaos_replicated_table",
+            path,
+            attributes={"chaos_cell_bundle": "chaos_bundle", "schema": schema})
+
+        replicas = [
+            {
+                "cluster_name": "remote_0",
+                "content_type": "data",
+                "mode": "async",
+                "enabled": True,
+                "replica_path": f"{path}_data_abel",
+            },
+            {
+                "cluster_name": "remote_1",
+                "content_type": "data",
+                "mode": "async",
+                "enabled": False,
+                "replica_path": f"{path}_data_cain",
+            },
+            {
+                "cluster_name": "remote_0",
+                "content_type": "queue",
+                "mode": "sync",
+                "enabled": True,
+                "replica_path": f"{path}_queue",
+            },
+        ]
+
+        replica_ids = self._create_chaos_table_replicas(replicas, table_path=path)
+        self._create_replica_tables(replicas, replica_ids, schema=schema)
+
+        card_id = get(f"{path}/@replication_card_id")
+        self._sync_replication_era(card_id, replicas)
+
+        insert_rows(path, [{"key": 0, "value": 0}], require_sync_replica=False)
+        wait(lambda: lookup_rows(f"{path}_data_abel", [{"key": 0}], driver=remote_driver_0))
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=True)
+
+        hint = "\"{require_sync_replica=%false;}\""
+        assert select_rows(f"T.value AS v from [{path}] AS T with hint {hint}") == [{"v": 0}]
 
 
 ##################################################################

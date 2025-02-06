@@ -2619,6 +2619,42 @@ class TestQueryRpcProxy(TestQuery):
         corpus = builtins.set(map(lambda x : x['query'], select_rows("query from [//tmp/queue]")))
         assert corpus == queries
 
+    @authors("sabdenovch")
+    def test_async_preference(self):
+        sync_create_cells(1)
+
+        path = "//tmp/t"
+        schema = [
+            make_sorted_column("key", "int32"),
+            make_column("value", "int32"),
+        ]
+        create("replicated_table", path, attributes={"dynamic": True, "schema": schema})
+        for replica in ("abel", "cain"):
+            replica_id = create_table_replica(
+                path,
+                self.get_cluster_name(0),
+                f"{path}_{replica}", attributes={"mode": "async"})
+            create(
+                "table",
+                f"{path}_{replica}",
+                attributes={
+                    "dynamic": True,
+                    "schema": schema,
+                    "upstream_replica_id": replica_id
+                })
+            if replica == "abel":
+                sync_enable_table_replica(replica_id)
+            sync_mount_table(f"{path}_{replica}")
+
+        sync_mount_table(path)
+        data = [{"key": 0, "value": 0}]
+        insert_rows(path, data, require_sync_replica=False)
+        wait(lambda: select_rows("* from [//tmp/t_abel]"))
+
+        sync_enable_table_replica(replica_id)  # enable cain.
+
+        assert select_rows("* from [//tmp/t] with hint \"{require_sync_replica=%false}\"") == data
+
 
 class TestSelectWithRowCache(TestLookupCache):
     COUNTER_NAME = "select"

@@ -3,6 +3,7 @@
 #include "client.h"
 #include "sync_replica_cache.h"
 #include "tablet_sync_replica_cache.h"
+#include "table_replica_synchronicity_cache.h"
 #include "transaction_participant.h"
 #include "private.h"
 #include "helpers.h"
@@ -179,6 +180,7 @@ public:
         , Profiler_(TProfiler("/connection").WithTag("connection_name", StaticConfig_->ConnectionName))
         , TabletSyncReplicaCache_(New<TTabletSyncReplicaCache>())
         , BannedReplicaTrackerCache_(CreateBannedReplicaTrackerCache(StaticConfig_->BannedReplicaTrackerCache, Logger))
+        , TableReplicaStatusCache_(New<TTableReplicaSynchronicityCache>())
         , QueryEvaluator_(BIND([this] {
             auto config = Config_.Acquire();
             return CreateEvaluator(config->QueryEvaluator);
@@ -471,6 +473,11 @@ public:
     const NChaosClient::IChaosResidencyCachePtr& GetChaosResidencyCache() override
     {
         return ChaosResidencyCache_;
+    }
+
+    const TTableReplicaSynchronicityCachePtr& GetTableReplicaSynchronicityCache() override
+    {
+        return TableReplicaStatusCache_;
     }
 
     IInvokerPtr GetInvoker() override
@@ -902,6 +909,7 @@ private:
 
     const TTabletSyncReplicaCachePtr TabletSyncReplicaCache_;
     const IBannedReplicaTrackerCachePtr BannedReplicaTrackerCache_;
+    const TTableReplicaSynchronicityCachePtr TableReplicaStatusCache_;
 
     const TLazyIntrusivePtr<IEvaluator> QueryEvaluator_;
     const TLazyIntrusivePtr<IColumnEvaluatorCache> ColumnEvaluatorCache_;

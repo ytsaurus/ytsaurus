@@ -75,6 +75,7 @@
 %token KwSelect "keyword `SELECT`"
 %token KwFrom "keyword `FROM`"
 %token KwWithIndex "keyword `WITH INDEX`"
+%token KwWithHint "keyword `WITH HINT`"
 %token KwWhere "keyword `WHERE`"
 %token KwHaving "keyword `HAVING`"
 %token KwOffset "keyword `OFFSET`"
@@ -169,6 +170,7 @@
 
 %type <TTableDescriptor> table-descriptor
 %type <std::optional<TString>> optional-alias
+%type <TTableHintPtr> optional-hint
 
 %type <bool> is-desc
 %type <bool> is-left
@@ -316,10 +318,21 @@ optional-alias
     | { }
 ;
 
-table-descriptor
-    : Identifier[path] optional-alias[alias]
+optional-hint
+    : KwWithHint StringLiteral[hint]
         {
-            $$ = TTableDescriptor(std::move($path), std::move($alias));
+            $$ = ConvertTo<TTableHintPtr>(NYson::TYsonStringBuf($hint));
+        }
+    |
+        {
+            $$ = New<TTableHint>();
+        }
+;
+
+table-descriptor
+    : Identifier[path] optional-alias[alias] optional-hint[hint]
+        {
+            $$ = TTableDescriptor(std::move($path), std::move($alias), std::move($hint));
         }
 ;
 
