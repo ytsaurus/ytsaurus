@@ -304,6 +304,8 @@ void TCellMasterConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("disable_node_connections", &TThis::DisableNodeConnections)
         .Default(false);
+    registrar.Parameter("enable_secondary_master_registration", &TThis::EnableSecondaryMasterRegistration)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->SecondaryMasters.size() > MaxSecondaryMasterCells) {

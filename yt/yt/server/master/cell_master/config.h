@@ -325,6 +325,9 @@ public:
 
     bool DisableNodeConnections;
 
+    // COMPAT(shakurov)
+    bool EnableSecondaryMasterRegistration;
+
     REGISTER_YSON_STRUCT(TCellMasterConfig);
 
     static void Register(TRegistrar registrar);
