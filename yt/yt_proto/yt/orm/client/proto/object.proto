@@ -305,6 +305,11 @@ enum ESetUpdateObjectMode
     SUOM_LEGACY = 1;
 }
 
+message TCommonHistoryOptions {
+    // Adds forced attributes for every object history.
+    repeated string forced_paths = 1;
+}
+
 message THistoryTableOptions
 {
     // Needed for migration without write downtime. Details in YTORM-513.
@@ -452,6 +457,8 @@ extend google.protobuf.FileOptions
     optional bool enable_strict_enum_value_check = 30042 [default = true];
 
     optional uint32 default_geohash_length = 30043;
+
+    optional TCommonHistoryOptions history_options = 30044;
 }
 
 enum EGenerationPolicy
