@@ -146,6 +146,8 @@ public:
             })
         , Config_(std::move(config))
         , HiveManager_(std::move(hiveManager))
+        , OrchidService_(CreateOrchidService(
+            hydraManager->CreateGuardedAutomatonInvoker(automatonInvoker)))
         , LeaseMap_(TLeaseEntityMapTraits(this))
     {
         RegisterLoader(
@@ -249,26 +251,15 @@ public:
         return this;
     }
 
-    void BuildOrchid(NYson::IYsonConsumer* consumer) const override
+    IYPathServicePtr GetOrchidService() override
     {
-        BuildYsonFluently(consumer)
-            .BeginMap()
-                .Item("leases").DoMapFor(LeaseMap_, [&] (TFluentMap fluent, const std::pair<TCellId, TLease*>& pair) {
-                    auto* lease = pair.second;
-                    fluent
-                        .Item(ToString(lease->GetId())).BeginMap()
-                            .Item("state").Value(lease->GetState())
-                            .Item("persistent_ref_counter").Value(lease->GetPersistentRefCounter())
-                            .Item("transient_ref_counter").Value(lease->GetTransientRefCounter())
-                        .EndMap();
-                })
-            .EndMap();
+        return OrchidService_;
     }
 
 private:
     const TLeaseManagerConfigPtr Config_;
-
     const IHiveManagerPtr HiveManager_;
+    const IYPathServicePtr OrchidService_;
 
     friend class TLease;
 
@@ -287,6 +278,7 @@ private:
     private:
         TLeaseManager* const LeaseManager_;
     };
+
     TEntityMap<TLease, TLeaseEntityMapTraits> LeaseMap_;
 
     bool Decommission_ = false;
@@ -725,6 +717,29 @@ private:
         auto error = WaitFor(mutation->Commit());
 
         YT_LOG_DEBUG_UNLESS(error.IsOK(), error, "Failed to remove leases");
+    }
+
+
+    void BuildOrchid(NYson::IYsonConsumer* consumer) const
+    {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("leases").DoMapFor(LeaseMap_, [&] (TFluentMap fluent, const std::pair<TCellId, TLease*>& pair) {
+                    auto* lease = pair.second;
+                    fluent
+                        .Item(ToString(lease->GetId())).BeginMap()
+                            .Item("state").Value(lease->GetState())
+                            .Item("persistent_ref_counter").Value(lease->GetPersistentRefCounter())
+                            .Item("transient_ref_counter").Value(lease->GetTransientRefCounter())
+                        .EndMap();
+                })
+            .EndMap();
+    }
+
+    IYPathServicePtr CreateOrchidService(IInvokerPtr invoker)
+    {
+        return IYPathService::FromMethod(&TLeaseManager::BuildOrchid, MakeWeak(this))
+            ->Via(std::move(invoker));
     }
 };
 

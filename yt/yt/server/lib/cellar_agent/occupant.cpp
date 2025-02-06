@@ -885,9 +885,7 @@ private:
                 MakeWeak(this)))
             ->AddChild("hive", HiveManager_->GetOrchidService())
             ->AddChild("transaction_supervisor", TransactionSupervisor_->GetOrchidService())
-            ->AddChild("lease_manager", IYPathService::FromMethod(
-                &ILeaseManager::BuildOrchid,
-                MakeWeak(LeaseManager_)));
+            ->AddChild("lease_manager", LeaseManager_->GetOrchidService());
     }
 
     void GetHydraMonitoring(IYsonConsumer* consumer) const

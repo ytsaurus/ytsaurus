@@ -44,8 +44,7 @@ struct ILeaseManager
     virtual bool IsFullyDecommissioned() const = 0;
 
     virtual NRpc::IServicePtr GetRpcService() = 0;
-
-    virtual void BuildOrchid(NYson::IYsonConsumer* consumer) const = 0;
+    virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ILeaseManager)
