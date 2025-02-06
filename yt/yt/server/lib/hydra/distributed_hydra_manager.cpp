@@ -1751,7 +1751,7 @@ private:
     //! Restarts Hydra in a fast way.
     void ScheduleQuorumRestart(const TEpochContextPtr& epochContext, const TError& error)
     {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
+        VERIFY_THREAD_AFFINITY_ANY();
 
         // NB: Leader lease remains active after restart and is transfered to
         // a newly selected leader without delay.
