@@ -383,6 +383,7 @@ void TParallelFileWriter::DoFinish(bool commit)
     currentConcatenate.reserve(std::min<size_t>(Options_.ConcatenateBatchSize_, tempPaths.size()));
     bool firstConcatenate = true;
     while (!tempPaths.empty()) {
+        currentConcatenate.clear();
         for (size_t i = 0; i < Options_.ConcatenateBatchSize_ && !tempPaths.empty(); ++i) {
             currentConcatenate.push_back(tempPaths.front());
             tempPaths.pop_front();
