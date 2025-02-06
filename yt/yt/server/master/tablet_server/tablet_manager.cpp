@@ -2367,6 +2367,10 @@ public:
         }
 
         table->ValidateAllTabletsUnmounted("Cannot switch mode from dynamic to static");
+
+        if (table->GetSchema()->AsTableSchema()->HasHunkColumns()) {
+            THROW_ERROR_EXCEPTION("Cannot switch mode from dynamic to static: table schema contains hunk columns");
+        }
     }
 
     void MakeTableStatic(TTableNode* table)
