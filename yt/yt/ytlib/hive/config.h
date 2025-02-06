@@ -67,4 +67,23 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDownedCellTrackerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Time for cell tracker to forget downed chaos cells.
+    TDuration ChaosCellExpirationTime;
+
+    //! Time for cell tracker to forget downed cells of other types.
+    TDuration TabletCellExpirationTime;
+
+    REGISTER_YSON_STRUCT(TDownedCellTrackerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDownedCellTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NHiveClient

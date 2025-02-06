@@ -23,9 +23,9 @@
 #include <yt/yt/ytlib/hive/config.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
-#include <yt/yt/ytlib/hive/cell_tracker.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/downed_cell_tracker.h>
 #include <yt/yt/ytlib/hive/hive_service_proxy.h>
 
 #include <yt/yt/ytlib/hydra/peer_channel.h>
@@ -222,7 +222,7 @@ public:
     const NTransactionClient::IClockManagerPtr& GetClockManager() override;
     const NHiveClient::ICellDirectoryPtr& GetCellDirectory() override;
 
-    const NHiveClient::TCellTrackerPtr& GetDownedCellTracker() override;
+    const NHiveClient::TDownedCellTrackerPtr& GetDownedCellTracker() override;
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
 
     NRpc::IChannelPtr GetMasterChannelOrThrow(
@@ -249,7 +249,7 @@ private:
     const NRpc::IChannelPtr BundleControllerChannel_;
     const NTransactionClient::IClockManagerPtr ClockManager_;
     const NHiveClient::ICellDirectoryPtr CellDirectory_;
-    const NHiveClient::TCellTrackerPtr DownedCellTracker_;
+    const NHiveClient::TDownedCellTrackerPtr DownedCellTracker_;
     const NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 };
 

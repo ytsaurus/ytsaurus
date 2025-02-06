@@ -268,10 +268,10 @@ SRCS(
 
     hive/cell_directory_synchronizer.cpp
     hive/cell_directory.cpp
-    hive/cell_tracker.cpp
     hive/cluster_directory_synchronizer.cpp
     hive/cluster_directory.cpp
     hive/config.cpp
+    hive/downed_cell_tracker.cpp
     hive/public.cpp
 
     hive/proto/cell_directory.proto

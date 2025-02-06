@@ -425,10 +425,10 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/file_client/file_chunk_writer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/cell_directory_synchronizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/cell_directory.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/cell_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/cluster_directory_synchronizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/cluster_directory.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/downed_cell_tracker.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hive/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hydra/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/hydra/helpers.cpp
