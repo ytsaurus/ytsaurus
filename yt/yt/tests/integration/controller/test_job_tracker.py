@@ -325,7 +325,7 @@ class TestJobTracker(YTEnvSetup):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
             pass
 
-        wait(lambda: self._get_job_info(op, job_id)["stage"] == "confirmation", ignore_exceptions=True)
+        wait(lambda: self._get_job_info(op, job_id)["stage"] == "waiting_for_confirmation", ignore_exceptions=True)
 
         update_nodes_dynamic_config({
             "exec_node": {
