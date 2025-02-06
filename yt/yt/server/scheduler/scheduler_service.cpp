@@ -156,7 +156,7 @@ private:
             operation,
             context->GetAuthenticationIdentity().User,
             abortRunningAllocations,
-            request->reason());
+            request->has_reason() ? std::optional(request->reason()) : std::nullopt);
 
         context->ReplyFrom(asyncResult);
     }
