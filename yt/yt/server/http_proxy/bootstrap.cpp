@@ -485,7 +485,8 @@ void TBootstrap::DoStart()
     MonitoringServer_->Start();
 
     if (SignatureKeyRotator_) {
-        SignatureKeyRotator_->Start();
+        WaitFor(SignatureKeyRotator_->Start())
+            .ThrowOnError();
     }
 
     ApiHttpServer_->Start();

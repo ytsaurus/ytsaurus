@@ -19,21 +19,32 @@ TKeyRotator::TKeyRotator(
     : Config_(std::move(config))
     , Executor_(New<TPeriodicExecutor>(
         std::move(invoker),
-        BIND([generator = std::move(generator)] () {
+        BIND([this, generator = std::move(generator)] () {
             auto error = WaitFor(generator->Rotate());
             if (!error.IsOK()) {
                 YT_LOG_ERROR(error, "Failed to rotate keypair");
             }
+            // NB(pavook): this spinlock is needed to avoid skipping first rotation in Start().
+            auto guard = Guard(SpinLock_);
         }),
         Config_->KeyRotationInterval))
 {
     YT_LOG_INFO("Key rotator initialized (KeyRotationInterval %v)", Config_->KeyRotationInterval);
 }
 
-void TKeyRotator::Start()
+TFuture<void> TKeyRotator::Start()
 {
     YT_LOG_DEBUG("Starting key rotation");
+    auto guard = Guard(SpinLock_);
     Executor_->Start();
+    return Executor_->GetExecutedEvent();
+}
+
+TFuture<void> TKeyRotator::Stop()
+{
+    YT_LOG_DEBUG("Stopping key rotation");
+    auto guard = Guard(SpinLock_);
+    return Executor_->Stop();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -28,20 +28,12 @@ using testing::SizeIs;
 struct TKeyRotatorTest
     : public ::testing::Test
 {
-    TActionQueuePtr ActionQueue = New<TActionQueue>();
     TKeyRotatorConfigPtr Config = New<TKeyRotatorConfig>();
     TStubKeyStorePtr Store = New<TStubKeyStore>();
     TSignatureGeneratorPtr Generator = New<TSignatureGenerator>(
         New<TSignatureGeneratorConfig>(),
         Store);
-    ISuspendableInvokerPtr Invoker = CreateSuspendableInvoker(ActionQueue->GetInvoker());
     TKeyRotatorPtr Rotator;
-
-    TKeyRotatorTest()
-    {
-        Config->KeyRotationInterval = TDuration::MilliSeconds(10);
-        Rotator = New<TKeyRotator>(Config, Invoker, Generator);
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,11 +41,12 @@ struct TKeyRotatorTest
 TEST_F(TKeyRotatorTest, RotateOnStart)
 {
     Config->KeyRotationInterval = TDuration::Hours(10);
-    Rotator = New<TKeyRotator>(Config, Invoker, Generator);
+    Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Generator);
     EXPECT_THAT(Store->Data, IsEmpty());
-    Rotator->Start();
-    Sleep(TDuration::MilliSeconds(300));
-    WaitFor(Invoker->Suspend()).ThrowOnError();
+    WaitFor(Rotator->Start())
+        .ThrowOnError();
+    WaitFor(Rotator->Stop())
+        .ThrowOnError();
     EXPECT_THAT(Store->Data[Store->GetOwner()], Not(IsEmpty()));
 }
 
@@ -62,10 +55,11 @@ TEST_F(TKeyRotatorTest, RotateOnStart)
 TEST_F(TKeyRotatorTest, PeriodicRotate)
 {
     Config->KeyRotationInterval = TDuration::MilliSeconds(10);
-    Rotator = New<TKeyRotator>(Config, Invoker, Generator);
-    Rotator->Start();
+    Rotator = New<TKeyRotator>(Config, GetCurrentInvoker(), Generator);
+    YT_UNUSED_FUTURE(Rotator->Start());
     Sleep(Config->KeyRotationInterval * 20);
-    WaitFor(Invoker->Suspend()).ThrowOnError();
+    WaitFor(Rotator->Stop())
+        .ThrowOnError();
     EXPECT_THAT(Store->Data[Store->GetOwner()], SizeIs(AllOf(Gt(3), Lt(50))));
 }
 

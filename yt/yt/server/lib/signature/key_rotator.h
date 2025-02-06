@@ -16,10 +16,15 @@ public:
         IInvokerPtr invoker,
         TSignatureGeneratorPtr generator);
 
-    void Start();
+    //! Starts key rotation, waiting for the completion of the first rotation.
+    TFuture<void> Start();
+
+    //! Stops key rotation, waiting for the completion of the current rotation.
+    TFuture<void> Stop();
 
 private:
     const TKeyRotatorConfigPtr Config_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
     const NConcurrency::TPeriodicExecutorPtr Executor_;
 };
 
