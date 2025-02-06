@@ -5,11 +5,15 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/yson/protobuf_interop.h>
+
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/node.h>
 
 #include <google/protobuf/io/coded_stream.h>
+
+#include <library/cpp/iterator/enumerate.h>
 
 namespace NYT::NOrm::NAttributes::NTests {
 namespace {
@@ -387,7 +391,135 @@ TEST(TClearAttributesTest, UnknownYsonNestedField)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TSetAttributeTest, EmptyPath)
+class TSetAttributeTest
+    : public testing::TestWithParam<bool>
+{
+public:
+    // NB! Processing values related to the root of protobuf maps is unimplemented.
+    // Tests on maps should not rely on yson to wire string conversion.
+    // TODO(grigminakov): Add support for maps and then move this helper function to common library.
+    void BuildWireStringFromNodePtr(
+        std::vector<std::string>& wireStringBuffer,
+        const NYTree::INodePtr& value,
+        const NYson::TProtobufElement& element,
+        const NYson::TProtobufWriterOptions& options)
+    {
+        auto asScalar = [] (const NYson::TProtobufElement& element) -> NYson::TProtobufScalarElement {
+            auto* scalarElement = std::get_if<std::unique_ptr<NYson::TProtobufScalarElement>>(&element);
+            THROW_ERROR_EXCEPTION_UNLESS(scalarElement,
+                "Expected scalar protobuf element");
+            return *scalarElement->get();
+        };
+
+        switch (value->GetType()) {
+            case NYTree::ENodeType::Map: {
+                if (auto* messageElement = std::get_if<std::unique_ptr<NYson::TProtobufMessageElement>>(&element)) {
+                    wireStringBuffer.push_back(SerializeMessage(value, messageElement->get()->Type, options));
+                } else if (std::holds_alternative<std::unique_ptr<NYson::TProtobufAttributeDictionaryElement>>(element)) {
+                    EXPECT_EQ(value->GetType(), NYTree::ENodeType::Map);
+                    wireStringBuffer.push_back(SerializeAttributeDictionary(
+                        *NYTree::IAttributeDictionary::FromMap(value->AsMap())));
+                } else {
+                    THROW_ERROR_EXCEPTION(
+                        "Encountered unexpected protobuf element in yson-map to wire string conversion");
+                }
+                break;
+            }
+            case NYTree::ENodeType::List: {
+                auto* repeatedElement = std::get_if<std::unique_ptr<NYson::TProtobufRepeatedElement>>(&element);
+                THROW_ERROR_EXCEPTION_UNLESS(repeatedElement,
+                    "Expected repeated protobuf element");
+                for (const auto& [index, child] : SEnumerate(value->AsList()->GetChildren())) {
+                    BuildWireStringFromNodePtr(
+                        wireStringBuffer,
+                        child,
+                        std::get<std::unique_ptr<NYson::TProtobufRepeatedElement>>(element)->Element,
+                        options.CreateChildOptions(ToString(index)));
+                }
+                break;
+            }
+            case NYTree::ENodeType::Entity: {
+                // NB! Empty wire string represents entity.
+                break;
+            }
+            case NYTree::ENodeType::Uint64: {
+                wireStringBuffer.push_back(SerializeUint64(value->AsUint64()->GetValue(), asScalar(element).Type));
+                break;
+            }
+            case NYTree::ENodeType::Int64: {
+                wireStringBuffer.push_back(SerializeInt64(value->AsInt64()->GetValue(), asScalar(element).Type));
+                break;
+            }
+            case NYTree::ENodeType::Double: {
+                wireStringBuffer.push_back(SerializeDouble(value->AsDouble()->GetValue(), asScalar(element).Type));
+                break;
+            }
+            case NYTree::ENodeType::Boolean: {
+                wireStringBuffer.push_back(SerializeBoolean(value->AsBoolean()->GetValue(), asScalar(element).Type));
+                break;
+            }
+            case NYTree::ENodeType::String: {
+                const auto& stringValue = value->AsString()->GetValue();
+                if (asScalar(element).Type.Underlying() == google::protobuf::FieldDescriptor::TYPE_ENUM) {
+                    auto encodedEnum = NYson::FindProtobufEnumValueByLiteral<i32>(
+                        asScalar(element).EnumType,
+                        stringValue);
+                    THROW_ERROR_EXCEPTION_UNLESS(encodedEnum.has_value(),
+                        "Literal %Qv is not a valid enum value",
+                        value->AsString()->GetValue());
+                    wireStringBuffer.push_back(SerializeInt64(
+                        *encodedEnum,
+                        NYson::TProtobufElementType{google::protobuf::FieldDescriptor::TYPE_ENUM}));
+                } else {
+                    wireStringBuffer.push_back(stringValue);
+                }
+                break;
+            }
+            case NYTree::ENodeType::Composite: {
+                YT_ABORT();
+            }
+        }
+    }
+
+    void SetProtobufFieldByPath(
+        NProtoBuf::Message& message,
+        const NYPath::TYPath& path,
+        const NYTree::INodePtr& value,
+        const NYson::TProtobufWriterOptions& options = {},
+        bool recursive = false)
+    {
+        if (/*setViaYson*/ GetParam()) {
+            NAttributes::SetProtobufFieldByPath(message, path, value, options, recursive);
+            return;
+        }
+
+        auto rootType = NYson::ReflectProtobufMessageType(message.GetDescriptor());
+        auto element = NYson::ResolveProtobufElementByYPath(rootType, path, {.AllowUnknownYsonFields = true});
+
+        if (std::holds_alternative<std::unique_ptr<NYson::TProtobufAnyElement>>(element.Element)) {
+            NAttributes::SetProtobufFieldByPath(message, path, value, options, recursive);
+            return;
+        }
+
+        std::vector<std::string> wireStringBuffer;
+        BuildWireStringFromNodePtr(wireStringBuffer, value, element.Element, options.CreateChildOptions(path));
+        NAttributes::SetProtobufFieldByPath(message, path, TWireString::FromSerialized(wireStringBuffer), recursive);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+INSTANTIATE_TEST_SUITE_P(
+    TSetAttributeTest,
+    TSetAttributeTest,
+    /*setViaYson*/ testing::Values(false, true),
+    /*evalGenerateName*/ [] (const testing::TestParamInfo<TSetAttributeTest::ParamType>& setViaYson) {
+        return setViaYson.param ? "Yson" : "WireString";
+    });
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_P(TSetAttributeTest, EmptyPath)
 {
     auto node = NYTree::BuildYsonNodeFluently()
         .BeginMap()
@@ -398,7 +530,7 @@ TEST(TSetAttributeTest, EmptyPath)
     EXPECT_EQ(1, message.int64_field());
 }
 
-TEST(TSetAttributeTest, Scalar)
+TEST_P(TSetAttributeTest, Scalar)
 {
 #define TESTCASE(path, value)                                                           \
     do {                                                                                \
@@ -423,7 +555,7 @@ TEST(TSetAttributeTest, Scalar)
 #undef TESTCASE
 }
 
-TEST(TSetAttributeTest, Message)
+TEST_P(TSetAttributeTest, Message)
 {
     auto node = NYTree::BuildYsonNodeFluently()
         .BeginMap()
@@ -434,7 +566,7 @@ TEST(TSetAttributeTest, Message)
     EXPECT_EQ(4, message.nested_message().int32_field());
 }
 
-TEST(TSetAttributeTest, NestedMessageField)
+TEST_P(TSetAttributeTest, NestedMessageField)
 {
     auto node = NYTree::ConvertToNode(4);
     NProto::TMessage message;
@@ -445,7 +577,7 @@ TEST(TSetAttributeTest, NestedMessageField)
     EXPECT_EQ(4, message.nested_message().int32_field());
 }
 
-TEST(TSetAttributeTest, MapValueNestedField)
+TEST_P(TSetAttributeTest, MapValueNestedField)
 {
     auto node = NYTree::ConvertToNode(4);
     NProto::TMessage message;
@@ -460,7 +592,7 @@ TEST(TSetAttributeTest, MapValueNestedField)
     EXPECT_EQ(3, message.nested_message_map().at("a").int32_field());
 }
 
-TEST(TSetAttributeTest, MapValueScalar)
+TEST_P(TSetAttributeTest, MapValueScalar)
 {
     auto node = NYTree::ConvertToNode(4);
     NProto::TMessage message;
@@ -471,7 +603,7 @@ TEST(TSetAttributeTest, MapValueScalar)
     EXPECT_EQ(3, message.string_to_int32_map().at("a"));
 }
 
-TEST(TSetAttributeTest, RepeatedNestedField)
+TEST_P(TSetAttributeTest, RepeatedNestedField)
 {
     auto node = NYTree::ConvertToNode(4);
     NProto::TMessage message;
@@ -483,7 +615,7 @@ TEST(TSetAttributeTest, RepeatedNestedField)
     EXPECT_EQ(4, message.repeated_nested_message().at(0).int32_field());
 }
 
-TEST(TSetAttributeTest, RepeatedScalar)
+TEST_P(TSetAttributeTest, RepeatedScalar)
 {
 #define TESTCASE(field, value)                                                                            \
     do {                                                                                                  \
@@ -504,7 +636,7 @@ TEST(TSetAttributeTest, RepeatedScalar)
 #undef TESTCASE
 }
 
-TEST(TSetAttributeTest, MapField)
+TEST(TSetAttributeTest, MapFieldYson)
 {
     auto node = NYTree::BuildYsonNodeFluently()
         .BeginMap()
@@ -522,7 +654,30 @@ TEST(TSetAttributeTest, MapField)
     EXPECT_TRUE(message.string_to_int32_map().empty());
 }
 
-TEST(TSetAttributeTest, AttributeDictionaryField)
+TEST(TSetAttributeTest, MapFieldWireString)
+{
+    TString wireStringBuffer;
+    {
+        NProto::TMessage message;
+        message.mutable_string_to_int32_map()->emplace("a", 1);
+        message.mutable_string_to_int32_map()->emplace("b", 2);
+        wireStringBuffer = message.SerializeAsString();
+    }
+    auto wireString = GetWireStringByPath(
+        NProto::TMessage::descriptor(),
+        TWireString::FromSerialized(wireStringBuffer), "/string_to_int32_map");
+
+    NProto::TMessage message;
+    EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/string_to_int32_map", wireString));
+    EXPECT_EQ(2u, message.string_to_int32_map().size());
+    EXPECT_EQ(1, message.string_to_int32_map().at("a"));
+    EXPECT_EQ(2, message.string_to_int32_map().at("b"));
+
+    EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/string_to_int32_map", NYTree::BuildYsonNodeFluently().Entity()));
+    EXPECT_TRUE(message.string_to_int32_map().empty());
+}
+
+TEST_P(TSetAttributeTest, AttributeDictionaryField)
 {
     auto node = NYTree::BuildYsonNodeFluently()
         .BeginMap()
@@ -532,12 +687,13 @@ TEST(TSetAttributeTest, AttributeDictionaryField)
 
     NProto::TMessage message;
     EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/attribute_dictionary", node));
-    EXPECT_EQ(2, message.attribute_dictionary().attributes_size());
+    ASSERT_EQ(2, message.attribute_dictionary().attributes_size());
     EXPECT_EQ("a", message.attribute_dictionary().attributes(0).key());
     EXPECT_EQ(
         "foo_a",
         NYson::ConvertFromYsonString<TString>(
             NYson::TYsonString(message.attribute_dictionary().attributes(0).value())));
+    ASSERT_EQ(2, message.attribute_dictionary().attributes_size());
     EXPECT_EQ("b", message.attribute_dictionary().attributes(1).key());
     EXPECT_EQ(
         "foo_b",
@@ -567,7 +723,7 @@ TEST(TSetAttributeTest, AttributeDictionaryField)
     EXPECT_EQ(0, message.attribute_dictionary().attributes_size());
 }
 
-TEST(TSetAttributeTest, NestedAttributeDictionaryField)
+TEST_P(TSetAttributeTest, NestedAttributeDictionaryField)
 {
     auto node = NYTree::BuildYsonNodeFluently()
         .BeginMap()
@@ -582,7 +738,7 @@ TEST(TSetAttributeTest, NestedAttributeDictionaryField)
         node,
         /*options*/ {},
         /*recursive*/ true));
-    EXPECT_EQ(2, message.nested_message().attribute_dictionary().attributes_size());
+    ASSERT_EQ(2, message.nested_message().attribute_dictionary().attributes_size());
     EXPECT_EQ("a", message.nested_message().attribute_dictionary().attributes(0).key());
     EXPECT_EQ(
         "foo_a",
@@ -599,7 +755,7 @@ TEST(TSetAttributeTest, NestedAttributeDictionaryField)
     EXPECT_EQ(0, message.nested_message().attribute_dictionary().attributes_size());
 }
 
-TEST(TSetAttributeTest, RepeatedField)
+TEST_P(TSetAttributeTest, RepeatedField)
 {
 #define TESTCASE(field, value1, value2)                                                                   \
     do {                                                                                                  \
@@ -627,7 +783,7 @@ TEST(TSetAttributeTest, RepeatedField)
 #undef TESTCASE
 }
 
-TEST(TSetAttributeTest, ListModification)
+TEST_P(TSetAttributeTest, ListModification)
 {
     NProto::TMessage message;
 #define SET(field, ...)                                                                                   \
@@ -658,7 +814,7 @@ TEST(TSetAttributeTest, ListModification)
 
     SET(repeated_uint32_field, {1u, 2u, 3u});
     TESTCASE(repeated_uint32_field, "/2", 5u, {1u, 2u, 5u});
-    TESTCASE(repeated_uint32_field, "/end", 6, {1u, 2u, 5u, 6u});
+    TESTCASE(repeated_uint32_field, "/end", 6u, {1u, 2u, 5u, 6u});
 
     SET(repeated_int32_field, {1, 2, 3});
     TESTCASE(repeated_int32_field, "/-2", 5, {1, 5, 3});
@@ -712,7 +868,7 @@ TEST(TSetAttributeTest, ListModification)
 #undef RESET
 }
 
-TEST(TSetAttributeTest, RepeatedStringField)
+TEST_P(TSetAttributeTest, RepeatedStringField)
 {
     auto node = NYTree::BuildYsonNodeFluently()
         .BeginList()
@@ -732,7 +888,7 @@ TEST(TSetAttributeTest, RepeatedStringField)
     EXPECT_THAT(message.repeated_string_field(), testing::ElementsAreArray({"zero", "one", "two", "three"}));
 }
 
-TEST(TSetAttributeTest, EnumField)
+TEST_P(TSetAttributeTest, EnumField)
 {
     NProto::TMessage message;
     EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/enum_field", NYTree::ConvertToNode("blue")));
@@ -752,7 +908,7 @@ TEST(TSetAttributeTest, EnumField)
         "100500");
 }
 
-TEST(TSetAttributeTest, RepeatedEnumField)
+TEST_P(TSetAttributeTest, RepeatedEnumField)
 {
     auto node = NYTree::BuildYsonNodeFluently()
         .BeginList()
@@ -765,17 +921,17 @@ TEST(TSetAttributeTest, RepeatedEnumField)
         message.repeated_enum_field(),
         testing::ElementsAreArray({NProto::EColor::C_GREEN}));
 
-    EXPECT_THROW_WITH_SUBSTRING(
-        SetProtobufFieldByPath(message, "/repeated_enum_field/end", NYTree::ConvertToNode("black")),
-        "black");
-
     EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/repeated_enum_field/after:0", NYTree::ConvertToNode("blue")));
     EXPECT_THAT(
         message.repeated_enum_field(),
         testing::ElementsAreArray({NProto::EColor::C_GREEN, NProto::EColor::C_BLUE}));
+
+    EXPECT_THROW_WITH_SUBSTRING(
+        SetProtobufFieldByPath(message, "/repeated_enum_field/end", NYTree::ConvertToNode("black")),
+        "black");
 }
 
-TEST(TSetAttributeTest, UnknownYsonFields)
+TEST_P(TSetAttributeTest, UnknownYsonFields)
 {
     NProto::TMessage message;
     NYson::TProtobufWriterOptions options;
@@ -799,7 +955,7 @@ TEST(TSetAttributeTest, UnknownYsonFields)
     EXPECT_FALSE(node->AsMap()->FindChild("unknown_int2"));
 }
 
-TEST(TSetAttributeTest, UnknownYsonFieldsByPath)
+TEST_P(TSetAttributeTest, UnknownYsonFieldsByPath)
 {
     NYson::TProtobufWriterOptions options;
     options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath& path) {
@@ -838,7 +994,7 @@ TEST(TSetAttributeTest, UnknownYsonFieldsByPath)
     EXPECT_FALSE(nested->AsMap()->FindChild("unknown_int"));
 }
 
-TEST(TSetAttributeTest, UnknownYsonNestedFieldsByPath)
+TEST_P(TSetAttributeTest, UnknownYsonNestedFieldsByPath)
 {
     NYson::TProtobufWriterOptions options;
     options.UnknownYsonFieldModeResolver = [] (const NYPath::TYPath&) {
@@ -871,7 +1027,33 @@ TEST(TSetAttributeTest, UnknownYsonNestedFieldsByPath)
     ASSERT_EQ(1, list->AsList()->FindChild(0)->AsInt64()->GetValue());
 }
 
-TEST(TSetAttributeTest, MapWithNonStringKey)
+TEST(TSetAttributeTest, MapWithNonStringKeyWireString)
+{
+    TString wireStringBuffer;
+    {
+        NProto::TMessage message;
+        message.mutable_int32_to_int32_map()->emplace(1, 1);
+        message.mutable_int32_to_int32_map()->emplace(-1, 2);
+        message.mutable_int32_to_int32_map()->emplace(170, 2);
+        wireStringBuffer = message.SerializeAsString();
+    }
+    auto wireString = GetWireStringByPath(
+        NProto::TMessage::descriptor(),
+        TWireString::FromSerialized(wireStringBuffer), "/int32_to_int32_map");
+
+    NProto::TMessage message;
+    EXPECT_NO_THROW(SetProtobufFieldByPath(message, "/int32_to_int32_map", wireString));
+    auto root = MessageToNode(message);
+    auto map = root->AsMap()->FindChild("int32_to_int32_map");
+    auto e1 = map->AsMap()->FindChild("1");
+    ASSERT_TRUE(e1);
+    auto e2 = map->AsMap()->FindChild("-1");
+    ASSERT_TRUE(e2);
+    auto e3 = map->AsMap()->FindChild("170");
+    ASSERT_TRUE(e3);
+}
+
+TEST(TSetAttributeTest, MapWithNonStringKeyYson)
 {
     NProto::TMessage message;
     auto node = NYTree::BuildYsonNodeFluently()
@@ -891,7 +1073,7 @@ TEST(TSetAttributeTest, MapWithNonStringKey)
     ASSERT_TRUE(e3);
 }
 
-TEST(TSetAttributeTest, ResetWithEntity)
+TEST_P(TSetAttributeTest, ResetWithEntity)
 {
     NProto::TMessage message;
     message.set_string_field("42");

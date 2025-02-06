@@ -200,8 +200,21 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitPresentSingularField(
             fieldDescriptor->full_name(),
             fieldDescriptor->type_name());
     } else {
-        Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle singular scalar fields");
+        Self()->VisitScalarSingularField(message, fieldDescriptor, reason);
     }
+}
+
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitScalarSingularField(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    EVisitReason reason)
+{
+    Y_UNUSED(message);
+    Y_UNUSED(fieldDescriptor);
+    Y_UNUSED(reason);
+
+    Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle singular scalar fields");
 }
 
 template <typename TWrappedMessage, typename TSelf>
@@ -210,17 +223,26 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitMissingSingularField(
     const NProtoBuf::FieldDescriptor* fieldDescriptor,
     EVisitReason reason)
 {
+    auto throwIfReasonIsPath = [&] {
+        if (reason == EVisitReason::Path) {
+            Self()->Throw(NAttributes::EErrorCode::MissingField,
+                "Missing field %v",
+                fieldDescriptor->full_name());
+        }
+    };
+
     switch (Self()->MissingFieldPolicy_) {
         case EMissingFieldPolicy::Throw:
-            if (reason == EVisitReason::Path) {
-                Self()->Throw(NAttributes::EErrorCode::MissingField,
-                    "Missing field %v",
-                    fieldDescriptor->full_name());
-            } else {
-                return;
-            }
+            throwIfReasonIsPath();
+            return;
         case EMissingFieldPolicy::Skip:
             return;
+        case EMissingFieldPolicy::ForceLeaf:
+            if (!Self()->PathComplete()) {
+                throwIfReasonIsPath();
+                return;
+            }
+        [[fallthrough]];
         case EMissingFieldPolicy::Force:
             // This will visit the default value if const/create and visit one if mutable.
             Self()->VisitPresentSingularField(message, fieldDescriptor, reason);
@@ -338,8 +360,23 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRepeatedFieldEntry(
             fieldDescriptor->full_name(),
             fieldDescriptor->type_name());
     } else {
-        Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle repeated scalar fields");
+        Self()->VisitScalarRepeatedFieldEntry(message, fieldDescriptor, index, reason);
     }
+}
+
+template <typename TWrappedMessage, typename TSelf>
+void TProtoVisitor<TWrappedMessage, TSelf>::VisitScalarRepeatedFieldEntry(
+    TMessageParam message,
+    const NProtoBuf::FieldDescriptor* fieldDescriptor,
+    int index,
+    EVisitReason reason)
+{
+    Y_UNUSED(message);
+    Y_UNUSED(fieldDescriptor);
+    Y_UNUSED(index);
+    Y_UNUSED(reason);
+
+    Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle repeated scalar fields");
 }
 
 template <typename TWrappedMessage, typename TSelf>
@@ -354,6 +391,11 @@ void TProtoVisitor<TWrappedMessage, TSelf>::VisitRepeatedFieldEntryRelative(
             break;
         case EMissingFieldPolicy::Skip:
             break; // Relative index means container modification.
+        case EMissingFieldPolicy::ForceLeaf:
+            if (!Self()->PathComplete()) {
+                break;
+            }
+        [[fallthrough]];
         case EMissingFieldPolicy::Force:
             Self()->ThrowOnError(
                 TTraits::InsertRepeatedFieldEntry(message, fieldDescriptor, index));
@@ -393,6 +435,11 @@ void TProtoVisitor<TWrappedMessage, TSelf>::OnIndexError(
                 break;
             case EMissingFieldPolicy::Skip:
                 return;
+            case EMissingFieldPolicy::ForceLeaf:
+                if (!PathComplete()) {
+                    break;
+                }
+            [[fallthrough]];
             case EMissingFieldPolicy::Force:
                 if constexpr (std::is_const_v<TMessageParam>) {
                     if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
@@ -517,6 +564,11 @@ void TProtoVisitor<TWrappedMessage, TSelf>::OnKeyError(
                 break;
             case EMissingFieldPolicy::Skip:
                 return;
+            case EMissingFieldPolicy::ForceLeaf:
+                if (!PathComplete()) {
+                    break;
+                }
+            [[fallthrough]];
             case EMissingFieldPolicy::Force:
                 if constexpr (std::is_const_v<TMessageParam>) {
                     if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {

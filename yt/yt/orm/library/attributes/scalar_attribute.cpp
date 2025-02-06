@@ -43,27 +43,69 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSetVisitor final
-    : public TProtoVisitor<Message*, TSetVisitor>
+template <class TSelf, class TValueType>
+class TSetVisitorBase
+    : public TProtoVisitor<Message*, TSelf>
 {
-    friend class TProtoVisitor<Message*, TSetVisitor>;
+    using TPathVisitor<TSelf>::Self;
+
+public:
+    TSetVisitorBase(bool recursive, const TValueType& value)
+        : CurrentValue_(value)
+    {
+        Self()->SetMissingFieldPolicy(recursive ? EMissingFieldPolicy::Force : EMissingFieldPolicy::ForceLeaf);
+        Self()->SetProcessAttributeDictionary(true);
+    }
+
+protected:
+    TValueType CurrentValue_;
+
+    void VisitScalarRepeatedFieldEntry(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        int index,
+        EVisitReason reason)
+    {
+        Y_UNUSED(reason);
+
+        Self()->ThrowOnError(
+            SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, CurrentValue_));
+    }
+
+    void VisitScalarSingularField(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason)
+    {
+        Y_UNUSED(reason);
+
+        const auto* reflection = message->GetReflection();
+        reflection->ClearField(message, fieldDescriptor);
+        Self()->ThrowOnError(
+            SetScalarField(message, fieldDescriptor, CurrentValue_));
+    }
+};
+
+template <class T>
+class TSetVisitor;
+
+template<>
+class TSetVisitor<NYTree::INodePtr> final
+    : public TSetVisitorBase<TSetVisitor<NYTree::INodePtr>, INodePtr>
+{
+    friend class TProtoVisitor<Message*, TSetVisitor<NYTree::INodePtr>>;
 
 public:
     TSetVisitor(
         const INodePtr& value,
         const TProtobufWriterOptions& options,
         bool recursive)
-        : CurrentValue_(value)
+        : TSetVisitorBase(recursive, value)
         , Options_(options)
-        , Recursive_(recursive)
-    {
-        SetProcessAttributeDictionary(true);
-    }
+    { }
 
 protected:
-    INodePtr CurrentValue_;
     const TProtobufWriterOptions& Options_;
-    const bool Recursive_;
 
     void VisitRegularMessage(
         Message* message,
@@ -140,7 +182,7 @@ protected:
             std::tie(index, value) = std::move(errorOrItem).Value();
             item = unknownFields->mutable_field(index)->mutable_length_delimited();
         } else if (errorOrItem.GetCode() == NAttributes::EErrorCode::MissingKey) {
-            if (PathComplete() || Recursive_) {
+            if (PathComplete() || GetMissingFieldPolicy() == EMissingFieldPolicy::Force) {
                 item = unknownFields->AddLengthDelimited(UnknownYsonFieldNumber);
             } else {
                 Throw(errorOrItem);
@@ -228,7 +270,9 @@ protected:
                         std::move(keyMessage),
                         key,
                         EVisitReason::Manual,
-                        TError());
+                        // NB! Poison pill for map processing. Error code `MissingKey` is processed
+                        // according to missing field policy. Error message is not provided intentionally.
+                        TError(EErrorCode::MissingKey, ""));
                 }
             } else if (CurrentValue_->GetType() == NYTree::ENodeType::List) {
                 // Falling back to a list of maps with explicit |key| and |value| fields.
@@ -242,38 +286,6 @@ protected:
         }
 
         TProtoVisitor::VisitMapField(message, fieldDescriptor, reason);
-    }
-
-    void OnKeyError(
-        Message* message,
-        const FieldDescriptor* fieldDescriptor,
-        std::unique_ptr<Message> keyMessage,
-        TString key,
-        EVisitReason reason,
-        TError error)
-    {
-        if (PathComplete() || Recursive_) {
-            const auto* reflection = message->GetReflection();
-            auto* entry = keyMessage.get();
-
-            reflection->AddAllocatedMessage(message, fieldDescriptor, keyMessage.release());
-            VisitMapFieldEntry(
-                message,
-                fieldDescriptor,
-                entry,
-                std::move(key),
-                reason);
-
-            return;
-        }
-
-        TProtoVisitor::OnKeyError(
-            message,
-            fieldDescriptor,
-            std::move(keyMessage),
-            std::move(key),
-            reason,
-            error);
     }
 
     void VisitRepeatedField(
@@ -308,65 +320,6 @@ protected:
         TProtoVisitor::VisitRepeatedField(message, fieldDescriptor, reason);
     }
 
-    void VisitRepeatedFieldEntry(
-        Message* message,
-        const FieldDescriptor* fieldDescriptor,
-        int index,
-        EVisitReason reason)
-    {
-        if (PathComplete() && fieldDescriptor->cpp_type() != FieldDescriptor::CPPTYPE_MESSAGE) {
-            ThrowOnError(
-                SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, CurrentValue_));
-            return;
-        }
-
-        TProtoVisitor::VisitRepeatedFieldEntry(message, fieldDescriptor, index, reason);
-    }
-
-    void VisitRepeatedFieldEntryRelative(
-        Message* message,
-        const FieldDescriptor* fieldDescriptor,
-        int index,
-        EVisitReason reason)
-    {
-        if (PathComplete() || Recursive_) {
-            if (fieldDescriptor->cpp_type() == FieldDescriptor::CPPTYPE_MESSAGE) {
-                const auto* reflection = message->GetReflection();
-                auto* entry = reflection->AddMessage(message, fieldDescriptor);
-                VisitMessage(entry, EVisitReason::Manual);
-            } else {
-                ThrowOnError(
-                    AddScalarRepeatedFieldEntry(message, fieldDescriptor, CurrentValue_));
-            }
-
-            RotateLastEntryBeforeIndex(message, fieldDescriptor, index);
-            return;
-        }
-
-        TProtoVisitor::VisitRepeatedFieldEntryRelative(message, fieldDescriptor, index, reason);
-    }
-
-    void VisitSingularField(
-        Message* message,
-        const FieldDescriptor* fieldDescriptor,
-        EVisitReason reason)
-    {
-        if (PathComplete() || Recursive_) {
-            if (fieldDescriptor->type() == NProtoBuf::FieldDescriptor::TYPE_MESSAGE) {
-                // MutableMessage will create the field.
-                TProtoVisitor::VisitPresentSingularField(
-                    message,
-                    fieldDescriptor,
-                    EVisitReason::Manual);
-            } else {
-                ThrowOnError(SetScalarField(message, fieldDescriptor, CurrentValue_));
-            }
-            return;
-        }
-
-        TProtoVisitor::VisitSingularField(message, fieldDescriptor, reason);
-    }
-
     void TemporarilySetCurrentValue(TCheckpoint& checkpoint, INodePtr value)
     {
         checkpoint.Defer([this, oldCurrentValue = std::move(CurrentValue_)] () {
@@ -388,7 +341,7 @@ protected:
                     root,
                     NYPath::TYPath{GetTokenizerInput()},
                     ConvertToYsonString(CurrentValue_),
-                    Recursive_);
+                    GetMissingFieldPolicy() == EMissingFieldPolicy::Force);
                 value = ConvertToYsonString(root);
             } catch (std::exception& ex) {
                 Throw(TError("Failed to store yson string") << ex);
@@ -402,7 +355,94 @@ protected:
         std::ranges::sort(children, std::less{}, &std::pair<std::string, INodePtr>::first);
         return {children.begin(), children.end()};
     }
-}; // TSetVisitor
+}; // TSetVisitor<INodePtr>
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+class TSetVisitor<TWireString> final
+    : public TSetVisitorBase<TSetVisitor<TWireString>, TWireString>
+{
+    friend class TProtoVisitor<Message*, TSetVisitor<TWireString>>;
+
+public:
+    TSetVisitor(
+        const TWireString& value,
+        bool recursive)
+        : TSetVisitorBase(recursive, value)
+    { }
+
+protected:
+    void VisitRegularMessage(
+        Message* message,
+        const Descriptor* descriptor,
+        EVisitReason reason)
+    {
+        if (PathComplete()) {
+            message->Clear();
+            MergeMessageFrom(message, CurrentValue_);
+            return;
+        }
+
+        TProtoVisitor::VisitRegularMessage(message, descriptor, reason);
+    }
+
+    void VisitAttributeDictionary(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason)
+    {
+        Y_UNUSED(reason);
+
+        const auto* reflection = message->GetReflection();
+
+        if (PathComplete()) {
+            reflection->ClearField(message, fieldDescriptor);
+            MergeMessageFrom(message, CurrentValue_);
+            return;
+        }
+
+        Throw("Partial set of TAttributeDictionary could not be performed via wire format");
+    }
+
+    void VisitMapField(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason)
+    {
+        if (PathComplete()) {
+            const auto* reflection = message->GetReflection();
+            reflection->ClearField(message, fieldDescriptor);
+            for (auto wireStringPart : CurrentValue_) {
+                if (!reflection->AddMessage(message, fieldDescriptor)->MergeFromString(wireStringPart.AsStringView())) {
+                    Throw(TError(NAttributes::EErrorCode::InvalidData,
+                        "Cannot parse map key-value pair from wire representation"));
+                }
+            }
+            return;
+        }
+
+        TProtoVisitor::VisitMapField(message, fieldDescriptor, reason);
+    }
+
+    void VisitRepeatedField(
+        Message* message,
+        const FieldDescriptor* fieldDescriptor,
+        EVisitReason reason)
+    {
+        if (PathComplete()) {
+            const auto* reflection = message->GetReflection();
+            reflection->ClearField(message, fieldDescriptor);
+            for (auto wireStringPart : CurrentValue_) {
+                ThrowOnError(
+                    AddScalarRepeatedFieldEntry(message, fieldDescriptor, wireStringPart));
+            }
+            return;
+        }
+
+        TProtoVisitor::VisitRepeatedField(message, fieldDescriptor, reason);
+    }
+}; // TSetVisitor<TWireString>
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -712,7 +752,17 @@ void SetProtobufFieldByPath(
     const TProtobufWriterOptions& options,
     bool recursive)
 {
-    TSetVisitor visitor(value, options, recursive);
+    TSetVisitor<INodePtr> visitor(value, options, recursive);
+    visitor.Visit(&message, path);
+}
+
+void SetProtobufFieldByPath(
+    Message& message,
+    const NYPath::TYPath& path,
+    const TWireString& value,
+    bool recursive)
+{
+    TSetVisitor<TWireString> visitor(value, recursive);
     visitor.Visit(&message, path);
 }
 
