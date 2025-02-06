@@ -2938,7 +2938,7 @@ class YtClient(ClientState):
     def suspend_operation(
             self,
             operation,
-            abort_running_jobs=False):
+            abort_running_jobs=False, reason=None):
         """
         Suspends operation.
 
@@ -2948,7 +2948,7 @@ class YtClient(ClientState):
         return client_api.suspend_operation(
             operation,
             client=self,
-            abort_running_jobs=abort_running_jobs)
+            abort_running_jobs=abort_running_jobs, reason=reason)
 
     def transfer_account_resources(
             self,
