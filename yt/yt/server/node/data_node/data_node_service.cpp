@@ -97,9 +97,10 @@ using namespace NTableClient::NProto;
 using namespace NTableClient;
 using namespace NTracing;
 
+using NChunkClient::NProto::TBlocksExt;
 using NChunkClient::TChunkReaderStatistics;
-using NYT::ToProto;
 using NYT::FromProto;
+using NYT::ToProto;
 
 using TRefCountedColumnarStatisticsSubresponse = TRefCountedProto<TRspGetColumnarStatistics::TSubresponse>;
 using TRefCountedColumnarStatisticsSubresponsePtr = TIntrusivePtr<TRefCountedColumnarStatisticsSubresponse>;
@@ -2443,6 +2444,39 @@ private:
             errorCount);
     }
 
+    static void FillColumnarStatisticsFromChunkMeta(
+        TRspGetColumnarStatistics::TSubresponse* subresponse,
+        const std::vector<TColumnStableName>& columnStableNames,
+        const TNameTablePtr nameTable,
+        const TChunkMeta& meta)
+    {
+        auto optionalColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta.extensions());
+        if (!optionalColumnarStatisticsExt) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::MissingExtension,
+                "Columnar statistics chunk meta extension missing");
+        }
+        const auto& columnarStatisticsExt = *optionalColumnarStatisticsExt;
+        auto largeColumnarStatisticsExt = FindProtoExtension<TLargeColumnarStatisticsExt>(meta.extensions());
+
+        TColumnarStatistics columnarStatistics;
+        i64 chunkRowCount = GetProtoExtension<TMiscExt>(meta.extensions()).row_count();
+
+        FromProto(
+            &columnarStatistics,
+            columnarStatisticsExt,
+            largeColumnarStatisticsExt ? &*largeColumnarStatisticsExt : nullptr,
+            chunkRowCount);
+        auto selectedStatistics = columnarStatistics.SelectByColumnNames(nameTable, columnStableNames);
+        ToProto(subresponse->mutable_columnar_statistics(),
+            selectedStatistics);
+
+        const auto& largeStatistics = selectedStatistics.LargeStatistics;
+        if (!largeStatistics.IsEmpty()) {
+            ToProto(subresponse->mutable_large_columnar_statistics(), largeStatistics);
+        }
+    }
+
     TRefCountedColumnarStatisticsSubresponsePtr ExtractColumnarStatisticsFromChunkMeta(
         const std::vector<TColumnStableName>& columnStableNames,
         TChunkId chunkId,
@@ -2463,40 +2497,21 @@ private:
                     type);
             }
 
-            auto optionalColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta.extensions());
-            if (!optionalColumnarStatisticsExt) {
-                THROW_ERROR_EXCEPTION(
-                    NChunkClient::EErrorCode::MissingExtension,
-                    "Columnar statistics chunk meta extension missing");
-            }
-            const auto& columnarStatisticsExt = *optionalColumnarStatisticsExt;
-            auto largeColumnarStatisticsExt = FindProtoExtension<TLargeColumnarStatisticsExt>(meta.extensions());
-
             auto nameTableExt = FindProtoExtension<TNameTableExt>(meta.extensions());
             TNameTablePtr nameTable;
+            TTableSchemaPtr schema;
             if (nameTableExt) {
                 nameTable = FromProto<TNameTablePtr>(*nameTableExt);
             } else {
                 auto schemaExt = GetProtoExtension<TTableSchemaExt>(meta.extensions());
-                nameTable = TNameTable::FromSchemaStable(FromProto<TTableSchema>(schemaExt));
+                schema = FromProto<TTableSchemaPtr>(schemaExt);
+                nameTable = TNameTable::FromSchemaStable(*schema);
             }
 
-            TColumnarStatistics columnarStatistics;
-            i64 chunkRowCount = GetProtoExtension<TMiscExt>(meta.extensions()).row_count();
+            subresponse->set_read_data_size_estimate(
+                EstimateReadDataSizeForColumns(columnStableNames, meta, schema, chunkId, Logger));
 
-            FromProto(
-                &columnarStatistics,
-                columnarStatisticsExt,
-                largeColumnarStatisticsExt ? &*largeColumnarStatisticsExt : nullptr,
-                chunkRowCount);
-            auto selectedStatistics = columnarStatistics.SelectByColumnNames(nameTable, columnStableNames);
-            ToProto(subresponse->mutable_columnar_statistics(),
-                selectedStatistics);
-
-            const auto& largeStatistics = selectedStatistics.LargeStatistics;
-            if (!largeStatistics.IsEmpty()) {
-                ToProto(subresponse->mutable_large_columnar_statistics(), largeStatistics);
-            }
+            FillColumnarStatisticsFromChunkMeta(subresponse.get(), columnStableNames, nameTable, meta);
 
             YT_LOG_DEBUG("Columnar statistics extracted from chunk meta (ChunkId: %v)", chunkId);
         } catch (const std::exception& ex) {

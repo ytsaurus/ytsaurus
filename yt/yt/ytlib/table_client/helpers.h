@@ -113,6 +113,15 @@ TColumnarStatistics GetColumnarStatistics(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+i64 EstimateReadDataSizeForColumns(
+    const std::vector<TColumnStableName>& columnStableNames,
+    const NChunkClient::NProto::TChunkMeta& meta,
+    TTableSchemaPtr schema,
+    NChunkClient::TChunkId chunkId,
+    const NLogging::TLogger& Logger);
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Helper class for storing virtual values in schemaless reader.
 //! It allows extracting them as vector of TUnversionedValue as well as
 //! filling them as a sequence of RLE-encoded IUnversionedColumnarRowBatch::TColumn.

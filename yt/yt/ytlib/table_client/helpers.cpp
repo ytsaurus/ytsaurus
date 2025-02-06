@@ -73,8 +73,13 @@ using namespace NTableChunkFormat;
 using namespace NYTree;
 using namespace NYson;
 
-using NControllerAgent::NProto::TJobSpecExt;
+using NChunkClient::NProto::TBlocksExt;
+using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TChunkSpec;
+using NChunkClient::NProto::TMiscExt;
+using NControllerAgent::NProto::TJobSpecExt;
+using NProto::TColumnMetaExt;
+using NProto::TTableSchemaExt;
 
 using NYPath::TRichYPath;
 using NYT::FromProto;
@@ -478,6 +483,102 @@ TColumnarStatistics GetColumnarStatistics(
     columnarStatistics.ChunkRowCount = chunkRowCount;
 
     return columnarStatistics;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 EstimateReadDataSizeForColumns(
+    const std::vector<TColumnStableName>& columnStableNames,
+    const TChunkMeta& meta,
+    TTableSchemaPtr schema,
+    TChunkId chunkId,
+    const TLogger& Logger)
+{
+    i64 compressedDataSize = GetProtoExtension<TMiscExt>(meta.extensions()).compressed_data_size();
+
+    if (IsTableChunkFormatVersioned(FromProto<EChunkFormat>(meta.format()))) {
+        // Versioned chunk format is not yet supported.
+        return compressedDataSize;
+    }
+
+    if (!schema) {
+        auto optionalSchemaExt = FindProtoExtension<TTableSchemaExt>(meta.extensions());
+        if (optionalSchemaExt) {
+            schema = FromProto<TTableSchemaPtr>(*optionalSchemaExt);
+        }
+    }
+
+    if (!schema) {
+        return compressedDataSize;
+    }
+
+    auto optionalColumnMetaExt = FindProtoExtension<TColumnMetaExt>(meta.extensions());
+    if (!optionalColumnMetaExt) {
+        if (!schema->GetStrict()) {
+            return compressedDataSize;
+        }
+
+        for (const auto& stableName : columnStableNames) {
+            if (schema->FindColumnByStableName(stableName)) {
+                return compressedDataSize;
+            }
+        }
+
+        return 0;
+    }
+
+    const auto& columnMeta = *optionalColumnMetaExt;
+
+    int expectedColumnSize = std::ssize(schema->Columns());
+    if (!schema->GetStrict()) {
+        ++expectedColumnSize;
+    }
+
+    if (columnMeta.columns_size() != expectedColumnSize) {
+        YT_LOG_ALERT("Unexpected chunk columns size in column meta "
+            "(ChunkId: %v, SchemaStrict: %v, ExpectedColumnSize: %v, ActualColumnSize: %v)",
+            chunkId,
+            schema->GetStrict(),
+            expectedColumnSize,
+            columnMeta.columns_size());
+        return compressedDataSize;
+    }
+
+    THashSet<TStringBuf> uniqueColumnStableNames;
+    for (const auto& column : columnStableNames) {
+        uniqueColumnStableNames.insert(column.Underlying());
+    }
+
+    THashSet<int> blockIndexes;
+
+    bool otherColumnsBlocksAdded = false;
+
+    for (const auto& columnName : uniqueColumnStableNames) {
+        int columnIndex;
+        const auto* columnSchema = schema->FindColumnByStableName(TColumnStableName(std::string(columnName)));
+        if (!columnSchema) {
+            if (otherColumnsBlocksAdded || schema->GetStrict()) {
+                continue;
+            }
+            otherColumnsBlocksAdded = true;
+            columnIndex = schema->Columns().size();
+        } else {
+            columnIndex = schema->GetColumnIndex(*columnSchema);
+        }
+
+        for (const auto& segment : columnMeta.columns(columnIndex).segments()) {
+            blockIndexes.insert(segment.block_index());
+        }
+    }
+
+    auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
+
+    i64 readSize = 0;
+    for (int blockIndex : blockIndexes) {
+        readSize += blocksExt.blocks(blockIndex).size();
+    }
+
+    return readSize;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
