@@ -970,7 +970,7 @@ class YtClient(ClientState):
         Get YT Flow flow view
 
         :param pipeline_path: path to pipeline
-        :param view_path: path to part of the view
+        :param view_path: path inside flow view yson struct, starting with /
 
         """
         return client_api.get_flow_view(
@@ -1134,7 +1134,7 @@ class YtClient(ClientState):
         Get YT Flow pipeline dynamic spec.
 
         :param pipeline_path: path to pipeline.
-        :param spec_path: path to part of the spec.
+        :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
 
         """
         return client_api.get_pipeline_dynamic_spec(
@@ -1150,7 +1150,7 @@ class YtClient(ClientState):
         Get YT Flow pipeline spec.
 
         :param pipeline_path: path to pipeline.
-        :param spec_path: path to part of the spec.
+        :param spec_path: path inside pipeline spec yson struct, starting with /.
 
         """
         return client_api.get_pipeline_spec(
@@ -2133,7 +2133,7 @@ class YtClient(ClientState):
         Remove YT Flow pipeline dynamic spec.
 
         :param pipeline_path: path to pipeline.
-        :param spec_path: path to part of the spec.
+        :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
         :param expected_version: current dynamic spec expected version.
 
         """
@@ -2150,7 +2150,7 @@ class YtClient(ClientState):
         Remove YT Flow pipeline spec.
 
         :param pipeline_path: path to pipeline.
-        :param spec_path: path to part of the spec.
+        :param spec_path: path inside pipeline spec yson struct, starting with /.
         :param expected_version: current spec expected version.
         :param force: if true, remove spec even if pipeline is paused.
 
@@ -2758,7 +2758,7 @@ class YtClient(ClientState):
 
         :param pipeline_path: path to pipeline.
         :param spec: new pipeline spec.
-        :param spec_path: path to part of the spec.
+        :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
         :param expected_version: current dynamic spec expected version.
 
         """
@@ -2776,7 +2776,7 @@ class YtClient(ClientState):
 
         :param pipeline_path: path to pipeline.
         :param spec: new pipeline spec.
-        :param spec_path: path to part of the spec.
+        :param spec_path: path inside pipeline spec yson struct, starting with /.
         :param expected_version: current spec expected version.
         :param force: if true, update spec even if pipeline is paused.
 

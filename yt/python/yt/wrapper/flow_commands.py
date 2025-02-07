@@ -51,7 +51,7 @@ def get_pipeline_spec(pipeline_path, spec_path=None, format=None, client=None):
     """Get YT Flow pipeline spec.
 
     :param pipeline_path: path to pipeline.
-    :param spec_path: path to part of the spec.
+    :param spec_path: path inside pipeline spec yson struct, starting with /.
     """
 
     params = {"pipeline_path": YPath(pipeline_path, client=client)}
@@ -70,7 +70,7 @@ def set_pipeline_spec(pipeline_path, value, spec_path=None, expected_version=Non
 
     :param pipeline_path: path to pipeline.
     :param spec: new pipeline spec.
-    :param spec_path: path to part of the spec.
+    :param spec_path: path inside pipeline spec yson struct, starting with /.
     :param expected_version: current spec expected version.
     :param force: if true, update spec even if pipeline is paused.
     """
@@ -99,7 +99,7 @@ def remove_pipeline_spec(pipeline_path, spec_path=None, expected_version=None, f
     """Remove YT Flow pipeline spec.
 
     :param pipeline_path: path to pipeline.
-    :param spec_path: path to part of the spec.
+    :param spec_path: path inside pipeline spec yson struct, starting with /.
     :param expected_version: current spec expected version.
     :param force: if true, remove spec even if pipeline is paused.
     """
@@ -119,7 +119,7 @@ def get_pipeline_dynamic_spec(pipeline_path, spec_path=None, format=None, client
     """Get YT Flow pipeline dynamic spec.
 
     :param pipeline_path: path to pipeline.
-    :param spec_path: path to part of the spec.
+    :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
     """
 
     params = {"pipeline_path": YPath(pipeline_path, client=client)}
@@ -138,7 +138,7 @@ def set_pipeline_dynamic_spec(pipeline_path, value, spec_path=None, expected_ver
 
     :param pipeline_path: path to pipeline.
     :param spec: new pipeline spec.
-    :param spec_path: path to part of the spec.
+    :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
     :param expected_version: current dynamic spec expected version.
     """
 
@@ -165,7 +165,7 @@ def remove_pipeline_dynamic_spec(pipeline_path, spec_path=None, expected_version
     """Remove YT Flow pipeline dynamic spec.
 
     :param pipeline_path: path to pipeline.
-    :param spec_path: path to part of the spec.
+    :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
     :param expected_version: current dynamic spec expected version.
     """
 
@@ -254,7 +254,7 @@ def get_flow_view(pipeline_path, view_path=None, format=None, client=None):
     """Get YT Flow flow view
 
     :param pipeline_path: path to pipeline
-    :param view_path: path to part of the view
+    :param view_path: path inside flow view yson struct, starting with /
     """
 
     params = {"pipeline_path": YPath(pipeline_path, client=client)}
