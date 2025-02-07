@@ -49,8 +49,6 @@ DEFINE_ENUM(ETabletStoresUpdateReason,
     ((DictionaryBuilding)   (6))
 );
 
-DEFINE_ENUM_UNKNOWN_VALUE(ETabletStoresUpdateReason, Unknown);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 constexpr int TypicalPeerCount = 5;

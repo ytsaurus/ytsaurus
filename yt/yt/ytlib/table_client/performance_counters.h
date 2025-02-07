@@ -60,10 +60,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletPerformanceCounters)
 DEFINE_ENUM(EDataSource,
     (DynamicStore)
     (ChunkStore)
-    (Unknown)
 );
-
-DEFINE_ENUM_UNKNOWN_VALUE(EDataSource, Unknown);
 
 DEFINE_ENUM(ERequestType,
     (Lookup)

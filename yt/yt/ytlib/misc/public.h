@@ -50,8 +50,6 @@ DEFINE_ENUM(EMemoryCategory,
     ((HeavyRequest)               (35))
 );
 
-DEFINE_ENUM_UNKNOWN_VALUE(EMemoryCategory, Other);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
