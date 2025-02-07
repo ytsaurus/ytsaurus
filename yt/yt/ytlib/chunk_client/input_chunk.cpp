@@ -160,7 +160,8 @@ void TInputChunkBase::CheckOffsets()
     static_assert(offsetof(TInputChunkBase, UniqueKeys_) == 196, "invalid offset");
     static_assert(offsetof(TInputChunkBase, ColumnSelectivityFactor_) == 200, "invalid offset");
     static_assert(offsetof(TInputChunkBase, StripedErasure_) == 208, "invalid offset");
-    static_assert(sizeof(TInputChunkBase) == 216, "invalid sizeof");
+    static_assert(offsetof(TInputChunkBase, ReadSizeSelectivityFactor_) == 216, "invalid offset");
+    static_assert(sizeof(TInputChunkBase) == 224, "invalid sizeof");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -305,7 +306,7 @@ i64 TInputChunk::GetRowCount() const
     return rowCount;
 }
 
-double TInputChunk::GetSelectivityFactor() const
+double TInputChunk::GetDataWeightSelectivityFactor() const
 {
     return GetBlockSelectivityFactor().value_or(GetColumnSelectivityFactor());
 }
@@ -318,7 +319,9 @@ i64 TInputChunk::GetDataWeight() const
         return TotalUncompressedDataSize_;
     }
 
-    return ApplySelectivityFactors(TotalDataWeight_, /*applyColumnarSelectivityToNonColumnarFormats*/ true);
+    return std::max<i64>(
+        ApplySelectivityFactors(TotalDataWeight_, /*applyReadSizeSelectivityFactors*/ false),
+        GetRowCount());
 }
 
 i64 TInputChunk::GetUncompressedDataSize() const
@@ -326,7 +329,7 @@ i64 TInputChunk::GetUncompressedDataSize() const
     if (IsFile()) {
         return TotalUncompressedDataSize_;
     }
-    return ApplySelectivityFactors(TotalUncompressedDataSize_, /*applyColumnarSelectivityToNonColumnarFormats*/ false);
+    return ApplySelectivityFactors(TotalUncompressedDataSize_, /*applyReadSizeSelectivityFactors*/ true);
 }
 
 i64 TInputChunk::GetCompressedDataSize() const
@@ -334,10 +337,10 @@ i64 TInputChunk::GetCompressedDataSize() const
     if (IsFile()) {
         return CompressedDataSize_;
     }
-    return ApplySelectivityFactors(CompressedDataSize_, /*applyColumnarSelectivityToNonColumnarFormats*/ false);
+    return ApplySelectivityFactors(CompressedDataSize_, /*applyReadSizeSelectivityFactors*/ true);
 }
 
-i64 TInputChunk::ApplySelectivityFactors(i64 dataSize, bool applyColumnarSelectivityToNonColumnarFormats) const
+i64 TInputChunk::ApplySelectivityFactors(i64 dataSize, bool applyReadSizeSelectivityFactors) const
 {
     auto rowCount = GetRowCount();
 
@@ -348,16 +351,14 @@ i64 TInputChunk::ApplySelectivityFactors(i64 dataSize, bool applyColumnarSelecti
     } else {
         auto rowSelectivityFactor = static_cast<double>(rowCount) / TotalRowCount_;
         result = std::ceil(rowSelectivityFactor * result);
-
-        if (applyColumnarSelectivityToNonColumnarFormats ||
-            ChunkFormat_ == EChunkFormat::TableUnversionedColumnar ||
-            ChunkFormat_ == EChunkFormat::TableVersionedColumnar)
-        {
+        if (applyReadSizeSelectivityFactors) {
+            result = std::ceil(ReadSizeSelectivityFactor_ * result);
+        } else {
             result = std::ceil(ColumnSelectivityFactor_ * result);
         }
     }
 
-    return std::max<i64>({result, rowCount, 1});
+    return std::max<i64>({result, 1});
 }
 
 PHOENIX_DEFINE_TYPE(TInputChunk);

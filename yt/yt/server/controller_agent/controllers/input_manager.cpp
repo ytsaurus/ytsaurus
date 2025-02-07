@@ -646,7 +646,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
                     *table->Schema,
                     *table->Path.GetColumns(),
                     NonexistentColumnName);
-                columnarStatisticsFetcher->AddChunk(inputChunk, stableColumnNames);
+                columnarStatisticsFetcher->AddChunk(inputChunk, stableColumnNames, table->Schema);
             }
 
             if (hasColumnSelectors) {

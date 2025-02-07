@@ -70,6 +70,10 @@ public:
 
     DEFINE_BYVAL_RO_PROPERTY(bool, StripedErasure, false);
 
+    //! Factor providing the ratio of the sum of sizes of chunk blocks to be read
+    //! to the sum of sizes of all blocks.
+    DEFINE_BYVAL_RW_PROPERTY(double, ReadSizeSelectivityFactor, 1.0);
+
 public:
     TInputChunkBase() = default;
     TInputChunkBase(TInputChunkBase&& other) = default;
@@ -166,12 +170,12 @@ public:
 
     //! Returns the combined selectivity factor, which is used to propogate reductions based on external knowledge about the chunk slice referencing this input chunk.
     //! The combined selectivity factor is equal to `BlockSelectivityFactor`, if it is set, and to `ColumnSelectivityFactor` otherwise.
-    double GetSelectivityFactor() const;
+    double GetDataWeightSelectivityFactor() const;
 
     friend void ToProto(NProto::TChunkSpec* chunkSpec, const TInputChunkPtr& inputChunk);
 
 private:
-    i64 ApplySelectivityFactors(i64 dataSize, bool applyColumnarSelectivityToNonColumnarFormats) const;
+    i64 ApplySelectivityFactors(i64 dataSize, bool applyReadSizeSelectivityFactors) const;
 
     PHOENIX_DECLARE_TYPE(TInputChunk, 0x7502ed18);
 };

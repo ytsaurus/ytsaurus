@@ -2508,8 +2508,10 @@ private:
                 nameTable = TNameTable::FromSchemaStable(*schema);
             }
 
-            subresponse->set_read_data_size_estimate(
-                EstimateReadDataSizeForColumns(columnStableNames, meta, schema, chunkId, Logger));
+            auto readDataSizeEstimate = EstimateReadDataSizeForColumns(columnStableNames, meta, schema, chunkId, Logger);
+            if (readDataSizeEstimate) {
+                subresponse->set_read_data_size_estimate(*readDataSizeEstimate);
+            }
 
             FillColumnarStatisticsFromChunkMeta(subresponse.get(), columnStableNames, nameTable, meta);
 
