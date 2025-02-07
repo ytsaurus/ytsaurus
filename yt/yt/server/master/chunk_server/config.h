@@ -532,6 +532,8 @@ public:
     TDuration SequoiaChunkRefreshPeriod;
     int SequoiaChunkCountToFetchFromRefreshQueue;
 
+    bool ClearMasterRequest;
+
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
     static void Register(TRegistrar registrar);
