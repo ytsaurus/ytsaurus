@@ -45,4 +45,6 @@ REQUIREMENTS(
 SIZE(LARGE)
 TIMEOUT(1200)
 
+INCLUDE(${ARCADIA_ROOT}/devtools/large_on_multi_slots.inc)
+
 END()

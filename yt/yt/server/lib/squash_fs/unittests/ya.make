@@ -32,4 +32,6 @@ PEERDIR(
     yt/yt/ytlib
 )
 
+INCLUDE(${ARCADIA_ROOT}/devtools/large_on_multi_slots.inc)
+
 END()

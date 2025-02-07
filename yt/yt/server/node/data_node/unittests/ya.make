@@ -40,4 +40,6 @@ SIZE(LARGE)
 
 DATA(arcadia/yt/yt/server/node/data_node/unittests/testdata)
 
+INCLUDE(${ARCADIA_ROOT}/devtools/large_on_single_slots.inc)
+
 END()
