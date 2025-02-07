@@ -217,6 +217,9 @@ void TJobProxyInternalConfig::Register(TRegistrar registrar)
     registrar.Parameter("check_user_job_memory_limit", &TThis::CheckUserJobMemoryLimit)
         .Default(true);
 
+    registrar.Parameter("check_user_job_oom_kill", &TThis::CheckUserJobOOMKill)
+        .Default(true);
+
     registrar.Parameter("enable_job_shell_seccomp", &TThis::EnableJobShellSeccopm)
         .Default(true);
 
@@ -313,6 +316,9 @@ void TJobProxyDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("enable_stderr_and_core_live_preview", &TThis::EnableStderrAndCoreLivePreview)
+        .Default(true);
+
+    registrar.Parameter("check_user_job_oom_kill", &TThis::CheckUserJobOOMKill)
         .Default(true);
 
     registrar.Parameter("job_environment", &TThis::JobEnvironment)

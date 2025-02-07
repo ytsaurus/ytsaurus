@@ -39,6 +39,7 @@ public:
     TMemoryStatistics GetMemoryStatistics() const;
     TCpuStatistics GetCpuStatistics() const;
     TBlockIOStatistics GetBlockIOStatistics() const;
+    i64 GetOOMKillCount() const;
 
 private:
     TString CGroup_;
