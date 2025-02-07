@@ -457,6 +457,7 @@ private:
     void StartUserJobMonitoring();
 
     void ReportJobInterruptionInfo(
+        TInstant time,
         TDuration timeout,
         NScheduler::EInterruptionReason interruptionReason,
         const std::optional<TString>& preemptionReason,
