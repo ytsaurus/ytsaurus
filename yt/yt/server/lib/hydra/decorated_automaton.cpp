@@ -1320,7 +1320,7 @@ void TDecoratedAutomaton::DoApplyMutation(
     // So we'd better make the needed copies right away.
     // Cf. YT-6908.
     const auto& request = mutationContext->Request();
-    const auto& mutationType = request.Type;
+    auto isSystemMutationType = IsSystemMutationType(request.Type);
     auto mutationId = request.MutationId;
     auto mutationSize = request.Data.Size();
     auto term = mutationContext->GetTerm();
@@ -1398,7 +1398,7 @@ void TDecoratedAutomaton::DoApplyMutation(
     AutomatonVersion_ = mutationVersion.Advance();
 
     LastMutationTerm_ = term;
-    if (!IsSystemMutationType(mutationType)) {
+    if (!isSystemMutationType) {
         LastMutationReign_ = reign;
     }
 
