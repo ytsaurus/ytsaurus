@@ -8,7 +8,8 @@ from yt_commands import (
     sync_mount_table, sync_unmount_table,
     remount_table, sync_flush_table, select_rows, insert_rows, alter_table,
     sync_enable_table_replica, create_table_replica,
-    cancel_tablet_transition, raises_yt_error, create_user, remove)
+    cancel_tablet_transition, raises_yt_error, create_user, remove,
+    multicell_sleep)
 
 from yt.environment.helpers import assert_items_equal
 
@@ -429,11 +430,13 @@ class TestDynamicTableStateTransitions(DynamicTablesBase):
         create_user("u")
 
         set("//tmp/t/@acl/end", {"subjects": ["u"], "action": "deny", "permissions": ["mount"]})
+        multicell_sleep()
         with raises_yt_error():
             cancel_tablet_transition(tablet_id, authenticated_user="u")
 
         remove("//tmp/t/@acl/0")
         set("//tmp/t/@acl/end", {"subjects": ["u"], "action": "allow", "permissions": ["mount"]})
+        multicell_sleep()
         cancel_tablet_transition(tablet_id, authenticated_user="u")
 
     @authors("ifsmirnov")
