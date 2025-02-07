@@ -245,7 +245,7 @@ public:
 
     EStarvationStatus GetStarvationStatus() const;
 
-    TJobResources GetInstantResourceUsage() const;
+    TJobResources GetInstantResourceUsage(bool withPrecommit = false) const;
 
     virtual std::optional<double> GetSpecifiedFairShareStarvationTolerance() const = 0;
     virtual std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const = 0;

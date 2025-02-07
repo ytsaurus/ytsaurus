@@ -419,8 +419,6 @@ public:
 
     bool EnableConditionalPreemption;
 
-    bool UseResourceUsageWithPrecommit;
-
     TDuration AllowedResourceUsageStaleness;
 
     //! How often to update allocation preemption statuses snapshot.
