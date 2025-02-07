@@ -10,6 +10,7 @@ SRCS(
 
 PEERDIR(
     yt/yt/library/query/engine_api
+    library/cpp/timezone_conversion
 )
 
 END()

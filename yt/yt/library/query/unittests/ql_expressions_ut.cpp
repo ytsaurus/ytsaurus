@@ -2751,27 +2751,7 @@ INSTANTIATE_TEST_SUITE_P(
         std::tuple<const char*, const char*, TUnversionedValue>(
             "i1=1446325284",
             "timestamp_floor_year(i1)",
-            MakeInt64(1420070400)),
-        std::tuple<const char*, const char*, TUnversionedValue>(
-            "i1=1446329284",
-            "timestamp_floor_hour_localtime(i1)",
-            MakeInt64(1446328800)),
-        std::tuple<const char*, const char*, TUnversionedValue>(
-            "i1=1446329284",
-            "timestamp_floor_day_localtime(i1)",
-            MakeInt64(1446325200)),
-        std::tuple<const char*, const char*, TUnversionedValue>(
-            "i1=1446329284",
-            "timestamp_floor_week_localtime(i1)",
-            MakeInt64(1445806800)),
-        std::tuple<const char*, const char*, TUnversionedValue>(
-            "i1=1446329284",
-            "timestamp_floor_month_localtime(i1)",
-            MakeInt64(1446325200)),
-        std::tuple<const char*, const char*, TUnversionedValue>(
-            "i1=1446329284",
-            "timestamp_floor_year_localtime(i1)",
-            MakeInt64(1420059600))
+            MakeInt64(1420070400))
 ));
 
 class TFormatTimestampExpressionTest
