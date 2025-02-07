@@ -220,6 +220,29 @@ void ValidateNoRequiredColumnsAdded(const TTableSchema& oldSchema, const TTableS
     }
 }
 
+void ValidateKeyColumnWasNotAlteredToAny(const TTableSchema& oldSchema, const TTableSchema& newSchema)
+{
+    for (int oldColumnIndex = 0; oldColumnIndex < oldSchema.GetKeyColumnCount(); ++oldColumnIndex) {
+        const auto& oldColumn = oldSchema.Columns()[oldColumnIndex];
+
+        const auto* newColumn = newSchema.FindColumnByStableName(oldColumn.StableName());
+
+        if (!newColumn) {
+            // Removing key columns from the end of key columns prefix when Strict = false is ok.
+            // This case will be handled by other validation routines, just skip here.
+            continue;
+        }
+
+        auto oldType = oldColumn.GetWireType();
+        auto newType = newColumn->GetWireType();
+
+        if ((oldType != EValueType::Any) && (newType == EValueType::Any)) {
+            THROW_ERROR_EXCEPTION("Altering a key column type to \"any\" is forbidden")
+                << TErrorAttribute("column_name", oldColumn.StableName());
+        }
+    }
+}
+
 static bool IsPhysicalType(ESimpleLogicalValueType logicalType)
 {
     return static_cast<ui32>(logicalType) == static_cast<ui32>(GetPhysicalType(logicalType));
@@ -368,7 +391,8 @@ void ValidateTableSchemaUpdateInternal(
     const TTableSchema& newSchema,
     TSchemaUpdateEnabledFeatures enabledFeatures,
     bool isTableDynamic,
-    bool isTableEmpty)
+    bool isTableEmpty,
+    bool allowAlterKeyColumnToAny)
 {
     try {
         ValidateTableSchemaHeavy(newSchema, isTableDynamic);
@@ -380,6 +404,11 @@ void ValidateTableSchemaUpdateInternal(
     }
 
     try {
+        if (!allowAlterKeyColumnToAny) {
+            // This is forbidden even for empty static tables.
+            ValidateKeyColumnWasNotAlteredToAny(oldSchema, newSchema);
+        }
+
         if (isTableEmpty) {
             // Any valid schema is allowed to be set for an empty table.
             return;

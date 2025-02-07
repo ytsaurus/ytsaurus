@@ -23,7 +23,8 @@ void ValidateTableSchemaUpdateInternal(
     const TTableSchema& newSchema,
     TSchemaUpdateEnabledFeatures enabledFeatures,
     bool isTableDynamic = false,
-    bool isTableEmpty = false);
+    bool isTableEmpty = false,
+    bool allowAlterKeyColumnToAny = false);
 
 void ValidateTableSchemaUpdate(
     const TTableSchema& oldSchema,
