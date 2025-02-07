@@ -173,6 +173,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("cell_directory_synchronizer", &TThis::CellDirectorySynchronizer)
         .DefaultNew();
+    registrar.Parameter("downed_cell_tracker", &TThis::DownedCellTracker)
+        .DefaultNew();
     registrar.Parameter("scheduler", &TThis::Scheduler)
         .DefaultNew();
     registrar.Parameter("bundle_controller", &TThis::BundleController)

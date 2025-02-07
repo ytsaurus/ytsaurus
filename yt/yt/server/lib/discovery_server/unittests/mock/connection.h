@@ -137,7 +137,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const NHiveClient::TCellTrackerPtr& GetDownedCellTracker() override
+    const NHiveClient::TDownedCellTrackerPtr& GetDownedCellTracker() override
     {
         YT_UNIMPLEMENTED();
     }
