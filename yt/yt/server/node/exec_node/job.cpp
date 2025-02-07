@@ -165,8 +165,6 @@ using NCypressClient::EObjectType;
 
 static constexpr auto DisableSandboxCleanupEnv = "YT_DISABLE_SANDBOX_CLEANUP";
 
-static constexpr TStringBuf DockerAuthEnvPrefix("YT_SECURE_VAULT_docker_auth=");
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -3152,9 +3150,10 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 NCri::TCriAuthConfigPtr TJob::BuildDockerAuthConfig()
 {
     if (UserJobSpec_ && UserJobSpec_->environment_size()) {
+        TString prefix = Format("%v=", YtSecureVaultDockerAuthEnv);
         for (const auto& var : UserJobSpec_->environment()) {
-            if (var.StartsWith(DockerAuthEnvPrefix)) {
-                auto ysonConfig = TYsonString(var.substr(DockerAuthEnvPrefix.length()));
+            if (var.StartsWith(prefix)) {
+                auto ysonConfig = TYsonString(var.substr(prefix.length()));
                 return ConvertTo<NCri::TCriAuthConfigPtr>(ysonConfig);
             }
         }

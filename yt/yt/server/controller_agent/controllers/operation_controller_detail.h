@@ -1352,6 +1352,10 @@ private:
 
     void InitializeOrchid();
 
+    void GenerateDockerAuthFromToken(
+        NControllerAgent::NProto::TUserJobSpec* jobSpec,
+        const NScheduler::TUserJobSpecPtr& jobSpecConfig);
+
     void UpdateActualHistogram(const TCompletedJobSummary& jobSummary);
 
     void CreateOutputTables(

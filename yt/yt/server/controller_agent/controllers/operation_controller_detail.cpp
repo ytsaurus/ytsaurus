@@ -9863,6 +9863,25 @@ i64 TOperationControllerBase::GetDataSliceCount() const
     return result;
 }
 
+void TOperationControllerBase::GenerateDockerAuthFromToken(
+    NControllerAgent::NProto::TUserJobSpec* jobSpec,
+    const TUserJobSpecPtr& jobSpecConfig) {
+    auto findEnv = [&] (const TStringBuf& key) -> const TString* {
+        for (auto* environment : {&jobSpecConfig->Environment, &Config->Environment}) {
+            auto found = environment->find(key);
+            if (found != environment->end()) {
+                return &found->second;
+            }
+        }
+        return nullptr;
+    };
+    if (!findEnv(YtSecureVaultDockerAuthEnv)) {
+        if (auto token = findEnv("YT_SECURE_VAULT_YT_TOKEN")) {
+            jobSpec->add_environment(Format("%v={username=%Qv; password=%Qv}", YtSecureVaultDockerAuthEnv, AuthenticatedUser, *token));
+        }
+    }
+}
+
 void TOperationControllerBase::InitUserJobSpecTemplate(
     NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TUserJobSpecPtr& jobSpecConfig,
@@ -10035,10 +10054,14 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_rpc_proxy_worker_thread_pool_size(jobSpecConfig->RpcProxyWorkerThreadPoolSize);
 
     // Pass external docker image into job spec as is.
-    if (jobSpecConfig->DockerImage &&
-        !TDockerImageSpec(*jobSpecConfig->DockerImage, Config->DockerRegistry).IsInternal())
-    {
-        jobSpec->set_docker_image(*jobSpecConfig->DockerImage);
+    if (jobSpecConfig->DockerImage) {
+        TDockerImageSpec dockerImageSpec(*jobSpecConfig->DockerImage, Config->DockerRegistry);
+        if (dockerImageSpec.IsInternal() && Config->DockerRegistry->UseYtTokenForInternalRegistry) {
+            GenerateDockerAuthFromToken(jobSpec, jobSpecConfig);
+        }
+        if (!dockerImageSpec.IsInternal() || Config->DockerRegistry->ForwardInternalImagesToJobSpecs) {
+            jobSpec->set_docker_image(*jobSpecConfig->DockerImage);
+        }
     }
 }
 
