@@ -5497,7 +5497,7 @@ private:
                     }
                 });
                 auto refreshResult = WaitFor(refreshChunks
-                    .AsyncVia(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkManager))
+                    .AsyncVia(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager))
                     .Run());
                 if (!refreshResult.IsOK()) {
                     YT_LOG_WARNING(refreshResult, "Error refreshing Sequoia chunks");
