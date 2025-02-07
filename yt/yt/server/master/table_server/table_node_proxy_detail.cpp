@@ -2193,7 +2193,8 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             *schema,
             GetSchemaUpdateEnabledFeatures(config),
             dynamic,
-            table->IsEmpty() && !table->IsDynamic());
+            table->IsEmpty() && !table->IsDynamic(),
+            config->AllowAlterKeyColumnToAny);
 
         if (table->IsDynamic()) {
             const auto& tableManager = Bootstrap_->GetTableManager();

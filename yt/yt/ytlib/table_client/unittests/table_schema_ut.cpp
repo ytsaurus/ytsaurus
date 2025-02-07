@@ -417,6 +417,17 @@ TEST_F(TTableSchemaTest, TableSchemaUpdateValidation)
                 TColumnSchema("Value1", EValueType::String)
             }, true /*strict*/, true /*uniqueKeys*/, ETableSchemaModification::None, {}),
         },
+        {
+            // Altering key column to EValueType::Any is not allowed.
+            TTableSchema({
+                TColumnSchema("Name", EValueType::Int64)
+                    .SetSortOrder(ESortOrder::Ascending),
+                }),
+            TTableSchema({
+                TColumnSchema("Name", EValueType::Any)
+                    .SetSortOrder(ESortOrder::Ascending),
+            })
+        },
     };
 
     for (const auto& pairOfSchemas : invalidUpdates) {
