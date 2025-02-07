@@ -3287,8 +3287,11 @@ private:
     {
         YT_VERIFY(request->added_chunks_size() + request->removed_chunks_size() > 0);
 
-        const auto& config = GetDynamicConfig();
-        auto enableChunkRefresh = config->SequoiaChunkReplicas->EnableSequoiaChunkRefresh;
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+        auto enableChunkRefresh = config->EnableSequoiaChunkRefresh;
+        auto processRemovedSequoiaReplicasOnMaster = config->ProcessRemovedSequoiaReplicasOnMaster;
+        auto storeSequoiaReplicasOnMaster = config->StoreSequoiaReplicasOnMaster;
+        auto clearMasterRequest = config->ClearMasterRequest;
 
         return Bootstrap_
             ->GetSequoiaClient()
@@ -3430,6 +3433,16 @@ private:
                             .ConfirmationTime = TInstant::Now(),
                         };
                         transaction->WriteRow(Bootstrap_->GetCellTag(), refreshQueueEntry);
+                    }
+                }
+
+                // If we do not need replicas on master, we can make request more lightweight.
+                if (enableChunkRefresh && clearMasterRequest) {
+                    if (!storeSequoiaReplicasOnMaster) {
+                        request->mutable_added_chunks()->Clear();
+                    }
+                    if (!processRemovedSequoiaReplicasOnMaster && request->caused_by_node_disposal()) {
+                        request->mutable_removed_chunks()->Clear();
                     }
                 }
 
