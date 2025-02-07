@@ -431,6 +431,9 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("sequoia_chunk_count_to_fetch_from_refresh_queue", &TThis::SequoiaChunkCountToFetchFromRefreshQueue)
         .Default(1'000);
 
+    registrar.Parameter("clear_master_request", &TThis::ClearMasterRequest)
+        .Default(true);
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
             THROW_ERROR_EXCEPTION("Cannot disable removed Sequoia replicas processing on master while master still stores "
