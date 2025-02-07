@@ -109,6 +109,7 @@ public:
         , Logger(TransactionSupervisorLogger().WithTag("CellId: %v", SelfCellId_))
         , TransactionSupervisorService_(New<TTransactionSupervisorService>(this))
         , TransactionParticipantService_(New<TTransactionParticipantService>(this))
+        , OrchidService_(CreateOrchidService())
     {
         YT_VERIFY(Config_);
         YT_VERIFY(ResponseKeeper_);
@@ -158,8 +159,6 @@ public:
             ESyncSerializationPriority::Values,
             "TransactionSupervisor.Values",
             BIND_NO_PROPAGATE(&TTransactionSupervisor::SaveValues, Unretained(this)));
-
-        OrchidService_ = CreateOrchidService();
     }
 
     std::vector<IServicePtr> GetRpcServices() override
@@ -298,8 +297,6 @@ private:
     std::map<TTimestamp, TTransactionInfo> ReadyToCommitTransactions_;
 
     std::map<i64, TPromise<void>> Barriers_;
-
-    IYPathServicePtr OrchidService_;
 
     TEntityMap<TCommit> TransientCommitMap_;
     TEntityMap<TCommit> PersistentCommitMap_;
@@ -1239,6 +1236,7 @@ private:
         TWeakPtr<TTransactionSupervisor> Owner_;
     };
 
+    const IYPathServicePtr OrchidService_;
 
     IYPathServicePtr CreateOrchidService()
     {
