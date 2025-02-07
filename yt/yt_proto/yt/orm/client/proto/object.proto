@@ -36,7 +36,7 @@ message THistoryAttribute
     optional string path = 1;
     // TODO: Support disable mode. It would allow to implement logic "all fields except X".
     optional bool indexed = 2;
-    optional bool allowed_in_filter = 3;
+    optional bool forced = 3;
 }
 
 message THistoryOptions
