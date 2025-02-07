@@ -84,7 +84,9 @@ TResourceUsageSnapshotPtr BuildResourceUsageSnapshot(const TFairShareTreeSnapsho
     YT_VERIFY(treeSnapshot);
 
     auto operationResourceUsageMap = THashMap<TOperationId, TJobResources>(treeSnapshot->EnabledOperationMap().size());
+    auto operationResourceUsageWithPrecommitMap = THashMap<TOperationId, TJobResources>(treeSnapshot->EnabledOperationMap().size());
     auto poolResourceUsageMap = THashMap<TString, TJobResources>(treeSnapshot->PoolMap().size());
+    auto poolResourceUsageWithPrecommitMap = THashMap<TString, TJobResources>(treeSnapshot->PoolMap().size());
     auto aliveOperationIds = THashSet<TOperationId>(treeSnapshot->EnabledOperationMap().size());
 
     for (const auto& [operationId, element] : treeSnapshot->EnabledOperationMap()) {
@@ -93,12 +95,17 @@ TResourceUsageSnapshotPtr BuildResourceUsageSnapshot(const TFairShareTreeSnapsho
         }
 
         aliveOperationIds.insert(operationId);
+
         auto resourceUsage = element->GetInstantResourceUsage();
+        auto resourceUsageWithPrecommit = element->GetInstantResourceUsage(/*withPrecommit*/ true);
+
         operationResourceUsageMap[operationId] = resourceUsage;
+        operationResourceUsageWithPrecommitMap[operationId] = resourceUsageWithPrecommit;
 
         const TSchedulerCompositeElement* parentPool = element->GetParent();
         while (parentPool) {
             poolResourceUsageMap[parentPool->GetId()] += resourceUsage;
+            poolResourceUsageWithPrecommitMap[parentPool->GetId()] += resourceUsageWithPrecommit;
             parentPool = parentPool->GetParent();
         }
     }
@@ -106,7 +113,9 @@ TResourceUsageSnapshotPtr BuildResourceUsageSnapshot(const TFairShareTreeSnapsho
     auto resourceUsageSnapshot = New<TResourceUsageSnapshot>();
     resourceUsageSnapshot->BuildTime = GetCpuInstant();
     resourceUsageSnapshot->OperationIdToResourceUsage = std::move(operationResourceUsageMap);
+    resourceUsageSnapshot->OperationIdToResourceUsageWithPrecommit = std::move(operationResourceUsageWithPrecommitMap);
     resourceUsageSnapshot->PoolToResourceUsage = std::move(poolResourceUsageMap);
+    resourceUsageSnapshot->PoolToResourceUsageWithPrecommit = std::move(poolResourceUsageWithPrecommitMap);
     resourceUsageSnapshot->AliveOperationIds = std::move(aliveOperationIds);
 
     return resourceUsageSnapshot;

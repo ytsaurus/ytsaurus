@@ -759,7 +759,7 @@ void TDynamicAttributesManager::DoUpdateOperationResourceUsage(
 {
     bool alive = element->IsAlive();
     auto resourceUsage = (alive && operationSharedState->IsEnabled())
-        ? element->GetInstantResourceUsage()
+        ? element->GetInstantResourceUsage(/*withPrecommit*/ true)
         : TJobResources();
     SetResourceUsage(element, operationAttributes, resourceUsage, now);
     operationAttributes->Alive = alive;
@@ -796,8 +796,8 @@ TJobResources TDynamicAttributesManager::FillResourceUsageAtOperation(const TSch
     auto& attributes = context->AttributesList->AttributesOf(element);
     if (context->ResourceUsageSnapshot) {
         auto operationId = element->GetOperationId();
-        auto it = context->ResourceUsageSnapshot->OperationIdToResourceUsage.find(operationId);
-        const auto& resourceUsage = it != context->ResourceUsageSnapshot->OperationIdToResourceUsage.end()
+        auto it = context->ResourceUsageSnapshot->OperationIdToResourceUsageWithPrecommit.find(operationId);
+        const auto& resourceUsage = it != context->ResourceUsageSnapshot->OperationIdToResourceUsageWithPrecommit.end()
             ? it->second
             : TJobResources();
         SetResourceUsage(

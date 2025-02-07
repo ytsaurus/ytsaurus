@@ -315,9 +315,9 @@ bool TSchedulerElement::AreSpecifiedResourceLimitsViolated() const
     return ResourceTreeElement_->AreSpecifiedResourceLimitsViolated();
 }
 
-TJobResources TSchedulerElement::GetInstantResourceUsage() const
+TJobResources TSchedulerElement::GetInstantResourceUsage(bool withPrecommit) const
 {
-    auto resourceUsage = TreeConfig_->UseResourceUsageWithPrecommit
+    auto resourceUsage = withPrecommit
         ? ResourceTreeElement_->GetResourceUsageWithPrecommit()
         : ResourceTreeElement_->GetResourceUsage();
     if (resourceUsage.GetUserSlots() > 0 && resourceUsage.GetMemory() == 0) {
