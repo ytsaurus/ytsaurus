@@ -444,6 +444,9 @@ void FormatTableDescriptor(TStringBuilderBase* builder, const TTableDescriptor& 
         builder->AppendString(" AS ");
         FormatId(builder, *descriptor.Alias);
     }
+    if (descriptor.Hint->PushDownGroupBy) {
+        builder->AppendString(" WITH HINT \"{push_down_group_by=%true}\"");
+    }
 }
 
 void FormatExpression(TStringBuilderBase* builder, const TExpression& expr, int depth, bool expandAliases, bool isFinal)
