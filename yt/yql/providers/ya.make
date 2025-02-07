@@ -1,9 +1,4 @@
 RECURSE(
     yt
+    ytflow
 )
-
-IF (NOT OPENSOURCE)
-    RECURSE(
-        ytflow
-    )
-ENDIF()
