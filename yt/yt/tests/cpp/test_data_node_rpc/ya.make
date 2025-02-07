@@ -24,6 +24,8 @@ TAG(ya:yt ya:fat ya:huge_logs)
 
 SIZE(LARGE)
 
+YT_SPEC(yt/yt/tests/integration/spec.yson)
+
 REQUIREMENTS(ram:20)
 
 END()
