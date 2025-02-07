@@ -121,7 +121,9 @@ void TMulticellNodeStatistics::HydraApplyMulticellStatisticsUpdate(NProto::TReqS
 
     auto cellRoles = multicellManager->GetMasterCellRoles(multicellManager->GetCellTag());
     if (None(cellRoles & EMasterCellRoles::CypressNodeHost)) {
-        YT_LOG_ALERT(
+        // NB: alerting this cell is not having the 'Cypress node host' role would
+        // probably be a bit too fragile.
+        YT_LOG_INFO(
             "Received node multicell statistics but cell doesn't have %v role", EMasterCellRoles::CypressNodeHost);
     }
 
