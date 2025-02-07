@@ -29,6 +29,11 @@ TJobEvent::TJobEvent(NJobTrackerClient::EJobState state, NExecNode::EJobPhase ph
     , Phase_(phase)
 { }
 
+TJobEvent::TJobEvent(std::optional<NScheduler::EInterruptionReason> interruptionReason)
+    : Timestamp_(Now())
+    , InterruptionReason_(interruptionReason)
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer)
@@ -40,6 +45,7 @@ void Serialize(const TJobEvents& events, NYson::IYsonConsumer* consumer)
                 .Item("time").Value(event.Timestamp())
                 .OptionalItem("state", event.State())
                 .OptionalItem("phase", event.Phase())
+                .OptionalItem("interruption_reason", event.InterruptionReason())
             .EndMap();
         })
         .EndList();
@@ -51,6 +57,7 @@ void Serialize(const TJobInterruptionInfo& interruptionInfo, NYson::IYsonConsume
 {
     BuildYsonFluently(consumer)
         .BeginMap()
+            .Item("time").Value(interruptionInfo.Time)
             .Item("interruption_reason").Value(interruptionInfo.InterruptionReason)
             .OptionalItem("interruption_timeout", interruptionInfo.InterruptionTimeout)
             .OptionalItem("preemption_reason", interruptionInfo.PreemptionReason)

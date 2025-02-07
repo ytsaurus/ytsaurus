@@ -32,10 +32,12 @@ struct TJobEvent
     explicit TJobEvent(NJobTrackerClient::EJobState state);
     explicit TJobEvent(NExecNode::EJobPhase phase);
     TJobEvent(NJobTrackerClient::EJobState state, NExecNode::EJobPhase phase);
+    explicit TJobEvent(std::optional<NScheduler::EInterruptionReason> interruptionReason);
 
     DEFINE_BYREF_RO_PROPERTY(TInstant, Timestamp);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NJobTrackerClient::EJobState>, State);
     DEFINE_BYREF_RO_PROPERTY(std::optional<NExecNode::EJobPhase>, Phase);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NScheduler::EInterruptionReason>, InterruptionReason);
 };
 
 using TJobEvents = std::vector<TJobEvent>;
@@ -51,6 +53,8 @@ struct TJobInterruptionInfo
         NScheduler::TAllocationId AllocationId;
         NControllerAgent::TOperationId OperationId;
     };
+
+    TInstant Time;
 
     NScheduler::EInterruptionReason InterruptionReason;
 
