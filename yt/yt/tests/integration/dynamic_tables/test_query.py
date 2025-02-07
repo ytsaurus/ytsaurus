@@ -2551,6 +2551,23 @@ class TestQuery(DynamicTablesBase):
             result[i] = None
         assert_items_equal(select_rows(query), [{"k": k, "sum": v} for k, v in result.items()])
 
+    @authors("nadya73")
+    @skip_if_rpc_driver_backend
+    def test_select_web_json(self):
+        table = "//tmp/table"
+        sync_create_cells(1)
+        create_dynamic_table(table, schema=[{"name": "ts_column", "type": "timestamp"}])
+        sync_mount_table(table)
+
+        insert_rows(table, [{"ts_column": 0}])
+
+        format = yson.loads(b"<column_names=[ts_column];value_format=yql>web_json")
+
+        res = select_rows(f"* from [{table}]", output_format=format)
+        assert b"Timestamp" in res
+        res = select_rows(f"ts_column from [{table}]", output_format=format)
+        assert b"Timestamp" in res
+
 
 @pytest.mark.enabled_multidaemon
 class TestQueryRpcProxy(TestQuery):
