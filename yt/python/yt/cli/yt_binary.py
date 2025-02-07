@@ -2615,7 +2615,7 @@ def add_flow_get_pipeline_spec_parser(add_parser):
                         help="Get YT Flow pipeline spec")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     add_structured_format_argument(parser, default=output_format)
-    parser.add_argument("--spec-path", help="Path to part of the spec")
+    parser.add_argument("--spec-path", help="Path inside pipeline spec yson struct, starting with /")
 
 
 def add_flow_set_pipeline_spec_parser(add_parser):
@@ -2627,7 +2627,7 @@ def add_flow_set_pipeline_spec_parser(add_parser):
                         help="Pipeline spec expected version")
     parser.add_argument("--force", action="store_true",
                         help="Set spec even if pipeline is paused")
-    parser.add_argument("--spec-path", help="Path to part of the spec")
+    parser.add_argument("--spec-path", help="Path inside pipeline spec yson struct, starting with /")
     add_hybrid_argument(parser, "value", group_required=False,
                         help="new spec attribute value")
 
@@ -2640,7 +2640,7 @@ def add_flow_remove_pipeline_spec_parser(add_parser):
                         help="Pipeline spec expected version")
     parser.add_argument("--force", action="store_true",
                         help="Remove spec even if pipeline is paused")
-    parser.add_argument("--spec-path", help="Path to part of the spec")
+    parser.add_argument("--spec-path", help="Path inside pipeline spec yson struct, starting with /")
 
 
 def add_flow_get_pipeline_dynamic_spec_parser(add_parser):
@@ -2648,7 +2648,7 @@ def add_flow_get_pipeline_dynamic_spec_parser(add_parser):
                         help="Get YT Flow pipeline dynamic spec")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     add_structured_format_argument(parser, default=output_format)
-    parser.add_argument("--spec-path", help="Path to part of the spec")
+    parser.add_argument("--spec-path", help="Path inside pipeline dynamic spec yson struct, starting with /")
 
 
 def add_flow_set_pipeline_dynamic_spec_parser(add_parser):
@@ -2658,7 +2658,7 @@ def add_flow_set_pipeline_dynamic_spec_parser(add_parser):
     add_structured_format_argument(parser, default=YT_STRUCTURED_DATA_FORMAT)
     parser.add_argument("--expected-version", type=int,
                         help="Pipeline spec expected version")
-    parser.add_argument("--spec-path", help="Path to part of the spec")
+    parser.add_argument("--spec-path", help="Path inside pipeline dynamic spec yson struct, starting with /")
     add_hybrid_argument(parser, "value", group_required=False,
                         help="new spec attribute value")
 
@@ -2669,7 +2669,7 @@ def add_flow_remove_pipeline_dynamic_spec_parser(add_parser):
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     parser.add_argument("--expected-version", type=int,
                         help="Pipeline spec expected version")
-    parser.add_argument("--spec-path", help="Path to part of the spec")
+    parser.add_argument("--spec-path", help="Path inside pipeline dynamic spec yson struct, starting with /")
 
 
 @copy_docstring_from(yt.get_pipeline_state)
@@ -2688,7 +2688,7 @@ def add_flow_get_flow_view_parser(add_parser):
                         help="Get YT Flow flow view")
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     add_structured_format_argument(parser, default=output_format)
-    parser.add_argument("--view-path", help="Path to part of the view")
+    parser.add_argument("--view-path", help="Path inside flow view yson struct, starting with /")
 
 
 @copy_docstring_from(get_controller_logs)
