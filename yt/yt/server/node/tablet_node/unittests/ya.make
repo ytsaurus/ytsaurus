@@ -38,6 +38,7 @@ IF (SANITIZER_TYPE)
     TAG(
         ya:fat
     )
+    INCLUDE(${ARCADIA_ROOT}/devtools/large_on_multi_slots.inc)
 ELSE()
     SIZE(MEDIUM)
 ENDIF()
