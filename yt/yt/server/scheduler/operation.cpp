@@ -628,8 +628,10 @@ void TOperation::SetTemporaryToken(const TString& token, const TNodeId& nodeId)
 {
     YT_VERIFY(State_ == EOperationState::Starting);
     YT_VERIFY(Spec_->IssueTemporaryToken);
-    // We check that the key is not already present in the secure vault before calling this method.
-    YT_VERIFY(AddSecureVaultEntry(Spec_->TemporaryTokenEnvironmentVariableName, ConvertToNode(token)));
+    // We allow issuing unused temporary tokens to support enabling this option by default.
+    if (!AddSecureVaultEntry(Spec_->TemporaryTokenEnvironmentVariableName, ConvertToNode(token))) {
+        YT_LOG_DEBUG("Not using temporary token as there is an explicit one");
+    }
 
     TemporaryTokenNodeId_ = nodeId;
 }

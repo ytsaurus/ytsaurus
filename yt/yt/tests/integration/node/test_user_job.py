@@ -2192,20 +2192,18 @@ class TestTemporaryTokens(YTEnvSetup):
         op.track()
         assert get("//tmp/created_from_operation_first/@owner") == "alice"
 
-        with raises_yt_error("already exists"):
-            run_test_vanilla(
-                spec={
-                    "max_failed_job_count": 1,
-                    "issue_temporary_token": True,
-                    "temporary_token_environment_variable_name": "ANOTHER_YT_TOKEN",
-                    "secure_vault": {"NODE_SUFFIX": "second", "ANOTHER_YT_TOKEN": "i-am-not-a-token"},
-                },
-                command=command,
-                authenticated_user="alice")
-
-        assert not exists("//tmp/created_from_operation_second")
-
-        wait(lambda: not list_user_tokens("alice"))
+        op = run_test_vanilla(
+            spec={
+                "max_failed_job_count": 1,
+                "issue_temporary_token": True,
+                "temporary_token_environment_variable_name": "ANOTHER_YT_TOKEN",
+                "secure_vault": {"NODE_SUFFIX": "second", "ANOTHER_YT_TOKEN": "i-am-not-a-token"},
+            },
+            command='test "$YT_SECURE_VAULT_ANOTHER_YT_TOKEN" = i-am-not-a-token',
+            authenticated_user="alice")
+        op.track()
+        wait(lambda: not exists(op.get_path()))
+        assert not list_user_tokens("alice")
 
     @authors("achulkov2")
     def test_revive(self):
