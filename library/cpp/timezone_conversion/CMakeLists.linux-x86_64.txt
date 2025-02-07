@@ -12,24 +12,35 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_library(query-engine-time)
+find_package(linux-headers-generic REQUIRED)
 
-
-target_compile_options(query-engine-time PRIVATE
-  -Wdeprecated-this-capture
-  -Wimplicit-fallthrough
+get_built_tool_path(
+  TOOL_enum_parser_bin
+  TOOL_enum_parser_dependency
+  tools/enum_parser/enum_parser
+  enum_parser
 )
 
-target_link_libraries(query-engine-time PUBLIC
+add_library(library-cpp-timezone_conversion)
+
+
+target_link_libraries(library-cpp-timezone_conversion PUBLIC
+  linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  library-query-engine_api
-  library-cpp-timezone_conversion
+  libs-cctz-tzdata
+  util-draft
+  tools-enum_parser-enum_serialization_runtime
 )
 
-target_sources(query-engine-time PRIVATE
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/time/dates_lut_localtime.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/time/dates_lut_utc.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/engine/time/dates.cpp
+target_sources(library-cpp-timezone_conversion PRIVATE
+  ${PROJECT_SOURCE_DIR}/library/cpp/timezone_conversion/convert.cpp
+  ${PROJECT_SOURCE_DIR}/library/cpp/timezone_conversion/civil.cpp
 )
 
+
+generate_enum_serilization(library-cpp-timezone_conversion
+  ${PROJECT_SOURCE_DIR}/library/cpp/timezone_conversion/civil.h
+  INCLUDE_HEADERS
+  library/cpp/timezone_conversion/civil.h
+)
