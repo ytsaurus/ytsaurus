@@ -2,7 +2,10 @@ pragma AnsiInForEmptyOrNullableItemsCollections;
 pragma AnsiOptionalAs;
 pragma CompactGroupBy;
 pragma TablePathPrefix = "home/tpcds/3Tb";
-pragma config.flags("OptimizerFlags", "FilterPushdownEnableMultiusage", "EarlyExpandSkipNull","FieldSubsetEnableMultiusage", "PushdownComplexFiltersOverAggregate", "ExtractCommonPredicatesFromLogicalOps");
+pragma EmitUnionMerge;
+pragma yt.UseIntermediateStreams;
+pragma config.flags("OptimizerFlags", "FilterPushdownEnableMultiusage", "EarlyExpandSkipNull","FieldSubsetEnableMultiusage", "PushdownComplexFiltersOverAggregate", "ExtractCommonPredicatesFromLogicalOps", "PullUpExtendOverEquiJoin",
+    "DisableEmitSkipNullOnPushDown");
 pragma yt.AutoMerge = "disabled";
 pragma yt.DataSizePerJob = "16M";
 pragma yt.DataSizePerMapJob = "24M";
