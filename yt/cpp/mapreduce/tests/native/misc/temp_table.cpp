@@ -128,17 +128,15 @@ TEST(TempTableTestSuite, KeepTempTables)
     EXPECT_TRUE(client->Exists(tmpTableName));
 }
 
-template <class T, class R = decltype(std::declval<T>().Name())>
-bool HasDangerousNameMethod(const T*) {
-    return true;
-}
-
-bool HasDangerousNameMethod(...) {
-    return false;
-}
-
-TEST(TempTableTestSuite, DangerousNameMethod)
+TEST(TempTableTestSuite, ConcurrentTempTables)
 {
-    TTempTable* tt = nullptr;
-    EXPECT_TRUE(!HasDangerousNameMethod(tt));
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+
+    auto tx1 = client->StartTransaction();
+    TTempTable tmpTable1(tx1);
+
+    auto tx2 = client->StartTransaction();
+    TTempTable tmpTable2(tx2);
 }
