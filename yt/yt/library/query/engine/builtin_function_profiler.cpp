@@ -1221,35 +1221,44 @@ public:
             auto types = std::vector{EValueType::Int64, argumentTypes[0]};
             auto state = UnpackValues(builder, aggState, types);
 
-            Value* counterFP = builder->CreateCast(
-                llvm::Instruction::CastOps::SIToFP,
-                state[0].GetData(),
-                builder->getDoubleTy());
-
-            Value* sumFP = state[1].GetTypedData(builder);
-
-            switch (argumentTypes[0]) {
-                case EValueType::Int64:
-                    sumFP = builder->CreateCast(
+            // COMPAT(sabdenovch): 24.2 tablet nodes would occasionally send (0; 0) state
+            return CodegenIf<TCGBaseContext, TCGValue>(
+                builder,
+                builder->CreateICmpEQ(builder->getInt64(0), state[0].GetData()),
+                [&] (TCGBaseContext& builder) -> TCGValue {
+                    return TCGValue::CreateNull(builder, EValueType::Double);
+                },
+                [&] (TCGBaseContext& builder) {
+                    Value* counterFP = builder->CreateCast(
                         llvm::Instruction::CastOps::SIToFP,
-                        sumFP,
+                        state[0].GetData(),
                         builder->getDoubleTy());
-                    break;
-                case EValueType::Uint64:
-                    sumFP = builder->CreateCast(
-                        llvm::Instruction::CastOps::UIToFP,
-                        sumFP,
-                        builder->getDoubleTy());
-                    break;
-                case EValueType::Double:
-                    break;
-                default:
-                    YT_ABORT();
-            }
 
-            auto avg = builder->CreateFDiv(sumFP, counterFP);
+                    Value* sumFP = state[1].GetTypedData(builder);
 
-            return TCGValue::Create(builder, builder->getFalse(), nullptr, avg, EValueType::Double);
+                    switch (argumentTypes[0]) {
+                        case EValueType::Int64:
+                            sumFP = builder->CreateCast(
+                                llvm::Instruction::CastOps::SIToFP,
+                                sumFP,
+                                builder->getDoubleTy());
+                            break;
+                        case EValueType::Uint64:
+                            sumFP = builder->CreateCast(
+                                llvm::Instruction::CastOps::UIToFP,
+                                sumFP,
+                                builder->getDoubleTy());
+                            break;
+                        case EValueType::Double:
+                            break;
+                        default:
+                            YT_ABORT();
+                    }
+
+                    auto avg = builder->CreateFDiv(sumFP, counterFP);
+
+                    return TCGValue::Create(builder, builder->getFalse(), nullptr, avg, EValueType::Double);
+                });
         } else {
             YT_UNIMPLEMENTED();
         }
