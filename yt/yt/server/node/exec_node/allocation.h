@@ -83,7 +83,7 @@ public:
     bool IsFinished() const noexcept;
 
     void AbortJob(TError error, bool graceful, bool requestNewJob);
-    void InterruptJob(NScheduler::EInterruptReason interruptionReason, TDuration interruptionTimeout);
+    void InterruptJob(NScheduler::EInterruptionReason interruptionReason, TDuration interruptionTimeout);
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);

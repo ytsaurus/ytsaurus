@@ -101,7 +101,7 @@ public:
 
     void Disconnect(const TError& error) override;
 
-    void InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout) override;
+    void InterruptJob(TJobId jobId, EInterruptionReason reason, TDuration timeout) override;
     void RequestJobGracefulAbort(TJobId jobId, EAbortReason reason) override;
     void UpdateRunningAllocationsStatistics(std::vector<TAgentToSchedulerRunningAllocationStatistics> runningAllocationStatisticsUpdates) override;
 

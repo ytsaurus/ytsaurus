@@ -50,7 +50,7 @@ TCompletedJobSummary SummaryWithSplitJobCount(
             std::back_inserter(jobSummary.UnreadInputDataSlices));
     }
     jobSummary.SplitJobCount = splitJobCount;
-    jobSummary.InterruptionReason = EInterruptReason::JobSplit;
+    jobSummary.InterruptionReason = EInterruptionReason::JobSplit;
     if (readRowCount) {
         auto statistics = std::make_shared<TStatistics>();
         statistics->AddSample(InputRowCountPath, *readRowCount);

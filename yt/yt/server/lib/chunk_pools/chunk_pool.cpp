@@ -229,7 +229,7 @@ void TJobSplittingBase::Completed(TCookie cookie, const TCompletedJobSummary& jo
     // This is an important property as we should not consider job as an empty job since it may
     // not actually be empty. We can rely on fact that a job cannot be interrupted unless it read at
     // least one row, but let's write something more robust.
-    if (jobSummary.InterruptionReason != EInterruptReason::None) {
+    if (jobSummary.InterruptionReason != EInterruptionReason::None) {
         return;
     }
 

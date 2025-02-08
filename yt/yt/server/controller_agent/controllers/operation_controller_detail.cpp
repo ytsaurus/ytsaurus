@@ -3243,25 +3243,25 @@ bool TOperationControllerBase::OnJobCompleted(
             if (joblet->Revived) {
                 // NB: We lose the original interrupt reason during the revival,
                 // so we set it to Unknown.
-                jobSummary->InterruptionReason = EInterruptReason::Unknown;
+                jobSummary->InterruptionReason = EInterruptionReason::Unknown;
                 YT_LOG_DEBUG(
-                    "Overriding job interrupt reason due to revival (JobId: %v, InterruptReason: %v)",
+                    "Overriding job interrupt reason due to revival (JobId: %v, InterruptionReason: %v)",
                     jobId,
                     jobSummary->InterruptionReason);
             } else {
                 YT_LOG_DEBUG("Job restart is needed (JobId: %v)", jobId);
             }
-        } else if (jobSummary->InterruptionReason != EInterruptReason::None) {
-            jobSummary->InterruptionReason = EInterruptReason::None;
+        } else if (jobSummary->InterruptionReason != EInterruptionReason::None) {
+            jobSummary->InterruptionReason = EInterruptionReason::None;
             YT_LOG_DEBUG(
-                "Overriding job interrupt reason due to unneeded restart (JobId: %v, InterruptReason: %v)",
+                "Overriding job interrupt reason due to unneeded restart (JobId: %v, InterruptionReason: %v)",
                 jobId,
                 jobSummary->InterruptionReason);
         }
 
         YT_VERIFY(
-            (jobSummary->InterruptionReason == EInterruptReason::None && jobResultExt.unread_chunk_specs_size() == 0) ||
-            (jobSummary->InterruptionReason != EInterruptReason::None && (
+            (jobSummary->InterruptionReason == EInterruptionReason::None && jobResultExt.unread_chunk_specs_size() == 0) ||
+            (jobSummary->InterruptionReason != EInterruptionReason::None && (
                 jobResultExt.unread_chunk_specs_size() != 0 ||
                 jobResultExt.restart_needed())));
 
@@ -3295,7 +3295,7 @@ bool TOperationControllerBase::OnJobCompleted(
             CompletedJobIdsReleaseQueue_.Push(jobId);
         }
 
-        if (jobSummary->InterruptionReason != EInterruptReason::None) {
+        if (jobSummary->InterruptionReason != EInterruptionReason::None) {
             ExtractInterruptDescriptor(*jobSummary, joblet);
             YT_LOG_DEBUG(
                 "Job interrupted (JobId: %v, InterruptionReason: %v, UnreadDataSliceCount: %v, ReadDataSliceCount: %v)",
@@ -3929,7 +3929,7 @@ void TOperationControllerBase::SafeInterruptJobByUserRequest(TJobId jobId, TDura
             joblet->JobType);
     }
 
-    InterruptJob(jobId, EInterruptReason::UserRequest, timeout);
+    InterruptJob(jobId, EInterruptionReason::UserRequest, timeout);
 }
 
 void TOperationControllerBase::BuildJobAttributes(
@@ -11090,7 +11090,7 @@ bool TOperationControllerBase::CanInterruptJobs() const
     return Config->EnableJobInterrupts && InputManager->CanInterruptJobs();
 }
 
-void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason reason)
+void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptionReason reason)
 {
     InterruptJob(
         jobId,
@@ -11492,7 +11492,7 @@ bool TOperationControllerBase::ShouldProcessJobEvents() const
     return State == EControllerState::Running || State == EControllerState::Failing;
 }
 
-void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason interruptionReason, TDuration timeout)
+void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptionReason interruptionReason, TDuration timeout)
 {
     Host->InterruptJob(jobId, interruptionReason, timeout);
 }

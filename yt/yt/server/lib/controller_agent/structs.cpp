@@ -59,7 +59,7 @@ TJobSummary::TJobSummary(TJobId id, EJobState state)
 TJobSummary::TJobSummary(NProto::TJobStatus* status)
     : Id(FromProto<TJobId>(status->job_id()))
     , State(FromProto<EJobState>(status->state()))
-    , InterruptionReason(FromProto<EInterruptReason>(status->interruption_reason()))
+    , InterruptionReason(FromProto<EInterruptionReason>(status->interruption_reason()))
     , FinishedOnNode(true)
 {
     Result = std::move(*status->mutable_result());
@@ -200,7 +200,7 @@ void TCompletedJobSummary::RegisterMetadata(auto&& registrar)
         // TODO(max42): now we persist only those completed job summaries that correspond
         // to non-interrupted jobs, because Persist(context, UnreadInputDataSlices) produces
         // lots of ugly template resolution errors. I wasn't able to fix it :(
-        YT_VERIFY(this_->InterruptionReason == EInterruptReason::None);
+        YT_VERIFY(this_->InterruptionReason == EInterruptionReason::None);
     });
 }
 

@@ -242,7 +242,7 @@ void UpdateJobletFromSummary(
 
     // Update other joblet fields.
 
-    if (jobSummary.InterruptionReason != EInterruptReason::None) {
+    if (jobSummary.InterruptionReason != EInterruptionReason::None) {
         joblet->InterruptionReason = jobSummary.InterruptionReason;
     }
 

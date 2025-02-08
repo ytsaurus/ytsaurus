@@ -2163,7 +2163,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobInterruption)
     unreadDataSlices[0]->LowerLimit().KeyBound = BuildBound(">=", {13});
     unreadDataSlices[1]->LowerLimit().KeyBound = BuildBound(">=", {14});
     TCompletedJobSummary jobSummary;
-    jobSummary.InterruptionReason = EInterruptReason::Preemption;
+    jobSummary.InterruptionReason = EInterruptionReason::Preemption;
     jobSummary.UnreadInputDataSlices = unreadDataSlices;
     ChunkPool_->Completed(ExtractedCookies_.front(), jobSummary);
 
@@ -2395,7 +2395,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitSimple)
 
     auto stripeLists = GetAllStripeLists();
     TCompletedJobSummary jobSummary;
-    jobSummary.InterruptionReason = EInterruptReason::JobSplit;
+    jobSummary.InterruptionReason = EInterruptionReason::JobSplit;
     jobSummary.UnreadInputDataSlices = std::vector<TLegacyDataSlicePtr>(
         stripeLists[0]->Stripes[0]->DataSlices.begin(),
         stripeLists[0]->Stripes[0]->DataSlices.end());
@@ -2453,7 +2453,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitWithForeign)
 
     auto stripeLists = GetAllStripeLists();
     TCompletedJobSummary jobSummary;
-    jobSummary.InterruptionReason = EInterruptReason::JobSplit;
+    jobSummary.InterruptionReason = EInterruptionReason::JobSplit;
     std::vector<TLegacyDataSlicePtr> unreadSlices;
     unreadSlices.insert(
         unreadSlices.end(),
@@ -2561,7 +2561,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TestJobSplitStripeSuspension)
 
     auto stripeLists = GetAllStripeLists();
     TCompletedJobSummary jobSummary;
-    jobSummary.InterruptionReason = EInterruptReason::JobSplit;
+    jobSummary.InterruptionReason = EInterruptionReason::JobSplit;
     std::vector<TLegacyDataSlicePtr> unreadSlices;
     unreadSlices.insert(
         unreadSlices.end(),
@@ -3439,7 +3439,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder)
     };
     unreadDataSlices[0]->LowerLimit().RowIndex = 15;
     TCompletedJobSummary jobSummary;
-    jobSummary.InterruptionReason = EInterruptReason::Preemption;
+    jobSummary.InterruptionReason = EInterruptionReason::Preemption;
     jobSummary.UnreadInputDataSlices = unreadDataSlices;
     ChunkPool_->Completed(outputCookie, jobSummary);
 
@@ -3502,7 +3502,7 @@ TEST_F(TSortedChunkPoolNewKeysTest, TrickySliceSortOrder2)
     unreadDataSlices[0]->LowerLimit().RowIndex = 5;
     unreadDataSlices[0]->LowerLimit().KeyBound = BuildBound(">=", {0xB});
     TCompletedJobSummary jobSummary;
-    jobSummary.InterruptionReason = EInterruptReason::Preemption;
+    jobSummary.InterruptionReason = EInterruptionReason::Preemption;
     jobSummary.UnreadInputDataSlices = unreadDataSlices;
     ChunkPool_->Completed(outputCookie, jobSummary);
 

@@ -66,7 +66,7 @@ message TAllocationToPreempt
     required int64 timeout = 2;
     optional string preemption_reason = 3;
     // COMPAT(pogorelov): Remove after 23.3 will be everywhere.
-    optional int32 interruption_reason = 4; // NScheduler::EInterruptReason
+    optional int32 interruption_reason = 4; // NScheduler::EInterruptionReason
     optional NYT.NScheduler.NProto.TPreemptedFor preempted_for = 5;
 }
 

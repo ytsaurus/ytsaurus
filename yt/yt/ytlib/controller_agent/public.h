@@ -83,7 +83,7 @@ using NVectorHdrf::TJobResources;
 using NScheduler::TOperationId;
 using NJobTrackerClient::TJobId;
 using NScheduler::EAbortReason;
-using NScheduler::EInterruptReason;
+using NScheduler::EInterruptionReason;
 using NScheduler::EOperationType;
 using NJobTrackerClient::EJobType;
 using NScheduler::TOperationSpecBasePtr;

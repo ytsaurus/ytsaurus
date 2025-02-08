@@ -132,7 +132,7 @@ private:
 
     struct TInterruptionRequestOptions
     {
-        EInterruptReason Reason;
+        EInterruptionReason Reason;
         TDuration Timeout;
     };
 
@@ -434,13 +434,13 @@ private:
     void RequestJobInterruption(
         TJobId jobId,
         TOperationId operationId,
-        EInterruptReason reason,
+        EInterruptionReason reason,
         TDuration timeout);
     void DoRequestJobInterruption(
         TRequestedActionInfo& requestedActionInfo,
         TJobId jobId,
         TOperationId operationId,
-        EInterruptReason reason,
+        EInterruptionReason reason,
         TDuration timeout);
 
     void RequestJobGracefulAbort(
@@ -542,7 +542,7 @@ public:
         bool requestNewJob);
     void RequestJobInterruption(
         TJobId jobId,
-        EInterruptReason reason,
+        EInterruptionReason reason,
         TDuration timeout);
     void RequestJobGracefulAbort(
         TJobId jobId,

@@ -744,7 +744,7 @@ bool TVanillaController::OnJobCompleted(
         return false;
     }
 
-    if (joblet->JobType == EJobType::Vanilla && interruptionReason != EInterruptReason::None) {
+    if (joblet->JobType == EJobType::Vanilla && interruptionReason != EInterruptionReason::None) {
         static_cast<TVanillaTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(joblet, /*operationIsReviving*/ false);
     }
 

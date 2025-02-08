@@ -213,7 +213,7 @@ public:
 
     void DoInterrupt(
         TDuration timeout,
-        NScheduler::EInterruptReason interruptionReason,
+        NScheduler::EInterruptionReason interruptionReason,
         std::optional<TString> preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
@@ -235,18 +235,18 @@ public:
     bool IsInterruptible() const noexcept;
 
     void OnJobInterruptionTimeout(
-        NScheduler::EInterruptReason interruptionReason,
+        NScheduler::EInterruptionReason interruptionReason,
         const std::optional<TString>& preemptionReason);
 
     TControllerAgentConnectorPool::TControllerAgentConnectorPtr GetControllerAgentConnector() const noexcept;
 
     void Interrupt(
         TDuration timeout,
-        NScheduler::EInterruptReason interruptionReason,
+        NScheduler::EInterruptionReason interruptionReason,
         std::optional<TString> preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
-    NScheduler::EInterruptReason GetInterruptionReason() const noexcept;
+    NScheduler::EInterruptionReason GetInterruptionReason() const noexcept;
     bool IsInterrupted() const noexcept;
     const std::optional<NScheduler::TPreemptedFor>& GetPreemptedFor() const noexcept;
 
@@ -390,7 +390,7 @@ private:
 
     i64 JobProxyHearbeatEpoch_ = -1;
 
-    NScheduler::EInterruptReason InterruptionReason_ = NScheduler::EInterruptReason::None;
+    NScheduler::EInterruptionReason InterruptionReason_ = NScheduler::EInterruptionReason::None;
     std::optional<NScheduler::TPreemptedFor> PreemptedFor_;
 
     //! True if agent asked to store this job.
@@ -458,7 +458,7 @@ private:
 
     void ReportJobInterruptionInfo(
         TDuration timeout,
-        NScheduler::EInterruptReason interruptionReason,
+        NScheduler::EInterruptionReason interruptionReason,
         const std::optional<TString>& preemptionReason,
         const std::optional<NScheduler::TPreemptedFor>& preemptedFor);
 
