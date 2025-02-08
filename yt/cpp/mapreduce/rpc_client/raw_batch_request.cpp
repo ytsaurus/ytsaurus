@@ -2,7 +2,7 @@
 
 #include <yt/cpp/mapreduce/common/helpers.h>
 
-#include <yt/cpp/mapreduce/http/retry_request.h>
+#include <yt/cpp/mapreduce/common/retry_request.h>
 
 #include <yt/cpp/mapreduce/interface/raw_client.h>
 
