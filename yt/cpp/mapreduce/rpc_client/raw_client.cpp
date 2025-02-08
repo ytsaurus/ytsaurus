@@ -1,5 +1,6 @@
 #include "raw_client.h"
 
+#include "raw_batch_request.h"
 #include "rpc_parameters_serialization.h"
 
 #include <yt/cpp/mapreduce/common/helpers.h>
@@ -1182,7 +1183,7 @@ ui64 TRpcRawClient::GenerateTimestamp()
 
 IRawBatchRequestPtr TRpcRawClient::CreateRawBatchRequest()
 {
-    YT_UNIMPLEMENTED();
+    return MakeIntrusive<TRpcRawBatchRequest>(Clone(), Context_.Config);
 }
 
 IRawClientPtr TRpcRawClient::Clone()
