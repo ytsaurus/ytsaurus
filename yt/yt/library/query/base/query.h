@@ -404,7 +404,7 @@ struct TProjectClause
 
     void AddProjection(TConstExpressionPtr expression, const std::string& name);
 
-    TTableSchemaPtr GetTableSchema() const;
+    TTableSchemaPtr GetTableSchema(bool castToQLType = true) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TProjectClause)
@@ -464,7 +464,7 @@ struct TBaseQuery
     bool IsPrefetching() const;
 
     virtual TTableSchemaPtr GetReadSchema() const = 0;
-    virtual TTableSchemaPtr GetTableSchema() const = 0;
+    virtual TTableSchemaPtr GetTableSchema(bool castToQLType = true) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBaseQuery)
@@ -488,7 +488,7 @@ struct TQuery
 
     TTableSchemaPtr GetRenamedSchema() const;
 
-    TTableSchemaPtr GetTableSchema() const override;
+    TTableSchemaPtr GetTableSchema(bool castToQLType = true) const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
@@ -506,7 +506,7 @@ struct TFrontQuery
 
     TTableSchemaPtr GetRenamedSchema() const;
 
-    TTableSchemaPtr GetTableSchema() const override;
+    TTableSchemaPtr GetTableSchema(bool castToQLType = true) const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFrontQuery)
