@@ -340,6 +340,8 @@ public:
 
     IRawBatchRequestPtr CreateRawBatchRequest() override;
 
+    IRawClientPtr Clone() override;
+
 private:
     const NApi::IClientPtr Client_;
     const TClientContext Context_;
