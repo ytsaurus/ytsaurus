@@ -3081,6 +3081,37 @@ NAst::TParser::token::yytokentype GetStrayToken(EParseMode mode)
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+void EliminateRedundantProjections(const TQueryPtr& innerSubquery, const TTableSchema& outerQueryReadSchema)
+{
+    auto projectClause = New<TProjectClause>();
+
+    if (!innerSubquery->ProjectClause) {
+        for (const auto& column : outerQueryReadSchema.Columns()) {
+            projectClause->Projections.push_back(TNamedItem(
+                New<TReferenceExpression>(column.LogicalType(), column.Name()),
+                column.Name()));
+        }
+    } else {
+        TColumnSet readColumns;
+        for (const auto& column : outerQueryReadSchema.Columns()) {
+            readColumns.insert(column.Name());
+        }
+
+        TNamedItemList filteredProjections;
+        for (const auto& projection : innerSubquery->ProjectClause->Projections) {
+            if (readColumns.contains(projection.Name)) {
+                filteredProjections.push_back(projection);
+            }
+        }
+
+        projectClause->Projections = std::move(filteredProjections);
+    }
+
+    innerSubquery->ProjectClause = std::move(projectClause);
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3628,10 +3659,16 @@ TPlanFragmentPtr PreparePlanFragment(
         }
     }
 
+    auto readSchema = query->GetReadSchema();
+
+    if (fragment->SubqueryFragment) {
+        EliminateRedundantProjections(fragment->SubqueryFragment->Query, *readSchema);
+    }
+
     auto queryFingerprint = InferName(query, {.OmitValues = true});
     YT_LOG_DEBUG("Prepared query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
         queryFingerprint,
-        *query->GetReadSchema(),
+        *readSchema,
         *query->GetTableSchema());
 
     auto rowBuffer = New<TRowBuffer>(
