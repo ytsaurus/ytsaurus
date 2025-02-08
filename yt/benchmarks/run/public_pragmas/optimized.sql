@@ -4,6 +4,7 @@ pragma CompactGroupBy;
 pragma TablePathPrefix = "home/tpcds/3Tb";
 pragma EmitUnionMerge;
 pragma yt.UseIntermediateStreams;
+pragma yt.EnableFuseMapToMapReduce = 'true';
 pragma config.flags("OptimizerFlags", "FilterPushdownEnableMultiusage", "EarlyExpandSkipNull","FieldSubsetEnableMultiusage", "PushdownComplexFiltersOverAggregate", "ExtractCommonPredicatesFromLogicalOps", "PullUpExtendOverEquiJoin",
     "DisableEmitSkipNullOnPushDown");
 pragma yt.AutoMerge = "disabled";
