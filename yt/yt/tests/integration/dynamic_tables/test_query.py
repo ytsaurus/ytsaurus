@@ -2480,12 +2480,15 @@ class TestQuery(DynamicTablesBase):
             {"k_1": 1, "k_2": 5, "v": "Alpha"},
             {"k_1": 1, "k_2": 6, "v": "Enigma"},
             {"k_1": 1, "k_2": 7, "v": "Diaspora"},
-
         ]
         insert_rows("//tmp/t", rowset)
 
         assert rowset == select_rows("* FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM [//tmp/t] limit 100) limit 100) limit 100)")
         assert [{"k": 0}] == select_rows("B.[A.k_1] AS k FROM (SELECT A.k_1 from [//tmp/t] AS A limit 1) AS B limit 1")
+        assert [{"k_1": 0}] == select_rows("k_1 FROM (SELECT * FROM [//tmp/t] limit 1)")
+        assert [{"k_2": 4}] == select_rows("k_2 FROM (SELECT k_1, k_2 FROM [//tmp/t] limit 1)")
+        assert [{"k_2": 4}] == select_rows("k_2 FROM (SELECT * FROM [//tmp/t] GROUP BY k_1, k_2 limit 1)")
+        assert [{"k_2": 4}] == select_rows("k_2 FROM (SELECT k_1, k_2 FROM [//tmp/t] GROUP BY k_1, k_2 limit 1)")
 
         assert [{"v": "Alpha"}] == select_rows(
             "min(v) as v FROM (SELECT min(v) as v from [//tmp/t] group by k_1) group by 1")
