@@ -3,6 +3,7 @@ LIBRARY()
 INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
+    raw_batch_request.cpp
     raw_client.cpp
     rpc_parameters_serialization.cpp
 )
