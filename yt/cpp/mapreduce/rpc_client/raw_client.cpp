@@ -1185,6 +1185,11 @@ IRawBatchRequestPtr TRpcRawClient::CreateRawBatchRequest()
     YT_UNIMPLEMENTED();
 }
 
+IRawClientPtr TRpcRawClient::Clone()
+{
+    return ::MakeIntrusive<TRpcRawClient>(Client_, Context_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDetail
