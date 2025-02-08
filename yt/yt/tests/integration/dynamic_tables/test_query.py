@@ -2400,6 +2400,23 @@ class TestQuery(DynamicTablesBase):
             limit 3""")
         assert expected == actual
 
+    @authors("nadya73")
+    @skip_if_rpc_driver_backend
+    def test_select_web_json(self):
+        table = "//tmp/table"
+        sync_create_cells(1)
+        create_dynamic_table(table, schema=[{"name": "ts_column", "type": "timestamp"}])
+        sync_mount_table(table)
+
+        insert_rows(table, [{"ts_column": 0}])
+
+        format = yson.loads(b"<column_names=[ts_column];value_format=yql>web_json")
+
+        res = select_rows(f"* from [{table}]", output_format=format)
+        assert b"Timestamp" in res
+        res = select_rows(f"ts_column from [{table}]", output_format=format)
+        assert b"Timestamp" in res
+
 
 class TestQueryRpcProxy(TestQuery):
     DRIVER_BACKEND = "rpc"
