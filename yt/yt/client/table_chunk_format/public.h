@@ -2,6 +2,8 @@
 
 namespace NYT::NTableChunkFormat {
 
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NProto {
 
 class TSegmentMeta;
@@ -11,5 +13,7 @@ class TStringSegmentMeta;
 class TDenseVersionedSegmentMeta;
 
 } // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableChunkFormat
