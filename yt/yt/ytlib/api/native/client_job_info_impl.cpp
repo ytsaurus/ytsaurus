@@ -136,6 +136,7 @@ static const THashMap<TString, int> CompatListJobsAttributesToArchiveVersion = {
     {"controller_state", 48},
     {"interruption_info", 50},
     {"archive_features", 51},
+    {"operation_incarnation", 55},
 };
 
 static const auto SupportedJobAttributes = DefaultGetJobAttributes;
@@ -1559,7 +1560,9 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     builder.AddSelectExpression("task_name");
     builder.AddSelectExpression("pool_tree");
     builder.AddSelectExpression("monitoring_descriptor");
-    builder.AddSelectExpression("operation_incarnation");
+    if (GetOrDefault(CompatListJobsAttributesToArchiveVersion, "operation_incarnation") <= archiveVersion) {
+        builder.AddSelectExpression("operation_incarnation");
+    }
     builder.AddSelectExpression("core_infos");
     builder.AddSelectExpression("job_cookie");
     builder.AddSelectExpression("if(is_null(state), transient_state, state)", "node_state");
@@ -1644,7 +1647,9 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
         builder.AddWhereConjunct(Format("task_name = %Qv", *options.TaskName));
     }
 
-    if (options.OperationIncarnation) {
+    if (options.OperationIncarnation &&
+        GetOrDefault(CompatListJobsAttributesToArchiveVersion, "operation_incarnation") <= archiveVersion)
+    {
         builder.AddWhereConjunct(Format("operation_incarnation = %Qv", *options.OperationIncarnation));
     }
 
