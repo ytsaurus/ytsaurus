@@ -751,7 +751,7 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("enable_two_random_choices_write_target_allocation", &TThis::EnableTwoRandomChoicesWriteTargetAllocation)
-        .Default(false)
+        .Default(true)
         .DontSerializeDefault();
 
     registrar.Parameter("nodes_to_check_before_giving_up_on_write_target_allocation", &TThis::NodesToCheckBeforeGivingUpOnWriteTargetAllocation)
