@@ -299,6 +299,22 @@ TTableSchemaPtr TMappedSchema::GetRenamedSchema() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJoinClause::TJoinClause(const TJoinClause& other)
+    : Schema(other.Schema)
+    , SelfJoinedColumns(other.SelfJoinedColumns)
+    , ForeignJoinedColumns(other.ForeignJoinedColumns)
+    , Predicate(other.Predicate)
+    , ForeignEquations(other.ForeignEquations)
+    , SelfEquations(other.SelfEquations)
+    , CommonKeyPrefix(other.CommonKeyPrefix)
+    , ForeignKeyPrefix(other.ForeignKeyPrefix)
+    , ArrayExpressions(other.ArrayExpressions)
+    , IsLeft(other.IsLeft)
+    , ForeignObjectId(other.ForeignObjectId)
+    , ForeignCellId(other.ForeignCellId)
+    , GroupClause(other.GroupClause)
+{ }
+
 TTableSchemaPtr TJoinClause::GetRenamedSchema() const
 {
     return Schema.GetRenamedSchema();
@@ -326,6 +342,12 @@ TTableSchemaPtr TJoinClause::GetTableSchema(const TTableSchema& source) const
         }
     }
 
+    if (GroupClause) {
+        for (const auto& aggregate : GroupClause->AggregateItems) {
+            result.push_back(TColumnSchema(aggregate.Name, aggregate.ResultType));
+        }
+    }
+
     return New<TTableSchema>(std::move(result));
 }
 
@@ -333,18 +355,22 @@ TQueryPtr TJoinClause::GetJoinSubquery() const
 {
     auto joinSubquery = New<TQuery>();
 
-    joinSubquery->Schema.Original = Schema.Original;
-    joinSubquery->Schema.Mapping = Schema.Mapping;
-
+    joinSubquery->Schema = Schema;
     joinSubquery->WhereClause = Predicate;
-    auto projectClause = New<TProjectClause>();
-    joinSubquery->ProjectClause = projectClause;
+    joinSubquery->GroupClause = GroupClause;
 
+    if (GroupClause) {
+        return joinSubquery;
+    }
+
+    auto projectClause = New<TProjectClause>();
     for (const auto& column : ForeignEquations) {
         projectClause->AddProjection(column, InferName(column));
     }
+
     auto joinRenamedTableColumns = GetRenamedSchema()->Columns();
     for (const auto& renamedColumn : joinRenamedTableColumns) {
+        // TODO(sabdenovch): eliminate possible(?) duplication between ForeignEquations and ForeignJoinedColumns.
         if (ForeignJoinedColumns.contains(renamedColumn.Name())) {
             projectClause->AddProjection(
                 New<TReferenceExpression>(
@@ -353,6 +379,8 @@ TQueryPtr TJoinClause::GetJoinSubquery() const
                 renamedColumn.Name());
         }
     };
+
+    joinSubquery->ProjectClause = std::move(projectClause);
 
     return joinSubquery;
 }
@@ -367,6 +395,12 @@ std::vector<size_t> TJoinClause::GetForeignColumnIndices() const
             foreignColumns.push_back(foreignColumnsIndex++);
         }
     };
+
+    if (GroupClause) {
+        for (const auto& _ : GroupClause->AggregateItems) {
+            foreignColumns.push_back(foreignColumnsIndex++);
+        }
+    }
 
     return foreignColumns;
 }
@@ -408,6 +442,13 @@ bool TGroupClause::AllAggregatesAreFirst() const
 
     return true;
 }
+
+TGroupClause::TGroupClause(const TGroupClause& other)
+    : GroupItems(other.GroupItems)
+    , AggregateItems(other.AggregateItems)
+    , TotalsMode(other.TotalsMode)
+    , CommonPrefixWithPrimaryKey(other.CommonPrefixWithPrimaryKey)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1339,6 +1380,26 @@ void FromProto(TColumnDescriptor* original, const NProto::TColumnDescriptor& ser
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void ToProto(NProto::TGroupClause* proto, const TConstGroupClausePtr& original)
+{
+    ToProto(proto->mutable_group_items(), original->GroupItems);
+    ToProto(proto->mutable_aggregate_items(), original->AggregateItems);
+    proto->set_totals_mode(ToProto(original->TotalsMode));
+    proto->set_common_prefix_with_primary_key(ToProto(original->CommonPrefixWithPrimaryKey));
+}
+
+void FromProto(TConstGroupClausePtr* original, const NProto::TGroupClause& serialized)
+{
+    auto result = New<TGroupClause>();
+    FromProto(&result->GroupItems, serialized.group_items());
+    FromProto(&result->AggregateItems, serialized.aggregate_items());
+    FromProto(&result->TotalsMode, serialized.totals_mode());
+    FromProto(&result->CommonPrefixWithPrimaryKey, serialized.common_prefix_with_primary_key());
+    *original = result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
 {
     ToProto(proto->mutable_original_schema(), original->Schema.Original);
@@ -1366,6 +1427,10 @@ void ToProto(NProto::TJoinClause* proto, const TConstJoinClausePtr& original)
     }
 
     ToProto(proto->mutable_array_expressions(), original->ArrayExpressions);
+
+    if (original->GroupClause) {
+        ToProto(proto->mutable_group_clause(), original->GroupClause);
+    }
 }
 
 void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& serialized)
@@ -1399,26 +1464,10 @@ void FromProto(TConstJoinClausePtr* original, const NProto::TJoinClause& seriali
 
     FromProto(&result->ArrayExpressions, serialized.array_expressions());
 
-    *original = result;
-}
+    if (serialized.has_group_clause()) {
+        FromProto(&result->GroupClause, serialized.group_clause());
+    }
 
-////////////////////////////////////////////////////////////////////////////////
-
-void ToProto(NProto::TGroupClause* proto, const TConstGroupClausePtr& original)
-{
-    ToProto(proto->mutable_group_items(), original->GroupItems);
-    ToProto(proto->mutable_aggregate_items(), original->AggregateItems);
-    proto->set_totals_mode(ToProto(original->TotalsMode));
-    proto->set_common_prefix_with_primary_key(ToProto(original->CommonPrefixWithPrimaryKey));
-}
-
-void FromProto(TConstGroupClausePtr* original, const NProto::TGroupClause& serialized)
-{
-    auto result = New<TGroupClause>();
-    FromProto(&result->GroupItems, serialized.group_items());
-    FromProto(&result->AggregateItems, serialized.aggregate_items());
-    FromProto(&result->TotalsMode, serialized.totals_mode());
-    FromProto(&result->CommonPrefixWithPrimaryKey, serialized.common_prefix_with_primary_key());
     *original = result;
 }
 

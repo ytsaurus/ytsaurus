@@ -349,15 +349,20 @@ struct TJoinClause
     //! See #TDataSource::CellId.
     NObjectClient::TCellId ForeignCellId;
 
+    TConstGroupClausePtr GroupClause;
+
+    TJoinClause() = default;
+    TJoinClause(const TJoinClause& other);
+
     TTableSchemaPtr GetRenamedSchema() const;
 
     TKeyColumns GetKeyColumns() const;
 
     TTableSchemaPtr GetTableSchema(const TTableSchema& source) const;
 
-    TQueryPtr GetJoinSubquery() const;
-
     std::vector<size_t> GetForeignColumnIndices() const;
+
+    TQueryPtr GetJoinSubquery() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoinClause)
@@ -367,7 +372,7 @@ struct TGroupClause
 {
     TNamedItemList GroupItems;
     TAggregateItemList AggregateItems;
-    ETotalsMode TotalsMode;
+    ETotalsMode TotalsMode = ETotalsMode::None;
     size_t CommonPrefixWithPrimaryKey = 0;
 
     void AddGroupItem(TNamedItem namedItem);
@@ -377,6 +382,9 @@ struct TGroupClause
     TTableSchemaPtr GetTableSchema(bool isFinal) const;
 
     bool AllAggregatesAreFirst() const;
+
+    TGroupClause() = default;
+    TGroupClause(const TGroupClause& other);
 };
 
 DEFINE_REFCOUNTED_TYPE(TGroupClause)

@@ -196,6 +196,8 @@ message TJoinClause
     optional uint64 common_key_prefix_new = 14 [default = 0];
 
     repeated TExpression array_expressions = 16;
+
+    optional TGroupClause group_clause = 17;
 }
 
 message TGroupClause

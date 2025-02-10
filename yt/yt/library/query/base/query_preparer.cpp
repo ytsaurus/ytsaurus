@@ -5,6 +5,7 @@
 #include "helpers.h"
 #include "lexer.h"
 #include "private.h"
+#include "push_down_group_by.h"
 #include "query_helpers.h"
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
@@ -3659,6 +3660,8 @@ TPlanFragmentPtr PreparePlanFragment(
         }
     }
 
+    TryPushDownGroupBy(query, queryAst, Logger);
+    
     auto readSchema = query->GetReadSchema();
 
     if (fragment->SubqueryFragment) {

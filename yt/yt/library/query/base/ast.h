@@ -409,6 +409,7 @@ struct TTableHint
     : public NYTree::TYsonStruct
 {
     bool RequireSyncReplica;
+    bool PushDownGroupBy;
 
     REGISTER_YSON_STRUCT(TTableHint);
 
