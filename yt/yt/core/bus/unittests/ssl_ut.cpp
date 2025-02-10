@@ -62,6 +62,9 @@ public:
     TPemBlobConfigPtr CACertWithIPInSAN;
     TPemBlobConfigPtr PrivateKeyWithIpInSAN;
     TPemBlobConfigPtr CertificateChainWithIpInSAN;
+    TPemBlobConfigPtr CACertEC;
+    TPemBlobConfigPtr PrivateKeyEC;
+    TPemBlobConfigPtr CertificateChainEC;
 
     TSslTest()
     {
@@ -76,6 +79,10 @@ public:
         CACertWithIPInSAN = TPemBlobConfig::CreateFileReference(SRC_("testdata/ca_with_ip_in_san.pem"));
         PrivateKeyWithIpInSAN = TPemBlobConfig::CreateFileReference(SRC_("testdata/key_with_ip_in_san.pem"));
         CertificateChainWithIpInSAN = TPemBlobConfig::CreateFileReference(SRC_("testdata/cert_with_ip_in_san.pem"));
+
+        CACertEC = TPemBlobConfig::CreateFileReference(SRC_("testdata/ca_ec.pem"));
+        PrivateKeyEC = TPemBlobConfig::CreateFileReference(SRC_("testdata/key_ec.pem"));
+        CertificateChainEC = TPemBlobConfig::CreateFileReference(SRC_("testdata/cert_ec.pem"));
     }
 };
 
@@ -516,6 +523,39 @@ TEST_F(TSslTest, DifferentCipherLists)
     server->Stop()
         .Get()
         .ThrowOnError();
+}
+
+TEST_F(TSslTest, FullVerificationWithEllipticCurve)
+{
+    // Connect via localhost, ipv4 and ipv6 addresses.
+    for (const auto& address : {AddressWithHostName, AddressWithIpV4, AddressWithIpV6}) {
+        auto serverConfig = TBusServerConfig::CreateTcp(Port);
+        serverConfig->EncryptionMode = EEncryptionMode::Required;
+        serverConfig->VerificationMode = EVerificationMode::None;
+        serverConfig->CertificateChain = CertificateChainEC;
+        serverConfig->PrivateKey = PrivateKeyEC;
+        auto server = CreateBusServer(serverConfig);
+        server->Start(New<TEmptyBusHandler>());
+
+        auto clientConfig = TBusClientConfig::CreateTcp(address);
+        clientConfig->EncryptionMode = EEncryptionMode::Required;
+        clientConfig->VerificationMode = EVerificationMode::Full;
+        clientConfig->CertificateAuthority = CACertEC;
+        auto client = CreateBusClient(clientConfig);
+
+        auto bus = client->CreateBus(New<TEmptyBusHandler>());
+        // This test should pass since (localhost | 127.0.0.1 | [::1]) is in SAN.
+        EXPECT_TRUE(bus->GetReadyFuture().Get().IsOK());
+        EXPECT_TRUE(bus->IsEncrypted());
+
+        auto message = CreateMessage(1);
+        auto sendFuture = bus->Send(message, {.TrackingLevel = EDeliveryTrackingLevel::Full});
+        EXPECT_TRUE(sendFuture.Get().IsOK());
+
+        server->Stop()
+            .Get()
+            .ThrowOnError();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
