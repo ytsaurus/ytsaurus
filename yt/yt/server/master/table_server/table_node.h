@@ -75,6 +75,7 @@ private:
         std::optional<NTabletNode::EDynamicTableProfilingMode> ProfilingMode;
         std::optional<TString> ProfilingTag;
         bool EnableDetailedProfiling = false;
+        NTableClient::ETabletTransactionSerializationType SerializationType = NTableClient::ETabletTransactionSerializationType::Coarse;
         bool EnableConsistentChunkReplicaPlacement = false;
         NTabletClient::ETableBackupState BackupState = NTabletClient::ETableBackupState::None;
         TEnumIndexedArray<NTabletClient::ETabletBackupState, int> TabletCountByBackupState;
@@ -130,6 +131,7 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ProfilingMode);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ProfilingTag);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableDetailedProfiling);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, SerializationType);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableConsistentChunkReplicaPlacement);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, BackupState);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByBackupState);

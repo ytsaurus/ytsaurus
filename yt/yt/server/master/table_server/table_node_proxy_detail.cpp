@@ -360,6 +360,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetReplicated(true)
         .SetPresent(isDynamic));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SerializationType)
+        .SetWritable(true)
+        .SetReplicated(true)
+        .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationCollocationId)
         .SetPresent(table->IsReplicated() && trunkTable->GetReplicationCollocation())
         .SetWritable(true)
@@ -890,6 +894,17 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             BuildYsonFluently(consumer)
                 .Value(table->GetEnableDetailedProfiling());
             return true;
+
+
+        case EInternedAttributeKey::SerializationType:
+            if (!isDynamic) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(table->GetSerializationType());
+            return true;
+
 
         case EInternedAttributeKey::ReplicationCollocationTablePaths: {
             if (!isDynamic || !table->IsReplicated() || !trunkTable->GetReplicationCollocation()) {
@@ -1612,6 +1627,28 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             return true;
         }
 
+        case EInternedAttributeKey::SerializationType: {
+            if (!table->IsDynamic()) {
+                break;
+            }
+
+            auto serializationType = ConvertTo<ETabletTransactionSerializationType>(value);
+
+            if (serializationType == ETabletTransactionSerializationType::PerRow &&
+                !table->IsSorted())
+            {
+                THROW_ERROR_EXCEPTION("Serialization type %qlv is supported only for sorted dynamic tables",
+                    serializationType);
+            }
+
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
+            lockedTable->ValidateAllTabletsUnmounted(Format("Cannot change sequencer type to %v",
+                serializationType));
+            lockedTable->SetSerializationType(serializationType);
+            return true;
+        }
+
         case EInternedAttributeKey::ReplicationCollocationId: {
             ValidateNoTransaction();
 
@@ -1950,6 +1987,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     ToProto(response->mutable_upstream_replica_id(), trunkTable->GetUpstreamReplicaId());
     ToProto(response->mutable_schema(), *trunkTable->GetSchema()->AsTableSchema());
     response->set_enable_detailed_profiling(trunkTable->GetEnableDetailedProfiling());
+    response->set_serialization_type(ToProto(trunkTable->GetSerializationType()));
 
     THashSet<TTabletCell*> cells;
     for (auto tabletBase : trunkTable->Tablets()) {

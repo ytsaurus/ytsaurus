@@ -47,9 +47,11 @@ DEFINE_ENUM(ETabletReign,
     ((SmoothMovementForwardWrites)                 (101102)) // ifsmirnov
     ((FixPrepareToggleHunkTabletStore)             (101103)) // akozhikhov
     ((CancelTabletTransition_25_1)                 (101104)) // ifsmirnov
+    ((PerRowSequencer_25_1)                        (101105)) // ponasenko-rs
     // 25.2 starts here.
     ((Start_25_2)                                  (101200)) // ponasenko-rs
     ((CancelTabletTransition)                      (101201)) // ifsmirnov
+    ((PerRowSequencer)                             (101202)) // ponasenko-rs
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");
@@ -74,6 +76,8 @@ class TLoadContext
 {
 public:
     using NHydra::TLoadContext::TLoadContext;
+
+    NTableClient::TSchemaData CurrentTabletWriteManagerSchemaData;
 
     ETabletReign GetVersion() const;
 };

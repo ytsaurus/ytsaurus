@@ -172,6 +172,7 @@
     XX(EnableTabletBalancer, enable_tablet_balancer) \
     XX(EnableDynamicStoreRead, enable_dynamic_store_read) \
     XX(EnableLightweightOperations, enable_lightweight_operations) \
+    XX(SerializationType, serialization_type) \
     XX(EnablePrioritySchedulingSegmentModuleAssignment, enable_priority_scheduling_segment_module_assignment) \
     XX(EnablePriorityStrongGuaranteeAdjustment, enable_priority_strong_guarantee_adjustment) \
     XX(EnablePriorityStrongGuaranteeAdjustmentDonorship, enable_priority_strong_guarantee_adjustment_donorship) \

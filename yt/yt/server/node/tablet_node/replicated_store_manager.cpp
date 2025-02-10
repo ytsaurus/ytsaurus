@@ -66,7 +66,7 @@ void TReplicatedStoreManager::StopEpoch()
 }
 
 bool TReplicatedStoreManager::ExecuteWrites(
-    IWireProtocolReader* reader,
+    IWireWriteCommandReader* reader,
     TWriteContext* context)
 {
     auto tableSchema = Tablet_->GetTableSchema();
@@ -84,9 +84,7 @@ bool TReplicatedStoreManager::ExecuteWrites(
                 context);
         };
 
-        auto command = reader->ReadWriteCommand(
-            Tablet_->TableSchemaData(),
-            /*captureValues*/ false);
+        const auto& command = reader->NextCommand();
 
         Visit(command,
             [&] (const TWriteRowCommand& command) { modifyRow(command.Row, ERowModificationType::Write); },

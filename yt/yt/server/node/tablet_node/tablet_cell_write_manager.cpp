@@ -84,14 +84,15 @@ public:
         const auto& transactionManager = Host_->GetTransactionManager();
         transactionManager->SubscribeTransactionPrepared(BIND_NO_PROPAGATE(&TTabletCellWriteManager::OnTransactionPrepared, MakeWeak(this)));
         transactionManager->SubscribeTransactionCommitted(BIND_NO_PROPAGATE(&TTabletCellWriteManager::OnTransactionCommitted, MakeWeak(this)));
-        transactionManager->SubscribeTransactionSerialized(BIND_NO_PROPAGATE(&TTabletCellWriteManager::OnTransactionSerialized, MakeWeak(this)));
+        transactionManager->SubscribeTransactionCoarselySerialized(BIND_NO_PROPAGATE(&TTabletCellWriteManager::OnTransactionCoarselySerialized, MakeWeak(this)));
+        transactionManager->SubscribeTransactionPerRowSerialized(BIND_NO_PROPAGATE(&TTabletCellWriteManager::OnTransactionPerRowSerialized, MakeWeak(this)));
         transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(&TTabletCellWriteManager::OnTransactionAborted, MakeWeak(this)));
         transactionManager->SubscribeTransactionTransientReset(BIND_NO_PROPAGATE(&TTabletCellWriteManager::OnTransactionTransientReset, MakeWeak(this)));
     }
 
     TFuture<void> Write(
         const TTabletSnapshotPtr& tabletSnapshot,
-        IWireProtocolReader* reader,
+        TWireWriteCommandBatchReader* reader,
         const TTabletCellWriteParams& params) override
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
@@ -257,8 +258,6 @@ public:
                 AddTransientAffectedTablet(transaction, tablet);
             }
 
-            auto readerBefore = reader->GetCurrent();
-
             const auto& tabletWriteManager = tablet->GetTabletWriteManager();
             auto context = tabletWriteManager->TransientWriteRows(
                 transaction,
@@ -297,18 +296,16 @@ public:
                 mutationPrepareSignature,
                 mutationCommitSignature);
 
-            auto readerAfter = reader->GetCurrent();
-
             if (atomicity == EAtomicity::Full) {
                 transaction->TransientPrepareSignature() += mutationPrepareSignature;
             }
 
-            if (readerBefore != readerAfter) {
-                auto recordData = reader->Slice(readerBefore, readerAfter);
-                auto compressedRecordData = ChangelogCodec_->Compress(recordData);
+            if (!reader->IsBatchEmpty()) {
+                auto writeCommandBatch = reader->FinishBatch();
+                auto compressedRecordData = ChangelogCodec_->Compress(writeCommandBatch.Data());
                 TTransactionWriteRecord writeRecord(
                     tabletId,
-                    recordData,
+                    std::move(writeCommandBatch),
                     context.RowCount,
                     context.DataWeight,
                     params.SyncReplicaIds,
@@ -629,14 +626,26 @@ private:
         auto codecId = FromProto<ECodec>(request->codec());
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
-        auto recordData = codec->Decompress(compressedRecordData);
+
+        auto data = codec->Decompress(compressedRecordData);
+        auto rowBuffer = New<TRowBuffer>();
+        auto reader = CreateWireProtocolReader(data, rowBuffer);
+        auto commands = ParseWriteCommands(tablet->TableSchemaData(), reader.get());
+
+        auto batch = TWireWriteCommandsBatch(
+            std::move(commands),
+            std::move(rowBuffer),
+            std::move(data));
+
         TTransactionWriteRecord writeRecord(
             tabletId,
-            recordData,
+            std::move(batch),
             rowCount,
             dataWeight,
             syncReplicaIds,
             hunkChunksInfo);
+
+        YT_VERIFY(writeRecord.GetByteSize() != 0);
 
         TTransaction* transaction = nullptr;
 
@@ -804,14 +813,26 @@ private:
         auto codecId = FromProto<ECodec>(request->codec());
         auto* codec = GetCodec(codecId);
         auto compressedRecordData = TSharedRef::FromString(request->compressed_data());
-        auto recordData = codec->Decompress(compressedRecordData);
+
+        auto data = codec->Decompress(compressedRecordData);
+        auto rowBuffer = New<TRowBuffer>();
+        auto reader = CreateWireProtocolReader(data, rowBuffer);
+        auto commands = ParseWriteCommands(tablet->TableSchemaData(), reader.get());
+
+        auto batch = TWireWriteCommandsBatch(
+            std::move(commands),
+            std::move(rowBuffer),
+            std::move(data));
+
         TTransactionWriteRecord writeRecord(
             tabletId,
-            recordData,
+            std::move(batch),
             rowCount,
             dataWeight,
             /*syncReplicaIds*/ {},
             /*hunkChunksInfo*/ {});
+
+        YT_VERIFY(writeRecord.GetByteSize() != 0);
 
         const auto& transactionManager = Host_->GetTransactionManager();
         auto* transaction = transactionManager->FindPersistentTransaction(transactionId);
@@ -863,40 +884,46 @@ private:
     void OnTransactionCommitted(TTransaction* transaction) noexcept
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(HasMutationContext());
-
         auto codicilGuard = MakeCodicilGuard(transaction);
+
+        transaction->IncrementPartsLeftToPerRowSerialize();
 
         for (auto* tablet : GetPersistentAffectedTablets(transaction)) {
             const auto& tabletWriteManager = tablet->GetTabletWriteManager();
             tabletWriteManager->OnTransactionCommitted(transaction);
         }
 
-        if (!transaction->IsSerializationNeeded()) {
-            OnTransactionFinished(transaction);
+        transaction->DecrementPartsLeftToPerRowSerialize();
+
+        if (transaction->GetPartsLeftToPerRowSerialize() == 0) {
+            OnTransactionSerializationFinished(transaction, ESerializationStatus::PerRowFinished);
+        }
+
+        if (!transaction->IsCoarseSerializationNeeded()) {
+            OnTransactionSerializationFinished(transaction, ESerializationStatus::CoarseFinished);
         }
     }
 
-    void OnTransactionSerialized(TTransaction* transaction) noexcept
+    void OnTransactionCoarselySerialized(TTransaction* transaction) noexcept
     {
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
         YT_VERIFY(HasMutationContext());
 
         auto codicilGuard = MakeCodicilGuard(transaction);
 
-        auto serializingTabletIds = transaction->SerializingTabletIds();
-        for (auto tabletId : serializingTabletIds) {
+        auto coarseSerializingTabletIds = transaction->CoarseSerializingTabletIds();
+        for (auto tabletId : coarseSerializingTabletIds) {
             auto* tablet = Host_->FindTablet(tabletId);
             if (!tablet) {
-                EraseOrCrash(transaction->SerializingTabletIds(), tabletId);
+                EraseOrCrash(transaction->CoarseSerializingTabletIds(), tabletId);
                 continue;
             }
 
             const auto& tabletWriteManager = tablet->GetTabletWriteManager();
-            tabletWriteManager->OnTransactionSerialized(transaction);
+            tabletWriteManager->OnTransactionCoarselySerialized(transaction);
         }
 
-        YT_VERIFY(transaction->SerializingTabletIds().empty());
+        YT_VERIFY(transaction->CoarseSerializingTabletIds().empty());
 
         for (auto tabletId : transaction->TabletsToUpdateReplicationProgress()) {
             auto* tablet = Host_->FindTablet(tabletId);
@@ -908,7 +935,29 @@ private:
             tabletWriteManager->UpdateReplicationProgress(transaction);
         }
 
-        OnTransactionFinished(transaction);
+        OnTransactionSerializationFinished(transaction, ESerializationStatus::CoarseFinished);
+    }
+
+    void OnTransactionPerRowSerialized(TTransaction* transaction) noexcept
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasMutationContext());
+
+        auto coarseSerializingTabletIds = transaction->PerRowSerializingTabletIds();
+        for (auto tabletId : coarseSerializingTabletIds) {
+            auto* tablet = Host_->FindTablet(tabletId);
+            if (!tablet) {
+                EraseOrCrash(transaction->PerRowSerializingTabletIds(), tabletId);
+                continue;
+            }
+
+            const auto& tabletWriteManager = tablet->GetTabletWriteManager();
+            tabletWriteManager->OnTransactionPerRowSerialized(transaction);
+        }
+
+        YT_VERIFY(transaction->PerRowSerializingTabletIds().empty());
+
+        OnTransactionSerializationFinished(transaction, ESerializationStatus::PerRowFinished);
     }
 
     void OnTransactionAborted(TTransaction* transaction)
@@ -924,6 +973,18 @@ private:
         }
 
         OnTransactionFinished(transaction);
+    }
+
+    void OnTransactionSerializationFinished(TTransaction* transaction, ESerializationStatus type)
+    {
+        auto serializationStatus = transaction->GetSerializationStatus();
+        YT_ASSERT((serializationStatus & type) == ESerializationStatus::None);
+
+        transaction->SetSerializationStatus(serializationStatus | type);
+
+        if (transaction->GetSerializationStatus() == (ESerializationStatus::CoarseFinished | ESerializationStatus::PerRowFinished)) {
+            OnTransactionFinished(transaction);
+        }
     }
 
     void OnTransactionFinished(TTransaction* transaction)

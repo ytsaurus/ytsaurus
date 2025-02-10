@@ -231,6 +231,7 @@ PEERDIR(
     yt/yt/server/lib/controller_agent
 
     library/cpp/getopt
+    library/cpp/containers/bitset
 
     library/cpp/yt/phdr_cache
 

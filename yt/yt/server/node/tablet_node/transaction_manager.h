@@ -56,10 +56,13 @@ struct ITransactionManager
     DECLARE_INTERFACE_SIGNAL(void(TTransaction*), TransactionCommitted);
 
     //! Raised when a transaction is serialized by a barrier.
-    DECLARE_INTERFACE_SIGNAL(void(TTransaction*), TransactionSerialized);
+    DECLARE_INTERFACE_SIGNAL(void(TTransaction*), TransactionCoarselySerialized);
 
-    //! Raised just before TransactionSerialized.
-    DECLARE_INTERFACE_SIGNAL(void(TTransaction*), BeforeTransactionSerialized);
+    //! Raised just before TransactionCoarselySerialized.
+    DECLARE_INTERFACE_SIGNAL(void(TTransaction*), BeforeTransactionCoarselySerialized);
+
+    //! Raised when a transaction is serialized by a per-row barrier in every row.
+    DECLARE_INTERFACE_SIGNAL(void(TTransaction*), TransactionPerRowSerialized);
 
     //! Raised when a transaction is aborted.
     DECLARE_INTERFACE_SIGNAL(void(TTransaction*), TransactionAborted);
@@ -82,6 +85,8 @@ struct ITransactionManager
         TDuration timeout,
         bool transient,
         TGuid externalizationToken = {}) = 0;
+
+    virtual void PerRowSerialized(TTransaction* transaction) = 0;
 
     //! Finds a transaction by id.
     //! If a persistent instance is found, just returns it.

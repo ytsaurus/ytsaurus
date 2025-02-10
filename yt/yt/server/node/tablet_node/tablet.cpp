@@ -746,7 +746,8 @@ TTablet::TTablet(
     ECommitOrdering commitOrdering,
     TTableReplicaId upstreamReplicaId,
     TTimestamp retainedTimestamp,
-    i64 cumulativeDataWeight)
+    i64 cumulativeDataWeight,
+    ETabletTransactionSerializationType serializationType)
     : TObjectBase(tabletId)
     , MountRevision_(mountRevision)
     , TableId_(tableId)
@@ -762,6 +763,7 @@ TTablet::TTablet(
     , HashTableSize_(settings.MountConfig->EnableLookupHashTable ? settings.MountConfig->MaxDynamicStoreRowCount : 0)
     , RetainedTimestamp_(retainedTimestamp)
     , TabletWriteManager_(CreateTabletWriteManager(this, context))
+    , SerializationType_(serializationType)
     , Context_(context)
     , IdGenerator_(idGenerator)
     , LockManager_(New<TLockManager>())
@@ -920,6 +922,8 @@ void TTablet::Save(TSaveContext& context) const
     Save(context, CustomRuntimeData_);
 
     HunkLockManager_->Save(context);
+
+    Save(context, SerializationType_);
 }
 
 void TTablet::Load(TLoadContext& context)
@@ -1111,6 +1115,13 @@ void TTablet::Load(TLoadContext& context)
     }
 
     HunkLockManager_->Load(context);
+
+    // COMPAT(ponasenko-rs)
+    if ((context.GetVersion() >= ETabletReign::PerRowSequencer_25_1 && context.GetVersion() < ETabletReign::Start_25_2) ||
+        context.GetVersion() >= ETabletReign::PerRowSequencer)
+    {
+        Load(context, SerializationType_);
+    }
 
     UpdateOverlappingStoreCount();
     DynamicStoreCount_ = ComputeDynamicStoreCount();
