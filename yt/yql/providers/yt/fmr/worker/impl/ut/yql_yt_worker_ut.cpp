@@ -33,7 +33,7 @@ Y_UNIT_TEST_SUITE(FmrWorkerTests) {
         TFmrJobFactorySettings settings{.NumThreads = 3, .Function = func};
 
         auto factory = MakeFmrJobFactory(settings);
-        TFmrWorkerSettings workerSettings{.WorkerId = "worker_id", .RandomProvider = CreateDeterministicRandomProvider(1)};
+        TFmrWorkerSettings workerSettings{.WorkerId = 1, .RandomProvider = CreateDeterministicRandomProvider(1)};
         auto worker = MakeFmrWorker(coordinator, factory, workerSettings);
         worker->Start();
         coordinator->StartOperation(CreateOperationRequest()).GetValueSync();
@@ -60,7 +60,7 @@ Y_UNIT_TEST_SUITE(FmrWorkerTests) {
         };
         TFmrJobFactorySettings settings{.NumThreads =3, .Function=func};
         auto factory = MakeFmrJobFactory(settings);
-        TFmrWorkerSettings workerSettings{.WorkerId = "worker_id", .RandomProvider = CreateDeterministicRandomProvider(1)};
+        TFmrWorkerSettings workerSettings{.WorkerId = 1, .RandomProvider = CreateDeterministicRandomProvider(1)};
         auto worker = MakeFmrWorker(coordinator, factory, workerSettings);
         worker->Start();
         auto operationId = coordinator->StartOperation(CreateOperationRequest()).GetValueSync().OperationId;
@@ -69,6 +69,32 @@ Y_UNIT_TEST_SUITE(FmrWorkerTests) {
         Sleep(TDuration::Seconds(5));
         worker->Stop();
         UNIT_ASSERT_NO_DIFF(*operationResults, "operation_cancelled");
+    }
+    Y_UNIT_TEST(CreateSeveralWorkers) {
+        TFmrCoordinatorSettings coordinatorSettings{};
+        coordinatorSettings.WorkersNum = 2;
+        coordinatorSettings.RandomProvider = CreateDeterministicRandomProvider(3);
+        auto coordinator = MakeFmrCoordinator(coordinatorSettings);
+        std::shared_ptr<std::atomic<ui32>> operationResult = std::make_shared<std::atomic<ui32>>(0);
+        auto func = [&] (TTask::TPtr /*task*/, std::shared_ptr<std::atomic<bool>> cancelFlag) {
+            while (!cancelFlag->load()) {
+                Sleep(TDuration::Seconds(1));
+                (*operationResult)++;
+                return ETaskStatus::Completed;
+            }
+            return ETaskStatus::Aborted;
+        };
+        TFmrJobFactorySettings settings{.NumThreads =3, .Function=func};
+        auto factory = MakeFmrJobFactory(settings);
+        TFmrWorkerSettings firstWorkerSettings{.WorkerId = 1, .RandomProvider = CreateDeterministicRandomProvider(1)};
+        TFmrWorkerSettings secondWorkerSettings{.WorkerId = 2, .RandomProvider = CreateDeterministicRandomProvider(2)};
+        auto firstWorker = MakeFmrWorker(coordinator, factory, firstWorkerSettings);
+        auto secondWorker = MakeFmrWorker(coordinator, factory, secondWorkerSettings);
+        firstWorker->Start();
+        secondWorker->Start();
+        coordinator->StartOperation(CreateOperationRequest()).GetValueSync();
+        Sleep(TDuration::Seconds(3));
+        UNIT_ASSERT_VALUES_EQUAL(operationResult->load(), 1);
     }
 }
 

@@ -25,7 +25,8 @@ Y_UNIT_TEST_SUITE(FmrFactoryTests) {
         auto cancelFlag = std::make_shared<std::atomic<bool>>(false);
 
         auto futureTaskStatus = factory->StartJob(nullptr, cancelFlag);
-        auto taskStatus = futureTaskStatus.GetValueSync();
+        auto taskResult = futureTaskStatus.GetValueSync();
+        ETaskStatus taskStatus = taskResult->TaskStatus;
 
         UNIT_ASSERT_VALUES_EQUAL(taskStatus, ETaskStatus::Completed);
         UNIT_ASSERT_NO_DIFF(*operationResults, "operation_result");
@@ -53,7 +54,8 @@ Y_UNIT_TEST_SUITE(FmrFactoryTests) {
             nullptr, cancelFlag);
         Sleep(TDuration::Seconds(2));
         cancelFlag->store(true);
-        auto taskStatus = futureTaskStatus.GetValueSync();
+        auto taskResult = futureTaskStatus.GetValueSync();
+        ETaskStatus taskStatus = taskResult->TaskStatus;
         UNIT_ASSERT_VALUES_EQUAL(taskStatus, ETaskStatus::Aborted);
         UNIT_ASSERT_NO_DIFF(*operationResults, "computing_result");
     }

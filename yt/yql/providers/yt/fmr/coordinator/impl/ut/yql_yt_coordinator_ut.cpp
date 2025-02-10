@@ -10,13 +10,47 @@
 
 namespace NYql {
 
+class TFmrWorkerProxy: public IFmrWorker {
+public:
+    TFmrWorkerProxy(IFmrCoordinator::TPtr coordinator, IFmrJobFactory::TPtr jobFactory, const TFmrWorkerSettings& settings):
+        Coordinator_(coordinator), JobFactory_(jobFactory), WorkerSettings_(settings), WorkerCreationNum_(1)
+    {
+        Worker_ = MakeFmrWorker(Coordinator_, JobFactory_, WorkerSettings_);
+    }
+
+    void ResetWorker() {
+        ++WorkerCreationNum_;
+        WorkerSettings_.RandomProvider = CreateDeterministicRandomProvider(WorkerCreationNum_);
+
+        Stop();
+        Worker_ = MakeFmrWorker(Coordinator_, JobFactory_, WorkerSettings_);
+        Start();
+    }
+
+    void Start() {
+        Worker_->Start();
+    }
+
+    void Stop() {
+        Worker_->Stop();
+    }
+
+private:
+    IFmrCoordinator::TPtr Coordinator_;
+    IFmrJobFactory::TPtr JobFactory_;
+    IFmrWorker::TPtr Worker_;
+    TFmrWorkerSettings WorkerSettings_;
+    int WorkerCreationNum_;
+};
+
+
 TDownloadTaskParams downloadTaskParams{
     .Input = TYtTableRef{"Path","Cluster","TransactionId"},
     .Output = TFmrTableRef{"TableId"}
 };
 
 TStartOperationRequest CreateOperationRequest(ETaskType taskType = ETaskType::Download, TTaskParams taskParams = downloadTaskParams) {
-    return TStartOperationRequest{.TaskType = taskType, .TaskParams = taskParams, .IdempotencyKey = "IdempotencyKey"};
+    return TStartOperationRequest{.TaskType = taskType, .TaskParams = taskParams, .SessionId = "SessionId", .IdempotencyKey = "IdempotencyKey"};
 }
 
 std::vector<TStartOperationRequest> CreateSeveralOperationRequests(
@@ -94,7 +128,7 @@ Y_UNIT_TEST_SUITE(FmrCoordinatorTests) {
 
         TFmrJobFactorySettings settings{.NumThreads = 3, .Function = defaultTaskFunction};
         auto factory = MakeFmrJobFactory(settings);
-        TFmrWorkerSettings workerSettings{.WorkerId = "worker_id", .RandomProvider = CreateDeterministicRandomProvider(1)};
+        TFmrWorkerSettings workerSettings{.WorkerId = 1, .RandomProvider = CreateDeterministicRandomProvider(1)};
         auto worker = MakeFmrWorker(coordinator, factory, workerSettings);
         worker->Start();
         Sleep(TDuration::Seconds(1));
@@ -112,7 +146,7 @@ Y_UNIT_TEST_SUITE(FmrCoordinatorTests) {
         }
         TFmrJobFactorySettings settings{.NumThreads = 10, .Function = defaultTaskFunction};
         auto factory = MakeFmrJobFactory(settings);
-        TFmrWorkerSettings workerSettings{.WorkerId = "worker_id", .RandomProvider = CreateDeterministicRandomProvider(1)};
+        TFmrWorkerSettings workerSettings{.WorkerId = 1, .RandomProvider = CreateDeterministicRandomProvider(1)};
         auto worker = MakeFmrWorker(coordinator, factory, workerSettings);
         worker->Start();
         Sleep(TDuration::Seconds(6));
@@ -155,7 +189,7 @@ Y_UNIT_TEST_SUITE(FmrCoordinatorTests) {
 
         TFmrJobFactorySettings settings{.NumThreads = 10, .Function = func};
         auto factory = MakeFmrJobFactory(settings);
-        TFmrWorkerSettings workerSettings{.WorkerId = "worker_id", .RandomProvider = CreateDeterministicRandomProvider(1)};
+        TFmrWorkerSettings workerSettings{.WorkerId = 1, .RandomProvider = CreateDeterministicRandomProvider(1)};
         auto worker = MakeFmrWorker(coordinator, factory, workerSettings);
         worker->Start();
         Sleep(TDuration::Seconds(5));
@@ -177,7 +211,7 @@ Y_UNIT_TEST_SUITE(FmrCoordinatorTests) {
 
         TFmrJobFactorySettings settings{.NumThreads = 3, .Function = defaultTaskFunction};
         auto factory = MakeFmrJobFactory(settings);
-        TFmrWorkerSettings workerSettings{.WorkerId = "worker_id", .RandomProvider = CreateDeterministicRandomProvider(1)};
+        TFmrWorkerSettings workerSettings{.WorkerId = 1, .RandomProvider = CreateDeterministicRandomProvider(1)};
         auto worker = MakeFmrWorker(coordinator, factory, workerSettings);
         worker->Start();
 
@@ -195,7 +229,7 @@ Y_UNIT_TEST_SUITE(FmrCoordinatorTests) {
 
         TFmrJobFactorySettings settings{.NumThreads = 3, .Function = defaultTaskFunction};
         auto factory = MakeFmrJobFactory(settings);
-        TFmrWorkerSettings workerSettings{.WorkerId = "worker_id", .RandomProvider = CreateDeterministicRandomProvider(1)};
+        TFmrWorkerSettings workerSettings{.WorkerId = 1, .RandomProvider = CreateDeterministicRandomProvider(1)};
         auto worker = MakeFmrWorker(coordinator, factory, workerSettings);
         worker->Start();
 
@@ -213,6 +247,67 @@ Y_UNIT_TEST_SUITE(FmrCoordinatorTests) {
         UNIT_ASSERT_VALUES_UNEQUAL(firstOperationId, secondOperationId);
         UNIT_ASSERT_VALUES_EQUAL(firstOperationStatus, EOperationStatus::InProgress);
         UNIT_ASSERT_VALUES_EQUAL(secondOperationStatus, EOperationStatus::Accepted);
+    }
+    Y_UNIT_TEST(CancelTasksAfterVolatileIdReload) {
+        auto coordinator = MakeFmrCoordinator();
+        auto func = [&] (TTask::TPtr /*task*/, std::shared_ptr<std::atomic<bool>> cancelFlag) {
+            int numIterations = 0;
+            while (!cancelFlag->load()) {
+                Sleep(TDuration::Seconds(1));
+                ++numIterations;
+                if (numIterations == 100) {
+                    return ETaskStatus::Completed;
+                }
+            }
+            return ETaskStatus::Aborted;
+        };
+        TFmrJobFactorySettings settings{.NumThreads =3, .Function=func};
+        auto factory = MakeFmrJobFactory(settings);
+        TFmrWorkerSettings workerSettings{.WorkerId = 1, .RandomProvider = CreateDeterministicRandomProvider(1)};
+        TFmrWorkerProxy workerProxy(coordinator, factory, workerSettings);
+
+        workerProxy.Start();
+        auto operationId = coordinator->StartOperation(CreateOperationRequest()).GetValueSync().OperationId;
+        Sleep(TDuration::Seconds(2));
+        workerProxy.ResetWorker();
+        Sleep(TDuration::Seconds(5));
+        workerProxy.Stop();
+        auto getOperationResult = coordinator->GetOperation({operationId}).GetValueSync();
+        auto getOperationStatus = getOperationResult.Status;
+        UNIT_ASSERT_VALUES_EQUAL(getOperationStatus, EOperationStatus::Failed);
+        auto error = getOperationResult.ErrorMessages[0];
+        UNIT_ASSERT_VALUES_EQUAL(error.Component, EFmrComponent::Coordinator);
+        UNIT_ASSERT_NO_DIFF(error.ErrorMessage, "Max retries limit exceeded");
+        UNIT_ASSERT_NO_DIFF(*error.OperationId, operationId);
+    }
+    Y_UNIT_TEST(HandleJobErrors) {
+        auto coordinator = MakeFmrCoordinator();
+        auto startOperationResponse = coordinator->StartOperation(CreateOperationRequest()).GetValueSync();
+        TString operationId = startOperationResponse.OperationId;
+
+        auto func = [&] (TTask::TPtr /*task*/, std::shared_ptr<std::atomic<bool>> cancelFlag) {
+            while (! cancelFlag->load()) {
+                Sleep(TDuration::Seconds(2));
+                throw std::runtime_error{"Function crashed"};
+            }
+            return ETaskStatus::Aborted;
+        };
+
+        TFmrJobFactorySettings settings{.NumThreads = 3, .Function = func};
+        auto factory = MakeFmrJobFactory(settings);
+        TFmrWorkerSettings workerSettings{.WorkerId = 1, .RandomProvider = CreateDeterministicRandomProvider(1)};
+        auto worker = MakeFmrWorker(coordinator, factory, workerSettings);
+        worker->Start();
+        Sleep(TDuration::Seconds(4));
+        auto getOperationResponse = coordinator->GetOperation({operationId}).GetValueSync();
+
+        EOperationStatus status = getOperationResponse.Status;
+        std::vector<TFmrError> errorMessages = getOperationResponse.ErrorMessages;
+        UNIT_ASSERT_VALUES_EQUAL(status, EOperationStatus::Failed);
+        UNIT_ASSERT(errorMessages.size() == 1);
+        auto& error = errorMessages[0];
+        UNIT_ASSERT_NO_DIFF(error.ErrorMessage, "Function crashed");
+        UNIT_ASSERT_VALUES_EQUAL(error.Component, EFmrComponent::Job);
     }
 }
 

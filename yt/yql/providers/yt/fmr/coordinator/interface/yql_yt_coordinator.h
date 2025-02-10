@@ -8,7 +8,7 @@
 namespace NYql {
 
 struct THeartbeatRequest {
-    TString WorkerId;
+    ui32 WorkerId;
     TString VolatileId;
     std::vector<TTaskState::TPtr> TaskStates;
     TStatistics Statistics;
@@ -23,6 +23,7 @@ struct THeartbeatResponse {
 struct TStartOperationRequest {
     ETaskType TaskType;
     TTaskParams TaskParams;
+    TString SessionId;
     TMaybe<TString> IdempotencyKey = Nothing();
     ui32 NumRetries = 1; // Not supported yet
 };
@@ -38,6 +39,7 @@ struct TGetOperationRequest {
 
 struct TGetOperationResponse {
     EOperationStatus Status;
+    std::vector<TFmrError> ErrorMessages = {};
 };
 
 struct TDeleteOperationRequest {

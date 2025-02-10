@@ -7,7 +7,7 @@
 namespace NYql {
 
 struct TFmrJobFactorySettings {
-    ui32 NumThreads;
+    ui32 NumThreads = 3;
     std::function<ETaskStatus(TTask::TPtr, std::shared_ptr<std::atomic<bool>>)> Function;
 };
 

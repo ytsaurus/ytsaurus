@@ -8,6 +8,8 @@ PEERDIR(
     library/cpp/random_provider
     library/cpp/threading/future
     yt/yql/providers/yt/fmr/coordinator/interface
+    yql/essentials/utils/log
+    yql/essentials/utils
 )
 
 YQL_LAST_ABI_VERSION()
