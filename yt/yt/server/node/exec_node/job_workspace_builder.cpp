@@ -300,6 +300,18 @@ private:
         ValidateJobPhase(EJobPhase::DownloadingArtifacts);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
+        if (!Context_.LayerArtifactKeys.empty()) {
+            return MakeFuture(TError(
+                NExecNode::EErrorCode::LayerUnpackingFailed,
+                "Porto layers are not supported in simple job environment"));
+        }
+
+        if (Context_.DockerImage) {
+            return MakeFuture(TError(
+                NExecNode::EErrorCode::DockerImagePullingFailed,
+                "External docker image is not supported in simple job environment"));
+        }
+
         return VoidFuture;
     }
 
@@ -386,14 +398,14 @@ private:
         ValidateJobPhase(EJobPhase::DownloadingArtifacts);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
-        if (Context_.DockerImage) {
+        const auto& slot = Context_.Slot;
+        const auto& layerArtifactKeys = Context_.LayerArtifactKeys;
+
+        if (Context_.DockerImage && layerArtifactKeys.empty()) {
             return MakeFuture(TError(
                 NExecNode::EErrorCode::DockerImagePullingFailed,
                 "External docker image is not supported in Porto job environment"));
         }
-
-        const auto& slot = Context_.Slot;
-        const auto& layerArtifactKeys = Context_.LayerArtifactKeys;
 
         if (!layerArtifactKeys.empty()) {
             VolumePrepareStartTime_ = TInstant::Now();
@@ -609,13 +621,15 @@ private:
         ValidateJobPhase(EJobPhase::DownloadingArtifacts);
         SetJobPhase(EJobPhase::PreparingRootVolume);
 
-        if (!Context_.LayerArtifactKeys.empty()) {
+        const auto& dockerImage = Context_.DockerImage;
+
+        if (!dockerImage && !Context_.LayerArtifactKeys.empty()) {
             return MakeFuture(TError(
                 NExecNode::EErrorCode::LayerUnpackingFailed,
                 "Porto layers are not supported in CRI job environment"));
         }
 
-        if (const auto& dockerImage = Context_.DockerImage) {
+        if (dockerImage) {
             VolumePrepareStartTime_ = TInstant::Now();
             UpdateTimers_.Fire(MakeStrong(this));
 
