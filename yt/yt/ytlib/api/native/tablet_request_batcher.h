@@ -64,6 +64,7 @@ DEFINE_REFCOUNTED_TYPE(ITabletRequestBatcher)
 ////////////////////////////////////////////////////////////////////////////////
 
 ITabletRequestBatcherPtr CreateTabletRequestBatcher(
+    NTabletClient::TTabletId tabletId,
     TTabletRequestBatcherOptions options,
     NTableClient::TTableSchemaPtr tableSchema,
     NQueryClient::TColumnEvaluatorPtr columnEvaluator);
