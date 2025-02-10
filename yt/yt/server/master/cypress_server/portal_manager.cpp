@@ -289,7 +289,7 @@ public:
         for (const auto& [_, node] : EntranceNodes_) {
             YT_LOG_FATAL_IF(
                 removedMasterCellTags.contains(node->GetExitCellTag()),
-                "Master cell %v with node %v behind the portal was removed",
+                "Master cell with node behind the portal was removed (CellTag: %v, NodeId: %v)",
                 node->GetExitCellTag(),
                 node->GetId());
         }

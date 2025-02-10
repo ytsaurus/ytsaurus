@@ -198,7 +198,7 @@ protected:
     NObjectClient::TCellId PrimaryCellId_;
     NObjectClient::TCellTag PrimaryCellTag_;
 
-    // Strong order if important here.
+    // Strong deterministic order is important here.
     std::set<NObjectClient::TCellTag> SecondaryCellTags_;
 
     IAlertManagerPtr AlertManager_;

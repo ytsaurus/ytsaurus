@@ -55,7 +55,7 @@ void FormatValue(TStringBuilderBase* builder, const THiveEdge& edge, TStringBuf 
 IHiveManagerPtr CreateHiveManager(
     THiveManagerConfigPtr config,
     NHiveClient::ICellDirectoryPtr cellDirectory,
-    NCellMasterClient::ICellDirectoryPtr masterDirectory,
+    NCellMasterClient::ICellDirectoryPtr masterCellDirectory,
     IAvenueDirectoryPtr avenueDirectory,
     TCellId selfCellId,
     IInvokerPtr automatonInvoker,
@@ -68,7 +68,7 @@ IHiveManagerPtr CreateHiveManager(
     return factory(
         std::move(config),
         std::move(cellDirectory),
-        std::move(masterDirectory),
+        std::move(masterCellDirectory),
         std::move(avenueDirectory),
         selfCellId,
         std::move(automatonInvoker),

@@ -2641,7 +2641,7 @@ public:
         for (const auto& [_, node] : NodeMap_) {
             YT_LOG_FATAL_IF(
                 removedMasterCellTags.contains(node->GetExternalCellTag()),
-                "Master cell %v with externalized table %v was removed",
+                "Master cell with externalized table was removed (CellTag: %v, TableId: %v)",
                 node->GetExternalCellTag(),
                 node->GetId());
         }
