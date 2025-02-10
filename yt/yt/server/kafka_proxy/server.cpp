@@ -382,7 +382,7 @@ private:
             TRspApiKey{
                 .ApiKey = static_cast<int>(ERequestType::Metadata),
                 .MinVersion = 0,
-                .MaxVersion = 0,
+                .MaxVersion = 1,
             },
             TRspApiKey{
                 .ApiKey = static_cast<int>(ERequestType::Fetch),
