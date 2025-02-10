@@ -12,7 +12,18 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(absl_flat_hash)
-add_subdirectory(bitset)
-add_subdirectory(stack_array)
-add_subdirectory(paged_vector)
+find_package(linux-headers-generic REQUIRED)
+
+add_library(cpp-containers-bitset)
+
+
+target_link_libraries(cpp-containers-bitset PUBLIC
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  yutil
+)
+
+target_sources(cpp-containers-bitset PRIVATE
+  ${PROJECT_SOURCE_DIR}/library/cpp/containers/bitset/bitset.cpp
+)
+

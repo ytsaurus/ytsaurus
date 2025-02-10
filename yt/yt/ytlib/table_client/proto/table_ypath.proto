@@ -148,8 +148,9 @@ message TRspGetMountInfo
     optional NYT.NProto.TGuid replication_card_id = 9; // NChaosClient::TReplicationCardId
     optional NYT.NProto.TGuid hunk_storage_id = 10;
     repeated TIndexInfo indices = 11;
-    // Deprecated = 12.
+    reserved 12; // Deprecated
     optional int32 tablet_count = 13; // Queue tablet count for chaos replicated tables
+    optional int32 serialization_type = 14 [default = 0]; // ETabletTransactionSerializationType [default = Coarse]
 }
 
 ////////////////////////////////////////////////////////////////////////////////

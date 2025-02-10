@@ -3822,6 +3822,7 @@ private:
         reqEssential.set_path(table->GetMountPath());
         ToProto(req.mutable_tablet_id(), tablet->GetId());
         ToProto(req.mutable_table_id(), table->GetId());
+        req.set_serialization_type(ToProto(table->GetSerializationType()));
 
         ToProto(reqEssential.mutable_schema_id(), table->GetSchema()->GetId());
         ToProto(reqEssential.mutable_schema(), *table->GetSchema()->AsTableSchema());

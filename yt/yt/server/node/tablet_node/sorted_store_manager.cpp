@@ -105,6 +105,10 @@ TSortedStoreManager::TSortedStoreManager(
         std::move(inMemoryManager),
         std::move(client))
     , KeyColumnCount_(Tablet_->GetPhysicalSchema()->GetKeyColumnCount())
+    , SerializationStateByKey_(
+        0,
+        TSortedDynamicRowKeyHash{},
+        TSortedDynamicRowKeyEq(&Tablet_->GetRowKeyComparer()))
 {
     for (const auto& [storeId, store] : Tablet_->StoreIdMap()) {
         auto sortedStore = store->AsSorted();
@@ -124,16 +128,12 @@ TSortedStoreManager::TSortedStoreManager(
 }
 
 bool TSortedStoreManager::ExecuteWrites(
-    IWireProtocolReader* reader,
+    IWireWriteCommandReader* reader,
     TWriteContext* context)
 {
     while (!reader->IsFinished()) {
         TSortedDynamicRowRef rowRef;
-        auto readerCheckpoint = reader->GetCurrent();
-
-        auto command = reader->ReadWriteCommand(
-            Tablet_->TableSchemaData(),
-            /*captureValues*/ false);
+        const auto& command = reader->NextCommand();
 
         Visit(command,
             [&] (const TWriteRowCommand& command) {
@@ -154,7 +154,7 @@ bool TSortedStoreManager::ExecuteWrites(
             });
 
         if (!rowRef) {
-            reader->SetCurrent(readerCheckpoint);
+            reader->RollbackLastCommand();
             return false;
         }
     }
@@ -259,6 +259,27 @@ void TSortedStoreManager::ConfirmRow(TWriteContext* context, const TSortedDynami
 
 void TSortedStoreManager::PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
 {
+    YT_ASSERT(transaction->GetPrepareTimestamp() != NullTimestamp);
+
+    auto schema = Tablet_->GetPhysicalSchema();
+
+    if (Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
+        auto prepareTimestamp = transaction->GetPrepareTimestamp();
+        YT_ASSERT(prepareTimestamp != NullTimestamp);
+
+        auto& keySerializationState = GetOrCreateKeySerializationState(rowRef.Row);
+
+        auto* lock = rowRef.Row.BeginLocks(KeyColumnCount_);
+        for (int lockIndex = 0; lockIndex < Tablet_->GetColumnLockCount(); ++lockIndex, ++lock) {
+            if (lock->HasUnpreparedSharedWriteTransaction(transaction)) {
+                keySerializationState[lockIndex].PreparedTransactions.insert(
+                    TLockSerializationState::TPreparedSharedWriteTransaction{
+                        transaction->GetPrepareTimestamp(),
+                        transaction});
+            }
+        }
+    }
+
     rowRef.Store->PrepareRow(transaction, rowRef.Row);
 }
 
@@ -293,7 +314,11 @@ void TSortedStoreManager::CommitRow(
         applyCommand(ActiveStore_, rowRef.Row);
         ActiveStore_->CommitRow(transaction, rowRef.Row, rowRef.LockMask);
     } else {
-        auto migratedRow = ActiveStore_->MigrateRow(transaction, rowRef.Row, rowRef.LockMask);
+        auto migratedRow = ActiveStore_->MigrateRow(
+            transaction,
+            rowRef.Row,
+            rowRef.LockMask,
+            /*skipSharedWriteLocks*/ false);
         applyCommand(rowRef.Store, rowRef.Row);
         rowRef.Store->CommitRow(transaction, rowRef.Row, rowRef.LockMask);
         CheckForUnlockedStore(rowRef.Store);
@@ -302,8 +327,131 @@ void TSortedStoreManager::CommitRow(
     }
 }
 
+void TSortedStoreManager::StartSerializingRow(
+    TTransaction* transaction,
+    const NTableClient::TWireProtocolWriteCommand& command,
+    const TSortedDynamicRowRef& rowRef,
+    TOpaqueWriteLogIndex writeLogIndex,
+    bool onAfterSnapshotLoaded)
+{
+    YT_VERIFY(Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow);
+
+    auto verifyWireKey = [&] (TUnversionedRow row) {
+        const auto& comparer = ActiveStore_->GetRowKeyComparer();
+        YT_VERIFY(comparer(rowRef.Row, ToKeyRef(row, KeyColumnCount_)) == 0);
+    };
+
+    Visit(command,
+        [&] (const TWriteRowCommand& command) { verifyWireKey(command.Row); },
+        [&] (const TDeleteRowCommand& command) { verifyWireKey(command.Row); },
+        [&] (const TWriteAndLockRowCommand& command) { verifyWireKey(command.Row); },
+        [&] (auto) { YT_ABORT(); });
+
+    TSortedDynamicRow aliveRow;
+    if (rowRef.Store == ActiveStore_) {
+        ActiveStore_->CommitRowPartsWithNoNeedForSerialization(
+            transaction,
+            rowRef.Row,
+            rowRef.LockMask,
+            onAfterSnapshotLoaded);
+
+        aliveRow = rowRef.Row;
+    } else {
+        auto migratedRow = ActiveStore_->MigrateRow(
+            transaction,
+            rowRef.Row,
+            rowRef.LockMask,
+            /*skipSharedWriteLocks*/ true);
+
+        rowRef.Store->CommitRowPartsWithNoNeedForSerialization(
+            transaction,
+            rowRef.Row,
+            rowRef.LockMask,
+            onAfterSnapshotLoaded);
+        CheckForUnlockedStore(rowRef.Store);
+
+        ActiveStore_->CommitRowPartsWithNoNeedForSerialization(
+            transaction,
+            migratedRow,
+            rowRef.LockMask,
+            onAfterSnapshotLoaded);
+
+        aliveRow = migratedRow;
+    }
+
+    {
+        auto& keySerializationState = GetKeySerializationState(aliveRow);
+
+        for (int lockIndex = 0; lockIndex < Tablet_->GetColumnLockCount(); ++lockIndex) {
+            auto lockType = rowRef.LockMask.Get(lockIndex);
+
+            if (lockType == ELockType::SharedWrite) {
+                YT_ASSERT(transaction->GetPrepareTimestamp() != NullTimestamp);
+                YT_ASSERT(transaction->GetCommitTimestamp() != NullTimestamp);
+
+                auto& lockSerializationState = keySerializationState[lockIndex];
+                EraseOrCrash(
+                    lockSerializationState.PreparedTransactions,
+                    TLockSerializationState::TPreparedSharedWriteTransaction{
+                        transaction->GetPrepareTimestamp(),
+                        transaction});
+
+                lockSerializationState.SerializingTransactions.push(
+                    TLockSerializationState::TIndexedSharedWriteTransaction{
+                        .SharedWriteTransaction{
+                            .CommitTimestamp = transaction->GetCommitTimestamp(),
+                            .Transaction = transaction,
+                        },
+                        .WriteLogIndex = writeLogIndex,
+                        // NB: Store is alive as currently processing row part has not been committed yet.
+                        .RowRef = rowRef,
+                    });
+
+                transaction->IncrementPartsLeftToPerRowSerialize();
+
+                DrainSerializationHeap(&lockSerializationState, lockIndex, onAfterSnapshotLoaded);
+                MaybeCleanupSerializationState(
+                    aliveRow,
+                    &keySerializationState,
+                    lockIndex,
+                    &lockSerializationState);
+            }
+        }
+    }
+}
+
 void TSortedStoreManager::AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef)
 {
+    if (Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow &&
+        transaction->GetPrepareTimestamp() != NullTimestamp)
+    {
+        auto* keySerializationState = FindKeySerializationState(rowRef.Row);
+
+        for (int lockIndex = 0;
+            keySerializationState && lockIndex < Tablet_->GetColumnLockCount();
+            ++lockIndex)
+        {
+            auto lockType = rowRef.LockMask.Get(lockIndex);
+
+            if (lockType == ELockType::SharedWrite)
+            {
+                auto& lockSerializationState = (*keySerializationState)[lockIndex];
+                EraseOrCrash(
+                    lockSerializationState.PreparedTransactions,
+                    TLockSerializationState::TPreparedSharedWriteTransaction{
+                        transaction->GetPrepareTimestamp(),
+                        transaction});
+
+                DrainSerializationHeap(&lockSerializationState, lockIndex, /*onAfterSnapshotLoaded*/ false);
+                MaybeCleanupSerializationState(
+                    rowRef.Row,
+                    keySerializationState,
+                    lockIndex,
+                    &lockSerializationState);
+            }
+        }
+    }
+
     rowRef.Store->AbortRow(transaction, rowRef.Row, rowRef.LockMask);
     CheckForUnlockedStore(rowRef.Store);
 }
@@ -1279,6 +1427,117 @@ TSortedDynamicStore::TRowBlockedHandler TSortedStoreManager::CreateRowBlockedHan
         std::move(epochInvoker));
 }
 
+void TSortedStoreManager::DrainSerializationHeap(
+    TLockSerializationState* serializationStuff,
+    int lockIndex,
+    bool onAfterSnapshotLoaded)
+{
+    auto barrierTimestamp = serializationStuff->PreparedTransactions.empty()
+        ? MaxTimestamp
+        : serializationStuff->PreparedTransactions.begin()->PrepareTimestamp;
+
+    while (!serializationStuff->SerializingTransactions.empty() &&
+        serializationStuff->CommitTimestampOfTopSerializingTransaction() < barrierTimestamp)
+    {
+        auto transactionToSerialize = serializationStuff->SerializingTransactions.extract_min();
+        auto* transaction = transactionToSerialize.SharedWriteTransaction.Transaction;
+        Tablet_->GetTabletWriteManager()->OnTransactionPartCommitted(
+            transaction,
+            transactionToSerialize.RowRef,
+            lockIndex,
+            transactionToSerialize.WriteLogIndex,
+            onAfterSnapshotLoaded);
+    }
+}
+
+void TSortedStoreManager::MaybeCleanupSerializationState(
+    TSortedDynamicRow row,
+    TSerializationStateByLockMap* keySerializationState,
+    int lockIndex,
+    TLockSerializationState* lockSerializationState)
+{
+    if (!lockSerializationState->PreparedTransactions.empty() ||
+        !lockSerializationState->SerializingTransactions.empty())
+    {
+        return;
+    }
+
+    EraseOrCrash(*keySerializationState, lockIndex);
+
+    if (!keySerializationState->empty())
+    {
+        return;
+    }
+
+    auto schema = Tablet_->GetPhysicalSchema();
+    EraseOrCrash(SerializationStateByKey_, TSchemafulSortedDynamicRow{row, *schema});
+
+    // HACK(ponasenko-rs): absl::flat_hash_map does not shrink by itself.
+    if (SerializationStateByKey_.size() > 100 && SerializationStateByKey_.size() * 8 < SerializationStateByKey_.capacity()) {
+        SerializationStateByKey_.rehash(SerializationStateByKey_.size() * 4);
+    }
+}
+
+void TSortedStoreManager::CommitLockGroup(
+    TTransaction* transaction,
+    const TWireWriteCommand& command,
+    const TSortedDynamicRowRef& rowRef,
+    int lockIndex,
+    bool onAfterSnapshotLoaded)
+{
+    YT_VERIFY(Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow);
+    YT_ASSERT(rowRef.StoreManager == this);
+
+    auto applyCommand = [&] (
+        const TSortedDynamicStorePtr& store,
+        TSortedDynamicRow dynamicRow)
+    {
+        Visit(command,
+            [&] (const TWriteAndLockRowCommand& command) {
+                store->WriteLockGroup(transaction, lockIndex, dynamicRow, command.Row);
+            },
+            [&] (auto) { YT_ABORT(); });
+    };
+
+    if (rowRef.Store == ActiveStore_) {
+        applyCommand(ActiveStore_, rowRef.Row);
+        ActiveStore_->CommitLockGroup(
+            transaction,
+            rowRef.Row,
+            ELockType::SharedWrite,
+            lockIndex,
+            onAfterSnapshotLoaded);
+    } else {
+        YT_VERIFY(!onAfterSnapshotLoaded);
+
+        // Applying command will destroy locks to be migrated, so it is important to migrate first.
+        auto migratedRow = ActiveStore_->MigrateSharedWriteLockedLockGroup(
+            transaction,
+            rowRef.Row,
+            lockIndex);
+
+        applyCommand(rowRef.Store, rowRef.Row);
+        rowRef.Store->CommitLockGroup(
+            transaction,
+            rowRef.Row,
+            ELockType::SharedWrite,
+            lockIndex,
+            onAfterSnapshotLoaded);
+
+        CheckForUnlockedStore(rowRef.Store);
+
+        applyCommand(ActiveStore_, migratedRow);
+        ActiveStore_->CommitLockGroup(
+            transaction,
+            migratedRow,
+            ELockType::SharedWrite,
+            lockIndex,
+            onAfterSnapshotLoaded);
+    }
+
+    transaction->DecrementPartsLeftToPerRowSerialize();
+}
+
 void TSortedStoreManager::OnRowBlocked(
     IStore* store,
     IInvokerPtr invoker,
@@ -1354,7 +1613,60 @@ TError TSortedStoreManager::CheckOverflow() const
     return TStoreManagerBase::CheckOverflow();
 }
 
+TSortedStoreManager::TSerializationStateByLockMap* TSortedStoreManager::FindKeySerializationState(TSortedDynamicRow row)
+{
+    auto schema = Tablet_->GetPhysicalSchema();
+
+    auto it = SerializationStateByKey_.find(TSchemafulSortedDynamicRow{row, *schema});
+
+    if (it != SerializationStateByKey_.end()) {
+        const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+        if (RandomNumber<double>() <= mountConfig->Testing.SortedStoreManagerRowHashCheckProbability) {
+            YT_VERIFY(RowToKey(*schema, row) == it->first);
+        }
+        return &it->second;
+    } else {
+        return nullptr;
+    }
+}
+
+TSortedStoreManager::TSerializationStateByLockMap& TSortedStoreManager::GetKeySerializationState(TSortedDynamicRow row)
+{
+    auto schema = Tablet_->GetPhysicalSchema();
+
+    auto it = SerializationStateByKey_.find(TSchemafulSortedDynamicRow{row, *schema});
+    YT_VERIFY(it != SerializationStateByKey_.end());
+
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+    if (RandomNumber<double>() <= mountConfig->Testing.SortedStoreManagerRowHashCheckProbability) {
+        YT_VERIFY(RowToKey(*schema, row) == it->first);
+    }
+
+    return it->second;
+}
+
+TSortedStoreManager::TSerializationStateByLockMap& TSortedStoreManager::GetOrCreateKeySerializationState(TSortedDynamicRow row)
+{
+    auto schema = Tablet_->GetPhysicalSchema();
+
+    const auto& mountConfig = Tablet_->GetSettings().MountConfig;
+    if (auto it = SerializationStateByKey_.find(TSchemafulSortedDynamicRow{row, *schema}); it != SerializationStateByKey_.end()) {
+        if (RandomNumber<double>() <= mountConfig->Testing.SortedStoreManagerRowHashCheckProbability) {
+            YT_VERIFY(RowToKey(*schema, row) == it->first);
+        }
+
+        return it->second;
+    } else {
+        auto key = RowToKey(*schema, row);
+
+        if (RandomNumber<double>() <= mountConfig->Testing.SortedStoreManagerRowHashCheckProbability) {
+            YT_VERIFY(SerializationStateByKey_.find(key) == SerializationStateByKey_.end());
+        }
+
+        return SerializationStateByKey_[key];
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
-

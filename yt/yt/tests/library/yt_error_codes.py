@@ -26,6 +26,7 @@ JobProxyUnavailable = 1127
 UserJobProducedCoreFiles = 1206
 TabletNotMounted = 1702
 AllWritesDisabled = 1703
+InvalidTabletState = 1706
 BundleResourceLimitExceeded = 1720
 RequestThrottled = 1725
 SyncReplicaNotInSync = 1732

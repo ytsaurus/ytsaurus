@@ -1,5 +1,7 @@
 #include "dynamic_store_bits.h"
 
+#include "sorted_dynamic_comparer.h"
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,6 +25,45 @@ TUnversionedValue GetUnversionedKeyValue(TSortedDynamicRow row, int index, EValu
     }
 
     return result;
+}
+
+bool TLockDescriptor::HasUnpreparedSharedWriteTransaction(TTransaction* transaction) const
+{
+    return SharedWriteTransactions.contains({NTableClient::NotPreparedTimestamp, transaction});
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSortedDynamicRowKeyEq::TSortedDynamicRowKeyEq(const TSortedDynamicRowKeyComparer* rowKeyComparer)
+    : RowKeyComparer_(rowKeyComparer)
+{ }
+
+bool TSortedDynamicRowKeyEq::operator()(
+    const TSchemafulSortedDynamicRow& lhsSchemafulRow,
+    const TLegacyOwningKey& rhsOwningKey) const
+{
+    return (*RowKeyComparer_)(lhsSchemafulRow.Row, rhsOwningKey.Elements()) == 0;
+}
+
+bool TSortedDynamicRowKeyEq::operator()(
+    const TLegacyOwningKey& lhsOwningKey,
+    const TLegacyOwningKey& rhsOwningKey) const
+{
+    return (*RowKeyComparer_)(lhsOwningKey, rhsOwningKey) == 0;
+}
+
+bool TSortedDynamicRowKeyEq::operator()(
+    const TLegacyOwningKey& lhsOwningKey,
+    const TSchemafulSortedDynamicRow& rhsSchemafulRow) const
+{
+    return (*RowKeyComparer_)(lhsOwningKey.Elements(), rhsSchemafulRow.Row) == 0;
+}
+
+bool TSortedDynamicRowKeyEq::operator()(
+    const TSchemafulSortedDynamicRow& lhsSchemafulRow,
+    const TSchemafulSortedDynamicRow& rhsSchemafulRow) const
+{
+    return (*RowKeyComparer_)(lhsSchemafulRow.Row, rhsSchemafulRow.Row) == 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

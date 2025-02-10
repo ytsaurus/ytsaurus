@@ -2167,7 +2167,9 @@ private:
         THashSet<NChaosClient::TReplicationCardId> requestedReplicationCardIds;
 
         for (const auto& [path, session] : TablePathToSession_) {
-            if (session->GetInfo()->IsReplicated()) {
+            if (session->GetInfo()->SerializationType == ETabletTransactionSerializationType::PerRow ||
+                session->GetInfo()->IsReplicated())
+            {
                 CommitOptions_.Force2PC = true;
             }
 

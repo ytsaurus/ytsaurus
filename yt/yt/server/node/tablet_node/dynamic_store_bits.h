@@ -11,6 +11,10 @@
 
 #include <yt/yt/core/misc/ring_queue.h>
 
+#include <library/cpp/yt/compact_containers/compact_set.h>
+
+#include <library/cpp/yt/farmhash/farm_hash.h>
+
 #include <library/cpp/yt/memory/chunked_memory_pool.h>
 #include <library/cpp/yt/memory/chunked_memory_pool_allocator.h>
 
@@ -23,6 +27,7 @@ namespace NYT::NTabletNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 const int TypicalSharedWriteTransactionCount = 2;
+const int LastWriteTimestampCount = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -75,6 +80,9 @@ struct TLockDescriptor
 
     std::atomic<TEditListHeader*> WriteRevisionList;
 
+    // Allows to
+    std::array<std::atomic<TTimestamp>, LastWriteTimestampCount> LastWriteTimestamps;
+
     // Edit list of revision of committed transactions that were holding this read lock.
     // Actually only maximum timestamp in this list is important for conflicts check, edit list
     // is used here only to deal with asynchronous snapshot serialization. In particular,
@@ -88,6 +96,8 @@ struct TLockDescriptor
 
     // Separate to ignore shared write <-> shared write conflicts.
     std::atomic<TEditListHeader*> SharedWriteLockRevisionList;
+
+    bool HasUnpreparedSharedWriteTransaction(TTransaction* transaction) const;
 };
 
 struct TSortedDynamicRowHeader
@@ -619,6 +629,73 @@ struct TWriteContext
 ////////////////////////////////////////////////////////////////////////////////
 
 TUnversionedValue GetUnversionedKeyValue(TSortedDynamicRow row, int index, EValueType type);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSchemafulSortedDynamicRow
+{
+    TSortedDynamicRow Row;
+    const TTableSchema& Schema;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+inline int GetColumnCount(TSchemafulSortedDynamicRow schemafulRow)
+{
+    return schemafulRow.Schema.GetKeyColumnCount();
+}
+
+inline TUnversionedValue GetUnversionedValue(TSchemafulSortedDynamicRow schemafulRow, int columnIndex)
+{
+    return GetUnversionedKeyValue(
+        schemafulRow.Row,
+        columnIndex,
+        schemafulRow.Schema.Columns()[columnIndex].GetWireType());
+}
+
+inline int GetColumnCount(const TLegacyOwningKey& key)
+{
+    return key.GetCount();
+}
+
+inline TUnversionedValue GetUnversionedValue(const TLegacyOwningKey& key, int columnIndex)
+{
+    return key[columnIndex];
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSortedDynamicRowKeyHash
+{
+    using is_transparent = void;
+
+    template <typename TRow>
+    size_t operator()(const TRow& row) const
+    {
+        ui64 result = 0xdeadc0de;
+        int columnCount = GetColumnCount(row);
+        for (int columnIndex = 0; columnIndex < columnCount; ++columnIndex) {
+            result = FarmFingerprint(result, GetFarmFingerprint(GetUnversionedValue(row, columnIndex)));
+        }
+        return result ^ columnCount;
+    }
+};
+
+class TSortedDynamicRowKeyEq
+{
+public:
+    TSortedDynamicRowKeyEq(const TSortedDynamicRowKeyComparer* rowKeyComparer);
+
+    using is_transparent = void;
+
+    bool operator()(const TSchemafulSortedDynamicRow& lhsSchemafulRow, const TLegacyOwningKey& rhsOwningKey) const;
+    bool operator()(const TLegacyOwningKey& lhsOwningKey, const TLegacyOwningKey& rhsOwningKey) const;
+    bool operator()(const TLegacyOwningKey& lhsOwningKey, const TSchemafulSortedDynamicRow& rhsSchemafulRow) const;
+    bool operator()(const TSchemafulSortedDynamicRow& lhsSchemafulRow, const TSchemafulSortedDynamicRow& rhsSchemafulRow) const;
+
+private:
+    const TSortedDynamicRowKeyComparer* RowKeyComparer_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

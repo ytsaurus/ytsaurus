@@ -34,8 +34,11 @@ public:
         const NTabletNode::NProto::TMountHint& mountHint) override;
 
     void LockHunkStores(TWriteContext* context) override;
+
+    bool IsVersionedWriteUnversioned() const override;
+
     bool ExecuteWrites(
-        NTableClient::IWireProtocolReader* reader,
+        IWireWriteCommandReader* reader,
         TWriteContext* context) override;
 
     void UpdateCommittedStoreRowCount() override;

@@ -1107,6 +1107,7 @@ private:
         auto customRuntimeData = request->has_replicatable_content() && request->replicatable_content().has_custom_runtime_data()
             ? TYsonString(request->replicatable_content().custom_runtime_data())
             : TYsonString();
+        auto serializationType = FromProto<ETabletTransactionSerializationType>(request->serialization_type());
 
         rawSettings.DropIrrelevantExperiments(
             {
@@ -1147,7 +1148,8 @@ private:
             commitOrdering,
             upstreamReplicaId,
             retainedTimestamp,
-            cumulativeDataWeight);
+            cumulativeDataWeight,
+            serializationType);
         tabletHolder->RawSettings() = rawSettings;
 
         tabletHolder->CustomRuntimeData() = std::move(customRuntimeData);
@@ -1216,7 +1218,7 @@ private:
         YT_LOG_INFO("Tablet mounted (%v, MountRevision: %x, Keys: %v .. %v, "
             "StoreCount: %v, HunkChunkCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
             "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v, RetainedTimestamp: %v, SchemaId: %v, "
-            "MasterAvenueEndpointId: %v)",
+            "MasterAvenueEndpointId: %v, SerializationType: %v)",
             tablet->GetLoggingTag(),
             mountRevision,
             pivotKey,
@@ -1232,7 +1234,8 @@ private:
             upstreamReplicaId,
             retainedTimestamp,
             schemaId,
-            masterAvenueEndpointId);
+            masterAvenueEndpointId,
+            serializationType);
 
         for (const auto& descriptor : request->replicas()) {
             AddTableReplica(tablet, descriptor);
@@ -3124,7 +3127,7 @@ private:
             return;
         }
 
-        if (transaction->IsSerializationNeeded()) {
+        if (transaction->IsCoarseSerializationNeeded()) {
             YT_LOG_DEBUG("Write pull rows committed and is waiting for serialization (TabletId: %v, TransactionId: %v, ReplicationRound: %v)",
                 tabletId,
                 transaction->GetId(),

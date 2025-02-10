@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "tablet_write_manager.h"
 
 #include <yt/yt/server/lib/hydra/entity_map.h>
 
@@ -85,7 +86,7 @@ struct ITabletCellWriteManager
 
     virtual TFuture<void> Write(
         const TTabletSnapshotPtr& tabletSnapshot,
-        NTableClient::IWireProtocolReader* reader,
+        TWireWriteCommandBatchReader* reader,
         const TTabletCellWriteParams& params) = 0;
 
     // Tablet locking stuff.

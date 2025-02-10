@@ -83,8 +83,9 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionStarted);
     DEFINE_SIGNAL_OVERRIDE(void(TTransaction*, bool), TransactionPrepared);
     DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionCommitted);
-    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionSerialized);
-    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), BeforeTransactionSerialized);
+    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionCoarselySerialized);
+    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionPerRowSerialized);
+    DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), BeforeTransactionCoarselySerialized);
     DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionAborted);
     DEFINE_SIGNAL_OVERRIDE(void(TTimestamp), TransactionBarrierHandled);
     DEFINE_SIGNAL_OVERRIDE(void(TTransaction*), TransactionTransientReset);
@@ -147,6 +148,34 @@ public:
             ->Via(Host_->GetGuardedAutomatonInvoker());
     }
 
+    void PerRowSerialized(TTransaction* transaction) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(HasMutationContext());
+
+        auto commitTimestamp = transaction->GetCommitTimestamp();
+        auto transactionId = transaction->GetId();
+        YT_LOG_DEBUG("Transaction prs serialized (TransactionId: %v, CommitTimestamp: %v)",
+            transaction->GetId(),
+            commitTimestamp);
+
+        if (transaction->CoarseSerializingTabletIds().empty()){
+            // NB: Either they are already serialized and action below is noop
+            // or there were no coarsely serialized tablets and transition to serialized is ok.
+            YT_ASSERT(transaction->GetPersistentState() == ETransactionState::Committed ||
+                transaction->GetPersistentState() == ETransactionState::Serialized);
+            transaction->SetPersistentState(ETransactionState::Serialized);
+        }
+
+        TransactionPerRowSerialized_.Fire(transaction);
+
+        if (transaction->CoarseSerializingTabletIds().empty() && transaction->PerRowSerializingTabletIds().empty()) {
+            transaction->SetFinished();
+
+            PersistentTransactionMap_.Remove(transactionId);
+        }
+    }
+
     TTransaction* FindPersistentTransaction(TTransactionId transactionId) override
     {
         return PersistentTransactionMap_.Find(transactionId);
@@ -199,6 +228,7 @@ public:
     TTransaction* GetTransactionOrThrow(TTransactionId transactionId, TGuid externalizationToken = {})
     {
         auto* transaction = FindTransaction(transactionId, externalizationToken);
+
         if (!transaction) {
             auto error = CreateNoSuchTransactionError(transactionId);
             if (externalizationToken) {
@@ -591,13 +621,13 @@ public:
             NProto::TReqCommitExternalizedTransaction{},
             options);
 
-        if (transaction->IsSerializationNeeded()) {
+        if (transaction->IsCoarseSerializationNeeded()) {
             auto heapTag = GetSerializingTransactionHeapTag(transaction);
             auto& heap = SerializingTransactionHeaps_[heapTag];
             heap.push_back(transaction);
             AdjustHeapBack(heap.begin(), heap.end(), SerializingTransactionHeapComparer);
             UpdateMinCommitTimestamp(heap);
-        } else {
+        } else if (!transaction->IsPerRowSerializationNeeded()) {
             YT_LOG_DEBUG("Transaction removed without serialization (TransactionId: %v)",
                 transactionId);
 
@@ -828,6 +858,7 @@ private:
                     .Item("state").Value(transaction->GetTransientState())
                     .Item("start_timestamp").Value(transaction->GetStartTimestamp())
                     .Item("prepare_timestamp").Value(transaction->GetPrepareTimestamp())
+                    .Item("left_to_per_row_serialize_part_count").Value(transaction->GetPartsLeftToPerRowSerialize())
                     // Omit CommitTimestamp, it's typically null.
                     // TODO: Tablets.
                 .EndMap();
@@ -927,7 +958,7 @@ private:
             auto state = transaction->GetPersistentState();
             YT_VERIFY(transaction->GetTransientState() == state);
             YT_VERIFY(state != ETransactionState::Aborted);
-            if (state == ETransactionState::Committed && transaction->IsSerializationNeeded()) {
+            if (state == ETransactionState::Committed && transaction->IsCoarseSerializationNeeded()) {
                 auto heapTag = GetSerializingTransactionHeapTag(transaction);
                 SerializingTransactionHeaps_[heapTag].push_back(transaction);
             }
@@ -1158,6 +1189,7 @@ private:
     {
         auto transactionId = FromProto<TTransactionId>(request->transaction_id());
         auto externalizationToken = FromProto<TGuid>(request->externalization_token());
+
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto signature = request->signature();
@@ -1205,7 +1237,7 @@ private:
         YT_LOG_DEBUG("Handling transaction barrier (Timestamp: %v)",
             barrierTimestamp);
 
-        for (auto& [_, heap ]: SerializingTransactionHeaps_) {
+        for (auto& [_, heap]: SerializingTransactionHeaps_) {
             while (!heap.empty()) {
                 auto* transaction = heap.front();
                 auto commitTimestamp = transaction->GetCommitTimestamp();
@@ -1221,15 +1253,17 @@ private:
                     commitTimestamp);
 
                 transaction->SetPersistentState(ETransactionState::Serialized);
-                BeforeTransactionSerialized_.Fire(transaction);
-                TransactionSerialized_.Fire(transaction);
+                BeforeTransactionCoarselySerialized_.Fire(transaction);
+                TransactionCoarselySerialized_.Fire(transaction);
 
                 // NB: Update replication progress after all rows are serialized and available for pulling.
                 RunSerializeTransactionActions(transaction);
 
-                transaction->SetFinished();
+                if (transaction->CoarseSerializingTabletIds().empty() && transaction->PerRowSerializingTabletIds().empty()) {
+                    transaction->SetFinished();
 
-                PersistentTransactionMap_.Remove(transactionId);
+                    PersistentTransactionMap_.Remove(transactionId);
+                }
 
                 ExtractHeap(heap.begin(), heap.end(), SerializingTransactionHeapComparer);
                 heap.pop_back();

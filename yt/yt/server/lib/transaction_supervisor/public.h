@@ -59,6 +59,11 @@ DEFINE_ENUM(ETransactionState,
     ((PersistentCommitPrepared)   (2))
     ((CommitPending)              (7))
     ((Committed)                  (3))
+    // If some serialization is needed than transaction will go through Serialized.
+    // Transaction in Serialized state will not finish until all serializations are completed.
+    // Finish of a coarse serialization will always trigger transition to Serialized.
+    //
+    // NB: There is no real checks or events connected to this state.
     ((Serialized)                 (6))
     ((TransientAbortPrepared)     (4))
     ((Aborted)                    (5))

@@ -48,7 +48,7 @@ void TTransaction::Save(TSaveContext& context) const
     Save(context, CommitTimestamp_);
     Save(context, PrepareRevision_);
     Save(context, PersistentAffectedTabletIds_);
-    Save(context, SerializingTabletIds_);
+    Save(context, CoarseSerializingTabletIds_);
     Save(context, PersistentPrepareSignature_);
     Save(context, PersistentGeneration_);
     Save(context, CommitSignature_);
@@ -78,7 +78,7 @@ void TTransaction::Load(TLoadContext& context)
     Load(context, PrepareRevision_);
 
     Load(context, PersistentAffectedTabletIds_);
-    Load(context, SerializingTabletIds_);
+    Load(context, CoarseSerializingTabletIds_);
 
     Load(context, PersistentPrepareSignature_);
     TransientPrepareSignature_ = PersistentPrepareSignature_;
@@ -164,7 +164,7 @@ void TTransaction::ForceSerialization(TTabletId tabletId)
 {
     YT_VERIFY(NHydra::HasHydraContext());
 
-    SerializingTabletIds_.insert(tabletId);
+    CoarseSerializingTabletIds_.insert(tabletId);
 }
 
 TInstant TTransaction::GetStartTime() const
@@ -172,9 +172,14 @@ TInstant TTransaction::GetStartTime() const
     return TimestampToInstant(StartTimestamp_).first;
 }
 
-bool TTransaction::IsSerializationNeeded() const
+bool TTransaction::IsCoarseSerializationNeeded() const
 {
-    return !SerializingTabletIds_.empty() || !TabletsToUpdateReplicationProgress_.empty();
+    return !CoarseSerializingTabletIds_.empty() || !TabletsToUpdateReplicationProgress_.empty();
+}
+
+bool TTransaction::IsPerRowSerializationNeeded() const
+{
+    return !PerRowSerializingTabletIds_.empty();
 }
 
 TCellTag TTransaction::GetCellTag() const
@@ -193,6 +198,17 @@ bool TTransaction::IsExternalizedToThisCell() const
     return type == EObjectType::ExternalizedSystemTabletTransaction ||
         type == EObjectType::ExternalizedAtomicTabletTransaction ||
         type == EObjectType::ExternalizedNonAtomicTabletTransaction;
+}
+
+void TTransaction::IncrementPartsLeftToPerRowSerialize()
+{
+    ++PartsLeftToPerRowSerialize_;
+}
+
+void TTransaction::DecrementPartsLeftToPerRowSerialize()
+{
+    YT_VERIFY(PartsLeftToPerRowSerialize_ > 0);
+    --PartsLeftToPerRowSerialize_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

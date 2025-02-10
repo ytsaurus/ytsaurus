@@ -202,7 +202,8 @@ public:
             GetCommitOrdering(),
             TTableReplicaId(),
             /*retainedTimestamp*/ NullTimestamp,
-            /*cumulativeDataWeight*/ 0);
+            /*cumulativeDataWeight*/ 0,
+            /*serializationType*/ ETabletTransactionSerializationType::Coarse);
         Tablet_->SetStructuredLogger(CreateMockPerTabletStructuredLogger(Tablet_.get()));
 
         auto storeManager = CreateStoreManager(Tablet_.get());

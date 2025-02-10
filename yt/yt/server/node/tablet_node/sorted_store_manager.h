@@ -10,7 +10,15 @@
 
 #include <yt/yt/ytlib/tablet_client/public.h>
 
+#include <library/cpp/yt/compact_containers/compact_heap.h>
+
+#include <library/cpp/containers/absl_flat_hash/flat_hash_map.h>
+
 namespace NYT::NTabletNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr int TypicalSharedWriteTransactionCountPerLockGroup = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -29,8 +37,9 @@ public:
 
     // IStoreManager overrides.
     bool ExecuteWrites(
-        NTableClient::IWireProtocolReader* reader,
+        IWireWriteCommandReader* reader,
         TWriteContext* context) override;
+
 
     TSortedDynamicRowRef ModifyRow(
         TUnversionedRow row,
@@ -49,10 +58,24 @@ public:
     void ConfirmRow(TWriteContext* context, const TSortedDynamicRowRef& rowRef);
     void PrepareRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
 
+    void CommitLockGroup(
+        TTransaction* transaction,
+        const TWireWriteCommand& command,
+        const TSortedDynamicRowRef& rowRef,
+        int lockIndex,
+        bool onAfterSnapshotLoaded);
+
     void CommitRow(
         TTransaction* transaction,
-        const NTableClient::TWireProtocolWriteCommand& command,
+        const TWireWriteCommand& command,
         const TSortedDynamicRowRef& rowRef);
+
+    void StartSerializingRow(
+        TTransaction* transaction,
+        const TWireWriteCommand& command,
+        const TSortedDynamicRowRef& rowRef,
+        TOpaqueWriteLogIndex writeLogIndex,
+        bool onAfterSnapshotLoaded);
 
     void AbortRow(TTransaction* transaction, const TSortedDynamicRowRef& rowRef);
 
@@ -98,6 +121,49 @@ private:
         i64 DataSize;
     };
 
+    struct TLockSerializationState
+    {
+        struct TPreparedSharedWriteTransaction
+        {
+            TTimestamp PrepareTimestamp;
+            const TTransaction* Transaction;
+
+            auto operator<=>(const TPreparedSharedWriteTransaction& other) const = default;
+        };
+
+        struct TCommittedSharedWriteTransaction
+        {
+            TTimestamp CommitTimestamp;
+            TTransaction* Transaction;
+
+            auto operator<=>(const TCommittedSharedWriteTransaction& other) const = default;
+        };
+
+        struct TIndexedSharedWriteTransaction
+        {
+            TCommittedSharedWriteTransaction SharedWriteTransaction;
+            TOpaqueWriteLogIndex WriteLogIndex;
+            TSortedDynamicRowRef RowRef;
+
+            auto operator<=>(const TIndexedSharedWriteTransaction& other) const
+            {
+                return SharedWriteTransaction <=> other.SharedWriteTransaction;
+            }
+        };
+
+        // NB: There are only shared write transactions in here.
+        // Represents barrier.
+        TCompactSet<TPreparedSharedWriteTransaction, TypicalSharedWriteTransactionCountPerLockGroup> PreparedTransactions;
+
+        TCompactHeap<TIndexedSharedWriteTransaction, TypicalSharedWriteTransactionCountPerLockGroup> SerializingTransactions;
+
+        TTimestamp CommitTimestampOfTopSerializingTransaction() const
+        {
+            YT_ASSERT(!SerializingTransactions.empty());
+            return SerializingTransactions.get_min().SharedWriteTransaction.CommitTimestamp;
+        }
+    };
+
     const int KeyColumnCount_;
 
     TSortedDynamicStorePtr ActiveStore_;
@@ -105,6 +171,16 @@ private:
 
     // During changelog replay stores may be removed out of order.
     std::set<ui32> StoreFlushIndexQueue_;
+
+    using TSerializationStateByLockMap = absl::flat_hash_map<int, TLockSerializationState>;
+
+    // NB: SerializationStateByKey_ does not serialize explicitly.
+    // It it recalculated in TTabletWriteManager::OnAfterSnapshotLoaded.
+    absl::flat_hash_map<
+        TLegacyOwningKey,
+        TSerializationStateByLockMap,
+        TSortedDynamicRowKeyHash,
+        TSortedDynamicRowKeyEq> SerializationStateByKey_;
 
     IDynamicStore* GetActiveStore() const override;
     void ResetActiveStore() override;
@@ -136,6 +212,21 @@ private:
 
     TSortedDynamicStore::TRowBlockedHandler CreateRowBlockedHandler(
         const IStorePtr& store);
+
+    void DrainSerializationHeap(
+        TLockSerializationState* lockSerializationState,
+        int lockIndex,
+        bool onAfterSnapshotLoaded);
+    void MaybeCleanupSerializationState(
+        TSortedDynamicRow row,
+        TSerializationStateByLockMap* keySerializationState,
+        int lockIndex,
+        TLockSerializationState* lockSerializationState);
+
+    TSerializationStateByLockMap* FindKeySerializationState(TSortedDynamicRow row);
+    TSerializationStateByLockMap& GetKeySerializationState(TSortedDynamicRow row);
+    TSerializationStateByLockMap& GetOrCreateKeySerializationState(TSortedDynamicRow row);
+
     void OnRowBlocked(
         IStore* store,
         IInvokerPtr invoker,

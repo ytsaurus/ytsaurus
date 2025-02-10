@@ -314,7 +314,7 @@ protected:
             prepareSignature,
             commitSignature,
             generation,
-            tabletWriteManager = TabletCellWriteManager(),
+            tabletCellWriteManager = TabletCellWriteManager(),
             tabletSnapshot
         ] {
             auto writer = CreateWireProtocolWriter();
@@ -326,10 +326,16 @@ protected:
             }
             auto wireData = writer->Finish();
             struct TTag {};
-            auto reader = CreateWireProtocolReader(MergeRefsToRef<TTag>(wireData));
-            auto future = tabletWriteManager->Write(
+            auto data = MergeRefsToRef<TTag>(wireData);
+
+            auto reader = TWireWriteCommandBatchReader(
+                data,
+                CreateWireProtocolReader(data),
+                tabletSnapshot->TableSchemaData);
+
+            auto future = tabletCellWriteManager->Write(
                 tabletSnapshot,
-                reader.get(),
+                &reader,
                 TTabletCellWriteParams{
                     .TransactionId = transactionId,
                     .TransactionStartTimestamp = TimestampFromTransactionId(transactionId),
@@ -415,14 +421,19 @@ protected:
             }
             auto wireData = writer->Finish();
             struct TTag { };
-            auto reader = CreateWireProtocolReader(MergeRefsToRef<TTag>(wireData));
+            auto data = MergeRefsToRef<TTag>(wireData);
 
             TAuthenticationIdentity identity(ReplicatorUserName);
             TCurrentAuthenticationIdentityGuard guard(&identity);
 
+            auto reader = TWireWriteCommandBatchReader(
+                data,
+                CreateWireProtocolReader(data),
+                tabletSnapshot->TableSchemaData);
+
             auto future = tabletWriteManager->Write(
                 tabletSnapshot,
-                reader.get(),
+                &reader,
                 TTabletCellWriteParams{
                     .TransactionId = transactionId,
                     .TransactionStartTimestamp = TimestampFromTransactionId(transactionId),
