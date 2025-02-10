@@ -3575,7 +3575,7 @@ TPlanFragmentPtr PreparePlanFragment(
 
     std::vector<TJoinClausePtr> joinClauses;
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
-    int splitIndex = 1;
+    int splitIndex = table ? 1 : 0;
     for (const auto& join : queryAst.Joins) {
         Visit(join,
             [&] (const NAst::TJoin& tableJoin) {
