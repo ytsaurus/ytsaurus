@@ -9864,20 +9864,19 @@ i64 TOperationControllerBase::GetDataSliceCount() const
 }
 
 void TOperationControllerBase::GenerateDockerAuthFromToken(
-    NControllerAgent::NProto::TUserJobSpec* jobSpec,
-    const TUserJobSpecPtr& jobSpecConfig) {
-    auto findEnv = [&] (const TStringBuf& key) -> const TString* {
-        for (auto* environment : {&jobSpecConfig->Environment, &Config->Environment}) {
-            auto found = environment->find(key);
-            if (found != environment->end()) {
-                return &found->second;
+    NControllerAgent::NProto::TUserJobSpec* jobSpec) const {
+    auto findEnv = [&] (const TStringBuf& key) -> std::optional<TString> {
+        auto prefix = Format("%s=", key);
+        for (auto &environment : jobSpec->environment()) {
+            if (environment.StartsWith(prefix)) {
+                return environment.substr(prefix.length());
             }
         }
-        return nullptr;
+        return {};
     };
     if (!findEnv(YtSecureVaultDockerAuthEnv)) {
         if (auto token = findEnv("YT_SECURE_VAULT_YT_TOKEN")) {
-            jobSpec->add_environment(Format("%v={username=%Qv; password=%Qv}", YtSecureVaultDockerAuthEnv, AuthenticatedUser, *token));
+            jobSpec->add_environment(Format("%s={username=%Qs; password=%Qs}", YtSecureVaultDockerAuthEnv, AuthenticatedUser, *token));
         }
     }
 }
@@ -10056,9 +10055,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     // Pass external docker image into job spec as is.
     if (jobSpecConfig->DockerImage) {
         TDockerImageSpec dockerImageSpec(*jobSpecConfig->DockerImage, Config->DockerRegistry);
-        if (dockerImageSpec.IsInternal() && Config->DockerRegistry->UseYtTokenForInternalRegistry) {
-            GenerateDockerAuthFromToken(jobSpec, jobSpecConfig);
-        }
         if (!dockerImageSpec.IsInternal() || Config->DockerRegistry->ForwardInternalImagesToJobSpecs) {
             jobSpec->set_docker_image(*jobSpecConfig->DockerImage);
         }
@@ -10147,6 +10143,13 @@ void TOperationControllerBase::InitUserJobSpec(
         }
 
         jobSpec->set_enable_secure_vault_variables_in_job_shell(Spec_->EnableSecureVaultVariablesInJobShell);
+    }
+
+    if (jobSpec->has_docker_image()) {
+        TDockerImageSpec dockerImageSpec(jobSpec->docker_image(), Config->DockerRegistry);
+        if (dockerImageSpec.IsInternal() && Config->DockerRegistry->UseYtTokenForInternalRegistry) {
+            GenerateDockerAuthFromToken(jobSpec);
+        }
     }
 
     if (RetainedJobWithStderrCount_ >= Spec_->MaxStderrCount) {
