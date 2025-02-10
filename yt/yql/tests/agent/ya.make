@@ -25,7 +25,7 @@ PEERDIR(
 )
 
 IF (SANITIZER_TYPE == "address" OR SANITIZER_TYPE == "memory")
-    TAG(ya:not_autocheck) 
+    TAG(ya:not_autocheck)
 ENDIF()
 
 FORK_SUBTESTS()
