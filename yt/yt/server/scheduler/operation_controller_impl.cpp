@@ -561,18 +561,15 @@ void TOperationControllerImpl::OnMaterializationFinished(const TErrorOr<TOperati
         auto result = resultOrError.Value();
 
         ControllerRuntimeData_->SetNeededResources(result.InitialNeededResources);
-        ControllerRuntimeData_->MinNeededResources() = result.InitialMinNeededResources;
-        InitialMinNeededResources_ = result.InitialMinNeededResources;
+        ControllerRuntimeData_->GroupedNeededResources() = result.InitialGroupedNeededResources;
+        InitialGroupedNeededResources_ = result.InitialGroupedNeededResources;
 
-        YT_LOG_DEBUG("Successful materialization result received ("
-            "Suspend: %v, InitialNeededResources: %v, InitialMinNeededResources: %v)",
+        YT_LOG_DEBUG(
+            "Successful materialization result received "
+            "(Suspend: %v, InitialNeededResources: %v, InitialGroupedNeededResources: %v)",
             result.Suspend,
             FormatResources(result.InitialNeededResources),
-            MakeFormattableView(
-                result.InitialMinNeededResources,
-                [&] (TStringBuilderBase* builder, const TJobResourcesWithQuota& resources) {
-                    builder->AppendFormat("%v", FormatResources(resources));
-                }));
+            InitialGroupedNeededResources_);
     } else {
         YT_LOG_DEBUG(resultOrError, "Unsuccessful materialization result received");
         ProcessControllerAgentError(resultOrError);
@@ -589,22 +586,18 @@ void TOperationControllerImpl::OnRevivalFinished(const TErrorOr<TOperationContro
         auto result = resultOrError.Value();
 
         ControllerRuntimeData_->SetNeededResources(result.NeededResources);
-        ControllerRuntimeData_->MinNeededResources() = result.MinNeededResources;
-        InitialMinNeededResources_ = result.InitialMinNeededResources;
+        ControllerRuntimeData_->GroupedNeededResources() = result.GroupedNeededResources;
+        InitialGroupedNeededResources_ = result.InitialGroupedNeededResources;
 
         YT_LOG_DEBUG(
             "Successful revival result received "
             "(RevivedFromSnapshot: %v, RevivedAllocationCount: %v, RevivedBannedTreeIds: %v, "
-            "NeededResources: %v, InitialMinNeededResources: %v)",
+            "NeededResources: %v, InitialGroupedNeededResources: %v)",
             result.RevivedFromSnapshot,
             result.RevivedAllocations.size(),
             result.RevivedBannedTreeIds,
             FormatResources(result.NeededResources),
-            MakeFormattableView(
-                result.InitialMinNeededResources,
-                [&] (TStringBuilderBase* builder, const TJobResourcesWithQuota& resources) {
-                    builder->AppendFormat("%v", FormatResources(resources));
-                }));
+            InitialGroupedNeededResources_);
     } else {
         YT_LOG_DEBUG(resultOrError, "Unsuccessful revival result received");
         ProcessControllerAgentError(resultOrError);
@@ -720,15 +713,16 @@ TFuture<TControllerScheduleAllocationResultPtr> TOperationControllerImpl::Schedu
     return nodeShard->BeginScheduleAllocation(incarnationId, OperationId_, allocationId);
 }
 
-void TOperationControllerImpl::UpdateMinNeededAllocationResources()
+void TOperationControllerImpl::UpdateGroupedNeededResources()
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     EnqueueOperationEvent({
-        .EventType = ESchedulerToAgentOperationEventType::UpdateMinNeededAllocationResources,
+        .EventType = ESchedulerToAgentOperationEventType::UpdateGroupedNeededResources,
         .OperationId = OperationId_,
     });
-    YT_LOG_DEBUG("Min needed allocation resources update request enqueued");
+
+    YT_LOG_DEBUG("Grouped needed resources update request enqueued");
 }
 
 TCompositeNeededResources TOperationControllerImpl::GetNeededResources() const
@@ -738,18 +732,18 @@ TCompositeNeededResources TOperationControllerImpl::GetNeededResources() const
     return ControllerRuntimeData_->GetNeededResources();
 }
 
-TJobResourcesWithQuotaList TOperationControllerImpl::GetMinNeededAllocationResources() const
+TAllocationGroupResourcesMap TOperationControllerImpl::GetGroupedNeededResources() const
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    return ControllerRuntimeData_->MinNeededResources();
+    return ControllerRuntimeData_->GroupedNeededResources();
 }
 
-TJobResourcesWithQuotaList TOperationControllerImpl::GetInitialMinNeededAllocationResources() const
+TAllocationGroupResourcesMap TOperationControllerImpl::GetInitialGroupedNeededResources() const
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
-    return InitialMinNeededResources_;
+    return InitialGroupedNeededResources_;
 }
 
 EPreemptionMode TOperationControllerImpl::GetPreemptionMode() const

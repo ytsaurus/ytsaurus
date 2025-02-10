@@ -742,7 +742,7 @@ public:
     // Used by trunk node.
     DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, PendingByPool);
 
-    DEFINE_BYREF_RO_PROPERTY(TJobResourcesWithQuotaList, DetailedMinNeededAllocationResources);
+    DEFINE_BYREF_RO_PROPERTY(TAllocationGroupResourcesMap, GroupedNeededResources);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AggregatedMinNeededAllocationResources);
     DEFINE_BYREF_RO_PROPERTY(bool, ScheduleAllocationBackoffCheckEnabled, false);
 
@@ -905,7 +905,7 @@ public:
         EAbortReason abortReason,
         TControllerEpoch allocationEpoch);
 
-    TJobResourcesWithQuotaList GetDetailedInitialMinNeededResources() const;
+    TAllocationGroupResourcesMap GetInitialGroupedNeededResources() const;
     TJobResources GetAggregatedInitialMinNeededResources() const;
 
     //! Resource tree methods.

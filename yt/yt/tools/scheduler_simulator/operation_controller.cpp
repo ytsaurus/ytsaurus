@@ -212,9 +212,9 @@ public:
         const TString& /* poolPath */,
         const TFairShareStrategyTreeConfigPtr& /* treeConfig */) override;
 
-    void UpdateMinNeededAllocationResources() override;
-    TJobResourcesWithQuotaList GetMinNeededAllocationResources() const override;
-    TJobResourcesWithQuotaList GetInitialMinNeededAllocationResources() const override;
+    void UpdateGroupedNeededResources() override;
+    TAllocationGroupResourcesMap GetGroupedNeededResources() const override;
+    TAllocationGroupResourcesMap GetInitialGroupedNeededResources() const override;
 
     TString GetLoggingProgress() const override;
 
@@ -237,10 +237,10 @@ private:
     int RunningJobCount_ = 0;
     TJobResources NeededResources_;
     TCompactVector<TJobBucket*, TEnumTraits<EJobType>::GetDomainSize()> ActiveBuckets_;
-    TJobResourcesWithQuotaList CachedMinNeededJobResources;
+    TAllocationGroupResourcesMap CachedGroupedNeededResources_;
     ///////////////////////
 
-    TJobResourcesWithQuotaList InitialMinNeededResources_;
+    TAllocationGroupResourcesMap InitialGroupedNeededResources_;
 
     // Lock_ must be acquired.
     bool FindJobToSchedule(
@@ -333,8 +333,8 @@ TSimulatorOperationController::TSimulatorOperationController(
         bucket->FinishInitialization();
     }
 
-    UpdateMinNeededAllocationResources();
-    InitialMinNeededResources_ = GetMinNeededAllocationResources();
+    UpdateGroupedNeededResources();
+    InitialGroupedNeededResources_ = GetGroupedNeededResources();
 }
 
 // Lock_ must be acquired.
@@ -483,35 +483,41 @@ TFuture<TControllerScheduleAllocationResultPtr> TSimulatorOperationController::S
     return MakeFuture(scheduleAllocationResult);
 }
 
-void TSimulatorOperationController::UpdateMinNeededAllocationResources()
+void TSimulatorOperationController::UpdateGroupedNeededResources()
 {
     auto guard = Guard(Lock_);
-    TJobResourcesWithQuotaList result;
+    TAllocationGroupResourcesMap result;
 
     for (const auto& [jobType, bucket] : JobBuckets_) {
-        if (bucket->GetPendingJobCount() == 0) {
+        auto pendingJobCount = bucket->GetPendingJobCount();
+        if (pendingJobCount == 0) {
             continue;
         }
-        auto resources = bucket->GetMinNeededResources();
 
-        result.push_back(resources);
-        YT_LOG_DEBUG("Aggregated minimum needed resources for jobs (JobType: %v, MinNeededResources: %v)",
+        TAllocationGroupResources resources{
+            .MinNeededResources = bucket->GetMinNeededResources(),
+            .AllocationCount = pendingJobCount,
+        };
+
+        YT_LOG_DEBUG("Aggregated allocation group resources for jobs (JobType: %v, AllocationGroupResources: %v)",
             jobType,
-            FormatResources(resources));
+            resources);
+
+        result.emplace(FormatEnum(jobType), std::move(resources));
     }
 
-    CachedMinNeededJobResources = std::move(result);
+    CachedGroupedNeededResources_ = std::move(result);
 }
 
-TJobResourcesWithQuotaList TSimulatorOperationController::GetMinNeededAllocationResources() const
+TAllocationGroupResourcesMap  TSimulatorOperationController::GetGroupedNeededResources() const
 {
     auto guard = Guard(Lock_);
-    return CachedMinNeededJobResources;
+    return CachedGroupedNeededResources_;
 }
 
-TJobResourcesWithQuotaList TSimulatorOperationController::GetInitialMinNeededAllocationResources() const
+TAllocationGroupResourcesMap  TSimulatorOperationController::GetInitialGroupedNeededResources() const
 {
-    return InitialMinNeededResources_;
+    return InitialGroupedNeededResources_;
 }
 
 TString TSimulatorOperationController::GetLoggingProgress() const

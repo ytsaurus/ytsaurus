@@ -161,7 +161,7 @@ private: \
         (jobId, timeout),
         false)
 
-    IMPLEMENT_SAFE_METHOD(public, void, UpdateMinNeededAllocationResources, (), (), true)
+    IMPLEMENT_SAFE_METHOD(public, void, UpdateGroupedNeededResources, (), (), true)
 
     IMPLEMENT_SAFE_METHOD(public, void, Commit, (), (), false)
     IMPLEMENT_SAFE_METHOD(public, void, Terminate, (EControllerState finalState), (finalState), false)
@@ -275,7 +275,7 @@ public:
     bool ShouldUpdateLightOperationAttributes() const override;
     void SetLightOperationAttributesUpdated() override;
 
-    NScheduler::TJobResourcesWithQuotaList GetMinNeededAllocationResources() const override;
+    NScheduler::TAllocationGroupResourcesMap GetGroupedNeededResources() const override;
 
     bool IsRunning() const override;
 
@@ -1123,9 +1123,9 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedNeededResourcesLock);
     NScheduler::TCompositeNeededResources CachedNeededResources;
 
-    NThreading::TAtomicObject<NScheduler::TJobResourcesWithQuotaList> CachedMinNeededAllocationResources;
+    NThreading::TAtomicObject<NScheduler::TAllocationGroupResourcesMap> CachedGroupedNeededResources;
 
-    NScheduler::TJobResourcesWithQuotaList InitialMinNeededResources_;
+    NScheduler::TAllocationGroupResourcesMap InitialGroupedNeededResources_;
 
     class TCachedYsonCallback
     {
@@ -1394,8 +1394,6 @@ private:
     void LogProgress(bool force = false);
 
     void UpdateAllTasksIfNeeded();
-
-    TJobResources GetAggregatedMinNeededAllocationResources() const;
 
     void IncreaseNeededResources(const NScheduler::TCompositeNeededResources& resourcesDelta);
 

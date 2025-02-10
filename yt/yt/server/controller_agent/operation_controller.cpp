@@ -67,7 +67,7 @@ void ToProto(NProto::TMaterializeOperationResult* resultProto, const TOperationC
 {
     resultProto->set_suspend(result.Suspend);
     ToProto(resultProto->mutable_initial_composite_needed_resources(), result.InitialNeededResources);
-    ToProto(resultProto->mutable_initial_min_needed_resources(), result.InitialMinNeededResources);
+    ToProto(resultProto->mutable_initial_grouped_needed_resources(), result.InitialGroupedNeededResources);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,8 +93,8 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
     }
     ToProto(resultProto->mutable_revived_banned_tree_ids(), result.RevivedBannedTreeIds);
     ToProto(resultProto->mutable_composite_needed_resources(), result.NeededResources);
-    ToProto(resultProto->mutable_min_needed_resources(), result.MinNeededResources);
-    ToProto(resultProto->mutable_initial_min_needed_resources(), result.InitialMinNeededResources);
+    ToProto(resultProto->mutable_grouped_needed_resources(), result.GroupedNeededResources);
+    ToProto(resultProto->mutable_initial_grouped_needed_resources(), result.InitialGroupedNeededResources);
     resultProto->set_controller_epoch(result.ControllerEpoch.Underlying());
 }
 
@@ -358,14 +358,14 @@ public:
         return DoExecuteGuarded(&IOperationController::GetNeededResources);
     }
 
-    void UpdateMinNeededAllocationResources() override
+    void UpdateGroupedNeededResources() override
     {
-        return DoExecuteGuarded(&IOperationController::UpdateMinNeededAllocationResources);
+        return DoExecuteGuarded(&IOperationController::UpdateGroupedNeededResources);
     }
 
-    TJobResourcesWithQuotaList GetMinNeededAllocationResources() const override
+    TAllocationGroupResourcesMap GetGroupedNeededResources() const override
     {
-        return DoExecuteGuarded(&IOperationController::GetMinNeededAllocationResources);
+        return DoExecuteGuarded(&IOperationController::GetGroupedNeededResources);
     }
 
     void OnAllocationAborted(TAbortedAllocationSummary&& abortedAllocationSummary) override
