@@ -222,7 +222,7 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
         .Alias("queue_average_wait_time_threshold")
         .Default(TDuration::Minutes(1));
 
-    registrar.Parameter("task_unavailable_network_bandwidth_ratio_threshold", &TThis::TaskUnavailableNetworkBandwidthRatioThreshold)
+    registrar.Parameter("task_unavailable_network_bandwidth_time_ratio_alert_threshold", &TThis::TaskUnavailableNetworkBandwidthTimeRatioAlertThreshold)
         .Default(0.3)
         .InRange(0.0, 1.0);
 }

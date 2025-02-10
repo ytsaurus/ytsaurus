@@ -809,27 +809,27 @@ private:
 
     void AnalyzeTasksUnavailableNetworkBandwidthToClustersDuration()
     {
-        std::optional<TString> taskWithLongUnavailableNetworkBandwidth;
+        std::optional<TString> taskWithLongUnavailableNetworkBandwidthTime;
         for (const auto& task : Host_->GetTasks()) {
             auto totalDuration = task->GetTotalDuration();
             auto unavailableNetworkBandwidthDuration = task->GetUnavailableNetworkBandwidthDuration();
 
-            double unavailableNetworkBandwidthRatio = 0;
+            double unavailableNetworkBandwidthTimeRatio = 0;
             if (totalDuration < unavailableNetworkBandwidthDuration) {
                 // Network bandwidth has been unavailable from the beginning of task.
-                unavailableNetworkBandwidthRatio = 1.0;
+                unavailableNetworkBandwidthTimeRatio = 1.0;
             } else if (TDuration::Zero() < totalDuration) {
-                unavailableNetworkBandwidthRatio = unavailableNetworkBandwidthDuration / totalDuration;
+                unavailableNetworkBandwidthTimeRatio = unavailableNetworkBandwidthDuration / totalDuration;
             }
-            if (Host_->GetConfig()->AlertManager->TaskUnavailableNetworkBandwidthRatioThreshold < unavailableNetworkBandwidthRatio) {
-                taskWithLongUnavailableNetworkBandwidth = task->GetTitle();
+            if (Host_->GetConfig()->AlertManager->TaskUnavailableNetworkBandwidthTimeRatioAlertThreshold < unavailableNetworkBandwidthTimeRatio) {
+                taskWithLongUnavailableNetworkBandwidthTime = task->GetTitle();
                 break;
             }
         }
 
-        if (taskWithLongUnavailableNetworkBandwidth) {
+        if (taskWithLongUnavailableNetworkBandwidthTime) {
             auto error = TError("Operation has task with long unavailable network bandwidth to remote clusters")
-                << TErrorAttribute("task_with_long_unavailable_network_bandwidth", *taskWithLongUnavailableNetworkBandwidth);
+                << TErrorAttribute("task_with_long_unavailable_network_bandwidth_time", *taskWithLongUnavailableNetworkBandwidthTime);
 
             Host_->SetOperationAlert(
                 EOperationAlertType::UnavailableNetworkBandwidthToClusters,
