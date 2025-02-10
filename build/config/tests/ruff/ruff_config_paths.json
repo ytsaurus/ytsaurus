@@ -8,6 +8,7 @@
     "taxi/": "taxi/pyproject.toml",
     "taxi/backend-py3/": "taxi/backend-py3/pyproject.toml",
     "taxi/cargo/check": "taxi/cargo/check/pyproject.toml",
+    "taxi/lavka/check": "taxi/lavka/check/pyproject.toml",
     "taxi/codegen": "taxi/codegen/pyproject.toml",
     "taxi/github/code-linters": "taxi/github/code-linters/pyproject.toml",
     "taxi/graph": "taxi/graph/pyproject.toml",
