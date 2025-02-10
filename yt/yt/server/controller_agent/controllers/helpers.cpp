@@ -549,7 +549,7 @@ TYsonString MakeIntermediateTableWriterConfig(
     bool fastIntermediateMediumEnabled)
 {
     auto uploadReplicationFactor = spec->IntermediateDataReplicationFactor;
-    auto minUploadReplicationFactor = spec->IntermediateMinDataReplicationFactor;
+    auto minUploadReplicationFactor = spec->MinIntermediateDataReplicationFactor;
 
     auto tableWriterConfig = spec->FastIntermediateMediumTableWriterConfig;
     if (tableWriterConfig && fastIntermediateMediumEnabled) {
