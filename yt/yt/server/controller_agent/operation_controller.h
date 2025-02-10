@@ -73,7 +73,7 @@ struct TOperationControllerMaterializeResult
 {
     bool Suspend = false;
     NScheduler::TCompositeNeededResources InitialNeededResources;
-    NScheduler::TJobResourcesWithQuotaList InitialMinNeededResources;
+    NScheduler::TAllocationGroupResourcesMap InitialGroupedNeededResources;
 };
 
 void ToProto(NProto::TMaterializeOperationResult* resultProto, const TOperationControllerMaterializeResult& result);
@@ -99,8 +99,8 @@ struct TOperationControllerReviveResult
     std::vector<TRevivedAllocation> RevivedAllocations;
     THashSet<TString> RevivedBannedTreeIds;
     NScheduler::TCompositeNeededResources NeededResources;
-    NScheduler::TJobResourcesWithQuotaList MinNeededResources;
-    NScheduler::TJobResourcesWithQuotaList InitialMinNeededResources;
+    NScheduler::TAllocationGroupResourcesMap GroupedNeededResources;
+    NScheduler::TAllocationGroupResourcesMap InitialGroupedNeededResources;
     NScheduler::TControllerEpoch ControllerEpoch;
 };
 
@@ -497,13 +497,13 @@ struct IOperationController
     /*!
      *  \note Thread affinity: Controller invoker.
      */
-    virtual void UpdateMinNeededAllocationResources() = 0;
+    virtual void UpdateGroupedNeededResources() = 0;
 
     //! Returns the cached min needed resources estimate.
     /*!
      *  \note Thread affinity: any
      */
-    virtual NScheduler::TJobResourcesWithQuotaList GetMinNeededAllocationResources() const = 0;
+    virtual NScheduler::TAllocationGroupResourcesMap GetGroupedNeededResources() const = 0;
 
     //! Returns the number of allocations the controller is able to start right away.
     /*!

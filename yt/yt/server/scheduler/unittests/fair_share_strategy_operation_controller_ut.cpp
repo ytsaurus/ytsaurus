@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
+#include <library/cpp/iterator/enumerate.h>
+
 #include <library/cpp/testing/gtest/gtest.h>
 
 namespace NYT::NScheduler {
@@ -56,30 +58,36 @@ public:
         return TCompositeNeededResources{.DefaultResources = totalResources};
     }
 
-    void UpdateMinNeededAllocationResources() override
+    void UpdateGroupedNeededResources() override
     { }
 
-    TJobResourcesWithQuotaList GetMinNeededAllocationResources() const override
+    TAllocationGroupResourcesMap GetGroupedNeededResources() const override
     {
-        TJobResourcesWithQuotaList minNeededResourcesList;
-        for (const auto& resources : JobResourcesList_) {
+        TAllocationGroupResourcesMap groupedNeededResources;
+        for (const auto& [index, resources] : Enumerate(JobResourcesList_)) {
             bool dominated = false;
-            for (const auto& minNeededResourcesElement : minNeededResourcesList) {
-                if (Dominates(resources.ToJobResources(), minNeededResourcesElement.ToJobResources())) {
+            for (const auto& [_, allocationGroupResources] : groupedNeededResources) {
+                if (Dominates(resources.ToJobResources(), allocationGroupResources.MinNeededResources.ToJobResources())) {
                     dominated = true;
                     break;
                 }
             }
+
             if (!dominated) {
-                minNeededResourcesList.push_back(resources);
+                groupedNeededResources.emplace(
+                    Format("task(%v)", index),
+                    TAllocationGroupResources{
+                        .MinNeededResources = resources,
+                        .AllocationCount = 1,
+                    });
             }
         }
-        return minNeededResourcesList;
+        return groupedNeededResources;
     }
 
-    TJobResourcesWithQuotaList GetInitialMinNeededAllocationResources() const override
+    TAllocationGroupResourcesMap GetInitialGroupedNeededResources() const override
     {
-        return GetMinNeededAllocationResources();
+        return GetGroupedNeededResources();
     }
 
     EPreemptionMode PreemptionMode = EPreemptionMode::Normal;

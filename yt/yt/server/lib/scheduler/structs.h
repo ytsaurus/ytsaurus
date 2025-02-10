@@ -148,4 +148,38 @@ void FromProto(TCompositeNeededResources* neededResources, const NControllerAgen
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Allocation group is the representation of an operation's task in the scheduler.
+// TODO(eshcherbin): Choose a better name?
+struct TAllocationGroupResources
+{
+    // TODO(eshcherbin): Rename. "Min needed resources" is not a good term,
+    // so I suggest changing it everywhere throughout the scheduling pipeline.
+    TJobResourcesWithQuota MinNeededResources;
+    int AllocationCount = 0;
+
+    void Persist(const TStreamPersistenceContext& context);
+};
+
+void FormatValue(TStringBuilderBase* builder, const TAllocationGroupResources& allocationGroupResources, TStringBuf /*format*/);
+
+void Serialize(const TAllocationGroupResources& allocationGroupResources, NYson::IYsonConsumer* consumer);
+
+void ToProto(
+    NControllerAgent::NProto::TAllocationGroupResources* protoAllocationGroupResources,
+    const TAllocationGroupResources& allocationGroupResources);
+void FromProto(
+    TAllocationGroupResources* allocationGroupResources,
+    const NControllerAgent::NProto::TAllocationGroupResources& protoAllocationGroupResources);
+
+using TAllocationGroupResourcesMap = TCompactFlatMap<std::string, TAllocationGroupResources, 8>;
+
+void ToProto(
+    ::google::protobuf::Map<TProtoStringType, NControllerAgent::NProto::TAllocationGroupResources>* protoAllocationGroupResourcesMap,
+    const TAllocationGroupResourcesMap& allocationGroupResourcesMap);
+void FromProto(
+    TAllocationGroupResourcesMap* allocationGroupResourcesMap,
+    const ::google::protobuf::Map<TProtoStringType, NControllerAgent::NProto::TAllocationGroupResources>& protoAllocationGroupResourcesMap);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler

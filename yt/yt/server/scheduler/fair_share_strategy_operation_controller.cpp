@@ -79,22 +79,22 @@ TCompositeNeededResources TFairShareStrategyOperationController::GetNeededResour
     return Controller_->GetNeededResources();
 }
 
-TJobResourcesWithQuotaList TFairShareStrategyOperationController::GetDetailedMinNeededAllocationResources() const
+TAllocationGroupResourcesMap TFairShareStrategyOperationController::GetGroupedNeededResources() const
 {
-    return Controller_->GetMinNeededAllocationResources();
+    return Controller_->GetGroupedNeededResources();
 }
 
-TJobResourcesWithQuotaList TFairShareStrategyOperationController::GetDetailedInitialMinNeededAllocationResources() const
+TAllocationGroupResourcesMap TFairShareStrategyOperationController::GetInitialGroupedNeededResources() const
 {
-    return Controller_->GetInitialMinNeededAllocationResources();
+    return Controller_->GetInitialGroupedNeededResources();
 }
 
 TJobResources TFairShareStrategyOperationController::GetAggregatedMinNeededAllocationResources() const
 {
     // Min needed resources must be less than total needed resources of operation. See YT-9363.
     auto result = GetNeededResources().DefaultResources;
-    for (const auto& allocationResources : GetDetailedMinNeededAllocationResources()) {
-        result = Min(result, allocationResources.ToJobResources());
+    for (const auto& [_, allocationGroupResources] : GetGroupedNeededResources()) {
+        result = Min(result, allocationGroupResources.MinNeededResources.ToJobResources());
     }
 
     return result;
@@ -102,23 +102,23 @@ TJobResources TFairShareStrategyOperationController::GetAggregatedMinNeededAlloc
 
 TJobResources TFairShareStrategyOperationController::GetAggregatedInitialMinNeededAllocationResources() const
 {
-    auto initialMinNeededResources = GetDetailedInitialMinNeededAllocationResources();
-    if (initialMinNeededResources.empty()) {
+    auto initialGroupedNeededResources = GetInitialGroupedNeededResources();
+    if (initialGroupedNeededResources.empty()) {
         // A reasonable fallback, but this should really never happen.
         return TJobResources();
     }
 
-    auto result = initialMinNeededResources.front().ToJobResources();
-    for (const auto& allocationResources : initialMinNeededResources) {
-        result = Min(result, allocationResources.ToJobResources());
+    auto result = initialGroupedNeededResources.begin()->second.MinNeededResources.ToJobResources();
+    for (const auto& [_, allocationGroupResources] : initialGroupedNeededResources) {
+        result = Min(result, allocationGroupResources.MinNeededResources.ToJobResources());
     }
 
     return result;
 }
 
-void TFairShareStrategyOperationController::UpdateMinNeededAllocationResources()
+void TFairShareStrategyOperationController::UpdateGroupedNeededResources()
 {
-    Controller_->UpdateMinNeededAllocationResources();
+    Controller_->UpdateGroupedNeededResources();
 }
 
 void TFairShareStrategyOperationController::UpdateConcurrentScheduleAllocationThrottlingLimits(

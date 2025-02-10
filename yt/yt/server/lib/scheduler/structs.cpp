@@ -9,6 +9,8 @@
 namespace NYT::NScheduler {
 
 using namespace NControllerAgent;
+using namespace NYson;
+using namespace NYTree;
 
 using NYT::ToProto;
 using NYT::FromProto;
@@ -185,9 +187,9 @@ void FromProto(TPreemptedFor* preemptedFor, const NProto::TPreemptedFor& proto)
     FromProto(&preemptedFor->OperationId, proto.operation_id());
 }
 
-void Serialize(const TPreemptedFor& preemptedFor, NYson::IYsonConsumer* consumer)
+void Serialize(const TPreemptedFor& preemptedFor, IYsonConsumer* consumer)
 {
-    NYTree::BuildYsonFluently(consumer)
+    BuildYsonFluently(consumer)
         .BeginMap()
             // COMPAT(pogorelov)
             .Item("job_id").Value(preemptedFor.AllocationId)
@@ -281,6 +283,70 @@ void FromProto(TCompositeNeededResources* neededResources, const NControllerAgen
 
     for (const auto& [tree, resources] : protoNeededResources.resources_per_pool_tree()) {
         FromProto(&neededResources->ResourcesByPoolTree[tree], resources);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TAllocationGroupResources::Persist(const TStreamPersistenceContext& context)
+{
+    using NYT::Persist;
+    Persist(context, MinNeededResources);
+    Persist(context, AllocationCount);
+}
+
+void FormatValue(TStringBuilderBase* builder, const TAllocationGroupResources& allocationGroupResources, TStringBuf /*format*/)
+{
+    builder->AppendFormat(
+        "{MinNeededResources: %v, AllocationCount: %v}",
+        allocationGroupResources.MinNeededResources,
+        allocationGroupResources.AllocationCount);
+}
+
+void Serialize(const TAllocationGroupResources& allocationGroupResources, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            // TODO(eshcherbin): Refactor job resources with disk quota serialization.
+            .Item("min_needed_resources").Value(allocationGroupResources.MinNeededResources.ToJobResources())
+            .Item("allocation_count").Value(allocationGroupResources.AllocationCount)
+        .EndMap();
+}
+
+void ToProto(
+    NControllerAgent::NProto::TAllocationGroupResources* protoAllocationGroupResources,
+    const TAllocationGroupResources& allocationGroupResources)
+{
+    ToProto(protoAllocationGroupResources->mutable_min_needed_resources(), allocationGroupResources.MinNeededResources);
+    protoAllocationGroupResources->set_allocation_count(allocationGroupResources.AllocationCount);
+}
+
+void FromProto(
+    TAllocationGroupResources* allocationGroupResources,
+    const NControllerAgent::NProto::TAllocationGroupResources& protoAllocationGroupResources)
+{
+    FromProto(&allocationGroupResources->MinNeededResources, protoAllocationGroupResources.min_needed_resources());
+    allocationGroupResources->AllocationCount = protoAllocationGroupResources.allocation_count();
+}
+
+void ToProto(
+    ::google::protobuf::Map<TProtoStringType, NControllerAgent::NProto::TAllocationGroupResources>* protoAllocationGroupResourcesMap,
+    const TAllocationGroupResourcesMap& allocationGroupResourcesMap)
+{
+    protoAllocationGroupResourcesMap->clear();
+    for (const auto& [name, resources] : allocationGroupResourcesMap) {
+        ToProto(&(*protoAllocationGroupResourcesMap)[name], resources);
+    }
+}
+
+void FromProto(
+    TAllocationGroupResourcesMap* allocationGroupResourcesMap,
+    const ::google::protobuf::Map<TProtoStringType, NControllerAgent::NProto::TAllocationGroupResources>& protoAllocationGroupResourcesMap)
+{
+    allocationGroupResourcesMap->clear();
+    allocationGroupResourcesMap->reserve(protoAllocationGroupResourcesMap.size());
+    for (const auto& [name, resources] : protoAllocationGroupResourcesMap) {
+        FromProto(&(*allocationGroupResourcesMap)[name], resources);
     }
 }
 
