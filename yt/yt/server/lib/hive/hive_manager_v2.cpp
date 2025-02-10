@@ -75,7 +75,7 @@ public:
     THiveManager(
         THiveManagerConfigPtr config,
         ICellDirectoryPtr cellDirectory,
-        NCellMasterClient::ICellDirectoryPtr masterDirectory,
+        NCellMasterClient::ICellDirectoryPtr masterCellDirectory,
         IAvenueDirectoryPtr avenueDirectory,
         TCellId selfCellId,
         IInvokerPtr automatonInvoker,
@@ -100,7 +100,7 @@ public:
         , SelfCellId_(selfCellId)
         , Config_(std::move(config))
         , CellDirectory_(std::move(cellDirectory))
-        , MasterDirectory_(std::move(masterDirectory))
+        , MasterCellDirectory_(std::move(masterCellDirectory))
         , AvenueDirectory_(std::move(avenueDirectory))
         , AutomatonInvoker_(std::move(automatonInvoker))
         , GuardedAutomatonInvoker_(hydraManager->CreateGuardedAutomatonInvoker(AutomatonInvoker_))
@@ -523,7 +523,7 @@ private:
     const TCellId SelfCellId_;
     const THiveManagerConfigPtr Config_;
     const ICellDirectoryPtr CellDirectory_;
-    const NCellMasterClient::ICellDirectoryPtr MasterDirectory_;
+    const NCellMasterClient::ICellDirectoryPtr MasterCellDirectory_;
     const IAvenueDirectoryPtr AvenueDirectory_;
     const IInvokerPtr AutomatonInvoker_;
     const IInvokerPtr GuardedAutomatonInvoker_;
@@ -1232,21 +1232,21 @@ private:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         THiveRuntimeData newRuntimeData{.Available = true};
-        auto secondaryMasterCellIds = MasterDirectory_->GetSecondaryMasterCellIds();
-        std::vector<TCellId> secondaryMasterCellsForRemoval;
-        secondaryMasterCellsForRemoval.reserve(secondaryMasterCellIds.size());
+        auto secondaryMasterCellIds = MasterCellDirectory_->GetSecondaryMasterCellIds();
+        std::vector<TCellId> secondaryMasterCellIdsForRemoval;
+        secondaryMasterCellIdsForRemoval.reserve(secondaryMasterCellIds.size());
         for (const auto& [cellId, _] : CellMailboxMap_) {
             if (TypeFromId(cellId) == EObjectType::MasterCell) {
-                if (!secondaryMasterCellIds.contains(cellId) && cellId != MasterDirectory_->GetPrimaryMasterCellId()) {
-                    secondaryMasterCellsForRemoval.push_back(cellId);
+                if (!secondaryMasterCellIds.contains(cellId) && cellId != MasterCellDirectory_->GetPrimaryMasterCellId()) {
+                    secondaryMasterCellIdsForRemoval.push_back(cellId);
                 }
             }
         }
 
         // NB: Avenues are not removed here, since we can delete only cells without chunks and tablets on it, so without avenue channels to tablets.
-        for (auto cellId : secondaryMasterCellsForRemoval) {
+        for (auto cellId : secondaryMasterCellIdsForRemoval) {
             if (Config_->AllowedForRemovalMasterCells.contains(CellTagFromId(cellId))) {
-                CellMailboxMap_.Release(cellId);
+                CellMailboxMap_.Remove(cellId);
 
                 YT_LOG_INFO("Master cell mailbox removed (CellTag: %v)",
                     CellTagFromId(cellId));
@@ -2684,7 +2684,7 @@ private:
 IHiveManagerPtr CreateHiveManager(
     THiveManagerConfigPtr config,
     ICellDirectoryPtr cellDirectory,
-    NCellMasterClient::ICellDirectoryPtr masterDirectory,
+    NCellMasterClient::ICellDirectoryPtr masterCellDirectory,
     IAvenueDirectoryPtr avenueDirectory,
     TCellId selfCellId,
     IInvokerPtr automatonInvoker,
@@ -2696,7 +2696,7 @@ IHiveManagerPtr CreateHiveManager(
     return New<THiveManager>(
         std::move(config),
         std::move(cellDirectory),
-        std::move(masterDirectory),
+        std::move(masterCellDirectory),
         std::move(avenueDirectory),
         selfCellId,
         std::move(automatonInvoker),

@@ -593,24 +593,24 @@ private:
             if (!IsKnownCellTag(cellTag)) {
                 YT_LOG_FATAL_UNLESS(
                     GetDynamicConfig()->Testing->AllowMasterCellRemoval,
-                    "Unknown master cell tag %v in saved master entry",
+                    "Unknown master cell tag in saved master entry (CellTag: %v)",
                     cellTag);
 
                 YT_LOG_FATAL_UNLESS(
                     GetCurrentSnapshotLoadContext()->ReadOnly,
-                    "Master cell %v was removed without readonly mode",
+                    "Master cell was removed without readonly mode (CellTag: %v)",
                     cellTag);
 
                 YT_LOG_FATAL_IF(
                     entry.Statistics.chunk_count() > 0,
-                    "Master cell %v with %v chunks was removed",
+                    "Master cell with chunks was removed (CellTag: %v, ChunkCount: %v)",
                     cellTag,
                     entry.Statistics.chunk_count());
 
                 auto cellRoles = ComputeMasterCellRolesFromConfig(cellTag);
                 YT_LOG_FATAL_UNLESS(
                     cellRoles == EMasterCellRoles::None,
-                    "Master cell %v with roles %v was removed",
+                    "Master cell with roles was removed (CellTag: %v, Roles: %v)",
                     cellTag,
                     cellRoles);
 

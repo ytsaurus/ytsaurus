@@ -3760,6 +3760,7 @@ private:
         SequoiaAccount_ = nullptr;
 
         MustRecomputeMembershipClosure_ = false;
+        FixAdminBuiltinGroup_ = false;
         GroupNameMapInitialized_ = false;
 
         ResetAuthenticatedUser();

@@ -157,7 +157,7 @@ DEFINE_REFCOUNTED_TYPE(IHiveManager)
 IHiveManagerPtr CreateHiveManager(
     THiveManagerConfigPtr config,
     NHiveClient::ICellDirectoryPtr cellDirectory,
-    NCellMasterClient::ICellDirectoryPtr masterDirectory,
+    NCellMasterClient::ICellDirectoryPtr masterCellDirectory,
     IAvenueDirectoryPtr avenueDirectory,
     TCellId selfCellId,
     IInvokerPtr automatonInvoker,
