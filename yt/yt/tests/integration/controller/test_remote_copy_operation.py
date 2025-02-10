@@ -2208,7 +2208,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
             "operation_alerts_push_period": 100,
             "alert_manager": {
                 "period": 100,
-                "task_unavailable_network_bandwidth_to_clusters_ratio_threshold": 0.01,
+                "task_unavailable_network_bandwidth_time_ratio_alert_threshold": 0.01,
             },
             "remote_copy_operation_options": {
                 "spec_template": {

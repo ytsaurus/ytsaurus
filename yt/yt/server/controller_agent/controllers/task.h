@@ -268,8 +268,8 @@ public:
         // COMPAT(pogorelov)
         const NScheduler::NProto::TScheduleAllocationSpec& allocationSpec) const;
 
+    //! How long task as been running.
     TDuration GetTotalDuration() const;
-
     //! How long network bandwidth to remote clusters has been unavailable.
     TDuration GetUnavailableNetworkBandwidthDuration() const;
 
@@ -502,7 +502,7 @@ private:
     i64 CurrentMaxRunnableJobCount_ = MaxRunnableJobCount;
 
     std::optional<TInstant> UnavailableNetworkBandwidthToClustersStartTime_;
-    TDuration UnavailableNetworkBandwidthToClustersDuration_ = TDuration::Zero();
+    TDuration UnavailableNetworkBandwidthToClustersDuration_;
 
     //! Availability of clusters read from by task.
     THashMap<NScheduler::TClusterName, bool> ClusterToNetworkBandwidthAvailability_;

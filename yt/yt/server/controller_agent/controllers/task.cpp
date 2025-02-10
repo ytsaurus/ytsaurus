@@ -277,7 +277,7 @@ TCompositeNeededResources TTask::GetTotalNeededResourcesDelta()
     }
 
     if (UnavailableNetworkBandwidthToClustersStartTime_) {
-        UnavailableNetworkBandwidthToClustersDuration_ += (TInstant::Now() - UnavailableNetworkBandwidthToClustersStartTime_.value());
+        UnavailableNetworkBandwidthToClustersDuration_ += TInstant::Now() - UnavailableNetworkBandwidthToClustersStartTime_.value();
     }
 
     auto isNetworkBandwidthAvailable = true;
@@ -1234,7 +1234,7 @@ void TTask::RegisterMetadata(auto&& registrar)
             .Via(this_->TaskHost_->GetCancelableInvoker());
         }
 
-        // Task has been previously unsubscribed in destructor.
+        // Task has been previously unsubscribed in FinalizeSubscriptions().
         for (const auto& [cluster, _] : this_->ClusterToNetworkBandwidthAvailability_) {
             this_->SubscribeToClusterNetworkBandwidthAvailabilityUpdated(cluster);
         }
@@ -2585,7 +2585,7 @@ TDuration TTask::GetTotalDuration() const
 
 TDuration TTask::GetUnavailableNetworkBandwidthDuration() const
 {
-    TDuration lastUnavailableNetworkBandwidthToClustersDuration = TDuration::Zero();
+    auto lastUnavailableNetworkBandwidthToClustersDuration = TDuration::Zero();
     if (UnavailableNetworkBandwidthToClustersStartTime_) {
         lastUnavailableNetworkBandwidthToClustersDuration = TInstant::Now() - UnavailableNetworkBandwidthToClustersStartTime_.value();
     }
