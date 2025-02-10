@@ -1,0 +1,19 @@
+{
+    "rpc_port" = 9012;
+    "resource_limits" = {
+        "total_memory" = 30000000000;
+    };
+    "flavors" = [ "tablet"; ];
+    "cellar_node" = {
+        "cellar_manager" = {
+            "cellars" = {
+                "tablet" = {
+                    "size" = 5;
+                };
+            };
+        };
+    };
+    "tablet_node" = {
+        "allow_reign_change" = %false;
+    };
+}

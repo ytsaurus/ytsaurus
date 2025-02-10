@@ -1,0 +1,9 @@
+{
+    "rpc_port" = 9013;
+    "blackbox_authenticator" = {
+        "scope" = "yt:api";
+    };
+    "discovery_service" = {
+        "enable" = %false;
+    };
+}
