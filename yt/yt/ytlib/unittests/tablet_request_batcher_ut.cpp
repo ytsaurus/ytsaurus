@@ -12,8 +12,10 @@
 namespace NYT::NApi::NNative {
 namespace {
 
+using namespace ::testing;
 using namespace NCompression;
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NQueryClient;
 
@@ -21,7 +23,7 @@ using namespace NQueryClient;
 
 
 class TTabletRequestBatcherTest
-    : public ::testing::Test
+    : public Test
 {
 protected:
     TTableSchemaPtr Schema_;
@@ -43,7 +45,7 @@ protected:
         Schema_ = New<TTableSchema>(std::move(columns));
         auto columnEvaluator = TColumnEvaluator::Create(Schema_, /*typeInferrers*/ nullptr, /*profilers*/ nullptr);
 
-        Batcher_ = CreateTabletRequestBatcher(std::move(options), Schema_, std::move(columnEvaluator));
+        Batcher_ = CreateTabletRequestBatcher(TTabletId::Create(), std::move(options), Schema_, std::move(columnEvaluator));
     }
 
     TUnversionedOwningRow MakeRow(int key, std::optional<int> value = std::nullopt)
@@ -236,7 +238,11 @@ TEST_F(TTabletRequestBatcherTest, MaxRowsPerTablet)
     Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteRow, row, TLockMask());
     Batcher_->SubmitUnversionedRow(EWireProtocolCommand::WriteRow, row, TLockMask());
 
-    EXPECT_THROW_WITH_SUBSTRING(Batcher_->PrepareBatches(), "Transaction affects too many rows in tablet");
+    EXPECT_THROW_THAT(
+        Batcher_->PrepareBatches(),
+        ::testing::AllOf(
+            HasSubstr("Transaction affects too many rows in tablet"),
+            HasSubstr("tablet_id")));
 }
 
 TEST_F(TTabletRequestBatcherTest, RowMerger1)
