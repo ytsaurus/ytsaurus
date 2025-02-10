@@ -992,26 +992,6 @@ class TestChunkServerMulticell(TestChunkServer):
 
 ##################################################################
 
-class TestChunkServerTwoChoicesAllocation(TestChunkServer):
-    ENABLE_MULTIDAEMON = False  # There are component restarts.
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "chunk_manager": {
-            "enable_two_random_choices_write_target_allocation": True,
-        }
-    }
-
-
-class TestTwoRandomChoicesWriteTargetAllocationChunkServerMulticell(TestChunkServerMulticell):
-    ENABLE_MULTIDAEMON = False  # There are component restarts.
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "chunk_manager": {
-            "enable_two_random_choices_write_target_allocation": True,
-        }
-    }
-
-
-##################################################################
-
 
 class TestChunkServerReplicaRemoval(YTEnvSetup):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
