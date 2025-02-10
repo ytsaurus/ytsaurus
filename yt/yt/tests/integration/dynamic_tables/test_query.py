@@ -2508,6 +2508,9 @@ class TestQuery(DynamicTablesBase):
             [{"small": "Boulevard", "big": "Warrior"}, {"small": "Alpha", "big": "Traitor"}],
             select_rows("min(X.[T.v]) AS small, max(X.[D.s]) as big FROM "
                         "(SELECT T.k_1 as k_1, T.v, D.s FROM [//tmp/t] T JOIN [//tmp/d] D on T.k_1 = D.k_1) X group by X.k_1"))
+        with raises_yt_error("Joins are currently not supported when selecting from subquery"):
+            query = "col_name from (select 1 as col_name from [//tmp/t] limit 1) join [//tmp/t] on 1 = 1 group by col_name"
+            select_rows(query, allow_join_without_index=True)
 
     @authors("nadya73")
     @skip_if_rpc_driver_backend
