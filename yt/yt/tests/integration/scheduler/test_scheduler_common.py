@@ -903,7 +903,7 @@ class TestSchedulerCommon(YTEnvSetup):
         with raises_yt_error("Error checking user transaction"):
             run_sleeping_vanilla(pool="test_pool", tx=user_tx)
 
-    @authors("max42")
+    @authors("max42", "galtsev")
     def test_controller_throttling(self):
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -928,39 +928,36 @@ class TestSchedulerCommon(YTEnvSetup):
         if not exists("//sys/controller_agents/config/operation_options"):
             set("//sys/controller_agents/config/operation_options", {})
 
-        job_spec_count_limit_path = (
-            "//sys/controller_agents/config/operation_options/controller_building_job_spec_count_limit"
-        )
-        total_job_spec_slice_count_limit_path = (
-            "//sys/controller_agents/config/operation_options/controller_total_building_job_spec_slice_count_limit"
-        )
-        controller_agent_config_revision_path = (
-            "//sys/controller_agents/instances/{}/orchid/controller_agent/config_revision".format(
-                ls("//sys/controller_agents/instances")[0]
-            )
-        )
+        operation_options = "config/operation_options"
+        instances = ls("//sys/controller_agents/instances")
+        assert len(instances) == 1
+        instance = instances[0]
+        orchid = f"//sys/controller_agents/instances/{instance}/orchid/controller_agent"
+        initial_operation_options = get(f"{orchid}/{operation_options}")
 
-        def wait_for_fresh_config():
-            config_revision = get(controller_agent_config_revision_path)
-            wait(lambda: get(controller_agent_config_revision_path) - config_revision >= 2)
+        def set_option(option, value):
+            option_path = f"{operation_options}/{option}"
+            dyncfg_path = f"//sys/controller_agents/{option_path}"
+            orchid_path = f"{orchid}/{option_path}"
+            set(dyncfg_path, value)
+            wait(lambda: get(orchid_path) == value)
+            return dyncfg_path
 
         assert get_controller_throttling_schedule_job_fail_count() == 0
 
         try:
-            set(job_spec_count_limit_path, 1)
-            wait_for_fresh_config()
+            job_spec_count_limit_path = set_option("controller_building_job_spec_count_limit", 1)
             assert get_controller_throttling_schedule_job_fail_count() > 0
         finally:
             remove(job_spec_count_limit_path, force=True)
 
         try:
-            set(total_job_spec_slice_count_limit_path, 5)
-            wait_for_fresh_config()
+            total_job_spec_slice_count_limit_path = set_option("controller_total_building_job_spec_slice_count_limit", 5)
             assert get_controller_throttling_schedule_job_fail_count() > 0
         finally:
             remove(total_job_spec_slice_count_limit_path, force=True)
 
-        wait_for_fresh_config()
+        wait(lambda: get(f"{orchid}/{operation_options}") == initial_operation_options)
         assert get_controller_throttling_schedule_job_fail_count() == 0
 
     @authors("alexkolodezny")
