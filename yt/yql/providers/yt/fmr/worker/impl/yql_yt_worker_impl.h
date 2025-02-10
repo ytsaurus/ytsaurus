@@ -4,7 +4,7 @@
 namespace NYql {
 
 struct TFmrWorkerSettings {
-    TString WorkerId;
+    ui32 WorkerId;
     TIntrusivePtr<IRandomProvider> RandomProvider;
     TDuration TimeToSleepBetweenRequests = TDuration::Seconds(1);
 };
