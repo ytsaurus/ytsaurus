@@ -57,10 +57,13 @@ Python versions on different cluster nodes may differ. It is better to use your 
 - `WARNING`: to display warnings. For instance, a query could not be run and is being resubmitted, or a transaction input table is empty. Errors of these types are not critical, and the client can continue running.
 - `ERROR`: all errors that cause the client to fail. Errors of this type result in an exception. The exception is handled, and the client exits returning a non-zero code.
 
+{% if audience == "internal" %}
+
 ------
 #### **Q: How does the clearing of temporary data work on clusters?**
 
 **A:** Most {{product-name}} clusters regularly (twice or more a day) run the `//tmp` cleaning script that finds and deletes tmp data that have not been used in a long time or use up a certain portion of the account's quota. For a detailed description of the cleaning process, please see the System processes section. When writing data to `//tmp`, users have to keep this regular cleaning in mind.
+{% endif %}
 
 ------
 #### **Q: When reading a small table using the read command, the client freezes up in a repeat query. What could be the reason?**
