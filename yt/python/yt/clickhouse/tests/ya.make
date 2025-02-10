@@ -49,4 +49,6 @@ TAG(
     ya:sys_info
 )
 
+INCLUDE(${ARCADIA_ROOT}/devtools/large_on_single_slots.inc)
+
 END()
