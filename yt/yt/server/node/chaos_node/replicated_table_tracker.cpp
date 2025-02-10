@@ -203,14 +203,14 @@ public:
     }
 
 private:
-    IChaosSlotPtr const Slot_;
+    const IChaosSlotPtr Slot_;
 
     std::atomic<bool> LoadingFromSnapshotRequested_ = false;
 
 
     IInvokerPtr GetAutomatonInvoker() const
     {
-        return Slot_->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker);
+        return Slot_->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker);
     }
 };
 

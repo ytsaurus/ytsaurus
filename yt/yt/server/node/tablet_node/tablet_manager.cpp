@@ -5187,27 +5187,34 @@ private:
     }
 
     void OnTableDynamicConfigChanged(
-        TClusterTableConfigPatchSetPtr /*oldConfig*/,
-        TClusterTableConfigPatchSetPtr newConfig)
+        const TClusterTableConfigPatchSetPtr& /*oldConfig*/,
+        const TClusterTableConfigPatchSetPtr& newConfig)
     {
-        YT_UNUSED_FUTURE(BIND(&TTabletManager::DoTableDynamicConfigChanged, MakeWeak(this), Passed(std::move(newConfig)))
-            .AsyncVia(Slot_->GetEpochAutomatonInvoker())
-            .Run());
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        Slot_->GetGuardedAutomatonInvoker()->Invoke(BIND(
+            &TTabletManager::DoTableDynamicConfigChanged,
+            MakeWeak(this),
+            newConfig));
     }
 
     void OnDynamicConfigChanged(
-        TClusterNodeDynamicConfigPtr oldConfig,
-        TClusterNodeDynamicConfigPtr newConfig)
+        const TClusterNodeDynamicConfigPtr& oldConfig,
+        const TClusterNodeDynamicConfigPtr& newConfig)
     {
-        Slot_->GetAutomatonInvoker()->Invoke(BIND(
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        Slot_->GetGuardedAutomatonInvoker()->Invoke(BIND(
             &TTabletManager::DoDynamicConfigChanged,
             MakeWeak(this),
-            std::move(oldConfig),
-            std::move(newConfig)));
+            oldConfig,
+            newConfig));
     }
 
-    void DoTableDynamicConfigChanged(TClusterTableConfigPatchSetPtr patch)
+    void DoTableDynamicConfigChanged(const TClusterTableConfigPatchSetPtr& patch)
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         if (!IsLeader()) {
             return;
         }
