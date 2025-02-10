@@ -221,6 +221,7 @@ DEFINE_ENUM(EMasterReign,
     ((CancelTabletTransition)                                       (2831))  // ifsmirnov
     ((MulticellStatisticsCollector)                                 (2832))  // koloshmet
     ((ForbidAlterKeyColumnToAny)                                    (2833))  // dtorilov
+    ((UpdateRttConfig)                                              (2834))  // akozhikhov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
