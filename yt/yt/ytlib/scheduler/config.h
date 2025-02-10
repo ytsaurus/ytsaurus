@@ -983,7 +983,7 @@ public:
     int IntermediateDataReplicationFactor;
 
     //! Minimum replication factor for intermediate data.
-    int IntermediateMinDataReplicationFactor;
+    int MinIntermediateDataReplicationFactor;
 
     //! SyncOnClose option for intermediate data.
     bool IntermediateDataSyncOnClose;
