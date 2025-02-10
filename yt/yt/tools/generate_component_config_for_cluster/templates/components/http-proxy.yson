@@ -1,0 +1,19 @@
+{
+    "port" = 8080;
+    "monitoring_port" = 10013;
+    "solomon_exporter" = {
+        "shards" = {
+            "default" = {
+                "filter" = [
+                    "yt/";
+                ];
+            };
+        };
+    };
+    "auth" = {
+        "blackbox_authenticator" = {
+            "scope" = "yt:api";
+        };
+    };
+    "driver" = {};
+}
