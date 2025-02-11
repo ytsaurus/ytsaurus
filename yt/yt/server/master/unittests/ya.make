@@ -5,6 +5,7 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 ALLOCATOR(TCMALLOC)
 
 SRCS(
+    chaos_replicated_node_proxy_ut.cpp
     chunk_helpers.cpp
     chunk_list_statistics_ut.cpp
     chunk_replacer_ut.cpp

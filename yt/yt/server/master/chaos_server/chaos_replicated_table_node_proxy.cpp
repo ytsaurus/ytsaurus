@@ -3,6 +3,7 @@
 #include "chaos_cell_bundle.h"
 #include "chaos_manager.h"
 #include "chaos_replicated_table_node.h"
+#include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
@@ -115,25 +116,7 @@ public:
 
         return replicaTabletCountRequestsFuture
             .ApplyUnique(BIND([] (std::vector<TErrorOr<int>>&& tabletCounts) {
-                std::remove_if(
-                    tabletCounts.begin(),
-                    tabletCounts.end(),
-                    [] (const auto& tabletCount) {
-                        return !tabletCount.IsOK();
-                    });
-
-                auto minElementIt = std::min_element(
-                    tabletCounts.begin(),
-                    tabletCounts.end(),
-                    [] (const auto& a, const auto& b) {
-                        return a.Value() < b.Value();
-                    });
-
-                if (minElementIt == tabletCounts.end()) {
-                    return MakeFuture<int>(TError("Failed to get tablet count from any replica"));
-                }
-
-                return MakeFuture(minElementIt->Value());
+                return MakeFuture(GetMinimalTabletCount(std::move(tabletCounts)));
             }));
     }
 

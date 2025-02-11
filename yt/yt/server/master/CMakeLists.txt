@@ -133,6 +133,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_replicated_table_node.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_autotomizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_creation_time_histogram_builder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_list_proxy.cpp
