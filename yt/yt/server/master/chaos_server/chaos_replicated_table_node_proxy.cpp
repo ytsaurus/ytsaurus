@@ -138,7 +138,7 @@ public:
     }
 
 private:
-    static TFuture<std::vector<std::pair<TYPath, NNative::IConnectionPtr>>> GetActiveQueueReplicaConnections(
+    static std::vector<std::pair<TYPath, NNative::IConnectionPtr>> GetActiveQueueReplicaConnections(
         const THashMap<TReplicaId, TReplicaInfo>& replicas,
         NNative::IConnectionPtr nativeConnection)
     {
@@ -159,7 +159,7 @@ private:
             connections.emplace_back(replica.ReplicaPath, std::move(replicaClusterConnection));
         }
 
-        return MakeFuture(connections);
+        return connections;
     }
 
     static TFuture<int> GetRemoteTabletCount(const TYPath& path, const NNative::IConnectionPtr& connection)
