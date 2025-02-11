@@ -386,8 +386,10 @@ class TestQueueAgentBase(YTEnvSetup):
         init_queue_agent_state.delete_all_tables(self.client)
 
     def _create_queue(self, path, partition_count=1, enable_timestamp_column=True,
-                      enable_cumulative_data_weight_column=True, mount=True, **kwargs):
+                      enable_cumulative_data_weight_column=True, mount=True, max_inline_hunk_size=None, **kwargs):
         schema = [{"name": "data", "type": "string"}]
+        if max_inline_hunk_size is not None:
+            schema[0]["max_inline_hunk_size"] = max_inline_hunk_size
         if enable_timestamp_column:
             schema += [{"name": "$timestamp", "type": "uint64"}]
         if enable_cumulative_data_weight_column:
