@@ -28,8 +28,8 @@ PEERDIR(
     yql/essentials/core/services/mounts
     yql/essentials/core/user_data
     yql/essentials/minikql
-    yql/essentials/minikql/invoke_builtins/llvm14
-    yql/essentials/minikql/comp_nodes/llvm14
+    yql/essentials/minikql/invoke_builtins/llvm16
+    yql/essentials/minikql/comp_nodes/llvm16
     yql/essentials/protos
     yql/essentials/public/udf/service/exception_policy
     yql/essentials/utils/backtrace
@@ -63,8 +63,8 @@ PEERDIR(
     yt/yql/providers/yt/lib/yt_download
     yt/yql/providers/yt/provider
     yt/yql/providers/yt/codec/codegen
-    yt/yql/providers/yt/comp_nodes/dq/llvm14
-    yt/yql/providers/yt/comp_nodes/llvm14
+    yt/yql/providers/yt/comp_nodes/dq/llvm16
+    yt/yql/providers/yt/comp_nodes/llvm16
     contrib/ydb/library/yql/providers/yt/dq_task_preprocessor
 
     yt/yql/plugin
