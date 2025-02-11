@@ -101,6 +101,11 @@ std::vector<NYPath::TRichYPath> GetLayerPathsFromDockerImage(
     const NApi::NNative::IClientPtr& client,
     const TDockerImageSpec& dockerImage);
 
+void GenerateDockerAuthFromToken(
+    const NYTree::IMapNodePtr& secureVault,
+    const std::string& authenticatedUser,
+    NControllerAgent::NProto::TUserJobSpec* jobSpec);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NYTree::IAttributeDictionaryPtr GetNetworkProject(

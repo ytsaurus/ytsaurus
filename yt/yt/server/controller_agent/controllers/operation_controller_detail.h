@@ -1352,9 +1352,6 @@ private:
 
     void InitializeOrchid();
 
-    void GenerateDockerAuthFromToken(
-        NControllerAgent::NProto::TUserJobSpec* jobSpec) const;
-
     void UpdateActualHistogram(const TCompletedJobSummary& jobSummary);
 
     void CreateOutputTables(

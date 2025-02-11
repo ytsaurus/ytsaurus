@@ -19,7 +19,7 @@
 
 namespace NYT::NControllerAgent {
 
-static constexpr TStringBuf YtSecureVaultDockerAuthEnv("YT_SECURE_VAULT_docker_auth");
+static constexpr TStringBuf DockerAuthEnv("docker_auth");
 
 ////////////////////////////////////////////////////////////////////////////////
 

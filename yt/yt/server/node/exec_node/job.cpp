@@ -3150,7 +3150,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 NCri::TCriAuthConfigPtr TJob::BuildDockerAuthConfig()
 {
     if (UserJobSpec_ && UserJobSpec_->environment_size()) {
-        TString prefix = Format("%v=", YtSecureVaultDockerAuthEnv);
+        TString prefix = Format("%s_%s=", SecureVaultEnvPrefix, DockerAuthEnv);
         for (const auto& var : UserJobSpec_->environment()) {
             if (var.StartsWith(prefix)) {
                 auto ysonConfig = TYsonString(var.substr(prefix.length()));

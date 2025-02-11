@@ -9863,24 +9863,6 @@ i64 TOperationControllerBase::GetDataSliceCount() const
     return result;
 }
 
-void TOperationControllerBase::GenerateDockerAuthFromToken(
-    NControllerAgent::NProto::TUserJobSpec* jobSpec) const {
-    auto findEnv = [&] (const TStringBuf& key) -> std::optional<TString> {
-        auto prefix = Format("%s=", key);
-        for (auto &environment : jobSpec->environment()) {
-            if (environment.StartsWith(prefix)) {
-                return environment.substr(prefix.length());
-            }
-        }
-        return {};
-    };
-    if (!findEnv(YtSecureVaultDockerAuthEnv)) {
-        if (auto token = findEnv("YT_SECURE_VAULT_YT_TOKEN")) {
-            jobSpec->add_environment(Format("%s={username=%Qs; password=%Qs}", YtSecureVaultDockerAuthEnv, AuthenticatedUser, *token));
-        }
-    }
-}
-
 void TOperationControllerBase::InitUserJobSpecTemplate(
     NControllerAgent::NProto::TUserJobSpec* jobSpec,
     const TUserJobSpecPtr& jobSpecConfig,
@@ -10058,6 +10040,9 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         if (!dockerImageSpec.IsInternal() || Config->DockerRegistry->ForwardInternalImagesToJobSpecs) {
             jobSpec->set_docker_image(*jobSpecConfig->DockerImage);
         }
+        if (dockerImageSpec.IsInternal() && Config->DockerRegistry->UseYtTokenForInternalRegistry) {
+            GenerateDockerAuthFromToken(SecureVault, AuthenticatedUser, jobSpec);
+        }
     }
 }
 
@@ -10143,13 +10128,6 @@ void TOperationControllerBase::InitUserJobSpec(
         }
 
         jobSpec->set_enable_secure_vault_variables_in_job_shell(Spec_->EnableSecureVaultVariablesInJobShell);
-    }
-
-    if (jobSpec->has_docker_image()) {
-        TDockerImageSpec dockerImageSpec(jobSpec->docker_image(), Config->DockerRegistry);
-        if (dockerImageSpec.IsInternal() && Config->DockerRegistry->UseYtTokenForInternalRegistry) {
-            GenerateDockerAuthFromToken(jobSpec);
-        }
     }
 
     if (RetainedJobWithStderrCount_ >= Spec_->MaxStderrCount) {
