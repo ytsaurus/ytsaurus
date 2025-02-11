@@ -15,3 +15,5 @@
 add_subdirectory(metrics)
 add_subdirectory(encode)
 add_subdirectory(exception)
+add_subdirectory(dynamic_counters)
+add_subdirectory(service)
