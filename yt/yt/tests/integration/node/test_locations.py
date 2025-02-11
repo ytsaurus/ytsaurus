@@ -140,14 +140,7 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
 
         disk_space_limit = get_account_disk_space_limit("tmp", "default")
         for i in range(cls.STORE_LOCATION_COUNT):
-            medium_name = f"hdd{i}"
-            set_account_disk_space_limit("tmp", disk_space_limit, medium_name)
-
-            # Create chunk on every medium.
-            table_path = f"//tmp/t{i}"
-            create("table", table_path, attributes={"primary_medium": medium_name})
-            assert exists(f"{table_path}/@media/{medium_name}")
-            write_table(table_path, [{"key": "value"}])
+            set_account_disk_space_limit("tmp", disk_space_limit, medium=f"hdd{i}")
 
     @classmethod
     def modify_node_config(cls, config, cluster_index):
@@ -163,6 +156,14 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
 
     @authors("danilalexeev")
     def test_interrupt_full_heartbeat_session(self):
+        # Create chunk on every medium.
+        for i in range(self.STORE_LOCATION_COUNT):
+            table_path = f"//tmp/t{i}"
+            medium_name = f"hdd{i}"
+            create("table", table_path, attributes={"primary_medium": medium_name})
+            assert exists(f"{table_path}/@media/{medium_name}")
+            write_table(table_path, [{"key": "value"}])
+
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 1
         node = nodes[0]
