@@ -599,7 +599,13 @@ public:
         const TAttributeFilter& /*attributeFilter*/,
         bool /*stable*/) override
     {
-        YT_ABORT();
+        YT_LOG_ALERT("TObjectManager::TRemoteProxy::DoWriteAttributesFragment called (ObjectId: %v, ForwardedCellTag: %v)",
+            ObjectId_,
+            ForwardedCellTag_);
+
+        THROW_ERROR_EXCEPTION("Unexpected error: TRemoteProxy::DoWriteAttributesFragment called, please report this")
+            << TErrorAttribute("object_id", ObjectId_)
+            << TErrorAttribute("forwarded_cell_tag", ForwardedCellTag_);
     }
 
     bool ShouldHideAttributes() override
