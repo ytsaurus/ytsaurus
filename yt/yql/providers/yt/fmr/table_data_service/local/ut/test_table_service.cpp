@@ -1,7 +1,7 @@
 #include <library/cpp/testing/unittest/registar.h>
 #include <yt/yql/providers/yt/fmr/table_data_service/local/table_data_service.h>
 
-using namespace NYql;
+using namespace NYql::NFmr;
 
 Y_UNIT_TEST_SUITE(TLocalTableServiceTest)
 {

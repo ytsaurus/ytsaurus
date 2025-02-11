@@ -1,6 +1,6 @@
 #include "table_data_service.h"
 
-namespace NYql {
+namespace NYql::NFmr {
 
 namespace {
 
@@ -52,4 +52,4 @@ ITableDataService::TPtr MakeLocalTableDataService(const TLocalTableDataServiceSe
 }
 
 
-} // namespace NYql
+} // namespace NYql::NFmr

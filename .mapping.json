@@ -3083,6 +3083,7 @@
   "yt/systest/unittests/CMakeLists.darwin-x86_64.txt":"",
   "yt/systest/unittests/CMakeLists.linux-x86_64.txt":"",
   "yt/systest/unittests/CMakeLists.txt":"",
+  "yt/yql/providers/yt/fmr/proto/build.gradle.kts":"",
   "yt/yql/providers/ytflow/integration/proto/build.gradle.kts":"",
   "yt/yt/CMakeLists.darwin-arm64.txt":"",
   "yt/yt/CMakeLists.darwin-x86_64.txt":"",
