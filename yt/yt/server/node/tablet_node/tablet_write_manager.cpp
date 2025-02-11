@@ -894,8 +894,13 @@ public:
                 PrepareLocklessRows(transaction, /*persistent*/ true, /*snapshotLoading*/ true);
             }
 
-            if (writeState->SomeRowsCommitted) {
-                YT_VERIFY(Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow);
+            // COMPAT(ponasenko-rs): Remove after ETabletReign::PerRowSequencer
+            if (!writeState->SomeRowsCommitted) {
+                auto transactionState = transaction->GetPersistentState();
+                writeState->SomeRowsCommitted = transactionState == ETransactionState::Committed || transactionState == ETransactionState::Serialized;
+            }
+
+            if (writeState->SomeRowsCommitted && Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
                 transaction->IncrementPartsLeftToPerRowSerialize();
 
                 // Lock groups that were already serialized before the snapshot saving were saved to the snapshot as part of TSortedDynamicStore.
