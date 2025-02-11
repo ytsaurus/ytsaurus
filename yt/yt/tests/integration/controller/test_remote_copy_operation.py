@@ -608,7 +608,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
     @pytest.mark.parametrize("copy_user_attributes", [True, False])
     @pytest.mark.parametrize("object_type", ["table", "file"])
     def test_copy_basic_attributes(self, copy_user_attributes, object_type):
-        skip_if_component_old(self.Env, (24, 2), "controller-agent")
+        skip_if_component_old(self.Env, (25, 1), "controller-agent")
         create(object_type, "//tmp/t_in", driver=self.remote_driver)
         create(object_type, "//tmp/t_out")
 
