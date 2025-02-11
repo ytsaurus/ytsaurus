@@ -15,7 +15,7 @@ class TControllerAgentTrackerServiceProxy
 {
 public:
     DEFINE_RPC_PROXY(TControllerAgentTrackerServiceProxy, ControllerAgentTrackerService,
-        .SetProtocolVersion(28));
+        .SetProtocolVersion(29));
 
     DEFINE_RPC_PROXY_METHOD(NProto, Handshake);
     DEFINE_RPC_PROXY_METHOD(NProto, Heartbeat);

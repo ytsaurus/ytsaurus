@@ -1806,7 +1806,7 @@ void TSchedulerOperationElement::InitializeUpdate(TInstant now)
 
     TotalNeededResources_ = Controller_->GetNeededResources().GetNeededResourcesForTree(TreeId_);
     PendingAllocationCount_ = TotalNeededResources_.GetUserSlots();
-    DetailedMinNeededAllocationResources_ = Controller_->GetDetailedMinNeededAllocationResources();
+    GroupedNeededResources_ = Controller_->GetGroupedNeededResources();
     AggregatedMinNeededAllocationResources_ = Controller_->GetAggregatedMinNeededAllocationResources();
     ScheduleAllocationBackoffCheckEnabled_ = Controller_->ScheduleAllocationBackoffObserved();
 
@@ -1828,8 +1828,8 @@ void TSchedulerOperationElement::InitializeUpdate(TInstant now)
         PendingAllocationCount_ = TotalNeededResources_.GetUserSlots();
     }
 
-    for (const auto& allocationResourcesWithQuota : DetailedMinNeededAllocationResources_) {
-        for (auto [index, _] : allocationResourcesWithQuota.DiskQuota().DiskSpacePerMedium) {
+    for (const auto& [_, allocationGroupResources] : GroupedNeededResources_) {
+        for (auto [index, _] : allocationGroupResources.MinNeededResources.DiskQuota().DiskSpacePerMedium) {
             DiskRequestMedia_.insert(index);
         }
     }
@@ -2188,9 +2188,9 @@ void TSchedulerOperationElement::AbortAllocation(
     Controller_->AbortAllocation(allocationId, abortReason, allocationEpoch);
 }
 
-TJobResourcesWithQuotaList TSchedulerOperationElement::GetDetailedInitialMinNeededResources() const
+TAllocationGroupResourcesMap TSchedulerOperationElement::GetInitialGroupedNeededResources() const
 {
-    return Controller_->GetDetailedInitialMinNeededAllocationResources();
+    return Controller_->GetInitialGroupedNeededResources();
 }
 
 TJobResources TSchedulerOperationElement::GetAggregatedInitialMinNeededResources() const

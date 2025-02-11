@@ -1265,7 +1265,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         InputManager->RegisterUnavailableInputChunks(/*reportIfFound*/ true);
         InitIntermediateChunkScraper();
 
-        UpdateMinNeededAllocationResources();
+        UpdateGroupedNeededResources();
         // NB(eshcherbin): This update is done to ensure that needed resources amount is computed.
         UpdateAllTasks();
 
@@ -1298,11 +1298,11 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         return result;
     }
 
-    InitialMinNeededResources_ = GetMinNeededAllocationResources();
+    InitialGroupedNeededResources_ = GetGroupedNeededResources();
 
     result.Suspend = Spec_->SuspendOperationAfterMaterialization;
     result.InitialNeededResources = GetNeededResources();
-    result.InitialMinNeededResources = InitialMinNeededResources_;
+    result.InitialGroupedNeededResources = InitialGroupedNeededResources_;
 
     YT_LOG_INFO("Materialization finished");
 
@@ -1403,7 +1403,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
         IntermediateChunkScraper->Start();
     }
 
-    UpdateMinNeededAllocationResources();
+    UpdateGroupedNeededResources();
     // NB(eshcherbin): This update is done to ensure that needed resources amount is computed.
     UpdateAllTasks();
 
@@ -1456,8 +1456,8 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
         });
     }
 
-    result.MinNeededResources = GetMinNeededAllocationResources();
-    result.InitialMinNeededResources = InitialMinNeededResources_;
+    result.GroupedNeededResources = GetGroupedNeededResources();
+    result.InitialGroupedNeededResources = InitialGroupedNeededResources_;
 
     // Monitoring tags are transient by design.
     // So after revive we do reset the corresponding alert.
@@ -5290,57 +5290,53 @@ TCompositeNeededResources TOperationControllerBase::GetNeededResources() const
     return CachedNeededResources;
 }
 
-TJobResourcesWithQuotaList TOperationControllerBase::GetMinNeededAllocationResources() const
+TAllocationGroupResourcesMap TOperationControllerBase::GetGroupedNeededResources() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return CachedMinNeededAllocationResources.Load();
+    return CachedGroupedNeededResources.Load();
 }
 
-void TOperationControllerBase::SafeUpdateMinNeededAllocationResources()
+void TOperationControllerBase::SafeUpdateGroupedNeededResources()
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
-    THashMap<TString, TJobResourcesWithQuota> minNeededJobResourcesPerTask;
+    TAllocationGroupResourcesMap groupedNeededResources;
     for (const auto& task : Tasks) {
         if (task->HasNoPendingJobs()) {
             UpdateTask(task.Get());
             continue;
         }
 
-        TJobResourcesWithQuota resources;
+        const auto& taskName = task->GetVertexDescriptor();
+
+        TJobResourcesWithQuota minNeededResources;
+        int pendingJobCount;
         try {
-            resources = task->GetMinNeededResources();
+            minNeededResources = task->GetMinNeededResources();
+            pendingJobCount = task->GetPendingJobCount().DefaultCount;
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to update minimum needed resources")
+            auto error = TError("Failed to update minimum needed resources or pending job count")
+                << TErrorAttribute("task", taskName)
                 << ex;
             DoFailOperation(error);
             return;
         }
 
-        EmplaceOrCrash(minNeededJobResourcesPerTask, task->GetTitle(), resources);
-    }
-
-    TJobResourcesWithQuotaList minNeededResources;
-    for (const auto& [taskTitle, resources] : minNeededJobResourcesPerTask) {
-        minNeededResources.push_back(resources);
+        TAllocationGroupResources allocationGroupResources{
+            .MinNeededResources = std::move(minNeededResources),
+            .AllocationCount = pendingJobCount,
+        };
 
         YT_LOG_DEBUG(
-            "Aggregated minimum needed resources for allocations (Task: %v, MinNeededResources: %v)",
-            taskTitle,
-            FormatResources(resources));
+            "Updated allocation group needed resources (Task: %v, AllocationGroupResources: %v)",
+            taskName,
+            allocationGroupResources);
+
+        EmplaceOrCrash(groupedNeededResources, taskName, std::move(allocationGroupResources));
     }
 
-    CachedMinNeededAllocationResources.Exchange(minNeededResources);
-}
-
-TJobResources TOperationControllerBase::GetAggregatedMinNeededAllocationResources() const
-{
-    auto result = GetNeededResources().DefaultResources;
-    for (const auto& allocationResources : GetMinNeededAllocationResources()) {
-        result = Min(result, allocationResources.ToJobResources());
-    }
-    return result;
+    CachedGroupedNeededResources.Store(std::move(groupedNeededResources));
 }
 
 void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
@@ -10728,7 +10724,8 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(66, BaseLayer_);
     PHOENIX_REGISTER_FIELD(67, JobExperiment_);
 
-    PHOENIX_REGISTER_FIELD(68, InitialMinNeededResources_);
+    // COMPAT(eshcherbin): Field index 68 was taken by InitialMinNeededResources_ which is removed since ESnapshotVersion::GroupedNeededResources.
+
     PHOENIX_REGISTER_FIELD(69, JobAbortsUntilOperationFailure_);
 
     PHOENIX_REGISTER_FIELD(70, MonitoredUserJobCount_,
@@ -10747,6 +10744,9 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
 
     PHOENIX_REGISTER_FIELD(76, OverrunWriteBufferMemoryPerJob,
         .SinceVersion(ESnapshotVersion::TableWriteBufferEstimation));
+
+    PHOENIX_REGISTER_FIELD(77, InitialGroupedNeededResources_,
+        .SinceVersion(ESnapshotVersion::GroupedNeededResources));
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.

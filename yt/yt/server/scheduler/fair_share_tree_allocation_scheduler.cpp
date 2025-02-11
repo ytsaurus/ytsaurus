@@ -1719,7 +1719,7 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
             element,
             "No pending allocations can satisfy available resources on node ("
             "FreeAllocationResources: %v, DiskResources: %v, DiscountResources: {Total: %v, Unconditional: %v, Conditional: %v}, "
-            "MinNeededResources: %v, DetailedMinNeededResources: %v, "
+            "MinNeededResources: %v, GroupedNeededResources: %v, "
             "Address: %v)",
             FormatResources(SchedulingContext_->GetNodeFreeResourcesWithoutDiscount()),
             SchedulingContext_->DiskResources(),
@@ -1727,11 +1727,7 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
             FormatResources(SchedulingContext_->GetUnconditionalDiscount()),
             FormatResources(SchedulingContext_->GetConditionalDiscountForOperation(element->GetTreeIndex())),
             FormatResources(element->AggregatedMinNeededAllocationResources()),
-            MakeFormattableView(
-                element->DetailedMinNeededAllocationResources(),
-                [&] (TStringBuilderBase* builder, const TJobResourcesWithQuota& resources) {
-                    builder->AppendFormat("%v", StrategyHost_->FormatResources(resources));
-                }),
+            element->GroupedNeededResources(),
             SchedulingContext_->GetNodeDescriptor()->Address);
 
         OnMinNeededResourcesUnsatisfied(
@@ -2208,8 +2204,12 @@ bool TScheduleAllocationsContext::HasAllocationsSatisfyingResourceLimits(
     const TSchedulerOperationElement* element,
     TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const
 {
-    for (const auto& allocationResources : element->DetailedMinNeededAllocationResources()) {
-        if (SchedulingContext_->CanStartAllocationForOperation(allocationResources, element->GetTreeIndex(), unsatisfiedResources)) {
+    for (const auto& [_, allocationGroupResources] : element->GroupedNeededResources()) {
+        bool canStartAllocation = SchedulingContext_->CanStartAllocationForOperation(
+            allocationGroupResources.MinNeededResources,
+            element->GetTreeIndex(),
+            unsatisfiedResources);
+        if (canStartAllocation) {
             return true;
         }
     }
@@ -2225,14 +2225,19 @@ bool TScheduleAllocationsContext::CheckPacking(const TSchedulerOperationElement*
 {
     // NB: We expect DetailedMinNeededResources_ to be of size 1 most of the time.
     TJobResourcesWithQuota packingAllocationResourcesWithQuota;
-    if (element->DetailedMinNeededAllocationResources().empty()) {
+    if (element->GroupedNeededResources().empty()) {
         // Refuse packing if no information about resource requirements is provided.
         return false;
-    } else if (element->DetailedMinNeededAllocationResources().size() == 1) {
-        packingAllocationResourcesWithQuota = element->DetailedMinNeededAllocationResources()[0];
+    } else if (element->GroupedNeededResources().size() == 1) {
+        packingAllocationResourcesWithQuota = element->GroupedNeededResources().begin()->second.MinNeededResources;
     } else {
-        auto idx = RandomNumber<ui32>(static_cast<ui32>(element->DetailedMinNeededAllocationResources().size()));
-        packingAllocationResourcesWithQuota = element->DetailedMinNeededAllocationResources()[idx];
+        TJobResourcesWithQuotaList minNeededResourcesList;
+        for (const auto& [_, allocationGroupResources] : element->GroupedNeededResources()) {
+            minNeededResourcesList.push_back(allocationGroupResources.MinNeededResources);
+        }
+
+        auto idx = RandomNumber<ui32>(static_cast<ui32>(minNeededResourcesList.size()));
+        packingAllocationResourcesWithQuota = minNeededResourcesList[idx];
     }
 
     return TreeSnapshot_->SchedulingSnapshot()->GetEnabledOperationSharedState(element)->CheckPacking(

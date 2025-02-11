@@ -25,12 +25,12 @@ public:
     TControllerEpoch GetEpoch() const;
 
     TCompositeNeededResources GetNeededResources() const;
-    TJobResourcesWithQuotaList GetDetailedMinNeededAllocationResources() const;
-    TJobResourcesWithQuotaList GetDetailedInitialMinNeededAllocationResources() const;
+    TAllocationGroupResourcesMap GetGroupedNeededResources() const;
+    TAllocationGroupResourcesMap GetInitialGroupedNeededResources() const;
     TJobResources GetAggregatedMinNeededAllocationResources() const;
     TJobResources GetAggregatedInitialMinNeededAllocationResources() const;
 
-    void UpdateMinNeededAllocationResources();
+    void UpdateGroupedNeededResources();
 
     void UpdateConcurrentScheduleAllocationThrottlingLimits(const TFairShareStrategyOperationControllerConfigPtr& config);
     bool CheckMaxScheduleAllocationCallsOverdraft(int maxScheduleAllocationCalls) const;
