@@ -68,7 +68,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/records/kafka_message.yaml

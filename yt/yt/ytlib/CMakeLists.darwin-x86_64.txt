@@ -705,7 +705,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_replicas.yaml
@@ -734,7 +734,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/location_replicas.yaml
@@ -763,7 +763,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.yaml
@@ -792,7 +792,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.yaml
@@ -817,7 +817,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_node.yaml
@@ -842,7 +842,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_id_to_path.yaml
@@ -867,7 +867,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/path_to_node_id.yaml
@@ -892,7 +892,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/transactions.yaml
@@ -919,7 +919,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_descendants.yaml
@@ -944,7 +944,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/transaction_replicas.yaml
@@ -969,7 +969,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/dependent_transactions.yaml
@@ -994,7 +994,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_forks.yaml
@@ -1019,7 +1019,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/node_snapshots.yaml
@@ -1044,7 +1044,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/path_forks.yaml
@@ -1069,7 +1069,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/child_forks.yaml
@@ -1094,7 +1094,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/records/response_keeper.yaml
@@ -1119,7 +1119,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_alias.yaml
@@ -1142,7 +1142,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_fail_context.yaml
@@ -1165,7 +1165,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/operation_id.yaml
@@ -1188,7 +1188,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_start_time.yaml
@@ -1213,7 +1213,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job.yaml
@@ -1238,7 +1238,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/ordered_by_id.yaml
@@ -1263,7 +1263,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_trace_event.yaml
@@ -1286,7 +1286,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_profile.yaml
@@ -1309,7 +1309,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_stderr.yaml
@@ -1332,7 +1332,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/scheduler/records/job_spec.yaml
@@ -1355,7 +1355,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/queue_producer_session.yaml
@@ -1382,7 +1382,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/queue_object.yaml
@@ -1411,7 +1411,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/consumer_object.yaml
@@ -1438,7 +1438,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/consumer_registration.yaml
@@ -1463,7 +1463,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/queue_agent_object_mapping.yaml
@@ -1488,7 +1488,7 @@ add_custom_command(
   -E
   env
   PYTHONPATH=$ENV{PYTHONPATH}:${PROJECT_SOURCE_DIR}/yt/python/yt
-  Python3::Interpreter
+  ${Python3_EXECUTABLE}
   ${PROJECT_SOURCE_DIR}/yt/yt/tools/record_codegen/__main__.py
   --input
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/queue_client/records/replicated_table_mapping.yaml
