@@ -220,8 +220,7 @@ IMultiReaderMemoryManagerPtr CreateMultiReaderMemoryManager(i64 totalReaderMemor
     };
     return CreateParallelReaderMemoryManager(
         parallelReaderMemoryManagerOptions,
-        NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker()
-    );
+        NChunkClient::TDispatcher::Get()->GetReaderMemoryManagerInvoker());
 }
 
 } // namespace
