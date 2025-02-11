@@ -49,6 +49,7 @@ target_link_options(unittester-master PRIVATE
 )
 
 target_sources(unittester-master PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chaos_replicated_node_proxy_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_list_statistics_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/unittests/chunk_replacer_ut.cpp
