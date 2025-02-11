@@ -71,6 +71,11 @@ static constexpr auto& Logger = KafkaProxyLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TString OAuthBearerSaslMechanism = "OAUTHBEARER";
+static const TString PlainSaslMechanism = "PLAIN";
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TServer
     : public IServer
 {
@@ -149,6 +154,7 @@ private:
 
         IConnectionPtr Connection;
 
+        std::optional<TString> SaslMechanism;
         std::optional<ERequestType> ExpectedRequestType = {ERequestType::SaslHandshake};
 
         std::optional<TString> UserName;
@@ -460,23 +466,22 @@ private:
 
     DEFINE_KAFKA_HANDLER(SaslHandshake)
     {
-        static const TString OAuthBearerSaslMechanism = "OAUTHBEARER";
-
         YT_LOG_DEBUG("Start to handle SaslHandshake request (Mechanism: %v)",
             request.Mechanism);
 
         TRspSaslHandshake response;
-        response.Mechanisms = {OAuthBearerSaslMechanism};
-        if (request.Mechanism != OAuthBearerSaslMechanism) {
+        response.Mechanisms = {PlainSaslMechanism, OAuthBearerSaslMechanism};
+        if (std::find(response.Mechanisms.begin(), response.Mechanisms.end(), request.Mechanism) == response.Mechanisms.end()) {
             YT_LOG_DEBUG("Unsupported sasl mechanism (Requested: %v, Expected: %v)",
                 request.Mechanism,
-                OAuthBearerSaslMechanism);
+                response.Mechanisms);
 
             response.ErrorCode = NKafka::EErrorCode::UnsupportedSaslMechanism;
         }
 
         auto connectionState = GetConnectionState(connectionId);
         connectionState->ExpectedRequestType = ERequestType::SaslAuthenticate;
+        connectionState->SaslMechanism = request.Mechanism;
 
         return response;
     }
@@ -494,29 +499,60 @@ private:
             return response;
         }
 
-        auto fillError = [&response](const TString& message) {
+        auto fillError = [&response] (const TString& message) {
             response.ErrorCode = NKafka::EErrorCode::SaslAuthenticationFailed;
             response.ErrorMessage = message;
         };
 
-        auto splitBy = [](const TString& input, const char* delimiter) {
+        if (!connectionState->SaslMechanism) {
+            fillError("Unknown sasl mechanism");
+            return response;
+        }
+
+        auto splitByString = [] (const TString& input, const char* delimiter) {
             TVector<TString> parts;
             StringSplitter(input).SplitByString(delimiter).Collect(&parts);
             return parts;
         };
 
-        TString authBytes = request.AuthBytes;
-        auto parts = splitBy(authBytes, "\x01");
-        if (parts.size() < 2) {
-            fillError(Format("Unexpected auth_bytes format, got %v \x01-separated parts", parts.size()));
+        auto splitByChar = [] (const TString& input, char delimiter) {
+            TVector<TString> parts;
+            StringSplitter(input).Split(delimiter).Collect(&parts);
+            return parts;
+        };
+
+        TString token;
+        std::optional<TString> expectedUserName;
+
+        if (*connectionState->SaslMechanism == OAuthBearerSaslMechanism) {
+            YT_LOG_DEBUG("Authenticating using OAUTHBEARER sasl mechanism");
+            TString authBytes = request.AuthBytes;
+            auto parts = splitByString(authBytes, "\x01");
+            if (parts.size() < 2) {
+                fillError(Format("Unexpected auth_bytes format, got %v \x01-separated parts", parts.size()));
+                return response;
+            }
+            parts = splitByString(parts[1], " ");
+            if (parts.size() < 2) {
+                fillError(Format("Unexpected auth_bytes format, got %v space-separated parts", parts.size()));
+                return response;
+            }
+            token = parts[1];
+        } else if (*connectionState->SaslMechanism == PlainSaslMechanism) {
+            YT_LOG_DEBUG("Authenticating using PLAIN sasl mechanism");
+            TString authBytes = request.AuthBytes;
+            auto parts = splitByChar(authBytes, '\0');
+            if (parts.size() < 3) {
+                fillError(Format("Unexpected auth_bytes format, got %v \0-separated parts", parts.size()));
+                return response;
+            }
+
+            expectedUserName = parts[1];
+            token = parts[2];
+        } else {
+            fillError(Format("Unknown sasl mechanism: %v", *connectionState->SaslMechanism));
             return response;
         }
-        parts = splitBy(parts[1], " ");
-        if (parts.size() < 2) {
-            fillError(Format("Unexpected auth_bytes format, got %v space-separated parts", parts.size()));
-            return response;
-        }
-        auto token = parts[1];
 
         auto authenticator = AuthenticationManager_->GetTokenAuthenticator();
         auto authResultOrError = WaitFor(authenticator->Authenticate(TTokenCredentials{.Token = std::move(token)}));
@@ -526,6 +562,13 @@ private:
                 << authResultOrError;
             YT_LOG_DEBUG(error);
             fillError(ToString(error));
+            return response;
+        }
+
+        auto login = authResultOrError.Value().Login;
+        if (expectedUserName && *expectedUserName != login) {
+            YT_LOG_DEBUG("Failed to authenticate user (AuthenticatedUserName: %v, ExpectedUserName: %v)", login, *expectedUserName);
+            fillError(Format("User %v was expected", *expectedUserName));
             return response;
         }
 

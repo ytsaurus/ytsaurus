@@ -127,18 +127,24 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
         create("table", path, attributes=attributes)
         sync_mount_table(path)
 
-    def _consume_messages(self, queue_path, consumer_path, token, message_count=3):
+    def _consume_messages(self, queue_path, consumer_path, token, message_count=3, sasl_mechanism="OAUTHBEARER"):
         address = self.Env.get_kafka_proxy_address()
 
         consumer_config = {
             "bootstrap.servers": address,
             "security.protocol": "SASL_PLAINTEXT",
-            "sasl.mechanisms": "OAUTHBEARER",
-            'oauth_cb': functools.partial(_get_token, token),
+            "sasl.mechanisms": sasl_mechanism,
             "client.id": "1234567",
             "group.id": consumer_path,
             "debug": "all",
         }
+
+        if sasl_mechanism == "OAUTHBEARER":
+            consumer_config["oauth_cb"] = functools.partial(_get_token, token)
+        elif sasl_mechanism == "PLAIN":
+            consumer_config["sasl.username"] = "u"
+            consumer_config["sasl.password"] = token
+
         c = Consumer(consumer_config)
 
         c.assign([TopicPartition(queue_path, 0)])
@@ -252,36 +258,41 @@ class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
         assert select_rows("* from [//tmp/consumer]")[0]["offset"] == len(messages)
 
     @authors("nadya73")
-    def test_unsupported_sasl_mechanism(self):
-        address = self.Env.get_kafka_proxy_address()
+    def test_basic_plain_sasl_mechanism(self):
+        username = "u"
+        create_user(username)
+        token, _ = issue_token(username)
+
+        self._create_cells()
 
         queue_path = "primary://tmp/queue"
         consumer_path = "primary://tmp/consumer"
 
-        consumer_config = {
-            "bootstrap.servers": address,
-            "security.protocol": "SASL_PLAINTEXT",
-            "sasl.mechanisms": "PLAIN",
-            "sasl.username": "user123",
-            "sasl.password": "password123",
-            "client.id": "123",
-            "group.id": consumer_path,
-            "log_level": 7,
-            "debug": 'all'
-        }
-        c = Consumer(consumer_config)
+        TestKafkaProxy._create_queue(queue_path)
+        self._create_registered_consumer(consumer_path, queue_path)
 
-        c.assign([TopicPartition(queue_path, 0)])
+        insert_rows(queue_path, [
+            {"surname": "foo-0", "number": 0},
+            {"surname": "foo-1", "number": 1},
+            {"surname": "foo-2", "number": 2},
+        ])
 
-        poll_count = 0
-        while True:
-            msg = c.poll(1.0)
+        set(f"{queue_path}/@inherit_acl", False)
+        set(f"{consumer_path}/@inherit_acl", False)
 
-            assert msg is None or msg.error()
-            poll_count += 1
+        with raises_yt_error("permission"):
+            pull_queue(queue_path, authenticated_user=username, partition_index=0, offset=0)
 
-            if poll_count > 10:
-                break
+        with raises_yt_error("permission"):
+            pull_consumer(consumer_path, queue_path, authenticated_user=username, partition_index=0, offset=0)
+
+        set(f"{queue_path}/@acl/end", make_ace("allow", "u", ["read"]))
+        set(f"{consumer_path}/@acl/end", make_ace("allow", "u", ["read", "write"]))
+
+        messages = self._consume_messages(queue_path, consumer_path, token, message_count=3, sasl_mechanism="PLAIN")
+        assert len(messages) == 3
+
+        assert select_rows("* from [//tmp/consumer]")[0]["offset"] == len(messages)
 
     @authors("nadya73")
     def test_producer(self):
