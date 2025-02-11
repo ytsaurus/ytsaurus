@@ -20,6 +20,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
     def __init__(self):
         super(YqlAgent, self).__init__()
         self.client = None
+        self.artifacts_path = None
 
     def prepare(self, env, config):
         logger.info("Preparing yql agent")
@@ -28,10 +29,13 @@ class YqlAgent(YTServerComponentBase, YTComponent):
             self.PATH = config["path"]
 
         self.libraries = config.get("libraries", {})
+        self.config = config
 
         if "artifacts_path" in config:
             self.artifacts_path = config["artifacts_path"]
-        else:
+        elif "mr_job_bin" not in config \
+                or "mr_job_udfs_dir" not in config \
+                or "yql_plugin_shared_library" not in config:
             raise YtError("Artifacts path is not specified in yql agent config")
 
         super(YqlAgent, self).prepare(env, config)
@@ -101,12 +105,22 @@ class YqlAgent(YTServerComponentBase, YTComponent):
     def get_default_config(self):
         self.token_path = os.path.join(self.env.configs_path, "yql_agent_token")
 
+        mr_job_bin, mr_job_udfs_dir, yql_plugin_shared_library = None, None, None
+        if self.artifacts_path:
+            mr_job_bin = self._get_artifact_path("mrjob")
+            mr_job_udfs_dir = self._get_artifact_path()
+            yql_plugin_shared_library = self._get_artifact_path("libyqlplugin.so")
+        else:
+            mr_job_bin = self.config["mr_job_bin"]
+            mr_job_udfs_dir = self.config["mr_job_udfs_dir"]
+            yql_plugin_shared_library = self.config["yql_plugin_shared_library"]
+
         return {
             "user": self.USER_NAME,
             "yql_agent": {
                 "gateway_config": {
-                    "mr_job_bin": self._get_artifact_path("mrjob"),
-                    "mr_job_udfs_dir": self._get_artifact_path(),
+                    "mr_job_bin": mr_job_bin,
+                    "mr_job_udfs_dir": mr_job_udfs_dir,
                     "cluster_mapping": [
                         {
                             "name": self.env.id,
@@ -118,7 +132,7 @@ class YqlAgent(YTServerComponentBase, YTComponent):
                 },
                 # Slightly change the defaults to check if they can be overwritten.
                 "file_storage_config": {"max_size_mb": 1 << 13},
-                "yql_plugin_shared_library": self._get_artifact_path("libyqlplugin.so"),
+                "yql_plugin_shared_library": yql_plugin_shared_library,
                 "yt_token_path": self.token_path,
                 "libraries": self.libraries,
             },
