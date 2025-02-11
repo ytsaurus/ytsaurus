@@ -4515,6 +4515,8 @@ private:
 
     void BuildHunkChunkOrchidYson(const THunkChunkPtr& hunkChunk, TFluentAny fluent)
     {
+        auto miscExt = FindProtoExtension<TMiscExt>(hunkChunk->GetChunkMeta().extensions());
+
         fluent
             .BeginAttributes()
                 .Item("opaque").Value(true)
@@ -4527,6 +4529,11 @@ private:
                 .Item("store_ref_count").Value(hunkChunk->GetStoreRefCount())
                 .Item("prepared_store_ref_count").Value(hunkChunk->GetPreparedStoreRefCount())
                 .Item("dangling").Value(hunkChunk->IsDangling())
+                .DoIf(miscExt && miscExt->has_dictionary_compression_policy(), [&] (auto fluent) {
+                    fluent
+                        .Item("dictionary_compression_policy")
+                        .Value(FromProto<EDictionaryCompressionPolicy>(miscExt->dictionary_compression_policy()));
+                })
             .EndMap();
     }
 
