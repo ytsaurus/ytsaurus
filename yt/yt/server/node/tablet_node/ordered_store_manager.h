@@ -35,8 +35,6 @@ public:
 
     void LockHunkStores(TWriteContext* context) override;
 
-    bool IsVersionedWriteUnversioned() const override;
-
     bool ExecuteWrites(
         IWireWriteCommandReader* reader,
         TWriteContext* context) override;

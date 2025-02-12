@@ -17,7 +17,8 @@ namespace NYT::NTabletNode {
 
 TWireWriteCommands ParseWriteCommands(
     const NTableClient::TSchemaData& schemaData,
-    NTableClient::IWireProtocolReader* reader);
+    NTableClient::IWireProtocolReader* reader,
+    bool isVersionedWriteUnversioned);
 
 class TWireWriteCommandsBatch
 {
