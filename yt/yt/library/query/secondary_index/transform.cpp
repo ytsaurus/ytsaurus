@@ -234,10 +234,6 @@ void TransformWithIndexStatement(
     THashSet<TStringBuf> replacedColumns;
 
     for (const auto& tableColumn : tableSchema.Columns()) {
-        if (correspondence == ETableToIndexCorrespondence::Bijective && !tableColumn.SortOrder()) {
-            break;
-        }
-
         const auto* indexColumn = indexTableSchema.FindColumn(tableColumn.Name());
 
         if (!indexColumn || *indexColumn->LogicalType() != *tableColumn.LogicalType()) {
@@ -245,6 +241,10 @@ void TransformWithIndexStatement(
         }
 
         replacedColumns.insert(indexColumn->Name());
+
+        if (correspondence == ETableToIndexCorrespondence::Bijective && !tableColumn.SortOrder()) {
+            continue;
+        }
 
         auto* indexReference = holder->New<NAst::TReferenceExpression>(
             NullSourceLocation,
