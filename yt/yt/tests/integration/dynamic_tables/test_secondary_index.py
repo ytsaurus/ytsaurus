@@ -648,11 +648,15 @@ class TestSecondaryIndexSelect(TestSecondaryIndexBase):
         sync_mount_table("//tmp/table")
         insert_rows("//tmp/table", table_rows)
         assert len(select_rows("* from [//tmp/table] WITH INDEX [//tmp/index_table]")) == 2
+        plan = explain_query("* from [//tmp/table] WITH INDEX [//tmp/index_table] where valueA = 100")
+        assert plan["query"]["constraints"] == "Constraints:\n100: <universe>"
 
         sync_unmount_table("//tmp/table")
         set(f"#{index_id}/@table_to_index_correspondence", "injective")
         sync_mount_table("//tmp/table")
         assert len(select_rows("* from [//tmp/table] WITH INDEX [//tmp/index_table]")) == 1
+        plan = explain_query("* from [//tmp/table] WITH INDEX [//tmp/index_table] where valueA = 100")
+        assert plan["query"]["constraints"] == "Constraints:\n100: <universe>"
 
 
 ##################################################################
