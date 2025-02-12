@@ -20,6 +20,8 @@
 
 #include <yt/yt/core/https/config.h>
 
+#include <yt/yt/core/bus/tcp/config.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NHttpProxy {
@@ -327,6 +329,9 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("access_checker", &TThis::AccessChecker)
+        .DefaultNew();
+
+    registrar.Parameter("bus_server", &TThis::BusServer)
         .DefaultNew();
 
     registrar.Parameter("cluster_connection", &TThis::ClusterConnection)

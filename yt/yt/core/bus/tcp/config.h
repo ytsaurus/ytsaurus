@@ -126,6 +126,21 @@ DEFINE_REFCOUNTED_TYPE(TBusConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBusDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool NeedRejectConnectionDueMemoryOvercommit;
+
+    REGISTER_YSON_STRUCT(TBusDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBusDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBusServerConfig
     : public TBusConfig
 {
@@ -147,6 +162,19 @@ DEFINE_REFCOUNTED_TYPE(TBusServerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TBusServerDynamicConfig
+    : public TBusDynamicConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TBusServerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBusServerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBusClientConfig
     : public TBusConfig
 {
@@ -163,6 +191,19 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TBusClientConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TBusClientDynamicConfig
+    : public TBusDynamicConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TBusClientDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TBusClientDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

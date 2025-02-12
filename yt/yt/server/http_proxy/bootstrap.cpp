@@ -85,6 +85,7 @@
 
 #include <yt/yt/core/rpc/bus/server.h>
 
+#include <yt/yt/core/bus/server.h>
 #include <yt/yt/core/bus/tcp/config.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -222,7 +223,8 @@ void TBootstrap::DoInitialize()
     }
 
     Config_->BusServer->Port = Config_->RpcPort;
-    RpcServer_ = NRpc::NBus::CreateBusServer(CreateBusServer(Config_->BusServer));
+    BusServer_ = CreateBusServer(Config_->BusServer);
+    RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 
     RpcServer_->RegisterService(CreateOrchidService(
         orchidRoot,
@@ -446,6 +448,8 @@ void TBootstrap::OnDynamicConfigChanged(
     ReconfigureMemoryLimits(newConfig->MemoryLimits);
 
     DynamicConfig_.Store(newConfig);
+
+    BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
 
     Connection_->Reconfigure(newConfig->ClusterConnection);
 

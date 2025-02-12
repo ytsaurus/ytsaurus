@@ -119,6 +119,9 @@ TBusServerConfigPtr TBusServerConfig::CreateUds(const std::string& socketPath)
     return config;
 }
 
+void TBusServerDynamicConfig::Register(TRegistrar /*registrar*/)
+{ }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TBusConfig::Register(TRegistrar registrar)
@@ -161,6 +164,14 @@ void TBusConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TBusDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("need_reject_connection_due_memory_overcommit", &TThis::NeedRejectConnectionDueMemoryOvercommit)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TBusClientConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("address", &TThis::Address)
@@ -188,6 +199,9 @@ TBusClientConfigPtr TBusClientConfig::CreateUds(const std::string& socketPath)
     config->UnixDomainSocketPath = socketPath;
     return config;
 }
+
+void TBusClientDynamicConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
