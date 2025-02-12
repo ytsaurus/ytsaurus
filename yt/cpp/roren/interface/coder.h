@@ -24,6 +24,9 @@ namespace NYT {
     }  // namespace NYT::NTableClient
 
     class TNode;
+
+    template <typename T, typename Tag>
+    class TStrongTypedef;
 }  // namespace NYT
 
 namespace NRoren {
@@ -380,6 +383,30 @@ public:
 
 template <typename TResult, typename... TArgs>
 struct TIsManuallyNonCodable<std::function<TResult(TArgs...)>> : public std::true_type
+{ };
+
+template <typename TType, typename TTag>
+class TCoder<NYT::TStrongTypedef<TType, TTag>>
+{
+public:
+    using TTypeDef = NYT::TStrongTypedef<TType, TTag>;
+
+    void Encode(IOutputStream* out, const TTypeDef& row)
+    {
+        Coder_.Encode(out, row.Underlying());
+    }
+
+    void Decode(IInputStream* in, TTypeDef& row)
+    {
+        Coder_.Decode(in, row.Underlying());
+    }
+
+private:
+    TCoder<TType> Coder_;
+};
+
+template <CManuallyNonCodable TType, typename TTag>
+struct TIsManuallyNonCodable<NYT::TStrongTypedef<TType, TTag>> : public std::true_type
 { };
 
 ////////////////////////////////////////////////////////////////////////////////
