@@ -154,6 +154,7 @@ private:
 
         IConnectionPtr Connection;
 
+        int SaslHandshakeVersion = 0;
         std::optional<TString> SaslMechanism;
         std::optional<ERequestType> ExpectedRequestType = {ERequestType::SaslHandshake};
 
@@ -266,9 +267,10 @@ private:
 
         auto connectionState = GetConnectionState(connection->GetConnectionId());
         auto expectedRequestType = connectionState->ExpectedRequestType;
+
         // For SaslHandshake v0 tokens are sent as opaque packets without wrapping the messages with Kafka protocol headers.
         // SaslHandshake v1 is not supported for now.
-        if (expectedRequestType && *expectedRequestType == ERequestType::SaslAuthenticate) {
+        if (expectedRequestType && *expectedRequestType == ERequestType::SaslAuthenticate && connectionState->SaslHandshakeVersion == 0) {
             auto response = DoSaslAuthenticate(
                 connection->GetConnectionId(),
                 TReqSaslAuthenticate{.AuthBytes = request.ToString()},
@@ -276,15 +278,20 @@ private:
                     .WithTag("ConnectionId: %v", connection->GetConnectionId())
                     .WithTag("RequestType: %v", ERequestType::SaslAuthenticate));
 
-            auto builder = TSharedRefArrayBuilder(1);
-            if (response.ErrorCode != NKafka::EErrorCode::None) {
-                builder.Add(TSharedRef::FromString(response.ErrorMessage.value_or("Authentication failed")));
+            if (!response.ErrorMessage) {
+                response.ErrorMessage = "Authentication failed";
             }
+
+            auto builder = TSharedRefArrayBuilder(1);
+
+            auto protocolWriter = NKafka::CreateKafkaProtocolWriter();
+            response.Serialize(protocolWriter.get(), /*apiVersion*/ 0);
 
             YT_LOG_DEBUG("Response sent (RequestType: %v, ConnectionId: %v)",
                 ERequestType::SaslAuthenticate,
                 connection->GetConnectionId());
 
+            builder.Add(protocolWriter->Finish());
             return builder.Finish();
         }
 
@@ -305,7 +312,9 @@ private:
             THROW_ERROR_EXCEPTION("Incoming request is %v, but %v was expected", header.RequestType, *expectedRequestType);
         }
 
-        if (header.RequestType != ERequestType::SaslHandshake && header.RequestType != ERequestType::ApiVersions) {
+        if (header.RequestType != ERequestType::SaslHandshake
+            && header.RequestType != ERequestType::SaslAuthenticate
+            && header.RequestType != ERequestType::ApiVersions) {
             // User should be authenticated, just ignore all other requests.
             if (!connectionState->UserName) {
                 return TSharedRefArrayBuilder(1).Finish();
@@ -435,7 +444,7 @@ private:
             TRspApiKey{
                 .ApiKey = static_cast<int>(ERequestType::SaslHandshake),
                 .MinVersion = 0,
-                .MaxVersion = 0,
+                .MaxVersion = 1,
             },
             TRspApiKey{
                 .ApiKey = static_cast<int>(ERequestType::SaslAuthenticate),
@@ -482,6 +491,7 @@ private:
         auto connectionState = GetConnectionState(connectionId);
         connectionState->ExpectedRequestType = ERequestType::SaslAuthenticate;
         connectionState->SaslMechanism = request.Mechanism;
+        connectionState->SaslHandshakeVersion = request.ApiVersion;
 
         return response;
     }
