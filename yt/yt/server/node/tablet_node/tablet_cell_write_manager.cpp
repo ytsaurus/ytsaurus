@@ -743,7 +743,10 @@ private:
 
         auto token = tablet->SmoothMovementData().GetSiblingAvenueEndpointId();
 
-        EmplaceOrCrash(transaction->ExternalizerTablets(), tablet->GetId(), token);
+        auto [it, inserted] = transaction->ExternalizerTablets().emplace(tablet->GetId(), token);
+        if (!inserted) {
+            YT_VERIFY(it->second == token);
+        }
 
         ToProto(request.mutable_transaction_externalization_token(), token);
         ToProto(
