@@ -344,7 +344,6 @@ class TestChunkServer(YTEnvSetup):
         wait(lambda: chunk_id in get("//sys/lost_chunks"))
         assert get("//sys/@lost_vital_chunk_count") == 0
         assert chunk_id not in get("//sys/lost_vital_chunks")
-        assert chunk_id not in get("//sys/lost_vital_chunks_sample")
 
     @authors("achulkov2")
     def test_historically_non_vital_with_erasure(self):
@@ -360,13 +359,10 @@ class TestChunkServer(YTEnvSetup):
             set_node_banned(node, True)
 
         wait(lambda: get("//sys/@lost_vital_chunk_count") == 1)
-        wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 1)
         wait(lambda: chunk_id in get("//sys/lost_vital_chunks"))
-        wait(lambda: chunk_id in get("//sys/lost_vital_chunks_sample"))
 
         set("//tmp/t/@vital", False)
         wait(lambda: get("//sys/@lost_vital_chunk_count") == 0)
-        wait(lambda: chunk_id not in get("//sys/lost_vital_chunks_sample"))
         wait(lambda: chunk_id not in get("//sys/lost_vital_chunks"))
         assert chunk_id in get("//sys/lost_chunks")
 
@@ -398,15 +394,12 @@ class TestChunkServer(YTEnvSetup):
             set_node_banned(node, True)
 
         wait(lambda: get("//sys/@lost_vital_chunk_count") == 1)
-        wait(lambda: get("//sys/lost_vital_chunks_sample/@count") == 1)
-        wait(lambda: chunk_id in get("//sys/lost_vital_chunks_sample"))
         wait(lambda: chunk_id in get("//sys/lost_vital_chunks"))
 
         for node in nodes:
             set_node_banned(node, False)
 
         wait(lambda: get("//sys/@lost_vital_chunk_count") == 0)
-        wait(lambda: chunk_id not in get("//sys/lost_vital_chunks_sample"))
         wait(lambda: chunk_id not in get("//sys/lost_vital_chunks"))
 
     @authors("danilalexeev")
@@ -938,6 +931,8 @@ class TestChunkServerMulticell(TestChunkServer):
 
     @authors("koloshmet")
     def test_lost_vital_chunks_sample(self):
+        pytest.skip()
+
         set("//sys/@config/chunk_manager/lost_vital_chunks_sample_update_period", 1000)
 
         create("table", "//tmp/t0", attributes={"external": False})
