@@ -1171,6 +1171,7 @@ class TestInputOutputForOrderedWithTabletIndex(MROverOrderedDynTablesHelper):
         self._validate_output(expected_content)
 
     @authors("ifsmirnov")
+    @pytest.mark.timeout(180)
     def test_ordered_tablet_index_stress(self):
         sync_create_cells(1)
         create_dynamic_table(
