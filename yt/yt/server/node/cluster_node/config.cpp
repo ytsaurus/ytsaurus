@@ -18,6 +18,8 @@
 
 #include <yt/yt/core/http/config.h>
 
+#include <yt/yt/core/bus/tcp/config.h>
+
 #include <yt/yt/library/dynamic_config/config.h>
 
 namespace NYT::NClusterNode {
@@ -505,6 +507,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("porto_environment", &TThis::PortoEnvironment)
         .Default();
     registrar.Parameter("io_tracker", &TThis::IOTracker)
+        .DefaultNew();
+    registrar.Parameter("bus_server", &TThis::BusServer)
         .DefaultNew();
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();

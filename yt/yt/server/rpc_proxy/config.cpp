@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/signature/instance_config.h>
 
+#include <yt/yt/core/bus/tcp/config.h>
+
 namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -171,6 +173,9 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("access_checker", &TThis::AccessChecker)
+        .DefaultNew();
+
+    registrar.Parameter("bus_server", &TThis::BusServer)
         .DefaultNew();
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
