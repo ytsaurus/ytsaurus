@@ -244,6 +244,39 @@ template <CManuallyNonCodable T>
 struct TIsManuallyNonCodable<std::shared_ptr<T>> : public std::true_type
 { };
 
+template <typename T, typename TCounter>
+class TCoder<TSharedPtr<T, TCounter>>
+{
+public:
+    inline void Encode(IOutputStream* out, const TSharedPtr<T, TCounter>& value)
+    {
+        if (value) {
+            ::Save(out, true);
+            ValueCoder_.Encode(out, *value);
+        } else {
+            ::Save(out, false);
+        }
+    }
+
+    inline void Decode(IInputStream* in, TSharedPtr<T, TCounter>& value)
+    {
+        bool hasValue;
+        ::Load(in, hasValue);
+        if (hasValue) {
+            value = MakeShared<T, TCounter>();
+            ValueCoder_.Decode(in, *value);
+        } else {
+            value.Reset();
+        }
+    }
+private:
+    TCoder<T> ValueCoder_;
+};
+
+template <CManuallyNonCodable T, typename TCounter>
+struct TIsManuallyNonCodable<TSharedPtr<T, TCounter>> : public std::true_type
+{ };
+
 template <typename K, typename V>
 class TCoder<std::pair<K, V>>
 {
