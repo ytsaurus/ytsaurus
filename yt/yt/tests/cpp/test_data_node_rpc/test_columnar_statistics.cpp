@@ -18,8 +18,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NYT {
-namespace NCppTests {
+namespace NYT::NCppTests {
 namespace {
 
 using namespace NApi;
@@ -223,7 +222,8 @@ TEST_F(TReadSizeEstimationTest, ColumnarChunkStrictSchemaNoGroups)
         std::vector{
             TColumnSchema("small", EValueType::Int64),
             TColumnSchema("large1", EValueType::String),
-            TColumnSchema("large2", EValueType::String)}));
+            TColumnSchema("large2", EValueType::String),
+        }));
 
     InitTableWriter();
 
@@ -254,7 +254,8 @@ TEST_F(TReadSizeEstimationTest, ColumnarChunkStrictSchemaNoGroups)
         {"small", "large1"},
         {"small", "large2"},
         {"small", "large1", "large2"},
-        {"large1", "unknown"}});
+        {"large1", "unknown"},
+    });
 
     EXPECT_NEAR(GetReadSizeEstimation({"small"}), 95, 10);
     EXPECT_NEAR(GetReadSizeEstimation({"large1"}), 4100, 50);
@@ -291,7 +292,8 @@ TEST_F(TReadSizeEstimationTest, ColumnarChunkStrictSchemaWithGroups)
         std::vector{
             MakeColumnSchema("small", EValueType::Int64, "group1"),
             MakeColumnSchema("large1", EValueType::String, "group2"),
-            MakeColumnSchema("large2", EValueType::String, "group1")}));
+            MakeColumnSchema("large2", EValueType::String, "group1"),
+        }));
 
     InitTableWriter();
 
@@ -320,7 +322,8 @@ TEST_F(TReadSizeEstimationTest, ColumnarChunkStrictSchemaWithGroups)
         {"large1", "large2"},
         {"small", "large1"},
         {"small", "large2"},
-        {"small", "large1", "large2"}});
+        {"small", "large1", "large2"},
+    });
 
     EXPECT_NEAR(GetReadSizeEstimation({"small"}), 590, 20);
     EXPECT_NEAR(GetReadSizeEstimation({"large1"}), 4100, 50);
@@ -354,7 +357,8 @@ TEST_F(TReadSizeEstimationTest, ColumnarChunkNonStrictSchemaWithGroups)
         std::vector{
             MakeColumnSchema("small", EValueType::Int64, "group1"),
             MakeColumnSchema("large1", EValueType::String, "group2"),
-            MakeColumnSchema("large2", EValueType::String, "group1")},
+            MakeColumnSchema("large2", EValueType::String, "group1"),
+        },
         /*strict*/ false));
 
     InitTableWriter();
@@ -462,7 +466,8 @@ TEST_F(TReadSizeEstimationTest, HorizontalChunkNonStrict)
         {"small", "large1", "large2"},
         {"small", "unknown"},
         {"small", "large1", "large2", "unknown"},
-        {"large1", "large2", "unknown"}});
+        {"large1", "large2", "unknown"},
+    });
 
     EXPECT_NEAR(GetReadSizeEstimation({"small"}), 14625, 50);
 
@@ -499,7 +504,8 @@ TEST_F(TReadSizeEstimationTest, HorizontalChunkStrict)
         {"unknown"},
         {"large1"},
         {"small", "large1", "large2", "unknown"},
-        {"small"}});
+        {"small"},
+    });
 
     EXPECT_NEAR(GetReadSizeEstimation({"small"}), 4580, 50);
     EXPECT_EQ(GetReadSizeEstimation({"unknown"}), GetReadSizeEstimation({"small"}));
@@ -515,6 +521,5 @@ TEST_F(TReadSizeEstimationTest, HorizontalChunkStrict)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NCppTests
-} // namespace NYT
+} // namespace NYT::NCppTests
 

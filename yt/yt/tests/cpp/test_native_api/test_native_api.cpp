@@ -47,8 +47,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NYT {
-namespace NCppTests {
+namespace NYT::NCppTests {
 namespace {
 
 using namespace NApi;
@@ -1296,5 +1295,4 @@ TEST_F(TPingTransactionsTest, Reconfigure)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NCppTests
-} // namespace NYT
+} // namespace NYT::NCppTests
