@@ -243,6 +243,8 @@ message TObjectTypeOption
     // The serialized form of the null key for this type.
     // Zeros/empty strings are used by default.
     optional string custom_null_key = 41;
+    // This type has no null keys.
+    optional bool no_null_key = 48;
 
     // For internal use only. Marks objects directly handled by ORM core.
     optional bool builtin_object = 42;
@@ -541,7 +543,7 @@ message TReferenceOption
         optional int32 number = 2;
     }
 
-    // How we distinguish present and missing references.
+    // How we distinguish present and empty references.
     enum EPresencePolicy
     {
         // Most suitable option (or an exception demanding an explicit choice) selected by codegen.
@@ -558,22 +560,25 @@ message TReferenceOption
         // garbage accumulation after adding and removing many references. This is by design (the
         // protos may contain auxiliary data) but requires some garbage collection strategy from the
         // client. Default for singular references.
+        // NB: To facilitate initialization of objects, missing fields (the next policy) also
+        // applies on read. Clearing a reference will write the null key though.
         PP_NULL_KEY = 2;
+
+        // Use the (protobuf) presence of the key fields to decide whether the reference is empty.
+        // Any one absent field is sufficient to signify an empty reference.
+        PP_FIELD_PRESENCE = 3;
 
         // Future plans:
 
         // This reference is never empty. Key storage must be initialized on creation. This object
         // must be deleted before the referenced one.
-        // PP_MANDATORY = 3;
+        // PP_MANDATORY = 4;
 
         // If the reference is set, delete this object with the foreign one.
         // bool cascading_deletion
 
-        // Use field presence at a specific path to decide whether the reference is empty.
-        // PP_FIELD_PRESENCE = 4;
-
         // Future non-plans: rely on the null state of a column in the dynamic table (currently we always
-        // initialize the columns to the default value); use an separate bool "present" field.
+        // initialize the columns to the default value); use a separate bool "present" field.
     }
 
     // How we handle duplicate entries in multirefs.
@@ -612,7 +617,7 @@ message TReferenceOption
     // To disable automatic view generation, write |view: {}|.
     optional TReferenceViewOption view = 7;
 
-    optional bool store_parent_key = 11;
+    optional bool store_foreign_parent_key = 11;
     optional bool allow_non_empty_removal = 12;
     optional bool local_modification_only = 13;
     optional EPresencePolicy presence_policy = 14;
