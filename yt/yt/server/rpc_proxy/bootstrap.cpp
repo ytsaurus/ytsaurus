@@ -72,6 +72,9 @@
 
 #include <yt/yt/core/http/server.h>
 
+#include <yt/yt/core/bus/public.h>
+#include <yt/yt/core/bus/server.h>
+
 #include <yt/yt/core/bus/tcp/config.h>
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -501,6 +504,7 @@ void TBootstrap::OnDynamicConfigChanged(
 
     ApiService_->OnDynamicConfigChanged(newConfig->Api);
 
+    BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
     RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
     QueryCorpusReporter_->Reconfigure(newConfig->Api->QueryCorpusReporter);

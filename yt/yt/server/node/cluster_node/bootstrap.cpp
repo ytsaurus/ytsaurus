@@ -1460,6 +1460,7 @@ private:
             : Config_->DataNode->AnnounceChunkReplicaRpsOutThrottler);
         RawUserJobContainerCreationThrottler_->Reconfigure(newConfig->ExecNode->UserJobContainerCreationThrottler);
 
+        BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
         RpcServer_->OnDynamicConfigChanged(newConfig->RpcServer);
 
         ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);

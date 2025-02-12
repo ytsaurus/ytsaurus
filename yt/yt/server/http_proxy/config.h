@@ -374,6 +374,8 @@ public:
 
     NApi::NNative::TConnectionDynamicConfigPtr ClusterConnection;
 
+    NBus::TBusServerDynamicConfigPtr BusServer;
+
     TProxyMemoryLimitsConfigPtr MemoryLimits;
 
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
