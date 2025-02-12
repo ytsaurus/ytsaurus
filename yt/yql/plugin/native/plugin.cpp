@@ -139,6 +139,7 @@ struct TActiveQuery
 {
     NYql::TProgramPtr Program;
     bool Compiled = false;
+    bool Finished = false;
 
     TProgressMerger ProgressMerger;
     TQueryPipelineConfiguratorPtr PipelineConfigurator;
@@ -490,7 +491,7 @@ public:
         auto userDataTable = FilesToUserTable(files);
         program->AddUserDataTable(userDataTable);
 
-        program->SetProgressWriter([&] (const NYql::TOperationProgress& progress) {
+        program->SetProgressWriter([pipelineConfigurator, queryId, this] (const NYql::TOperationProgress& progress) {
             std::optional<TString> plan;
             {
                 auto guard = ReaderGuard(pipelineConfigurator->Plan_.PlanSpinLock);
@@ -571,7 +572,8 @@ public:
             yson.OnEndList();
         }
 
-        TString progress = ExtractQuery(queryId).value_or(TActiveQuery{}).ProgressMerger.ToYsonString();
+        TString progress = ExtractQuery(queryId, /*force*/true).value_or(TActiveQuery{}).ProgressMerger.ToYsonString();
+        YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " finished successfully";
 
         return {
             .YsonResult = result.Empty() ? std::nullopt : std::make_optional(result.Str()),
@@ -606,12 +608,18 @@ public:
         int executeMode) noexcept override
     {
         auto finalCleaning = Finally([&] {
-            ExtractQuery(queryId);
+            auto guard = WriterGuard(ProgressSpinLock);
+            if (ActiveQueriesProgress_.contains(queryId)) {
+                ActiveQueriesProgress_[queryId].Finished = true;
+            }
+            YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " finished";
         });
 
         try {
             return GuardedRun(queryId, user, credentials, queryText, settings, files, executeMode);
         } catch (const std::exception& ex) {
+            YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " finished with errors";
+            ExtractQuery(queryId, /*force*/true);
             return TQueryResult{
                 .YsonError = MessageToYtErrorYson(ex.what()),
             };
@@ -655,7 +663,11 @@ public:
         }
 
         try {
+            YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " is aborting";
             program->Abort().GetValueSync();
+            YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " is aborted";
+
+            ExtractQuery(queryId);
         } catch (...) {
             return TAbortResult{
                 .YsonError = MessageToYtErrorYson(Format("Failed to abort query %v: %v", queryId, CurrentExceptionMessage())),
@@ -684,15 +696,19 @@ private:
     THashMap<TQueryId, TActiveQuery> ActiveQueriesProgress_;
     TVector<NYql::TDataProviderInitializer> DataProvidersInit_;
 
-    std::optional<TActiveQuery> ExtractQuery(TQueryId queryId) {
+    std::optional<TActiveQuery> ExtractQuery(TQueryId queryId, bool force = false) {
         // NB: TProgram destructor must be called without locking.
         std::optional<TActiveQuery> query;
-        auto guard = WriterGuard(ProgressSpinLock);
-        auto it = ActiveQueriesProgress_.find(queryId);
-        if (it != ActiveQueriesProgress_.end()) {
-            query = std::move(it->second);
-            ActiveQueriesProgress_.erase(it);
+        {
+            auto guard = WriterGuard(ProgressSpinLock);
+            auto it = ActiveQueriesProgress_.find(queryId);
+            if (it != ActiveQueriesProgress_.end() &&
+                    (force | it->second.Finished)) {
+                query = std::move(it->second);
+                ActiveQueriesProgress_.erase(it);
+            }
         }
+        YQL_LOG(DEBUG) << "Query: " << ToString(queryId) << " is removed";
         return query;
     }
 

@@ -68,6 +68,8 @@ private:
             try {
                 WaitFor(YqlAgent_->AbortQuery(queryId))
                     .ThrowOnError();
+                YT_LOG_DEBUG("Query abortion is finished (QueryId: %v)", queryId);
+
             } catch (const std::exception& ex) {
                 YT_LOG_ERROR(ex, "Failed to abort query (QueryId: %v)", queryId);
             }
