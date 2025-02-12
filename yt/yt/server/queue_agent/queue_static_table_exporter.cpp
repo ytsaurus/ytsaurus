@@ -359,6 +359,10 @@ private:
         if (QueueSchema_->IsSorted()) {
             THROW_ERROR_EXCEPTION("Queue %v should be an ordered dynamic table", Queue_);
         }
+        // TODO(akozhikhov): Support export of queues with hunk storage.
+        if (QueueSchema_->HasHunkColumns()) {
+            THROW_ERROR_EXCEPTION("Cannot export queue %v that contains hunk columns", Queue_);
+        }
 
         QueueObject_.ChunkCount = attributes->Get<i64>("chunk_count");
     }
