@@ -279,7 +279,7 @@ void SetupHostContext(
     std::optional<TString> dataLensRequestId = std::nullopt,
     std::optional<TString> yqlOperationId = std::nullopt,
     const TSecondaryQueryHeaderPtr& secondaryQueryHeader = nullptr,
-    std::vector<std::pair<TString, TString>> HttpHeaders = {});
+    std::vector<std::pair<TString, TString>> httpHeaders = {});
 
 TQueryContext* GetQueryContext(DB::ContextPtr context);
 
