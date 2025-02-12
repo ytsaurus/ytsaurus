@@ -53,13 +53,13 @@ ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${Y
 ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/tools/mrjob
 
 # Build required binaries and libraries.
-for path in "ydb/library/yql/yt/dynamic" \
-            "ydb/library/yql/yt/dq_vanilla_job" \
-            "ydb/library/yql/yt/dq_vanilla_job.lite" \
-            "yql/essentials/udfs/logs/dsv"
+for path in "yt/yql/plugin/dynamic" \
+            "yt/yql/dq_vanilla_job" \
+            "yt/yql/dq_vanilla_job.lite"
 do
-    ${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/$path
+    ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/$path
 done
+${YDB_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YDB_SOURCE_PATH}/yql/essentials/udfs/logs/dsv
 
 # Build common yql udfs.
 for udf_name in compress_base \
