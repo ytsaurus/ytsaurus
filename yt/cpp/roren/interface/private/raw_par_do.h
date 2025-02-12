@@ -7,6 +7,7 @@
 #include "raw_transform.h"
 #include "row_vtable.h"
 #include "save_loadable_pointer_wrapper.h"
+#include <yt/cpp/roren/library/unordered_invoker/unordered_invoker.h>
 
 #include <type_traits>
 #include <util/ysaveload.h>
@@ -74,9 +75,9 @@ public:
         for (; current < end; ++current) {
             if constexpr (IsMove) {
                 TInputRow copy(*current);
-                Func_->Do(std::move(copy), GetOutput());
+                InvokeUnordered<GetMemberPointerClass<decltype(&TFunction::Do)>>(&TFunction::Do, Func_.Get(), std::move(copy), GetOutput());
             } else {
-                Func_->Do(*current, GetOutput());
+                InvokeUnordered<GetMemberPointerClass<decltype(&TFunction::Do)>>(&TFunction::Do, Func_.Get(), *current, GetOutput());
             }
         }
     }
@@ -87,7 +88,7 @@ public:
         TInputRow* end = current + count;
 
         for (; current < end; ++current) {
-            Func_->Do(std::move(*current), GetOutput());
+            InvokeUnordered<GetMemberPointerClass<decltype(&TFunction::Do)>>(&TFunction::Do, Func_.Get(), *current, GetOutput());
         }
     }
 
