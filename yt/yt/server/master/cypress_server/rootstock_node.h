@@ -21,6 +21,8 @@ public:
     void Load(NCellMaster::TLoadContext& context) override;
 };
 
+DEFINE_MASTER_OBJECT_TYPE(TRootstockNode)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

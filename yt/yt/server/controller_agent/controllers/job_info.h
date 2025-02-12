@@ -93,7 +93,7 @@ struct TJoblet
     // There are no joblets for finished jobs, JobState may not contain finished states.
     std::optional<EJobState> JobState;
 
-    EInterruptReason InterruptionReason = EInterruptReason::None;
+    EInterruptionReason InterruptionReason = EInterruptionReason::None;
 
     TString DebugArtifactsAccount;
     bool Suspicious = false;
@@ -180,7 +180,7 @@ struct TJoblet
     NScheduler::TJobProfilerSpecPtr EnabledJobProfiler;
 
     // Used for restarting jobs in gang vanilla operations.
-    TOperationIncarnation OperationIncarnation;
+    std::optional<TOperationIncarnation> OperationIncarnation;
 
     std::optional<TDuration> ArchiveTtl;
 

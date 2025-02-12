@@ -81,7 +81,6 @@ TChunkTreeStatistics TDynamicStore::GetStatistics() const
 
     TChunkTreeStatistics statistics;
     statistics.ChunkCount = 1;
-    statistics.LogicalChunkCount = 1;
     statistics.RowCount = 0;
     statistics.LogicalRowCount = 0;
     statistics.CompressedDataSize = 0;

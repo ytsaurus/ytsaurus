@@ -1,4 +1,5 @@
 #include <yt/yt/tests/cpp/test_base/api_test_base.h>
+#include <yt/yt/tests/cpp/test_base/private.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/transaction.h>
@@ -21,7 +22,7 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NLogging::TLogger Logger("TestSequoia");
+const auto Logger = CppTestsLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -53,7 +54,7 @@ public:
         auto tx = WaitFor(Client_->StartTransaction(ETransactionType::Master, options))
             .ValueOrThrow();
 
-        Cerr << Format("Cypress transaction started (TransactionId: %v)", tx->GetId()) << Endl;
+        YT_LOG_DEBUG("Cypress transaction started (TransactionId: %v)", tx->GetId());
 
         return tx;
     }
@@ -70,7 +71,7 @@ private:
 
     static void AbortCypressTransactions()
     {
-        Cerr << "Aborting Cypress transactions" << Endl;
+        YT_LOG_DEBUG("Aborting Cypress transactions");
 
         auto transactions = ConvertToNode(WaitFor(Client_->ListNode("//sys/transactions", NApi::TListNodeOptions{
             .Attributes = {"cypress_transaction"},
@@ -98,24 +99,18 @@ private:
             auto transactionId = transactions->FindChild(transactionIndex)->GetValue<std::string>();
 
             if (value->IsOK()) {
-                Cerr
-                    << Format(
-                        "Cypress transaction aborted (TransactionId: %v)",
-                        transactionId)
-                    << Endl;
+                YT_LOG_DEBUG(
+                    "Cypress transaction aborted (TransactionId: %v)",
+                    transactionId);
             } else {
-                Cerr <<
-                    Format(
-                        "Failed to abort Cypress transaction (TransactionId: %v, Error: %v)",
-                        transactionId,
-                        value->GetMessage())
-                    << Endl;
+                YT_LOG_DEBUG(
+                    "Failed to abort Cypress transaction (TransactionId: %v, Error: %v)",
+                    transactionId,
+                    value->GetMessage());
             }
         }
 
-        Cerr
-            << Format("All Cypress transactions aborted (TransactionCount: %v)", abortFutures.size())
-            << Endl;
+        YT_LOG_DEBUG("All Cypress transactions aborted (TransactionCount: %v)", abortFutures.size());
     }
 };
 
@@ -208,14 +203,13 @@ TEST_F(TSequoiaTest, TestRowLockConflict)
         }
     }
 
-    Cerr << Format(
+    YT_LOG_DEBUG(
         "Concurrent node creations are finished (RequestCount: %v, CreatedNodeCount: %v, "
         "LockConflictCount: %v, AlreadyExistsErrorCount: %v)",
         RequestCount,
         createdNodeCount,
         lockConflictCount,
-        nodeExistsCount)
-        << Endl;
+        nodeExistsCount);
 
     // TODO(kvk1920): implement per-request option to disable Sequoia retries
     // and rewrite this test in the following way: if Sequoia retries are
@@ -259,7 +253,7 @@ TEST_F(TSequoiaTest, CypressTransactionSimple)
     EXPECT_FALSE(WaitFor(Client_->NodeExists(Format("//sys/transactions/%v", nestedTx->GetId()))).ValueOrThrow());
     EXPECT_FALSE(WaitFor(Client_->NodeExists(Format("//sys/transactions/%v", dependentTx->GetId()))).ValueOrThrow());
 
-    Cerr << "All 3 transactions are aborted" << Endl;
+    YT_LOG_DEBUG("All 3 transactions are aborted");
 
     // All these transactions are expected to be aborted in TearDownTestCase().
     auto tx1 = StartCypressTransaction({.AutoAbort = false});
@@ -290,21 +284,17 @@ TEST_F(TSequoiaTest, ConcurrentCommitTx)
             WaitFor(barrier)
                 .ThrowOnError();
 
-            Cerr
-                << Format(
-                    "Request started (TransactionId: %v, InFlightRequestCount: %v)",
-                    transactions[txIndex]->GetId(),
-                    inFlightRequests.fetch_add(1, std::memory_order::relaxed) + 1)
-                << Endl;
+            YT_LOG_DEBUG(
+                "Request started (TransactionId: %v, InFlightRequestCount: %v)",
+                transactions[txIndex]->GetId(),
+                inFlightRequests);
 
             auto finally = Finally([&] {
-                Cerr
-                    << Format(
-                        "Request finished (TransactionId: %v, InFlightRequestCount: %v, FinishedRequestCount: %v)",
-                        transactions[txIndex]->GetId(),
-                        inFlightRequests.fetch_sub(1, std::memory_order::relaxed) - 1,
-                        finishedRequests.fetch_add(1, std::memory_order::relaxed) + 1)
-                    << Endl;
+                YT_LOG_DEBUG(
+                    "Request finished (TransactionId: %v, InFlightRequestCount: %v, FinishedRequestCount: %v)",
+                    transactions[txIndex]->GetId(),
+                    inFlightRequests.fetch_sub(1, std::memory_order::relaxed) - 1,
+                    finishedRequests.fetch_add(1, std::memory_order::relaxed) + 1);
             });
 
             WaitFor(transactions[txIndex]->Commit())
@@ -352,7 +342,7 @@ TEST_F(TSequoiaTest, ConcurrentCommitTx)
         }
     }
 
-    Cerr << Format("All transactions finished (Committed: %v, AlreadyAborted: %v)", committed, alreadyAborted) << Endl;
+    YT_LOG_DEBUG("All transactions finished (Committed: %v, AlreadyAborted: %v)", committed, alreadyAborted);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

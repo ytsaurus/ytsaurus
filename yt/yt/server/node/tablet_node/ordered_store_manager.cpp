@@ -113,8 +113,13 @@ void TOrderedStoreManager::LockHunkStores(TWriteContext* context)
     }
 }
 
+bool TOrderedStoreManager::IsVersionedWriteUnversioned() const
+{
+    return true;
+}
+
 bool TOrderedStoreManager::ExecuteWrites(
-    IWireProtocolReader* reader,
+    IWireWriteCommandReader* reader,
     TWriteContext* context)
 {
     YT_VERIFY(context->Phase == EWritePhase::Commit);
@@ -122,10 +127,7 @@ bool TOrderedStoreManager::ExecuteWrites(
     LockHunkStores(context);
 
     while (!reader->IsFinished()) {
-        auto command = reader->ReadWriteCommand(
-            Tablet_->TableSchemaData(),
-            /*captureValues*/ false,
-            /*versionedWriteIsUnversioned*/ true);
+        const auto& command = reader->NextCommand(IsVersionedWriteUnversioned());
         Visit(command,
             [&] (const TWriteRowCommand& command) { WriteRow(command.Row, context); },
             [&] (const TVersionedWriteRowCommand& command) { WriteRow(command.UnversionedRow, context); },
@@ -134,6 +136,7 @@ bool TOrderedStoreManager::ExecuteWrites(
                     GetWireProtocolCommand(command));
             });
     }
+
     return true;
 }
 

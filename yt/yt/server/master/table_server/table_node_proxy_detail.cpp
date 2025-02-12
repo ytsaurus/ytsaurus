@@ -360,6 +360,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetWritable(true)
         .SetReplicated(true)
         .SetPresent(isDynamic));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SerializationType)
+        .SetWritable(true)
+        .SetReplicated(true)
+        .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ReplicationCollocationId)
         .SetPresent(table->IsReplicated() && trunkTable->GetReplicationCollocation())
         .SetWritable(true)
@@ -496,14 +500,14 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             return true;
 
         case EInternedAttributeKey::SchemaId: {
-            auto* schema = table->GetSchema();
+            auto schema = table->GetSchema();
             BuildYsonFluently(consumer)
                 .Value(schema->GetId());
             return true;
         }
 
         case EInternedAttributeKey::SchemaDuplicateCount: {
-            auto* schema = table->GetSchema();
+            auto schema = table->GetSchema();
             BuildYsonFluently(consumer)
                 .Value(schema->GetObjectRefCounter());
             return true;
@@ -891,13 +895,24 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                 .Value(table->GetEnableDetailedProfiling());
             return true;
 
+
+        case EInternedAttributeKey::SerializationType:
+            if (!isDynamic) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(table->GetSerializationType());
+            return true;
+
+
         case EInternedAttributeKey::ReplicationCollocationTablePaths: {
             if (!isDynamic || !table->IsReplicated() || !trunkTable->GetReplicationCollocation()) {
                 break;
             }
 
             const auto& cypressManager = Bootstrap_->GetCypressManager();
-            auto* collocation = trunkTable->GetReplicationCollocation();
+            auto collocation = trunkTable->GetReplicationCollocation();
 
             BuildYsonFluently(consumer)
                 .DoListFor(collocation->Tables(), [&] (TFluentList fluent, TTableNode* table) {
@@ -1063,7 +1078,7 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
         }
 
         case EInternedAttributeKey::SecondaryIndices: {
-            if (!table->IsDynamic() || table->SecondaryIndices().empty() || table->IsForeign()) {
+            if (!table->IsDynamic() || trunkTable->SecondaryIndices().empty() || table->IsForeign()) {
                 return false;
             }
 
@@ -1072,11 +1087,11 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
             BuildYsonFluently(consumer)
                 .DoMapFor(
-                    table->SecondaryIndices(),
+                    trunkTable->SecondaryIndices(),
                     [&] (auto fluent, TSecondaryIndex* secondaryIndex) {
                         auto indexPath = cypressManager->GetNodePath(
                             tableManager->GetTableNodeOrThrow(secondaryIndex->GetIndexTableId()),
-                            /*transaction*/ nullptr);
+                            GetTransaction());
                         auto kind = secondaryIndex->GetKind();
 
                         fluent
@@ -1091,17 +1106,17 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
         }
 
         case EInternedAttributeKey::IndexTo: {
-            if (!table->IsDynamic() || !table->GetIndexTo() || table->IsForeign()) {
+            if (!table->IsDynamic() || !trunkTable->GetIndexTo() || table->IsForeign()) {
                 return false;
             }
 
             const auto& cypressManager = Bootstrap_->GetCypressManager();
             const auto& tableManager = Bootstrap_->GetTableManager();
 
-            auto* secondaryIndex = table->GetIndexTo();
+            auto secondaryIndex = trunkTable->GetIndexTo();
             auto tablePath = cypressManager->GetNodePath(
                 tableManager->GetTableNodeOrThrow(secondaryIndex->GetTableId()),
-                /*transaction*/ nullptr);
+                GetTransaction());
             auto kind = secondaryIndex->GetKind();
 
             BuildYsonFluently(consumer)
@@ -1328,7 +1343,7 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
             const auto& cypressManager = Bootstrap_->GetCypressManager();
 
             auto* lockedTable = LockThisImpl();
-            if (auto* collocation = lockedTable->GetReplicationCollocation()) {
+            if (auto collocation = lockedTable->GetReplicationCollocation()) {
                 YT_VERIFY(lockedTable->IsDynamic() && lockedTable->IsReplicated());
                 const auto& tableManager = Bootstrap_->GetTableManager();
 
@@ -1612,6 +1627,28 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             return true;
         }
 
+        case EInternedAttributeKey::SerializationType: {
+            if (!table->IsDynamic()) {
+                break;
+            }
+
+            auto serializationType = ConvertTo<ETabletTransactionSerializationType>(value);
+
+            if (serializationType == ETabletTransactionSerializationType::PerRow &&
+                !table->IsSorted())
+            {
+                THROW_ERROR_EXCEPTION("Serialization type %qlv is supported only for sorted dynamic tables",
+                    serializationType);
+            }
+
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
+            lockedTable->ValidateAllTabletsUnmounted(Format("Cannot change sequencer type to %v",
+                serializationType));
+            lockedTable->SetSerializationType(serializationType);
+            return true;
+        }
+
         case EInternedAttributeKey::ReplicationCollocationId: {
             ValidateNoTransaction();
 
@@ -1834,7 +1871,7 @@ void TTableNodeProxy::ValidateReadLimit(const NChunkClient::NProto::TReadLimit& 
 
 TComparator TTableNodeProxy::GetComparator() const
 {
-    auto* schema = GetThisImpl()->GetSchema();
+    auto schema = GetThisImpl()->GetSchema();
     return schema->AsTableSchema()->ToComparator();
 }
 
@@ -1950,9 +1987,10 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
     ToProto(response->mutable_upstream_replica_id(), trunkTable->GetUpstreamReplicaId());
     ToProto(response->mutable_schema(), *trunkTable->GetSchema()->AsTableSchema());
     response->set_enable_detailed_profiling(trunkTable->GetEnableDetailedProfiling());
+    response->set_serialization_type(ToProto(trunkTable->GetSerializationType()));
 
     THashSet<TTabletCell*> cells;
-    for (const auto* tabletBase : trunkTable->Tablets()) {
+    for (auto tabletBase : trunkTable->Tablets()) {
         auto* tablet = tabletBase->As<TTablet>();
         auto* cell = tablet->GetCell();
         auto* protoTablet = response->add_tablets();
@@ -1971,7 +2009,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
         ToProto(response->add_tablet_cells(), cell->GetDescriptor());
     }
 
-    for (const auto* index : trunkTable->SecondaryIndices()) {
+    for (auto index : trunkTable->SecondaryIndices()) {
         auto* protoIndexInfo = response->add_indices();
         ToProto(protoIndexInfo->mutable_index_table_id(), index->GetIndexTableId());
         protoIndexInfo->set_index_kind(ToProto(index->GetKind()));
@@ -1986,7 +2024,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, GetMountInfo)
 
     if (trunkTable->IsReplicated()) {
         const auto* replicatedTable = trunkTable->As<TReplicatedTableNode>();
-        for (const auto* replica : replicatedTable->Replicas()) {
+        for (auto replica : replicatedTable->Replicas()) {
             auto* protoReplica = response->add_replicas();
             ToProto(protoReplica->mutable_replica_id(), replica->GetId());
             protoReplica->set_cluster_name(replica->GetClusterName());
@@ -2193,11 +2231,12 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
             *schema,
             GetSchemaUpdateEnabledFeatures(config),
             dynamic,
-            table->IsEmpty() && !table->IsDynamic());
+            table->IsEmpty() && !table->IsDynamic(),
+            config->AllowAlterKeyColumnToAny);
 
         if (table->IsDynamic()) {
             const auto& tableManager = Bootstrap_->GetTableManager();
-            for (const auto* index : table->SecondaryIndices()) {
+            for (auto index : table->SecondaryIndices()) {
                 auto* indexTable = tableManager->GetTableNodeOrThrow(index->GetIndexTableId());
                 const auto& indexTableSchema = indexTable->GetSchema()->AsTableSchema();
                 switch (index->GetKind()) {
@@ -2218,7 +2257,7 @@ DEFINE_YPATH_SERVICE_METHOD(TTableNodeProxy, Alter)
                 }
             }
 
-            if (const auto* index = table->GetIndexTo()) {
+            if (auto index = table->GetIndexTo()) {
                 auto* indexTable = tableManager->GetTableNodeOrThrow(index->GetTableId());
                 const auto& tableSchema = indexTable->GetSchema()->AsTableSchema();
                 switch (index->GetKind()) {

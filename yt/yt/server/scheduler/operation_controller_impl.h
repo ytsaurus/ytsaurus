@@ -68,11 +68,11 @@ public:
         const TString& poolPath,
         const TFairShareStrategyTreeConfigPtr& treeConfig) override;
 
-    void UpdateMinNeededAllocationResources() override;
+    void UpdateGroupedNeededResources() override;
 
     TCompositeNeededResources GetNeededResources() const override;
-    TJobResourcesWithQuotaList GetMinNeededAllocationResources() const override;
-    TJobResourcesWithQuotaList GetInitialMinNeededAllocationResources() const override;
+    TAllocationGroupResourcesMap GetGroupedNeededResources() const override;
+    TAllocationGroupResourcesMap GetInitialGroupedNeededResources() const override;
     EPreemptionMode GetPreemptionMode() const override;
 
     std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction();
@@ -86,7 +86,7 @@ private:
     const NLogging::TLogger Logger;
 
     TControllerRuntimeDataPtr ControllerRuntimeData_;
-    TJobResourcesWithQuotaList InitialMinNeededResources_;
+    TAllocationGroupResourcesMap InitialGroupedNeededResources_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 

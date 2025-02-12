@@ -159,7 +159,7 @@ struct ITaskHost
     virtual void AbortJob(TJobId jobId, EAbortReason abortReason) = 0;
 
     virtual bool CanInterruptJobs() const = 0;
-    virtual void InterruptJob(TJobId jobId, EInterruptReason reason) = 0;
+    virtual void InterruptJob(TJobId jobId, EInterruptionReason reason) = 0;
 
     virtual void OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType) = 0;
 
@@ -183,6 +183,20 @@ struct ITaskHost
     virtual bool IsIdleCpuPolicyAllowedInTree(const TString& treeId) const = 0;
 
     virtual bool IsTreeProbing(const TString& treeId) const = 0;
+
+    virtual std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const = 0;
+
+    virtual bool IsNetworkBandwidthAvailable(const NScheduler::TClusterName& clusterName) const = 0;
+
+    virtual void SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) const = 0;
+
+    virtual void UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) const = 0;
+
+    virtual void UpdateWriteBufferMemoryAlert(TJobId jobId, i64 currentMemory, i64 previousMemory) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ITaskHost)

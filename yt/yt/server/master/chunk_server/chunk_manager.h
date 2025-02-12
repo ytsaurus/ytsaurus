@@ -68,7 +68,7 @@ struct IChunkManager
 
     virtual void ExportChunks(
         NTransactionServer::TTransaction* transaction,
-        TRange<TChunk*> chunks,
+        TRange<TChunkRawPtr> chunks,
         NObjectServer::TCellTag destinationCellTag,
         google::protobuf::RepeatedPtrField<NChunkClient::NProto::TChunkImportData>* importRequest) = 0;
 
@@ -188,11 +188,11 @@ struct IChunkManager
 
     virtual void AttachToChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTree*> children) = 0;
+        TRange<TChunkTreeRawPtr> children) = 0;
 
     virtual void DetachFromChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTree*> children,
+        TRange<TChunkTreeRawPtr> children,
         EChunkDetachPolicy policy) = 0;
 
     // NB: Keep in mind that cumulative chunk list statistics will not be
@@ -269,7 +269,7 @@ struct IChunkManager
     //! Computes quorum info for a given journal chunk
     //! by querying a quorum of replicas.
     virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
-        NChunkServer::TChunk* chunk) = 0;
+        TChunk* chunk) = 0;
     virtual TFuture<NJournalClient::TChunkQuorumInfo> GetChunkQuorumInfo(
         TChunkId chunkId,
         bool overlayed,
@@ -330,7 +330,7 @@ struct IChunkManager
     virtual TFuture<i64> GetCellLostVitalChunkCount() = 0;
 
     virtual void DisposeNode(TNode* node) = 0;
-    virtual void DisposeLocation(NChunkServer::TChunkLocation* location) = 0;
+    virtual void DisposeLocation(TChunkLocation* location) = 0;
 
     virtual void DestroyMedium(TMedium* medium) = 0;
 
@@ -338,10 +338,16 @@ struct IChunkManager
         TNode* node,
         NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat* request,
         NDataNodeTrackerClient::NProto::TRspIncrementalHeartbeat* response) = 0;
+    // COMPAT(danilalexeev): YT-23781.
     virtual void ProcessFullDataNodeHeartbeat(
         TNode* node,
         NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request,
         NDataNodeTrackerClient::NProto::TRspFullHeartbeat* response) = 0;
+    virtual void ProcessLocationFullDataNodeHeartbeat(
+        TNode* node,
+        NDataNodeTrackerClient::NProto::TReqLocationFullHeartbeat* request,
+        NDataNodeTrackerClient::NProto::TRspLocationFullHeartbeat* response) = 0;
+    virtual void FinalizeDataNodeFullHeartbeatSession(TNode* node) = 0;
 
     virtual TFuture<NDataNodeTrackerClient::NProto::TRspModifyReplicas> ModifySequoiaReplicas(
         std::unique_ptr<NDataNodeTrackerClient::NProto::TReqModifyReplicas> request) = 0;

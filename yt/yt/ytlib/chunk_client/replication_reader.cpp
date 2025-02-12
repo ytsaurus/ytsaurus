@@ -456,14 +456,18 @@ protected:
 
     struct TPeerProbeResult
     {
-        bool NetThrottling;
-        bool DiskThrottling;
-        i64 NetQueueSize;
-        i64 DiskQueueSize;
+        bool NetThrottling = false;
+        bool DiskThrottling = false;
+        i64 NetQueueSize = 0;
+        i64 DiskQueueSize = 0;
         ::google::protobuf::RepeatedPtrField<NChunkClient::NProto::TPeerDescriptor> PeerDescriptors;
         TAllyReplicasInfo AllyReplicas;
-        bool HasCompleteChunk;
+        bool HasCompleteChunk = false;
         std::vector<TBlockInfo> CachedBlocks;
+        i64 CachedBlockCount = 0;
+        i64 CachedBlockSize = 0;
+
+        double PeerRating = 0.0;
     };
 
     using TErrorOrPeerProbeResult = TErrorOr<TPeerProbeResult>;
@@ -1685,6 +1689,12 @@ private:
             return {cachedBlockCount, cachedBlockSize};
         };
 
+        for (auto& [peer, probeResult] : peerAndSuccessfulProbeResults) {
+            auto cacheHits = calculateCacheHits(probeResult.CachedBlocks);
+            probeResult.CachedBlockCount = cacheHits.first;
+            probeResult.CachedBlockSize = cacheHits.second;
+        }
+
         std::sort(
             peerAndSuccessfulProbeResults.begin(),
             peerAndSuccessfulProbeResults.end(),
@@ -1714,8 +1724,11 @@ private:
                     secondHit += (diskQueueSizeFactor * secondDiskQueueSize) / diskQueueSize;
                 }
 
-                auto [firstCachedBlockCount, firstCachedBlockSize] = calculateCacheHits(firstProbeResult.CachedBlocks);
-                auto [secondCachedBlockCount, secondCachedBlockSize] = calculateCacheHits(secondProbeResult.CachedBlocks);
+                auto firstCachedBlockCount = firstProbeResult.CachedBlockCount;
+                auto firstCachedBlockSize = firstProbeResult.CachedBlockSize;
+
+                auto secondCachedBlockCount = secondProbeResult.CachedBlockCount;
+                auto secondCachedBlockSize = secondProbeResult.CachedBlockSize;
 
                 auto cachedBlockCount = firstCachedBlockCount + secondCachedBlockCount;
                 auto cachedBlockSize = firstCachedBlockSize + secondCachedBlockSize;
@@ -1750,10 +1763,12 @@ private:
                 TRange(peerAndSuccessfulProbeResults.begin(), peerAndSuccessfulProbeResults.begin() + count),
                 [] (auto* builder, const auto& peerAndSuccessfulProbeResult) {
                     const auto& [peer, probeResult] = peerAndSuccessfulProbeResult;
-                    builder->AppendFormat("{Address: %v, DiskQueueSize: %v, NetQueueSize: %v}",
+                    builder->AppendFormat("{Address: %v, DiskQueueSize: %v, NetQueueSize: %v, CachedBlockCount: %v, CachedBlockSize: %v}",
                         peer.Address,
                         probeResult.DiskQueueSize,
-                        probeResult.NetQueueSize);
+                        probeResult.NetQueueSize,
+                        probeResult.CachedBlockCount,
+                        probeResult.CachedBlockSize);
                 }));
 
         return bestPeers;
@@ -2557,6 +2572,7 @@ private:
 
         TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(ReaderConfig_->BlockRpcTimeout);
+        proxy.SetDefaultMemoryUsageTracker(SessionOptions_.MemoryUsageTracker);
 
         auto req = proxy.GetBlockRange();
         req->SetResponseHeavy(true);
@@ -2867,6 +2883,7 @@ private:
 
         TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(ReaderConfig_->MetaRpcTimeout);
+        proxy.SetDefaultMemoryUsageTracker(SessionOptions_.MemoryUsageTracker);
 
         auto req = proxy.GetChunkMeta();
         req->SetResponseHeavy(true);
@@ -3251,6 +3268,7 @@ private:
 
         TDataNodeServiceProxy proxy(channel);
         proxy.SetDefaultTimeout(ReaderConfig_->LookupRpcTimeout);
+        proxy.SetDefaultMemoryUsageTracker(SessionOptions_.MemoryUsageTracker);
 
         auto req = proxy.LookupRows();
         req->SetResponseHeavy(true);

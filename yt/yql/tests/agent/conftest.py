@@ -13,13 +13,6 @@ import pytest
 import yatest.common
 
 
-def _get_artifacts_path():
-    if "YDB_ARTIFACTS_PATH" in os.environ:
-        return os.environ["YDB_ARTIFACTS_PATH"]
-    else:
-        return yatest.common.runtime.work_path("yt_binaries")
-
-
 class YqlAgent():
     def __init__(self, env, count, libraries):
         self.yql_agent = YqlAgentComponent()
@@ -27,7 +20,9 @@ class YqlAgent():
         self.yql_agent.prepare(env, config={
             "count": count,
             "path": yatest.common.binary_path("yt/yql/agent/bin"),
-            "artifacts_path": _get_artifacts_path(),
+            "mr_job_bin": yatest.common.binary_path("yt/yql/tools/mrjob/mrjob"),
+            "mr_job_udfs_dir": os.path.dirname(yatest.common.binary_path("yql/essentials/udfs/common")),
+            "yql_plugin_shared_library": yatest.common.binary_path("yt/yql/plugin/dynamic/libyqlplugin.so"),
             "native_client_supported": True,
             "libraries": libraries,
         })

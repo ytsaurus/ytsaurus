@@ -14,6 +14,8 @@
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
+#include <yt/yt/server/master/cell_master/multicell_node_statistics.h>
+#include <yt/yt/server/master/cell_master/multicell_statistics_collector.h>
 
 #include <yt/yt/server/master/table_server/table_manager.h>
 #include <yt/yt/server/master/table_server/table_node.h>
@@ -125,6 +127,7 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& configManager = Bootstrap_->GetConfigManager();
         const auto& alertManager = Bootstrap_->GetAlertManager();
+        const auto& multicellStatisticsCollector = Bootstrap_->GetMulticellStatisticsCollector();
 
         switch (key) {
             case EInternedAttributeKey::CellTag:
@@ -188,6 +191,13 @@ private:
             case EInternedAttributeKey::DynamicallyPropagatedMastersCellTags:
                 BuildYsonFluently(consumer)
                     .Value(multicellManager->GetDynamicallyPropagatedMastersCellTags());
+                return true;
+
+            case EInternedAttributeKey::LostVitalChunkCount:
+                BuildYsonFluently(consumer)
+                    .Value(
+                        multicellStatisticsCollector->GetMulticellNodeStatistics()
+                            .GetClusterStatistics().lost_vital_chunk_count());
                 return true;
 
             case EInternedAttributeKey::Config:

@@ -36,6 +36,7 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/downed_cell_tracker.h>
 
 #include <yt/yt/ytlib/queue_client/records/queue_producer_session.record.h>
 
@@ -479,12 +480,12 @@ public:
         (subrequests, options))
 
     DELEGATE_TIMESTAMPED_METHOD(TFuture<TSelectRowsResult>, SelectRows, (
-        const TString& query,
+        const std::string& query,
         const TSelectRowsOptions& options),
         (query, options))
 
     DELEGATE_TIMESTAMPED_METHOD(TFuture<NYson::TYsonString>, ExplainQuery, (
-        const TString& query,
+        const std::string& query,
         const TExplainQueryOptions& options),
         (query, options))
 
@@ -1011,8 +1012,9 @@ private:
 
             const auto& rowBuffer = transaction->RowBuffer_;
 
-            auto evaluatorCache = Connection_->GetColumnEvaluatorCache();
-            auto evaluator = tableInfo->NeedKeyEvaluation ? evaluatorCache->Find(primarySchema) : nullptr;
+            auto evaluator = tableInfo->NeedKeyEvaluation
+                ? Connection_->GetColumnEvaluatorCache()->Find(primarySchema)
+                : nullptr;
 
             auto randomTabletInfo = tableInfo->GetRandomMountedTablet();
 
@@ -1581,7 +1583,7 @@ private:
 
     //! Maps replica cluster name to sync replica transaction.
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ClusterNameToSyncReplicaTransactionPromiseSpinLock_);
-    THashMap<TString, TPromise<NApi::ITransactionPtr>> ClusterNameToSyncReplicaTransactionPromise_;
+    THashMap<std::string, TPromise<NApi::ITransactionPtr>> ClusterNameToSyncReplicaTransactionPromise_;
 
     //! Caches mappings from name table ids to schema ids.
     THashMap<std::tuple<TTableId, TNameTablePtr, ETableSchemaKind, bool>, TNameTableToSchemaIdMapping> IdMappingCache_;
@@ -2165,7 +2167,9 @@ private:
         THashSet<NChaosClient::TReplicationCardId> requestedReplicationCardIds;
 
         for (const auto& [path, session] : TablePathToSession_) {
-            if (session->GetInfo()->IsReplicated()) {
+            if (session->GetInfo()->SerializationType == ETabletTransactionSerializationType::PerRow ||
+                session->GetInfo()->IsReplicated())
+            {
                 CommitOptions_.Force2PC = true;
             }
 
@@ -2215,7 +2219,8 @@ private:
                 }
 
                 if (!coordinatorCellId) {
-                    coordinatorCellId = coordinatorCellIds[RandomNumber(coordinatorCellIds.size())];
+                    const auto& downedCellTracker = Client_->GetNativeConnection()->GetDownedCellTracker();
+                    coordinatorCellId = downedCellTracker->ChooseOne(coordinatorCellIds);
                     selectedCellIds.insert(coordinatorCellId);
                     Transaction_->RegisterParticipant(coordinatorCellId);
                 }

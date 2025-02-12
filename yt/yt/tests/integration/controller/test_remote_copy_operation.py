@@ -80,7 +80,6 @@ class TestSchedulerRemoteCopyCommandsBase(YTEnvSetup):
 
 class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
     ENABLE_MULTIDAEMON = False  # There are component restarts.
-    ENABLE_HUNKS_REMOTE_COPY = True
 
     @authors("ignat")
     def test_empty_table(self):
@@ -608,7 +607,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
     @pytest.mark.parametrize("copy_user_attributes", [True, False])
     @pytest.mark.parametrize("object_type", ["table", "file"])
     def test_copy_basic_attributes(self, copy_user_attributes, object_type):
-        skip_if_component_old(self.Env, (24, 2), "controller-agent")
+        skip_if_component_old(self.Env, (25, 1), "controller-agent")
         create(object_type, "//tmp/t_in", driver=self.remote_driver)
         create(object_type, "//tmp/t_out")
 
@@ -1040,7 +1039,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
     @authors("coteeq")
     def test_copy_file_data_weight_per_job(self):
-        skip_if_component_old(self.Env, (24, 2), "controller-agent")
+        skip_if_component_old(self.Env, (25, 1), "controller-agent")
         n_chunks = 3
         self._create_inout_files(n_chunks, content=b"content" * 100)
 
@@ -1780,32 +1779,6 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesB
 
         assert read_table("//tmp/t2") == rows
 
-    @authors("alexelexa")
-    @pytest.mark.parametrize("dynamic", [True, False])
-    def test_no_hunks(self, dynamic):
-        schema = [
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "string", "max_inline_hunk_size": 1},
-        ]
-        self._create_sorted_table("//tmp/t1", schema=schema, dynamic=dynamic, driver=self.remote_driver)
-        self._create_sorted_table("//tmp/t2", schema=schema, dynamic=dynamic)
-
-        with raises_yt_error():
-            remote_copy(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
-            )
-
-        remote_copy(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={
-                "cluster_name": self.REMOTE_CLUSTER_NAME,
-                "bypass_hunk_remote_copy_prohibition": True,
-            }
-        )
-
 
 ##################################################################
 
@@ -1813,7 +1786,6 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesB
 @pytest.mark.enabled_multidaemon
 class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
-    ENABLE_HUNKS_REMOTE_COPY = True
 
     @authors("alexelexa")
     @pytest.mark.parametrize("max_inline_hunk_size", [1, 5, 10])
@@ -2016,7 +1988,6 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
 class TestSchedulerRemoteCopyDynamicTablesErasure(TestSchedulerRemoteCopyDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_NODES = 12
-    ENABLE_HUNKS_REMOTE_COPY = True
 
     @authors("alexelexa")
     @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
@@ -2208,7 +2179,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
             "operation_alerts_push_period": 100,
             "alert_manager": {
                 "period": 100,
-                "task_paused_scheduling_ratio_threshold": 0.01,
+                "task_unavailable_network_bandwidth_time_ratio_alert_threshold": 0.01,
             },
             "remote_copy_operation_options": {
                 "spec_template": {
@@ -2483,10 +2454,7 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         def is_not_available(cluster, op):
             value = get(op.get_orchid_path() + "/controller/network_bandwidth_availability")
             assert cluster in value
-            if str(value[cluster]) == "false":
-                return True
-            else:
-                return False
+            return str(value[cluster]) == "false"
 
         wait(lambda: is_not_available(self.REMOTE_CLUSTER_NAME, op))
 
@@ -2497,4 +2465,4 @@ class TestSchedulerRemoteCopyWithClusterThrottlers(TestSchedulerRemoteCopyComman
         assert 'Operation is running for too long' in str(err)
 
         # Check that operation scheduling was paused due to unavailable network bandwidth.
-        assert 'has_task_with_long_paused_scheduling' in op.get_alerts()
+        assert 'unavailable_network_bandwidth_to_clusters' in op.get_alerts()

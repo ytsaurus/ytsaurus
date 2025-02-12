@@ -353,7 +353,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             {"name": "value", "type": "int64", "lock": "value_lock"}
         ]
 
-        create_dynamic_table("//tmp/t", schema=schema)
+        create_dynamic_table("//tmp/t", schema=schema, serialization_type="coarse")
         # TODO(ponasenko-rs): Remove after YT-21404.
         set("//tmp/t/@dynamic_store_auto_flush_period", None)
         sync_mount_table("//tmp/t")
@@ -513,6 +513,58 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         assert_items_equal(actual, rows)
         actual = lookup_rows("//tmp/t1", [{"key": row["key"]} for row in rows])
         assert_items_equal(actual, rows)
+
+    @authors("ponasenko-rs")
+    def test_serialization_type(self):
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t")
+        assert get("//tmp/t/@serialization_type") == "coarse"
+
+        sync_mount_table("//tmp/t")
+
+        with raises_yt_error(yt_error_codes.InvalidTabletState):
+            set("//tmp/t/@serialization_type", "per_row")
+        with raises_yt_error(yt_error_codes.InvalidTabletState):
+            set("//tmp/t/@serialization_type", "coarse")
+
+        sync_unmount_table("//tmp/t")
+        set("//tmp/t/@serialization_type", "per_row")
+        sync_mount_table("//tmp/t")
+
+    @authors("ponasenko-rs")
+    @pytest.mark.parametrize("key_count", [1, 10, 5000])
+    def test_per_row_sequencer_with_shared_write_locks(self, key_count):
+        sync_create_cells(1)
+
+        schema = [
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "a", "type": "int64", "lock": "la"},
+            {"name": "b", "type": "int64", "lock": "lb"},
+            {"name": "c", "type": "int64", "lock": "lc"}
+        ]
+        create_dynamic_table("//tmp/t", schema=schema, serialization_type="per_row")
+        assert get("//tmp/t/@serialization_type") == "per_row"
+
+        set("//tmp/t/@mount_config/testing", {
+            "sorted_store_manager_hash_check_probability": 1.0,
+        })
+        sync_mount_table("//tmp/t")
+
+        tx1 = start_transaction(type="tablet")
+        tx2 = start_transaction(type="tablet")
+
+        insert_rows("//tmp/t", [{"key": i, "a": i} for i in range(key_count)], update=True, lock_type="shared_write", tx=tx1)
+        insert_rows("//tmp/t", [{"key": i, "a": i * 2 + 1} for i in range(key_count)], update=True, lock_type="shared_write", tx=tx2)
+
+        commit_transaction(tx1)
+        commit_transaction(tx2)
+
+        wait(lambda: (
+            lookup_rows("//tmp/t", [{"key": i} for i in range(key_count)], column_names=["key", "a"])
+            ==
+            [{"key": i, "a": i * 2 + 1} for i in range(key_count)]
+        ))
 
     @authors("whatsername")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -1195,9 +1247,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         del statistics2["regular_disk_space"]
         # Chunk count includes dynamic stores
         del statistics1["chunk_count"]
-        del statistics1["logical_chunk_count"]
         del statistics2["chunk_count"]
-        del statistics2["logical_chunk_count"]
         assert statistics1 == statistics2
 
     @authors("babenko")
@@ -1765,15 +1815,18 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             schema=schema,
             mount_config={
                 "min_data_ttl": 0,
-                "max_data_ttl": 1000,
+                "max_data_ttl": 0,
                 "min_data_versions": 0,
-                "max_data_versions": 1,
+                "max_data_versions": 0,
                 "row_merger_type": "watermark",
                 "auto_compaction_period": 1,
             },
         )
 
         sync_mount_table("//tmp/t")
+
+        # Set initial watermark value to prevent rows getting deleted by max_data_ttl=0
+        self._sync_set_watermark(0)
 
         rows = [
             {"key": 0, "watermark": 10},

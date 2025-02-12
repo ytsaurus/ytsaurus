@@ -164,7 +164,7 @@ void TJobProfiler::ProfileCompletedJob(const TJoblet& joblet, const TCompletedJo
 
 void TJobProfiler::DoProfileCompletedJob(
     EJobType jobType,
-    EInterruptReason interruptionReason,
+    EInterruptionReason interruptionReason,
     TString treeId,
     TDuration duration,
     std::optional<EJobState> previousJobState)

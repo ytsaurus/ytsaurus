@@ -140,6 +140,11 @@ protected:
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
         EVisitReason reason);
+    // Called to visit a present singular field of a scalar type at the end of the path.
+    void VisitScalarSingularField(
+        TMessageParam message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
+        EVisitReason reason);
     // Called to visit a missing singular field. Throws unless convinced otherwise by flags and
     // reason.
     void VisitMissingSingularField(
@@ -168,6 +173,12 @@ protected:
     // Called to visit a specific entry in the repeated field. The index is within bounds.
     // Default implementation calls VisitMessage or throws.
     void VisitRepeatedFieldEntry(
+        TMessageParam message,
+        const NProtoBuf::FieldDescriptor* fieldDescriptor,
+        int index,
+        EVisitReason reason);
+    // Called to visit a repeated field entry of a scalar type at the end of the path.
+    void VisitScalarRepeatedFieldEntry(
         TMessageParam message,
         const NProtoBuf::FieldDescriptor* fieldDescriptor,
         int index,

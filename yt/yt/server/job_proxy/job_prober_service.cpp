@@ -121,9 +121,11 @@ private:
     {
         Y_UNUSED(response);
 
+        auto error = FromProto<TError>(request->error());
+
         context->SetRequestInfo();
 
-        GetJobProxy()->Fail();
+        GetJobProxy()->Fail(std::move(error));
 
         context->Reply();
     }

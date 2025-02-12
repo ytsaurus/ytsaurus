@@ -121,7 +121,7 @@ TDetailedMasterMemory TTabletOwnerBase::GetDetailedMasterMemoryUsage() const
 void TTabletOwnerBase::RecomputeTabletMasterMemoryUsage()
 {
     i64 masterMemoryUsage = 0;
-    for (const auto* tablet : Tablets()) {
+    for (auto tablet : Tablets()) {
         masterMemoryUsage += tablet->GetTabletMasterMemoryUsage();
     }
     SetTabletMasterMemoryUsage(masterMemoryUsage);
@@ -134,7 +134,7 @@ void TTabletOwnerBase::RecomputeTabletErrorCount()
     }
 
     int tabletErrorCount = 0;
-    for (auto* tablet : Tablets()) {
+    for (auto tablet : Tablets()) {
         tabletErrorCount += tablet->GetTabletErrorCount();
     }
     SetTabletErrorCount(tabletErrorCount);
@@ -147,7 +147,7 @@ TTabletResources TTabletOwnerBase::GetTabletResourceUsage() const
 
     if (IsTrunk()) {
         tabletCount = Tablets().size();
-        for (const auto* tablet : Tablets()) {
+        for (auto tablet : Tablets()) {
             if (tablet->GetState() != ETabletState::Unmounted) {
                 tabletStaticMemory += tablet->GetTabletStaticMemorySize();
             }

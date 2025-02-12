@@ -729,8 +729,12 @@ private:
             {
                 continue;
             }
-            if (variable.StartsWith("YT_") &&
-                !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment()) {
+            if (JobEnvironmentType_ == EJobEnvironmentType::Cri
+                ? !variable.StartsWith("YT_") || !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment()
+                // TODO(ignat, faucct): investigate why $HOME breaks shell start in porto tests
+                // https://github.com/ytsaurus/ytsaurus/pull/1041#issuecomment-2608440987
+                : variable.StartsWith("YT_") && !Host_->GetJobSpecHelper()->GetJobSpecExt().ignore_yt_variables_in_shell_environment())
+            {
                 shellEnvironment.push_back(variable);
             }
             visibleEnvironment.push_back(variable);
@@ -1033,11 +1037,12 @@ private:
         UserJobReadController_->InterruptReader();
     }
 
-    void Fail() override
+    void Fail(TError error) override
     {
-        YT_LOG_DEBUG("User job failed");
-        auto error = TError("Job failed by external request");
-        JobErrorPromise_.TrySet(error);
+        auto jobError = TError("Job failed by node request")
+            << std::move(error);
+        YT_LOG_DEBUG(jobError, "User job failed");
+        JobErrorPromise_.TrySet(std::move(jobError));
         CleanupUserProcesses();
     }
 

@@ -1,6 +1,7 @@
 # Yson
 
-{% include [_includes/yson/intro_header.md](_includes/yson/intro_header.md) %}
+
+[YSON](https://yt.yandex-team.ru/docs/description/common/yson.html) is a data format similar to JSON developed by Yandex.
 
 * Similarities with JSON:
    * Does not have a strict scheme.
@@ -29,7 +30,9 @@ The module's functions must be considered as "building blocks" from which you ca
 * `Yson::Parse*** -> Yson::Lookup -> Yson::Serialize***`: Extracting the value of the specified subtree in the source YSON tree.
 * `Yson::Parse*** -> Yson::ConvertToList -> ListMap -> Yson::Lookup***`: Extracting items by a key from the YSON list.
 
-{% include [_includes/yson/intro_footer.md](_includes/yson/intro_footer.md) %}
+
+<!--See examples of combinations for YSON-functions in the [tutorial](https://cluster-name.yql/Tutorial/yt_17_Yson_and_Json).-->
+
 
 **Examples**
 
@@ -221,7 +224,8 @@ Yson::YPathList(Resource<'Yson2.Node'>{Flags:AutoMap}, String) -> List<Resource<
 ```
 Lets you get a part of the resource based on the source resource and the part's path in YPath format.
 
-{% include [_includes/yson/ypath_overlay.md](_includes/yson/ypath_overlay.md) %}
+
+[YPath-related information](https://yt.yandex-team.ru/docs/description/common/ypath.html) at documentation page {{product-name}}.
 
 ## Yson::Attributes {#ysonattributes}
 ```yql

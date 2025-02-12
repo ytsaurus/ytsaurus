@@ -213,6 +213,16 @@ DEFINE_ENUM(EMasterReign,
     ((FixBuiltinAdminsGroupId)                                      (2823))  // cherepashka
     ((StableOrderedSecondaryIndicesDestruction)                     (2824))  // koloshmet
     ((FixExportedObjectsRefs)                                       (2825))  // aleksandra-zh
+    ((SecondaryIndexAbandonment)                                    (2826))  // sabdenovch
+    ((SequoiaRefreshQueues)                                         (2827))  // aleksandra-zh
+    ((PerLocationNodeHeartbeat)                                     (2828))  // danilalexeev
+    ((HunkSpecificMediaFixes)                                       (2829))  // shakurov
+    ((RipLogicalChunkCount)                                         (2830))  // ifsmirnov
+    ((CancelTabletTransition)                                       (2831))  // ifsmirnov
+    ((MulticellStatisticsCollector)                                 (2832))  // koloshmet
+    ((ForbidAlterKeyColumnToAny)                                    (2833))  // dtorilov
+    ((UpdateRttConfig)                                              (2834))  // akozhikhov
+    ((TabletTransactionSerializationType)                           (2835))  // ponasenko-rs
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

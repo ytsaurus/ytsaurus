@@ -2055,7 +2055,7 @@ OUTPUT "37878b-ba919c15-cdc97f3a-8a983ece"
 | `user`             | `string`         | Нет          | `Null`                      | Имя пользователя для фильтрации.                              |
 | `state`            | `string`         | Нет          | `Null`                      | Состояние операции для фильтрации.                            |
 | `type`             | `string`         | Нет          | `Null`                      | Тип операции для фильтрации.                                  |
-| `filter`           | `string`         | Нет          | `Null`                      | Подстрока, которая должна присутствовать в `filter_factors` у операции.  |
+| `filter`           | `string`         | Нет          | `Null`                      | Подстрока, которая должна присутствовать в `filter_factors`. `filter_factors` – это конкатенация различных атрибутов операции: `id`, `type`, `authenticated_user`, `state`, `input_table_paths`, `output_table_paths`, `experiments`, `annotations`, `runtime_parameters`, `pool`, `title`. |
 | `pool`             | `string`         | Нет          | `Null`                      | Пул для фильтрации.                                           |
 | `with_failed_jobs` | `bool`           | Нет          | `Null`                      | Возвращать только операции, у которых есть джобы со статусом `failed`. |
 | `access`           | `map`        | Нет          | `Null`                      | Словарь с обязательными полями `subject` (строка) и `permissions` (список строк), задающий фильтр по правам доступа. Если указан, возвращаются только операции, к которым субъект `subject` имеет каждое из прав в списке `permissions`. |

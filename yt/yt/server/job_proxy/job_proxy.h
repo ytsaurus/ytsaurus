@@ -60,7 +60,7 @@ public:
         const NYson::TYsonString& parameters) override;
     void Interrupt() override;
     void GracefulAbort(TError error) override;
-    void Fail() override;
+    void Fail(TError error) override;
     TSharedRef DumpSensors() override;
 
     NJobTrackerClient::TJobId GetJobId() const override;

@@ -70,7 +70,7 @@ struct ITabletChunkManager
 
     virtual void DetachChunksFromTablet(
         TTabletBase* tablet,
-        const std::vector<NChunkServer::TChunkTree*>& chunkTrees,
+        const std::vector<NChunkServer::TChunkTreeRawPtr>& chunkTrees,
         NChunkServer::EChunkDetachPolicy policy) = 0;
 
     virtual void WrapWithBackupChunkViews(

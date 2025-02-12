@@ -21,7 +21,7 @@ struct IChunkSealer
 
     virtual void ScheduleSeal(TChunk* chunk) = 0;
 
-    virtual void OnChunkDestroyed(NChunkServer::TChunk* chunk) = 0;
+    virtual void OnChunkDestroyed(TChunk* chunk) = 0;
 
     virtual void OnProfiling(NProfiling::TSensorBuffer* buffer) const = 0;
 };

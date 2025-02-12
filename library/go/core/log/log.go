@@ -11,6 +11,12 @@ type Logger interface {
 	withName
 }
 
+// LoggerWithWith is the `Logger` with `With()` function.
+type LoggerWithWith interface {
+	Logger
+	LoggerWith
+}
+
 type withName interface {
 	WithName(name string) Logger
 }

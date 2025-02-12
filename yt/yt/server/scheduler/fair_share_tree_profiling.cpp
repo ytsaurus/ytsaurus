@@ -574,9 +574,12 @@ void TFairShareTreeProfileManager::ApplyJobMetricsDelta(
     for (const auto& [operationId, jobMetricsDelta] : jobMetricsPerOperation) {
         const TSchedulerElement* currentElement = treeSnapshot->FindEnabledOperationElement(operationId);
         if (!currentElement) {
-            currentElement = treeSnapshot->FindDisabledOperationElement(operationId);
+            auto disabledOperationElement = treeSnapshot->FindDisabledOperationElement(operationId);
+            YT_VERIFY(disabledOperationElement);
+            // NB: We add metrics to the parent pools for completeness purposes
+            // and not add it to the operation since profiling is omitted for disabled operations.
+            currentElement = disabledOperationElement->GetParent();
         }
-        YT_VERIFY(currentElement);
         while (currentElement) {
             JobMetricsMap_[currentElement->GetId()] += jobMetricsDelta;
             currentElement = currentElement->GetParent();

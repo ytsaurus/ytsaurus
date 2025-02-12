@@ -806,10 +806,11 @@ private:
 
                     auto remoteFeatureFlags = RequestFeatureFlags_;
 
-                    std::vector<TColumnSchema> definedKeyColumns = Query_->GetRenamedSchema()->Columns();
+                    auto definedKeyColumns = Query_->GetRenamedSchema()->Columns();
                     definedKeyColumns.resize(minKeyWidth);
 
-                    bool lhsQueryCanBeSelective = SplitPredicateByColumnSubset(Query_->WhereClause, TTableSchema(definedKeyColumns))
+                    auto lhsTableWhereClause = SplitPredicateByColumnSubset(Query_->WhereClause, *Query_->GetRenamedSchema()).first;
+                    bool lhsQueryCanBeSelective = SplitPredicateByColumnSubset(lhsTableWhereClause, TTableSchema(definedKeyColumns))
                         .second->As<TLiteralExpression>() == nullptr;
                     bool inferredRangesCompletelyDefineRhsRanges = joinClause->CommonKeyPrefix >= minKeyWidth && minKeyWidth > 0;
                     bool canUseMergeJoin = inferredRangesCompletelyDefineRhsRanges && !orderedExecution && !lhsQueryCanBeSelective;
@@ -837,9 +838,11 @@ private:
                         auto asyncResult = BIND(
                             &IExecutor::Execute,
                             remoteExecutor,
-                            joinSubquery,
+                            TPlanFragment{
+                                .Query = std::move(joinSubquery),
+                                .DataSource = std::move(dataSource),
+                            },
                             ExternalCGInfo_,
-                            std::move(dataSource),
                             writer,
                             remoteOptions,
                             remoteFeatureFlags)
@@ -896,9 +899,11 @@ private:
                             auto asyncResult = BIND(
                                 &IExecutor::Execute,
                                 remoteExecutor,
-                                foreignQuery,
+                                TPlanFragment{
+                                    .Query = std::move(foreignQuery),
+                                    .DataSource = std::move(dataSource),
+                                },
                                 ExternalCGInfo_,
-                                std::move(dataSource),
                                 pipe->GetWriter(),
                                 remoteOptions,
                                 remoteFeatureFlags)

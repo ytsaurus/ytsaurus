@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 
@@ -11,6 +12,7 @@
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/server/lib/hydra/mutation.h>
+#include <yt/yt/server/lib/hydra/persistent_response_keeper.h>
 
 #include <yt/yt/ytlib/transaction_client/transaction_service_proxy.h>
 
@@ -107,6 +109,14 @@ private:
         context->SetRequestInfo("TransactionId: %v, ActionCount: %v",
             transactionId,
             request->actions_size());
+
+        if (context->GetMutationId()) {
+            const auto& responseKeeper = Bootstrap_->GetHydraFacade()->GetResponseKeeper();
+            if (auto result = responseKeeper->FindRequest(context->GetMutationId(), context->IsRetry())) {
+                context->ReplyFrom(std::move(result));
+                return;
+            }
+        }
 
         auto cellTag = CellTagFromId(transactionId);
 

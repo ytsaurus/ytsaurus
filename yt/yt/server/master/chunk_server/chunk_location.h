@@ -51,8 +51,13 @@ public:
     //!   Indicates an unsealed chunk.
     DEFINE_BYREF_RW_PROPERTY(TChunkQueue, ChunkSealQueue);
 
+    //! Chunk replica announcement requests that should be sent to the node upon next heartbeat.
+    //! Non-null revision means that the request was already sent and is pending confirmation.
+    using TEndorsementMap = THashMap<TChunkRawPtr, NHydra::TRevision>;
+    DEFINE_BYREF_RW_PROPERTY(TEndorsementMap, ReplicaEndorsements);
+
     DEFINE_BYVAL_RW_PROPERTY(bool, BeingDisposed);
-    DEFINE_BYVAL_RW_PROPERTY(TNode*, Node);
+    DEFINE_BYVAL_RW_PROPERTY(NNodeTrackerServer::TNodeRawPtr, Node);
 
     DEFINE_BYVAL_RW_PROPERTY(TChunkLocationUuid, Uuid);
     DEFINE_BYVAL_RW_PROPERTY(EChunkLocationState, State, EChunkLocationState::Offline);
@@ -111,7 +116,6 @@ public:
 
     // COMPAT(kvk1920): remove after 24.2.
     // NB: See comment for TSerializerTraits<NChunkServer::TChunkLocation*, C>.
-    static TChunkLocation* LoadPtr(NCellMaster::TLoadContext& context);
     static TNode* SkipImaginaryChunkLocation(NCellMaster::TLoadContext& context);
 
 private:
@@ -127,6 +131,8 @@ private:
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TChunkLocation)
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TChunkLocation::TDestroyedReplicasIterator
 {
@@ -174,18 +180,18 @@ namespace NYT {
 // COMPAT(kvk1920): remove after 24.2.
 // NB: In most cases pointer to |TChunkLocation| could be either real or
 // imaginary but there are rare cases when we know exact type of location. In
-// those cases use |TChunkLocation::LoadPtr()|.
+// those cases use |TRawNonversionedObjectPtrSerializer|.
 template <class C>
-struct TSerializerTraits<NChunkServer::TChunkLocation*, C>
+struct TSerializerTraits<NChunkServer::TChunkLocationRawPtr, C>
 {
     struct TSerializer
     {
         static void Save(
             NCellMaster::TSaveContext& context,
-            const NChunkServer::TChunkLocation* location);
+            NChunkServer::TChunkLocationRawPtr location);
         static void Load(
             NCellMaster::TLoadContext& context,
-            NChunkServer::TChunkLocation*& location);
+            NChunkServer::TChunkLocationRawPtr& location);
     };
 
     using TComparer = NObjectServer::TObjectIdComparer;

@@ -1,8 +1,8 @@
 #include "sorted_dynamic_store.h"
 
+#include "automaton.h"
 #include "tablet.h"
 #include "transaction.h"
-#include "automaton.h"
 #include "serialize.h"
 
 #include <yt/yt/server/lib/tablet_node/config.h>
@@ -107,20 +107,21 @@ bool AllocateListForPushIfNeeded(
 void RecalculatePrepareTimestamp(TLockDescriptor* lock)
 {
     auto writePrepareTimestamp = lock->WriteTransactionPrepareTimestamp;
-    auto sharedWritePrepareTimestamp = lock->SharedWriteTransactions.empty()
-        ? NotPreparedTimestamp
-        : lock->SharedWriteTransactions.front().PrepareTimestamp;
+
+    const TTransaction* sharedWritePrepareTransaction = lock->SharedWriteTransactions.empty()
+        ? nullptr
+        : lock->SharedWriteTransactions.front().Transaction;
 
     YT_ASSERT(writePrepareTimestamp <= NotPreparedTimestamp);
-    YT_ASSERT(sharedWritePrepareTimestamp <= NotPreparedTimestamp);
-    YT_ASSERT(writePrepareTimestamp == NotPreparedTimestamp || sharedWritePrepareTimestamp == NotPreparedTimestamp);
+    YT_ASSERT(sharedWritePrepareTransaction == nullptr || sharedWritePrepareTransaction->GetPrepareTimestamp() <= NotPreparedTimestamp);
+    YT_ASSERT(writePrepareTimestamp == NotPreparedTimestamp || sharedWritePrepareTransaction == nullptr);
 
-    if (writePrepareTimestamp <= sharedWritePrepareTimestamp) {
+    if (sharedWritePrepareTransaction == nullptr || writePrepareTimestamp <= sharedWritePrepareTransaction->GetPrepareTimestamp()) {
         lock->PreparedTransaction = lock->WriteTransaction;
-        lock->PrepareTimestamp = writePrepareTimestamp;
+        lock->PrepareTimestamp.store(writePrepareTimestamp);
     } else {
-        lock->PreparedTransaction = lock->SharedWriteTransactions.front().Transaction;
-        lock->PrepareTimestamp = sharedWritePrepareTimestamp;
+        lock->PreparedTransaction = sharedWritePrepareTransaction;
+        lock->PrepareTimestamp.store(sharedWritePrepareTransaction->GetPrepareTimestamp());
     }
 }
 
@@ -236,12 +237,14 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         ui32 revision,
-        const TColumnFilter& columnFilter)
+        const TColumnFilter& columnFilter,
+        std::optional<int> currentLastWriteTimestampIndex)
         : Store_(std::move(store))
         , TabletSnapshot_(std::move(tabletSnapshot))
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
         , Revision_(revision)
+        , CurrentLastWriteTimestampIndex_(currentLastWriteTimestampIndex)
         , KeyColumnCount_(Store_->KeyColumnCount_)
         , SchemaColumnCount_(Store_->SchemaColumnCount_)
         , ColumnLockCount_(Store_->ColumnLockCount_)
@@ -278,6 +281,7 @@ protected:
     const TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
     const ui32 Revision_;
+    const std::optional<int> CurrentLastWriteTimestampIndex_;
 
     TColumnFilter::TIndexes FilteredKeyColumns_;
     TColumnFilter::TIndexes FilteredValueColumns_;
@@ -294,13 +298,35 @@ protected:
 
     TLockMask LockMask_;
 
-    TTimestamp FillLatestWriteTimestamps(TSortedDynamicRow dynamicRow, TTimestamp* latestWriteTimestampPerLock)
+    TTimestamp FillLatestWriteTimestamps(
+        TSortedDynamicRow dynamicRow,
+        TTimestamp* latestWriteTimestampPerLock,
+        std::optional<int> lastSerializedTimestampIndex = std::nullopt)
     {
         auto* lock = dynamicRow.BeginLocks(KeyColumnCount_);
         auto maxTimestamp = NullTimestamp;
         for (int index = 0; index < ColumnLockCount_; ++index, ++lock) {
             auto list = TSortedDynamicRow::GetWriteRevisionList(*lock);
-            const auto* revisionPtr = SearchByTimestamp(list, Timestamp_);
+
+            TTimestamp lockBoundTimestamp = NullTimestamp;
+            if (lastSerializedTimestampIndex) {
+                auto snapshotIndex = *lastSerializedTimestampIndex;
+
+                lockBoundTimestamp = lock->LastWriteTimestamps[snapshotIndex].load();
+
+                // It is the first time during snapshot save we iterating over all rows.
+                // Update double-buffer-like last write timestamp.
+                auto currentIndex = 1 - snapshotIndex;
+                auto currentTimestamp = lock->LastWriteTimestamps[currentIndex].load();
+                if (currentTimestamp < lockBoundTimestamp) {
+                    // If compare exchange strong failed then there was a write with timestamp obviously larger than lockBoundTimestamp.
+                    lock->LastWriteTimestamps[currentIndex].compare_exchange_strong(currentTimestamp, lockBoundTimestamp);
+                }
+            } else {
+                lockBoundTimestamp = Timestamp_;
+            }
+
+            const auto* revisionPtr = SearchByTimestamp(list, lockBoundTimestamp);
 
             auto timestamp = revisionPtr
                 ? Store_->TimestampFromRevision(*revisionPtr)
@@ -431,7 +457,10 @@ protected:
         Store_->WaitOnBlockedRow(dynamicRow, LockMask_, Timestamp_);
 
         std::array<TTimestamp, MaxColumnLockCount> latestWriteTimestampPerLock;
-        FillLatestWriteTimestamps(dynamicRow, latestWriteTimestampPerLock.data());
+        FillLatestWriteTimestamps(
+            dynamicRow,
+            latestWriteTimestampPerLock.data(),
+            CurrentLastWriteTimestampIndex_);
 
         // Prepare values and write timestamps.
         VersionedValues_.clear();
@@ -681,18 +710,21 @@ public:
         bool produceAllVersions,
         bool snapshotMode,
         ui32 revision,
-        const TColumnFilter& columnFilter)
+        const TColumnFilter& columnFilter,
+        std::optional<int> currentLastWriteTimestampIndex)
         : TReaderBase(
             std::move(store),
             std::move(tabletSnapshot),
             timestamp,
             produceAllVersions,
             revision,
-            columnFilter)
+            columnFilter,
+            currentLastWriteTimestampIndex)
         , Ranges_(std::move(ranges))
         , SnapshotMode_(snapshotMode)
     {
         YT_VERIFY(!SnapshotMode_ || ProduceAllVersions_);
+        YT_VERIFY(SnapshotMode_ == CurrentLastWriteTimestampIndex_.has_value());
     }
 
     TFuture<void> Open() override
@@ -836,7 +868,8 @@ public:
             timestamp,
             produceAllVersions,
             MaxRevision,
-            columnFilter)
+            columnFilter,
+            /*currentLastWriteTimestampIndex*/ std::nullopt)
         , Keys_(std::move(keys))
     { }
 
@@ -943,6 +976,8 @@ TSortedDynamicStore::TSortedDynamicStore(
     , Rows_(new TSkipList<TSortedDynamicRow, TSortedDynamicRowKeyComparer>(
         RowBuffer_->GetPool(),
         RowKeyComparer_))
+    , CommitRevisionPerTransaction_(TChunkedMemoryPoolAllocator<void>(
+        RowBuffer_->GetPool()))
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -976,7 +1011,8 @@ IVersionedReaderPtr TSortedDynamicStore::CreateFlushReader()
         /*produceAllVersions*/ true,
         /*snapshotMode*/ false,
         FlushRevision_,
-        TColumnFilter());
+        TColumnFilter(),
+        /*currentLastWriteTimestampIndex*/ std::nullopt);
 }
 
 IVersionedReaderPtr TSortedDynamicStore::CreateSnapshotReader()
@@ -989,7 +1025,8 @@ IVersionedReaderPtr TSortedDynamicStore::CreateSnapshotReader()
         /*produceAllVersions*/ true,
         /*snapshotMode*/ true,
         GetSnapshotRevision(),
-        TColumnFilter());
+        TColumnFilter(),
+        CurrentLastWriteTimestampIndex_);
 }
 
 const TSortedDynamicRowKeyComparer& TSortedDynamicStore::GetRowKeyComparer() const
@@ -1243,10 +1280,88 @@ TSortedDynamicRow TSortedDynamicStore::ModifyRow(TVersionedRow row, TWriteContex
     return result;
 }
 
+TSortedDynamicRow TSortedDynamicStore::MigrateSharedWriteLockedLockGroup(
+    TTransaction* transaction,
+    TSortedDynamicRow row,
+    int lockIndex)
+{
+    YT_VERIFY(Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow);
+    YT_ASSERT(Atomicity_ == EAtomicity::Full);
+    YT_ASSERT(FlushRevision_ != MaxRevision);
+
+    auto migrateLock = [&] (TSortedDynamicRow migratedRow) {
+        // Copy-paste of a part of MigrateRow
+        YT_ASSERT(lockIndex < ColumnLockCount_);
+        auto* lock = row.BeginLocks(KeyColumnCount_) + lockIndex;
+        auto* migratedLock = migratedRow.BeginLocks(KeyColumnCount_) + lockIndex;
+
+        // Check invariants.
+        YT_ASSERT(!migratedLock->WriteTransaction);
+        YT_ASSERT(migratedLock->WriteTransactionPrepareTimestamp == NotPreparedTimestamp);
+
+        auto prepareTimestamp = transaction->GetPrepareTimestamp() == NullTimestamp
+            ? NotPreparedTimestamp
+            : transaction->GetPrepareTimestamp();
+        YT_ASSERT(!migratedLock->SharedWriteTransactions.contains({
+            NotPreparedTimestamp,
+            transaction
+        }));
+        YT_ASSERT(!migratedLock->SharedWriteTransactions.contains({
+            prepareTimestamp,
+            transaction
+        }));
+
+        YT_ASSERT(migratedLock->ReadLockCount == 0);
+
+        // Migrate
+        YT_ASSERT(
+            lock->SharedWriteTransactions.contains({prepareTimestamp, transaction}) ||
+            lock->SharedWriteTransactions.contains({NotPreparedTimestamp, transaction}));
+
+        InsertOrCrash(
+            migratedLock->SharedWriteTransactions,
+            FindSharedWriteTransaction(lock->SharedWriteTransactions, transaction));
+        RecalculatePrepareTimestamp(migratedLock);
+
+        Lock();
+    };
+
+    TSortedDynamicRow result;
+    auto newKeyProvider = [&] () -> TSortedDynamicRow {
+        // Create migrated row.
+        auto migratedRow = result = AllocateRow();
+
+        // Migrate keys.
+        SetKeys(migratedRow, row);
+
+        migrateLock(migratedRow);
+
+        InsertIntoLookupHashTable(RowToKey(row).Begin(), migratedRow);
+
+        return migratedRow;
+    };
+
+    auto existingKeyConsumer = [&] (TSortedDynamicRow migratedRow) {
+        result = migratedRow;
+
+        migrateLock(migratedRow);
+    };
+
+    Rows_->Insert(
+        row,
+        newKeyProvider,
+        existingKeyConsumer);
+
+    OnDynamicMemoryUsageUpdated();
+
+    return result;
+}
+
 TSortedDynamicRow TSortedDynamicStore::MigrateRow(
     TTransaction* transaction,
     TSortedDynamicRow row,
-    TLockMask lockMask)
+    TLockMask lockMask,
+    bool skipSharedWriteLocks)
 {
     YT_ASSERT(Atomicity_ == EAtomicity::Full);
     YT_ASSERT(FlushRevision_ != MaxRevision);
@@ -1315,7 +1430,7 @@ TSortedDynamicRow TSortedDynamicStore::MigrateRow(
                     YT_ASSERT(migratedLock->SharedWriteTransactions.empty());
 
                     ++migratedLock->ReadLockCount;
-                } else if (lockType == ELockType::SharedWrite) {
+                } else if (!skipSharedWriteLocks && lockType == ELockType::SharedWrite) {
                     // Shared Write Lock
                     YT_ASSERT(migratedLock->ReadLockCount == 0);
 
@@ -1397,25 +1512,35 @@ void TSortedDynamicStore::PrepareRow(TTransaction* transaction, TSortedDynamicRo
     }
 }
 
-void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow row, TLockMask lockMask)
+void TSortedDynamicStore::CommitRowPartsWithNoNeedForSerialization(
+    TTransaction* transaction,
+    TSortedDynamicRow row,
+    TLockMask lockMask,
+    bool onAfterSnapshotLoaded)
 {
+    // For onAfterSnapshotLoaded = true this function just updates lock states to be in sync with edit lists.
+
     YT_ASSERT(Atomicity_ == EAtomicity::Full);
     YT_ASSERT(FlushRevision_ != MaxRevision);
-
-    auto commitTimestamp = transaction->GetCommitTimestamp();
-    ui32 commitRevision = RegisterRevision(commitTimestamp);
+    YT_ASSERT(Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow);
 
     auto* lock = row.BeginLocks(KeyColumnCount_);
     auto* lockEnd = lock + ColumnLockCount_;
 
-    for (int index = 0; lock < lockEnd; ++lock, ++index) {
-        auto lockType = lockMask.Get(index);
+    auto commitTimestamp = transaction->GetCommitTimestamp();
+    ui32 commitRevision = RegisterRevision(commitTimestamp);
+    CommitRevisionPerTransaction_[transaction] = commitRevision;
+
+    for (int lockIndex = 0; lock < lockEnd; ++lock, ++lockIndex) {
+        auto lockType = lockMask.Get(lockIndex);
         if (lock->WriteTransaction == transaction) {
             // Write Lock
             YT_ASSERT(lockType == ELockType::Exclusive);
-            AddExclusiveLockRevision(*lock, commitRevision);
-            if (!row.GetDeleteLockFlag()) {
-                AddWriteRevision(*lock, commitRevision);
+            if (!onAfterSnapshotLoaded) {
+                AddExclusiveLockRevision(*lock, commitRevision);
+                if (!row.GetDeleteLockFlag()) {
+                    AddWriteRevision(*lock, commitRevision);
+                }
             }
             lock->WriteTransaction = nullptr;
             lock->WriteTransactionPrepareTimestamp = NotPreparedTimestamp;
@@ -1425,21 +1550,115 @@ void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow
         } else if (lockType == ELockType::SharedStrong) {
             YT_ASSERT(lock->ReadLockCount > 0);
             --lock->ReadLockCount;
-            AddReadLockRevision(*lock, commitRevision);
-        } else if (lockType == ELockType::SharedWrite) {
-            YT_ASSERT(!row.GetDeleteLockFlag());
-
-            AddSharedWriteLockRevision(*lock, commitRevision);
-            AddWriteRevision(*lock, commitRevision);
-
-            EraseOrCrash(
-                lock->SharedWriteTransactions,
-                FindSharedWriteTransaction(lock->SharedWriteTransactions, transaction));
+            if (!onAfterSnapshotLoaded) {
+                AddReadLockRevision(*lock, commitRevision);
+            }
         } else {
+            // NB: No need to process shared write writes as they are in store manager heap.
             YT_ASSERT(lockType != ELockType::Exclusive);
         }
+    }
 
-        RecalculatePrepareTimestamp(lock);
+    // Correct for exclusive.
+    // Noop for shared write.
+    row.SetDeleteLockFlag(false);
+
+    Unlock();
+
+    // There could be no value with such timestamp right now but it safe to announce larger timestamp.
+    UpdateTimestampRange(commitTimestamp);
+}
+
+void TSortedDynamicStore::CommitLockGroup(
+    TTransaction* transaction,
+    TSortedDynamicRow row,
+    ELockType lockType,
+    int lockIndex,
+    bool onAfterSnapshotLoaded)
+{
+    auto* lock = row.BeginLocks(KeyColumnCount_) + lockIndex;
+    CommitLockGroup(
+        transaction,
+        row,
+        lockType,
+        lock,
+        /*perRowSerialized*/ true,
+        onAfterSnapshotLoaded);
+}
+
+void TSortedDynamicStore::CommitLockGroup(
+    TTransaction* transaction,
+    TSortedDynamicRow row,
+    ELockType lockType,
+    TLockDescriptor* lock,
+    bool perRowSerialized,
+    bool onAfterSnapshotLoaded)
+{
+    // For onAfterSnapshotLoaded = true this function just updates lock states to be in sync with edit lists.
+
+    auto commitTimestamp = transaction->GetCommitTimestamp();
+    ui32 commitRevision = perRowSerialized
+        ? CommitRevisionPerTransaction_[transaction]
+        : RegisterRevision(commitTimestamp);
+
+    YT_VERIFY(!onAfterSnapshotLoaded || lockType == ELockType::SharedWrite);
+
+    if (lock->WriteTransaction == transaction) {
+        // Write Lock
+        YT_ASSERT(lockType == ELockType::Exclusive);
+        AddExclusiveLockRevision(*lock, commitRevision);
+        if (!row.GetDeleteLockFlag()) {
+            AddWriteRevision(*lock, commitRevision);
+        }
+        lock->WriteTransaction = nullptr;
+        lock->WriteTransactionPrepareTimestamp = NotPreparedTimestamp;
+    } else if (lockType == ELockType::SharedWeak) {
+        YT_ASSERT(lock->ReadLockCount > 0);
+        --lock->ReadLockCount;
+    } else if (lockType == ELockType::SharedStrong) {
+        YT_ASSERT(lock->ReadLockCount > 0);
+        --lock->ReadLockCount;
+        AddReadLockRevision(*lock, commitRevision);
+    } else if (lockType == ELockType::SharedWrite) {
+        YT_ASSERT(!row.GetDeleteLockFlag());
+        if (!onAfterSnapshotLoaded) {
+            AddSharedWriteLockRevision(*lock, commitRevision);
+            AddWriteRevision(*lock, commitRevision);
+        }
+
+        EraseOrCrash(
+            lock->SharedWriteTransactions,
+            FindSharedWriteTransaction(lock->SharedWriteTransactions, transaction));
+
+        if (Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
+            Unlock();
+        }
+    } else {
+        YT_ASSERT(lockType != ELockType::Exclusive);
+    }
+
+    RecalculatePrepareTimestamp(lock);
+}
+
+void TSortedDynamicStore::CommitRow(TTransaction* transaction, TSortedDynamicRow row, TLockMask lockMask)
+{
+    YT_ASSERT(Atomicity_ == EAtomicity::Full);
+    YT_ASSERT(FlushRevision_ != MaxRevision);
+
+    auto commitTimestamp = transaction->GetCommitTimestamp();
+
+    auto* lock = row.BeginLocks(KeyColumnCount_);
+    auto* lockEnd = lock + ColumnLockCount_;
+
+    for (int lockIndex = 0; lock < lockEnd; ++lock, ++lockIndex) {
+        auto lock = row.BeginLocks(KeyColumnCount_) + lockIndex;
+        CommitLockGroup(
+            transaction,
+            row,
+            lockMask.Get(lockIndex),
+            lock,
+            /*perRowSerialized*/ false,
+            /*onAfterSnapshotLoaded=*/ false);
     }
 
     row.SetDeleteLockFlag(false);
@@ -1457,8 +1676,8 @@ void TSortedDynamicStore::AbortRow(TTransaction* transaction, TSortedDynamicRow 
     auto* lock = row.BeginLocks(KeyColumnCount_);
     auto* lockEnd = lock + ColumnLockCount_;
 
-    for (int index = 0; lock < lockEnd; ++lock, ++index) {
-        auto lockType = lockMask.Get(index);
+    for (int lockIndex = 0; lock < lockEnd; ++lock, ++lockIndex) {
+        auto lockType = lockMask.Get(lockIndex);
         if (lock->WriteTransaction == transaction) {
             // Write Lock
             YT_ASSERT(lockType == ELockType::Exclusive);
@@ -1469,6 +1688,7 @@ void TSortedDynamicStore::AbortRow(TTransaction* transaction, TSortedDynamicRow 
             YT_ASSERT(lock->ReadLockCount > 0);
             --lock->ReadLockCount;
         } else if (lockType == ELockType::SharedWrite) {
+            YT_ASSERT(!row.GetDeleteLockFlag());
             // Shared Write Lock
             EraseOrCrash(
                 lock->SharedWriteTransactions,
@@ -1505,6 +1725,18 @@ void TSortedDynamicStore::WriteRow(TTransaction* transaction, TSortedDynamicRow 
     auto commitRevision = RegisterRevision(commitTimestamp);
 
     WriteRow(dynamicRow, row, commitRevision);
+}
+
+void TSortedDynamicStore::WriteLockGroup(
+    TTransaction* transaction,
+    int lockIndex,
+    TSortedDynamicRow dynamicRow,
+    TUnversionedRow row)
+{
+    auto commitTimestamp = transaction->GetCommitTimestamp();
+    auto commitRevision = RegisterRevision(commitTimestamp);
+
+    WriteLockGroup(lockIndex, dynamicRow, row, commitRevision);
 }
 
 TSortedDynamicRow TSortedDynamicStore::FindRow(TLegacyKey key)
@@ -1801,6 +2033,11 @@ void TSortedDynamicStore::AcquireRowLocks(
                 ++lock->ReadLockCount;
             } else if (lockType == ELockType::SharedWrite) {
                 YT_ASSERT(lock->ReadLockCount == 0);
+
+                if (Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow) {
+                    Lock();
+                }
+
                 InsertOrCrash(
                     lock->SharedWriteTransactions,
                     TLockDescriptor::TSharedWriteTransaction{NotPreparedTimestamp, context->Transaction});
@@ -1829,8 +2066,11 @@ void TSortedDynamicStore::AddDeleteRevision(TSortedDynamicRow row, ui32 revision
 
 void TSortedDynamicStore::AddWriteRevision(TLockDescriptor& lock, ui32 revision)
 {
+    const auto timestamp = TimestampFromRevision(revision);
+    lock.LastWriteTimestamps[CurrentLastWriteTimestampIndex_] = timestamp;
+
     auto list = TSortedDynamicRow::GetWriteRevisionList(lock);
-    YT_ASSERT(!list || TimestampFromRevision(list.Back()) < TimestampFromRevision(revision));
+    YT_ASSERT(!list || TimestampFromRevision(list.Back()) < timestamp);
     if (AllocateListForPushIfNeeded(&list, RowBuffer_->GetPool())) {
         TSortedDynamicRow::SetWriteRevisionList(lock, list);
     }
@@ -1939,15 +2179,33 @@ void TSortedDynamicStore::AddValue(TSortedDynamicRow row, int index, TDynamicVal
     }
 }
 
-void TSortedDynamicStore::WriteRow(TSortedDynamicRow dynamicRow, TUnversionedRow row, ui32 revision)
+void TSortedDynamicStore::WriteLockGroup(int lockIndex, TSortedDynamicRow dynamicRow, TUnversionedRow row, ui32 revision)
 {
     for (int index = KeyColumnCount_; index < static_cast<int>(row.GetCount()); ++index) {
         const auto& value = row[index];
+        if (ColumnIndexToLockIndex_[value.Id] != lockIndex) {
+            continue;
+        }
 
-        TDynamicValue dynamicValue;
-        CaptureUnversionedValue(&dynamicValue, value);
-        dynamicValue.Revision = revision;
-        AddValue(dynamicRow, value.Id, std::move(dynamicValue));
+        WriteColumn(index, dynamicRow, row, revision);
+    }
+}
+
+void TSortedDynamicStore::WriteColumn(int columnIndex, TSortedDynamicRow dynamicRow, TUnversionedRow row, ui32 revision)
+{
+    YT_ASSERT(columnIndex >= KeyColumnCount_);
+    const auto& value = row[columnIndex];
+
+    TDynamicValue dynamicValue;
+    CaptureUnversionedValue(&dynamicValue, value);
+    dynamicValue.Revision = revision;
+    AddValue(dynamicRow, value.Id, std::move(dynamicValue));
+}
+
+void TSortedDynamicStore::WriteRow(TSortedDynamicRow dynamicRow, TUnversionedRow row, ui32 revision)
+{
+    for (int index = KeyColumnCount_; index < static_cast<int>(row.GetCount()); ++index) {
+        WriteColumn(index, dynamicRow, row, revision);
     }
 }
 
@@ -2168,7 +2426,8 @@ IVersionedReaderPtr TSortedDynamicStore::CreateReader(
             produceAllVersions,
             /*snapshotMode*/ false,
             MaxRevision,
-            columnFilter),
+            columnFilter,
+            /*currentLastWriteTimestampIndex*/ std::nullopt),
         tabletSnapshot->PerformanceCounters,
         NTableClient::EDataSource::DynamicStore,
         ERequestType::Read);
@@ -2247,6 +2506,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
 
     auto tableReader = CreateSnapshotReader();
     auto revision = GetSnapshotRevision();
+    CurrentLastWriteTimestampIndex_ = 1 - CurrentLastWriteTimestampIndex_;
 
     return BIND([=, this, this_ = MakeStrong(this)] (TSaveContext& context) {
         YT_LOG_DEBUG("Store snapshot serialization started");

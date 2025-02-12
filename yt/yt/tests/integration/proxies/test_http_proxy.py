@@ -31,6 +31,7 @@ import struct
 import socket
 from datetime import datetime, timedelta
 import time
+from typing import Any
 
 
 def try_parse_yt_error_headers(rsp):
@@ -371,27 +372,53 @@ class TestHttpProxyMemoryDrop(HttpProxyTestBase):
 
     @authors("nadya73")
     def test_basic(self):
+        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
+        config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
+
+        def config_updated(expected_total_memory_limit):
+            config = requests.get(config_url).json()
+            return config.get("memory_limits", {}).get("total", 0) == expected_total_memory_limit
+
+        create("table", "//tmp/test")
+
         wait(lambda: requests.get(f"{self._get_proxy_address()}/api/v4/get?path=//@").ok)
 
         # No memory limits.
         self._execute_command("GET", "get", {"path": "//@"})
+        self._execute_command("GET", "read_table", {"path": "//tmp/test"})
+
+        total_memory_limit = 1000000
+        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit}})
+        wait(lambda: config_updated(total_memory_limit))
+
+        # Total memory limit was not reached.
+        self._execute_command("GET", "get", {"path": "//@"})
+        self._execute_command("GET", "read_table", {"path": "//tmp/test"})
+
+        total_memory_limit = 2000000
+        heavy_request_memory_limit = 0
+        set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit, "heavy_request": heavy_request_memory_limit}})
+        wait(lambda: config_updated(total_memory_limit))
+
+        # Heavy request limit does not affect get request.
+        self._execute_command("GET", "get", {"path": "//@"})
+
+        # Heavy request limit was reached.
+        with raises_yt_error("Request is dropped due to high memory pressure") as err:
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"})
+        assert err[0].is_rpc_unavailable()
 
         total_memory_limit = 100
         set("//sys/http_proxies/@config", {"memory_limits": {"total": total_memory_limit}})
+        wait(lambda: config_updated(total_memory_limit))
 
-        monitoring_port = self.Env.configs["http_proxy"][0]["monitoring_port"]
-        config_url = "http://localhost:{}/orchid/dynamic_config_manager/effective_config".format(monitoring_port)
-
-        def config_updated():
-            config = requests.get(config_url).json()
-            return config.get("memory_limits", {}).get("total", 0) == total_memory_limit
-        wait(config_updated)
-
-        with pytest.raises(YtResponseError) as err:
+        with raises_yt_error("Request is dropped due to high memory pressure") as err:
             self._execute_command("GET", "get", {"path": "//@"})
+        assert err[0].is_rpc_unavailable()
 
-        assert err.value.is_rpc_unavailable()
-        assert err.value.is_rpc_response_memory_pressure()
+        with raises_yt_error("Request is dropped due to high memory pressure") as err:
+            self._execute_command("GET", "read_table", {"path": "//tmp/test"})
+        assert err[0].is_rpc_unavailable()
 
 
 class TestFullDiscoverVersions(HttpProxyTestBase):
@@ -896,7 +923,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         try_parse_yt_error_trailers(rsp)
 
         keep_alive_frame_count = sum(name == "keep_alive" for name, frame in unframed_content)
-        assert keep_alive_frame_count >= self.DELAY_BEFORE_COMMAND / self.KEEP_ALIVE_PERIOD - 3
+        assert keep_alive_frame_count >= self.DELAY_BEFORE_COMMAND / self.KEEP_ALIVE_PERIOD - 7
         assert datetime.now() - start > timedelta(milliseconds=self.DELAY_BEFORE_COMMAND)
         actual_response = b""
         for name, frame in unframed_content:
@@ -1504,6 +1531,71 @@ class TestHttpProxyNullApiTestingOptions(TestHttpProxyHeapUsageStatisticsBase):
         create("table", self.PATH)
         write_table(f"<append=%true>{self.PATH}", [{"key": "x"}])
         self._execute_command("GET", "read_table")
+
+
+class TestHttpProxySignaturesBase(HttpProxyTestBase):
+    DELTA_PROXY_CONFIG = {
+        "signature_validation": {
+            "cypress_key_reader": dict(),
+            "validator": dict(),
+        },
+        "signature_generation": {
+            "cypress_key_writer": {
+                "owner_id": "test-http-proxy",
+            },
+            "generator": dict(),
+        },
+    }
+
+    # NB(pavook): to avoid owner collision.
+    NUM_HTTP_PROXIES = 1
+
+    OWNERS_PATH = "//sys/public_keys/by_owner"
+    KEYS_PATH = f"{OWNERS_PATH}/test-http-proxy"
+
+
+def deep_update(source: dict[Any, Any], overrides: dict[Any, Any]) -> dict[Any, Any]:
+    """
+    Update a nested dictionary.
+    """
+    result = source.copy()
+    for key, value in overrides.items():
+        if isinstance(value, dict) and value:
+            returned = deep_update(source.get(key, {}), value)
+            result[key] = returned
+        else:
+            result[key] = value
+    return result
+
+
+class TestHttpProxySignaturesKeyCreation(TestHttpProxySignaturesBase):
+    DELTA_PROXY_CONFIG = deep_update(TestHttpProxySignaturesBase.DELTA_PROXY_CONFIG, {
+        "signature_generation": {
+            "key_rotator": {
+                "key_rotation_interval": "2h",
+            },
+        },
+    })
+
+    @authors("pavook")
+    @pytest.mark.timeout(60)
+    def test_public_key_appears(self):
+        wait(lambda: len(ls(self.KEYS_PATH)) == 1)
+
+
+class TestHttpProxySignaturesKeyRotation(TestHttpProxySignaturesBase):
+    DELTA_PROXY_CONFIG = deep_update(TestHttpProxySignaturesBase.DELTA_PROXY_CONFIG, {
+        "signature_generation": {
+            "key_rotator": {
+                "key_rotation_interval": "200ms",
+            },
+        },
+    })
+
+    @authors("pavook")
+    @pytest.mark.timeout(60)
+    def test_public_key_rotates(self):
+        wait(lambda: len(ls(self.KEYS_PATH)) > 1)
 
 
 class TestHttpsProxy(HttpProxyTestBase):

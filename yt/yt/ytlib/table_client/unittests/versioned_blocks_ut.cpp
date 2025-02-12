@@ -106,16 +106,24 @@ static const auto SimpleSchema = New<TTableSchema>(std::vector{
     TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
     TColumnSchema("v1", EValueType::Int64),
     TColumnSchema("v2", EValueType::Boolean),
-    TColumnSchema("v3", EValueType::Int64)
+    TColumnSchema("v3", ESimpleLogicalValueType::Int8),
+    TColumnSchema("v4", ESimpleLogicalValueType::Int16),
+    TColumnSchema("v5", ESimpleLogicalValueType::Int32),
+    TColumnSchema("v6", ESimpleLogicalValueType::Int64),
+    TColumnSchema("v7", ESimpleLogicalValueType::Void),
 });
 
 static const auto SchemaWithGroups = New<TTableSchema>(std::vector{
     TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
     TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
     TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
-    TColumnSchema("v1", EValueType::Int64).SetGroup("a"),
+    TColumnSchema("v1", EValueType::Int64),
     TColumnSchema("v2", EValueType::Boolean),
-    TColumnSchema("v3", EValueType::Int64).SetGroup("a")
+    TColumnSchema("v3", ESimpleLogicalValueType::Int8).SetGroup("a"),
+    TColumnSchema("v4", ESimpleLogicalValueType::Int16),
+    TColumnSchema("v5", ESimpleLogicalValueType::Int32).SetGroup("a"),
+    TColumnSchema("v6", ESimpleLogicalValueType::Int64),
+    TColumnSchema("v7", ESimpleLogicalValueType::Void),
 });
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -147,7 +155,7 @@ protected:
     {
         auto blockWriter = TMockBlockFormatAdapter::CreateBlockWriter();
 
-        Row_ = TMutableVersionedRow::Allocate(&MemoryPool_, 3, 5, 3, 1);
+        Row_ = TMutableVersionedRow::Allocate(&MemoryPool_, 3, 8, 3, 1);
         Row_.Keys()[0] = MakeUnversionedStringValue("a", 0);
         Row_.Keys()[1] = MakeUnversionedInt64Value(1, 1);
         Row_.Keys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -160,6 +168,14 @@ protected:
         Row_.Values()[3] = MakeVersionedBooleanValue(false, 3, 4);
         // v3
         Row_.Values()[4] = MakeVersionedSentinelValue(EValueType::Null, 5, 5);
+        // v4
+        Row_.Values()[5] = MakeVersionedInt64Value(1'000, 5, 6);
+        // v5
+        Row_.Values()[6] = MakeVersionedInt64Value(1'000'000, 5, 7);
+        // v6
+        Row_.Values()[7] = MakeVersionedInt64Value(1'000'000'000, 5, 8);
+        // v7
+        Row_.Values()[8] = MakeVersionedSentinelValue(EValueType::Null, 5, 9);
 
         Row_.WriteTimestamps()[2] = 3;
         Row_.WriteTimestamps()[1] = 5;
@@ -354,12 +370,7 @@ using TVersionedBlockTestOneRowImpls = ::testing::Types<
 template <typename TTestImpl>
 class TVersionedBlocksTestOneRow
     : public TTestImpl
-{
-public:
-    TVersionedBlocksTestOneRow()
-        : TTestImpl()
-    { }
-};
+{ };
 
 TYPED_TEST_SUITE(TVersionedBlocksTestOneRow, TVersionedBlockTestOneRowImpls);
 

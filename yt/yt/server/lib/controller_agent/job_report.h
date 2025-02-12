@@ -17,6 +17,7 @@ public:
     TControllerJobReport Address(std::optional<std::string> address);
     TControllerJobReport ControllerState(EJobState controllerState);
     TControllerJobReport Ttl(std::optional<TDuration> ttl);
+    TControllerJobReport OperationIncarnation(std::string operationIncarnation);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

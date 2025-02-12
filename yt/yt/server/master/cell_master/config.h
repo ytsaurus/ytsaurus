@@ -406,6 +406,8 @@ public:
     bool EnableStaticTableDropColumn;
     bool EnableDynamicTableDropColumn;
     bool AllowEveryoneCreateSecondaryIndices;
+    bool EnableSecondaryIndexCopy;
+    bool AllowAlterKeyColumnToAny;
 
     NChunkServer::TDynamicChunkManagerConfigPtr ChunkManager;
     NCellServer::TDynamicCellManagerConfigPtr CellManager;

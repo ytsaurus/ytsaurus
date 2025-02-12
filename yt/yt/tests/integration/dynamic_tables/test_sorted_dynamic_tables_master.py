@@ -817,13 +817,14 @@ class TestSortedDynamicTablesCopyReshard(TestSortedDynamicTablesBase):
         )
         with pytest.raises(YtError):
             alter_table("//tmp/t2", dynamic=True)
-        alter_table(
-            "//tmp/t2",
-            schema=[
-                {"name": "key", "type": "any", "sort_order": "ascending"},
-                {"name": "value", "type": "string"},
-            ],
-        )
+        with pytest.raises(YtError):
+            alter_table(
+                "//tmp/t2",
+                schema=[
+                    {"name": "key", "type": "any", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+            )
         with pytest.raises(YtError):
             alter_table("//tmp/t2", dynamic=True)
 

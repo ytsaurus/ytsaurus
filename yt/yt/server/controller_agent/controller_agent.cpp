@@ -1024,14 +1024,14 @@ public:
         .Run();
     }
 
-    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
+    void SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
         const TClusterName& clusterName,
         const TCallback<void()>& callback)
     {
         GetNetworkBandwidthAvailabilityCallbackList(clusterName).Subscribe(callback);
     }
 
-    void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    void UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
         const TClusterName& clusterName,
         const TCallback<void()>& callback)
     {
@@ -1447,6 +1447,11 @@ private:
         AllocationEventsInbox_.reset();
         OperationEventsInbox_.reset();
         ScheduleAllocationRequestsInbox_.reset();
+
+        {
+            auto guard = Guard(ClusterToNetworkBandwidthAvailabilityLock_);
+            ClusterToNetworkBandwidthAvailabilityCallbackLists_.clear();
+        }
     }
 
     struct TPreparedHeartbeatRequest
@@ -1610,8 +1615,8 @@ private:
                 protoOperation->mutable_composite_needed_resources(),
                 controller->GetNeededResources());
             ToProto(
-                protoOperation->mutable_min_needed_resources(),
-                controller->GetMinNeededAllocationResources());
+                protoOperation->mutable_grouped_needed_resources(),
+                controller->GetGroupedNeededResources());
         }
 
         request->set_exec_nodes_requested(preparedRequest.ExecNodesRequested);
@@ -2049,8 +2054,8 @@ private:
                 auto operationId = FromProto<TOperationId>(protoEvent->operation_id());
 
                 switch (eventType) {
-                    case ESchedulerToAgentOperationEventType::UpdateMinNeededAllocationResources:
-                        ProcessUpdateMinNeededAllocationResourcesEvent(operationId);
+                    case ESchedulerToAgentOperationEventType::UpdateGroupedNeededResources:
+                        ProcessGroupedNeededResourcesEvent(operationId);
                         break;
 
                     case ESchedulerToAgentOperationEventType::UnregisterOperation:
@@ -2063,14 +2068,14 @@ private:
             });
     }
 
-    void ProcessUpdateMinNeededAllocationResourcesEvent(TOperationId operationId)
+    void ProcessGroupedNeededResourcesEvent(TOperationId operationId)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto operation = this->FindOperation(operationId);
         if (!operation) {
             YT_LOG_DEBUG(
-                "Requested to update min needed allocation resources of an unknown operation; ignored (OperationId: %v)",
+                "Requested to update grouped needed resources of an unknown operation; ignored (OperationId: %v)",
                 operationId);
             return;
         }
@@ -2078,7 +2083,7 @@ private:
         auto controller = operation->GetController();
         controller->GetCancelableInvoker(EOperationControllerQueue::Default)->Invoke(
             BIND(
-                &IOperationController::UpdateMinNeededAllocationResources,
+                &IOperationController::UpdateGroupedNeededResources,
                 controller));
     }
 
@@ -2524,18 +2529,18 @@ bool TControllerAgent::ReleaseJobMonitoringDescriptor(TOperationId operationId, 
     return Impl_->ReleaseJobMonitoringDescriptor(operationId, descriptor);
 }
 
-void TControllerAgent::SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
+void TControllerAgent::SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
     const TClusterName& clusterName,
     const TCallback<void()>& callback)
 {
-    return Impl_->SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(clusterName, callback);
+    return Impl_->SubscribeToClusterNetworkBandwidthAvailabilityUpdated(clusterName, callback);
 }
 
-void TControllerAgent::UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+void TControllerAgent::UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
     const TClusterName& clusterName,
     const TCallback<void()>& callback)
 {
-    return Impl_->UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(clusterName, callback);
+    return Impl_->UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(clusterName, callback);
 }
 
 std::shared_ptr<const THashMap<TClusterName, bool>> TControllerAgent::GetClusterToNetworkBandwidthAvailability() const

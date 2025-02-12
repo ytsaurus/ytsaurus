@@ -18,7 +18,7 @@ class TSubject
     : public NObjectServer::TObject
 {
 public:
-    using TGroupSet = THashSet<TGroup*>;
+    using TGroupSet = THashSet<TGroupRawPtr>;
     //! Set of groups containing this given subject.
     DEFINE_BYREF_RW_PROPERTY(TGroupSet, MemberOf);
     //! Transitive closure of the set of groups containing this given subject.
@@ -26,7 +26,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<std::string>, Aliases);
 
 
-    using TLinkedObjects = THashMap<TObject*, int>;
+    using TLinkedObjects = THashMap<NObjectServer::TObjectRawPtr, int>;
     //! Objects whose ACLs reference this particular subject, with counters.
     DEFINE_BYREF_RW_PROPERTY(TLinkedObjects, LinkedObjects);
 
@@ -58,6 +58,8 @@ public:
 protected:
     std::string Name_;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TSubject)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -54,7 +54,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: ydb-platform/ydb
-          ref: ba06b7b3a66a69fbfd40eee0d9bac71ef305fd30
+          ref: 74ff898ca96053489214acb09862da6bf0bfb428
           path: ydb
 
   tag:
@@ -147,7 +147,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
-      build-ytsaurus-integration-tests: true
+      build-ytsaurus-tests: true
       build-query-tracker: ${{ github.ref_name == 'main' }}
       build-python: true
       update-remote-cache: true
@@ -178,6 +178,8 @@ jobs:
     name: Check
     needs:
       - start-vm
+      - build-cmake
+      - build-ya-make
       - docker-cmake
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}

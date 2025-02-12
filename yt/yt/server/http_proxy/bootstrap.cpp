@@ -16,6 +16,13 @@
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
+#include <yt/yt/server/lib/signature/config.h>
+#include <yt/yt/server/lib/signature/cypress_key_store.h>
+#include <yt/yt/server/lib/signature/instance_config.h>
+#include <yt/yt/server/lib/signature/key_rotator.h>
+#include <yt/yt/server/lib/signature/signature_generator.h>
+#include <yt/yt/server/lib/signature/signature_validator.h>
+
 #include <yt/yt/library/disk_manager/hotswap_manager.h>
 
 #include <yt/yt/library/coredumper/public.h>
@@ -58,6 +65,9 @@
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
+#include <yt/yt/client/signature/generator.h>
+#include <yt/yt/client/signature/validator.h>
+
 #include <yt/yt/core/bus/tcp/server.h>
 
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
@@ -94,10 +104,12 @@ using namespace NMonitoring;
 using namespace NNative;
 using namespace NOrchid;
 using namespace NProfiling;
+using namespace NSignature;
 using namespace NYson;
 using namespace NYTree;
 using namespace NAdmin;
 using namespace NFusion;
+using namespace NSignature;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -240,13 +252,51 @@ void TBootstrap::DoInitialize()
 
     AccessChecker_ = CreateAccessChecker(this);
 
+    if (Config_->SignatureValidation) {
+        auto cypressKeyReader = CreateCypressKeyReader(
+            Config_->SignatureValidation->CypressKeyReader,
+            RootClient_);
+        SignatureValidator_ = New<TSignatureValidator>(
+            Config_->SignatureValidation->Validator,
+            std::move(cypressKeyReader));
+    } else {
+        // NB(pavook): we cannot do any meaningful signature operations safely.
+        SignatureValidator_ = CreateAlwaysThrowingSignatureValidator();
+    }
+
+    if (Config_->SignatureGeneration) {
+        auto cypressKeyWriter = WaitFor(CreateCypressKeyWriter(
+            Config_->SignatureGeneration->CypressKeyWriter,
+            RootClient_))
+            .ValueOrThrow();
+        auto signatureGenerator = New<TSignatureGenerator>(
+            Config_->SignatureGeneration->Generator,
+            std::move(cypressKeyWriter));
+        SignatureKeyRotator_ = New<TKeyRotator>(
+            Config_->SignatureGeneration->KeyRotator,
+            GetControlInvoker(),
+            signatureGenerator);
+        SignatureGenerator_ = std::move(signatureGenerator);
+    } else {
+        // NB(pavook): we cannot do any meaningful signature operations safely.
+        SignatureGenerator_ = CreateAlwaysThrowingSignatureGenerator();
+    }
+
     auto driverV3Config = CloneYsonStruct(Config_->Driver);
     driverV3Config->ApiVersion = ApiVersion3;
-    DriverV3_ = CreateDriver(Connection_, driverV3Config);
+    DriverV3_ = CreateDriver(
+        Connection_,
+        driverV3Config,
+        SignatureGenerator_,
+        SignatureValidator_);
 
     auto driverV4Config = CloneYsonStruct(Config_->Driver);
     driverV4Config->ApiVersion = ApiVersion4;
-    DriverV4_ = CreateDriver(Connection_, driverV4Config);
+    DriverV4_ = CreateDriver(
+        Connection_,
+        driverV4Config,
+        SignatureGenerator_,
+        SignatureValidator_);
 
     AuthenticationManager_ = CreateAuthenticationManager(
         Config_->Auth,
@@ -376,7 +426,16 @@ void TBootstrap::SetupClients()
 
 void TBootstrap::ReconfigureMemoryLimits(const TProxyMemoryLimitsConfigPtr& memoryLimits)
 {
-    MemoryUsageTracker_->SetTotalLimit(memoryLimits->Total.value_or(std::numeric_limits<i64>::max()));
+    if (memoryLimits->Total) {
+        MemoryUsageTracker_->SetTotalLimit(*memoryLimits->Total);
+    }
+
+    const auto& staticLimits = Config_->MemoryLimits;
+    auto totalLimit = MemoryUsageTracker_->GetTotalLimit();
+
+    MemoryUsageTracker_->SetCategoryLimit(
+        EMemoryCategory::HeavyRequest,
+        memoryLimits->HeavyRequest.value_or(staticLimits->HeavyRequest.value_or(totalLimit)));
 }
 
 void TBootstrap::OnDynamicConfigChanged(
@@ -424,6 +483,11 @@ void TBootstrap::DoStart()
     DynamicConfigManager_->Start();
 
     MonitoringServer_->Start();
+
+    if (SignatureKeyRotator_) {
+        WaitFor(SignatureKeyRotator_->Start())
+            .ThrowOnError();
+    }
 
     ApiHttpServer_->Start();
     if (ApiHttpsServer_) {

@@ -12,6 +12,7 @@ from yt_commands import (
     create_user,
     get,
     get_job,
+    exists,
     join_reduce,
     raises_yt_error,
     read_table,
@@ -34,6 +35,7 @@ from yt_commands import (
 )
 
 from yt_helpers import skip_if_no_descending, profiler_factory
+from yt.common import YtError
 import yt.yson as yson
 
 from textwrap import dedent
@@ -686,7 +688,7 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
             "operation_alerts_push_period": 100,
             "alert_manager": {
                 "period": 100,
-                "task_paused_scheduling_ratio_threshold": 0.01,
+                "task_unavailable_network_bandwidth_time_ratio_alert_threshold": 0.01,
             },
             "remote_copy_operation_options": {
                 "spec_template": {
@@ -768,6 +770,7 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
                     },
                 },
                 "job_count": 1,
+                "use_cluster_throttlers": True,
             },
         )
 
@@ -787,3 +790,123 @@ class TestSchedulerRemoteOperationWithClusterThrottlers(TestSchedulerRemoteOpera
             profiler = profiler_factory().at_node(job["address"])
             wait(lambda: profiler.get("exec_node/throttler_manager/distributed_throttler/limit", {"throttler_id": "bandwidth_{}".format(self.REMOTE_CLUSTER_NAME)}) is not None)
             wait(lambda: profiler.get("exec_node/throttler_manager/distributed_throttler/usage", {"throttler_id": "bandwidth_{}".format(self.REMOTE_CLUSTER_NAME)}) is not None)
+
+    @authors("yuryalekseev")
+    def test_rate_limit_ratio_hard_threshold(self):
+        bandwidth_limit = self.BANDWIDTH_LIMIT * 8
+
+        # Create //sys/cluster_throttlers
+        remove('//sys/cluster_throttlers', force=True)
+        cluster_throttlers_config = {
+            "enabled": True,
+            "rate_limit_ratio_hard_threshold": -1,
+            "cluster_limits": {
+                # Limit bandwidth from remote cluster to local cluster.
+                self.REMOTE_CLUSTER_NAME: {
+                    "bandwidth": {
+                        "limit": bandwidth_limit,
+                    },
+                },
+            },
+            "distributed_throttler": {
+                "member_client": {
+                    "heartbeat_period": 50,
+                    "attribute_update_period": 300,
+                    "heartbeat_throttler_count_limit": 2,
+                },
+                "limit_update_period": 100,
+                "leader_update_period": 1500,
+            },
+        }
+        set('//sys/cluster_throttlers', cluster_throttlers_config)
+
+        # Restart exe nodes to initialize cluster throttlers after //sys/cluster_throttlers setup.
+        with Restarter(self.Env, NODES_SERVICE):
+            time.sleep(1)
+
+        wait_for_nodes()
+
+        # Create table on remote cluster.
+        create(
+            "table",
+            "//tmp/remote_table",
+            attributes={"compression_codec": "none"},
+            chunk_reader={"enable_local_throttling": True},
+            driver=self.remote_driver)
+
+        # Fill up table on remote cluster.
+        for c in range(self.CHUNK_COUNT):
+            write_table("<append=%true>//tmp/remote_table", {"v": "0" * self.DATA_WEIGHT_SIZE_PER_CHUNK}, driver=self.remote_driver)
+
+        # Create table on local cluster.
+        create("table", "//tmp/local_table")
+
+        # Warm up CAs, let them run single map operation with single job.
+
+        operation_start_time = time.time()
+
+        # Copy table from remote cluster to local cluster.
+        op = map(
+            in_=self.to_remote_path("//tmp/remote_table"),
+            out="//tmp/local_table",
+            command="cat",
+            spec={
+                "job_io": {
+                    "table_reader": {
+                        "enable_local_throttling": True,
+                    },
+                },
+                "job_count": 1,
+                "use_cluster_throttlers": True,
+            },
+        )
+
+        operation_end_time = time.time()
+
+        operation_run_time = operation_end_time - operation_start_time
+
+        # Check that throttling has been disabled.
+        assert operation_run_time > (self.CHUNK_COUNT * self.DATA_WEIGHT_SIZE_PER_CHUNK * self.THROTTLER_JITTER_MULTIPLIER / bandwidth_limit)
+
+        # Because of negative "rate_limit_ratio_hard_threshold" CAs should now effectively disable scheduling of map operations, check it.
+
+        operation_time_limit = 2 * min(operation_run_time, 30) * 1000
+
+        # Copy table from remote cluster to local cluster.
+        op = map(
+            track=False,
+            in_=self.to_remote_path("//tmp/remote_table"),
+            out="//tmp/local_table",
+            command="cat",
+            spec={
+                "job_io": {
+                    "table_reader": {
+                        "enable_local_throttling": True,
+                    },
+                },
+                "job_count": 1,
+                "use_cluster_throttlers": True,
+                "time_limit": operation_time_limit,
+            },
+        )
+
+        # Wait for network bandwidth to become unavailable.
+
+        op.wait_for_state("running")
+        wait(lambda: exists(op.get_orchid_path() + "/controller/network_bandwidth_availability"))
+
+        def is_not_available(cluster, op):
+            value = get(op.get_orchid_path() + "/controller/network_bandwidth_availability")
+            assert cluster in value
+            return str(value[cluster]) == "false"
+
+        wait(lambda: is_not_available(self.REMOTE_CLUSTER_NAME, op))
+
+        # Wait for operation abortion by time limit.
+        with pytest.raises(YtError) as err:
+            op.track()
+
+        assert 'Operation is running for too long' in str(err)
+
+        # Check that operation scheduling was paused due to unavailable network bandwidth.
+        assert 'unavailable_network_bandwidth_to_clusters' in op.get_alerts()

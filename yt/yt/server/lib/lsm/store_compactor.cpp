@@ -581,11 +581,11 @@ private:
 
         auto now = TInstant::Now();
 
-        if (now < globalConfig.StartTime || globalConfig.StartTime < store->GetCreationTime()) {
+        if (now < globalConfig.StartTime || globalConfig.StartTime <= store->GetCreationTime()) {
             return false;
         }
 
-        if (now >= globalConfig.StartTime + globalConfig.Duration) {
+        if (now > globalConfig.StartTime + globalConfig.Duration) {
             YT_LOG_DEBUG("Found store that was supposed to be compacted by now (%v, StoreId: %v, StartTime: %v, Duration: %v, Now: %v)",
                 store->GetTablet()->GetLoggingTag(),
                 store->GetId(),

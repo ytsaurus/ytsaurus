@@ -116,6 +116,13 @@ def run_check(yt_client, logger, options, states):
                         "min_sync_replica_count": min_sync_replica_count,
                         "max_sync_replica_count": max_sync_replica_count,
                     },
+                    # Tables are rarely written into but async replicas are expected to catch up quickly.
+                    # Relative throttler is inadequately precise in its formality so we disable it.
+                    "mount_config": {
+                        "relative_replication_throttler": {
+                            "enable": False,
+                        }
+                    },
                     "expiration_time": "{}".format(datetime.utcnow() +
                                                    timedelta(minutes=TABLE_EXPIRATION_TIME_DELTA_MINUTES)),
                 })

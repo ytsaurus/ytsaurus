@@ -22,7 +22,6 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
-#include <yt/yt/server/master/cell_master/helpers.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/multicell_manager.h>
 #include <yt/yt/server/master/cell_master/serialize.h>
@@ -46,6 +45,8 @@
 #include <yt/yt/server/master/tablet_server/tablet.h>
 
 #include <yt/yt/server/master/sequoia_server/context.h>
+
+#include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/server/lib/hydra/composite_automaton.h>
 #include <yt/yt/server/lib/hydra/entity_map.h>
@@ -120,7 +121,7 @@ namespace {
 
 bool IsPermissionValidationSuppressed()
 {
-    return IsSubordinateMutation();
+    return IsHiveMutation();
 }
 
 } // namespace
@@ -938,7 +939,7 @@ public:
         }
 
         if (oldResourceLimits.IsViolatedBy(newResourceLimits)) {
-            if (auto* parent = account->GetParent()) {
+            if (auto parent = account->GetParent()) {
                 const auto& parentResourceLimits = parent->ClusterResourceLimits();
                 if (parentResourceLimits.IsViolatedBy(newResourceLimits)) {
                     ThrowWithDetailedViolatedResources(
@@ -1147,8 +1148,7 @@ public:
         }
 
         for (const auto& entry : requisition) {
-            auto* account = entry.Account;
-
+            auto account = entry.Account;
             YT_VERIFY(IsObjectAlive(account));
 
             UpdateMasterMemoryUsage(schema, account, delta);
@@ -1185,7 +1185,7 @@ public:
         const TClusterResources& resources) override
     {
         auto* account = accountResourceUsageLease->Account().Get();
-        auto* transaction = accountResourceUsageLease->GetTransaction();
+        auto transaction = accountResourceUsageLease->GetTransaction();
 
         if (resources.GetNodeCount() > 0) {
             THROW_ERROR_EXCEPTION(
@@ -1222,7 +1222,7 @@ public:
         YT_ASSERT(chunk->IsStaged());
         YT_ASSERT(chunk->IsDiskSizeFinal());
 
-        auto* stagingTransaction = chunk->GetStagingTransaction();
+        auto stagingTransaction = chunk->GetStagingTransaction();
         auto* stagingAccount = chunk->StagingAccount().Get();
 
         auto chargeTransaction = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 /*chunkMasterMemoryUsage*/, bool /*committed*/) {
@@ -1397,10 +1397,10 @@ public:
             *transactionUsage += node->GetDeltaResourceUsage();
         };
 
-        for (auto* node : transaction->BranchedNodes()) {
+        for (auto node : transaction->BranchedNodes()) {
             addNodeResourceUsage(node);
         }
-        for (auto* node : transaction->StagedNodes()) {
+        for (auto node : transaction->StagedNodes()) {
             addNodeResourceUsage(node);
         }
     }
@@ -1424,7 +1424,7 @@ public:
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
         if (oldAccount) {
-            if (auto* shard = node->GetShard()) {
+            if (auto shard = node->GetShard()) {
                 cypressManager->UpdateShardNodeCount(shard, oldAccount, -1);
             }
             UpdateAccountNodeCountUsage(node, oldAccount, nullptr, -1);
@@ -1432,7 +1432,7 @@ public:
             node->Account().Reset();
         }
 
-        if (auto* shard = node->GetShard()) {
+        if (auto shard = node->GetShard()) {
             cypressManager->UpdateShardNodeCount(shard, newAccount, +1);
         }
         UpdateAccountNodeCountUsage(node, newAccount, transaction, +1);
@@ -1563,7 +1563,7 @@ public:
 
         DoUpdateAccountResourceUsageLease(accountResourceUsageLease, TClusterResources());
 
-        auto* transaction = accountResourceUsageLease->GetTransaction();
+        auto transaction = accountResourceUsageLease->GetTransaction();
         EraseOrCrash(transaction->AccountResourceUsageLeases(), accountResourceUsageLease);
 
         accountResourceUsageLease->SetTransaction(nullptr);
@@ -1575,7 +1575,7 @@ public:
 
     void DestroySubject(TSubject* subject)
     {
-        for (auto* group : subject->MemberOf()) {
+        for (auto group : subject->MemberOf()) {
             YT_VERIFY(group->Members().erase(subject) == 1);
         }
         subject->MemberOf().clear();
@@ -1723,7 +1723,7 @@ public:
     {
         YT_VERIFY(GroupNameMap_.erase(group->GetName()) == 1);
 
-        for (auto* subject : group->Members()) {
+        for (auto subject : group->Members()) {
             YT_VERIFY(subject->MemberOf().erase(group) == 1);
         }
         group->Members().clear();
@@ -2963,7 +2963,7 @@ private:
         auto chunkMasterMemoryUsageDelta = delta * chunk->GetMasterMemoryUsage();
 
         for (const auto& entry : requisition) {
-            auto* account = entry.Account;
+            auto account = entry.Account;
             if (!IsObjectAlive(account)) {
                 continue;
             }
@@ -3130,7 +3130,7 @@ private:
         bool added = subject->RecursiveMemberOf().insert(ancestorGroup).second;
         if (added && subject->GetType() == EObjectType::Group) {
             auto* subjectGroup = subject->AsGroup();
-            for (auto* member : subjectGroup->Members()) {
+            for (auto member : subjectGroup->Members()) {
                 PropagateRecursiveMemberOf(member, ancestorGroup);
             }
         }
@@ -3162,7 +3162,7 @@ private:
         }
 
         for (auto [groupId, group] : GroupMap_) {
-            for (auto* member : group->Members()) {
+            for (auto member : group->Members()) {
                 PropagateRecursiveMemberOf(member, group);
             }
         }
@@ -3698,7 +3698,7 @@ private:
         // Finally, accounts are arranged into tree, in which child
         // references parent.
         for (auto [accountId, account] : AccountMap_) {
-            if (auto* parent = account->GetParent()) {
+            if (auto parent = account->GetParent()) {
                 ++accountToRefCounter[parent];
             }
         }
@@ -3760,6 +3760,7 @@ private:
         SequoiaAccount_ = nullptr;
 
         MustRecomputeMembershipClosure_ = false;
+        FixAdminBuiltinGroup_ = false;
         GroupNameMapInitialized_ = false;
 
         ResetAuthenticatedUser();
@@ -4433,7 +4434,7 @@ private:
         const TClusterResources& resources)
     {
         auto* account = accountResourceUsageLease->Account().Get();
-        auto* transaction = accountResourceUsageLease->GetTransaction();
+        auto* transaction = accountResourceUsageLease->GetTransaction().Get();
 
         auto resourcesDelta = resources - accountResourceUsageLease->Resources();
 
@@ -4462,7 +4463,7 @@ private:
 
         // Remove account usage leases that belong to transaction.
         auto accountResourceUsageLeases = transaction->AccountResourceUsageLeases();
-        for (auto* accountResourceUsageLease : accountResourceUsageLeases) {
+        for (auto accountResourceUsageLease : accountResourceUsageLeases) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             // NB: Unref of account usage lease removes it from transaction that lease belongs to.
             YT_VERIFY(objectManager->UnrefObject(accountResourceUsageLease) == 0);
@@ -4539,7 +4540,7 @@ private:
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto replicateMembership = [&] (TSubject* subject) {
-            for (auto* group : subject->MemberOf()) {
+            for (auto group : subject->MemberOf()) {
                 auto req = TGroupYPathProxy::AddMember(FromObjectId(group->GetId()));
                 req->set_name(ToProto(subject->GetName()));
                 req->set_ignore_existing(true);
@@ -4669,10 +4670,10 @@ private:
                 }
             }
 
-            for (auto* subject : ace.Subjects) {
+            for (auto subject : ace.Subjects) {
                 auto* adjustedSubject = subject == SecurityManager_->GetOwnerUser() && owner
                     ? owner
-                    : subject;
+                    : subject.Get();
                 if (!adjustedSubject) {
                     continue;
                 }

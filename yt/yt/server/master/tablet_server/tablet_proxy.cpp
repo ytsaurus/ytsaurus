@@ -22,6 +22,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
+#include <yt/yt/ytlib/tablet_client/tablet_ypath_proxy.h>
+
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/core/yson/consumer.h>
@@ -49,6 +51,12 @@ public:
 
 private:
     using TBase = TTabletProxyBase;
+
+    bool DoInvoke(const IYPathServiceContextPtr& context) override
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(CancelTabletTransition);
+        return TBase::DoInvoke(context);
+    }
 
     void ListSystemAttributes(std::vector<TAttributeDescriptor>* descriptors) override
     {
@@ -174,6 +182,20 @@ private:
     TYPath GetOrchidPath(TTabletId tabletId) const override
     {
         return Format("tablets/%v", tabletId);
+    }
+
+    DECLARE_YPATH_SERVICE_METHOD(NTabletClient::NProto, CancelTabletTransition)
+    {
+        DeclareMutating();
+
+        ValidateNoTransaction();
+
+        context->SetRequestInfo();
+
+        const auto& tabletManager = Bootstrap_->GetTabletManager();
+        tabletManager->CancelTabletTransition(GetThisImpl()->As<TTablet>());
+
+        context->Reply();
     }
 };
 

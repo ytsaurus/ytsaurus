@@ -4,7 +4,6 @@ INCLUDE(${ARCADIA_ROOT}/yt/ya_cpp.make.inc)
 
 SRCS(
     batch.cpp
-    temp_table.cpp
     ypath_join.cpp
     wait_for_tablets_state.cpp
 )

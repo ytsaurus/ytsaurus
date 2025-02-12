@@ -75,6 +75,7 @@ private:
         std::optional<NTabletNode::EDynamicTableProfilingMode> ProfilingMode;
         std::optional<TString> ProfilingTag;
         bool EnableDetailedProfiling = false;
+        NTableClient::ETabletTransactionSerializationType SerializationType = NTableClient::ETabletTransactionSerializationType::Coarse;
         bool EnableConsistentChunkReplicaPlacement = false;
         NTabletClient::ETableBackupState BackupState = NTabletClient::ETableBackupState::None;
         TEnumIndexedArray<NTabletClient::ETabletBackupState, int> TabletCountByBackupState;
@@ -89,8 +90,8 @@ private:
         bool TreatAsQueueProducer = false;
         NTabletServer::TMountConfigStoragePtr MountConfigStorage;
         NTabletServer::THunkStorageNodePtr HunkStorage;
-        THashSet<TSecondaryIndex*> SecondaryIndices;
-        TSecondaryIndex* IndexTo = nullptr;
+        THashSet<TSecondaryIndexRawPtr> SecondaryIndices;
+        TSecondaryIndexRawPtr IndexTo;
 
         TDynamicTableAttributes();
 
@@ -105,7 +106,7 @@ private:
 public:
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp, NTransactionClient::NullTimestamp);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, UnflushedTimestamp, NTransactionClient::NullTimestamp);
-    DEFINE_BYVAL_RW_PROPERTY(TTableCollocation*, ReplicationCollocation);
+    DEFINE_BYVAL_RW_PROPERTY(TTableCollocationRawPtr, ReplicationCollocation);
     DEFINE_BYREF_RW_PROPERTY(NYson::TYsonString, CustomRuntimeData);
 
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TTableNode, NTableClient::EOptimizeFor, OptimizeFor);
@@ -130,6 +131,7 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ProfilingMode);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ProfilingTag);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableDetailedProfiling);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, SerializationType);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, EnableConsistentChunkReplicaPlacement);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, BackupState);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, TabletCountByBackupState);
@@ -237,6 +239,8 @@ private:
     NTransactionClient::TTimestamp CalculateUnflushedTimestamp(
         NTransactionClient::TTimestamp latestTimestamp) const;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TTableNode)
 
 // Think twice before increasing this.
 YT_STATIC_ASSERT_SIZEOF_SANITY(TTableNode, 736);

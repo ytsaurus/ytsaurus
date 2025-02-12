@@ -219,6 +219,7 @@ public:
 
     NHiveClient::TCellDirectoryConfigPtr CellDirectory;
     NHiveClient::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
+    NHiveClient::TDownedCellTrackerConfigPtr DownedCellTracker;
     NDiscoveryClient::TDiscoveryConnectionConfigPtr DiscoveryConnection;
     NQueueClient::TQueueAgentConnectionConfigPtr QueueAgent;
     NQueryTrackerClient::TQueryTrackerConnectionConfigPtr QueryTracker;
@@ -303,6 +304,7 @@ public:
     ssize_t MaxRequestWindowSize;
 
     TDuration UploadTransactionTimeout;
+    std::optional<TDuration> UploadTransactionPingPeriod;
     TDuration HiveSyncRpcTimeout;
 
     TAsyncExpiringCacheConfigPtr JobShellDescriptorCache;

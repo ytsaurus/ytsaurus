@@ -387,7 +387,7 @@ private:
         TSchedulerMutations mutations;
         ScheduleBundles(inputState, &mutations);
 
-        if (!inputState.SysConfig || !inputState.SysConfig->DisableBundleController ) {
+        if (!inputState.SysConfig || !inputState.SysConfig->DisableBundleController) {
             Mutate(transaction, mutations);
         } else {
             YT_LOG_WARNING("Bundle controller is disabled");
@@ -464,7 +464,9 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
 
         CreateHulkRequests<TAllocationRequest>(transaction, Config_->HulkAllocationsPath, mutations.NewAllocations);
+        ChangeHulkRequests<TAllocationRequest>(transaction, Config_->HulkAllocationsPath, mutations.ChangedAllocations);
         CreateHulkRequests<TDeallocationRequest>(transaction, Config_->HulkDeallocationsPath, mutations.NewDeallocations);
+        CompleteHulkRequests(transaction, Config_->HulkAllocationsPath, mutations.CompletedAllocations);
         CypressSet(transaction, GetBundlesStatePath(), mutations.ChangedStates);
 
         SetNodeAttributes(transaction, AttributeBundleControllerAnnotations, mutations.ChangeNodeAnnotations);
@@ -924,10 +926,10 @@ private:
                 zoneSensor->FreeSpareNodeCount.Update(std::ssize(spareInfo.FreeNodes));
                 zoneSensor->ExternallyDecommissionedNodeCount.Update(std::ssize(spareInfo.ExternallyDecommissioned));
 
-                for (const auto& [bundleName, instancies] : spareInfo.UsedByBundle) {
+                for (const auto& [bundleName, instances] : spareInfo.UsedByBundle) {
                     // TODO: make per dc bundle sensors here
                     auto bundleSensors = GetBundleSensors(bundleName);
-                    bundleSensors->UsingSpareNodeCount.Update(std::ssize(instancies));
+                    bundleSensors->UsingSpareNodeCount.Update(std::ssize(instances));
                 }
             }
         }
@@ -937,10 +939,10 @@ private:
                 auto zoneSensor = GetZoneSensors(zoneName, dataCenter);
                 zoneSensor->FreeSpareProxyCount.Update(std::ssize(spareInfo.FreeProxies));
 
-                for (const auto& [bundleName, instancies] : spareInfo.UsedByBundle) {
+                for (const auto& [bundleName, instances] : spareInfo.UsedByBundle) {
                     // TODO: make per dc bundle sensors here
                     auto bundleSensors = GetBundleSensors(bundleName);
-                    bundleSensors->UsingSpareProxyCount.Update(std::ssize(instancies));
+                    bundleSensors->UsingSpareProxyCount.Update(std::ssize(instances));
                 }
             }
         }
@@ -1109,7 +1111,6 @@ private:
         YT_PROFILE_TIMING("/bundle_controller/load_timings/bundle_system_quotas") {
             inputState.SystemAccounts = CypressList<TSystemAccount>(transaction, BundleSystemQuotasPath);
         }
-
 
         YT_PROFILE_TIMING("/bundle_controller/load_timings/system_quotas_parent_account") {
             inputState.RootSystemAccount = GetRootSystemAccount(transaction);
@@ -1346,6 +1347,35 @@ private:
         }
     }
 
+    template <typename TEntryInfo>
+    static void ChangeHulkRequests(
+        const ITransactionPtr& transaction,
+        const TYPath& basePath,
+        const TIndexedEntries<TEntryInfo>& requests)
+    {
+        for (const auto& [requestId, requestBody] : requests) {
+            auto path = Format("%v/%v", basePath, NYPath::ToYPathLiteral(requestId));
+
+            TSetNodeOptions setOptions;
+            setOptions.Recursive = true;
+            WaitFor(transaction->SetNode(path, ConvertToYsonString(requestBody)))
+                .ThrowOnError();
+        }
+    }
+
+    static void CompleteHulkRequests(
+        const ITransactionPtr& transaction,
+        const TYPath& basePath,
+        const THashSet<std::string>& requestIds)
+    {
+        for (const auto& requestId : requestIds) {
+            auto path = Format("%v/%v", basePath, NYPath::ToYPathLiteral(requestId));
+
+            WaitFor(transaction->RemoveNode(path, {}))
+                .ThrowOnError();
+        }
+    }
+
     template <typename TAttribute>
     static void SetInstanceAttributes(
         const IClientBasePtr& client,
@@ -1373,9 +1403,9 @@ private:
         const ITransactionPtr& transaction,
         const TYPath& instanceBasePath,
         const std::string& attributeName,
-        const THashSet<std::string>& instancies)
+        const THashSet<std::string>& instances)
     {
-        for (const auto& instanceName : instancies) {
+        for (const auto& instanceName : instances) {
             auto path = Format("%v/%v/@%v",
                 instanceBasePath,
                 NYPath::ToYPathLiteral(instanceName),
@@ -1502,9 +1532,9 @@ private:
         }
     }
 
-    static void RemoveInstanceCypressNode(const ITransactionPtr& transaction, const TYPath& basePath, const THashSet<std::string>& instanciesToRemove)
+    static void RemoveInstanceCypressNode(const ITransactionPtr& transaction, const TYPath& basePath, const THashSet<std::string>& instancesToRemove)
     {
-        for (const auto& instanceName : instanciesToRemove) {
+        for (const auto& instanceName : instancesToRemove) {
             WaitFor(transaction->RemoveNode(Format("%v/%v", basePath, instanceName)))
                 .ThrowOnError();
         }

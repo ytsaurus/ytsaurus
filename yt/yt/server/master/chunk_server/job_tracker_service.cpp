@@ -66,6 +66,9 @@ private:
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::LeaderOrFollower);
 
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        multicellManager->ValidateRegisteredMasterCell();
+
         auto nodeId = FromProto<TNodeId>(request->node_id());
 
         const auto& resourceLimits = request->resource_limits();

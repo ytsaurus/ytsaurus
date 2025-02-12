@@ -26,7 +26,7 @@ void CheckCumulativeStatistics(TChunkList* chunkList)
     TCumulativeStatisticsEntry current;
 
     int index = 0;
-    for (auto* child : chunkList->Children()) {
+    for (auto child : chunkList->Children()) {
         auto stats = GetChunkTreeStatistics(child);
         current = current + TCumulativeStatisticsEntry(stats);
         if (child->GetType() == EObjectType::ChunkList) {
@@ -40,6 +40,17 @@ void CheckCumulativeStatistics(TChunkList* chunkList)
     }
 
     EXPECT_EQ(current, TCumulativeStatisticsEntry(chunkList->Statistics()));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+[[maybe_unused]]
+std::ostream& operator << (std::ostream& os, const TCumulativeStatisticsEntry& entry)
+{
+    return os << Format("{RowCount=%v;ChunkCount=%v;DataSize=%v}",
+        entry.RowCount,
+        entry.ChunkCount,
+        entry.DataSize).data();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,7 +190,8 @@ TEST_F(TChunkListCumulativeStatisticsTest, OrderedTabletTrim)
 
     auto* chunk3 = CreateChunk(3, 3, 3, 3);
     AttachToChunkList(root, {chunk3});
-    EXPECT_EQ(root->CumulativeStatistics()[1], TCumulativeStatisticsEntry(3, 2, 3));
+    EXPECT_EQ(root->CumulativeStatistics()[1], TCumulativeStatisticsEntry(3, 1, 3));
+    EXPECT_EQ(root->CumulativeStatistics()[2], TCumulativeStatisticsEntry(6, 2, 6));
 }
 
 TEST_F(TChunkListCumulativeStatisticsTest, OrderedTabletPhysicalTrim)
@@ -199,7 +211,8 @@ TEST_F(TChunkListCumulativeStatisticsTest, OrderedTabletPhysicalTrim)
 
     // Children are erased from the chunk list in portions of at least 17 chunks.
     EXPECT_LT(root->Children().size(), 18u);
-    EXPECT_EQ(root->CumulativeStatistics().Back(), TCumulativeStatisticsEntry(18, 18, 18));
+    int actualChunkCount = root->Children().size();
+    EXPECT_EQ(root->CumulativeStatistics().Back(), TCumulativeStatisticsEntry(18, actualChunkCount, 18));
 }
 
 TEST_F(TChunkListCumulativeStatisticsTest, UnconfirmedChunk)
@@ -247,11 +260,11 @@ TEST_F(TChunkListCumulativeStatisticsTest, SortedDynamicRootChanging)
     std::mt19937 gen(12345);
 
     auto* root = CreateChunkList(EChunkListKind::SortedDynamicRoot);
-    std::vector<TChunkTree*> tablets;
+    std::vector<TChunkTreeRawPtr> tablets;
     for (int i = 0; i < 5; ++i) {
         auto* tablet = CreateChunkList(EChunkListKind::SortedDynamicTablet);
         tablets.push_back(tablet);
-        std::vector<TChunkTree*> chunks;
+        std::vector<TChunkTreeRawPtr> chunks;
         for (int j = 0; j < 5; ++j) {
             int rowCount = gen() % 10 + 1;
             int dataWeight = gen() % 10 + 1;
@@ -276,7 +289,7 @@ TEST_F(TChunkListCumulativeStatisticsTest, SortedDynamicRootChanging)
                 AttachToChunkList(tablet, {chunk});
             } else {
                 auto& children = tablet->Children();
-                auto* randomChild = children[gen() % children.size()];
+                auto randomChild = children[gen() % children.size()];
                 DetachFromChunkList(tablet, {randomChild}, EChunkDetachPolicy::SortedTablet);
             }
 

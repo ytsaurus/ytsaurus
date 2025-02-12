@@ -1,10 +1,14 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
-from yt_commands import (authors, wait, ls, set, get, map, update_nodes_dynamic_config, create, write_file, write_table, merge)
+from yt_commands import (
+    authors, wait, ls, set, get, map, update_nodes_dynamic_config, create,
+    write_file, write_table, merge, create_domestic_medium, exists,
+    set_account_disk_space_limit, get_account_disk_space_limit)
 
 import yt_error_codes
 
 import os
+import time
 
 
 class TestLocationMisconfigured(YTEnvSetup):
@@ -123,3 +127,64 @@ for line in sys.stdin:
             pass
 
         op.track()
+
+
+class TestPerLocationFullHeartbeats(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    STORE_LOCATION_COUNT = 10
+
+    @classmethod
+    def setup_class(cls):
+        super().setup_class()
+
+        disk_space_limit = get_account_disk_space_limit("tmp", "default")
+        for i in range(cls.STORE_LOCATION_COUNT):
+            set_account_disk_space_limit("tmp", disk_space_limit, medium=f"hdd{i}")
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        assert len(config["data_node"]["store_locations"]) == cls.STORE_LOCATION_COUNT
+
+        for i in range(cls.STORE_LOCATION_COUNT):
+            config["data_node"]["store_locations"][i]["medium_name"] = f"hdd{i}"
+
+    @classmethod
+    def on_masters_started(cls):
+        for i in range(cls.STORE_LOCATION_COUNT):
+            create_domestic_medium(f"hdd{i}")
+
+    @authors("danilalexeev")
+    def test_interrupt_full_heartbeat_session(self):
+        # Create chunk on every medium.
+        for i in range(self.STORE_LOCATION_COUNT):
+            table_path = f"//tmp/t{i}"
+            medium_name = f"hdd{i}"
+            create("table", table_path, attributes={"primary_medium": medium_name})
+            assert exists(f"{table_path}/@media/{medium_name}")
+            write_table(table_path, [{"key": "value"}])
+
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+        node = nodes[0]
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "master_connector": {
+                    "full_heartbeat_session_sleep_duration": 1000,
+                },
+            }
+        })
+        # Now a data node full heartbeat session will take not less than 10s.
+
+        with Restarter(self.Env, NODES_SERVICE, sync=False):
+            pass
+
+        time.sleep(3)
+
+        # Full heartbeat is in session.
+        assert get(f"//sys/cluster_nodes/{node}/@state") == "registered"
+
+        set("//sys/@config/chunk_manager/data_node_tracker/enable_per_location_full_heartbeats", False)
+
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "online")

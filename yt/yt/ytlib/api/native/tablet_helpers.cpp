@@ -5,6 +5,8 @@
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
 
+#include <yt/yt/library/query/engine_api/column_evaluator.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
@@ -25,6 +27,7 @@ using namespace NHiveClient;
 using namespace NRpc;
 using namespace NHydra;
 using namespace NNodeTrackerClient;
+using namespace NQueryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -210,6 +213,44 @@ TNameTableToSchemaIdMapping BuildColumnIdMapping(
     return mapping;
 }
 
+TSharedRange<TUnversionedRow> PermuteAndEvaluateKeys(
+    const TTableMountInfoPtr& tableInfo,
+    const TNameTablePtr& nameTable,
+    const TSharedRange<TLegacyKey>& keys,
+    const TColumnEvaluatorPtr& columnEvaluator)
+{
+    if (keys.empty()) {
+        return {};
+    }
+
+    const auto& schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+    auto idMapping = BuildColumnIdMapping(*schema, nameTable);
+
+    struct TGetInSyncReplicasTag
+    { };
+    auto rowBuffer = New<TRowBuffer>(TGetInSyncReplicasTag());
+    std::vector<TUnversionedRow> evaluatedKeys;
+    evaluatedKeys.reserve(keys.size());
+
+    for (auto key : keys) {
+        ValidateClientKey(key, *schema, idMapping, nameTable);
+        auto capturedKey = rowBuffer->CaptureAndPermuteRow(
+            key,
+            *schema,
+            schema->GetKeyColumnCount(),
+            idMapping,
+            /*validateDuplicateAndRequiredValueColumns*/ false);
+
+        if (columnEvaluator) {
+            columnEvaluator->EvaluateKeys(capturedKey, rowBuffer, /*preserveColumnsIds*/ false);
+        }
+
+        evaluatedKeys.push_back(capturedKey);
+    }
+
+    return MakeSharedRange(std::move(evaluatedKeys), std::move(rowBuffer));
+}
+
 namespace {
 
 template <class TRow>
@@ -283,6 +324,13 @@ TTabletInfoPtr GetOrderedTabletForRow(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsTimestampInSync(TTimestamp userTimestamp, TTimestamp replicationTimestamp)
+{
+    return userTimestamp >= MinTimestamp &&
+        userTimestamp <= MaxTimestamp &&
+        replicationTimestamp >= userTimestamp;
+}
+
 bool IsReplicaSync(
     const NQueryClient::NProto::TReplicaInfo& replicaInfo,
     const NQueryClient::NProto::TTabletInfo& tabletInfo)
@@ -324,6 +372,7 @@ TTableReplicaInfoPtrList OnTabletInfosReceived(
                 if (IsReplicaSync(protoReplicaInfo, protoTabletInfo)) {
                     auto replicaId = FromProto<TTableReplicaId>(protoReplicaInfo.replica_id());
                     ++replicaIdToCount[replicaId];
+
                     if (cachedSyncReplicasAt) {
                         syncReplicaIds->push_back(replicaId);
                     }

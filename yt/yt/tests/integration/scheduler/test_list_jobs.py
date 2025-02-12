@@ -6,7 +6,7 @@ from yt_commands import (
     create_pool, insert_rows, select_rows, lookup_rows, write_table,
     map, map_reduce, vanilla, run_test_vanilla, run_sleeping_vanilla,
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
-    update_controller_agent_config,
+    update_controller_agent_config, print_debug, exists,
     make_random_string, raises_yt_error, clear_metadata_caches, ls)
 
 from yt_scheduler_helpers import scheduler_new_orchid_pool_tree_path
@@ -994,6 +994,72 @@ class TestListJobs(TestListJobsBase):
         jobs = list_jobs(op.id, continuation_token=jobs["continuation_token"], state="completed")["jobs"]
         assert len(jobs) == 2
         assert "continuation_token" not in jobs
+
+    @authors("eshcherbin", "pogorelov")
+    def test_operation_incarnation(self):
+        update_controller_agent_config("vanilla_operation_options/gang_manager/enabled", True)
+
+        def get_operation_incarnation(op):
+            wait(lambda: exists(op.get_orchid_path() + "/controller/operation_incarnation"))
+            incarnation_id = get(op.get_orchid_path() + "/controller/operation_incarnation")
+            print_debug(f"Current incarnation of operation {op.id} is {incarnation_id}")
+
+            return incarnation_id
+
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=2,
+            task_patch={"gang_manager": {}},
+        )
+
+        job_ids = wait_breakpoint(job_count=2)
+
+        assert len(job_ids) == 2
+
+        incarnation = get_operation_incarnation(op)
+
+        wait(lambda: len(list_jobs(op.id, verbose=False)["jobs"]) == 2)
+
+        jobs = list_jobs(op.id)["jobs"]
+
+        assert frozenset(job["id"] for job in jobs) == frozenset(job_ids)
+        assert all([job["operation_incarnation"] == incarnation for job in jobs])
+
+        first_job_id = job_ids[0]
+
+        print_debug("aborting job ", first_job_id)
+
+        abort_job(first_job_id)
+
+        job_orchid_addresses = [op.get_job_node_orchid_path(job_id) + f"/exec_node/job_controller/active_jobs/{job_id}" for job_id in job_ids]
+
+        release_breakpoint(job_id=job_ids[0])
+        release_breakpoint(job_id=job_ids[1])
+
+        for job_orchid_address in job_orchid_addresses:
+            wait(lambda: not exists(job_orchid_address))
+
+        new_job_ids = wait_breakpoint(job_count=2)
+
+        assert len(set(job_ids) & set(new_job_ids)) == 0
+
+        new_incarnation = get_operation_incarnation(op)
+
+        assert new_incarnation != incarnation
+
+        release_breakpoint()
+
+        op.track()
+
+        wait(lambda: len(list_jobs(op.id, verbose=False)["jobs"]) == 4)
+
+        jobs = list_jobs(op.id, operation_incarnation=incarnation)["jobs"]
+        assert frozenset(job["id"] for job in jobs) == frozenset(job_ids)
+        assert all([job["operation_incarnation"] == incarnation for job in jobs])
+
+        jobs = list_jobs(op.id, operation_incarnation=new_incarnation)["jobs"]
+        assert frozenset(job["id"] for job in jobs) == frozenset(new_job_ids)
+        assert all([job["operation_incarnation"] == new_incarnation for job in jobs])
 
 
 ##################################################################

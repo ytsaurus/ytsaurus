@@ -202,9 +202,9 @@ void TNewJobManager::TJob::SetState(EJobState state)
     UpdateSelf();
 }
 
-void TNewJobManager::TJob::SetInterruptReason(NScheduler::EInterruptReason reason)
+void TNewJobManager::TJob::SetInterruptionReason(NScheduler::EInterruptionReason reason)
 {
-    InterruptReason_ = reason;
+    InterruptionReason_ = reason;
 }
 
 void TNewJobManager::TJob::ChangeSuspendedStripeCountBy(int delta)
@@ -253,7 +253,7 @@ void TNewJobManager::TJob::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(14, DataWeightProgressCounterGuard_);
     PHOENIX_REGISTER_FIELD(15, RowProgressCounterGuard_);
     PHOENIX_REGISTER_FIELD(16, JobProgressCounterGuard_);
-    PHOENIX_REGISTER_FIELD(17, InterruptReason_);
+    PHOENIX_REGISTER_FIELD(17, InterruptionReason_);
 
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // We must add ourselves to the job pool.
@@ -298,7 +298,7 @@ void TNewJobManager::TJob::UpdateSelf()
     }
 
     if (newProgressCategory == EProgressCategory::Completed) {
-        CallProgressCounterGuards(&TProgressCounterGuard::SetCompletedCategory, InterruptReason_);
+        CallProgressCounterGuards(&TProgressCounterGuard::SetCompletedCategory, InterruptionReason_);
     } else {
         CallProgressCounterGuards(&TProgressCounterGuard::SetCategory, newProgressCategory);
     }
@@ -432,11 +432,11 @@ IChunkPoolOutput::TCookie TNewJobManager::AddJob(std::unique_ptr<TNewJobStub> jo
     return outputCookie;
 }
 
-void TNewJobManager::Completed(IChunkPoolOutput::TCookie cookie, EInterruptReason reason)
+void TNewJobManager::Completed(IChunkPoolOutput::TCookie cookie, EInterruptionReason reason)
 {
     auto& job = Jobs_[cookie];
     YT_VERIFY(job.GetState() == EJobState::Running);
-    job.SetInterruptReason(reason);
+    job.SetInterruptionReason(reason);
     job.SetState(EJobState::Completed);
 }
 

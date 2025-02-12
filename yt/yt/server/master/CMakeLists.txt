@@ -83,11 +83,12 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/disk_space_sensor_producer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/epoch_history_manager.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/hydra_facade.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/master_hydra_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multi_phase_cell_sync_session.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_node_statistics.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/multicell_statistics_collector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/response_keeper_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/serialize.cpp
@@ -134,6 +135,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_replicated_table_node.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/chaos_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/config.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_autotomizer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_creation_time_histogram_builder.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/chunk_list_proxy.cpp
@@ -188,6 +190,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/job_registry.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/job_tracker_service.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/job.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/lost_vital_chunks_sample.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/master_cell_chunk_statistics_collector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/medium_proxy_base.cpp
@@ -449,6 +452,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/alert_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/epoch_history_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/multicell_manager.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/multicell_node_statistics.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cell_master/proto/response_keeper_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/chaos_server/proto/alien_cell.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/chaos_server/proto/chaos_manager.pb.h
@@ -457,6 +461,7 @@ target_sources(yt-server-master PRIVATE
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_merger.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/chunk_reincarnator.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/data_node_tracker.pb.h
+  ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/lost_vital_chunks_sample.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/chunk_server/proto/master_cell_chunk_statistics_collector.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/cypress_manager.pb.h
   ${PROJECT_BINARY_DIR}/yt/yt/server/master/cypress_server/proto/grafting_manager.pb.h
@@ -473,6 +478,7 @@ target_proto_messages(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/proto/alert_manager.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/proto/epoch_history_manager.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/proto/multicell_manager.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/proto/multicell_node_statistics.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cell_master/proto/response_keeper_manager.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/proto/alien_cell.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chaos_server/proto/chaos_manager.proto
@@ -481,6 +487,7 @@ target_proto_messages(yt-server-master PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_merger.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/chunk_reincarnator.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/data_node_tracker.proto
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/lost_vital_chunks_sample.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/chunk_server/proto/master_cell_chunk_statistics_collector.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/cypress_manager.proto
   ${PROJECT_SOURCE_DIR}/yt/yt/server/master/cypress_server/proto/grafting_manager.proto

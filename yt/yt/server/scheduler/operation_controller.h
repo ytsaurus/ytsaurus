@@ -15,8 +15,9 @@ class TControllerRuntimeData
     : public TRefCounted
 {
 public:
+    // TODO(eshcherbin): Merge these.
     DEFINE_BYVAL_RW_PROPERTY(TCompositeNeededResources, NeededResources);
-    DEFINE_BYREF_RW_PROPERTY(TJobResourcesWithQuotaList, MinNeededResources);
+    DEFINE_BYREF_RW_PROPERTY(TAllocationGroupResourcesMap, GroupedNeededResources);
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerRuntimeData)
@@ -54,13 +55,13 @@ struct IOperationControllerStrategyHost
 
     //! Initiates updating min needed resources estimates.
     //! Note that the actual update may happen in background.
-    virtual void UpdateMinNeededAllocationResources() = 0;
+    virtual void UpdateGroupedNeededResources() = 0;
 
-    //! Returns the cached min needed resources estimate.
-    virtual TJobResourcesWithQuotaList GetMinNeededAllocationResources() const = 0;
+    //! Returns the latest grouped needed resources.
+    virtual TAllocationGroupResourcesMap GetGroupedNeededResources() const = 0;
 
-    //! Returns initial min needed resources estimate (right after materialization).
-    virtual TJobResourcesWithQuotaList GetInitialMinNeededAllocationResources() const = 0;
+    //! Returns initial grouped needed resources (right after materialization).
+    virtual TAllocationGroupResourcesMap GetInitialGroupedNeededResources() const = 0;
 
     //! Returns the mode which says how to preempt allocations of this operation.
     virtual EPreemptionMode GetPreemptionMode() const = 0;
@@ -99,7 +100,7 @@ struct TOperationControllerMaterializeResult
 {
     bool Suspend = false;
     TCompositeNeededResources InitialNeededResources;
-    TJobResourcesWithQuotaList InitialMinNeededResources;
+    TAllocationGroupResourcesMap InitialGroupedNeededResources;
 };
 
 void FromProto(TOperationControllerMaterializeResult* result, const NControllerAgent::NProto::TMaterializeOperationResult& resultProto);
@@ -113,8 +114,8 @@ struct TOperationControllerReviveResult
     std::vector<TAllocationPtr> RevivedAllocations;
     THashSet<TString> RevivedBannedTreeIds;
     TCompositeNeededResources NeededResources;
-    TJobResourcesWithQuotaList MinNeededResources;
-    TJobResourcesWithQuotaList InitialMinNeededResources;
+    TAllocationGroupResourcesMap GroupedNeededResources;
+    TAllocationGroupResourcesMap InitialGroupedNeededResources;
 };
 
 void FromProto(

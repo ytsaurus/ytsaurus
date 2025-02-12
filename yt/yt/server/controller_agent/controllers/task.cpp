@@ -98,7 +98,14 @@ TTask::TTask(
         this,
         taskHost->GetSpec(),
         Logger)
-{ }
+{
+    if (TaskHost_->GetSpec()->UseClusterThrottlers) {
+        ClusterToNetworkBandwidthAvailabilityUpdatedCallback_ = BIND_NO_PROPAGATE(
+            &TTask::UpdateNetworkAndTask,
+            MakeWeak(this))
+        .Via(TaskHost_->GetCancelableInvoker());
+    }
+}
 
 const std::vector<TOutputStreamDescriptorPtr>& TTask::GetOutputStreamDescriptors() const
 {
@@ -265,6 +272,52 @@ const TProgressCounterPtr& TTask::GetJobCounter() const
 
 TCompositeNeededResources TTask::GetTotalNeededResourcesDelta()
 {
+    if (!TaskHost_->GetSpec()->UseClusterThrottlers) {
+        return GetTotalNeededResourcesDefaultDelta();
+    }
+
+    if (UnavailableNetworkBandwidthToClustersStartTime_) {
+        UnavailableNetworkBandwidthToClustersDuration_ += TInstant::Now() - UnavailableNetworkBandwidthToClustersStartTime_.value();
+    }
+
+    auto isNetworkBandwidthAvailable = true;
+    for (const auto& [clusterName, isAvailable] : GetClusterToNetworkBandwidthAvailability()) {
+        if (!isAvailable) {
+            isNetworkBandwidthAvailable = false;
+
+            YT_LOG_DEBUG("Network bandwidth to remote cluster is not available now so zero out needed resources "
+                "(Cluster: %v, OldMaxRunnableJobCount: %v)",
+                clusterName,
+                CurrentMaxRunnableJobCount_);
+            break;
+        }
+    }
+
+    if (!isNetworkBandwidthAvailable) {
+        UnavailableNetworkBandwidthToClustersStartTime_ = TInstant::Now();
+        // Zero out maximum runnable jobs. It will be coming back once bandwidth becomes available.
+        auto result = -CachedTotalNeededResources_;
+        CachedTotalNeededResources_ = {};
+        CurrentMaxRunnableJobCount_ = 0;
+        return result;
+    }
+
+    UnavailableNetworkBandwidthToClustersStartTime_.reset();
+
+    auto oldCurrentMaxRunnableJobCount = CurrentMaxRunnableJobCount_;
+    // Increase maximum runnable jobs exponentially up to MaxRunnableJobCount.
+    CurrentMaxRunnableJobCount_ = std::clamp(2 * CurrentMaxRunnableJobCount_, static_cast<i64>(1), MaxRunnableJobCount);
+
+    YT_LOG_DEBUG("Network bandwidth to all remote clusters is available, increase needed resources if necessary "
+        "(OldMaxRunnableJobCount: %v, NewMaxRunnableJobCount: %v)",
+        oldCurrentMaxRunnableJobCount,
+        CurrentMaxRunnableJobCount_);
+
+    return TTask::GetTotalNeededResourcesDefaultDelta();
+}
+
+TCompositeNeededResources TTask::GetTotalNeededResourcesDefaultDelta()
+{
     auto oldValue = CachedTotalNeededResources_;
     auto newValue = GetTotalNeededResources();
     CachedTotalNeededResources_ = newValue;
@@ -273,6 +326,8 @@ TCompositeNeededResources TTask::GetTotalNeededResourcesDelta()
 
 TCompositeNeededResources TTask::GetTotalNeededResources(i64 maxRunnableJobCount) const
 {
+    maxRunnableJobCount = std::min(CurrentMaxRunnableJobCount_, maxRunnableJobCount);
+
     auto jobCount = GetPendingJobCount();
     // NB: Don't call GetMinNeededResources if there are no pending jobs.
     TCompositeNeededResources result;
@@ -330,6 +385,26 @@ void TTask::AddInput(TChunkStripePtr stripe)
         AdjustInputKeyBounds(dataSlice);
         // Data slice may be either legacy or not depending on whether task uses
         // legacy sorted chunk pool or not.
+    }
+
+    if (TaskHost_->GetSpec()->UseClusterThrottlers) {
+        // Add remote input clusters and subscribe to network availability updates.
+        auto clusterName = LocalClusterName;
+        const auto& inputTables = TaskHost_->GetInputManager()->GetInputTables();
+        if (stripe->GetTableIndex() >= 0 && stripe->GetTableIndex() < std::ssize(inputTables)) {
+            clusterName = inputTables[stripe->GetTableIndex()]->ClusterName;
+        }
+
+        if (!IsLocal(clusterName)) {
+            auto guard = WriterGuard(ClusterToNetworkBandwidthAvailabilityLock_);
+            if (!ClusterToNetworkBandwidthAvailability_.contains(clusterName)) {
+                UpdateClusterToNetworkBandwidthAvailabilityLocked(
+                    clusterName,
+                    TaskHost_->IsNetworkBandwidthAvailable(clusterName));
+
+                SubscribeToClusterNetworkBandwidthAvailabilityUpdated(clusterName);
+            }
+        }
     }
 
     TaskHost_->GetInputManager()->RegisterInputStripe(stripe, this);
@@ -447,6 +522,10 @@ void TTask::SwitchIntermediateMedium()
     for (const auto& streamDescriptor : OutputStreamDescriptors_) {
         if (!streamDescriptor->SlowMedium.empty()) {
             streamDescriptor->TableWriterOptions->MediumName = streamDescriptor->SlowMedium;
+            streamDescriptor->TableWriterOptions->ReplicationFactor = TaskHost_->GetSpec()->IntermediateDataReplicationFactor;
+            streamDescriptor->TableWriterConfig = MakeIntermediateTableWriterConfig(
+                TaskHost_->GetSpec(),
+                /*fastIntermediateMediumEnabled*/ false);
         }
     }
 }
@@ -677,14 +756,14 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     };
 
     if (treeIsTentative && !TentativeTreeEligibility_.CanScheduleJob(allocation.TreeId, /*tentative*/ true)) {
-        abortJob(EAbortReason::Other);
+        abortJob(EAbortReason::SchedulingOther);
         return std::unexpected(EScheduleFailReason::TentativeTreeDeclined);
     }
 
     auto chunkPoolOutput = GetChunkPoolOutput();
     bool speculative = chunkPoolOutput->GetJobCounter()->GetPending() == 0;
     if (speculative && treeIsTentative) {
-        abortJob(EAbortReason::Other);
+        abortJob(EAbortReason::SchedulingOther);
         return std::unexpected(EScheduleFailReason::TentativeSpeculativeForbidden);
     }
 
@@ -748,6 +827,11 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
 
     auto estimatedResourceUsage = GetNeededResources(joblet);
     joblet->EstimatedResourceUsage = estimatedResourceUsage;
+
+    TaskHost_->UpdateWriteBufferMemoryAlert(
+        joblet->JobId,
+        estimatedResourceUsage.GetJobProxyMemory(),
+        estimatedResourceUsage.GetJobProxyMemoryWithFixedWriteBufferSize());
 
     TJobResourcesWithQuota neededResources = ApplyMemoryReserve(
         estimatedResourceUsage,
@@ -1124,10 +1208,35 @@ void TTask::RegisterMetadata(auto&& registrar)
         >()
         .SinceVersion(ESnapshotVersion::JobDeterminismValidation));
 
+    PHOENIX_REGISTER_FIELD(34, UnavailableNetworkBandwidthToClustersStartTime_,
+        .SinceVersion(ESnapshotVersion::ThrottlingOfRemoteReads));
+
+    PHOENIX_REGISTER_FIELD(35, UnavailableNetworkBandwidthToClustersDuration_,
+        .SinceVersion(ESnapshotVersion::ThrottlingOfRemoteReads));
+
+    PHOENIX_REGISTER_FIELD(36, ClusterToNetworkBandwidthAvailability_,
+        .SinceVersion(ESnapshotVersion::ThrottlingOfRemoteReads));
+
+    PHOENIX_REGISTER_FIELD(37, CurrentMaxRunnableJobCount_,
+        .SinceVersion(ESnapshotVersion::ThrottlingOfRemoteReads));
+
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // COMPAT(galtsev)
         if (this_->TaskHost_->GetSpec()->JobExperiment) {
             this_->ExperimentJobManager_.SetJobExperiment(this_->TaskHost_->GetJobExperiment());
+        }
+
+        // Restore callback and subscriptions to remote clusters.
+        if (this_->TaskHost_->GetSpec()->UseClusterThrottlers) {
+            this_->ClusterToNetworkBandwidthAvailabilityUpdatedCallback_ = BIND_NO_PROPAGATE(
+                &TTask::UpdateNetworkAndTask,
+                MakeWeak(this_))
+            .Via(this_->TaskHost_->GetCancelableInvoker());
+        }
+
+        // Task has been previously unsubscribed in FinalizeSubscriptions().
+        for (const auto& [cluster, _] : this_->ClusterToNetworkBandwidthAvailability_) {
+            this_->SubscribeToClusterNetworkBandwidthAvailabilityUpdated(cluster);
         }
     });
 }
@@ -1232,7 +1341,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
         const auto& totalInputStatistics = *jobSummary.TotalInputDataStatistics;
         const auto& totalOutputStatistics = *jobSummary.TotalOutputDataStatistics;
         // It's impossible to check row count preservation on interrupted job.
-        if (TaskHost_->IsRowCountPreserved() && jobSummary.InterruptionReason == EInterruptReason::None) {
+        if (TaskHost_->IsRowCountPreserved() && jobSummary.InterruptionReason == EInterruptionReason::None) {
             YT_LOG_ERROR_IF(totalInputStatistics.row_count() != totalOutputStatistics.row_count(),
                 "Input/output row count mismatch in completed job (Input: %v, Output: %v, Task: %v)",
                 totalInputStatistics.row_count(),
@@ -1257,7 +1366,7 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
         std::fill(chunkListIds.begin(), chunkListIds.end(), NullChunkListId);
     }
 
-    if (jobSummary.InterruptionReason != EInterruptReason::None) {
+    if (jobSummary.InterruptionReason != EInterruptionReason::None) {
         auto isSplittable = GetChunkPoolOutput()->IsSplittable(joblet->OutputCookie);
         jobSummary.SplitJobCount = isSplittable ? EstimateSplitJobCount(jobSummary, joblet) : 1;
         YT_LOG_DEBUG(
@@ -1414,7 +1523,7 @@ void TTask::OnJobRunning(TJobletPtr joblet, const TRunningJobSummary& jobSummary
             auto verdict = JobSplitter_->ExamineJob(jobId);
             if (verdict == EJobSplitterVerdict::Split) {
                 YT_LOG_DEBUG("Job is going to be split (JobId: %v)", jobId);
-                TaskHost_->InterruptJob(jobId, EInterruptReason::JobSplit);
+                TaskHost_->InterruptJob(jobId, EInterruptionReason::JobSplit);
             } else if (verdict == EJobSplitterVerdict::LaunchSpeculative) {
                 YT_LOG_DEBUG("Job can be speculated (JobId: %v)", jobId);
                 if (TryRegisterSpeculativeJob(joblet)) {
@@ -2338,7 +2447,7 @@ int TTask::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const T
         splitJobCount = 1;
     }
 
-    if (jobSummary.InterruptionReason == EInterruptReason::JobSplit) {
+    if (jobSummary.InterruptionReason == EInterruptionReason::JobSplit) {
         // If we interrupted job on our own decision, (from JobSplitter), we should at least try to split it into 2 pieces.
         // Otherwise, the whole splitting thing makes to sense.
         splitJobCount = std::max(2, splitJobCount);
@@ -2474,9 +2583,103 @@ TDuration TTask::GetTotalDuration() const
     return TInstant::Now() - *StartTime_;
 }
 
-TDuration TTask::GetPausedSchedulingDuration() const
+TDuration TTask::GetUnavailableNetworkBandwidthDuration() const
 {
-    return TDuration::Zero();
+    auto lastUnavailableNetworkBandwidthToClustersDuration = TDuration::Zero();
+    if (UnavailableNetworkBandwidthToClustersStartTime_) {
+        lastUnavailableNetworkBandwidthToClustersDuration = TInstant::Now() - UnavailableNetworkBandwidthToClustersStartTime_.value();
+    }
+
+    return UnavailableNetworkBandwidthToClustersDuration_ + lastUnavailableNetworkBandwidthToClustersDuration;
+}
+
+THashMap<TClusterName, bool> TTask::GetClusterToNetworkBandwidthAvailability() const
+{
+    auto guard = ReaderGuard(ClusterToNetworkBandwidthAvailabilityLock_);
+    return ClusterToNetworkBandwidthAvailability_;
+}
+
+bool TTask::IsNetworkBandwidthToClustersAvailable() const
+{
+    auto guard = ReaderGuard(ClusterToNetworkBandwidthAvailabilityLock_);
+    for (const auto& [clusterName, isAvailable] : ClusterToNetworkBandwidthAvailability_) {
+        if (!isAvailable) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+void TTask::SubscribeToClusterNetworkBandwidthAvailabilityUpdated(const TClusterName& clusterName)
+{
+    YT_LOG_DEBUG("Subscribe task to remote cluster network bandwidth availability updates (ClusterName: %v)",
+        clusterName);
+
+    TaskHost_->SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
+        clusterName,
+        ClusterToNetworkBandwidthAvailabilityUpdatedCallback_);
+}
+
+void TTask::UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(const TClusterName& clusterName)
+{
+    YT_LOG_DEBUG("Unsubscribe task from remote cluster network bandwidth availability updates (ClusterName: %v)",
+        clusterName);
+
+    TaskHost_->UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
+        clusterName,
+        ClusterToNetworkBandwidthAvailabilityUpdatedCallback_);
+}
+
+void TTask::FinalizeSubscriptions()
+{
+    if (TaskHost_->GetSpec()->UseClusterThrottlers) {
+        auto guard = WriterGuard(ClusterToNetworkBandwidthAvailabilityLock_);
+        for (const auto& [clusterName, _] : ClusterToNetworkBandwidthAvailability_) {
+            UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(clusterName);
+        }
+        ClusterToNetworkBandwidthAvailability_.clear();
+    }
+}
+
+void TTask::UpdateNetworkAndTask()
+{
+    // Update network bandwidth availability first.
+    UpdateClusterToNetworkBandwidthAvailability();
+    UpdateTask();
+}
+
+void TTask::UpdateClusterToNetworkBandwidthAvailability()
+{
+    auto clusterToNetworkBandwidthAvailability = TaskHost_->GetClusterToNetworkBandwidthAvailability();
+
+    auto guard = WriterGuard(ClusterToNetworkBandwidthAvailabilityLock_);
+    for (auto& [clusterName, isAvailable] : ClusterToNetworkBandwidthAvailability_) {
+        if (!clusterToNetworkBandwidthAvailability) {
+            isAvailable = true;
+            continue;
+        }
+
+        auto it = clusterToNetworkBandwidthAvailability->find(clusterName);
+        if (it != clusterToNetworkBandwidthAvailability->end()) {
+            isAvailable = it->second;
+            continue;
+        }
+
+        isAvailable = true;
+    }
+}
+
+void TTask::UpdateClusterToNetworkBandwidthAvailability(const TClusterName& clusterName, bool isAvailable)
+{
+    auto guard = WriterGuard(ClusterToNetworkBandwidthAvailabilityLock_);
+    UpdateClusterToNetworkBandwidthAvailabilityLocked(clusterName, isAvailable);
+}
+
+void TTask::UpdateClusterToNetworkBandwidthAvailabilityLocked(const NScheduler::TClusterName& clusterName, bool isAvailable)
+{
+    YT_VERIFY(ClusterToNetworkBandwidthAvailabilityLock_.IsLockedByWriter());
+    ClusterToNetworkBandwidthAvailability_[clusterName] = isAvailable;
 }
 
 PHOENIX_DEFINE_TYPE(TTask);

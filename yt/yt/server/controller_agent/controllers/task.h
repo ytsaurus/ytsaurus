@@ -121,9 +121,7 @@ public:
 
     const TProgressCounterPtr& GetJobCounter() const;
 
-    virtual NScheduler::TCompositeNeededResources GetTotalNeededResources(
-        i64 maxRunnableJobCount = std::numeric_limits<i64>::max()) const;
-    virtual NScheduler::TCompositeNeededResources GetTotalNeededResourcesDelta();
+    NScheduler::TCompositeNeededResources GetTotalNeededResourcesDelta();
 
     bool IsStderrTableEnabled() const;
 
@@ -250,6 +248,8 @@ public:
 
     void FinalizeFeatures();
 
+    void FinalizeSubscriptions();
+
     void StopTiming();
 
     void UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, const TJobSummary& jobSummary);
@@ -268,9 +268,22 @@ public:
         // COMPAT(pogorelov)
         const NScheduler::NProto::TScheduleAllocationSpec& allocationSpec) const;
 
-    virtual TDuration GetTotalDuration() const;
+    //! How long task as been running.
+    TDuration GetTotalDuration() const;
+    //! How long network bandwidth to remote clusters has been unavailable.
+    TDuration GetUnavailableNetworkBandwidthDuration() const;
 
-    virtual TDuration GetPausedSchedulingDuration() const;
+    THashMap<NScheduler::TClusterName, bool> GetClusterToNetworkBandwidthAvailability() const;
+
+    bool IsNetworkBandwidthToClustersAvailable() const;
+
+    void SubscribeToClusterNetworkBandwidthAvailabilityUpdated(const NScheduler::TClusterName& clusterName);
+
+    void UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(const NScheduler::TClusterName& clusterName);
+
+    void UpdateClusterToNetworkBandwidthAvailability();
+
+    void UpdateClusterToNetworkBandwidthAvailability(const NScheduler::TClusterName& clusterName, bool isAvailable);
 
 protected:
     NLogging::TSerializableLogger Logger;
@@ -483,6 +496,18 @@ private:
     std::optional<double> UserJobMemoryMultiplier_;
     std::optional<double> JobProxyMemoryMultiplier_;
 
+    TExtendedCallback<void()> ClusterToNetworkBandwidthAvailabilityUpdatedCallback_;
+
+    static constexpr i64 MaxRunnableJobCount = std::numeric_limits<i32>::max();
+    i64 CurrentMaxRunnableJobCount_ = MaxRunnableJobCount;
+
+    std::optional<TInstant> UnavailableNetworkBandwidthToClustersStartTime_;
+    TDuration UnavailableNetworkBandwidthToClustersDuration_;
+
+    //! Availability of clusters read from by task.
+    THashMap<NScheduler::TClusterName, bool> ClusterToNetworkBandwidthAvailability_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ClusterToNetworkBandwidthAvailabilityLock_);
+
     std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TryScheduleJob(
         TAllocation& allocation,
         const TSchedulingContext& context,
@@ -528,6 +553,17 @@ private:
     NYTree::INodePtr BuildStatisticsNode() const;
 
     void CheckAndProcessOperationCompletedInScheduleJob();
+
+    //! Update ClusterToNetworkBandwidthAvailability_ and task.
+    void UpdateNetworkAndTask();
+
+    //! ClusterToNetworkBandwidthAvailabilityLock_ has to be taken prior to calling this method.
+    void UpdateClusterToNetworkBandwidthAvailabilityLocked(const NScheduler::TClusterName& clusterName, bool isAvailable);
+
+    NScheduler::TCompositeNeededResources GetTotalNeededResources(
+        i64 maxRunnableJobCount = std::numeric_limits<i64>::max()) const;
+
+    NScheduler::TCompositeNeededResources GetTotalNeededResourcesDefaultDelta();
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TTask, 0x81ab3cd3);

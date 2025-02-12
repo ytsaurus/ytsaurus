@@ -35,6 +35,8 @@
 
 #include <yt/yt/core/phoenix/type_decl.h>
 
+#include <yt/yt/library/erasure/public.h>
+
 #include <yt/yt/library/formats/format.h>
 
 #include <yt/yt/library/vector_hdrf/public.h>
@@ -271,7 +273,6 @@ public:
     std::optional<int> MaxOperationCount;
 
     std::vector<EFifoSortParameter> FifoSortParameters;
-    std::optional<EFifoPoolSchedulingOrder> FifoPoolSchedulingOrder;
 
     bool ForbidImmediateOperations;
 
@@ -280,8 +281,6 @@ public:
     std::optional<TEphemeralSubpoolConfigPtr> EphemeralSubpoolConfig;
 
     std::optional<TDuration> HistoricUsageAggregationPeriod;
-    // COMPAT(arkady-e1ppa)
-    bool InferChildrenWeightsFromHistoricUsage;
 
     THashSet<TString> AllowedProfilingTags;
 
@@ -303,8 +302,6 @@ public:
     THashMap<TString, TString> MeteringTags;
 
     TOffloadingSettings OffloadingSettings;
-
-    std::optional<bool> UsePoolSatisfactionForScheduling;
 
     std::optional<bool> AllowIdleCpuPolicy;
 
@@ -953,6 +950,25 @@ DEFINE_REFCOUNTED_TYPE(TJobFailsTolerance);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFastIntermediateMediumTableWriterConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    int MinUploadReplicationFactor;
+    int UploadReplicationFactor;
+    NErasure::ECodec ErasureCodec;
+    bool EnableStripedErasure;
+
+    REGISTER_YSON_STRUCT(TFastIntermediateMediumTableWriterConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DECLARE_REFCOUNTED_TYPE(TFastIntermediateMediumTableWriterConfig)
+DEFINE_REFCOUNTED_TYPE(TFastIntermediateMediumTableWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TOperationSpecBase
     : public TStrategyOperationSpec
 {
@@ -967,12 +983,15 @@ public:
     int IntermediateDataReplicationFactor;
 
     //! Minimum replication factor for intermediate data.
-    int IntermediateMinDataReplicationFactor;
+    int MinIntermediateDataReplicationFactor;
 
     //! SyncOnClose option for intermediate data.
     bool IntermediateDataSyncOnClose;
 
     TString IntermediateDataMediumName;
+
+    //! Table writer config for the data that will be written to the fast medium (SSD) in the default intermediate account.
+    TFastIntermediateMediumTableWriterConfigPtr FastIntermediateMediumTableWriterConfig;
 
     //! Limit for the data that will be written to the fast medium (SSD) in the default intermediate account.
     i64 FastIntermediateMediumLimit;
@@ -1124,6 +1143,9 @@ public:
     //! Should match the atomicity of output dynamic tables.
     NTransactionClient::EAtomicity Atomicity;
 
+    //! Estimate size of writer's buffer using the formula: data block writer * optimal block size.
+    bool EnableWriteBufferSizeEstimation;
+
     //! If explicitly set, overrides the default behaviour or locking output dynamic tables depending
     //! on their atomicity.
     std::optional<bool> LockOutputDynamicTables;
@@ -1204,6 +1226,9 @@ public:
 
     //! Options for cuda profiler.
     std::optional<TString> CudaProfilerLayerPath;
+
+    THashMap<std::string, std::string> CudaProfilerEnvironmentVariables;
+    // COMPAT(omgronnny)
     TCudaProfilerEnvironmentPtr CudaProfilerEnvironment;
 
     //! Read input tables via exec node.
@@ -1218,6 +1243,8 @@ public:
 
     //! If |true|, scheduler will fail the operation if any of specified pools doesn't exist.
     std::optional<bool> RequireSpecifiedPoolsExistence;
+
+    bool UseClusterThrottlers;
 
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
@@ -2020,8 +2047,6 @@ public:
 
     // COMPAT(yuryalekseev)
     bool AllowClusterConnection;
-
-    bool UseClusterThrottlers;
 
     REGISTER_YSON_STRUCT(TRemoteCopyOperationSpec);
 

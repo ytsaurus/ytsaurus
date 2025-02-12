@@ -350,7 +350,7 @@ public:
     {
         TJobSplittingBase::Completed(cookie, jobSummary);
 
-        if (jobSummary.InterruptionReason != EInterruptReason::None) {
+        if (jobSummary.InterruptionReason != EInterruptionReason::None) {
             YT_LOG_DEBUG(
                 "Splitting job (OutputCookie: %v, InterruptionReason: %v, SplitJobCount: %v)",
                 cookie,

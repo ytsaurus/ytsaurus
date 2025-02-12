@@ -257,6 +257,7 @@ private:
 
                 UploadTransaction_ = Client_->AttachTransaction(uploadTransactionId, TTransactionAttachOptions{
                     .AutoAbort = true,
+                    .PingPeriod = Client_->GetNativeConnection()->GetConfig()->UploadTransactionPingPeriod,
                     .PingAncestors = Options_.PingAncestors
                 });
                 StartListenTransaction(UploadTransaction_);

@@ -31,6 +31,7 @@ struct ICypressNodeFactory
     virtual bool ShouldPreserveExpirationTimeout() const  = 0;
     virtual bool ShouldPreserveOwner() const  = 0;
     virtual bool ShouldPreserveAcl(NCypressClient::ENodeCloneMode cloneMode) const  = 0;
+    virtual bool ShouldAllowSecondaryIndexAbandonment() const = 0;
 
     virtual NSecurityServer::TAccount* GetNewNodeAccount() const = 0;
     virtual NSecurityServer::TAccount* GetClonedNodeAccount(

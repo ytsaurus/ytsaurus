@@ -157,7 +157,8 @@ private:
         auto asyncResult = scheduler->SuspendOperation(
             operation,
             context->GetAuthenticationIdentity().User,
-            abortRunningAllocations);
+            abortRunningAllocations,
+            request->has_reason() ? std::optional(request->reason()) : std::nullopt);
 
         context->ReplyFrom(asyncResult);
     }

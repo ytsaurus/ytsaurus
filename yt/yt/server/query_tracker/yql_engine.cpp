@@ -273,8 +273,10 @@ private:
             auto error = FromProto<TError>(rsp->rowset_errors()[index]);
             if (error.IsOK()) {
                 std::optional<TYsonString> fullResult;
-                if (const auto rawFullResult = rsp->full_result()[index]) {
-                    fullResult = TYsonString(rawFullResult);
+                if (index < rsp->full_result_size()) {
+                    if (const auto rawFullResult = rsp->full_result()[index]) {
+                        fullResult = TYsonString(rawFullResult);
+                    }
                 }
                 wireRowsetOrErrors.push_back(TWireRowset{
                     .Rowset = rsp->Attachments()[index],

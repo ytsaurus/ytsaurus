@@ -222,7 +222,7 @@ void TAlertManagerConfig::Register(TRegistrar registrar)
         .Alias("queue_average_wait_time_threshold")
         .Default(TDuration::Minutes(1));
 
-    registrar.Parameter("task_paused_scheduling_ratio_threshold", &TThis::TaskPausedSchedulingRatioThreshold)
+    registrar.Parameter("task_unavailable_network_bandwidth_time_ratio_alert_threshold", &TThis::TaskUnavailableNetworkBandwidthTimeRatioAlertThreshold)
         .Default(0.3)
         .InRange(0.0, 1.0);
 }
@@ -924,8 +924,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_user_file_count", &TThis::MaxUserFileCount)
         .Default(1'000)
         .GreaterThan(0);
-    registrar.Parameter("max_user_file_size", &TThis::MaxUserFileSize)
-        .Default();
 
     registrar.Parameter("max_input_table_count", &TThis::MaxInputTableCount)
         .Default(1'000)
@@ -1155,6 +1153,15 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("dynamic_table_lock_checking_interval_duration_max", &TThis::DynamicTableLockCheckingIntervalDurationMax)
         .Default(TDuration::Seconds(30));
 
+    registrar.Parameter("desired_block_size", &TThis::DesiredBlockSize)
+        .Default(2_MB);
+
+    registrar.Parameter("max_estimated_write_buffer_size", &TThis::MaxEstimatedWriteBufferSize)
+        .Default(128_MB);
+    registrar.Parameter("write_buffer_memory_overrun_alert_factor", &TThis::WriteBufferMemoryOverrunAlertFactor)
+        .GreaterThan(0.0)
+        .Default(0.1);
+
     registrar.Parameter("enable_operation_progress_archivation", &TThis::EnableOperationProgressArchivation)
         .Default(true);
     registrar.Parameter("operation_progress_archivation_timeout", &TThis::OperationProgressArchivationTimeout)
@@ -1169,9 +1176,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_bulk_insert_for_everyone", &TThis::EnableBulkInsertForEveryone)
         .Default(false);
     registrar.Parameter("enable_versioned_remote_copy", &TThis::EnableVersionedRemoteCopy)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("enable_hunks_remote_copy", &TThis::EnableHunksRemoteCopy)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("default_enable_porto", &TThis::DefaultEnablePorto)
         .Default(NScheduler::EEnablePorto::None);
@@ -1227,6 +1234,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("cuda_profiler_layer_path", &TThis::CudaProfilerLayerPath)
+        .Default();
+
+    registrar.Parameter("cuda_profiler_environment_variables", &TThis::CudaProfilerEnvironmentVariables)
         .Default();
 
     registrar.Parameter("cuda_profiler_environment", &TThis::CudaProfilerEnvironment)
@@ -1344,8 +1354,12 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
             config->MemoryWatchdog->TotalControllerMemoryLimit = config->TotalControllerMemoryLimit;
         }
 
-        if (config->MaxUserFileSize) {
-            config->UserFileLimits->MaxSize = *config->MaxUserFileSize;
+        // COMPAT(omgronny)
+        if (config->CudaProfilerEnvironmentVariables.empty() && config->CudaProfilerEnvironment) {
+            EmplaceOrCrash(
+                config->CudaProfilerEnvironmentVariables,
+                config->CudaProfilerEnvironment->PathEnvironmentVariableName,
+                config->CudaProfilerEnvironment->PathEnvironmentVariableValue);
         }
     });
 }

@@ -23,9 +23,9 @@
 #include <yt/yt/ytlib/hive/config.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
-#include <yt/yt/ytlib/hive/cell_tracker.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/downed_cell_tracker.h>
 #include <yt/yt/ytlib/hive/hive_service_proxy.h>
 
 #include <yt/yt/ytlib/hydra/peer_channel.h>
@@ -71,6 +71,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/tablet_sync_replica_cache.h>
+#include <yt/yt/ytlib/api/native/table_replica_synchronicity_cache.h>
 #include <yt/yt/ytlib/api/native/client_impl.h>
 #include <yt/yt/ytlib/api/native/sync_replica_cache.h>
 
@@ -182,6 +183,7 @@ public:
     MOCK_METHOD(const TSyncReplicaCachePtr&, GetSyncReplicaCache, (), (override));
     MOCK_METHOD(const TTabletSyncReplicaCachePtr&, GetTabletSyncReplicaCache, (), (override));
     MOCK_METHOD(const NChaosClient::IBannedReplicaTrackerCachePtr&, GetBannedReplicaTrackerCache, (), (override));
+    MOCK_METHOD(const TTableReplicaSynchronicityCachePtr&, GetTableReplicaSynchronicityCache, (), (override));
     MOCK_METHOD(std::vector<std::string>, GetDiscoveryServerAddresses, (), (const, override));
     MOCK_METHOD(NDiscoveryClient::IDiscoveryClientPtr, CreateDiscoveryClient, (NDiscoveryClient::TDiscoveryClientConfigPtr, NRpc::IChannelFactoryPtr), (override));
     MOCK_METHOD(NDiscoveryClient::IMemberClientPtr, CreateMemberClient, (NDiscoveryClient::TMemberClientConfigPtr, NRpc::IChannelFactoryPtr, IInvokerPtr, NDiscoveryClient::TMemberId, NDiscoveryClient::TGroupId), (override));
@@ -220,7 +222,7 @@ public:
     const NTransactionClient::IClockManagerPtr& GetClockManager() override;
     const NHiveClient::ICellDirectoryPtr& GetCellDirectory() override;
 
-    const NHiveClient::TCellTrackerPtr& GetDownedCellTracker() override;
+    const NHiveClient::TDownedCellTrackerPtr& GetDownedCellTracker() override;
     const NChunkClient::TMediumDirectoryPtr& GetMediumDirectory() override;
 
     NRpc::IChannelPtr GetMasterChannelOrThrow(
@@ -247,7 +249,7 @@ private:
     const NRpc::IChannelPtr BundleControllerChannel_;
     const NTransactionClient::IClockManagerPtr ClockManager_;
     const NHiveClient::ICellDirectoryPtr CellDirectory_;
-    const NHiveClient::TCellTrackerPtr DownedCellTracker_;
+    const NHiveClient::TDownedCellTrackerPtr DownedCellTracker_;
     const NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 };
 

@@ -23,9 +23,9 @@ where ss_ticket_number = sr_ticket_number
   and ss_item_sk = i_item_sk
   and ss_store_sk = s_store_sk
   and c_current_addr_sk = ca_address_sk
-  and c_birth_country <> Unicode::ToUpper(ca_country)
+  and c_birth_country <> String::AsciiToUpper(ca_country)
   and s_zip = ca_zip
-and s_market_id=10
+and S_market_id=10
 group by customer.c_last_name
         ,customer.c_first_name
         ,store.s_store_name

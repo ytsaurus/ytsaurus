@@ -15,6 +15,8 @@
 
 #include <yt/yt/library/vector_hdrf/resource_helpers.h>
 
+#include <library/cpp/iterator/enumerate.h>
+
 #include <library/cpp/testing/gtest/gtest.h>
 
 namespace NYT::NScheduler {
@@ -282,30 +284,36 @@ public:
         return TCompositeNeededResources{.DefaultResources = totalResources};
     }
 
-    void UpdateMinNeededAllocationResources() override
+    void UpdateGroupedNeededResources() override
     { }
 
-    TJobResourcesWithQuotaList GetMinNeededAllocationResources() const override
+    TAllocationGroupResourcesMap GetGroupedNeededResources() const override
     {
-        TJobResourcesWithQuotaList minNeededResourcesList;
-        for (const auto& resources : AllocationResourcesList_) {
+        TAllocationGroupResourcesMap groupedNeededResources;
+        for (const auto& [index, resources] : Enumerate(AllocationResourcesList_)) {
             bool dominated = false;
-            for (const auto& minNeededResourcesElement : minNeededResourcesList) {
-                if (Dominates(resources.ToJobResources(), minNeededResourcesElement.ToJobResources())) {
+            for (const auto& [_, allocationGroupResources] : groupedNeededResources) {
+                if (Dominates(resources.ToJobResources(), allocationGroupResources.MinNeededResources.ToJobResources())) {
                     dominated = true;
                     break;
                 }
             }
+
             if (!dominated) {
-                minNeededResourcesList.push_back(resources);
+                groupedNeededResources.emplace(
+                    Format("task(%v)", index),
+                    TAllocationGroupResources{
+                        .MinNeededResources = resources,
+                        .AllocationCount = 1,
+                    });
             }
         }
-        return minNeededResourcesList;
+        return groupedNeededResources;
     }
 
-    TJobResourcesWithQuotaList GetInitialMinNeededAllocationResources() const override
+    TAllocationGroupResourcesMap GetInitialGroupedNeededResources() const override
     {
-        return GetMinNeededAllocationResources();
+        return GetGroupedNeededResources();
     }
 
     EPreemptionMode PreemptionMode = EPreemptionMode::Normal;
@@ -426,11 +434,6 @@ public:
     void EraseTrees(const std::vector<TString>& /*treeIds*/) override
     { }
 
-    std::optional<TJobResources> GetAggregatedInitialMinNeededResources() const override
-    {
-        return std::nullopt;
-    }
-
 private:
     TInstant StartTime_;
     NYson::TYsonString TrimmedAnnotations_;
@@ -480,7 +483,6 @@ public:
         TreeConfig_->AggressivePreemptionSatisfactionThreshold = 0.5;
         TreeConfig_->MinChildHeapSize = 3;
         TreeConfig_->EnableConditionalPreemption = true;
-        TreeConfig_->UseResourceUsageWithPrecommit = false;
         TreeConfig_->ShouldDistributeFreeVolumeAmongChildren = true;
         TreeConfig_->BestAllocationShareUpdatePeriod = TDuration::Zero();
         TreeConfig_->NodeReconnectionTimeout = TDuration::Zero();

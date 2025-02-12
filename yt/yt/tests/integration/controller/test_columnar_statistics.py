@@ -19,6 +19,8 @@ from yt.common import YtError
 from yt.yson.yson_types import YsonEntity
 
 import pytest
+import random
+import string
 
 
 class _TestColumnarStatisticsBase(YTEnvSetup):
@@ -735,12 +737,20 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
 
         wait(operation_disposed)
 
-    @authors("gritukan")
-    def test_estimated_input_statistics(self):
+    @authors("gritukan", "apollo13221")
+    @pytest.mark.parametrize("mode", ["from_nodes", "from_master"])
+    def test_estimated_input_statistics(self, mode):
         create(
             "table",
             "//tmp/in",
-            attributes={"optimize_for": "scan", "compression_codec": "none"},
+            attributes={
+                "optimize_for": "scan",
+                "compression_codec": "none",
+                "schema": make_schema([
+                    {"name": "a", "type": "string"},
+                    {"name": "b", "type": "string"},
+                ]),
+            },
         )
         create("table", "//tmp/out")
         for i in range(10):
@@ -749,12 +759,35 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
                 [{"a": "x" * 90, "b": "y" * 10} for j in range(100)],
             )
 
-        op = map(in_="//tmp/in{b}", out="//tmp/out", command="echo '{a=1}'")
+        op = map(
+            in_="//tmp/in{b}",
+            out="//tmp/out",
+            command="echo '{a=1}'",
+            spec={
+                "input_table_columnar_statistics": {
+                    "mode": mode,
+                },
+            },
+        )
         op.track()
 
-        statistics = get(op.get_path() + "/@progress/estimated_input_statistics")
-        assert 10000 <= statistics["uncompressed_data_size"] <= 12000
-        assert 10000 <= statistics["compressed_data_size"] <= 12000
+        progress = get(op.get_path() + "/@progress")
+        statistics = progress["estimated_input_statistics"]
+        estimated_compressed_data_size = statistics["compressed_data_size"]
+        estimated_uncompressed_data_size = statistics["uncompressed_data_size"]
+
+        if mode == "from_nodes":
+            job_input_statistics = progress["job_statistics_v2"]["data"]["input"]
+            actual_compressed_data_size = job_input_statistics["compressed_data_size"][0]["summary"]["sum"]
+            actual_uncompressed_data_size = job_input_statistics["uncompressed_data_size"][0]["summary"]["sum"]
+
+            assert 0.99 * estimated_compressed_data_size <= actual_compressed_data_size <= 1.01 * estimated_compressed_data_size
+            assert 0.99 * estimated_uncompressed_data_size <= actual_uncompressed_data_size <= 1.01 * estimated_uncompressed_data_size
+        else:
+            # Mode "from_master" doest not account for rle encoding, input size estimation
+            # is rather inaccurate in this case.
+            assert 10000 <= estimated_compressed_data_size <= 12000
+            assert 10000 <= estimated_uncompressed_data_size <= 12000
 
     @authors("coteeq")
     @pytest.mark.parametrize("mode", ["from_nodes", "from_master", "fallback"])
@@ -829,6 +862,90 @@ class TestColumnarStatisticsOperations(_TestColumnarStatisticsBase):
         )
         op.track()
         self._expect_data_weight_statistics(None, None, "a", [8], fetcher_mode="from_master")
+
+    @authors("apollo1321")
+    @pytest.mark.parametrize("strict", [False, True])
+    @pytest.mark.parametrize("mode", ["from_nodes", "from_master"])
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_estimated_input_statistics_with_column_groups(self, strict, mode, optimize_for):
+        create("table", "//tmp/t_in", attributes={
+            "schema": make_schema([
+                {"name": "small", "type": "string", "group": "group_1"},
+                {"name": "large_1", "type": "string", "group": "group_2"},
+                {"name": "large_2", "type": "string", "group": "group_1"},
+            ], strict=strict),
+            "optimize_for": optimize_for,
+        })
+
+        def make_random_string(size) -> str:
+            return ''.join(random.choice(string.ascii_letters) for _ in range(size))
+
+        rows = [
+            {
+                "small": make_random_string(200),
+                "large_1": make_random_string(400),
+                "large_2": make_random_string(800),
+            },
+            {
+                "large_2": make_random_string(1600),
+            },
+            {
+                "small": make_random_string(3200),
+                "large_1": make_random_string(6400),
+            },
+        ]
+
+        if not strict:
+            rows[1]["unknown1"] = make_random_string(12800)
+            rows[2]["unknown2"] = make_random_string(25600)
+
+        write_table("//tmp/t_in", rows[:1])
+        write_table("<append=%true>//tmp/t_in", rows[1:])
+
+        create("table", "//tmp/t_out")
+
+        columns_selectors = [
+            [],
+            ["small"],
+            ["large_1"],
+            ["large_1", "large_2"],
+            ["small", "large_1", "large_2"],
+            ["small", "unknown1"],
+            ["large_1", "unknown1", "unknown2"],
+            ["unknown1", "unknown2"],
+        ]
+
+        for columns in columns_selectors:
+            op = map(
+                in_="//tmp/t_in{{{}}}".format(",".join(columns)),
+                out="//tmp/t_out",
+                command="cat",
+                spec={
+                    "input_table_columnar_statistics": {
+                        "mode": mode,
+                    },
+                },
+            )
+
+            progress = get(op.get_path() + "/@progress")
+            actual_uncompressed_data_size = progress["job_statistics_v2"]["data"]["input"]["uncompressed_data_size"][0]["summary"]["sum"]
+            actual_compressed_data_size = progress["job_statistics_v2"]["data"]["input"]["compressed_data_size"][0]["summary"]["sum"]
+
+            estimated_uncompressed_data_size = progress["estimated_input_statistics"]["uncompressed_data_size"]
+            estimated_compressed_data_size = progress["estimated_input_statistics"]["compressed_data_size"]
+
+            delta = 0.01 if mode == "from_nodes" else 0.05
+
+            estimated_compressed_data_size_lower_bound = min(
+                estimated_compressed_data_size * (1 - delta),
+                max(estimated_compressed_data_size - 10, 0))
+
+            estimated_uncompressed_data_size_lower_bound = min(
+                estimated_uncompressed_data_size * (1 - delta),
+                max(estimated_uncompressed_data_size - 10, 0))
+
+            assert estimated_compressed_data_size_lower_bound <= actual_compressed_data_size <= estimated_compressed_data_size * (1 + delta)
+            assert estimated_uncompressed_data_size_lower_bound <= actual_uncompressed_data_size <= estimated_uncompressed_data_size * (1 + delta)
 
 
 ##################################################################

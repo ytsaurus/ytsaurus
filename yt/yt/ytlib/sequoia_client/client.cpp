@@ -45,8 +45,11 @@ public:
         options.Timestamp = timestamp;
 
         const auto* tableDescriptor = ITableDescriptor::Get(table);
+        TSequoiaTablePathDescriptor tablePathDescriptor{
+            .Table = table
+        };
         return GroundRootClient_->LookupRows(
-            GetSequoiaTablePath(NativeRootClient_, tableDescriptor),
+            GetSequoiaTablePath(NativeRootClient_, tablePathDescriptor),
             tableDescriptor->GetRecordDescriptor()->GetNameTable(),
             std::move(keys),
             options)
@@ -58,9 +61,19 @@ public:
         const TSelectRowsQuery& query,
         NTransactionClient::TTimestamp timestamp) override
     {
-        auto* tableDescriptor = ITableDescriptor::Get(table);
+        TSequoiaTablePathDescriptor descriptor{
+            .Table = table,
+        };
+        return SelectRows(descriptor, query, timestamp);
+    }
+
+    TFuture<TSelectRowsResult> SelectRows(
+        const TSequoiaTablePathDescriptor& descriptor,
+        const TSelectRowsQuery& query,
+        NTransactionClient::TTimestamp timestamp) override
+    {
         TQueryBuilder builder;
-        builder.SetSource(GetSequoiaTablePath(NativeRootClient_, tableDescriptor));
+        builder.SetSource(GetSequoiaTablePath(NativeRootClient_, descriptor));
         builder.AddSelectExpression("*");
         for (const auto& whereConjunct : query.WhereConjuncts) {
             builder.AddWhereConjunct(whereConjunct);
@@ -85,6 +98,17 @@ public:
         return GroundRootClient_
             ->SelectRows(builder.Build(), options)
             .ApplyUnique(BIND(MaybeWrapSequoiaRetriableError<TSelectRowsResult>));
+    }
+
+    TFuture<void> TrimTable(
+        const TSequoiaTablePathDescriptor& descriptor,
+        int tabletIndex,
+        i64 trimmedRowCount) override
+    {
+        return GroundRootClient_->TrimTable(
+            GetSequoiaTablePath(NativeRootClient_, descriptor),
+            tabletIndex,
+            trimmedRowCount);
     }
 
     TFuture<ISequoiaTransactionPtr> StartTransaction(

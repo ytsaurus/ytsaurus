@@ -107,13 +107,13 @@ void CheckUnavailableChunks(
 ui32 GetHeavyColumnStatisticsHash(ui32 salt, const TColumnStableName& stableName);
 
 TColumnarStatistics GetColumnarStatistics(
-    const NProto::THeavyColumnStatisticsExt& statistics,
+    const NChunkClient::TInputChunkPtr& chunk,
     const std::vector<TColumnStableName>& columnNames,
-    i64 chunkRowCount);
+    const TTableSchemaPtr& tableSchema);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 EstimateReadDataSizeForColumns(
+std::optional<i64> EstimateReadDataSizeForColumns(
     const std::vector<TColumnStableName>& columnStableNames,
     const NChunkClient::NProto::TChunkMeta& meta,
     TTableSchemaPtr schema,
@@ -275,6 +275,12 @@ void EnsureAnyValueEncoded(
 std::vector<TTableSchemaPtr> GetJobInputTableSchemas(
     const NControllerAgent::NProto::TJobSpecExt& jobSpecExt,
     const NChunkClient::TDataSourceDirectoryPtr& dataSourceDirectory);
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 GetWriteBufferSize(const TChunkWriterConfigPtr& config, const TChunkWriterOptionsPtr& options);
+
+i64 GetWriteBlockSize(const TChunkWriterConfigPtr& config, const TChunkWriterOptionsPtr& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 

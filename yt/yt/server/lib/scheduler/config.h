@@ -419,8 +419,6 @@ public:
 
     bool EnableConditionalPreemption;
 
-    bool UseResourceUsageWithPrecommit;
-
     TDuration AllowedResourceUsageStaleness;
 
     //! How often to update allocation preemption statuses snapshot.
@@ -460,10 +458,6 @@ public:
     TDuration RunningAllocationStatisticsUpdatePeriod;
 
     TBatchOperationSchedulingConfigPtr BatchOperationScheduling;
-
-    EFifoPoolSchedulingOrder FifoPoolSchedulingOrder;
-
-    bool UsePoolSatisfactionForScheduling;
 
     THistogramDigestConfigPtr PerPoolSatisfactionDigest;
     std::vector<double> PerPoolSatisfactionProfilingQuantiles;

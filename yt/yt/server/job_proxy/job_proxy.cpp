@@ -268,10 +268,10 @@ void TJobProxy::GracefulAbort(TError error)
     job->GracefulAbort(std::move(error));
 }
 
-void TJobProxy::Fail()
+void TJobProxy::Fail(TError error)
 {
     auto job = GetJobOrThrow();
-    job->Fail();
+    job->Fail(std::move(error));
 }
 
 TSharedRef TJobProxy::DumpSensors()
@@ -1552,7 +1552,11 @@ TChunkReaderHostPtr TJobProxy::GetChunkReaderHost() const
             return IThroughputThrottlerPtr();
         }
 
-        return GetInBandwidthThrottler(clusterName);
+        if (JobSpecHelper_->GetJobSpecExt().use_cluster_throttlers()) {
+            return GetInBandwidthThrottler(clusterName);
+        }
+
+        return GetInBandwidthThrottler(LocalClusterName);
     });
 
     return New<TChunkReaderHost>(

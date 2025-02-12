@@ -33,6 +33,8 @@ public:
     void FillInheritableAttributes(TTransientAttributes* attributes, ENodeMaterializationReason reason = ENodeMaterializationReason::Create) const override;
 };
 
+DEFINE_MASTER_OBJECT_TYPE(TPortalExitNode)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer

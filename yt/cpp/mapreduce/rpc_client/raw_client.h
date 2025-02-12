@@ -1,7 +1,5 @@
 #pragma once
 
-#include <yt/cpp/mapreduce/http/context.h>
-
 #include <yt/cpp/mapreduce/interface/client_method_options.h>
 #include <yt/cpp/mapreduce/interface/raw_client.h>
 
@@ -17,7 +15,7 @@ class TRpcRawClient
 public:
     TRpcRawClient(
         NApi::IClientPtr client,
-        const TClientContext& context);
+        const TConfigPtr& config);
 
     // Cypress
 
@@ -340,11 +338,13 @@ public:
 
     IRawBatchRequestPtr CreateRawBatchRequest() override;
 
+    IRawClientPtr Clone() override;
+
 private:
     const NApi::IClientPtr Client_;
-    const TClientContext Context_;
+    const TConfigPtr Config_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
+} // namespace NYT::NDetail

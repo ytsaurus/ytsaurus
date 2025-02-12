@@ -2,11 +2,11 @@ from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, wait, create, ls, get, set, remove, link, exists,
-    write_file, write_table, get_job, abort_job,
+    write_file, write_table, get_job, abort_job, poll_job_shell,
     raises_yt_error, read_table, run_test_vanilla, map, map_reduce,
     sort, wait_for_nodes, update_nodes_dynamic_config)
 
-from yt.common import YtError, update
+from yt.common import YtError, YtResponseError, update
 import yt.yson as yson
 
 from yt_helpers import profiler_factory
@@ -677,6 +677,17 @@ class TestCriDockerImage(TestLayersBase):
         with raises_yt_error('Porto layers are not supported in CRI job environment'):
             self.run_map(layer_paths=["//tmp/empty_layer"])
 
+    def _poll_until_shell_exited(self, job_id, shell_id):
+        output = ""
+        try:
+            while True:
+                rsp = poll_job_shell(job_id, operation="poll", shell_id=shell_id)
+                output += rsp["output"]
+        except YtResponseError as err:
+            if err.is_shell_exited():
+                return output
+            raise
+
     @authors("khlebnikov")
     @pytest.mark.timeout(180)
     def test_environment_variables(self):
@@ -739,6 +750,46 @@ class TestCriDockerImage(TestLayersBase):
         for name, test in expected.items():
             assert name in env
             assert test(env[name]), "Failed test for {}={}".format(name, env[name])
+
+        op = run_test_vanilla(
+            "sleep 100",
+            task_patch={
+                "docker_image": docker_image,
+                "environment": {
+                    "MY_VARIABLE_A": "MY_VALUE_A",
+                    "MY_VARIABLE_B": "MY_VALUE_B",
+                },
+            },
+            spec={
+                "secure_vault": {
+                    "MY_SECRET_A": "SECRET_VALUE_A",
+                    "MY_SECRET_B": "SECRET_VALUE_B",
+                },
+            },
+        )
+        wait(lambda: op.list_jobs())
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+
+        # TODO(faucct): fix it after https://github.com/ytsaurus/ytsaurus/issues/1042
+        time.sleep(1)
+        env = self._poll_until_shell_exited(
+            job_id, poll_job_shell(job_id, operation="spawn", command="env")["shell_id"]
+        )
+        env = {
+            key: value
+            for line in env.splitlines()
+            for key, sep, value in [line.partition("=")]
+            if sep
+        }
+        expected["TMPDIR"] = lambda x: x == env["HOME"] + "/tmp"
+        for name, test in expected.items():
+            assert name in env
+            assert test(env[name]), "Failed test for {}={}".format(name, env[name])
+
+        abort_job(job_id)
 
 
 @authors("psushin")

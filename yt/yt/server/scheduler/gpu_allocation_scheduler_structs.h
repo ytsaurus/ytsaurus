@@ -19,8 +19,7 @@ using ESchedulingModulePreemptionHeuristic = ESchedulingSegmentModulePreemptionH
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TGpuAllocationState
-    : public TRefCounted
+struct TGpuAllocationState final
 {
     TOperationId OperationId;
     TJobResourcesWithQuota Resources;
@@ -29,6 +28,8 @@ struct TGpuAllocationState
 };
 
 DEFINE_REFCOUNTED_TYPE(TGpuAllocationState)
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TOperationRuntimeAttributes
 {
@@ -39,8 +40,8 @@ struct TOperationRuntimeAttributes
     bool EffectivePrioritySchedulingModuleAssignmentEnabled = false;
 };
 
-class TGpuSchedulerOperationState
-    : public TRefCounted
+// TODO(eshcherbin): Should this be a class?
+class TGpuSchedulerOperationState final
 {
 public:
     DEFINE_BYREF_RO_PROPERTY(TOperationId, OperationId);
@@ -83,8 +84,7 @@ DEFINE_REFCOUNTED_TYPE(TGpuSchedulerOperationState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TGpuSchedulerNodeState
-    : public TRefCounted
+struct TGpuSchedulerNodeState final
 {
     NNodeTrackerClient::TNodeId NodeId;
 

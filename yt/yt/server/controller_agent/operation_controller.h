@@ -73,7 +73,7 @@ struct TOperationControllerMaterializeResult
 {
     bool Suspend = false;
     NScheduler::TCompositeNeededResources InitialNeededResources;
-    NScheduler::TJobResourcesWithQuotaList InitialMinNeededResources;
+    NScheduler::TAllocationGroupResourcesMap InitialGroupedNeededResources;
 };
 
 void ToProto(NProto::TMaterializeOperationResult* resultProto, const TOperationControllerMaterializeResult& result);
@@ -99,8 +99,8 @@ struct TOperationControllerReviveResult
     std::vector<TRevivedAllocation> RevivedAllocations;
     THashSet<TString> RevivedBannedTreeIds;
     NScheduler::TCompositeNeededResources NeededResources;
-    NScheduler::TJobResourcesWithQuotaList MinNeededResources;
-    NScheduler::TJobResourcesWithQuotaList InitialMinNeededResources;
+    NScheduler::TAllocationGroupResourcesMap GroupedNeededResources;
+    NScheduler::TAllocationGroupResourcesMap InitialGroupedNeededResources;
     NScheduler::TControllerEpoch ControllerEpoch;
 };
 
@@ -160,7 +160,7 @@ struct IOperationControllerHost
 
     virtual const TJobTrackerOperationHandlerPtr& GetJobTrackerOperationHandler() const = 0;
 
-    virtual void InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout) = 0;
+    virtual void InterruptJob(TJobId jobId, EInterruptionReason reason, TDuration timeout) = 0;
     virtual void RequestJobGracefulAbort(TJobId jobId, EAbortReason reason) = 0;
     virtual void UpdateRunningAllocationsStatistics(
         std::vector<TAgentToSchedulerRunningAllocationStatistics> runningAllocationsStatisticsUpdates) = 0;
@@ -241,13 +241,16 @@ struct IOperationControllerHost
         NSecurityClient::TAccountResourceUsageLeaseId leaseId,
         const NScheduler::TDiskQuota& diskQuota) = 0;
 
-    virtual void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
+    virtual void SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName& clusterName,
         const TCallback<void()>& callback) = 0;
-    virtual void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+
+    virtual void UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName& clusterName,
         const TCallback<void()>& callback) = 0;
+
     virtual std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const = 0;
+
     virtual bool IsNetworkBandwidthAvailable(const NScheduler::TClusterName& clusterName) const = 0;
 };
 
@@ -494,13 +497,13 @@ struct IOperationController
     /*!
      *  \note Thread affinity: Controller invoker.
      */
-    virtual void UpdateMinNeededAllocationResources() = 0;
+    virtual void UpdateGroupedNeededResources() = 0;
 
     //! Returns the cached min needed resources estimate.
     /*!
      *  \note Thread affinity: any
      */
-    virtual NScheduler::TJobResourcesWithQuotaList GetMinNeededAllocationResources() const = 0;
+    virtual NScheduler::TAllocationGroupResourcesMap GetGroupedNeededResources() const = 0;
 
     //! Returns the number of allocations the controller is able to start right away.
     /*!

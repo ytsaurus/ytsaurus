@@ -298,7 +298,7 @@ bool TNode::ReportedTabletNodeHeartbeat() const
     return ReportedHeartbeats_.contains(ENodeHeartbeatType::Tablet);
 }
 
-void TNode::ValidateRegistered()
+void TNode::ValidateRegistered() const
 {
     auto state = GetLocalState();
     auto reliability = GetLocalCellAggregatedStateReliability();
@@ -388,7 +388,7 @@ const std::string& TNode::GetDefaultAddress() const
 
 TRack* TNode::GetRack() const
 {
-    auto* host = GetHost();
+    auto host = GetHost();
     return host ? host->GetRack() : nullptr;
 }
 
@@ -405,7 +405,7 @@ bool TNode::HasTag(const std::optional<TString>& tag) const
 
 TNodeDescriptor TNode::GetDescriptor(EAddressType addressType) const
 {
-    auto* host = GetHost();
+    auto host = GetHost();
     auto* rack = GetRack();
     auto* dataCenter = GetDataCenter();
 
@@ -648,7 +648,6 @@ void TNode::Save(NCellMaster::TSaveContext& context) const
     Save(context, Flavors_);
     Save(context, ReportedHeartbeats_);
     Save(context, ExecNodeIsNotDataNode_);
-    Save(context, ReplicaEndorsements_);
     Save(context, ConsistentReplicaPlacementTokenCount_);
     Save(context, NextDisposedLocationIndex_);
     Save(context, LastGossipState_);
@@ -659,9 +658,9 @@ namespace {
 // COMPAT(kvk1920): remove after 24.2.
 struct TRealChunkLocationPtrSerializer
 {
-    static void Load(NCellMaster::TLoadContext& context, TChunkLocation*& locationPtr)
+    static void Load(NCellMaster::TLoadContext& context, TChunkLocationRawPtr& location)
     {
-        locationPtr = TChunkLocation::LoadPtr(context);
+        LoadWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, location);
     }
 };
 
@@ -680,9 +679,9 @@ void TNode::Load(NCellMaster::TLoadContext& context)
 
     // COMPAT(kvk1920): should be replaced with |Load(context, ChunkLocations_)|
     // after 24.2.
-    // NB: In most places Load<TChunkLocation*> means loading of either real or
+    // NB: In most places |Load<TChunkLocationRawPtr>| means loading of either real or
     // imaginary location. But not here. This is the only place where we are
-    // loading |TRealChunkLocation*|.
+    // loading |TRealChunkLocationRawptr|.
     TVectorSerializer<TRealChunkLocationPtrSerializer>::Load(context, ChunkLocations_);
 
     // COMPAT(kvk1920)
@@ -726,7 +725,35 @@ void TNode::Load(NCellMaster::TLoadContext& context)
     // COMPAT(savrus) ENodeHeartbeatType is compatible with ENodeFlavor.
     Load(context, ReportedHeartbeats_);
     Load(context, ExecNodeIsNotDataNode_);
-    Load(context, ReplicaEndorsements_);
+    // COMPAT(danilalexeev): YT-23781. Endrsements are now stored at NChunkServer::TChunkLocation.
+    if (context.GetVersion() < EMasterReign::PerLocationNodeHeartbeat) {
+        TChunkLocation::TEndorsementMap replicaEndorsements;
+        Load(context, replicaEndorsements);
+
+        for (auto [chunk, revision] : replicaEndorsements) {
+            // For safety reasons, make a location with the highest index responsible
+            // for endorsement to prevent endorsing the same chunk twice.
+            TChunkLocation* locationWithMaxId = nullptr;
+            for (auto replica : chunk->StoredReplicas()) {
+                auto* location = replica.GetPtr();
+                if (location->GetNode() == this &&
+                    (!locationWithMaxId || location->GetId() > locationWithMaxId->GetId()))
+                {
+                    locationWithMaxId = location;
+                }
+            }
+
+            if (!locationWithMaxId) {
+                YT_LOG_ALERT("Chunk replica endorsement lost during migration"
+                    " (ChunkId: %v, Revision: %v)",
+                    chunk->GetId(),
+                    revision);
+                continue;
+            }
+
+            EmplaceOrCrash(locationWithMaxId->ReplicaEndorsements(), chunk, revision);
+        }
+    }
     Load(context, ConsistentReplicaPlacementTokenCount_);
     Load(context, NextDisposedLocationIndex_);
     Load(context, LastGossipState_);
@@ -762,7 +789,7 @@ TChunkPtrWithReplicaInfo TNode::PickRandomReplica(int mediumIndex)
 
 void TNode::ClearReplicas()
 {
-    for (auto* location : ChunkLocations_) {
+    for (auto location : ChunkLocations_) {
         location->ClearReplicas();
     }
 }
@@ -1000,7 +1027,7 @@ void TNode::ShrinkHashTables()
         queue.Shrink();
     }
     ShrinkHashTable(ChunksBeingPulled_);
-    for (auto* location : ChunkLocations_) {
+    for (auto location : ChunkLocations_) {
         location->ShrinkHashTables();
     }
 }
@@ -1038,7 +1065,7 @@ void TNode::Reset(const INodeTrackerPtr& nodeTracker)
     DisableWriteSessionsSentToNode_ = false;
     DisableWriteSessionsReportedByNode_ = false;
     ClearCellStatistics();
-    for (auto* location : ChunkLocations_) {
+    for (auto location : ChunkLocations_) {
         location->Reset();
     }
 }
@@ -1211,7 +1238,7 @@ void TNode::RebuildTags()
     if (auto* dataCenter = GetDataCenter()) {
         Tags_.insert(dataCenter->GetName());
     }
-    if (auto* host = GetHost()) {
+    if (auto host = GetHost()) {
         Tags_.insert(host->GetName());
     }
     for (auto flavor : Flavors_) {
@@ -1333,7 +1360,7 @@ int TNode::GetTotalSlotCount(ECellarType cellarType) const
 TCellNodeStatistics TNode::ComputeCellStatistics() const
 {
     TCellNodeStatistics result = TCellNodeStatistics();
-    for (auto* location : ChunkLocations_) {
+    for (auto location : ChunkLocations_) {
         result.ChunkReplicaCount[location->GetEffectiveMediumIndex()] += std::ssize(location->Replicas());
         result.DestroyedChunkReplicaCount += location->GetDestroyedReplicasCount();
     }
@@ -1376,7 +1403,7 @@ i64 TNode::ComputeTotalReplicaCount(int mediumIndex) const
         ChunkLocations_.end(),
         i64(0),
         std::plus<i64>{},
-        [&] (auto* location) {
+        [&] (auto location) {
             if (mediumIndex != AllMediaIndex && mediumIndex != location->GetEffectiveMediumIndex()) {
                 return i64(0);
             }
@@ -1399,7 +1426,7 @@ i64 TNode::ComputeTotalChunkRemovalQueuesSize() const
         ChunkLocations_.end(),
         i64(0),
         std::plus<i64>{},
-        [] (auto* location) {
+        [] (auto location) {
             return std::ssize(location->ChunkRemovalQueue());
         });
 }
@@ -1411,7 +1438,7 @@ i64 TNode::ComputeTotalDestroyedReplicaCount() const
         ChunkLocations_.end(),
         0,
         std::plus<i64>{},
-        [] (auto* location) {
+        [] (auto location) {
             return location->GetDestroyedReplicasCount();
         });
 }

@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE, is_asan_build
 
 from yt_commands import (
     authors, wait, create, ls, get, set, exists,
@@ -1364,6 +1364,7 @@ class TestGpuCheck(YTEnvSetup, GpuCheckBase):
         assert res == b"AAA\n"
 
     @authors("ignat")
+    @pytest.mark.skipif(is_asan_build(), reason="Core dumps + ASAN = no way")
     def test_gpu_check_and_core_dump(self):
         self.setup_gpu_layer_and_reset_nodes()
 

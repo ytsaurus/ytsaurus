@@ -96,7 +96,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(i64, ReplicationErrorCount);
 
-    using TReplicaMap = THashMap<TTableReplica*, TTableReplicaInfo>;
+    using TReplicaMap = THashMap<TTableReplicaRawPtr, TTableReplicaInfo>;
     DEFINE_BYREF_RW_PROPERTY(TReplicaMap, Replicas);
 
     DEFINE_BYVAL_RW_PROPERTY(NTransactionClient::TTimestamp, RetainedTimestamp);
@@ -105,7 +105,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TUnconfirmedDynamicTableLocksSet, UnconfirmedDynamicTableLocks);
 
     DEFINE_BYREF_RW_PROPERTY(std::vector<TStoreId>, EdenStoreIds);
-    DEFINE_BYREF_RW_PROPERTY(THashSet<NChunkServer::TDynamicStore*>, DynamicStores);
+    DEFINE_BYREF_RW_PROPERTY(THashSet<NChunkServer::TDynamicStoreRawPtr>, DynamicStores);
 
     DECLARE_BYVAL_RW_PROPERTY(ETabletBackupState, BackupState);
     DEFINE_BYREF_RW_PROPERTY(std::optional<TBackupCutoffDescriptor>, BackupCutoffDescriptor);
@@ -154,6 +154,8 @@ public:
 private:
     ETabletBackupState BackupState_ = ETabletBackupState::None;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TTablet)
 
 ////////////////////////////////////////////////////////////////////////////////
 

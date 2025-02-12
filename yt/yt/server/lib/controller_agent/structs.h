@@ -62,7 +62,7 @@ struct TJobSummary
     EJobState State = EJobState::None;
     EJobPhase Phase = EJobPhase::Missing;
 
-    EInterruptReason InterruptionReason = EInterruptReason::None;
+    EInterruptionReason InterruptionReason = EInterruptionReason::None;
 
     std::optional<TInstant> FinishTime;
     NJobAgent::TTimeStatistics TimeStatistics;

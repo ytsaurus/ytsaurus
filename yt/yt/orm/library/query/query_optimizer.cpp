@@ -7,6 +7,7 @@
 #include <yt/yt/library/query/base/ast_visitors.h>
 
 #include <library/cpp/yt/assert/assert.h>
+#include <library/cpp/yt/misc/variant.h>
 
 #include <util/generic/hash.h>
 
@@ -270,7 +271,14 @@ public:
 
     bool OnReference(TReferenceExpressionPtr expression) override
     {
-        return expression->Reference.TableName == Query_->Table.Alias || ColumnsMapping_.contains(expression->Reference);
+        return NYT::Visit(Query_->FromClause,
+            [&] (const TTableDescriptor& table) {
+                return expression->Reference.TableName == table.Alias ||
+                    ColumnsMapping_.contains(expression->Reference);
+            },
+            [&] (const TQueryAstHeadPtr& /*subquery*/) -> bool {
+                THROW_ERROR_EXCEPTION("Subqueries are not supported yet");
+            });
     }
 
     bool IsOptimizationAllowed(const TNullableExpressionList& list)
@@ -325,7 +333,7 @@ public:
 
     bool OnReference(TReferenceExpressionPtr expression) override
     {
-        if (expression->Reference.TableName != Query_->Table.Alias) {
+        if (expression->Reference.TableName != std::get<TTableDescriptor>(Query_->FromClause).Alias) {
             expression->Reference = GetOrCrash(ColumnsMapping_, expression->Reference);
             return true;
         }

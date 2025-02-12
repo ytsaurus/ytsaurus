@@ -175,7 +175,7 @@ bool TCellProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYson
                                 .Item("alien").Value(true)
                             .EndMap();
                     } else {
-                        const auto* transaction = peer.PrerequisiteTransaction;
+                        auto transaction = peer.PrerequisiteTransaction;
                         const auto* slot = peer.Node ? peer.Node->GetCellSlot(cell) : nullptr;
                         auto state = slot ? slot->PeerState : EPeerState::None;
                         fluent

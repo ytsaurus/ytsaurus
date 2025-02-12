@@ -4,15 +4,30 @@
 
 #include "serializable.h"
 #include "../key_value.h"
+#include "../noncodable.h"
 
 #include <util/generic/ptr.h>
 #include <util/stream/mem.h>
 #include <util/stream/zerocopy_output.h>
 #include <util/system/type_name.h>
 
+#include <library/cpp/yt/assert/assert.h>
+
 #include <utility>
 
 namespace NRoren::NPrivate {
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename T, typename>
+struct TIsRowCoderRequired : public std::true_type
+{ };
+
+template <typename T>
+constexpr bool IsRowCoderRequired = TIsRowCoderRequired<T, void>::value;
+
+template <typename T>
+IRawCoderPtr MakeDefaultRawCoder();
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,8 +62,8 @@ public:
     {
         if constexpr (NTraits::IsTKV<T>) {
             return {
-                MakeIntrusive<TDefaultRawCoder<typename T::TKey>>(),
-                MakeIntrusive<TDefaultRawCoder<typename T::TValue>>()
+                MakeDefaultRawCoder<typename T::TKey>(),
+                MakeDefaultRawCoder<typename T::TValue>(),
             };
         } else {
             ythrow yexception() << TypeName<T>() << " is not TKV<?, ?>";
@@ -76,7 +91,13 @@ private:
 template <typename T>
 IRawCoderPtr MakeDefaultRawCoder()
 {
-    return ::MakeIntrusive<TDefaultRawCoder<T>>();
+    if constexpr (CImplicitlyCodable<T>) {
+        return ::MakeIntrusive<TDefaultRawCoder<T>>();
+    } else if constexpr (IsRowCoderRequired<T>) {
+        static_assert(TDependentFalse<T>, "You must provide TCoder implementation (via saveload or Roren*code)");
+    } else {
+        YT_UNIMPLEMENTED();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

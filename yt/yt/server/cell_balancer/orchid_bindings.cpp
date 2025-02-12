@@ -4,7 +4,6 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-
 namespace NYT::NCellBalancer::NOrchid {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,13 +106,13 @@ void TScanBundleCounter::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TBundleInstancies, typename TCollection>
-void PopulateInstancies(
-    const TBundleInstancies& bundleInstancies,
+template <typename TBundleInstances, typename TCollection>
+void PopulateInstances(
+    const TBundleInstances& bundleInstances,
     const TCollection& instanciesInfo,
     THashMap<std::string, TInstanceInfoPtr>& instancies)
 {
-    for (const auto& name : bundleInstancies) {
+    for (const auto& name : bundleInstances) {
         auto instance = New<TInstanceInfo>();
         const auto& instanceInfo = GetOrCrash(instanciesInfo, name);
         const auto& annotations = instanceInfo->Annotations;
@@ -128,41 +127,41 @@ void PopulateInstancies(
     }
 }
 
-template <typename TBundleToInstancies, typename TCollection>
-void PopulateInstanciesPerDC(
+template <typename TBundleToInstances, typename TCollection>
+void PopulateInstancesPerDC(
     const std::string& bundleName,
-    const TBundleToInstancies& bundleToInstancies,
+    const TBundleToInstances& bundleToInstances,
     const TCollection& instanciesInfo,
     THashMap<std::string, TInstanceInfoPtr>& instancies)
 {
-    auto it = bundleToInstancies.find(bundleName);
-    if (it == bundleToInstancies.end()) {
+    auto it = bundleToInstances.find(bundleName);
+    if (it == bundleToInstances.end()) {
         return;
     }
 
     for (const auto& [_, dataCenterNodes] : it->second) {
-        PopulateInstancies(dataCenterNodes, instanciesInfo, instancies);
+        PopulateInstances(dataCenterNodes, instanciesInfo, instancies);
     }
 }
 
-template <typename TBundleToInstancies, typename TCollection>
-void PopulateInstanciesPerBundle(
+template <typename TBundleToInstances, typename TCollection>
+void PopulateInstancesPerBundle(
     const std::string& bundleName,
-    const TBundleToInstancies& bundleToInstancies,
+    const TBundleToInstances& bundleToInstances,
     const TCollection& instanciesInfo,
     THashMap<std::string, TInstanceInfoPtr>& instancies)
 {
-    auto it = bundleToInstancies.find(bundleName);
-    if (it == bundleToInstancies.end()) {
+    auto it = bundleToInstances.find(bundleName);
+    if (it == bundleToInstances.end()) {
         return;
     }
 
-    PopulateInstancies(it->second, instanciesInfo, instancies);
+    PopulateInstances(it->second, instanciesInfo, instancies);
 }
 
 static const std::string INITIAL_REQUEST_STATE = "REQUEST_CREATED";
 
-void PopulateAllocatingInstancies(
+void PopulateAllocatingInstances(
     const TIndexedEntries<TAllocationRequestState>& allocationStates,
     const TSchedulerInputState& input,
     TIndexedEntries<TAllocatingInstanceInfo>& destination)
@@ -186,13 +185,13 @@ void PopulateAllocatingInstancies(
     }
 }
 
-void MarkDeallocatingInstancies(
+void MarkDeallocatingInstances(
     const TIndexedEntries<TDeallocationRequestState>& deallocations,
-    THashMap<std::string, TInstanceInfoPtr>& allocatedInstancies)
+    THashMap<std::string, TInstanceInfoPtr>& allocatedInstances)
 {
     for (const auto& [_, deallocationState] : deallocations) {
-        auto it = allocatedInstancies.find(deallocationState->InstanceName);
-        if (it == allocatedInstancies.end()) {
+        auto it = allocatedInstances.find(deallocationState->InstanceName);
+        if (it == allocatedInstances.end()) {
             continue;
         }
         it->second->Removing = true;
@@ -213,12 +212,12 @@ TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state, const TSchedulerM
         bundleOrchidInfo->ResourceAlive->Clear();
         bundleOrchidInfo->ResourceTarget->Clear();
 
-        PopulateInstanciesPerDC(bundleName, state.BundleNodes, state.TabletNodes, bundleOrchidInfo->AllocatedTabletNodes);
-        PopulateInstanciesPerDC(bundleName, state.BundleProxies, state.RpcProxies, bundleOrchidInfo->AllocatedRpcProxies);
+        PopulateInstancesPerDC(bundleName, state.BundleNodes, state.TabletNodes, bundleOrchidInfo->AllocatedTabletNodes);
+        PopulateInstancesPerDC(bundleName, state.BundleProxies, state.RpcProxies, bundleOrchidInfo->AllocatedRpcProxies);
 
         if (auto it = state.ZoneToSpareNodes.find(bundleInfo->Zone); it != state.ZoneToSpareNodes.end()) {
             for (const auto& [_, spareInfo] : it->second) {
-                PopulateInstanciesPerBundle(
+                PopulateInstancesPerBundle(
                     bundleName,
                     spareInfo.UsedByBundle,
                     state.TabletNodes,
@@ -228,7 +227,7 @@ TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state, const TSchedulerM
 
         if (auto it = state.ZoneToSpareProxies.find(bundleInfo->Zone); it != state.ZoneToSpareProxies.end()) {
             for (const auto& [_, spareInfo] : it->second) {
-                PopulateInstanciesPerBundle(
+                PopulateInstancesPerBundle(
                     bundleName,
                     spareInfo.UsedByBundle,
                     state.RpcProxies,
@@ -263,11 +262,11 @@ TBundlesInfo GetBundlesInfo(const TSchedulerInputState& state, const TSchedulerM
             bundleOrchidInfo->AllocatingRpcProxyCount = bundleState->ProxyAllocations.size();
             bundleOrchidInfo->DeallocatingRpcProxyCount = bundleState->ProxyDeallocations.size();
 
-            PopulateAllocatingInstancies(bundleState->NodeAllocations, state, bundleOrchidInfo->AllocatingTabletNodes);
-            PopulateAllocatingInstancies(bundleState->ProxyAllocations, state, bundleOrchidInfo->AllocatingRpcProxies);
+            PopulateAllocatingInstances(bundleState->NodeAllocations, state, bundleOrchidInfo->AllocatingTabletNodes);
+            PopulateAllocatingInstances(bundleState->ProxyAllocations, state, bundleOrchidInfo->AllocatingRpcProxies);
 
-            MarkDeallocatingInstancies(bundleState->NodeDeallocations, bundleOrchidInfo->AllocatedTabletNodes);
-            MarkDeallocatingInstancies(bundleState->ProxyDeallocations, bundleOrchidInfo->AllocatedRpcProxies);
+            MarkDeallocatingInstances(bundleState->NodeDeallocations, bundleOrchidInfo->AllocatedTabletNodes);
+            MarkDeallocatingInstances(bundleState->ProxyDeallocations, bundleOrchidInfo->AllocatedRpcProxies);
         }
 
         result[bundleName] = bundleOrchidInfo;

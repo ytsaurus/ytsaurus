@@ -23,10 +23,10 @@ struct IGraftingManager
 
     virtual void OnScionDestroyed(TScionNode* scionNode) = 0;
 
-    using TRootstockNodeMap = THashMap<TNodeId, TRootstockNode*>;
+    using TRootstockNodeMap = THashMap<TNodeId, TRootstockNodeRawPtr>;
     virtual const TRootstockNodeMap& RootstockNodes() = 0;
 
-    using TScionNodeMap = THashMap<TNodeId, TScionNode*>;
+    using TScionNodeMap = THashMap<TNodeId, TScionNodeRawPtr>;
     virtual const TScionNodeMap& ScionNodes() = 0;
 };
 

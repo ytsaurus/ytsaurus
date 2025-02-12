@@ -37,7 +37,7 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTree*> children) override
+        TRange<TChunkTreeRawPtr> children) override
     {
         NChunkServer::AttachToChunkList(
             chunkList,
@@ -92,7 +92,7 @@ TEST_F(TChunkReplacerTest, Simple)
         auto* newList = replacer.Finish();
         ASSERT_TRUE(newList);
         auto chunks = EnumerateChunksInChunkTree(newList);
-        EXPECT_EQ(chunks, std::vector({chunk1, newChunk, chunk4}));
+        EXPECT_EQ(chunks, std::vector<TChunkRawPtr>({chunk1, newChunk, chunk4}));
     }
 
     {
@@ -105,7 +105,7 @@ TEST_F(TChunkReplacerTest, Simple)
         auto* newList = replacer.Finish();
         ASSERT_TRUE(newList);
         auto chunks = EnumerateChunksInChunkTree(newList);
-        EXPECT_EQ(chunks, std::vector({newChunk, chunk4}));
+        EXPECT_EQ(chunks, std::vector<TChunkRawPtr>({newChunk, chunk4}));
     }
 
     {
@@ -118,7 +118,7 @@ TEST_F(TChunkReplacerTest, Simple)
         auto* newList = replacer.Finish();
         ASSERT_TRUE(newList);
         auto chunks = EnumerateChunksInChunkTree(newList);
-        EXPECT_EQ(chunks, std::vector({chunk1, newChunk}));
+        EXPECT_EQ(chunks, std::vector<TChunkRawPtr>({chunk1, newChunk}));
     }
 
     EXPECT_EQ(oldChunks, EnumerateChunksInChunkTree(rootList));
@@ -155,7 +155,7 @@ TEST_F(TChunkReplacerTest, TwoReplaces)
         auto* newList = replacer.Finish();
         ASSERT_TRUE(newList);
         auto chunks = EnumerateChunksInChunkTree(newList);
-        EXPECT_EQ(chunks, std::vector({newChunk1, chunk3, newChunk2}));
+        EXPECT_EQ(chunks, std::vector<TChunkRawPtr>({newChunk1, chunk3, newChunk2}));
     }
 
     EXPECT_EQ(oldChunks, EnumerateChunksInChunkTree(rootList));
@@ -191,7 +191,7 @@ TEST_F(TChunkReplacerTest, ReplaceContinuesFromLastPlace)
         auto* newList = replacer.Finish();
         ASSERT_TRUE(newList);
         auto chunks = EnumerateChunksInChunkTree(newList);
-        EXPECT_EQ(chunks, std::vector({chunk1, chunk2, newChunk1, newChunk2}));
+        EXPECT_EQ(chunks, std::vector<TChunkRawPtr>({chunk1, chunk2, newChunk1, newChunk2}));
     }
 
     EXPECT_EQ(oldChunks, EnumerateChunksInChunkTree(rootList));
@@ -227,7 +227,7 @@ TEST_F(TChunkReplacerTest, DeepTree)
         auto* newList = replacer.Finish();
         ASSERT_TRUE(newList);
         auto chunks = EnumerateChunksInChunkTree(newList);
-        EXPECT_EQ(chunks, std::vector({newChunk}));
+        EXPECT_EQ(chunks, std::vector<TChunkRawPtr>({newChunk}));
     }
 
     EXPECT_EQ(oldChunks, EnumerateChunksInChunkTree(rootList));
@@ -268,7 +268,7 @@ TEST_F(TChunkReplacerTest, Subtrees)
         auto* newList = replacer.Finish();
         ASSERT_TRUE(newList);
         auto chunks = EnumerateChunksInChunkTree(newList);
-        EXPECT_EQ(chunks, std::vector({chunk1, newChunk, chunk4, chunk5}));
+        EXPECT_EQ(chunks, std::vector<TChunkRawPtr>({chunk1, newChunk, chunk4, chunk5}));
     }
 
     EXPECT_EQ(oldChunks, EnumerateChunksInChunkTree(rootList));
@@ -306,7 +306,7 @@ TEST_F(TChunkReplacerTest, SubtreesAndChunks1)
         auto* newList = replacer.Finish();
         ASSERT_TRUE(newList);
         auto chunks = EnumerateChunksInChunkTree(newList);
-        EXPECT_EQ(chunks, std::vector({chunk1, newChunk, chunk4, chunk5}));
+        EXPECT_EQ(chunks, std::vector<TChunkRawPtr>({chunk1, newChunk, chunk4, chunk5}));
     }
 
     EXPECT_EQ(oldChunks, EnumerateChunksInChunkTree(rootList));
@@ -344,7 +344,7 @@ TEST_F(TChunkReplacerTest, SubtreesAndChunks2)
         auto* newList = replacer.Finish();
         ASSERT_TRUE(newList);
         auto chunks = EnumerateChunksInChunkTree(newList);
-        EXPECT_EQ(chunks, std::vector({chunk1, chunk2, chunk3, newChunk}));
+        EXPECT_EQ(chunks, std::vector<TChunkRawPtr>({chunk1, chunk2, chunk3, newChunk}));
     }
 
     EXPECT_EQ(oldChunks, EnumerateChunksInChunkTree(rootList));

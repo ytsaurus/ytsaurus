@@ -34,7 +34,7 @@ IInvokerPtr TAutomatonInvokerHood<EQueue>::GetAutomatonInvoker(EQueue queue) con
 template <typename EQueue>
 IInvokerPtr TAutomatonInvokerHood<EQueue>::GetEpochAutomatonInvoker(EQueue queue) const
 {
-    YT_ASSERT_THREAD_AFFINITY_ANY();
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
     return EpochAutomatonInvokers_[queue].Acquire();
 }
@@ -50,6 +50,8 @@ IInvokerPtr TAutomatonInvokerHood<EQueue>::GetGuardedAutomatonInvoker(EQueue que
 template <typename EQueue>
 void TAutomatonInvokerHood<EQueue>::InitEpochInvokers(const NHydra::IHydraManagerPtr& hydraManager)
 {
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
     if (!hydraManager) {
         return;
     }
@@ -65,6 +67,7 @@ void TAutomatonInvokerHood<EQueue>::InitEpochInvokers(const NHydra::IHydraManage
 template <typename EQueue>
 void TAutomatonInvokerHood<EQueue>::ResetEpochInvokers()
 {
+    // NB: This could also be called from Control Thhead when a slot is stopped.
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     for (auto& invoker : EpochAutomatonInvokers_) {
@@ -75,6 +78,8 @@ void TAutomatonInvokerHood<EQueue>::ResetEpochInvokers()
 template <typename EQueue>
 void TAutomatonInvokerHood<EQueue>::InitGuardedInvokers(const NHydra::IHydraManagerPtr& hydraManager)
 {
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
     if (!hydraManager) {
         return;
     }
@@ -89,6 +94,7 @@ void TAutomatonInvokerHood<EQueue>::InitGuardedInvokers(const NHydra::IHydraMana
 template <typename EQueue>
 void TAutomatonInvokerHood<EQueue>::ResetGuardedInvokers()
 {
+    // NB: This could also be called from Control Thhead when a slot is stopped.
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     for (auto& invoker : GuardedAutomatonInvokers_) {

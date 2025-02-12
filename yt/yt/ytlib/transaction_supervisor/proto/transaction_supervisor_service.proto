@@ -19,6 +19,7 @@ message TReqCommitTransaction
     optional int32 coordinator_commit_mode = 5; // ETransactionCoordinatorCommitMode
     optional uint64 max_allowed_commit_timestamp = 9;
     optional int32 clock_cluster_tag = 10;
+    optional bool strongly_ordered = 12 [default = false];
 }
 
 message TRspCommitTransaction

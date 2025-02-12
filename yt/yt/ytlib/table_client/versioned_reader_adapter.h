@@ -22,7 +22,7 @@ IVersionedReaderPtr CreateVersionedReaderAdapter(
 ////////////////////////////////////////////////////////////////////////////////
 
 IVersionedReaderPtr CreateTimestampResettingAdapter(
-    IVersionedReaderPtr undlerlyingReader,
+    IVersionedReaderPtr underlyingReader,
     TTimestamp timestamp,
     NChunkClient::EChunkFormat chunkFormat);
 

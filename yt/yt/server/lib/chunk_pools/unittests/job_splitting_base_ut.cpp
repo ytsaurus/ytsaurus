@@ -19,7 +19,7 @@ TCompletedJobSummary CreateSummary(int splitJobCount, i64 readRowCount, bool isI
     auto statistics = std::make_shared<TStatistics>();
     statistics->AddSample(InputRowCountPath, readRowCount);
     summary.Statistics = std::move(statistics);
-    summary.InterruptionReason = isInterrupted ? EInterruptReason::JobSplit : EInterruptReason::None;
+    summary.InterruptionReason = isInterrupted ? EInterruptionReason::JobSplit : EInterruptionReason::None;
     summary.SplitJobCount = splitJobCount;
     return summary;
 }

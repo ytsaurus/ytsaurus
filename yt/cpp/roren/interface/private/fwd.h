@@ -7,6 +7,9 @@ namespace NRoren::NPrivate {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename, typename>
+struct TIsRowCoderRequired;
+
 class IRawCoder;
 using IRawCoderPtr = TIntrusivePtr<IRawCoder>;
 

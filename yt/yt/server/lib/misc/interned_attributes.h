@@ -117,7 +117,6 @@
     XX(ConfigPresets, config_presets) \
     XX(ConfigVersion, config_version) \
     XX(Confirmed, confirmed) \
-    XX(UsePoolSatisfactionForScheduling, use_pool_satisfaction_for_scheduling) \
     XX(ConsistentReplicaPlacement, consistent_replica_placement) \
     XX(ConsistentReplicaPlacementHash, consistent_replica_placement_hash) \
     XX(ConsistentReplicaPlacementTokenCount, consistent_replica_placement_token_count) \
@@ -173,6 +172,7 @@
     XX(EnableTabletBalancer, enable_tablet_balancer) \
     XX(EnableDynamicStoreRead, enable_dynamic_store_read) \
     XX(EnableLightweightOperations, enable_lightweight_operations) \
+    XX(SerializationType, serialization_type) \
     XX(EnablePrioritySchedulingSegmentModuleAssignment, enable_priority_scheduling_segment_module_assignment) \
     XX(EnablePriorityStrongGuaranteeAdjustment, enable_priority_strong_guarantee_adjustment) \
     XX(EnablePriorityStrongGuaranteeAdjustmentDonorship, enable_priority_strong_guarantee_adjustment_donorship) \
@@ -216,7 +216,6 @@
     XX(FairShareStarvationTolerance, fair_share_starvation_tolerance) \
     XX(FaultyStorageDataCenters, faulty_storage_data_centers) \
     XX(FifoSortParameters, fifo_sort_parameters) \
-    XX(FifoPoolSchedulingOrder, fifo_pool_scheduling_order) \
     XX(FileName, file_name) \
     XX(Flavors, flavors) \
     XX(FlushLagTime, flush_lag_time) \
@@ -261,7 +260,6 @@
     XX(IndexTo, index_to) \
     XX(IndexTableId, index_table_id) \
     XX(IndexTablePath, index_table_path) \
-    XX(InferChildrenWeightsFromHistoricUsage, infer_children_weights_from_historic_usage) \
     XX(InheritAcl, inherit_acl) \
     XX(IntegralGuarantees, integral_guarantees) \
     XX(IOStatistics, io_statistics) \
@@ -303,6 +301,7 @@
     XX(LockMode, lock_mode) \
     XX(LockedNodeIds, locked_node_ids) \
     XX(Locks, locks) \
+    XX(LostVitalChunkCount, lost_vital_chunk_count) \
     XX(LowerLimit, lower_limit) \
     XX(MaintenanceRequests, maintenance_requests) \
     XX(MasterAlerts, master_alerts) \

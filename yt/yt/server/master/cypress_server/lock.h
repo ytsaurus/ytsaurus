@@ -115,25 +115,32 @@ struct TCypressNodeLockingState
             const TLockKey& rhs) const;
     };
 
-    std::list<TLock*> AcquiredLocks;
-    std::list<TLock*> PendingLocks;
+    std::list<TLockRawPtr> AcquiredLocks;
+    std::list<TLockRawPtr> PendingLocks;
 
     // NB: Iterators to these containers are stored in corresponding TLock objects.
     // They must not be invalidated unless the record itself is erased. Keep this
     // in mind when changing container types.
     // NB: Deterministic order for both keys and values is required here, hence std::set.
     std::set<
-        std::pair<NTransactionServer::TTransaction*, TLock*>,
+        std::pair<
+            NTransactionServer::TTransactionRawPtr,
+            TLockRawPtr
+        >,
         TTransactionLockPairComparator
     > TransactionToExclusiveLocks;
 
     std::set<
-        std::tuple<NTransactionServer::TTransaction*, TLockKey, TLock*>,
+        std::tuple<
+            NTransactionServer::TTransactionRawPtr,
+            TLockKey,
+            TLockRawPtr
+        >,
         TTransactionKeyLockTupleComparator
     > TransactionAndKeyToSharedLocks;
     // Only contains "child" and "attribute" shared locks.
     std::set<
-        std::pair<TLockKey, TLock*>,
+        std::pair<TLockKey, TLockRawPtr>,
         TKeyLockPairComparator
     > KeyToSharedLocks;
 
@@ -164,11 +171,11 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
     DEFINE_BYVAL_RW_PROPERTY(TInstant, AcquisitionTime);
     DEFINE_BYREF_RW_PROPERTY(TLockRequest, Request);
-    DEFINE_BYVAL_RW_PROPERTY(TCypressNode*, TrunkNode);
-    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
+    DEFINE_BYVAL_RW_PROPERTY(TCypressNodeRawPtr, TrunkNode);
+    DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransactionRawPtr, Transaction);
 
     // Not persisted.
-    using TLockListIterator = std::list<TLock*>::iterator;
+    using TLockListIterator = std::list<TLockRawPtr>::iterator;
     DEFINE_BYVAL_RW_PROPERTY(TLockListIterator, LockListIterator);
 
     using TTransactionToExclusiveLocksIterator = decltype(TCypressNodeLockingState::TransactionToExclusiveLocks)::iterator;
@@ -192,6 +199,8 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TLock)
 
 YT_STATIC_ASSERT_SIZEOF_SANITY(TLock, 216);
 

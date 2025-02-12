@@ -50,13 +50,13 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature)
 {
     TSignatureHeader header;
     try {
-        header = ConvertTo<TSignatureHeader>(GetHeader(signature));
+        header = ConvertTo<TSignatureHeader>(signature->Header_);
     } catch (const std::exception& ex) {
         YT_LOG_WARNING(
             ex,
             "Received invalid signature header (Header: %v)",
-            GetHeader(signature).ToString());
-        return MakeFuture(false);
+            signature->Header_.ToString());
+        return FalseFuture;
     }
 
     auto signatureId = std::visit([] (auto&& header_) { return header_.SignatureId; }, header);
@@ -66,8 +66,6 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature)
 
     return KeyReader_->FindKey(keyIssuer, keyId).Apply(
         BIND([
-                this,
-                this_ = MakeStrong(this),
                 keyIssuer = std::move(keyIssuer),
                 keyId = std::move(keyId),
                 signatureId = std::move(signatureId),
@@ -83,17 +81,17 @@ TFuture<bool> TSignatureValidator::Validate(const TSignaturePtr& signature)
                     return false;
                 }
 
-                auto toSign = PreprocessSignature(GetHeader(signature), signature->Payload());
+                auto toSign = PreprocessSignature(signature->Header_, signature->Payload());
 
-                if (GetSignature(signature).size() != SignatureSize) {
+                if (signature->Signature_.size() != SignatureSize) {
                     YT_LOG_WARNING(
                         "Signature size mismatch (SignatureId: %v, ReceivedSize: %v, ExpectedSize: %v)",
                         signatureId,
-                        GetSignature(signature).size(),
+                        signature->Signature_.size(),
                         SignatureSize);
                     return false;
                 }
-                std::span<const std::byte, SignatureSize> signatureSpan(GetSignature(signature));
+                std::span<const std::byte, SignatureSize> signatureSpan(signature->Signature_);
                 if (!keyInfo->Verify(toSign, signatureSpan)) {
                     YT_LOG_WARNING("Cryptographic verification failed (SignatureId: %v)", signatureId);
                     return false;

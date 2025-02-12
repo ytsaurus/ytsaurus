@@ -45,6 +45,11 @@ TCompactVector<TChunkLocation*, TypicalChunkLocationCount> ParseLocationDirector
     const TNode* node,
     const IDataNodeTrackerPtr& dataNodeTracker,
     const TRequest& request);
+// COMPAT(danilalexeev): YT-23781. Still need to validate 'location_index' for each chunk info.
+TChunkLocation* ParseLocationOrThrow(
+    const TNode* node,
+    const IDataNodeTrackerPtr& dataNodeTracker,
+    const NDataNodeTrackerClient::NProto::TReqLocationFullHeartbeat& request);
 
 bool CanUnambiguouslyDetachChild(TChunkList* rootChunkList, const TChunkTree* child);
 
@@ -61,10 +66,10 @@ bool HasParent(const TChunkTree* chunkTree, TChunkList* potentialParent);
 
 void AttachToChunkList(
     TChunkList* chunkList,
-    TRange<TChunkTree*> children);
+    TRange<TChunkTreeRawPtr> children);
 void DetachFromChunkList(
     TChunkList* chunkList,
-    TRange<TChunkTree*> children,
+    TRange<TChunkTreeRawPtr> children,
     EChunkDetachPolicy policy);
 
 //! Set |childIndex|-th child of |chunkList| to |newChild|. It is up to caller

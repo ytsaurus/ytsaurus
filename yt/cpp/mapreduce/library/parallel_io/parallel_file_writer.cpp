@@ -374,13 +374,30 @@ void TParallelFileWriter::DoFinish(bool commit)
         return lhs.Order < rhs.Order;
     });
 
-    TVector<TYPath> tempPaths;
-    tempPaths.reserve(Tasks_.size());
+    std::deque<TYPath> tempPaths;
     for (const auto& task : Tasks_) {
-        tempPaths.emplace_back(task.Path.Path_);
+        tempPaths.push_back(task.Path.Path_);
     }
 
-    Transaction_->Concatenate(tempPaths, Path_.Path_, concatenateOptions);
+    TVector<TYPath> currentConcatenate;
+    currentConcatenate.reserve(std::min<size_t>(Options_.ConcatenateBatchSize_, tempPaths.size()));
+    bool firstConcatenate = true;
+    while (!tempPaths.empty()) {
+        currentConcatenate.clear();
+        for (size_t i = 0; i < Options_.ConcatenateBatchSize_ && !tempPaths.empty(); ++i) {
+            currentConcatenate.push_back(tempPaths.front());
+            tempPaths.pop_front();
+        }
+
+        TConcatenateOptions currentConcatenateOptions = concatenateOptions;
+        if (firstConcatenate) {
+            firstConcatenate = false;
+        } else {
+            currentConcatenateOptions.Append(true);
+        }
+        Transaction_->Concatenate(currentConcatenate, Path_.Path_, currentConcatenateOptions);
+    }
+
     Transaction_->Remove(TemporaryDirectory_, NYT::TRemoveOptions().Recursive(true).Force(true));
     Transaction_->Commit();
 }

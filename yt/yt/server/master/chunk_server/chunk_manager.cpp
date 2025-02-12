@@ -43,7 +43,7 @@
 
 #include <yt/yt/server/master/table_server/table_manager.h>
 
-#include <yt/yt/server/master/cell_master/proto/multicell_manager.pb.h>
+#include <yt/yt/server/master/cell_master/proto/multicell_node_statistics.pb.h>
 
 #include <yt/yt/server/master/chunk_server/proto/chunk_manager.pb.h>
 
@@ -112,6 +112,7 @@
 #include <yt/yt/ytlib/sequoia_client/records/chunk_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/location_replicas.record.h>
 #include <yt/yt/ytlib/sequoia_client/records/unapproved_chunk_replicas.record.h>
+#include <yt/yt/ytlib/sequoia_client/records/chunk_refresh_queue.record.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -145,6 +146,8 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/yson/string.h>
+
+#include <library/cpp/iterator/zip.h>
 
 #include <util/generic/cast.h>
 
@@ -262,7 +265,7 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTree*> children) override
+        TRange<TChunkTreeRawPtr> children) override
     {
         Bootstrap_->GetChunkManager()->AttachToChunkList(chunkList, children);
     }
@@ -1247,8 +1250,8 @@ public:
 
         UnregisterChunk(chunk);
 
-        if (auto* node = chunk->GetNodeWithEndorsement()) {
-            RemoveEndorsement(chunk, node);
+        if (auto* location = chunk->GetLocationWithEndorsement()) {
+            RemoveEndorsement(chunk, location);
         }
 
         ++ChunksDestroyed_;
@@ -1354,7 +1357,7 @@ public:
                 YT_VERIFY(!modifier.GetTransactionId());
 
                 auto* baseChunkView = underlyingTree->AsChunkView();
-                auto* underlyingTree = baseChunkView->GetUnderlyingTree();
+                auto underlyingTree = baseChunkView->GetUnderlyingTree();
                 auto adjustedModifier = baseChunkView->Modifier().RestrictedWith(modifier);
                 auto* chunkView = DoCreateChunkView(underlyingTree, std::move(adjustedModifier));
                 YT_LOG_DEBUG("Chunk view created (ChunkViewId: %v, ChunkId: %v, BaseChunkViewId: %v)",
@@ -1373,7 +1376,7 @@ public:
     {
         YT_VERIFY(!chunkView->GetStagingTransaction());
 
-        auto* underlyingTree = chunkView->GetUnderlyingTree();
+        auto underlyingTree = chunkView->GetUnderlyingTree();
         const auto& objectManager = Bootstrap_->GetObjectManager();
         ResetChunkTreeParent(chunkView, underlyingTree);
         objectManager->UnrefObject(underlyingTree);
@@ -1405,7 +1408,7 @@ public:
     {
         YT_VERIFY(!dynamicStore->GetStagingTransaction());
 
-        if (auto* chunk = dynamicStore->GetFlushedChunk()) {
+        if (auto chunk = dynamicStore->GetFlushedChunk()) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             objectManager->UnrefObject(chunk);
         }
@@ -1428,7 +1431,7 @@ public:
 
         // Drop references to children.
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* child : chunkList->Children()) {
+        for (auto child : chunkList->Children()) {
             if (child) {
                 ResetChunkTreeParent(chunkList, child);
                 objectManager->UnrefObject(child);
@@ -1445,7 +1448,7 @@ public:
         chunkList->IncrementVersion();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* child : chunkList->Children()) {
+        for (auto child : chunkList->Children()) {
             if (child) {
                 ResetChunkTreeParent(chunkList, child);
                 objectManager->UnrefObject(child);
@@ -1468,7 +1471,6 @@ public:
 
             // Restoring statistics.
             newChunkList->Statistics().LogicalRowCount = chunkList->Statistics().LogicalRowCount;
-            newChunkList->Statistics().LogicalChunkCount = chunkList->Statistics().LogicalChunkCount;
             newChunkList->Statistics().LogicalDataWeight = chunkList->Statistics().LogicalDataWeight;
             newChunkList->CumulativeStatistics() = chunkList->CumulativeStatistics();
             newChunkList->CumulativeStatistics().TrimFront(chunkList->GetTrimmedChildCount());
@@ -1488,25 +1490,25 @@ public:
 
     void AttachToChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTree*> children) override
+        TRange<TChunkTreeRawPtr> children) override
     {
         NChunkServer::AttachToChunkList(chunkList, children);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* child : children) {
+        for (auto child : children) {
             objectManager->RefObject(child);
         }
     }
 
     void DetachFromChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTree*> children,
+        TRange<TChunkTreeRawPtr> children,
         EChunkDetachPolicy policy) override
     {
         NChunkServer::DetachFromChunkList(chunkList, children, policy);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* child : children) {
+        for (auto child : children) {
             objectManager->UnrefObject(child);
         }
     }
@@ -1516,7 +1518,7 @@ public:
         int childIndex,
         TChunkTree* child) override
     {
-        auto* oldChild = chunkList->Children()[childIndex];
+        auto oldChild = chunkList->Children()[childIndex];
 
         if (oldChild == child) {
             return;
@@ -1582,7 +1584,7 @@ public:
 
         if (recursive) {
             const auto& transactionManager = Bootstrap_->GetTransactionManager();
-            for (auto* child : chunkList->Children()) {
+            for (auto child : chunkList->Children()) {
                 if (child) {
                     transactionManager->UnstageObject(child->GetStagingTransaction(), child, recursive);
                 }
@@ -2415,6 +2417,9 @@ private:
     // COMPAT(h0pless)
     bool NeedRecomputeChunkWeightStatisticsHistogram_ = false;
 
+    // COMPAT(ifsmirnov)
+    bool NeedRecomputeOrderedTabletStatistics_ = false;
+
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
@@ -2473,10 +2478,12 @@ private:
     TShardedGlobalChunkList BlobChunks_;
     TShardedGlobalChunkList JournalChunks_;
 
+    TPeriodicExecutorPtr SequoiaChunkRefreshExecutor_;
     TPeriodicExecutorPtr SequoiaReplicaRemovalExecutor_;
     THashMap<TChunkId, TCompactVector<TSequoiaChunkReplica, 3>> SequoiaChunkPurgatory_;
     // Transient.
     bool ChunksBeingPurged_ = false;
+    std::atomic<bool> FetchingSequoiaChunksToRefresh_ = false;
 
     NHydra::TEntityMap<TChunk> ChunkMap_;
     NHydra::TEntityMap<TChunkView> ChunkViewMap_;
@@ -2741,10 +2748,11 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         node->Reset(nodeTracker);
 
-        DiscardEndorsements(node);
 
-        for (auto* location : node->ChunkLocations()) {
-            // maybe all of this is normal for some reason and we should just dispose it, idk
+        for (auto location : node->ChunkLocations()) {
+            DiscardEndorsements(location);
+
+            // TODO(aleksandra-zh): maybe all of this is normal for some reason and we should just dispose it, idk
             if (!location->Replicas().empty()) {
                 YT_LOG_ALERT("Cleared location still has replicas (NodeId: %v, LocationMediumIndex: %v, ReplicasCount: %v)",
                     node->GetId(),
@@ -2773,7 +2781,7 @@ private:
         ChunkReplicator_->OnNodeDisposed(node);
     }
 
-    void DisposeLocation(NChunkServer::TChunkLocation* location) override
+    void DisposeLocation(TChunkLocation* location) override
     {
         YT_VERIFY(HasMutationContext());
 
@@ -2879,15 +2887,15 @@ private:
         return physicalReplicaCount == approvedReplicaCount;
     }
 
-    void DiscardEndorsements(TNode* node)
+    void DiscardEndorsements(TChunkLocation* location)
     {
         // This node might be the last replica for some chunks.
-        for (auto [chunk, revision] : node->ReplicaEndorsements()) {
-            YT_VERIFY(chunk->GetNodeWithEndorsement() == node);
-            chunk->SetNodeWithEndorsement(nullptr);
+        for (auto [chunk, revision] : location->ReplicaEndorsements()) {
+            YT_VERIFY(chunk->GetLocationWithEndorsement() == location);
+            chunk->SetLocationWithEndorsement(nullptr);
         }
-        EndorsementCount_ -= ssize(node->ReplicaEndorsements());
-        node->ReplicaEndorsements().clear();
+        EndorsementCount_ -= ssize(location->ReplicaEndorsements());
+        location->ReplicaEndorsements().clear();
     }
 
     bool IsClusterStableEnoughForImmediateReplicaAnnounces() const
@@ -2916,7 +2924,7 @@ private:
     template <class TResponse>
     void SetAnnounceReplicaRequests(
         TResponse* response,
-        TNode* node,
+        TRange<TChunkLocationRawPtr> locationDirectory,
         const std::vector<TChunk*>& chunks)
     {
         auto isSequoia = chunks.empty() ? false : chunks[0]->IsSequoia();
@@ -2967,13 +2975,16 @@ private:
 
         if (clusterIsStableEnough) {
             auto currentRevision = GetCurrentMutationContext()->GetVersion().ToRevision();
-            for (auto& [chunk, revision] : node->ReplicaEndorsements()) {
-                revision = currentRevision;
-                onChunk(chunk, true);
+            for (auto location : locationDirectory) {
+                for (auto& [chunk, revision] : location->ReplicaEndorsements()) {
+                    revision = currentRevision;
+                    onChunk(chunk, true);
+                }
             }
         }
     }
 
+    // COMPAT(danilalexeev): YT-23781.
     void ProcessFullDataNodeHeartbeat(
         TNode* node,
         NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request,
@@ -2987,13 +2998,41 @@ private:
             location->ReserveReplicas(stats.chunk_count());
         }
 
-        // We've checked everything in TDataNodeTracker::ProcessFullHeartbeat.
+        // We've checked everything in TDataNodeTracker::HydraFullDataNodeHeartbeat.
         auto locationDirectory = ParseLocationDirectory(dataNodeTracker, *request);
 
         auto announceReplicaRequests = ProcessAddedReplicas(locationDirectory, node, request->chunks());
 
-        SetAnnounceReplicaRequests(response, node, announceReplicaRequests);
+        SetAnnounceReplicaRequests(response, node->ChunkLocations(), announceReplicaRequests);
 
+        FinalizeDataNodeFullHeartbeatSession(node);
+    }
+
+    void ProcessLocationFullDataNodeHeartbeat(
+        TNode* node,
+        NDataNodeTrackerClient::NProto::TReqLocationFullHeartbeat* request,
+        NDataNodeTrackerClient::NProto::TRspLocationFullHeartbeat* response) override
+    {
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+
+        auto locationUuid = FromProto<TChunkLocationUuid>(request->location_uuid());
+        // We've checked everything in TDataNodeTracker::HydraProcessLocationFullHeartbeat.
+        auto* location = dataNodeTracker->GetChunkLocationByUuid(locationUuid);
+        location->ReserveReplicas(request->chunks_size());
+
+        auto announceReplicaRequests = ProcessAddedReplicas(
+            {location},
+            node,
+            request->chunks());
+
+        SetAnnounceReplicaRequests(
+            response,
+            {TChunkLocationRawPtr(location)},
+            announceReplicaRequests);
+    }
+
+    void FinalizeDataNodeFullHeartbeatSession(TNode* node) override
+    {
         ChunkPlacement_->OnNodeRegistered(node);
         ChunkPlacement_->OnNodeUpdated(node);
 
@@ -3029,7 +3068,7 @@ private:
 
     void RegisterEndorsement(TChunk* chunk)
     {
-        TNode* nodeWithMaxId = nullptr;
+        TChunkLocation* locationWithMaxId = nullptr;
 
         for (auto replica : chunk->StoredReplicas()) {
             auto* medium = FindMediumByIndex(replica.GetPtr()->GetEffectiveMediumIndex());
@@ -3038,21 +3077,21 @@ private:
             }
 
             // We do not care about approvedness.
-            auto* node = replica.GetPtr()->GetNode();
-            if (!nodeWithMaxId || node->GetId() > nodeWithMaxId->GetId()) {
-                nodeWithMaxId = node;
+            auto location = replica.GetPtr();
+            if (!locationWithMaxId || location->GetId() > locationWithMaxId->GetId()) {
+                locationWithMaxId = location;
             }
         }
 
-        if (!nodeWithMaxId) {
+        if (!locationWithMaxId) {
             return;
         }
 
-        if (auto* formerNode = chunk->GetNodeWithEndorsement()) {
-            if (formerNode == nodeWithMaxId) {
+        if (auto* formerLocation = chunk->GetLocationWithEndorsement()) {
+            if (formerLocation == locationWithMaxId) {
                 // If there is an in-flight request to the node that is waiting for
                 // confirmation, we should treat it as outdated and send a new one.
-                auto& revision = GetOrCrash(formerNode->ReplicaEndorsements(), chunk);
+                auto& revision = GetOrCrash(formerLocation->ReplicaEndorsements(), chunk);
                 if (revision) {
                     revision = NullRevision;
                 }
@@ -3060,29 +3099,29 @@ private:
                 return;
             }
 
-            EraseOrCrash(formerNode->ReplicaEndorsements(), chunk);
+            EraseOrCrash(formerLocation->ReplicaEndorsements(), chunk);
             --EndorsementCount_;
         }
 
-        chunk->SetNodeWithEndorsement(nodeWithMaxId);
-        nodeWithMaxId->ReplicaEndorsements().emplace(chunk, NullRevision);
+        chunk->SetLocationWithEndorsement(locationWithMaxId);
+        locationWithMaxId->ReplicaEndorsements().emplace(chunk, NullRevision);
         ++EndorsementsAdded_;
         ++EndorsementCount_;
 
         YT_LOG_TRACE(
-            "Chunk replica endorsement added (ChunkId: %v, NodeId: %v, Address: %v)",
+            "Chunk replica endorsement added (ChunkId: %v, NodeAddress: %v, LocationUuid: %v)",
             chunk->GetId(),
-            nodeWithMaxId->GetId(),
-            nodeWithMaxId->GetDefaultAddress());
+            locationWithMaxId->GetNode()->GetDefaultAddress(),
+            locationWithMaxId->GetUuid());
     }
 
-    void RemoveEndorsement(TChunk* chunk, TNode* node)
+    void RemoveEndorsement(TChunk* chunk, TChunkLocation* location)
     {
-        if (chunk->GetNodeWithEndorsement() != node) {
+        if (chunk->GetLocationWithEndorsement() != location) {
             return;
         }
-        EraseOrCrash(node->ReplicaEndorsements(), chunk);
-        chunk->SetNodeWithEndorsement(nullptr);
+        EraseOrCrash(location->ReplicaEndorsements(), chunk);
+        chunk->SetLocationWithEndorsement(nullptr);
         --EndorsementCount_;
     }
 
@@ -3142,17 +3181,24 @@ private:
         if (config->StoreSequoiaReplicasOnMaster) {
             ProcessAddedReplicas(locationDirectory, node, request->added_chunks());
         }
-        // This could be under 'else', but it is not.
-        refreshSequoiaChunks(request->added_chunks());
+        if (!config->EnableSequoiaChunkRefresh) {
+            refreshSequoiaChunks(request->added_chunks());
+        }
 
-        ProcessRemovedReplicas(
-            locationDirectory,
-            node,
-            request->removed_chunks(),
-            // TODO(danilalexeev or aleksandra-zh): Make this uniform.
-            request->caused_by_node_disposal()
-                ? ERemoveReplicaReason::NodeDisposed
-                : ERemoveReplicaReason::IncrementalHeartbeat);
+        // If the node is being disposed we will remove all of its destroyed replicas anyway
+        // during location disposal.
+        // If replica removal is caused by IncrementalHeartbeat we still need to
+        // ProcessRemovedReplicas to remove it from destroyed replicas queue.
+        if (config->ProcessRemovedSequoiaReplicasOnMaster || !request->caused_by_node_disposal() || !config->EnableSequoiaChunkRefresh) {
+            ProcessRemovedReplicas(
+                locationDirectory,
+                node,
+                request->removed_chunks(),
+                // TODO(danilalexeev or aleksandra-zh): Make this uniform.
+                request->caused_by_node_disposal()
+                    ? ERemoveReplicaReason::NodeDisposed
+                    : ERemoveReplicaReason::IncrementalHeartbeat);
+        }
     }
 
     static void BuildReplicasListYson(
@@ -3224,6 +3270,7 @@ private:
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
+                    .StronglyOrdered = true,
                 };
 
                 auto result = WaitFor(transaction->Commit(commitOptions));
@@ -3239,6 +3286,12 @@ private:
     TFuture<TRspModifyReplicas> ModifySequoiaReplicas(std::unique_ptr<TReqModifyReplicas> request) override
     {
         YT_VERIFY(request->added_chunks_size() + request->removed_chunks_size() > 0);
+
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+        auto enableChunkRefresh = config->EnableSequoiaChunkRefresh;
+        auto processRemovedSequoiaReplicasOnMaster = config->ProcessRemovedSequoiaReplicasOnMaster;
+        auto storeSequoiaReplicasOnMaster = config->StoreSequoiaReplicasOnMaster;
+        auto clearMasterRequest = config->ClearMasterRequest;
 
         return Bootstrap_
             ->GetSequoiaClient()
@@ -3373,6 +3426,24 @@ private:
                         };
                         transaction->DeleteRow(locationReplicaKey);
                     }
+                    if (enableChunkRefresh) {
+                        NRecords::TChunkRefreshQueue refreshQueueEntry{
+                            .TabletIndex = GetChunkShardIndex(chunkId),
+                            .ChunkId = chunkId,
+                            .ConfirmationTime = TInstant::Now(),
+                        };
+                        transaction->WriteRow(Bootstrap_->GetCellTag(), refreshQueueEntry);
+                    }
+                }
+
+                // If we do not need replicas on master, we can make request more lightweight.
+                if (enableChunkRefresh && clearMasterRequest) {
+                    if (!storeSequoiaReplicasOnMaster) {
+                        request->mutable_added_chunks()->Clear();
+                    }
+                    if (!processRemovedSequoiaReplicasOnMaster && request->caused_by_node_disposal()) {
+                        request->mutable_removed_chunks()->Clear();
+                    }
                 }
 
                 transaction->AddTransactionAction(
@@ -3382,7 +3453,9 @@ private:
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
+                    .StronglyOrdered = true,
                 };
+
                 auto result = WaitFor(transaction->Commit(commitOptions));
                 if (IsRetriableSequoiaReplicasError(result)) {
                     THROW_ERROR_EXCEPTION(
@@ -3398,7 +3471,7 @@ private:
     }
 
     std::vector<TChunk*> ProcessAddedReplicas(
-        const TCompactVector<TChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
+        TRange<TChunkLocation*> locationDirectory,
         TNode* node,
         const auto& addedReplicas)
     {
@@ -3478,25 +3551,36 @@ private:
     {
         node->ShrinkHashTables();
 
-        for (const auto& protoRequest : request->confirmed_replica_announcement_requests()) {
-            auto chunkId = FromProto<TChunkId>(protoRequest.chunk_id());
-            auto revision = FromProto<NHydra::TRevision>(protoRequest.revision());
+        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
+        // We checked everything in TDataNodeTracker::HydraIncrementalDataNodeHeartbeat.
+        auto locationDirectory = ParseLocationDirectory(dataNodeTracker, *request);
 
-            if (auto* chunk = FindChunk(chunkId); IsObjectAlive(chunk)) {
-                auto it = node->ReplicaEndorsements().find(chunk);
-                if (it != node->ReplicaEndorsements().end() && it->second == revision) {
-                    RemoveEndorsement(chunk, node);
-                    ++EndorsementsConfirmed_;
-                }
+        auto maybeRemoveEndorsement = [&] (
+            TChunkLocation* location, TChunk* chunk, NHydra::TRevision revision)
+        {
+            auto it = location->ReplicaEndorsements().find(chunk);
+            if (it != location->ReplicaEndorsements().end() && it->second == revision) {
+                RemoveEndorsement(chunk, location);
+                ++EndorsementsConfirmed_;
+            }
+        };
+
+        for (const auto& protoRequest : request->confirmed_replica_announcement_requests()) {
+            auto* chunk = FindChunk(FromProto<TChunkId>(protoRequest.chunk_id()));
+            if (!IsObjectAlive(chunk)) {
+                continue;
+            }
+
+            auto revision = FromProto<NHydra::TRevision>(protoRequest.revision());
+            // COMPAT(danilalexeev): YT-23781.
+            for (auto location : node->ChunkLocations()) {
+                maybeRemoveEndorsement(location, chunk, revision);
             }
         }
 
-        const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
-        // We checked everything in TDataNodeTracker::ProcessIncrementalHeartbeat.
-        auto locationDirectory = ParseLocationDirectory(dataNodeTracker, *request);
         auto announceReplicaRequests = ProcessAddedReplicas(locationDirectory, node, request->added_chunks());
 
-        SetAnnounceReplicaRequests(response, node, announceReplicaRequests);
+        SetAnnounceReplicaRequests(response, node->ChunkLocations(), announceReplicaRequests);
 
         const auto& counters = GetIncrementalHeartbeatCounters(node);
         counters.RemovedChunks.Increment(request->removed_chunks().size());
@@ -3514,7 +3598,7 @@ private:
         const auto& dynamicConfig = GetDynamicConfig();
 
         int removedUnapprovedReplicaCount = 0;
-        for (auto* location : node->ChunkLocations()) {
+        for (auto location : node->ChunkLocations()) {
             auto& unapprovedReplicas = location->UnapprovedReplicas();
             for (auto it = unapprovedReplicas.begin(); it != unapprovedReplicas.end();) {
                 auto jt = it++;
@@ -3999,7 +4083,7 @@ private:
 
     void ExportChunks(
         TTransaction* transaction,
-        TRange<TChunk*> chunks,
+        TRange<TChunkRawPtr> chunks,
         TCellTag destinationCellTag,
         google::protobuf::RepeatedPtrField<TChunkImportData>* importRequests) override
     {
@@ -4013,7 +4097,7 @@ private:
 
         std::vector<std::pair<TChunk*, TCellTag>> request;
         request.reserve(chunks.size());
-        for (auto* chunk : chunks) {
+        for (auto chunk : chunks) {
             YT_VERIFY(chunk->IsNative());
             request.emplace_back(chunk, destinationCellTag);
         }
@@ -4541,7 +4625,7 @@ private:
             ? FromProto<TTransactionId>(subrequest->transaction_id())
             : NullTransactionId;
 
-        std::vector<TChunkTree*> children;
+        std::vector<TChunkTreeRawPtr> children;
         children.reserve(subrequest->child_ids_size());
         for (const auto& protoChildId : subrequest->child_ids()) {
             auto childId = FromProto<TChunkTreeId>(protoChildId);
@@ -4575,7 +4659,7 @@ private:
             // YT-6542: Make sure we never attach a chunk list to its parent more than once.
             if (child->GetType() == EObjectType::ChunkList) {
                 auto* chunkListChild = child->AsChunkList();
-                for (auto* someParent : chunkListChild->Parents()) {
+                for (auto someParent : chunkListChild->Parents()) {
                     if (someParent == parent) {
                         THROW_ERROR_EXCEPTION("Chunk list %v already has %v as its parent",
                             chunkListChild->GetId(),
@@ -4643,6 +4727,9 @@ private:
         MediumMap_.LoadKeys(context);
         ChunkViewMap_.LoadKeys(context);
         DynamicStoreMap_.LoadKeys(context);
+
+        // COMPAT(ifsmirnov)
+        NeedRecomputeOrderedTabletStatistics_ = context.GetVersion() < EMasterReign::RipLogicalChunkCount;
     }
 
     void LoadHistogramValues(
@@ -4767,7 +4854,7 @@ private:
 
             const auto& nodeTracker = Bootstrap_->GetNodeTracker();
             for (auto [_, node] : nodeTracker->Nodes()) {
-                for (auto* location : node->ChunkLocations()) {
+                for (auto location : node->ChunkLocations()) {
                     runner.Add(location);
                 }
             }
@@ -4798,13 +4885,12 @@ private:
                     continue;
                 }
 
-                for (auto [chunk, revision] : node->ReplicaEndorsements()) {
-                    YT_VERIFY(!chunk->GetNodeWithEndorsement());
-                    chunk->SetNodeWithEndorsement(node);
-                }
-                EndorsementCount_ += ssize(node->ReplicaEndorsements());
-
-                for (auto* location : node->ChunkLocations()) {
+                for (auto location : node->ChunkLocations()) {
+                    for (auto [chunk, revision] : location->ReplicaEndorsements()) {
+                        YT_VERIFY(!chunk->GetLocationWithEndorsement());
+                        chunk->SetLocationWithEndorsement(location);
+                    }
+                    EndorsementCount_ += ssize(location->ReplicaEndorsements());
                     DestroyedReplicaCount_ += location->GetDestroyedReplicasCount();
                 }
             }
@@ -4836,6 +4922,19 @@ private:
             ChunkPlacement_->Initialize();
 
             YT_LOG_INFO("Finished initializing chunk placement");
+        }
+
+        // COMPAT(ifsmirnov)
+        if (NeedRecomputeOrderedTabletStatistics_) {
+            YT_LOG_INFO("Started initializing chunk lists");
+
+            for (auto [_, chunkList] : ChunkListMap_) {
+                if (chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet) {
+                    RecomputeOrderedTabletCumulativeStatistics(chunkList);
+                }
+            }
+
+            YT_LOG_INFO("Finished initializing chunk lists");
         }
     }
 
@@ -4897,6 +4996,7 @@ private:
         DefaultStoreMedium_ = nullptr;
 
         NeedRecomputeChunkWeightStatisticsHistogram_ = false;
+        NeedRecomputeOrderedTabletStatistics_ = false;
     }
 
     void SetZeroState() override
@@ -4975,7 +5075,7 @@ private:
             YT_ABORT();
         }
 
-        for (auto* child : chunkList->Children()) {
+        for (auto child : chunkList->Children()) {
             YT_VERIFY(child);
             auto childStatistics = GetChunkTreeStatistics(child);
             statistics.Accumulate(childStatistics);
@@ -5007,19 +5107,16 @@ private:
         }
     }
 
-    // Fix for YT-10619.
     void RecomputeOrderedTabletCumulativeStatistics(TChunkList* chunkList)
     {
         YT_VERIFY(chunkList->GetKind() == EChunkListKind::OrderedDynamicTablet);
 
         auto getChildStatisticsEntry = [] (TChunkTree* child) {
-            return child
-                ? TCumulativeStatisticsEntry{child->AsChunk()->GetStatistics()}
-                : TCumulativeStatisticsEntry(0 /*RowCount*/, 1 /*ChunkCount*/, 0 /*DataSize*/);
+            return TCumulativeStatisticsEntry(GetChunkTreeStatistics(child));
         };
 
         TCumulativeStatisticsEntry beforeFirst{chunkList->Statistics()};
-        for (auto* child : chunkList->Children()) {
+        for (auto child : chunkList->Children()) {
             auto childEntry = getChildStatisticsEntry(child);
             beforeFirst = beforeFirst - childEntry;
         }
@@ -5033,7 +5130,7 @@ private:
         cumulativeStatistics.TrimFront(1);
 
         auto currentStatistics = beforeFirst;
-        for (auto* child : chunkList->Children()) {
+        for (auto child : chunkList->Children()) {
             auto childEntry = getChildStatisticsEntry(child);
             currentStatistics = currentStatistics + childEntry;
             cumulativeStatistics.PushBack(childEntry);
@@ -5085,7 +5182,7 @@ private:
                     stack.pop_back();
                 } else {
                     ++stack.back().second;
-                    auto* child = chunkList->Children()[childIndex];
+                    auto child = chunkList->Children()[childIndex];
                     if (child && child->GetType() == EObjectType::ChunkList) {
                         visit(child->AsChunkList());
                     }
@@ -5106,7 +5203,7 @@ private:
 
             for (int childIndex = 0; childIndex < childCount; ++childIndex) {
                 // TODO(ifsmirnov): think of it in context of nullptrs and cumulative statistics.
-                auto* child = chunkList->Children()[childIndex];
+                auto child = chunkList->Children()[childIndex];
                 if (!child) {
                     continue;
                 }
@@ -5135,7 +5232,7 @@ private:
                 if (childIndex + 1 < childCount && chunkList->HasCumulativeStatistics()) {
                     cumulativeStatistics.PushBack(TCumulativeStatisticsEntry{
                         childStatistics.LogicalRowCount,
-                        childStatistics.LogicalChunkCount,
+                        childStatistics.ChunkCount,
                         childStatistics.UncompressedDataSize
                     });
                 }
@@ -5235,6 +5332,12 @@ private:
         ChunkPlacement_->Initialize();
 
         ChunkReplicator_->OnEpochStarted();
+
+        SequoiaChunkRefreshExecutor_ = New<TPeriodicExecutor>(
+            Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkManager),
+            BIND(&TChunkManager::OnSequoiaChunkRefresh, MakeWeak(this)),
+            GetDynamicConfig()->SequoiaChunkReplicas->SequoiaChunkRefreshPeriod);
+        SequoiaChunkRefreshExecutor_->Start();
     }
 
     void OnEpochFinished()
@@ -5244,6 +5347,12 @@ private:
         ChunkReplicator_->OnEpochFinished();
 
         ChunksBeingPurged_ = false;
+        if (SequoiaChunkRefreshExecutor_) {
+            YT_UNUSED_FUTURE(SequoiaChunkRefreshExecutor_->Stop());
+            SequoiaChunkRefreshExecutor_.Reset();
+        }
+
+        FetchingSequoiaChunksToRefresh_ = false;
     }
 
     void RegisterChunk(TChunk* chunk)
@@ -5319,6 +5428,104 @@ private:
         }
     }
 
+    void OnSequoiaChunkRefresh()
+    {
+        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
+        if (!config->Enable || !config->EnableSequoiaChunkRefresh) {
+            return;
+        }
+
+        if (GetDynamicConfig()->Testing->DisableSequoiaChunkRefresh) {
+            return;
+        }
+
+        if (FetchingSequoiaChunksToRefresh_) {
+            YT_LOG_INFO("Sequoia chunks are still being fetched for refresh");
+            return;
+        }
+        FetchingSequoiaChunksToRefresh_ = true;
+
+        auto limit = config->SequoiaChunkCountToFetchFromRefreshQueue;
+        const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
+        std::vector<TFuture<std::vector<NRecords::TChunkRefreshQueue>>> getChunksFutures;
+        std::vector<int> indices;
+        for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+            if (incumbentManager->HasIncumbency(EIncumbentType::ChunkReplicator, shardIndex)) {
+                getChunksFutures.push_back(ChunkReplicaFetcher_->GetChunksToRefresh(shardIndex, limit));
+                indices.push_back(shardIndex);
+            }
+        }
+
+        AllSet(getChunksFutures)
+            .Subscribe(BIND([this, this_ = MakeStrong(this), indices = std::move(indices)] (const TErrorOr<std::vector<TErrorOr<std::vector<NRecords::TChunkRefreshQueue>>>>& allSetResult) {
+                auto finallyGuard = Finally([&] {
+                    FetchingSequoiaChunksToRefresh_ = false;
+                });
+
+                if (!allSetResult.IsOK()) {
+                    YT_LOG_WARNING(allSetResult, "Error getting chunks to refresh");
+                    return;
+                }
+
+                const auto& results = allSetResult.Value();
+                std::vector<TChunkId> chunkIdsToRefresh;
+                THashMap<int, i64> indexToTrimmedRowCount;
+                for (const auto& [result, shardIndex] : Zip(results, indices)) {
+                    if (!result.IsOK()) {
+                        YT_LOG_WARNING(result, "Error getting chunks to refresh from shard (ShardIndex: %v)",
+                            shardIndex);
+                        continue;
+                    }
+
+                    const auto& refreshRecords = result.Value();
+                    for (const auto& refreshRecord : refreshRecords) {
+                        chunkIdsToRefresh.push_back(refreshRecord.ChunkId);
+                    }
+
+                    if (!refreshRecords.empty()) {
+                        indexToTrimmedRowCount[shardIndex] = refreshRecords.back().RowIndex + 1;
+                    }
+                }
+                SortUnique(chunkIdsToRefresh);
+
+                auto refreshChunks = BIND([chunkIdsToRefresh = std::move(chunkIdsToRefresh), this, this_ = MakeStrong(this)] {
+                    for (auto chunkId : chunkIdsToRefresh) {
+                        auto* chunk = FindChunk(chunkId);
+                        if (IsObjectAlive(chunk)) {
+                            ScheduleChunkRefresh(chunk);
+                        }
+                    }
+                });
+                auto refreshResult = WaitFor(refreshChunks
+                    .AsyncVia(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ChunkManager))
+                    .Run());
+                if (!refreshResult.IsOK()) {
+                    YT_LOG_WARNING(refreshResult, "Error refreshing Sequoia chunks");
+                    return;
+                }
+
+                TSequoiaTablePathDescriptor descriptor{
+                    .Table = ESequoiaTable::ChunkRefreshQueue,
+                    .MasterCellTag = Bootstrap_->GetCellTag(),
+                };
+                std::vector<TFuture<void>> trimFutures;
+                trimFutures.reserve(indexToTrimmedRowCount.size());
+                for (auto [index, trimmedRowCount] : indexToTrimmedRowCount) {
+                    YT_LOG_DEBUG("Trimming table (Index: %v, TrimmedRowCount: %v)",
+                        index,
+                        trimmedRowCount);
+                    // Index is both replicator shard index and tablet index.
+                    trimFutures.push_back(Bootstrap_
+                        ->GetSequoiaClient()
+                        ->TrimTable(descriptor, index, trimmedRowCount));
+                }
+                auto trimResult = WaitFor(AllSucceeded(trimFutures));
+                if (!trimResult.IsOK()) {
+                    YT_LOG_WARNING(trimResult, "Error trimming refresh table");
+                }
+            }).Via(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+    }
+
     TFuture<void> RemoveDeadSequoiaChunkReplicas(std::unique_ptr<NProto::TReqRemoveDeadSequoiaChunkReplicas> request)
     {
         return Bootstrap_
@@ -5355,6 +5562,7 @@ private:
                 NApi::TTransactionCommitOptions commitOptions{
                     .CoordinatorCellId = Bootstrap_->GetCellId(),
                     .CoordinatorPrepareMode = NApi::ETransactionCoordinatorPrepareMode::Late,
+                    .StronglyOrdered = true,
                 };
                 WaitFor(transaction->Commit(commitOptions))
                     .ThrowOnError();
@@ -5463,7 +5671,7 @@ private:
         EAddReplicaReason reason)
     {
         auto* chunk = replica.GetPtr();
-        auto* node = chunkLocation->GetNode();
+        auto node = chunkLocation->GetNode();
         auto nodeId = node->GetId();
 
         if (!chunkLocation->AddReplica(replica)) {
@@ -5501,7 +5709,7 @@ private:
         TChunkPtrWithReplicaInfo chunkWithIndexes)
     {
         auto* chunk = chunkWithIndexes.GetPtr();
-        auto* node = location->GetNode();
+        auto node = location->GetNode();
         TChunkLocationPtrWithReplicaInfo locationWithIndexes(
             location,
             chunkWithIndexes.GetReplicaIndex(),
@@ -5527,7 +5735,7 @@ private:
     {
         auto* chunk = replica.GetPtr();
         YT_VERIFY(chunk);
-        auto* node = chunkLocation->GetNode();
+        auto node = chunkLocation->GetNode();
         auto nodeId = node->GetId();
         TChunkLocationPtrWithReplicaIndex locationWithIndex(chunkLocation, replica.GetReplicaIndex());
 
@@ -5627,7 +5835,7 @@ private:
 
     TChunk* ProcessAddedChunk(
         TNode* node,
-        const TCompactVector<TChunkLocation*, TypicalChunkLocationCount>& locationDirectory,
+        TRange<TChunkLocation*> locationDirectory,
         const TChunkAddInfo& chunkAddInfo,
         bool incremental)
     {

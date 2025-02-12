@@ -27,17 +27,30 @@ struct IDataNodeTracker
 {
     virtual void Initialize() = 0;
 
+    // COMPAT(danilalexeev): YT-23781.
     using TCtxFullHeartbeat = NRpc::TTypedServiceContext<
         NDataNodeTrackerClient::NProto::TReqFullHeartbeat,
         NDataNodeTrackerClient::NProto::TRspFullHeartbeat>;
     using TCtxFullHeartbeatPtr = TIntrusivePtr<TCtxFullHeartbeat>;
-    virtual void ProcessFullHeartbeat(TCtxFullHeartbeatPtr context) = 0;
-
-    // COMPAT(gritukan)
     virtual void ProcessFullHeartbeat(
-        NNodeTrackerServer::TNode* node,
-        NDataNodeTrackerClient::NProto::TReqFullHeartbeat* request,
-        NDataNodeTrackerClient::NProto::TRspFullHeartbeat* response) = 0;
+        const TNode* node,
+        const TCtxFullHeartbeatPtr& context) = 0;
+
+    using TCtxLocationFullHeartbeat = NRpc::TTypedServiceContext<
+        NDataNodeTrackerClient::NProto::TReqLocationFullHeartbeat,
+        NDataNodeTrackerClient::NProto::TRspLocationFullHeartbeat>;
+    using TCtxLocationFullHeartbeatPtr = TIntrusivePtr<TCtxLocationFullHeartbeat>;
+    virtual void ProcessLocationFullHeartbeat(
+        const TNode* node,
+        const TCtxLocationFullHeartbeatPtr& context) = 0;
+
+    using TCtxFinalizeFullHeartbeatSession = NRpc::TTypedServiceContext<
+        NDataNodeTrackerClient::NProto::TReqFinalizeFullHeartbeatSession,
+        NDataNodeTrackerClient::NProto::TRspFinalizeFullHeartbeatSession>;
+    using TCtxFinalizeFullHeartbeatSessionPtr = TIntrusivePtr<TCtxFinalizeFullHeartbeatSession>;
+    virtual void FinalizeFullHeartbeatSession(
+        const TNode* node,
+        const TCtxFinalizeFullHeartbeatSessionPtr& context) = 0;
 
     using TCtxIncrementalHeartbeat = NRpc::TTypedServiceContext<
         NDataNodeTrackerClient::NProto::TReqIncrementalHeartbeat,

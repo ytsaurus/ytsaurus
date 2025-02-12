@@ -27,7 +27,7 @@ TCumulativeStatisticsEntry::TCumulativeStatisticsEntry()
 
 TCumulativeStatisticsEntry::TCumulativeStatisticsEntry(const TChunkTreeStatistics& statistics)
     : RowCount(statistics.LogicalRowCount)
-    , ChunkCount(statistics.LogicalChunkCount)
+    , ChunkCount(statistics.ChunkCount)
     , DataSize(statistics.UncompressedDataSize)
 { }
 
@@ -39,20 +39,32 @@ TCumulativeStatisticsEntry::TCumulativeStatisticsEntry(i64 rowCount, i64 chunkCo
 
 TCumulativeStatisticsEntry TCumulativeStatisticsEntry::operator+(const TCumulativeStatisticsEntry& other) const
 {
-    return TCumulativeStatisticsEntry{
-        RowCount + other.RowCount,
-        ChunkCount + other.ChunkCount,
-        DataSize + other.DataSize
-    };
+    auto copy = *this;
+    return copy += other;
 }
 
 TCumulativeStatisticsEntry TCumulativeStatisticsEntry::operator-(const TCumulativeStatisticsEntry& other) const
 {
-    return TCumulativeStatisticsEntry{
-        RowCount - other.RowCount,
-        ChunkCount - other.ChunkCount,
-        DataSize - other.DataSize
-    };
+    auto copy = *this;
+    return copy -= other;
+}
+
+TCumulativeStatisticsEntry& TCumulativeStatisticsEntry::operator+=(const TCumulativeStatisticsEntry& other)
+{
+    RowCount += other.RowCount;
+    ChunkCount += other.ChunkCount;
+    DataSize += other.DataSize;
+
+    return *this;
+}
+
+TCumulativeStatisticsEntry& TCumulativeStatisticsEntry::operator-=(const TCumulativeStatisticsEntry& other)
+{
+    RowCount -= other.RowCount;
+    ChunkCount -= other.ChunkCount;
+    DataSize -= other.DataSize;
+
+    return *this;
 }
 
 void FormatValue(TStringBuilderBase* builder, const TCumulativeStatisticsEntry& entry, TStringBuf /*spec*/)
@@ -115,7 +127,11 @@ void TCumulativeStatistics::PushBack(const TCumulativeStatisticsEntry& entry)
 
         case TrimmableAlternativeIndex: {
             auto& statistics = AsTrimmable();
-            statistics.push_back(entry + statistics.back());
+            if (statistics.size() == 1) {
+                statistics.push_back(entry);
+            } else {
+                statistics.push_back(entry + statistics.back());
+            }
             break;
         }
 
@@ -149,8 +165,8 @@ void TCumulativeStatistics::Update(int index, const TCumulativeStatisticsEntry& 
     switch (GetImplementationIndex()) {
         case AppendableAlternativeIndex: {
             auto& statistics = AsAppendable();
-            for (int currentIndex = index; currentIndex < std::ssize(statistics); ++currentIndex) {
-                statistics[currentIndex] = statistics[currentIndex] + delta;
+            for (int currentIndex = index; currentIndex < ssize(statistics); ++currentIndex) {
+                statistics[currentIndex] += delta;
             }
             break;
         }
@@ -165,7 +181,7 @@ void TCumulativeStatistics::Update(int index, const TCumulativeStatisticsEntry& 
         case TrimmableAlternativeIndex: {
             auto& statistics = AsTrimmable();
             YT_VERIFY(index == std::ssize(statistics) - 2);
-            statistics[index + 1] = statistics[index + 1] + delta;
+            statistics[index + 1] += delta;
             break;
         }
 
@@ -234,10 +250,13 @@ int TCumulativeStatistics::LowerBound(i64 value, i64 TCumulativeStatisticsEntry:
             return std::max(0, AsModifiable().LowerBound(value, comparator) - 1);
 
         case TrimmableAlternativeIndex:
+            if (value <= AsTrimmable().front().*member) {
+                return 0;
+            }
             return std::lower_bound(
-                AsTrimmable().begin(),
+                AsTrimmable().begin() + 1,
                 AsTrimmable().end(),
-                value,
+                value - AsTrimmable().front().*member,
                 comparator) - AsTrimmable().begin() - 1;
 
         default:
@@ -263,10 +282,13 @@ int TCumulativeStatistics::UpperBound(i64 value, i64 TCumulativeStatisticsEntry:
             return std::max(0, AsModifiable().UpperBound(value, comparator) - 1);
 
         case TrimmableAlternativeIndex:
+            if (value < AsTrimmable().front().*member) {
+                return 0;
+            }
             return std::upper_bound(
-                AsTrimmable().begin(),
+                AsTrimmable().begin() + 1,
                 AsTrimmable().end(),
-                value,
+                value - AsTrimmable().front().*member,
                 comparator) - AsTrimmable().begin() - 1;
 
         default:
@@ -289,7 +311,7 @@ TCumulativeStatisticsEntry TCumulativeStatistics::GetCurrentSum(int index) const
             return AsModifiable().GetCumulativeSum(index + 1);
 
         case TrimmableAlternativeIndex:
-            return AsTrimmable()[index + 1];
+            return AsTrimmable()[index + 1] + AsTrimmable().front();
 
         default:
             YT_ABORT();
@@ -317,9 +339,23 @@ void TCumulativeStatistics::TrimFront(int entryCount)
     YT_VERIFY(entryCount <= Size());
 
     auto& statistics = AsTrimmable();
+
+    auto addToAllButFirst = [&] (const auto& delta) {
+        for (int index = 1; index < ssize(statistics); ++index) {
+            statistics[index] += delta;
+        }
+    };
+
+    // Simplify the structrure so |statistics| contains real prefix sums.
+    addToAllButFirst(statistics.front());
+
+    // Remove necessary elements.
     statistics.erase(
         statistics.begin(),
         statistics.begin() + entryCount);
+
+    // Restore the structure back subtracting the first entry from others.
+    addToAllButFirst(TCumulativeStatisticsEntry{} - statistics.front());
 }
 
 void TCumulativeStatistics::TrimBack(int entryCount)
@@ -330,6 +366,11 @@ void TCumulativeStatistics::TrimBack(int entryCount)
     statistics.erase(
         statistics.end() - entryCount,
         statistics.end());
+}
+
+void TCumulativeStatistics::UpdateBeforeBeginning(const TCumulativeStatisticsEntry& delta)
+{
+    AsTrimmable().front() += delta;
 }
 
 size_t TCumulativeStatistics::GetImplementationIndex() const

@@ -1,5 +1,6 @@
 #include "raw_client.h"
 
+#include "raw_batch_request.h"
 #include "rpc_parameters_serialization.h"
 
 #include <yt/cpp/mapreduce/common/helpers.h>
@@ -41,9 +42,9 @@ ESecurityAction FromApiSecurityAction(NSecurityClient::ESecurityAction action)
 
 TRpcRawClient::TRpcRawClient(
     NApi::IClientPtr client,
-    const TClientContext& context)
+    const TConfigPtr& config)
     : Client_(std::move(client))
-    , Context_(context)
+    , Config_(config)
 { }
 
 TNode TRpcRawClient::Get(
@@ -51,7 +52,7 @@ TNode TRpcRawClient::Get(
     const TYPath& path,
     const TGetOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->GetNode(newPath, SerializeOptionsForGet(transactionId, options));
     auto result = WaitFor(future).ValueOrThrow();
     return NodeFromYsonString(result.AsStringBuf());
@@ -79,7 +80,7 @@ void TRpcRawClient::Set(
     const TNode& value,
     const TSetOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto ysonValue = NYson::TYsonString(NodeToYsonString(value, NYson::EYsonFormat::Binary));
     auto future = Client_->SetNode(newPath, ysonValue, SerializeOptionsForSet(mutationId, transactionId, options));
     WaitFor(future).ThrowOnError();
@@ -90,7 +91,7 @@ bool TRpcRawClient::Exists(
     const TYPath& path,
     const TExistsOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->NodeExists(newPath, SerializeOptionsForExists(transactionId, options));
     return WaitFor(future).ValueOrThrow();
 }
@@ -102,7 +103,7 @@ void TRpcRawClient::MultisetAttributes(
     const TNode::TMapType& value,
     const TMultisetAttributesOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto attributes = NYTree::ConvertToAttributes(
         NYson::TYsonString(NodeToYsonString(value, NYson::EYsonFormat::Binary)));
     auto future = Client_->MultisetAttributesNode(newPath, attributes->ToMap(), SerializeOptionsForMultisetAttributes(mutationId, transactionId, options));
@@ -116,7 +117,7 @@ TNodeId TRpcRawClient::Create(
     const ENodeType& type,
     const TCreateOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->CreateNode(newPath, ToApiObjectType(type), SerializeOptionsForCreate(mutationId, transactionId, options));
     auto result = WaitFor(future).ValueOrThrow();
     return UtilGuidFromYtGuid(result);
@@ -129,8 +130,8 @@ TNodeId TRpcRawClient::CopyWithoutRetries(
     const TCopyOptions& options)
 {
     TMutationId mutationId;
-    auto newSourcePath = AddPathPrefix(sourcePath, Context_.Config->Prefix);
-    auto newDestinationPath = AddPathPrefix(destinationPath, Context_.Config->Prefix);
+    auto newSourcePath = AddPathPrefix(sourcePath, Config_->Prefix);
+    auto newDestinationPath = AddPathPrefix(destinationPath, Config_->Prefix);
     auto future = Client_->CopyNode(newSourcePath, newDestinationPath, SerializeOptionsForCopy(mutationId, transactionId, options));
     auto result = WaitFor(future).ValueOrThrow();
     return UtilGuidFromYtGuid(result);
@@ -143,8 +144,8 @@ TNodeId TRpcRawClient::CopyInsideMasterCell(
     const TYPath& destinationPath,
     const TCopyOptions& options)
 {
-    auto newSourcePath = AddPathPrefix(sourcePath, Context_.Config->Prefix);
-    auto newDestinationPath = AddPathPrefix(destinationPath, Context_.Config->Prefix);
+    auto newSourcePath = AddPathPrefix(sourcePath, Config_->Prefix);
+    auto newDestinationPath = AddPathPrefix(destinationPath, Config_->Prefix);
 
     // Make cross cell copying disable.
     auto newOptions = SerializeOptionsForCopy(mutationId, transactionId, options);
@@ -162,8 +163,8 @@ TNodeId TRpcRawClient::MoveWithoutRetries(
     const TMoveOptions& options)
 {
     TMutationId mutationId;
-    auto newSourcePath = AddPathPrefix(sourcePath, Context_.Config->Prefix);
-    auto newDestinationPath = AddPathPrefix(destinationPath, Context_.Config->Prefix);
+    auto newSourcePath = AddPathPrefix(sourcePath, Config_->Prefix);
+    auto newDestinationPath = AddPathPrefix(destinationPath, Config_->Prefix);
     auto future = Client_->MoveNode(newSourcePath, newDestinationPath, SerializeOptionsForMove(mutationId, transactionId, options));
     auto result = WaitFor(future).ValueOrThrow();
     return UtilGuidFromYtGuid(result);
@@ -176,8 +177,8 @@ TNodeId TRpcRawClient::MoveInsideMasterCell(
     const TYPath& destinationPath,
     const TMoveOptions& options)
 {
-    auto newSourcePath = AddPathPrefix(sourcePath, Context_.Config->Prefix);
-    auto newDestinationPath = AddPathPrefix(destinationPath, Context_.Config->Prefix);
+    auto newSourcePath = AddPathPrefix(sourcePath, Config_->Prefix);
+    auto newDestinationPath = AddPathPrefix(destinationPath, Config_->Prefix);
 
     // Make cross cell copying disable.
     auto newOptions = SerializeOptionsForMove(mutationId, transactionId, options);
@@ -194,7 +195,7 @@ void TRpcRawClient::Remove(
     const TYPath& path,
     const TRemoveOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->RemoveNode(newPath, SerializeOptionsForRemove(mutationId, transactionId, options));
     WaitFor(future).ThrowOnError();
 }
@@ -204,7 +205,7 @@ TNode::TListType TRpcRawClient::List(
     const TYPath& path,
     const TListOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->ListNode(newPath, SerializeOptionsForList(transactionId, options));
     auto result = WaitFor(future).ValueOrThrow();
     return NodeFromYsonString(result.AsStringBuf()).AsList();
@@ -217,8 +218,8 @@ TNodeId TRpcRawClient::Link(
     const TYPath& linkPath,
     const TLinkOptions& options)
 {
-    auto newTargetPath = AddPathPrefix(targetPath, Context_.Config->Prefix);
-    auto newLinkPath = AddPathPrefix(linkPath, Context_.Config->Prefix);
+    auto newTargetPath = AddPathPrefix(targetPath, Config_->Prefix);
+    auto newLinkPath = AddPathPrefix(linkPath, Config_->Prefix);
     auto future = Client_->LinkNode(newTargetPath, newLinkPath, SerializeOptionsForLink(mutationId, transactionId, options));
     auto result = WaitFor(future).ValueOrThrow();
     return UtilGuidFromYtGuid(result);
@@ -231,7 +232,7 @@ TLockId TRpcRawClient::Lock(
     ELockMode mode,
     const TLockOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->LockNode(newPath, ToApiLockMode(mode), SerializeOptionsForLock(mutationId, transactionId, options));
     auto result = WaitFor(future).ValueOrThrow();
     return UtilGuidFromYtGuid(result.LockId);
@@ -243,7 +244,7 @@ void TRpcRawClient::Unlock(
     const TYPath& path,
     const TUnlockOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->UnlockNode(newPath, SerializeOptionsForUnlock(mutationId, transactionId, options));
     WaitFor(future).ThrowOnError();
 }
@@ -257,12 +258,12 @@ void TRpcRawClient::Concatenate(
     std::vector<NYPath::TRichYPath> newSourcePaths;
     for (const auto& sourcePath : sourcePaths) {
         auto newSourcePath = ToApiRichPath(sourcePath);
-        newSourcePath.SetPath(AddPathPrefix(newSourcePath.GetPath(), Context_.Config->Prefix));
+        newSourcePath.SetPath(AddPathPrefix(newSourcePath.GetPath(), Config_->Prefix));
         newSourcePaths.emplace_back(std::move(newSourcePath));
     }
 
     auto newDestinationPath = ToApiRichPath(destinationPath);
-    newDestinationPath.SetPath(AddPathPrefix(newDestinationPath.GetPath(), Context_.Config->Prefix));
+    newDestinationPath.SetPath(AddPathPrefix(newDestinationPath.GetPath(), Config_->Prefix));
     if (options.Append_) {
         newDestinationPath.SetAppend(*options.Append_);
     }
@@ -279,7 +280,7 @@ TTransactionId TRpcRawClient::StartTransaction(
 {
     auto future = Client_->StartTransaction(
         NTransactionClient::ETransactionType::Master,
-        SerializeOptionsForStartTransaction(mutationId, parentId, Context_.Config->TxTimeout, options));
+        SerializeOptionsForStartTransaction(mutationId, parentId, Config_->TxTimeout, options));
     auto result = WaitFor(future).ValueOrThrow();
     return UtilGuidFromYtGuid(result->GetId());
 }
@@ -763,7 +764,7 @@ TYPath TRpcRawClient::PutFileToCache(
     const TYPath& cachePath,
     const TPutFileToCacheOptions& options)
 {
-    auto newFilePath = AddPathPrefix(filePath, Context_.Config->Prefix);
+    auto newFilePath = AddPathPrefix(filePath, Config_->Prefix);
     auto future = Client_->PutFileToCache(newFilePath, md5Signature, SerializeOptionsForPutFileToCache(transactionId, cachePath, options));
     auto result = WaitFor(future).ValueOrThrow();
     return result.Path;
@@ -774,7 +775,7 @@ void TRpcRawClient::MountTable(
     const TYPath& path,
     const TMountTableOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->MountTable(newPath, SerializeOptionsForMountTable(mutationId, options));
     WaitFor(future).ThrowOnError();
 }
@@ -784,7 +785,7 @@ void TRpcRawClient::UnmountTable(
     const TYPath& path,
     const TUnmountTableOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->UnmountTable(newPath, SerializeOptionsForUnmountTable(mutationId, options));
     WaitFor(future).ThrowOnError();
 }
@@ -794,7 +795,7 @@ void TRpcRawClient::RemountTable(
     const TYPath& path,
     const TRemountTableOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->RemountTable(newPath, SerializeOptionsForRemountTable(mutationId, options));
     WaitFor(future).ThrowOnError();
 }
@@ -805,7 +806,7 @@ void TRpcRawClient::ReshardTableByPivotKeys(
     const TVector<TKey>& keys,
     const TReshardTableOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
 
     std::vector<NTableClient::TLegacyOwningKey> pivotKeys;
     pivotKeys.reserve(keys.size());
@@ -833,7 +834,7 @@ void TRpcRawClient::ReshardTableByTabletCount(
     i64 tabletCount,
     const TReshardTableOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->ReshardTable(newPath, tabletCount, SerializeOptionsForReshardTable(mutationId, options));
     WaitFor(future).ThrowOnError();
 }
@@ -1019,7 +1020,7 @@ void TRpcRawClient::FreezeTable(
     const TYPath& path,
     const TFreezeTableOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->FreezeTable(newPath, SerializeOptionsForFreezeTable(options));
     WaitFor(future).ThrowOnError();
 }
@@ -1028,7 +1029,7 @@ void TRpcRawClient::UnfreezeTable(
     const TYPath& path,
     const TUnfreezeTableOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->UnfreezeTable(newPath, SerializeOptionsForUnfreezeTable(options));
     WaitFor(future).ThrowOnError();
 }
@@ -1066,7 +1067,7 @@ TCheckPermissionResponse TRpcRawClient::CheckPermission(
     const TYPath& path,
     const TCheckPermissionOptions& options)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->CheckPermission(user, newPath, ToApiPermission(permission), SerializeOptionsForCheckPermission(options));
     auto result = WaitFor(future).ValueOrThrow();
     return ParseCheckPermissionResponse(result);
@@ -1077,7 +1078,7 @@ TVector<TTabletInfo> TRpcRawClient::GetTabletInfos(
     const TVector<int>& tabletIndexes,
     const TGetTabletInfosOptions& /*options*/)
 {
-    auto newPath = AddPathPrefix(path, Context_.Config->Prefix);
+    auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->GetTabletInfos(newPath, tabletIndexes);
     auto tabletInfos = WaitFor(future).ValueOrThrow();
 
@@ -1182,7 +1183,12 @@ ui64 TRpcRawClient::GenerateTimestamp()
 
 IRawBatchRequestPtr TRpcRawClient::CreateRawBatchRequest()
 {
-    YT_UNIMPLEMENTED();
+    return MakeIntrusive<TRpcRawBatchRequest>(Clone(), Config_);
+}
+
+IRawClientPtr TRpcRawClient::Clone()
+{
+    return ::MakeIntrusive<TRpcRawClient>(Client_, Config_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

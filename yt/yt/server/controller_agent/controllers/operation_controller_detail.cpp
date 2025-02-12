@@ -398,7 +398,18 @@ TExtendedJobResources TOperationControllerBase::GetAutoMergeResources(
     result.SetCpu(1);
     // TODO(max42): this way to estimate memory of an auto-merge job is wrong as it considers each
     // auto-merge task writing to all output tables.
-    result.SetJobProxyMemory(GetFinalIOMemorySize(Spec_->AutoMerge->JobIO, AggregateStatistics(statistics)));
+    auto jobProxyMemory = GetFinalIOMemorySize(
+        Spec_->AutoMerge->JobIO,
+        /*useEstimatedBufferSize*/ true,
+        AggregateStatistics(statistics));
+    auto jobProxyMemoryWithFixedWriteBufferSize = GetFinalIOMemorySize(
+        Spec_->AutoMerge->JobIO,
+        /*useEstimatedBufferSize*/ false,
+        AggregateStatistics(statistics));
+
+    result.SetJobProxyMemory(jobProxyMemory);
+    result.SetJobProxyMemoryWithFixedWriteBufferSize(jobProxyMemoryWithFixedWriteBufferSize);
+
     return result;
 }
 
@@ -1254,7 +1265,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         InputManager->RegisterUnavailableInputChunks(/*reportIfFound*/ true);
         InitIntermediateChunkScraper();
 
-        UpdateMinNeededAllocationResources();
+        UpdateGroupedNeededResources();
         // NB(eshcherbin): This update is done to ensure that needed resources amount is computed.
         UpdateAllTasks();
 
@@ -1287,11 +1298,11 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
         return result;
     }
 
-    InitialMinNeededResources_ = GetMinNeededAllocationResources();
+    InitialGroupedNeededResources_ = GetGroupedNeededResources();
 
     result.Suspend = Spec_->SuspendOperationAfterMaterialization;
     result.InitialNeededResources = GetNeededResources();
-    result.InitialMinNeededResources = InitialMinNeededResources_;
+    result.InitialGroupedNeededResources = InitialGroupedNeededResources_;
 
     YT_LOG_INFO("Materialization finished");
 
@@ -1392,7 +1403,7 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
         IntermediateChunkScraper->Start();
     }
 
-    UpdateMinNeededAllocationResources();
+    UpdateGroupedNeededResources();
     // NB(eshcherbin): This update is done to ensure that needed resources amount is computed.
     UpdateAllTasks();
 
@@ -1445,8 +1456,8 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
         });
     }
 
-    result.MinNeededResources = GetMinNeededAllocationResources();
-    result.InitialMinNeededResources = InitialMinNeededResources_;
+    result.GroupedNeededResources = GetGroupedNeededResources();
+    result.InitialGroupedNeededResources = InitialGroupedNeededResources_;
 
     // Monitoring tags are transient by design.
     // So after revive we do reset the corresponding alert.
@@ -2369,6 +2380,7 @@ void TOperationControllerBase::CommitFeatures()
 void TOperationControllerBase::FinalizeFeatures()
 {
     FinishTime_ = TInstant::Now();
+
     for (const auto& task : Tasks) {
         task->FinalizeFeatures();
     }
@@ -2392,6 +2404,13 @@ void TOperationControllerBase::FinalizeFeatures()
         BuildYsonNodeFluently().Value(GetTotalJobCounter()));
 }
 
+void TOperationControllerBase::FinalizeSubscriptions()
+{
+    for (const auto& task : Tasks) {
+        task->FinalizeSubscriptions();
+    }
+}
+
 void TOperationControllerBase::SafeCommit()
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
@@ -2401,6 +2420,8 @@ void TOperationControllerBase::SafeCommit()
     SleepInCommitStage(EDelayInsideOperationCommitStage::Start);
 
     RemoveRemainingJobsOnOperationFinished();
+
+    FinalizeSubscriptions();
 
     FinalizeFeatures();
 
@@ -3073,6 +3094,7 @@ void TOperationControllerBase::SafeOnJobStarted(const TJobletPtr& joblet)
     IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, joblet->DiskQuota);
 
     ReportJobCookieToArchive(joblet);
+    ReportOperationIncarnationToArchive(joblet);
     ReportControllerStateToArchive(joblet, EJobState::Running);
 
     LogEventFluently(ELogEventType::JobStarted)
@@ -3221,25 +3243,25 @@ bool TOperationControllerBase::OnJobCompleted(
             if (joblet->Revived) {
                 // NB: We lose the original interrupt reason during the revival,
                 // so we set it to Unknown.
-                jobSummary->InterruptionReason = EInterruptReason::Unknown;
+                jobSummary->InterruptionReason = EInterruptionReason::Unknown;
                 YT_LOG_DEBUG(
-                    "Overriding job interrupt reason due to revival (JobId: %v, InterruptReason: %v)",
+                    "Overriding job interrupt reason due to revival (JobId: %v, InterruptionReason: %v)",
                     jobId,
                     jobSummary->InterruptionReason);
             } else {
                 YT_LOG_DEBUG("Job restart is needed (JobId: %v)", jobId);
             }
-        } else if (jobSummary->InterruptionReason != EInterruptReason::None) {
-            jobSummary->InterruptionReason = EInterruptReason::None;
+        } else if (jobSummary->InterruptionReason != EInterruptionReason::None) {
+            jobSummary->InterruptionReason = EInterruptionReason::None;
             YT_LOG_DEBUG(
-                "Overriding job interrupt reason due to unneeded restart (JobId: %v, InterruptReason: %v)",
+                "Overriding job interrupt reason due to unneeded restart (JobId: %v, InterruptionReason: %v)",
                 jobId,
                 jobSummary->InterruptionReason);
         }
 
         YT_VERIFY(
-            (jobSummary->InterruptionReason == EInterruptReason::None && jobResultExt.unread_chunk_specs_size() == 0) ||
-            (jobSummary->InterruptionReason != EInterruptReason::None && (
+            (jobSummary->InterruptionReason == EInterruptionReason::None && jobResultExt.unread_chunk_specs_size() == 0) ||
+            (jobSummary->InterruptionReason != EInterruptionReason::None && (
                 jobResultExt.unread_chunk_specs_size() != 0 ||
                 jobResultExt.restart_needed())));
 
@@ -3273,7 +3295,7 @@ bool TOperationControllerBase::OnJobCompleted(
             CompletedJobIdsReleaseQueue_.Push(jobId);
         }
 
-        if (jobSummary->InterruptionReason != EInterruptReason::None) {
+        if (jobSummary->InterruptionReason != EInterruptionReason::None) {
             ExtractInterruptDescriptor(*jobSummary, joblet);
             YT_LOG_DEBUG(
                 "Job interrupted (JobId: %v, InterruptionReason: %v, UnreadDataSliceCount: %v, ReadDataSliceCount: %v)",
@@ -3907,7 +3929,7 @@ void TOperationControllerBase::SafeInterruptJobByUserRequest(TJobId jobId, TDura
             joblet->JobType);
     }
 
-    InterruptJob(jobId, EInterruptReason::UserRequest, timeout);
+    InterruptJob(jobId, EInterruptionReason::UserRequest, timeout);
 }
 
 void TOperationControllerBase::BuildJobAttributes(
@@ -3946,7 +3968,8 @@ void TOperationControllerBase::BuildJobAttributes(
             fluent
                 .Item("predecessor_type").Value(joblet->PredecessorType)
                 .Item("predecessor_job_id").Value(joblet->PredecessorJobId);
-        });
+        })
+        .OptionalItem("operation_incarnation", joblet->OperationIncarnation);
 }
 
 void TOperationControllerBase::BuildFinishedJobAttributes(
@@ -4271,6 +4294,7 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
     RemoveRemainingJobsOnOperationFinished();
 
     if (Spec_->TestingOperationOptions->ThrowExceptionDuringOperationAbort) {
+        // NB: Task subscriptions are not finalized on test exception.
         THROW_ERROR_EXCEPTION("Test exception");
     }
 
@@ -4281,6 +4305,12 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
 
     // Skip committing anything if operation controller already tried to commit results.
     if (!CommitFinished) {
+        try {
+            FinalizeSubscriptions();
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Failed to finalize subscriptions");
+        }
+
         try {
             FinalizeFeatures();
             CommitFeatures();
@@ -4762,6 +4792,8 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
     jobSpecExt->set_disable_rename_columns_compatibility_code(Spec_->DisableRenameColumnsCompatibilityCode);
 
+    jobSpecExt->set_use_cluster_throttlers(Spec_->UseClusterThrottlers);
+
     if (OutputTransaction) {
         ToProto(jobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
     }
@@ -5167,8 +5199,21 @@ void TOperationControllerBase::IncreaseNeededResources(const TCompositeNeededRes
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
+    auto zeroOutNeededResources = false;
+    for (const auto& task : Tasks) {
+        if (!task->IsNetworkBandwidthToClustersAvailable()) {
+            zeroOutNeededResources = true;
+            break;
+        }
+    }
+
     auto guard = WriterGuard(CachedNeededResourcesLock);
-    CachedNeededResources = CachedNeededResources + resourcesDelta;
+    if (zeroOutNeededResources) {
+        // Network bandwidth to some clusters is not available. So zero out needed resources, to temporarily stop scheduling jobs.
+        CachedNeededResources = {};
+    } else {
+        CachedNeededResources = CachedNeededResources + resourcesDelta;
+    }
 }
 
 void TOperationControllerBase::IncreaseAccountResourceUsageLease(const std::optional<TString>& account, const TDiskQuota& delta)
@@ -5245,57 +5290,53 @@ TCompositeNeededResources TOperationControllerBase::GetNeededResources() const
     return CachedNeededResources;
 }
 
-TJobResourcesWithQuotaList TOperationControllerBase::GetMinNeededAllocationResources() const
+TAllocationGroupResourcesMap TOperationControllerBase::GetGroupedNeededResources() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
-    return CachedMinNeededAllocationResources.Load();
+    return CachedGroupedNeededResources.Load();
 }
 
-void TOperationControllerBase::SafeUpdateMinNeededAllocationResources()
+void TOperationControllerBase::SafeUpdateGroupedNeededResources()
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
 
-    THashMap<TString, TJobResourcesWithQuota> minNeededJobResourcesPerTask;
+    TAllocationGroupResourcesMap groupedNeededResources;
     for (const auto& task : Tasks) {
         if (task->HasNoPendingJobs()) {
             UpdateTask(task.Get());
             continue;
         }
 
-        TJobResourcesWithQuota resources;
+        const auto& taskName = task->GetVertexDescriptor();
+
+        TJobResourcesWithQuota minNeededResources;
+        int pendingJobCount;
         try {
-            resources = task->GetMinNeededResources();
+            minNeededResources = task->GetMinNeededResources();
+            pendingJobCount = task->GetPendingJobCount().DefaultCount;
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to update minimum needed resources")
+            auto error = TError("Failed to update minimum needed resources or pending job count")
+                << TErrorAttribute("task", taskName)
                 << ex;
             DoFailOperation(error);
             return;
         }
 
-        EmplaceOrCrash(minNeededJobResourcesPerTask, task->GetTitle(), resources);
-    }
-
-    TJobResourcesWithQuotaList minNeededResources;
-    for (const auto& [taskTitle, resources] : minNeededJobResourcesPerTask) {
-        minNeededResources.push_back(resources);
+        TAllocationGroupResources allocationGroupResources{
+            .MinNeededResources = std::move(minNeededResources),
+            .AllocationCount = pendingJobCount,
+        };
 
         YT_LOG_DEBUG(
-            "Aggregated minimum needed resources for allocations (Task: %v, MinNeededResources: %v)",
-            taskTitle,
-            FormatResources(resources));
+            "Updated allocation group needed resources (Task: %v, AllocationGroupResources: %v)",
+            taskName,
+            allocationGroupResources);
+
+        EmplaceOrCrash(groupedNeededResources, taskName, std::move(allocationGroupResources));
     }
 
-    CachedMinNeededAllocationResources.Exchange(minNeededResources);
-}
-
-TJobResources TOperationControllerBase::GetAggregatedMinNeededAllocationResources() const
-{
-    auto result = GetNeededResources().DefaultResources;
-    for (const auto& allocationResources : GetMinNeededAllocationResources()) {
-        result = Min(result, allocationResources.ToJobResources());
-    }
-    return result;
+    CachedGroupedNeededResources.Store(std::move(groupedNeededResources));
 }
 
 void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
@@ -5834,6 +5875,30 @@ TJobletPtr TOperationControllerBase::CreateJoblet(
     joblet->PoolPath = std::move(poolPath);
 
     return joblet;
+}
+
+std::shared_ptr<const THashMap<TClusterName, bool>> TOperationControllerBase::GetClusterToNetworkBandwidthAvailability() const
+{
+    return Host->GetClusterToNetworkBandwidthAvailability();
+}
+
+bool TOperationControllerBase::IsNetworkBandwidthAvailable(const TClusterName& clusterName) const
+{
+    return Host->IsNetworkBandwidthAvailable(clusterName);
+}
+
+void TOperationControllerBase::SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
+        const TClusterName& clusterName,
+        const TCallback<void()>& callback) const
+{
+    Host->SubscribeToClusterNetworkBandwidthAvailabilityUpdated(clusterName, callback);
+}
+
+void TOperationControllerBase::UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
+        const TClusterName& clusterName,
+        const TCallback<void()>& callback) const
+{
+    Host->UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(clusterName, callback);
 }
 
 TJobFailsTolerancePtr TOperationControllerBase::GetJobFailsTolerance() const
@@ -6488,6 +6553,35 @@ void TOperationControllerBase::PrepareInputTables()
     }
 }
 
+void TOperationControllerBase::PatchTableWriteBuffer(
+    TTableWriterOptionsPtr& writerOptions,
+    ETableSchemaMode schemaMode,
+    const TEpochSchema& schema) const
+{
+    // This is the only reliable case when column count from schema will match column count of data.
+    if (writerOptions->OptimizeFor == EOptimizeFor::Scan &&
+        !schema->Columns().empty() &&
+        schemaMode == NTableClient::ETableSchemaMode::Strong)
+    {
+        THashSet<TString> groups;
+        int singleColumnGroupCount = 0;
+
+        for (const auto& column : schema->Columns()) {
+            if (column.Group()) {
+                groups.emplace(*column.Group());
+            } else {
+                ++singleColumnGroupCount;
+            }
+        }
+
+        int dataBlockWriterCount = singleColumnGroupCount + groups.size();
+        writerOptions->BufferSize = std::min(
+            dataBlockWriterCount * Config->DesiredBlockSize,
+            Config->MaxEstimatedWriteBufferSize);
+        writerOptions->BlockSize = Config->DesiredBlockSize;
+    }
+}
+
 void TOperationControllerBase::PrepareOutputTables()
 { }
 
@@ -6752,6 +6846,13 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             {
                 table->TableWriterOptions->OptimizeFor = EOptimizeFor::Lookup;
                 table->TableWriterOptions->ChunkFormat = {};
+            }
+
+            if (Spec_->EnableWriteBufferSizeEstimation) {
+                PatchTableWriteBuffer(
+                    table->TableWriterOptions,
+                    table->TableUploadOptions.SchemaMode,
+                    table->TableUploadOptions.TableSchema);
             }
 
             table->EffectiveAcl = attributes->GetYson("effective_acl");
@@ -10006,14 +10107,13 @@ void TOperationControllerBase::InitUserJobSpec(
     }
 
     if (joblet->EnabledJobProfiler && joblet->EnabledJobProfiler->Type == EProfilerType::Cuda) {
-        auto cudaProfilerEnvironment = Spec_->CudaProfilerEnvironment
-            ? Spec_->CudaProfilerEnvironment
-            : Config->CudaProfilerEnvironment;
+        auto cudaProfilerEnvironment = !Spec_->CudaProfilerEnvironmentVariables.empty()
+            ? Spec_->CudaProfilerEnvironmentVariables
+            : Config->CudaProfilerEnvironmentVariables;
 
-        if (cudaProfilerEnvironment) {
-            jobSpec->add_environment(Format("%v=%v",
-                cudaProfilerEnvironment->PathEnvironmentVariableName,
-                cudaProfilerEnvironment->PathEnvironmentVariableValue));
+        for (const auto& [name, value] : cudaProfilerEnvironment) {
+            jobSpec->add_environment(
+                Format("%v=%v", name, value));
         }
     }
 
@@ -10103,14 +10203,20 @@ void TOperationControllerBase::AddCoreOutputSpecs(
     coreTableSpec->set_blob_table_writer_config(ConvertToYsonString(writerConfig).ToString());
 }
 
-i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfig) const
+i64 TOperationControllerBase::GetFinalOutputIOMemorySize(
+    TJobIOConfigPtr ioConfig,
+    bool useEstimatedBufferSize) const
 {
     i64 result = 0;
     for (const auto& outputTable : OutputTables_) {
+        auto bufferSize = useEstimatedBufferSize
+            ? GetWriteBufferSize(ioConfig->TableWriter, outputTable->TableWriterOptions)
+            : ioConfig->TableWriter->MaxBufferSize;
+
         if (outputTable->TableWriterOptions->ErasureCodec == NErasure::ECodec::None) {
             i64 maxBufferSize = std::max(
                 ioConfig->TableWriter->MaxRowWeight,
-                ioConfig->TableWriter->MaxBufferSize);
+                bufferSize);
             result += GetOutputWindowMemorySize(ioConfig) + maxBufferSize;
         } else {
             auto* codec = NErasure::GetCodec(outputTable->TableWriterOptions->ErasureCodec);
@@ -10135,15 +10241,53 @@ i64 TOperationControllerBase::GetFinalOutputIOMemorySize(TJobIOConfigPtr ioConfi
     return result;
 }
 
+void TOperationControllerBase::UpdateWriteBufferMemoryAlert(TJobId jobId, i64 curentMemoryLimit, i64 previousMemory)
+{
+    constexpr int subAlertCount = 5;
+    constexpr int alertLimit = 5;
+
+    TOverrunTableWriteBufferMemoryInfo overrunTableWriteBufferMemoryInfo(
+        jobId,
+        previousMemory,
+        curentMemoryLimit);
+
+    if (overrunTableWriteBufferMemoryInfo.GetRelativeDifference() > Config->WriteBufferMemoryOverrunAlertFactor)
+    {
+        auto guard = Guard(OverrunWriteBufferMemoryPerJobLock);
+        OverrunWriteBufferMemoryPerJob.emplace(std::move(overrunTableWriteBufferMemoryInfo));
+
+        if (std::size(OverrunWriteBufferMemoryPerJob) > alertLimit) {
+            OverrunWriteBufferMemoryPerJob.erase(std::prev(OverrunWriteBufferMemoryPerJob.end()));
+        }
+
+        auto alert = TError("Some jobs began to consume more memory to write tables");
+
+        std::for_each_n(
+            OverrunWriteBufferMemoryPerJob.begin(),
+            std::min<int>(subAlertCount, std::ssize(OverrunWriteBufferMemoryPerJob)),
+            [&] (const TOverrunTableWriteBufferMemoryInfo& info) {
+                auto subAlert = TError("More memory was allocated for write buffers with an estimated size than for buffers with a fixed size")
+                    << TErrorAttribute("job_id", ToString(info.GetJobId()))
+                    << TErrorAttribute("difference", info.GetRelativeDifference())
+                    << TErrorAttribute("memory_with_fixed_buffers", info.GetReservedMemoryForJobProxyWithFixedBuffer())
+                    << TErrorAttribute("memory_with_estimated_buffers", info.GetReservedMemoryForJobProxyWithEstimatedBuffer());
+                alert.MutableInnerErrors()->emplace_back(std::move(subAlert));
+            });
+
+        SetOperationAlert(EOperationAlertType::WriteBufferMemoryOverrun, std::move(alert));
+    }
+}
+
 i64 TOperationControllerBase::GetFinalIOMemorySize(
     TJobIOConfigPtr ioConfig,
+    bool useEstimatedBufferSize,
     const TChunkStripeStatisticsVector& stripeStatistics) const
 {
     i64 result = 0;
     for (const auto& stat : stripeStatistics) {
         result += GetInputIOMemorySize(ioConfig, stat);
     }
-    result += GetFinalOutputIOMemorySize(ioConfig);
+    result += GetFinalOutputIOMemorySize(ioConfig, useEstimatedBufferSize);
     return result;
 }
 
@@ -10582,7 +10726,8 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(66, BaseLayer_);
     PHOENIX_REGISTER_FIELD(67, JobExperiment_);
 
-    PHOENIX_REGISTER_FIELD(68, InitialMinNeededResources_);
+    // COMPAT(eshcherbin): Field index 68 was taken by InitialMinNeededResources_ which is removed since ESnapshotVersion::GroupedNeededResources.
+
     PHOENIX_REGISTER_FIELD(69, JobAbortsUntilOperationFailure_);
 
     PHOENIX_REGISTER_FIELD(70, MonitoredUserJobCount_,
@@ -10598,6 +10743,12 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
         .SinceVersion(ESnapshotVersion::JobFailTolerance));
     PHOENIX_REGISTER_FIELD(75, FailCountsPerKnownExitCode_,
         .SinceVersion(ESnapshotVersion::JobFailTolerance));
+
+    PHOENIX_REGISTER_FIELD(76, OverrunWriteBufferMemoryPerJob,
+        .SinceVersion(ESnapshotVersion::TableWriteBufferEstimation));
+
+    PHOENIX_REGISTER_FIELD(77, InitialGroupedNeededResources_,
+        .SinceVersion(ESnapshotVersion::GroupedNeededResources));
 
     // NB: Keep this at the end of persist as it requires some of the previous
     // fields to be already initialized.
@@ -10681,28 +10832,29 @@ TOutputStreamDescriptorPtr TOperationControllerBase::GetIntermediateStreamDescri
     descriptor->CellTags = IntermediateOutputCellTagList;
 
     descriptor->TableWriterOptions = GetIntermediateTableWriterOptions();
-    if (Spec_->IntermediateDataAccount == NSecurityClient::IntermediateAccountName &&
-        GetFastIntermediateMediumLimit() > 0)
-    {
+
+    bool fastIntermediateMediumEnabled = Spec_->IntermediateDataAccount == NSecurityClient::IntermediateAccountName &&
+        GetFastIntermediateMediumLimit() > 0;
+
+    if (fastIntermediateMediumEnabled) {
         descriptor->SlowMedium = descriptor->TableWriterOptions->MediumName;
         descriptor->TableWriterOptions->MediumName = Config->FastIntermediateMedium;
-        YT_LOG_INFO("Fast intermediate medium enabled (FastMedium: %v, SlowMedium: %v, FastMediumLimit: %v)",
+        if (auto tableWriterConfig = Spec_->FastIntermediateMediumTableWriterConfig) {
+            descriptor->TableWriterOptions->ReplicationFactor = tableWriterConfig->UploadReplicationFactor;
+            descriptor->TableWriterOptions->ErasureCodec = tableWriterConfig->ErasureCodec;
+            descriptor->TableWriterOptions->EnableStripedErasure = tableWriterConfig->EnableStripedErasure;
+        }
+        YT_LOG_INFO("Fast intermediate medium enabled (FastMedium: %v, SlowMedium: %v, FastMediumLimit: %v, "
+            "ReplicationFactor: %v, ErasureCodec: %v, EnableStripedErasure: %v)",
             descriptor->TableWriterOptions->MediumName,
             descriptor->SlowMedium,
-            GetFastIntermediateMediumLimit());
+            GetFastIntermediateMediumLimit(),
+            descriptor->TableWriterOptions->ReplicationFactor,
+            descriptor->TableWriterOptions->ErasureCodec,
+            descriptor->TableWriterOptions->EnableStripedErasure);
     }
 
-    descriptor->TableWriterConfig = BuildYsonStringFluently()
-        .BeginMap()
-            .Item("upload_replication_factor").Value(Spec_->IntermediateDataReplicationFactor)
-            .Item("min_upload_replication_factor").Value(Spec_->IntermediateMinDataReplicationFactor)
-            .Item("populate_cache").Value(true)
-            .Item("sync_on_close").Value(Spec_->IntermediateDataSyncOnClose)
-            .DoIf(Spec_->IntermediateDataReplicationFactor > 1, [&] (TFluentMap fluent) {
-                // Set reduced rpc_timeout if replication_factor is greater than one.
-                fluent.Item("node_rpc_timeout").Value(TDuration::Seconds(120));
-            })
-        .EndMap();
+    descriptor->TableWriterConfig = MakeIntermediateTableWriterConfig(Spec_, fastIntermediateMediumEnabled);
 
     descriptor->RequiresRecoveryInfo = true;
     return descriptor;
@@ -10940,7 +11092,7 @@ bool TOperationControllerBase::CanInterruptJobs() const
     return Config->EnableJobInterrupts && InputManager->CanInterruptJobs();
 }
 
-void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason reason)
+void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptionReason reason)
 {
     InterruptJob(
         jobId,
@@ -10948,7 +11100,7 @@ void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason reaso
         /*timeout*/ TDuration::Zero());
 }
 
-void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport)
+void TOperationControllerBase::HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport) const
 {
     Host->GetJobReporter()->HandleJobReport(
         jobReport
@@ -11200,16 +11352,24 @@ bool TOperationControllerBase::IsMemoryLimitExceeded() const
     return MemoryLimitExceeded_;
 }
 
-void TOperationControllerBase::ReportJobCookieToArchive(const TJobletPtr& joblet)
+void TOperationControllerBase::ReportJobCookieToArchive(const TJobletPtr& joblet) const
 {
     HandleJobReport(joblet, TControllerJobReport()
         .JobCookie(joblet->OutputCookie));
 }
 
-void TOperationControllerBase::ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state)
+void TOperationControllerBase::ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const
 {
     HandleJobReport(joblet, TControllerJobReport()
         .ControllerState(state));
+}
+
+void TOperationControllerBase::ReportOperationIncarnationToArchive(const TJobletPtr& joblet) const
+{
+    if (joblet->OperationIncarnation) {
+        HandleJobReport(joblet, TControllerJobReport()
+            .OperationIncarnation(static_cast<const std::string&>(*joblet->OperationIncarnation)));
+    }
 }
 
 void TOperationControllerBase::SendRunningAllocationTimeStatisticsUpdates()
@@ -11304,9 +11464,29 @@ void TOperationControllerBase::OnOperationRevived()
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
 }
 
-void TOperationControllerBase::BuildControllerInfoYson(TFluentMap /*fluent*/) const
+void TOperationControllerBase::BuildControllerInfoYson(TFluentMap fluent) const
 {
     YT_ASSERT_INVOKER_POOL_AFFINITY(InvokerPool);
+
+    std::set<TClusterName> networkBandwidthAvailability;
+    if (Spec_->UseClusterThrottlers) {
+        for (const auto& task : GetTasks()) {
+            auto availability = task->GetClusterToNetworkBandwidthAvailability();
+            for (const auto& [cluster, isAvailable] : availability) {
+                // Do not overwrite false by true from another task. We need only false values here any way.
+                if (isAvailable) {
+                    continue;
+                }
+                networkBandwidthAvailability.insert(cluster);
+            }
+        }
+    }
+
+    fluent
+        .Item("network_bandwidth_availability")
+            .DoMapFor(networkBandwidthAvailability, [] (TFluentMap fluent, const TClusterName& clusterName) {
+                fluent.Item(clusterName.Underlying()).Value(false);
+            });
 }
 
 bool TOperationControllerBase::ShouldProcessJobEvents() const
@@ -11314,7 +11494,7 @@ bool TOperationControllerBase::ShouldProcessJobEvents() const
     return State == EControllerState::Running || State == EControllerState::Failing;
 }
 
-void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason interruptionReason, TDuration timeout)
+void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptionReason interruptionReason, TDuration timeout)
 {
     Host->InterruptJob(jobId, interruptionReason, timeout);
 }

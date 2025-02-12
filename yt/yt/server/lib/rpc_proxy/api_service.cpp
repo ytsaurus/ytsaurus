@@ -646,7 +646,7 @@ public:
             config->TestingOptions
             ? config->TestingOptions->HeapProfiler
             : nullptr)
-        , LookupMemoryTracker_(WithCategory(memoryTracker, EMemoryCategory::Lookup))
+        , HeavyRequestMemoryUsageTracker_(WithCategory(memoryTracker, EMemoryCategory::HeavyRequest))
         , SignatureValidator_(std::move(signatureValidator))
         , SignatureGenerator_(std::move(signatureGenerator))
         , QueryCorpusReporter_(std::move(queryCorpusReporter))
@@ -881,7 +881,7 @@ private:
     const NNative::TClientCachePtr AuthenticatedClientCache_;
     const IInvokerPtr ControlInvoker_;
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
-    const IMemoryUsageTrackerPtr LookupMemoryTracker_;
+    const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
     const TSignatureValidatorBasePtr SignatureValidator_;
     const TSignatureGeneratorBasePtr SignatureGenerator_;
 
@@ -2084,6 +2084,9 @@ private:
         if (request->has_enable_cross_cell_copying()) {
             options.EnableCrossCellCopying = request->enable_cross_cell_copying();
         }
+        if (request->has_allow_secondary_index_abandonment()) {
+            options.AllowSecondaryIndexAbandonment = request->allow_secondary_index_abandonment();
+        }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
@@ -2151,6 +2154,9 @@ private:
         }
         if (request->has_enable_cross_cell_copying()) {
             options.EnableCrossCellCopying = request->enable_cross_cell_copying();
+        }
+        if (request->has_allow_secondary_index_abandonment()) {
+            options.AllowSecondaryIndexAbandonment = request->allow_secondary_index_abandonment();
         }
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
@@ -2840,6 +2846,9 @@ private:
         if (request->has_abort_running_jobs()) {
             options.AbortRunningJobs = request->abort_running_jobs();
         }
+        if (request->has_reason()) {
+            options.Reason = request->reason();
+        }
 
         context->SetRequestInfo("OperationId: %v, AbortRunningJobs: %v",
             operationIdOrAlias,
@@ -3127,6 +3136,9 @@ private:
         }
         if (request->has_task_name()) {
             options.TaskName = request->task_name();
+        }
+        if (request->has_operation_incarnation()) {
+            options.OperationIncarnation = request->operation_incarnation();
         }
         if (request->has_from_time()) {
             options.FromTime = FromProto<TInstant>(request->from_time());
@@ -3660,7 +3672,7 @@ private:
             &keys,
             &options,
             request->Attachments(),
-            LookupMemoryTracker_);
+            HeavyRequestMemoryUsageTracker_);
 
         context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %v, ReplicaConsistency: %v",
             request->path(),
@@ -3725,7 +3737,7 @@ private:
             &keys,
             &options,
             request->Attachments(),
-            LookupMemoryTracker_);
+            HeavyRequestMemoryUsageTracker_);
 
         context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %v, ReplicaConsistency: %v",
             request->path(),
@@ -3818,7 +3830,7 @@ private:
                 &subrequest.Keys,
                 &subrequest.Options,
                 attachments,
-                LookupMemoryTracker_);
+                HeavyRequestMemoryUsageTracker_);
 
             beginAttachmentIndex = endAttachmentIndex;
         }

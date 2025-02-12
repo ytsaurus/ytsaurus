@@ -75,6 +75,8 @@ public:
         const std::vector<i64>& trimmedRowCounts,
         bool create = false);
 
+    void CancelTabletTransition(TTablet* tablet);
+
     void ValidateMakeTableDynamic(NTableServer::TTableNode* table);
     void ValidateMakeTableStatic(NTableServer::TTableNode* table);
 
@@ -242,8 +244,8 @@ private:
     TTabletAction* CreateTabletAction(
         NObjectClient::TObjectId hintId,
         ETabletActionKind kind,
-        const std::vector<TTabletBase*>& tablets,
-        const std::vector<TTabletCell*>& cells,
+        const std::vector<TTabletBaseRawPtr>& tablets,
+        const std::vector<TTabletCellRawPtr>& cells,
         const std::vector<NTableClient::TLegacyOwningKey>& pivotKeys,
         const std::optional<int>& tabletCount,
         bool skipFreezing,

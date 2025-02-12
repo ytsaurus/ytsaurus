@@ -389,6 +389,10 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("allow_everyone_create_secondary_indices", &TThis::AllowEveryoneCreateSecondaryIndices)
         .Default(false);
+    registrar.Parameter("enable_secondary_index_copy", &TThis::EnableSecondaryIndexCopy)
+        .Default(true);
+    registrar.Parameter("allow_alter_key_column_to_any", &TThis::AllowAlterKeyColumnToAny)
+        .Default(false);
 
     registrar.Parameter("chunk_manager", &TThis::ChunkManager)
         .DefaultNew();

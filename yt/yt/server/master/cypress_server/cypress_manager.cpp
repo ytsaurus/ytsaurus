@@ -71,6 +71,7 @@
 #include <yt/yt/server/master/table_server/cypress_integration.h>
 #include <yt/yt/server/master/table_server/master_table_schema.h>
 #include <yt/yt/server/master/table_server/replicated_table_node_type_handler.h>
+#include <yt/yt/server/master/table_server/secondary_index.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
 #include <yt/yt/server/master/table_server/table_node.h>
 #include <yt/yt/server/master/table_server/table_node_type_handler.h>
@@ -339,6 +340,11 @@ public:
         return preserveAclDuringMove || Options_.PreserveAcl;
     }
 
+    bool ShouldAllowSecondaryIndexAbandonment() const override
+    {
+        return Options_.AllowSecondaryIndexAbandonment;
+    }
+
     TAccount* GetNewNodeAccount() const override
     {
         return Account_;
@@ -519,7 +525,7 @@ public:
         if (external) {
             if (IsTableType(trunkNode->GetType())) {
                 auto* table = trunkNode->As<TTableNode>();
-                auto* schema = table->GetSchema();
+                auto schema = table->GetSchema();
                 auto schemaId = schema->GetId();
                 replicationExplicitAttributes->Remove("schema");
                 replicationExplicitAttributes->Set("schema_id", schemaId);
@@ -663,7 +669,7 @@ public:
             TMasterTableSchemaId schemaId;
             if (IsTableType(clonedTrunkNode->GetType())) {
                 auto* table = clonedTrunkNode->As<TTableNode>();
-                auto* schema = table->GetSchema();
+                auto schema = table->GetSchema();
                 schemaId = schema->GetId();
             }
 
@@ -1063,6 +1069,7 @@ public:
 
         RegisterHandler(CreateSysNodeTypeHandler(Bootstrap_));
         RegisterHandler(CreateChunkLocationMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateLostVitalChunksSampleMapTypeHandler(Bootstrap_));
         RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::ChunkMap));
         RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LostChunkMap));
         RegisterHandler(CreateChunkMapTypeHandler(Bootstrap_, EObjectType::LostVitalChunkMap));
@@ -1313,7 +1320,7 @@ public:
     {
         YT_ASSERT(node->IsTrunk());
 
-        auto* shard = node->GetShard();
+        auto shard = node->GetShard();
         if (!shard) {
             return;
         }
@@ -1755,7 +1762,7 @@ public:
 
         auto strongestLockModeBefore = ELockMode::None;
         auto strongestLockModeAfter = ELockMode::None;
-        for (auto* lock : transaction->Locks()) {
+        for (auto lock : transaction->Locks()) {
             YT_ASSERT(lock->GetTransaction() == transaction);
 
             if (lock->GetTrunkNode() != trunkNode) {
@@ -1824,13 +1831,13 @@ public:
 
         auto& acquiredLocks = trunkNode->MutableLockingState()->AcquiredLocks;
         for (auto it = acquiredLocks.begin(); it != acquiredLocks.end(); ) {
-            auto* lock = *it++; // Removing a lock invalidates the iterator.
+            auto lock = *it++; // Removing a lock invalidates the iterator.
             maybeRemoveLock(lock);
         }
 
         auto& pendingLocks = trunkNode->MutableLockingState()->PendingLocks;
         for (auto it = pendingLocks.begin(); it != pendingLocks.end(); ) {
-            auto* lock = *it++; // Removing a lock invalidates the iterator.
+            auto lock = *it++; // Removing a lock invalidates the iterator.
             maybeRemoveLock(lock);
         }
 
@@ -1861,7 +1868,7 @@ public:
 
         auto nodeId = trunkNode->GetId();
         auto result = ELockMode::Snapshot;
-        for (auto* nestedTransaction : transaction->NestedTransactions()) {
+        for (auto nestedTransaction : transaction->NestedTransactions()) {
             auto* branchedNode = FindNode(TVersionedNodeId(nodeId, nestedTransaction->GetId()));
             if (!branchedNode) {
                 continue;
@@ -2043,7 +2050,7 @@ public:
         while (!queue.Empty()) {
             auto* transaction = queue.Pop();
 
-            for (auto* transaction : transaction->NestedTransactions()) {
+            for (auto transaction : transaction->NestedTransactions()) {
                 queue.Push(transaction);
             }
 
@@ -2539,12 +2546,12 @@ public:
             return targetPath;
         }
 
-        auto* linkNodeShard = linkNode->GetTrunkNode()->GetShard();
+        auto linkNodeShard = linkNode->GetTrunkNode()->GetShard();
         if (!linkNodeShard) {
             return targetPath;
         }
 
-        const auto* linkNodeShardRoot = linkNodeShard->GetRoot();
+        auto linkNodeShardRoot = linkNodeShard->GetRoot();
         if (!IsObjectAlive(linkNodeShardRoot)) {
             THROW_ERROR_EXCEPTION("Root node of shard is not alive; shard is probably being destroyed");
         }
@@ -2561,7 +2568,7 @@ public:
                 continue;
             }
 
-            const auto* shardRoot = shard->GetRoot();
+            auto shardRoot = shard->GetRoot();
             if (!IsObjectAlive(shardRoot)) {
                 continue;
             }
@@ -2602,13 +2609,13 @@ public:
     TYPath ComputeEffectiveLinkNodeTargetPathCompat(const TLinkNode* linkNode) const
     {
         auto targetPath = linkNode->GetTargetPath();
-        auto* shard = linkNode->GetTrunkNode()->GetShard();
+        auto shard = linkNode->GetTrunkNode()->GetShard();
 
         if (!shard) {
             return targetPath;
         }
 
-        const auto* shardRoot = shard->GetRoot();
+        auto shardRoot = shard->GetRoot();
         if (!IsObjectAlive(shardRoot)) {
             THROW_ERROR_EXCEPTION("Root node of shard is not alive; shard is probably being destroyed");
         }
@@ -2634,8 +2641,9 @@ public:
         for (const auto& [_, node] : NodeMap_) {
             YT_LOG_FATAL_IF(
                 removedMasterCellTags.contains(node->GetExternalCellTag()),
-                "Master cell %v with externalized tables was removed",
-                node->GetExternalCellTag());
+                "Master cell with externalized table was removed (CellTag: %v, TableId: %v)",
+                node->GetExternalCellTag(),
+                node->GetId());
         }
     }
 
@@ -2826,7 +2834,7 @@ private:
 
             // Compute originators.
             if (!node->IsTrunk()) {
-                auto* parentTransaction = node->GetTransaction()->GetParent();
+                auto parentTransaction = node->GetTransaction()->GetParent();
                 auto* originator = GetVersionedNode(node->GetTrunkNode(), parentTransaction);
                 node->SetOriginator(originator);
             }
@@ -2836,12 +2844,12 @@ private:
                 auto* lockingState = node->MutableLockingState();
 
                 for (auto it = lockingState->AcquiredLocks.begin(); it != lockingState->AcquiredLocks.end(); ++it) {
-                    auto* lock = *it;
+                    auto lock = *it;
                     lock->SetLockListIterator(it);
                 }
 
                 for (auto it = lockingState->PendingLocks.begin(); it != lockingState->PendingLocks.end(); ++it) {
-                    auto* lock = *it;
+                    auto lock = *it;
                     lock->SetLockListIterator(it);
                 }
             }
@@ -3012,20 +3020,20 @@ private:
 
         const auto& lockingState = trunkNode->LockingState();
 
-        for (auto* lock : lockingState.AcquiredLocks) {
+        for (auto lock : lockingState.AcquiredLocks) {
             lock->SetTrunkNode(nullptr);
             // NB: Transaction may have more than one lock for a given node.
             lock->GetTransaction()->LockedNodes().erase(trunkNode);
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (auto* lock : lockingState.PendingLocks) {
+        for (auto lock : lockingState.PendingLocks) {
             YT_LOG_DEBUG("Lock orphaned due to node removal (LockId: %v, NodeId: %v)",
                 lock->GetId(),
                 trunkNode->GetId());
             lock->SetTrunkNode(nullptr);
 
-            auto* transaction = lock->GetTransaction();
+            auto transaction = lock->GetTransaction();
             transaction->DetachLock(lock, objectManager);
         }
 
@@ -3211,7 +3219,7 @@ private:
 
         if (transaction) {
             // Check if any of parent transactions has taken a snapshot lock.
-            auto* currentTransaction = transaction->GetParent();
+            auto currentTransaction = transaction->GetParent();
             while (currentTransaction) {
                 if (lockingState.HasSnapshotLock(currentTransaction)) {
                     return TError(
@@ -3245,7 +3253,7 @@ private:
         }
 
         auto checkExistingLock = [&] (const TLock* existingLock) {
-            auto* existingTransaction = existingLock->GetTransaction();
+            auto existingTransaction = existingLock->GetTransaction();
             if (!IsConcurrentTransaction(transaction, existingTransaction)) {
                 return TError();
             }
@@ -3386,7 +3394,7 @@ private:
             case ELockMode::Exclusive: {
                 auto range = lockingState.TransactionToExclusiveLocks.equal_range(transaction);
                 for (auto it = range.first; it != range.second; ++it) {
-                    auto* existingLock = it->second;
+                    auto existingLock = it->second;
                     if (existingLock != lockToIgnore &&
                         existingLock->Request().Key == request.Key)
                     {
@@ -3399,7 +3407,7 @@ private:
             case ELockMode::Shared: {
                 auto range = lockingState.TransactionAndKeyToSharedLocks.equal_range(std::pair(transaction, request.Key));
                 for (auto it = range.first; it != range.second; ++it) {
-                    const auto* existingLock = get<TLock*>(*it);
+                    auto existingLock = get<TLockRawPtr>(*it);
                     if (existingLock != lockToIgnore) {
                         return true;
                     }
@@ -3476,8 +3484,8 @@ private:
         TLock* lock,
         bool dontLockForeign = false)
     {
-        auto* trunkNode = lock->GetTrunkNode();
-        auto* transaction = lock->GetTransaction();
+        auto trunkNode = lock->GetTrunkNode();
+        auto transaction = lock->GetTransaction();
         const auto& request = lock->Request();
 
         YT_LOG_DEBUG("Lock acquired (LockId: %v)",
@@ -3520,7 +3528,7 @@ private:
         std::vector<TTransaction*> intermediateTransactions;
         // Walk up to the root, find originatingNode, construct the list of
         // intermediate transactions.
-        auto* currentTransaction = transaction;
+        auto currentTransaction = transaction;
         while (true) {
             originatingNode = FindNode(trunkNode, currentTransaction);
             if (originatingNode) {
@@ -3552,7 +3560,7 @@ private:
 
     static void RegisterLock(TLock* lock)
     {
-        auto* transaction = lock->GetTransaction();
+        auto transaction = lock->GetTransaction();
         auto* lockingState = lock->GetTrunkNode()->MutableLockingState();
 
         switch (lock->Request().Mode) {
@@ -3662,10 +3670,10 @@ private:
         TRange<TLock*> locks,
         TRange<TCypressNode*> lockedNodes)
     {
-        auto* parentTransaction = transaction->GetParent();
+        auto parentTransaction = transaction->GetParent();
 
         for (auto* lock : locks) {
-            auto* trunkNode = lock->GetTrunkNode();
+            auto trunkNode = lock->GetTrunkNode();
             // Decide if the lock must be promoted.
             if (promote &&
                 lock->Request().Mode != ELockMode::Snapshot &&
@@ -3721,7 +3729,7 @@ private:
         TCompactVector<TCypressNode*, 1> lockedNodes{trunkNode};
         TCompactVector<TLock*, 16> locks;
         locks.reserve(transaction->Locks().size());
-        for (auto* lock : transaction->Locks()) {
+        for (auto lock : transaction->Locks()) {
             if (lock->GetTrunkNode() == trunkNode) {
                 locks.push_back(lock);
             }
@@ -3733,10 +3741,10 @@ private:
 
     void DoPromoteLock(TLock* lock)
     {
-        auto* transaction = lock->GetTransaction();
-        auto* parentTransaction = transaction->GetParent();
+        auto transaction = lock->GetTransaction();
+        auto parentTransaction = transaction->GetParent();
         YT_VERIFY(parentTransaction);
-        auto* trunkNode = lock->GetTrunkNode();
+        auto trunkNode = lock->GetTrunkNode();
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
         parentTransaction->AttachLock(lock, objectManager);
@@ -3782,8 +3790,8 @@ private:
 
     void DoRemoveLock(TLock* lock, bool resetEmptyLockingState)
     {
-        auto* transaction = lock->GetTransaction();
-        auto* trunkNode = lock->GetTrunkNode();
+        auto transaction = lock->GetTransaction();
+        auto trunkNode = lock->GetTrunkNode();
         if (trunkNode) {
             auto* lockingState = trunkNode->MutableLockingState();
             switch (lock->GetState()) {
@@ -3857,7 +3865,7 @@ private:
         // Be prepared for locking state to vanish.
         while (trunkNode->HasLockingState() && it != lockingState.PendingLocks.end()) {
             // Be prepared to possible iterator invalidation.
-            auto* lock = *it++;
+            auto lock = *it++;
             auto error = CheckLock(
                 trunkNode,
                 lock->GetTransaction(),
@@ -3871,7 +3879,7 @@ private:
 
     void PostLockForeignNodeRequest(const TLock* lock)
     {
-        const auto* trunkNode = lock->GetTrunkNode();
+        auto trunkNode = lock->GetTrunkNode();
         auto externalCellTag = trunkNode->GetExternalCellTag();
 
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
@@ -3955,7 +3963,7 @@ private:
             case ENodeType::List: {
                 auto* node = GetVersionedNode(trunkNode, transaction);
                 auto* listRoot = node->As<TListNode>();
-                for (auto* trunkChild : listRoot->IndexToChild()) {
+                for (auto trunkChild : listRoot->IndexToChild()) {
                     ListSubtreeNodes(trunkChild, transaction, true, filter, subtreeNodes);
                 }
                 break;
@@ -4068,7 +4076,7 @@ private:
 
     void MergeBranchedNodes(TTransaction* transaction)
     {
-        for (auto* node : transaction->BranchedNodes()) {
+        for (auto node : transaction->BranchedNodes()) {
             DoMergeNode(transaction, node);
         }
         transaction->BranchedNodes().Clear();
@@ -4318,7 +4326,7 @@ private:
         auto* account = securityManager->GetAccount(accountId);
 
         auto factory = CreateNodeFactory(
-            nullptr,
+            /*shard*/ nullptr,
             clonedTransaction,
             account,
             TNodeFactoryOptions(),

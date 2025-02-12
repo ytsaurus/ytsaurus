@@ -212,17 +212,17 @@ struct TLikeExpression
 };
 
 using TStructMemberAccessor = TString;
-using TTupleItemIndexAccessor = i64;
+using TTupleItemIndexAccessor = int;
 
 struct TCompositeMemberAccessorPath
 {
     std::vector<NTableClient::ELogicalMetatype> NestedTypes;
     std::vector<TStructMemberAccessor> NamedStructMembers;
     std::vector<int> PositionalStructMembers;
-    std::vector<int> TupleItemIndices;
+    std::vector<TTupleItemIndexAccessor> TupleItemIndices;
 
     void AppendStructMember(TStructMemberAccessor name, int position);
-    void AppendTupleItem(int index);
+    void AppendTupleItem(TTupleItemIndexAccessor index);
     void Reserve(int length);
 
     bool operator == (const TCompositeMemberAccessorPath& other) const = default;
@@ -284,7 +284,7 @@ struct TGroupClause
 {
     TNamedItemList GroupItems;
     TAggregateItemList AggregateItems;
-    ETotalsMode TotalsMode;
+    ETotalsMode TotalsMode = ETotalsMode::None;
     size_t CommonPrefixWithPrimaryKey = 0;
 
     void AddGroupItem(TNamedItem namedItem);
@@ -294,6 +294,9 @@ struct TGroupClause
     TTableSchemaPtr GetTableSchema(bool isFinal) const;
 
     bool AllAggregatesAreFirst() const;
+
+    TGroupClause() = default;
+    TGroupClause(const TGroupClause& other);
 };
 
 DEFINE_REFCOUNTED_TYPE(TGroupClause)
@@ -353,15 +356,20 @@ struct TJoinClause
     //! See #TDataSource::CellId.
     NObjectClient::TCellId ForeignCellId;
 
+    TConstGroupClausePtr GroupClause;
+
+    TJoinClause() = default;
+    TJoinClause(const TJoinClause& other);
+
     TTableSchemaPtr GetRenamedSchema() const;
 
     TKeyColumns GetKeyColumns() const;
 
     TTableSchemaPtr GetTableSchema(const TTableSchema& source) const;
 
-    TQueryPtr GetJoinSubquery() const;
-
     std::vector<size_t> GetForeignColumnIndices() const;
+
+    TQueryPtr GetJoinSubquery() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJoinClause)
@@ -397,7 +405,7 @@ struct TProjectClause
 
     void AddProjection(TConstExpressionPtr expression, const std::string& name);
 
-    TTableSchemaPtr GetTableSchema() const;
+    TTableSchemaPtr GetTableSchema(bool castToQLType = true) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TProjectClause)
@@ -446,7 +454,7 @@ struct TBaseQuery
     bool IsPrefetching() const;
 
     virtual TTableSchemaPtr GetReadSchema() const = 0;
-    virtual TTableSchemaPtr GetTableSchema() const = 0;
+    virtual TTableSchemaPtr GetTableSchema(bool castToQLType = true) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBaseQuery)
@@ -470,7 +478,7 @@ struct TQuery
 
     TTableSchemaPtr GetRenamedSchema() const;
 
-    TTableSchemaPtr GetTableSchema() const override;
+    TTableSchemaPtr GetTableSchema(bool castToQLType = true) const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
@@ -488,7 +496,7 @@ struct TFrontQuery
 
     TTableSchemaPtr GetRenamedSchema() const;
 
-    TTableSchemaPtr GetTableSchema() const override;
+    TTableSchemaPtr GetTableSchema(bool castToQLType = true) const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFrontQuery)

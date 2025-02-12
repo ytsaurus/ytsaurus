@@ -55,6 +55,7 @@ public:
         const auto& columnEvaluatorCache = Client_->GetNativeConnection()->GetColumnEvaluatorCache();
         auto columnEvaluator = columnEvaluatorCache->Find(TableInfo_->Schemas[ETableSchemaKind::Primary]);
         Batcher_ = CreateTabletRequestBatcher(
+            TabletInfo_->TabletId,
             TTabletRequestBatcherOptions{
                 .MaxRowsPerBatch = Config_->MaxRowsPerWriteRequest,
                 .MaxDataWeightPerBatch = Config_->MaxDataWeightPerWriteRequest,

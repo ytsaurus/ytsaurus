@@ -44,6 +44,7 @@ target_link_libraries(yt-server-http_proxy PUBLIC
   server-lib-chunk_pools
   server-lib-cypress_registrar
   server-lib-logging
+  server-lib-signature
   library-cpp-cgiparam
   library-cpp-getopt
   cpp-streams-brotli

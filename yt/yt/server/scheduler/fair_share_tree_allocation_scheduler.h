@@ -57,7 +57,6 @@ public:
 private:
     const TSchedulerCompositeElement* OwningElement_;
     TDynamicAttributesList* const DynamicAttributesList_;
-    const bool UseFifoSchedulingOrder_;
     const bool UseHeap_;
 
     TNonOwningElementList Children_;
@@ -177,8 +176,6 @@ private:
     void UpdateAttributesAtOperation(TSchedulerOperationElement* element);
 
     TSchedulerElement* GetBestActiveChild(TSchedulerCompositeElement* element) const;
-    TSchedulerElement* GetBestActiveChildFifo(TSchedulerCompositeElement* element) const;
-    TSchedulerElement* GetBestActiveChildFairShare(TSchedulerCompositeElement* element) const;
 
     static void SetResourceUsage(
         const TSchedulerElement* element,

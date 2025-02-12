@@ -14,8 +14,8 @@
 #include <yt/yt/ytlib/cypress_transaction_client/proto/cypress_transaction_service.pb.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
-#include <yt/yt/ytlib/hive/cell_tracker.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>
+#include <yt/yt/ytlib/hive/downed_cell_tracker.h>
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
@@ -242,7 +242,7 @@ private:
     const IClockManagerPtr ClockManager_;
     const NHiveClient::ICellDirectoryPtr CellDirectory_;
     const NHiveClient::TClusterDirectoryPtr ClusterDirectory_;
-    const TCellTrackerPtr DownedCellTracker_;
+    const TDownedCellTrackerPtr DownedCellTracker_;
 
     const TCallback<IConnection::TReconfiguredSignature> ReconfiguredCallback_ =
         BIND(&TImpl::OnConnectionReconfigured, MakeWeak(this));
@@ -631,7 +631,7 @@ public:
             return VoidFuture;
         }
 
-        auto participantIds = Owner_->DownedCellTracker_->Select(GetRegisteredParticipantIds());
+        auto participantIds = Owner_->DownedCellTracker_->RetainDowned(GetRegisteredParticipantIds());
         return CheckDownedParticipants(participantIds);
     }
 
@@ -1199,6 +1199,7 @@ private:
         req->set_coordinator_commit_mode(ToProto(options.CoordinatorCommitMode));
         req->set_max_allowed_commit_timestamp(options.MaxAllowedCommitTimestamp);
         req->set_clock_cluster_tag(ToProto(ClockClusterTag_));
+        req->set_strongly_ordered(options.StronglyOrdered);
         SetOrGenerateMutationId(req, options.MutationId, options.Retry);
 
         return req->Invoke().Apply(

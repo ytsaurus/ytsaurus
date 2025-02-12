@@ -105,7 +105,8 @@ DEFINE_ENUM(EOperationAlertType,
     ((UseChunkSliceStatisticsDisabled)             (37))
     ((JobIsNotDeterministic)                       (38))
     ((IncompatibleStatistics)                      (39))
-    ((HasTaskWithLongPausedScheduling)             (40))
+    ((UnavailableNetworkBandwidthToClusters)       (40))
+    ((WriteBufferMemoryOverrun)                    (41))
 );
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,
@@ -122,8 +123,8 @@ DEFINE_ENUM(EAgentToSchedulerOperationEventType,
 );
 
 DEFINE_ENUM(ESchedulerToAgentOperationEventType,
-    ((UpdateMinNeededAllocationResources) (0))
-    ((UnregisterOperation)                (1))
+    ((UpdateGroupedNeededResources) (0))
+    ((UnregisterOperation)          (1))
 );
 
 DEFINE_ENUM(EControlQueue,

@@ -34,4 +34,14 @@ void TCellDirectorySynchronizerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDownedCellTrackerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("chaos_cell_expiration_time", &TThis::ChaosCellExpirationTime)
+        .Default(TDuration::Seconds(10));
+    registrar.Parameter("tablet_cell_expiration_time", &TThis::TabletCellExpirationTime)
+        .Default(TDuration::Minutes(10));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NHiveClient

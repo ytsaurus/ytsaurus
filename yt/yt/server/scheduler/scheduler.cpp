@@ -776,7 +776,8 @@ public:
     TFuture<void> SuspendOperation(
         const TOperationPtr& operation,
         const std::string& user,
-        bool abortRunningAllocations)
+        bool abortRunningAllocations,
+        const std::optional<std::string>& reason)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
@@ -795,11 +796,15 @@ public:
                 operation->GetState()));
         }
 
+        auto error = TError("Suspend operation by user request");
+        if (reason) {
+            error <<= TErrorAttribute("reason", *reason);
+        }
         DoSuspendOperation(
             operation,
-            TError("Suspend operation by user request"),
+            error,
             abortRunningAllocations,
-            /*setAlert*/ false);
+            /*setAlert*/ reason.has_value());
 
         return MasterConnector_->FlushOperationNode(operation);
     }
@@ -1096,9 +1101,7 @@ public:
         LogEventFluently(&SchedulerStructuredLogger(), ELogEventType::RuntimeParametersInfo)
             .Item("operation_id").Value(operation->GetId())
             .Item("authenticated_user").Value(user)
-            .Item("runtime_parameters").Value(newParams)
-            // COMPAT(eshcherbin)
-            .Item("runtime_params").Value(newParams);
+            .Item("runtime_parameters").Value(newParams);
 
         YT_LOG_INFO("Operation runtime parameters updated (OperationId: %v)",
             operation->GetId());
@@ -4444,9 +4447,10 @@ TFuture<void> TScheduler::AbortOperation(
 TFuture<void> TScheduler::SuspendOperation(
     TOperationPtr operation,
     const std::string& user,
-    bool abortRunningAllocations)
+    bool abortRunningAllocations,
+    const std::optional<std::string>& reason)
 {
-    return Impl_->SuspendOperation(operation, user, abortRunningAllocations);
+    return Impl_->SuspendOperation(operation, user, abortRunningAllocations, reason);
 }
 
 TFuture<void> TScheduler::ResumeOperation(

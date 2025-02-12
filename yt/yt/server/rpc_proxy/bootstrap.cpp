@@ -161,7 +161,7 @@ void TBootstrap::DoInitialize()
         GetValues(LocalAddresses_));
 
     MemoryUsageTracker_ = CreateNodeMemoryTracker(
-        *Config_->MemoryLimits->Total,
+        Config_->MemoryLimits->Total.value_or(std::numeric_limits<i64>::max()),
         /*limits*/ {},
         Logger(),
         RpcProxyProfiler().WithPrefix("/memory_usage"));
@@ -201,7 +201,7 @@ void TBootstrap::DoInitialize()
     }
 
     if (Config_->SignatureValidation) {
-        CypressKeyReader_ = New<TCypressKeyReader>(
+        CypressKeyReader_ = CreateCypressKeyReader(
             Config_->SignatureValidation->CypressKeyReader,
             RootClient_);
         SignatureValidator_ = New<TSignatureValidator>(
@@ -210,9 +210,10 @@ void TBootstrap::DoInitialize()
     }
 
     if (Config_->SignatureGeneration) {
-        CypressKeyWriter_ = New<TCypressKeyWriter>(
+        CypressKeyWriter_ = WaitFor(CreateCypressKeyWriter(
             Config_->SignatureGeneration->CypressKeyWriter,
-            RootClient_);
+            RootClient_))
+            .ValueOrThrow();
         SignatureGenerator_ = New<TSignatureGenerator>(
             Config_->SignatureGeneration->Generator,
             CypressKeyWriter_);
@@ -220,9 +221,6 @@ void TBootstrap::DoInitialize()
             Config_->SignatureGeneration->KeyRotator,
             GetControlInvoker(),
             SignatureGenerator_);
-
-        YT_UNUSED_FUTURE(CypressKeyWriter_->Initialize());
-        SignatureKeyRotator_->Start();
     }
 
     ProxyCoordinator_ = CreateProxyCoordinator();
@@ -321,6 +319,11 @@ void TBootstrap::DoStart()
         Logger());
 
     QueryCorpusReporter_ = MakeQueryCorpusReporter(RootClient_);
+
+    if (SignatureKeyRotator_) {
+        WaitFor(SignatureKeyRotator_->Start())
+            .ThrowOnError();
+    }
 
     auto createApiService = [&] (const NAuth::IAuthenticationManagerPtr& authenticationManager) {
         return CreateApiService(
@@ -471,14 +474,8 @@ void TBootstrap::ReconfigureMemoryLimits(const TProxyMemoryLimitsPtr& memoryLimi
     auto totalLimit = MemoryUsageTracker_->GetTotalLimit();
 
     MemoryUsageTracker_->SetCategoryLimit(
-        EMemoryCategory::Lookup,
-        memoryLimits->Lookup.value_or(staticLimits->Lookup.value_or(totalLimit)));
-    MemoryUsageTracker_->SetCategoryLimit(
-        EMemoryCategory::Query,
-        memoryLimits->Query.value_or(staticLimits->Query.value_or(totalLimit)));
-    MemoryUsageTracker_->SetCategoryLimit(
-        EMemoryCategory::Rpc,
-        memoryLimits->Rpc.value_or(staticLimits->Rpc.value_or(totalLimit)));
+        EMemoryCategory::HeavyRequest,
+        memoryLimits->HeavyRequest.value_or(staticLimits->HeavyRequest.value_or(totalLimit)));
 }
 
 void TBootstrap::ReconfigureConnection(

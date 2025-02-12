@@ -18,6 +18,7 @@
 #include <util/system/tempfile.h>
 
 using namespace NYql;
+using namespace NYql::NFmr;
 
 constexpr TStringBuf InputData =
     "{\"key\"=\"075\";\"subkey\"=\".\";\"value\"=\"abc\"};\n"

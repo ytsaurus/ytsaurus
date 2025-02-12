@@ -78,6 +78,10 @@ struct TResourceUsageSnapshot final
     THashSet<TOperationId> AliveOperationIds;
     THashMap<TOperationId, TJobResources> OperationIdToResourceUsage;
     THashMap<TString, TJobResources> PoolToResourceUsage;
+    // NB: these usages used in scheduler tree strategy at schedule allocation initialization stage;
+    // it can be dropped from snapshot by the cost of less accurate values (without precommitted part).
+    THashMap<TOperationId, TJobResources> OperationIdToResourceUsageWithPrecommit;
+    THashMap<TString, TJobResources> PoolToResourceUsageWithPrecommit;
 };
 
 using TResourceUsageSnapshotPtr = TIntrusivePtr<TResourceUsageSnapshot>;

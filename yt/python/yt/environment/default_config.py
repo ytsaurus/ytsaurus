@@ -2,10 +2,14 @@ import yt.yson as yson
 
 
 # TODO(babenko): drop settings mirrored in get_dynamic_master_config below
+# COMPAT(aleksandra-zh): enable_secondary_master_registration should be removed after compat tests
+# are bumped to 25.1.
 def get_master_config():
     return yson.loads(b"""
 {
     enable_provision_lock = %false;
+
+    enable_secondary_master_registration = %true;
 
     timestamp_provider = {
         soft_backoff_time = 100;
@@ -31,6 +35,10 @@ def get_master_config():
 
     cell_manager = {
         create_virtual_cell_maps_by_default = %true;
+    };
+
+    table_manager = {
+        make_schema_attribute_opaque = %true;
     };
 
     timestamp_manager = {
@@ -65,7 +73,7 @@ def get_master_config():
         thread_count = 2;
     };
 
-    expose_testing_facilities = %true
+    expose_testing_facilities = %true;
 }
 """)
 
@@ -82,6 +90,10 @@ def get_dynamic_master_config():
         removal_job_schedule_delay = 0;
         replicator_enabled_check_period = 1000;
         enable_chunk_schemas = %true;
+
+        data_node_tracker = {
+            enable_per_location_full_heartbeats = %true;
+        };
     };
 
     node_tracker = {

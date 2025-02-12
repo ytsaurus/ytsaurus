@@ -42,7 +42,6 @@ target_link_libraries(cpp-mapreduce-util PUBLIC
 
 target_sources(cpp-mapreduce-util PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/batch.cpp
-  ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/temp_table.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/ypath_join.cpp
   ${PROJECT_SOURCE_DIR}/yt/cpp/mapreduce/util/wait_for_tablets_state.cpp
 )

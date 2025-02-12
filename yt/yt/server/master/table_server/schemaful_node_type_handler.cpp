@@ -108,10 +108,9 @@ void TSchemafulNodeTypeHandlerBase<TImpl>::DoMaterializeNode(
     TBase::DoMaterializeNode(schemafulNode, context);
 
     const auto& tableManager = this->GetBootstrap()->GetTableManager();
-    auto* schema = Load<TMasterTableSchema*>(*context);
+    auto schema = Load<TMasterTableSchemaRawPtr>(*context);
     tableManager->SetTableSchema(schemafulNode, schema);
     schemafulNode->SetSchemaMode(Load<ETableSchemaMode>(*context));
-
 }
 
 ////////////////////////////////////////////////////////////////////////////////

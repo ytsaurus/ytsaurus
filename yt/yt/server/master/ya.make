@@ -13,15 +13,17 @@ SRCS(
     cell_master/config.cpp
     cell_master/disk_space_sensor_producer.cpp
     cell_master/epoch_history_manager.cpp
-    cell_master/helpers.cpp
     cell_master/hydra_facade.cpp
     cell_master/master_hydra_service.cpp
     cell_master/multi_phase_cell_sync_session.cpp
     cell_master/multicell_manager.cpp
+    cell_master/multicell_node_statistics.cpp
+    cell_master/multicell_statistics_collector.cpp
     cell_master/program.cpp
     cell_master/proto/alert_manager.proto
     cell_master/proto/epoch_history_manager.proto
     cell_master/proto/multicell_manager.proto
+    cell_master/proto/multicell_node_statistics.proto
     cell_master/proto/response_keeper_manager.proto
     cell_master/response_keeper_manager.cpp
     cell_master/serialize.cpp
@@ -70,6 +72,7 @@ SRCS(
     chaos_server/chaos_replicated_table_node.cpp
     chaos_server/chaos_service.cpp
     chaos_server/config.cpp
+    chaos_server/helpers.cpp
 
     chaos_server/proto/alien_cell.proto
     chaos_server/proto/chaos_manager.proto
@@ -128,6 +131,7 @@ SRCS(
     chunk_server/job_registry.cpp
     chunk_server/job_tracker_service.cpp
     chunk_server/job.cpp
+    chunk_server/lost_vital_chunks_sample.cpp
     chunk_server/master_cell_chunk_statistics_collector.cpp
     chunk_server/medium_base.cpp
     chunk_server/medium_proxy_base.cpp
@@ -137,6 +141,7 @@ SRCS(
     chunk_server/proto/chunk_merger.proto
     chunk_server/proto/chunk_reincarnator.proto
     chunk_server/proto/data_node_tracker.proto
+    chunk_server/proto/lost_vital_chunks_sample.proto
     chunk_server/proto/master_cell_chunk_statistics_collector.proto
     chunk_server/public.cpp
     chunk_server/incumbency_epoch.cpp

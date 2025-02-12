@@ -20,8 +20,8 @@ class THost
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(std::string, Name);
-    DEFINE_BYVAL_RW_PROPERTY(TRack*, Rack, nullptr);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TNode*>, Nodes);
+    DEFINE_BYVAL_RW_PROPERTY(TRackRawPtr, Rack);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TNodeRawPtr>, Nodes);
 
 public:
     using TObject::TObject;
@@ -38,6 +38,8 @@ public:
 
     TCompactVector<TNode*, 1> GetNodesWithFlavor(ENodeFlavor flavor) const;
 };
+
+DEFINE_MASTER_OBJECT_TYPE(THost)
 
 ////////////////////////////////////////////////////////////////////////////////
 

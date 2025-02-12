@@ -53,7 +53,7 @@ public:
 
     void TrySwitchToNewIncarnation(bool operationIsReviving);
 
-    void TrySwitchToNewIncarnation(const TOperationIncarnation& consideredIncarnation, bool operationIsReviving);
+    void TrySwitchToNewIncarnation(const std::optional<TOperationIncarnation>& consideredIncarnation, bool operationIsReviving);
 
     void UpdateConfig(const TVanillaOperationOptionsPtr& config) noexcept;
 
@@ -301,7 +301,7 @@ void TGangManager::TrySwitchToNewIncarnation(bool operationIsReviving)
     VanillaOperationController_->OnOperationIncarnationChanged(operationIsReviving);
 }
 
-void TGangManager::TrySwitchToNewIncarnation(const TOperationIncarnation& consideredIncarnation, bool operationIsReviving)
+void TGangManager::TrySwitchToNewIncarnation(const std::optional<TOperationIncarnation>& consideredIncarnation, bool operationIsReviving)
 {
     if (consideredIncarnation == Incarnation_) {
         TrySwitchToNewIncarnation(operationIsReviving);
@@ -405,6 +405,7 @@ TExtendedJobResources TVanillaTask::GetMinNeededResourcesHeavy() const
     result.SetCpu(Spec_->CpuLimit);
     // NB: JobProxyMemory is the only memory that is related to IO. Footprint is accounted below.
     result.SetJobProxyMemory(0);
+    result.SetJobProxyMemoryWithFixedWriteBufferSize(0);
     AddFootprintAndUserJobResources(result);
     return result;
 }
@@ -725,7 +726,10 @@ void TVanillaController::InitUserJobSpec(
     YT_ASSERT_INVOKER_AFFINITY(GetJobSpecBuildInvoker());
 
     TOperationControllerBase::InitUserJobSpec(proto, joblet);
-    proto->add_environment(Format("YT_OPERATION_INCARNATION=%v", joblet->OperationIncarnation));
+
+    if (joblet->OperationIncarnation) {
+        proto->add_environment(Format("YT_OPERATION_INCARNATION=%v", *joblet->OperationIncarnation));
+    }
 }
 
 bool TVanillaController::OnJobCompleted(
@@ -740,7 +744,7 @@ bool TVanillaController::OnJobCompleted(
         return false;
     }
 
-    if (joblet->JobType == EJobType::Vanilla && interruptionReason != EInterruptReason::None) {
+    if (joblet->JobType == EJobType::Vanilla && interruptionReason != EInterruptionReason::None) {
         static_cast<TVanillaTask*>(joblet->Task)->TrySwitchToNewOperationIncarnation(joblet, /*operationIsReviving*/ false);
     }
 

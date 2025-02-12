@@ -15,6 +15,7 @@ namespace NYT::NTabletServer {
 using namespace NCellMaster;
 using namespace NChunkClient;
 using namespace NChunkServer;
+using namespace NObjectServer;
 using namespace NCypressClient;
 using namespace NHiveServer;
 using namespace NTabletClient;
@@ -196,11 +197,11 @@ TCompactVector<TTabletCell*, 2> TTabletBase::GetCells() const
 {
     TCompactVector<TTabletCell*, 2> result;
 
-    if (auto* cell = Servant_.GetCell()) {
+    if (auto cell = Servant_.GetCell()) {
         result.push_back(cell);
     }
 
-    if (auto* cell = AuxiliaryServant_.GetCell()) {
+    if (auto cell = AuxiliaryServant_.GetCell()) {
         result.push_back(cell);
     }
 
@@ -340,7 +341,7 @@ i64 TTabletBase::GetTabletMasterMemoryUsage() const
 
 void TTabletBase::ValidateNotSmoothlyMoved(TStringBuf message) const
 {
-    if (const auto* action = GetAction()) {
+    if (auto action = GetAction()) {
         if (action->GetKind() == ETabletActionKind::SmoothMove) {
             THROW_ERROR_EXCEPTION("%v since tablet %v is being moved to other cell",
                 message,
@@ -366,7 +367,7 @@ void TTabletBase::ValidateMount(bool freeze)
             State_);
     }
 
-    std::vector<TChunkTree*> stores;
+    std::vector<TChunkTreeRawPtr> stores;
     for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
         if (auto* chunkList = GetChunkList(contentType)) {
             EnumerateStoresInChunkTree(chunkList, &stores);
@@ -375,7 +376,7 @@ void TTabletBase::ValidateMount(bool freeze)
 
     THashSet<TObjectId> storeSet;
     storeSet.reserve(stores.size());
-    for (auto* store : stores) {
+    for (auto store : stores) {
         if (!storeSet.insert(store->GetId()).second) {
             THROW_ERROR_EXCEPTION("Cannot mount %v: tablet %v contains duplicate store %v of type %Qlv",
                 GetOwner()->GetType(),

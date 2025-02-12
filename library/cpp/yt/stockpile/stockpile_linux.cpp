@@ -93,8 +93,8 @@ private:
 
     void RunWithFixedBreaks(i64 bufferSize, TDuration period)
     {
-        auto returnCode = -::madvise(nullptr, bufferSize, MADV_STOCKPILE);
-        YT_LOG_DEBUG_IF(returnCode != 0, "System call \"madvise\" failed: %v", strerror(returnCode));
+        auto returnCode = ::madvise(nullptr, bufferSize, MADV_STOCKPILE);
+        YT_LOG_DEBUG_IF(returnCode != 0, "System call \"madvise\" failed: %v", strerror(errno));
 
         Sleep(period);
     }
@@ -103,8 +103,8 @@ private:
     {
         auto started = GetApproximateCpuInstant();
 
-        auto returnCode = -::madvise(nullptr, bufferSize, MADV_STOCKPILE);
-        YT_LOG_DEBUG_IF(returnCode != 0, "System call \"madvise\" failed: %v", strerror(returnCode));
+        auto returnCode = ::madvise(nullptr, bufferSize, MADV_STOCKPILE);
+        YT_LOG_DEBUG_IF(returnCode != 0, "System call \"madvise\" failed: %v", strerror(errno));
 
         auto duration = CpuDurationToDuration(GetApproximateCpuInstant() - started);
         if (duration < period) {

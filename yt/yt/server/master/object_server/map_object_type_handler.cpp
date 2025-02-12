@@ -27,7 +27,7 @@ ETypeFlags TNonversionedMapObjectTypeHandlerBase<TObject>::GetFlags() const
 template <class TObject>
 NObjectServer::TObject* TNonversionedMapObjectTypeHandlerBase<TObject>::DoGetParent(TObject* object)
 {
-    auto* parent = object->GetParent();
+    auto parent = object->GetParent();
     return parent ? parent : TObjectTypeHandlerWithMapBase<TObject>::DoGetParent(object);
 }
 
@@ -71,8 +71,7 @@ void TNonversionedMapObjectTypeHandlerBase<TObject>::DoZombifyObject(TObject* ob
     YT_VERIFY(object->KeyToChild().empty());
     YT_VERIFY(object->ChildToKey().empty());
 
-    auto* parent = object->GetParent();
-    if (parent) {
+    if (auto parent = object->GetParent()) {
         auto name = object->GetName();
         UnregisterName(name, object);
         parent->DetachChild(object);

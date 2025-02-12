@@ -13,7 +13,7 @@ namespace NYT::NNodeTrackerServer {
 class TNodeListForRole
 {
 public:
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TNode*>, Nodes);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TNodeRawPtr>, Nodes);
     DEFINE_BYREF_RW_PROPERTY(std::vector<std::string>, Addresses);
 
 public:

@@ -5,6 +5,7 @@
 #include "helpers.h"
 #include "lexer.h"
 #include "private.h"
+#include "push_down_group_by.h"
 #include "query_helpers.h"
 #include "query_visitors.h"
 
@@ -147,6 +148,17 @@ std::vector<TString> ExtractFunctionNames(
     for (const auto& aliasedExpression : aliasMap) {
         ExtractFunctionNames(aliasedExpression.second, &functions);
     }
+
+    Visit(query.FromClause,
+        [&] (const NAst::TTableDescriptor& /*table*/) { },
+        [&] (const NAst::TQueryAstHeadPtr& subquery) {
+            auto extracted = ExtractFunctionNames(subquery->Ast, aliasMap);
+            functions.insert(
+                functions.end(),
+                std::make_move_iterator(extracted.begin()),
+                std::make_move_iterator(extracted.end()));
+        });
+
 
     std::sort(functions.begin(), functions.end());
     functions.erase(
@@ -1436,7 +1448,7 @@ public:
 
 public:
     TBuilderCtx(
-        const TString& source,
+        TStringBuf source,
         const TConstTypeInferrerMapPtr& functions,
         const NAst::TAliasMap& aliasMap,
         const TTableSchema& schema,
@@ -3034,7 +3046,7 @@ THashMap<TString, TString> ConvertYsonPlaceholdersToQueryLiterals(TYsonStringBuf
 }
 
 NAst::TAstHead ParseQueryString(
-    const TString& source,
+    TStringBuf source,
     NAst::TParser::token::yytokentype strayToken,
     TYsonStringBuf placeholderValues = {},
     int syntaxVersion = 1)
@@ -3047,7 +3059,7 @@ NAst::TAstHead ParseQueryString(
     }
 
     NAst::TLexer lexer(source, strayToken, std::move(queryLiterals), syntaxVersion);
-    NAst::TParser parser(lexer, &head, source);
+    NAst::TParser parser(lexer, &head, source, /*aliasMapStack*/ {});
 
     int result = parser.parse();
 
@@ -3071,6 +3083,37 @@ NAst::TParser::token::yytokentype GetStrayToken(EParseMode mode)
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+void EliminateRedundantProjections(const TQueryPtr& innerSubquery, const TTableSchema& outerQueryReadSchema)
+{
+    auto projectClause = New<TProjectClause>();
+
+    if (!innerSubquery->ProjectClause) {
+        for (const auto& column : outerQueryReadSchema.Columns()) {
+            projectClause->Projections.push_back(TNamedItem(
+                New<TReferenceExpression>(column.LogicalType(), column.Name()),
+                column.Name()));
+        }
+    } else {
+        TColumnSet readColumns;
+        for (const auto& column : outerQueryReadSchema.Columns()) {
+            readColumns.insert(column.Name());
+        }
+
+        TNamedItemList filteredProjections;
+        for (const auto& projection : innerSubquery->ProjectClause->Projections) {
+            if (readColumns.contains(projection.Name)) {
+                filteredProjections.push_back(projection);
+            }
+        }
+
+        projectClause->Projections = std::move(filteredProjections);
+    }
+
+    innerSubquery->ProjectClause = std::move(projectClause);
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3082,13 +3125,13 @@ void DefaultFetchFunctions(TRange<TString> /*names*/, const TTypeInferrerMapPtr&
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TParsedSource::TParsedSource(const TString& source, NAst::TAstHead astHead)
+TParsedSource::TParsedSource(TStringBuf source, NAst::TAstHead astHead)
     : Source(source)
     , AstHead(std::move(astHead))
 { }
 
 std::unique_ptr<TParsedSource> ParseSource(
-    const TString& source,
+    TStringBuf source,
     EParseMode mode,
     TYsonStringBuf placeholderValues,
     int syntaxVersion)
@@ -3152,7 +3195,8 @@ std::vector<std::pair<TConstExpressionPtr, int>> MakeExpressionsFromComputedColu
 TJoinClausePtr BuildJoinClause(
     const TDataSplit& foreignDataSplit,
     const NAst::TJoin& tableJoin,
-    const TParsedSource& parsedSource,
+    const TString& source,
+    const NAst::TAliasMap& aliasMap,
     const TConstTypeInferrerMapPtr& functions,
     size_t* globalCommonKeyPrefix,
     const TTableSchemaPtr& tableSchema,
@@ -3160,8 +3204,6 @@ TJoinClausePtr BuildJoinClause(
     TBuilderCtx& builder,
     const NLogging::TLogger& Logger)
 {
-    const auto& aliasMap = parsedSource.AstHead.AliasMap;
-
     auto foreignTableSchema = foreignDataSplit.TableSchema;
 
     auto joinClause = New<TJoinClause>();
@@ -3171,7 +3213,7 @@ TJoinClausePtr BuildJoinClause(
 
     // BuildPredicate and BuildTypedExpression are used with foreignBuilder.
     TBuilderCtx foreignBuilder{
-        parsedSource.Source,
+        source,
         functions,
         aliasMap,
         *joinClause->Schema.Original,
@@ -3233,7 +3275,7 @@ TJoinClausePtr BuildJoinClause(
     }
 
     for (int index = 0; index < std::ssize(selfEquations); ++index) {
-        if (*selfEquations[index].Expression->LogicalType != *foreignEquations[index]->LogicalType) {
+        if (selfEquations[index].Expression->GetWireType() != foreignEquations[index]->GetWireType()) {
             THROW_ERROR_EXCEPTION("Types mismatch in join equation \"%v = %v\"",
                 InferName(selfEquations[index].Expression),
                 InferName(foreignEquations[index]))
@@ -3364,7 +3406,8 @@ TJoinClausePtr BuildJoinClause(
 
 TJoinClausePtr BuildArrayJoinClause(
     const NAst::TArrayJoin& arrayJoin,
-    const TParsedSource& parsedSource,
+    const TString& source,
+    const NAst::TAliasMap& aliasMap,
     const TConstTypeInferrerMapPtr& functions,
     TBuilderCtx& builder)
 {
@@ -3404,9 +3447,9 @@ TJoinClausePtr BuildArrayJoinClause(
     arrayJoinClause->Schema.Original = New<TTableSchema>(std::move(nestedColumns));
 
     TBuilderCtx arrayBuilder{
-        parsedSource.Source,
+        source,
         functions,
-        parsedSource.AstHead.AliasMap,
+        aliasMap,
         *arrayJoinClause->Schema.Original,
         std::nullopt,
         &arrayJoinClause->Schema.Mapping,
@@ -3431,108 +3474,134 @@ TJoinClausePtr BuildArrayJoinClause(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<TPlanFragment> PreparePlanFragment(
+TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
-    const TString& source,
+    TStringBuf source,
     TYsonStringBuf placeholderValues,
     int syntaxVersion,
     IMemoryUsageTrackerPtr memoryTracker)
 {
+    auto parsedSource = ParseSource(source, EParseMode::Query, placeholderValues, syntaxVersion);
     return PreparePlanFragment(
         callbacks,
-        *ParseSource(source, EParseMode::Query, placeholderValues, syntaxVersion),
+        parsedSource->Source,
+        std::get<NAst::TQuery>(parsedSource->AstHead.Ast),
+        parsedSource->AstHead.AliasMap,
         std::move(memoryTracker));
 }
 
-std::unique_ptr<TPlanFragment> PreparePlanFragment(
+TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
-    const TParsedSource& parsedSource,
-    IMemoryUsageTrackerPtr memoryTracker)
+    const TString& source,
+    const NAst::TQuery& queryAst,
+    const NAst::TAliasMap& aliasMap,
+    IMemoryUsageTrackerPtr memoryTracker,
+    int depth)
 {
     auto query = New<TQuery>(TGuid::Create());
 
     auto Logger = MakeQueryLogger(query);
 
-    const auto& ast = std::get<NAst::TQuery>(parsedSource.AstHead.Ast);
-    const auto& aliasMap = parsedSource.AstHead.AliasMap;
+    auto fragment = New<TPlanFragment>();
 
-    auto functionNames = ExtractFunctionNames(ast, aliasMap);
+    Visit(queryAst.FromClause,
+        [&] (const NAst::TQueryAstHeadPtr& subquery) {
+            fragment->SubqueryFragment = PreparePlanFragment(
+                callbacks,
+                source,
+                subquery->Ast,
+                subquery->AliasMap,
+                memoryTracker,
+                depth + 1);
+        },
+        [&] (const NAst::TTableDescriptor&) { });
 
     auto functions = New<TTypeInferrerMap>();
-    callbacks->FetchFunctions(functionNames, functions);
+    callbacks->FetchFunctions(ExtractFunctionNames(queryAst, aliasMap), functions);
 
-    const auto& table = ast.Table;
+    const auto* table = std::get_if<NAst::TTableDescriptor>(&queryAst.FromClause);
 
-    YT_LOG_DEBUG("Getting initial data splits (PrimaryPath: %v, ForeignPaths: %v)",
-        table.Path,
+    YT_LOG_DEBUG("Getting initial data splits (PrimaryPath: %v, ForeignPaths: %v, SubqueryDepth: %v)",
+        table ? table->Path : "unapplicable",
         MakeFormattableView(
-            ast.Joins,
+            queryAst.Joins,
             [] (TStringBuilderBase* builder, const std::variant<NAst::TJoin, NAst::TArrayJoin>& join) {
                 if (auto* tableJoin = std::get_if<NAst::TJoin>(&join)) {
                     FormatValue(builder, tableJoin->Table.Path, TStringBuf());
                 }
-        }));
+        }),
+        depth);
 
     std::vector<TFuture<TDataSplit>> asyncDataSplits;
-    asyncDataSplits.reserve(ast.Joins.size() + 1);
-    asyncDataSplits.push_back(callbacks->GetInitialSplit(table.Path));
-    for (const auto& join : ast.Joins) {
+    asyncDataSplits.reserve(queryAst.Joins.size() + 1);
+    if (table) {
+        asyncDataSplits.push_back(callbacks->GetInitialSplit(table->Path));
+    }
+    for (const auto& join : queryAst.Joins) {
         Visit(join,
             [&] (const NAst::TJoin& tableJoin) {
                 asyncDataSplits.push_back(callbacks->GetInitialSplit(tableJoin.Table.Path));
             },
-            [&] (const NAst::TArrayJoin& /*arrayJoin*/) {
-                auto defaultPromise = NewPromise<TDataSplit>();
-                defaultPromise.Set(TDataSplit{});
-                asyncDataSplits.push_back(defaultPromise.ToFuture());
-            });
+            [&] (const NAst::TArrayJoin& /*arrayJoin*/) { });
     }
 
-    auto dataSplits = WaitFor(AllSucceeded(asyncDataSplits))
+    auto dataSplits = WaitForFast(AllSucceeded(asyncDataSplits))
         .ValueOrThrow();
 
     YT_LOG_DEBUG("Initial data splits received");
 
-    const auto& selfDataSplit = dataSplits[0];
+    if (table) {
+        fragment->DataSource.ObjectId = dataSplits[0].ObjectId;
+        query->Schema.Original = dataSplits[0].TableSchema;
+    } else {
+        query->Schema.Original = fragment->SubqueryFragment->Query->GetTableSchema();
+    }
 
-    auto tableSchema = selfDataSplit.TableSchema;
-    query->Schema.Original = tableSchema;
+    auto alias = Visit(queryAst.FromClause,
+        [&] (const NAst::TTableDescriptor& tableDescriptor) {
+            return tableDescriptor.Alias;
+        },
+        [&] (const NAst::TQueryAstHeadPtr& subquery) {
+            return subquery->Alias;
+        });
 
     TBuilderCtx builder{
-        parsedSource.Source,
+        source,
         functions,
         aliasMap,
         *query->Schema.Original,
-        table.Alias,
+        alias,
         &query->Schema.Mapping};
 
     std::vector<TJoinClausePtr> joinClauses;
     size_t commonKeyPrefix = std::numeric_limits<size_t>::max();
-    for (size_t joinIndex = 0; joinIndex < ast.Joins.size(); ++joinIndex) {
-        const auto& join = ast.Joins[joinIndex];
+    int splitIndex = table ? 1 : 0;
+    for (const auto& join : queryAst.Joins) {
         Visit(join,
             [&] (const NAst::TJoin& tableJoin) {
                 joinClauses.push_back(BuildJoinClause(
-                    dataSplits[joinIndex + 1],
+                    dataSplits[splitIndex++],
                     tableJoin,
-                    parsedSource,
+                    source,
+                    aliasMap,
                     functions,
                     &commonKeyPrefix,
-                    tableSchema,
-                    table.Alias,
+                    query->Schema.Original,
+                    table->Alias,
                     builder,
                     Logger));
             },
             [&] (const NAst::TArrayJoin& arrayJoin) {
                 joinClauses.push_back(BuildArrayJoinClause(
                     arrayJoin,
-                    parsedSource,
+                    source,
+                    aliasMap,
                     functions,
                     builder));
             });
     }
 
-    PrepareQuery(query, ast, builder);
+    PrepareQuery(query, queryAst, builder);
 
     // Must be filled after builder.Finish()
     for (const auto& [reference, entry] : builder.Lookup()) {
@@ -3564,38 +3633,46 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
             << TErrorAttribute("max_multi_join_group_number", MaxMultiJoinGroupNumber);
     }
 
-    if (ast.Limit) {
-        if (*ast.Limit > MaxQueryLimit) {
+    if (queryAst.Limit) {
+        if (*queryAst.Limit > MaxQueryLimit) {
             THROW_ERROR_EXCEPTION("Maximum LIMIT exceeded")
-                << TErrorAttribute("limit", *ast.Limit)
+                << TErrorAttribute("limit", *queryAst.Limit)
                 << TErrorAttribute("max_limit", MaxQueryLimit);
         }
 
-        query->Limit = *ast.Limit;
+        query->Limit = *queryAst.Limit;
 
         if (!query->OrderClause && query->HavingClause) {
             THROW_ERROR_EXCEPTION("HAVING with LIMIT is not allowed");
         }
-    } else if (!ast.OrderExpressions.empty()) {
+    } else if (!queryAst.OrderExpressions.empty()) {
         THROW_ERROR_EXCEPTION("ORDER BY used without LIMIT");
     }
 
-    if (ast.Offset) {
+    if (queryAst.Offset) {
         if (!query->OrderClause && query->HavingClause) {
             THROW_ERROR_EXCEPTION("HAVING with OFFSET is not allowed");
         }
 
-        query->Offset = *ast.Offset;
+        query->Offset = *queryAst.Offset;
 
-        if (!ast.Limit) {
+        if (!queryAst.Limit) {
             THROW_ERROR_EXCEPTION("OFFSET used without LIMIT");
         }
+    }
+
+    TryPushDownGroupBy(query, queryAst, Logger);
+
+    auto readSchema = query->GetReadSchema();
+
+    if (fragment->SubqueryFragment) {
+        EliminateRedundantProjections(fragment->SubqueryFragment->Query, *readSchema);
     }
 
     auto queryFingerprint = InferName(query, {.OmitValues = true});
     YT_LOG_DEBUG("Prepared query (Fingerprint: %v, ReadSchema: %v, ResultSchema: %v)",
         queryFingerprint,
-        *query->GetReadSchema(),
+        *readSchema,
         *query->GetTableSchema());
 
     auto rowBuffer = New<TRowBuffer>(
@@ -3603,15 +3680,13 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
         TChunkedMemoryPool::DefaultStartChunkSize,
         memoryTracker);
 
-    auto fragment = std::make_unique<TPlanFragment>();
     fragment->Query = query;
-    fragment->DataSource.ObjectId = selfDataSplit.ObjectId;
 
     return fragment;
 }
 
 TQueryPtr PrepareJobQuery(
-    const TString& source,
+    TStringBuf source,
     const TTableSchemaPtr& tableSchema,
     const TFunctionsFetcher& functionsFetcher)
 {
@@ -3656,7 +3731,7 @@ TQueryPtr PrepareJobQuery(
 }
 
 TConstExpressionPtr PrepareExpression(
-    const TString& source,
+    TStringBuf source,
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions,
     THashSet<std::string>* references)

@@ -3,6 +3,7 @@
 #include "client.h"
 #include "sync_replica_cache.h"
 #include "tablet_sync_replica_cache.h"
+#include "table_replica_synchronicity_cache.h"
 #include "transaction_participant.h"
 #include "private.h"
 #include "helpers.h"
@@ -30,9 +31,9 @@
 #include <yt/yt/ytlib/hive/config.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
-#include <yt/yt/ytlib/hive/cell_tracker.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/downed_cell_tracker.h>
 #include <yt/yt/ytlib/hive/hive_service_proxy.h>
 
 #include <yt/yt/ytlib/hydra/peer_channel.h>
@@ -179,6 +180,7 @@ public:
         , Profiler_(TProfiler("/connection").WithTag("connection_name", StaticConfig_->ConnectionName))
         , TabletSyncReplicaCache_(New<TTabletSyncReplicaCache>())
         , BannedReplicaTrackerCache_(CreateBannedReplicaTrackerCache(StaticConfig_->BannedReplicaTrackerCache, Logger))
+        , TableReplicaStatusCache_(New<TTableReplicaSynchronicityCache>())
         , QueryEvaluator_(BIND([this] {
             auto config = Config_.Acquire();
             return CreateEvaluator(config->QueryEvaluator);
@@ -191,6 +193,7 @@ public:
             auto config = Config_.Acquire();
             return CreateExpressionEvaluatorCache(config->ExpressionEvaluatorCache);
         }))
+        , DownedCellTracker_(New<TDownedCellTracker>(Config_.Acquire()->DownedCellTracker))
         , MemoryTracker_(std::move(memoryTracker))
         , ClusterDirectoryOverride_(std::move(clusterDirectoryOverride))
     { }
@@ -473,6 +476,11 @@ public:
         return ChaosResidencyCache_;
     }
 
+    const TTableReplicaSynchronicityCachePtr& GetTableReplicaSynchronicityCache() override
+    {
+        return TableReplicaStatusCache_;
+    }
+
     IInvokerPtr GetInvoker() override
     {
         return Options_.ConnectionInvoker;
@@ -698,7 +706,7 @@ public:
         return ChunkReplicaCache_;
     }
 
-    const TCellTrackerPtr& GetDownedCellTracker() override
+    const TDownedCellTrackerPtr& GetDownedCellTracker() override
     {
         return DownedCellTracker_;
     }
@@ -866,6 +874,7 @@ public:
 
     void Reconfigure(const TConnectionDynamicConfigPtr& dynamicConfig) override
     {
+        DownedCellTracker_->Reconfigure(dynamicConfig->DownedCellTracker);
         SyncReplicaCache_->Reconfigure(StaticConfig_->SyncReplicaCache->ApplyDynamic(dynamicConfig->SyncReplicaCache));
         TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
         ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
@@ -902,6 +911,7 @@ private:
 
     const TTabletSyncReplicaCachePtr TabletSyncReplicaCache_;
     const IBannedReplicaTrackerCachePtr BannedReplicaTrackerCache_;
+    const TTableReplicaSynchronicityCachePtr TableReplicaStatusCache_;
 
     const TLazyIntrusivePtr<IEvaluator> QueryEvaluator_;
     const TLazyIntrusivePtr<IColumnEvaluatorCache> ColumnEvaluatorCache_;
@@ -932,7 +942,7 @@ private:
     ICellDirectoryPtr CellDirectory_;
     ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     IChaosCellDirectorySynchronizerPtr ChaosCellDirectorySynchronizer_;
-    const TCellTrackerPtr DownedCellTracker_ = New<TCellTracker>();
+    TDownedCellTrackerPtr DownedCellTracker_;
 
     INodeMemoryTrackerPtr MemoryTracker_;
 

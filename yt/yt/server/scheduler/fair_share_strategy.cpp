@@ -60,6 +60,7 @@ public:
         , FeasibleInvokers_(std::move(feasibleInvokers))
         , Logger(StrategyLogger)
     {
+        // TODO(eshcherbin): Use BIND_NO_PROPAGATE for all periodic executors.
         FairShareProfilingExecutor_ = New<TPeriodicExecutor>(
             Host_->GetFairShareProfilingInvoker(),
             BIND(&TFairShareStrategy::OnFairShareProfiling, MakeWeak(this)),
@@ -80,9 +81,9 @@ public:
             BIND(&TFairShareStrategy::OnLogAccumulatedUsage, MakeWeak(this)),
             Config_->AccumulatedUsageLogPeriod);
 
-        MinNeededAllocationResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
+        GroupedNeededResourcesUpdateExecutor_ = New<TPeriodicExecutor>(
             Host_->GetControlInvoker(EControlQueue::FairShareStrategy),
-            BIND(&TFairShareStrategy::OnMinNeededAllocationResourcesUpdate, MakeWeak(this)),
+            BIND(&TFairShareStrategy::OnGroupedNeededResourcesUpdate, MakeWeak(this)),
             Config_->MinNeededResourcesUpdatePeriod);
 
         ResourceMeteringExecutor_ = New<TPeriodicExecutor>(
@@ -132,7 +133,7 @@ public:
         FairShareUpdateExecutor_->Start();
         FairShareLoggingExecutor_->Start();
         AccumulatedUsageLoggingExecutor_->Start();
-        MinNeededAllocationResourcesUpdateExecutor_->Start();
+        GroupedNeededResourcesUpdateExecutor_->Start();
         ResourceMeteringExecutor_->Start();
         ResourceUsageUpdateExecutor_->Start();
         SchedulerTreeAlertsUpdateExecutor_->Start();
@@ -148,7 +149,7 @@ public:
         YT_UNUSED_FUTURE(FairShareUpdateExecutor_->Stop());
         YT_UNUSED_FUTURE(YT_UNUSED_FUTURE(FairShareLoggingExecutor_->Stop()));
         YT_UNUSED_FUTURE(AccumulatedUsageLoggingExecutor_->Stop());
-        YT_UNUSED_FUTURE(MinNeededAllocationResourcesUpdateExecutor_->Stop());
+        YT_UNUSED_FUTURE(GroupedNeededResourcesUpdateExecutor_->Stop());
         YT_UNUSED_FUTURE(ResourceMeteringExecutor_->Stop());
         YT_UNUSED_FUTURE(ResourceUsageUpdateExecutor_->Stop());
         YT_UNUSED_FUTURE(SchedulerTreeAlertsUpdateExecutor_->Stop());
@@ -177,7 +178,7 @@ public:
         OnFairShareUpdateAt(TInstant::Now());
     }
 
-    void OnMinNeededAllocationResourcesUpdate()
+    void OnGroupedNeededResourcesUpdate()
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -186,7 +187,7 @@ public:
         for (const auto& [operationId, state] : OperationIdToOperationState_) {
             auto maybeUnschedulableReason = state->GetHost()->CheckUnschedulable();
             if (!maybeUnschedulableReason || maybeUnschedulableReason == EUnschedulableReason::NoPendingAllocations) {
-                state->GetController()->UpdateMinNeededAllocationResources();
+                state->GetController()->UpdateGroupedNeededResources();
             }
         }
 
@@ -556,7 +557,7 @@ public:
         FairShareUpdateExecutor_->SetPeriod(Config_->FairShareUpdatePeriod);
         FairShareLoggingExecutor_->SetPeriod(Config_->FairShareLogPeriod);
         AccumulatedUsageLoggingExecutor_->SetPeriod(Config_->AccumulatedUsageLogPeriod);
-        MinNeededAllocationResourcesUpdateExecutor_->SetPeriod(Config_->MinNeededResourcesUpdatePeriod);
+        GroupedNeededResourcesUpdateExecutor_->SetPeriod(Config_->MinNeededResourcesUpdatePeriod);
         ResourceMeteringExecutor_->SetPeriod(Config_->ResourceMeteringPeriod);
         ResourceUsageUpdateExecutor_->SetPeriod(Config_->ResourceUsageSnapshotUpdatePeriod);
         SchedulerTreeAlertsUpdateExecutor_->SetPeriod(Config_->SchedulerTreeAlertsUpdatePeriod);
@@ -687,10 +688,8 @@ public:
                     } else {
                         auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
                         treeParams->Weight = offloadingPoolSettings->Weight;
-                        treeParams->Pool = offloadingPoolSettings->Pool
-                            && !offloadingPoolSettings->Pool->empty()  // COMPAT(renadeen): remove when this commit will be on hahn's master.
-                            ? tree->CreatePoolName(offloadingPoolSettings->Pool, user)
-                            : tree->CreatePoolName(options->Pool.GetSpecifiedPoolName(), user);
+                        const auto& poolName = offloadingPoolSettings->Pool.value_or(options->Pool.GetSpecifiedPoolName());
+                        treeParams->Pool = tree->CreatePoolName(poolName, user);
                         treeParams->Tentative = offloadingPoolSettings->Tentative;
                         treeParams->ResourceLimits = offloadingPoolSettings->ResourceLimits;
                         treeParams->Offloading = true;
@@ -1091,7 +1090,7 @@ public:
         }
         auto maybeUnschedulableReason = host->CheckUnschedulable();
         if (!maybeUnschedulableReason || maybeUnschedulableReason == EUnschedulableReason::NoPendingAllocations) {
-            state->GetController()->UpdateMinNeededAllocationResources();
+            state->GetController()->UpdateGroupedNeededResources();
         }
     }
 
@@ -1420,7 +1419,7 @@ public:
         for (const auto& [treeId, _] : state->TreeIdToPoolNameMap()) {
             auto tree = GetTree(treeId);
             if (auto error = tree->CheckOperationSchedulingInSeveralTreesAllowed(operationId); !error.IsOK()) {
-                multiTreeSchedulingErrors.push_back(TError("Scheduling in several trees is forbidden by %Qlv tree's configuration", treeId)
+                multiTreeSchedulingErrors.push_back(TError("Scheduling in several trees is forbidden by %Qv tree's configuration", treeId)
                     << std::move(error));
             }
         }
@@ -1501,7 +1500,7 @@ private:
     TPeriodicExecutorPtr FairShareUpdateExecutor_;
     TPeriodicExecutorPtr FairShareLoggingExecutor_;
     TPeriodicExecutorPtr AccumulatedUsageLoggingExecutor_;
-    TPeriodicExecutorPtr MinNeededAllocationResourcesUpdateExecutor_;
+    TPeriodicExecutorPtr GroupedNeededResourcesUpdateExecutor_;
     TPeriodicExecutorPtr ResourceMeteringExecutor_;
     TPeriodicExecutorPtr ResourceUsageUpdateExecutor_;
     TPeriodicExecutorPtr SchedulerTreeAlertsUpdateExecutor_;

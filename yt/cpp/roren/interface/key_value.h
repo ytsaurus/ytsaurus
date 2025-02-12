@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fwd.h"
+#include "noncodable.h"
 #include "private/hash.h"
 
 #include <util/stream/str.h>
@@ -266,6 +267,11 @@ private:
     TCoder<K> KeyCoder_;
     TCoder<V> ValueCoder_;
 };
+
+template <typename K, typename V>
+    requires (CManuallyNonCodable<K> || CManuallyNonCodable<V>)
+struct TIsManuallyNonCodable<TKV<K, V>> : public std::true_type
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 

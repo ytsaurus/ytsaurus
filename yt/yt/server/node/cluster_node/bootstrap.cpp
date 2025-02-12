@@ -146,6 +146,8 @@
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
+#include <yt/yt/library/stockpile/config.h>
+
 #include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
@@ -491,6 +493,11 @@ public:
     const TNodeDirectoryPtr& GetNodeDirectory() const override
     {
         return Connection_->GetNodeDirectory();
+    }
+
+    TNetworkPreferenceList GetNetworks() const override
+    {
+        return Connection_->GetNetworks();
     }
 
     TNetworkPreferenceList GetLocalNetworks() const override
@@ -1428,6 +1435,12 @@ private:
         const TClusterNodeDynamicConfigPtr& oldConfig,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
+        if (auto stockpile = newConfig->GetSingletonConfig<TStockpileDynamicConfig>();
+            stockpile->TotalMemoryFractionOverride)
+        {
+            stockpile->BufferSize = NodeMemoryUsageTracker_->GetTotalLimit() *
+                (*stockpile->TotalMemoryFractionOverride);
+        }
         TSingletonManager::Reconfigure(newConfig);
 
         StorageHeavyThreadPool_->SetThreadCount(
@@ -1879,6 +1892,11 @@ TMasterEpoch TBootstrapBase::GetMasterEpoch() const
 const TNodeDirectoryPtr& TBootstrapBase::GetNodeDirectory() const
 {
     return Bootstrap_->GetNodeDirectory();
+}
+
+TNetworkPreferenceList TBootstrapBase::GetNetworks() const
+{
+    return Bootstrap_->GetNetworks();
 }
 
 TNetworkPreferenceList TBootstrapBase::GetLocalNetworks() const

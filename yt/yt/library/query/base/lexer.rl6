@@ -27,6 +27,7 @@ typedef TParser::token_type TToken;
     kw_select = 'select'i;
     kw_from = 'from'i;
     kw_with_index = 'with'i wss 'index'i;
+    kw_with_hint = 'with'i wss 'hint'i;
     kw_where = 'where'i;
     kw_having = 'having'i;
     kw_offset = 'offset'i;
@@ -111,6 +112,7 @@ typedef TParser::token_type TToken;
         kw_select => { type = TToken::KwSelect; fbreak; };
         kw_from => { type = TToken::KwFrom; fbreak; };
         kw_with_index => { type = TToken::KwWithIndex; fbreak; };
+        kw_with_hint => { type = TToken::KwWithHint; fbreak; };
         kw_where => { type = TToken::KwWhere; fbreak; };
         kw_having => { type = TToken::KwHaving; fbreak; };
         kw_offset => { type = TToken::KwOffset; fbreak; };
@@ -232,7 +234,7 @@ namespace {
 } // namespace anonymous
 
 TBaseLexer::TBaseLexer(
-    const TString& source,
+    TStringBuf source,
     TParser::token_type strayToken,
     int syntaxVersion)
     : StrayToken_(strayToken)
@@ -246,7 +248,7 @@ TBaseLexer::TBaseLexer(
     , rd(0)
     , s(nullptr)
 {
-    Initialize(source.c_str(), source.c_str() + source.length());
+    Initialize(source.begin(), source.begin() + source.length());
 }
 
 void TBaseLexer::Initialize(const char* begin, const char* end)
@@ -286,7 +288,7 @@ TParser::token_type TBaseLexer::GetNextToken(
 }
 
 TLexer::TLexer(
-    const TString& source,
+    TStringBuf source,
     TParser::token_type strayToken,
     THashMap<TString, TString> placeholderValues,
     int syntaxVersion)

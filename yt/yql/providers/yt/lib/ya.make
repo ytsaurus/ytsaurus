@@ -1,5 +1,6 @@
 RECURSE(
     config_clusters
+    errors
     expr_traits
     graph_reorder
     hash

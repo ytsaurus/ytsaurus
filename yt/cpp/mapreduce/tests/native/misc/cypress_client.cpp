@@ -463,6 +463,25 @@ TEST(CypressClient, TestTxConcatenate)
     }
 }
 
+TEST(CypressClient, TestBatchConcatenate)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+    auto workingDir = fixture.GetWorkingDir();
+
+
+    TVector<TString> files;
+    for (int i = 0; i < 5; ++i) {
+        files.push_back(workingDir + "/file" + ToString(i));
+        auto writer = client->CreateFileWriter(files.back());
+        *writer << i << '\n';
+        writer->Finish();
+    }
+    client->Concatenate(files, workingDir + "/concat", TConcatenateOptions().MaxBatchSize(2));
+    auto reader = client->CreateFileReader(workingDir + "/concat");
+    EXPECT_EQ(reader->ReadAll(), "0\n1\n2\n3\n4\n");
+}
+
 TEST(CypressClient, TestRetries)
 {
     TTestFixture fixture;

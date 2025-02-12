@@ -137,7 +137,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    const NHiveClient::TCellTrackerPtr& GetDownedCellTracker() override
+    const NHiveClient::TDownedCellTrackerPtr& GetDownedCellTracker() override
     {
         YT_UNIMPLEMENTED();
     }
@@ -258,6 +258,10 @@ public:
         YT_UNIMPLEMENTED();
     }
     const NChaosClient::IBannedReplicaTrackerCachePtr& GetBannedReplicaTrackerCache() override
+    {
+        YT_UNIMPLEMENTED();
+    }
+    const NApi::NNative::TTableReplicaSynchronicityCachePtr& GetTableReplicaSynchronicityCache() override
     {
         YT_UNIMPLEMENTED();
     }

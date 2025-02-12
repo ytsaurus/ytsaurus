@@ -1,0 +1,20 @@
+PROTO_LIBRARY()
+
+SRCS(
+    dq_events.proto
+    dq_stats.proto
+    dq_status_codes.proto
+)
+
+PEERDIR(
+    contrib/ydb/library/actors/protos
+    contrib/ydb/public/api/protos
+    yql/essentials/core/issue/protos
+    contrib/ydb/library/yql/dq/proto
+    yql/essentials/public/issue/protos
+    yql/essentials/public/types
+)
+
+EXCLUDE_TAGS(GO_PROTO)
+
+END()

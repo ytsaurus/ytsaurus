@@ -335,7 +335,7 @@ void TAllocation::Preempt(
 
         auto error = TError("Allocation preempted")
             << TErrorAttribute("preemption_reason", preemptionReason)
-            << TErrorAttribute("interruption_reason", EInterruptReason::Preemption)
+            << TErrorAttribute("interruption_reason", EInterruptionReason::Preemption)
             << TErrorAttribute("abort_reason", EAbortReason::Preemption);
 
         Abort(std::move(error));
@@ -345,7 +345,7 @@ void TAllocation::Preempt(
     Job_->PrepareResourcesRelease();
     Job_->Interrupt(
         timeout,
-        EInterruptReason::Preemption,
+        EInterruptionReason::Preemption,
         std::move(preemptionReason),
         preemptedFor);
 }
@@ -595,7 +595,7 @@ void TAllocation::AbortJob(TError error, bool graceful, bool requestNewJob)
     }
 }
 
-void TAllocation::InterruptJob(NScheduler::EInterruptReason interruptionReason, TDuration interruptionTimeout)
+void TAllocation::InterruptJob(NScheduler::EInterruptionReason interruptionReason, TDuration interruptionTimeout)
 {
     YT_ASSERT_THREAD_AFFINITY(JobThread);
 

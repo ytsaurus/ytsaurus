@@ -334,15 +334,20 @@ private:
 
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto requestData = requestCodec->Decompress(request->Attachments()[0]);
+
         struct TWriteBufferTag { };
-        auto reader = CreateWireProtocolReader(requestData, New<TRowBuffer>(TWriteBufferTag()));
+        auto reader = TWireWriteCommandBatchReader(
+            requestData,
+            CreateWireProtocolReader(requestData, New<TRowBuffer>(TWriteBufferTag())),
+            // NB: Non-atomic yet mount revision should ensure correctness.
+            tabletSnapshot->TableSchemaData);
 
         TFuture<void> commitResult;
         try {
             const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
             commitResult = tabletCellWriteManager->Write(
                 tabletSnapshot,
-                reader.get(),
+                &reader,
                 params);
         } catch (const std::exception&) {
             tabletSnapshot->PerformanceCounters->WriteError.Counter.fetch_add(1, std::memory_order::relaxed);

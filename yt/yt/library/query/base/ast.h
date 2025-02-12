@@ -1,7 +1,8 @@
 #pragma once
-
 #include "query_common.h"
 #include "query.h"
+
+#include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/library/query/misc/objects_holder.h>
 
@@ -85,7 +86,7 @@ struct TDoubleOrDotIntToken
 {
     TString Representation;
 
-    i64 AsDotInt() const;
+    TTupleItemIndexAccessor AsDotInt() const;
     double AsDouble() const;
 };
 
@@ -402,18 +403,38 @@ struct TLikeExpression
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(TTableHint)
+
+struct TTableHint
+    : public NYTree::TYsonStruct
+{
+    bool RequireSyncReplica;
+    bool PushDownGroupBy;
+
+    REGISTER_YSON_STRUCT(TTableHint);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTableHint)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTableDescriptor
 {
     NYPath::TYPath Path;
     std::optional<TString> Alias;
+    TTableHintPtr Hint = New<TTableHint>();
 
     TTableDescriptor() = default;
 
     explicit TTableDescriptor(
         NYPath::TYPath path,
-        std::optional<TString> alias = std::nullopt)
+        std::optional<TString> alias = std::nullopt,
+        TTableHintPtr hint = New<TTableHint>())
         : Path(std::move(path))
         , Alias(std::move(alias))
+        , Hint(std::move(hint))
     { }
 };
 
@@ -482,9 +503,11 @@ struct TArrayJoin
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(TQueryAstHead);
+
 struct TQuery
 {
-    TTableDescriptor Table;
+    std::variant<TTableDescriptor, TQueryAstHeadPtr> FromClause;
     std::optional<TTableDescriptor> WithIndex;
     std::vector<std::variant<TJoin, TArrayJoin>> Joins;
 
@@ -514,6 +537,17 @@ struct TAstHead
     TAliasMap AliasMap;
 };
 
+struct TQueryAstHead
+    : public TObjectsHolder
+    , public TRefCounted
+{
+    TQuery Ast;
+    TAliasMap AliasMap;
+    std::optional<TString> Alias;
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueryAstHead);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source);
@@ -528,6 +562,10 @@ TString FormatArrayJoin(const TArrayJoin& join);
 TString FormatQuery(const TQuery& query);
 TString InferColumnName(const TExpression& expr);
 TString InferColumnName(const TReference& ref);
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYPath::TYPath GetMainTable(const TQuery& query);
 
 ////////////////////////////////////////////////////////////////////////////////
 

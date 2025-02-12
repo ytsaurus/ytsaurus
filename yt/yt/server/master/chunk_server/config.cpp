@@ -311,11 +311,16 @@ void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_concurrent_full_heartbeats", &TThis::MaxConcurrentFullHeartbeats)
         .Default(1)
         .GreaterThan(0);
+    registrar.Parameter("max_concurrent_location_full_heartbeats", &TThis::MaxConcurrentLocationFullHeartbeats)
+        .Default(20)
+        .GreaterThan(0);
     registrar.Parameter("max_concurrent_incremental_heartbeats", &TThis::MaxConcurrentIncrementalHeartbeats)
         .Default(10)
         .GreaterThan(0);
     registrar.Parameter("dangling_location_cleaner", &TThis::DanglingLocationCleaner)
         .DefaultNew();
+    registrar.Parameter("enable_per_location_full_heartbeats", &TThis::EnablePerLocationFullHeartbeats)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -417,6 +422,18 @@ void TDynamicSequoiaChunkReplicasConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_chunk_purgatory", &TThis::EnableChunkPurgatory)
         .Default(true);
 
+    registrar.Parameter("enable_sequoia_chunk_refresh", &TThis::EnableSequoiaChunkRefresh)
+        .Default(false);
+
+    registrar.Parameter("sequoia_chunk_refresh_period", &TThis::SequoiaChunkRefreshPeriod)
+        .Default(TDuration::Seconds(10));
+
+    registrar.Parameter("sequoia_chunk_count_to_fetch_from_refresh_queue", &TThis::SequoiaChunkCountToFetchFromRefreshQueue)
+        .Default(1'000);
+
+    registrar.Parameter("clear_master_request", &TThis::ClearMasterRequest)
+        .Default(true);
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->StoreSequoiaReplicasOnMaster && !config->ProcessRemovedSequoiaReplicasOnMaster) {
             THROW_ERROR_EXCEPTION("Cannot disable removed Sequoia replicas processing on master while master still stores "
@@ -470,6 +487,9 @@ void TDynamicChunkManagerTestingConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("disable_removing_replicas_from_destroyed_queue", &TThis::DisableRemovingReplicasFromDestroyedQeueue)
+        .Default(false);
+
+    registrar.Parameter("disable_sequoia_chunk_refresh", &TThis::DisableSequoiaChunkRefresh)
         .Default(false);
 }
 
@@ -573,6 +593,11 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("finished_chunk_lists_requisition_traverse_flush_period", &TThis::FinishedChunkListsRequisitionTraverseFlushPeriod)
         .Default(TDuration::Seconds(1));
+
+    registrar.Parameter("lost_vital_chunks_sample_update_period", &TThis::LostVitalChunksSampleUpdatePeriod)
+        .Default(TDuration::Seconds(30));
+    registrar.Parameter("max_lost_vital_chunks_sample_size_per_cell", &TThis::MaxLostVitalChunksSampleSizePerCell)
+        .Default(TThis::DefaultMaxLostVitalChunksSampleSizePerCell);
 
     registrar.Parameter("chunk_seal_backoff_time", &TThis::ChunkSealBackoffTime)
         .Default(TDuration::Seconds(30));
@@ -726,7 +751,7 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("enable_two_random_choices_write_target_allocation", &TThis::EnableTwoRandomChoicesWriteTargetAllocation)
-        .Default(false)
+        .Default(true)
         .DontSerializeDefault();
 
     registrar.Parameter("nodes_to_check_before_giving_up_on_write_target_allocation", &TThis::NodesToCheckBeforeGivingUpOnWriteTargetAllocation)
@@ -739,6 +764,9 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("validate_resource_usage_increase_on_primary_medium_change", &TThis::ValidateResourceUsageIncreaseOnPrimaryMediumChange)
         .Default(true)
         .DontSerializeDefault();
+
+    registrar.Parameter("use_hunk_specific_media_for_requisition_updates", &TThis::UseHunkSpecificMediaForRequisitionUpdates)
+        .Default(true);
 
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;

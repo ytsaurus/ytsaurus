@@ -25,7 +25,7 @@ struct IChunkTreeBalancerCallbacks
     virtual void ClearChunkList(TChunkList* chunkList) = 0;
     virtual void AttachToChunkList(
         TChunkList* chunkList,
-        TRange<TChunkTree*> children) = 0;
+        TRange<TChunkTreeRawPtr> children) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkTreeBalancerCallbacks)
@@ -44,15 +44,15 @@ private:
     const IChunkTreeBalancerCallbacksPtr Callbacks_;
 
     void MergeChunkTrees(
-        std::vector<TChunkTree*>* children,
+        std::vector<TChunkTreeRawPtr>* children,
         TChunkTree* child);
 
     void AppendChunkTree(
-        std::vector<TChunkTree*>* children,
+        std::vector<TChunkTreeRawPtr>* children,
         TChunkTree* root);
 
     void AppendChild(
-        std::vector<TChunkTree*>* children,
+        std::vector<TChunkTreeRawPtr>* children,
         TChunkTree* child);
 
     const TDynamicChunkTreeBalancerConfigPtr& GetConfig() const;

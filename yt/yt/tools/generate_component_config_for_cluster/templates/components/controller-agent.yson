@@ -1,0 +1,12 @@
+{
+    "rpc_port" = 9014;
+    "controller_agent" = {
+        "enable_snapshot_building" = %false;
+        "enable_snapshot_building_disabled_alert" = %false;
+        "enable_snapshot_loading" = %false;
+        "enable_snapshot_loading_disabled_alert" = %false;
+        "memory_watchdog" = {
+            "total_controller_memory_limit" = 100000000000;
+        };
+    };
+}

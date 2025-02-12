@@ -316,11 +316,17 @@ class TDynamicDataNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
 public:
+    // COMPAT(danilalexeev): YT-23781.
     int MaxConcurrentFullHeartbeats;
+
+    int MaxConcurrentLocationFullHeartbeats;
 
     int MaxConcurrentIncrementalHeartbeats;
 
     TDanglingLocationCleanerConfigPtr DanglingLocationCleaner;
+
+    // COMPAT(danilalexeev): YT-23781.
+    bool EnablePerLocationFullHeartbeats;
 
     REGISTER_YSON_STRUCT(TDynamicDataNodeTrackerConfig);
 
@@ -492,6 +498,9 @@ public:
     //! If true, removed replicas won't be removed from DestroyedReplicas_.
     bool DisableRemovingReplicasFromDestroyedQeueue;
 
+    //! If true, Sequoia refresh queues are not drained.
+    bool DisableSequoiaChunkRefresh;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerTestingConfig);
 
     static void Register(TRegistrar registrar);
@@ -518,6 +527,12 @@ public:
     bool ProcessRemovedSequoiaReplicasOnMaster;
 
     bool EnableChunkPurgatory;
+
+    bool EnableSequoiaChunkRefresh;
+    TDuration SequoiaChunkRefreshPeriod;
+    int SequoiaChunkCountToFetchFromRefreshQueue;
+
+    bool ClearMasterRequest;
 
     REGISTER_YSON_STRUCT(TDynamicSequoiaChunkReplicasConfig);
 
@@ -560,6 +575,7 @@ class TDynamicChunkManagerConfig
 {
 public:
     static constexpr auto DefaultProfilingPeriod = TDuration::MilliSeconds(1000);
+    static constexpr auto DefaultMaxLostVitalChunksSampleSizePerCell = 10;
 
     //! If set to false, disables scheduling new chunk jobs (replication, removal).
     bool EnableChunkReplicator;
@@ -627,6 +643,10 @@ public:
     TDuration MaxTimePerJournalChunkRequisitionUpdate;
     //! Chunk requisition update finish mutations are batched within this period.
     TDuration FinishedChunkListsRequisitionTraverseFlushPeriod;
+    //! Chunks sample are propagated to primary master within this period.
+    TDuration LostVitalChunksSampleUpdatePeriod;
+    //! Maximum amount of сhunks in sample.
+    int MaxLostVitalChunksSampleSizePerCell;
 
     //! Interval between consequent seal attempts.
     TDuration ChunkSealBackoffTime;
@@ -741,7 +761,11 @@ public:
     bool EnableTwoRandomChoicesWriteTargetAllocation;
     int NodesToCheckBeforeGivingUpOnWriteTargetAllocation;
 
+    // COMPAT(danilalexeev)
     bool ValidateResourceUsageIncreaseOnPrimaryMediumChange;
+
+    // COMPAT(shakurov)
+    bool UseHunkSpecificMediaForRequisitionUpdates;
 
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 

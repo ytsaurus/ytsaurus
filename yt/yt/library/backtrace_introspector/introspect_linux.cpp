@@ -116,6 +116,10 @@ void SignalHandler(int sig, siginfo_t* /*info*/, void* threadContext)
 {
     YT_VERIFY(sig == SIGUSR1);
 
+    auto finallyGuard = Finally([originalErrno = errno] {
+        errno = originalErrno;
+    });
+
     SignalHandlerContext->FiberId = GetCurrentFiberId();
     SignalHandlerContext->ThreadName = GetCurrentThreadName();
     if (const auto* traceContext = TryGetCurrentTraceContext()) {
@@ -163,8 +167,14 @@ std::vector<TThreadIntrospectionInfo> IntrospectThreads()
 
     std::vector<TThreadIntrospectionInfo> infos;
     for (auto threadId : GetCurrentProcessThreadIds()) {
-        if (!IsUserspaceThread(threadId)) {
-            YT_LOG_DEBUG("Skipping a non-userspace thread (ThreadId: %v)",
+        try {
+            if (!IsUserspaceThread(threadId)) {
+                YT_LOG_DEBUG("Skipping a non-userspace thread (ThreadId: %v)",
+                    threadId);
+                continue;
+            }
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Failed to get thread flags (ThreadId: %v)",
                 threadId);
             continue;
         }

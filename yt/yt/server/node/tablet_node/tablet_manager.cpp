@@ -245,6 +245,7 @@ public:
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUpdateTabletSettings, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraFreezeTablet, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraUnfreezeTablet, Unretained(this)));
+        RegisterMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraCancelTabletTransition, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraSetTabletState, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraTrimRows, Unretained(this)));
         RegisterForwardedMethod(BIND_NO_PROPAGATE(&TTabletManager::HydraLockTablet, Unretained(this)));
@@ -1106,6 +1107,7 @@ private:
         auto customRuntimeData = request->has_replicatable_content() && request->replicatable_content().has_custom_runtime_data()
             ? TYsonString(request->replicatable_content().custom_runtime_data())
             : TYsonString();
+        auto serializationType = FromProto<ETabletTransactionSerializationType>(request->serialization_type());
 
         rawSettings.DropIrrelevantExperiments(
             {
@@ -1146,7 +1148,8 @@ private:
             commitOrdering,
             upstreamReplicaId,
             retainedTimestamp,
-            cumulativeDataWeight);
+            cumulativeDataWeight,
+            serializationType);
         tabletHolder->RawSettings() = rawSettings;
 
         tabletHolder->CustomRuntimeData() = std::move(customRuntimeData);
@@ -1173,6 +1176,7 @@ private:
             mountHint);
 
         tablet->SetState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
+        tablet->SetLastStableState(tablet->GetState());
 
         // NB: We do not store previously attached dictionary chunk ids. We just build new ones upon mount.
         for (auto policy : TEnumTraits<EDictionaryCompressionPolicy>::GetDomainValues()) {
@@ -1214,7 +1218,7 @@ private:
         YT_LOG_INFO("Tablet mounted (%v, MountRevision: %x, Keys: %v .. %v, "
             "StoreCount: %v, HunkChunkCount: %v, PartitionCount: %v, TotalRowCount: %v, TrimmedRowCount: %v, Atomicity: %v, "
             "CommitOrdering: %v, Frozen: %v, UpstreamReplicaId: %v, RetainedTimestamp: %v, SchemaId: %v, "
-            "MasterAvenueEndpointId: %v)",
+            "MasterAvenueEndpointId: %v, SerializationType: %v)",
             tablet->GetLoggingTag(),
             mountRevision,
             pivotKey,
@@ -1230,7 +1234,8 @@ private:
             upstreamReplicaId,
             retainedTimestamp,
             schemaId,
-            masterAvenueEndpointId);
+            masterAvenueEndpointId,
+            serializationType);
 
         for (const auto& descriptor : request->replicas()) {
             AddTableReplica(tablet, descriptor);
@@ -1599,7 +1604,7 @@ private:
         }
 
         auto state = tablet->GetState();
-        if (state != ETabletState::Frozen)  {
+        if (state != ETabletState::Frozen) {
             YT_LOG_INFO("Requested to unfreeze a tablet in a wrong state, ignored (State: %v, %v)",
                 state,
                 tablet->GetLoggingTag());
@@ -1610,6 +1615,7 @@ private:
             tablet->GetLoggingTag());
 
         tablet->SetState(ETabletState::Mounted);
+        tablet->SetLastStableState(ETabletState::Mounted);
 
         PopulateDynamicStoreIdPool(tablet, request);
 
@@ -1626,6 +1632,36 @@ private:
         ToProto(response.mutable_tablet_id(), tabletId);
         SetMountRevisionCompat(&response, tablet);
         PostMasterMessage(tablet, response);
+    }
+
+    void HydraCancelTabletTransition(TReqCancelTabletTransition* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto state = tablet->GetState();
+        if (state == ETabletState::Mounted || state == ETabletState::Frozen) {
+            YT_LOG_DEBUG("Requested to cancel transition of a tablet in a stable state, ignored "
+                "(%v, State: %v)",
+                tablet->GetLoggingTag(),
+                state);
+            return;
+        }
+
+        auto stableState = tablet->GetLastStableState();
+
+        YT_LOG_DEBUG("Canceling tablet transition "
+            "(%v, State: %v, LastStableState: %v)",
+            tablet->GetLoggingTag(),
+            state,
+            stableState);
+
+        PopulateDynamicStoreIdPool(tablet, request);
+
+        DoSetTabletState(tablet, stableState, /*cancelTransition*/ true);
     }
 
     void HydraLockTablet(TReqLockTablet* request)
@@ -1783,6 +1819,22 @@ private:
         }
 
         auto requestedState = FromProto<ETabletState>(request->state());
+        DoSetTabletState(tablet, requestedState);
+    }
+
+    void DoSetTabletState(
+        TTablet* tablet,
+        ETabletState requestedState,
+        bool cancelTransition = false)
+    {
+        if (tablet->GetState()== ETabletState::Mounted || tablet->GetState() == ETabletState::Frozen) {
+            YT_LOG_INFO("Improper tablet state transition requested after transition "
+                "cancelation, ignored (%v, CurrentState: %v, RequestedState: %v)",
+                tablet->GetLoggingTag(),
+                tablet->GetState(),
+                requestedState);
+            return;
+        }
 
         switch (requestedState) {
             case ETabletState::FreezeFlushing: {
@@ -1828,7 +1880,7 @@ private:
                 tablet->GetStructuredLogger()->OnTabletUnmounted();
 
                 TRspUnmountTablet response;
-                ToProto(response.mutable_tablet_id(), tabletId);
+                ToProto(response.mutable_tablet_id(), tablet->GetId());
                 *response.mutable_mount_hint() = tablet->GetMountHint();
                 if (auto replicationProgress = tablet->RuntimeData()->ReplicationProgress.Acquire()) {
                     ToProto(response.mutable_replication_progress(), *replicationProgress);
@@ -1840,7 +1892,7 @@ private:
 
                 PostMasterMessage(tablet, response);
 
-                TabletMap_.Remove(tabletId);
+                TabletMap_.Remove(tablet->GetId());
 
                 break;
             }
@@ -1856,6 +1908,7 @@ private:
                 }
 
                 tablet->SetState(ETabletState::Frozen);
+                tablet->SetLastStableState(ETabletState::Frozen);
                 tablet->ClearDynamicStoreIdPool(/*keepReservations*/ false);
 
                 for (const auto& [storeId, store] : tablet->StoreIdMap()) {
@@ -1869,11 +1922,42 @@ private:
 
                 tablet->GetStructuredLogger()->OnTabletFrozen();
 
-                TRspFreezeTablet response;
-                ToProto(response.mutable_tablet_id(), tabletId);
-                *response.mutable_mount_hint() = tablet->GetMountHint();
-                SetMountRevisionCompat(&response, tablet);
+                if (cancelTransition) {
+                    TRspCancelTabletTransition response;
+                    ToProto(response.mutable_tablet_id(), tablet->GetId());
+                    response.set_mount_revision(ToProto(tablet->GetMountRevision()));
+                    response.set_actual_tablet_state(ToProto(NTabletClient::ETabletState::Frozen));
+                    PostMasterMessage(tablet, response);
+                } else {
+                    TRspFreezeTablet response;
+                    ToProto(response.mutable_tablet_id(), tablet->GetId());
+                    *response.mutable_mount_hint() = tablet->GetMountHint();
+                    SetMountRevisionCompat(&response, tablet);
+                    PostMasterMessage(tablet, response);
+                }
+
+                break;
+            }
+
+            case ETabletState::Mounted: {
+                YT_VERIFY(cancelTransition);
+
+                tablet->SetState(ETabletState::Mounted);
+                tablet->SetLastStableState(ETabletState::Mounted);
+
+                if (!tablet->GetActiveStore()) {
+                    const auto& storeManager = tablet->GetStoreManager();
+                    storeManager->Rotate(true, EStoreRotationReason::None);
+                }
+
+                UpdateTabletSnapshot(tablet);
+
+                TRspCancelTabletTransition response;
+                ToProto(response.mutable_tablet_id(), tablet->GetId());
+                response.set_mount_revision(ToProto(tablet->GetMountRevision()));
+                response.set_actual_tablet_state(ToProto(NTabletClient::ETabletState::Mounted));
                 PostMasterMessage(tablet, response);
+
                 break;
             }
 
@@ -3043,7 +3127,7 @@ private:
             return;
         }
 
-        if (transaction->IsSerializationNeeded()) {
+        if (transaction->IsCoarseSerializationNeeded()) {
             YT_LOG_DEBUG("Write pull rows committed and is waiting for serialization (TabletId: %v, TransactionId: %v, ReplicationRound: %v)",
                 tabletId,
                 transaction->GetId(),
@@ -4431,6 +4515,8 @@ private:
 
     void BuildHunkChunkOrchidYson(const THunkChunkPtr& hunkChunk, TFluentAny fluent)
     {
+        auto miscExt = FindProtoExtension<TMiscExt>(hunkChunk->GetChunkMeta().extensions());
+
         fluent
             .BeginAttributes()
                 .Item("opaque").Value(true)
@@ -4443,6 +4529,11 @@ private:
                 .Item("store_ref_count").Value(hunkChunk->GetStoreRefCount())
                 .Item("prepared_store_ref_count").Value(hunkChunk->GetPreparedStoreRefCount())
                 .Item("dangling").Value(hunkChunk->IsDangling())
+                .DoIf(miscExt && miscExt->has_dictionary_compression_policy(), [&] (auto fluent) {
+                    fluent
+                        .Item("dictionary_compression_policy")
+                        .Value(FromProto<EDictionaryCompressionPolicy>(miscExt->dictionary_compression_policy()));
+                })
             .EndMap();
     }
 
@@ -5106,27 +5197,34 @@ private:
     }
 
     void OnTableDynamicConfigChanged(
-        TClusterTableConfigPatchSetPtr /*oldConfig*/,
-        TClusterTableConfigPatchSetPtr newConfig)
+        const TClusterTableConfigPatchSetPtr& /*oldConfig*/,
+        const TClusterTableConfigPatchSetPtr& newConfig)
     {
-        YT_UNUSED_FUTURE(BIND(&TTabletManager::DoTableDynamicConfigChanged, MakeWeak(this), Passed(std::move(newConfig)))
-            .AsyncVia(Slot_->GetEpochAutomatonInvoker())
-            .Run());
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        Slot_->GetGuardedAutomatonInvoker()->Invoke(BIND(
+            &TTabletManager::DoTableDynamicConfigChanged,
+            MakeWeak(this),
+            newConfig));
     }
 
     void OnDynamicConfigChanged(
-        TClusterNodeDynamicConfigPtr oldConfig,
-        TClusterNodeDynamicConfigPtr newConfig)
+        const TClusterNodeDynamicConfigPtr& oldConfig,
+        const TClusterNodeDynamicConfigPtr& newConfig)
     {
-        Slot_->GetAutomatonInvoker()->Invoke(BIND(
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        Slot_->GetGuardedAutomatonInvoker()->Invoke(BIND(
             &TTabletManager::DoDynamicConfigChanged,
             MakeWeak(this),
-            std::move(oldConfig),
-            std::move(newConfig)));
+            oldConfig,
+            newConfig));
     }
 
-    void DoTableDynamicConfigChanged(TClusterTableConfigPatchSetPtr patch)
+    void DoTableDynamicConfigChanged(const TClusterTableConfigPatchSetPtr& patch)
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         if (!IsLeader()) {
             return;
         }

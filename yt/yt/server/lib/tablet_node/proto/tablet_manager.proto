@@ -133,6 +133,7 @@ message TReqMountTablet
     optional NYT.NProto.TGuid movement_source_cell_id = 33;
     optional uint64 movement_source_mount_revision = 34;
     optional NYT.NProto.TGuid movement_source_avenue_endpoint_id = 35;
+    required int32 serialization_type = 36 [default = 0]; // ETabletTransactionSerializationType [default = Coarse]
 
     required TEssentialTabletContent essential_content = 31;
     required TReplicatableTabletContent replicatable_content = 32;
@@ -205,6 +206,12 @@ message TReqFreezeTablet
 }
 
 message TReqUnfreezeTablet
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    repeated NYT.NProto.TGuid dynamic_store_ids = 2;
+}
+
+message TReqCancelTabletTransition
 {
     required NYT.NProto.TGuid tablet_id = 1;
     repeated NYT.NProto.TGuid dynamic_store_ids = 2;
@@ -526,7 +533,7 @@ message TReqSetCustomRuntimeData
 
 message TReqUnregisterMasterAvenueEndpoint
 {
-    required NYT.NProto.TGuid master_avenue_endpoint_id = 1; 
+    required NYT.NProto.TGuid master_avenue_endpoint_id = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

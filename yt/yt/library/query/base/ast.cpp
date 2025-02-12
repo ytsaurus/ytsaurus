@@ -17,14 +17,14 @@ bool operator == (TNullLiteralValue, TNullLiteralValue)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 TDoubleOrDotIntToken::AsDotInt() const
+TTupleItemIndexAccessor TDoubleOrDotIntToken::AsDotInt() const
 {
     if (Representation.empty() || Representation[0] != '.') {
         THROW_ERROR_EXCEPTION("Expected dot token and then integer token, but got %Qv",
             Representation);
     }
 
-    return FromString<ui64>(Representation.substr(1));
+    return FromString<TTupleItemIndexAccessor>(Representation.substr(1));
 }
 
 double TDoubleOrDotIntToken::AsDouble() const
@@ -223,6 +223,14 @@ TStringBuf GetSource(TSourceLocation sourceLocation, TStringBuf source)
     auto end = sourceLocation.second;
 
     return source.substr(begin, end - begin);
+}
+
+void TTableHint::Register(TRegistrar registrar)
+{
+    registrar.Parameter("require_sync_replica", &TThis::RequireSyncReplica)
+        .Default(true);
+    registrar.Parameter("push_down_group_by", &TThis::PushDownGroupBy)
+        .Default(false);
 }
 
 bool operator == (const TTableDescriptor& lhs, const TTableDescriptor& rhs)
@@ -435,6 +443,9 @@ void FormatTableDescriptor(TStringBuilderBase* builder, const TTableDescriptor& 
     if (descriptor.Alias) {
         builder->AppendString(" AS ");
         FormatId(builder, *descriptor.Alias);
+    }
+    if (descriptor.Hint->PushDownGroupBy) {
+        builder->AppendString(" WITH HINT \"{push_down_group_by=%true}\"");
     }
 }
 
@@ -677,7 +688,20 @@ void FormatQuery(TStringBuilderBase* builder, const TQuery& query)
     }
 
     builder->AppendString(" FROM ");
-    FormatTableDescriptor(builder, query.Table);
+    Visit(query.FromClause,
+        [&] (const TTableDescriptor& tableDescriptor) {
+            FormatTableDescriptor(builder, tableDescriptor);
+        },
+        [&] (const TQueryAstHeadPtr& subquery) {
+            builder->AppendChar('(');
+            builder->AppendString("SELECT ");
+            FormatQuery(builder, subquery->Ast);
+            builder->AppendChar(')');
+            if (subquery->Alias) {
+                builder->AppendString(" AS ");
+                FormatId(builder, *subquery->Alias);
+            }
+        });
 
     if (query.WithIndex) {
         builder->AppendString(" WITH INDEX ");
@@ -800,6 +824,19 @@ TString InferColumnName(const TReference& ref)
     TStringBuilder builder;
     FormatReference(&builder, ref, /*depth*/ 0, /*isFinal*/ true);
     return builder.Flush();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYPath::TYPath GetMainTable(const TQuery& query)
+{
+    return Visit(query.FromClause,
+        [] (const TTableDescriptor& table) {
+            return table.Path;
+        },
+        [] (const TQueryAstHeadPtr& subquery) {
+            return GetMainTable(subquery->Ast);
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

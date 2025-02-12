@@ -162,22 +162,22 @@ public:
     virtual TTableCollocation* CreateTableCollocation(
         NObjectClient::TObjectId hintId,
         ETableCollocationType type,
-        THashSet<TTableNode*> collocatedTables) = 0;
+        THashSet<TTableNodeRawPtr> collocatedTables) = 0;
     virtual void ZombifyTableCollocation(TTableCollocation* collocation) = 0;
     virtual void AddTableToCollocation(TTableNode* table, TTableCollocation* collocation) = 0;
     virtual void RemoveTableFromCollocation(TTableNode* table, TTableCollocation* collocation) = 0;
     virtual TTableCollocation* GetTableCollocationOrThrow(TTableCollocationId id) const = 0;
 
     // Queue agent object management.
-    virtual const THashSet<TTableNode*>& GetQueues() const = 0;
+    virtual const THashSet<TTableNodeRawPtr>& GetQueues() const = 0;
     virtual void RegisterQueue(TTableNode* node) = 0;
     virtual void UnregisterQueue(TTableNode* node) = 0;
 
-    virtual const THashSet<TTableNode*>& GetQueueConsumers() const = 0;
+    virtual const THashSet<TTableNodeRawPtr>& GetQueueConsumers() const = 0;
     virtual void RegisterQueueConsumer(TTableNode* node) = 0;
     virtual void UnregisterQueueConsumer(TTableNode* node) = 0;
 
-    virtual const THashSet<TTableNode*>& GetQueueProducers() const = 0;
+    virtual const THashSet<TTableNodeRawPtr>& GetQueueProducers() const = 0;
     virtual void RegisterQueueProducer(TTableNode* node) = 0;
     virtual void UnregisterQueueProducer(TTableNode* node) = 0;
 

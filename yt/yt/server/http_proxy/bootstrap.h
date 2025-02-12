@@ -8,7 +8,10 @@
 
 #include <yt/yt/server/lib/misc/bootstrap.h>
 
+#include <yt/yt/server/lib/signature/public.h>
+
 #include <yt/yt/ytlib/api/public.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/misc/public.h>
@@ -20,11 +23,12 @@
 #include <yt/yt/library/monitoring/public.h>
 
 #include <yt/yt/library/containers/public.h>
-#include <yt/yt/library/disk_manager/public.h>
 
 #include <yt/yt/library/profiling/solomon/public.h>
 
 #include <yt/yt/library/coredumper/public.h>
+
+#include <yt/yt/library/disk_manager/public.h>
 
 #include <yt/yt/core/bus/public.h>
 
@@ -105,7 +109,6 @@ private:
 
     NApi::NNative::IConnectionPtr Connection_;
     NApi::IClientPtr RootClient_;
-    NApi::NNative::IClientPtr NativeClient_;
     NDriver::IDriverPtr DriverV3_;
     NDriver::IDriverPtr DriverV4_;
 
@@ -143,6 +146,10 @@ private:
     IAccessCheckerPtr AccessChecker_;
 
     INodeMemoryTrackerPtr MemoryUsageTracker_;
+
+    NSignature::TSignatureGeneratorBasePtr SignatureGenerator_;
+    NSignature::TSignatureValidatorBasePtr SignatureValidator_;
+    NSignature::TKeyRotatorPtr SignatureKeyRotator_;
 
     void DoRun();
     void DoInitialize();

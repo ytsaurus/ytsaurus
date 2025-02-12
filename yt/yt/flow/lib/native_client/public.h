@@ -11,6 +11,8 @@ inline constexpr TStringBuf OutputMessagesTableName = "output_messages";
 inline constexpr TStringBuf CheckpointsTableName = "checkpoints";
 inline constexpr TStringBuf TimerMessagesTableName = "timer_messages";
 inline constexpr TStringBuf ControllerLogsTableName = "controller_logs";
+inline constexpr TStringBuf FlowStateTableName = "flow_state";
+inline constexpr TStringBuf FlowStateObsoleteTableName = "flow_state_obsolete";
 
 ////////////////////////////////////////////////////////////////////////////////
 

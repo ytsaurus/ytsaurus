@@ -199,7 +199,19 @@ protected:
             TExtendedJobResources result;
             result.SetUserSlots(1);
             result.SetCpu(Controller_->GetCpuLimit());
-            result.SetJobProxyMemory(Controller_->GetFinalIOMemorySize(Controller_->Spec_->JobIO, statistics));
+
+            auto jobProxyMemory = Controller_->GetFinalIOMemorySize(
+                Controller_->Spec_->JobIO,
+                /*useEstimatedBufferSize*/ true,
+                statistics);
+            auto jobProxyMemoryWithFixedWriteBufferSize = Controller_->GetFinalIOMemorySize(
+                Controller_->Spec_->JobIO,
+                /*useEstimatedBufferSize*/ false,
+                statistics);
+
+            result.SetJobProxyMemory(jobProxyMemory);
+            result.SetJobProxyMemoryWithFixedWriteBufferSize(jobProxyMemoryWithFixedWriteBufferSize);
+
             AddFootprintAndUserJobResources(result);
             return result;
         }
@@ -1207,26 +1219,6 @@ public:
                 Spec_->ClusterName,
                 "\"cluster_name\" is not set in remote copy operation spec");
         }
-
-        if (Spec_->ClusterName && Spec_->UseClusterThrottlers) {
-            UpdateNeededResourcesCallback_ = BIND_NO_PROPAGATE(
-                &TRemoteCopyController::UpdateNeededResources,
-                MakeWeak(this))
-            .Via(GetCancelableInvoker());
-
-            Host->SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
-                TClusterName(*Spec_->ClusterName),
-                UpdateNeededResourcesCallback_);
-        }
-    }
-
-    ~TRemoteCopyController()
-    {
-        if (Spec_->ClusterName && Spec_->UseClusterThrottlers) {
-            Host->UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
-                TClusterName(*Spec_->ClusterName),
-                UpdateNeededResourcesCallback_);
-        }
     }
 
 protected:
@@ -1248,7 +1240,16 @@ protected:
             : TOrderedTask(controller)
             , Controller_(controller)
             , IsInitializationCompleted_(false)
-        { }
+        {
+            if (Controller_->Spec_->ClusterName && Controller_->Spec_->UseClusterThrottlers) {
+                TClusterName clusterName{*Controller_->Spec_->ClusterName};
+                UpdateClusterToNetworkBandwidthAvailability(
+                    clusterName,
+                    TaskHost_->IsNetworkBandwidthAvailable(clusterName));
+                // Unsubscribe is done in destructor.
+                SubscribeToClusterNetworkBandwidthAvailabilityUpdated(clusterName);
+            }
+        }
 
         void FinishInitialization()
         {
@@ -1262,58 +1263,6 @@ protected:
             Dependencies_.emplace_back(std::move(dependency));
         }
 
-        NScheduler::TCompositeNeededResources GetTotalNeededResources(
-            i64 maxRunnableJobCount) const override
-        {
-            return TTask::GetTotalNeededResources(
-                std::min(CurrentMaxRunnableJobCount_, maxRunnableJobCount));
-        }
-
-        NScheduler::TCompositeNeededResources GetTotalNeededResourcesDelta() override
-        {
-            if (!Controller_->Spec_->UseClusterThrottlers) {
-                return TTask::GetTotalNeededResourcesDelta();
-            }
-
-            if (Controller_->Spec_->ClusterName) {
-                if (Controller_->PausedSchedulingStartTime_) {
-                    Controller_->PausedShedulingDuration_ += (TInstant::Now() - Controller_->PausedSchedulingStartTime_.value());
-                }
-
-                TClusterName clusterName{Controller_->Spec_->ClusterName.value()};
-                if (!Controller_->Host->IsNetworkBandwidthAvailable(clusterName)) {
-                    Controller_->PausedSchedulingStartTime_ = TInstant::Now();
-                    YT_LOG_DEBUG(
-                        "Network bandwidth to remote cluster is not available now so zero out needed resources "
-                        "(ClusterName: %v, OldMaxRunnableJobCount: %v, NewMaxRunnableJobCount: %v)",
-                        clusterName,
-                        CurrentMaxRunnableJobCount_,
-                        0);
-                    // Zero out maximum runnable jobs. It will be coming back once bandwidth becomes available.
-                    auto result = -CachedTotalNeededResources_;
-                    CachedTotalNeededResources_ = {};
-                    CurrentMaxRunnableJobCount_ = 0;
-                    return result;
-                } else {
-                    Controller_->PausedSchedulingStartTime_.reset();
-                }
-            }
-
-            // Increase maximum runnable jobs exponentially up to MaxRunnableJobCount.
-            CurrentMaxRunnableJobCount_ = std::clamp(2 * CurrentMaxRunnableJobCount_, static_cast<i64>(1), MaxRunnableJobCount);
-            return TTask::GetTotalNeededResourcesDelta();
-        }
-
-        TDuration GetPausedSchedulingDuration() const override
-        {
-            TDuration lastPausedSchedulingDuration = TDuration::Zero();
-            if (Controller_->PausedSchedulingStartTime_) {
-                lastPausedSchedulingDuration = TInstant::Now() - Controller_->PausedSchedulingStartTime_.value();
-            }
-
-            return Controller_->PausedShedulingDuration_ + lastPausedSchedulingDuration;
-        }
-
     protected:
         TRemoteCopyController* Controller_;
 
@@ -1323,10 +1272,6 @@ protected:
         // Which depends on it.
         std::vector<TRemoteCopyTaskBasePtr> Dependents_;
         bool IsInitializationCompleted_;
-
-        static constexpr i64 MaxRunnableJobCount = std::numeric_limits<i32>::max();
-        // Don't persist this transient state.
-        i64 CurrentMaxRunnableJobCount_ = MaxRunnableJobCount;
 
         void AddDependent(TRemoteCopyTaskBasePtr dependent)
         {
@@ -1373,6 +1318,8 @@ protected:
 
         void OnTaskCompleted() override
         {
+            TTask::OnTaskCompleted();
+
             ValidateAllDataHaveBeenCopied();
             RemoveDependents();
         }
@@ -1451,12 +1398,6 @@ private:
     IAttributeDictionaryPtr InputTableAttributes_;
 
     THashMap<TChunkId, TChunkId> HunkChunkIdMapping_;
-
-    TExtendedCallback<void()> UpdateNeededResourcesCallback_;
-
-    // Don't persist this transient state.
-    std::optional<TInstant> PausedSchedulingStartTime_;
-    TDuration PausedShedulingDuration_ = TDuration::Zero();
 
     void ValidateTableType(const auto& table) const
     {
@@ -1871,8 +1812,6 @@ private:
         if (Spec_->ClusterName) {
             remoteCopyJobSpecExt->set_remote_cluster_name(*Spec_->ClusterName);
         }
-
-        remoteCopyJobSpecExt->set_use_cluster_throttlers(Spec_->UseClusterThrottlers);
     }
 
     NNative::IConnectionPtr GetRemoteConnection() const
@@ -1982,27 +1921,6 @@ private:
             ToProto(protoMapping->mutable_input_hunk_chunk_id(), mapping.first);
             ToProto(protoMapping->mutable_output_hunk_chunk_id(), mapping.second);
         }
-    }
-
-    void UpdateNeededResources()
-    {
-        for (const auto& task : OrderedTasks_) {
-            UpdateTask(task.Get());
-        }
-    }
-
-    void BuildControllerInfoYson(NYTree::TFluentMap fluent) const override
-    {
-        TOrderedControllerBase::BuildControllerInfoYson(fluent);
-
-        fluent
-            .DoIf(!!Spec_->ClusterName, [&] (auto fluent) {
-                fluent
-                    .Item("network_bandwidth_availability").BeginMap()
-                        .Item(*Spec_->ClusterName)
-                        .Value(!PausedSchedulingStartTime_.has_value())
-                    .EndMap();
-            });
     }
 
     PHOENIX_DECLARE_FRIEND();

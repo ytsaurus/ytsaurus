@@ -9,6 +9,7 @@
 #include "helpers.h"
 #include "input_manager.h"
 #include "job_info.h"
+#include "job_memory.h"
 #include "task.h"
 #include "task_host.h"
 
@@ -160,7 +161,7 @@ private: \
         (jobId, timeout),
         false)
 
-    IMPLEMENT_SAFE_METHOD(public, void, UpdateMinNeededAllocationResources, (), (), true)
+    IMPLEMENT_SAFE_METHOD(public, void, UpdateGroupedNeededResources, (), (), true)
 
     IMPLEMENT_SAFE_METHOD(public, void, Commit, (), (), false)
     IMPLEMENT_SAFE_METHOD(public, void, Terminate, (EControllerState finalState), (finalState), false)
@@ -274,7 +275,7 @@ public:
     bool ShouldUpdateLightOperationAttributes() const override;
     void SetLightOperationAttributesUpdated() override;
 
-    NScheduler::TJobResourcesWithQuotaList GetMinNeededAllocationResources() const override;
+    NScheduler::TAllocationGroupResourcesMap GetGroupedNeededResources() const override;
 
     bool IsRunning() const override;
 
@@ -442,7 +443,7 @@ public:
     void AbortJob(TJobId jobId, EAbortReason abortReason) override;
 
     bool CanInterruptJobs() const override;
-    void InterruptJob(TJobId jobId, EInterruptReason reason) override;
+    void InterruptJob(TJobId jobId, EInterruptionReason reason) override;
 
     void OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType) override;
 
@@ -476,6 +477,8 @@ public:
     void InitializeJobExperiment();
     TJobExperimentBasePtr GetJobExperiment() override;
 
+    void UpdateWriteBufferMemoryAlert(TJobId jobId, i64 currentMemory, i64 previousMemory) override;
+
     std::expected<TJobId, EScheduleFailReason> GenerateJobId(NScheduler::TAllocationId allocationId, TJobId previousJobId) override;
 
     TJobletPtr CreateJoblet(
@@ -485,6 +488,18 @@ public:
         int taskJobIndex,
         std::optional<TString> poolPath,
         bool treeIsTentative) override;
+
+    virtual std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const override;
+
+    virtual bool IsNetworkBandwidthAvailable(const NScheduler::TClusterName& clusterName) const override;
+
+    virtual void SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) const override;
+
+    virtual void UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) const override;
 
 protected:
     const IOperationControllerHostPtr Host;
@@ -735,6 +750,10 @@ protected:
     void ValidateOutputDynamicTablesAllowed() const;
     void GetOutputTablesSchema();
     virtual void PrepareOutputTables();
+    void PatchTableWriteBuffer(
+        NTableClient::TTableWriterOptionsPtr& writerOptions,
+        NTableClient::ETableSchemaMode schemaMode,
+        const NTableClient::TEpochSchema& schema) const;
     void LockOutputTablesAndGetAttributes();
     void LockUserFiles();
     void GetUserFilesAttributes();
@@ -800,6 +819,8 @@ protected:
 
     void CommitFeatures();
     void FinalizeFeatures();
+
+    void FinalizeSubscriptions();
 
     // Revival.
     void ReinstallLivePreview();
@@ -1001,10 +1022,13 @@ protected:
         TJobletPtr joblet) const;
 
     // Amount of memory reserved for output table writers in job proxy.
-    i64 GetFinalOutputIOMemorySize(NScheduler::TJobIOConfigPtr ioConfig) const;
+    i64 GetFinalOutputIOMemorySize(
+        NScheduler::TJobIOConfigPtr ioConfig,
+        bool useEstimatedBufferSize) const;
 
     i64 GetFinalIOMemorySize(
         NScheduler::TJobIOConfigPtr ioConfig,
+        bool useEstimatedBufferSize,
         const NTableClient::TChunkStripeStatisticsVector& stripeStatistics) const;
 
     void ValidateUserFileCount(NScheduler::TUserJobSpecPtr spec, const TString& operation);
@@ -1093,12 +1117,15 @@ private:
     NThreading::TAtomicObject<TCompositePendingJobCount> CachedPendingJobCount = {};
     int CachedTotalJobCount = 0;
 
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OverrunWriteBufferMemoryPerJobLock);
+    std::set<TOverrunTableWriteBufferMemoryInfo> OverrunWriteBufferMemoryPerJob;
+
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedNeededResourcesLock);
     NScheduler::TCompositeNeededResources CachedNeededResources;
 
-    NThreading::TAtomicObject<NScheduler::TJobResourcesWithQuotaList> CachedMinNeededAllocationResources;
+    NThreading::TAtomicObject<NScheduler::TAllocationGroupResourcesMap> CachedGroupedNeededResources;
 
-    NScheduler::TJobResourcesWithQuotaList InitialMinNeededResources_;
+    NScheduler::TAllocationGroupResourcesMap InitialGroupedNeededResources_;
 
     class TCachedYsonCallback
     {
@@ -1368,8 +1395,6 @@ private:
 
     void UpdateAllTasksIfNeeded();
 
-    TJobResources GetAggregatedMinNeededAllocationResources() const;
-
     void IncreaseNeededResources(const NScheduler::TCompositeNeededResources& resourcesDelta);
 
     void IncreaseAccountResourceUsageLease(const std::optional<TString>& account, const NScheduler::TDiskQuota& quota);
@@ -1449,7 +1474,7 @@ private:
     void MaybeCancel(NScheduler::ECancelationStage cancelationStage) override;
     const NChunkClient::TThrottlerManagerPtr& GetChunkLocationThrottlerManager() const override;
 
-    void HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport);
+    void HandleJobReport(const TJobletPtr& joblet, TControllerJobReport&& jobReport) const;
 
     void ReportJobHasCompetitors(const TJobletPtr& joblet, EJobCompetitionType competitionType);
 
@@ -1469,8 +1494,9 @@ private:
     bool WasJobGracefullyAborted(const std::unique_ptr<TAbortedJobSummary>& jobSummary);
     void OnJobStartTimeReceived(const TJobletPtr& joblet, const std::unique_ptr<TRunningJobSummary>& jobSummary);
 
-    void ReportJobCookieToArchive(const TJobletPtr& joblet);
-    void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state);
+    void ReportJobCookieToArchive(const TJobletPtr& joblet) const;
+    void ReportControllerStateToArchive(const TJobletPtr& joblet, EJobState state) const;
+    void ReportOperationIncarnationToArchive(const TJobletPtr& joblet) const;
 
     std::unique_ptr<TAbortedJobSummary> RegisterOutputChunkReplicas(
         const TJobSummary& jobSummary,
@@ -1495,7 +1521,7 @@ private:
 
     bool ShouldProcessJobEvents() const;
 
-    void InterruptJob(TJobId jobId, EInterruptReason interruptionReason, TDuration timeout);
+    void InterruptJob(TJobId jobId, EInterruptionReason interruptionReason, TDuration timeout);
 
     void ClearEmptyAllocationsInRevive();
 

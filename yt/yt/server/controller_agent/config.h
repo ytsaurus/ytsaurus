@@ -200,8 +200,8 @@ public:
     // if queues with average wait time above this threshold are found.
     TDuration QueueTotalTimeEstimateThreshold;
 
-    // Ratio.
-    double TaskPausedSchedulingRatioThreshold;
+    // Set alert if ratio of unavailable network bandwidth time is higher than this threshold.
+    double TaskUnavailableNetworkBandwidthTimeRatioAlertThreshold;
 
     REGISTER_YSON_STRUCT(TAlertManagerConfig);
 
@@ -994,9 +994,6 @@ public:
     //! Maximum number of files per user job.
     int MaxUserFileCount;
 
-    // COMPAT(ignat)
-    std::optional<i64> MaxUserFileSize;
-
     //! Don't check resource demand for sanity if the number of online
     //! nodes is less than this bound.
     // TODO(ignat): rename to SafeExecNodeCount.
@@ -1158,6 +1155,10 @@ public:
     TDuration DynamicTableLockCheckingIntervalDurationMin;
     TDuration DynamicTableLockCheckingIntervalDurationMax;
 
+    i64 DesiredBlockSize;
+    i64 MaxEstimatedWriteBufferSize;
+    double WriteBufferMemoryOverrunAlertFactor;
+
     bool EnableOperationProgressArchivation;
     TDuration OperationProgressArchivationTimeout;
 
@@ -1223,6 +1224,9 @@ public:
     bool EnableJobProfiling;
 
     std::optional<TString> CudaProfilerLayerPath;
+
+    THashMap<std::string, std::string> CudaProfilerEnvironmentVariables;
+    // COMPAT(omgronnny)
     NScheduler::TCudaProfilerEnvironmentPtr CudaProfilerEnvironment;
 
     int MaxRunningJobStatisticsUpdateCountPerHeartbeat;

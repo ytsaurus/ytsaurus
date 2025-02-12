@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/cypress_registrar/config.h>
 
+#include <yt/yt/server/lib/signature/instance_config.h>
+
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/security_client/config.h>
@@ -178,6 +180,8 @@ void TProxyMemoryLimitsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("total", &TThis::Total)
         .Optional();
+    registrar.Parameter("heavy_request", &TThis::HeavyRequest)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -262,6 +266,12 @@ void TProxyBootstrapConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("heap_profiler", &TThis::HeapProfiler)
         .DefaultNew();
+
+    registrar.Parameter("signature_validation", &TThis::SignatureValidation)
+        .Optional();
+
+    registrar.Parameter("signature_generation", &TThis::SignatureGeneration)
+        .Optional();
 
     registrar.Preprocessor([] (TThis* config) {
         config->ClusterConnectionDynamicConfigPolicy = NApi::NNative::EClusterConnectionDynamicConfigPolicy::FromClusterDirectoryWithStaticPatch;

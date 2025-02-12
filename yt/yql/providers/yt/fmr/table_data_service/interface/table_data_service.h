@@ -1,6 +1,6 @@
 #include <library/cpp/threading/future/core/future.h>
 
-namespace NYql {
+namespace NYql::NFmr {
 
 class ITableDataService: public TThrRefBase {
 public:
@@ -15,4 +15,4 @@ public:
     virtual NThreading::TFuture<void> Delete(const TString& id) = 0;
 };
 
-} // namspace NYql
+} // namespace NYql::NFmr

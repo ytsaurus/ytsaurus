@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "helpers.h"
+#include "table_descriptor.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -55,11 +56,25 @@ struct ISequoiaClient
         ESequoiaTable table,
         const TSelectRowsQuery& query,
         NTransactionClient::TTimestamp timestamp = NTransactionClient::SyncLastCommittedTimestamp) = 0;
+    virtual TFuture<NApi::TSelectRowsResult> SelectRows(
+        const TSequoiaTablePathDescriptor& tableDescriptor,
+        const TSelectRowsQuery& query,
+        NTransactionClient::TTimestamp timestamp = NTransactionClient::SyncLastCommittedTimestamp) = 0;
 
     template <class TRecord>
     TFuture<std::vector<TRecord>> SelectRows(
         const TSelectRowsQuery& query,
         NTransactionClient::TTimestamp timestamp = NTransactionClient::SyncLastCommittedTimestamp);
+    template <class TRecord>
+    TFuture<std::vector<TRecord>> SelectRows(
+        NObjectClient::TCellTag masterCellTag,
+        const TSelectRowsQuery& query,
+        NTransactionClient::TTimestamp timestamp = NTransactionClient::SyncLastCommittedTimestamp);
+
+    virtual TFuture<void> TrimTable(
+        const TSequoiaTablePathDescriptor& descriptor,
+        int tabletIndex,
+        i64 trimmedRowCount) = 0;
 
     virtual TFuture<ISequoiaTransactionPtr> StartTransaction(
         const NApi::TTransactionStartOptions& options = {},

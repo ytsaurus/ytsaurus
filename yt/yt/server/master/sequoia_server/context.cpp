@@ -60,6 +60,7 @@ public:
                         TabletIdToRequestBatcher_,
                         tabletId,
                         CreateTabletRequestBatcher(
+                            tabletId,
                             TTabletRequestBatcherOptions{}, // TODO(gritukan)
                             tableDescriptor->GetRecordDescriptor()->GetSchema(),
                             tableDescriptor->GetColumnEvaluator()));

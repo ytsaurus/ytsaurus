@@ -326,15 +326,10 @@ void TFairShareStrategySsdPriorityPreemptionConfig::Register(TRegistrar registra
 void TBatchOperationSchedulingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("batch_size", &TThis::BatchSize)
-        // COMPAT(eshcherbin)
-        .Alias("medium_priority_operation_count_limit")
         .GreaterThanOrEqual(0)
         .Default(1000);
 
     registrar.Parameter("fallback_min_spare_allocation_resources", &TThis::FallbackMinSpareAllocationResources)
-        .Alias("fallback_min_spare_job_resources")
-        // COMPAT(eshcherbin)
-        .Alias("low_priority_fallback_min_spare_job_resources")
         .DefaultCtor(&GetDefaultLowPriorityFallbackMinSpareAllocationResources);
 }
 
@@ -420,7 +415,6 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(1);
 
     registrar.Parameter("update_preemptible_list_duration_logging_threshold", &TThis::UpdatePreemptibleListDurationLoggingThreshold)
-        .Alias("update_preemptable_list_duration_logging_threshold")
         .Default(TDuration::MilliSeconds(100));
 
     registrar.Parameter("enable_operations_profiling", &TThis::EnableOperationsProfiling)
@@ -542,9 +536,6 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_conditional_preemption", &TThis::EnableConditionalPreemption)
         .Default(true);
 
-    registrar.Parameter("use_resource_usage_with_precommit", &TThis::UseResourceUsageWithPrecommit)
-        .Default(true);
-
     registrar.Parameter("allowed_resource_usage_staleness", &TThis::AllowedResourceUsageStaleness)
         .Default(TDuration::MilliSeconds(100));
 
@@ -602,15 +593,7 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
 
     registrar.Parameter("batch_operation_scheduling", &TThis::BatchOperationScheduling)
-        // COMPAT(eshcherbin)
-        .Alias("prioritized_regular_scheduling")
         .Default();
-
-    registrar.Parameter("fifo_pool_scheduling_order", &TThis::FifoPoolSchedulingOrder)
-        .Default(EFifoPoolSchedulingOrder::Satisfaction);
-
-    registrar.Parameter("use_pool_satisfaction_for_scheduling", &TThis::UsePoolSatisfactionForScheduling)
-        .Default(false);
 
     registrar.Parameter("per_pool_satisfaction_digest", &TThis::PerPoolSatisfactionDigest)
         .DefaultCtor(&GetDefaultPerPoolSatisfactionDigestConfig);
@@ -1279,7 +1262,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(true);
 
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
-        .Default(54);
+        .Default(55);
 
     registrar.Parameter("rpc_server", &TThis::RpcServer)
         .DefaultNew();

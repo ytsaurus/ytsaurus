@@ -7,6 +7,7 @@ RECURSE(
     dump_chunk_meta
     dynamic_tables
     force_commit_tx
+    generate_component_config_for_cluster
     hunk_chunk_advisor
     import_table
     journal_reader

@@ -25,14 +25,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// NB(eshcherbin): Set to true, when in pain.
-static constexpr bool EnableDebugLogging = true;
-YT_DEFINE_GLOBAL(const NLogging::TLogger, Logger, EnableDebugLogging
-    ? NLogging::TLogger("TestDebug")
-    : NLogging::TLogger());
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TGpuAllocationSchedulerHostMock
     : public TRefCounted
 {
@@ -139,7 +131,6 @@ public:
         TreeConfig_->AggressivePreemptionSatisfactionThreshold = 0.5;
         TreeConfig_->MinChildHeapSize = 3;
         TreeConfig_->EnableConditionalPreemption = true;
-        TreeConfig_->UseResourceUsageWithPrecommit = false;
         TreeConfig_->ShouldDistributeFreeVolumeAmongChildren = true;
 
         TreeConfig_->BatchOperationScheduling = New<TBatchOperationSchedulingConfig>();
@@ -809,8 +800,6 @@ TEST_F(DISABLED_TGpuAllocationSchedulerTest, PreemptSmallOperationsForLarge)
         /*operationCount*/ 1,
         /*allocationCountInOperation*/ 2)[0];
     auto largeOperation2State = gpuScheduler->GetOperationState(largeOperation2);
-
-    YT_LOG_INFO("");
 
     gpuScheduler->ScheduleAllocations();
     EXPECT_EQ(largeOperation2State->GetResourceUsage(), 8.0 * 0);

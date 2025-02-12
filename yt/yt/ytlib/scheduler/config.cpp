@@ -625,6 +625,20 @@ void TJobFailsTolerance::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TFastIntermediateMediumTableWriterConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("upload_replication_factor", &TThis::UploadReplicationFactor)
+        .Default(DefaultIntermediateDataReplicationFactor);
+    registrar.Parameter("min_upload_replication_factor", &TThis::MinUploadReplicationFactor)
+        .Default(1);
+    registrar.Parameter("erasure_codec", &TThis::ErasureCodec)
+        .Default(NErasure::ECodec::None);
+    registrar.Parameter("enable_striped_erasure", &TThis::EnableStripedErasure)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TOperationSpecBase::Register(TRegistrar registrar)
 {
     registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
@@ -636,13 +650,16 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(NCompression::ECodec::Lz4);
     registrar.Parameter("intermediate_data_replication_factor", &TThis::IntermediateDataReplicationFactor)
         .Default(DefaultIntermediateDataReplicationFactor);
-    registrar.Parameter("intermediate_min_data_replication_factor", &TThis::IntermediateMinDataReplicationFactor)
+    registrar.Parameter("min_intermediate_data_replication_factor", &TThis::MinIntermediateDataReplicationFactor)
+        .Alias("intermediate_min_data_replication_factor")
         .Default(1);
     registrar.Parameter("intermediate_data_sync_on_close", &TThis::IntermediateDataSyncOnClose)
         .Default(false);
     registrar.Parameter("intermediate_data_medium", &TThis::IntermediateDataMediumName)
         .NonEmpty()
         .Default(NChunkClient::DefaultStoreMediumName);
+    registrar.Parameter("fast_intermediate_medium_table_writer_config", &TThis::FastIntermediateMediumTableWriterConfig)
+        .Default();
     registrar.Parameter("fast_intermediate_medium_limit", &TThis::FastIntermediateMediumLimit)
         .Default();
 
@@ -808,6 +825,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("allow_output_dynamic_tables", &TThis::AllowOutputDynamicTables)
         .Default();
 
+    registrar.Parameter("enable_write_buffer_size_estimation", &TThis::EnableWriteBufferSizeEstimation)
+        .Default(false);
+
     registrar.Parameter("job_cpu_monitor", &TThis::JobCpuMonitor)
         .DefaultNew();
 
@@ -885,6 +905,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("cuda_profiler_layer_path", &TThis::CudaProfilerLayerPath)
         .Default();
 
+    registrar.Parameter("cuda_profiler_environment_variables", &TThis::CudaProfilerEnvironmentVariables)
+        .Default();
+
     registrar.Parameter("cuda_profiler_environment", &TThis::CudaProfilerEnvironment)
         .Default();
 
@@ -896,6 +919,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
     registrar.Parameter("require_specified_pools_existence", &TThis::RequireSpecifiedPoolsExistence)
         .Default();
+
+    registrar.Parameter("use_cluster_throttlers", &TThis::UseClusterThrottlers)
+        .Default(false);
 
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
@@ -973,6 +999,14 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
         if (spec->BatchRowCount && spec->Sampling && spec->Sampling->SamplingRate) {
             THROW_ERROR_EXCEPTION("Option \"batch_row_count\" cannot be used with input sampling");
+        }
+
+        // COMPAT(omgronny)
+        if (spec->CudaProfilerEnvironmentVariables.empty() && spec->CudaProfilerEnvironment) {
+            EmplaceOrCrash(
+                spec->CudaProfilerEnvironmentVariables,
+                spec->CudaProfilerEnvironment->PathEnvironmentVariableName,
+                spec->CudaProfilerEnvironment->PathEnvironmentVariableValue);
         }
     });
 }
@@ -2082,8 +2116,6 @@ void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("allow_cluster_connection", &TThis::AllowClusterConnection)
         .Default(true);
-    registrar.Parameter("use_cluster_throttlers", &TThis::UseClusterThrottlers)
-        .Default(false);
 
     registrar.Preprocessor([] (TRemoteCopyOperationSpec* spec) {
         // NB: In remote copy operation chunks are never decompressed,
@@ -2357,9 +2389,6 @@ void TPoolConfig::Register(TRegistrar registrar)
         .Default({EFifoSortParameter::Weight, EFifoSortParameter::StartTime})
         .NonEmpty();
 
-    registrar.Parameter("fifo_pool_scheduling_order", &TThis::FifoPoolSchedulingOrder)
-        .Default();
-
     registrar.Parameter("forbid_immediate_operations", &TThis::ForbidImmediateOperations)
         .Default(false);
 
@@ -2370,9 +2399,7 @@ void TPoolConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Parameter("historic_usage_aggregation_period", &TThis::HistoricUsageAggregationPeriod)
-        .Optional();
-    registrar.Parameter("infer_children_weights_from_historic_usage", &TThis::InferChildrenWeightsFromHistoricUsage)
-        .Default(false);
+        .Default();
 
     registrar.Parameter("allowed_profiling_tags", &TThis::AllowedProfilingTags)
         .Default();
@@ -2405,9 +2432,6 @@ void TPoolConfig::Register(TRegistrar registrar)
     registrar.Parameter("offloading_settings", &TThis::OffloadingSettings)
         .Default();
 
-    registrar.Parameter("use_pool_satisfaction_for_scheduling", &TThis::UsePoolSatisfactionForScheduling)
-        .Default();
-
     registrar.Parameter("allow_idle_cpu_policy", &TThis::AllowIdleCpuPolicy)
         .Default();
 
@@ -2430,14 +2454,6 @@ void TPoolConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
-        // COMPAT(arkady-e1ppa)
-        if (config->InferChildrenWeightsFromHistoricUsage) {
-            config->HistoricUsageAggregationPeriod =
-                config->HistoricUsageAggregationPeriod.value_or(TAdjustedExponentialMovingAverage::DefaultHalflife);
-        } else {
-            config->HistoricUsageAggregationPeriod.reset();
-        }
-
         // COMPAT(omgronny)
         if (config->ConfigPreset && !config->ConfigPresets.empty()) {
             THROW_ERROR_EXCEPTION("Cannot specify both %Qv and %Qv at the same time",
@@ -2540,13 +2556,11 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("update_preemptible_allocations_list_logging_period", &TThis::UpdatePreemptibleAllocationsListLoggingPeriod)
         .Alias("update_preemptible_jobs_list_logging_period")
-        .Alias("update_preemptable_jobs_list_logging_period")
         .Default(1000);
     registrar.Parameter("custom_profiling_tag", &TThis::CustomProfilingTag)
         .Default();
     registrar.Parameter("max_unpreemptible_allocation_count", &TThis::MaxUnpreemptibleRunningAllocationCount)
         .Alias("max_unpreemptible_job_count")
-        .Alias("max_unpreemptable_job_count")
         .Default();
     registrar.Parameter("try_avoid_duplicating_jobs", &TThis::TryAvoidDuplicatingJobs)
         .Default();
@@ -2603,10 +2617,9 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         // COMPAT(eshcherbin)
         if (spec->MaxUnpreemptibleRunningAllocationCount) {
             if (*spec->MaxUnpreemptibleRunningAllocationCount != 0) {
-                THROW_ERROR_EXCEPTION("%Qv, %Qv or %Qv cannot be set to a non-zero value, use %Qv instead",
+                THROW_ERROR_EXCEPTION("%Qv or %Qv cannot be set to a non-zero value, use %Qv instead",
                     "max_unpreemptible_allocation_count",
                     "max_unpreemptible_job_count",
-                    "max_unpreemptable_job_count",
                     "non_preemptible_resource_usage_threshold");
             }
 

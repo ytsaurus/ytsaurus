@@ -382,7 +382,7 @@ private:
 
         {
             auto config = CloneYsonStruct(singletonsConfig->GetSingletonConfig<NNet::TAddressResolverConfig>());
-            config->LocalHostNameOverride = NNet::ReadLocalHostName();
+            config->LocalHostNameOverride = NNet::GetLocalHostName();
             JobProxyConfigTemplate_->SetSingletonConfig(std::move(config));
         }
 

@@ -28,7 +28,7 @@ public:
     TVirtualPortalNodeMapBase(
         TBootstrap* bootstrap,
         INodePtr owningNode,
-        const THashMap<TNodeId, TNode*>* nodes)
+        const THashMap<TNodeId, TRawObjectPtr<TNode>>* nodes)
         : TVirtualMulticellMapBase(bootstrap, owningNode)
         , Nodes_(nodes)
     { }
@@ -36,7 +36,7 @@ public:
 private:
     using TBase = TVirtualMapBase;
 
-    const THashMap<TNodeId, TNode*>* const Nodes_;
+    const THashMap<TNodeId, TRawObjectPtr<TNode>>* const Nodes_;
 
     TFuture<std::vector<TObjectId>> GetKeys(i64 limit) const override
     {

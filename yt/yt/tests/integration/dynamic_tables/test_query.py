@@ -1,3 +1,4 @@
+from collections import defaultdict
 from .test_lookup import TestLookupCache
 
 from yt_env_setup import find_ut_file, skip_if_rpc_driver_backend
@@ -2457,6 +2458,131 @@ class TestQuery(DynamicTablesBase):
         assert_items_equal(select_rows(query), expected)
         assert_items_equal(select_rows(query_eva, allow_join_without_index=True), expected)
 
+    @authors("sabdenovch")
+    def test_subquery(self):
+        sync_create_cells(1)
+
+        create_dynamic_table("//tmp/t", schema=[
+            make_sorted_column("k_1", "int64"),
+            make_sorted_column("k_2", "int64"),
+            make_column("v", "string"),
+        ])
+
+        reshard_table("//tmp/t", [[], [0, 5], [1, 7]])
+
+        sync_mount_table("//tmp/t")
+        rowset = [
+            {"k_1": 0, "k_2": 4, "v": "Cecil"},
+            {"k_1": 0, "k_2": 5, "v": "Quarantine"},
+            {"k_1": 0, "k_2": 6, "v": "Boulevard"},
+            {"k_1": 0, "k_2": 7, "v": "Limbo"},
+            {"k_1": 1, "k_2": 4, "v": "Genos"},
+            {"k_1": 1, "k_2": 5, "v": "Alpha"},
+            {"k_1": 1, "k_2": 6, "v": "Enigma"},
+            {"k_1": 1, "k_2": 7, "v": "Diaspora"},
+        ]
+        insert_rows("//tmp/t", rowset)
+
+        assert rowset == select_rows("* FROM (SELECT * FROM (SELECT * FROM (SELECT * FROM [//tmp/t] limit 100) limit 100) limit 100)")
+        assert [{"k": 0}] == select_rows("B.[A.k_1] AS k FROM (SELECT A.k_1 from [//tmp/t] AS A limit 1) AS B limit 1")
+        assert [{"k_1": 0}] == select_rows("k_1 FROM (SELECT * FROM [//tmp/t] limit 1)")
+        assert [{"k_2": 4}] == select_rows("k_2 FROM (SELECT k_1, k_2 FROM [//tmp/t] limit 1)")
+        assert [{"k_2": 4}] == select_rows("k_2 FROM (SELECT * FROM [//tmp/t] GROUP BY k_1, k_2 limit 1)")
+        assert [{"k_2": 4}] == select_rows("k_2 FROM (SELECT k_1, k_2 FROM [//tmp/t] GROUP BY k_1, k_2 limit 1)")
+
+        assert [{"v": "Alpha"}] == select_rows(
+            "min(v) as v FROM (SELECT min(v) as v from [//tmp/t] group by k_1) group by 1")
+        assert [{"v": "Quarantine"}] == select_rows(
+            "max(v) as v FROM (SELECT max(v) as v from [//tmp/t] group by k_2) group by 1")
+        assert [{"k_1": 0, "v": "Diaspora"}] == select_rows(
+            "k_1, max(v) as v FROM (SELECT min(k_1) as k_1, min(v) as v from [//tmp/t] group by k_2) group by k_1")
+        assert [{"k_1": 1, "v": "Enigma"}] == select_rows(
+            "k_1, min(v) as v FROM (SELECT max(k_1) as k_1, max(v) as v from [//tmp/t] group by k_2) group by k_1")
+
+        create_dynamic_table("//tmp/d", schema=[make_sorted_column("k_1", "int64"), make_column("s", "string")])
+        sync_mount_table("//tmp/d")
+        insert_rows("//tmp/d", [
+            {"k_1": 0, "s": "Blind"},
+            {"k_1": 0, "s": "Warrior"},
+            {"k_1": 1, "s": "Traitor"},
+            {"k_1": 3, "s": "Post Mortem"},
+        ])
+
+        assert_items_equal(
+            [{"small": "Boulevard", "big": "Warrior"}, {"small": "Alpha", "big": "Traitor"}],
+            select_rows("min(X.[T.v]) AS small, max(X.[D.s]) as big FROM "
+                        "(SELECT T.k_1 as k_1, T.v, D.s FROM [//tmp/t] T JOIN [//tmp/d] D on T.k_1 = D.k_1) X group by X.k_1"))
+        with raises_yt_error("Joins are currently not supported when selecting from subquery"):
+            query = "col_name from (select 1 as col_name from [//tmp/t] limit 1) join [//tmp/t] on 1 = 1 group by col_name"
+            select_rows(query, allow_join_without_index=True)
+
+    @authors("sabdenovch")
+    def test_push_down_group_by_primary_key(self):
+        sync_create_cells(1)
+
+        tables = [
+            {"path": "//tmp/t", "schema": [
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "v", "type": "int64"},
+            ]},
+            {"path": "//tmp/d", "schema": [
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "k_extra", "type": "int64", "sort_order": "ascending"},
+                {"name": "clicks", "type": "int64"},
+            ]},
+        ]
+
+        for table in tables:
+            path = table["path"]
+            schema = table["schema"]
+            create("replicated_table", path, attributes={"dynamic": True, "schema": schema})
+            replica_id = create_table_replica(
+                path,
+                self.get_cluster_name(0),
+                f"{path}_replica", attributes={"mode": "sync", "enabled": True})
+            create(
+                "table",
+                f"{path}_replica",
+                attributes={
+                    "dynamic": True,
+                    "schema": schema,
+                    "upstream_replica_id": replica_id
+                })
+            sync_mount_table(path)
+            sync_mount_table(f"{path}_replica")
+
+        insert_rows("//tmp/t", [{"k": i, "v": 0} for i in range(10)])
+        insert_rows("//tmp/d", [{"k": i // 10, "k_extra": i % 10, "clicks": i} for i in range(66)])
+
+        query = """
+            k, sum(D.clicks) AS sum FROM [//tmp/t] T
+            LEFT JOIN [//tmp/d] D WITH HINT \"{push_down_group_by=%true}\" on T.k = D.k
+            GROUP BY T.k AS k
+            ORDER BY sum DESC LIMIT 2000"""
+        result = defaultdict(int)
+        for i in range(66):
+            result[i // 10] += i
+        for i in range(7, 10):
+            result[i] = None
+        assert_items_equal(select_rows(query), [{"k": k, "sum": v} for k, v in result.items()])
+
+    @authors("nadya73")
+    @skip_if_rpc_driver_backend
+    def test_select_web_json(self):
+        table = "//tmp/table"
+        sync_create_cells(1)
+        create_dynamic_table(table, schema=[{"name": "ts_column", "type": "timestamp"}])
+        sync_mount_table(table)
+
+        insert_rows(table, [{"ts_column": 0}])
+
+        format = yson.loads(b"<column_names=[ts_column];value_format=yql>web_json")
+
+        res = select_rows(f"* from [{table}]", output_format=format)
+        assert b"Timestamp" in res
+        res = select_rows(f"ts_column from [{table}]", output_format=format)
+        assert b"Timestamp" in res
+
 
 @pytest.mark.enabled_multidaemon
 class TestQueryRpcProxy(TestQuery):
@@ -2572,6 +2698,42 @@ class TestQueryRpcProxy(TestQuery):
 
         corpus = builtins.set(map(lambda x : x['query'], select_rows("query from [//tmp/queue]")))
         assert corpus == queries
+
+    @authors("sabdenovch")
+    def test_async_preference(self):
+        sync_create_cells(1)
+
+        path = "//tmp/t"
+        schema = [
+            make_sorted_column("key", "int32"),
+            make_column("value", "int32"),
+        ]
+        create("replicated_table", path, attributes={"dynamic": True, "schema": schema})
+        for replica in ("abel", "cain"):
+            replica_id = create_table_replica(
+                path,
+                self.get_cluster_name(0),
+                f"{path}_{replica}", attributes={"mode": "async"})
+            create(
+                "table",
+                f"{path}_{replica}",
+                attributes={
+                    "dynamic": True,
+                    "schema": schema,
+                    "upstream_replica_id": replica_id
+                })
+            if replica == "abel":
+                sync_enable_table_replica(replica_id)
+            sync_mount_table(f"{path}_{replica}")
+
+        sync_mount_table(path)
+        data = [{"key": 0, "value": 0}]
+        insert_rows(path, data, require_sync_replica=False)
+        wait(lambda: select_rows("* from [//tmp/t_abel]"))
+
+        sync_enable_table_replica(replica_id)  # enable cain.
+
+        assert select_rows("* from [//tmp/t] with hint \"{require_sync_replica=%false}\"") == data
 
 
 @pytest.mark.enabled_multidaemon

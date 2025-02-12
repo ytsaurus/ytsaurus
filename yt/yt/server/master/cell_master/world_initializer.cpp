@@ -1015,19 +1015,21 @@ private:
                 createMasters(cellPath, cellConfig);
             }
 
-            auto listResult = ListNode("//sys/secondary_masters");
-            // Otherwise node `//sys/secondary_masters` has not been created yet.
-            if (listResult.IsOK()) {
+            if (auto listResult = TryListNode("//sys/secondary_masters"); listResult.IsOK()) {
                 auto secondaryMasterCellTagStrings = ConvertTo<std::vector<TString>>(listResult.Value());
                 const auto& knownSecondaryMasterCellTags = Bootstrap_->GetSecondaryCellTags();
                 for (const auto& stringCellTag : secondaryMasterCellTagStrings) {
-                    auto cellTag = TCellTag(FromString<ui16>(stringCellTag));
+                    auto cellTag = TCellTag(FromString<TCellTag::TUnderlying>(stringCellTag));
                     if (!knownSecondaryMasterCellTags.contains(cellTag)) {
                         YT_VERIFY(Bootstrap_->GetConfigManager()->GetConfig()->MulticellManager->Testing->AllowMasterCellRemoval);
                         auto cellPath = "//sys/secondary_masters/" + ToYPathLiteral(cellTag);
-                        ScheduleRemoveNode(cellPath, transactionId, true);
+                        ScheduleRemoveNode(cellPath, transactionId, /*force*/ true);
                     }
                 }
+            } else {
+                YT_LOG_WARNING(listResult, "Failed to list secondary masters");
+                YT_LOG_ALERT_UNLESS(listResult.FindMatching(NYTree::EErrorCode::ResolveError),
+                    "Unexpected error occured while listing secondary masters");
             }
 
             // TODO(babenko): handle service discovery.
@@ -1248,7 +1250,7 @@ private:
         return TYsonString(rsp->value());
     }
 
-    TErrorOr<TYsonString> ListNode(const TYPath& path)
+    TErrorOr<TYsonString> TryListNode(const TYPath& path)
     {
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::List(path);

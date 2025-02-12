@@ -36,7 +36,7 @@ public:
     void StopEpoch() override;
 
     bool ExecuteWrites(
-        NTableClient::IWireProtocolReader* reader,
+        IWireWriteCommandReader* reader,
         TWriteContext* context) override;
 
     void UpdateCommittedStoreRowCount() override;

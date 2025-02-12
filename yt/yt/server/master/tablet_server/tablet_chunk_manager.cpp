@@ -226,7 +226,7 @@ public:
             oldRootChunkLists[contentType] = table->GetChunkList(contentType);
         }
 
-        TEnumIndexedArray<EChunkListContentType, std::vector<TChunkTree*>> newTabletChunkLists;
+        TEnumIndexedArray<EChunkListContentType, std::vector<TChunkTreeRawPtr>> newTabletChunkLists;
         for (auto& tabletChunkLists : newTabletChunkLists) {
             tabletChunkLists.reserve(newTabletCount);
         }
@@ -255,7 +255,7 @@ public:
                 const auto& lowerPivot = oldPivotKeys[index - firstTabletIndex];
                 const auto& upperPivot = oldPivotKeys[index - firstTabletIndex + 1];
 
-                for (auto* chunkTree : tabletStores) {
+                for (auto chunkTree : tabletStores) {
                     if (chunkTree->GetType() == EObjectType::ChunkView) {
                         auto* chunkView = chunkTree->AsChunkView();
                         auto readRange = chunkView->GetCompleteReadRange();
@@ -316,7 +316,7 @@ public:
 
             // Move chunks or views from the resharded tablets to appropriate chunk lists.
             std::vector<std::vector<TChunkView*>> newTabletChildrenToBeMerged(newTablets.size());
-            std::vector<std::vector<TChunkTree*>> newTabletHunkChunks(newTablets.size());
+            std::vector<std::vector<TChunkTreeRawPtr>> newTabletHunkChunks(newTablets.size());
             std::vector<std::vector<TStoreId>> newEdenStoreIds(newTablets.size());
 
             for (auto* chunkOrView : chunksOrViews) {
@@ -402,7 +402,7 @@ public:
                     ? MaxKey()
                     : tablets[tablet->GetIndex() + 1]->As<TTablet>()->GetPivotKey();
 
-                std::vector<TChunkTree*> mergedChunkViews;
+                std::vector<TChunkTreeRawPtr> mergedChunkViews;
                 try {
                     mergedChunkViews = MergeChunkViewRanges(newTabletChildrenToBeMerged[relativeIndex], lowerPivot, upperPivot);
                 } catch (const std::exception& ex) {
@@ -413,7 +413,7 @@ public:
                 chunkManager->AttachToChunkList(newTabletChunkList, mergedChunkViews);
 
                 std::vector<TChunkTree*> hunkChunks;
-                for (auto* chunkOrView : mergedChunkViews) {
+                for (auto chunkOrView : mergedChunkViews) {
                     if (oldEdenStoreIds.contains(chunkOrView->AsChunkView()->GetUnderlyingTree()->GetId())) {
                         newEdenStoreIds[relativeIndex].push_back(chunkOrView->GetId());
                     }
@@ -440,13 +440,13 @@ public:
             // If the number of tablets increases, just leave the new trailing ones empty.
             // If the number of tablets decreases, merge the original trailing ones.
             auto attachChunksToChunkList = [&] (TChunkList* chunkList, int firstTabletIndex, int lastTabletIndex) {
-                std::vector<TChunk*> chunks;
+                std::vector<TChunkRawPtr> chunks;
                 for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
                     auto* mainTabletChunkList = oldRootChunkLists[EChunkListContentType::Main]->Children()[index]->AsChunkList();
                     EnumerateChunksInChunkTree(mainTabletChunkList, &chunks);
                 }
-                for (auto* chunk : chunks) {
-                    chunkManager->AttachToChunkList(chunkList, {chunk});
+                for (auto chunk : chunks) {
+                    chunkManager->AttachToChunkList(chunkList, {TChunkTreeRawPtr(chunk)});
                 }
             };
             for (int index = firstTabletIndex; index < firstTabletIndex + std::min(oldTabletCount, newTabletCount); ++index) {
@@ -509,7 +509,7 @@ public:
 
         auto* oldRootChunkList = hunkStorage->GetChunkList();
         auto* newRootChunkList = chunkManager->CreateChunkList(EChunkListKind::HunkStorageRoot);
-        std::vector<TChunkTree*> newTabletChunkLists;
+        std::vector<TChunkTreeRawPtr> newTabletChunkLists;
         newTabletChunkLists.reserve(newTabletCount);
         for (int index = 0; index < newTabletCount; ++index) {
             auto* newTabletChunkList = chunkManager->CreateChunkList(EChunkListKind::HunkTablet);
@@ -602,7 +602,7 @@ public:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
         // Dynamic stores are also possible.
-        std::vector<TChunkTree*> chunksToAttach;
+        std::vector<TChunkTreeRawPtr> chunksToAttach;
         i64 attachedRowCount = 0;
         auto lastCommitTimestamp = table->GetLastCommitTimestamp();
 
@@ -646,7 +646,7 @@ public:
             }
         }
 
-        std::vector<TChunkTree*> hunkChunksToAttach;
+        std::vector<TChunkTreeRawPtr> hunkChunksToAttach;
         hunkChunksToAttach.reserve(request->hunk_chunks_to_add_size());
         for (const auto& descriptor : request->hunk_chunks_to_add()) {
             auto chunkId = FromProto<TChunkId>(descriptor.chunk_id());
@@ -678,7 +678,7 @@ public:
         }
 
         // Chunk views are also possible.
-        std::vector<TChunkTree*> chunksOrViewsToDetach;
+        std::vector<TChunkTreeRawPtr> chunksOrViewsToDetach;
         i64 detachedRowCount = 0;
         bool flatteningRequired = false;
         for (const auto& descriptor : request->stores_to_remove()) {
@@ -711,7 +711,7 @@ public:
             }
         }
 
-        std::vector<TChunkTree*> hunkChunksToDetach;
+        std::vector<TChunkTreeRawPtr> hunkChunksToDetach;
         hunkChunksToDetach.reserve(request->hunk_chunks_to_remove_size());
         for (const auto& descriptor : request->hunk_chunks_to_remove()) {
             auto chunkId = FromProto<TStoreId>(descriptor.chunk_id());
@@ -741,7 +741,7 @@ public:
             int firstDynamicStoreIndex = GetFirstDynamicStoreIndex(tabletChunkList);
             YT_VERIFY(dynamicStoreToRemove == children[firstDynamicStoreIndex]);
 
-            std::vector<TChunkTree*> allDynamicStores(
+            std::vector<TChunkTreeRawPtr> allDynamicStores(
                 children.begin() + firstDynamicStoreIndex,
                 children.end());
 
@@ -792,7 +792,7 @@ public:
                 : EChunkDetachPolicy::OrderedTabletPrefix);
 
         // Unstage just attached chunks.
-        for (auto* chunk : chunksToAttach) {
+        for (auto chunk : chunksToAttach) {
             if (IsChunkTabletStoreType(chunk->GetType())) {
                 chunkManager->UnstageChunk(chunk->AsChunk());
             }
@@ -803,10 +803,10 @@ public:
         // for detached chunks (for obvious reasons) and attached chunks
         // (because the protocol doesn't allow for creating chunks with correct
         // requisitions from the start).
-        for (auto* chunk : chunksToAttach) {
+        for (auto chunk : chunksToAttach) {
             chunkManager->ScheduleChunkRequisitionUpdate(chunk);
         }
-        for (auto* chunk : chunksOrViewsToDetach) {
+        for (auto chunk : chunksOrViewsToDetach) {
             chunkManager->ScheduleChunkRequisitionUpdate(chunk);
         }
 
@@ -829,7 +829,7 @@ public:
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-        std::vector<TChunkTree*> chunksToAdd;
+        std::vector<TChunkTreeRawPtr> chunksToAdd;
         chunksToAdd.reserve(request->stores_to_add_size());
         for (const auto& storeToAdd : request->stores_to_add()) {
             auto chunkId = FromProto<NChunkClient::TSessionId>(storeToAdd.session_id()).ChunkId;
@@ -849,7 +849,7 @@ public:
 
         AttachChunksToTablet(tablet, chunksToAdd);
 
-        std::vector<TChunkTree*> chunksToRemove;
+        std::vector<TChunkTreeRawPtr> chunksToRemove;
         chunksToRemove.reserve(request->stores_to_remove_size());
         for (const auto& storeToRemove : request->stores_to_remove()) {
             auto chunkId = FromProto<TChunkId>(storeToRemove.store_id());
@@ -891,10 +891,10 @@ public:
             chunkManager->ScheduleChunkSeal(chunk);
         }
 
-        for (auto* chunk : chunksToAdd) {
+        for (auto chunk : chunksToAdd) {
             chunkManager->ScheduleChunkRequisitionUpdate(chunk);
         }
-        for (auto* chunk : chunksToRemove) {
+        for (auto chunk : chunksToRemove) {
             chunkManager->ScheduleChunkRequisitionUpdate(chunk);
         }
 
@@ -912,7 +912,7 @@ public:
 
         // Compute last commit timestamp.
         auto lastCommitTimestamp = MinTimestamp;
-        for (auto* chunk : chunks) {
+        for (auto chunk : chunks) {
             auto miscExt = chunk->ChunkMeta()->FindExtension<TMiscExt>();
             if (miscExt && miscExt->has_max_timestamp()) {
                 lastCommitTimestamp = std::max(lastCommitTimestamp, static_cast<TTimestamp>(miscExt->max_timestamp()));
@@ -944,7 +944,7 @@ public:
         }
         chunkManager->AttachToChunkList(newChunkList, {tabletChunkList});
 
-        std::vector<TChunkTree*> chunkTrees(chunks.begin(), chunks.end());
+        std::vector<TChunkTreeRawPtr> chunkTrees(chunks.begin(), chunks.end());
         chunkManager->AttachToChunkList(tabletChunkList, chunkTrees);
 
         auto* tabletHunkChunkList = chunkManager->CreateChunkList(EChunkListKind::Hunk);
@@ -967,7 +967,7 @@ public:
         table->SetHunkChunkList(nullptr);
 
         auto chunks = EnumerateChunksInChunkTree(oldChunkList);
-        chunkManager->AttachToChunkList(newChunkList, std::vector<TChunkTree*>{chunks.begin(), chunks.end()});
+        chunkManager->AttachToChunkList(newChunkList, std::vector<TChunkTreeRawPtr>{chunks.begin(), chunks.end()});
 
         YT_VERIFY(EnumerateChunksInChunkTree(oldHunkChunkList).empty());
 
@@ -996,7 +996,7 @@ public:
 
     void DetachChunksFromTablet(
         TTabletBase* tablet,
-        const std::vector<TChunkTree*>& chunkTrees,
+        const std::vector<TChunkTreeRawPtr>& chunkTrees,
         EChunkDetachPolicy policy) override
     {
         const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -1013,8 +1013,8 @@ public:
             policy == EChunkDetachPolicy::HunkTablet);
 
         // Ensure deteministic ordering of keys.
-        std::map<TChunkList*, std::vector<TChunkTree*>, TObjectIdComparer> childrenByParent;
-        for (auto* child : chunkTrees) {
+        std::map<TChunkList*, std::vector<TChunkTreeRawPtr>, TObjectIdComparer> childrenByParent;
+        for (auto child : chunkTrees) {
             auto* parent = GetTabletChildParent(tablet, child);
             YT_VERIFY(HasParent(child, parent));
             childrenByParent[parent].push_back(child);
@@ -1039,7 +1039,7 @@ public:
 
         bool needFlatten = false;
         auto* chunkList = tablet->GetChunkList();
-        for (const auto* child : chunkList->Children()) {
+        for (auto child : chunkList->Children()) {
             if (child->GetType() == EObjectType::ChunkList) {
                 needFlatten = true;
                 break;
@@ -1053,13 +1053,13 @@ public:
         table->DiscountTabletStatistics(oldStatistics);
 
         chunkList = tablet->GetChunkList();
-        std::vector<TChunkTree*> storesToDetach;
-        std::vector<TChunkTree*> storesToAttach;
+        std::vector<TChunkTreeRawPtr> storesToDetach;
+        std::vector<TChunkTreeRawPtr> storesToAttach;
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
-        for (auto* store : chunkList->Children()) {
+        for (auto store : chunkList->Children()) {
             TTimestamp minTimestamp = MinTimestamp;
             TTimestamp maxTimestamp = MaxTimestamp;
 
@@ -1085,7 +1085,7 @@ public:
                     minTimestamp = overrideTimestamp;
                     maxTimestamp = overrideTimestamp;
                 } else {
-                    auto* underlyingTree = chunkView->GetUnderlyingTree();
+                    auto underlyingTree = chunkView->GetUnderlyingTree();
                     YT_VERIFY(IsChunkTabletStoreType(underlyingTree->GetType()));
                     takeTimestampsFromChunk(underlyingTree->AsChunk());
                 }
@@ -1133,16 +1133,16 @@ public:
         auto oldStatistics = tablet->GetTabletStatistics();
         table->DiscountTabletStatistics(oldStatistics);
 
-        std::vector<TChunkTree*> storesToDetach;
-        std::vector<TChunkTree*> storesToAttach;
+        std::vector<TChunkTreeRawPtr> storesToDetach;
+        std::vector<TChunkTreeRawPtr> storesToAttach;
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
-        for (auto* store : chunkList->Children()) {
+        for (auto store : chunkList->Children()) {
             if (store->GetType() == EObjectType::ChunkView) {
                 auto* chunkView = store->AsChunkView();
 
-                auto* underlyingTree = chunkView->GetUnderlyingTree();
+                auto underlyingTree = chunkView->GetUnderlyingTree();
                 if (!IsDynamicTabletStoreType(underlyingTree->GetType())) {
                     continue;
                 }
@@ -1151,7 +1151,7 @@ public:
 
                 auto* dynamicStore = underlyingTree->AsDynamicStore();
                 YT_VERIFY(dynamicStore->IsFlushed());
-                auto* chunk = dynamicStore->GetFlushedChunk();
+                auto chunk = dynamicStore->GetFlushedChunk();
 
                 if (chunk) {
                     // FIXME(ifsmirnov): chunk view is not always needed, check
@@ -1164,15 +1164,14 @@ public:
             } else if (IsDynamicTabletStoreType(store->GetType())) {
                 auto* dynamicStore = store->AsDynamicStore();
                 YT_VERIFY(dynamicStore->IsFlushed());
-                auto* chunk = dynamicStore->GetFlushedChunk();
-                if (chunk) {
+                if (auto chunk = dynamicStore->GetFlushedChunk()) {
                     storesToAttach.push_back(chunk);
                 }
                 storesToDetach.push_back(dynamicStore);
             }
         }
 
-        std::vector<TChunkTree*> hunkChunksToAttach;
+        std::vector<TChunkTreeRawPtr> hunkChunksToAttach;
         auto attachHunkChunks = [&] (TChunk* chunk) {
             auto hunkChunks = GetReferencedHunkChunks(chunk);
             if (!hunkChunks.empty()) {
@@ -1181,7 +1180,7 @@ public:
             }
         };
 
-        for (auto* store : storesToAttach) {
+        for (auto store : storesToAttach) {
             switch (store->GetType()) {
                 case EObjectType::Chunk:
                 case EObjectType::ErasureChunk: {
@@ -1191,7 +1190,7 @@ public:
 
                 case EObjectType::ChunkView: {
                     auto* chunkView = store->AsChunkView();
-                    auto* underlyingTree = chunkView->GetUnderlyingTree();
+                    auto underlyingTree = chunkView->GetUnderlyingTree();
                     YT_VERIFY(
                         underlyingTree->GetType() == EObjectType::Chunk ||
                         underlyingTree->GetType() == EObjectType::ErasureChunk);
@@ -1329,9 +1328,9 @@ private:
 
         auto children = EnumerateStoresInChunkTree(tablet->GetChunkList());
 
-        for (const auto* child : children) {
+        for (auto child : children) {
             if (child->GetType() == EObjectType::ChunkView) {
-                const auto* underlyingTree = child->AsChunkView()->GetUnderlyingTree();
+                auto underlyingTree = child->AsChunkView()->GetUnderlyingTree();
                 if (IsDynamicTabletStoreType(underlyingTree->GetType()) &&
                     !underlyingTree->AsDynamicStore()->IsFlushed())
                 {
@@ -1371,7 +1370,7 @@ private:
             // Either it is fully flushed, then this check succeeds; or it is is not
             // (so the descriptor was generated during freeze/unmount workflow) and we
             // have to abort the backup if some of the stores are not flushed.
-            for (const auto* child : tablet->GetChunkList()->Children()) {
+            for (auto child : tablet->GetChunkList()->Children()) {
                 if (child && IsDynamicTabletStoreType(child->GetType())) {
                     const auto* dynamicStore = child->AsDynamicStore();
                     if (!dynamicStore->IsFlushed()) {
@@ -1412,7 +1411,7 @@ private:
 
         while (cutoffChildIndex < ssize(children)) {
             i64 cumulativeRowCount = statistics.GetPreviousSum(cutoffChildIndex).RowCount;
-            const auto* child = children[cutoffChildIndex];
+            auto child = children[cutoffChildIndex];
 
             if (child && child->GetId() == descriptor.NextDynamicStoreId) {
                 if (cumulativeRowCount > descriptor.CutoffRowIndex) {
@@ -1456,7 +1455,7 @@ private:
         table->DiscountTabletStatistics(oldStatistics);
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        std::vector<TChunkTree*> childrenToDetach(
+        std::vector<TChunkTreeRawPtr> childrenToDetach(
             chunkList->Children().data() + cutoffChildIndex,
             chunkList->Children().data() + ssize(children));
         chunkManager->DetachFromChunkList(
@@ -1477,10 +1476,10 @@ private:
 
         const auto& descriptor = *tablet->BackupCutoffDescriptor();
 
-        std::vector<TChunkTree*> storesToDetach;
+        std::vector<TChunkTreeRawPtr> storesToDetach;
         // NB: Cannot use tablet->DynamicStores() since dynamic stores in the chunk list
         // in fact belong to the other tablet and are not linked with this one.
-        for (auto* child : EnumerateStoresInChunkTree(tablet->GetChunkList())) {
+        for (auto child : EnumerateStoresInChunkTree(tablet->GetChunkList())) {
             if (child->GetType() != EObjectType::SortedDynamicTabletStore) {
                 continue;
             }
@@ -1576,8 +1575,8 @@ private:
         return hunkChunks;
     }
 
-    static TMutableRange<TTabletBase*> GetIntersectingTablets(
-        TMutableRange<TTabletBase*> tablets,
+    static TMutableRange<TTabletBaseRawPtr> GetIntersectingTablets(
+        TMutableRange<TTabletBaseRawPtr> tablets,
         const TLegacyReadRange& readRange)
     {
         YT_VERIFY(readRange.LowerLimit().HasLegacyKey());
@@ -1607,13 +1606,13 @@ private:
 
     // If there are several otherwise identical chunk views with adjacent read ranges
     // we merge them into one chunk view with the joint range.
-    std::vector<TChunkTree*> MergeChunkViewRanges(
+    std::vector<TChunkTreeRawPtr> MergeChunkViewRanges(
         std::vector<TChunkView*> chunkViews,
         const TLegacyOwningKey& lowerPivot,
         const TLegacyOwningKey& upperPivot)
     {
         auto mergeResults = MergeAdjacentChunkViewRanges(std::move(chunkViews));
-        std::vector<TChunkTree*> result;
+        std::vector<TChunkTreeRawPtr> result;
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
 
@@ -1683,13 +1682,13 @@ private:
                 }
             }
         } else if (store->GetType() == EObjectType::ChunkView) {
-            for (auto* parent : store->AsChunkView()->Parents()) {
+            for (auto parent : store->AsChunkView()->Parents()) {
                 if (onParent(parent)) {
                     return;
                 }
             }
         } else if (IsDynamicTabletStoreType(store->GetType())) {
-            for (auto* parent : store->AsDynamicStore()->Parents()) {
+            for (auto parent : store->AsDynamicStore()->Parents()) {
                 if (onParent(parent)) {
                     return;
                 }
@@ -1806,7 +1805,7 @@ private:
         {
             auto storeId = FromProto<TStoreId>(request->stores_to_remove(0).store_id());
             int firstDynamicStoreIndex = GetFirstDynamicStoreIndex(tabletChunkList);
-            const auto* firstDynamicStore = tabletChunkList->Children()[firstDynamicStoreIndex];
+            auto firstDynamicStore = tabletChunkList->Children()[firstDynamicStoreIndex];
             if (firstDynamicStore->GetId() != storeId) {
                 THROW_ERROR_EXCEPTION("Attempted to flush ordered dynamic store out of order")
                     << TErrorAttribute("first_dynamic_store_id", firstDynamicStore->GetId())
@@ -1815,16 +1814,16 @@ private:
         }
     }
 
-    void AttachChunksToTablet(TTabletBase* tablet, const std::vector<TChunkTree*>& chunkTrees)
+    void AttachChunksToTablet(TTabletBase* tablet, const std::vector<TChunkTreeRawPtr>& chunkTrees)
     {
         auto* chunkList = tablet->GetChunkList();
         auto* hunkChunkList = tablet->GetHunkChunkList();
 
-        std::vector<TChunkTree*> storeChildren;
-        std::vector<TChunkTree*> hunkChildren;
+        std::vector<TChunkTreeRawPtr> storeChildren;
+        std::vector<TChunkTreeRawPtr> hunkChildren;
         storeChildren.reserve(chunkTrees.size());
         hunkChildren.reserve(chunkTrees.size());
-        for (auto* child : chunkTrees) {
+        for (auto child : chunkTrees) {
             if (IsHunkChunk(tablet, child)) {
                 // NB: It is OK to try to attach hunk chunk multiple times.
                 // Tablet node will take care of reference tracking and will detach

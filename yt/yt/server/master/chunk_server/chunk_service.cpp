@@ -158,51 +158,44 @@ private:
     static TPerUserRequestQueueProvider::TReconfigurationCallback CreateReconfigurationCallback(TBootstrap* bootstrap)
     {
         return BIND([=] (const std::string& userName, const TRequestQueuePtr& queue) {
-            auto epochAutomatonInvoker = bootstrap->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkService);
-
-            // NB: Upon recovery, OnDynamicConfigChanged will be called and
-            // this invoker will be present.
-            if (!epochAutomatonInvoker) {
-                return;
-            }
-
-            epochAutomatonInvoker->Invoke(BIND([=] {
-                const auto& securityManager = bootstrap->GetSecurityManager();
-
-                auto* user = securityManager->FindUserByName(userName, false);
-                if (!user) {
-                    return;
-                }
-
-                user->LogIfPendingRemoval(
-                    Format("User pending for removal has accessed chunk service (User: %v)",
-                    user->GetName()));
-
-                const auto& chunkServiceConfig = bootstrap->GetConfigManager()->GetConfig()->ChunkService;
-
-                auto weightThrottlingEnabled = chunkServiceConfig->EnablePerUserRequestWeightThrottling;
-                auto bytesThrottlingEnabled = chunkServiceConfig->EnablePerUserRequestBytesThrottling;
-
-                if (weightThrottlingEnabled) {
-                    auto weightThrottlerConfig = user->GetChunkServiceUserRequestWeightThrottlerConfig();
-                    if (!weightThrottlerConfig) {
-                        weightThrottlerConfig = chunkServiceConfig->DefaultPerUserRequestWeightThrottler;
+            bootstrap
+                ->GetHydraFacade()
+                ->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkService)
+                ->Invoke(BIND([=] {
+                    const auto& securityManager = bootstrap->GetSecurityManager();
+                    auto* user = securityManager->FindUserByName(userName, false);
+                    if (!user) {
+                        return;
                     }
-                    queue->ConfigureWeightThrottler(weightThrottlerConfig);
-                } else {
-                    queue->ConfigureWeightThrottler(nullptr);
-                }
 
-                if (bytesThrottlingEnabled) {
-                    auto bytesThrottlerConfig = user->GetChunkServiceUserRequestBytesThrottlerConfig();
-                    if (!bytesThrottlerConfig) {
-                        bytesThrottlerConfig = chunkServiceConfig->DefaultPerUserRequestBytesThrottler;
+                    user->LogIfPendingRemoval(
+                        Format("User pending for removal has accessed chunk service (User: %v)",
+                        user->GetName()));
+
+                    const auto& chunkServiceConfig = bootstrap->GetConfigManager()->GetConfig()->ChunkService;
+                    auto weightThrottlingEnabled = chunkServiceConfig->EnablePerUserRequestWeightThrottling;
+                    auto bytesThrottlingEnabled = chunkServiceConfig->EnablePerUserRequestBytesThrottling;
+
+                    if (weightThrottlingEnabled) {
+                        auto weightThrottlerConfig = user->GetChunkServiceUserRequestWeightThrottlerConfig();
+                        if (!weightThrottlerConfig) {
+                            weightThrottlerConfig = chunkServiceConfig->DefaultPerUserRequestWeightThrottler;
+                        }
+                        queue->ConfigureWeightThrottler(weightThrottlerConfig);
+                    } else {
+                        queue->ConfigureWeightThrottler(nullptr);
                     }
-                    queue->ConfigureBytesThrottler(bytesThrottlerConfig);
-                } else {
-                    queue->ConfigureBytesThrottler(nullptr);
-                }
-            }));
+
+                    if (bytesThrottlingEnabled) {
+                        auto bytesThrottlerConfig = user->GetChunkServiceUserRequestBytesThrottlerConfig();
+                        if (!bytesThrottlerConfig) {
+                            bytesThrottlerConfig = chunkServiceConfig->DefaultPerUserRequestBytesThrottler;
+                        }
+                        queue->ConfigureBytesThrottler(bytesThrottlerConfig);
+                    } else {
+                        queue->ConfigureBytesThrottler(nullptr);
+                    }
+                }));
         });
     }
 
@@ -413,7 +406,7 @@ private:
             }
 
             if (dynamicStore->IsFlushed()) {
-                if (auto* chunk = dynamicStore->GetFlushedChunk()) {
+                if (auto chunk = dynamicStore->GetFlushedChunk()) {
                     auto ephemeralChunk = TEphemeralObjectPtr<TChunk>(chunk);
 
                     auto* spec = subresponse->mutable_chunk_spec();
@@ -449,7 +442,7 @@ private:
             } else {
                 const auto& tabletManager = Bootstrap_->GetTabletManager();
                 auto* chunkSpec = subresponse->mutable_chunk_spec();
-                auto* tablet = dynamicStore->GetTablet();
+                auto tablet = dynamicStore->GetTablet();
 
                 ToProto(chunkSpec->mutable_chunk_id(), dynamicStore->GetId());
                 if (auto* node = tabletManager->FindTabletLeaderNode(tablet)) {

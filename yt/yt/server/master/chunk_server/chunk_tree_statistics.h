@@ -42,10 +42,6 @@ struct TChunkTreeStatistics
     //! Total number of chunks in the tree.
     int ChunkCount = 0;
 
-    //! Number of addressable chunks in the tree. Typically equals to #ChunkCount but can be
-    //! larger if some initial prefix of the rowset was trimmed.
-    i64 LogicalChunkCount = 0;
-
     //! Total number of chunk lists in the tree.
     int ChunkListCount = 0;
 

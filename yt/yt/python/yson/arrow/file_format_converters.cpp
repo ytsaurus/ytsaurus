@@ -1,4 +1,5 @@
 #include "arrow_raw_iterator.h"
+#include "private.h"
 
 #include <yt/yt/core/concurrency/async_stream_pipe.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -27,9 +28,15 @@ namespace NYT::NPython {
 
 namespace {
 
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NConcurrency;
 
 using TArrowStatusCallback = std::function<void(arrow::Status)>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto& Logger = ArrowConverterLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -64,6 +71,7 @@ struct TAsyncDumpFileInputArguments
     bool IsDirectory;
     int ThreadCount;
     i64 DataSizePerJob;
+    i64 MinBatchRowCount;
     std::unique_ptr<IZeroCopyInput> InputStream;
 };
 
@@ -116,12 +124,17 @@ TAsyncDumpFileInputArguments ExtractAsyncDumpFileArguments(Py::Tuple& args, Py::
     auto streamArg = ExtractArgument(args, kwargs, "stream");
     auto stream = CreateInputStreamWrapper(streamArg);
 
-    ValidateArgumentsEmpty(args, kwargs);
+    i64 minBatchRowCount = 0;
+    if (HasArgument(args, kwargs, "min_batch_row_count")) {
+        minBatchRowCount = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "min_batch_row_count"));
+    }
+
     return TAsyncDumpFileInputArguments{
         .OutputPath = std::move(outputPath),
         .IsDirectory = isDirectory,
         .ThreadCount =  static_cast<int>(threadCount),
         .DataSizePerJob = dataSizePerJob,
+        .MinBatchRowCount = minBatchRowCount,
         .InputStream = std::move(stream),
     };
 }
@@ -493,6 +506,7 @@ void DoDumpFile(
     const std::shared_ptr<arrow::io::InputStream>& pipe,
     TString outputFilePath,
     EFileFormat format,
+    i64 minBatchRowCount,
     const TArrowStatusCallback& arrowStatusCallback)
 {
     std::shared_ptr<arrow::ipc::RecordBatchStreamReader> batchReader = GetNextBatchReader(pipe, arrowStatusCallback);
@@ -516,19 +530,38 @@ void DoDumpFile(
             formatWriter = std::make_unique<TOrcWriter>(*schema, outputFilePath, arrowStatusCallback);
     }
 
+    std::vector<std::shared_ptr<arrow::RecordBatch>> batches;
+    int batchesRowCount = 0;
+
+    auto writeBatches = [&] () {
+        YT_VERIFY(batches.size() > 0);
+        auto tableOrError = arrow::Table::FromRecordBatches(batches[0]->schema(), batches);
+
+        arrowStatusCallback(tableOrError.status());
+        auto table = tableOrError.ValueOrDie();
+        arrowStatusCallback(formatWriter->WriteTable(*table.get(), batchesRowCount));
+    };
+
     do {
         auto batch = GetNextBatch(batchReader, arrowStatusCallback);
 
         while (batch != nullptr) {
-            auto tableOrError = arrow::Table::FromRecordBatches(batch->schema(), {batch});
-            arrowStatusCallback(tableOrError.status());
+            batchesRowCount += batch->num_rows();
+            batches.push_back(std::move(batch));
 
-            auto table = tableOrError.ValueOrDie();
-            arrowStatusCallback(formatWriter->WriteTable(*table.get(), batch->num_rows()));
+            if (batchesRowCount >= minBatchRowCount) {
+                writeBatches();
+                batches.clear();
+                batchesRowCount = 0;
+            }
             batch = GetNextBatch(batchReader, arrowStatusCallback);
         }
 
     } while (batchReader = GetNextBatchReader(pipe, arrowStatusCallback));
+
+    if (batchesRowCount > 0) {
+        writeBatches();
+    }
 
     arrowStatusCallback(formatWriter->Close());
 }
@@ -565,12 +598,18 @@ Py::Object DoAsyncDumpFile(TAsyncDumpFileInputArguments&& inputArquments, EFileF
     for (int fileIndex = 0; fileIndex < inputArquments.ThreadCount; ++fileIndex) {
         auto fileName = GetFileName(inputArquments, fileIndex, inputArquments.ThreadCount, format);
 
-        asyncResults.push_back(BIND([pipe = pipes[fileIndex], fileName = std::move(fileName), format, onArrowStatusCallback] {
+        asyncResults.push_back(BIND([
+            pipe = pipes[fileIndex],
+            fileName = std::move(fileName),
+            format, onArrowStatusCallback,
+            minBatchRowCount = inputArquments.MinBatchRowCount
+        ] {
             pipe->Start();
             DoDumpFile(
                 pipe,
                 fileName,
                 format,
+                minBatchRowCount,
                 onArrowStatusCallback);
         })
             .AsyncVia(threadPool->GetInvoker())
@@ -615,7 +654,11 @@ Py::Object DoAsyncDumpFile(TAsyncDumpFileInputArguments&& inputArquments, EFileF
 
 Py::Object AsyncDumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 {
-    return DoAsyncDumpFile(ExtractAsyncDumpFileArguments(args, kwargs), EFileFormat::Parquet);
+    auto inputArguments = ExtractAsyncDumpFileArguments(args, kwargs);
+    if (!AreArgumentsEmpty(args, kwargs)) {
+        YT_LOG_WARNING("The AsyncDumpParquet function received unrecognized arguments");
+    }
+    return DoAsyncDumpFile(std::move(inputArguments), EFileFormat::Parquet);
 }
 
 Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
@@ -625,10 +668,18 @@ Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
     auto streamArg = ExtractArgument(args, kwargs, "stream");
     auto stream = CreateInputStreamWrapper(streamArg);
 
-    ValidateArgumentsEmpty(args, kwargs);
+    i64 minBatchRowCount = 0;
+
+    if (HasArgument(args, kwargs, "min_batch_row_count")) {
+        minBatchRowCount = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "min_batch_row_count"));
+    }
+
+    if (!AreArgumentsEmpty(args, kwargs)) {
+        YT_LOG_WARNING("The DumpParquet function received unrecognized arguments");
+    }
 
     auto pipe = std::make_shared<TArrowInputStreamAdapter>(stream.get());
-    DoDumpFile(pipe, outputFilePath, EFileFormat::Parquet, [] (const arrow::Status& status) {
+    DoDumpFile(pipe, outputFilePath, EFileFormat::Parquet, minBatchRowCount, [] (const arrow::Status& status) {
         if (!status.ok()) {
             throw Py::TypeError(status.message());
         }
@@ -641,7 +692,11 @@ Py::Object DumpParquet(Py::Tuple& args, Py::Dict& kwargs)
 
 Py::Object AsyncDumpOrc(Py::Tuple& args, Py::Dict& kwargs)
 {
-    return DoAsyncDumpFile(ExtractAsyncDumpFileArguments(args, kwargs), EFileFormat::ORC);
+    auto inputArguments = ExtractAsyncDumpFileArguments(args, kwargs);
+    if (!AreArgumentsEmpty(args, kwargs)) {
+        YT_LOG_WARNING("The AsyncDumpOrc function received unrecognized arguments");
+    }
+    return DoAsyncDumpFile(std::move(inputArguments), EFileFormat::ORC);
 }
 
 Py::Object DumpORC(Py::Tuple& args, Py::Dict& kwargs)
@@ -651,10 +706,18 @@ Py::Object DumpORC(Py::Tuple& args, Py::Dict& kwargs)
     auto streamArg = ExtractArgument(args, kwargs, "stream");
     auto stream = CreateInputStreamWrapper(streamArg);
 
-    ValidateArgumentsEmpty(args, kwargs);
+   i64 minBatchRowCount = 0;
+
+    if (HasArgument(args, kwargs, "min_batch_row_count")) {
+        minBatchRowCount = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "min_batch_row_count"));
+    }
+
+    if (!AreArgumentsEmpty(args, kwargs)) {
+        YT_LOG_WARNING("The DumpORC function received unrecognized arguments");
+    }
 
     auto pipe = std::make_shared<TArrowInputStreamAdapter>(stream.get());
-    DoDumpFile(pipe, outputFilePath, EFileFormat::ORC, [] (const arrow::Status& status) {
+    DoDumpFile(pipe, outputFilePath, EFileFormat::ORC, minBatchRowCount, [] (const arrow::Status& status) {
         if (!status.ok()) {
             throw Py::TypeError(status.message());
         }
@@ -668,9 +731,15 @@ Py::Object DumpORC(Py::Tuple& args, Py::Dict& kwargs)
 Py::Object UploadParquet(Py::Tuple& args, Py::Dict& kwargs)
 {
     auto inputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "input_file"));
-    auto arrowBatchSize = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "arrow_batch_size"));
 
-    ValidateArgumentsEmpty(args, kwargs);
+    int arrowBatchSize = parquet::kArrowDefaultBatchSize;
+    if (HasArgument(args, kwargs, "arrow_batch_size")) {
+        arrowBatchSize = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "arrow_batch_size"));
+    }
+
+    if (!AreArgumentsEmpty(args, kwargs)) {
+        YT_LOG_WARNING("The UploadParquet function received unrecognized arguments");
+    }
 
     Py::Callable classType(TArrowRawIterator::type());
     Py::PythonClassObject<TArrowRawIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
@@ -683,9 +752,15 @@ Py::Object UploadParquet(Py::Tuple& args, Py::Dict& kwargs)
 Py::Object UploadORC(Py::Tuple& args, Py::Dict& kwargs)
 {
     auto inputFilePath = Py::ConvertStringObjectToString(ExtractArgument(args, kwargs, "input_file"));
-    auto arrowBatchSize = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "arrow_batch_size"));
 
-    ValidateArgumentsEmpty(args, kwargs);
+    int arrowBatchSize = parquet::kArrowDefaultBatchSize;
+    if (HasArgument(args, kwargs, "arrow_batch_size")) {
+        arrowBatchSize = Py::ConvertToLongLong(ExtractArgument(args, kwargs, "arrow_batch_size"));
+    }
+
+    if (!AreArgumentsEmpty(args, kwargs)) {
+        YT_LOG_WARNING("The UploadORC function received unrecognized arguments");
+    }
 
     Py::Callable classType(TArrowRawIterator::type());
     Py::PythonClassObject<TArrowRawIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));

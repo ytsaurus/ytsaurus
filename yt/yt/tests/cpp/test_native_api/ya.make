@@ -31,4 +31,6 @@ ELSE()
     REQUIREMENTS(ram:10)
 ENDIF()
 
+INCLUDE(${ARCADIA_ROOT}/devtools/large_on_single_slots.inc)
+
 END()

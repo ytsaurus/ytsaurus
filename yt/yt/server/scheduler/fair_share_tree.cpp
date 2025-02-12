@@ -631,9 +631,9 @@ public:
             }
         }
 
-        bool hasMinNeededResources = !element->DetailedMinNeededAllocationResources().empty();
+        bool hasNeededResources = !element->GroupedNeededResources().empty();
         auto aggregatedMinNeededResources = element->AggregatedMinNeededAllocationResources();
-        bool shouldCheckLimitingAncestor = hasMinNeededResources &&
+        bool shouldCheckLimitingAncestor = hasNeededResources &&
             Config_->EnableLimitingAncestorCheck &&
             element->IsLimitingAncestorCheckEnabled();
         if (shouldCheckLimitingAncestor) {
@@ -939,18 +939,18 @@ public:
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        const auto& detailedMinNeededResources = element->GetDetailedInitialMinNeededResources();
+        const auto& initialGroupedNeededResources = element->GetInitialGroupedNeededResources();
 
-        for (const auto& minNeededResources : detailedMinNeededResources) {
+        for (const auto& [taskName, allocationGroupResources] : initialGroupedNeededResources) {
             THashSet<EJobResourceType> resourcesWithViolatedRestrictions;
             Config_->MinJobResourceLimits->ForEachResource([&] (auto NVectorHdrf::TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
                 if (auto lowerBound = Config_->MinJobResourceLimits.Get()->*resourceDataMember) {
-                    if (GetResource(minNeededResources, resourceType) < static_cast<double>(*lowerBound)) {
+                    if (GetResource(allocationGroupResources.MinNeededResources, resourceType) < static_cast<double>(*lowerBound)) {
                         resourcesWithViolatedRestrictions.insert(resourceType);
                     }
                 }
                 if (auto upperBound = Config_->MaxJobResourceLimits.Get()->*resourceDataMember) {
-                    if (GetResource(minNeededResources, resourceType) > static_cast<double>(*upperBound)) {
+                    if (GetResource(allocationGroupResources.MinNeededResources, resourceType) > static_cast<double>(*upperBound)) {
                         resourcesWithViolatedRestrictions.insert(resourceType);
                     }
                 }
@@ -963,7 +963,8 @@ public:
                         resourcesWithViolatedRestrictions,
                         GetId())
                     << TErrorAttribute("operation_id", element->GetOperationId())
-                    << TErrorAttribute("job_resource_demand", minNeededResources)
+                    << TErrorAttribute("task", taskName)
+                    << TErrorAttribute("job_resource_demand", allocationGroupResources.MinNeededResources)
                     << TErrorAttribute("lower_bounds", Config_->MinJobResourceLimits)
                     << TErrorAttribute("upper_bounds", Config_->MaxJobResourceLimits);
             }
@@ -3068,14 +3069,6 @@ private:
                     .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "parent", element->GetParent()->GetId());
             }))
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "aggressive_starvation_enabled", element->IsAggressiveStarvationEnabled())
-            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
-                filter,
-                "effective_fifo_pool_scheduling_order",
-                element->GetEffectiveFifoPoolSchedulingOrder())
-            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
-                filter,
-                "effective_use_pool_satisfaction_for_scheduling",
-                element->GetEffectiveUsePoolSatisfactionForScheduling())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "lightweight_operations_enabled", element->AreLightweightOperationsEnabled())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "effective_lightweight_operations_enabled", element->GetEffectiveLightweightOperationsEnabled())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "priority_strong_guarantee_adjustment_enabled", element->IsPriorityStrongGuaranteeAdjustmentEnabled())
@@ -3279,10 +3272,12 @@ private:
             .Item("slot_index").Value(element->GetSlotIndex())
             .Item("start_time").Value(element->GetStartTime())
             .OptionalItem("fifo_index", element->Attributes().FifoIndex)
+            .Item("grouped_needed_resources").Value(element->GroupedNeededResources())
+            // COMPAT(eshcherbin)
             .Item("detailed_min_needed_job_resources").BeginList()
-                .DoFor(element->DetailedMinNeededAllocationResources(), [&] (TFluentList fluent, const TJobResourcesWithQuota& jobResourcesWithQuota) {
+                .DoFor(element->GroupedNeededResources(), [&] (TFluentList fluent, const auto& pair) {
                     fluent.Item().Do([&] (TFluentAny fluent) {
-                        strategyHost->SerializeResources(jobResourcesWithQuota, fluent.GetConsumer());
+                        strategyHost->SerializeResources(pair.second.MinNeededResources, fluent.GetConsumer());
                     });
                 })
             .EndList()

@@ -100,7 +100,7 @@ public:
     //! Add a job that is built from the given stub.
     IChunkPoolOutput::TCookie AddJob(std::unique_ptr<TLegacyJobStub> jobStub);
 
-    void Completed(IChunkPoolOutput::TCookie cookie, NScheduler::EInterruptReason reason);
+    void Completed(IChunkPoolOutput::TCookie cookie, NScheduler::EInterruptionReason reason);
     void Failed(IChunkPoolOutput::TCookie cookie);
     void Aborted(IChunkPoolOutput::TCookie cookie, NScheduler::EAbortReason reason);
     void Lost(IChunkPoolOutput::TCookie cookie);
@@ -176,7 +176,7 @@ private:
 
         void SetState(EJobState state);
 
-        void SetInterruptReason(NScheduler::EInterruptReason reason);
+        void SetInterruptionReason(NScheduler::EInterruptionReason reason);
 
         void ChangeSuspendedStripeCountBy(int delta);
 
@@ -212,7 +212,7 @@ private:
         NControllerAgent::TProgressCounterGuard RowProgressCounterGuard_;
         NControllerAgent::TProgressCounterGuard JobProgressCounterGuard_;
 
-        NScheduler::EInterruptReason InterruptReason_ = NScheduler::EInterruptReason::None;
+        NScheduler::EInterruptionReason InterruptionReason_ = NScheduler::EInterruptionReason::None;
 
         void RemoveSelf();
         void AddSelf();

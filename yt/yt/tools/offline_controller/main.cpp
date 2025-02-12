@@ -100,7 +100,7 @@ public:
 
     void InterruptJob(
         TJobId /*jobId*/,
-        EInterruptReason /*reason*/,
+        EInterruptionReason /*reason*/,
         TDuration /*timeout*/) override
     {
         YT_UNIMPLEMENTED();
@@ -334,12 +334,12 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
+    void SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName&,
         const TCallback<void()>&) override
     { }
 
-    void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
+    void UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
         const NScheduler::TClusterName& /*clusterName*/,
         const TCallback<void()>& /*callback*/) override
     { }

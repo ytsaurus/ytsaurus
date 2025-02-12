@@ -10,8 +10,9 @@ namespace NYT::NQueryClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 void TransformWithIndexStatement(
-    NAst::TAstHead* head,
-    TMutableRange<NTabletClient::TTableMountInfoPtr> mountInfos);
+    NAst::TQuery* query,
+    const NTabletClient::ITableMountCachePtr& cache,
+    TObjectsHolder* holder);
 
 ////////////////////////////////////////////////////////////////////////////////
 

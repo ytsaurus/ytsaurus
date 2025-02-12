@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/tablet_node/private.h>
 
+#include <yt/yt/client/table_client/wire_protocol.h>
+
 namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,8 +22,15 @@ class TReqWriteRows;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IWireWriteCommandReader;
+
+using TWireWriteCommand = NTableClient::TWireProtocolWriteCommand;
+using TWireWriteCommands = std::vector<TWireWriteCommand>;
+
 struct TWriteContext;
 struct TSortedDynamicRowRef;
+
+class TSortedDynamicRowKeyComparer;
 
 static constexpr ui32 NullRevision = 0;
 static constexpr ui32 InvalidRevision = std::numeric_limits<ui32>::max();
@@ -49,6 +58,16 @@ inline const TErrorAttribute HardErrorAttribute("hard", true);
 inline const auto LsmLogger = NLogging::TLogger("Lsm").WithEssential();
 
 inline const auto TabletErrorsLogger = NLogging::TLogger("TabletErrors").WithEssential();
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOpaqueWriteLogIndex
+{
+    int CommandBatchIndex = 0;
+    int CommandIndexInBatch = 0;
+
+    auto operator<=>(const TOpaqueWriteLogIndex& other) const = default;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

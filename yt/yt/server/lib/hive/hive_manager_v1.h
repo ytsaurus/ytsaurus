@@ -11,7 +11,7 @@ namespace NYT::NHiveServer::NV1 {
 IHiveManagerPtr CreateHiveManager(
     THiveManagerConfigPtr config,
     NHiveClient::ICellDirectoryPtr cellDirectory,
-    NCellMasterClient::ICellDirectoryPtr masterDirectory,
+    NCellMasterClient::ICellDirectoryPtr masterCellDirectory,
     IAvenueDirectoryPtr avenueDirectory,
     TCellId selfCellId,
     IInvokerPtr automatonInvoker,

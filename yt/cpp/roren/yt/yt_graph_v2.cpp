@@ -472,12 +472,10 @@ NYT::IOperationPtr TYtGraphV2::StartOperation(const NYT::IClientBasePtr& client,
         }
 
         IntermediateTables_.emplace_back(
-            MakeHolder<NYT::TTempTable>(
+            MakeHolder<NYT::TTempTable>(NYT::TTempTable::CreateAutoremovingTable(
                 client,
-                "",
                 upcastedTable->GetPath().Path_,
-                NYT::TCreateOptions{}.Recursive(true).IgnoreExisting(true),
-                false),
+                NYT::TCreateOptions{}.Recursive(true).IgnoreExisting(true))),
             nodeId);
     };
 

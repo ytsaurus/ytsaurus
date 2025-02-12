@@ -799,10 +799,12 @@ def _build_cell_balancer_configs(yt_config,
             config["bundle_controller"] = {
                 "cluster" : "local",
                 "root_path" : "//sys/bundle_controller/controller",
+                "has_instance_allocator_service": False,
                 "hulk_allocations_path" : "//sys/hulk/allocation_requests",
                 "hulk_allocations_history_path" : "//sys/hulk/allocation_requests_history",
                 "hulk_deallocations_path" : "//sys/hulk/deallocation_requests",
                 "hulk_deallocations_history_path" : "//sys/hulk/deallocation_requests_history",
+                "decommission_released_nodes": False,
                 "bundle_scan_period" : "100ms",
             }
 

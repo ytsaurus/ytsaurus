@@ -753,9 +753,9 @@ class YtClient(ClientState):
         :param output_file: path to output file, this option is deprecated, please use output_path
         :type output_file: str
         :param output_path: If option enable_several_files is disabled, you need to put the path to the file here,
-        otherwise the path to the directory where the files in the parquet format will be placed
+        otherwise the path to the directory where the files in the Parquet format will be placed
         :type output_path: str
-        :param enable_several_files: allowing parquet to be written to multiple files,
+        :param enable_several_files: allowing Parquet to be written to multiple files,
         only makes sense for better acceleration in parallel mode
         :type enable_several_files: bool
         :param unordered: if the option is set to false, the order will be as in the original table
@@ -970,7 +970,7 @@ class YtClient(ClientState):
         Get YT Flow flow view
 
         :param pipeline_path: path to pipeline
-        :param view_path: path to part of the view
+        :param view_path: path inside flow view yson struct, starting with /
 
         """
         return client_api.get_flow_view(
@@ -1134,7 +1134,7 @@ class YtClient(ClientState):
         Get YT Flow pipeline dynamic spec.
 
         :param pipeline_path: path to pipeline.
-        :param spec_path: path to part of the spec.
+        :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
 
         """
         return client_api.get_pipeline_dynamic_spec(
@@ -1150,7 +1150,7 @@ class YtClient(ClientState):
         Get YT Flow pipeline spec.
 
         :param pipeline_path: path to pipeline.
-        :param spec_path: path to part of the spec.
+        :param spec_path: path inside pipeline spec yson struct, starting with /.
 
         """
         return client_api.get_pipeline_spec(
@@ -2133,7 +2133,7 @@ class YtClient(ClientState):
         Remove YT Flow pipeline dynamic spec.
 
         :param pipeline_path: path to pipeline.
-        :param spec_path: path to part of the spec.
+        :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
         :param expected_version: current dynamic spec expected version.
 
         """
@@ -2150,7 +2150,7 @@ class YtClient(ClientState):
         Remove YT Flow pipeline spec.
 
         :param pipeline_path: path to pipeline.
-        :param spec_path: path to part of the spec.
+        :param spec_path: path inside pipeline spec yson struct, starting with /.
         :param expected_version: current spec expected version.
         :param force: if true, remove spec even if pipeline is paused.
 
@@ -2758,7 +2758,7 @@ class YtClient(ClientState):
 
         :param pipeline_path: path to pipeline.
         :param spec: new pipeline spec.
-        :param spec_path: path to part of the spec.
+        :param spec_path: path inside pipeline dynamic spec yson struct, starting with /.
         :param expected_version: current dynamic spec expected version.
 
         """
@@ -2776,7 +2776,7 @@ class YtClient(ClientState):
 
         :param pipeline_path: path to pipeline.
         :param spec: new pipeline spec.
-        :param spec_path: path to part of the spec.
+        :param spec_path: path inside pipeline spec yson struct, starting with /.
         :param expected_version: current spec expected version.
         :param force: if true, update spec even if pipeline is paused.
 
@@ -2938,7 +2938,7 @@ class YtClient(ClientState):
     def suspend_operation(
             self,
             operation,
-            abort_running_jobs=False):
+            abort_running_jobs=False, reason=None):
         """
         Suspends operation.
 
@@ -2948,7 +2948,7 @@ class YtClient(ClientState):
         return client_api.suspend_operation(
             operation,
             client=self,
-            abort_running_jobs=abort_running_jobs)
+            abort_running_jobs=abort_running_jobs, reason=reason)
 
     def transfer_account_resources(
             self,

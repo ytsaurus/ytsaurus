@@ -1081,6 +1081,11 @@ def unfreeze_table(path, **kwargs):
     return execute_command("unfreeze_table", kwargs)
 
 
+def cancel_tablet_transition(tablet_id, **kwargs):
+    kwargs["tablet_id"] = tablet_id
+    return execute_command("cancel_tablet_transition", kwargs)
+
+
 def reshard_table(path, arg=None, **kwargs):
     clear_metadata_caches(kwargs.get("driver"))
     kwargs["path"] = path
@@ -1505,6 +1510,37 @@ class Operation(object):
                 lambda: exists(snapshot_path, driver=self._driver)
                 and date_string_to_datetime(get(snapshot_path + "/@creation_time", driver=self._driver)) > timepoint
             )
+
+    def wait_for_job_revival_finished(self):
+        print_debug("Waiting for job revival to finish")
+
+        operation_controller_registered_check_path = self.get_path() + "/controller_orchid/progress/state"
+        wait(lambda: exists(operation_controller_registered_check_path))
+
+        controller_agent_address = self.get_controller_agent_address()
+
+        job_tracker_orchid_path = f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker"
+
+        def check():
+            allocation_ids = get(f"{job_tracker_orchid_path}/operations/{self.id}/allocations")
+
+            print_debug(f"Allocations are: {allocation_ids}")
+
+            for allocation_id in allocation_ids:
+                allocation = get(f"{job_tracker_orchid_path}/allocations/{allocation_id}")
+
+                for job_id, job_info in allocation["jobs"].items():
+                    if job_info["stage"] == "waiting_for_confirmation":
+                        print_debug(f"Job {job_id} is waiting for confirmation yet")
+                        return False
+
+            return True
+
+        wait(lambda: get(f"{job_tracker_orchid_path}/operations/{self.id}/jobs_ready"))
+
+        wait(check)
+
+        print_debug("Job revival finished")
 
     def wait_presence_in_scheduler(self):
         wait(lambda: exists("//sys/scheduler/orchid/scheduler/operations/" + self.id, driver=self._driver))
@@ -2091,7 +2127,7 @@ def create_pool_tree(name, config=None, wait_for_orchid=True, allow_patching=Tru
         if "batch_operation_scheduling" not in config:
             config["batch_operation_scheduling"] = {
                 "batch_size": 3,
-                "fallback_min_spare_job_resources": {
+                "fallback_min_spare_allocation_resources": {
                     "cpu": 1.5,
                     "user_slots": 1,
                     "memory": 512 * 1024 * 1024,

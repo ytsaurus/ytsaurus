@@ -284,7 +284,7 @@ void TAccessControlDescriptor::SetOwner(TSubject* owner)
 
 void TAccessControlDescriptor::AddEntry(const TAccessControlEntry& ace)
 {
-    for (auto* subject : ace.Subjects) {
+    for (auto subject : ace.Subjects) {
         subject->LinkObject(Object_);
     }
     Acl_.Entries.push_back(ace);
@@ -293,7 +293,7 @@ void TAccessControlDescriptor::AddEntry(const TAccessControlEntry& ace)
 void TAccessControlDescriptor::ClearEntries()
 {
     for (const auto& ace : Acl_.Entries) {
-        for (auto* subject : ace.Subjects) {
+        for (auto subject : ace.Subjects) {
             subject->UnlinkObject(Object_);
         }
     }

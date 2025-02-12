@@ -63,7 +63,7 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
     }
 
     // Construct new children list.
-    std::vector<TChunkTree*> newChildren;
+    std::vector<TChunkTreeRawPtr> newChildren;
     AppendChunkTree(&newChildren, root);
     YT_VERIFY(!newChildren.empty());
     YT_VERIFY(newChildren.front() != root);
@@ -72,7 +72,7 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
 
     // Add temporary references to the old children.
     auto oldChildren = root->Children();
-    for (auto* child : oldChildren) {
+    for (auto child : oldChildren) {
         Callbacks_->RefObject(child);
     }
 
@@ -81,7 +81,7 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
     Callbacks_->AttachToChunkList(root, newChildren);
 
     // Release the temporary references added above.
-    for (auto* child : oldChildren) {
+    for (auto child : oldChildren) {
         Callbacks_->UnrefObject(child);
     }
 
@@ -96,7 +96,6 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
     YT_VERIFY(newStatistics.RegularDiskSpace == oldStatistics.RegularDiskSpace);
     YT_VERIFY(newStatistics.ErasureDiskSpace == oldStatistics.ErasureDiskSpace);
     YT_VERIFY(newStatistics.ChunkCount == oldStatistics.ChunkCount);
-    YT_VERIFY(newStatistics.LogicalChunkCount == oldStatistics.LogicalChunkCount);
 
     // Should we schedule a requisition update here? We shouldn't. Here's why.
     // First of all, it would be prohibitively expensive (trust me, I checked).
@@ -118,7 +117,7 @@ void TChunkTreeBalancer::Rebalance(TChunkList* root)
 }
 
 void TChunkTreeBalancer::AppendChunkTree(
-    std::vector<TChunkTree*>* children,
+    std::vector<TChunkTreeRawPtr>* children,
     TChunkTree* root)
 {
     // Run a non-recursive tree traversal calling AppendChild
@@ -166,7 +165,7 @@ void TChunkTreeBalancer::AppendChunkTree(
 }
 
 void TChunkTreeBalancer::AppendChild(
-    std::vector<TChunkTree*>* children,
+    std::vector<TChunkTreeRawPtr>* children,
     TChunkTree* child)
 {
     // Can we reuse the last chunk list?
@@ -212,7 +211,7 @@ void TChunkTreeBalancer::AppendChild(
 }
 
 void TChunkTreeBalancer::MergeChunkTrees(
-    std::vector<TChunkTree*>* children,
+    std::vector<TChunkTreeRawPtr>* children,
     TChunkTree* child)
 {
     // We are trying to add the child to the last chunk list.

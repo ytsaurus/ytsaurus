@@ -227,7 +227,7 @@ private:
                 YT_VERIFY(IsPrimaryMaster());
 
                 std::vector<TTabletId> tabletIds;
-                for (const auto* tablet : cell->Tablets()) {
+                for (auto tablet : cell->Tablets()) {
                     tabletIds.push_back(tablet->GetId());
                 }
 
@@ -242,7 +242,7 @@ private:
                 YT_VERIFY(IsPrimaryMaster());
 
                 std::vector<TTabletActionId> actionIds;
-                for (const auto* action : cell->Actions()) {
+                for (auto action : cell->Actions()) {
                     actionIds.push_back(action->GetId());
                 }
 

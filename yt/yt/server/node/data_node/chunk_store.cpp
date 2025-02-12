@@ -715,6 +715,27 @@ std::vector<IChunkPtr> TChunkStore::GetLocationChunks(const TChunkLocationPtr& l
     return chunks;
 }
 
+TChunkStore::TPerLocationChunkMap TChunkStore::GetPerLocationChunks()
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    // TODO(danilalexeev): Initialize once for class instance.
+    THashMap<TChunkLocationUuid, TStoreLocationPtr> locations;
+    locations.reserve(Locations_.size());
+    for (auto location : Locations_) {
+        EmplaceOrCrash(locations, location->GetUuid(), location);
+    }
+
+    auto guard = ReaderGuard(ChunkMapLock_);
+    TPerLocationChunkMap result;
+    for (const auto& [chunkId, chunkEntry] : ChunkMap_) {
+        const auto& chunk = chunkEntry.Chunk;
+        const auto& location = GetOrCrash(locations, chunk->GetLocation()->GetUuid());
+        result[location].push_back(chunk);
+    }
+    return result;
+}
+
 TFuture<void> TChunkStore::RemoveChunk(const IChunkPtr& chunk, std::optional<TDuration> startRemoveDelay)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();

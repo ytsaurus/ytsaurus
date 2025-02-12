@@ -498,7 +498,6 @@ public:
         , Sensors_(std::move(sensors))
     {
         InitIovBuffers();
-        Start();
     }
 
 private:
@@ -1619,6 +1618,7 @@ private:
         while (std::ssize(Threads_) < newThreadCount) {
             auto threadIndex = Threads_.size();
             auto thread = New<TUringThread>(this, Config_, threadIndex, Sensors_);
+            thread->Start();
             Threads_.push_back(std::move(thread));
         }
 

@@ -2,6 +2,13 @@
 
 #include <yt/yt/orm/library/attributes/proto_visitor.h>
 
+#include <yt/yt/core/yson/protobuf_interop.h>
+
+#include <yt/yt/core/ytree/serialize.h>
+#include <yt/yt/core/ytree/helpers.h>
+
+#include <library/cpp/yt/coding/zig_zag.h>
+
 #include <ranges>
 
 namespace NYT::NOrm::NAttributes {
@@ -15,7 +22,7 @@ namespace {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <std::ranges::range TRange>
-TWireString FromSerializedRangeImpl(TRange serializedRange)
+TWireString FromSerializedRangeImpl(const TRange& serializedRange)
 {
     TWireString result;
     for (const auto& serializedProto : serializedRange) {
@@ -73,8 +80,8 @@ class TCodedInputStream
 {
 public:
     TCodedInputStream(TWireStringPart wireStringPart)
-        : google::protobuf::io::CodedInputStream(wireStringPart.data(), wireStringPart.size())
-        , Data_(wireStringPart.data())
+        : google::protobuf::io::CodedInputStream(wireStringPart.AsSpan().data(), wireStringPart.AsSpan().size())
+        , Data_(wireStringPart.AsSpan().data())
     { }
 
     TWireStringPart Checkpoint()
@@ -192,12 +199,17 @@ TWireStringPart::TWireStringPart()
 { }
 
 TWireStringPart::TWireStringPart(const ui8* data, size_t size)
-    : std::span<const ui8>(data, size)
+    : Span_(data, size)
 { }
+
+std::span<const ui8> TWireStringPart::AsSpan() const
+{
+    return Span_;
+}
 
 std::string_view TWireStringPart::AsStringView() const
 {
-    return {reinterpret_cast<const char*>(data()), size()};
+    return {reinterpret_cast<const char*>(Span_.data()), Span_.size()};
 }
 
 TWireStringPart TWireStringPart::FromStringView(std::string_view view)
@@ -221,6 +233,11 @@ TWireString TWireString::FromSerialized(const std::vector<std::string_view>& ser
     return FromSerializedRangeImpl(serializedProtos);
 }
 
+TWireString TWireString::FromSerialized(const std::vector<std::string>& serializedProtos)
+{
+    return FromSerializedRangeImpl(serializedProtos);
+}
+
 TWireString TWireString::FromSerialized(const std::vector<TString>& serializedProtos)
 {
     return FromSerializedRangeImpl(serializedProtos);
@@ -228,18 +245,14 @@ TWireString TWireString::FromSerialized(const std::vector<TString>& serializedPr
 
 bool TWireString::operator==(const TWireString& other) const
 {
-    auto selfView = std::ranges::views::join(*this);
-    auto otherView = std::ranges::views::join(other);
-    return std::lexicographical_compare_three_way(
-        selfView.begin(),
-        selfView.end(),
-        otherView.begin(),
-        otherView.end())== std::strong_ordering::equal;
+    auto selfView = std::ranges::views::join(std::ranges::views::transform(*this, &TWireStringPart::AsSpan));
+    auto otherView = std::ranges::views::join(std::ranges::views::transform(other, &TWireStringPart::AsSpan));
+    return std::ranges::equal(selfView, otherView);
 }
 
-TWireStringPart TWireStringPart::Skip(int count) const
+TWireStringPart TWireString::LastOrEmptyPart() const
 {
-    return TWireStringPart{data() + count, size() - count};
+    return empty() ? TWireStringPart{} : back();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -478,6 +491,159 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define IMPLEMENT_PARSER_CASE(protoFieldType, intermediateType, stream, method, ...) \
+    case protoFieldType: { \
+        if (intermediateType result; (stream)->method(&result)) { \
+            *value = __VA_ARGS__(result); \
+            return (stream)->CurrentPosition() == std::ssize(wireStringPart.AsSpan()); \
+        } \
+        return false; \
+    }
+
+bool ParseUint64(ui64* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart)
+{
+    TCodedInputStream stream(wireStringPart);
+    switch (type.Underlying()) {
+        IMPLEMENT_PARSER_CASE(NProtoBuf::FieldDescriptor::TYPE_UINT32, ui32, &stream, ReadVarint32)
+        IMPLEMENT_PARSER_CASE(NProtoBuf::FieldDescriptor::TYPE_UINT64, ui64, &stream, ReadVarint64)
+        IMPLEMENT_PARSER_CASE(NProtoBuf::FieldDescriptor::TYPE_FIXED32, ui32, &stream, ReadLittleEndian32)
+        IMPLEMENT_PARSER_CASE(NProtoBuf::FieldDescriptor::TYPE_FIXED64, ui64, &stream, ReadLittleEndian64)
+        default:
+            YT_ABORT();
+    }
+}
+
+bool ParseInt64(i64* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart)
+{
+    TCodedInputStream stream(wireStringPart);
+    switch (type.Underlying()) {
+        IMPLEMENT_PARSER_CASE(NProtoBuf::FieldDescriptor::TYPE_INT32, ui32, &stream, ReadVarint32, std::bit_cast<i32>)
+        IMPLEMENT_PARSER_CASE(NProtoBuf::FieldDescriptor::TYPE_INT64, ui64, &stream, ReadVarint64, std::bit_cast<i64>)
+        IMPLEMENT_PARSER_CASE(NProtoBuf::FieldDescriptor::TYPE_SINT32, ui32, &stream, ReadVarint32, ZigZagDecode32)
+        IMPLEMENT_PARSER_CASE(NProtoBuf::FieldDescriptor::TYPE_SINT64, ui64, &stream, ReadVarint64, ZigZagDecode64)
+        IMPLEMENT_PARSER_CASE(NProtoBuf::FieldDescriptor::TYPE_SFIXED32, ui32, &stream, ReadLittleEndian32, std::bit_cast<i32>)
+        IMPLEMENT_PARSER_CASE(NProtoBuf::FieldDescriptor::TYPE_SFIXED64, ui64, &stream, ReadLittleEndian64, std::bit_cast<i64>)
+        IMPLEMENT_PARSER_CASE(NProtoBuf::FieldDescriptor::TYPE_ENUM, ui32, &stream, ReadVarint32, std::bit_cast<i32>)
+        default:
+            YT_ABORT();
+    }
+}
+
+bool ParseDouble(double* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart)
+{
+    TCodedInputStream stream(wireStringPart);
+    switch (type.Underlying()) {
+        IMPLEMENT_PARSER_CASE(NProtoBuf::FieldDescriptor::TYPE_FLOAT, ui32, &stream, ReadLittleEndian32, std::bit_cast<float>)
+        IMPLEMENT_PARSER_CASE(NProtoBuf::FieldDescriptor::TYPE_DOUBLE, ui64, &stream, ReadLittleEndian64, std::bit_cast<double>)
+        default:
+            YT_ABORT();
+    }
+}
+
+bool ParseBoolean(bool* value, NYson::TProtobufElementType type, TWireStringPart wireStringPart)
+{
+    TCodedInputStream stream(wireStringPart);
+    switch (type.Underlying()) {
+        IMPLEMENT_PARSER_CASE(NProtoBuf::FieldDescriptor::TYPE_BOOL, ui32, &stream, ReadVarint32)
+        default:
+            YT_ABORT();
+    }
+}
+
+#undef IMPLEMENT_PARSER_CASE
+
+////////////////////////////////////////////////////////////////////////////////
+
+#define IMPLEMENT_SERIALIZE_CASE(type, call) \
+    case type: { \
+        google::protobuf::io::StringOutputStream stringStream(&result); \
+        google::protobuf::io::CodedOutputStream stream(&stringStream); \
+        WireFormatLite::call(value, &stream); \
+        break; \
+    }
+
+std::string SerializeUint64(ui64 value, NYson::TProtobufElementType type)
+{
+    TString result;
+    switch (type.Underlying()) {
+        IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_UINT32, WriteUInt32NoTag)
+        IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_UINT64, WriteUInt64NoTag)
+        IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_FIXED32, WriteFixed32NoTag)
+        IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_FIXED64, WriteFixed64NoTag)
+        default:
+            YT_ABORT();
+    }
+    return result;
+}
+
+std::string SerializeInt64(i64 value, NYson::TProtobufElementType type)
+{
+    TString result;
+    switch (type.Underlying()) {
+        IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_INT32, WriteInt32NoTag)
+        IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_INT64, WriteInt64NoTag)
+        IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_SINT32, WriteSInt32NoTag)
+        IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_SINT64, WriteSInt64NoTag)
+        IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_SFIXED32, WriteSFixed32NoTag)
+        IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_SFIXED64, WriteSFixed64NoTag)
+        IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_ENUM, WriteEnumNoTag);
+        default:
+            YT_ABORT();
+    }
+
+    return result;
+}
+
+std::string SerializeDouble(double value, NYson::TProtobufElementType type)
+{
+    TString result;
+    switch (type.Underlying()) {
+        IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_FLOAT, WriteFloatNoTag)
+        IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_DOUBLE, WriteDoubleNoTag)
+        default:
+            YT_ABORT();
+    }
+
+    return result;
+}
+
+std::string SerializeBoolean(bool value, NYson::TProtobufElementType type)
+{
+    TString result;
+    switch (type.Underlying()) {
+        IMPLEMENT_SERIALIZE_CASE(NProtoBuf::FieldDescriptor::TYPE_BOOL, WriteBoolNoTag)
+        default:
+            YT_ABORT();
+    }
+
+    return result;
+}
+
+std::string SerializeAttributeDictionary(const NYTree::IAttributeDictionary& attributeDictionary)
+{
+    NYTree::NProto::TAttributeDictionary attributeDictionaryMessage;
+    NYTree::ToProto(&attributeDictionaryMessage, attributeDictionary);
+    return attributeDictionaryMessage.SerializeAsString();
+}
+
+std::string SerializeMessage(
+    const NYTree::INodePtr& message,
+    const NYson::TProtobufMessageType* messageType,
+    NYson::TProtobufWriterOptions options)
+{
+    TString result;
+    google::protobuf::io::StringOutputStream stringStream(&result);
+    auto protobufWriter = NYson::CreateProtobufWriter(&stringStream, messageType, options);
+    NYTree::Serialize(message, protobufWriter.get());
+
+    return result;
+}
+
+#undef DEFINE_STREAMS
+#undef IMPLEMENT_SERIALIZE_CASE
 
 ////////////////////////////////////////////////////////////////////////////////
 

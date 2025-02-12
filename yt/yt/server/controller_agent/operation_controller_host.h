@@ -101,7 +101,7 @@ public:
 
     void Disconnect(const TError& error) override;
 
-    void InterruptJob(TJobId jobId, EInterruptReason reason, TDuration timeout) override;
+    void InterruptJob(TJobId jobId, EInterruptionReason reason, TDuration timeout) override;
     void RequestJobGracefulAbort(TJobId jobId, EAbortReason reason) override;
     void UpdateRunningAllocationsStatistics(std::vector<TAgentToSchedulerRunningAllocationStatistics> runningAllocationStatisticsUpdates) override;
 
@@ -174,14 +174,17 @@ public:
         NSecurityClient::TAccountResourceUsageLeaseId leaseId,
         const NScheduler::TDiskQuota& diskQuota) override;
 
-    void SubscribeOnClusterToNetworkBandwidthAvailabilityUpdated(
-        const NScheduler::TClusterName& clusterName,
-        const TCallback<void()>& callback) override;
-    void UnsubscribeOnClusterToNetworkBandwidthAvailabilityUpdate(
-        const NScheduler::TClusterName& clusterName,
-        const TCallback<void()>& callback) override;
     std::shared_ptr<const THashMap<NScheduler::TClusterName, bool>> GetClusterToNetworkBandwidthAvailability() const override;
+
     bool IsNetworkBandwidthAvailable(const NScheduler::TClusterName& clusterName) const override;
+
+    void SubscribeToClusterNetworkBandwidthAvailabilityUpdated(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) override;
+
+    void UnsubscribeFromClusterNetworkBandwidthAvailabilityUpdated(
+        const NScheduler::TClusterName& clusterName,
+        const TCallback<void()>& callback) override;
 
 private:
     const TOperationId OperationId_;

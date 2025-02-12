@@ -346,7 +346,7 @@ private:
             }
         }
 
-        for (auto* child : chunkList->Children()) {
+        for (auto child : chunkList->Children()) {
             if (child->GetType() == EObjectType::ChunkList) {
                 if (!TraverseChunkList(child->AsChunkList(), lowerKeyLimit, upperKeyLimit)) {
                     return false;
@@ -499,7 +499,7 @@ TChunkTree* GenerateChunkTree(
         auto* chunkList = chunkGenerator->CreateChunkList(chunkListKindByLayer[0]);
         chunkListKindByLayer.erase(chunkListKindByLayer.begin());
 
-        std::vector<TChunkTree*> children;
+        std::vector<TChunkTreeRawPtr> children;
         for (int i = 0; i < 5; ++i) {
             auto* child = GenerateChunkTree(
                 chunkGenerator, numLayers - 1, randomGenerator, keyYielder, chunkListKindByLayer);
@@ -560,7 +560,7 @@ TEST_F(TChunkTreeTraversingTest, Simple)
     auto* listB = CreateChunkList();
 
     {
-        std::vector<TChunkTree*> items{
+        std::vector<TChunkTreeRawPtr> items{
             chunk2,
             chunk3
         };
@@ -568,7 +568,7 @@ TEST_F(TChunkTreeTraversingTest, Simple)
     }
 
     {
-        std::vector<TChunkTree*> items{
+        std::vector<TChunkTreeRawPtr> items{
             chunk1,
             listB
         };
@@ -649,12 +649,12 @@ TEST_F(TChunkTreeTraversingTest, WithEmptyChunkLists)
     auto empty3 = CreateChunkList();
 
     {
-        std::vector<TChunkTree*> items{
+        std::vector<TChunkTreeRawPtr> items{
             empty1,
             chunk1,
             empty2,
             chunk2,
-            empty3
+            empty3,
         };
         AttachToChunkList(list, items);
     }
@@ -724,9 +724,9 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamic)
     tablet1->SetPivotKey(BuildKey(""));
     tablet2->SetPivotKey(BuildKey("2"));
 
-    AttachToChunkList(tablet1, std::vector<TChunkTree*>{chunk1});
-    AttachToChunkList(tablet2, std::vector<TChunkTree*>{chunk2, chunk3});
-    AttachToChunkList(root, std::vector<TChunkTree*>{tablet1, tablet2});
+    AttachToChunkList(tablet1, std::vector<TChunkTreeRawPtr>{chunk1});
+    AttachToChunkList(tablet2, std::vector<TChunkTreeRawPtr>{chunk2, chunk3});
+    AttachToChunkList(root, std::vector<TChunkTreeRawPtr>{tablet1, tablet2});
 
     auto context = GetSyncChunkTraverserContext();
 
@@ -738,7 +738,7 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamic)
         std::set<TChunkInfo> correctResult{
             TChunkInfo(chunk1),
             TChunkInfo(chunk2),
-            TChunkInfo(chunk3)
+            TChunkInfo(chunk3),
         };
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }
@@ -757,7 +757,7 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamic)
 
         std::set<TChunkInfo> correctResult{
             TChunkInfo(chunk1),
-            TChunkInfo(chunk2)
+            TChunkInfo(chunk2),
         };
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }
@@ -835,10 +835,10 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicWithChunkView)
 
     {
         auto stores = EnumerateStoresInChunkTree(root);
-        std::vector<TChunkTree*> correct{
+        std::vector<TChunkTreeRawPtr> correct{
             view1,
             chunk2,
-            view2
+            view2,
         };
 
         EXPECT_EQ(correct, stores);
@@ -990,10 +990,10 @@ TEST_F(TChunkTreeTraversingTest, SortedDynamicChunkShared)
     tablet2->SetPivotKey(BuildKey("2"));
     tablet3->SetPivotKey(BuildKey("4"));
 
-    AttachToChunkList(tablet1, std::vector<TChunkTree*>{chunk});
-    AttachToChunkList(tablet2, std::vector<TChunkTree*>{chunk});
-    AttachToChunkList(tablet3, std::vector<TChunkTree*>{chunk});
-    AttachToChunkList(root, std::vector<TChunkTree*>{tablet1, tablet2, tablet3});
+    AttachToChunkList(tablet1, std::vector<TChunkTreeRawPtr>{chunk});
+    AttachToChunkList(tablet2, std::vector<TChunkTreeRawPtr>{chunk});
+    AttachToChunkList(tablet3, std::vector<TChunkTreeRawPtr>{chunk});
+    AttachToChunkList(root, std::vector<TChunkTreeRawPtr>{tablet1, tablet2, tablet3});
 
     TLegacyReadLimit limit2;
     limit2.SetLegacyKey(BuildKey("2"));
@@ -1106,9 +1106,9 @@ TEST_F(TChunkTreeTraversingTest, OrderedDynamic)
     auto tablet1 = CreateChunkList(EChunkListKind::OrderedDynamicTablet);
     auto tablet2 = CreateChunkList(EChunkListKind::OrderedDynamicTablet);
 
-    AttachToChunkList(tablet1, std::vector<TChunkTree*>{chunk1});
-    AttachToChunkList(tablet2, std::vector<TChunkTree*>{chunk2, chunk3});
-    AttachToChunkList(root, std::vector<TChunkTree*>{tablet1, tablet2});
+    AttachToChunkList(tablet1, std::vector<TChunkTreeRawPtr>{chunk1});
+    AttachToChunkList(tablet2, std::vector<TChunkTreeRawPtr>{chunk2, chunk3});
+    AttachToChunkList(root, std::vector<TChunkTreeRawPtr>{tablet1, tablet2});
 
     auto context = GetSyncChunkTraverserContext();
 
@@ -1148,7 +1148,7 @@ TEST_F(TChunkTreeTraversingTest, StartIndex)
 
     auto root = CreateChunkList(EChunkListKind::Static);
 
-    AttachToChunkList(root, std::vector<TChunkTree*>{chunk1, chunk2, chunk3});
+    AttachToChunkList(root, std::vector<TChunkTreeRawPtr>{chunk1, chunk2, chunk3});
 
     auto context = GetSyncChunkTraverserContext();
 
@@ -1220,6 +1220,7 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
     DetachFromChunkList(root, {chunk1}, EChunkDetachPolicy::OrderedTabletPrefix);
     root->Children().erase(root->Children().begin());
     root->CumulativeStatistics().TrimFront(1);
+    root->SetTrimmedChildCount(0);
     YT_VERIFY(root->Children().size() == 3);
     YT_VERIFY(root->CumulativeStatistics().Size() == 3);
 
@@ -1237,6 +1238,10 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
         TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
 
         std::set<TChunkInfo> correctResult;
+        correctResult.insert(TChunkInfo(
+            chunk2,
+            1));
+
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }
 
@@ -1254,7 +1259,10 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
         std::set<TChunkInfo> correctResult{
             TChunkInfo(
                 chunk2,
-                1)
+                1),
+            TChunkInfo(
+                chunk3,
+                2),
         };
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }
@@ -1272,8 +1280,8 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
 
         std::set<TChunkInfo> correctResult{
             TChunkInfo(
-                chunk2,
-                1)
+                chunk3,
+                2)
         };
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }
@@ -1295,7 +1303,32 @@ TEST_F(TChunkTreeTraversingTest, ReadFromDynamicOrderedAfterTrim)
                 1),
             TChunkInfo(
                 chunk3,
-                2)
+                2),
+            TChunkInfo(
+                chunk4,
+                3)
+        };
+        EXPECT_EQ(correctResult, visitor->GetChunkInfos());
+    }
+
+    {
+        auto visitor = New<TTestChunkVisitor>();
+
+        TLegacyReadLimit lowerLimit;
+        lowerLimit.SetRowIndex(0);
+
+        TLegacyReadLimit upperLimit;
+        upperLimit.SetRowIndex(3);
+
+        TraverseChunkTree(context, visitor, root, lowerLimit, upperLimit, {} /*keyColumnCount*/);
+
+        std::set<TChunkInfo> correctResult{
+            TChunkInfo(
+                chunk2,
+                1),
+            TChunkInfo(
+                chunk3,
+                2),
         };
         EXPECT_EQ(correctResult, visitor->GetChunkInfos());
     }
@@ -1614,7 +1647,7 @@ TEST_P(TTraverseWithKeyColumnCount, TestStatic)
 
     auto root = CreateChunkList(EChunkListKind::Static);
 
-    AttachToChunkList(root, std::vector<TChunkTree*>{chunk1, chunk2});
+    AttachToChunkList(root, std::vector<TChunkTreeRawPtr>{chunk1, chunk2});
 
     auto context = GetSyncChunkTraverserContext();
 
@@ -2019,6 +2052,9 @@ TEST_F(TChunkTreeTraversingStressTest, OrderedDynamicWithTabletIndex)
 
             // These functions implement DetachFromChunkList with force detach.
             tabletToTrim->Children().erase(tabletToTrim->Children().begin());
+            TCumulativeStatisticsEntry delta;
+            delta.ChunkCount = -1;
+            tabletToTrim->CumulativeStatistics().UpdateBeforeBeginning(delta);
             tabletToTrim->CumulativeStatistics().TrimFront(1);
             tabletToTrim->SetTrimmedChildCount(0);
         }

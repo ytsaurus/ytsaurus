@@ -9,6 +9,8 @@
 
 #include <yt/yt/server/lib/cypress_registrar/public.h>
 
+#include <yt/yt/server/lib/signature/public.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
@@ -257,6 +259,7 @@ class TProxyMemoryLimitsConfig
 {
 public:
     std::optional<i64> Total;
+    std::optional<i64> HeavyRequest;
 
     REGISTER_YSON_STRUCT(TProxyMemoryLimitsConfig);
 
@@ -318,6 +321,10 @@ public:
     TSolomonProxyConfigPtr SolomonProxy;
 
     THeapProfilerConfigPtr HeapProfiler;
+
+    //! Configuration for signature components.
+    NSignature::TSignatureValidationConfigPtr SignatureValidation;
+    NSignature::TSignatureGenerationConfigPtr SignatureGeneration;
 
     REGISTER_YSON_STRUCT(TProxyBootstrapConfig);
 

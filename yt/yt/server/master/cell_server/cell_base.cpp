@@ -260,7 +260,7 @@ void TCellBase::UpdatePeerState(int peerId, EPeerState peerState)
 
 TNode::TCellSlot* TCellBase::FindCellSlot(int peerId) const
 {
-    auto* node = Peers_[peerId].Node;
+    auto node = Peers_[peerId].Node;
     if (!node) {
         return nullptr;
     }
@@ -321,7 +321,7 @@ ECellHealth TCellBase::GetCumulativeIndependentPeersHealth() const
         }
 
         const auto& peer = Peers_[peerId];
-        auto* node = peer.Node;
+        auto node = peer.Node;
         if (!IsObjectAlive(node)) {
             return ETabletCellHealth::Degraded;
         }
@@ -337,7 +337,7 @@ ECellHealth TCellBase::GetCumulativeIndependentPeersHealth() const
 ECellHealth TCellBase::GetCumulativeDependentPeersHealth() const
 {
     const auto& leaderPeer = Peers_[LeadingPeerId_];
-    auto* leaderNode = leaderPeer.Node;
+    auto leaderNode = leaderPeer.Node;
     if (!IsObjectAlive(leaderNode)) {
         return ECellHealth::Failed;
     }
@@ -352,7 +352,7 @@ ECellHealth TCellBase::GetCumulativeDependentPeersHealth() const
             continue;
         }
         const auto& peer = Peers_[peerId];
-        auto* node = peer.Node;
+        auto node = peer.Node;
         if (!IsObjectAlive(node)) {
             return ECellHealth::Degraded;
         }
@@ -368,7 +368,7 @@ ECellHealth TCellBase::GetCumulativeDependentPeersHealth() const
 bool TCellBase::IsHealthy() const
 {
     const auto& leaderPeer = Peers_[LeadingPeerId_];
-    auto* leaderNode = leaderPeer.Node;
+    auto leaderNode = leaderPeer.Node;
     if (!IsObjectAlive(leaderNode)) {
         return false;
     }

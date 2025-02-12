@@ -177,7 +177,7 @@ double TSchedulerElement::GetWeight() const
     auto specifiedWeight = GetSpecifiedWeight();
 
     if (auto parent = GetParent();
-        parent && parent->IsInferringChildrenWeightsFromHistoricUsageEnabled())
+        parent && parent->GetMaybeHistoricUsageAggregatorPeriod().has_value())
     {
         // TODO(eshcherbin): Make the method of calculating weights from historic usage configurable.
         auto multiplier = Exp2(-1.0 * PersistentAttributes_.HistoricUsageAggregator.GetAverage());
@@ -315,9 +315,9 @@ bool TSchedulerElement::AreSpecifiedResourceLimitsViolated() const
     return ResourceTreeElement_->AreSpecifiedResourceLimitsViolated();
 }
 
-TJobResources TSchedulerElement::GetInstantResourceUsage() const
+TJobResources TSchedulerElement::GetInstantResourceUsage(bool withPrecommit) const
 {
-    auto resourceUsage = TreeConfig_->UseResourceUsageWithPrecommit
+    auto resourceUsage = withPrecommit
         ? ResourceTreeElement_->GetResourceUsageWithPrecommit()
         : ResourceTreeElement_->GetResourceUsage();
     if (resourceUsage.GetUserSlots() > 0 && resourceUsage.GetMemory() == 0) {
@@ -742,10 +742,9 @@ void TSchedulerCompositeElement::InitializeUpdate(TInstant now)
         ResourceDemand_ += child->GetResourceDemand();
         PendingAllocationCount_ += child->GetPendingAllocationCount();
 
-        if (IsInferringChildrenWeightsFromHistoricUsageEnabled()) {
+        if (auto historicUsageAggregationPeriod = GetMaybeHistoricUsageAggregatorPeriod()) {
             // NB(eshcherbin): This is a lazy parameters update so it has to be done every time.
-            child->PersistentAttributes_.HistoricUsageAggregator.SetHalflife(
-                GetHistoricUsageAggregatorPeriod());
+            child->PersistentAttributes_.HistoricUsageAggregator.SetHalflife(*historicUsageAggregationPeriod);
 
             // TODO(eshcherbin): Should we use vectors instead of ratios?
             // Yes, but nobody uses this feature yet, so it's not really important.
@@ -833,10 +832,6 @@ void TSchedulerCompositeElement::ComputeSatisfactionRatioAtUpdate()
     TSchedulerElement::ComputeSatisfactionRatioAtUpdate();
 
     auto isBetterChild = [&] (const TSchedulerElement* lhs, const TSchedulerElement* rhs) {
-        if (ShouldUseFifoSchedulingOrder()) {
-            return HasHigherPriorityInFifoMode(lhs, rhs);
-        }
-
         return lhs->PostUpdateAttributes().SatisfactionRatio < rhs->PostUpdateAttributes().SatisfactionRatio;
     };
 
@@ -858,11 +853,6 @@ void TSchedulerCompositeElement::ComputeSatisfactionRatioAtUpdate()
     }
 
     PostUpdateAttributes_.SatisfactionRatio = bestChild->PostUpdateAttributes().SatisfactionRatio;
-    if (EffectiveUsePoolSatisfactionForScheduling_) {
-        PostUpdateAttributes_.SatisfactionRatio  = std::min(
-            PostUpdateAttributes_.SatisfactionRatio,
-            PostUpdateAttributes_.LocalSatisfactionRatio);
-    }
 }
 
 void TSchedulerCompositeElement::BuildElementMapping(TFairSharePostUpdateContext* context)
@@ -1096,12 +1086,6 @@ bool TSchedulerCompositeElement::ContainsChild(
     return map.find(child) != map.end();
 }
 
-bool TSchedulerCompositeElement::ShouldUseFifoSchedulingOrder() const
-{
-    return Mode_ == ESchedulingMode::Fifo &&
-        EffectiveFifoPoolSchedulingOrder_ == EFifoPoolSchedulingOrder::Fifo;
-}
-
 bool TSchedulerCompositeElement::HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const
 {
     for (auto parameter : FifoSortParameters_) {
@@ -1316,17 +1300,6 @@ TJobResourcesConfigPtr TSchedulerPoolElement::GetSpecifiedNonPreemptibleResource
 {
     return Config_->NonPreemptibleResourceUsageThreshold;
 }
-
-std::optional<EFifoPoolSchedulingOrder> TSchedulerPoolElement::GetSpecifiedFifoPoolSchedulingOrder() const
-{
-    return Config_->FifoPoolSchedulingOrder;
-}
-
-std::optional<bool> TSchedulerPoolElement::ShouldUsePoolSatisfactionForScheduling() const
-{
-    return Config_->UsePoolSatisfactionForScheduling;
-}
-
 TString TSchedulerPoolElement::GetId() const
 {
     return Id_;
@@ -1370,12 +1343,6 @@ ESchedulableStatus TSchedulerPoolElement::GetStatus() const
 void TSchedulerPoolElement::UpdateRecursiveAttributes()
 {
     YT_VERIFY(Mutable_);
-
-    EffectiveFifoPoolSchedulingOrder_ = GetSpecifiedFifoPoolSchedulingOrder().value_or(
-        Parent_->GetEffectiveFifoPoolSchedulingOrder());
-
-    EffectiveUsePoolSatisfactionForScheduling_ = ShouldUsePoolSatisfactionForScheduling().value_or(
-        Parent_->GetEffectiveUsePoolSatisfactionForScheduling());
 
     EffectiveFairShareStarvationTolerance_ = GetSpecifiedFairShareStarvationTolerance().value_or(
         Parent_->GetEffectiveFairShareStarvationTolerance());
@@ -1516,14 +1483,9 @@ bool TSchedulerPoolElement::ShouldComputePromisedGuaranteeFairShare() const
     return Config_->ComputePromisedGuaranteeFairShare;
 }
 
-bool TSchedulerPoolElement::IsInferringChildrenWeightsFromHistoricUsageEnabled() const
+std::optional<TDuration> TSchedulerPoolElement::GetMaybeHistoricUsageAggregatorPeriod() const
 {
-    return Config_->InferChildrenWeightsFromHistoricUsage;
-}
-
-TDuration TSchedulerPoolElement::GetHistoricUsageAggregatorPeriod() const
-{
-    return Config_->HistoricUsageAggregationPeriod.value_or(TDuration::Zero());
+    return Config_->HistoricUsageAggregationPeriod;
 }
 
 void TSchedulerPoolElement::BuildResourceMetering(
@@ -1844,7 +1806,7 @@ void TSchedulerOperationElement::InitializeUpdate(TInstant now)
 
     TotalNeededResources_ = Controller_->GetNeededResources().GetNeededResourcesForTree(TreeId_);
     PendingAllocationCount_ = TotalNeededResources_.GetUserSlots();
-    DetailedMinNeededAllocationResources_ = Controller_->GetDetailedMinNeededAllocationResources();
+    GroupedNeededResources_ = Controller_->GetGroupedNeededResources();
     AggregatedMinNeededAllocationResources_ = Controller_->GetAggregatedMinNeededAllocationResources();
     ScheduleAllocationBackoffCheckEnabled_ = Controller_->ScheduleAllocationBackoffObserved();
 
@@ -1866,8 +1828,8 @@ void TSchedulerOperationElement::InitializeUpdate(TInstant now)
         PendingAllocationCount_ = TotalNeededResources_.GetUserSlots();
     }
 
-    for (const auto& allocationResourcesWithQuota : DetailedMinNeededAllocationResources_) {
-        for (auto [index, _] : allocationResourcesWithQuota.DiskQuota().DiskSpacePerMedium) {
+    for (const auto& [_, allocationGroupResources] : GroupedNeededResources_) {
+        for (auto [index, _] : allocationGroupResources.MinNeededResources.DiskQuota().DiskSpacePerMedium) {
             DiskRequestMedia_.insert(index);
         }
     }
@@ -2226,18 +2188,13 @@ void TSchedulerOperationElement::AbortAllocation(
     Controller_->AbortAllocation(allocationId, abortReason, allocationEpoch);
 }
 
-TJobResourcesWithQuotaList TSchedulerOperationElement::GetDetailedInitialMinNeededResources() const
+TAllocationGroupResourcesMap TSchedulerOperationElement::GetInitialGroupedNeededResources() const
 {
-    return Controller_->GetDetailedInitialMinNeededAllocationResources();
+    return Controller_->GetInitialGroupedNeededResources();
 }
 
 TJobResources TSchedulerOperationElement::GetAggregatedInitialMinNeededResources() const
 {
-    // COMPAT(eshcherbin)
-    if (auto cypressMinNeededResources = OperationHost_->GetAggregatedInitialMinNeededResources()) {
-        return *cypressMinNeededResources;
-    }
-
     return Controller_->GetAggregatedInitialMinNeededAllocationResources();
 }
 
@@ -2517,12 +2474,6 @@ void TSchedulerRootElement::UpdateRecursiveAttributes()
     YT_VERIFY(GetSpecifiedNonPreemptibleResourceUsageThresholdConfig());
     EffectiveNonPreemptibleResourceUsageThresholdConfig_ = GetSpecifiedNonPreemptibleResourceUsageThresholdConfig();
 
-    YT_VERIFY(GetSpecifiedFifoPoolSchedulingOrder());
-    EffectiveFifoPoolSchedulingOrder_ = *GetSpecifiedFifoPoolSchedulingOrder();
-
-    YT_VERIFY(ShouldUsePoolSatisfactionForScheduling());
-    EffectiveUsePoolSatisfactionForScheduling_ = *ShouldUsePoolSatisfactionForScheduling();
-
     TSchedulerCompositeElement::UpdateRecursiveAttributes();
 }
 
@@ -2569,16 +2520,6 @@ std::optional<bool> TSchedulerRootElement::IsAggressiveStarvationEnabled() const
 TJobResourcesConfigPtr TSchedulerRootElement::GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const
 {
     return TreeConfig_->NonPreemptibleResourceUsageThreshold;
-}
-
-std::optional<EFifoPoolSchedulingOrder> TSchedulerRootElement::GetSpecifiedFifoPoolSchedulingOrder() const
-{
-    return TreeConfig_->FifoPoolSchedulingOrder;
-}
-
-std::optional<bool> TSchedulerRootElement::ShouldUsePoolSatisfactionForScheduling() const
-{
-    return TreeConfig_->UsePoolSatisfactionForScheduling;
 }
 
 void TSchedulerRootElement::BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext)
@@ -2680,19 +2621,14 @@ bool TSchedulerRootElement::ShouldDistributeFreeVolumeAmongChildren() const
     return false;
 }
 
-bool TSchedulerRootElement::IsInferringChildrenWeightsFromHistoricUsageEnabled() const
-{
-    return false;
-}
-
 TJobResourcesConfigPtr TSchedulerRootElement::GetSpecifiedResourceLimitsConfig() const
 {
     return {};
 }
 
-TDuration TSchedulerRootElement::GetHistoricUsageAggregatorPeriod() const
+std::optional<TDuration> TSchedulerRootElement::GetMaybeHistoricUsageAggregatorPeriod() const
 {
-    return TDuration::Zero();
+    return {};
 }
 
 void TSchedulerRootElement::BuildResourceMetering(

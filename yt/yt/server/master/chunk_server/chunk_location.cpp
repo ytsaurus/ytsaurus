@@ -223,6 +223,7 @@ void TChunkLocation::Save(NCellMaster::TSaveContext& context) const
     Save(context, DestroyedReplicas_);
     TSizeSerializer::Save(context, Replicas_.size());
     Save(context, UnapprovedReplicas_);
+    Save(context, ReplicaEndorsements_);
     Save(context, Uuid_);
     Save(context, State_);
     Save(context, MediumOverride_);
@@ -240,6 +241,9 @@ void TChunkLocation::Load(NCellMaster::TLoadContext& context)
     Load(context, DestroyedReplicas_);
     LoadScratchData_ = std::make_unique<TLoadScratchData>(TSizeSerializer::Load(context));
     Load(context, UnapprovedReplicas_);
+    if (context.GetVersion() >= EMasterReign::PerLocationNodeHeartbeat) {
+        Load(context, ReplicaEndorsements_);
+    }
     Load(context, Uuid_);
     Load(context, State_);
     Load(context, MediumOverride_);
@@ -254,20 +258,13 @@ void TChunkLocation::Load(NCellMaster::TLoadContext& context)
     ResetDestroyedReplicasIterator();
 }
 
-TChunkLocation* TChunkLocation::LoadPtr(NCellMaster::TLoadContext& context)
-{
-    TChunkLocation* ptr;
-    TRawNonversionedObjectPtrSerializer::Load(context, ptr);
-    return ptr;
-}
-
 TNode* TChunkLocation::SkipImaginaryChunkLocation(NCellMaster::TLoadContext& context)
 {
     YT_VERIFY(context.GetVersion() < EMasterReign::DropImaginaryChunkLocations);
 
     using NYT::Load;
 
-    auto* owningNode = Load<TNode*>(context);
+    auto owningNode = Load<NNodeTrackerServer::TNodeRawPtr>(context);
 
     // NB: Some compats are too old for trunk.
 #if 0

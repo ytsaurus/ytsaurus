@@ -8,11 +8,13 @@ from yt_commands import (
     write_table, alter_table, read_table, map, sync_reshard_table, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_flush_table, sync_compact_table, gc_collect,
     start_transaction, commit_transaction, get_singular_chunk_id, write_file, read_hunks,
-    write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy, concatenate)
+    write_journal, create_domestic_medium, update_nodes_dynamic_config, raises_yt_error, copy,
+    get_account_disk_space_limit, set_account_disk_space_limit, create_dynamic_table, create_user)
 
 from yt_type_helpers import make_schema
 
 from yt_env_setup import (
+    YTEnvSetup,
     Restarter,
     NODES_SERVICE,
     MASTERS_SERVICE
@@ -21,6 +23,8 @@ from yt_env_setup import (
 from yt.common import YtError
 from yt.test_helpers import assert_items_equal
 from operator import itemgetter
+
+import yt_error_codes
 
 import pytest
 import yt.yson as yson
@@ -1472,8 +1476,9 @@ class TestSortedDynamicTablesHunks(TestSortedDynamicTablesBase):
         sync_unmount_table("//tmp/t")
         sync_mount_table("//tmp/t")
 
-        with raises_yt_error("Operation timed out"):
-            assert lookup_rows("//tmp/t", [{"key": 0}], timeout=1000) == rows[:1]
+        with raises_yt_error() as err:
+            lookup_rows("//tmp/t", [{"key": 0}], timeout=1000)
+        assert err[0].contains_text("Operation timed out") or err[0].contains_text("Request timed out")
 
         # Bytes throttled within first lookup call have been released by now.
         assert lookup_rows("//tmp/t", [{"key": 1}], timeout=1000) == rows[1:]
@@ -1498,6 +1503,14 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
     # Do not allow multiple erasure parts per node.
     DELTA_MASTER_CONFIG = {}
+
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "tablet_node": {
+            "hunk_lock_manager": {
+                "unlock_check_period": 100
+            }
+        }
+    }
 
     def _get_table_schema(self, schema, max_inline_hunk_size):
         if "sort_order" not in schema[1]:
@@ -1531,12 +1544,6 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         tablets = get("{}/@tablets".format(hunk_storage))
         tablet_id = tablets[tablet_index]["tablet_id"]
         get("//sys/tablets/{}/orchid".format(tablet_id))
-
-    @classmethod
-    def setup_class(cls):
-        super(TestOrderedDynamicTablesHunks, cls).setup_class()
-        create_domestic_medium("hdd1")
-        create_domestic_medium("hdd2")
 
     @authors("aleksandra-zh")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -1831,431 +1838,6 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
             with raises_yt_error("exceeded retry count limit"):
                 assert_items_equal(select_rows("* from [//tmp/t]"), rows)
 
-    @authors("aleksandra-zh")
-    def test_hunk_media_attribute_inheritance(self):
-        sync_create_cells(1)
-        self._create_table()
-
-        hunk_media = {
-            "hdd1" : {"replication_factor": 7, "data_parts_only": True},
-            "default" : {"replication_factor": 4, "data_parts_only": False}
-        }
-        set("//tmp/@hunk_media", hunk_media)
-
-        self._create_sorted_table("//tmp/a")
-        assert get("//tmp/a/@hunk_media") == hunk_media
-
-    @authors("aleksandra-zh")
-    def test_hunk_media_attributes(self):
-        sync_create_cells(1)
-        self._create_table()
-
-        hunk_storage_id = create("hunk_storage", "//tmp/h")
-        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
-        sync_mount_table("//tmp/h")
-        sync_mount_table("//tmp/t")
-
-        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
-
-        hunk_media = get("//tmp/t/@hunk_media")
-        assert 'default' in hunk_media
-
-        hunk_media["hdd1"] = {
-            "replication_factor": 5,
-            "data_parts_only": True,
-        }
-
-        sync_unmount_table("//tmp/t")
-        set("//tmp/t/@hunk_media", hunk_media)
-        sync_mount_table("//tmp/t")
-
-        assert get("//tmp/t/@hunk_media") == hunk_media
-
-        build_master_snapshots()
-        with Restarter(self.Env, MASTERS_SERVICE):
-            pass
-
-        assert get("//tmp/t/@hunk_media") == hunk_media
-
-    @authors("aleksandra-zh")
-    def test_hunk_primary_medium(self):
-        sync_create_cells(1)
-        self._create_table()
-
-        create("hunk_storage", "//tmp/h")
-
-        medium = "hdd1"
-        self._create_sorted_table(
-            "//tmp/q",
-            schema=[
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string", "max_inline_hunk_size": 1},
-            ],
-            primary_medium=medium
-        )
-        set("//tmp/q/@hunk_storage_node", "//tmp/h")
-        sync_mount_table("//tmp/h")
-
-        assert not exists("//tmp/q/@hunk_primary_medium")
-
-        set("//tmp/q/@hunk_primary_medium", medium)
-        assert get("//tmp/q/@hunk_primary_medium") == medium
-        assert medium in get("//tmp/q/@hunk_media").keys()
-
-        remove("//tmp/q/@hunk_primary_medium")
-        assert not exists("//tmp/q/@hunk_primary_medium")
-
-    @authors("kivedernikov")
-    def test_requisitions_hunk_media(self):
-        pytest.skip("Test is disabled until hunk media is fixed")
-        sync_create_cells(1)
-        self._create_sorted_table(
-            "//tmp/t",
-            schema=[
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string", "max_inline_hunk_size": 1},
-            ],
-        )
-
-        rows = [{"key": 0, "value": "a"}, {"key": 1, "value": "aa"}]
-        sync_mount_table("//tmp/t")
-
-        insert_rows("//tmp/t", rows)
-        sync_flush_table("//tmp/t")
-
-        chunk_ids = get("//tmp/t/@chunk_ids")
-        hunk_chunk, journal_chunk = None, None
-        for chunk_id in chunk_ids:
-            if get("#{}/@chunk_type".format(chunk_id)) == "hunk":
-                hunk_chunk = chunk_id
-            else:
-                journal_chunk = chunk_id
-
-        assert hunk_chunk is not None
-        assert journal_chunk is not None
-
-        def check_chunk_requisition(chunk_id, expected):
-            requisition = get("#" + chunk_id + "/@requisition")
-            requisition = sorted(requisition, key=itemgetter("account", "medium"))
-            return requisition == expected
-
-        expected_requisition = [
-            {
-                "account": "tmp",
-                "medium": "default",
-                "replication_policy": {
-                    "replication_factor": 3,
-                    "data_parts_only": False,
-                },
-                "committed": True,
-            }
-        ]
-        wait(lambda: check_chunk_requisition(journal_chunk, expected_requisition))
-
-        expected_hunk_requisition = [
-            {
-                "account": "tmp",
-                "medium": "default",
-                "replication_policy": {
-                    "replication_factor": 3,
-                    "data_parts_only": False,
-                },
-                "committed": False,
-            }
-        ]
-        wait(lambda: check_chunk_requisition(hunk_chunk, expected_hunk_requisition))
-        sync_unmount_table("//tmp/t")
-
-        tbl_media = get("//tmp/t/@media")
-        tbl_media["hdd1"] = {"replication_factor": 7, "data_parts_only": True}
-        tbl_media["default"] = {"replication_factor": 4, "data_parts_only": False}
-        set("//tmp/t/@media", tbl_media)
-        sync_mount_table("//tmp/t")
-
-        expected_requisition = [
-            {
-                "account": "tmp",
-                "medium": "default",
-                "replication_policy": {
-                    "replication_factor": 4,
-                    "data_parts_only": False,
-                },
-                "committed": True,
-            },
-            {
-                "account": "tmp",
-                "medium": "hdd1",
-                "replication_policy": {
-                    "replication_factor": 7,
-                    "data_parts_only": True,
-                },
-                "committed": True,
-            },
-        ]
-        wait(lambda: check_chunk_requisition(journal_chunk, expected_requisition))
-
-        sync_unmount_table("//tmp/t")
-        tbl_hunk_media = get("//tmp/t/@hunk_media")
-        tbl_hunk_media["hdd2"] = {"replication_factor": 2, "data_parts_only": False}
-        set("//tmp/t/@hunk_media", tbl_hunk_media)
-        sync_mount_table("//tmp/t")
-        sync_flush_table("//tmp/t")
-
-        expected_hunk_requisition = [
-            {
-                "account": "tmp",
-                "medium": "default",
-                "replication_policy": {
-                    "replication_factor": 3,
-                    "data_parts_only": False,
-                },
-                "committed": True,
-            },
-            {
-                "account": "tmp",
-                "medium": "hdd2",
-                "replication_policy": {
-                    "replication_factor": 2,
-                    "data_parts_only": False,
-                },
-                "committed": True,
-            },
-        ]
-        wait(lambda: check_chunk_requisition(hunk_chunk, expected_hunk_requisition))
-
-    @authors("kivedernikov")
-    def test_hunk_storage_media(self):
-        pytest.skip("Test is disabled until hunk media is fixed")
-
-        sync_create_cells(1)
-        self._create_table()
-
-        hunk_storage_id = create(
-            "hunk_storage",
-            "//tmp/h",
-            attributes={
-                "store_rotation_period": 20000,
-                "store_removal_grace_period": 4000,
-            },
-        )
-        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
-        sync_mount_table("//tmp/h")
-
-        sync_mount_table("//tmp/t")
-        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
-
-        hunk_store_id = self._get_active_store_id("//tmp/h")
-        update_nodes_dynamic_config({
-            "tablet_node": {
-                "hunk_lock_manager": {
-                    "hunk_store_extra_lifetime": 123,
-                    "unlock_check_period": 127
-                }
-            }
-        })
-
-        sync_unmount_table("//tmp/t")
-        sync_mount_table("//tmp/t")
-
-        store_chunk_ids = self._get_store_chunk_ids("//tmp/t")
-        assert len(store_chunk_ids) == 1
-        store_chunk_id = store_chunk_ids[0]
-
-        assert store_chunk_id != hunk_store_id
-
-        hunk_store_parents = get("#{}/@owning_nodes".format(hunk_store_id))
-        assert sorted(hunk_store_parents) == ["//tmp/h", "//tmp/t"]
-
-        def check_chunk_requisition(chunk_id, expected):
-            requisition = get("#" + chunk_id + "/@requisition")
-            requisition = sorted(requisition, key=itemgetter("account", "medium"))
-            return requisition == expected
-
-        expected_requisition = [
-            {
-                "account": "tmp",
-                "medium": "default",
-                "replication_policy": {
-                    "replication_factor": 3,
-                    "data_parts_only": False,
-                },
-                "committed": True,
-            }
-        ]
-        wait(lambda: check_chunk_requisition(store_chunk_id, expected_requisition))
-
-        expected_hunk_requisition = [
-            {
-                "account": "tmp",
-                "medium": "default",
-                "replication_policy": {
-                    "replication_factor": 3,
-                    "data_parts_only": False,
-                },
-                "committed": True,
-            }
-        ]
-        wait(lambda: check_chunk_requisition(hunk_store_id, expected_hunk_requisition))
-
-        sync_unmount_table("//tmp/t")
-        tbl_media = get("//tmp/t/@media")
-        tbl_media["hdd1"] = {"replication_factor": 7, "data_parts_only": True}
-        tbl_media["default"] = {"replication_factor": 4, "data_parts_only": False}
-        set("//tmp/t/@media", tbl_media)
-        sync_mount_table("//tmp/t")
-
-        expected_requisition = [
-            {
-                "account": "tmp",
-                "medium": "default",
-                "replication_policy": {
-                    "replication_factor": 4,
-                    "data_parts_only": False,
-                },
-                "committed": True,
-            },
-            {
-                "account": "tmp",
-                "medium": "hdd1",
-                "replication_policy": {
-                    "replication_factor": 7,
-                    "data_parts_only": True,
-                },
-                "committed": True,
-            },
-        ]
-        wait(lambda: check_chunk_requisition(store_chunk_id, expected_requisition))
-
-        sync_unmount_table("//tmp/t")
-        tbl_hunk_media = get("//tmp/t/@hunk_media")
-        tbl_hunk_media["hdd2"] = {"replication_factor": 5, "data_parts_only": False}
-        set("//tmp/t/@hunk_media", tbl_hunk_media)
-        sync_mount_table("//tmp/t")
-
-        sync_flush_table("//tmp/t")
-
-        expected_hunk_requisition = [
-            {
-                "account": "tmp",
-                "medium": "default",
-                "replication_policy": {
-                    "replication_factor": 3,
-                    "data_parts_only": False,
-                },
-                "committed": True,
-            },
-            {
-                "account": "tmp",
-                "medium": "hdd2",
-                "replication_policy": {
-                    "replication_factor": 5,
-                    "data_parts_only": False,
-                },
-                "committed": True,
-            },
-        ]
-        wait(lambda: check_chunk_requisition(hunk_store_id, expected_hunk_requisition))
-
-    @authors("kivedernikov")
-    def test_hunk_media_many_nodes(self):
-        pytest.skip("Test is disabled until hunk media is fixed")
-
-        sync_create_cells(2)
-        self._create_sorted_table(
-            "//tmp/t",
-            schema=[
-                {"name": "key", "type": "int64", "sort_order": "ascending"},
-                {"name": "value", "type": "string", "max_inline_hunk_size": 1},
-            ],
-        )
-
-        sync_mount_table("//tmp/t")
-
-        for i in range(5):
-            rows = [{"key": 2 * i, "value": "a"}, {"key": 1 + 2 * i, "value": "bbb"}]
-            insert_rows("<append=%true>//tmp/t", rows[:1])
-            sync_flush_table("//tmp/t")
-            insert_rows("<append=%true>//tmp/t", rows[1:])
-            sync_flush_table("//tmp/t")
-
-        sync_unmount_table("//tmp/t")
-
-        chunk_ids = get("//tmp/t/@chunk_ids")
-
-        hunk_chunks, journal_chunks = [], []
-        for chunk_id in chunk_ids:
-            if get("#{}/@chunk_type".format(chunk_id)) == "hunk":
-                hunk_chunks.append(chunk_id)
-            else:
-                journal_chunks.append(chunk_id)
-
-        assert len(hunk_chunks) > 1
-        assert len(journal_chunks) > 1
-
-        copy("//tmp/t", "//tmp/t2")
-
-        sync_mount_table("//tmp/t2")
-
-        sync_unmount_table("//tmp/t")
-        sync_unmount_table("//tmp/t2")
-        chunk_ids = get("//tmp/t2/@chunk_ids")
-
-        tbl_hunk_media = get("//tmp/t/@hunk_media")
-        tbl_hunk_media["hdd1"] = {"replication_factor": 2, "data_parts_only": True}
-        tbl_hunk_media["default"] = {"replication_factor": 1, "data_parts_only": False}
-        sync_unmount_table("//tmp/t")
-        set("//tmp/t/@hunk_media", tbl_hunk_media)
-        sync_mount_table("//tmp/t")
-        sync_flush_table("//tmp/t")
-
-        tbl_hunk_media = get("//tmp/t2/@hunk_media")
-        tbl_hunk_media["hdd2"] = {"replication_factor": 4, "data_parts_only": True}
-        tbl_hunk_media["default"] = {"replication_factor": 4, "data_parts_only": False}
-        set("//tmp/t2/@hunk_media", tbl_hunk_media)
-        sync_mount_table("//tmp/t")
-        sync_mount_table("//tmp/t2")
-        sync_flush_table("//tmp/t2")
-
-        def check_chunk_requisition(chunk_id, expected):
-            requisition = get("#" + chunk_id + "/@requisition")
-            requisition = sorted(requisition, key=itemgetter("account", "medium"))
-            return requisition == expected
-
-        expected_hunk_requisition = [
-            {
-                "account": "tmp",
-                "medium": "default",
-                "replication_policy": {
-                    "replication_factor": 4,
-                    "data_parts_only": False,
-                },
-                "committed": True,
-            },
-            {
-                "account": "tmp",
-                "medium": "hdd1",
-                "replication_policy": {
-                    "replication_factor": 2,
-                    "data_parts_only": True,
-                },
-                "committed": True,
-            },
-            {
-                "account": "tmp",
-                "medium": "hdd2",
-                "replication_policy": {
-                    "replication_factor": 4,
-                    "data_parts_only": True,
-                },
-                "committed": True,
-            },
-        ]
-
-        for hunk_chunk in hunk_chunks:
-            wait(lambda: check_chunk_requisition(hunk_chunk, expected_hunk_requisition))
-
     @authors("akozhikhov")
     def test_remove_cell_with_attached_hunk_storage(self):
         cell_id = sync_create_cells(1)[0]
@@ -2277,6 +1859,562 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
 
         sync_unmount_table("//tmp/h")
         wait(lambda: not exists("#{}".format(cell_id)))
+
+    @authors("akozhikhov")
+    def test_altering_queue_to_static_is_forbidden(self):
+        sync_create_cells(1)
+        self._create_table()
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+
+        sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/h")
+
+        remove("//tmp/t/@hunk_storage_id")
+
+        with raises_yt_error("table schema contains hunk columns"):
+            alter_table("//tmp/t", dynamic=False)
+
+
+################################################################################
+
+
+class TestDynamicTablesHunkMedia(YTEnvSetup):
+    ENABLE_MULTIDAEMON = False  # There are component restarts.
+    NUM_NODES = 10
+    STORE_LOCATION_COUNT = 3
+    DELTA_DYNAMIC_NODE_CONFIG = {
+        "tablet_node": {
+            "hunk_lock_manager": {
+                "hunk_store_extra_lifetime": 100,
+                "unlock_check_period": 100
+            }
+        }
+    }
+
+    NON_DEFAULT_MEDIUM_1 = "hdd1"
+    NON_DEFAULT_MEDIUM_2 = "hdd2"
+
+    SORTED_SCHEMA = [
+        {"name": "key", "type": "int64", "sort_order": "ascending"},
+        {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+    ]
+
+    ORDERED_SCHEMA = [
+        {"name": "key", "type": "int64"},
+        {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+    ]
+
+    @classmethod
+    def on_masters_started(cls):
+        super(TestDynamicTablesHunkMedia, cls).on_masters_started()
+        create_domestic_medium(cls.NON_DEFAULT_MEDIUM_1)
+        create_domestic_medium(cls.NON_DEFAULT_MEDIUM_2)
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        assert len(config["data_node"]["store_locations"]) == 3
+
+        config["data_node"]["store_locations"][0]["medium_name"] = "default"
+        config["data_node"]["store_locations"][1]["medium_name"] = cls.NON_DEFAULT_MEDIUM_1
+        config["data_node"]["store_locations"][2]["medium_name"] = cls.NON_DEFAULT_MEDIUM_2
+
+    @classmethod
+    def setup_class(cls):
+        super(TestDynamicTablesHunkMedia, cls).setup_class()
+        disk_space_limit = get_account_disk_space_limit("tmp", "default")
+        set_account_disk_space_limit("tmp", disk_space_limit, cls.NON_DEFAULT_MEDIUM_1)
+        set_account_disk_space_limit("tmp", disk_space_limit, cls.NON_DEFAULT_MEDIUM_2)
+
+        set("//sys/accounts/tmp/@resource_limits/tablet_count", 1000)
+
+    def setup_method(self, method):
+        super(TestDynamicTablesHunkMedia, self).setup_method(method)
+
+        sync_create_cells(1)
+
+    def _create_sorted_dynamic_table(self, path, **attributes):
+        return create_dynamic_table(
+            path,
+            schema=self.SORTED_SCHEMA,
+            enable_dynamic_store_read=False,
+            hunk_chunk_reader={
+                "max_hunk_count_per_read": 2,
+                "max_total_hunk_length_per_read": 60,
+                "fragment_read_hedging_delay": 1,
+                "max_inflight_fragment_length": 60,
+                "max_inflight_fragment_count": 2,
+            },
+            hunk_chunk_writer={
+                "desired_block_size": 50,
+            },
+            max_hunk_compaction_garbage_ratio=0.5,
+            enable_lsm_verbose_logging=True,
+            chunk_format="table_versioned_simple",
+            hunk_erasure_codec="none",
+            **attributes
+        )
+
+    def _create_ordered_dynamic_table(self, path, **attributes):
+        return create_dynamic_table(
+            path,
+            schema=self.ORDERED_SCHEMA,
+            enable_dynamic_store_read=False,
+            hunk_chunk_reader={
+                "max_hunk_count_per_read": 2,
+                "max_total_hunk_length_per_read": 60,
+                "fragment_read_hedging_delay": 1
+            },
+            hunk_chunk_writer={
+                "desired_block_size": 50,
+            },
+            max_hunk_compaction_garbage_ratio=0.5,
+            enable_lsm_verbose_logging=True,
+            optimize_for="lookup",
+            hunk_erasure_codec="none",
+            **attributes)
+
+    def _init_sorted_dynamic_table(self, path, **attributes):
+        self._create_sorted_dynamic_table(path, **attributes)
+        sync_mount_table(path)
+
+    def _init_ordered_dynamic_table(self, table_path, **attributes):
+        hunk_storage_path = f"{table_path}_hunk_storage"
+        self._create_ordered_dynamic_table(table_path, **attributes)
+        hunk_storage_id = create(
+            "hunk_storage",
+            hunk_storage_path,
+            attributes={
+                "store_rotation_period": 120000,
+                "store_removal_grace_period": 120000,
+            })
+        set(f"{table_path}/@hunk_storage_id", hunk_storage_id)
+        sync_mount_table(hunk_storage_path)
+        sync_mount_table(table_path)
+
+    def _speed_up_hunk_storage_store_rotation(self, table_path):
+        hunk_storage_path = f"{table_path}_hunk_storage"
+        set(f"{hunk_storage_path}/@store_rotation_period", 300)
+        set(f"{hunk_storage_path}/@store_removal_grace_period", 300)
+
+    def _get_main_chunk_id(self, table_path):
+        for chunk_id in get(f"{table_path}/@chunk_ids"):
+            if get(f"#{chunk_id}/@chunk_type") == "table":
+                return chunk_id
+        return None
+
+    def _get_hunk_chunk_id(self, table_path):
+        table_schema = get(f"{table_path}/@schema")
+        if table_schema[0].get("sort_order") == "ascending":
+            for chunk_id in get(f"{table_path}/@chunk_ids"):
+                if get(f"#{chunk_id}/@chunk_type") == "hunk":
+                    return chunk_id
+            return None
+        else:
+            hunk_storage_path = f"{table_path}_hunk_storage"
+            assert exists(hunk_storage_path)
+            tablet_ids = get(f"{hunk_storage_path}/@tablets")
+            tablet_id = tablet_ids[0]["tablet_id"]
+            tablet_orchid_store_id_path = f"//sys/tablets/{tablet_id}/orchid/active_store_id"
+            wait(lambda: exists(tablet_orchid_store_id_path))
+            return get(tablet_orchid_store_id_path)
+
+    def _chunk_has_requisition(self, chunk_id, expected_requisition):
+        requisition = get(f"#{chunk_id}/@requisition")
+        key = itemgetter("account", "medium", "committed")
+        return sorted(requisition, key=key) == sorted(expected_requisition, key=key)
+
+    @authors("shakurov")
+    @pytest.mark.parametrize("init_node", ["_init_sorted_dynamic_table", "_init_ordered_dynamic_table"])
+    def test_hunk_media_attributes_at_creation(self, init_node):
+        init_node = getattr(self, init_node)
+
+        init_node("//tmp/t1", hunk_primary_medium=self.NON_DEFAULT_MEDIUM_1)
+        assert get("//tmp/t1/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_1
+
+        with raises_yt_error("Cannot modify hunk_media since hunk_primary_medium is not set, consider setting it first"):
+            init_node("//tmp/t2", hunk_media={"default": {"replication_factor": 5, "data_parts_only": False}})
+
+        with raises_yt_error("Cannot remove primary medium"):
+            init_node(
+                "//tmp/t2",
+                hunk_primary_medium=self.NON_DEFAULT_MEDIUM_1,
+                hunk_media={"default": {"replication_factor": 5, "data_parts_only": True}})
+
+        init_node(
+            "//tmp/t2",
+            hunk_primary_medium=self.NON_DEFAULT_MEDIUM_1,
+            hunk_media={
+                self.NON_DEFAULT_MEDIUM_1: {"replication_factor": 3, "data_parts_only": False},
+                "default": {"replication_factor": 5, "data_parts_only": True}})
+        assert get("//tmp/t2/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_1
+        assert get("//tmp/t2/@hunk_media") == {
+            self.NON_DEFAULT_MEDIUM_1: {"replication_factor": 3, "data_parts_only": False},
+            "default": {"replication_factor": 5, "data_parts_only": True}}
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("init_table", ["_init_sorted_dynamic_table", "_init_ordered_dynamic_table"])
+    def test_hunk_media_attributes_inherited(self, init_table):
+        init_table = getattr(self, init_table)
+
+        set("//tmp/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1)
+
+        init_table("//tmp/a")
+        assert get("//tmp/a/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_1
+
+        hunk_media = {
+            self.NON_DEFAULT_MEDIUM_1: {"replication_factor": 7, "data_parts_only": False},
+            "default": {"replication_factor": 4, "data_parts_only": True}
+        }
+        set("//tmp/@hunk_media", hunk_media)
+
+        init_table("//tmp/b")
+        assert get("//tmp/b/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_1
+        assert get("//tmp/b/@hunk_media") == hunk_media
+
+    @authors("aleksandra-zh")
+    @pytest.mark.parametrize("init_table", ["_init_sorted_dynamic_table", "_init_ordered_dynamic_table"])
+    def test_hunk_media_attributes_survive_restart(self, init_table):
+        init_table = getattr(self, init_table)
+
+        init_table("//tmp/t")
+        assert not exists("//tmp/t/@hunk_media")
+
+        sync_unmount_table("//tmp/t")
+
+        hunk_media = {
+            self.NON_DEFAULT_MEDIUM_1: {"replication_factor": 5, "data_parts_only": False}
+        }
+        set("//tmp/t/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1)
+        set("//tmp/t/@hunk_media", hunk_media)
+        sync_mount_table("//tmp/t")
+
+        build_master_snapshots()
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        assert get("//tmp/t/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_1
+        assert get("//tmp/t/@hunk_media") == hunk_media
+
+    @authors("shakurov")
+    @pytest.mark.parametrize("init_table", ["_init_sorted_dynamic_table", "_init_ordered_dynamic_table"])
+    def test_hunk_primary_medium_attribute(self, init_table):
+        init_table = getattr(self, init_table)
+
+        create_user("u")
+
+        init_table("//tmp/q")
+
+        assert not exists("//tmp/q/@hunk_primary_medium")
+        assert not exists("//tmp/q/@hunk_media")
+
+        # 1. Set.
+
+        with raises_yt_error("Cannot change storage parameters since not all tablets are unmounted"):
+            set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1)
+
+        sync_unmount_table("//tmp/q")
+
+        with raises_yt_error("No such medium"):
+            set("//tmp/q/@hunk_primary_medium", "nonexistent")
+
+        with raises_yt_error("Operation cannot be performed in transaction"):
+            tx = start_transaction()
+            set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1, tx=tx)
+
+        with raises_yt_error("Access denied for user \"u\""):
+            set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1, authenticated_user="u")
+
+        set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1)
+        media = {
+            self.NON_DEFAULT_MEDIUM_1: {"replication_factor": 5, "data_parts_only": False},
+            "default": {"replication_factor": 3, "data_parts_only": True},
+        }
+        set("//tmp/q/@hunk_media", media)
+
+        sync_mount_table("//tmp/q")
+
+        assert get("//tmp/q/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_1
+
+        # 2. Modify.
+
+        with raises_yt_error("Cannot change storage parameters since not all tablets are unmounted"):
+            set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_2)
+
+        sync_unmount_table("//tmp/q")
+
+        with raises_yt_error("No such medium"):
+            set("//tmp/q/@hunk_primary_medium", "nonexistent")
+
+        with raises_yt_error("Operation cannot be performed in transaction"):
+            tx = start_transaction()
+            set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_2, tx=tx)
+
+        with raises_yt_error("Access denied for user \"u\""):
+            set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_2, authenticated_user="u")
+
+        with raises_yt_error("Medium \"default\" stores no parity parts and cannot be made primary"):
+            set("//tmp/q/@hunk_primary_medium", "default")
+
+        set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_2)
+
+        sync_mount_table("//tmp/q")
+
+        assert get("//tmp/q/@hunk_primary_medium") == self.NON_DEFAULT_MEDIUM_2
+        media = get("//tmp/q/@hunk_media")
+        # NB: setting @hunk_primary_medium is enough to move from one medium to another.
+        assert media[self.NON_DEFAULT_MEDIUM_2]["replication_factor"] == 5
+        assert not media[self.NON_DEFAULT_MEDIUM_2]["data_parts_only"]
+        assert media["default"]["replication_factor"] == 3
+        assert media["default"]["data_parts_only"]
+        assert self.NON_DEFAULT_MEDIUM_1 not in media
+
+        # 3. Remove.
+
+        with raises_yt_error("Cannot change storage parameters since not all tablets are unmounted"):
+            remove("//tmp/q/@hunk_primary_medium")
+
+        sync_unmount_table("//tmp/q")
+
+        with raises_yt_error("Operation cannot be performed in transaction"):
+            tx = start_transaction()
+            remove("//tmp/q/@hunk_primary_medium", tx=tx)
+
+        remove("//tmp/q/@hunk_primary_medium", authenticated_user="u")
+
+        sync_mount_table("//tmp/q")
+
+        assert not exists("//tmp/q/@hunk_primary_medium")
+        assert not exists("//tmp/q/@hunk_media")
+
+    @authors("shakurov")
+    @pytest.mark.parametrize("init_table", ["_init_sorted_dynamic_table", "_init_ordered_dynamic_table"])
+    def test_hunk_media_attribute(self, init_table):
+        init_table = getattr(self, init_table)
+
+        create_user("u")
+
+        init_table("//tmp/q")
+
+        assert not exists("//tmp/q/@hunk_media")
+
+        # 1. Set.
+
+        media = {
+            self.NON_DEFAULT_MEDIUM_1: {"replication_factor": 5, "data_parts_only": False},
+            "default": {"replication_factor": 3, "data_parts_only": True},
+        }
+        invalid_media = media.copy()
+        invalid_media["nonexistent"] = {"replication_factor": 5, "data_parts_only": False}
+        invalid_media2 = media.copy()
+        invalid_media2[self.NON_DEFAULT_MEDIUM_1] = {"replication_factor": 5, "data_parts_only": True}
+
+        with raises_yt_error("Cannot change storage parameters since not all tablets are unmounted"):
+            set("//tmp/q/@hunk_media", media)
+
+        sync_unmount_table("//tmp/q")
+
+        with raises_yt_error("Cannot modify hunk_media since hunk_primary_medium is not set, consider setting it first"):
+            set("//tmp/q/@hunk_media", media)
+
+        set("//tmp/q/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1)
+
+        with raises_yt_error("No such medium"):
+            set("//tmp/q/@hunk_media", invalid_media)
+
+        with raises_yt_error("At least one medium should store replicas (including parity parts)"):
+            set("//tmp/q/@hunk_media", invalid_media2)
+
+        with raises_yt_error("Operation cannot be performed in transaction"):
+            tx = start_transaction()
+            set("//tmp/q/@hunk_media", media, tx=tx)
+
+        with raises_yt_error("Access denied for user \"u\""):
+            set("//tmp/q/@hunk_media", media, authenticated_user="u")
+
+        set("//tmp/q/@hunk_media", media)
+        sync_mount_table("//tmp/q")
+
+        assert get("//tmp/q/@hunk_media") == media
+
+        # 2. Modify.
+
+        media[self.NON_DEFAULT_MEDIUM_2] = media[self.NON_DEFAULT_MEDIUM_1]
+        invalid_media = media.copy()
+        invalid_media["nonexistent"] = {"replication_factor": 5, "data_parts_only": False}
+        invalid_media2 = media.copy()
+        invalid_media2[self.NON_DEFAULT_MEDIUM_1] = {"replication_factor": 5, "data_parts_only": True}
+        invalid_media2[self.NON_DEFAULT_MEDIUM_2] = {"replication_factor": 5, "data_parts_only": True}
+        del media[self.NON_DEFAULT_MEDIUM_1]
+
+        with raises_yt_error("Cannot change storage parameters since not all tablets are unmounted"):
+            set("//tmp/q/@hunk_media", media)
+
+        sync_unmount_table("//tmp/q")
+
+        with raises_yt_error("No such medium"):
+            set("//tmp/q/@hunk_media", invalid_media)
+
+        with raises_yt_error("At least one medium should store replicas (including parity parts)"):
+            set("//tmp/q/@hunk_media", invalid_media2)
+
+        with raises_yt_error("Operation cannot be performed in transaction"):
+            tx = start_transaction()
+            set("//tmp/q/@hunk_media", media, tx=tx)
+
+        with raises_yt_error("Access denied for user \"u\""):
+            set("//tmp/q/@hunk_media", media, authenticated_user="u")
+
+        with raises_yt_error("Cannot remove primary medium"):
+            set("//tmp/q/@hunk_media", media)
+
+        with raises_yt_error("Attribute \"hunk_media\" cannot be removed"):
+            remove("//tmp/q/@hunk_media")
+
+        media[self.NON_DEFAULT_MEDIUM_1] = media[self.NON_DEFAULT_MEDIUM_2]
+        set("//tmp/q/@hunk_media", media)
+
+        sync_mount_table("//tmp/q")
+
+        assert get("//tmp/q/@hunk_media") == media
+
+    @authors("shakurov")
+    @pytest.mark.parametrize("init_table", ["_init_sorted_dynamic_table", "_init_ordered_dynamic_table"])
+    def test_hunk_media_requisitions(self, init_table):
+        is_sorted_table = init_table == "_init_sorted_dynamic_table"
+        init_table = getattr(self, init_table)
+
+        init_table("//tmp/s")
+
+        sync_unmount_table("//tmp/s")
+        set("//tmp/s/@primary_medium", self.NON_DEFAULT_MEDIUM_1)
+        set("//tmp/s/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_2)
+        sync_mount_table("//tmp/s")
+
+        rows = [{"key": 0, "value": "a"*100} for i in range(10)]
+        insert_rows("//tmp/s", rows)
+
+        sync_unmount_table("//tmp/s")
+        sync_mount_table("//tmp/s")
+
+        hunk_chunk = self._get_hunk_chunk_id("//tmp/s")
+        assert hunk_chunk is not None
+
+        main_chunk = self._get_main_chunk_id("//tmp/s")
+        assert main_chunk is not None
+
+        requisition_default = [
+            {
+                "account": "tmp",
+                "medium": "default",
+                "replication_policy": {
+                    "replication_factor": 3,
+                    "data_parts_only": False,
+                },
+                "committed": True,
+            }
+        ]
+        requisition_1 = [
+            {
+                "account": "tmp",
+                "medium": self.NON_DEFAULT_MEDIUM_1,
+                "replication_policy": {
+                    "replication_factor": 3,
+                    "data_parts_only": False,
+                },
+                "committed": True,
+            }
+        ]
+        requisition_2 = [
+            {
+                "account": "tmp",
+                "medium": self.NON_DEFAULT_MEDIUM_2,
+                "replication_policy": {
+                    "replication_factor": 3,
+                    "data_parts_only": False,
+                },
+                "committed": False,
+            }
+        ]
+
+        get("//sys/cluster_nodes/@config")
+
+        assert self._chunk_has_requisition(main_chunk, requisition_1)
+        if is_sorted_table:
+            assert self._chunk_has_requisition(hunk_chunk, requisition_2)
+        else:
+            assert self._chunk_has_requisition(hunk_chunk, requisition_default)
+            self._speed_up_hunk_storage_store_rotation("//tmp/s")
+            # Unmounting shouldn't really be necessary here, get rid of it.
+            sync_unmount_table("//tmp/s")
+            sync_unmount_table("//tmp/s_hunk_storage")
+            wait(lambda: get("#{}/@owning_nodes".format(hunk_chunk)) == ["//tmp/s"])
+
+            requisition_2[0]["committed"] = True
+            wait(lambda: self._chunk_has_requisition(hunk_chunk, requisition_2))
+
+    @authors("shakurov")
+    def test_hunk_media_requisitions_multiple_tables(self):
+        self._init_sorted_dynamic_table("//tmp/t")
+
+        for i in range(5):
+            rows = [{"key": 2 * i, "value": "a"}, {"key": 1 + 2 * i, "value": "b"*100}]
+            insert_rows("<append=%true>//tmp/t", rows[:1])
+            sync_flush_table("//tmp/t")
+            insert_rows("<append=%true>//tmp/t", rows[1:])
+            sync_flush_table("//tmp/t")
+
+        sync_unmount_table("//tmp/t")
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+
+        hunk_chunks = []
+        for chunk_id in chunk_ids:
+            if get("#{}/@chunk_type".format(chunk_id)) == "hunk":
+                hunk_chunks.append(chunk_id)
+
+        assert len(hunk_chunks) > 1
+
+        copy("//tmp/t", "//tmp/t2")
+
+        set("//tmp/t/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_1)
+
+        expected_hunk_requisition = [
+            {
+                "account": "tmp",
+                "medium": "default",
+                "replication_policy": {
+                    "replication_factor": 3,
+                    "data_parts_only": False,
+                },
+                "committed": True,
+            },
+            {
+                "account": "tmp",
+                "medium": self.NON_DEFAULT_MEDIUM_1,
+                "replication_policy": {
+                    "replication_factor": 3,
+                    "data_parts_only": False,
+                },
+                "committed": True,
+            }
+        ]
+
+        for hunk_chunk in hunk_chunks:
+            wait(lambda: self._chunk_has_requisition(hunk_chunk, expected_hunk_requisition))
+
+        set("//tmp/t2/@hunk_primary_medium", self.NON_DEFAULT_MEDIUM_2)
+        expected_hunk_requisition[0]["medium"] = self.NON_DEFAULT_MEDIUM_2
+
+        for hunk_chunk in hunk_chunks:
+            wait(lambda: self._chunk_has_requisition(hunk_chunk, expected_hunk_requisition))
 
 
 ################################################################################
@@ -2309,10 +2447,35 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
                     data_hunk_chunk_ids.add(ref["chunk_id"])
         return list(data_hunk_chunk_ids)
 
-    def _find_dictionary_hunk_chunks(self, path):
+    def _do_find_referenced_dictionary_hunk_chunks(self, path):
         data_hunk_chunk_ids = self._find_data_hunk_chunks(path)
         hunk_chunk_ids = self._get_hunk_chunk_ids(path)
-        return [chunk_id for chunk_id in hunk_chunk_ids if chunk_id not in data_hunk_chunk_ids]
+        dictionary_hunk_chunk_ids = [chunk_id for chunk_id in hunk_chunk_ids if chunk_id not in data_hunk_chunk_ids]
+
+        tablet_info = get(f"{path}/@tablets/0")
+
+        def is_referenced_dictionary(chunk_id):
+            try:
+                hunk_chunk_info = get("//sys/cluster_nodes/{}/orchid/tablet_cells/{}/tablets/{}/hunk_chunks/{}".format(
+                    tablet_info["cell_leader_address"],
+                    tablet_info["cell_id"],
+                    tablet_info["tablet_id"],
+                    chunk_id,
+                ))
+                return "dictionary_compression_policy" in hunk_chunk_info and not hunk_chunk_info["dangling"]
+            except YtError as err:
+                if err.contains_code(yt_error_codes.ResolveErrorCode):
+                    return False
+                raise
+
+        return [chunk_id for chunk_id in dictionary_hunk_chunk_ids if is_referenced_dictionary(chunk_id)]
+
+    def _find_referenced_dictionary_hunk_chunks(self, path, expected_count):
+        if expected_count is None:
+            return self._do_find_referenced_dictionary_hunk_chunks(path)
+
+        wait(lambda: len(self._do_find_referenced_dictionary_hunk_chunks(path)) == expected_count)
+        return self._do_find_referenced_dictionary_hunk_chunks(path)
 
     def _perform_forced_compaction(self, path, compaction_type):
         chunk_ids_before_compaction = builtins.set(self._get_store_chunk_ids(path))
@@ -2364,14 +2527,14 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         sync_flush_table("//tmp/t")
 
         hunk_chunk_ids = self._find_data_hunk_chunks("//tmp/t")
-        dictionary_ids = self._find_dictionary_hunk_chunks("//tmp/t")
+        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 2)
         assert len(hunk_chunk_ids) == 2
         assert len(dictionary_ids) == 2
 
         self._perform_forced_compaction("//tmp/t", "compaction")
 
         new_hunk_chunk_ids = self._find_data_hunk_chunks("//tmp/t")
-        new_dictionary_ids = self._find_dictionary_hunk_chunks("//tmp/t")
+        new_dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 2)
         assert len(new_hunk_chunk_ids) == 1
         assert len(new_dictionary_ids) == 2
         assert builtins.set(dictionary_ids) == builtins.set(new_dictionary_ids)
@@ -2415,7 +2578,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
 
         self._wait_dictionaries_built("//tmp/t", 1)
 
-        dictionary_ids = self._find_dictionary_hunk_chunks("//tmp/t")
+        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 2)
         assert len(dictionary_ids) == 2
 
         def _has_dictionary_ref(chunk_id, expected_ref_count):
@@ -2465,7 +2628,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         new_store_chunk_ids_4 = self._get_store_chunk_ids("//tmp/t")
         assert len(new_store_chunk_ids_4) == 1
         assert new_store_chunk_ids_3 != new_store_chunk_ids_4
-        dictionary_ids = self._find_dictionary_hunk_chunks("//tmp/t")
+        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", None)
         assert _has_dictionary_ref(new_store_chunk_ids_4[0], 1)
 
         set("//tmp/t/@mount_config/value_dictionary_compression/enable", False)
@@ -2574,7 +2737,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         self._wait_dictionaries_built("//tmp/t", 1)
         self._perform_forced_compaction("//tmp/t", "compaction")
 
-        dictionary_ids = self._find_dictionary_hunk_chunks("//tmp/t")
+        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 2)
         assert len(dictionary_ids) == 2
 
         assert get("#{}/@compression_dictionary_id".format(self._get_store_chunk_ids("//tmp/t")[0])) in dictionary_ids
@@ -2594,7 +2757,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         self._wait_dictionaries_built("//tmp/t", 1)
 
         self._perform_forced_compaction("//tmp/t", "store_compaction")
-        new_dictionary_ids = self._find_dictionary_hunk_chunks("//tmp/t")
+        new_dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 2)
         assert len(new_dictionary_ids) == 2
         old_dictionary_id = dictionary_ids[0] if dictionary_ids[0] in new_dictionary_ids else dictionary_ids[1]
         assert old_dictionary_id in new_dictionary_ids
@@ -2606,8 +2769,8 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         assert not exists("#{}/@compression_dictionary_id".format(dictionary_ids[1]))
 
         self._perform_forced_compaction("//tmp/t", "compaction")
-        dictionary_ids = self._find_dictionary_hunk_chunks("//tmp/t")
-        assert len(dictionary_ids) == 1
+        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 1)
+        wait(lambda: len(dictionary_ids) == 1)
         assert dictionary_ids[0] in new_dictionary_ids and dictionary_ids[0] != old_dictionary_id
 
         assert get("#{}/@compression_dictionary_id".format(self._get_store_chunk_ids("//tmp/t")[0])) == dictionary_ids[0]
@@ -2733,7 +2896,8 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
 
         self._wait_dictionaries_built("//tmp/t", 1)
         self._perform_forced_compaction("//tmp/t", "compaction")
-        dictionary_ids = self._find_dictionary_hunk_chunks("//tmp/t")
+        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 2)
+        assert len(dictionary_ids) == 2
 
         set("//tmp/t/@mount_config/value_dictionary_compression/applied_policies", [])
         remount_table("//tmp/t")
@@ -2803,7 +2967,7 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
         self._wait_dictionaries_built("//tmp/t", 1)
         self._perform_forced_compaction("//tmp/t", "compaction")
 
-        dictionary_ids = self._find_dictionary_hunk_chunks("//tmp/t")
+        dictionary_ids = self._find_referenced_dictionary_hunk_chunks("//tmp/t", 2)
         assert len(dictionary_ids) == 2
 
         assert exists("#{}".format(dictionary_ids[0]))
@@ -3127,34 +3291,6 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
 class TestOrderedMulticellHunks(TestSortedDynamicTablesBase):
     ENABLE_MULTIDAEMON = True
     NUM_SECONDARY_MASTER_CELLS = 2
-
-    @authors("akozhikhov")
-    def test_forbid_export_chunk_with_hunk_links(self):
-        schema = [
-            {"name": "key", "type": "int64"},
-            {"name": "value", "type": "string", "max_inline_hunk_size": 10},
-        ]
-        sync_create_cells(1)
-        self._create_simple_table("//tmp/t",
-                                  schema=schema,
-                                  external_cell_tag=11)
-        hunk_storage_id = create("hunk_storage", "//tmp/h", attributes={"external_cell_tag": 11})
-        sync_mount_table("//tmp/h")
-        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
-        sync_mount_table("//tmp/t")
-
-        rows = [{"key": i, "value": "value" + str(i) + "x" * 20} for i in range(10)]
-        insert_rows("//tmp/t", rows)
-        sync_unmount_table("//tmp/t")
-
-        remove("//tmp/t/@hunk_storage_id")
-
-        alter_table("//tmp/t", dynamic=False)
-
-        self._create_simple_static_table("//tmp/t2", external_cell_tag=12, schema=schema)
-
-        with raises_yt_error("can not be exported because it has hunk links"):
-            concatenate(["//tmp/t"], "//tmp/t2")
 
     @authors("akozhikhov")
     def test_remove_cell_with_attached_hunk_storage(self):

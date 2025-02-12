@@ -205,8 +205,8 @@ public:
         const auto& transactionManager = Slot_->GetTransactionManager();
         transactionManager->SubscribeTransactionBarrierHandled(
             BIND_NO_PROPAGATE(&TBackupManager::OnTransactionBarrierHandled, MakeStrong(this)));
-        transactionManager->SubscribeBeforeTransactionSerialized(
-            BIND_NO_PROPAGATE(&TBackupManager::OnBeforeTransactionSerialized, MakeStrong(this)));
+        transactionManager->SubscribeBeforeTransactionCoarselySerialized(
+            BIND_NO_PROPAGATE(&TBackupManager::OnBeforeTransactionCoarselySerialized, MakeStrong(this)));
 
         const auto& tabletManager = Slot_->GetTabletManager();
         tabletManager->SubscribeReplicationTransactionFinished(
@@ -1001,7 +1001,7 @@ private:
         }
     }
 
-    void OnBeforeTransactionSerialized(TTransaction* transaction)
+    void OnBeforeTransactionCoarselySerialized(TTransaction* transaction)
     {
         YT_VERIFY(HasMutationContext());
 

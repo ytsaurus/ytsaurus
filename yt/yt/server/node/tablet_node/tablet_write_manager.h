@@ -3,11 +3,88 @@
 #include "public.h"
 
 #include "dynamic_store_bits.h"
+#include "serialize.h"
 #include "transaction.h"
 
+#include <yt/yt/core/concurrency/async_barrier.h>
 #include <yt/yt/core/misc/persistent_queue.h>
 
+#include <library/cpp/containers/bitset/bitset.h>
+
 namespace NYT::NTabletNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+TWireWriteCommands ParseWriteCommands(
+    const NTableClient::TSchemaData& schemaData,
+    NTableClient::IWireProtocolReader* reader);
+
+class TWireWriteCommandsBatch
+{
+public:
+    TWireWriteCommandsBatch() = default;
+    TWireWriteCommandsBatch(
+        TWireWriteCommands commands,
+        NTableClient::TRowBufferPtr rowBuffer,
+        TSharedRef data);
+
+    DEFINE_BYREF_RO_PROPERTY(TWireWriteCommands, Commands);
+    DEFINE_BYREF_RO_PROPERTY(TSharedRef, Data);
+
+    friend struct TTransactionWriteRecord;
+
+private:
+    NTableClient::TRowBufferPtr RowBuffer_;
+};
+
+struct IWireWriteCommandReader
+{
+    virtual const TWireWriteCommand& NextCommand(bool IsVersionedWriteUnversioned = false) = 0;
+    virtual bool IsFinished() const = 0;
+    virtual void RollbackLastCommand() = 0;
+};
+
+class TWireWriteCommandBatchReader
+    : public IWireWriteCommandReader
+{
+public:
+    TWireWriteCommandBatchReader(
+        TSharedRef data,
+        std::unique_ptr<NTableClient::IWireProtocolReader> reader,
+        NTableClient::TSchemaData schemaData);
+
+    const TWireWriteCommand& NextCommand(bool IsVersionedWriteUnversioned = false) final;
+    bool IsFinished() const final;
+    void RollbackLastCommand() final;
+
+    TWireWriteCommandsBatch FinishBatch();
+    bool IsBatchEmpty() const;
+
+private:
+    const TSharedRef Data_;
+    const NTableClient::TSchemaData SchemaData_;
+    const std::unique_ptr<NTableClient::IWireProtocolReader> Reader_;
+
+    NTableClient::IWireProtocolReader::TIterator CurrentBatchStartingPosition_;
+    TWireWriteCommands CurrentBatch_;
+    std::optional<NTableClient::IWireProtocolReader::TIterator> LastCommandPosition_;
+};
+
+class TWireWriteCommandsAsReader
+    : public IWireWriteCommandReader
+{
+public:
+    TWireWriteCommandsAsReader(const TWireWriteCommands& commands);
+
+    const TWireWriteCommand& NextCommand(bool IsVersionedWriteUnversioned = false) final;
+    bool IsFinished() const final;
+    void RollbackLastCommand() final;
+
+private:
+    const TWireWriteCommands& Commands_;
+
+    size_t CurrentIndex_ = 0;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,14 +93,14 @@ struct TTransactionWriteRecord
     TTransactionWriteRecord() = default;
     TTransactionWriteRecord(
         TTabletId tabletId,
-        TSharedRef data,
+        TWireWriteCommandsBatch writeCommands,
         int rowCount,
         i64 byteSize,
         const TSyncReplicaIdList& syncReplicaIds,
         const std::optional<NTableClient::THunkChunksInfo>& hunkChunksInfo);
 
     TTabletId TabletId;
-    TSharedRef Data;
+    TWireWriteCommandsBatch WriteCommands;
     int RowCount = 0;
     i64 DataWeight = 0;
     TSyncReplicaIdList SyncReplicaIds;
@@ -38,6 +115,7 @@ struct TTransactionWriteRecord
 
 constexpr size_t TransactionWriteLogChunkSize = 256;
 using TTransactionWriteLog = TPersistentQueue<TTransactionWriteRecord, TransactionWriteLogChunkSize>;
+using TTransactionIndexedWriteLog = TIndexedPersistentQueue<TTransactionWriteRecord, TransactionWriteLogChunkSize>;
 using TTransactionWriteLogSnapshot = TPersistentQueueSnapshot<TTransactionWriteRecord, TransactionWriteLogChunkSize>;
 
 i64 GetWriteLogRowCount(const TTransactionWriteLog& writeLog);
@@ -72,7 +150,7 @@ struct ITabletWriteManager
 {
     virtual TWriteContext TransientWriteRows(
         TTransaction* transaction,
-        NTableClient::IWireProtocolReader* reader,
+        IWireWriteCommandReader* reader,
         NTransactionClient::EAtomicity atomicity,
         bool versioned,
         int rowCount,
@@ -102,7 +180,16 @@ struct ITabletWriteManager
     virtual void OnTransactionPrepared(TTransaction* transaction, bool persistent) = 0;
     virtual void OnTransactionCommitted(TTransaction* transaction) = 0;
     virtual void OnTransactionAborted(TTransaction* transaction) = 0;
-    virtual void OnTransactionSerialized(TTransaction* transaction) = 0;
+    virtual void OnTransactionCoarselySerialized(TTransaction* transaction) = 0;
+    virtual void OnTransactionPerRowSerialized(TTransaction* transaction) = 0;
+
+    // Interface for the store manager to process part.
+    virtual void OnTransactionPartCommitted(
+        TTransaction* transaction,
+        const TSortedDynamicRowRef& rowRef,
+        int lockIndex,
+        TOpaqueWriteLogIndex writeLogIndex,
+        bool onAfterSnapshotLoaded) = 0;
 
     virtual void OnTransactionTransientReset(TTransaction* transaction) = 0;
 

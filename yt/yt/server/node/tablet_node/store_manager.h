@@ -1,9 +1,11 @@
 #pragma once
 
 #include "dynamic_store_bits.h"
+#include "private.h"
 #include "tablet_profiling.h"
 
 #include <yt/yt/server/node/cluster_node/public.h>
+#include <yt/yt/server/node/tablet_node/transaction.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
 
@@ -52,8 +54,12 @@ struct IStoreManager
     virtual void StartEpoch(ITabletSlotPtr slot) = 0;
     virtual void StopEpoch() = 0;
 
-    virtual bool ExecuteWrites(
-        NTableClient::IWireProtocolReader* reader,
+    [[nodiscard]] virtual bool IsVersionedWriteUnversioned() const {
+        return false;
+    }
+
+    [[nodiscard]] virtual bool ExecuteWrites(
+        IWireWriteCommandReader* reader,
         TWriteContext* context) = 0;
 
     virtual void UpdateCommittedStoreRowCount() = 0;

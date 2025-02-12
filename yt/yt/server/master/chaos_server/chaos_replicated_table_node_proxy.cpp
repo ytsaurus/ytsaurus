@@ -3,6 +3,7 @@
 #include "chaos_cell_bundle.h"
 #include "chaos_manager.h"
 #include "chaos_replicated_table_node.h"
+#include "helpers.h"
 
 #include <yt/yt/server/master/cell_master/config_manager.h>
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
@@ -115,30 +116,12 @@ public:
 
         return replicaTabletCountRequestsFuture
             .ApplyUnique(BIND([] (std::vector<TErrorOr<int>>&& tabletCounts) {
-                std::remove_if(
-                    tabletCounts.begin(),
-                    tabletCounts.end(),
-                    [] (const auto& tabletCount) {
-                        return !tabletCount.IsOK();
-                    });
-
-                auto minElementIt = std::min_element(
-                    tabletCounts.begin(),
-                    tabletCounts.end(),
-                    [] (const auto& a, const auto& b) {
-                        return a.Value() < b.Value();
-                    });
-
-                if (minElementIt == tabletCounts.end()) {
-                    return MakeFuture<int>(TError("Failed to get tablet count from any replica"));
-                }
-
-                return MakeFuture(minElementIt->Value());
+                return MakeFuture(GetMinimalTabletCount(std::move(tabletCounts)));
             }));
     }
 
 private:
-    static TFuture<std::vector<std::pair<TYPath, NNative::IConnectionPtr>>> GetActiveQueueReplicaConnections(
+    static std::vector<std::pair<TYPath, NNative::IConnectionPtr>> GetActiveQueueReplicaConnections(
         const THashMap<TReplicaId, TReplicaInfo>& replicas,
         NNative::IConnectionPtr nativeConnection)
     {
@@ -159,7 +142,7 @@ private:
             connections.emplace_back(replica.ReplicaPath, std::move(replicaClusterConnection));
         }
 
-        return MakeFuture(connections);
+        return connections;
     }
 
     static TFuture<int> GetRemoteTabletCount(const TYPath& path, const NNative::IConnectionPtr& connection)
@@ -619,7 +602,7 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
 
     const auto* trunkTable = GetThisImpl();
 
-    auto* schema = trunkTable->GetSchema();
+    auto schema = trunkTable->GetSchema();
     if (!schema || schema->AsTableSchema()->Columns().empty()) {
         THROW_ERROR_EXCEPTION("Table schema is not specified");
     }

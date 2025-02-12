@@ -38,7 +38,7 @@ void TTabletAction::SaveTabletIds()
 
     std::vector<TTabletId> tabletIds;
     tabletIds.reserve(Tablets_.size());
-    for (const auto* tablet : Tablets_) {
+    for (auto tablet : Tablets_) {
         tabletIds.push_back(tablet->GetId());
     }
 
@@ -53,7 +53,7 @@ std::vector<TTabletId> TTabletAction::GetTabletIds() const
 
     std::vector<TTabletId> tabletIds;
     tabletIds.reserve(Tablets_.size());
-    for (const auto* tablet : Tablets_) {
+    for (auto tablet : Tablets_) {
         tabletIds.push_back(tablet->GetId());
     }
     return tabletIds;

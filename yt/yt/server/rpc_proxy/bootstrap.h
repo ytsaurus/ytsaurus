@@ -88,10 +88,10 @@ private:
 
     INodeMemoryTrackerPtr MemoryUsageTracker_;
 
-    NSignature::TCypressKeyReaderPtr CypressKeyReader_;
+    NSignature::IKeyStoreReaderPtr CypressKeyReader_;
     NSignature::TSignatureValidatorPtr SignatureValidator_;
 
-    NSignature::TCypressKeyWriterPtr CypressKeyWriter_;
+    NSignature::IKeyStoreWriterPtr CypressKeyWriter_;
     NSignature::TSignatureGeneratorPtr SignatureGenerator_;
     NSignature::TKeyRotatorPtr SignatureKeyRotator_;
 

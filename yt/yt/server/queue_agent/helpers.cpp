@@ -1,6 +1,6 @@
 #include "helpers.h"
 
-#include "queue_static_table_exporter.h"
+#include "queue_exporter.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -25,6 +25,8 @@ using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NQueueClient;
 using namespace NYTree;
+
+static constexpr auto& Logger = QueueAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -97,15 +99,30 @@ NApi::IClientPtr TQueueAgentClientDirectory::GetFederatedClient(const std::vecto
     }
     std::sort(clusters.begin(), clusters.end());
 
-    auto key = JoinToString(clusters);
+    auto key = JoinToString(std::move(clusters));
 
     auto guard = Guard(Lock_);
-    if (auto* clientPtr = FederatedClients_.FindPtr(key); clientPtr && !(*clientPtr)->GetConnection()->IsTerminated()) {
-        return *clientPtr;
+    auto clientIt = FederatedClients_.find(key);
+    if (clientIt != FederatedClients_.end() &&
+        !clientIt->second->GetConnection()->IsTerminated())
+    {
+        return clientIt->second;
     }
 
-    auto client = NClient::NFederated::CreateClient(replicaClients, FederationConfig_);
-    FederatedClients_.emplace(key, client);
+    bool emplaced = false;
+    auto client = NClient::NFederated::CreateClient(std::move(replicaClients), FederationConfig_);
+    if (clientIt == FederatedClients_.end()) {
+        emplaced = true;
+        clientIt = EmplaceOrCrash(FederatedClients_, key, client);
+    } else {
+        clientIt->second = client;
+    }
+
+    guard.Release();
+
+    YT_LOG_DEBUG("New federated client created (Key: %v, Emplaced: %v)",
+        key,
+        emplaced);
 
     return client;
 }

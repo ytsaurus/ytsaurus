@@ -24,7 +24,7 @@ DEFINE_ENUM(EParseMode,
 struct TParsedSource
 {
     TParsedSource(
-        const TString& source,
+        TStringBuf source,
         NAst::TAstHead astHead);
 
     TString Source;
@@ -32,40 +32,37 @@ struct TParsedSource
 };
 
 std::unique_ptr<TParsedSource> ParseSource(
-    const TString& source,
+    TStringBuf source,
     EParseMode mode,
     NYson::TYsonStringBuf placeholderValues = {},
     int syntaxVersion = 1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TPlanFragment
-{
-    TQueryPtr Query;
-    TDataSource DataSource;
-};
-
-std::unique_ptr<TPlanFragment> PreparePlanFragment(
+TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
-    const TString& source,
+    TStringBuf source,
     NYson::TYsonStringBuf placeholderValues = {},
     int syntaxVersion = 1,
     IMemoryUsageTrackerPtr memoryTracker = nullptr);
 
-std::unique_ptr<TPlanFragment> PreparePlanFragment(
+TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
-    const TParsedSource& parsedSource,
-    IMemoryUsageTrackerPtr memoryTracker = nullptr);
+    const TString& source,
+    const NAst::TQuery& query,
+    const NAst::TAliasMap& aliasMap,
+    IMemoryUsageTrackerPtr memoryTracker = nullptr,
+    int depth = 0);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TQueryPtr PrepareJobQuery(
-    const TString& source,
+    TStringBuf source,
     const TTableSchemaPtr& tableSchema,
     const TFunctionsFetcher& functionsFetcher);
 
 TConstExpressionPtr PrepareExpression(
-    const TString& source,
+    TStringBuf source,
     const TTableSchema& tableSchema,
     const TConstTypeInferrerMapPtr& functions = GetBuiltinTypeInferrers(),
     THashSet<std::string>* references = nullptr);

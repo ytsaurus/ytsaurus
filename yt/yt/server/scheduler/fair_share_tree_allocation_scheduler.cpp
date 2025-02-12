@@ -342,7 +342,6 @@ TSchedulableChildSet::TSchedulableChildSet(
     bool useHeap)
     : OwningElement_(owningElement)
     , DynamicAttributesList_(dynamicAttributesList)
-    , UseFifoSchedulingOrder_(OwningElement_->ShouldUseFifoSchedulingOrder())
     , UseHeap_(useHeap)
     , Children_(std::move(children))
 {
@@ -423,10 +422,6 @@ bool TSchedulableChildSet::Comparator(const TSchedulerElement* lhs, const TSched
 
     if (lhsAttributes.Active != rhsAttributes.Active) {
         return rhsAttributes.Active < lhsAttributes.Active;
-    }
-
-    if (UseFifoSchedulingOrder_) {
-        return OwningElement_->HasHigherPriorityInFifoMode(lhs, rhs);
     }
 
     return lhsAttributes.SatisfactionRatio < rhsAttributes.SatisfactionRatio;
@@ -690,10 +685,6 @@ void TDynamicAttributesManager::UpdateAttributesAtCompositeElement(TSchedulerCom
         attributes.Active = true;
         attributes.BestLeafDescendant = bestChildAttributes.BestLeafDescendant;
         attributes.SatisfactionRatio = bestChildAttributes.SatisfactionRatio;
-
-        if (element->GetEffectiveUsePoolSatisfactionForScheduling()) {
-            attributes.SatisfactionRatio = std::min(attributes.SatisfactionRatio, attributes.LocalSatisfactionRatio);
-        }
     } else {
         // Declare the element passive if all children are passive.
         attributes.Active = false;
@@ -717,31 +708,6 @@ TSchedulerElement* TDynamicAttributesManager::GetBestActiveChild(TSchedulerCompo
         return childSet->GetBestActiveChild();
     }
 
-    // COMPAT(eshcherbin)
-    if (element->ShouldUseFifoSchedulingOrder()) {
-        return GetBestActiveChildFifo(element);
-    }
-
-    return GetBestActiveChildFairShare(element);
-}
-
-TSchedulerElement* TDynamicAttributesManager::GetBestActiveChildFifo(TSchedulerCompositeElement* element) const
-{
-    TSchedulerElement* bestChild = nullptr;
-    for (auto* child : element->SchedulableChildren()) {
-        if (!AttributesOf(child).Active) {
-            continue;
-        }
-
-        if (!bestChild || element->HasHigherPriorityInFifoMode(child, bestChild)) {
-            bestChild = child;
-        }
-    }
-    return bestChild;
-}
-
-TSchedulerElement* TDynamicAttributesManager::GetBestActiveChildFairShare(TSchedulerCompositeElement* element) const
-{
     TSchedulerElement* bestChild = nullptr;
     double bestChildSatisfactionRatio = InfiniteSatisfactionRatio;
     for (auto* child : element->SchedulableChildren()) {
@@ -755,6 +721,7 @@ TSchedulerElement* TDynamicAttributesManager::GetBestActiveChildFairShare(TSched
             bestChildSatisfactionRatio = childSatisfactionRatio;
         }
     }
+
     return bestChild;
 }
 
@@ -792,7 +759,7 @@ void TDynamicAttributesManager::DoUpdateOperationResourceUsage(
 {
     bool alive = element->IsAlive();
     auto resourceUsage = (alive && operationSharedState->IsEnabled())
-        ? element->GetInstantResourceUsage()
+        ? element->GetInstantResourceUsage(/*withPrecommit*/ true)
         : TJobResources();
     SetResourceUsage(element, operationAttributes, resourceUsage, now);
     operationAttributes->Alive = alive;
@@ -829,8 +796,8 @@ TJobResources TDynamicAttributesManager::FillResourceUsageAtOperation(const TSch
     auto& attributes = context->AttributesList->AttributesOf(element);
     if (context->ResourceUsageSnapshot) {
         auto operationId = element->GetOperationId();
-        auto it = context->ResourceUsageSnapshot->OperationIdToResourceUsage.find(operationId);
-        const auto& resourceUsage = it != context->ResourceUsageSnapshot->OperationIdToResourceUsage.end()
+        auto it = context->ResourceUsageSnapshot->OperationIdToResourceUsageWithPrecommit.find(operationId);
+        const auto& resourceUsage = it != context->ResourceUsageSnapshot->OperationIdToResourceUsageWithPrecommit.end()
             ? it->second
             : TJobResources();
         SetResourceUsage(
@@ -1752,7 +1719,7 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
             element,
             "No pending allocations can satisfy available resources on node ("
             "FreeAllocationResources: %v, DiskResources: %v, DiscountResources: {Total: %v, Unconditional: %v, Conditional: %v}, "
-            "MinNeededResources: %v, DetailedMinNeededResources: %v, "
+            "MinNeededResources: %v, GroupedNeededResources: %v, "
             "Address: %v)",
             FormatResources(SchedulingContext_->GetNodeFreeResourcesWithoutDiscount()),
             SchedulingContext_->DiskResources(),
@@ -1760,11 +1727,7 @@ bool TScheduleAllocationsContext::ScheduleAllocation(TSchedulerOperationElement*
             FormatResources(SchedulingContext_->GetUnconditionalDiscount()),
             FormatResources(SchedulingContext_->GetConditionalDiscountForOperation(element->GetTreeIndex())),
             FormatResources(element->AggregatedMinNeededAllocationResources()),
-            MakeFormattableView(
-                element->DetailedMinNeededAllocationResources(),
-                [&] (TStringBuilderBase* builder, const TJobResourcesWithQuota& resources) {
-                    builder->AppendFormat("%v", StrategyHost_->FormatResources(resources));
-                }),
+            element->GroupedNeededResources(),
             SchedulingContext_->GetNodeDescriptor()->Address);
 
         OnMinNeededResourcesUnsatisfied(
@@ -2241,8 +2204,12 @@ bool TScheduleAllocationsContext::HasAllocationsSatisfyingResourceLimits(
     const TSchedulerOperationElement* element,
     TEnumIndexedArray<EJobResourceWithDiskQuotaType, bool>* unsatisfiedResources) const
 {
-    for (const auto& allocationResources : element->DetailedMinNeededAllocationResources()) {
-        if (SchedulingContext_->CanStartAllocationForOperation(allocationResources, element->GetTreeIndex(), unsatisfiedResources)) {
+    for (const auto& [_, allocationGroupResources] : element->GroupedNeededResources()) {
+        bool canStartAllocation = SchedulingContext_->CanStartAllocationForOperation(
+            allocationGroupResources.MinNeededResources,
+            element->GetTreeIndex(),
+            unsatisfiedResources);
+        if (canStartAllocation) {
             return true;
         }
     }
@@ -2258,14 +2225,19 @@ bool TScheduleAllocationsContext::CheckPacking(const TSchedulerOperationElement*
 {
     // NB: We expect DetailedMinNeededResources_ to be of size 1 most of the time.
     TJobResourcesWithQuota packingAllocationResourcesWithQuota;
-    if (element->DetailedMinNeededAllocationResources().empty()) {
+    if (element->GroupedNeededResources().empty()) {
         // Refuse packing if no information about resource requirements is provided.
         return false;
-    } else if (element->DetailedMinNeededAllocationResources().size() == 1) {
-        packingAllocationResourcesWithQuota = element->DetailedMinNeededAllocationResources()[0];
+    } else if (element->GroupedNeededResources().size() == 1) {
+        packingAllocationResourcesWithQuota = element->GroupedNeededResources().begin()->second.MinNeededResources;
     } else {
-        auto idx = RandomNumber<ui32>(static_cast<ui32>(element->DetailedMinNeededAllocationResources().size()));
-        packingAllocationResourcesWithQuota = element->DetailedMinNeededAllocationResources()[idx];
+        TJobResourcesWithQuotaList minNeededResourcesList;
+        for (const auto& [_, allocationGroupResources] : element->GroupedNeededResources()) {
+            minNeededResourcesList.push_back(allocationGroupResources.MinNeededResources);
+        }
+
+        auto idx = RandomNumber<ui32>(static_cast<ui32>(minNeededResourcesList.size()));
+        packingAllocationResourcesWithQuota = minNeededResourcesList[idx];
     }
 
     return TreeSnapshot_->SchedulingSnapshot()->GetEnabledOperationSharedState(element)->CheckPacking(

@@ -35,16 +35,17 @@ class TChunkList
 public:
     //! This many starting children are null.
     DEFINE_BYVAL_RW_PROPERTY(int, TrimmedChildCount);
-    DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTree*>, Children);
+    DEFINE_BYREF_RW_PROPERTY(std::vector<TChunkTreeRawPtr>, Children);
 
     //! Chunk list kind: static, dynamic table root, tablet etc.
     DEFINE_BYVAL_RO_PROPERTY(EChunkListKind, Kind);
 
-    using TChildToIndexMap = THashMap<TChunkTree*, int>;
+    using TChildToIndexMap = THashMap<TChunkTreeRawPtr, int>;
     DEFINE_BYREF_RW_PROPERTY(TChildToIndexMap, ChildToIndex);
 
-    //! The i-th value is equal to the sum of statistics for children 0..i
-    //! for all i in [0..Children.size() - 1]
+    //! The i-th value is, roughly speaking, equal to the sum of statistics
+    //! for children 0..i for all i in [0..Children.size() - 1]. See detailed
+    //! description in cumulative_statistics.h.
     DEFINE_BYREF_RW_PROPERTY(TCumulativeStatistics, CumulativeStatistics);
 
     DEFINE_BYREF_RW_PROPERTY(TChunkTreeStatistics, Statistics);
@@ -70,12 +71,12 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 
-    TRange<TChunkList*> Parents() const;
+    TRange<TChunkListRawPtr> Parents() const;
     void AddParent(TChunkList* parent);
     void RemoveParent(TChunkList* parent);
 
-    TRange<TChunkOwnerBase*> TrunkOwningNodes() const;
-    TRange<TChunkOwnerBase*> BranchedOwningNodes() const;
+    TRange<TChunkOwnerBaseRawPtr> TrunkOwningNodes() const;
+    TRange<TChunkOwnerBaseRawPtr> BranchedOwningNodes() const;
     void AddOwningNode(TChunkOwnerBase* node);
     void RemoveOwningNode(TChunkOwnerBase* node);
 
@@ -107,9 +108,9 @@ public:
     NTableClient::TKeyBound GetPivotKeyBound() const;
 
 private:
-    TIndexedVector<TChunkList*> Parents_;
-    TIndexedVector<TChunkOwnerBase*> TrunkOwningNodes_;
-    TIndexedVector<TChunkOwnerBase*> BranchedOwningNodes_;
+    TIndexedVector<TChunkListRawPtr> Parents_;
+    TIndexedVector<TChunkOwnerBaseRawPtr> TrunkOwningNodes_;
+    TIndexedVector<TChunkOwnerBaseRawPtr> BranchedOwningNodes_;
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TChunkList)

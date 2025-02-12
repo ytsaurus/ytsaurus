@@ -50,7 +50,10 @@ public:
 
     TFuture<void> Fetch() override;
 
-    void AddChunk(NChunkClient::TInputChunkPtr chunk, std::vector<TColumnStableName> columnStableNames);
+    void AddChunk(
+        NChunkClient::TInputChunkPtr chunk,
+        std::vector<TColumnStableName> columnStableNames,
+        const TTableSchemaPtr& tableSchema = nullptr);
 
 private:
     TOptions Options_;

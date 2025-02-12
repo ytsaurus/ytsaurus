@@ -18,6 +18,7 @@ DECLARE_REFCOUNTED_CLASS(TClientCache)
 DECLARE_REFCOUNTED_CLASS(TStickyGroupSizeCache)
 DECLARE_REFCOUNTED_CLASS(TSyncReplicaCache)
 DECLARE_REFCOUNTED_CLASS(TTabletSyncReplicaCache)
+DECLARE_REFCOUNTED_CLASS(TTableReplicaSynchronicityCache)
 
 DECLARE_REFCOUNTED_STRUCT(ICellCommitSession)
 DECLARE_REFCOUNTED_STRUCT(ICellCommitSessionProvider)
@@ -41,6 +42,7 @@ DECLARE_REFCOUNTED_CLASS(TJournalChunkWriterOptions)
 struct TConnectionOptions;
 
 class TTabletSyncReplicaCache;
+class TTabletReplicaStatusCache;
 
 using TTableReplicaInfoPtrList = TCompactVector<
     NTabletClient::TTableReplicaInfoPtr,

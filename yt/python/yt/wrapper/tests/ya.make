@@ -189,6 +189,8 @@ TEST_SRCS(
     test_yt_cli.py
 )
 
+INCLUDE(${ARCADIA_ROOT}/devtools/large_on_single_slots.inc)
+
 END()
 
 RECURSE_FOR_TESTS(

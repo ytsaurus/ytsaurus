@@ -1181,6 +1181,7 @@ def _dump_file(table, output_file, output_path, enable_several_files, unordered,
             raise YtError('Parameter output_path is required')
 
     enable_parallel = get_config(client)["read_parallel"]["enable"]
+    min_batch_row_count = get_config(client)["dump_table_options"]["min_batch_row_count"]
 
     if enable_parallel:
         max_thread_count = get_config(client)["read_parallel"]["max_thread_count"]
@@ -1255,23 +1256,25 @@ def _dump_file(table, output_file, output_path, enable_several_files, unordered,
                 is_directory=enable_several_files,
                 thread_count=c_thread_count,
                 data_size_per_thread=data_size_per_thread,
-                stream=response)
+                stream=response,
+                min_batch_row_count=min_batch_row_count)
         elif format == FileFormat.PARQUET:
             yson.async_dump_parquet(
                 output_path=output_path,
                 is_directory=enable_several_files,
                 thread_count=c_thread_count,
                 data_size_per_thread=data_size_per_thread,
-                stream=response)
+                stream=response,
+                min_batch_row_count=min_batch_row_count)
         else:
             raise YtError('The format "{0}" is not supported for dumping table'.format(format.name))
 
     else:
         stream = read_table(table, raw=True, format="arrow", enable_read_parallel=False, client=client)
         if format == FileFormat.ORC:
-            yson.dump_orc(output_path, stream)
+            yson.dump_orc(output_path, stream, min_batch_row_count)
         elif format == FileFormat.PARQUET:
-            yson.dump_parquet(output_path, stream)
+            yson.dump_parquet(output_path, stream, min_batch_row_count)
         else:
             raise YtError('The format "{0}" is not supported for dumping table'.format(format.name))
 
@@ -1284,9 +1287,9 @@ def dump_parquet(table, output_file=None, output_path=None, enable_several_files
     :param output_file: path to output file, this option is deprecated, please use output_path
     :type output_file: str
     :param output_path: If option enable_several_files is disabled, you need to put the path to the file here,
-        otherwise the path to the directory where the files in the parquet format will be placed
+        otherwise the path to the directory where the files in the Parquet format will be placed
     :type output_path: str
-    :param enable_several_files: allowing parquet to be written to multiple files,
+    :param enable_several_files: allowing Parquet to be written to multiple files,
         only makes sense for better acceleration in parallel mode
     :type enable_several_files: bool
     :param unordered: if the option is set to false, the order will be as in the original table
@@ -1347,7 +1350,7 @@ def upload_parquet(table, input_file, client=None):
             'Bindings are shipped as additional package and '
             'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
 
-    stream = yson.upload_parquet(input_file, get_config(client)["arrow_options"]["write_arrow_batch_size"])
+    stream = yson.upload_parquet(input_file, get_config(client)["upload_table_options"]["write_arrow_batch_size"])
     schema = stream.get_schema()
     table = TablePath(table, client=client)
     table.attributes["schema"] = TableSchema.from_yson_type(yson.loads(schema))
@@ -1392,7 +1395,7 @@ def upload_orc(table, input_file, client=None):
             'Bindings are shipped as additional package and '
             'can be installed ' + YSON_PACKAGE_INSTALLATION_TEXT)
 
-    stream = yson.upload_orc(input_file, get_config(client)["arrow_options"]["write_arrow_batch_size"])
+    stream = yson.upload_orc(input_file, get_config(client)["upload_table_options"]["write_arrow_batch_size"])
     schema = stream.get_schema()
     table = TablePath(table, client=client)
     table.attributes["schema"] = TableSchema.from_yson_type(yson.loads(schema))

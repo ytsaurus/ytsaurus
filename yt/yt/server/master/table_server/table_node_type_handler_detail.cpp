@@ -12,7 +12,6 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
-#include <yt/yt/server/master/cell_master/helpers.h>
 
 #include <yt/yt/server/master/chunk_server/chunk.h>
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
@@ -21,6 +20,7 @@
 #include <yt/yt/server/master/chunk_server/config.h>
 
 #include <yt/yt/server/master/cypress_server/config.h>
+#include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/helpers.h>
 
 #include <yt/yt/server/master/tablet_server/chaos_helpers.h>
@@ -33,6 +33,8 @@
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
+
+#include <yt/yt/server/lib/hive/hive_manager.h>
 
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
@@ -52,6 +54,7 @@ using namespace NChunkClient::NProto;
 using namespace NChunkServer;
 using namespace NCypressServer;
 using namespace NCypressServer::NProto;
+using namespace NHiveServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NSecurityServer;
@@ -388,7 +391,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
     // Since the deletion and attribute alteration is replicated to the external cell,
     // we must only unref it once - on the native cell.
     if (table->IsNative()) {
-        if (auto* secondaryIndex = table->GetIndexTo()) {
+        if (auto secondaryIndex = table->GetIndexTo()) {
             secondaryIndex->SetIndexTableId({});
             int refCounter = objectManager->UnrefObject(secondaryIndex);
 
@@ -401,7 +404,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoZombify(TImpl* table)
             table->SetIndexTo(nullptr);
         }
 
-        for (auto* secondaryIndex : GetValuesSortedByKey(table->SecondaryIndices())) {
+        for (auto secondaryIndex : GetValuesSortedByKey(table->SecondaryIndices())) {
             secondaryIndex->SetTableId({});
             int refCounter = objectManager->UnrefObject(secondaryIndex);
 
@@ -491,6 +494,19 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
     ENodeCloneMode mode,
     TAccount* account)
 {
+    if (!factory->ShouldAllowSecondaryIndexAbandonment() && !IsHiveMutation()) {
+        if (sourceNode->GetIndexTo()) {
+            THROW_ERROR_EXCEPTION("Cannot copy table %v because it acts as an index to table %v, consider specifying "
+                "\"allow_secondary_index_abandonment\" option",
+                sourceNode->GetId(),
+                sourceNode->GetIndexTo()->GetTableId());
+        } else if (!sourceNode->SecondaryIndices().empty()) {
+            THROW_ERROR_EXCEPTION("Cannot copy table %v because it has secondary indices, consider specifying "
+                "\"allow_secondary_index_abandonment\" option",
+                sourceNode->GetId());
+        }
+    }
+
     // Order is important: table schema might be used in TChunkOwnerTypeHandler::DoClone.
     TSchemafulNodeTypeHandler::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);
     TTabletOwnerTypeHandler::DoClone(sourceNode, clonedTrunkNode, inheritedAttributes, factory, mode, account);

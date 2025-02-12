@@ -39,12 +39,18 @@ TError CheckControllerRuntimeData(const TControllerRuntimeDataPtr& runtimeData)
         }
     }
 
-    for (const auto& allocationResources : runtimeData->MinNeededResources()) {
-        if (!Dominates(allocationResources.ToJobResources(), TJobResources())) {
-            return TError("Controller has reported negative min needed allocation resources element")
-                << TErrorAttribute("min_needed_allocation_resources", runtimeData->MinNeededResources());
+    for (const auto& [_, allocationGroupResources] : runtimeData->GroupedNeededResources()) {
+        if (!Dominates(allocationGroupResources.MinNeededResources.ToJobResources(), TJobResources())) {
+            return TError("Controller has reported negative min needed allocation resources")
+                << TErrorAttribute("grouped_needed_resources", runtimeData->GroupedNeededResources());
+        }
+
+        if (allocationGroupResources.AllocationCount < 0) {
+            return TError("Controller has reported negative needed allocation count")
+                << TErrorAttribute("grouped_needed_resources", runtimeData->GroupedNeededResources());
         }
     }
+
     return TError();
 }
 
@@ -108,7 +114,7 @@ void FromProto(TOperationControllerMaterializeResult* result, const NControllerA
 {
     result->Suspend = resultProto.suspend();
     result->InitialNeededResources = FromProto<TCompositeNeededResources>(resultProto.initial_composite_needed_resources());
-    result->InitialMinNeededResources = FromProto<TJobResourcesWithQuotaList>(resultProto.initial_min_needed_resources());
+    result->InitialGroupedNeededResources = FromProto<TAllocationGroupResourcesMap>(resultProto.initial_grouped_needed_resources());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -150,8 +156,8 @@ void FromProto(
     }
     result->RevivedBannedTreeIds = FromProto<THashSet<TString>>(resultProto.revived_banned_tree_ids());
     result->NeededResources = FromProto<TCompositeNeededResources>(resultProto.composite_needed_resources());
-    result->MinNeededResources = FromProto<TJobResourcesWithQuotaList>(resultProto.min_needed_resources());
-    result->InitialMinNeededResources = FromProto<TJobResourcesWithQuotaList>(resultProto.initial_min_needed_resources());
+    result->GroupedNeededResources = FromProto<TAllocationGroupResourcesMap>(resultProto.grouped_needed_resources());
+    result->InitialGroupedNeededResources = FromProto<TAllocationGroupResourcesMap>(resultProto.initial_grouped_needed_resources());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

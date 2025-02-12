@@ -104,7 +104,7 @@ bool TSchedulerPoolProxy::SetBuiltinAttribute(NYTree::TInternedAttributeKey key,
 
     if (schedulerPool->IsRoot()) {
         if (key == EInternedAttributeKey::Config) {
-            auto* schedulerPoolTree = schedulerPool->GetMaybePoolTree();
+            auto schedulerPoolTree = schedulerPool->GetMaybePoolTree();
             auto treeConfig = New<NScheduler::TFairShareStrategyTreeConfig>();
             treeConfig->Load(ConvertToNode(value));
             schedulerPool->ValidateStrongGuaranteesRecursively(treeConfig);
@@ -229,7 +229,7 @@ DEFINE_YPATH_SERVICE_METHOD(TSchedulerPoolProxy, TransferPoolResources)
     const auto& schedulerPoolManager = Bootstrap_->GetSchedulerPoolManager();
 
     auto* impl = GetThisImpl();
-    auto* poolTreeImpl = impl->GetMaybePoolTree();
+    auto poolTreeImpl = impl->GetMaybePoolTree();
     if (!poolTreeImpl) {
         THROW_ERROR_EXCEPTION("Transferring pool resources must be targeted at pool tree")
             << TErrorAttribute("current_scheduler_pool_name", impl->GetName());

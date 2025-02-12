@@ -27,7 +27,7 @@ struct TListContainsTransformer
     const TReference& UnfoldedIndexerColumn;
 
     TListContainsTransformer(
-        TAstHead* head,
+        TObjectsHolder* head,
         const TReference& repeatedIndexedColumn,
         const TReference& unfoldedIndexerColumn)
         : TBase(head)
@@ -69,7 +69,7 @@ struct TInTransformer
     const TReference& UnfoldedIndexerColumn;
 
     TInTransformer(
-        TAstHead* head,
+        TObjectsHolder* head,
         const TReference& repeatedIndexedColumn,
         const TReference& unfoldedIndexerColumn)
         : TBase(head)
@@ -111,7 +111,7 @@ struct TTableReferenceReplacer
     const std::optional<TString>& NewAlias;
 
     TTableReferenceReplacer(
-        TAstHead* head,
+        TObjectsHolder* head,
         const THashSet<TStringBuf>& replacedColumns,
         const std::optional<TString>& oldAlias,
         const std::optional<TString>& newAlias)
@@ -135,20 +135,29 @@ struct TTableReferenceReplacer
 ////////////////////////////////////////////////////////////////////////////////
 
 void TransformWithIndexStatement(
-    NAst::TAstHead* head,
-    TMutableRange<TTableMountInfoPtr> mountInfos)
+    NAst::TQuery* query,
+    const ITableMountCachePtr& cache,
+    TObjectsHolder* holder)
 {
-    auto& query = std::get<NAst::TQuery>(head->Ast);
-    if (!query.WithIndex) {
+    if (auto* fromSubquery = std::get_if<NAst::TQueryAstHeadPtr>(&query->FromClause)) {
+        THROW_ERROR_EXCEPTION_IF(query->WithIndex,
+            "WITH INDEX clause is not supported with subqueries at the moment");
+
+        TransformWithIndexStatement(&fromSubquery->Get()->Ast, cache, holder);
         return;
     }
 
-    auto& index = *(query.WithIndex);
+    if (!query->WithIndex) {
+        return;
+    }
 
-    YT_VERIFY(mountInfos.Size() >= 2);
+    auto& index = *(query->WithIndex);
+    auto& table = std::get<TTableDescriptor>(query->FromClause);
 
-    auto& tableInfo = mountInfos[0];
-    auto& indexTableInfo = mountInfos[1];
+    auto indexTableInfo = WaitForFast(cache->GetTableInfo(index.Path))
+        .ValueOrThrow();
+    auto tableInfo = WaitForFast(cache->GetTableInfo(table.Path))
+        .ValueOrThrow();
 
     indexTableInfo->ValidateDynamic();
     indexTableInfo->ValidateSorted();
@@ -200,20 +209,20 @@ void TransformWithIndexStatement(
     index.Alias = SecondaryIndexAlias;
 
     if (unfoldedColumn) {
-        NAst::TReference repeatedIndexedColumn(unfoldedColumn->Name(), query.Table.Alias);
+        NAst::TReference repeatedIndexedColumn(unfoldedColumn->Name(), table.Alias);
         NAst::TReference unfoldedIndexerColumn(unfoldedColumn->Name(), index.Alias);
 
-        query.WherePredicate = TListContainsTransformer(
-            head,
+        query->WherePredicate = TListContainsTransformer(
+            holder,
             repeatedIndexedColumn,
             unfoldedIndexerColumn)
-            .Visit(query.WherePredicate);
+            .Visit(query->WherePredicate);
 
-        query.WherePredicate = TInTransformer(
-            head,
+        query->WherePredicate = TInTransformer(
+            holder,
             repeatedIndexedColumn,
             unfoldedIndexerColumn)
-            .Visit(query.WherePredicate);
+            .Visit(query->WherePredicate);
     }
 
     NAst::TExpressionList indexJoinColumns;
@@ -237,14 +246,14 @@ void TransformWithIndexStatement(
 
         replacedColumns.insert(indexColumn->Name());
 
-        auto* indexReference = head->New<NAst::TReferenceExpression>(
+        auto* indexReference = holder->New<NAst::TReferenceExpression>(
             NullSourceLocation,
             indexColumn->Name(),
             index.Alias);
-        auto* tableReference = head->New<NAst::TReferenceExpression>(
+        auto* tableReference = holder->New<NAst::TReferenceExpression>(
             NullSourceLocation,
             tableColumn.Name(),
-            query.Table.Alias);
+            table.Alias);
 
         indexJoinColumns.push_back(indexReference);
         tableJoinColumns.push_back(tableReference);
@@ -252,20 +261,19 @@ void TransformWithIndexStatement(
 
     THROW_ERROR_EXCEPTION_IF(tableJoinColumns.empty(),
         "Misuse of operator WITH INDEX: tables %v and %v have no shared columns",
-        query.Table.Path,
+        table.Path,
         index.Path);
 
-    query.WherePredicate = TTableReferenceReplacer(
-        head,
+    query->WherePredicate = TTableReferenceReplacer(
+        holder,
         std::move(replacedColumns),
-        query.Table.Alias,
+        table.Alias,
         index.Alias)
-        .Visit(query.WherePredicate);
+        .Visit(query->WherePredicate);
 
-    std::swap(query.Table, index);
-    std::swap(tableInfo, indexTableInfo);
-    query.Joins.insert(
-        query.Joins.begin(),
+    std::swap(table, index);
+    query->Joins.insert(
+        query->Joins.begin(),
         NAst::TJoin(
             /*isLeft*/ false,
             std::move(index),
@@ -273,7 +281,7 @@ void TransformWithIndexStatement(
             std::move(tableJoinColumns),
             /*predicate*/ std::nullopt));
 
-    query.WithIndex.reset();
+    query->WithIndex.reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

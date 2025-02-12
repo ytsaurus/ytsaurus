@@ -15,6 +15,7 @@ SRCS(
     api/native/backup_session.cpp
     api/native/bundle_controller_client_impl.cpp
     api/native/cell_commit_session.cpp
+    api/native/chaos_helpers.cpp
     api/native/chaos_replicated_table_type_handler.cpp
     api/native/chaos_table_replica_type_handler.cpp
     api/native/client_admin_impl.cpp
@@ -51,6 +52,7 @@ SRCS(
     api/native/journal_writer.cpp
     api/native/list_operations.cpp
     api/native/partition_tables.cpp
+    api/native/pick_replica_session.cpp
     api/native/pipeline_type_handler.cpp
     api/native/queue_producer_type_handler.cpp
     api/native/replicated_table_replica_type_handler.cpp
@@ -60,9 +62,11 @@ SRCS(
     api/native/skynet.cpp
     api/native/secondary_index_type_handler.cpp
     api/native/secondary_index_modification.cpp
+    api/native/sticky_mount_cache.cpp
     api/native/sync_replica_cache.cpp
     api/native/table_collocation_type_handler.cpp
     api/native/table_reader.cpp
+    api/native/table_replica_synchronicity_cache.cpp
     api/native/tablet_action_type_handler.cpp
     api/native/tablet_commit_session.cpp
     api/native/tablet_helpers.cpp
@@ -264,10 +268,10 @@ SRCS(
 
     hive/cell_directory_synchronizer.cpp
     hive/cell_directory.cpp
-    hive/cell_tracker.cpp
     hive/cluster_directory_synchronizer.cpp
     hive/cluster_directory.cpp
     hive/config.cpp
+    hive/downed_cell_tracker.cpp
     hive/public.cpp
 
     hive/proto/cell_directory.proto
@@ -504,6 +508,7 @@ SRCS(
     tablet_client/proto/master_tablet_service.proto
     tablet_client/proto/table_replica_ypath.proto
     tablet_client/proto/tablet_cell_bundle_ypath.proto
+    tablet_client/proto/tablet_ypath.proto
     tablet_client/proto/tablet_service.proto
 
     tablet_node_tracker_client/proto/tablet_node_tracker_service.proto
@@ -551,6 +556,12 @@ GENERATE_YT_RECORD(
         yt/yt/ytlib/sequoia_client/public.h
         yt/yt/client/node_tracker_client/public.h
         library/cpp/yt/yson_string/string.h
+)
+
+GENERATE_YT_RECORD(
+    sequoia_client/records/chunk_refresh_queue.yaml
+    OUTPUT_INCLUDES
+        yt/yt/ytlib/sequoia_client/public.h
 )
 
 GENERATE_YT_RECORD(

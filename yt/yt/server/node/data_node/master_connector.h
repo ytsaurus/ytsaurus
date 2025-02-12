@@ -44,6 +44,9 @@ struct IMasterConnector
 
     // COMPAT(kvk1920): Remove after 23.2.
     virtual void SetLocationUuidsRequired(bool value) = 0;
+
+    // COMPAT(danilalexeev): YT-23781.
+    virtual void SetPerLocationFullHeartbeatsEnabled(bool value) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMasterConnector)

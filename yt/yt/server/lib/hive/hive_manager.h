@@ -36,6 +36,18 @@ public:
     ~THiveMutationGuard();
 };
 
+//! Removes the mutation sender id from FLS. Restores it in destructor.
+class TInverseHiveMutationGuard
+    : private TNonCopyable
+{
+public:
+    TInverseHiveMutationGuard();
+    ~TInverseHiveMutationGuard();
+
+private:
+    const TCellId SenderId_;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSerializedMessage
@@ -145,7 +157,7 @@ DEFINE_REFCOUNTED_TYPE(IHiveManager)
 IHiveManagerPtr CreateHiveManager(
     THiveManagerConfigPtr config,
     NHiveClient::ICellDirectoryPtr cellDirectory,
-    NCellMasterClient::ICellDirectoryPtr masterDirectory,
+    NCellMasterClient::ICellDirectoryPtr masterCellDirectory,
     IAvenueDirectoryPtr avenueDirectory,
     TCellId selfCellId,
     IInvokerPtr automatonInvoker,

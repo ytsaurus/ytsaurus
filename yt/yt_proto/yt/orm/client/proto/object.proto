@@ -36,7 +36,7 @@ message THistoryAttribute
     optional string path = 1;
     // TODO: Support disable mode. It would allow to implement logic "all fields except X".
     optional bool indexed = 2;
-    optional bool allowed_in_filter = 3;
+    optional bool forced = 3;
 }
 
 message THistoryOptions
@@ -305,6 +305,11 @@ enum ESetUpdateObjectMode
     SUOM_LEGACY = 1;
 }
 
+message TCommonHistoryOptions {
+    // Adds forced attributes for every object history.
+    repeated string forced_paths = 1;
+}
+
 message THistoryTableOptions
 {
     // Needed for migration without write downtime. Details in YTORM-513.
@@ -452,6 +457,8 @@ extend google.protobuf.FileOptions
     optional bool enable_strict_enum_value_check = 30042 [default = true];
 
     optional uint32 default_geohash_length = 30043;
+
+    optional TCommonHistoryOptions history_options = 30044;
 }
 
 enum EGenerationPolicy
@@ -569,6 +576,24 @@ message TReferenceOption
         // initialize the columns to the default value); use an separate bool "present" field.
     }
 
+    // How we handle duplicate entries in multirefs.
+    enum EDuplicatePolicy
+    {
+        // Most suitable option (or an exception demanding an explicit choice) selected by codegen.
+        DP_DEFAULT = 0;
+
+        // Throw an exception on duplicate write; silently ignore duplicate entries on read.
+        // Default where applicable.
+        DP_DENY = 1;
+
+        // Silently discard duplicate entries on write; silently ignore duplicate entries on read.
+        // NB: May lose auxiliary data in proto multirefs.
+        DP_DEDUPLICATE = 2;
+
+        // Allow duplicate entries. Attach/detach foreign backref only on first/last entry.
+        DP_ALLOW = 3;
+    }
+
     optional string foreign_type = 1;
 
     // Path to the matching reference in the foreign object. If the matching reference is not,
@@ -591,6 +616,7 @@ message TReferenceOption
     optional bool allow_non_empty_removal = 12;
     optional bool local_modification_only = 13;
     optional EPresencePolicy presence_policy = 14;
+    optional EDuplicatePolicy duplicate_policy = 15;
 }
 
 message TReference

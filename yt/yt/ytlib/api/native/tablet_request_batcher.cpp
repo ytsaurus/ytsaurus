@@ -8,6 +8,7 @@
 namespace NYT::NApi::NNative {
 
 using namespace NTableClient;
+using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NQueryClient;
 
@@ -18,10 +19,12 @@ class TTabletRequestBatcher
 {
 public:
     TTabletRequestBatcher(
+        TTabletId tabletId,
         TTabletRequestBatcherOptions options,
         TTableSchemaPtr tableSchema,
         TColumnEvaluatorPtr columnEvaluator)
-        : Options_(std::move(options))
+        : TabletId_(tabletId)
+        , Options_(std::move(options))
         , TableSchema_(std::move(tableSchema))
         , ColumnEvaluator_(std::move(columnEvaluator))
     { }
@@ -61,6 +64,7 @@ public:
     }
 
 private:
+    const TTabletId TabletId_;
     const TTabletRequestBatcherOptions Options_;
     const TTableSchemaPtr TableSchema_;
     const TColumnEvaluatorPtr ColumnEvaluator_;
@@ -270,6 +274,7 @@ private:
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::TooManyRowsInTransaction,
                 "Transaction affects too many rows in tablet")
+                << TErrorAttribute("tablet_id", TabletId_)
                 << TErrorAttribute("limit", Options_.MaxRowsPerTablet);
         }
     }
@@ -286,11 +291,13 @@ void ITabletRequestBatcher::TBatch::Materialize(NCompression::ECodec codecType)
 ////////////////////////////////////////////////////////////////////////////////
 
 ITabletRequestBatcherPtr CreateTabletRequestBatcher(
+    TTabletId tabletId,
     TTabletRequestBatcherOptions options,
     TTableSchemaPtr tableSchema,
     TColumnEvaluatorPtr columnEvaluator)
 {
     return New<TTabletRequestBatcher>(
+        tabletId,
         std::move(options),
         std::move(tableSchema),
         std::move(columnEvaluator));

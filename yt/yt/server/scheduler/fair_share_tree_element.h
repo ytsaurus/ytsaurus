@@ -245,7 +245,7 @@ public:
 
     EStarvationStatus GetStarvationStatus() const;
 
-    TJobResources GetInstantResourceUsage() const;
+    TJobResources GetInstantResourceUsage(bool withPrecommit = false) const;
 
     virtual std::optional<double> GetSpecifiedFairShareStarvationTolerance() const = 0;
     virtual std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const = 0;
@@ -418,8 +418,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TNonOwningElementList, SchedulableChildren);
 
     // Computed in post update and used in schedule allocations.
-    DEFINE_BYVAL_RO_PROPERTY(EFifoPoolSchedulingOrder, EffectiveFifoPoolSchedulingOrder);
-    DEFINE_BYVAL_RO_PROPERTY(bool, EffectiveUsePoolSatisfactionForScheduling);
+    // Something was here, but now it's gone.
 
 protected:
     // Used in fair share update.
@@ -510,13 +509,9 @@ public:
 
     bool IsSchedulable() const override;
 
-    virtual std::optional<EFifoPoolSchedulingOrder> GetSpecifiedFifoPoolSchedulingOrder() const = 0;
-    virtual std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const = 0;
-
     virtual std::optional<bool> IsAggressiveStarvationEnabled() const = 0;
 
     //! Schedule allocations related methods.
-    bool ShouldUseFifoSchedulingOrder() const;
     bool HasHigherPriorityInFifoMode(const TSchedulerElement* lhs, const TSchedulerElement* rhs) const;
 
     NYPath::TYPath GetFullPath(bool explicitOnly, bool withTreeId = true) const;
@@ -565,8 +560,7 @@ protected:
     void BuildElementMapping(TFairSharePostUpdateContext* context) override;
 
     // Used to implement GetWeight.
-    virtual bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const = 0;
-    virtual TDuration GetHistoricUsageAggregatorPeriod() const = 0;
+    virtual std::optional<TDuration> GetMaybeHistoricUsageAggregatorPeriod() const = 0;
 
 private:
     friend class TSchedulerElement;
@@ -698,9 +692,6 @@ public:
 
     TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
 
-    std::optional<EFifoPoolSchedulingOrder> GetSpecifiedFifoPoolSchedulingOrder() const override;
-    std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const override;
-
     //! Other methods.
     void BuildResourceMetering(
         const std::optional<TMeteringKey>& lowestMeteredAncestorKey,
@@ -730,8 +721,7 @@ protected:
 private:
     TPoolConfigPtr Config_;
 
-    bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
-    TDuration GetHistoricUsageAggregatorPeriod() const override;
+    std::optional<TDuration> GetMaybeHistoricUsageAggregatorPeriod() const override;
 
     std::optional<double> GetSpecifiedWeight() const override;
 
@@ -752,7 +742,7 @@ public:
     // Used by trunk node.
     DEFINE_BYREF_RW_PROPERTY(std::optional<TString>, PendingByPool);
 
-    DEFINE_BYREF_RO_PROPERTY(TJobResourcesWithQuotaList, DetailedMinNeededAllocationResources);
+    DEFINE_BYREF_RO_PROPERTY(TAllocationGroupResourcesMap, GroupedNeededResources);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, AggregatedMinNeededAllocationResources);
     DEFINE_BYREF_RO_PROPERTY(bool, ScheduleAllocationBackoffCheckEnabled, false);
 
@@ -915,7 +905,7 @@ public:
         EAbortReason abortReason,
         TControllerEpoch allocationEpoch);
 
-    TJobResourcesWithQuotaList GetDetailedInitialMinNeededResources() const;
+    TAllocationGroupResourcesMap GetInitialGroupedNeededResources() const;
     TJobResources GetAggregatedInitialMinNeededResources() const;
 
     //! Resource tree methods.
@@ -1052,9 +1042,6 @@ public:
 
     TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
 
-    std::optional<EFifoPoolSchedulingOrder> GetSpecifiedFifoPoolSchedulingOrder() const override;
-    std::optional<bool> ShouldUsePoolSatisfactionForScheduling() const override;
-
     void BuildPoolSatisfactionDigests(TFairSharePostUpdateContext* postUpdateContext);
 
     //! Other methods.
@@ -1084,8 +1071,7 @@ private:
 
     TJobResourcesConfigPtr GetSpecifiedResourceLimitsConfig() const override;
 
-    bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
-    TDuration GetHistoricUsageAggregatorPeriod() const override;
+    std::optional<TDuration> GetMaybeHistoricUsageAggregatorPeriod() const override;
 
     bool CanAcceptFreeVolume() const override;
     bool ShouldDistributeFreeVolumeAmongChildren() const override;

@@ -294,7 +294,7 @@ public:
                                     .Item("stage").Value(
                                         runningJob->Confirmed
                                         ? "running"
-                                        : "confirmation")
+                                        : "waiting_for_confirmation")
                                 .EndMap();
                         }
 
@@ -418,7 +418,7 @@ public:
         if (const auto* allocation = nodeJobs.FindAllocation(jobId)) {
             std::optional<TString> jobStageString;
             if (allocation->HasRunningJob(jobId)) {
-                jobStageString = allocation->GetRunningJob()->Confirmed ? FormatEnum(EJobStage::Running) : "confirmation";
+                jobStageString = allocation->GetRunningJob()->Confirmed ? FormatEnum(EJobStage::Running) : "waiting_for_confirmation";
             } else if (allocation->GetFinishedJobs().contains(jobId)) {
                 jobStageString = FormatEnum(EJobStage::Finished);
             }
@@ -1313,7 +1313,7 @@ void TJobTracker::DoUpdateConfig(const TControllerAgentConfigPtr& config)
 
 void TJobTracker::DoUpdateExecNodes(TRefCountedExecNodeDescriptorMapPtr newExecNodes)
 {
-    YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
+    YT_ASSERT_INVOKER_AFFINITY(GetInvoker());
 
     std::swap(newExecNodes, ExecNodes_);
 
@@ -2509,7 +2509,7 @@ void TJobTracker::TryRequestJobAction(
 void TJobTracker::RequestJobInterruption(
     TJobId jobId,
     TOperationId operationId,
-    EInterruptReason reason,
+    EInterruptionReason reason,
     TDuration timeout)
 {
     TryRequestJobAction(
@@ -2525,7 +2525,7 @@ void TJobTracker::DoRequestJobInterruption(
     TRequestedActionInfo& requestedActionInfo,
     TJobId jobId,
     TOperationId operationId,
-    NScheduler::EInterruptReason reason,
+    NScheduler::EInterruptionReason reason,
     TDuration timeout)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker());
@@ -3377,7 +3377,7 @@ void TJobTrackerOperationHandler::RequestJobAbortion(
 
 void TJobTrackerOperationHandler::RequestJobInterruption(
     TJobId jobId,
-    EInterruptReason reason,
+    EInterruptionReason reason,
     TDuration timeout)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();

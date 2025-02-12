@@ -4,7 +4,6 @@
 
 #include <yt/yt/server/master/object_server/staged_object.h>
 
-
 namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -36,6 +35,8 @@ public:
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
 };
+
+DEFINE_MASTER_OBJECT_TYPE(TChunkTree)
 
 ////////////////////////////////////////////////////////////////////////////////
 

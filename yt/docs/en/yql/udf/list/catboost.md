@@ -1,8 +1,5 @@
----
-vcsPath: yql/docs_yfm/docs/ru/yql-product/udf/list/catboost.md
-sourcePath: yql-product/udf/list/catboost.md
----
 # CatBoost UDF
+
 Applying [CatBoost](https://catboost.yandex) models.
 
 ```yql

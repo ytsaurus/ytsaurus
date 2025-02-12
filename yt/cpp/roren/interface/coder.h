@@ -2,6 +2,8 @@
 
 /// @file Contains declaration of @ref NRoren::TCoder class template used to code/decode intermediate streams of row.
 
+#include "noncodable.h"
+
 #include <util/stream/mem.h>
 #include <util/ysaveload.h>
 
@@ -137,6 +139,11 @@ private:
     std::tuple<TCoder<Args>...> Coders_;
 };
 
+template <typename... Args>
+    requires (CManuallyNonCodable<Args> || ...)
+struct TIsManuallyNonCodable<std::tuple<Args...>> : public std::true_type
+{ };
+
 template <typename T>
 class TCoder<std::optional<T>>
 {
@@ -165,6 +172,10 @@ public:
 private:
     TCoder<T> ValueCoder_;
 };
+
+template <CManuallyNonCodable T>
+struct TIsManuallyNonCodable<std::optional<T>> : public std::true_type
+{ };
 
 template <typename T>
 class TCoder<std::vector<T>>
@@ -196,6 +207,10 @@ private:
     TCoder<T> ItemCoder_;
 };
 
+template <CManuallyNonCodable T>
+struct TIsManuallyNonCodable<std::vector<T>> : public std::true_type
+{ };
+
 template <typename T>
 class TCoder<std::shared_ptr<T>>
 {
@@ -225,6 +240,10 @@ private:
     TCoder<T> ValueCoder_;
 };
 
+template <CManuallyNonCodable T>
+struct TIsManuallyNonCodable<std::shared_ptr<T>> : public std::true_type
+{ };
+
 template <typename K, typename V>
 class TCoder<std::pair<K, V>>
 {
@@ -245,6 +264,11 @@ private:
     TCoder<K> KeyCoder_;
     TCoder<V> ValueCoder_;
 };
+
+template <typename T, typename V>
+    requires (CManuallyNonCodable<T> || CManuallyNonCodable<V>)
+struct TIsManuallyNonCodable<std::pair<T, V>> : public std::true_type
+{ };
 
 template <typename... Args>
 class TCoder<std::variant<Args...>>
@@ -296,6 +320,11 @@ private:
 private:
     std::tuple<TCoder<Args>...> Coders_;
 };
+
+template <typename... Args>
+    requires (CManuallyNonCodable<Args> || ...)
+struct TIsManuallyNonCodable<std::variant<Args...>> : public std::true_type
+{ };
 
 template <>
 class TCoder<std::monostate>

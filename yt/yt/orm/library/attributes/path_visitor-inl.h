@@ -248,6 +248,11 @@ void TPathVisitor<TSelf>::VisitVectorEntryRelative(
             break;
         case EMissingFieldPolicy::Skip:
             break; // Relative index means container modification.
+        case EMissingFieldPolicy::ForceLeaf:
+            if (!Self()->PathComplete()) {
+                break;
+            }
+        [[fallthrough]];
         case EMissingFieldPolicy::Force:
             using TVisitedValue = std::remove_reference_t<TVisitParam>;
             if constexpr (std::is_const_v<TVisitedValue>) {
@@ -282,6 +287,11 @@ void TPathVisitor<TSelf>::OnVectorIndexError(
                 break;
             case EMissingFieldPolicy::Skip:
                 return;
+            case EMissingFieldPolicy::ForceLeaf:
+                if (!Self()->PathComplete()) {
+                    break;
+                }
+            [[fallthrough]];
             case EMissingFieldPolicy::Force:
                 using TVisitedValue = std::remove_reference_t<TVisitParam>;
                 if constexpr (std::is_const_v<TVisitedValue>) {
@@ -395,6 +405,11 @@ void TPathVisitor<TSelf>::OnMapKeyError(
             break;
         case EMissingFieldPolicy::Skip:
             return;
+        case EMissingFieldPolicy::ForceLeaf:
+            if (!Self()->PathComplete()) {
+                break;
+            }
+        [[fallthrough]];
         case EMissingFieldPolicy::Force:
             using TVisitedValue = std::remove_reference_t<TVisitParam>;
             if constexpr (std::is_const_v<TVisitedValue>) {

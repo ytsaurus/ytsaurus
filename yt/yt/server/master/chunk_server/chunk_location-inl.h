@@ -4,28 +4,30 @@
 #include "chunk_location.h"
 #endif
 
+#include <yt/yt/server/master/cell_master/serialize.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class C>
-void TSerializerTraits<NChunkServer::TChunkLocation*, C>::TSerializer::Save(
+void TSerializerTraits<NChunkServer::TChunkLocationRawPtr, C>::TSerializer::Save(
     NCellMaster::TSaveContext& context,
-    const NChunkServer::TChunkLocation* location)
+    NChunkServer::TChunkLocationRawPtr location)
 {
-    NCellMaster::TRawNonversionedObjectPtrSerializer::Save(context, location);
+    SaveWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, location);
 }
 
 template <class C>
-void TSerializerTraits<NChunkServer::TChunkLocation*, C>::TSerializer::Load(
+void TSerializerTraits<NChunkServer::TChunkLocationRawPtr, C>::TSerializer::Load(
     NCellMaster::TLoadContext& context,
-    NChunkServer::TChunkLocation*& location)
+    NChunkServer::TChunkLocationRawPtr& location)
 {
     using namespace NCellMaster;
 
     // COMPAT(kvk1920)
     if (context.GetVersion() < EMasterReign::DropImaginaryChunkLocations) {
-        constexpr auto Logger = NChunkServer::ChunkServerLogger;
+        constexpr auto& Logger = NChunkServer::ChunkServerLogger;
 
         auto isImaginary = Load<bool>(context);
         YT_LOG_FATAL_IF(isImaginary,
@@ -33,7 +35,7 @@ void TSerializerTraits<NChunkServer::TChunkLocation*, C>::TSerializer::Load(
             "exist");
     }
 
-    location = NChunkServer::TChunkLocation::LoadPtr(context);
+    LoadWith<NCellMaster::TRawNonversionedObjectPtrSerializer>(context, location);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

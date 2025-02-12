@@ -60,6 +60,12 @@ bool IsAnyExprATargetReference(
     const NQueryClient::NAst::TExpressionList& exprs,
     const NQueryClient::NAst::TReference& reference);
 
+bool IsSingleConstant(const NQueryClient::NAst::TExpressionList& exprs);
+
+std::vector<NQueryClient::NAst::TReference> ExtractAllReferences(const NQueryClient::NAst::TExpressionList& exprs);
+
+std::optional<NQueryClient::NAst::TReference> TryExtractReference(const NQueryClient::NAst::TExpressionList& exprs);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NOrm::NQuery

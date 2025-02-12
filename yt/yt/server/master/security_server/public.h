@@ -53,7 +53,10 @@ DECLARE_ENTITY_TYPE(TNetworkProject, TNetworkProjectId, NObjectClient::TObjectId
 DECLARE_ENTITY_TYPE(TProxyRole, TProxyRoleId, NObjectClient::TObjectIdEntropyHash)
 
 DECLARE_MASTER_OBJECT_TYPE(TAccount)
+DECLARE_MASTER_OBJECT_TYPE(TAccountResourceUsageLease)
+DECLARE_MASTER_OBJECT_TYPE(TSubject)
 DECLARE_MASTER_OBJECT_TYPE(TUser)
+DECLARE_MASTER_OBJECT_TYPE(TGroup)
 
 struct TAccountChunkMergerNodeTraversalsPtrContext;
 template <class T>

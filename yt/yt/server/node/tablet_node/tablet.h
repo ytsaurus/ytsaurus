@@ -563,6 +563,7 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TLegacyOwningKey, NextPivotKey);
 
     DEFINE_BYVAL_RW_PROPERTY(ETabletState, State);
+    DEFINE_BYVAL_RW_PROPERTY(ETabletState, LastStableState);
 
     DEFINE_BYVAL_RO_PROPERTY(TCancelableContextPtr, CancelableContext);
 
@@ -658,6 +659,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(NYson::TYsonString, CustomRuntimeData);
 
+    DEFINE_BYVAL_RW_PROPERTY(NTableClient::ETabletTransactionSerializationType, SerializationType);
+
 public:
     TTablet(
         TTabletId tabletId,
@@ -678,7 +681,8 @@ public:
         NTransactionClient::ECommitOrdering commitOrdering,
         NTabletClient::TTableReplicaId upstreamReplicaId,
         TTimestamp retainedTimestamp,
-        i64 cumulativeDataWeight);
+        i64 cumulativeDataWeight,
+        NTableClient::ETabletTransactionSerializationType serializationType);
 
     ETabletState GetPersistentState() const;
 

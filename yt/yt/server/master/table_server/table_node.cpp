@@ -135,6 +135,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, SecondaryIndices);
     Save(context, IndexTo);
     Save(context, TreatAsQueueProducer);
+    Save(context, SerializationType);
 }
 
 void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& context)
@@ -192,6 +193,11 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     {
         Load(context, TreatAsQueueProducer);
     }
+
+    // COMPAT(ponasenko-rs)
+    if (context.GetVersion() >= EMasterReign::TabletTransactionSerializationType) {
+        Load(context, SerializationType);
+    }
 }
 
 #define FOR_EACH_COPYABLE_ATTRIBUTE(XX) \
@@ -204,6 +210,7 @@ void TTableNode::TDynamicTableAttributes::Load(NCellMaster::TLoadContext& contex
     XX(ProfilingMode) \
     XX(ProfilingTag) \
     XX(EnableDetailedProfiling) \
+    XX(SerializationType) \
     XX(EnableConsistentChunkReplicaPlacement) \
     XX(QueueAgentStage) \
 
@@ -528,7 +535,7 @@ TTimestamp TTableNode::CalculateUnflushedTimestamp(
     }
 
     auto result = MaxTimestamp;
-    for (const auto* tablet : trunkNode->Tablets()) {
+    for (auto tablet : trunkNode->Tablets()) {
         auto timestamp = tablet->GetState() != ETabletState::Unmounted
             ? static_cast<TTimestamp>(tablet->As<TTablet>()->NodeStatistics().unflushed_timestamp())
             : latestTimestamp;
@@ -545,7 +552,7 @@ TTimestamp TTableNode::CalculateRetainedTimestamp() const
     }
 
     auto result = MinTimestamp;
-    for (const auto* tablet : trunkNode->Tablets()) {
+    for (auto tablet : trunkNode->Tablets()) {
         auto timestamp = tablet->As<TTablet>()->GetRetainedTimestamp();
         result = std::max(result, timestamp);
     }

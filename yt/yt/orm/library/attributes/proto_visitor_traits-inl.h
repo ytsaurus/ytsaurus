@@ -453,7 +453,6 @@ struct TProtoVisitorTraits<const std::pair<TQualifiedMessage*, TQualifiedMessage
     }
 };
 
-
 namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
