@@ -92,7 +92,7 @@ public:
 
         std::vector<std::pair<TString, TString>> httpHeaders;
         if (Host_->GetConfig()->EnableHttpHeaderLog) {
-            for (auto header : request) {
+            for (const auto &header : request) {
                 if (!NRe2::TRe2::FullMatch(header.first, *Host_->GetConfig()->HttpHeaderBlacklist)) {
                     httpHeaders.emplace_back(header);
                 }
