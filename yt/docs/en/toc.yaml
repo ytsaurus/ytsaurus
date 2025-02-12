@@ -136,6 +136,8 @@ items:
            href: user-guide/dynamic-tables/dyn-query-language.md
          - name: Secondary indexes
            href: user-guide/dynamic-tables/secondary-indices.md
+         - name: Hunks usage in dynamic tables
+           href: user-guide/dynamic-tables/hunks-guide.md
          - name: Usage examples
            items:
              - name: Creating a web service

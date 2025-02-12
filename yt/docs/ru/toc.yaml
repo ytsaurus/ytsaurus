@@ -140,7 +140,7 @@ items:
           href: user-guide/dynamic-tables/dyn-query-language.md
         - name: Вторичные индексы
           href: user-guide/dynamic-tables/secondary-indices.md
-        - name: Ханки и их использование в динамических таблицах
+        - name: Ханки
           href: user-guide/dynamic-tables/hunks-guide.md
         - name: Примеры
           items:
