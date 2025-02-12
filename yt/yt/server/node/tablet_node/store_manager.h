@@ -54,10 +54,6 @@ struct IStoreManager
     virtual void StartEpoch(ITabletSlotPtr slot) = 0;
     virtual void StopEpoch() = 0;
 
-    [[nodiscard]] virtual bool IsVersionedWriteUnversioned() const {
-        return false;
-    }
-
     [[nodiscard]] virtual bool ExecuteWrites(
         IWireWriteCommandReader* reader,
         TWriteContext* context) = 0;

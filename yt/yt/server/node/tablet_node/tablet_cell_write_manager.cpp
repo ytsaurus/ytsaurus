@@ -630,7 +630,10 @@ private:
         auto data = codec->Decompress(compressedRecordData);
         auto rowBuffer = New<TRowBuffer>();
         auto reader = CreateWireProtocolReader(data, rowBuffer);
-        auto commands = ParseWriteCommands(tablet->TableSchemaData(), reader.get());
+        auto commands = ParseWriteCommands(
+            tablet->TableSchemaData(),
+            reader.get(),
+            tablet->IsVersionedWriteUnversioned());
 
         auto batch = TWireWriteCommandsBatch(
             std::move(commands),
@@ -817,7 +820,10 @@ private:
         auto data = codec->Decompress(compressedRecordData);
         auto rowBuffer = New<TRowBuffer>();
         auto reader = CreateWireProtocolReader(data, rowBuffer);
-        auto commands = ParseWriteCommands(tablet->TableSchemaData(), reader.get());
+        auto commands = ParseWriteCommands(
+            tablet->TableSchemaData(),
+            reader.get(),
+            tablet->IsVersionedWriteUnversioned());
 
         auto batch = TWireWriteCommandsBatch(
             std::move(commands),
