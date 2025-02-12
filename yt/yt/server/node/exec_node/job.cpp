@@ -1638,7 +1638,8 @@ void TJob::HandleJobReport(TNodeJobReport&& jobReport)
         jobReport
             .OperationId(GetOperationId())
             .JobId(GetId())
-            .Address(Bootstrap_->GetLocalDescriptor().GetDefaultAddress()));
+            .Address(Bootstrap_->GetLocalDescriptor().GetDefaultAddress())
+            .Addresses(Bootstrap_->GetLocalDescriptor().Addresses()));
 }
 
 void TJob::ReportSpec()
