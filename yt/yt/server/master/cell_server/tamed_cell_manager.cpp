@@ -570,47 +570,6 @@ public:
 
                 SyncExecuteVerb(cellMapNodeProxy, req);
             }
-
-            const auto& multicellManager = Bootstrap_->GetMulticellManager();
-            if (multicellManager->IsPrimaryMaster()) {
-                auto createAttributes = [&] (const auto& acl) {
-                    auto attributes = CreateEphemeralAttributes();
-                    attributes->Set("inherit_acl", false);
-                    attributes->Set("acl", acl);
-                    return attributes;
-                };
-
-                auto snapshotAttributes = createAttributes(cellBundle->GetOptions()->SnapshotAcl);
-                auto changelogAttributes = createAttributes(cellBundle->GetOptions()->ChangelogAcl);
-
-                if (cell->IsIndependent()) {
-                    for (int peerId = 0; peerId < peerCount; ++peerId) {
-                        if (cell->IsAlienPeer(peerId)) {
-                            continue;
-                        }
-
-                        auto peerNodePath = Format("%v/%v", cellNodePath, peerId);
-
-                        {
-                            auto req = TCypressYPathProxy::Create(peerNodePath);
-                            req->set_type(ToProto(EObjectType::MapNode));
-                            SyncExecuteVerb(cellMapNodeProxy, req);
-                        }
-
-                        CreateSnapshotAndChangelogNodes(
-                            peerNodePath,
-                            cellMapNodeProxy,
-                            snapshotAttributes,
-                            changelogAttributes);
-                    }
-                } else {
-                    CreateSnapshotAndChangelogNodes(
-                        cellNodePath,
-                        cellMapNodeProxy,
-                        snapshotAttributes,
-                        changelogAttributes);
-                }
-            }
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(
                 ex,
