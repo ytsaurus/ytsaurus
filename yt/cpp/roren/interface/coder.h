@@ -345,6 +345,10 @@ public:
     void Decode(IInputStream* in, NYT::TNode& node);
 };
 
+template <typename TResult, typename... TArgs>
+struct TIsManuallyNonCodable<std::function<TResult(TArgs...)>> : public std::true_type
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NRoren
