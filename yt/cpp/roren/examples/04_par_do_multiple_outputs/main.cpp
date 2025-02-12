@@ -36,7 +36,7 @@ public:
         return {RobotTag, HumanTag};
     }
 
-    void Do(const TUserLoginInfo& info, TMultiOutput& output) override
+    void Do(const TUserLoginInfo& info, TMultiOutput& output)
     {
         if (info.Name.StartsWith("robot-")) {
             output.GetOutput(RobotTag).Add(TRobotLoginInfo{.Login = info.Login});

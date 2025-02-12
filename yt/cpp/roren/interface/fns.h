@@ -37,6 +37,10 @@ public:
         return Context_;
     }
 
+   // void Do(const TInputRow& in, TOutput<TOutputRow>& out);
+   // void Do(TInputRow&& in, TOutput<TOutputRow>& out);
+   // void Do(TInputRow in, TOutput<TOutputRow>& out);
+
     virtual void Save(IOutputStream*) const
     { }
 
@@ -111,8 +115,6 @@ public:
     virtual void Start(TOutput<TOutputRow>&)
     { }
 
-    virtual void Do(TDoFnInput<TInputRow> input, TOutput<TOutputRow>& output) = 0;
-
     virtual void Finish(TOutput<TOutputRow>&)
     { }
 
@@ -135,7 +137,6 @@ public:
 
     virtual void Start(TOutput<TOutputRow>&)
     { }
-    virtual void Do(TDoFnInput<TInputRow> input, TOutput<TOutputRow>& output) = 0;
     virtual void Finish(TOutput<TOutputRow>&)
     { }
 
@@ -192,8 +193,6 @@ public:
     virtual void Start(TOutput<TOutputRow>& /*output*/)
     { }
 
-    virtual void Do(TDoFnInput<TInputRow> input, TOutput<TOutputRow>& output, TState& state) = 0;
-
     virtual void Finish(TOutput<TOutputRow>& /*output*/, TStateStore<TKey, TState>& /*stateMap*/)
     { }
 
@@ -220,8 +219,6 @@ public:
 
     virtual void Start(TOutput<TOutputRow>& /*output*/)
     { }
-
-    virtual void Do(const TInputRow& input, TOutput<TOutputRow>& output, TState& state) = 0;
 
     virtual void Finish(TOutput<TOutputRow>& /*output*/, TStateStore<TKey, TState>& /*stateMap*/)
     { }
