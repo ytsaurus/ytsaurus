@@ -1039,7 +1039,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
 
     @authors("coteeq")
     def test_copy_file_data_weight_per_job(self):
-        skip_if_component_old(self.Env, (24, 2), "controller-agent")
+        skip_if_component_old(self.Env, (25, 1), "controller-agent")
         n_chunks = 3
         self._create_inout_files(n_chunks, content=b"content" * 100)
 
