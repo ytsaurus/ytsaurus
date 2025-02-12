@@ -12,9 +12,27 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-if (CMAKE_SYSTEM_NAME STREQUAL "Darwin" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64")
-  include(CMakeLists.darwin-x86_64.txt)
-elseif (CMAKE_SYSTEM_NAME STREQUAL "Linux" AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64" AND NOT HAVE_CUDA)
-  include(CMakeLists.linux-x86_64.txt)
-endif()
+find_package(linux-headers-generic REQUIRED)
+
+add_library(restricted-boost-pool INTERFACE)
+
+
+target_compile_options(restricted-boost-pool INTERFACE
+  $<IF:$<CXX_COMPILER_ID:MSVC>,,-Wno-everything>
+)
+
+target_include_directories(restricted-boost-pool INTERFACE
+  ${PROJECT_SOURCE_DIR}/contrib/restricted/boost/pool/include
+)
+
+target_link_libraries(restricted-boost-pool INTERFACE
+  linux-headers-generic::linux-headers-generic
+  contrib-libs-cxxsupp
+  restricted-boost-assert
+  restricted-boost-config
+  restricted-boost-integer
+  restricted-boost-throw_exception
+  restricted-boost-type_traits
+  restricted-boost-winapi
+)
 

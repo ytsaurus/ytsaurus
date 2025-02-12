@@ -12,7 +12,4 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(enum_codegen)
 add_subdirectory(atomic)
-add_subdirectory(split)
-add_subdirectory(kmp)
