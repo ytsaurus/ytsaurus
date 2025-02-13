@@ -18,6 +18,8 @@ using TReadSessionId = TGuid;
 
 struct TDataSplit;
 
+struct TPlanFragment;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
@@ -147,6 +149,15 @@ using TRowRanges = std::vector<TRowRange>;
 using TMutableRowRanges = std::vector<TMutableRowRange>;
 
 using TColumnSet = THashSet<std::string>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NAst {
+
+DECLARE_REFCOUNTED_STRUCT(TTableHint);
+DECLARE_REFCOUNTED_STRUCT(TQueryAstHead);
+
+} // namespace NAst
 
 ////////////////////////////////////////////////////////////////////////////////
 

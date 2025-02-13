@@ -10,7 +10,7 @@ namespace NYT::NQueryClient::NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator == (TNullLiteralValue, TNullLiteralValue)
+bool operator==(TNullLiteralValue, TNullLiteralValue)
 {
     return true;
 }
@@ -102,12 +102,12 @@ bool ExpressionListEqual(const T& lhs, const T& rhs)
     return true;
 }
 
-bool operator == (const TExpressionList& lhs, const TExpressionList& rhs)
+bool operator==(const TExpressionList& lhs, const TExpressionList& rhs)
 {
     return ExpressionListEqual(lhs, rhs);
 }
 
-bool operator == (const TIdentifierList& lhs, const TIdentifierList& rhs)
+bool operator==(const TIdentifierList& lhs, const TIdentifierList& rhs)
 {
     return ExpressionListEqual(lhs, rhs);
 }

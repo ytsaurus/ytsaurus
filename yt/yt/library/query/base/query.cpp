@@ -373,7 +373,7 @@ TQueryPtr TJoinClause::GetJoinSubquery() const
                     renamedColumn.Name()),
                 renamedColumn.Name());
         }
-    };
+    }
 
     joinSubquery->ProjectClause = std::move(projectClause);
 
@@ -389,7 +389,7 @@ std::vector<size_t> TJoinClause::GetForeignColumnIndices() const
         if (ForeignJoinedColumns.contains(renamedColumn.Name())) {
             foreignColumns.push_back(foreignColumnsIndex++);
         }
-    };
+    }
 
     if (GroupClause) {
         for (const auto& _ : GroupClause->AggregateItems) {
