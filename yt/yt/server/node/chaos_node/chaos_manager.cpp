@@ -793,7 +793,7 @@ private:
             UpdateReplicationCardState(replicationCard, EReplicationCardState::RevokingShortcutsForMigration);
         }
 
-        YT_LOG_DEBUG("Committed distributed replicatoin card collocation attachment (ReplicationCardId: %v, CollocationId: %v)",
+        YT_LOG_DEBUG("Committed distributed replication card collocation attachment (ReplicationCardId: %v, CollocationId: %v)",
             replicationCardId,
             collocationId);
     }
