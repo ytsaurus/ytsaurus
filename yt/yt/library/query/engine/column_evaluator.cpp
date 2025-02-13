@@ -85,6 +85,9 @@ TColumnEvaluatorPtr TColumnEvaluator::Create(
             column.AggregateInstance = column.AggregateImage.Instantiate();
             isAggregate[index] = true;
         }
+
+        // Perform lazy initialization to make Variables immutable and thread-safe in the future.
+        column.Variables.GetLiteralValues();
     }
 
     return New<TColumnEvaluator>(std::move(columns), std::move(isAggregate));
