@@ -29,6 +29,7 @@ target_link_libraries(unittester-core-concurrency PUBLIC
   yt-yt-core
   yt-core-test_framework
   cpp-json-yson
+  cpp-threading-future
 )
 
 target_allocator(unittester-core-concurrency
@@ -44,6 +45,7 @@ target_link_options(unittester-core-concurrency PRIVATE
 )
 
 target_sources(unittester-core-concurrency PRIVATE
+  ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/arcadia_interop_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_barrier_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_looper_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/core/concurrency/unittests/async_rw_lock_ut.cpp

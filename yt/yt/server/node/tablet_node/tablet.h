@@ -878,6 +878,8 @@ public:
 
     i64 GetTotalDataWeight();
 
+    bool IsVersionedWriteUnversioned() const;
+
 private:
     struct TTabletSizeMetrics
     {

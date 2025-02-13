@@ -24,6 +24,9 @@ namespace NYT {
     }  // namespace NYT::NTableClient
 
     class TNode;
+
+    template <typename T, typename Tag>
+    class TStrongTypedef;
 }  // namespace NYT
 
 namespace NRoren {
@@ -244,6 +247,39 @@ template <CManuallyNonCodable T>
 struct TIsManuallyNonCodable<std::shared_ptr<T>> : public std::true_type
 { };
 
+template <typename T, typename TCounter>
+class TCoder<TSharedPtr<T, TCounter>>
+{
+public:
+    inline void Encode(IOutputStream* out, const TSharedPtr<T, TCounter>& value)
+    {
+        if (value) {
+            ::Save(out, true);
+            ValueCoder_.Encode(out, *value);
+        } else {
+            ::Save(out, false);
+        }
+    }
+
+    inline void Decode(IInputStream* in, TSharedPtr<T, TCounter>& value)
+    {
+        bool hasValue;
+        ::Load(in, hasValue);
+        if (hasValue) {
+            value = MakeShared<T, TCounter>();
+            ValueCoder_.Decode(in, *value);
+        } else {
+            value.Reset();
+        }
+    }
+private:
+    TCoder<T> ValueCoder_;
+};
+
+template <CManuallyNonCodable T, typename TCounter>
+struct TIsManuallyNonCodable<TSharedPtr<T, TCounter>> : public std::true_type
+{ };
+
 template <typename K, typename V>
 class TCoder<std::pair<K, V>>
 {
@@ -344,6 +380,34 @@ public:
     void Encode(IOutputStream* out, const NYT::TNode& node);
     void Decode(IInputStream* in, NYT::TNode& node);
 };
+
+template <typename TResult, typename... TArgs>
+struct TIsManuallyNonCodable<std::function<TResult(TArgs...)>> : public std::true_type
+{ };
+
+template <typename TType, typename TTag>
+class TCoder<NYT::TStrongTypedef<TType, TTag>>
+{
+public:
+    using TTypeDef = NYT::TStrongTypedef<TType, TTag>;
+
+    void Encode(IOutputStream* out, const TTypeDef& row)
+    {
+        Coder_.Encode(out, row.Underlying());
+    }
+
+    void Decode(IInputStream* in, TTypeDef& row)
+    {
+        Coder_.Decode(in, row.Underlying());
+    }
+
+private:
+    TCoder<TType> Coder_;
+};
+
+template <CManuallyNonCodable TType, typename TTag>
+struct TIsManuallyNonCodable<NYT::TStrongTypedef<TType, TTag>> : public std::true_type
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 

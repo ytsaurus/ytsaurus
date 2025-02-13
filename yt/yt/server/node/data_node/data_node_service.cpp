@@ -2444,7 +2444,7 @@ private:
     static void FillColumnarStatisticsFromChunkMeta(
         TRspGetColumnarStatistics::TSubresponse* subresponse,
         const std::vector<TColumnStableName>& columnStableNames,
-        const TNameTablePtr nameTable,
+        const TNameTablePtr& nameTable,
         const TChunkMeta& meta)
     {
         auto optionalColumnarStatisticsExt = FindProtoExtension<TColumnarStatisticsExt>(meta.extensions());
@@ -2456,11 +2456,9 @@ private:
         const auto& columnarStatisticsExt = *optionalColumnarStatisticsExt;
         auto largeColumnarStatisticsExt = FindProtoExtension<TLargeColumnarStatisticsExt>(meta.extensions());
 
-        TColumnarStatistics columnarStatistics;
         i64 chunkRowCount = GetProtoExtension<TMiscExt>(meta.extensions()).row_count();
 
-        FromProto(
-            &columnarStatistics,
+        auto columnarStatistics = FromProto<TColumnarStatistics>(
             columnarStatisticsExt,
             largeColumnarStatisticsExt ? &*largeColumnarStatisticsExt : nullptr,
             chunkRowCount);

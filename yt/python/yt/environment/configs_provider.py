@@ -1454,7 +1454,7 @@ def _build_native_driver_configs(master_connection_configs,
                         timestamp_provider_addresses),
                 },
                 "transaction_manager": {
-                    "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
+                    "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD,
                 }
             }
 

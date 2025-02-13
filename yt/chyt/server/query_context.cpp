@@ -851,7 +851,7 @@ void SetupHostContext(THost* host,
     std::optional<TString> dataLensRequestId,
     std::optional<TString> yqlOperationId,
     const TSecondaryQueryHeaderPtr& secondaryQueryHeader,
-    std::vector<std::pair<TString, TString>> HttpHeaders)
+    std::vector<std::pair<TString, TString>> httpHeaders)
 {
     YT_VERIFY(traceContext);
 
@@ -863,7 +863,7 @@ void SetupHostContext(THost* host,
         std::move(dataLensRequestId),
         std::move(yqlOperationId),
         secondaryQueryHeader,
-        std::move(HttpHeaders));
+        std::move(httpHeaders));
 
     auto prevCallback = context->getProgressCallback();
     auto curCallback = BIND(&TQueryContext::OnProgress, queryContext);

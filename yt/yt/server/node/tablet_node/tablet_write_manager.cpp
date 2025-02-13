@@ -42,14 +42,16 @@ struct TTabletWriterPoolTag
 
 TWireWriteCommands ParseWriteCommands(
     const NTableClient::TSchemaData& schemaData,
-    NTableClient::IWireProtocolReader* reader)
+    NTableClient::IWireProtocolReader* reader,
+    bool isVersionedWriteUnversioned)
 {
     TWireWriteCommands writeCommands;
 
     while (!reader->IsFinished()) {
         writeCommands.push_back(reader->ReadWriteCommand(
             schemaData,
-            /*captureValues*/ false));
+            /*captureValues*/ false,
+            isVersionedWriteUnversioned));
     }
 
     return writeCommands;
@@ -166,7 +168,10 @@ void TTransactionWriteRecord::Load(TLoadContext& context)
     Load(context, WriteCommands.Data_);
     WriteCommands.RowBuffer_ = New<TRowBuffer>();
     auto reader = CreateWireProtocolReader(WriteCommands.Data_, WriteCommands.RowBuffer_);
-    WriteCommands.Commands_ = ParseWriteCommands(context.CurrentTabletWriteManagerSchemaData, reader.get());
+    WriteCommands.Commands_ = ParseWriteCommands(
+        context.CurrentTabletWriteManagerSchemaData,
+        reader.get(),
+        context.CurrentTabletVersionedWriteIsUnversioned);
 
     Load(context, RowCount);
     Load(context, DataWeight);
@@ -285,7 +290,7 @@ public:
         if (lockless) {
             // Skip the whole message.
             while (!reader->IsFinished()) {
-                reader->NextCommand(storeManager->IsVersionedWriteUnversioned());
+                reader->NextCommand(Tablet_->IsVersionedWriteUnversioned());
             }
             context.RowCount = rowCount;
             context.DataWeight = dataWeight;
@@ -857,8 +862,10 @@ public:
 
         // NB: Tablet_->TableSchemaData() will be initialized in TTablet::Initialize (later).
         context.CurrentTabletWriteManagerSchemaData = IWireProtocolReader::GetSchemaData(*Tablet_->GetTableSchema());
+        context.CurrentTabletVersionedWriteIsUnversioned = Tablet_->IsVersionedWriteUnversioned();
         auto guard = Finally([&context](){
             context.CurrentTabletWriteManagerSchemaData.clear();
+            context.CurrentTabletVersionedWriteIsUnversioned = false;
         });
 
         for (int index = 0; index < std::ssize(TransactionIdToPersistentWriteState_); ++index) {

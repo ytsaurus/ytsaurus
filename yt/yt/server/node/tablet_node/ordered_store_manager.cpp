@@ -113,11 +113,6 @@ void TOrderedStoreManager::LockHunkStores(TWriteContext* context)
     }
 }
 
-bool TOrderedStoreManager::IsVersionedWriteUnversioned() const
-{
-    return true;
-}
-
 bool TOrderedStoreManager::ExecuteWrites(
     IWireWriteCommandReader* reader,
     TWriteContext* context)
@@ -127,7 +122,7 @@ bool TOrderedStoreManager::ExecuteWrites(
     LockHunkStores(context);
 
     while (!reader->IsFinished()) {
-        const auto& command = reader->NextCommand(IsVersionedWriteUnversioned());
+        const auto& command = reader->NextCommand(Tablet_->IsVersionedWriteUnversioned());
         Visit(command,
             [&] (const TWriteRowCommand& command) { WriteRow(command.Row, context); },
             [&] (const TVersionedWriteRowCommand& command) { WriteRow(command.UnversionedRow, context); },

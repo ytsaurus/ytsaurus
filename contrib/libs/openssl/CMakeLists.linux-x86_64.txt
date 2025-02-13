@@ -17,10 +17,6 @@ find_package(linux-headers-generic REQUIRED)
 add_library(contrib-libs-openssl)
 
 
-target_compile_options(contrib-libs-openssl PUBLIC
-  -DOPENSSL_DONT_ADD_VERSION_PREFIX
-)
-
 target_compile_options(contrib-libs-openssl PRIVATE
   -DOPENSSL_BUILD=1
   -DOPENSSL_BN_ASM_MONT

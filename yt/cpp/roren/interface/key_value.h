@@ -142,7 +142,7 @@ private:
     TPodifiedValue<TValue> Value_;
 };
 
-template <typename K, typename V>
+template <std::equality_comparable K, std::equality_comparable V>
 bool operator == (const TKV<K, V>& lhs, const TKV<K, V>& rhs)
 {
     return lhs.Key() == rhs.Key() && lhs.Value() == rhs.Value();

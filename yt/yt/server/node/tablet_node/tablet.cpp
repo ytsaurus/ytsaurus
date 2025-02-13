@@ -2984,6 +2984,15 @@ void TTablet::InitializeTargetServantActivationFuture()
     }
 }
 
+// NB: Corresponds to store manager type but can be used in contexts where store manager does not exist.
+// TReplicatedStoreManager: false
+// TSortedStoreManager: false
+// TOrderedStoreManager: true
+bool TTablet::IsVersionedWriteUnversioned() const
+{
+    return !IsPhysicallyLog() && !IsPhysicallySorted();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluentMap fluent)

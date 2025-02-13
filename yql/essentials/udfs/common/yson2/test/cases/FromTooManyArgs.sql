@@ -1,1 +1,0 @@
-SELECT Yson::From(1, 2, 3);

@@ -198,6 +198,7 @@ public:
 
     NApi::NNative::TConnectionDynamicConfigPtr ClusterConnection;
 
+    NBus::TBusServerDynamicConfigPtr BusServer;
     NRpc::TServerDynamicConfigPtr RpcServer;
 
     TProxyMemoryLimitsPtr MemoryLimits;

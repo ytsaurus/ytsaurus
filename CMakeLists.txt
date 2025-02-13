@@ -37,7 +37,6 @@ cmake_policy(SET CMP0104 OLD)
 
 include(cmake/global_flags.cmake)
 include(cmake/global_vars.cmake)
-include(cmake/FindIDN.cmake)
 include(cmake/archive.cmake)
 include(cmake/bison.cmake)
 include(cmake/common.cmake)

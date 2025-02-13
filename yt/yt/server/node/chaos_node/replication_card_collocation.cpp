@@ -45,7 +45,7 @@ void TReplicationCardCollocation::ValidateNotMigrating() const
 {
     if (IsMigrating()) {
         THROW_ERROR_EXCEPTION(NChaosClient::EErrorCode::ReplicationCollocationIsMigrating,
-            "Collocation %v is in %v state",
+            "Collocation %v is in %Qlv state",
             Id_,
             State_);
     }

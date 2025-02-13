@@ -16,7 +16,7 @@ public:
         Y_ABORT_UNLESS(tableIndex >= 0);
     }
 
-    void Do(const NYT::TNode& row, TOutput<NYT::TNode>& output) override
+    void Do(const NYT::TNode& row, TOutput<NYT::TNode>& output)
     {
         auto result = row;
         result["table_index"] = TableIndex_;
@@ -40,7 +40,7 @@ public:
         Y_ABORT_UNLESS(tableIndex >= 0);
     }
 
-    void Do(const TKVProto& row, TOutput<TKVProto>& output) override
+    void Do(const TKVProto& row, TOutput<TKVProto>& output)
     {
         auto result = row;
         result.SetTableIndex(TableIndex_);

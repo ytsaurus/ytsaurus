@@ -495,6 +495,8 @@ public:
     //! IO tracker config.
     NIO::TIOTrackerConfigPtr IOTracker;
 
+    NBus::TBusServerDynamicConfigPtr BusServer;
+
     NRpc::TServerDynamicConfigPtr RpcServer;
 
     //! Network throttler limit is this smaller than NetworkBandwidth.

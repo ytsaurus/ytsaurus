@@ -78,6 +78,7 @@ public:
     using NHydra::TLoadContext::TLoadContext;
 
     NTableClient::TSchemaData CurrentTabletWriteManagerSchemaData;
+    bool CurrentTabletVersionedWriteIsUnversioned;
 
     ETabletReign GetVersion() const;
 };
