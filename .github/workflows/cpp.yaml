@@ -3,7 +3,7 @@ name: C++ CI
 on:
   push:
     branches:
-      - members/mpereskokova/yt-so
+      - members/mpereskokova/yt-so-no-tests
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -108,7 +108,7 @@ jobs:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
-      build-ytsaurus-tests: true
+      build-ytsaurus-tests: false
       build-query-tracker: true
       build-python: true
       update-remote-cache: true
