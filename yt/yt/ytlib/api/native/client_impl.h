@@ -990,7 +990,7 @@ private:
     std::unique_ptr<NScheduler::TOperationServiceProxy> SchedulerOperationProxy_;
     std::unique_ptr<NBundleController::TBundleControllerServiceProxy> BundleControllerProxy_;
 
-    const NSignature::TSignatureGeneratorBasePtr DummySignatureGenerator_;
+    const NSignature::ISignatureGeneratorPtr DummySignatureGenerator_;
 
     struct TReplicaClient final
     {
