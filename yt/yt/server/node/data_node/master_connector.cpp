@@ -685,9 +685,11 @@ protected:
             }
 
             default: {
-                YT_LOG_ALERT("Skipping heartbeat report to master, since node is in incorrect state (CellTag: %v, DataNodeState: %v)",
+                YT_LOG_WARNING("Skip heartbeat report to master, since node is in incorrect state (CellTag: %v, DataNodeState: %v)",
                     cellTag,
                     state);
+
+                Bootstrap_->ResetAndRegisterAtMaster();
 
                 return MakeFuture(TError("Incorrect node state") << TErrorAttribute("data_node_state", state));
             }
@@ -721,8 +723,13 @@ protected:
                 break;
             }
 
-            default:
-                YT_ABORT();
+            default: {
+                YT_LOG_WARNING("Skip processing successful heartbeat since node is in incorrect state (CellTag: %v, DataNodeState: %v)",
+                    cellTag,
+                    state);
+
+                Bootstrap_->ResetAndRegisterAtMaster();
+            }
         }
     }
 
@@ -753,8 +760,13 @@ protected:
                 break;
             }
 
-            default:
-                YT_ABORT();
+            default: {
+                YT_LOG_WARNING("Skip processing failed heartbeat since node is in incorrect state (CellTag: %v, DataNodeState: %v)",
+                    cellTag,
+                    state);
+
+                Bootstrap_->ResetAndRegisterAtMaster();
+            }
         }
     }
 
