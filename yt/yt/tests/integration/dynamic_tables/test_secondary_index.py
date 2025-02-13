@@ -164,6 +164,11 @@ class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
     NUM_REMOTE_CLUSTERS = 1
     REPLICA_CLUSTER_NAME = "remote_0"
 
+    @classmethod
+    def setup_class(cls):
+        super(TestSecondaryIndexReplicatedBase, cls).setup_class()
+        set("//sys/@config/enable_stable_secondary_index_destruction", True)
+
     def setup_method(self, method):
         super(TestSecondaryIndexReplicatedBase, self).setup_method(method)
         self.REPLICA_DRIVER = get_driver(cluster=self.REPLICA_CLUSTER_NAME)
@@ -981,7 +986,6 @@ class TestSecondaryIndexModifications(TestSecondaryIndexBase):
 class TestSecondaryIndexReplicatedMaster(TestSecondaryIndexReplicatedBase, TestSecondaryIndexMaster):
     @authors("sabdenovch")
     def test_holds_collocation(self):
-        _ = self._create_table("//tmp/stranger", PRIMARY_SCHEMA)
         _ = self._create_table("//tmp/table", PRIMARY_SCHEMA)
         _ = self._create_table("//tmp/index_table", INDEX_ON_VALUE_SCHEMA)
         index_id, collocation_id = self._create_secondary_index()
@@ -993,7 +997,6 @@ class TestSecondaryIndexReplicatedMaster(TestSecondaryIndexReplicatedBase, TestS
         with raises_yt_error("Cannot remove collocation"):
             remove(f"#{collocation_id}")
 
-        remove("//tmp/stranger")
         remove("//tmp/index_table")
 
         assert exists(f"#{collocation_id}")
