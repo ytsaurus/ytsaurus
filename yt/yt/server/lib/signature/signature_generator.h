@@ -15,10 +15,10 @@ namespace NYT::NSignature {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSignatureGenerator
-    : public TSignatureGeneratorBase
+    : public ISignatureGenerator
 {
 public:
-    using TSignatureGeneratorBase::Sign;
+    using ISignatureGenerator::Sign;
 
     TSignatureGenerator(TSignatureGeneratorConfigPtr config, IKeyStoreWriterPtr keyWriter);
 

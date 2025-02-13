@@ -2998,7 +2998,7 @@ private:
     // by rpc proxy later.
     TSignedWriteFragmentResultPtr SignedResult_;
 
-    const NSignature::TSignatureGeneratorBasePtr DummySignatureGenerator_;
+    const NSignature::ISignatureGeneratorPtr DummySignatureGenerator_;
 
     bool FirstRow_ = true;
 

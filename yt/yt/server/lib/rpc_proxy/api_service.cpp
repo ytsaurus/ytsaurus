@@ -617,8 +617,8 @@ public:
         TProfiler profiler,
         INodeMemoryTrackerPtr memoryTracker,
         IStickyTransactionPoolPtr stickyTransactionPool,
-        TSignatureValidatorBasePtr signatureValidator,
-        TSignatureGeneratorBasePtr signatureGenerator,
+        ISignatureValidatorPtr signatureValidator,
+        ISignatureGeneratorPtr signatureGenerator,
         IQueryCorpusReporterPtr queryCorpusReporter)
         : TServiceBase(
             std::move(workerInvoker),
@@ -882,8 +882,8 @@ private:
     const IInvokerPtr ControlInvoker_;
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
-    const TSignatureValidatorBasePtr SignatureValidator_;
-    const TSignatureGeneratorBasePtr SignatureGenerator_;
+    const ISignatureValidatorPtr SignatureValidator_;
+    const ISignatureGeneratorPtr SignatureGenerator_;
 
     const IQueryCorpusReporterPtr QueryCorpusReporter_;
 
@@ -6946,8 +6946,8 @@ IApiServicePtr CreateApiService(
     NTracing::TSamplerPtr traceSampler,
     NLogging::TLogger logger,
     TProfiler profiler,
-    TSignatureValidatorBasePtr signatureValidator,
-    TSignatureGeneratorBasePtr signatureGenerator,
+    ISignatureValidatorPtr signatureValidator,
+    ISignatureGeneratorPtr signatureGenerator,
     INodeMemoryTrackerPtr memoryUsageTracker,
     IStickyTransactionPoolPtr stickyTransactionPool,
     IQueryCorpusReporterPtr queryCorpusReporter)
