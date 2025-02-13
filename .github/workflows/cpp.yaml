@@ -3,8 +3,7 @@ name: C++ CI
 on:
   push:
     branches:
-      - main
-      - stable/[0-9]+\.[0-9]+
+      - members/mpereskokova/check-udfs
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -50,13 +49,6 @@ jobs:
         with:
           path: ytsaurus
 
-      - name: Checkout ydb
-        uses: actions/checkout@v3
-        with:
-          repository: ydb-platform/ydb
-          ref: 74ff898ca96053489214acb09862da6bf0bfb428
-          path: ydb
-
   tag:
     name: Calculate docker tag
     needs:
@@ -99,56 +91,18 @@ jobs:
       BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
     uses: ./.github/workflows/build-jobs.yaml
 
-  build-cmake:
-    name: Build with cmake
-    needs:
-      - start-vm
-      - checkout
-      - build-strawberry
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: cmake
-      build-ytsaurus: true
-      build-chyt: ${{ github.ref_name == 'main' }}
-      build-python: true
-      update-remote-cache: true
-    secrets:
-      BUILD_CACHE_BAZEL_USERNAME: ${{ secrets.BUILD_CACHE_BAZEL_USERNAME }}
-      BUILD_CACHE_BAZEL_PASSWORD: ${{ secrets.BUILD_CACHE_BAZEL_PASSWORD }}
-    uses: ./.github/workflows/build-jobs.yaml
-
-  docker-cmake:
-    name: Docker images with cmake
-    needs:
-      - start-vm
-      - tag
-      - build-cmake
-      - build-strawberry
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-      cpp-build-system: cmake
-      publish-ytsaurus: true
-      publish-chyt: ${{ github.ref_name == 'main' }}
-      publish-strawberry: ${{ github.ref_name == 'main' }}
-      image-tag: ${{ needs.tag.outputs.image-tag }}
-      nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
-    secrets:
-      GH_PERSONAL_ACCESS_TOKEN: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
-      GH_USERNAME: ${{ secrets.GH_USERNAME }}
-    uses: ./.github/workflows/docker-jobs.yaml
-
   build-ya-make:
     name: Build with ya-make
     needs:
       - start-vm
       - checkout
-      - docker-cmake
+      - build-strawberry
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
       build-ytsaurus: true
       build-ytsaurus-tests: true
-      build-query-tracker: ${{ github.ref_name == 'main' }}
+      build-query-tracker: true
       build-python: true
       update-remote-cache: true
     secrets:
@@ -165,7 +119,7 @@ jobs:
     with:
       runs-on-value: ${{ needs.start-vm.outputs.label }}
       cpp-build-system: ya-make
-      publish-query-tracker: ${{ github.ref_name == 'main' }}
+      publish-query-tracker: true
       publish-local: true
       image-tag: ${{ needs.tag.outputs.image-tag }}
       nightly-image-tag: ${{ needs.tag.outputs.nightly-image-tag }}
@@ -174,54 +128,11 @@ jobs:
       GH_USERNAME: ${{ secrets.GH_USERNAME }}
     uses: ./.github/workflows/docker-jobs.yaml
 
-  check:
-    name: Check
-    needs:
-      - start-vm
-      - build-cmake
-      - build-ya-make
-      - docker-cmake
-    with:
-      runs-on-value: ${{ needs.start-vm.outputs.label }}
-    uses: ./.github/workflows/check-jobs.yaml
-
-  systest:
-    name: systest
-    if: github.ref_name == 'main'
-    needs:
-      - start-vm
-      - tag
-      - check
-      - docker-ya-make
-    runs-on: ${{ needs.start-vm.outputs.label }}
-    steps:
-      - name: Mark latest nightly
-        run: |
-          if [[ ${{ needs.tag.outputs.image-tag }} == 'dev' ]]
-          then
-            NIGHTLY_IMAGE_TAG=${{ needs.tag.outputs.nightly-image-tag }}-relwithdebinfo
-            docker tag ghcr.io/ytsaurus/ytsaurus-nightly:${NIGHTLY_IMAGE_TAG} ghcr.io/ytsaurus/ytsaurus-nightly:latest
-            docker push ghcr.io/ytsaurus/ytsaurus-nightly:latest
-          fi
-
-      - name: Download benchmarks
-        uses: robinraju/release-downloader@v1.8
-        with:
-          latest: true
-          fileName: "benchmark-0.0.1.tgz"
-
-      - name: Docker systest
-        shell: bash
-        run: |
-          mkdir -p ../docker-systest-build
-          bash ./ytsaurus/yt/docker/systest/build.sh --ytsaurus-source-path $(pwd)/ytsaurus --ytsaurus-build-path ../build --output-path ../docker-systest-build --image-tag latest --image-cr ghcr.io/
-          docker push ghcr.io/ytsaurus/ytsaurus-systest:latest
-
   stop-vm:
     name: Stop VM
     needs:
       - start-vm
-      - systest
+      - docker-ya-make
     runs-on: trampoline
     if: ${{ always() }}
     steps:
@@ -233,25 +144,3 @@ jobs:
           github-token: ${{ secrets.GH_PERSONAL_ACCESS_TOKEN }}
           label: ${{ needs.start-vm.outputs.label }}
           instance-id: ${{ needs.start-vm.outputs.instance-id }}
-
-  send-notifications:
-    name: Send notifications
-    needs:
-      - stop-vm
-    runs-on: ubuntu-latest
-    if: ${{ failure() }}
-    steps:
-      - name: Send telegram message
-        uses: appleboy/telegram-action@master
-        with:
-          to: ${{ secrets.TELEGRAM_CHAT_ID }}
-          token: ${{ secrets.TELEGRAM_TOKEN }}
-          disable_web_page_preview: true
-          format: markdown
-          message: |
-            Workflow *${{github.workflow}}* failed: ${{github.server_url}}/${{github.repository}}/actions/runs/${{github.run_id}}.
-            Git ${{github.ref_type}}: *${{github.ref_name}}*.
-            Commit:
-            ```
-            ${{github.event.head_commit.message}}
-            ```
