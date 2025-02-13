@@ -123,9 +123,8 @@ protected:
         };
         switch (GetParam()) {
             case ESimpleLogicalValueType::Float:
-                return doCreate(CreateVersionedFloatingPointColumnReader<float>);
             case ESimpleLogicalValueType::Double:
-                return doCreate(CreateVersionedFloatingPointColumnReader<double>);
+                return doCreate(CreateVersionedDoubleColumnReader);
             default:
                 YT_ABORT();
         }
@@ -145,9 +144,8 @@ protected:
         };
         switch (GetParam()) {
             case ESimpleLogicalValueType::Float:
-                return doCreate(CreateVersionedFloatingPointColumnWriter<float>);
             case ESimpleLogicalValueType::Double:
-                return doCreate(CreateVersionedFloatingPointColumnWriter<double>);
+                return doCreate(CreateVersionedDoubleColumnWriter);
             default:
                 YT_ABORT();
         }

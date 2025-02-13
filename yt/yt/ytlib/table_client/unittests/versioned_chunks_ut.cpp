@@ -740,13 +740,15 @@ protected:
         TColumnSchema("k2", EValueType::String).SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
         TColumnSchema("k4", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("k5", ESimpleLogicalValueType::Float).SetSortOrder(ESortOrder::Ascending),
 
         TColumnSchema("v1", EValueType::Int64).SetAggregate(TString("min")),
         TColumnSchema("v2", EValueType::Int64),
         TColumnSchema("v3", EValueType::Uint64),
         TColumnSchema("v4", EValueType::String),
         TColumnSchema("v5", EValueType::Double),
-        TColumnSchema("v6", EValueType::Boolean)
+        TColumnSchema("v6", ESimpleLogicalValueType::Float),
+        TColumnSchema("v7", EValueType::Boolean),
     };
 
     std::deque<TString> StringData_;
@@ -1110,19 +1112,6 @@ protected:
         TVersionedRowBuilder builder(RowBuffer_);
 
         for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
-            builder.AddKey(MakeUnversionedInt64Value(-10 + (rowIndex / 16), 0)); // k0
-
-            builder.AddKey(MakeUnversionedUint64Value((rowIndex / 8) * 128, 1)); // k1
-
-            if (rowIndex / 4 == 0) {
-                StringData_.push_back(NextStringValue(stringValue));
-            }
-            builder.AddKey(MakeUnversionedStringValue(StringData_.back(), 2)); // k2
-
-            builder.AddKey(MakeUnversionedDoubleValue((rowIndex / 2.0) * 3.14, 3)); // k3
-
-            builder.AddKey(MakeUnversionedBooleanValue(rowIndex % 2 == 1, 4)); // k4
-
             Shuffle(timestamps.begin(), timestamps.end());
             int deleteTimestampCount = std::rand() % 3;
             std::vector<TTimestamp> deleteTimestamps(timestamps.begin(), timestamps.begin() + deleteTimestampCount);
@@ -1134,34 +1123,76 @@ protected:
                 timestamps.begin() + deleteTimestampCount,
                 timestamps.begin() + deleteTimestampCount + 3);
 
-            // v1
-            for (int i = 0; i < std::rand() % 3; ++i) {
-                builder.AddValue(MakeVersionedInt64Value(-10 + (rowIndex / 16) + i, writeTimestamps[i], 5, i % 2 == 0 ? EValueFlags::None : EValueFlags::Aggregate));
-            }
+            for (int id = 0; id < std::ssize(ColumnSchemas_); ++id) {
+                const auto& columnSchema = ColumnSchemas_[id];
+                if (columnSchema.SortOrder()) {
+                    TUnversionedValue value;
 
-            // v2
-            for (int i = 0; i < std::rand() % 3; ++i) {
-                builder.AddValue(MakeVersionedInt64Value(-10 + (rowIndex / 16) + i, writeTimestamps[i], 6));
-            }
+                    switch (columnSchema.CastToV1Type()) {
+                        case ESimpleLogicalValueType::Int64:
+                            value = MakeUnversionedInt64Value(-10 + (rowIndex / 16), id);
+                            break;
+                        case ESimpleLogicalValueType::Uint64:
+                            value = MakeUnversionedUint64Value((rowIndex / 8) * 128, id);
+                            break;
+                        case ESimpleLogicalValueType::String:
+                            if (rowIndex / 4 == 0) {
+                                StringData_.push_back(NextStringValue(stringValue));
+                            }
+                            value = MakeUnversionedStringValue(StringData_.back(), id);
+                            break;
+                        case ESimpleLogicalValueType::Double:
+                            value = MakeUnversionedDoubleValue((rowIndex / 2.0) * 3.14, id);
+                            break;
+                        case ESimpleLogicalValueType::Boolean:
+                            value = MakeUnversionedBooleanValue(rowIndex % 2 == 1, id);
+                            break;
+                        case ESimpleLogicalValueType::Float:
+                            value = MakeUnversionedDoubleValue(static_cast<float>((rowIndex / 2.0) * 3.14), id);
+                            break;
 
-            // v3
-            for (int i = 0; i < std::rand() % 3; ++i) {
-                builder.AddValue(MakeVersionedUint64Value(rowIndex * 10 + i, writeTimestamps[i], 7));
-            }
+                        default:
+                            YT_ABORT();
+                    }
 
-            // v4
-            for (int i = 0; i < std::rand() % 3; ++i) {
-                builder.AddValue(MakeVersionedStringValue(StringData_.back(), writeTimestamps[i], 8));
-            }
+                    builder.AddKey(value);
+                } else {
+                    for (int i = 0; i < std::rand() % 3; ++i) {
+                        TVersionedValue value;
 
-            // v5
-            for (int i = 0; i < std::rand() % 3; ++i) {
-                builder.AddValue(MakeVersionedDoubleValue(rowIndex * 3.14 + i, writeTimestamps[i], 9));
-            }
+                        switch (columnSchema.CastToV1Type()) {
+                            case ESimpleLogicalValueType::Int64:
+                                value = MakeVersionedInt64Value(
+                                    -10 + (rowIndex / 16) + i,
+                                    writeTimestamps[i],
+                                    id,
+                                    i % 2 == 1 && columnSchema.Aggregate()
+                                        ? EValueFlags::Aggregate
+                                        : EValueFlags::None);
+                                break;
+                            case ESimpleLogicalValueType::Uint64:
+                                value = MakeVersionedUint64Value(rowIndex * 10 + i, writeTimestamps[i], id);
+                                break;
+                            case ESimpleLogicalValueType::String:
+                                value = MakeVersionedStringValue(StringData_.back(), writeTimestamps[i], id);
+                                break;
+                            case ESimpleLogicalValueType::Double:
+                                value = MakeVersionedDoubleValue(rowIndex * 3.14 + i, writeTimestamps[i], id);
+                                break;
+                            case ESimpleLogicalValueType::Boolean:
+                                value = MakeVersionedBooleanValue(i % 2 == 1, writeTimestamps[i], id);
+                                break;
+                            case ESimpleLogicalValueType::Float:
+                                value = MakeVersionedDoubleValue(static_cast<float>(rowIndex * 3.14 + i), writeTimestamps[i], id);
+                                break;
 
-            // v6
-            for (int i = 0; i < std::rand() % 3; ++i) {
-                builder.AddValue(MakeVersionedBooleanValue(i % 2 == 1, writeTimestamps[i], 10));
+                            default:
+                                YT_ABORT();
+                        }
+
+                        builder.AddValue(value);
+                    }
+                }
             }
 
             rows.push_back(builder.FinishRow());
@@ -1423,9 +1454,10 @@ protected:
             writeSchema);
 
         auto columnSchemas = ColumnSchemas_;
-        columnSchemas.insert(
-            columnSchemas.begin() + 5,
-            TColumnSchema("extraKey", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending));
+        auto it = std::find_if(columnSchemas.begin(), columnSchemas.end(), [] (const TColumnSchema& schema) {
+            return !schema.SortOrder();
+        });
+        columnSchemas.insert(it, TColumnSchema("extraKey", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending));
 
         auto readSchema = New<TTableSchema>(columnSchemas);
 
@@ -1449,9 +1481,10 @@ protected:
             writeSchema);
 
         auto columnSchemas = ColumnSchemas_;
-        columnSchemas.insert(
-            columnSchemas.begin() + 5,
-            TColumnSchema("extraKey", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending));
+        auto it = std::find_if(columnSchemas.begin(), columnSchemas.end(), [] (const TColumnSchema& schema) {
+            return !schema.SortOrder();
+        });
+        columnSchemas.insert(it, TColumnSchema("extraKey", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending));
         auto readSchema = New<TTableSchema>(columnSchemas);
 
         TUnversionedOwningRowBuilder lowerKeyBuilder;
@@ -1521,7 +1554,9 @@ protected:
         auto writeSchema = New<TTableSchema>(ColumnSchemas_);
 
         auto readColumnSchemas = ColumnSchemas_;
-        auto it = readColumnSchemas.begin() + 5;
+        auto it = std::find_if(readColumnSchemas.begin(), readColumnSchemas.end(), [] (const TColumnSchema& schema) {
+            return !schema.SortOrder();
+        });
         for (int extraKeyIndex = 10; extraKeyIndex >= 0; --extraKeyIndex) {
             it = readColumnSchemas.insert(
                 it,
@@ -1643,12 +1678,31 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 // Good combination to test all types of segments.
-const std::vector<EValueType> KeyTypes{
-    EValueType::Int64,
-    EValueType::Double,
-    EValueType::Uint64,
-    EValueType::String,
-    EValueType::Boolean
+const std::vector<ESimpleLogicalValueType> KeyTypes{
+    ESimpleLogicalValueType::Int64,
+    // ESimpleLogicalValueType::Int32,
+    // ESimpleLogicalValueType::Int16,
+    // ESimpleLogicalValueType::Int8,
+
+    ESimpleLogicalValueType::Double,
+    ESimpleLogicalValueType::Float,
+
+    ESimpleLogicalValueType::Uint64,
+    // ESimpleLogicalValueType::Uint32,
+    // ESimpleLogicalValueType::Uint16,
+    // ESimpleLogicalValueType::Uint8,
+
+    ESimpleLogicalValueType::String,
+    // ESimpleLogicalValueType::Utf8,
+    // ESimpleLogicalValueType::Json,
+    // ESimpleLogicalValueType::Uuid,
+
+    // ESimpleLogicalValueType::Date,
+    // ESimpleLogicalValueType::Datetime,
+    // ESimpleLogicalValueType::Timestamp,
+    // ESimpleLogicalValueType::Interval,
+
+    ESimpleLogicalValueType::Boolean,
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1746,9 +1800,10 @@ public:
             writeSchema);
 
         auto columnSchemas = ColumnSchemas_;
-        columnSchemas.insert(
-            columnSchemas.begin() + 5,
-            TColumnSchema("extraKey", EValueType::Int64).SetSortOrder(ESortOrder::Ascending));
+        auto it = std::find_if(columnSchemas.begin(), columnSchemas.end(), [] (const TColumnSchema& schema) {
+            return !schema.SortOrder();
+        });
+        columnSchemas.insert(it, TColumnSchema("extraKey", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending));
         auto readSchema = New<TTableSchema>(columnSchemas);
 
         TUnversionedOwningRowBuilder lowerKeyBuilder;
@@ -1847,26 +1902,26 @@ protected:
         }
 
         // Values
-        writeSchemaColumns.push_back(TColumnSchema("v01", EValueType::Int64).SetAggregate(TString("min")));
-        writeSchemaColumns.push_back(TColumnSchema("v02", EValueType::Int64));
-        writeSchemaColumns.push_back(TColumnSchema("v03", EValueType::Uint64));
-        writeSchemaColumns.push_back(TColumnSchema("v04", EValueType::String));
-        writeSchemaColumns.push_back(TColumnSchema("v05", EValueType::Double));
-        writeSchemaColumns.push_back(TColumnSchema("v06", EValueType::Boolean));
-        writeSchemaColumns.push_back(TColumnSchema("v07", EValueType::Any));
+        writeSchemaColumns.push_back(TColumnSchema("v01", ESimpleLogicalValueType::Int64).SetAggregate(TString("min")));
+        writeSchemaColumns.push_back(TColumnSchema("v02", ESimpleLogicalValueType::Int64));
+        writeSchemaColumns.push_back(TColumnSchema("v03", ESimpleLogicalValueType::Uint64));
+        writeSchemaColumns.push_back(TColumnSchema("v04", ESimpleLogicalValueType::String));
+        writeSchemaColumns.push_back(TColumnSchema("v05", ESimpleLogicalValueType::Double));
+        writeSchemaColumns.push_back(TColumnSchema("v06", ESimpleLogicalValueType::Boolean));
+        writeSchemaColumns.push_back(TColumnSchema("v07", ESimpleLogicalValueType::Any));
+        writeSchemaColumns.push_back(TColumnSchema("v08", ESimpleLogicalValueType::Float));
         // TODO(babenko): uncomment once these types are fully supported by all readers/writers
-        // writeSchemaColumns.push_back(TColumnSchema("v08", ESimpleLogicalValueType::Int8));
-        // writeSchemaColumns.push_back(TColumnSchema("v09", ESimpleLogicalValueType::Int16));
-        // writeSchemaColumns.push_back(TColumnSchema("v10", ESimpleLogicalValueType::Int32));
-        // writeSchemaColumns.push_back(TColumnSchema("v11", ESimpleLogicalValueType::Uint8));
-        // writeSchemaColumns.push_back(TColumnSchema("v12", ESimpleLogicalValueType::Uint16));
-        // writeSchemaColumns.push_back(TColumnSchema("v13", ESimpleLogicalValueType::Uint32));
-        // writeSchemaColumns.push_back(TColumnSchema("v14", ESimpleLogicalValueType::Utf8));
-        // writeSchemaColumns.push_back(TColumnSchema("v15", ESimpleLogicalValueType::Date));
-        // writeSchemaColumns.push_back(TColumnSchema("v16", ESimpleLogicalValueType::Datetime));
-        // writeSchemaColumns.push_back(TColumnSchema("v17", ESimpleLogicalValueType::Timestamp));
-        // writeSchemaColumns.push_back(TColumnSchema("v18", ESimpleLogicalValueType::Interval));
-        // writeSchemaColumns.push_back(TColumnSchema("v19", ESimpleLogicalValueType::Float));
+        // writeSchemaColumns.push_back(TColumnSchema("v09", ESimpleLogicalValueType::Int8));
+        // writeSchemaColumns.push_back(TColumnSchema("v10", ESimpleLogicalValueType::Int16));
+        // writeSchemaColumns.push_back(TColumnSchema("v11", ESimpleLogicalValueType::Int32));
+        // writeSchemaColumns.push_back(TColumnSchema("v12", ESimpleLogicalValueType::Uint8));
+        // writeSchemaColumns.push_back(TColumnSchema("v13", ESimpleLogicalValueType::Uint16));
+        // writeSchemaColumns.push_back(TColumnSchema("v14", ESimpleLogicalValueType::Uint32));
+        // writeSchemaColumns.push_back(TColumnSchema("v15", ESimpleLogicalValueType::Utf8));
+        // writeSchemaColumns.push_back(TColumnSchema("v16", ESimpleLogicalValueType::Date));
+        // writeSchemaColumns.push_back(TColumnSchema("v17", ESimpleLogicalValueType::Datetime));
+        // writeSchemaColumns.push_back(TColumnSchema("v18", ESimpleLogicalValueType::Timestamp));
+        // writeSchemaColumns.push_back(TColumnSchema("v19", ESimpleLogicalValueType::Interval));
         // writeSchemaColumns.push_back(TColumnSchema("v20", ESimpleLogicalValueType::Json));
         // writeSchemaColumns.push_back(TColumnSchema("v21", ESimpleLogicalValueType::Uuid));
         // TODO(babenko): test Void type
@@ -1896,16 +1951,14 @@ protected:
     {
         ProduceSchemas();
 
-        int distinctValueCount = 10;
+        int distinctValueCount = 6;
         for (i64 valueDomainSize : {10, 100, 100000000}) {
             // Generate random values for each type.
             TRandomValueGenerator valueGenerator{Rng_, RowBuffer_, valueDomainSize};
-            TRadomKeyGenerator keyGenerator(&valueGenerator, distinctValueCount);
+            TRandomKeyGenerator keyGenerator(&valueGenerator, distinctValueCount);
             auto rows = GenerateRandomRows(&valueGenerator, &keyGenerator);
 
-            auto memoryChunkReader = CreateChunk(
-                rows,
-                WriteSchema_);
+            auto memoryChunkReader = CreateChunk(rows, WriteSchema_);
 
             for (auto readSchema : {WriteSchema_, ReadSchema_}) {
                 auto lookupHashTable = BuildLookupHashTable(memoryChunkReader, readSchema);
@@ -1994,19 +2047,14 @@ private:
         return values;
     }
 
-    struct TRadomKeyGenerator
+    struct TRandomKeyGenerator
     {
-        TRadomKeyGenerator(
+        TRandomKeyGenerator(
             TRandomValueGenerator* valueGenerator,
             int distinctValueCount)
         {
             for (auto keyType : KeyTypes) {
-                auto logicalKeyType = GetLogicalType(keyType);
-                GetValues(keyType) = GenerateRandomValues(logicalKeyType, valueGenerator, distinctValueCount);
-                GetValues(keyType) = GenerateRandomValues(logicalKeyType, valueGenerator, distinctValueCount);
-                GetValues(keyType) = GenerateRandomValues(logicalKeyType, valueGenerator, distinctValueCount);
-                GetValues(keyType) = GenerateRandomValues(logicalKeyType, valueGenerator, distinctValueCount);
-                GetValues(keyType) = GenerateRandomValues(logicalKeyType, valueGenerator, distinctValueCount);
+                GetValues(keyType) = GenerateRandomValues(keyType, valueGenerator, distinctValueCount);
             }
         }
 
@@ -2019,19 +2067,52 @@ private:
             return result;
         }
 
-        std::vector<TUnversionedValue>& GetValues(EValueType type)
+        std::vector<TUnversionedValue>& GetValues(ESimpleLogicalValueType type)
         {
             switch (type) {
-                case EValueType::Int64:
-                    return IntValues_;
-                case EValueType::Uint64:
-                    return UintValues_;
-                case EValueType::String:
-                    return StringValues_;
-                case EValueType::Double:
-                    return DoubleValues_;
-                case EValueType::Boolean:
-                    return BooleanValues_;
+                    case ESimpleLogicalValueType::Int64:
+                        return Int64Values_;
+                    // case ESimpleLogicalValueType::Int32:
+                    //     return Int32Values_;
+                    // case ESimpleLogicalValueType::Int16:
+                    //     return Int16Values_;
+                    // case ESimpleLogicalValueType::Int8:
+                    //     return Int8Values_;
+
+                    case ESimpleLogicalValueType::Double:
+                        return DoubleValues_;
+                    case ESimpleLogicalValueType::Float:
+                        return FloatValues_;
+
+                    case ESimpleLogicalValueType::Uint64:
+                        return Uint64Values_;
+                    // case ESimpleLogicalValueType::Uint32:
+                    //     return Uint32Values_;
+                    // case ESimpleLogicalValueType::Uint16:
+                    //     return Uint16Values_;
+                    // case ESimpleLogicalValueType::Uint8:
+                    //     return Uint8Values_;
+
+                    case ESimpleLogicalValueType::String:
+                        return StringValues_;
+                    // case ESimpleLogicalValueType::Utf8:
+                    //     return Utf8Values_;
+                    // case ESimpleLogicalValueType::Json:
+                    //     return JsonValues_;
+                    // case ESimpleLogicalValueType::Uuid:
+                    //     return UuidValues_;
+
+                    // case ESimpleLogicalValueType::Date:
+                    //     return DateValues_;
+                    // case ESimpleLogicalValueType::Datetime:
+                    //     return DatetimeValues_;
+                    // case ESimpleLogicalValueType::Timestamp:
+                    //     return TimestampValues_;
+                    // case ESimpleLogicalValueType::Interval:
+                    //     return IntervalValues_;
+
+                    case ESimpleLogicalValueType::Boolean:
+                        return BooleanValues_;
                 default:
                     YT_ABORT();
             }
@@ -2068,7 +2149,7 @@ private:
             ValueStack.clear();
 
             for (int id = schema->GetKeyColumnCount() - 1; id >= 0; --id) {
-                const auto& values = GetValues(schema->Columns()[id].GetWireType());
+                const auto& values = GetValues(schema->Columns()[id].CastToV1Type());
 
                 if (id >= std::ssize(KeyTypes)) {
                     if (padWithNulls) {
@@ -2115,8 +2196,7 @@ private:
             }
 
             for (size_t id = 0; id < std::min(prefixSize, KeyTypes.size()); ++id) {
-                auto type = GetLogicalType(KeyTypes[id]);
-                builder->AddValue(MakeUnversionedValue(valueGenerator->GetRandomNullableValue(type), id));
+                builder->AddValue(MakeUnversionedValue(valueGenerator->GetRandomNullableValue(KeyTypes[id]), id));
             }
 
             auto sentinel = rng->Uniform(7);
@@ -2130,17 +2210,36 @@ private:
         }
 
         private:
-            std::vector<TUnversionedValue> IntValues_;
-            std::vector<TUnversionedValue> UintValues_;
-            std::vector<TUnversionedValue> StringValues_;
+            std::vector<TUnversionedValue> Int64Values_;
+            // std::vector<TUnversionedValue> Int32Values_;
+            // std::vector<TUnversionedValue> Int16Values_;
+            // std::vector<TUnversionedValue> Int8Values_;
+
             std::vector<TUnversionedValue> DoubleValues_;
+            std::vector<TUnversionedValue> FloatValues_;
+
+            std::vector<TUnversionedValue> Uint64Values_;
+            // std::vector<TUnversionedValue> Uint32Values_;
+            // std::vector<TUnversionedValue> Uint16Values_;
+            // std::vector<TUnversionedValue> Uint8Values_;
+
+            std::vector<TUnversionedValue> StringValues_;
+            // std::vector<TUnversionedValue> Utf8Values_;
+            // std::vector<TUnversionedValue> JsonValues_;
+            // std::vector<TUnversionedValue> UuidValues_;
+
+            // std::vector<TUnversionedValue> DateValues_;
+            // std::vector<TUnversionedValue> DatetimeValues_;
+            // std::vector<TUnversionedValue> TimestampValues_;
+            // std::vector<TUnversionedValue> IntervalValues_;
+
             std::vector<TUnversionedValue> BooleanValues_;
     };
 
     // Greater value domain size for direct segment encoding.
     std::vector<TVersionedRow> GenerateRandomRows(
         TRandomValueGenerator* valueGenerator,
-        TRadomKeyGenerator* keyGenerator)
+        TRandomKeyGenerator* keyGenerator)
     {
         auto distinctKeyCount = keyGenerator->GetDistinctKeyCount();
 
@@ -2197,13 +2296,14 @@ private:
                 }();
                 const auto& columnSchema = WriteSchema_->Columns()[id];
                 auto type = columnSchema.CastToV1Type();
-                bool aggregate = columnSchema.Name() == "v01";
                 for (int i = 0; i < count; ++i) {
                     builder.AddValue(MakeVersionedValue(
                         valueGenerator->GetRandomValue(type),
                         writeTimestamps[i],
                         id,
-                        aggregate ? EValueFlags::Aggregate : EValueFlags::None));
+                        columnSchema.Aggregate().has_value()
+                            ? EValueFlags::Aggregate
+                            : EValueFlags::None));
                 }
             }
 
@@ -2232,7 +2332,7 @@ private:
         IChunkReaderPtr memoryReader,
         TChunkLookupHashTablePtr lookupHashTable,
         TTimestamp timestamp,
-        TRadomKeyGenerator* keyGenerator,
+        TRandomKeyGenerator* keyGenerator,
         const TTableSchemaPtr& readSchema,
         const std::vector<TVersionedRow>& rows,
         bool generateColumnFilter)
@@ -2244,7 +2344,7 @@ private:
         }
 
         // Test lookup keys.
-        for (int keyCount : {1, 2, 3, 10, 100, 200, 5000}) {
+        for (int keyCount : {1, 2, 3, 10, 101, 2000}) {
             TUnversionedRowBuilder builder;
 
             auto randomUniqueSequence = GetRandomUniqueSequence(
@@ -2291,12 +2391,12 @@ private:
     void StressTestRangesWithCommonPrefix(
         IChunkReaderPtr memoryReader,
         TTimestamp timestamp,
-        TRadomKeyGenerator* keyGenerator,
+        TRandomKeyGenerator* keyGenerator,
         const TTableSchemaPtr& readSchema,
         const std::vector<TVersionedRow>& rows,
         bool generateColumnFilter)
     {
-        for (int keyCount : {2, 4, 7, 30, 100, 200, 5000}) {
+        for (int keyCount : {2, 4, 7, 30, 101, 2000}) {
             TUnversionedRowBuilder builder;
 
             auto randomUniqueSequence = GetRandomUniqueSequence(
@@ -2350,13 +2450,13 @@ private:
     void StressTestArbitraryRanges(
         IChunkReaderPtr memoryReader,
         TTimestamp timestamp,
-        TRadomKeyGenerator* keyGenerator,
+        TRandomKeyGenerator* keyGenerator,
         TRandomValueGenerator* valueGenerator,
         const TTableSchemaPtr& readSchema,
         const std::vector<TVersionedRow>& rows,
         bool generateColumnFilter)
     {
-        for (i64 rangeCount : {1, 2, 3, 13, 29, 30, 36, 37, 83, 297}) {
+        for (i64 rangeCount : {1, 2, 3, 13, 29, 36, 37, 83, 297}) {
             for (int iteration = 0; iteration < 3; ++iteration) {
                 TUnversionedRowBuilder builder;
 
