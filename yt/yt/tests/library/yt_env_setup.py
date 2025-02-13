@@ -494,7 +494,6 @@ class YTEnvSetup(object):
 
     ENABLE_TMP_ROOTSTOCK = False
     ENABLE_BULK_INSERT = False
-    ENABLE_HUNKS_REMOTE_COPY = False
     ENABLE_TMP_PORTAL = False
     ENABLE_TABLET_BALANCER = False
     ENABLE_STANDALONE_TABLET_BALANCER = False
@@ -1349,8 +1348,6 @@ class YTEnvSetup(object):
                         attributes={
                             "value": {
                                 "enable_bulk_insert_for_everyone": self.ENABLE_BULK_INSERT,
-                                "enable_versioned_remote_copy": self.ENABLE_BULK_INSERT or self.ENABLE_HUNKS_REMOTE_COPY,
-                                "enable_hunks_remote_copy": self.ENABLE_HUNKS_REMOTE_COPY,
                                 "testing_options": {
                                     "rootfs_test_layers": [
                                         "//layers/exec.tar.gz",

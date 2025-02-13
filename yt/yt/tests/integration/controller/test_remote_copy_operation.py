@@ -77,8 +77,6 @@ class TestSchedulerRemoteCopyCommandsBase(YTEnvSetup):
 
 
 class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
-    ENABLE_HUNKS_REMOTE_COPY = True
-
     @authors("ignat")
     def test_empty_table(self):
         create("table", "//tmp/t1", driver=self.remote_driver)
@@ -1768,39 +1766,11 @@ class TestSchedulerRemoteCopyDynamicTables(TestSchedulerRemoteCopyDynamicTablesB
 
         assert read_table("//tmp/t2") == rows
 
-    @authors("alexelexa")
-    @pytest.mark.parametrize("dynamic", [True, False])
-    def test_no_hunks(self, dynamic):
-        schema = [
-            {"name": "key", "type": "int64", "sort_order": "ascending"},
-            {"name": "value", "type": "string", "max_inline_hunk_size": 1},
-        ]
-        self._create_sorted_table("//tmp/t1", schema=schema, dynamic=dynamic, driver=self.remote_driver)
-        self._create_sorted_table("//tmp/t2", schema=schema, dynamic=dynamic)
-
-        with raises_yt_error():
-            remote_copy(
-                in_="//tmp/t1",
-                out="//tmp/t2",
-                spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
-            )
-
-        remote_copy(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={
-                "cluster_name": self.REMOTE_CLUSTER_NAME,
-                "bypass_hunk_remote_copy_prohibition": True,
-            }
-        )
-
 
 ##################################################################
 
 
 class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynamicTablesBase):
-    ENABLE_HUNKS_REMOTE_COPY = True
-
     @authors("alexelexa")
     @pytest.mark.parametrize("max_inline_hunk_size", [1, 5, 10])
     def test_copy_sorted_table_with_hunks(self, max_inline_hunk_size):
@@ -1997,7 +1967,6 @@ class TestSchedulerRemoteCopyDynamicTablesWithHunks(TestSchedulerRemoteCopyDynam
 
 class TestSchedulerRemoteCopyDynamicTablesErasure(TestSchedulerRemoteCopyDynamicTablesBase):
     NUM_NODES = 12
-    ENABLE_HUNKS_REMOTE_COPY = True
 
     @authors("alexelexa")
     @pytest.mark.parametrize("chunk_format", HUNK_COMPATIBLE_CHUNK_FORMATS)
