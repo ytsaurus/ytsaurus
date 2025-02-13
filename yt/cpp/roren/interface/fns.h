@@ -242,6 +242,47 @@ public:
     virtual TOutputRow ExtractOutput(const TAccumRow& accum) = 0;
 };
 
+template <typename TRow>
+class TLambdaCombineFn final
+    : public ICombineFn<TRow, TRow, TRow>
+{
+    using TFunc = void(*)(TRow*, const TRow&);
+public:
+    TLambdaCombineFn(TFunc func = nullptr)
+        : Func_(func)
+    { }
+
+    TRow CreateAccumulator() final
+    {
+        return TRow{};
+    }
+
+    void AddInput(TRow* accum, const TRow& input) final
+    {
+        YT_VERIFY(Func_ != nullptr);
+        Func_(accum, input);
+    }
+
+    TRow MergeAccumulators(TInput<TRow>& accums) final
+    {
+        auto accum = CreateAccumulator();
+        while (const TRow* cur = accums.Next()) {
+            AddInput(&accum, *cur);
+        }
+        return accum;
+    }
+
+    TRow ExtractOutput(const TRow& accum) final
+    {
+        return accum;
+    }
+
+private:
+    Y_SAVELOAD_DEFINE_OVERRIDE(NPrivate::SaveLoadablePointer(Func_));
+
+    TFunc Func_;
+};
+
 template <typename TFn>
 concept CCombineFnPtr = NPrivate::CIntrusivePtr<TFn> && requires (TFn t) {
     typename TFn::TValueType::TInputRow;
