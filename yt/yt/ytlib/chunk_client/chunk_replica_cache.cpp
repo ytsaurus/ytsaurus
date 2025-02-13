@@ -49,6 +49,9 @@ public:
         , MemoryGuard_(TMemoryUsageTrackerGuard::Build(std::move(memoryUsageTracker)))
         , ExpirationTime_(connection->GetConfig()->ChunkReplicaCache->ExpirationTime)
         , MaxChunksPerLocate_(connection->GetConfig()->ChunkReplicaCache->MaxChunksPerLocate)
+    { }
+
+    void Initialize()
     {
         ExpirationExecutor_->Start();
     }
@@ -503,10 +506,12 @@ IChunkReplicaCachePtr CreateChunkReplicaCache(
     const TProfiler& profiler,
     IMemoryUsageTrackerPtr memoryUsageTracker)
 {
-    return New<TChunkReplicaCache>(
+    auto cache = New<TChunkReplicaCache>(
         std::move(connection),
         profiler,
         std::move(memoryUsageTracker));
+    cache->Initialize();
+    return cache;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
