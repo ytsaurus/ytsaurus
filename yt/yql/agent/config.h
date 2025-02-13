@@ -157,9 +157,6 @@ public:
     TDuration RefreshTokenPeriod;
     int IssueTokenAttempts;
 
-    //! Used to create channels to other queue agents.
-    NBus::TBusConfigPtr BusClient;
-
     int YqlThreadCount;
 
     REGISTER_YSON_STRUCT(TYqlAgentConfig);
