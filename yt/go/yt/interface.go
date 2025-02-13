@@ -591,16 +591,17 @@ type ListOperationsOptions struct {
 
 	*ReadRetryOptions
 
-	FromTime *yson.Time      `http:"from_time,omitnil"`
-	ToTime   *yson.Time      `http:"to_time,omitnil"`
-	Cursor   *yson.Time      `http:"cursor_time,omitnil"`
-	User     *string         `http:"user,omitnil"`
-	State    *OperationState `http:"state,omitnil"`
-	Type     *OperationType  `http:"type,omitnil"`
-	Filter   *string         `http:"filter,omitnil"`
-	Limit    *int            `http:"limit,omitnil"`
-	Pool     *string         `http:"pool,omitnil"`
-	PoolTree *string         `http:"pool_tree,omitnil"`
+	FromTime       *yson.Time      `http:"from_time,omitnil"`
+	ToTime         *yson.Time      `http:"to_time,omitnil"`
+	Cursor         *yson.Time      `http:"cursor_time,omitnil"`
+	User           *string         `http:"user,omitnil"`
+	State          *OperationState `http:"state,omitnil"`
+	Type           *OperationType  `http:"type,omitnil"`
+	Filter         *string         `http:"filter,omitnil"`
+	Limit          *int            `http:"limit,omitnil"`
+	Pool           *string         `http:"pool,omitnil"`
+	PoolTree       *string         `http:"pool_tree,omitnil"`
+	IncludeArchive *bool           `http:"include_archive,omitnil"`
 }
 
 type ListJobsOptions struct {

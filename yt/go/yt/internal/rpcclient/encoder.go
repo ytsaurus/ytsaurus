@@ -2004,7 +2004,7 @@ func (e *Encoder) ListOperations(
 		SubstrFilter:           opts.Filter,
 		Pool:                   opts.Pool,
 		PoolTree:               opts.PoolTree,
-		IncludeArchive:         nil,   // todo
+		IncludeArchive:         opts.IncludeArchive,
 		IncludeCounters:        nil,   // todo
 		Limit:                  limit, // todo
 		Attributes:             nil,   // todo
