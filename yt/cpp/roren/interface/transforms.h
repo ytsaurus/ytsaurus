@@ -602,6 +602,15 @@ auto CombinePerKey(TFnPtr combineFn)
     return TCombinePerKeyTransform{std::move(combineFn)};
 }
 
+template <typename F>
+    requires (!CCombineFnPtr<F>)
+auto CombinePerKey(F&& func)
+{
+    return [] <typename TRow> (void (*func)(TRow*, const TRow&)) {
+        return CombinePerKey(::MakeIntrusive<TLambdaCombineFn<TRow>>(func));
+    } (+func);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCoGroupByKeyTransform
