@@ -205,10 +205,10 @@ private:
         bool considerLimit = query->IsOrdered(requestFeatureFlags) && !query->GroupClause;
 
         auto queryFingerprint = InferName(query, TInferNameOptions{
-            .OmitValues=true,
-            .OmitAliases=true,
-            .OmitJoinPredicate=true,
-            .OmitOffsetAndLimit=!considerLimit,
+            .OmitValues = true,
+            .OmitAliases = true,
+            .OmitJoinPredicate = true,
+            .OmitOffsetAndLimit = !considerLimit,
         });
         auto compileWithLogging = [&] {
             NTracing::TChildTraceContextGuard traceContextGuard("QueryClient.Compile");

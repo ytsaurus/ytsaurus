@@ -49,7 +49,7 @@ struct IPrepareCallbacks
 ////////////////////////////////////////////////////////////////////////////////
 
 using TJoinSubqueryEvaluator = std::function<ISchemafulUnversionedReaderPtr(std::vector<TRow>, TRowBufferPtr)>;
-using TJoinSubqueryProfiler = std::function<TJoinSubqueryEvaluator(int)>;
+using TJoinSubqueryProfiler = std::function<TJoinSubqueryEvaluator(int joinIndex)>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

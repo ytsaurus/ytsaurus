@@ -403,8 +403,6 @@ struct TLikeExpression
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TTableHint)
-
 struct TTableHint
     : public NYTree::TYsonStruct
 {
@@ -502,8 +500,6 @@ struct TArrayJoin
 };
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_STRUCT(TQueryAstHead);
 
 struct TQuery
 {

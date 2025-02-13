@@ -85,12 +85,10 @@ TLogicalTypePtr ToQLType(const TLogicalTypePtr& columnType)
 
 void FillExpressionConstraintSignature(
     TMutableRange<EConstraintKind> signature,
-    TConstExpressionPtr expression,
+    const TConstExpressionPtr& expression,
     const TKeyColumns& keyColumns)
 {
-    YT_ASSERT(signature);
-
-    YT_ASSERT(signature.size() == keyColumns.size());
+    YT_VERIFY(signature.size() == keyColumns.size());
 
     if (const auto* binaryOpExpr = expression->As<TBinaryOpExpression>()) {
         auto opcode = binaryOpExpr->Opcode;
