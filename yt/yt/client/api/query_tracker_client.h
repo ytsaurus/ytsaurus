@@ -161,7 +161,7 @@ struct TGetQueryTrackerInfoResult
 
 struct TCredetials
 {
-    TString Catecory;
+    TString Category;
     TString Subcategory;
     TString ContentOrUrl;
 };

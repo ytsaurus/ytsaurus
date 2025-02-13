@@ -2278,7 +2278,7 @@ TFuture<NQueryTrackerClient::TQueryId> TClient::StartQuery(
     NQueryTrackerClient::EQueryEngine engine,
     const TString& query,
     const TStartQueryOptions& options,
-    const THashMap<TString, TCredetials>&)
+    const THashMap<TString, TCredetials>& extraCredentials)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -2311,6 +2311,20 @@ TFuture<NQueryTrackerClient::TQueryId> TClient::StartQuery(
         protoFile->set_name(file->Name);
         protoFile->set_content(file->Content);
         protoFile->set_type(static_cast<NProto::EContentType>(file->Type));
+    }
+
+    for (const auto& [id, data] : extraCredentials) {
+        const auto cred = req->add_credentials();
+        cred->set_id(id);
+        if (!data.Category.empty()) {
+            cred->set_category(data.Category);
+        }
+        if (!data.Subcategory.empty()) {
+            cred->set_subcategory(data.Subcategory);
+        }
+        if (!data.ContentOrUrl.empty()) {
+            cred->set_content(data.ContentOrUrl);
+        }
     }
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspStartQueryPtr& rsp) {

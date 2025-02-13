@@ -22,7 +22,7 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const TStartQueryOptions& options, const THashMap<TString, TCredetials>&)
+TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const TStartQueryOptions& options, const THashMap<TString, TCredetials>& extraCredentials)
 {
     TQueryTrackerServiceProxy proxy(
         Connection_->GetQueryTrackerChannelOrThrow(options.QueryTrackerStage));
@@ -54,6 +54,20 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
         auto* protoAccessControlObjects = rpcRequest->mutable_access_control_objects();
         for (const auto& aco : *options.AccessControlObjects) {
             protoAccessControlObjects->add_items(aco);
+        }
+    }
+
+    for (const auto& [id, data] : extraCredentials) {
+        const auto cred = rpcRequest->add_credentials();
+        cred->set_id(id);
+        if (!data.Category.empty()) {
+            cred->set_category(data.Category);
+        }
+        if (!data.Subcategory.empty()) {
+            cred->set_subcategory(data.Subcategory);
+        }
+        if (!data.ContentOrUrl.empty()) {
+            cred->set_content(data.ContentOrUrl);
         }
     }
 
