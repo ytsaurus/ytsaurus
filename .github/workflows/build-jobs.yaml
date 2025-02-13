@@ -224,7 +224,7 @@ jobs:
     if: ${{ inputs.cpp-build-system == 'ya-make' }}
     strategy:
       matrix:
-        build-type: [release, relwithdebinfo]
+        build-type: [release]
     steps:
       - name: Calculate variables
         id: vars
