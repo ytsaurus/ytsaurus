@@ -8,8 +8,7 @@ namespace NYT::NTableChunkFormat {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
-std::unique_ptr<IVersionedColumnReader> CreateVersionedFloatingPointColumnReader(
+std::unique_ptr<IVersionedColumnReader> CreateVersionedDoubleColumnReader(
     const NProto::TColumnMeta& columnMeta,
     int columnId,
     const NTableClient::TColumnSchema& columnSchema);

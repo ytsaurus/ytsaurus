@@ -17,8 +17,7 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedFloatingPointColumnWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
-std::unique_ptr<IValueColumnWriter> CreateVersionedFloatingPointColumnWriter(
+std::unique_ptr<IValueColumnWriter> CreateVersionedDoubleColumnWriter(
     int columnId,
     const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
