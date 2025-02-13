@@ -20,6 +20,7 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
     const TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
     IMemoryUsageTrackerPtr memoryUsageTracker,
+    bool serializeFloatsAsDoubles,
     int maxValueCount)
 {
     switch (columnSchema.GetWireType()) {
@@ -40,11 +41,14 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
         case EValueType::Double:
             switch (columnSchema.CastToV1Type()) {
                 case NTableClient::ESimpleLogicalValueType::Float:
-                    return CreateUnversionedFloatingPointColumnWriter<float>(
-                        columnIndex,
-                        blockWriter,
-                        std::move(memoryUsageTracker),
-                        maxValueCount);
+                    if (!serializeFloatsAsDoubles) {
+                        return CreateUnversionedFloatingPointColumnWriter<float>(
+                            columnIndex,
+                            blockWriter,
+                            std::move(memoryUsageTracker),
+                            maxValueCount);
+                    }
+                    [[fallthrough]];
                 default:
                     return CreateUnversionedFloatingPointColumnWriter<double>(
                         columnIndex,
@@ -121,22 +125,12 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
                 maxValueCount);
 
         case EValueType::Double:
-            switch (auto simplifiedLogicalType = columnSchema.CastToV1Type()) {
-                case ESimpleLogicalValueType::Float:
-                    return CreateVersionedFloatingPointColumnWriter<float>(
-                        columnId,
-                        columnSchema,
-                        blockWriter,
-                        std::move(memoryUsageTracker),
-                        maxValueCount);
-                default:
-                    return CreateVersionedFloatingPointColumnWriter<double>(
-                        columnId,
-                        columnSchema,
-                        blockWriter,
-                        std::move(memoryUsageTracker),
-                        maxValueCount);
-            }
+            return CreateVersionedDoubleColumnWriter(
+                columnId,
+                columnSchema,
+                blockWriter,
+                std::move(memoryUsageTracker),
+                maxValueCount);
 
         case EValueType::Boolean:
             return CreateVersionedBooleanColumnWriter(

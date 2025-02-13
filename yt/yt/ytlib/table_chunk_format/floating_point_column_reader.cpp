@@ -50,13 +50,12 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
-class TDirectDenseVersionedFloatingPointValueExtractor
+class TDirectDenseVersionedDoubleValueExtractor
     : public TDenseVersionedValueExtractorBase
-    , public TFloatingPointValueExtractorBase<T>
+    , public TFloatingPointValueExtractorBase<double>
 {
 public:
-    TDirectDenseVersionedFloatingPointValueExtractor(
+    TDirectDenseVersionedDoubleValueExtractor(
         TRef data,
         const NProto::TSegmentMeta& meta,
         bool aggregate)
@@ -71,13 +70,12 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
-class TDirectSparseVersionedFloatingPointValueExtractor
+class TDirectSparseVersionedDoubleValueExtractor
     : public TSparseVersionedValueExtractorBase
-    , public TFloatingPointValueExtractorBase<T>
+    , public TFloatingPointValueExtractorBase<double>
 {
 public:
-    TDirectSparseVersionedFloatingPointValueExtractor(
+    TDirectSparseVersionedDoubleValueExtractor(
         TRef data,
         const NProto::TSegmentMeta& /*meta*/,
         bool aggregate)
@@ -92,8 +90,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
-class TVersionedFloatingPointColumnReader
+class TVersionedDoubleColumnReader
     : public TVersionedColumnReaderBase
 {
 public:
@@ -102,8 +99,8 @@ public:
 private:
     std::unique_ptr<IVersionedSegmentReader> CreateSegmentReader(int segmentIndex) override
     {
-        using TDirectDenseReader = TDenseVersionedSegmentReader<TDirectDenseVersionedFloatingPointValueExtractor<T>>;
-        using TDirectSparseReader = TSparseVersionedSegmentReader<TDirectSparseVersionedFloatingPointValueExtractor<T>>;
+        using TDirectDenseReader = TDenseVersionedSegmentReader<TDirectDenseVersionedDoubleValueExtractor>;
+        using TDirectSparseReader = TSparseVersionedSegmentReader<TDirectSparseVersionedDoubleValueExtractor>;
 
         const auto& meta = ColumnMeta_.segments(segmentIndex);
         auto dense = meta.HasExtension(NProto::TDenseVersionedSegmentMeta::dense_versioned_segment_meta);
@@ -118,13 +115,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T>
-std::unique_ptr<IVersionedColumnReader> CreateVersionedFloatingPointColumnReader(
+std::unique_ptr<IVersionedColumnReader> CreateVersionedDoubleColumnReader(
     const NProto::TColumnMeta& columnMeta,
     int columnId,
     const TColumnSchema& columnSchema)
 {
-    return std::make_unique<TVersionedFloatingPointColumnReader<T>>(
+    return std::make_unique<TVersionedDoubleColumnReader>(
         columnMeta,
         columnId,
         columnSchema);
@@ -230,14 +226,7 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedFloatingPointColumnRe
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template
-std::unique_ptr<IVersionedColumnReader> CreateVersionedFloatingPointColumnReader<float>(
-    const NProto::TColumnMeta& columnMeta,
-    int columnId,
-    const TColumnSchema& columnSchema);
-
-template
-std::unique_ptr<IVersionedColumnReader> CreateVersionedFloatingPointColumnReader<double>(
+std::unique_ptr<IVersionedColumnReader> CreateVersionedDoubleColumnReader(
     const NProto::TColumnMeta& columnMeta,
     int columnId,
     const TColumnSchema& columnSchema);
