@@ -679,12 +679,35 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_DEBUG_UNLESS(Context_.SetupCommands.empty(), "Setup command is not supported in CRI workspace");
-
         ValidateJobPhase(EJobPhase::PreparingSandboxDirectories);
         SetJobPhase(EJobPhase::RunningSetupCommands);
 
-        return VoidFuture;
+        if (Context_.SetupCommands.empty()) {
+            YT_LOG_DEBUG("No setup command is needed");
+            return VoidFuture;
+        }
+
+        YT_LOG_INFO("Running setup commands");
+
+        TRootFS rootFS{
+            .Binds = Context_.Binds,
+        };
+
+        rootFS.Binds.push_back(TBind{
+            .SourcePath = Context_.Slot->GetSlotPath(),
+            .TargetPath = "/slot",
+            .ReadOnly = false,
+        });
+
+        ResultHolder_.SetupCommandCount = Context_.SetupCommands.size();
+        return Context_.Slot->RunSetupCommands(
+            Context_.Job->GetId(),
+            Context_.SetupCommands,
+            rootFS,
+            Context_.CommandUser,
+            /*devices*/ std::nullopt,
+            /*startIndex*/ 0)
+            .AsVoid();
     }
 
     TFuture<void> DoRunGpuCheckCommand() override
