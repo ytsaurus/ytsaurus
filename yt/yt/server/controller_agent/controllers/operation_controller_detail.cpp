@@ -10059,10 +10059,14 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_rpc_proxy_worker_thread_pool_size(jobSpecConfig->RpcProxyWorkerThreadPoolSize);
 
     // Pass external docker image into job spec as is.
-    if (jobSpecConfig->DockerImage &&
-        !TDockerImageSpec(*jobSpecConfig->DockerImage, Config->DockerRegistry).IsInternal())
-    {
-        jobSpec->set_docker_image(*jobSpecConfig->DockerImage);
+    if (jobSpecConfig->DockerImage) {
+        TDockerImageSpec dockerImageSpec(*jobSpecConfig->DockerImage, Config->DockerRegistry);
+        if (!dockerImageSpec.IsInternal() || Config->DockerRegistry->ForwardInternalImagesToJobSpecs) {
+            jobSpec->set_docker_image(*jobSpecConfig->DockerImage);
+        }
+        if (dockerImageSpec.IsInternal() && Config->DockerRegistry->UseYtTokenForInternalRegistry) {
+            GenerateDockerAuthFromToken(SecureVault, AuthenticatedUser, jobSpec);
+        }
     }
 }
 
