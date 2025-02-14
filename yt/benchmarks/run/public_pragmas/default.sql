@@ -11,6 +11,7 @@ pragma config.flags("OptimizerFlags", "FilterPushdownEnableMultiusage",
 pragma yt.AutoMerge = "disabled";
 pragma yt.DataSizePerPartition = "64M";
 pragma yt.HybridDqExecution = "false";
+pragma dq.AnalyzeQuery = "false";
 pragma yt.MapJoinLimit = "4G";
 pragma yt.MaxReplicationFactorToFuseOperations="100";
 pragma yt.PartitionByConstantKeysViaMap;
