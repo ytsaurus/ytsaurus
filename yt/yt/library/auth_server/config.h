@@ -233,12 +233,22 @@ DEFINE_REFCOUNTED_TYPE(TOAuthCookieAuthenticatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(achulkov2): Replace with polymorphic YSON struct in 24.2+.
 class TStringReplacementConfig
     : public NYTree::TYsonStruct
 {
 public:
+    //! NB: The three transformations options below are mutually exclusive.
+
+    //! If set, replaces all non-overlapping matches of this pattern with the replacement string.
     NRe2::TRe2Ptr MatchPattern;
     TString Replacement;
+
+    //! If set, uppercase characters are replaced with lowercase.
+    bool ToLower;
+
+    //! If true, lowercase characters are replaced with uppercase.
+    bool ToUpper;
 
     REGISTER_YSON_STRUCT(TStringReplacementConfig);
 

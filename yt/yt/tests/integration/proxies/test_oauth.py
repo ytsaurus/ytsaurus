@@ -23,15 +23,21 @@ def auth_config(port):
             "login_transformations": [
                 {
                     "match_pattern": r"(.*)@one-company\.(.*)",
-                    "replacement": r"\1"
+                    "replacement": r"\1",
                 },
                 {
-                    "match_pattern": r"(.*)@second-company\.(.*)",
-                    "replacement": r"\2-nosokhvost-\1"
+                    "to_upper": True,
+                },
+                {
+                    "match_pattern": r"(.*)@SECOND-COMPANY\.(.*)",
+                    "replacement": r"\2-nosokhvost-\1",
                 },
                 {
                     "match_pattern": r"(.*)@@(.*)\.(.*)",
                     "replacement": r"\2-\1"
+                },
+                {
+                    "to_lower": True,
                 },
             ],
         },
@@ -212,9 +218,9 @@ class TestOAuth(TestOAuthBase):
             assert data["login"] == expected_login
             assert data["realm"] == "oauth:token"
 
-        check_user("achulkov2@one-company.de", "achulkov2")
+        check_user("achulKOv2@one-company.de", "achulkov2")
         check_user("max42@second-company.be", "be-nosokhvost-max42")
-        check_user("john@@third-company.fr", "third-company-john")
+        check_user("jOHn@@third-company.fr", "third-company-john")
         check_user("fourth@fourth-company.com", "fourth@fourth-company.com")
         check_user("fifth", "fifth")
 

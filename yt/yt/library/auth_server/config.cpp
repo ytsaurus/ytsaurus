@@ -148,12 +148,22 @@ void TOAuthCookieAuthenticatorConfig::Register(TRegistrar /*registrar*/)
 
 void TStringReplacementConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("match_pattern", &TThis::MatchPattern);
-    registrar.Parameter("replacement", &TThis::Replacement);
+    registrar.Parameter("match_pattern", &TThis::MatchPattern)
+        .Default();
+    registrar.Parameter("replacement", &TThis::Replacement)
+        .Default();
+
+    registrar.Parameter("to_lower", &TThis::ToLower)
+        .Default(false);
+
+    registrar.Parameter("to_upper", &TThis::ToUpper)
+        .Default(false);
 
     registrar.Postprocessor([] (TThis* config) {
-        if (!config->MatchPattern) {
-            THROW_ERROR_EXCEPTION("Value of \"match_pattern\" cannot be null");
+        auto optionCount = static_cast<bool>(config->MatchPattern) + config->ToLower + config->ToUpper;
+
+        if (optionCount != 1) {
+            THROW_ERROR_EXCEPTION("Exactly one of the options \"match_pattern\", \"to_lower\" or \"to_upper\" must be set");
         }
     });
 }
