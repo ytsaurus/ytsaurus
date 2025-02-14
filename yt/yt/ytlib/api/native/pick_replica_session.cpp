@@ -459,7 +459,7 @@ IPickReplicaSessionPtr CreatePickReplicaSession(
     NAst::TQuery* query,
     const IConnectionPtr& connection,
     const ITableMountCachePtr& mountCache,
-    const TTableReplicaSynchronicityCachePtr& replicaSynchronicityCache,
+    const ITableReplicaSynchronicityCachePtr& replicaSynchronicityCache,
     const TSelectRowsOptionsBase& options)
 {
     const auto& Logger = connection->GetLogger();

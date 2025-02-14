@@ -133,7 +133,6 @@ TFuture<TReplicaSynchronicityList> FetchReplicatedTableReplicaSynchronicities(
 
     return AllSucceeded(std::move(futures))
         .ApplyUnique(BIND([tableMountInfo] (std::vector<TQueryServiceProxy::TRspGetTabletInfoPtr>&& responses) {
-
             THashMap<TTableReplicaId, int> replicaIdToSyncTabletCount;
             THashMap<TTableReplicaId, TTimestamp> replicationTimestamps;
 
@@ -187,35 +186,53 @@ TFuture<TReplicaSynchronicityList> FetchReplicaSynchronicities(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFuture<TReplicaSynchronicityList> TTableReplicaSynchronicityCache::GetReplicaSynchronicities(
-    const IConnectionPtr& connection,
-    const NTabletClient::TTableMountInfoPtr& table,
-    TInstant deadline,
-    const TTabletReadOptions& options)
+class TTableReplicaSynchronicityCache
+    : public ITableReplicaSynchronicityCache
 {
-    auto guard = ReaderGuard(Lock_);
-    if (auto it = TableToReplicaSynchronicities_.find(table->Path);
-        it != TableToReplicaSynchronicities_.end() && it->second.CachedAt >= deadline)
+public:
+    TTableReplicaSynchronicityCache() = default;
+
+    TFuture<TReplicaSynchronicityList> GetReplicaSynchronicities(
+        const IConnectionPtr& connection,
+        const NTabletClient::TTableMountInfoPtr& table,
+        TInstant deadline,
+        const TTabletReadOptions& options) override
     {
-        return MakeFuture(it->second.ReplicaSynchronicities);
-    } else {
-        return FetchReplicaSynchronicities(connection, table, options)
-            .Apply(BIND(&TTableReplicaSynchronicityCache::OnReplicaSynchronicitiesFetched, MakeStrong(this), table->Path));
+        auto guard = ReaderGuard(Lock_);
+        if (auto it = TableToReplicaSynchronicities_.find(table->Path);
+            it != TableToReplicaSynchronicities_.end() && it->second.CachedAt >= deadline)
+        {
+            return MakeFuture(it->second.ReplicaSynchronicities);
+        } else {
+            return FetchReplicaSynchronicities(connection, table, options)
+                .Apply(BIND(&TTableReplicaSynchronicityCache::OnReplicaSynchronicitiesFetched, MakeStrong(this), table->Path));
+        }
     }
-}
 
-TReplicaSynchronicityList TTableReplicaSynchronicityCache::OnReplicaSynchronicitiesFetched(
-    NYPath::TYPath path,
-    TReplicaSynchronicityList replicas)
+private:
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
+    THashMap<NYPath::TYPath, TTimestampedReplicaSynchronicities> TableToReplicaSynchronicities_;
+
+    TReplicaSynchronicityList OnReplicaSynchronicitiesFetched(
+        NYPath::TYPath path,
+        TReplicaSynchronicityList replicas)
+    {
+        auto guard = WriterGuard(Lock_);
+
+        TableToReplicaSynchronicities_[path] = {
+            TInstant::Now(),
+            replicas,
+        };
+
+        return replicas;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITableReplicaSynchronicityCachePtr CreateTableReplicaSynchronicityCache()
 {
-    auto guard = WriterGuard(Lock_);
-
-    TableToReplicaSynchronicities_[path] = {
-        TInstant::Now(),
-        replicas,
-    };
-
-    return replicas;
+    return New<TTableReplicaSynchronicityCache>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

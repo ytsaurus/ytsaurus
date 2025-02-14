@@ -2,6 +2,7 @@
 
 #include "connection.h"
 #include "private.h"
+#include "public.h"
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
@@ -33,28 +34,21 @@ TFuture<TReplicaSynchronicityList> FetchReplicaSynchronicities(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableReplicaSynchronicityCache
+struct ITableReplicaSynchronicityCache
     : public TRefCounted
 {
-public:
-    TTableReplicaSynchronicityCache() = default;
-
-    TFuture<TReplicaSynchronicityList> GetReplicaSynchronicities(
+    virtual TFuture<TReplicaSynchronicityList> GetReplicaSynchronicities(
         const IConnectionPtr& connection,
         const NTabletClient::TTableMountInfoPtr& table,
         TInstant deadline,
-        const TTabletReadOptions& options);
-
-private:
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
-    THashMap<NYPath::TYPath, TTimestampedReplicaSynchronicities> TableToReplicaSynchronicities_;
-
-    TReplicaSynchronicityList OnReplicaSynchronicitiesFetched(
-        NYPath::TYPath path,
-        TReplicaSynchronicityList replicas);
+        const TTabletReadOptions& options) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TTableReplicaSynchronicityCache)
+DEFINE_REFCOUNTED_TYPE(ITableReplicaSynchronicityCache)
+
+////////////////////////////////////////////////////////////////////////////////
+
+ITableReplicaSynchronicityCachePtr CreateTableReplicaSynchronicityCache();
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -261,7 +261,7 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
-    const NApi::NNative::TTableReplicaSynchronicityCachePtr& GetTableReplicaSynchronicityCache() override
+    const NApi::NNative::ITableReplicaSynchronicityCachePtr& GetTableReplicaSynchronicityCache() override
     {
         YT_UNIMPLEMENTED();
     }

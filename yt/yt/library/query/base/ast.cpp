@@ -828,14 +828,14 @@ TString InferColumnName(const TReference& ref)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYPath::TYPath GetMainTable(const TQuery& query)
+NYPath::TYPath GetMainTablePath(const TQuery& query)
 {
     return Visit(query.FromClause,
         [] (const TTableDescriptor& table) {
             return table.Path;
         },
         [] (const TQueryAstHeadPtr& subquery) {
-            return GetMainTable(subquery->Ast);
+            return GetMainTablePath(subquery->Ast);
         });
 }
 

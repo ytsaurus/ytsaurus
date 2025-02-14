@@ -1610,7 +1610,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
 
-    auto mainTable = NAst::GetMainTable(*astQuery);
+    auto mainTable = NAst::GetMainTablePath(*astQuery);
 
     auto mountCache = CreateStickyCache(Connection_->GetTableMountCache());
     PreheatCache(astQuery, mountCache);

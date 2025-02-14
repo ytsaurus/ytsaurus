@@ -960,7 +960,6 @@ private:
     friend class TTabletActionTypeHandler;
     friend class TChaosReplicatedTableTypeHandler;
     friend class TDefaultTypeHandler;
-    friend class TTableReplicaSynchronicityCache;
 
     const IConnectionPtr Connection_;
     const TClientOptions Options_;

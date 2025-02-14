@@ -36,7 +36,7 @@ IPickReplicaSessionPtr CreatePickReplicaSession(
     NQueryClient::NAst::TQuery* query,
     const IConnectionPtr& connection,
     const NTabletClient::ITableMountCachePtr& mountCache,
-    const TTableReplicaSynchronicityCachePtr& cache,
+    const ITableReplicaSynchronicityCachePtr& cache,
     const TSelectRowsOptionsBase& options);
 
 ////////////////////////////////////////////////////////////////////////////////

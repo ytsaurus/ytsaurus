@@ -46,7 +46,7 @@ public:
         YT_ABORT();
     }
 
-    void Reconfigure(TTableMountCacheConfigPtr /*config*/) override
+    void Reconfigure(NTabletClient::TTableMountCacheConfigPtr /*config*/) override
     {
         YT_ABORT();
     }
