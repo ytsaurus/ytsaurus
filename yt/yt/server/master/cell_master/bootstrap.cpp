@@ -853,7 +853,7 @@ void TBootstrap::DoInitialize()
     EpochHistoryManager_ = CreateEpochHistoryManager(this);
 
     // NB: It is important to register multicell manager's automaton part before node tracker's,
-    // because its state depend on proper list of master cells.
+    // because its state depends on proper list of master cells.
     MulticellManager_ = CreateMulticellManager(this);
 
     WorldInitializer_ = CreateWorldInitializer(this);

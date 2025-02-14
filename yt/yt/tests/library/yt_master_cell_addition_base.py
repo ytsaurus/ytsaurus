@@ -168,7 +168,7 @@ class MasterCellAdditionBase(YTEnvSetup):
             for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
                 for peer_index, _ in enumerate(configs["master"][tag]):
                     cls.proceed_master_config(configs["master"][tag][peer_index], cls.PRIMARY_CLUSTER_INDEX, remove_last_master=True)
-                    configs["master"][tag][peer_index]["hive_manager"]["allowed_for_removal_master_cells"] = [13]
+                    configs["master"][tag][peer_index]["hive_manager"]["allowed_for_removal_master_cell_tags"] = [13]
             for service in services:
                 # Config keys are services in the singular, drop plural.
                 service_name_singular = service[:-1]
@@ -176,9 +176,9 @@ class MasterCellAdditionBase(YTEnvSetup):
                     cls._collect_cell_ids_and_maybe_stash_last_cell(config["cluster_connection"], cls.PRIMARY_CLUSTER_INDEX, remove_last_master=True)
                     if service == NODES_SERVICE:
                         if "tablet_node" in config.keys():
-                            config["tablet_node"]["hive_manager"]["allowed_for_removal_master_cells"] = [13]
+                            config["tablet_node"]["hive_manager"]["allowed_for_removal_master_cell_tags"] = [13]
                     elif service == CHAOS_NODES_SERVICE:
-                        config["cellar_node"]["cellar_manager"]["cellars"]["chaos"]["occupant"]["hive_manager"]["allowed_for_removal_master_cells"] = [13]
+                        config["cellar_node"]["cellar_manager"]["cellars"]["chaos"]["occupant"]["hive_manager"]["allowed_for_removal_master_cell_tags"] = [13]
             for driver in drivers:
                 cls.proceed_driver_config(cls.Env.configs[driver], remove_last_master=True)
 
