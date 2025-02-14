@@ -552,6 +552,7 @@ TGroupByKeyTransform GroupByKey();
 
 template <typename TCombineFn>
 class TCombinePerKeyTransform
+    : public NPrivate::IWithAttributes
 {
 public:
     using TCombineInput = typename TCombineFn::TInputRow;
@@ -579,6 +580,7 @@ public:
             NPrivate::MakeRowVtable<TInputRow>(),
             NPrivate::MakeRowVtable<TOutputRow>()
         );
+        NPrivate::MergeAttributes(*rawCombine, Attributes_);
 
         const auto& rawPipeline = NPrivate::GetRawPipeline(pCollection);
         auto* rawInputNode = NPrivate::GetRawDataNode(pCollection).Get();
@@ -593,7 +595,18 @@ public:
     }
 
 private:
+    void SetAttribute(const TString& key, const std::any& value) override
+    {
+        Attributes_.SetAttribute(key, value);
+    }
+
+    const std::any* GetAttribute(const TString& key) const override
+    {
+        return Attributes_.GetAttribute(key);
+    }
+
     const ::TIntrusivePtr<TCombineFn> CombineFn_;
+    NPrivate::TAttributes Attributes_;
 };
 
 template <CCombineFnPtr TFnPtr>
