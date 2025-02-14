@@ -778,12 +778,6 @@ public:
             for (auto* object : transaction->ImportedObjects()) {
                 objectManager->UnrefObject(object);
             }
-            if (GetDynamicConfig()->EnableExtraRefExportedObjects) {
-                // Remove extra reference.
-                for (const auto& exportEntry : transaction->ExportedObjects()) {
-                    objectManager->UnrefObject(exportEntry.Object);
-                }
-            }
         }
         transaction->ExportedObjects().clear();
         transaction->ImportedObjects().clear();
@@ -913,10 +907,6 @@ public:
         for (const auto& entry : transaction->ExportedObjects()) {
             auto* object = entry.Object;
             objectManager->UnrefObject(object);
-            if (GetDynamicConfig()->EnableExtraRefExportedObjects) {
-                // Remove extra reference.
-                objectManager->UnrefObject(object);
-            }
             const auto& handler = objectManager->GetHandler(object);
             handler->UnexportObject(object, entry.DestinationCellTag, 1);
         }
@@ -1268,14 +1258,7 @@ public:
         transaction->ExportedObjects().push_back({object, destinationCellTag});
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
-        // The remote master cell holds one ref and after object is removed on a remote, it sends TReqUnrefExportedObjects to remove object here.
         objectManager->RefObject(object);
-        if (GetDynamicConfig()->EnableExtraRefExportedObjects) {
-            // The transaction holds the second ref and removes it after completion.
-            // This ref is needed to avoid a race between the destruction of an object on a remote cell and the ending of a transaction,
-            // since these events come via Hive from different cells.
-            objectManager->RefObject(object);
-        }
 
         const auto& handler = objectManager->GetHandler(object);
         handler->ExportObject(object, destinationCellTag);
