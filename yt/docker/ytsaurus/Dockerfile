@@ -58,6 +58,7 @@ RUN apt-get update \
       iproute2 \
       iputils-ping \
       less \
+      libc6 \
       libidn11-dev \
       lsb-release \
       lsof \
