@@ -408,6 +408,7 @@ private:
 
             auto readerConfig = New<TReplicationReaderConfig>();
             readerConfig->UseBlockCache = true;
+            readerConfig->UseAsyncBlockCache = true;
 
             auto reader = CreateReplicationReader(
                 std::move(readerConfig),
