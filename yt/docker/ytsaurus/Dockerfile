@@ -24,6 +24,7 @@ RUN apt-get update && DEBIAN_FRONTEND=noninteractive TZ=Etc/UTC apt-get install 
   iproute2 \
   iputils-ping \
   less \
+  libc6 \
   libidn11-dev \
   lsb-release \
   lsof \
