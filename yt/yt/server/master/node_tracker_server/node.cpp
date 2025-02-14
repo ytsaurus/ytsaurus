@@ -931,18 +931,18 @@ void TNode::ValidateReliabilityTransition(
     ECellAggregatedStateReliability newReliability) const
 {
     auto maybeLogAlertReliability =
-        [&] (std::initializer_list<ECellAggregatedStateReliability> allowedReliabilities) {
-            if (Find(allowedReliabilities, newReliability) == allowedReliabilities.end()) {
+        [&] (std::initializer_list<ECellAggregatedStateReliability> allowedReliabilityTransitions) {
+            if (Find(allowedReliabilityTransitions, newReliability) != allowedReliabilityTransitions.end()) {
                 return;
             }
 
             YT_LOG_ALERT(
-                "Invalid cell aggregated state reliability transition (OldReliability: %v, NewReliability: %v)",
+                "Invalid cell aggregated state reliability transition (Reliability: %v -> %v)",
                 oldReliability,
                 newReliability);
         };
 
-    switch (newReliability) {
+    switch (oldReliability) {
         case ECellAggregatedStateReliability::Unknown:
             maybeLogAlertReliability({
                 ECellAggregatedStateReliability::StaticallyKnown,
@@ -961,6 +961,7 @@ void TNode::ValidateReliabilityTransition(
         case ECellAggregatedStateReliability::DynamicallyDiscovered:
             maybeLogAlertReliability({
                 ECellAggregatedStateReliability::Unknown,
+                // Node could re-register and then they should re-discover the new master cell.
                 ECellAggregatedStateReliability::DuringPropagation,
             });
             break;
