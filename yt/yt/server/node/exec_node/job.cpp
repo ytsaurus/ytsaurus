@@ -3071,7 +3071,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             proxyInternalConfig->DisableNetwork = UserJobSpec_->disable_network();
         }
 
-        proxyInternalConfig->HostName = Format("slot_%v.%v",
+        proxyInternalConfig->HostName = Format("slot-%v.%v",
             GetUserSlot()->GetSlotIndex(),
             Bootstrap_->GetConfig()->Addresses[0].second);
     } else {
