@@ -126,6 +126,7 @@ public:
     bool EnableParameterizedByDefault;
     std::optional<TString> DefaultInMemoryGroup;
     bool EnablePickPivotKeys;
+    double SafeUsedTabletStaticRatio;
 
     THashMap<TString, TTabletBalancingGroupConfigPtr> Groups;
 
