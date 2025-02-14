@@ -42,7 +42,9 @@ def build_resource_usage():
                 MonitoringExpr(FlowController("yt.resource_tracker.utilization"))
                     .unit("UNIT_PERCENT_UNIT")
                     .all("thread")
-                    .group_by_labels("host", "v -> group_lines(\"sum\", top_avg(1, v))"))
+                    .group_by_labels("host", "v -> group_lines(\"sum\", top_avg(1, v))")
+                    .alias("{{thread}} - {{host}}")
+                    .top(10))
             .cell("Memory (Controller)", FlowController("yt.resource_tracker.memory_usage.rss").unit("UNIT_BYTES_SI"))
         .row()
             .cell("Total VCPU (Worker)", FlowWorker("yt.resource_tracker.total_vcpu")
@@ -53,7 +55,9 @@ def build_resource_usage():
                 MonitoringExpr(FlowWorker("yt.resource_tracker.utilization"))
                     .unit("UNIT_PERCENT_UNIT")
                     .all("thread")
-                    .group_by_labels("host", "v -> group_lines(\"sum\", top_avg(1, v))"))
+                    .group_by_labels("host", "v -> group_lines(\"sum\", top_avg(1, v))")
+                    .alias("{{thread}} - {{host}}")
+                    .top(50))
             .cell("Memory (Worker)", FlowWorker("yt.resource_tracker.memory_usage.rss").unit("UNIT_BYTES_SI"))
     ).owner
 
@@ -208,13 +212,15 @@ def build_partition_store_commits():
                 "Partition store commit time",
                 MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.commit_time.max"))
                     .all("host")
-                    .top()
+                    .alias("{{computation_id}} - {{host}}")
+                    .top(50)
                     .unit("UNIT_SECONDS"))
             .cell(
                 "Input messages lookup time",
                 MonitoringExpr(FlowWorker("yt.flow.worker.computation.partition_store.input_messages.lookup_time.max"))
                     .all("host")
-                    .top()
+                    .alias("{{computation_id}} - {{host}}")
+                    .top(50)
                     .unit("UNIT_SECONDS"))
     )
 
@@ -265,7 +271,8 @@ def build_epoch_timings():
                 MonitoringExpr(FlowWorker("yt.flow.worker.computation.epoch_time.max"))
                     .all("host")
                     .all("computation_id")
-                    .top()
+                    .alias("{{computation_id}} - {{host}}")
+                    .top(50)
                     .unit("UNIT_SECONDS")
                     .stack(False))
             .cell(
