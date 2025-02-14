@@ -183,7 +183,7 @@ public:
     MOCK_METHOD(const TSyncReplicaCachePtr&, GetSyncReplicaCache, (), (override));
     MOCK_METHOD(const TTabletSyncReplicaCachePtr&, GetTabletSyncReplicaCache, (), (override));
     MOCK_METHOD(const NChaosClient::IBannedReplicaTrackerCachePtr&, GetBannedReplicaTrackerCache, (), (override));
-    MOCK_METHOD(const TTableReplicaSynchronicityCachePtr&, GetTableReplicaSynchronicityCache, (), (override));
+    MOCK_METHOD(const ITableReplicaSynchronicityCachePtr&, GetTableReplicaSynchronicityCache, (), (override));
     MOCK_METHOD(std::vector<std::string>, GetDiscoveryServerAddresses, (), (const, override));
     MOCK_METHOD(NDiscoveryClient::IDiscoveryClientPtr, CreateDiscoveryClient, (NDiscoveryClient::TDiscoveryClientConfigPtr, NRpc::IChannelFactoryPtr), (override));
     MOCK_METHOD(NDiscoveryClient::IMemberClientPtr, CreateMemberClient, (NDiscoveryClient::TMemberClientConfigPtr, NRpc::IChannelFactoryPtr, IInvokerPtr, NDiscoveryClient::TMemberId, NDiscoveryClient::TGroupId), (override));

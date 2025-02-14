@@ -24,7 +24,8 @@ public:
 
     void OnReference(const TReferenceExpression* referenceExpr)
     {
-        IsPure_ = IsPure_&& Schema_.FindColumn(referenceExpr->ColumnName);
+        // This eliminates call FindColumn if IsPure_ is already false.
+        IsPure_ = IsPure_ && Schema_.FindColumn(referenceExpr->ColumnName);
     }
 
 private:
@@ -35,14 +36,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 THashSet<std::string> FilterWithRespectToSchema(
-    THashSet<std::string> columns,
+    const THashSet<std::string>& columns,
     const TTableSchema& schema)
 {
     THashSet<std::string> filteredColumns;
 
-    for (auto columnName : columns) {
+    for (const auto& columnName : columns) {
         if (schema.FindColumn(columnName)) {
-            filteredColumns.insert(std::move(columnName));
+            filteredColumns.insert(columnName);
         }
     }
 
@@ -148,7 +149,7 @@ std::pair<TJoinClausePtr, TGroupClausePtr> MakeGroupAndJoinClauses(
         joinRenamedSchema,
         &referenceHarvester);
 
-    foreignJoinedColumns = FilterWithRespectToSchema(std::move(foreignJoinedColumns), joinRenamedSchema);
+    foreignJoinedColumns = FilterWithRespectToSchema(foreignJoinedColumns, joinRenamedSchema);
     newJoinClause->ForeignJoinedColumns = foreignJoinedColumns;
 
     TNamedItemList groupItems;

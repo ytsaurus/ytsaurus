@@ -1,10 +1,12 @@
+#pragma once
+
+#include "public.h"
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_STRUCT(IStickyMountCache)
 
 struct IStickyMountCache
     : public NTabletClient::ITableMountCache
