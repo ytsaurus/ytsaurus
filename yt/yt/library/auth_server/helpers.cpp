@@ -1,4 +1,7 @@
 #include "helpers.h"
+#include "config.h"
+
+#include <yt/yt/library/re2/re2.h>
 
 #include <yt/yt/core/crypto/crypto.h>
 
@@ -14,6 +17,7 @@
 namespace NYT::NAuth {
 
 using namespace NCrypto;
+using namespace NLogging;
 using namespace NYson;
 using namespace NYTree;
 using namespace NNet;
@@ -181,6 +185,39 @@ TError CheckCsrfToken(
     }
 
     return {};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString ApplyStringReplacement(const TString& input, const TStringReplacementConfigPtr& replacement, const TLogger& logger)
+{
+    const auto& Logger = logger;
+
+    auto output = input;
+
+    // Config validation guarantees that exactly one of the transformation types is requested.
+
+    int regexReplacementCount = 0;
+    if (replacement->MatchPattern) {
+        regexReplacementCount = RE2::GlobalReplace(
+            &output,
+            *replacement->MatchPattern,
+            replacement->Replacement);
+    }
+
+    if (replacement->ToLower || replacement->ToUpper) {
+        std::transform(output.cbegin(), output.cend(), output.begin(), [&replacement] (auto c) {
+            return replacement->ToLower ? std::tolower(c) : std::toupper(c);
+        });
+    }
+
+    YT_LOG_DEBUG(
+        "Login transformation for OAuth user info applied (Login: %v -> %v, RegexReplacementCount: %v)",
+        input,
+        output,
+        regexReplacementCount);
+
+    return output;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

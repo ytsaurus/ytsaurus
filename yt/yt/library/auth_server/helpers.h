@@ -71,6 +71,11 @@ TError CheckCsrfToken(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Applies transformation described in the config to produce the output string.
+TString ApplyStringReplacement(const TString& input, const TStringReplacementConfigPtr& replacement, const NLogging::TLogger& logger = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NAuth
 
 #define HELPERS_INL_H_
