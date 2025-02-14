@@ -46,7 +46,9 @@ void THiveManagerConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("logical_time_registry", &TThis::LogicalTimeRegistry)
         .DefaultNew();
-    registrar.Parameter("allowed_for_removal_master_cells", &TThis::AllowedForRemovalMasterCells)
+    registrar.Parameter("allowed_for_removal_master_cell_tags", &TThis::AllowedForRemovalMasterCellTags)
+        // COMPAT(cherepashka)
+        .Alias("allowed_for_removal_master_cells")
         .Default();
 }
 

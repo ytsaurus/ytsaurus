@@ -1240,7 +1240,7 @@ private:
 
         // NB: Avenues are not removed here, since we can delete only cells without chunks and tablets on it, so without avenue channels to tablets.
         for (auto cellId : secondaryMasterCellsForRemoval) {
-            if (Config_->AllowedForRemovalMasterCells.contains(CellTagFromId(cellId))) {
+            if (Config_->AllowedForRemovalMasterCellTags.contains(CellTagFromId(cellId))) {
                 YT_VERIFY(TryRemoveCellMailbox(cellId));
 
                 YT_LOG_INFO("Master cell mailbox removed (CellTag: %v)",
