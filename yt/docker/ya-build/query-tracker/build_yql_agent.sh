@@ -52,6 +52,10 @@ ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${Y
 # Build mrjob binary.
 ${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/yt/yql/tools/mrjob
 
+# Build mrjob udfs.
+${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/contrib/libs/libidn/dynamic
+${YTSAURUS_SOURCE_PATH}/ya make -T ${BUILD_FLAGS} --ignore-recurses --output=${YQL_BUILD_PATH} ${YTSAURUS_SOURCE_PATH}/contrib/libs/libiconv/dynamic
+
 # Build required binaries and libraries.
 for path in "yt/yql/plugin/dynamic" \
             "yt/yql/dq_vanilla_job" \
