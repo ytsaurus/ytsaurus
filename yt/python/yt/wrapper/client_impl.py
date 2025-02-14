@@ -965,18 +965,19 @@ class YtClient(ClientState):
     def get_flow_view(
             self,
             pipeline_path,
-            view_path=None, format=None):
+            view_path=None, cache=None, format=None):
         """
         Get YT Flow flow view
 
         :param pipeline_path: path to pipeline
         :param view_path: path inside flow view yson struct, starting with /
+        :param cache: use controller cache
 
         """
         return client_api.get_flow_view(
             pipeline_path,
             client=self,
-            view_path=view_path, format=format)
+            view_path=view_path, cache=cache, format=format)
 
     def get_in_sync_replicas(
             self,

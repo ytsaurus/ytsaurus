@@ -179,11 +179,12 @@ TPipelineState TClient::DoGetPipelineState(
 TGetFlowViewResult TClient::DoGetFlowView(
     const TYPath& pipelinePath,
     const TYPath& viewPath,
-    const TGetFlowViewOptions& /*options*/)
+    const TGetFlowViewOptions& options)
 {
     auto proxy = CreatePipelineControllerLeaderProxy(pipelinePath);
     auto req = proxy.GetFlowView();
     req->set_path(viewPath);
+    req->set_cache(options.Cache);
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
     return {

@@ -6507,6 +6507,7 @@ private:
 
         TGetFlowViewOptions options;
         SetTimeoutOptions(&options, context.Get());
+        options.Cache = request->cache();
 
         auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
         auto viewPath = FromProto<TYPath>(request->view_path());
