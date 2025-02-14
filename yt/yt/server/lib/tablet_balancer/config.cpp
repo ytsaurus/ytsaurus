@@ -208,6 +208,9 @@ void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("enable_pick_pivot_keys", &TThis::EnablePickPivotKeys)
         .Default(true);
+    registrar.Parameter("safe_used_tablet_static_ratio", &TThis::SafeUsedTabletStaticRatio)
+        .Default(1.)
+        .InRange(0., 1.);
 
     registrar.Postprocessor([] (TThis* config) {
         auto [it, inserted] = config->Groups.emplace(DefaultGroupName, New<TTabletBalancingGroupConfig>());
