@@ -1093,7 +1093,7 @@ public:
         YT_ASSERT_THREAD_AFFINITY(JobThread);
 
         // Inject default docker image for job workspace.
-        if (!context.DockerImage) {
+        if (!context.DockerImage && context.LayerArtifactKeys.empty()) {
             context.DockerImage = ConcreteConfig_->JobProxyImage;
         }
 
