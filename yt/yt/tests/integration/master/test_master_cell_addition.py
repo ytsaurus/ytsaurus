@@ -78,6 +78,26 @@ class TestMasterCellsListChangeWithoutDowntime(MasterCellAdditionBaseChecks):
         self.execute_checks_with_cell_addition(downtime=self.DOWNTIME_ALL_COMPONENTS)
 
 
+class TestMasterCellsListChangeWithoutDowntimeRemoveSecondaryCellDefaultRoles(TestMasterCellsListChangeWithoutDowntime):
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "multicell_manager": {
+            "testing": {
+                "allow_master_cell_removal": True,
+                "allow_master_cell_with_empty_role": True,
+            },
+            "remove_secondary_cell_default_roles": True,
+        },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["cypress_node_host", "chunk_host"]},
+    }
+
 ##################################################################
 
 
