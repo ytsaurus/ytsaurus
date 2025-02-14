@@ -2689,6 +2689,7 @@ def add_flow_get_flow_view_parser(add_parser):
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     add_structured_format_argument(parser, default=output_format)
     parser.add_argument("--view-path", help="Path inside flow view yson struct, starting with /")
+    parser.add_argument("--cache", help="Use controller cache")
 
 
 @copy_docstring_from(get_controller_logs)
