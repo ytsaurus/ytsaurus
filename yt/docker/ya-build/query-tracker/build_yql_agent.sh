@@ -97,6 +97,7 @@ if [ "$build_python_udfs" == "yes" ]; then
     -v $YTSAURUS_SOURCE_PATH:/ytsaurus \
     -v $YQL_BUILD_PATH:/yql_build \
     --env YQL_BUILD_PATH=/yql_build \
+    --env YTSAURUS_SOURCE_PATH=/ytsaurus \
     --env "BUILD_FLAGS=$BUILD_FLAGS" \
     mirror.gcr.io/ubuntu:focal \
     /bin/bash -c \
