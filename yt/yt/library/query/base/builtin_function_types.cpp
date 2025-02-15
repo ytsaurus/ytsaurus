@@ -74,11 +74,11 @@ public:
         ECallingConvention /*callingConvention*/,
         bool /*isFirst*/) override
     {
-        TypeInferrers_->emplace(aggregateName, New<TAggregateTypeInferrer>(
+        TypeInferrers_->emplace(aggregateName, New<TAggregateFunctionTypeInferrer>(
             typeParameterConstraints,
             argumentType,
-            resultType,
-            stateType));
+            stateType,
+            resultType));
     }
 
 private:
@@ -214,7 +214,7 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         EValueType::Double,
     };
 
-    result->emplace("sum", New<TAggregateTypeInferrer>(
+    result->emplace("sum", New<TAggregateFunctionTypeInferrer>(
         sumConstraints,
         summable,
         summable,
@@ -230,7 +230,7 @@ TConstTypeInferrerMapPtr CreateBuiltinTypeInferrers()
         EValueType::String,
     };
     for (const auto& name : {"min", "max"}) {
-        result->emplace(name, New<TAggregateTypeInferrer>(
+        result->emplace(name, New<TAggregateFunctionTypeInferrer>(
             minMaxConstraints,
             comparable,
             comparable,

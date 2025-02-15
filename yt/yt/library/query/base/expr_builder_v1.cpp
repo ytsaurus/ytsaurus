@@ -517,20 +517,6 @@ public:
         , AliasMap_(aliasMap)
     { }
 
-    // TODO(lukyan): Move ProvideAggregateColumn and GetAggregateColumnPtr to TExprBuilderV1Base and provide callback
-    // OnExpression or split into two functions (GetAggregate and SetAggregate).
-    std::pair<TTypeSet, std::function<TConstExpressionPtr(EValueType)>> ProvideAggregateColumn(
-        const std::string& name,
-        const TAggregateTypeInferrer* aggregateItem,
-        const NAst::TExpression* argument,
-        const TString& subexpressionName);
-
-    TUntypedExpression GetAggregateColumnPtr(
-        const std::string& functionName,
-        const TAggregateTypeInferrer* aggregateItem,
-        const NAst::TExpression* argument,
-        const TString& subexpressionName);
-
     TUntypedExpression OnExpression(
         const NAst::TExpression* expr);
 
@@ -612,110 +598,6 @@ std::unique_ptr<TExprBuilder> CreateExpressionBuilder(
     const NAst::TAliasMap& aliasMap)
 {
     return std::make_unique<TExprBuilderV1>(source, functions, aliasMap);
-}
-
-
-// TODO(lukyan): Move ProvideAggregateColumn and GetAggregateColumnPtr to TExprBuilderV1Base and provide callback
-// OnExpression or split into two functions (GetAggregate and SetAggregate).
-std::pair<TTypeSet, std::function<TConstExpressionPtr(EValueType)>> TExprBuilderV1::ProvideAggregateColumn(
-    const std::string& name,
-    const TAggregateTypeInferrer* aggregateItem,
-    const NAst::TExpression* argument,
-    const TString& subexpressionName)
-{
-    YT_VERIFY(AfterGroupBy_);
-
-    // TODO(lukyan): Use guard.
-    AfterGroupBy_ = false;
-    auto untypedOperand = OnExpression(argument);
-    AfterGroupBy_ = true;
-
-    TTypeSet constraint;
-    std::optional<EValueType> stateType;
-    std::optional<EValueType> resultType;
-
-    aggregateItem->GetNormalizedConstraints(&constraint, &stateType, &resultType, name);
-
-    TTypeSet resultTypes;
-    TTypeSet genericAssignments = constraint;
-
-    if (!Unify(&genericAssignments, untypedOperand.FeasibleTypes)) {
-        THROW_ERROR_EXCEPTION("Type mismatch in function %Qv: expected %v, actual %v",
-            name,
-            genericAssignments,
-            untypedOperand.FeasibleTypes)
-            << TErrorAttribute("source", subexpressionName);
-    }
-
-    if (resultType) {
-        resultTypes = TTypeSet({*resultType});
-    } else {
-        resultTypes = genericAssignments;
-    }
-
-    return std::pair(resultTypes, [=, this] (EValueType type) {
-        EValueType argType;
-        if (resultType) {
-            YT_VERIFY(!genericAssignments.IsEmpty());
-            argType = GetFrontWithCheck(genericAssignments, argument->GetSource(Source_));
-        } else {
-            argType = type;
-        }
-
-        EValueType effectiveStateType;
-        if (stateType) {
-            effectiveStateType = *stateType;
-        } else {
-            effectiveStateType = argType;
-        }
-
-        auto typedOperand = untypedOperand.Generator(argType);
-
-        typedOperand = ApplyRewriters(typedOperand);
-
-        AggregateItems_->emplace_back(
-            std::vector<TConstExpressionPtr>{typedOperand},
-            name,
-            subexpressionName,
-            effectiveStateType,
-            type);
-
-        return typedOperand;
-    });
-}
-
-TUntypedExpression TExprBuilderV1::GetAggregateColumnPtr(
-    const std::string& functionName,
-    const TAggregateTypeInferrer* aggregateItem,
-    const NAst::TExpression* argument,
-    const TString& subexpressionName)
-{
-    if (!AfterGroupBy_) {
-        THROW_ERROR_EXCEPTION("Misuse of aggregate function %Qv", functionName);
-    }
-
-    auto typer = ProvideAggregateColumn(
-        functionName,
-        aggregateItem,
-        argument,
-        subexpressionName);
-
-    TExpressionGenerator generator = [=, this] (EValueType type) -> TConstExpressionPtr {
-        auto key = std::pair(subexpressionName, type);
-        auto found = AggregateLookup_.find(key);
-        if (found != AggregateLookup_.end()) {
-            return found->second;
-        } else {
-            auto argExpression = typer.second(type);
-            auto expr = New<TReferenceExpression>(
-                MakeLogicalType(GetLogicalType(type), /*required*/ false),
-                subexpressionName);
-            YT_VERIFY(AggregateLookup_.emplace(key, expr).second);
-            return expr;
-        }
-    };
-
-    return TUntypedExpression{.FeasibleTypes=typer.first, .Generator=std::move(generator), .IsConstant=false};
 }
 
 TUntypedExpression TExprBuilderV1::OnExpression(
@@ -974,8 +856,6 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
 
     const auto& descriptor = Functions_->GetFunction(functionName);
 
-    // TODO(lukyan): Merge TAggregateFunctionTypeInferrer and TAggregateTypeInferrer.
-
     if (const auto* aggregateFunction = descriptor->As<TAggregateFunctionTypeInferrer>()) {
         auto subexpressionName = InferColumnName(*functionExpr);
 
@@ -1065,26 +945,6 @@ TUntypedExpression TExprBuilderV1::OnFunction(const NAst::TFunctionExpression* f
         };
 
         return TUntypedExpression{resultTypes, std::move(generator), /*IsConstant*/ false};
-    } else if (const auto* aggregateItem = descriptor->As<TAggregateTypeInferrer>()) {
-        auto subexpressionName = InferColumnName(*functionExpr);
-
-        try {
-            if (functionExpr->Arguments.size() != 1) {
-                THROW_ERROR_EXCEPTION("Aggregate function %Qv must have exactly one argument", functionName);
-            }
-
-            auto aggregateColumn = GetAggregateColumnPtr(
-                functionName,
-                aggregateItem,
-                functionExpr->Arguments.front(),
-                subexpressionName);
-
-            return aggregateColumn;
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error creating aggregate")
-                << TErrorAttribute("source", functionExpr->GetSource(Source_))
-                << ex;
-        }
     } else if (const auto* regularFunction = descriptor->As<TFunctionTypeInferrer>()) {
         std::vector<TTypeSet> argTypes;
         std::vector<TExpressionGenerator> operandTypers;

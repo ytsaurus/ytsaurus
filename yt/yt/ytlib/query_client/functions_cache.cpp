@@ -363,11 +363,11 @@ void AppendUdfDescriptors(
             functionBody.RepeatedArgType = EValueType::Null;
             functionBody.RepeatedArgIndex = -1;
 
-            auto typer = New<TAggregateTypeInferrer>(
+            auto typer = New<TAggregateFunctionTypeInferrer>(
                 std::unordered_map<TTypeParameter, TUnionType>(),
                 aggregateDescriptor->ArgumentType.Type,
-                aggregateDescriptor->ResultType.Type,
-                aggregateDescriptor->StateType.Type);
+                aggregateDescriptor->StateType.Type,
+                aggregateDescriptor->ResultType.Type);
 
             typeInferrers->emplace(name, typer);
             cgInfo->Functions.push_back(std::move(functionBody));
