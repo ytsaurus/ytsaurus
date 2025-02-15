@@ -224,6 +224,7 @@ DEFINE_ENUM(EMasterReign,
     ((UpdateRttConfig)                                              (2834))  // akozhikhov
     ((TabletTransactionSerializationType)                           (2835))  // ponasenko-rs
     ((FixChunkStatisticsInMasterCellRemoval)                        (2836))  // cherepashka
+    ((ResetHunkSpecificMedia)                                       (2837))  // shakurov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

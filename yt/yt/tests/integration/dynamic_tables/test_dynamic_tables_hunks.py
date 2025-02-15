@@ -2340,7 +2340,7 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
                     "replication_factor": 3,
                     "data_parts_only": False,
                 },
-                "committed": False,
+                "committed": True,
             }
         ]
 
@@ -2350,7 +2350,7 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
         if is_sorted_table:
             assert self._chunk_has_requisition(hunk_chunk, requisition_2)
         else:
-            assert self._chunk_has_requisition(hunk_chunk, requisition_default)
+            assert self._chunk_has_requisition(hunk_chunk, requisition_2 + requisition_default)
             self._speed_up_hunk_storage_store_rotation("//tmp/s")
             # Unmounting shouldn't really be necessary here, get rid of it.
             sync_unmount_table("//tmp/s")
