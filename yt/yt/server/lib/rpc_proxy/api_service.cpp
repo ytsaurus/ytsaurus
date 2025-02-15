@@ -4277,17 +4277,22 @@ private:
         TPushQueueProducerOptions options;
         SetTimeoutOptions(&options, context.Get());
         options.SequenceNumber = YT_PROTO_OPTIONAL(*request, sequence_number, TQueueProducerSequenceNumber);
+        if (request->has_require_sync_replica()) {
+            options.RequireSyncReplica = request->require_sync_replica();
+        }
+
         if (request->has_user_meta()) {
             options.UserMeta = ConvertToNode(TYsonStringBuf(request->user_meta()));
         }
 
         context->SetRequestInfo(
             "ProducerPath: %v, QueuePath: %v, SessionId: %v, "
-            "Epoch: %v, TransactionId: %v",
+            "Epoch: %v, RequireSyncReplica: %v, TransactionId: %v",
             producerPath,
             queuePath,
             sessionId,
             request->epoch(),
+            options.RequireSyncReplica,
             transactionId);
 
         auto transaction = GetTransactionOrThrow(
