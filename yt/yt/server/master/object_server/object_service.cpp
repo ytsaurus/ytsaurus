@@ -1586,7 +1586,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         if (!User_) {
-            auto* user = securityManager->GetUserByNameOrThrow(Identity_.User, /*activeLifeStageOnly*/ true);
+            auto* user = securityManager->GetUserByNameOrAliasOrThrow(Identity_.User, /*activeLifeStageOnly*/ true);
             User_ = TEphemeralObjectPtr<TUser>(user);
 
             const auto& config = Owner_->GetDynamicConfig();

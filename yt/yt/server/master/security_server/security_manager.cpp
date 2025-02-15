@@ -1629,6 +1629,29 @@ public:
         return it == UserNameMap_.end() ? nullptr : it->second;
     }
 
+    TUser* DoFindUserByNameOrAlias(const std::string& name)
+    {
+        if (auto* user = DoFindUserByName(name)) {
+            return user;
+        }
+
+        if (auto* subjectByAlias = DoFindSubjectByAlias(name); subjectByAlias && subjectByAlias->IsUser()) {
+            return subjectByAlias->AsUser();
+        }
+
+        return nullptr;
+    }
+
+    void ValidateUserFound(TUser* user, const std::string& name)
+    {
+        if (!user) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AuthenticationError,
+                "No such user %Qv; create user by requesting any IDM role on this cluster",
+                name);
+        }
+    }
+
     TUser* FindUserByName(const std::string& name, bool activeLifeStageOnly) override
     {
         auto* user = DoFindUserByName(name);
@@ -1658,13 +1681,20 @@ public:
     TUser* GetUserByNameOrThrow(const std::string& name, bool activeLifeStageOnly) override
     {
         auto* user = DoFindUserByName(name);
+        ValidateUserFound(user, name);
 
-        if (!IsObjectAlive(user)) {
-            THROW_ERROR_EXCEPTION(
-                NSecurityClient::EErrorCode::AuthenticationError,
-                "No such user %Qv; create user by requesting any IDM role on this cluster",
-                name);
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->ValidateObjectLifeStage(user);
         }
+
+        return user;
+    }
+
+    TUser* GetUserByNameOrAliasOrThrow(const std::string& name, bool activeLifeStageOnly) override
+    {
+        auto* user = DoFindUserByNameOrAlias(name);
+        ValidateUserFound(user, name);
 
         if (activeLifeStageOnly) {
             const auto& objectManager = Bootstrap_->GetObjectManager();

@@ -246,6 +246,9 @@ public:
     //! Returns user with a given name (throws if none).
     virtual TUser* GetUserByNameOrThrow(const std::string& name, bool activeLifeStageOnly) = 0;
 
+    //! Returns user with a given name or alias (throws if none).
+    virtual TUser* GetUserByNameOrAliasOrThrow(const std::string& name, bool activeLifeStageOnly) = 0;
+
     //! Finds user by id, throws if nothing is found.
     virtual TUser* GetUserOrThrow(TUserId id) = 0;
 
