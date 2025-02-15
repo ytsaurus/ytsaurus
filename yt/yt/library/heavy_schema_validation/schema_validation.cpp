@@ -281,36 +281,7 @@ void ValidateAggregatedColumns(const TTableSchema& schema)
             }
 
             auto typeInferrer = GetBuiltinTypeInferrers()->GetFunction(aggregateName);
-            if (auto descriptor = typeInferrer->As<TAggregateTypeInferrer>()) {
-                TTypeSet constraint;
-                std::optional<EValueType> stateType;
-                std::optional<EValueType> resultType;
-
-                descriptor->GetNormalizedConstraints(&constraint, &stateType, &resultType, aggregateName);
-                if (!constraint.Get(elementType)) {
-                    THROW_ERROR_EXCEPTION("Argument type mismatch in aggregate function %Qv from column %v: expected %Qlv, got %Qlv",
-                        *columnSchema.Aggregate(),
-                        columnSchema.GetDiagnosticNameString(),
-                        constraint,
-                        elementType);
-                }
-
-                if (stateType && *stateType != elementType) {
-                    THROW_ERROR_EXCEPTION("Aggregate function %Qv state type %Qlv differs from column %v type %Qlv",
-                        *columnSchema.Aggregate(),
-                        stateType,
-                        columnSchema.GetDiagnosticNameString(),
-                        elementType);
-                }
-
-                if (resultType && *resultType != elementType) {
-                    THROW_ERROR_EXCEPTION("Aggregate function %Qv result type %Qlv differs from column %v type %Qlv",
-                        *columnSchema.Aggregate(),
-                        resultType,
-                        columnSchema.GetDiagnosticNameString(),
-                        elementType);
-                }
-            } else if (auto descriptor = typeInferrer->As<TAggregateFunctionTypeInferrer>()) {
+            if (auto descriptor = typeInferrer->As<TAggregateFunctionTypeInferrer>()) {
                 std::vector<TTypeSet> typeConstraints;
                 std::vector<int> argumentIndexes;
 

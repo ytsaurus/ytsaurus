@@ -97,65 +97,6 @@ int TFunctionTypeInferrer::GetNormalizedConstraints(
     return getIndex(ResultType_);
 }
 
-TAggregateTypeInferrer::TAggregateTypeInferrer(
-    std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
-    TType argumentType,
-    TType resultType,
-    TType stateType)
-    : TypeParameterConstraints_(std::move(typeParameterConstraints))
-    , ArgumentType_(argumentType)
-    , ResultType_(resultType)
-    , StateType_(stateType)
-{ }
-
-void TAggregateTypeInferrer::GetNormalizedConstraints(
-    TTypeSet* constraint,
-    std::optional<EValueType>* stateType,
-    std::optional<EValueType>* resultType,
-    TStringBuf name) const
-{
-    if (TypeParameterConstraints_.size() > 1) {
-        THROW_ERROR_EXCEPTION("Too many constraints for aggregate function");
-    }
-
-    auto setType = [&] (const TType& targetType, bool allowGeneric) -> std::optional<EValueType> {
-        if (auto* fixedType = std::get_if<EValueType>(&targetType)) {
-            return *fixedType;
-        }
-        if (allowGeneric) {
-            if (auto* typeId = std::get_if<TTypeParameter>(&targetType)) {
-                auto found = TypeParameterConstraints_.find(*typeId);
-                if (found != TypeParameterConstraints_.end()) {
-                    return std::nullopt;
-                }
-            }
-        }
-        THROW_ERROR_EXCEPTION("Invalid type constraints for aggregate function %Qv", name);
-    };
-
-    Visit(ArgumentType_,
-        [&] (const TUnionType& unionType) {
-            *constraint = TTypeSet(unionType.begin(), unionType.end());
-            *resultType = setType(ResultType_, /*allowGeneric*/ false);
-            *stateType = setType(StateType_, /*allowGeneric*/ false);
-        },
-        [&] (EValueType fixedType) {
-            *constraint = TTypeSet({fixedType});
-            *resultType = setType(ResultType_, /*allowGeneric*/ false);
-            *stateType = setType(StateType_, /*allowGeneric*/ false);
-        },
-        [&] (TTypeParameter typeId) {
-            auto found = TypeParameterConstraints_.find(typeId);
-            if (found == TypeParameterConstraints_.end()) {
-                THROW_ERROR_EXCEPTION("Invalid type constraints for aggregate function %Qv", name);
-            }
-
-            *constraint = TTypeSet(found->second.begin(), found->second.end());
-            *resultType = setType(ResultType_, /*allowGeneric*/ true);
-            *stateType = setType(StateType_, /*allowGeneric*/ true);
-        });
-}
-
 TAggregateFunctionTypeInferrer::TAggregateFunctionTypeInferrer(
     std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
     std::vector<TType> argumentTypes,
