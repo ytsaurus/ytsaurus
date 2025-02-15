@@ -142,6 +142,7 @@ using TValue = NTableClient::TUnversionedValue;
 using TValueData = NTableClient::TUnversionedValueData;
 using TOwningValue = NTableClient::TUnversionedOwningValue;
 using TLegacyOwningKey = NTableClient::TLegacyOwningKey;
+using TUnversionedRowBuilder = NTableClient::TUnversionedRowBuilder;
 
 using TKeyRange = std::pair<TLegacyOwningKey, TLegacyOwningKey>;
 using TMutableRowRange = std::pair<TMutableRow, TMutableRow>;
@@ -149,6 +150,9 @@ using TRowRanges = std::vector<TRowRange>;
 using TMutableRowRanges = std::vector<TMutableRowRange>;
 
 using TColumnSet = THashSet<std::string>;
+
+using TLogicalTypePtr = NTableClient::TLogicalTypePtr;
+using ELogicalMetatype = NTableClient::ELogicalMetatype;
 
 ////////////////////////////////////////////////////////////////////////////////
 

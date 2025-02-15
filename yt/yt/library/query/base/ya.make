@@ -9,6 +9,8 @@ SRCS(
     ast_visitors.cpp
     constraints.cpp
     coordination_helpers.cpp
+    expr_builder_base.cpp
+    expr_builder_v1.cpp
     functions.cpp
     helpers.cpp
     builtin_function_registry.cpp

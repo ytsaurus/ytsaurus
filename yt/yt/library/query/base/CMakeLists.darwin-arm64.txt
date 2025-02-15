@@ -40,6 +40,8 @@ target_sources(library-query-base PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/ast_visitors.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/constraints.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/coordination_helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/expr_builder_base.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/expr_builder_v1.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/functions.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/query/base/builtin_function_registry.cpp
