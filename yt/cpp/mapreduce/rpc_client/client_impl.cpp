@@ -31,6 +31,9 @@ IClientPtr CreateRpcClient(
     auto connectionConfig = New<NApi::NRpcProxy::TConnectionConfig>();
     connectionConfig->SetDefaults();
     connectionConfig->ClusterUrl = context.ServerName;
+    if (options.ProxyRole_) {
+        connectionConfig->ProxyRole = *options.ProxyRole_;
+    }
     if (context.ProxyAddress) {
         connectionConfig->ProxyAddresses = {*context.ProxyAddress};
     }
