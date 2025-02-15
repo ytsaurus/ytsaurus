@@ -40,6 +40,12 @@ public:
         : Value_(value)
     { }
 
+    TTypeSet(TRange<EValueType> values)
+        : Value_(0)
+    {
+        Assign(values.begin(), values.end());
+    }
+
     TTypeSet(std::initializer_list<EValueType> values)
         : Value_(0)
     {
