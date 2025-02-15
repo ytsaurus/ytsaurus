@@ -101,6 +101,51 @@ class TestMasterCellsListChangeWithoutDowntimeRemoveSecondaryCellDefaultRoles(Te
 ##################################################################
 
 
+class TestMasterCellsMultipleAdditions(MasterCellAdditionBase):
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+
+    NUM_SECONDARY_MASTER_CELLS = 3
+    NUM_NODES = 1
+    REMOVE_LAST_MASTER_BEFORE_START = False
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "multicell_manager": {
+            "testing": {
+                "allow_master_cell_removal": True,
+                "allow_master_cell_with_empty_role": True,
+            },
+        },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "13": {"roles": []},
+    }
+
+    DELTA_MASTER_CONFIG = {
+        "world_initializer": {
+            "update_period": 1000,
+        },
+    }
+
+    @authors("cherepashka")
+    @pytest.mark.timeout(200)
+    def test_add_new_cell(self):
+        self._disable_last_cell()
+
+        self._enable_last_cell(downtime=False)
+        wait(lambda: sorted(get("//sys/secondary_masters").keys()) == ["11", "12", "13"])
+
+        self._disable_last_cell()
+        wait(lambda: sorted(get("//sys/secondary_masters").keys()) == ["11", "12"])
+
+        self._enable_last_cell(downtime=False)
+        wait(lambda: sorted(get("//sys/secondary_masters").keys()) == ["11", "12", "13"])
+
+##################################################################
+
+
 class TestMasterCellAdditionChaosMultiCluster(MasterCellAdditionChaosMultiClusterBaseChecks):
     ENABLE_MULTIDAEMON = False  # There are component restarts and defer start.
     PATCHED_CONFIGS = []
