@@ -817,6 +817,12 @@ class TestUsers(YTEnvSetup):
         remove("//sys/users/u/@password_is_temporary")
         assert not exists("//sys/users/u/@password_is_temporary")
 
+    @authors("babenko")
+    def test_alias_auth(self):
+        create_user("u", attributes={"aliases": ["u1", "u2"]})
+        for user in ["u", "u1", "u2"]:
+            assert exists("/", authenticated_user=user)
+
 
 ##################################################################
 
