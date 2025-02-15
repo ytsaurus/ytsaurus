@@ -809,6 +809,12 @@ public:
         for (auto chunk : chunksOrViewsToDetach) {
             chunkManager->ScheduleChunkRequisitionUpdate(chunk);
         }
+        for (auto chunk : hunkChunksToAttach) {
+            chunkManager->ScheduleChunkRequisitionUpdate(chunk);
+        }
+        for (auto chunk : hunkChunksToDetach) {
+            chunkManager->ScheduleChunkRequisitionUpdate(chunk);
+        }
 
         counters->UpdateTabletStoresStoreCount.Increment(chunksToAttach.size() + chunksOrViewsToDetach.size());
 
