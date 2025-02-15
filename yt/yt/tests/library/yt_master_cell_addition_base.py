@@ -144,6 +144,8 @@ class MasterCellAdditionBase(YTEnvSetup):
 
     @classmethod
     def _disable_last_cell(cls):
+        print_debug("Disabling last master cell")
+
         optional_services = [
             SCHEDULERS_SERVICE if cls.NUM_SCHEDULERS != 0 else None,
             CONTROLLER_AGENTS_SERVICE if cls.NUM_CONTROLLER_AGENTS != 0 else None,
@@ -215,6 +217,8 @@ class MasterCellAdditionBase(YTEnvSetup):
 
     @classmethod
     def _enable_last_cell(cls, downtime):
+        print_debug("Enabling last master cell")
+
         assert len(cls.PATCHED_CONFIGS) == len(cls.STASHED_CELL_CONFIGS)
 
         optional_services = [
@@ -256,6 +260,9 @@ class MasterCellAdditionBase(YTEnvSetup):
             id = str(tx)
             if "World initialization" in title:
                 abort_transaction(id)
+
+        cls.PATCHED_CONFIGS = []
+        cls.STASHED_CELL_CONFIGS = []
 
     def _do_for_cell(self, cell_index, callback):
         return callback(get_driver(cell_index))
