@@ -10,13 +10,15 @@ import json
 import os
 
 
-def prepare_check_args(config_path, check_name, cluster, secrets):
+def load_check_config(config_path, check_name, cluster):
     with open(config_path, "r") as config_file:
         config = json.load(config_file)
     cluster_overrides = config.get("cluster_overrides", {}).get(cluster, {})
-    checks_config = update(config.get("checks", {}), cluster_overrides)
-    options = checks_config.get(check_name, {}).get("options", {})
-    options["cluster_name"] = cluster
+    return update(config.get("checks", {}), cluster_overrides).get(check_name, {})
+
+
+def prepare_check_args(check_config, check_name, cluster, secrets):
+    options = update(check_config.get("options", {}), dict(cluster_name=cluster))
     yt_client_params = dict(proxy=cluster, token=secrets["yt_token"])
     return dict(
         service=check_name,
@@ -26,7 +28,8 @@ def prepare_check_args(config_path, check_name, cluster, secrets):
         options=options,
         check_log_server_socket_path=None,
         text_log_server_port=None,
-        secrets=secrets)
+        secrets=secrets,
+    )
 
 
 # TODO: make YT wrapper token-finding code reusable and use it here.
@@ -36,9 +39,14 @@ def get_yt_token():
         return f.read().strip()
 
 
-def run_check(check_path, check_args):
+def run_check(check_path, check_args, check_env):
     proc_input = pickle.dumps(check_args, protocol=2)
-    completed = subprocess.run([check_path], input=proc_input, stdout=subprocess.PIPE)
+    completed = subprocess.run(
+        [check_path],
+        env=update(os.environ, check_env),
+        input=proc_input,
+        stdout=subprocess.PIPE,
+    )
     try:
         return pickle.loads(completed.stdout)
     except Exception:
@@ -52,6 +60,7 @@ def main():
                         required=True)
     parser.add_argument("--cluster", required=False)
     parser.add_argument("--yt-token", required=False)
+    parser.add_argument("--dns-storage-token", required=False)
     parser.add_argument("--yp-token", required=False)
     parser.add_argument("--solomon-token", required=False)
     args = parser.parse_args()
@@ -60,7 +69,12 @@ def main():
         yt_token = get_yt_token()
     else:
         yt_token = args.yt_token
-    secrets = dict(yt_token=yt_token, yp_token=args.yp_token, solomon_token=args.solomon_token)
+    secrets = dict(
+        yt_token=yt_token,
+        dns_storage_token=args.dns_storage_token,
+        yp_token=args.yp_token,
+        solomon_token=args.solomon_token,
+    )
 
     if args.cluster is None:
         cluster = os.environ["YT_PROXY"]
@@ -68,8 +82,9 @@ def main():
         cluster = args.cluster
 
     check_name = os.path.basename(args.check_path)
-    check_args = prepare_check_args(args.config_path, check_name, cluster, secrets)
-    result = run_check(args.check_path, check_args)
+    check_config = load_check_config(args.config_path, check_name, cluster)
+    check_args = prepare_check_args(check_config, check_name, cluster, secrets)
+    result = run_check(args.check_path, check_args, check_config.get("env", {}))
     print("Result:", result)
 
 
