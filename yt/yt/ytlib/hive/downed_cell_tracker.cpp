@@ -155,7 +155,7 @@ bool TDownedCellTracker::IsEmpty() const
 bool TDownedCellTracker::IsDowned(TCellId cellId) const
 {
     auto guard = Guard(SpinLock_);
-    return DownedCellIds_.find(cellId) != DownedCellIds_.end();
+    return DownedCellIds_.contains(cellId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
