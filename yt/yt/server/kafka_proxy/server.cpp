@@ -24,6 +24,8 @@
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
+#include <yt/yt/client/transaction_client/helpers.h>
+
 #include <yt/yt/library/auth_server/authentication_manager.h>
 #include <yt/yt/library/auth_server/credentials.h>
 #include <yt/yt/library/auth_server/token_authenticator.h>
@@ -107,6 +109,7 @@ public:
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoSaslHandshake, Unretained(this)));
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoSaslAuthenticate, Unretained(this)));
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoProduce, Unretained(this)));
+        RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoListOffsets, Unretained(this)));
     }
 
     void Start() override
@@ -221,7 +224,7 @@ private:
         try {
             GuardedOnRequest(connection, std::move(request));
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Failed to process request "
+            YT_LOG_ERROR(ex, "Failed to process request "
                 "(ConnectionId: %v)",
                 connection->GetConnectionId());
 
@@ -317,6 +320,7 @@ private:
             && header.RequestType != ERequestType::ApiVersions) {
             // User should be authenticated, just ignore all other requests.
             if (!connectionState->UserName) {
+                YT_LOG_DEBUG("User is unknown (RequestType: %v)", header.RequestType);
                 return TSharedRefArrayBuilder(1).Finish();
             }
         }
@@ -985,6 +989,57 @@ private:
                 topicResponse.PartitionResponses.push_back(TRspProduceResponsePartitionResponse{
                     .Index = partition.Index,
                 });
+            }
+        }
+
+        return response;
+    }
+
+    DEFINE_KAFKA_HANDLER(ListOffsets)
+    {
+        YT_LOG_DEBUG("Start to handle ListOffsets request");
+
+        auto connectionState = GetConnectionState(connectionId);
+
+        auto userName = GetConnectionState(connectionId)->UserName;
+        if (!userName) {
+            THROW_ERROR_EXCEPTION("Unknown user name, something went wrong");
+        }
+
+        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(*userName));
+
+        TRspListOffsets response;
+        response.Topics.reserve(request.Topics.size());
+
+        for (const auto& topic : request.Topics) {
+            auto& topicResponse = response.Topics.emplace_back();
+            topicResponse.Partitions.reserve(topic.Partitions.size());
+
+            topicResponse.Name = topic.Name;
+
+            std::vector<int> tabletIndexes;
+            tabletIndexes.reserve(topic.Partitions.size());
+            std::transform(topic.Partitions.begin(), topic.Partitions.end(), std::back_inserter(tabletIndexes),
+                [] (const auto& partition) {
+                    return static_cast<int>(partition.PartitionIndex);
+                });
+
+            auto tabletInfos = WaitFor(client->GetTabletInfos(topic.Name, tabletIndexes))
+                .ValueOrThrow();
+
+            for (int partitionIndex = 0; partitionIndex < std::ssize(topic.Partitions); ++partitionIndex) {
+                const auto& partition = topic.Partitions[partitionIndex];
+                auto& partitionResponse = topicResponse.Partitions.emplace_back();
+
+                partitionResponse.PartitionIndex = partition.PartitionIndex;
+
+                if (partition.Timestamp == -2) {
+                    partitionResponse.Offset = 0;
+                } else if (partition.Timestamp == -1) {
+                    partitionResponse.Offset = tabletInfos[partitionIndex].TotalRowCount;
+                } else {
+                    partitionResponse.ErrorCode = NKafka::EErrorCode::InvalidTimestamp;
+                }
             }
         }
 
