@@ -214,7 +214,7 @@ bool TVirtualStaticTable::GetBuiltinAttribute(TInternedAttributeKey key, IYsonCo
     TString annotation;
     if (OperationId_ && !Name_.empty()) {
         annotation = Format(
-            "### Live preview for `%v` table of the operation `%v`.\n\n"
+            "### Live preview for `%v` table of operation `%v`\n\n"
             "Use the following command to copy it:\n"
             "```\n"
             "yt concatenate --src %v/controller_orchid/live_previews/%v --dst //path/to/table\n"
