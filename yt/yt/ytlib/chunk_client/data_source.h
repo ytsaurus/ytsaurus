@@ -46,8 +46,6 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(int, VirtualKeyPrefixLength, 0);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, Account);
     DEFINE_BYVAL_RW_PROPERTY(NScheduler::TClusterName, ClusterName);
-    DEFINE_BYVAL_RW_PROPERTY(NTableClient::TVersionedReadOptions, VersionedReadOptions);
-    DEFINE_BYVAL_RW_PROPERTY(NTableClient::TVersionedWriteOptions, VersionedWriteOptions);
 
     //! Returns comparator built from data source schema. Crashes in case if data source is not sorted.
     NTableClient::TComparator GetComparator() const;

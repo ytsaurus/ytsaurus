@@ -878,6 +878,23 @@ class TestMapOnDynamicTables(YTEnvSetup):
         stderr_bytes = op.read_stderr(job_ids[0])
         assert stderr_bytes == b'{"a"=1;"b"=2;};\n'
 
+    @authors("dave11ar")
+    def test_versioned_read_table(self):
+        sync_create_cells(1)
+
+        table = "//tmp/t"
+
+        self._create_simple_dynamic_table(table)
+        sync_mount_table(table)
+
+        for i in range(5):
+            insert_rows(table, [{"key": i, "value": str(i)}])
+            sync_flush_table(table)
+
+        table_read_path = f"<versioned_read_options={{read_mode=latest_timestamp}}>{table}"
+
+        assert read_table(table_read_path) == select_rows(f"* from [{table}]", with_timestamps=True)
+
 
 ##################################################################
 
