@@ -346,6 +346,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
         serialized->set_use_lookup_cache(*original.UseLookupCache);
     }
     serialized->set_min_row_count_per_subquery(original.MinRowCountPerSubquery);
+    serialized->set_allow_unordered_group_by_with_limit(original.AllowUnorderedGroupByWithLimit);
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -399,6 +400,9 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     }
     if (serialized.has_min_row_count_per_subquery()) {
         original->MinRowCountPerSubquery = serialized.min_row_count_per_subquery();
+    }
+    if (serialized.has_allow_unordered_group_by_with_limit()) {
+        original->AllowUnorderedGroupByWithLimit = serialized.allow_unordered_group_by_with_limit();
     }
 }
 

@@ -449,7 +449,7 @@ struct TBaseQuery
 
     TBaseQuery(const TBaseQuery& other);
 
-    bool IsOrdered(const TFeatureFlags& featureFlags) const;
+    bool IsOrdered(bool allowUnorderedGroupByWithLimit) const;
 
     bool IsPrefetching() const;
 

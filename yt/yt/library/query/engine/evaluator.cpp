@@ -115,7 +115,7 @@ public:
                 options.EnableCodeCache,
                 options.UseCanonicalNullRelations,
                 options.ExecutionBackend,
-                requestFeatureFlags);
+                options.AllowUnorderedGroupByWithLimit);
 
             // NB: Function contexts need to be destroyed before queryInstance since it hosts destructors.
             auto finalizer = Finally([&] {
@@ -132,7 +132,7 @@ public:
                 .JoinRowLimit = options.OutputRowLimit,
                 .Offset = query->Offset,
                 .Limit = query->Limit,
-                .Ordered = query->IsOrdered(requestFeatureFlags),
+                .Ordered = query->IsOrdered(options.AllowUnorderedGroupByWithLimit),
                 .IsMerge = dynamic_cast<const TFrontQuery*>(query.Get()) != nullptr,
                 .MemoryChunkProvider = memoryChunkProvider,
                 .RequestFeatureFlags = &requestFeatureFlags,
@@ -184,7 +184,7 @@ private:
         bool enableCodeCache,
         bool useCanonicalNullRelations,
         EExecutionBackend executionBackend,
-        TFeatureFlags requestFeatureFlags)
+        bool allowUnorderedGroupByWithLimit)
     {
         llvm::FoldingSetNodeID id;
 
@@ -197,12 +197,12 @@ private:
             executionBackend,
             functionProfilers,
             aggregateProfilers,
-            requestFeatureFlags);
+            allowUnorderedGroupByWithLimit);
 
         auto Logger = MakeQueryLogger(query);
 
         // See condition in folding_profiler.cpp.
-        bool considerLimit = query->IsOrdered(requestFeatureFlags) && !query->GroupClause;
+        bool considerLimit = query->IsOrdered(allowUnorderedGroupByWithLimit) && !query->GroupClause;
 
         auto queryFingerprint = InferName(query, TInferNameOptions{
             .OmitValues = true,

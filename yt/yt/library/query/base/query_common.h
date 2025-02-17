@@ -166,6 +166,8 @@ struct TQueryBaseOptions
     bool EnableCodeCache = true;
     bool UseCanonicalNullRelations = false;
     bool MergeVersionedRows = true;
+    // COMPAT(sabdenovch)
+    bool AllowUnorderedGroupByWithLimit = false;
 };
 
 struct TQueryOptions

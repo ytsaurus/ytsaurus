@@ -496,10 +496,10 @@ TBaseQuery::TBaseQuery(const TBaseQuery& other)
     , InferRanges(other.InferRanges)
 { }
 
-bool TBaseQuery::IsOrdered(const TFeatureFlags& featureFlags) const
+bool TBaseQuery::IsOrdered(bool allowUnorderedGroupByWithLimit) const
 {
     if (Limit < std::numeric_limits<i64>::max()) {
-        if (featureFlags.GroupByWithLimitIsUnordered) {
+        if (allowUnorderedGroupByWithLimit) {
             return !OrderClause && (!GroupClause || GroupClause->AllAggregatesAreFirst() || GroupClause->CommonPrefixWithPrimaryKey > 0);
         } else {
             return !OrderClause;
