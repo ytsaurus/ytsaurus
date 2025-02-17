@@ -111,6 +111,10 @@ class TestSecondaryIndexBase(DynamicTablesBase):
     NUM_MASTERS = 3
     NUM_SECONDARY_MASTER_CELLS = 2
 
+    def setup_method(self, method):
+        super(TestSecondaryIndexBase, self).setup_method(method)
+        set("//sys/@config/enable_stable_secondary_index_destruction", True)
+
     def _mount(self, *tables, cell_count=1):
         sync_create_cells(cell_count)
         for table in tables:
@@ -163,11 +167,6 @@ class TestSecondaryIndexBase(DynamicTablesBase):
 class TestSecondaryIndexReplicatedBase(TestSecondaryIndexBase):
     NUM_REMOTE_CLUSTERS = 1
     REPLICA_CLUSTER_NAME = "remote_0"
-
-    @classmethod
-    def setup_class(cls):
-        super(TestSecondaryIndexReplicatedBase, cls).setup_class()
-        set("//sys/@config/enable_stable_secondary_index_destruction", True)
 
     def setup_method(self, method):
         super(TestSecondaryIndexReplicatedBase, self).setup_method(method)
