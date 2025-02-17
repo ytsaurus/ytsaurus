@@ -591,7 +591,7 @@ public:
                         setResponseKeeperPromise();
                     }
                 }
-            }).Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService)));
+            }).Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ObjectService)));
     }
 
     void DoWriteAttributesFragment(
