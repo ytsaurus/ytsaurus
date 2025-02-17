@@ -466,8 +466,6 @@ protected:
         std::vector<TBlockInfo> CachedBlocks;
         i64 CachedBlockCount = 0;
         i64 CachedBlockSize = 0;
-
-        double PeerRating = 0.0;
     };
 
     using TErrorOrPeerProbeResult = TErrorOr<TPeerProbeResult>;

@@ -42,6 +42,7 @@ public:
     std::strong_ordering operator <=> (const TOverrunTableWriteBufferMemoryInfo& other) const;
 
     void Persist(const NPhoenix::TPersistenceContext& context);
+
 private:
     TJobId JobId_;
     i64 ReservedMemoryForJobProxyWithFixedBuffer_ = 0;
