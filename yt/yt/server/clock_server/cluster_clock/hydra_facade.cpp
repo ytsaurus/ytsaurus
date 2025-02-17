@@ -165,11 +165,15 @@ public:
 
     IInvokerPtr GetAutomatonInvoker(EAutomatonThreadQueue queue) const
     {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
         return AutomatonQueue_->GetInvoker(queue);
     }
 
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) const
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         return EpochInvokers_[queue];
     }
 
@@ -195,8 +199,12 @@ private:
     TEnumIndexedArray<EAutomatonThreadQueue, IInvokerPtr> GuardedInvokers_;
     TEnumIndexedArray<EAutomatonThreadQueue, IInvokerPtr> EpochInvokers_;
 
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
     void OnStartEpoch()
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         auto cancelableContext = HydraManager_->GetAutomatonCancelableContext();
         for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
             auto unguardedInvoker = GetAutomatonInvoker(queue);
@@ -206,6 +214,8 @@ private:
 
     void OnStopEpoch()
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         std::fill(EpochInvokers_.begin(), EpochInvokers_.end(), nullptr);
     }
 };
