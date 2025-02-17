@@ -3804,7 +3804,7 @@ void TOperationControllerBase::OnJobRunning(
 
         if (canCrashControllerAgent) {
             YT_LOG_ERROR("Crashing controller agent");
-            YT_ABORT();
+            YT_VERIFY(false && "Crashed intentionally by spec option");
         } else {
             auto error = TError(
                 "User %Qv is not a superuser but tried to crash controller agent using testing options in spec; "
