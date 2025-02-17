@@ -223,14 +223,14 @@ TEST_F(TWorkerSetTest, ChangeWorkerSet)
     fetcher.Populate(roundA);
 
     auto token = TWorkerSetTest::PickWorker(&workerSet).Get().ValueOrThrow();
-    std::find(roundA.begin(), roundA.end(), token.HostPort());
+    EXPECT_THAT(roundA, ::testing::Contains(token.HostPort()));
     token.Release();
 
     fetcher.Populate(roundB);
     fetcher.WaitToRun(2);
 
     token = TWorkerSetTest::PickWorker(&workerSet).Get().ValueOrThrow();
-    std::find(roundB.begin(), roundB.end(), token.HostPort());
+    EXPECT_THAT(roundB, ::testing::Contains(token.HostPort()));
     token.Release();
 
     fetcher.Stop();
