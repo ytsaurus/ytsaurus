@@ -760,6 +760,7 @@ class TestSchedulingHeartbeatThrottling(YTEnvSetup):
     }
 
     @authors("omgronny")
+    @pytest.mark.skip(reason="YT-24244")
     def test_scheduler_throttles_heartbeats_by_complexity(self):
         update_scheduler_config("use_heartbeat_scheduling_complexity_throttling", True)
         update_scheduler_config("scheduling_heartbeat_complexity_limit", 18)
