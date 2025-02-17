@@ -10846,7 +10846,7 @@ TOutputStreamDescriptorPtr TOperationControllerBase::GetIntermediateStreamDescri
         if (auto tableWriterConfig = Spec_->FastIntermediateMediumTableWriterConfig) {
             descriptor->TableWriterOptions->ReplicationFactor = tableWriterConfig->UploadReplicationFactor;
             descriptor->TableWriterOptions->ErasureCodec = tableWriterConfig->ErasureCodec;
-            descriptor->TableWriterOptions->EnableStripedErasure = tableWriterConfig->EnableStripedErasure;
+            descriptor->TableWriterOptions->EnableStripedErasure = false; // TODO(galtsev): use tableWriterConfig->EnableStripedErasure when the striped erasure reader is implemented, see YT-24207
         }
         YT_LOG_INFO("Fast intermediate medium enabled (FastMedium: %v, SlowMedium: %v, FastMediumLimit: %v, "
             "ReplicationFactor: %v, ErasureCodec: %v, EnableStripedErasure: %v)",
