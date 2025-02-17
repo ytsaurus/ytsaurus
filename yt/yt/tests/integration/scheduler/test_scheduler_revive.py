@@ -802,6 +802,9 @@ class OperationReviveBase(YTEnvSetup):
     def _wait_for_state(self, op, state):
         wait(lambda: op.get_state() == state)
 
+    def _wait_for_states(self, op, states):
+        wait(lambda: op.get_state() in states)
+
     @authors("ignat")
     def test_missing_transactions(self):
         self._prepare_tables()
@@ -880,7 +883,7 @@ class OperationReviveBase(YTEnvSetup):
         if self.ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA:
             pytest.skip("Cypress transactions in Sequoia don't support transaction actions")
 
-        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", False)
+        set("//sys/@config/transaction_manager/forbid_transaction_actions_for_cypress_transactions", True)
 
         update_controller_agent_config(
             "testing_options/abort_output_transaction_after_completion_transaction_commit",
@@ -900,7 +903,9 @@ class OperationReviveBase(YTEnvSetup):
         op = self._start_op("echo '{foo=bar}'; sleep 15", track=False)
         self._wait_for_state(op, "running")
         op.complete(ignore_result=True)
-        self._wait_for_state(op, "completing")
+        # Since output transaction is aborted the whole operation should become
+        # failed (completing -> failing -> failed).
+        self._wait_for_states(op, {"completing", "failing", "failed"})
         wait(lambda: exists(op.get_path() + "/@committed"))
 
         # Should not crash.
