@@ -33,6 +33,7 @@ class TSquashFSLayout
 {
 public:
     DEFINE_BYVAL_RO_PROPERTY_NO_INIT(i64, Size);
+
 public:
     struct TPart
     {
