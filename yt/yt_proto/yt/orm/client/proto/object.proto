@@ -309,7 +309,8 @@ enum ESetUpdateObjectMode
     SUOM_LEGACY = 1;
 }
 
-message TCommonHistoryOptions {
+message TCommonHistoryOptions
+{
     // Adds forced attributes for every object history.
     repeated string forced_paths = 1;
 }
@@ -367,7 +368,7 @@ message THistoryTableOptions
     optional bool use_deprecated_hashing = 10;
 }
 
-// Next field 30044.
+// Next field 30045.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
