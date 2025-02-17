@@ -1004,18 +1004,23 @@ public:
         , AlertCollector_(std::move(alertCollector))
         , ProfilingCounters_(New<TQueueExportProfilingCounters>(queueProfiler.WithPrefix("/static_export").WithTag("export_name", ExportName_)))
         , Executor_(New<TPeriodicExecutor>(
-                Invoker_,
-                BIND_NO_PROPAGATE(&TQueueExporter::Pass, MakeWeak(this)),
-                /*interval*/ std::nullopt
-            ))
+            Invoker_,
+            BIND_NO_PROPAGATE(
+                &TQueueExporter::Pass,
+                MakeWeak(this)),
+                    /*interval*/ DynamicConfig_.Enable
+                        ? std::optional(DynamicConfig_.PassPeriod)
+                        : std::nullopt))
         , Logger(QueueExporterLogger().WithTag("%v, ExportName: %v",
             logger.GetTag(),
             ExportName_))
+    { }
+
+    void Initialize() const
     {
         Executor_->Start();
-        Executor_->SetPeriod(DynamicConfig_.Enable
-            ? std::optional(DynamicConfig_.PassPeriod)
-            : std::nullopt);
+
+        YT_LOG_INFO("Queue exporter started");
     }
 
     TQueueExportProgressPtr GetExportProgress() const override
@@ -1136,23 +1141,14 @@ private:
             }
             if (!exportTaskError.IsOK() || !exportTask->GetExportError().IsOK()) {
                 THROW_ERROR_EXCEPTION("Export task has errors")
-                        << TErrorAttribute("task_error", exportTaskError)
-                        << TErrorAttribute("export_error", exportTask->GetExportError());
+                    << TErrorAttribute("task_error", exportTaskError)
+                    << TErrorAttribute("export_error", exportTask->GetExportError());
             }
             if (!newExportProgressNonNull) {
                 THROW_ERROR_EXCEPTION("Export task result is missing new export progress without any errors");
             }
         }
-
-        // NB(apachee): Task error is more important, so we handle it first.
-        if (!exportTaskError.IsOK()) {
-            THROW_ERROR_EXCEPTION(exportTaskError);
-        }
-
-        auto exportError = exportTask->GetExportError();
-        if (!exportError.IsOK()) {
-            THROW_ERROR_EXCEPTION(exportError);
-        }
+        YT_VERIFY(exportTaskError.IsOK() && exportTask->GetExportError().IsOK());
 
         LastSuccessfulExportUnixTs_ = exportUnixTs;
     }
@@ -1209,7 +1205,7 @@ IQueueExporterPtr CreateQueueExporter(
     const TProfiler& queueProfiler,
     const TLogger& logger)
 {
-    return New<TQueueExporter>(
+    auto exporter =  New<TQueueExporter>(
         std::move(exportName),
         std::move(queue),
         std::move(exportConfig),
@@ -1220,6 +1216,9 @@ IQueueExporterPtr CreateQueueExporter(
         std::move(alertCollector),
         queueProfiler,
         logger);
+    exporter->Initialize();
+
+    return exporter;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

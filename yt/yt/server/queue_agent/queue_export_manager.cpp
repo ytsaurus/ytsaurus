@@ -18,8 +18,8 @@ class TQueueExportManager
     : public IQueueExportManager
 {
 public:
-    TQueueExportManager(
-        const TQueueExportManagerDynamicConfigPtr& dynamicConfig)
+    explicit TQueueExportManager(
+        TQueueExportManagerDynamicConfigPtr dynamicConfig)
         : Logger(QueueExportManagerLogger())
         , Profiler_(QueueAgentProfiler()
             .WithPrefix("static_export_manager"))
@@ -27,9 +27,8 @@ public:
             TThroughputThrottlerConfig::Create(dynamicConfig->ExportRateLimit),
             /*name*/ "ExportThrottler",
             Logger,
-            Profiler_)
-        )
-        , DynamicConfig_(dynamicConfig)
+            Profiler_))
+        , DynamicConfig_(std::move(dynamicConfig))
     { }
 
     IThroughputThrottlerPtr GetExportThrottler() const override
@@ -50,10 +49,10 @@ public:
     }
 
 private:
-    TLogger Logger;
+    const TLogger Logger;
 
-    TProfiler Profiler_;
-    IReconfigurableThroughputThrottlerPtr Throttler_;
+    const TProfiler Profiler_;
+    const IReconfigurableThroughputThrottlerPtr Throttler_;
 
     TQueueExportManagerDynamicConfigPtr DynamicConfig_;
 };
@@ -61,10 +60,10 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IQueueExportManagerPtr CreateQueueExportManager(
-    const TQueueExportManagerDynamicConfigPtr& dynamicConfig)
+    TQueueExportManagerDynamicConfigPtr dynamicConfig)
 {
     return New<TQueueExportManager>(
-        dynamicConfig);
+        std::move(dynamicConfig));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

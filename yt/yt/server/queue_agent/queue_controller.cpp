@@ -404,7 +404,10 @@ public:
         queueSnapshot->ReplicatedTableMappingRow = std::move(replicatedTableMappingRow);
         queueSnapshot->Error = TError("Queue is not processed yet");
         QueueSnapshot_.Exchange(std::move(queueSnapshot));
+    }
 
+    void Initialize() const
+    {
         PassExecutor_->Start();
         AlertManager_->Start();
 
@@ -462,7 +465,7 @@ public:
         {
             auto guard = WriterGuard(QueueExportsLock_);
             if (QueueExports_.IsOK()) {
-                for (auto& exporter : GetValues(QueueExports_.Value())) {
+                for (const auto& exporter : GetValues(QueueExports_.Value())) {
                     exporter->OnDynamicConfigChanged(newConfig->QueueExporter);
                 }
             }
@@ -513,11 +516,11 @@ private:
     const IAlertCollectorPtr TrimAlertCollector_;
     const IAlertCollectorPtr QueueExportsAlertCollector_;
 
-    using QueueExportsMappingOrError = TErrorOr<THashMap<TString, IQueueExporterPtr>>;
-    QueueExportsMappingOrError QueueExports_;
-    TReaderWriterSpinLock QueueExportsLock_;
-
     const IQueueExportManagerPtr QueueExportManager_;
+
+    using TQueueExportsMappingOrError = TErrorOr<THashMap<TString, IQueueExporterPtr>>;
+    TQueueExportsMappingOrError QueueExports_;
+    TReaderWriterSpinLock QueueExportsLock_;
 
     void Pass()
     {
@@ -598,7 +601,7 @@ private:
         auto guard = WriterGuard(QueueExportsLock_);
 
         if (!staticExportConfig) {
-            QueueExports_ = QueueExportsMappingOrError();
+            QueueExports_ = TQueueExportsMappingOrError();
             return;
         }
         if (auto staticExportConfigError = CheckStaticExportConfig(*staticExportConfig, nextQueueSnapshot->Row.ObjectType); !staticExportConfigError.IsOK()) {
@@ -612,7 +615,7 @@ private:
         }
 
         if (!QueueExports_.IsOK()) {
-            QueueExports_ = QueueExportsMappingOrError();
+            QueueExports_ = TQueueExportsMappingOrError();
         }
         auto& queueExports = QueueExports_.Value();
         for (const auto& [name, exportConfig] : *staticExportConfig) {
@@ -1555,8 +1558,8 @@ bool UpdateQueueController(
     }
 
     switch (queueFamily.Value()) {
-        case EQueueFamily::OrderedDynamicTable:
-            controller = New<TOrderedDynamicTableController>(
+        case EQueueFamily::OrderedDynamicTable: {
+            auto newController = New<TOrderedDynamicTableController>(
                 leading,
                 row,
                 replicatedTableMappingRow,
@@ -1565,7 +1568,10 @@ bool UpdateQueueController(
                 dynamicConfig,
                 std::move(clientDirectory),
                 std::move(invoker));
+            newController->Initialize();
+            controller = newController;
             break;
+        }
         default:
             YT_ABORT();
     }
