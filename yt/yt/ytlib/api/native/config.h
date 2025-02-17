@@ -351,6 +351,7 @@ public:
 
     bool UseWebAssembly;
 
+    // COMPAT(sabdenovch)
     bool GroupByWithLimitIsUnordered;
 
     TDuration FlowPipelineControllerRpcTimeout;

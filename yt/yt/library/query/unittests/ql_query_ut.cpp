@@ -1441,7 +1441,7 @@ TQueryStatistics DoExecuteQuery(
 
     ssize_t batchSize = maxBatchSize;
 
-    if (query->IsOrdered(MostFreshFeatureFlags()) && query->Offset + query->Limit < batchSize) {
+    if (query->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true) && query->Offset + query->Limit < batchSize) {
         batchSize = query->Offset + query->Limit;
     }
 
@@ -1454,7 +1454,7 @@ TQueryStatistics DoExecuteQuery(
             owningSourceRows[index] = TOwningRow();
         }
 
-        if (isFirstRead && query->IsOrdered(MostFreshFeatureFlags())) {
+        if (isFirstRead && query->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)) {
             EXPECT_EQ(options.MaxRowsPerRead, std::min(RowsetProcessingBatchSize, query->Offset + query->Limit));
             isFirstRead = false;
         }
@@ -1583,6 +1583,7 @@ struct TEvaluateOptions
     int SyntaxVersion = 1;
     EExecutionBackend ExecutionBackend = EExecutionBackend::Native;
     bool UseCanonicalNullRelations = false;
+    bool AllowUnorderedGroupByWithLimit = true;
 };
 
 const TResultMatcher AnyMatcher = [] (TRange<TRow>, const TTableSchema&) { };
@@ -1878,6 +1879,7 @@ protected:
         options.OutputRowLimit = evaluateOptions.OutputRowLimit;
         options.UseCanonicalNullRelations = evaluateOptions.UseCanonicalNullRelations;
         options.ExecutionBackend = evaluateOptions.ExecutionBackend;
+        options.AllowUnorderedGroupByWithLimit = evaluateOptions.AllowUnorderedGroupByWithLimit;
 
         size_t sourceIndex = 1;
 
@@ -2028,14 +2030,14 @@ protected:
                 FunctionProfilers_,
                 AggregateProfilers_,
                 GetDefaultMemoryChunkProvider(),
-                TQueryBaseOptions{.ExecutionBackend = executionBackend},
+                TQueryBaseOptions{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true},
                 MostFreshFeatureFlags(),
                 MakeFuture(MostFreshFeatureFlags()));
 
             return pipe->GetReader();
         };
 
-        auto frontReader = frontQuery->IsOrdered(MostFreshFeatureFlags())
+        auto frontReader = frontQuery->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)
             ? CreateFullPrefetchingOrderedSchemafulReader(getNextReader)
             : CreateFullPrefetchingShufflingSchemafulReader(getNextReader);
 
@@ -2051,7 +2053,7 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.ExecutionBackend = executionBackend},
+            TQueryBaseOptions{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true},
             MostFreshFeatureFlags(),
             MakeFuture(MostFreshFeatureFlags()));
 
@@ -2121,7 +2123,7 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.ExecutionBackend = executionBackend},
+            TQueryBaseOptions{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true},
             MostFreshFeatureFlags(),
             MakeFuture(MostFreshFeatureFlags()));
 
@@ -2154,7 +2156,7 @@ protected:
             return pipe->GetReader();
         };
 
-        auto reader = query->IsOrdered(MostFreshFeatureFlags())
+        auto reader = query->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)
             ? CreateFullPrefetchingOrderedSchemafulReader(nextReader)
             : CreateFullPrefetchingShufflingSchemafulReader(nextReader);
 
@@ -2168,7 +2170,7 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.ExecutionBackend = executionBackend},
+            TQueryBaseOptions{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true},
             MostFreshFeatureFlags(),
             MakeFuture(MostFreshFeatureFlags()));
 
@@ -2198,7 +2200,7 @@ protected:
             return pipe->GetReader();
         };
 
-        auto reader = frontQuery->IsOrdered(MostFreshFeatureFlags())
+        auto reader = frontQuery->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true)
             ? CreateFullPrefetchingOrderedSchemafulReader(nextReader)
             : CreateFullPrefetchingShufflingSchemafulReader(nextReader);
 
@@ -2212,7 +2214,7 @@ protected:
             FunctionProfilers_,
             AggregateProfilers_,
             GetDefaultMemoryChunkProvider(),
-            TQueryBaseOptions{.ExecutionBackend = executionBackend},
+            TQueryBaseOptions{.ExecutionBackend = executionBackend, .AllowUnorderedGroupByWithLimit = true},
             MostFreshFeatureFlags(),
             MakeFuture(MostFreshFeatureFlags()));
 
@@ -9498,7 +9500,7 @@ void TQueryEvaluateComplexTest::DoTest(
     };
 
     auto query = Evaluate(queryString, splits, sources, resultMatcher);
-    EXPECT_TRUE(query->IsOrdered(MostFreshFeatureFlags()));
+    EXPECT_TRUE(query->IsOrdered(/*allowUnorderedGroupByWithLimit*/ true));
 }
 
 TEST_P(TQueryEvaluateComplexTest, All)
