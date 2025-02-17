@@ -22,6 +22,7 @@ def main():
     setup(
         name=PACKAGE_NAME,
         version=version,
+        python_requires=">=3.8",
         packages=["yt", "yt.wrapper", "yt.yson", "yt.ypath", "yt.skiff", "yt.clickhouse", "yt.cli", "yt.type_info", "yt.wrapper.schema"] + recursive("yt/packages"),
         package_dir={"yt.packages.requests": "yt/packages/requests"},
         package_data={"yt.packages.requests": ["*.pem"]},
