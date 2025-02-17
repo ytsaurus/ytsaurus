@@ -165,7 +165,7 @@ public:
             Batcher_->Enqueue(std::move(rowlet));
             PendingCounter_.Update(PendingCount_++);
             EnqueuedCounter_.Increment();
-            QueueIsTooLargeCounter_.Update(IsQueueTooLarge() ? 1 : 0);
+            UpdateQueueIsTooLargeCounter();
         } else {
             DroppedCount_.fetch_add(1, std::memory_order::relaxed);
             DroppedCounter_.Increment();
@@ -255,6 +255,7 @@ private:
                     dataSize += rowlet->EstimateSize();
                 }
                 Limiter_.Decrease(dataSize);
+                UpdateQueueIsTooLargeCounter();
                 return;
             } catch (const std::exception& ex) {
                 WriteFailuresCount_.fetch_add(1, std::memory_order::relaxed);
@@ -383,6 +384,11 @@ private:
             }
         }
         return false;
+    }
+
+    void UpdateQueueIsTooLargeCounter() const
+    {
+        QueueIsTooLargeCounter_.Update(IsQueueTooLarge() ? 1 : 0);
     }
 };
 
