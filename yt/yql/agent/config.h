@@ -175,6 +175,9 @@ public:
     int MaxSimultaneousQueries;
     TDuration StateCheckPeriod;
 
+    //! Fields from NYql::TGatewaysConfig with snake case keys.
+    NYTree::INodePtr GatewaysConfig;
+
     REGISTER_YSON_STRUCT(TYqlAgentDynamicConfig);
 
     static void Register(TRegistrar registrar);

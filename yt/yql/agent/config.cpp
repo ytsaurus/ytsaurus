@@ -343,6 +343,9 @@ void TYqlAgentDynamicConfig::Register(TRegistrar registrar)
         .Default(128);
     registrar.Parameter("state_check_period", &TThis::StateCheckPeriod)
         .Default(TDuration::Seconds(15));
+    registrar.Parameter("gateways_config", &TThis::GatewaysConfig)
+        .Default(GetEphemeralNodeFactory()->CreateMap())
+        .ResetOnLoad();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

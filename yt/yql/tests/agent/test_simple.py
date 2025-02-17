@@ -1,6 +1,6 @@
 from yt_queries import start_query
 
-from yt.environment.helpers import assert_items_equal
+from yt.environment.helpers import assert_items_equal, wait_for_dynamic_config_update
 
 from yt_commands import (authors, create, create_user, sync_mount_table,
                          write_table, insert_rows, alter_table, raises_yt_error,
@@ -221,6 +221,68 @@ class TestYqlAgentBan(TestQueriesYqlBase):
 
         set("//sys/pools/small/@resource_limits/user_slots", 1)
         long_query.track()
+
+
+class TestYqlAgentDynConfig(TestQueriesYqlBase):
+    NUM_YQL_AGENTS = 1
+
+    def _update_dyn_config(self, yql_agent, dyn_config):
+        config = get("//sys/yql_agent/config")
+        config["yql_agent"] = dyn_config
+        set("//sys/yql_agent/config", config)
+        wait_for_dynamic_config_update(yql_agent.yql_agent.client, config, "//sys/yql_agent/instances")
+
+    @authors("lucius")
+    def test_yql_agent_dyn_config(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
+        })
+        rows = [{"a": 42, "b": "foo"}, {"a": -17, "b": "bar"}]
+        write_table("//tmp/t", rows)
+        self._test_simple_query("select * from primary.`//tmp/t`", rows)
+
+        self._update_dyn_config(yql_agent, {
+            "gateways_config": {
+                "yt": {
+                    "cluster_mapping": [
+                    ],
+                },
+            },
+        })
+        self._test_simple_query("select * from primary.`//tmp/t`", rows)
+
+    @authors("lucius")
+    def test_yql_agent_broken_dyn_config(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={
+            "schema": [{"name": "a", "type": "int64"}, {"name": "b", "type": "string"}]
+        })
+        rows = [{"a": 42, "b": "foo"}, {"a": -17, "b": "bar"}]
+        write_table("//tmp/t", rows)
+        self._test_simple_query("select * from primary.`//tmp/t`", rows)
+
+        self._update_dyn_config(yql_agent, {
+            "gateways_config": {
+                "yt": {
+                    "cluster_mapping": [
+                        {
+                            "name": "cluster does not exist",
+                        },
+                    ],
+                },
+            },
+        })
+        with raises_yt_error("Cluster address must be specified"):
+            self._test_simple_query("select * from primary.`//tmp/t`", rows)
+
+        self._update_dyn_config(yql_agent, {
+            "gateways_config": {
+                "yt": {
+                    "cluster_mapping": [
+                    ],
+                },
+            },
+        })
+        self._test_simple_query("select * from primary.`//tmp/t`", rows)
 
 
 class TestComplexQueriesYql(TestQueriesYqlBase):

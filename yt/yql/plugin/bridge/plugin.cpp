@@ -39,10 +39,11 @@ DEFINE_ENUM(EYqlPluginAbiVersion,
     ((DqManager)           (3)) // mpereskokova: Added BridgeStartYqlPlugin; Adjusted TBridgeYqlPluginOptions to save DQ configs.
     ((TemporaryTokens)     (4)) // mpereskokova: Added GetUsedClusters step; Changed Run options.
     ((Credentials)         (5)) // a-romanov: 'credentials' parameter instead of 'token'.
+    ((DynamicConfig)       (6)) // lucius: Added OnDynamicConfigChanged.
 );
 
-constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::Credentials;
-constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::Credentials;
+constexpr auto MinSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::DynamicConfig;
+constexpr auto MaxSupportedYqlPluginAbiVersion = EYqlPluginAbiVersion::DynamicConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -251,6 +252,11 @@ public:
         };
         BridgeFreeAbortResult(bridgeAbortResult);
         return abortResult;
+    }
+
+    void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) noexcept override
+    {
+        BridgeOnDynamicConfigChanged(BridgePlugin_, &config);
     }
 
     ~TYqlPlugin() override
