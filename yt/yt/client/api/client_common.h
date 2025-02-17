@@ -200,9 +200,6 @@ struct TSelectRowsOptions
     NTableClient::TVersionedReadOptions VersionedReadOptions;
     //! Explicitly allow or forbid the usage of row cache.
     std::optional<bool> UseLookupCache;
-    //! For internal use only.
-    //! Use original table schema in result rowset.
-    bool UseOriginalTableSchema = false;
 };
 
 struct TFallbackReplicaOptions

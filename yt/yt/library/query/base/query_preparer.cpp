@@ -3215,7 +3215,7 @@ TJoinClausePtr BuildJoinClause(
     }
 
     for (int index = 0; index < std::ssize(selfEquations); ++index) {
-        if (selfEquations[index].Expression->GetWireType() != foreignEquations[index]->GetWireType()) {
+        if (*selfEquations[index].Expression->LogicalType != *foreignEquations[index]->LogicalType) {
             THROW_ERROR_EXCEPTION("Types mismatch in join equation \"%v = %v\"",
                 InferName(selfEquations[index].Expression),
                 InferName(foreignEquations[index]))

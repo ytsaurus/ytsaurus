@@ -413,7 +413,7 @@ struct TProjectClause
 
     void AddProjection(TConstExpressionPtr expression, TString name);
 
-    TTableSchemaPtr GetTableSchema(bool castToQLType = true) const;
+    TTableSchemaPtr GetTableSchema() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TProjectClause)
@@ -470,7 +470,7 @@ struct TBaseQuery
     bool IsOrdered(const TFeatureFlags& featureFlags) const;
 
     virtual TTableSchemaPtr GetReadSchema() const = 0;
-    virtual TTableSchemaPtr GetTableSchema(bool castToQLType = true) const = 0;
+    virtual TTableSchemaPtr GetTableSchema() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TBaseQuery)
@@ -494,7 +494,7 @@ struct TQuery
 
     TTableSchemaPtr GetRenamedSchema() const;
 
-    TTableSchemaPtr GetTableSchema(bool castToQLType = true) const override;
+    TTableSchemaPtr GetTableSchema() const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQuery)
@@ -512,7 +512,7 @@ struct TFrontQuery
 
     TTableSchemaPtr GetRenamedSchema() const;
 
-    TTableSchemaPtr GetTableSchema(bool castToQLType = true) const override;
+    TTableSchemaPtr GetTableSchema() const override;
 };
 
 DEFINE_REFCOUNTED_TYPE(TFrontQuery)
