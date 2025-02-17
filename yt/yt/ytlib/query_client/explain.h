@@ -20,7 +20,7 @@ NYson::TYsonString BuildExplainQueryYson(
     TStringBuf udfRegistryPath,
     const NApi::TExplainQueryOptions& options,
     const IMemoryChunkProviderPtr& memoryChunkProvider,
-    TFeatureFlags featureFlags);
+    bool allowUnorderedGroupByWithLimit);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1209,10 +1209,10 @@ public:
         const TConstAggregateProfilerMapPtr& aggregateProfilers,
         bool useCanonicalNullRelations,
         EExecutionBackend executionBackend,
-        TFeatureFlags featureFlags)
+        bool allowUnorderedGroupByWithLimit)
         : TExpressionProfiler(id, variables, functionProfilers, useCanonicalNullRelations, executionBackend)
         , AggregateProfilers_(aggregateProfilers)
-        , FeatureFlags_(featureFlags)
+        , AllowUnorderedGroupByWithLimit_(allowUnorderedGroupByWithLimit)
     { }
 
     void Profile(
@@ -1236,7 +1236,8 @@ public:
 
 protected:
     const TConstAggregateProfilerMapPtr AggregateProfilers_;
-    const TFeatureFlags FeatureFlags_;
+    // COMPAT(sabdenovch)
+    const bool AllowUnorderedGroupByWithLimit_;
 
     size_t Profile(
         const TNamedItem& namedExpression,
@@ -1263,7 +1264,7 @@ public:
         size_t havingPredicateId,
         TCGVariables* variables,
         bool combineGroupOpWithOrderOp,
-        TFeatureFlags featureFlags)
+        bool allowUnorderedGroupByWithLimit)
         : FinalMode_(finalMode)
         , MergeMode_(mergeMode)
         , CodegenSource_(codegenSource)
@@ -1279,7 +1280,7 @@ public:
         , HavingPredicateId_(havingPredicateId)
         , Variables_(variables)
         , CombineGroupOpWithOrderOp_(combineGroupOpWithOrderOp)
-        , FeatureFlags_(featureFlags)
+        , AllowUnorderedGroupByWithLimit_(allowUnorderedGroupByWithLimit)
     { }
 
     void Process(size_t* intermediate, size_t* aggregated, size_t* delta, size_t* totals)
@@ -1317,7 +1318,8 @@ private:
 
     const bool CombineGroupOpWithOrderOp_;
 
-    const TFeatureFlags FeatureFlags_;
+    // COMPAT(sabdenovch)
+    const bool AllowUnorderedGroupByWithLimit_;
 
     // If the query uses `WITH TOTALS` together with `LIMIT`, but without `ORDER BY`,
     // we should account totals on the query coordinator side,
@@ -1325,7 +1327,7 @@ private:
     // When totals are calculated at the coordinator, the coordinator should also finalize aggregated.
     bool ShouldFinalizeAggregatesAndAccountTotalsAtCoordinator() const
     {
-        return Query_->GroupClause->TotalsMode != ETotalsMode::None && Query_->IsOrdered(FeatureFlags_);
+        return Query_->GroupClause->TotalsMode != ETotalsMode::None && Query_->IsOrdered(AllowUnorderedGroupByWithLimit_);
     }
 
     // We should convert intermediates to deltas at the last stage of execution (query is final), since there will be no more groupings.
@@ -1379,7 +1381,7 @@ private:
 
     void LimitTotalsInput(size_t* totals) const
     {
-        bool considerLimit = Query_->IsOrdered(FeatureFlags_) && Query_->IsFinal;
+        bool considerLimit = Query_->IsOrdered(AllowUnorderedGroupByWithLimit_) && Query_->IsFinal;
 
         if (considerLimit) {
             int offsetId = Variables_->AddOpaque<size_t>(Query_->Offset);
@@ -1531,7 +1533,7 @@ void TQueryProfiler::Profile(
     Fold(EFoldingObjectType::MergeMode);
     Fold(mergeMode);
     Fold(EFoldingObjectType::QueryIsOrdered);
-    Fold(query->IsOrdered(FeatureFlags_));
+    Fold(query->IsOrdered(AllowUnorderedGroupByWithLimit_));
 
     auto combineGroupOpWithOrderOp = TCodegenOrderOpInfosPtr();
 
@@ -1682,7 +1684,7 @@ void TQueryProfiler::Profile(
             groupClause->TotalsMode != ETotalsMode::None,
             // Input is ordered for ordered queries and bottom fragments if CommonPrefixWithPrimaryKey > 0.
             // Prefix comparer can be used only if input is ordered.
-            (!mergeMode || query->IsOrdered(FeatureFlags_)) && (!combineGroupOpWithOrderOp) ? groupClause->CommonPrefixWithPrimaryKey : 0,
+            (!mergeMode || query->IsOrdered(AllowUnorderedGroupByWithLimit_)) && (!combineGroupOpWithOrderOp) ? groupClause->CommonPrefixWithPrimaryKey : 0,
             combineGroupOpWithOrderOp,
             ComparerManager_);
 
@@ -1723,7 +1725,7 @@ void TQueryProfiler::Profile(
             havingPredicateId,
             Variables_,
             combineGroupOpWithOrderOp != nullptr,
-            FeatureFlags_);
+            AllowUnorderedGroupByWithLimit_);
 
         manager.Process(&newIntermediateSlot, &newAggregatedSlot, &newDeltaSlot, &newTotalsSlot);
 
@@ -2198,7 +2200,7 @@ void TQueryProfiler::Profile(
 
         size_t joinBatchSize = MaxJoinBatchSize;
 
-        if (query->IsOrdered(FeatureFlags_) && query->Offset + query->Limit < static_cast<ssize_t>(joinBatchSize)) {
+        if (query->IsOrdered(AllowUnorderedGroupByWithLimit_) && query->Offset + query->Limit < static_cast<ssize_t>(joinBatchSize)) {
             joinBatchSize = query->Offset + query->Limit;
         }
 
@@ -2409,7 +2411,7 @@ TCGQueryGenerator Profile(
     EExecutionBackend executionBackend,
     const TConstFunctionProfilerMapPtr& functionProfilers,
     const TConstAggregateProfilerMapPtr& aggregateProfilers,
-    TFeatureFlags featureFlags)
+    bool allowUnorderedGroupByWithLimit)
 {
     auto profiler = TQueryProfiler(
         id,
@@ -2418,7 +2420,7 @@ TCGQueryGenerator Profile(
         aggregateProfilers,
         useCanonicalNullRelations,
         executionBackend,
-        featureFlags);
+        allowUnorderedGroupByWithLimit);
 
     size_t slotCount = 0;
     TCodegenSource codegenSource = &CodegenEmptyOp;

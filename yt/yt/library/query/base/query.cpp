@@ -501,10 +501,10 @@ TBaseQuery::TBaseQuery(const TBaseQuery& other)
     , InferRanges(other.InferRanges)
 { }
 
-bool TBaseQuery::IsOrdered(const TFeatureFlags& featureFlags) const
+bool TBaseQuery::IsOrdered(bool allowUnorderedGroupByWithLimit) const
 {
     if (Limit < std::numeric_limits<i64>::max()) {
-        if (featureFlags.GroupByWithLimitIsUnordered) {
+        if (allowUnorderedGroupByWithLimit) {
             return !OrderClause && (!GroupClause || GroupClause->AllAggregatesAreFirst() || GroupClause->CommonPrefixWithPrimaryKey > 0);
         } else {
             return !OrderClause;
@@ -1636,6 +1636,7 @@ void ToProto(NProto::TQueryOptions* serialized, const TQueryOptions& original)
         serialized->set_use_lookup_cache(*original.UseLookupCache);
     }
     serialized->set_min_row_count_per_subquery(original.MinRowCountPerSubquery);
+    serialized->set_allow_unordered_group_by_with_limit(original.AllowUnorderedGroupByWithLimit);
 }
 
 void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
@@ -1690,6 +1691,9 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
     if (serialized.has_min_row_count_per_subquery()) {
         original->MinRowCountPerSubquery = serialized.min_row_count_per_subquery();
     }
+    if (serialized.has_allow_unordered_group_by_with_limit()) {
+        original->AllowUnorderedGroupByWithLimit = serialized.allow_unordered_group_by_with_limit();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1697,11 +1701,15 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 void ToProto(NProto::TFeatureFlags* serialized, const TFeatureFlags& original)
 {
     serialized->set_with_totals_finalizes_aggregated_on_coordinator(original.WithTotalsFinalizesAggregatedOnCoordinator);
+    serialized->set_group_by_with_limit_is_unordered(original.GroupByWithLimitIsUnordered);
 }
 
 void FromProto(TFeatureFlags* original, const NProto::TFeatureFlags& serialized)
 {
     original->WithTotalsFinalizesAggregatedOnCoordinator = serialized.with_totals_finalizes_aggregated_on_coordinator();
+    if (serialized.has_group_by_with_limit_is_unordered()) {
+        original->GroupByWithLimitIsUnordered = serialized.group_by_with_limit_is_unordered();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

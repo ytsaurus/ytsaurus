@@ -1700,7 +1700,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     }
 
     auto requestFeatureFlags = MostFreshFeatureFlags();
-    requestFeatureFlags.GroupByWithLimitIsUnordered = dynamicConfig->GroupByWithLimitIsUnordered;
+
+    queryOptions.AllowUnorderedGroupByWithLimit = requestFeatureFlags.GroupByWithLimitIsUnordered && dynamicConfig->GroupByWithLimitIsUnordered;
 
     IUnversionedRowsetWriterPtr writer;
     TFuture<IUnversionedRowsetPtr> asyncRowset;
@@ -1800,7 +1801,7 @@ NYson::TYsonString TClient::DoExplainQuery(
 
     auto requestFeatureFlags = MostFreshFeatureFlags();
 
-    requestFeatureFlags.GroupByWithLimitIsUnordered = GetNativeConnection()
+    auto allowUnorderedGroupByWithLimit = requestFeatureFlags.GroupByWithLimitIsUnordered && GetNativeConnection()
         ->GetConfig()
         ->GroupByWithLimitIsUnordered;
 
@@ -1822,7 +1823,7 @@ NYson::TYsonString TClient::DoExplainQuery(
         udfRegistryPath,
         options,
         memoryChunkProvider,
-        requestFeatureFlags);
+        allowUnorderedGroupByWithLimit);
 }
 
 template <class T>
