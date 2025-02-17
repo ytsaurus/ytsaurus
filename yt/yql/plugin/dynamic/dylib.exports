@@ -10,6 +10,7 @@ BridgeGetProgress
 BridgeGetAbiVersion
 BridgeAbort
 BridgeFreeAbortResult
+BridgeOnDynamicConfigChanged
 
 # YQL <-> YQL UDFs interface.
 UdfAllocateWithSize

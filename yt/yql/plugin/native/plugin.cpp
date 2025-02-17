@@ -135,6 +135,21 @@ DEFINE_REFCOUNTED_TYPE(TQueryPipelineConfigurator)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDynamicConfig
+    : public TRefCounted
+{
+    NYql::TGatewaysConfig GatewaysConfig;
+    THashMap<TString, TString> Clusters;
+    std::optional<TString> DefaultCluster;
+    ::TIntrusivePtr<NKikimr::NMiniKQL::IMutableFunctionRegistry> FuncRegistry;
+    NYql::TExprContext ExprContext;
+    NYql::IModuleResolver::TPtr ModuleResolver;
+};
+DECLARE_REFCOUNTED_TYPE(TDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TActiveQuery
 {
     NYql::TProgramPtr Program;
@@ -143,6 +158,10 @@ struct TActiveQuery
     TProgressMerger ProgressMerger;
     TQueryPipelineConfiguratorPtr PipelineConfigurator;
     std::optional<TString> Plan;
+
+    // Store shared data for TProgram after dyn config changing.
+    TDynamicConfigPtr ProgramSharedData;
+    NYql::TProgramFactoryPtr ProgramFactory;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -230,7 +249,7 @@ public:
             NYson::TProtobufWriterOptions protobufWriterOptions;
             protobufWriterOptions.ConvertSnakeToCamelCase = true;
 
-            auto* gatewayDqConfig = GatewaysConfig_.MutableDq();
+            auto* gatewayDqConfig = GatewaysConfigInitial_.MutableDq();
             if (DqManagerConfig_) {
                 gatewayDqConfig->ParseFromStringOrThrow(NYson::YsonStringToProto(
                     options.DqGatewayConfig,
@@ -238,7 +257,7 @@ public:
                     protobufWriterOptions));
             }
 
-            auto* gatewayYtConfig = GatewaysConfig_.MutableYt();
+            auto* gatewayYtConfig = GatewaysConfigInitial_.MutableYt();
             gatewayYtConfig->ParseFromStringOrThrow(NYson::YsonStringToProto(
                 options.GatewayConfig,
                 NYson::ReflectProtobufMessageType<NYql::TYtGatewayConfig>(),
@@ -250,64 +269,14 @@ public:
                 NYson::ReflectProtobufMessageType<NYql::TFileStorageConfig>(),
                 protobufWriterOptions));
 
-            gatewayYtConfig->SetMrJobBinMd5(MD5::File(gatewayYtConfig->GetMrJobBin()));
-
-            for (const auto& mapping : gatewayYtConfig->GetClusterMapping()) {
-                Clusters_.insert({mapping.name(), TString(NYql::YtProviderName)});
-                if (mapping.GetDefault()) {
-                    DefaultCluster_ = mapping.name();
-                }
-            }
-
             FileStorage_ = WithAsync(CreateFileStorage(fileStorageConfig, {MakeYtDownloader(fileStorageConfig)}));
-
-            FuncRegistry_ = NKikimr::NMiniKQL::CreateFunctionRegistry(
-                NKikimr::NMiniKQL::CreateBuiltinRegistry())->Clone();
-
-            const NKikimr::NMiniKQL::TUdfModuleRemappings emptyRemappings;
-
-            FuncRegistry_->SetBackTraceCallback(&NYql::NBacktrace::KikimrBackTrace);
-
-            NKikimr::NMiniKQL::TUdfModulePathsMap systemModules;
-
-            TVector<TString> udfPaths;
-            NKikimr::NMiniKQL::FindUdfsInDir(gatewayYtConfig->GetMrJobUdfsDir(), &udfPaths);
-            for (const auto& path : udfPaths) {
-                // Skip YQL plugin shared library itself, it is not a UDF.
-                if (path.EndsWith("libyqlplugin.so")) {
-                    continue;
-                }
-                ui32 flags = 0;
-                // System Python UDFs are not used locally so we only need types.
-                if (path.Contains("systempython") && path.Contains(TString("udf") + MKQL_UDF_LIB_SUFFIX)) {
-                    flags |= NUdf::IRegistrator::TFlags::TypesOnly;
-                }
-                FuncRegistry_->LoadUdfs(path, emptyRemappings, flags);
-                if (DqManagerConfig_) {
-                    DqManagerConfig_->UdfsWithMd5.emplace(path, MD5::File(path));
-                }
-            }
 
             if (DqManagerConfig_) {
                 DqManagerConfig_->FileStorage = FileStorage_;
                 DqManager_ = New<TDqManager>(DqManagerConfig_);
             }
 
-            gatewayYtConfig->ClearMrJobUdfsDir();
-
-            for (const auto& m : FuncRegistry_->GetAllModuleNames()) {
-                TMaybe<TString> path = FuncRegistry_->FindUdfPath(m);
-                if (!path) {
-                    YQL_LOG(FATAL) << "Unable to detect UDF path for module " << m;
-                    exit(1);
-                }
-                systemModules.emplace(m, *path);
-            }
-
-            FuncRegistry_->SetSystemModulePaths(systemModules);
-
-            TUserDataTable userDataTable;
-            LoadYqlDefaultMounts(userDataTable);
+            LoadYqlDefaultMounts(UserDataTable_);
 
             const auto libraries = NYTree::ConvertTo<THashMap<TString, TString>>(options.Libraries);
             TVector<NYql::NUserData::TUserData> userData;
@@ -316,7 +285,7 @@ public:
                 userData.emplace_back(NYql::NUserData::EType::LIBRARY, NYql::NUserData::EDisposition::FILESYSTEM, path, path);
                 Modules_[to_lower(module)] = path;
 
-                auto& block = userDataTable[TUserDataKey::File(path)];
+                auto& block = UserDataTable_[TUserDataKey::File(path)];
                 block.Data = path;
                 block.Type = EUserDataType::PATH;
                 block.Usage.Set(EUserDataBlockUsage::Library, true);
@@ -324,42 +293,9 @@ public:
 
             NYql::NUserData::TUserData::UserDataToLibraries(userData, Modules_);
 
-            TModulesTable modulesTable;
-            if (!CompileLibraries(userDataTable, ExprContext_, modulesTable, true)) {
-                TStringStream err;
-                ExprContext_.IssueManager
-                    .GetIssues()
-                    .PrintTo(err);
-                YQL_LOG(FATAL) << "Failed to compile modules:\n"
-                               << err.Str();
-                exit(1);
-            }
-
-            ModuleResolver_ = std::make_shared<NYql::TModuleResolver>(std::move(modulesTable), ExprContext_.NextUniqueId, Clusters_, THashSet<TString>{});
             OperationAttributes_ = options.OperationAttributes;
 
-            TVector<NYql::TDataProviderInitializer> dataProvidersInit;
-
-            NYql::TYtNativeServices ytServices;
-            ytServices.FunctionRegistry = FuncRegistry_.Get();
-            ytServices.FileStorage = FileStorage_;
-            ytServices.Config = std::make_shared<NYql::TYtGatewayConfig>(*gatewayYtConfig);
-
-            if (DqManagerConfig_) {
-                auto dqGateway = NYql::CreateDqGateway("localhost", DqManagerConfig_->GrpcPort);
-                auto dqCompFactory = NKikimr::NMiniKQL::GetCompositeWithBuiltinFactory({
-                    NYql::GetCommonDqFactory(),
-                    NYql::GetDqYtFactory(),
-                    NKikimr::NMiniKQL::GetYqlFactory(),
-                });
-                dataProvidersInit.push_back(GetDqDataProviderInitializer(NYql::CreateDqExecTransformerFactory(MakeIntrusive<TSkiffConverter>()), dqGateway, dqCompFactory, {}, FileStorage_));
-            }
-
-            auto ytNativeGateway = CreateYtNativeGateway(ytServices);
-            dataProvidersInit.push_back(GetYtNativeDataProviderInitializer(ytNativeGateway, NDq::MakeCBOOptimizerFactory(), MakeDqHelper()));
-
-            ProgramFactory_ = std::make_unique<NYql::TProgramFactory>(
-                false, FuncRegistry_.Get(), ExprContext_.NextUniqueId, dataProvidersInit, "embedded");
+            DynamicConfig_ = CreateDynamicConfig(NYql::TGatewaysConfig(GatewaysConfigInitial_));
 
             if (options.YTTokenPath) {
                 TFsPath path(options.YTTokenPath);
@@ -369,14 +305,6 @@ public:
             }
             // do not use token from .yt/token or env in queries
             NYT::TConfig::Get()->Token = {};
-
-            ProgramFactory_->AddUserDataTable(userDataTable);
-            ProgramFactory_->SetCredentials(MakeIntrusive<NYql::TCredentials>());
-            ProgramFactory_->SetModules(ModuleResolver_);
-            ProgramFactory_->SetUdfResolver(NYql::NCommon::CreateSimpleUdfResolver(FuncRegistry_.Get(), FileStorage_));
-            ProgramFactory_->SetGatewaysConfig(&GatewaysConfig_);
-            ProgramFactory_->SetFileStorage(FileStorage_);
-            ProgramFactory_->SetUrlPreprocessing(MakeIntrusive<NYql::TUrlPreprocessing>(GatewaysConfig_));
         } catch (const std::exception& ex) {
             // NB: YQL_LOG may be not initialized yet (for example, during singletons config parse),
             // so we use std::cerr instead of it.
@@ -398,12 +326,18 @@ public:
         TYsonString settings,
         std::vector<TQueryFile> files)
     {
-        auto program = ProgramFactory_->Create("-memory-", queryText);
+        TDynamicConfigPtr dynamicConfig;
+        {
+            auto guard = ReaderGuard(DynamicConfigSpinLock);
+            dynamicConfig = DynamicConfig_;
+        }
+        auto factory = CreateProgramFactory(*dynamicConfig);
+        auto program = factory->Create("-memory-", queryText);
 
         program->AddCredentials({{"default_yt", NYql::TCredential("yt", "", YqlAgentToken_)}});
         program->SetOperationAttrsYson(PatchQueryAttributes(OperationAttributes_, settings));
 
-        auto defaultQueryCluster = DefaultCluster_;
+        auto defaultQueryCluster = dynamicConfig->DefaultCluster;
         auto ysonSettings = NodeFromYsonString(settings.ToString()).AsMap();
         if (auto cluster = ysonSettings.FindPtr("cluster")) {
             defaultQueryCluster = cluster->AsString();
@@ -413,7 +347,7 @@ public:
         program->AddUserDataTable(userDataTable);
 
         NSQLTranslation::TTranslationSettings sqlSettings;
-        sqlSettings.ClusterMapping = Clusters_;
+        sqlSettings.ClusterMapping = dynamicConfig->Clusters;
         sqlSettings.ModuleMapping = Modules_;
         if (defaultQueryCluster) {
             sqlSettings.DefaultCluster = *defaultQueryCluster;
@@ -460,12 +394,21 @@ public:
         std::vector<TQueryFile> files,
         int executeMode)
     {
-        auto program = ProgramFactory_->Create("-memory-", queryText);
+        TDynamicConfigPtr dynamicConfig;
+        {
+            auto guard = ReaderGuard(DynamicConfigSpinLock);
+            dynamicConfig = DynamicConfig_;
+        }
+        auto factory = CreateProgramFactory(*dynamicConfig);
+        auto program = factory->Create("-memory-", queryText);
         auto pipelineConfigurator = New<TQueryPipelineConfigurator>(program);
         {
             auto guard = WriterGuard(ProgressSpinLock);
-            ActiveQueriesProgress_[queryId].Program = program;
-            ActiveQueriesProgress_[queryId].PipelineConfigurator = pipelineConfigurator;
+            auto& query = ActiveQueriesProgress_[queryId];
+            query.Program = program;
+            query.PipelineConfigurator = pipelineConfigurator;
+            query.ProgramSharedData = dynamicConfig;
+            query.ProgramFactory = factory;
         }
 
         TVector<std::pair<TString, NYql::TCredential>> credentials;
@@ -481,7 +424,7 @@ public:
         program->AddCredentials(credentials);
         program->SetOperationAttrsYson(PatchQueryAttributes(OperationAttributes_, settings));
 
-        auto defaultQueryCluster = DefaultCluster_;
+        auto defaultQueryCluster = dynamicConfig->DefaultCluster;
         auto settingsMap = NodeFromYsonString(settings.ToString()).AsMap();
         if (auto cluster = settingsMap.FindPtr("cluster")) {
             defaultQueryCluster = cluster->AsString();
@@ -507,7 +450,7 @@ public:
         program->SetResultType(NYql::IDataProvider::EResultFormat::Skiff);
 
         NSQLTranslation::TTranslationSettings sqlSettings;
-        sqlSettings.ClusterMapping = Clusters_;
+        sqlSettings.ClusterMapping = dynamicConfig->Clusters;
         sqlSettings.ModuleMapping = Modules_;
         if (defaultQueryCluster) {
             sqlSettings.DefaultCluster = *defaultQueryCluster;
@@ -665,24 +608,49 @@ public:
         return {};
     }
 
+    void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) noexcept override
+    {
+        YQL_LOG(INFO) << "Dynamic config update started";
+
+        NYson::TProtobufWriterOptions protobufWriterOptions;
+        protobufWriterOptions.ConvertSnakeToCamelCase = true;
+
+        NYql::TGatewaysConfig dynamicGatewaysConfig;
+        dynamicGatewaysConfig.ParseFromStringOrThrow(NYson::YsonStringToProto(
+            config.GatewaysConfig,
+            NYson::ReflectProtobufMessageType<NYql::TGatewaysConfig>(),
+            protobufWriterOptions));
+
+        // Ignore TDqGatewayConfig without DqManagerConfig_.
+        if (!DqManagerConfig_) {
+            dynamicGatewaysConfig.ClearDq();
+        }
+
+        auto newGatewaysConfig = GatewaysConfigInitial_;
+        newGatewaysConfig.MergeFrom(dynamicGatewaysConfig);
+
+        auto dynamicConfig = CreateDynamicConfig(std::move(newGatewaysConfig));
+        {
+            auto guard = WriterGuard(DynamicConfigSpinLock);
+            DynamicConfig_ = dynamicConfig;
+        }
+        YQL_LOG(INFO) << "Dynamic config update finished";
+    }
+
 private:
     const TDqManagerConfigPtr DqManagerConfig_;
     TDqManagerPtr DqManager_;
     NYql::TFileStoragePtr FileStorage_;
-    NYql::TExprContext ExprContext_;
-    ::TIntrusivePtr<NKikimr::NMiniKQL::IMutableFunctionRegistry> FuncRegistry_;
-    NYql::IModuleResolver::TPtr ModuleResolver_;
-    NYql::TGatewaysConfig GatewaysConfig_;
-    std::unique_ptr<NYql::TProgramFactory> ProgramFactory_;
-    THashMap<TString, TString> Clusters_;
-    std::optional<TString> DefaultCluster_;
+    TDynamicConfigPtr DynamicConfig_;
+    NYql::TGatewaysConfig GatewaysConfigInitial_;
     THashMap<TString, TString> Modules_;
     TYsonString OperationAttributes_;
     TString YqlAgentToken_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ProgressSpinLock);
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DynamicConfigSpinLock);
     THashMap<TQueryId, TActiveQuery> ActiveQueriesProgress_;
-    TVector<NYql::TDataProviderInitializer> DataProvidersInit_;
+    TUserDataTable UserDataTable_;
 
     std::optional<TActiveQuery> ExtractQuery(TQueryId queryId) {
         // NB: TProgram destructor must be called without locking.
@@ -732,6 +700,124 @@ private:
         }
 
         return table;
+    }
+
+    TDynamicConfigPtr CreateDynamicConfig(NYql::TGatewaysConfig&& gatewaysConfig) const {
+        YQL_LOG(DEBUG) << "Creating dynamic config";
+
+        auto dynamicConfig = New<TDynamicConfig>();
+        dynamicConfig->GatewaysConfig = std::move(gatewaysConfig);
+        auto* gatewayYtConfig = dynamicConfig->GatewaysConfig.MutableYt();
+
+        gatewayYtConfig->SetMrJobBinMd5(MD5::File(gatewayYtConfig->GetMrJobBin()));
+        YQL_LOG(DEBUG) << "Creating dynamic config: SetMrJobBinMd5 ready";
+
+        for (const auto& mapping : gatewayYtConfig->GetClusterMapping()) {
+            dynamicConfig->Clusters.insert({mapping.name(), TString(NYql::YtProviderName)});
+            if (mapping.GetDefault()) {
+                dynamicConfig->DefaultCluster = mapping.name();
+            }
+        }
+        YQL_LOG(DEBUG) << "Creating dynamic config: Clusters ready";
+
+        dynamicConfig->FuncRegistry = NKikimr::NMiniKQL::CreateFunctionRegistry(
+            NKikimr::NMiniKQL::CreateBuiltinRegistry())->Clone();
+
+        const NKikimr::NMiniKQL::TUdfModuleRemappings emptyRemappings;
+        dynamicConfig->FuncRegistry->SetBackTraceCallback(&NYql::NBacktrace::KikimrBackTrace);
+        YQL_LOG(DEBUG) << "Creating dynamic config: SetBackTraceCallback ready";
+
+        TVector<TString> udfPaths;
+        NKikimr::NMiniKQL::FindUdfsInDir(gatewayYtConfig->GetMrJobUdfsDir(), &udfPaths);
+        YQL_LOG(DEBUG) << "Creating dynamic config: FindUdfsInDir ready";
+
+        for (const auto& path : udfPaths) {
+            // Skip YQL plugin shared library itself, it is not a UDF.
+            if (path.EndsWith("libyqlplugin.so")) {
+                continue;
+            }
+            ui32 flags = 0;
+            // System Python UDFs are not used locally so we only need types.
+            if (path.Contains("systempython") && path.Contains(TString("udf") + MKQL_UDF_LIB_SUFFIX)) {
+                flags |= NUdf::IRegistrator::TFlags::TypesOnly;
+            }
+            dynamicConfig->FuncRegistry->LoadUdfs(path, emptyRemappings, flags);
+            if (DqManagerConfig_) {
+                DqManagerConfig_->UdfsWithMd5.emplace(path, MD5::File(path));
+            }
+        }
+        YQL_LOG(DEBUG) << "Creating dynamic config: LoadUdfs ready";
+
+        gatewayYtConfig->ClearMrJobUdfsDir();
+
+        NKikimr::NMiniKQL::TUdfModulePathsMap systemModules;
+        for (const auto& m : dynamicConfig->FuncRegistry->GetAllModuleNames()) {
+            TMaybe<TString> path = dynamicConfig->FuncRegistry->FindUdfPath(m);
+            if (!path) {
+                YQL_LOG(FATAL) << "Unable to detect UDF path for module " << m;
+                exit(1);
+            }
+            systemModules.emplace(m, *path);
+        }
+        YQL_LOG(DEBUG) << "Creating dynamic config: FindUdfPath ready";
+
+        dynamicConfig->FuncRegistry->SetSystemModulePaths(systemModules);
+        YQL_LOG(DEBUG) << "Creating dynamic config: SetSystemModulePaths ready";
+
+        TModulesTable modulesTable;
+        if (!CompileLibraries(UserDataTable_, dynamicConfig->ExprContext, modulesTable, true)) {
+            TStringStream err;
+            dynamicConfig->ExprContext.IssueManager
+                .GetIssues()
+                .PrintTo(err);
+            YQL_LOG(FATAL) << "Failed to compile modules:\n"
+                           << err.Str();
+            exit(1);
+        }
+        YQL_LOG(DEBUG) << "Creating dynamic config: CompileLibraries ready";
+
+        dynamicConfig->ModuleResolver = std::make_shared<NYql::TModuleResolver>(std::move(modulesTable), dynamicConfig->ExprContext.NextUniqueId, dynamicConfig->Clusters, THashSet<TString>{});
+        YQL_LOG(DEBUG) << "Creating dynamic config: ModuleResolver ready";
+
+        YQL_LOG(DEBUG) << "Creating dynamic config: done";
+        return std::move(dynamicConfig);
+    }
+
+    NYql::TProgramFactoryPtr CreateProgramFactory(TDynamicConfig& dynamicConfig) {
+        YQL_LOG(DEBUG) << "Creating program factory";
+
+        NYql::TYtNativeServices ytServices;
+        ytServices.FunctionRegistry = dynamicConfig.FuncRegistry.Get();
+        ytServices.FileStorage = FileStorage_;
+        ytServices.Config = std::make_shared<NYql::TYtGatewayConfig>(*dynamicConfig.GatewaysConfig.MutableYt());
+
+        TVector<NYql::TDataProviderInitializer> dataProvidersInit;
+        if (DqManagerConfig_) {
+            auto dqGateway = NYql::CreateDqGateway("localhost", DqManagerConfig_->GrpcPort);
+            auto dqCompFactory = NKikimr::NMiniKQL::GetCompositeWithBuiltinFactory({
+                NYql::GetCommonDqFactory(),
+                NYql::GetDqYtFactory(),
+                NKikimr::NMiniKQL::GetYqlFactory(),
+            });
+            dataProvidersInit.push_back(GetDqDataProviderInitializer(NYql::CreateDqExecTransformerFactory(MakeIntrusive<TSkiffConverter>()), dqGateway, dqCompFactory, {}, FileStorage_));
+        }
+
+        auto ytNativeGateway = CreateYtNativeGateway(ytServices);
+        dataProvidersInit.push_back(GetYtNativeDataProviderInitializer(ytNativeGateway, NDq::MakeCBOOptimizerFactory(), MakeDqHelper()));
+        YQL_LOG(DEBUG) << "Creating program factory: dataProvidersInit ready";
+
+        auto factory = MakeIntrusive<NYql::TProgramFactory>(
+            false, dynamicConfig.FuncRegistry.Get(), dynamicConfig.ExprContext.NextUniqueId, dataProvidersInit, "embedded");
+        factory->AddUserDataTable(UserDataTable_);
+        factory->SetCredentials(MakeIntrusive<NYql::TCredentials>());
+        factory->SetModules(dynamicConfig.ModuleResolver);
+        factory->SetUdfResolver(NYql::NCommon::CreateSimpleUdfResolver(dynamicConfig.FuncRegistry.Get(), FileStorage_));
+        factory->SetGatewaysConfig(&dynamicConfig.GatewaysConfig);
+        factory->SetFileStorage(FileStorage_);
+        factory->SetUrlPreprocessing(MakeIntrusive<NYql::TUrlPreprocessing>(dynamicConfig.GatewaysConfig));
+
+        YQL_LOG(DEBUG) << "Creating program factory: done";
+        return std::move(factory);
     }
 };
 

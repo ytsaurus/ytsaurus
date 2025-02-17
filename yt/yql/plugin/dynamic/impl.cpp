@@ -15,7 +15,7 @@ extern "C" {
 
 ssize_t BridgeGetAbiVersion()
 {
-    return 5; // EYqlPluginAbiVersion::Credentials
+    return 6; // EYqlPluginAbiVersion::DynamicConfig
 }
 
 TBridgeYqlPlugin* BridgeCreateYqlPlugin(const TBridgeYqlPluginOptions* bridgeOptions)
@@ -76,6 +76,13 @@ void BridgeFreeQueryResult(TBridgeQueryResult* result)
 {
     FOR_EACH_QUERY_RESULT_STRING_FIELD(FREE_STRING_FIELD);
     delete result;
+}
+
+void BridgeOnDynamicConfigChanged(TBridgeYqlPlugin* plugin, const /*TYqlPluginDynamicConfig*/ void* config)
+{
+    auto* nativePlugin = reinterpret_cast<IYqlPlugin*>(plugin);
+    auto* nativeConfig = reinterpret_cast<const TYqlPluginDynamicConfig*>(config);
+    nativePlugin->OnDynamicConfigChanged(*nativeConfig);
 }
 
 void FillString(const char*& str, ssize_t& strLength, const std::optional<TString>& original)
