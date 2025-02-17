@@ -101,7 +101,6 @@ TDataSourceDirectoryPtr BuildDataSourceDirectoryFromInputTables(const std::vecto
         dataSource.SetAccount(inputTable->Account);
         dataSource.SetForeign(inputTable->IsForeign());
         dataSource.SetClusterName(inputTable->ClusterName);
-        dataSource.SetVersionedReadOptions(inputTable->Path.GetVersionedReadOptions());
         dataSourceDirectory->DataSources().push_back(dataSource);
     }
 
