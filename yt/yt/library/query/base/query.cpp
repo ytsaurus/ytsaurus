@@ -76,11 +76,11 @@ TLiteralExpression::TLiteralExpression(EValueType type, TOwningValue value)
 ////////////////////////////////////////////////////////////////////////////////
 
 TReferenceExpression::TReferenceExpression(const NTableClient::TLogicalTypePtr& type)
-    : TExpression(type)
+    : TExpression(ToQLType(type))
 { }
 
 TReferenceExpression::TReferenceExpression(const NTableClient::TLogicalTypePtr& type, const std::string& columnName)
-    : TExpression(type)
+    : TExpression(ToQLType(type))
     , ColumnName(columnName)
 { }
 
@@ -462,14 +462,12 @@ void TProjectClause::AddProjection(TConstExpressionPtr expression, const std::st
     AddProjection(TNamedItem(std::move(expression), name));
 }
 
-TTableSchemaPtr TProjectClause::GetTableSchema(bool castToQLType) const
+TTableSchemaPtr TProjectClause::GetTableSchema() const
 {
     TSchemaColumns result;
-    result.reserve(Projections.size());
 
     for (const auto& item : Projections) {
-        auto logicalType = castToQLType ? ToQLType(item.Expression->LogicalType) : item.Expression->LogicalType;
-        result.emplace_back(item.Name, std::move(logicalType));
+        result.emplace_back(item.Name, item.Expression->LogicalType);
     }
 
     return New<TTableSchema>(std::move(result));
@@ -550,10 +548,10 @@ TTableSchemaPtr TQuery::GetRenamedSchema() const
     return Schema.GetRenamedSchema();
 }
 
-TTableSchemaPtr TQuery::GetTableSchema(bool castToQLType) const
+TTableSchemaPtr TQuery::GetTableSchema() const
 {
     if (ProjectClause) {
-        return ProjectClause->GetTableSchema(castToQLType);
+        return ProjectClause->GetTableSchema();
     }
 
     if (GroupClause) {
@@ -585,10 +583,10 @@ TTableSchemaPtr TFrontQuery::GetRenamedSchema() const
     return Schema;
 }
 
-TTableSchemaPtr TFrontQuery::GetTableSchema(bool castToQLType) const
+TTableSchemaPtr TFrontQuery::GetTableSchema() const
 {
     if (ProjectClause) {
-        return ProjectClause->GetTableSchema(castToQLType);
+        return ProjectClause->GetTableSchema();
     }
 
     if (GroupClause) {

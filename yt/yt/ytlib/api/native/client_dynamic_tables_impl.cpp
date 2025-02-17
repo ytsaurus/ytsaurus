@@ -1705,7 +1705,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     IUnversionedRowsetWriterPtr writer;
     TFuture<IUnversionedRowsetPtr> asyncRowset;
-    std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(query->GetTableSchema(/*castToQLType*/ !options.UseOriginalTableSchema));
+    std::tie(writer, asyncRowset) = CreateSchemafulRowsetWriter(query->GetTableSchema());
 
     auto queryExecutor = CreateQueryExecutor(
         memoryChunkProvider,

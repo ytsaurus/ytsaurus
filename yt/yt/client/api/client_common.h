@@ -192,9 +192,6 @@ struct TSelectRowsOptions
     bool UseCanonicalNullRelations = false;
     //! Merge versioned rows from different stores when reading.
     bool MergeVersionedRows = true;
-    //! For internal use only.
-    //! Use original table schema in result rowset.
-    bool UseOriginalTableSchema = false;
 };
 
 struct TFallbackReplicaOptions
