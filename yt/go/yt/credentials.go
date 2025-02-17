@@ -18,6 +18,8 @@ const (
 	YTCypressCookie = "YTCypressCookie"
 	// XCSRFToken is a http header that should be used for CSRF token transfer.
 	XCSRFToken = "X-Csrf-Token"
+	// YTSSOTokenCookie is a cookie that should be used for authentication when SSO is enabled.
+	YTSSOTokenCookie = "access_token"
 )
 
 type Credentials interface {
