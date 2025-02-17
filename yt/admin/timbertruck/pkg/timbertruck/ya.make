@@ -3,6 +3,7 @@ GO_LIBRARY()
 SRCS(
     datastore.go
     fs_watcher.go
+    inotify_watcher.go
     timbertruck.go
     timbertruck_metrics.go
 )

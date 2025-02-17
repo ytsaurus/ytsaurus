@@ -4,8 +4,6 @@ import (
 	"context"
 	"log/slog"
 	"path"
-
-	"github.com/fsnotify/fsnotify"
 )
 
 type FileEvent int32
@@ -16,14 +14,14 @@ const (
 )
 
 type FsWatcher struct {
-	watcher    *fsnotify.Watcher
+	watcher    *InotifyWatcher
 	logger     *slog.Logger
 	handlerMap map[string][]chan FileEvent
 	started    bool
 }
 
 func NewFsWatcher(logger *slog.Logger) (fsWatcher *FsWatcher, err error) {
-	watcher, err := fsnotify.NewWatcher()
+	watcher, err := NewInotifyWatcher()
 	if err != nil {
 		return
 	}
@@ -82,12 +80,12 @@ loop:
 			if !ok {
 				continue
 			}
-			if event.Has(fsnotify.Create) {
+			if event.Has(FileOpCreate) {
 				w.logger.Info("Detected event on watched file", "event", event)
 				for i := range handlers {
 					w.trySendEvent(handlers[i], FileCreateEvent, event.Name)
 				}
-			} else if event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
+			} else if event.Has(FileOpRemove) || event.Has(FileOpRename) {
 				w.logger.Info("Detected event on watched file", "event", event)
 				for i := range handlers {
 					w.trySendEvent(handlers[i], FileRemoveOrRenameEvent, event.Name)
