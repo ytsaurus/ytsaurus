@@ -1111,6 +1111,9 @@ public:
     //! Note that turning this on might significantly affect workload partitioning for existing operations.
     bool UseChunkSliceStatistics;
 
+    //! If true, enables more accurate input chunks [un]compressed data size estimation.
+    bool EnableReadSizeEstimation;
+
     //! If true, node is banned each time a job is failed there.
     bool BanNodesWithFailedJobs;
 
