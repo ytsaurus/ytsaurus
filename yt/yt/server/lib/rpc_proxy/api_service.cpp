@@ -1604,8 +1604,10 @@ private:
                     ToProto(response->add_tablets(), *tabletInfoPtr);
                 }
 
+                auto tabletCount = tableMountInfo->Tablets.size();
                 if (tableMountInfo->IsChaosReplicated() && tableMountInfo->UpperCapBound.GetCount() != 0) {
-                    response->set_tablet_count(tableMountInfo->UpperCapBound[0].Data.Int64);
+                    tabletCount = tableMountInfo->UpperCapBound[0].Data.Int64;
+                    response->set_tablet_count(tabletCount);
                 }
 
                 response->set_dynamic(tableMountInfo->Dynamic);
@@ -1634,7 +1636,7 @@ private:
 
                 context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",
                     tableMountInfo->Dynamic,
-                    tableMountInfo->Tablets.size(),
+                    tabletCount,
                     tableMountInfo->Replicas.size());
             });
     }

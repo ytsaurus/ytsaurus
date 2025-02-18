@@ -418,15 +418,17 @@ private:
                 tableInfo->Indices.push_back(indexInfo);
             }
 
+            auto tabletCount = std::ssize(tableInfo->Tablets);
             if (tableInfo->IsSorted()) {
                 tableInfo->LowerCapBound = MinKey();
                 tableInfo->UpperCapBound = MaxKey();
             } else {
                 tableInfo->LowerCapBound = MakeUnversionedOwningRow(static_cast<int>(0));
 
-                auto tabletCount = tableInfo->IsChaosReplicated()
-                    ? rsp->tablet_count()
-                    : std::ssize(tableInfo->Tablets);
+                if (tableInfo->IsChaosReplicated()) {
+                    tabletCount = rsp->tablet_count();
+                }
+
                 tableInfo->UpperCapBound = MakeUnversionedOwningRow(tabletCount);
             }
 
@@ -436,7 +438,7 @@ private:
 
             YT_LOG_DEBUG("Table mount info received (TableId: %v, TabletCount: %v, Dynamic: %v, PrimaryRevision: %x, SecondaryRevision: %x)",
                 tableInfo->TableId,
-                tableInfo->Tablets.size(),
+                tabletCount,
                 tableInfo->Dynamic,
                 tableInfo->PrimaryRevision,
                 tableInfo->SecondaryRevision);
