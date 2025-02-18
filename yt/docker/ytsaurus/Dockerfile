@@ -77,6 +77,7 @@ RUN apt-get update \
       iperf \
       netcat-openbsd \
       tcpdump \
+      wget \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
