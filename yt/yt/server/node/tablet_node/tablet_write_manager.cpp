@@ -198,17 +198,17 @@ i64 GetWriteLogRowCount(const TTransactionWriteLog& writeLog)
 class TEnumeratingWriteLogReader
 {
 public:
-    TEnumeratingWriteLogReader(const TTransactionIndexedWriteLog& writeLog)
-    : WriteLogEnd_(writeLog.End())
-    , WriteLogIterator_(writeLog.Begin())
-    , WriteLogBatch_(WriteLogIterator_->WriteCommands.Commands())
-    { }
-
     struct TEnumeratedWireWriteCommand
     {
         const TWireWriteCommand& Command;
         TOpaqueWriteLogIndex WriteLogIndex;
     };
+
+    explicit TEnumeratingWriteLogReader(const TTransactionIndexedWriteLog& writeLog)
+        : WriteLogEnd_(writeLog.End())
+        , WriteLogIterator_(writeLog.Begin())
+        , WriteLogBatch_(WriteLogIterator_->WriteCommands.Commands())
+    { }
 
     TEnumeratedWireWriteCommand NextCommand()
     {
