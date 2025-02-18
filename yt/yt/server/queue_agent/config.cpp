@@ -85,6 +85,10 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("alert_manager", &TThis::AlertManager)
         .DefaultNew();
+    registrar.Parameter("delayed_objects", &TThis::DelayedObjects)
+        .Default();
+    registrar.Parameter("controller_delay_duration", &TThis::ControllerDelayDuration)
+        .Default(TDuration::Seconds(50));
 
     registrar.Postprocessor([] (TQueueControllerDynamicConfig* config) {
         if (config->TrimmingPeriod && config->TrimmingPeriod->GetValue() <= 0) {
@@ -114,6 +118,9 @@ void TQueueAgentDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("queue_export_manager", &TThis::QueueExportManager)
         .DefaultNew();
+    registrar.Parameter("inactive_object_display_limit", &TThis::InactiveObjectDisplayLimit)
+        .Default(10)
+        .GreaterThanOrEqual(0);
     registrar.Parameter("handle_replicated_objects", &TThis::HandleReplicatedObjects)
         .Default(false);
 }
