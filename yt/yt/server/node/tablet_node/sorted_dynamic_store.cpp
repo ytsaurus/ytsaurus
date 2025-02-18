@@ -724,7 +724,6 @@ public:
         , SnapshotMode_(snapshotMode)
     {
         YT_VERIFY(!SnapshotMode_ || ProduceAllVersions_);
-        YT_VERIFY(SnapshotMode_ == CurrentLastWriteTimestampIndex_.has_value());
     }
 
     TFuture<void> Open() override
@@ -1026,7 +1025,9 @@ IVersionedReaderPtr TSortedDynamicStore::CreateSnapshotReader()
         /*snapshotMode*/ true,
         GetSnapshotRevision(),
         TColumnFilter(),
-        CurrentLastWriteTimestampIndex_);
+        Tablet_->GetSerializationType() == ETabletTransactionSerializationType::PerRow
+            ? std::optional(CurrentLastWriteTimestampIndex_)
+            : std::nullopt);
 }
 
 const TSortedDynamicRowKeyComparer& TSortedDynamicStore::GetRowKeyComparer() const
@@ -2507,123 +2508,132 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
     auto tableReader = CreateSnapshotReader();
     auto revision = GetSnapshotRevision();
     CurrentLastWriteTimestampIndex_ = 1 - CurrentLastWriteTimestampIndex_;
+    auto serializationType = Tablet_->GetSerializationType();
 
     return BIND([=, this, this_ = MakeStrong(this)] (TSaveContext& context) {
-        YT_LOG_DEBUG("Store snapshot serialization started");
+        try {
+            YT_LOG_DEBUG("Store snapshot serialization started");
 
-        YT_LOG_DEBUG("Opening table reader");
-        WaitFor(tableReader->Open())
-            .ThrowOnError();
+            YT_LOG_DEBUG("Opening table reader");
+            WaitFor(tableReader->Open())
+                .ThrowOnError();
 
-        auto chunkWriter = New<TMemoryWriter>();
+            auto chunkWriter = New<TMemoryWriter>();
 
-        auto tableWriterConfig = New<TChunkWriterConfig>();
-        tableWriterConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery);
-        // Ensure deterministic snapshots.
-        tableWriterConfig->SampleRate = 0.0;
-        tableWriterConfig->Postprocess();
+            auto tableWriterConfig = New<TChunkWriterConfig>();
+            tableWriterConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletRecovery);
+            // Ensure deterministic snapshots.
+            tableWriterConfig->SampleRate = 0.0;
+            tableWriterConfig->Postprocess();
 
-        auto tableWriterOptions = New<TTabletStoreWriterOptions>();
-        tableWriterOptions->OptimizeFor = EOptimizeFor::Scan;
-        // Ensure deterministic snapshots.
-        tableWriterOptions->SetChunkCreationTime = false;
-        tableWriterOptions->Postprocess();
+            auto tableWriterOptions = New<TTabletStoreWriterOptions>();
+            tableWriterOptions->OptimizeFor = EOptimizeFor::Scan;
+            // Ensure deterministic snapshots.
+            tableWriterOptions->SetChunkCreationTime = false;
+            tableWriterOptions->Postprocess();
 
-        auto tableWriter = CreateVersionedChunkWriter(
-            tableWriterConfig,
-            tableWriterOptions,
-            Schema_,
-            chunkWriter,
-            /*writeBlocksOptions*/ {},
-            /*dataSink*/ std::nullopt);
+            auto tableWriter = CreateVersionedChunkWriter(
+                tableWriterConfig,
+                tableWriterOptions,
+                Schema_,
+                chunkWriter,
+                /*writeBlocksOptions*/ {},
+                /*dataSink*/ std::nullopt);
 
-        TRowBatchReadOptions options{
-            .MaxRowsPerRead = SnapshotRowsPerRead
-        };
+            TRowBatchReadOptions options{
+                .MaxRowsPerRead = SnapshotRowsPerRead
+            };
 
-        YT_LOG_DEBUG("Serializing store snapshot");
+            YT_LOG_DEBUG("Serializing store snapshot");
 
-        std::vector<TTimestamp> lastReadLockTimestamps;
-        std::vector<TTimestamp> lastExclusiveLockTimestamps;
-        std::vector<TTimestamp> lastSharedWriteLockTimestamps;
+            std::vector<TTimestamp> lastReadLockTimestamps;
+            std::vector<TTimestamp> lastExclusiveLockTimestamps;
+            std::vector<TTimestamp> lastSharedWriteLockTimestamps;
 
-        auto rowIt = Rows_->FindGreaterThanOrEqualTo(ToKeyRef(MinKey()));
-        i64 rowCount = 0;
-        while (auto batch = tableReader->Read(options)) {
-            if (batch->IsEmpty()) {
-                YT_LOG_DEBUG("Waiting for table reader");
-                WaitFor(tableReader->GetReadyEvent())
-                    .ThrowOnError();
-                continue;
-            }
-
-            rowCount += batch->GetRowCount();
-            auto rows = batch->MaterializeRows();
-            for (auto row : rows) {
-                auto key = row.Keys();
-                auto dynamicRow = rowIt.GetCurrent();
-                while (RowKeyComparer_(dynamicRow, key) < 0) {
-                    rowIt.MoveNext();
-                    YT_VERIFY(rowIt.IsValid());
-                    dynamicRow = rowIt.GetCurrent();
+            auto rowIt = Rows_->FindGreaterThanOrEqualTo(ToKeyRef(MinKey()));
+            i64 rowCount = 0;
+            while (auto batch = tableReader->Read(options)) {
+                if (batch->IsEmpty()) {
+                    YT_LOG_DEBUG("Waiting for table reader");
+                    WaitFor(tableReader->GetReadyEvent())
+                        .ThrowOnError();
+                    continue;
                 }
-                YT_VERIFY(RowKeyComparer_(dynamicRow, key) == 0);
-                for (int index = 0; index < ColumnLockCount_; ++index) {
-                    auto& lock = dynamicRow.BeginLocks(KeyColumnCount_)[index];
 
-                    auto exclusiveLockRevisionList = TSortedDynamicRow::GetExclusiveLockRevisionList(lock);
-                    auto lastExclusiveLockTimestamp = GetLastTimestamp(exclusiveLockRevisionList, revision);
-                    lastExclusiveLockTimestamps.push_back(lastExclusiveLockTimestamp);
+                rowCount += batch->GetRowCount();
+                auto rows = batch->MaterializeRows();
+                for (auto row : rows) {
+                    auto key = row.Keys();
+                    auto dynamicRow = rowIt.GetCurrent();
+                    while (RowKeyComparer_(dynamicRow, key) < 0) {
+                        rowIt.MoveNext();
+                        YT_VERIFY(rowIt.IsValid());
+                        dynamicRow = rowIt.GetCurrent();
+                    }
+                    YT_VERIFY(RowKeyComparer_(dynamicRow, key) == 0);
+                    for (int index = 0; index < ColumnLockCount_; ++index) {
+                        auto& lock = dynamicRow.BeginLocks(KeyColumnCount_)[index];
 
-                    auto sharedWriteLockRevisionList = TSortedDynamicRow::GetSharedWriteLockRevisionList(lock);
-                    auto lastSharedWriteLockTimestamp = GetLastTimestamp(sharedWriteLockRevisionList, revision);
-                    lastSharedWriteLockTimestamps.push_back(lastSharedWriteLockTimestamp);
+                        auto exclusiveLockRevisionList = TSortedDynamicRow::GetExclusiveLockRevisionList(lock);
+                        auto lastExclusiveLockTimestamp = GetLastTimestamp(exclusiveLockRevisionList, revision);
+                        lastExclusiveLockTimestamps.push_back(lastExclusiveLockTimestamp);
 
-                    auto readLockRevisionList = TSortedDynamicRow::GetReadLockRevisionList(lock);
-                    auto lastReadLockTimestamp = GetLastTimestamp(readLockRevisionList, revision);
-                    lastReadLockTimestamps.push_back(lastReadLockTimestamp);
+                        auto sharedWriteLockRevisionList = TSortedDynamicRow::GetSharedWriteLockRevisionList(lock);
+                        auto lastSharedWriteLockTimestamp = GetLastTimestamp(sharedWriteLockRevisionList, revision);
+                        lastSharedWriteLockTimestamps.push_back(lastSharedWriteLockTimestamp);
+
+                        auto readLockRevisionList = TSortedDynamicRow::GetReadLockRevisionList(lock);
+                        auto lastReadLockTimestamp = GetLastTimestamp(readLockRevisionList, revision);
+                        lastReadLockTimestamps.push_back(lastReadLockTimestamp);
+                    }
+                }
+
+                if (!tableWriter->Write(std::move(rows))) {
+                    YT_LOG_DEBUG("Waiting for table writer");
+                    WaitFor(tableWriter->GetReadyEvent())
+                        .ThrowOnError();
                 }
             }
 
-            if (!tableWriter->Write(std::move(rows))) {
-                YT_LOG_DEBUG("Waiting for table writer");
-                WaitFor(tableWriter->GetReadyEvent())
-                    .ThrowOnError();
+            // psushin@ forbids empty chunks.
+            if (rowCount == 0) {
+                Save(context, false);
+                return;
             }
+
+            Save(context, true);
+
+            YT_VERIFY(std::ssize(lastExclusiveLockTimestamps) == rowCount * ColumnLockCount_);
+            Save(context, lastExclusiveLockTimestamps);
+
+            YT_VERIFY(std::ssize(lastSharedWriteLockTimestamps) == rowCount * ColumnLockCount_);
+            Save(context, lastSharedWriteLockTimestamps);
+
+            YT_VERIFY(std::ssize(lastReadLockTimestamps) == rowCount * ColumnLockCount_);
+            Save(context, lastReadLockTimestamps);
+
+            // NB: This also closes chunkWriter.
+            YT_LOG_DEBUG("Closing table writer");
+            WaitFor(tableWriter->Close())
+                .ThrowOnError();
+
+            Save(context, *chunkWriter->GetChunkMeta());
+
+            auto blocks = TBlock::Unwrap(chunkWriter->GetBlocks());
+            YT_LOG_DEBUG("Writing store blocks (RowCount: %v, BlockCount: %v)",
+                rowCount,
+                blocks.size());
+
+            Save(context, blocks);
+
+            YT_LOG_DEBUG("Store snapshot serialization complete");
+        } catch (std::exception& ex) {
+            YT_LOG_FATAL_IF(
+                serializationType == ETabletTransactionSerializationType::PerRow,
+                ex,
+                "Failed to finish async save for sorted dynamic store with per-row serialization;"
+                " LastWriteTimestamps could become unbalanced");
         }
-
-        // psushin@ forbids empty chunks.
-        if (rowCount == 0) {
-            Save(context, false);
-            return;
-        }
-
-        Save(context, true);
-
-        YT_VERIFY(std::ssize(lastExclusiveLockTimestamps) == rowCount * ColumnLockCount_);
-        Save(context, lastExclusiveLockTimestamps);
-
-        YT_VERIFY(std::ssize(lastSharedWriteLockTimestamps) == rowCount * ColumnLockCount_);
-        Save(context, lastSharedWriteLockTimestamps);
-
-        YT_VERIFY(std::ssize(lastReadLockTimestamps) == rowCount * ColumnLockCount_);
-        Save(context, lastReadLockTimestamps);
-
-        // NB: This also closes chunkWriter.
-        YT_LOG_DEBUG("Closing table writer");
-        WaitFor(tableWriter->Close())
-            .ThrowOnError();
-
-        Save(context, *chunkWriter->GetChunkMeta());
-
-        auto blocks = TBlock::Unwrap(chunkWriter->GetBlocks());
-        YT_LOG_DEBUG("Writing store blocks (RowCount: %v, BlockCount: %v)",
-            rowCount,
-            blocks.size());
-
-        Save(context, blocks);
-
-        YT_LOG_DEBUG("Store snapshot serialization complete");
     });
 }
 
