@@ -38,7 +38,7 @@ def build_resource_usage():
                 .aggr("thread")
                 .unit("UNIT_PERCENT"))
             .cell(
-                "Busiest thread (Controller)",
+                "Busiest thread pool (Controller)",
                 MonitoringExpr(FlowController("yt.resource_tracker.utilization"))
                     .unit("UNIT_PERCENT_UNIT")
                     .all("thread")
@@ -51,7 +51,7 @@ def build_resource_usage():
                 .aggr("thread")
                 .unit("UNIT_PERCENT"))
             .cell(
-                "Busiest thread (Worker)",
+                "Busiest thread pool (Worker)",
                 MonitoringExpr(FlowWorker("yt.resource_tracker.utilization"))
                     .unit("UNIT_PERCENT_UNIT")
                     .all("thread")
