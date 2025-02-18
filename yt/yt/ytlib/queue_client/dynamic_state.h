@@ -71,7 +71,7 @@ struct TQueueTableRow
     std::optional<bool> Dynamic;
     std::optional<bool> Sorted;
     TQueueAutoTrimConfig AutoTrimConfig;
-    std::optional<THashMap<TString, TQueueStaticExportConfig>> StaticExportConfig;
+    std::optional<THashMap<TString, TQueueStaticExportConfigPtr>> StaticExportConfig;
     std::optional<TString> QueueAgentStage;
     std::optional<NObjectClient::TObjectId> ObjectId;
     std::optional<bool> QueueAgentBanned;

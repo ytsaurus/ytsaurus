@@ -5,7 +5,8 @@
 #include "config.h"
 #include "helpers.h"
 #include "profile_manager.h"
-#include "queue_static_table_exporter.h"
+#include "queue_exporter.h"
+#include "queue_export_manager.h"
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 #include <yt/yt/ytlib/hive/cell_directory.h>
@@ -359,6 +360,7 @@ public:
         TQueueTableRow queueRow,
         std::optional<TReplicatedTableMappingTableRow> replicatedTableMappingRow,
         const IObjectStore* store,
+        const IQueueExportManagerPtr& queueExportManager,
         const TQueueControllerDynamicConfigPtr& dynamicConfig,
         TQueueAgentClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker)
@@ -392,6 +394,7 @@ public:
             Invoker_))
         , TrimAlertCollector_(CreateAlertCollector(AlertManager_))
         , QueueExportsAlertCollector_(CreateAlertCollector(AlertManager_))
+        , QueueExportManager_(queueExportManager)
     {
         // Prepare initial erroneous snapshot.
         auto queueSnapshot = New<TQueueSnapshot>();
@@ -399,7 +402,10 @@ public:
         queueSnapshot->ReplicatedTableMappingRow = std::move(replicatedTableMappingRow);
         queueSnapshot->Error = TError("Queue is not processed yet");
         QueueSnapshot_.Exchange(std::move(queueSnapshot));
+    }
 
+    void Initialize() const
+    {
         PassExecutor_->Start();
         AlertManager_->Start();
 
@@ -454,6 +460,15 @@ public:
 
         AlertManager_->Reconfigure(oldConfig->AlertManager, newConfig->AlertManager);
 
+        {
+            auto guard = WriterGuard(QueueExportsLock_);
+            if (QueueExports_.IsOK()) {
+                for (const auto& exporter : GetValues(QueueExports_.Value())) {
+                    exporter->OnDynamicConfigChanged(newConfig->QueueExporter);
+                }
+            }
+        }
+
         YT_LOG_DEBUG(
             "Updated queue controller dynamic config (OldConfig: %v, NewConfig: %v)",
             ConvertToYsonString(oldConfig, EYsonFormat::Text),
@@ -499,8 +514,10 @@ private:
     const IAlertCollectorPtr TrimAlertCollector_;
     const IAlertCollectorPtr QueueExportsAlertCollector_;
 
-    using QueueExportsMappingOrError = TErrorOr<THashMap<TString, TQueueExporterPtr>>;
-    QueueExportsMappingOrError QueueExports_;
+    const IQueueExportManagerPtr QueueExportManager_;
+
+    using TQueueExportsMappingOrError = TErrorOr<THashMap<TString, IQueueExporterPtr>>;
+    TQueueExportsMappingOrError QueueExports_;
     TReaderWriterSpinLock QueueExportsLock_;
 
     void Pass()
@@ -582,7 +599,7 @@ private:
         auto guard = WriterGuard(QueueExportsLock_);
 
         if (!staticExportConfig) {
-            QueueExports_ = QueueExportsMappingOrError();
+            QueueExports_ = TQueueExportsMappingOrError();
             return;
         }
         if (auto staticExportConfigError = CheckStaticExportConfig(*staticExportConfig, nextQueueSnapshot->Row.ObjectType); !staticExportConfigError.IsOK()) {
@@ -596,23 +613,24 @@ private:
         }
 
         if (!QueueExports_.IsOK()) {
-            QueueExports_ = QueueExportsMappingOrError();
+            QueueExports_ = TQueueExportsMappingOrError();
         }
         auto& queueExports = QueueExports_.Value();
         for (const auto& [name, exportConfig] : *staticExportConfig) {
             if (queueExports.find(name) == queueExports.end()) {
-                queueExports[name] = New<TQueueExporter>(
+                queueExports[name] = CreateQueueExporter(
                     name,
                     QueueRef_,
                     exportConfig,
                     queueExporterConfig,
                     ClientDirectory_->GetUnderlyingClientDirectory(),
                     Invoker_,
+                    QueueExportManager_,
                     CreateAlertCollector(AlertManager_),
                     ProfileManager_->GetQueueProfiler(),
                     Logger);
             } else {
-                queueExports[name]->Reconfigure(exportConfig, queueExporterConfig);
+                queueExports[name]->OnExportConfigChanged(exportConfig);
             }
         }
 
@@ -628,7 +646,7 @@ private:
         }
     }
 
-    TError CheckStaticExportConfig(const THashMap<TString, TQueueStaticExportConfig>& configs, std::optional<EObjectType> objectType) const
+    TError CheckStaticExportConfig(const THashMap<TString, TQueueStaticExportConfigPtr>& configs, std::optional<EObjectType> objectType) const
     {
         if (!objectType) {
             return TError("Cannot check \"static_export_config\", because object type is not known");
@@ -640,9 +658,9 @@ private:
         THashSet<TYPath> directories;
         THashSet<TYPath> duplicateDirectories;
         for (const auto& [_, config] : configs) {
-            if (auto [_, inserted] = directories.insert(config.ExportDirectory); !inserted) {
-                YT_LOG_DEBUG("There are duplicate export directories in queue static export config (Value: %v)", config.ExportDirectory);
-                duplicateDirectories.insert(config.ExportDirectory);
+            if (auto [_, inserted] = directories.insert(config->ExportDirectory); !inserted) {
+                YT_LOG_DEBUG("There are duplicate export directories in queue static export config (Value: %v)", config->ExportDirectory);
+                duplicateDirectories.insert(config->ExportDirectory);
             }
         }
 
@@ -1511,8 +1529,9 @@ bool UpdateQueueController(
     const TQueueTableRow& row,
     const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     const IObjectStore* store,
+    const IQueueExportManagerPtr& queueExportManager,
     const TQueueControllerDynamicConfigPtr& dynamicConfig,
-    TQueueAgentClientDirectoryPtr clientDirectory,
+    const TQueueAgentClientDirectoryPtr& clientDirectory,
     IInvokerPtr invoker)
 {
     // Recreating an error controller on each iteration seems ok as it does
@@ -1537,16 +1556,20 @@ bool UpdateQueueController(
     }
 
     switch (queueFamily.Value()) {
-        case EQueueFamily::OrderedDynamicTable:
-            controller = New<TOrderedDynamicTableController>(
+        case EQueueFamily::OrderedDynamicTable: {
+            auto newController = New<TOrderedDynamicTableController>(
                 leading,
                 row,
                 replicatedTableMappingRow,
                 store,
+                queueExportManager,
                 dynamicConfig,
                 std::move(clientDirectory),
                 std::move(invoker));
+            newController->Initialize();
+            controller = newController;
             break;
+        }
         default:
             YT_ABORT();
     }

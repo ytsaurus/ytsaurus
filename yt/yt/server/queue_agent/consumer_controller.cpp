@@ -465,10 +465,13 @@ public:
         consumerSnapshot->ReplicatedTableMappingRow = replicatedTableMappingRow;
         consumerSnapshot->Error = TError("Consumer is not processed yet");
         ConsumerSnapshot_.Exchange(std::move(consumerSnapshot));
+    }
+
+    void Initialize() const
+    {
+        PassExecutor_->Start();
 
         YT_LOG_INFO("Consumer controller started");
-
-        PassExecutor_->Start();
     }
 
     void OnRowUpdated(std::any row) override
@@ -608,15 +611,16 @@ bool UpdateConsumerController(
     const TConsumerTableRow& row,
     const std::optional<TReplicatedTableMappingTableRow>& replicatedTableMappingRow,
     const IObjectStore* store,
+    const IQueueExportManagerPtr& /*queueExportManager*/,
     const TQueueControllerDynamicConfigPtr& dynamicConfig,
-    TQueueAgentClientDirectoryPtr clientDirectory,
+    const TQueueAgentClientDirectoryPtr& clientDirectory,
     IInvokerPtr invoker)
 {
     if (controller && controller->IsLeading() == leading) {
         return false;
     }
 
-    controller = New<TConsumerController>(
+    auto newController = New<TConsumerController>(
         leading,
         row,
         replicatedTableMappingRow,
@@ -624,6 +628,8 @@ bool UpdateConsumerController(
         dynamicConfig,
         std::move(clientDirectory),
         std::move(invoker));
+    newController->Initialize();
+    controller = newController;
     return true;
 }
 

@@ -15,7 +15,8 @@ SRCS(
     queue_agent_sharding_manager.cpp
     queue_controller.cpp
     snapshot_representation.cpp
-    queue_static_table_exporter.cpp
+    queue_exporter.cpp
+    queue_export_manager.cpp
 )
 
 PEERDIR(

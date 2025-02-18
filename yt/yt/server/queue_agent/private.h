@@ -17,7 +17,8 @@ namespace NYT::NQueueAgent {
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentLogger, "QueueAgent");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueControllerLogger, "QueueController");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, ConsumerControllerLogger, "ConsumerController");
-YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueStaticTableExporterLogger, "QueueStaticTableExporter");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueExporterLogger, "QueueExporter");
+YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueExportManagerLogger, "QueueExportManager");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, QueueAgentShardingManagerLogger, "QueueAgentShardingManager");
 YT_DEFINE_GLOBAL(const NLogging::TLogger, CypressSynchronizerLogger, "CypressSynchronizer");
 inline const NProfiling::TProfiler QueueAgentProfilerGlobal = NProfiling::TProfiler("/queue_agent").WithGlobal();
@@ -52,6 +53,7 @@ YT_DEFINE_ERROR_ENUM(
 DECLARE_REFCOUNTED_CLASS(TQueueAgent)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentConfig)
 DECLARE_REFCOUNTED_CLASS(TQueueControllerDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TQueueExportManagerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ICypressSynchronizer)
@@ -67,7 +69,9 @@ DECLARE_REFCOUNTED_CLASS(TQueueAgentServerDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
-DECLARE_REFCOUNTED_CLASS(TQueueExporter)
+DECLARE_REFCOUNTED_STRUCT(IQueueExporter)
+
+DECLARE_REFCOUNTED_STRUCT(IQueueExportManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
