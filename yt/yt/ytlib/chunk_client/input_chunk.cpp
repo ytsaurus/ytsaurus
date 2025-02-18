@@ -18,10 +18,11 @@
 
 namespace NYT::NChunkClient {
 
+using namespace NControllerAgent;
+using namespace NNodeTrackerClient;
+using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
-using namespace NObjectClient;
-using namespace NNodeTrackerClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -234,10 +235,10 @@ void TInputChunk::RegisterMetadata(auto&& registrar)
         .template Serializer<TUniquePtrSerializer<>>());
     // COMPAT(achulkov2)
     PHOENIX_REGISTER_FIELD(7, BlockSelectivityFactor_,
-        .SinceVersion(static_cast<int>(NControllerAgent::ESnapshotVersion::ChunkSliceStatistics)));
+        .SinceVersion(static_cast<int>(ESnapshotVersion::ChunkSliceStatistics)));
     // COMPAT(alexelexa)
     PHOENIX_REGISTER_FIELD(8, HunkChunkRefsExt_,
-        .SinceVersion(static_cast<int>(NControllerAgent::ESnapshotVersion::RemoteCopyDynamicTableWithHunks))
+        .SinceVersion(static_cast<int>(ESnapshotVersion::RemoteCopyDynamicTableWithHunks))
         .template Serializer<TUniquePtrSerializer<>>());
 }
 

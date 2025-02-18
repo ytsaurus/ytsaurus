@@ -513,6 +513,7 @@ TFetchInputTablesStatistics TInputManager::FetchInputTables()
                 .Mode = Host_->GetSpec()->InputTableColumnarStatistics->Mode,
                 .EnableEarlyFinish = Host_->GetConfig()->EnableColumnarStatisticsEarlyFinish,
                 .Logger = Logger,
+                .EnableReadSizeEstimation = Host_->GetSpec()->EnableReadSizeEstimation,
             });
 
         if (useChunkSliceStatistics) {

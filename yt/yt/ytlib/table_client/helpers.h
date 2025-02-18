@@ -109,7 +109,7 @@ ui32 GetHeavyColumnStatisticsHash(ui32 salt, const TColumnStableName& stableName
 TColumnarStatistics GetColumnarStatistics(
     const NChunkClient::TInputChunkPtr& chunk,
     const std::vector<TColumnStableName>& columnNames,
-    const TTableSchemaPtr& tableSchema);
+    const TTableSchemaPtr& tableSchema = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

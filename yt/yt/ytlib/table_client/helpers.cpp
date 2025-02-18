@@ -1,13 +1,15 @@
 #include "helpers.h"
+
 #include "config.h"
+#include "hunks.h"
 #include "schemaless_chunk_writer.h"
 #include "schemaless_multi_chunk_reader.h"
 #include "table_ypath_proxy.h"
-#include "hunks.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/erasure_helpers.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
@@ -15,16 +17,16 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/helpers.h>
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/table_chunk_format/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_chunk_format/column_reader_detail.h>
 
+#include <yt/yt/client/formats/parser.h>
+
 #include <yt/yt/client/api/table_reader.h>
 #include <yt/yt/client/api/table_writer.h>
-
-#include <yt/yt/client/formats/parser.h>
 
 #include <yt/yt/client/misc/io_tags.h>
 
@@ -32,12 +34,12 @@
 
 #include <yt/yt/client/ypath/rich.h>
 
+#include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/private.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_reader.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
-#include <yt/yt/client/table_client/helpers.h>
-#include <yt/yt/client/table_client/private.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
@@ -62,20 +64,22 @@ namespace NYT::NTableClient {
 using namespace NApi;
 using namespace NChunkClient;
 using namespace NConcurrency;
+using namespace NControllerAgent::NProto;
 using namespace NCypressClient;
+using namespace NErasureHelpers;
 using namespace NFormats;
 using namespace NLogging;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
-using namespace NControllerAgent::NProto;
-using namespace NTabletClient;
 using namespace NTableChunkFormat;
+using namespace NTabletClient;
 using namespace NYTree;
 using namespace NYson;
 
 using NChunkClient::NProto::TBlocksExt;
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TChunkSpec;
+using NChunkClient::NProto::TErasurePlacementExt;
 using NChunkClient::NProto::TMiscExt;
 using NControllerAgent::NProto::TJobSpecExt;
 using NProto::TColumnMetaExt;
@@ -531,7 +535,7 @@ TColumnarStatistics GetColumnarStatistics(
         uncompressedReadDataSizeEstimate += std::max<i64>(0, chunk->GetUncompressedDataSize() - totalDataWeight);
     }
 
-    double compressionRatio = chunk->GetCompressedDataSize() / chunk->GetUncompressedDataSize();
+    double compressionRatio = static_cast<double>(chunk->GetCompressedDataSize()) / chunk->GetUncompressedDataSize();
     columnarStatistics.ReadDataSizeEstimate = uncompressedReadDataSizeEstimate * compressionRatio;
 
     return columnarStatistics;
@@ -603,15 +607,34 @@ std::optional<i64> EstimateReadDataSizeForColumns(
             columnIndex = schema->GetColumnIndex(*columnSchema);
         }
 
+        YT_VERIFY(columnIndex < columnMeta.columns_size());
         for (const auto& segment : columnMeta.columns(columnIndex).segments()) {
             blockIndexes.insert(segment.block_index());
         }
+    }
+
+    auto erasurePlacementExt = FindProtoExtension<TErasurePlacementExt>(meta.extensions());
+    if (erasurePlacementExt) {
+        auto dataBlockPlacement = BuildDataBlocksPlacementInParts(
+            std::vector(blockIndexes.begin(), blockIndexes.end()),
+            *erasurePlacementExt,
+            TParityPartSplitInfo(*erasurePlacementExt));
+
+        i64 readSize = 0;
+        for (const auto& blockPlacement : dataBlockPlacement) {
+            for (const auto& range : blockPlacement.Ranges) {
+                readSize += range.Size();
+            }
+        }
+
+        return readSize;
     }
 
     auto blocksExt = GetProtoExtension<TBlocksExt>(meta.extensions());
 
     i64 readSize = 0;
     for (int blockIndex : blockIndexes) {
+        YT_VERIFY(blockIndex < blocksExt.blocks_size());
         readSize += blocksExt.blocks(blockIndex).size();
     }
 

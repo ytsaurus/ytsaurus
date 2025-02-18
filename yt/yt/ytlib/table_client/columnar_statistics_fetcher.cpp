@@ -95,6 +95,7 @@ TFuture<void> TColumnarStatisticsFetcher::DoFetchFromNode(TNodeId nodeId, std::v
             subrequest->add_column_ids(columnId);
         }
 
+        subrequest->set_enable_read_size_estimation(Options_.EnableReadSizeEstimation);
         auto chunkId = EncodeChunkId(Chunks_[chunkIndex], nodeId);
         ToProto(subrequest->mutable_chunk_id(), chunkId);
     }
@@ -267,6 +268,11 @@ void TColumnarStatisticsFetcher::AddChunk(
         // Do not fetch anything. The less rpc requests, the better.
         Chunks_.emplace_back(std::move(chunk));
         NeedFetchFromNode_[chunk] = false;
+        LightweightChunkStatistics_.resize(Chunks_.size());
+        if (Chunks_.back()->GetChunkFormat() == EChunkFormat::TableUnversionedColumnar && Options_.EnableReadSizeEstimation) {
+            // NB(apollo1321): Columnar format readers do not fetch data blocks if the column names are empty.
+            LightweightChunkStatistics_.back().ReadDataSizeEstimate = 0;
+        }
     } else {
         bool hasHeavyColumnStatistics = false;
         if (Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster ||
@@ -277,7 +283,10 @@ void TColumnarStatisticsFetcher::AddChunk(
         if (hasHeavyColumnStatistics || Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster) {
             TColumnarStatistics columnarStatistics;
             if (hasHeavyColumnStatistics) {
-                columnarStatistics = GetColumnarStatistics(chunk, columnStableNames, tableSchema);
+                columnarStatistics = GetColumnarStatistics(
+                    chunk,
+                    columnStableNames,
+                    Options_.EnableReadSizeEstimation ? tableSchema : nullptr);
             } else {
                 YT_VERIFY(Options_.Mode == EColumnarStatisticsFetcherMode::FromMaster);
                 columnarStatistics = TColumnarStatistics::MakeLegacy(columnStableNames.size(), chunk->GetDataWeight(), chunk->GetTotalRowCount());
