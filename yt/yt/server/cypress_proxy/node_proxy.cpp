@@ -286,6 +286,7 @@ protected:
         auto rspOrError = WaitFor(CreateReadProxyForObject(Id_).Execute(std::move(req)));
         if (!rspOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Node touch failed")
+                << TErrorAttribute("node_id", Id_)
                 << rspOrError;
         }
     }

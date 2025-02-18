@@ -343,8 +343,6 @@ public:
             ++chunkEventCount;
         }
 
-        delta->CurrentHeartbeatBarrier = delta->NextHeartbeatBarrier.Exchange(NewPromise<void>());
-
         const auto& allyReplicaManager = Bootstrap_->GetAllyReplicaManager();
         auto unconfirmedAnnouncementRequests = allyReplicaManager->TakeUnconfirmedAnnouncementRequests(cellTag);
         for (auto [chunkId, revision] : unconfirmedAnnouncementRequests) {
@@ -481,10 +479,6 @@ public:
 
         auto* delta = GetChunksDelta(cellTag);
 
-        auto currentHeartbeatFuture = delta->CurrentHeartbeatBarrier.ToFuture();
-        auto nextHeartbeatBarrier = delta->NextHeartbeatBarrier.Exchange(std::move(delta->CurrentHeartbeatBarrier));
-        nextHeartbeatBarrier.SetFrom(currentHeartbeatFuture);
-
         if (EnableIncrementalHeartbeatProfiling_) {
             const auto& counters = GetIncrementalHeartbeatCounters(cellTag);
 
@@ -501,8 +495,6 @@ public:
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
 
         auto* delta = GetChunksDelta(cellTag);
-
-        delta->CurrentHeartbeatBarrier.Set();
 
         {
             auto it = delta->AddedSinceLastSuccess.begin();
@@ -572,13 +564,6 @@ public:
 
         auto* delta = GetChunksDelta(cellTag);
         return delta->State;
-    }
-
-    TFuture<void> GetHeartbeatBarrier(NObjectClient::TCellTag cellTag) override
-    {
-        YT_ASSERT_THREAD_AFFINITY_ANY();
-
-        return GetChunksDelta(cellTag)->NextHeartbeatBarrier.Load().ToFuture().ToUncancelable();
     }
 
     void ScheduleHeartbeat() override
@@ -809,12 +794,6 @@ private:
 
         //! Chunks that were reported changed medium at the last heartbeat (for which no reply is received yet) and their old medium.
         THashSet<std::pair<IChunkPtr, int>> ReportedChangedMedium;
-
-        //! Set when another incremental heartbeat is successfully reported to the corresponding master.
-        NThreading::TAtomicObject<TPromise<void>> NextHeartbeatBarrier = NewPromise<void>();
-
-        //! Set when current heartbeat is successfully reported.
-        TPromise<void> CurrentHeartbeatBarrier;
     };
 
     struct TPerCellTagData
