@@ -2188,8 +2188,8 @@ public:
             node->RemoveExpirationTime();
         }
 
-        if (node->IsTrunk() && node->TryGetExpirationTime() != oldExpirationTime) {
-            ExpirationTracker_->OnNodeExpirationTimeUpdated(node);
+        if (node->IsTrunk()) {
+            ExpirationTracker_->OnNodeExpirationTimeUpdated(node, oldExpirationTime);
         } // Otherwise the tracker will be notified when and if the node is merged in.
     }
 
@@ -2200,10 +2200,9 @@ public:
         auto oldExpirationTime = originatingNode->TryGetExpirationTime();
         originatingNode->MergeExpirationTime(branchedNode);
 
-        if (originatingNode->IsTrunk() &&
-            originatingNode->TryGetExpirationTime() != oldExpirationTime)
-        {
-            ExpirationTracker_->OnNodeExpirationTimeUpdated(originatingNode);
+
+        if (originatingNode->IsTrunk()) {
+            ExpirationTracker_->OnNodeExpirationTimeUpdated(originatingNode, oldExpirationTime);
         }
     }
 
@@ -2233,10 +2232,8 @@ public:
             }
         }
 
-        if (node->IsTrunk() &&
-            node->TryGetExpirationTimeout() != oldExpirationTimeout)
-        {
-            ExpirationTracker_->OnNodeExpirationTimeoutUpdated(node);
+        if (node->IsTrunk()) {
+            ExpirationTracker_->OnNodeExpirationTimeoutUpdated(node, oldExpirationTimeout);
         } // Otherwise the tracker will be notified when and if the node is merged in.
     }
 
@@ -2245,7 +2242,6 @@ public:
         YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
         auto oldExpirationTimeout = originatingNode->TryGetExpirationTimeout();
-
         originatingNode->MergeExpirationTimeout(branchedNode);
 
         if (originatingNode->IsTrunk()) {
@@ -2261,10 +2257,8 @@ public:
             }
         }
 
-        if (originatingNode->IsTrunk() &&
-            originatingNode->TryGetExpirationTimeout() != oldExpirationTimeout)
-        {
-            ExpirationTracker_->OnNodeExpirationTimeoutUpdated(originatingNode);
+        if (originatingNode->IsTrunk()) {
+            ExpirationTracker_->OnNodeExpirationTimeoutUpdated(originatingNode, oldExpirationTimeout);
         }
     }
 
@@ -3843,7 +3837,7 @@ private:
 
     void CheckPendingLocks(TCypressNode* trunkNode)
     {
-        // NB: IsOrphaned below lies on object ref-counters. This flush is essential to detect
+        // NB: IsOrphaned below relies on object ref-counters. This flush is essential to detect
         // when trunkNode becomes orphaned.
         FlushObjectUnrefs();
 
