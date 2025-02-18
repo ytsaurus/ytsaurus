@@ -271,9 +271,6 @@ class TestMasterCellsSync(YTEnvSetup):
     # usually broken after adding such options.
     @authors("gritukan")
     def test_master_alerts_sync(self):
-        # TODO(danilalexeev): YT-21862.
-        remove("//sys/@config/tablet_manager/cell_hydra_persistence_synchronizer/use_hydra_persistence_directory")
-
         def check(alert_count):
             wait(lambda: len(get("//sys/@master_alerts")) == alert_count)
             # Alerts are not replicated to secondary masters.
