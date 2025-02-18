@@ -30,7 +30,7 @@ void TDynamicReplicatedTableTrackerConfig::Register(TRegistrar registrar)
         .Default(10000)
         .GreaterThanOrEqual(0);
     registrar.Parameter("client_expiration_time", &TThis::ClientExpirationTime)
-        .Default(TDuration::Minutes(15));
+        .Default(TDuration::Minutes(1));
 
     registrar.Preprocessor([] (TThis* config) {
         config->ClusterStateCache->RefreshTime = config->CheckPeriod;
