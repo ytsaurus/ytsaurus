@@ -3753,7 +3753,7 @@ int memcmp(const void* firstOffset, const void* secondOffset, std::size_t count)
 
 struct tm* gmtime_r(const time_t* time, struct tm* result) // NOLINT
 {
-    auto* gmtime = ::gmtime_r(ConvertPointerFromWasmToHost(time), ConvertPointerFromWasmToHost(result));
+    auto* gmtime = GmTimeR(ConvertPointerFromWasmToHost(time), ConvertPointerFromWasmToHost(result));
     return ConvertPointerFromHostToWasm(gmtime);
 }
 
