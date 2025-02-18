@@ -1328,8 +1328,7 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (auto& queue : node->ChunkPullReplicationQueues()) {
         for (const auto& [chunkReplica, mediumSet] : queue) {
-            auto* chunk = chunkManager->FindChunk(chunkReplica.Id);
-            if (IsObjectAlive(chunk)) {
+            if (auto* chunk = chunkManager->FindChunk(chunkReplica.Id); IsObjectAlive(chunk)) {
                 ScheduleChunkRefresh(chunk);
             }
         }
@@ -1339,8 +1338,7 @@ void TChunkReplicator::OnNodeUnregistered(TNode* node)
         for (auto chunkId : chunkIds) {
             EraseOrCrash(RemovalLockedChunkIds_, chunkId);
 
-            auto* chunk = chunkManager->FindChunk(chunkId);
-            if (IsObjectAlive(chunk)) {
+            if (auto* chunk = chunkManager->FindChunk(chunkId); IsObjectAlive(chunk)) {
                 ScheduleChunkRefresh(chunk);
             }
 

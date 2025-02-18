@@ -32,7 +32,7 @@
 
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
-#include "yt/yt/core/ypath/helpers.h"
+#include <yt/yt/core/ypath/helpers.h>
 
 #include <library/cpp/iterator/enumerate.h>
 
@@ -104,7 +104,7 @@ private:
     struct TPeerInfo
     {
         TCellId CellId;
-        std::optional<int> PeerId = std::nullopt;
+        std::optional<int> PeerId;
     };
 
     struct TListResult
