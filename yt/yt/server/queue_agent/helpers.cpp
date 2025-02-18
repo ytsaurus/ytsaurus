@@ -1,7 +1,6 @@
 #include "helpers.h"
 
-#include "private.h"
-#include "queue_static_table_exporter.h"
+#include "queue_exporter.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 
