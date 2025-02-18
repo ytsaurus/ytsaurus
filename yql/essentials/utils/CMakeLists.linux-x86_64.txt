@@ -69,6 +69,7 @@ target_sources(yql-essentials-utils PRIVATE
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/rand_guid.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/resetable_setting.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/retry.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/utils/runnable.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/sort.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/swap_bytes.h
   ${PROJECT_SOURCE_DIR}/yql/essentials/utils/tty.h
