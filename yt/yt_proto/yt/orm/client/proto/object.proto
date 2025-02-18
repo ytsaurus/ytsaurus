@@ -507,14 +507,14 @@ enum EUpdatePolicy
     // Updates the attributes when a path is explicitly specified.
     UP_OPAQUE_UPDATABLE = 2;
 
+    // Implicit changes will result in an error.
+    // For the superuser, it behaves as UPDATABLE.
+    UP_READ_ONLY = 4;
+
     // Ignores implicit changes.
     // Explicit changes will result in an error.
     // For the superuser, it behaves as OPAQUE_UPDATABLE.
     UP_OPAQUE_READ_ONLY = 3;
-
-    // Implicit changes will result in an error.
-    // For the superuser, it behaves as UPDATABLE.
-    UP_READ_ONLY = 4;
 }
 
 message TReferenceOption
@@ -540,6 +540,11 @@ message TReferenceOption
         optional string override_prefix = 2;
     }
 
+    message TCountingKeyStorage
+    {
+        optional string counter_path = 1;
+    }
+
     message TReferenceViewOption
     {
         optional string path = 1;
@@ -553,7 +558,7 @@ message TReferenceOption
         PP_DEFAULT = 0;
 
         // Key fields are stored in a container that has an empty state (a table, or a repeated
-        // field). Present key fields constitute a valid reference key. Default mode for repeated
+        // field). Present key fields constitute a valid reference key. Default for multi
         // references.
         PP_CONTAINER = 1;
 
@@ -614,6 +619,7 @@ message TReferenceOption
         TColumnarKeyStorageOption columnar_key_storage = 3;
         TProtoKeyStorageOption proto_key_storage = 4;
         TTabularKeyStorageOption tabular_key_storage = 5;
+        TCountingKeyStorage counting_key_storage = 9;
     }
 
     // If no view is mentioned, one will be automatically generated in the same message.
