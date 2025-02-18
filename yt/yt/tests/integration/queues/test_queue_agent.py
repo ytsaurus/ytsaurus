@@ -3055,7 +3055,7 @@ class TestQueueAgentBannedAttribute(TestQueueStaticExportBase):
 
 
 class TestQueueStaticExport(TestQueueStaticExportBase):
-    NUM_TEST_PARTITIONS = 2
+    NUM_TEST_PARTITIONS = 3
 
     @authors("cherepashka", "achulkov2", "nadya73")
     @pytest.mark.parametrize("queue_external_cell_tag", [10, 11, 12])
