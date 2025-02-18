@@ -2,7 +2,7 @@ UNITTEST()
 
 SIZE(LARGE)
 
-TAG(ya:fat)
+INCLUDE(${ARCADIA_ROOT}/contrib/ydb/tests/large.inc)
 
 SRCS(
     main.cpp
