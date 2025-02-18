@@ -33,9 +33,9 @@ TEST(TTimestampFloorUtcTest, Week)
         tm resultTimeinfo;
         tm prevTimeinfo;
 
-        gmtime_r(&timestamp, &timeinfo);
-        gmtime_r(&result, &resultTimeinfo);
-        gmtime_r(&prev, &prevTimeinfo);
+        GmTimeR(&timestamp, &timeinfo);
+        GmTimeR(&result, &resultTimeinfo);
+        GmTimeR(&prev, &prevTimeinfo);
 
         EXPECT_EQ(0, DaysFromMonday(resultTimeinfo.tm_wday));
         EXPECT_EQ(6, DaysFromMonday(prevTimeinfo.tm_wday));
@@ -65,9 +65,9 @@ TEST(TTimestampFloorUtcTest, Month)
         tm resultTimeinfo;
         tm prevtimeinfo;
 
-        gmtime_r(&timestamp, &timeinfo);
-        gmtime_r(&result, &resultTimeinfo);
-        gmtime_r(&prev, &prevtimeinfo);
+        GmTimeR(&timestamp, &timeinfo);
+        GmTimeR(&result, &resultTimeinfo);
+        GmTimeR(&prev, &prevtimeinfo);
 
         EXPECT_EQ(timeinfo.tm_yday - timeinfo.tm_mday, resultTimeinfo.tm_yday - resultTimeinfo.tm_mday);
         EXPECT_NE(prevtimeinfo.tm_yday - prevtimeinfo.tm_mday, resultTimeinfo.tm_yday - resultTimeinfo.tm_mday);
@@ -96,9 +96,9 @@ TEST(TTimestampFloorUtcTest, Quarter)
         tm resultTimeinfo;
         tm prevtimeinfo;
 
-        gmtime_r(&timestamp, &timeinfo);
-        gmtime_r(&result, &resultTimeinfo);
-        gmtime_r(&prev, &prevtimeinfo);
+        GmTimeR(&timestamp, &timeinfo);
+        GmTimeR(&result, &resultTimeinfo);
+        GmTimeR(&prev, &prevtimeinfo);
 
         EXPECT_EQ(timeinfo.tm_mon - timeinfo.tm_mon % 4, resultTimeinfo.tm_mon - resultTimeinfo.tm_mon % 4);
         EXPECT_NE(prevtimeinfo.tm_mon - prevtimeinfo.tm_mon % 4, resultTimeinfo.tm_mon - resultTimeinfo.tm_mon % 4);
@@ -127,9 +127,9 @@ TEST(TTimestampFloorUtcTest, Year)
         tm resultTimeinfo;
         tm prevtimeinfo;
 
-        gmtime_r(&timestamp, &timeinfo);
-        gmtime_r(&result, &resultTimeinfo);
-        gmtime_r(&prev, &prevtimeinfo);
+        GmTimeR(&timestamp, &timeinfo);
+        GmTimeR(&result, &resultTimeinfo);
+        GmTimeR(&prev, &prevtimeinfo);
 
         EXPECT_EQ(timeinfo.tm_year, resultTimeinfo.tm_year);
         EXPECT_NE(prevtimeinfo.tm_year, resultTimeinfo.tm_year);

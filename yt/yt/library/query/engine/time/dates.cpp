@@ -106,7 +106,7 @@ void FormatTimestamp(
     if (localtime) {
         localtime_r(&timestamp, &timeinfo);
     } else {
-        gmtime_r(&timestamp, &timeinfo);
+        GmTimeR(&timestamp, &timeinfo);
     }
 
     char buffer[MaxFormatLength + 1];
@@ -125,7 +125,7 @@ void FormatTimestamp(
 i64 TimestampFloorWeekViaLib(i64 timestamp)
 {
     struct tm timeinfo;
-    gmtime_r(&timestamp, &timeinfo);
+    GmTimeR(&timestamp, &timeinfo);
 
     int daysFromMonday = (timeinfo.tm_wday + 6) % 7;
 
@@ -140,7 +140,7 @@ i64 TimestampFloorWeekViaLib(i64 timestamp)
 i64 TimestampFloorMonthViaLib(i64 timestamp)
 {
     struct tm timeinfo;
-    gmtime_r(&timestamp, &timeinfo);
+    GmTimeR(&timestamp, &timeinfo);
 
     timestamp -= (timeinfo.tm_mday - 1) * SECONDS_IN_DAY;
     timestamp -= timeinfo.tm_hour * SECONDS_IN_HOUR;
@@ -153,7 +153,7 @@ i64 TimestampFloorMonthViaLib(i64 timestamp)
 i64 TimestampFloorQuarterViaLib(i64 timestamp)
 {
     struct tm timeinfo;
-    gmtime_r(&timestamp, &timeinfo);
+    GmTimeR(&timestamp, &timeinfo);
 
     timestamp -= (timeinfo.tm_mday - 1) * SECONDS_IN_DAY;
     timestamp -= timeinfo.tm_hour * SECONDS_IN_HOUR;
@@ -163,7 +163,7 @@ i64 TimestampFloorQuarterViaLib(i64 timestamp)
     while (timeinfo.tm_mon % 4 != 0) {
         timestamp--;
 
-        gmtime_r(&timestamp, &timeinfo);
+        GmTimeR(&timestamp, &timeinfo);
 
         timestamp -= (timeinfo.tm_mday - 1) * SECONDS_IN_DAY;
         timestamp -= timeinfo.tm_hour * SECONDS_IN_HOUR;
@@ -177,7 +177,7 @@ i64 TimestampFloorQuarterViaLib(i64 timestamp)
 i64 TimestampFloorYearViaLib(i64 timestamp)
 {
     struct tm timeinfo;
-    gmtime_r(&timestamp, &timeinfo);
+    GmTimeR(&timestamp, &timeinfo);
 
     timestamp -= timeinfo.tm_yday * SECONDS_IN_DAY;
     timestamp -= timeinfo.tm_hour * SECONDS_IN_HOUR;
