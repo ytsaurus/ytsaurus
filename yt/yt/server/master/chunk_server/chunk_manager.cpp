@@ -3180,7 +3180,21 @@ private:
         const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
         if (config->StoreSequoiaReplicasOnMaster) {
             ProcessAddedReplicas(locationDirectory, node, request->added_chunks());
+        } else {
+            auto deadChunkIds = FromProto<THashSet<TChunkId>>(request->dead_chunk_ids());
+            for (const auto& chunkInfo : request->added_chunks()) {
+                auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                auto chunkId = chunkIdWithIndex.Id;
+                if (deadChunkIds.contains(chunkId)) {
+                    YT_VERIFY(!ProcessAddedChunk(
+                        node,
+                        locationDirectory,
+                        chunkInfo,
+                        /*incremental*/ true));
+                }
+            }
         }
+
         if (!config->EnableSequoiaChunkRefresh) {
             refreshSequoiaChunks(request->added_chunks());
         }
@@ -3302,10 +3316,7 @@ private:
                 const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
                 auto locationDirectory = ParseLocationDirectory(dataNodeTracker, *request);
 
-                THashSet<TChunkId> deadChunkIds;
-                for (const auto& protoChunkId : request->dead_chunk_ids()) {
-                    deadChunkIds.insert(FromProto<TChunkId>(protoChunkId));
-                }
+                auto deadChunkIds = FromProto<THashSet<TChunkId>>(request->dead_chunk_ids());
 
                 struct TReplicaList
                 {
@@ -3439,7 +3450,19 @@ private:
                 // If we do not need replicas on master, we can make request more lightweight.
                 if (enableChunkRefresh && clearMasterRequest) {
                     if (!storeSequoiaReplicasOnMaster) {
+                        std::vector<TChunkAddInfo> deadAddedChunks;
+                        for (const auto& chunkInfo : request->added_chunks()) {
+                            auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                            auto chunkId = chunkIdWithIndex.Id;
+
+                            if (deadChunkIds.contains(chunkId)) {
+                                deadAddedChunks.push_back(chunkInfo);
+                            }
+                        }
                         request->mutable_added_chunks()->Clear();
+                        for (const auto& chunkInfo : deadAddedChunks) {
+                            *request->add_added_chunks() = chunkInfo;
+                        }
                     }
                     if (!processRemovedSequoiaReplicasOnMaster && request->caused_by_node_disposal()) {
                         request->mutable_removed_chunks()->Clear();

@@ -72,6 +72,20 @@ class TestSequoiaReplicas(YTEnvSetup):
         }
     }
 
+    def _is_purgatory_empty(self):
+        total_purgatory_size = 0
+        secondary_masters = get("//sys/secondary_masters")
+        for cell_tag in secondary_masters:
+            for address in secondary_masters[cell_tag]:
+                if not get("//sys/secondary_masters/{}/{}/orchid/monitoring/hydra/active_leader".format(cell_tag, address)):
+                    continue
+                profiler = profiler_factory().at_secondary_master(cell_tag, address)
+                total_purgatory_size += profiler.gauge("chunk_server/sequoia_chunk_purgatory_size").get()
+
+        profiler = profiler_factory().at_primary_master(get_active_primary_master_leader_address(self))
+        total_purgatory_size += profiler.gauge("chunk_server/sequoia_chunk_purgatory_size").get()
+        return total_purgatory_size == 0
+
     @classmethod
     def setup_class(cls):
         super(TestSequoiaReplicas, cls).setup_class()
@@ -136,6 +150,13 @@ class TestSequoiaReplicas(YTEnvSetup):
 
     @authors("aleksandra-zh")
     def test_chunk_replicas_node_offline2(self):
+        def no_chunk():
+            for node in ls("//sys/cluster_nodes"):
+                if chunk_id in ls("//sys/cluster_nodes/{0}/orchid/data_node/stored_chunks".format(node)):
+                    return False
+
+            return True
+
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
         create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
@@ -150,11 +171,12 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         with Restarter(self.Env, NODES_SERVICE, indexes=self.table_node_indexes):
             remove("//tmp/t")
-
             wait(lambda: not exists("#{}".format(chunk_id)))
             wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 0)
             wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 0)
+            wait(self._is_purgatory_empty)
 
+        wait(no_chunk)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 0)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 0)
 
@@ -172,24 +194,10 @@ class TestSequoiaReplicas(YTEnvSetup):
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
 
-        def is_purgatory_empty():
-            total_purgatory_size = 0
-            secondary_masters = get("//sys/secondary_masters")
-            for cell_tag in secondary_masters:
-                for address in secondary_masters[cell_tag]:
-                    if not get("//sys/secondary_masters/{}/{}/orchid/monitoring/hydra/active_leader".format(cell_tag, address)):
-                        continue
-                    profiler = profiler_factory().at_secondary_master(cell_tag, address)
-                    total_purgatory_size += profiler.gauge("chunk_server/sequoia_chunk_purgatory_size").get()
-
-            profiler = profiler_factory().at_primary_master(get_active_primary_master_leader_address(self))
-            total_purgatory_size += profiler.gauge("chunk_server/sequoia_chunk_purgatory_size").get()
-            return total_purgatory_size == 0
-
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_chunk_purgatory", False)
         remove("//tmp/t")
         wait(lambda: not exists("#{}".format(chunk_id)))
-        wait(lambda: not is_purgatory_empty())
+        wait(lambda: not self._is_purgatory_empty())
 
         with Restarter(self.Env, NODES_SERVICE, indexes=self.table_node_indexes):
             pass
@@ -211,7 +219,7 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable_chunk_purgatory", True)
 
-        wait(is_purgatory_empty)
+        wait(self._is_purgatory_empty)
         wait(no_destroyed_replicas)
 
     @authors("aleksandra-zh")
