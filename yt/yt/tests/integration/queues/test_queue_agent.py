@@ -3478,20 +3478,10 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
     @pytest.mark.parametrize("use_upper_bound_for_table_names", [False, True])
     def test_table_name_formatting(self, use_upper_bound_for_table_names):
         export_dir = "//tmp/export"
-        _, queue_id = self._create_queue("//tmp/q")
-
-        self._create_export_destination(export_dir, queue_id)
-
         export_period_seconds = 3
 
-        start = datetime.datetime.now(datetime.timezone.utc)
-
-        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 6)
-        self._flush_table("//tmp/q")
-        time.sleep(1)
-
-        end = datetime.datetime.now(datetime.timezone.utc)
-
+        _, queue_id = self._create_queue("//tmp/q")
+        self._create_export_destination(export_dir, queue_id)
         set("//tmp/q/@static_export_config", {
             "default": {
                 "export_directory": export_dir,
@@ -3501,16 +3491,27 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
             }
         })
 
+        start = datetime.datetime.now(datetime.timezone.utc)
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 6)
+        self._flush_table("//tmp/q")
+        time.sleep(1)
+
+        end = datetime.datetime.now(datetime.timezone.utc)
+
         wait(lambda: len(ls(export_dir)) == 1)
+
         output_table_name = ls(export_dir)[0]
 
         def fmt_time(dt: datetime.datetime):
             return f"{dt.strftime('%Y-%m-%dT%H:%M:%SZ')}-period-is-3-fmt-{dt.strftime('%Y.%m.%d.%H.%M.%S')}"
 
-        if not use_upper_bound_for_table_names:
-            # NB(apachee): It might be possible that export will happen right away, and if
-            # we consider that insertion of rows, flushing the queue, and then setting export config takes 0 + eps seconds,
-            # then in the worst case the resulting timestamp will be lower by #export_period_seconds than #start.
+        # If insertion occured just after export unix ts, then the next export unix ts is #export_period_seconds ahead,
+        # and we need to adjust end time in case of #use_upper_bound_for_table_names, otherwise, insertion might've occured just before export unix ts,
+        # and in case of lower bound naming start time should be adjusted.
+        if use_upper_bound_for_table_names:
+            end += datetime.timedelta(seconds=export_period_seconds)
+        else:
             start -= datetime.timedelta(seconds=export_period_seconds)
 
         print_debug(f"start = {fmt_time(start)}, actual_name = {output_table_name}, end = {fmt_time(end)}")
