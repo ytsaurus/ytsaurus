@@ -24,12 +24,9 @@ extern const TTimestampedDay LocaltimeLut[];
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsMoscowTimezone() {
-    static std::once_flag onceFlag;
-    static bool isMoscow = false;
-    std::call_once(onceFlag, [&] {
-        isMoscow = (GetLocalTimeZone() == GetTimeZone("Europe/Moscow"));
-    });
+bool IsMoscowTimezone()
+{
+    static bool isMoscow = (GetLocalTimeZone() == GetTimeZone("Europe/Moscow"));
 
     return isMoscow;
 }
