@@ -121,7 +121,9 @@ TControllerEpoch TOperationControllerImpl::GetEpoch() const
     return Epoch_.load();
 }
 
-TFuture<TOperationControllerInitializeResult> TOperationControllerImpl::Initialize(const std::optional<TOperationTransactions>& transactions)
+TFuture<TOperationControllerInitializeResult> TOperationControllerImpl::Initialize(
+    const std::optional<TOperationTransactions>& transactions,
+    const INodePtr& cumulativeSpecPatch)
 {
     YT_ASSERT_THREAD_AFFINITY(ControlThread);
     YT_VERIFY(IncarnationId_);
@@ -142,6 +144,10 @@ TFuture<TOperationControllerInitializeResult> TOperationControllerImpl::Initiali
         ToProto(req->mutable_transaction_ids(), *transactions);
     } else {
         req->set_clean(true);
+    }
+    if (cumulativeSpecPatch) {
+        YT_VERIFY(transactions);
+        ToProto(req->mutable_cumulative_spec_patch(), ConvertToYsonString(cumulativeSpecPatch).ToString());
     }
     InvokeAgent<TControllerAgentServiceProxy::TRspInitializeOperation>(req).Subscribe(
         BIND([
@@ -449,6 +455,43 @@ TFuture<void> TOperationControllerImpl::UpdateRuntimeParameters(TOperationRuntim
     ToProto(req->mutable_parameters(), ConvertToYsonString(update).ToString());
     req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
     return InvokeAgent<TControllerAgentServiceProxy::TRspUpdateOperationRuntimeParameters>(req).As<void>();
+}
+
+TFuture<void> TOperationControllerImpl::PatchSpec(const INodePtr& newCumulativeSpecPatch, bool dryRun)
+{
+    YT_ASSERT_THREAD_AFFINITY(ControlThread);
+    if (!IncarnationId_) {
+        return MakeFuture(
+            TError(
+                NScheduler::EErrorCode::OperationHasNoController,
+                "Cannot validate spec patch while controller agent is not assigned"));
+    }
+
+    auto req = ControllerAgentTrackerProxy_->PatchSpec();
+    ToProto(req->mutable_operation_id(), OperationId_);
+    ToProto(req->mutable_new_cumulative_spec_patch(), ConvertToYsonString(newCumulativeSpecPatch).ToString());
+    req->set_dry_run(dryRun);
+    req->SetTimeout(Config_->ControllerAgentTracker->HeavyRpcTimeout);
+
+    auto agent = Agent_.Lock();
+    if (!agent) {
+        throw TFiberCanceledException();
+    }
+
+    return InvokeAgent<TControllerAgentServiceProxy::TRspPatchSpec>(req).Apply(BIND([
+        agent,
+        dryRun,
+        agentTracker=Bootstrap_->GetControllerAgentTracker()
+    ] (const TErrorOr<TControllerAgentServiceProxy::TRspPatchSpecPtr>& rspOrError) {
+        if (!dryRun && !rspOrError.IsOK()) {
+            if (!rspOrError.FindMatching(NControllerAgent::EErrorCode::ExceptionLeadingToOperationFailure)) {
+                // Unknown error. Controller will not be able to fail operation
+                // by itself, so we help it by, well, killing it.
+                agentTracker->HandleAgentFailure(agent, rspOrError);
+            }
+        }
+        rspOrError.ThrowOnError();
+    }));
 }
 
 void TOperationControllerImpl::OnAllocationAborted(

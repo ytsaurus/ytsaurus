@@ -561,6 +561,30 @@ DEFINE_REFCOUNTED_TYPE(TDelayConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TPatchSpecProtocolTestingOptions
+    : public NYTree::TYsonStruct
+{
+public:
+    // Scheduler.
+    TDelayConfigPtr DelayBeforeCypressFlush;
+    TDelayConfigPtr DelayBeforeApply;
+
+    // Controller.
+    bool FailValidate;
+    bool FailApply;
+    bool FailRevive;
+
+    REGISTER_YSON_STRUCT(TPatchSpecProtocolTestingOptions);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPatchSpecProtocolTestingOptions)
+
+////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EDelayInsideOperationCommitStage,
     (Start)
     (Stage1)
@@ -653,6 +677,8 @@ public:
     bool CrashControllerAgent;
 
     bool ThrowExceptionDuringOperationAbort;
+
+    TPatchSpecProtocolTestingOptionsPtr PatchSpecProtocol;
 
     REGISTER_YSON_STRUCT(TTestingOperationOptions);
 

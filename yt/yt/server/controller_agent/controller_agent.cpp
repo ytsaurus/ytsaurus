@@ -701,6 +701,21 @@ public:
         return VoidFuture;
     }
 
+    TFuture<void> PatchSpec(TOperationId operationId, INodePtr newCumulativeSpecPatch, bool dryRun)
+    {
+        auto operation = GetOperationOrThrow(operationId);
+        auto controller = operation->GetController();
+        THROW_ERROR_EXCEPTION_UNLESS(
+            controller,
+            NScheduler::EErrorCode::OperationHasNoController,
+            "Controller for operation %v does not exist",
+            operation->GetId());
+
+        return BIND(&IOperationControllerSchedulerHost::PatchSpec, controller, Passed(std::move(newCumulativeSpecPatch)), dryRun)
+            .AsyncVia(controller->GetCancelableInvoker())
+            .Run();
+    }
+
     template <class TResult>
     void OnHeavyControllerActionFinished(
         TOperationId operationId,
@@ -721,14 +736,15 @@ public:
 
     TFuture<std::optional<TOperationControllerInitializeResult>> InitializeOperation(
         const TOperationPtr& operation,
-        const std::optional<NScheduler::TControllerTransactionIds>& transactions)
+        const std::optional<NScheduler::TControllerTransactionIds>& transactions,
+        INodePtr cumulativeSpecPatch)
     {
         YT_ASSERT_THREAD_AFFINITY(ControlThread);
         YT_VERIFY(Connected_);
 
         const auto& controller = operation->GetControllerOrThrow();
         auto callback = transactions
-            ? BIND(&IOperationControllerSchedulerHost::InitializeReviving, controller, *transactions)
+            ? BIND(&IOperationControllerSchedulerHost::InitializeReviving, controller, *transactions, Passed(std::move(cumulativeSpecPatch)))
             : BIND(&IOperationControllerSchedulerHost::InitializeClean, controller);
         auto asyncResult = callback
             .AsyncVia(controller->GetCancelableInvoker())
@@ -2447,13 +2463,20 @@ TFuture<void> TControllerAgent::UpdateOperationRuntimeParameters(TOperationId op
     return Impl_->UpdateOperationRuntimeParameters(operationId, std::move(update));
 }
 
+TFuture<void> TControllerAgent::PatchSpec(TOperationId operationId, INodePtr newCumulativeSpecPatch, bool dryRun)
+{
+    return Impl_->PatchSpec(operationId, std::move(newCumulativeSpecPatch), dryRun);
+}
+
 TFuture<std::optional<TOperationControllerInitializeResult>> TControllerAgent::InitializeOperation(
     const TOperationPtr& operation,
-    const std::optional<TControllerTransactionIds>& transactions)
+    const std::optional<TControllerTransactionIds>& transactions,
+    INodePtr cumulativeSpecPatch)
 {
     return Impl_->InitializeOperation(
         operation,
-        transactions);
+        transactions,
+        std::move(cumulativeSpecPatch));
 }
 
 TFuture<std::optional<TOperationControllerPrepareResult>> TControllerAgent::PrepareOperation(const TOperationPtr& operation)

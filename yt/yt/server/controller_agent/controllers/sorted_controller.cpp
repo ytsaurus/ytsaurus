@@ -978,6 +978,16 @@ protected:
         return Spec_;
     }
 
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TSortedMergeOperationSpec>(spec);
+    }
+
+    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    {
+        return NYsonStructUpdate::TConfigurator<TSortedMergeOperationSpec>();
+    }
+
     void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
@@ -1232,6 +1242,16 @@ public:
     TYsonStructPtr GetTypedSpec() const override
     {
         return Spec_;
+    }
+
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TReduceOperationSpec>(spec);
+    }
+
+    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    {
+        return NYsonStructUpdate::TConfigurator<TReduceOperationSpec>();
     }
 
     bool ShouldSlicePrimaryTableByKeys() const override
