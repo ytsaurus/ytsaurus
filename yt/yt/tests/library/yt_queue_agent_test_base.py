@@ -437,7 +437,7 @@ class TestQueueAgentBase(YTEnvSetup):
                 "queue_exporter": {
                     "pass_period": 100,
                     # Fixate greater value for tests in case default decreases in the future.
-                    "max_export_count_per_iteration": 10,
+                    "max_exported_table_count_per_task": 10,
                 }
             },
             "queue_export_manager": {
