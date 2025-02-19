@@ -9,7 +9,7 @@
 
 using namespace NYql::NFmr;
 
-bool isInterrupted = false;
+volatile sig_atomic_t isInterrupted = 0;
 
 struct TWorkerRunOptions {
     TString CoordinatorUrl;
@@ -17,7 +17,7 @@ struct TWorkerRunOptions {
 };
 
 void SignalHandler(int) {
-    isInterrupted = true;
+    isInterrupted = 1;
 }
 
 int main(int argc, const char *argv[]) {
@@ -48,11 +48,11 @@ int main(int argc, const char *argv[]) {
                 Sleep(TDuration::Seconds(3));
                 return ETaskStatus::Completed;
             }
-            return ETaskStatus::Aborted;
+            return ETaskStatus::Failed;
         }; // TODO - use function which actually calls Downloader/Uploader based on task params
         TFmrJobFactorySettings settings{.Function=func};
         auto jobFactory = MakeFmrJobFactory(settings);
-        auto worker = MakeFmrWorker(coordinator, jobFactory , workerSettings);
+        auto worker = MakeFmrWorker(coordinator, jobFactory, workerSettings);
         worker->Start();
 
         while (!isInterrupted) {
