@@ -257,6 +257,7 @@ func (c *client) getConn(ctx context.Context, addr string) (*Conn, error) {
 func (c *client) Stop() {
 	c.connPool.Stop()
 	c.stop.Stop()
+	c.httpClient.CloseIdleConnections()
 }
 
 func (c *client) startCall() *Call {
