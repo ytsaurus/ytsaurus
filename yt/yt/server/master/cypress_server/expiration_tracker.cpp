@@ -18,15 +18,18 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/library/profiling/producer.h>
+
 #include <library/cpp/iterator/zip.h>
 
 namespace NYT::NCypressServer {
 
+using namespace NCellMaster;
 using namespace NConcurrency;
 using namespace NHydra;
-using namespace NCellMaster;
 using namespace NObjectClient;
 using namespace NObjectServer;
+using namespace NProfiling;
 using namespace NSecurityServer;
 using namespace NYTree;
 
@@ -38,7 +41,13 @@ static constexpr auto& Logger = CypressServerLogger;
 
 TExpirationTracker::TExpirationTracker(NCellMaster::TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)
-{ }
+{
+    ExpirationTrackerProfiler()
+        .WithDefaultDisabled()
+        .WithGlobal()
+        .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
+        .AddProducer("", BufferedProducer_);
+}
 
 void TExpirationTracker::Start()
 {
@@ -74,10 +83,12 @@ void TExpirationTracker::Start()
     }
     YT_LOG_INFO("Finished registering node expiration");
 
+    BufferedProducer_->SetEnabled(true);
+
     YT_VERIFY(!CheckExecutor_);
     CheckExecutor_ = New<TPeriodicExecutor>(
         Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::CypressNodeExpirationTracker),
-        BIND(&TExpirationTracker::OnCheck, MakeWeak(this)));
+        BIND(&TExpirationTracker::RunCheckIteration, MakeWeak(this)));
     CheckExecutor_->Start();
 
     const auto& configManager = Bootstrap_->GetConfigManager();
@@ -90,6 +101,8 @@ void TExpirationTracker::Stop()
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->UnsubscribeConfigChanged(DynamicConfigChangedCallback_);
+
+    BufferedProducer_->SetEnabled(false);
 
     CheckExecutor_.Reset();
 }
@@ -104,7 +117,7 @@ void TExpirationTracker::Clear()
     }
 }
 
-void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNode* trunkNode)
+void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNode* trunkNode, std::optional<TInstant> oldExpirationTime)
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(trunkNode->IsTrunk());
@@ -113,22 +126,31 @@ void TExpirationTracker::OnNodeExpirationTimeUpdated(TCypressNode* trunkNode)
         return;
     }
 
+    auto expirationTime = trunkNode->TryGetExpirationTime();
     if (trunkNode->GetExpirationTimeIterator()) {
+        if (expirationTime == oldExpirationTime) {
+            // Fast path.
+            return;
+        }
+
         UnregisterNodeExpirationTime(trunkNode);
     }
 
-    if (auto expirationTime = trunkNode->TryGetExpirationTime()) {
+    // NB: Sometimes the node can be created with expiration time, but be held past it in the same transaction
+    // that created it. In this case the node might end up unregistered from the expiration maps.
+    // See TExpirationTracker::OnNodeRemovalFailed().
+    if (expirationTime) {
         YT_LOG_DEBUG("Node expiration time set (NodeId: %v, ExpirationTime: %v)",
             trunkNode->GetId(),
             *expirationTime);
         RegisterNodeExpirationTime(trunkNode, *expirationTime);
-    } else {
+    } else if (oldExpirationTime) {
         YT_LOG_DEBUG("Node expiration time reset (NodeId: %v)",
             trunkNode->GetId());
     }
 }
 
-void TExpirationTracker::OnNodeExpirationTimeoutUpdated(TCypressNode* trunkNode)
+void TExpirationTracker::OnNodeExpirationTimeoutUpdated(TCypressNode* trunkNode, std::optional<TDuration> oldExpirationTimeout)
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
     YT_ASSERT(trunkNode->IsTrunk());
@@ -137,18 +159,25 @@ void TExpirationTracker::OnNodeExpirationTimeoutUpdated(TCypressNode* trunkNode)
         return;
     }
 
+    auto expirationTimeout = trunkNode->TryGetExpirationTimeout();
     if (trunkNode->GetExpirationTimeoutIterator()) {
+        if (expirationTimeout == oldExpirationTimeout) {
+            // Fast path.
+            return;
+        }
+
         UnregisterNodeExpirationTimeout(trunkNode);
     }
 
-    if (auto expirationTimeout = trunkNode->TryGetExpirationTimeout()) {
+    // See TExpirationTracker::OnNodeExpirationTimeUpdated().
+    if (expirationTimeout) {
         YT_LOG_DEBUG("Node expiration timeout set (NodeId: %v, ExpirationTimeout: %v)",
             trunkNode->GetId(),
             *expirationTimeout);
         if (!IsNodeLocked(trunkNode)) {
             RegisterNodeExpirationTimeout(trunkNode);
         }
-    } else {
+    } else if (oldExpirationTimeout) {
         YT_LOG_DEBUG("Node expiration timeout reset (NodeId: %v)",
             trunkNode->GetId());
     }
@@ -214,6 +243,21 @@ void TExpirationTracker::OnNodeRemovalFailed(TCypressNode* trunkNode)
     }
 
     auto* shard = GetShard(trunkNode);
+
+    // This usually means that either:
+    //   1. Node was created under a transaction, and was held past
+    //      it's expiration time by the same tx.
+    //   2. Node is already a part of a subtree, that was detached and
+    //      scheduled for destruction.
+    // In both cases it's fine to just remove it from the expiration map
+    // to avoid checking it multiple times. It will either be registered again
+    // when merging branches, or be removed on its own.
+    if (!trunkNode->GetReachable()) {
+        // NB: Typically missing at followers.
+        shard->ExpiredNodes.erase(trunkNode);
+        return;
+    }
+
     if (trunkNode->TryGetExpirationTime() && !trunkNode->GetExpirationTimeIterator()) {
         // NB: Typically missing at followers.
         shard->ExpiredNodes.erase(trunkNode);
@@ -300,7 +344,7 @@ bool TExpirationTracker::IsNodeLocked(TCypressNode* trunkNode) const
     return !trunkNode->LockingState().AcquiredLocks.empty();
 }
 
-void TExpirationTracker::OnCheck()
+void TExpirationTracker::RunCheckIteration()
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
@@ -309,21 +353,47 @@ void TExpirationTracker::OnCheck()
         return;
     }
 
-    std::vector<TCypressNode*> trunkNodesToRemove;
+    auto checkTime = NProfiling::GetInstant();
+    CollectAndRemoveExpiredNodes(checkTime);
+    UpdateProfiling(checkTime);
+}
 
-    auto canRemoveMoreExpiredNodes = [&] {
-        return std::ssize(trunkNodesToRemove) < GetDynamicConfig()->MaxExpiredNodesRemovalsPerCommit;
-    };
+void TExpirationTracker::UpdateProfiling(TInstant checkTime)
+{
+    YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-    std::optional<bool> isSequoia;
-    auto now = NProfiling::GetInstant();
+    auto checkLag = TDuration::Zero();
     for (auto& shard : Shards_) {
-        auto& expirationMap = shard.ExpirationMap;
-        while (!expirationMap.empty() && canRemoveMoreExpiredNodes()) {
+        const auto& expirationMap = shard.ExpirationMap;
+        if (expirationMap.empty()) {
+            continue;
+        }
+
+        auto it = expirationMap.begin();
+        auto expirationTime = it->first;
+        checkLag = std::max(checkLag, checkTime - expirationTime);
+    }
+
+    TSensorBuffer buffer;
+    buffer.AddGauge("/expiration_time_lag", checkLag.MilliSeconds());
+    BufferedProducer_->Update(std::move(buffer));
+}
+
+void TExpirationTracker::CollectAndRemoveExpiredNodes(TInstant checkTime)
+{
+    std::vector<TCypressNode*> expiredTrunkNodes;
+
+    auto maxExpiredNodesRemovalsPerCommit = GetDynamicConfig()->MaxExpiredNodesRemovalsPerCommit;
+    std::optional<bool> isSequoia;
+    for (auto& shard : Shards_) {
+        const auto& expirationMap = shard.ExpirationMap;
+        while (!expirationMap.empty() &&
+            std::ssize(expiredTrunkNodes) < maxExpiredNodesRemovalsPerCommit)
+        {
             auto it = expirationMap.begin();
             auto [expirationTime, trunkNode] = *it;
 
-            if (expirationTime > now) {
+            if (expirationTime > checkTime) {
                 break;
             }
 
@@ -341,7 +411,7 @@ void TExpirationTracker::OnCheck()
 
                 if (IsObjectAlive(trunkNode)) {
                     InsertOrCrash(shard.ExpiredNodes, trunkNode);
-                    trunkNodesToRemove.push_back(trunkNode);
+                    expiredTrunkNodes.push_back(trunkNode);
                 }
             }
 
@@ -355,24 +425,24 @@ void TExpirationTracker::OnCheck()
         }
     }
 
-    if (trunkNodesToRemove.empty()) {
+    if (expiredTrunkNodes.empty()) {
         return;
     }
 
     YT_LOG_DEBUG("Starting removal of expired %v nodes (Count: %v)",
         *isSequoia ? "Sequoia" : "Cypress",
-        std::ssize(trunkNodesToRemove));
+        std::ssize(expiredTrunkNodes));
 
     if (*isSequoia || GetDynamicConfig()->RemoveExpiredMasterNodesViaClient) {
         std::vector<TEphemeralObjectPtr<TCypressNode>> trunkNodes;
-        trunkNodes.reserve(trunkNodesToRemove.size());
-        for (auto* trunkNode : trunkNodesToRemove) {
+        trunkNodes.reserve(expiredTrunkNodes.size());
+        for (auto* trunkNode : expiredTrunkNodes) {
             trunkNodes.emplace_back(trunkNode);
         }
 
         RemoveExpiredNodesViaClient(trunkNodes);
     } else {
-        RemoveExpiredNodesViaMutation(trunkNodesToRemove);
+        RemoveExpiredNodesViaMutation(expiredTrunkNodes);
     }
 }
 
