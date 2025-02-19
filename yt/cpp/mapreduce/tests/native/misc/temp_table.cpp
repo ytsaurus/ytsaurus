@@ -140,3 +140,29 @@ TEST(TempTableTestSuite, ConcurrentTempTables)
     auto tx2 = client->StartTransaction();
     TTempTable tmpTable2(tx2);
 }
+
+TEST(TempTableTestSuite, ConcurrentTempTablesGlobalTx)
+{
+    TTestFixture fixture;
+    auto client = fixture.GetClient();
+
+    auto tx1 = client->StartTransaction();
+    auto config1 = MakeIntrusive<NYT::TConfig>();
+    config1->GlobalTxId = ToString(tx1->GetId());
+    auto client1 = CreateClient(
+        fixture.GetYtProxy(),
+        TCreateClientOptions()
+            .Config(config1)
+    );
+    TTempTable tmpTable1(client1);
+
+    auto tx2 = client->StartTransaction();
+    auto config2 = MakeIntrusive<NYT::TConfig>();
+    config2->GlobalTxId = ToString(tx2->GetId());
+    auto client2 = CreateClient(
+        fixture.GetYtProxy(),
+        TCreateClientOptions()
+            .Config(config2)
+    );
+    TTempTable tmpTable2(client2);
+}
