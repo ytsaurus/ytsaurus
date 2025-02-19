@@ -2512,6 +2512,23 @@ class TestQuery(DynamicTablesBase):
             query = "col_name from (select 1 as col_name from [//tmp/t] limit 1) join [//tmp/t] on 1 = 1 group by col_name"
             select_rows(query, allow_join_without_index=True)
 
+    @authors("nadya73")
+    @skip_if_rpc_driver_backend
+    def test_select_web_json(self):
+        table = "//tmp/table"
+        sync_create_cells(1)
+        create_dynamic_table(table, schema=[{"name": "ts_column", "type": "timestamp"}])
+        sync_mount_table(table)
+
+        insert_rows(table, [{"ts_column": 0}])
+
+        format = yson.loads(b"<column_names=[ts_column];value_format=yql>web_json")
+
+        res = select_rows(f"* from [{table}]", output_format=format)
+        assert b"Timestamp" in res
+        res = select_rows(f"ts_column from [{table}]", output_format=format)
+        assert b"Timestamp" in res
+
     @authors("sabdenovch")
     def test_push_down_group_by_primary_key(self):
         sync_create_cells(1)
