@@ -591,7 +591,7 @@ while True:
             in_=["//tmp/in1", "//tmp/in2"],
             out="//tmp/out",
             reducer_file=["//tmp/reducer.py"],
-            reducer_command="python reducer.py",
+            reducer_command="python3 reducer.py",
             sort_by=["key1", "key2", "key3"],
             spec={
                 "reduce_job_io": {
