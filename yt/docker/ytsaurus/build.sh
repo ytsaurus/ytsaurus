@@ -85,7 +85,8 @@ if [[ "${component}" == "ytsaurus" ]]; then
     cp ${init_queue_agent_state} ${output_path}
     cp ${init_operations_archive} ${output_path}
 
-    cp -r ${ytsaurus_build_path}/ytsaurus_python ${output_path}
+    cp ${ytsaurus_build_path}/contrib/libs/libiconv/dynamic/libiconv.so ${output_path}
+    cp ${ytsaurus_build_path}/contrib/libs/libidn/dynamic/liblibidn-dynamic.so ${output_path}
 
     cp -r ${credits}/*.CREDITS ${output_path}/credits
 

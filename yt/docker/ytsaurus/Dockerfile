@@ -166,6 +166,10 @@ RUN ln -s /usr/bin/ytserver-all /usr/bin/ytserver-master && \
 # YTsaurus credits files.
 COPY ./credits/ytserver-all.CREDITS /usr/bin/ytserver-all.CREDITS
 
+# DQ libraries for exe nodes
+COPY ./libiconv.so /lib/libiconv.so
+COPY ./liblibidn-dynamic.so /lib/liblibidn-dynamic.so
+
 # Scripts for init jobs.
 COPY ./init_queue_agent_state.py /usr/bin/init_queue_agent_state
 COPY ./init_operations_archive.py /usr/bin/init_operations_archive
