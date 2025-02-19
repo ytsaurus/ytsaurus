@@ -3140,12 +3140,15 @@ private:
             abortFuture = transactionSupervisor->AbortTransaction(transactionId);
         }
 
-        abortFuture
-            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+        abortFuture.Subscribe(
+            BIND([
+                =,
+                this,
+                this_ = MakeStrong(this),
+                automatonInvoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor)
+            ] (const TError& error) {
                 if (error.GetCode() == NSequoiaClient::EErrorCode::SequoiaRetriableError) {
                     if (IsLeader()) {
-                        const auto& hydraFacade = Bootstrap_->GetHydraFacade();
-
                         // Poor man's retry.
                         // TODO(kvk1920): implement transaction abort tracker
                         // and use it here.
@@ -3158,7 +3161,7 @@ private:
                             /*timeout*/ TDuration::Zero(),
                             /*deadline*/ std::nullopt,
                             BIND(&TTransactionManager::OnTransactionExpired, MakeStrong(this))
-                                .Via(hydraFacade->GetEpochAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor)));
+                                .Via(automatonInvoker));
                     }
                 } else if (!error.IsOK()) {
                     YT_LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
