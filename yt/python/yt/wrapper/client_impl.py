@@ -1859,7 +1859,7 @@ class YtClient(ClientState):
     def push_queue_producer(
             self,
             producer_path, queue_path, session_id, epoch, input_stream,
-            user_meta=None, input_format=None, raw=None, output_format=None):
+            user_meta=None, input_format=None, raw=None, output_format=None, require_sync_replica=None):
         """
         Push rows to queue via queue producer.
         :param producer_path: path to queue producer table.
@@ -1870,6 +1870,8 @@ class YtClient(ClientState):
         :type session_id: str
         :param epoch: epoch number.
         :type epoch: int
+        :param require_sync_replica: require sync replica write.
+        :type require_sync_replica: bool
         :param input_stream: python file-like object, string, list of strings.
         :param user_meta: arbitrary user meta information.
         :param input_format: format of input data, ``yt.wrapper.config["tabular_data_format"]`` by default.
@@ -1884,7 +1886,8 @@ class YtClient(ClientState):
         return client_api.push_queue_producer(
             producer_path, queue_path, session_id, epoch, input_stream,
             client=self,
-            user_meta=user_meta, input_format=input_format, raw=raw, output_format=output_format)
+            user_meta=user_meta, input_format=input_format, raw=raw, output_format=output_format,
+            require_sync_replica=require_sync_replica)
 
     def put_file_to_cache(
             self,
