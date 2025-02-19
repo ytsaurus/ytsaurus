@@ -199,7 +199,7 @@ public:
         , UserInteractivePoolWeight_(userInteractivePoolWeight)
     { }
 
-    double GetWeight(const TString& poolName) override {
+    double GetWeight(const std::string& poolName) override {
         if (poolName == "Default") {
             return DefaultPoolWeight_;
         } else if (poolName == "UserInteractive") {
@@ -254,7 +254,7 @@ public:
 private:
     struct TPoolDescriptor
     {
-        TString Name;
+        std::string Name;
         double Weight = 1.0;
     };
 

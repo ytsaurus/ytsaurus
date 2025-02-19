@@ -21,7 +21,7 @@ struct ITypeResolver
 
 struct TTypedAttributePath
 {
-    TString Path;
+    NYPath::TYPath Path;
     const ITypeResolver* TypeResolver;
 };
 

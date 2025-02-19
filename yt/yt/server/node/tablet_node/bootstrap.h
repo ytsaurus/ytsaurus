@@ -48,7 +48,7 @@ struct IBootstrap
     virtual const IInvokerPtr& GetTableRowFetchPoolInvoker() const = 0;
 
     virtual IInvokerPtr GetQueryPoolInvoker(
-        const TString& poolName,
+        const std::string& poolName,
         const NConcurrency::TFairShareThreadPoolTag& tag) const = 0;
 
     // Throttlers.

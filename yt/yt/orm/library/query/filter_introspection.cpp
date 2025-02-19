@@ -298,14 +298,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TOptionalLiteralValueWrapper IntrospectFilterForDefinedAttributeValue(
-    const TString& filterQuery,
+    const std::string& filterQuery,
     const TYPath& attributePath)
 {
     NAttributes::ValidateAttributePath(attributePath);
     if (!attributePath) {
         THROW_ERROR_EXCEPTION("Attribute path must be non-empty");
     }
-    if (!filterQuery) {
+    if (filterQuery.empty()) {
         return std::nullopt;
     }
     auto parsedQuery = ParseSource(filterQuery, NQueryClient::EParseMode::Expression);
@@ -326,9 +326,9 @@ bool IntrospectFilterForDefinedReference(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ExtractFilterAttributeReferences(const TString& filterQuery, std::function<void(const std::string&)> inserter)
+void ExtractFilterAttributeReferences(const std::string& filterQuery, std::function<void(const std::string&)> inserter)
 {
-    if (!filterQuery) {
+    if (filterQuery.empty()) {
         return;
     }
     auto parsedQuery = ParseSource(filterQuery, NQueryClient::EParseMode::Expression);

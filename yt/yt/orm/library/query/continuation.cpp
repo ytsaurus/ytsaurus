@@ -12,14 +12,14 @@ namespace NYT::NOrm::NLibrary::NQuery {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString SerializeContinuationToken(
+std::string SerializeContinuationToken(
     const google::protobuf::Message& message)
 {
     return Base64Encode(message.SerializeAsString());
 }
 
 void DeserializeContinuationToken(
-    const TString& token,
+    const std::string& token,
     google::protobuf::Message* message)
 {
     try {

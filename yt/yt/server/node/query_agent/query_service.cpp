@@ -116,8 +116,8 @@ using NQueryClient::TDistributedSessionId;
 // COMPAT(ifsmirnov)
 static constexpr i64 MaxRowsPerRemoteDynamicStoreRead = 1024;
 
-static const TString DefaultQLExecutionPoolName = "default";
-static const TString DefaultQLExecutionTag = "default";
+static const std::string DefaultQLExecutionPoolName = "default";
+static const std::string DefaultQLExecutionTag = "default";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -296,8 +296,8 @@ private:
         auto inMemoryMode = FromProto<EInMemoryMode>(ext.in_memory_mode());
 
         if (inMemoryMode == EInMemoryMode::None && UseQueryPoolForLookups_.load(std::memory_order_relaxed)) {
-            TString tag;
-            TString poolName;
+            std::string tag;
+            std::string poolName;
             if (requestHeader.HasExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext)) {
                 const auto& executeExt = requestHeader.GetExtension(NQueryClient::NProto::TReqExecuteExt::req_execute_ext);
                 tag = executeExt.has_execution_tag()
