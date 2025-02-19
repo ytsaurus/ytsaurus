@@ -126,7 +126,7 @@ class TestQueryLog(ClickHouseTestBase):
         root_dir = "//tmp/exporter"
         create("map_node", root_dir)
         patch = self._get_query_log_patch(root_dir)
-        patch["yt"]["http_header_blacklist"] = "Authentication|X-ClickHouse-User"
+        patch["yt"]["http_header_blacklist"] = "authentication|x-clickhouse-user"
 
         def make_query_and_get_loged_query_headers(patch):
             with Clique(1, config_patch=patch) as clique:
@@ -134,7 +134,7 @@ class TestQueryLog(ClickHouseTestBase):
                     "select queryID() as query_id",
                     headers={
                         "Authentication": "some value",
-                        "X-ClickHouse-User": "some value",
+                        "X-Clickhouse-User": "some value",
                         "Allowed-Header": "some value",
                     },
                 )[0]["query_id"]
@@ -158,10 +158,10 @@ class TestQueryLog(ClickHouseTestBase):
 
         query_headers = make_query_and_get_loged_query_headers(patch)
         assert get_headers(query_headers, "Authentication") is None
-        assert get_headers(query_headers, "X-ClickHouse-User") is None
+        assert get_headers(query_headers, "X-Clickhouse-User") is None
         assert get_headers(query_headers, "Allowed-Header") is None
         patch["yt"]["enable_http_header_log"] = True
         query_headers = make_query_and_get_loged_query_headers(patch)
         assert get_headers(query_headers, "Authentication") is None
-        assert get_headers(query_headers, "X-ClickHouse-User") is None
+        assert get_headers(query_headers, "X-Clickhouse-User") is None
         assert get_headers(query_headers, "Allowed-Header") == "some value"
