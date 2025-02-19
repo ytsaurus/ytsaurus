@@ -92,8 +92,10 @@ public:
 
         std::vector<std::pair<TString, TString>> httpHeaders;
         if (Host_->GetConfig()->EnableHttpHeaderLog) {
-            for (const auto &header : request) {
-                if (!NRe2::TRe2::FullMatch(header.first, *Host_->GetConfig()->HttpHeaderBlacklist)) {
+            for (const auto& header : request) {
+                std::string key(header.first);
+                std::transform(key.begin(), key.end(), key.begin(), ::tolower);
+                if (!NRe2::TRe2::FullMatch(key, *Host_->GetConfig()->HttpHeaderBlacklist)) {
                     httpHeaders.emplace_back(header);
                 }
             }
