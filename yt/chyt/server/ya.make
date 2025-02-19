@@ -27,7 +27,6 @@ PEERDIR(
     library/cpp/yt/mlock
     contrib/clickhouse/src
     contrib/clickhouse/base/base
-    contrib/deprecated/clickhouse_data_streams_compat
 )
 
 ADDINCL(
@@ -44,7 +43,6 @@ ADDINCL(
 )
 
 SRCS(
-    block_output_stream.cpp
     bootstrap.cpp
     ch_to_yt_converter.cpp
     clickhouse_config.cpp
@@ -90,6 +88,7 @@ SRCS(
     schema_inference.cpp
     secondary_query_header.cpp
     secondary_query_source.cpp
+    sink_to_storage.cpp
     stack_size_checker.cpp
     storage_base.cpp
     storage_distributor.cpp

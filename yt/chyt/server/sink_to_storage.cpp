@@ -1,4 +1,4 @@
-#include "block_output_stream.h"
+#include "sink_to_storage.h"
 
 #include "helpers.h"
 #include "conversion.h"
@@ -30,42 +30,37 @@ using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlockOutputStreamBase
-    : public DB::IBlockOutputStream
+class TSinkToStorageBase
+    : public DB::SinkToStorage
 {
 public:
-    TBlockOutputStreamBase(
+    TSinkToStorageBase(
         TTableSchemaPtr schema,
         std::vector<DB::DataTypePtr> dataTypes,
         const TCompositeSettingsPtr& compositeSettings,
         std::function<void()> onFinished,
         const TLogger& logger)
-        : NameTable_(TNameTable::FromSchema(*schema))
+        : DB::SinkToStorage(ToHeaderBlock(*schema, New<TCompositeSettings>()))
+        , NameTable_(TNameTable::FromSchema(*schema))
         , Logger(logger)
         , Schema_(std::move(schema))
         , DataTypes_(std::move(dataTypes))
         , ColumnIndexToId_(GetColumnIndexToId(NameTable_, Schema_->GetColumnNames()))
         , CompositeSettings_(std::move(compositeSettings))
         , OnFinished_(std::move(onFinished))
-    {
-        HeaderBlock_ = ToHeaderBlock(*Schema_, New<TCompositeSettings>());
-    }
+    { }
 
-    DB::Block getHeader() const override
+    void consume(DB::Chunk chunk) override
     {
-        return HeaderBlock_;
-    }
+        YT_LOG_TRACE("Writing block (RowCount: %v, ColumnCount: %v, ByteCount: %v)", chunk.getNumRows(), chunk.getNumColumns(), chunk.bytes());
 
-    void write(const DB::Block& block) override
-    {
-        YT_LOG_TRACE("Writing block (RowCount: %v, ColumnCount: %v, ByteCount: %v)", block.rows(), block.columns(), block.bytes());
-
-        auto rowRange = ToRowRange(block, DataTypes_, ColumnIndexToId_, CompositeSettings_);
+        // TODO(buyval01): Rewrite ToRowRange to work with chunks to avoid cloning.
+        auto rowRange = ToRowRange(getHeader().cloneWithColumns(chunk.detachColumns()), DataTypes_, ColumnIndexToId_, CompositeSettings_);
 
         DoWriteRows(std::move(rowRange));
     }
 
-    void writeSuffix() override
+    void onFinish() override
     {
         OnFinished_();
     }
@@ -89,11 +84,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStaticTableBlockOutputStream
-    : public TBlockOutputStreamBase
+class TSinkToStaticTable
+    : public TSinkToStorageBase
 {
 public:
-    TStaticTableBlockOutputStream(
+    TSinkToStaticTable(
         TRichYPath path,
         TTableSchemaPtr schema,
         std::vector<DB::DataTypePtr> dataTypes,
@@ -103,7 +98,7 @@ public:
         TTransactionId writeTransactionId,
         std::function<void()> onFinished,
         const TLogger& logger)
-        : TBlockOutputStreamBase(
+        : TSinkToStorageBase(
             std::move(schema),
             std::move(dataTypes),
             std::move(compositeSettings),
@@ -134,14 +129,19 @@ public:
             .ValueOrThrow();
     }
 
-    void writeSuffix() override
+    DB::String getName() const override
+    {
+        return "SinkToStaticTable";
+    }
+
+    void onFinish() override
     {
         YT_LOG_INFO("Closing writer");
         WaitFor(Writer_->Close())
             .ThrowOnError();
         YT_LOG_INFO("Writer closed");
 
-        TBlockOutputStreamBase::writeSuffix();
+        TSinkToStorageBase::onFinish();
     }
 
 private:
@@ -158,11 +158,11 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicTableBlockOutputStream
-    : public TBlockOutputStreamBase
+class TSinkToDynamicTable
+    : public TSinkToStorageBase
 {
 public:
-    TDynamicTableBlockOutputStream(
+    TSinkToDynamicTable(
         TRichYPath path,
         TTableSchemaPtr schema,
         std::vector<DB::DataTypePtr> dataTypes,
@@ -171,7 +171,7 @@ public:
         NNative::IClientPtr client,
         std::function<void()> onFinished,
         const TLogger& logger)
-        : TBlockOutputStreamBase(
+        : TSinkToStorageBase(
             std::move(schema),
             std::move(dataTypes),
             std::move(compositeSettings),
@@ -181,6 +181,11 @@ public:
         , DynamicTableSettings_(std::move(dynamicTableSettings))
         , Client_(std::move(client))
     { }
+
+    DB::String getName() const override
+    {
+        return "SinkToDynamicTable";
+    }
 
 private:
     TRichYPath Path_;
@@ -270,7 +275,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::BlockOutputStreamPtr CreateStaticTableBlockOutputStream(
+DB::SinkToStoragePtr CreateSinkToStaticTable(
     TRichYPath path,
     TTableSchemaPtr schema,
     std::vector<DB::DataTypePtr> dataTypes,
@@ -281,7 +286,7 @@ DB::BlockOutputStreamPtr CreateStaticTableBlockOutputStream(
     std::function<void()> onFinished,
     const TLogger& logger)
 {
-    return std::make_shared<TStaticTableBlockOutputStream>(
+    return std::make_shared<TSinkToStaticTable>(
         std::move(path),
         std::move(schema),
         std::move(dataTypes),
@@ -295,7 +300,7 @@ DB::BlockOutputStreamPtr CreateStaticTableBlockOutputStream(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DB::BlockOutputStreamPtr CreateDynamicTableBlockOutputStream(
+DB::SinkToStoragePtr CreateSinkToDynamicTable(
     TRichYPath path,
     TTableSchemaPtr schema,
     std::vector<DB::DataTypePtr> dataTypes,
@@ -305,7 +310,7 @@ DB::BlockOutputStreamPtr CreateDynamicTableBlockOutputStream(
     std::function<void()> onFinished,
     const TLogger& logger)
 {
-    return std::make_shared<TDynamicTableBlockOutputStream>(
+    return std::make_shared<TSinkToDynamicTable>(
         std::move(path),
         std::move(schema),
         std::move(dataTypes),

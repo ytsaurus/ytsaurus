@@ -23,7 +23,6 @@
 #include <Core/Types.h>
 #include <Common/ThreadPool.h>
 #include <Common/SettingsChanges.h>
-#include <DataStreams/IBlockInputStream.h>
 #include <Interpreters/Context.h>
 #include <Interpreters/executeQuery.h>
 #include <Interpreters/Session.h>
