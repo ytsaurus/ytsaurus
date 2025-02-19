@@ -1,13 +1,14 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, create, get, exists, copy, move,
-    remove, wait, start_transaction,
+    authors, create, get, set, exists, copy, move, link, remove, wait,
+    start_transaction, commit_transaction, abort_all_transactions,
     raises_yt_error,
 )
 
 from yt_sequoia_helpers import (
     resolve_sequoia_id, resolve_sequoia_path, select_rows_from_ground, select_paths_from_ground,
+    lookup_rows_in_ground, mangle_sequoia_path,
 )
 
 from yt.sequoia_tools import DESCRIPTORS
@@ -159,3 +160,132 @@ class TestGraftingTmpCleanup(YTEnvSetup):
 
     def test2(self):
         self._do_test()
+
+
+##################################################################
+
+
+def lookup_path_to_node_id(path, tx=None):
+    key = {"path": mangle_sequoia_path(path)}
+    if tx is not None:
+        key["transaction_id"] = tx
+    return lookup_rows_in_ground(DESCRIPTORS.path_to_node_id.get_default_path(), [key])
+
+
+@pytest.mark.enabled_multidaemon
+class TestSequoiaSymlinks(YTEnvSetup):
+    ENABLE_MULTIDAEMON = True
+    USE_SEQUOIA = True
+    ENABLE_CYPRESS_TRANSACTIONS_IN_SEQUOIA = True
+    ENABLE_TMP_ROOTSTOCK = True
+    VALIDATE_SEQUOIA_TREE_CONSISTENCY = True
+    NUM_CYPRESS_PROXIES = 1
+    USE_CYPRESS_DIR = True
+
+    NUM_SECONDARY_MASTER_CELLS = 2
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["sequoia_node_host"]},
+        "11": {"roles": ["sequoia_node_host"]},
+    }
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "sequoia_manager": {
+            "enable_ground_update_queues": True
+        },
+    }
+
+    # COMPAT(kvk1920): Remove when `use_cypress_transaction_service` become `true` by default.
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "transaction_manager": {
+                "use_cypress_transaction_service": True,
+            },
+        },
+    }
+
+    def setup_method(self, method):
+        super().setup_method(method)
+
+        create(
+            "map_node",
+            "//cypress",
+            attributes={
+                "account": "tmp",
+                "acl": [
+                    {
+                        "action": "allow",
+                        "permissions": ["read", "write", "remove"],
+                        "subjects": ["users"],
+                    }
+                ],
+                "opaque": True,
+            },
+            force=True)
+
+    def teardown_method(self, method):
+        abort_all_transactions()
+        remove("//cypress", force=True)
+        super().teardown_method(method)
+
+    @authors("danilalexeev")
+    def test_link_through_sequoia(self):
+        id1 = create("table", "//cypress/t1")
+        link("//cypress/t1", "//tmp/l1")
+        link("//tmp/l1", "//tmp/l2")
+        link("//tmp/l2", "//cypress/l3")
+        wait(lambda: len(lookup_path_to_node_id('//cypress/l3')) == 1)
+        link("//cypress/l3", "//cypress/l4")
+        wait(lambda: len(lookup_path_to_node_id('//cypress/l4')) == 1)
+        assert get("//tmp/l1/@id") == id1
+        assert get("//tmp/l2/@id") == id1
+        assert get("//cypress/l3/@id") == id1
+        assert get("//cypress/l4/@id") == id1
+
+    @authors("danilalexeev")
+    def test_cypress_link_branch(self):
+        set("//tmp/n1", 1)
+        set("//tmp/n2", 2)
+
+        link("//tmp/n1", "//cypress/link")
+        wait(lambda: len(lookup_path_to_node_id("//cypress/link")) == 1)
+        assert get("//cypress/link") == 1
+
+        tx0 = start_transaction(timeout=180000)
+        remove("//cypress/link&", tx=tx0)
+        wait(lambda: len(lookup_path_to_node_id("//cypress/link", tx=tx0)) == 0)
+        with raises_yt_error('Node //cypress has no child with key "link"'):
+            get("//cypress/link", tx=tx0)
+
+        tx1 = start_transaction(tx=tx0, timeout=180000)
+        link("//tmp/n2", "//cypress/link", tx=tx1)
+        wait(lambda: len(lookup_path_to_node_id("//cypress/link", tx=tx1)) == 1)
+        assert get("//cypress/link", tx=tx1) == 2
+
+        commit_transaction(tx1)
+        # TODO(danilalexeev): Remove once GUQM sync is implemented.
+        wait(lambda: len(lookup_path_to_node_id("//cypress/link", tx=tx0)) == 1)
+        assert get("//cypress/link", tx=tx0) == 2
+
+    @authors("danilalexeev")
+    def test_cyclic_link_through_sequoia(self):
+        link("//cypress/l2", "//tmp/l1", force=True)
+        link("//tmp/l3", "//cypress/l2", force=True)
+        wait(lambda: len(lookup_path_to_node_id("//cypress/l2")) == 1)
+        with raises_yt_error("Failed to create link: link is cyclic"):
+            link("//tmp/l1", "//tmp/l3", force=True)
+
+    @authors("danilalexeev")
+    def test_broken_links(self):
+        set("//tmp/t1", 1)
+        set("//cypress/t2", 2)
+        link("//tmp/t1", "//cypress/l1")
+        link("//cypress/t2", "//tmp/l2")
+        assert not get("//cypress/l1&/@broken")
+        assert not get("//tmp/l2&/@broken")
+        remove("//tmp/t1")
+        remove("//cypress/t2")
+        assert get("//cypress/l1&/@broken")
+        assert get("//tmp/l2&/@broken")

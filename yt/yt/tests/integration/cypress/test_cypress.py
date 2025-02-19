@@ -1450,8 +1450,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/b&/@x")
         assert not exists("//tmp/b&/x")
 
-    @authors("ignat")
-    @not_implemented_in_sequoia
+    @authors("ignat", "danilalexeev")
     def test_link7(self):
         set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         tx = start_transaction()
@@ -1459,13 +1458,12 @@ class TestCypress(YTEnvSetup):
         link("//tmp/t1", "//tmp/l1", tx=tx)
         assert get("//tmp/l1", tx=tx) == 1
 
-    @authors("s-v-m")
-    @not_implemented_in_sequoia
+    @authors("s-v-m", "danilalexeev")
     def test_link_dst_doesnt_exist(self):
         set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         tx = start_transaction()
         set("//tmp/t", 1, tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("does not exist"):
             link("//tmp/t", "//tmp/link1")
         link("//tmp/t", "//tmp/link1", tx=tx)
         link("//tmp/t", "//tmp/link2", force=True)
