@@ -193,6 +193,7 @@ protected:
             for (const auto& column : request) {
                 subrequest->add_column_ids(nameTable->GetIdOrRegisterName(column));
             }
+            subrequest->set_enable_read_size_estimation(true);
         }
 
         ToProto(req->mutable_name_table(), nameTable);
@@ -230,14 +231,16 @@ TEST_F(TReadSizeEstimationTest, ColumnarChunkStrictSchemaNoGroups)
     // Use random strings to prevent excessive compression.
     Writer_->Write({
         BuildRow(42, MakeRandomString(1000), MakeRandomString(100)),
-        BuildRow(43, MakeRandomString(1000), MakeRandomString(100))});
+        BuildRow(43, MakeRandomString(1000), MakeRandomString(100)),
+    });
 
     WaitFor(Writer_->GetReadyEvent())
         .ThrowOnError();
 
     Writer_->Write({
         BuildRow(1, MakeRandomString(1000), MakeRandomString(100)),
-        BuildRow(2, MakeRandomString(1000), MakeRandomString(100))});
+        BuildRow(2, MakeRandomString(1000), MakeRandomString(100)),
+    });
 
     WaitFor(Writer_->Close())
         .ThrowOnError();
@@ -259,6 +262,7 @@ TEST_F(TReadSizeEstimationTest, ColumnarChunkStrictSchemaNoGroups)
     EXPECT_NEAR(GetReadSizeEstimation({"small"}), 95, 10);
     EXPECT_NEAR(GetReadSizeEstimation({"large1"}), 4100, 50);
     EXPECT_NEAR(GetReadSizeEstimation({"large2"}), 500, 30);
+    EXPECT_EQ(GetReadSizeEstimation({"unknown"}), 0);
 
     EXPECT_EQ(
         GetReadSizeEstimation({"large1"}) + GetReadSizeEstimation({"large2"}),
@@ -278,7 +282,81 @@ TEST_F(TReadSizeEstimationTest, ColumnarChunkStrictSchemaNoGroups)
 
     EXPECT_EQ(GetReadSizeEstimation({"large1", "unknown"}), GetReadSizeEstimation({"large1"}));
 
-    EXPECT_EQ(GetReadSizeEstimation({"unknown"}), 0);
+    EXPECT_GT(GetReadSizeEstimation({"large1"}), GetReadSizeEstimation({"small"}));
+    EXPECT_GT(GetReadSizeEstimation({"large2"}), GetReadSizeEstimation({"small"}));
+    EXPECT_GT(GetReadSizeEstimation({"large1"}), GetReadSizeEstimation({"large2"}));
+}
+
+TEST_F(TReadSizeEstimationTest, ColumnarChunkNonStrictSchemaNoGroups)
+{
+    CreateColumnarTable(New<TTableSchema>(
+        std::vector{
+            TColumnSchema("small", EValueType::Int64),
+            TColumnSchema("large1", EValueType::String),
+            TColumnSchema("large2", EValueType::String),
+        },
+        /*strict*/ false));
+
+    InitTableWriter();
+
+    Writer_->Write({
+        BuildRow(42, MakeRandomString(1000), MakeRandomString(100)),
+        BuildRow(43, MakeRandomString(1000), MakeRandomString(100), MakeRandomString(300)),
+    });
+
+    WaitFor(Writer_->GetReadyEvent())
+        .ThrowOnError();
+
+    Writer_->Write({
+        BuildRow(1, MakeRandomString(1000), MakeRandomString(100)),
+        BuildRow(2, MakeRandomString(1000), MakeRandomString(100)),
+    });
+
+    WaitFor(Writer_->Close())
+        .ThrowOnError();
+
+    FindChunkIdAndReplica();
+    EnsureColumnMetaHasMultipleSegments(/*expectedColumnCount*/ 4);
+
+    FetchReadSizeEstimations({
+        {"small"},
+        {"large1"},
+        {"large2"},
+        {"unknown"},
+        {"large1", "large2"},
+        {"small", "large1"},
+        {"small", "large2"},
+        {"small", "large1", "large2"},
+        {"large1", "unknown"},
+        {"small", "large2", "unknow_empty", "unknown"},
+    });
+
+    EXPECT_NEAR(GetReadSizeEstimation({"small"}), 95, 10);
+    EXPECT_NEAR(GetReadSizeEstimation({"large1"}), 4100, 50);
+    EXPECT_NEAR(GetReadSizeEstimation({"large2"}), 500, 30);
+    EXPECT_NEAR(GetReadSizeEstimation({"unknown"}), 400, 30);
+
+    EXPECT_EQ(
+        GetReadSizeEstimation({"large1"}) + GetReadSizeEstimation({"large2"}),
+        GetReadSizeEstimation({"large1", "large2"}));
+
+    EXPECT_EQ(
+        GetReadSizeEstimation({"small"}) + GetReadSizeEstimation({"large1"}),
+        GetReadSizeEstimation({"small", "large1"}));
+
+    EXPECT_EQ(
+        GetReadSizeEstimation({"small"}) + GetReadSizeEstimation({"large2"}),
+        GetReadSizeEstimation({"small", "large2"}));
+
+    EXPECT_EQ(
+        GetReadSizeEstimation({"small"}) + GetReadSizeEstimation({"large1"}) + GetReadSizeEstimation({"large2"}),
+        GetReadSizeEstimation({"small", "large1", "large2"}));
+
+    EXPECT_EQ(
+        GetReadSizeEstimation({"small"}) + GetReadSizeEstimation({"large2"}) + GetReadSizeEstimation({"unknown"}),
+        GetReadSizeEstimation({"small", "large2", "unknow_empty", "unknown"}));
+
+    EXPECT_GT(GetReadSizeEstimation({"large1", "unknown"}), GetReadSizeEstimation({"large1"}));
 
     EXPECT_GT(GetReadSizeEstimation({"large1"}), GetReadSizeEstimation({"small"}));
     EXPECT_GT(GetReadSizeEstimation({"large2"}), GetReadSizeEstimation({"small"}));
@@ -297,14 +375,16 @@ TEST_F(TReadSizeEstimationTest, ColumnarChunkStrictSchemaWithGroups)
 
     Writer_->Write({
         BuildRow(42, MakeRandomString(1000), MakeRandomString(100)),
-        BuildRow(43, MakeRandomString(1000), MakeRandomString(100))});
+        BuildRow(43, MakeRandomString(1000), MakeRandomString(100)),
+    });
 
     WaitFor(Writer_->GetReadyEvent())
         .ThrowOnError();
 
     Writer_->Write({
         BuildRow(1, MakeRandomString(1000), MakeRandomString(100)),
-        BuildRow(2, MakeRandomString(1000), MakeRandomString(100))});
+        BuildRow(2, MakeRandomString(1000), MakeRandomString(100)),
+    });
 
     WaitFor(Writer_->Close())
         .ThrowOnError();
@@ -361,14 +441,16 @@ TEST_F(TReadSizeEstimationTest, ColumnarChunkNonStrictSchemaWithGroups)
 
     Writer_->Write({
         BuildRow(42, MakeRandomString(1000), MakeRandomString(100)),
-        BuildRow(43, MakeRandomString(1000), MakeRandomString(100))});
+        BuildRow(43, MakeRandomString(1000), MakeRandomString(100)),
+    });
 
     WaitFor(Writer_->GetReadyEvent())
         .ThrowOnError();
 
     Writer_->Write({
         BuildRow(1, MakeRandomString(1000), MakeRandomString(100), MakeRandomString(10000)),
-        BuildRow(2, MakeRandomString(1000), MakeRandomString(100))});
+        BuildRow(2, MakeRandomString(1000), MakeRandomString(100)),
+    });
 
     WaitFor(Writer_->Close())
         .ThrowOnError();
@@ -430,21 +512,24 @@ TEST_F(TReadSizeEstimationTest, HorizontalChunkNonStrict)
         std::vector{
             TColumnSchema("small", EValueType::Int64),
             TColumnSchema("large1", EValueType::String),
-            TColumnSchema("large2", EValueType::String)},
+            TColumnSchema("large2", EValueType::String),
+        },
         /*strict*/ false));
 
     InitTableWriter();
 
     Writer_->Write({
         BuildRow(42, MakeRandomString(1000), MakeRandomString(100)),
-        BuildRow(43, MakeRandomString(1000), MakeRandomString(100))});
+        BuildRow(43, MakeRandomString(1000), MakeRandomString(100)),
+    });
 
     WaitFor(Writer_->GetReadyEvent())
         .ThrowOnError();
 
     Writer_->Write({
         BuildRow(1, MakeRandomString(1000), MakeRandomString(100)),
-        BuildRow(2, MakeRandomString(1000), MakeRandomString(100), MakeRandomString(10000))});
+        BuildRow(2, MakeRandomString(1000), MakeRandomString(100), MakeRandomString(10000)),
+    });
 
     WaitFor(Writer_->Close())
         .ThrowOnError();
@@ -475,20 +560,23 @@ TEST_F(TReadSizeEstimationTest, HorizontalChunkStrict)
         std::vector{
             TColumnSchema("small", EValueType::Int64),
             TColumnSchema("large1", EValueType::String),
-            TColumnSchema("large2", EValueType::String)}));
+            TColumnSchema("large2", EValueType::String),
+        }));
 
     InitTableWriter();
 
     Writer_->Write({
         BuildRow(42, MakeRandomString(1000), MakeRandomString(100)),
-        BuildRow(43, MakeRandomString(1000), MakeRandomString(100))});
+        BuildRow(43, MakeRandomString(1000), MakeRandomString(100)),
+    });
 
     WaitFor(Writer_->GetReadyEvent())
         .ThrowOnError();
 
     Writer_->Write({
         BuildRow(1, MakeRandomString(1000), MakeRandomString(100)),
-        BuildRow(2, MakeRandomString(1000), MakeRandomString(100))});
+        BuildRow(2, MakeRandomString(1000), MakeRandomString(100)),
+    });
 
     WaitFor(Writer_->Close())
         .ThrowOnError();

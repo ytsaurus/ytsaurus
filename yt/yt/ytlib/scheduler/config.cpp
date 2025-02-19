@@ -786,6 +786,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("use_chunk_slice_statistics", &TThis::UseChunkSliceStatistics)
         .Default(false);
+    registrar.Parameter("enable_read_size_estimation", &TThis::EnableReadSizeEstimation)
+        .Default(true);
 
     registrar.Parameter("ban_nodes_with_failed_jobs", &TThis::BanNodesWithFailedJobs)
         .Default(false);

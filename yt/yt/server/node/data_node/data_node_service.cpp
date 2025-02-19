@@ -2327,7 +2327,8 @@ private:
                     &TDataNodeService::ExtractColumnarStatisticsFromChunkMeta,
                     MakeStrong(this),
                     Passed(std::move(columnStableNames)),
-                    chunkId)
+                    chunkId,
+                    subrequest.enable_read_size_estimation())
                 .AsyncVia(heavyInvoker));
             // Fault-injection for tests.
             if (auto optionalDelay = GetDynamicConfig()->TestingOptions->ColumnarStatisticsChunkMetaFetchMaxDelay) {
@@ -2480,6 +2481,7 @@ private:
     TRefCountedColumnarStatisticsSubresponsePtr ExtractColumnarStatisticsFromChunkMeta(
         const std::vector<TColumnStableName>& columnStableNames,
         TChunkId chunkId,
+        bool enableReadSizeEstimation,
         const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError)
     {
         YT_LOG_DEBUG("Extracting columnar statistics from chunk meta (ChunkId: %v)", chunkId);
@@ -2508,9 +2510,11 @@ private:
                 nameTable = TNameTable::FromSchemaStable(*schema);
             }
 
-            auto readDataSizeEstimate = EstimateReadDataSizeForColumns(columnStableNames, meta, schema, chunkId, Logger);
-            if (readDataSizeEstimate) {
-                subresponse->set_read_data_size_estimate(*readDataSizeEstimate);
+            if (enableReadSizeEstimation) {
+                auto readDataSizeEstimate = EstimateReadDataSizeForColumns(columnStableNames, meta, schema, chunkId, Logger);
+                if (readDataSizeEstimate) {
+                    subresponse->set_read_data_size_estimate(*readDataSizeEstimate);
+                }
             }
 
             FillColumnarStatisticsFromChunkMeta(subresponse.get(), columnStableNames, nameTable, meta);
