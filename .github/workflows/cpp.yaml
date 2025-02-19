@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - members/ilyaibraev/enable-update-23.2
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
@@ -36,7 +37,6 @@ jobs:
           user: ${{ secrets.YC_VM_USERNAME }}
           ssh-public-key: ${{ secrets.YC_VM_SSH_PUBLIC_KEY }}
           public-ip: false
-          disable-update: true
           ttl: PT24H
 
   checkout:

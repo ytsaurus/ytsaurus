@@ -31,7 +31,6 @@ jobs:
           disk-size: 93GB
           public-ip: false
           ttl: PT24H
-          disable-update: true
 
   checkout:
     name: Checkout
