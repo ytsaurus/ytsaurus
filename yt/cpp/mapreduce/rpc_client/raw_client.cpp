@@ -10,6 +10,7 @@
 #include <yt/yt/client/api/file_reader.h>
 
 #include <yt/yt/client/api/rpc_proxy/client_base.h>
+#include <yt/yt/client/api/rpc_proxy/row_stream.h>
 
 #include <yt/yt/client/table_client/blob_reader.h>
 
@@ -1071,6 +1072,27 @@ void TRpcRawClient::AlterTable(
     WaitAndProcess(future);
 }
 
+class TTableRowsStream
+    : public IAsyncZeroCopyInputStream
+{
+public:
+    TTableRowsStream(IAsyncZeroCopyInputStreamPtr stream)
+        : Underlying_(std::move(stream))
+    { }
+
+    TFuture<TSharedRef> Read() override
+    {
+        return Underlying_->Read().Apply(BIND([=] (const TSharedRef& block) {
+            NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
+            NApi::NRpcProxy::NProto::TRowsetStatistics statistics;
+            return NApi::NRpcProxy::DeserializeRowStreamBlockEnvelope(block, &descriptor, &statistics);
+        }));
+    }
+
+private:
+    const IAsyncZeroCopyInputStreamPtr Underlying_;
+};
+
 std::unique_ptr<IInputStream> TRpcRawClient::ReadTable(
     const TTransactionId& transactionId,
     const TRichYPath& path,
@@ -1100,7 +1122,7 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadTable(
 
     if (format) {
         req->set_desired_rowset_format(NApi::NRpcProxy::NProto::RF_FORMAT);
-        req->set_format(NodeToYsonString(format->Config, NYson::EYsonFormat::Text));
+        req->set_format(NYson::TYsonString(NodeToYsonString(format->Config, NYson::EYsonFormat::Text)).ToString());
     }
 
     ToProto(req->mutable_transactional_options(), apiOptions);
@@ -1108,7 +1130,16 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadTable(
 
     auto future = NRpc::CreateRpcClientInputStream(std::move(req));
     auto stream = WaitAndProcess(future);
-    return CreateSyncAdapter(CreateCopyingAdapter(std::move(stream)));
+
+    auto metaRef = WaitFor(stream->Read()).ValueOrThrow();
+
+    NApi::NRpcProxy::NProto::TRspReadTableMeta meta;
+    if (!TryDeserializeProto(&meta, metaRef)) {
+        THROW_ERROR_EXCEPTION("Failed to deserialize table reader meta information");
+    }
+
+    auto rowsStream = New<TTableRowsStream>(std::move(stream));
+    return CreateSyncAdapter(CreateCopyingAdapter(std::move(rowsStream)));
 }
 
 std::unique_ptr<IInputStream> TRpcRawClient::ReadBlobTable(
