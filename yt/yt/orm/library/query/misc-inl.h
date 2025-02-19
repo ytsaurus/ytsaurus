@@ -41,7 +41,7 @@ TString FormatListImpl(const std::vector<TValue>& formatttableValues, const TFor
 } // namespace NDetail
 
 template <CString TReference, CStringOrLiteralValue TValue>
-TString GenerateLexicographicalFilter(
+std::string GenerateLexicographicalFilter(
     const std::vector<TReference>& references,
     const std::vector<TValue>& formattableValues,
     EOrderRelation orderRelation)
@@ -80,7 +80,7 @@ TString GenerateLexicographicalFilter(
 }
 
 template <CString TReference, CStringOrLiteralValue TValue>
-TString GenerateLexicographicalRangeFilter(
+std::string GenerateLexicographicalRangeFilter(
     const std::vector<TReference>& references,
     const std::vector<TValue>& leftBound,
     const std::vector<TValue>& rightBound,
