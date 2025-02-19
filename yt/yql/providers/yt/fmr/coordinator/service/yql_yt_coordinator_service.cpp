@@ -5,7 +5,7 @@
 
 using namespace NYql::NFmr;
 
-bool isInterrupted = false;
+volatile sig_atomic_t isInterrupted = 0;
 
 struct TCoordinatorServerRunOptions {
     ui16 Port = 7000;
@@ -14,7 +14,7 @@ struct TCoordinatorServerRunOptions {
 };
 
 void SignalHandler(int) {
-    isInterrupted = true;
+    isInterrupted = 1;
 }
 
 int main(int argc, const char *argv[]) {
