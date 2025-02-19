@@ -3602,7 +3602,8 @@ class TestQueueStaticExport(TestQueueStaticExportBase):
         self._flush_table("//tmp/q")
 
         chunk_id = get("//tmp/q/@chunk_ids")[-1]
-        wait(lambda: exists(f"{export_dir}/@queue_static_export_progress") and get(f"{export_dir}/@queue_static_export_progress/tablets/0/last_chunk") == chunk_id)
+        progress_path = f"{export_dir}/@queue_static_export_progress"
+        wait(lambda: exists(progress_path) and get(progress_path).get("tablets", {}).get("0", {}).get("last_chunk", None) == chunk_id)
 
         # Sleep for 1 second just in case (to make sure first exported table is deleted by ttl)
         time.sleep(1)
