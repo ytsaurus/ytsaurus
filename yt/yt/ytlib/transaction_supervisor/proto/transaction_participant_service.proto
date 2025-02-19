@@ -18,6 +18,18 @@ message TRspPrepareTransaction
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqMakeTransactionReadyToCommit
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required uint64 commit_timestamp = 2;
+    optional int32 commit_timestamp_cluster_tag = 3 [default = 0xf004]; // COMPAT(savrus): Use InvalidCellTag by default
+}
+
+message TRspMakeTransactionReadyToCommit
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqCommitTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;

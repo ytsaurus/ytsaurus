@@ -71,6 +71,15 @@ message TReqParticipantPrepareTransaction
     optional bool strongly_ordered = 6 [default = false];
 }
 
+message TReqParticipantMakeTransactionReadyToCommit
+{
+    required NYT.NProto.TGuid transaction_id = 1;
+    required uint64 commit_timestamp = 2;
+    optional uint32 commit_timestamp_cluster_tag = 3 [default = 0xf004]; // COMPAT(savrus): Use InvalidCellTag by default
+    required string user = 4;
+    optional string user_tag = 5;
+}
+
 message TReqParticipantCommitTransaction
 {
     required NYT.NProto.TGuid transaction_id = 1;
