@@ -246,6 +246,7 @@ public:
     EStarvationStatus GetStarvationStatus() const;
 
     TJobResources GetInstantResourceUsage(bool withPrecommit = false) const;
+    TResourceTreeElement::TDetailedResourceUsage GetInstantDetailedResourceUsage() const;
 
     virtual std::optional<double> GetSpecifiedFairShareStarvationTolerance() const = 0;
     virtual std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const = 0;
@@ -954,7 +955,7 @@ private:
 
     std::optional<EUnschedulableReason> ComputeUnschedulableReason() const;
 
-    TJobResources ComputeResourceDemand() const;
+    void InitializeResourceUsageAndDemand();
 
     TJobResourcesConfigPtr GetSpecifiedResourceLimitsConfig() const override;
 
