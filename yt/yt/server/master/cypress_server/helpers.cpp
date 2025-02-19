@@ -230,24 +230,18 @@ TStringBuf FindMapNodeChildKey(
         return TStringBuf();
     }
 
-    for (const auto* currentParentNode = parentNode; currentParentNode;) {
+    // The lookup above might have skipped the bottommost tombstone,
+    // thus, an additional traverse is needed.
+    for (const auto* currentParentNode = parentNode;;) {
         auto it = currentParentNode->KeyToChild().find(key);
-        if (it != currentParentNode->KeyToChild().end() && !it->second) {
-            return TStringBuf();
+        if (it != currentParentNode->KeyToChild().end()) {
+            return it->second ? key : TStringBuf();
         }
 
-        if (currentParentNode->GetLockMode() == ELockMode::Snapshot) {
-            break;
-        }
-
-        auto* originator = currentParentNode->GetOriginator();
-        if (!originator) {
-            break;
-        }
-        currentParentNode = originator->As<TCypressMapNode>();
+        currentParentNode = currentParentNode->GetOriginator()->As<TCypressMapNode>();
     }
 
-    return key;
+    Y_UNREACHABLE();
 }
 
 TCypressNode* FindListNodeChild(
