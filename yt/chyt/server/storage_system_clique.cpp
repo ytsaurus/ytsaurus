@@ -1,4 +1,3 @@
-#include "cluster_nodes.h"
 #include "storage_system_clique.h"
 
 #include <yt/yt/library/clickhouse_discovery/discovery.h>
@@ -8,12 +7,9 @@
 #include <DataTypes/DataTypeDateTime64.h>
 #include <DataTypes/DataTypeString.h>
 #include <DataTypes/DataTypesNumber.h>
-#include <DataStreams/OneBlockInputStream.h>
+#include <Processors/Sources/SourceFromSingleChunk.h>
 #include <Storages/IStorage.h>
-#include <Processors/Sources/SourceFromInputStream.h>
 #include <QueryPipeline/Pipe.h>
-
-#include <algorithm>
 
 namespace NYT::NClickHouseServer {
 
@@ -56,30 +52,30 @@ public:
         auto nodes = Discovery_->List();
 
         auto metadataSnapshot = storageSnapshot->getMetadataForQuery();
+        auto header = metadataSnapshot->getSampleBlock();
 
-        DB::MutableColumns res_columns = metadataSnapshot->getSampleBlock().cloneEmptyColumns();
-
+        DB::MutableColumns resultColumns = metadataSnapshot->getSampleBlock().cloneEmptyColumns();
         for (const auto& [name, attributes] : nodes) {
             if (!attributes || !attributes->Contains("clique_id")) {
                 continue;
             }
-            res_columns[0]->insert(std::string(attributes->Get<TString>("host")));
-            res_columns[1]->insert(attributes->Get<ui64>("rpc_port"));
-            res_columns[2]->insert(attributes->Get<ui64>("monitoring_port"));
-            res_columns[3]->insert(attributes->Get<ui64>("tcp_port"));
-            res_columns[4]->insert(attributes->Get<ui64>("http_port"));
-            res_columns[5]->insert(std::string(name));
-            res_columns[6]->insert(attributes->Get<i64>("pid"));
-            res_columns[7]->insert(name == ToString(InstanceId_));
-            res_columns[8]->insert(attributes->Get<ui64>("job_cookie"));
-            res_columns[9]->insert(static_cast<DB::Decimal64>(attributes->Get<TInstant>("start_time").MicroSeconds()));
-            res_columns[10]->insert(std::string(attributes->Get<TString>("clique_id")));
-            res_columns[11]->insert(attributes->Get<i64>("clique_incarnation"));
+            resultColumns[0]->insert(std::string(attributes->Get<TString>("host")));
+            resultColumns[1]->insert(attributes->Get<ui64>("rpc_port"));
+            resultColumns[2]->insert(attributes->Get<ui64>("monitoring_port"));
+            resultColumns[3]->insert(attributes->Get<ui64>("tcp_port"));
+            resultColumns[4]->insert(attributes->Get<ui64>("http_port"));
+            resultColumns[5]->insert(std::string(name));
+            resultColumns[6]->insert(attributes->Get<i64>("pid"));
+            resultColumns[7]->insert(name == ToString(InstanceId_));
+            resultColumns[8]->insert(attributes->Get<ui64>("job_cookie"));
+            resultColumns[9]->insert(static_cast<DB::Decimal64>(attributes->Get<TInstant>("start_time").MicroSeconds()));
+            resultColumns[10]->insert(std::string(attributes->Get<TString>("clique_id")));
+            resultColumns[11]->insert(attributes->Get<i64>("clique_incarnation"));
         }
 
-        auto blockInputStream = std::make_shared<DB::OneBlockInputStream>(metadataSnapshot->getSampleBlock().cloneWithColumns(std::move(res_columns)));
-        auto source = std::make_shared<DB::SourceFromInputStream>(std::move(blockInputStream));
-        return DB::Pipe(std::move(source));
+        auto rowCount = resultColumns.at(0)->size();
+        DB::Chunk chunk(std::move(resultColumns), rowCount);
+        return DB::Pipe(std::make_shared<DB::SourceFromSingleChunk>(std::move(header), std::move(chunk)));
     }
 
 private:

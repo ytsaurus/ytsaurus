@@ -96,8 +96,6 @@
   "contrib/clickhouse/src/CMakeLists.txt":"",
   "contrib/clickhouse/src/Common/CMakeLists.txt":"",
   "contrib/clickhouse/src/Parsers/CMakeLists.txt":"",
-  "contrib/deprecated/CMakeLists.txt":"",
-  "contrib/deprecated/clickhouse_data_streams_compat/CMakeLists.txt":"",
   "contrib/libs/CMakeLists.darwin-arm64.txt":"",
   "contrib/libs/CMakeLists.darwin-x86_64.txt":"",
   "contrib/libs/CMakeLists.linux-x86_64.txt":"",

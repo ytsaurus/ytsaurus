@@ -8,14 +8,14 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <DataStreams/IBlockOutputStream.h>
+#include <Processors/Sinks/SinkToStorage.h>
 
 namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates CH wrapper which writes to static table.
-DB::BlockOutputStreamPtr CreateStaticTableBlockOutputStream(
+DB::SinkToStoragePtr CreateSinkToStaticTable(
     NYPath::TRichYPath path,
     NTableClient::TTableSchemaPtr tableSchema,
     std::vector<DB::DataTypePtr> dataTypes,
@@ -29,7 +29,7 @@ DB::BlockOutputStreamPtr CreateStaticTableBlockOutputStream(
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Creates CH wrapper which writes to dynamic table.
-DB::BlockOutputStreamPtr CreateDynamicTableBlockOutputStream(
+DB::SinkToStoragePtr CreateSinkToDynamicTable(
     NYPath::TRichYPath path,
     NTableClient::TTableSchemaPtr tableSchema,
     std::vector<DB::DataTypePtr> dataTypes,

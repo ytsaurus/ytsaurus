@@ -1,6 +1,5 @@
 #include "storage_distributor.h"
 
-#include "block_output_stream.h"
 #include "config.h"
 #include "conversion.h"
 #include "format.h"
@@ -13,6 +12,7 @@
 #include "remote_source.h"
 #include "schema_inference.h"
 #include "secondary_query_header.h"
+#include "sink_to_storage.h"
 #include "storage_base.h"
 #include "subquery.h"
 #include "table.h"
@@ -49,8 +49,6 @@
 #include <Processors/ConcatProcessor.h>
 #include <Processors/ResizeProcessor.h>
 #include <Processors/Sinks/NullSink.h>
-#include <Processors/Sources/SinkToOutputStream.h>
-#include <Processors/Sources/SourceFromInputStream.h>
 #include <Storages/StorageFactory.h>
 #include <Parsers/ASTSelectWithUnionQuery.h>
 #include <QueryPipeline/QueryPipelineBuilder.h>
@@ -997,10 +995,10 @@ public:
             InvalidateCache(queryContext, {path}, invalidateMode);
         };
 
-        DB::BlockOutputStreamPtr outputStream;
+        DB::SinkToStoragePtr outputSink;
 
         if (table->Dynamic) {
-            outputStream = CreateDynamicTableBlockOutputStream(
+            outputSink = CreateSinkToDynamicTable(
                 path,
                 table->Schema,
                 dataTypes,
@@ -1013,7 +1011,7 @@ public:
             auto* queryContext = GetQueryContext(context);
             // Set append if it is not set.
             path.SetAppend(path.GetAppend(true /*defaultValue*/));
-            outputStream = CreateStaticTableBlockOutputStream(
+            outputSink = CreateSinkToStaticTable(
                 path,
                 table->Schema,
                 dataTypes,
@@ -1025,7 +1023,7 @@ public:
                 QueryContext_->Logger);
         }
 
-        return std::make_shared<DB::SinkToOutputStream>(std::move(outputStream));
+        return outputSink;
     }
 
     std::optional<DB::QueryPipeline> distributedWrite(const DB::ASTInsertQuery& query, DB::ContextPtr context) override
