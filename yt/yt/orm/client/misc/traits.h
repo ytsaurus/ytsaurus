@@ -8,14 +8,14 @@ namespace NYT::NOrm::NClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EReferenceMultiplicity,
+DEFINE_ENUM(EReferenceCardinality,
     (Single)
     (Multi)
 );
 
 struct TReferenceDescriptor
 {
-    EReferenceMultiplicity Multiplicity;
+    EReferenceCardinality Cardinality;
     NYT::NOrm::NClient::NProto::TReferenceOption Option;
 };
 
