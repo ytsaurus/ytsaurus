@@ -328,6 +328,11 @@ TJobResources TSchedulerElement::GetInstantResourceUsage(bool withPrecommit) con
     return resourceUsage;
 }
 
+TResourceTreeElement::TDetailedResourceUsage TSchedulerElement::GetInstantDetailedResourceUsage() const
+{
+    return  ResourceTreeElement_->GetDetailedResourceUsage();
+}
+
 double TSchedulerElement::GetMaxShareRatio() const
 {
     return MaxComponent(GetMaxShare());
@@ -1811,11 +1816,10 @@ void TSchedulerOperationElement::InitializeUpdate(TInstant now)
     ScheduleAllocationBackoffCheckEnabled_ = Controller_->ScheduleAllocationBackoffObserved();
 
     UnschedulableReason_ = ComputeUnschedulableReason();
-    ResourceUsageAtUpdate_ = GetInstantResourceUsage();
-    // Must be calculated after ResourceUsageAtUpdate_
-    ResourceDemand_ = ComputeResourceDemand();
     Tentative_ = RuntimeParameters_->Tentative;
     StartTime_ = OperationHost_->GetStartTime();
+
+    InitializeResourceUsageAndDemand();
 
     TSchedulerElement::InitializeUpdate(now);
 
@@ -2228,13 +2232,27 @@ void TSchedulerOperationElement::ReleaseResources(bool markAsNonAlive)
     TreeElementHost_->GetResourceTree()->ReleaseResources(ResourceTreeElement_, markAsNonAlive);
 }
 
-TJobResources TSchedulerOperationElement::ComputeResourceDemand() const
+void TSchedulerOperationElement::InitializeResourceUsageAndDemand()
 {
+    auto detailedResourceUsage = GetInstantDetailedResourceUsage();
+
+    ResourceUsageAtUpdate_ = detailedResourceUsage.Base;
+
     auto maybeUnschedulableReason = OperationHost_->CheckUnschedulable(TreeId_);
     if (maybeUnschedulableReason == EUnschedulableReason::IsNotRunning || maybeUnschedulableReason == EUnschedulableReason::Suspended) {
-        return ResourceUsageAtUpdate_;
+        ResourceDemand_ = ResourceUsageAtUpdate_;
+        return;
     }
-    return ResourceUsageAtUpdate_ + TotalNeededResources_;
+    // Explanation of the reason to consider resource usage _with precommit_ in the demand computation.
+    //
+    // In the current scheme the exact demand of operation is not known due to asynchronous nature of total needed resources
+    // that are reported to scheduler periodically. The value of total needed resources corresponds to the total demand of operation
+    // without already scheduled jobs and some jobs that have been scheduled inside operation controller but have not been reported
+    // to scheduler yet. And such jobs correspond to the part of precommited resource usage.
+    //
+    // Note that the total needed resources usually decreases in time, therefore using resource usage with precommit here
+    // allows us to nearly guarantee that calculated demand is greater than or equal to exact value of demand.
+    ResourceDemand_ = detailedResourceUsage.Base + detailedResourceUsage.Precommit + TotalNeededResources_;
 }
 
 TJobResourcesConfigPtr TSchedulerOperationElement::GetSpecifiedResourceLimitsConfig() const

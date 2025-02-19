@@ -35,6 +35,15 @@ TJobResources TResourceTreeElement::GetResourceUsageWithPrecommit()
     return ResourceUsage_ + ResourceUsagePrecommit_;
 }
 
+TResourceTreeElement::TDetailedResourceUsage TResourceTreeElement::GetDetailedResourceUsage()
+{
+    auto guard = ReaderGuard(ResourceUsageLock_);
+
+    ResourceTree_->IncrementUsageLockReadCount();
+
+    return TDetailedResourceUsage{.Base = ResourceUsage_, .Precommit = ResourceUsagePrecommit_};
+}
+
 bool TResourceTreeElement::CheckAvailableDemand(
     const TJobResources& delta,
     const TJobResources& resourceDemand)

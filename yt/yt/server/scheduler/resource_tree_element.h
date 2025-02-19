@@ -18,14 +18,20 @@ class TResourceTreeElement
     : public TRefCounted
 {
 public:
+    struct TDetailedResourceUsage
+    {
+        TJobResources Base;
+        TJobResources Precommit;
+    };
+
     TResourceTreeElement(
         TResourceTree* resourceTree,
         const TString& id,
         EResourceTreeElementKind elementKind);
 
     TJobResources GetResourceUsage();
-
     TJobResources GetResourceUsageWithPrecommit();
+    TDetailedResourceUsage GetDetailedResourceUsage();
 
     bool CheckAvailableDemand(
         const TJobResources& delta,
