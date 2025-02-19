@@ -25,6 +25,7 @@ from functools import wraps
 from operator import itemgetter
 
 from yt.yson import YsonUint64, YsonEntity
+import yt.yson
 
 import yt_error_codes
 
@@ -4693,3 +4694,250 @@ class TestMultiClusterReplicatedTableObjectsTrimWithExports(TestMultiClusterRepl
         self._wait_for_replicated_queue_row_range(replicas, range(3, 6))
 
         wait_for_all_exports(0)
+
+
+class TestControllerInfo(TestQueueAgentBase):
+    CONTROLLER_DELAY_DURATION_SECONDS = 10
+    OLD_PASSES_DISPLAY_LIMIT = 4
+
+    DELTA_QUEUE_AGENT_CONFIG = {
+        "dynamic_config_manager": {
+            "update_period": 1000,  # 1 second
+        }
+    }
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "cypress_synchronizer": {
+            "policy": "watching",
+        },
+        "queue_agent": {
+            "controller": {
+                "controller_delay_duration": CONTROLLER_DELAY_DURATION_SECONDS * 1000,  # 10 seconds
+            },
+            "inactive_object_display_limit": OLD_PASSES_DISPLAY_LIMIT,
+        },
+    }
+
+    def _parse_inactive_objects(self, inactive_objects: dict[list]):
+        result = {}
+        top_level_keys = [
+            "leading_queues",
+            "following_queues",
+            "leading_consumers",
+            "following_consumers",
+        ]
+
+        for top_level_key in top_level_keys:
+            result[top_level_key] = []
+            for entry in inactive_objects[top_level_key]:
+                path = entry["path"]
+                pass_instant = datetime.datetime.fromisoformat(entry["pass_instant"])
+                result[top_level_key].append((path, pass_instant))
+
+        return result
+
+    def _create_queue_and_get_orchid(self, path):
+        self._create_queue(path)
+
+        orchid = QueueAgentOrchid()
+        return orchid.get_queue_orchid(f"primary:{path}")
+
+    def _create_consumer_and_get_orchid(self, path):
+        self._create_consumer(path)
+
+        orchid = QueueAgentOrchid()
+        return orchid.get_consumer_orchid(f"primary:{path}")
+
+    @authors("apachee")
+    @pytest.mark.parametrize("object_name,create_object_and_get_orchid", [
+        ("queue", _create_queue_and_get_orchid),
+        ("consumer", _create_consumer_and_get_orchid),
+    ])
+    def test_basic(self, create_object_and_get_orchid, object_name):
+        orchid = QueueAgentOrchid()
+
+        time_tolerance_seconds = 1
+
+        object_count = self.OLD_PASSES_DISPLAY_LIMIT + 1
+        assert object_count > self.OLD_PASSES_DISPLAY_LIMIT
+        object_orchids = []
+
+        for i in range(object_count):
+            path = f"//tmp/{object_name}_{i}"
+            object_orchids.append(create_object_and_get_orchid(self, path))
+
+        self._wait_for_component_passes()
+        self.wait_fresh_pass(object_orchids)
+
+        controller_info = orchid.get_controller_info()
+
+        assert controller_info["erroneous_objects"] == {
+            "queue_count": 0,
+            "consumer_count": 0,
+        }
+
+        inactive_objects = self._parse_inactive_objects(controller_info["inactive_objects"])
+
+        fields = {
+            "leading_queues",
+            "following_queues",
+            "leading_consumers",
+            "following_consumers",
+        }
+        # All fields but this should be 0 at all times.
+        key_field = f"leading_{object_name}s"
+
+        zero_fields = fields - {key_field}
+
+        for field in zero_fields:
+            assert len(inactive_objects[field]) == 0
+
+        inactive_objects_leading = inactive_objects[key_field]
+        assert len(inactive_objects_leading) == self.OLD_PASSES_DISPLAY_LIMIT
+
+        min_ts = min(i[1] for i in inactive_objects_leading)
+        max_ts = max(i[1] for i in inactive_objects_leading)
+        assert min_ts == inactive_objects_leading[0][1]
+        assert max_ts == inactive_objects_leading[-1][1]
+        assert max_ts - min_ts <= datetime.timedelta(seconds=time_tolerance_seconds)
+
+        print_debug(f"inactive_objects: {min_ts=}, {max_ts=}")
+
+        # Check how the value is changed after some time
+        sleep_duration_seconds = 10
+        time.sleep(10)
+
+        controller_info = orchid.get_controller_info()
+
+        assert controller_info["erroneous_objects"] == {
+            "queue_count": 0,
+            "consumer_count": 0,
+        }
+
+        inactive_objects = self._parse_inactive_objects(controller_info["inactive_objects"])
+
+        for field in zero_fields:
+            assert len(inactive_objects[field]) == 0
+
+        inactive_objects_leading = inactive_objects[key_field]
+        assert len(inactive_objects_leading) == self.OLD_PASSES_DISPLAY_LIMIT
+
+        old_min_ts = min_ts
+        min_ts = min(i[1] for i in inactive_objects_leading)
+        max_ts = max(i[1] for i in inactive_objects_leading)
+        assert min_ts == inactive_objects_leading[0][1]
+        assert max_ts == inactive_objects_leading[-1][1]
+        assert max_ts - min_ts <= datetime.timedelta(seconds=time_tolerance_seconds)
+        print_debug(f"inactive_objects: {min_ts=}, {max_ts=}")
+
+        diff = max_ts - old_min_ts
+        assert datetime.timedelta(seconds=(sleep_duration_seconds - time_tolerance_seconds)) <= diff
+        assert diff <= datetime.timedelta(seconds=(sleep_duration_seconds + time_tolerance_seconds))
+
+    @authors("apachee")
+    @pytest.mark.parametrize("object_name,create_object_and_get_orchid", [
+        ("queue", _create_queue_and_get_orchid),
+        ("consumer", _create_consumer_and_get_orchid),
+    ])
+    def test_bad_object(self, create_object_and_get_orchid, object_name):
+        orchid = QueueAgentOrchid()
+
+        time_tolerance_seconds = 1
+
+        key_field = f"leading_{object_name}s"
+
+        create_object_and_get_orchid(self, f"//tmp/{object_name}_good")
+        bad_object_path = f"//tmp/{object_name}_bad"
+        bad_object_orchid = create_object_and_get_orchid(self, bad_object_path)
+
+        self._wait_for_component_passes()
+        self._wait_for_object_passes()
+
+        def get_timestamps():
+            controller_info = orchid.get_controller_info()
+
+            inactive_objects = self._parse_inactive_objects(controller_info["inactive_objects"])
+            inactive_objects_leading = inactive_objects[key_field]
+
+            return [i[1] for i in inactive_objects_leading]
+
+        self._apply_dynamic_config_patch({
+            "queue_agent": {
+                "controller": {
+                    "delayed_objects": [yt.yson.loads(f"<cluster=primary>\"{bad_object_path}\"".encode())],
+                },
+            },
+        })
+        # Sleep for next bad object pass to start
+        time.sleep(1)
+
+        min_ts = get_timestamps()[0]
+
+        time.sleep(self.CONTROLLER_DELAY_DURATION_SECONDS / 2 - 1)
+
+        timestamps = get_timestamps()
+        assert min_ts == timestamps[0]
+        assert timestamps[1] - timestamps[0] >= datetime.timedelta(seconds=(self.CONTROLLER_DELAY_DURATION_SECONDS / 2 - time_tolerance_seconds))
+
+        wait(lambda: get_timestamps()[0] > min_ts)
+        assert get_timestamps()[0] - min_ts >= datetime.timedelta(seconds=(self.CONTROLLER_DELAY_DURATION_SECONDS - time_tolerance_seconds))
+
+        set("//sys/queue_agents/config/queue_agent/controller/delayed_objects", [])
+        wait(lambda: get(f"{orchid.queue_agent_orchid_path()}/dynamic_config_manager/effective_config/queue_agent/controller/delayed_objects") == [])
+        bad_object_orchid.wait_fresh_pass()
+
+        timestamps = get_timestamps()
+        assert abs(timestamps[1] - timestamps[0]) <= datetime.timedelta(seconds=(time_tolerance_seconds))
+        time.sleep(self.CONTROLLER_DELAY_DURATION_SECONDS / 2)
+        timestamps = get_timestamps()
+        assert abs(timestamps[1] - timestamps[0]) <= datetime.timedelta(seconds=(time_tolerance_seconds))
+
+    @authors("apachee")
+    def test_erroneous_object_count(self):
+        orchid = QueueAgentOrchid()
+
+        self._create_queue("//tmp/q")
+        self._create_consumer("//tmp/c")
+
+        self._wait_for_component_passes()
+        time.sleep(1)
+
+        assert orchid.get_controller_info()["erroneous_objects"] == {
+            "queue_count": 0,
+            "consumer_count": 0,
+        }
+
+        set("//tmp/q/@queue_agent_banned", "whatever")
+        self._wait_for_component_passes()
+        time.sleep(1)
+
+        assert orchid.get_controller_info()["erroneous_objects"] == {
+            "queue_count": 1,
+            "consumer_count": 0,
+        }
+
+        set("//tmp/c/@queue_agent_banned", "whatever")
+        self._wait_for_component_passes()
+        time.sleep(1)
+
+        assert orchid.get_controller_info()["erroneous_objects"] == {
+            "queue_count": 1,
+            "consumer_count": 1,
+        }
+
+        remove("//tmp/q/@queue_agent_banned")
+        self._wait_for_component_passes()
+        time.sleep(1)
+
+        assert orchid.get_controller_info()["erroneous_objects"] == {
+            "queue_count": 0,
+            "consumer_count": 1,
+        }
+
+        remove("//tmp/c/@queue_agent_banned")
+        self._wait_for_component_passes()
+        time.sleep(1)
+
+        assert orchid.get_controller_info()["erroneous_objects"] == {
+            "queue_count": 0,
+            "consumer_count": 0,
+        }

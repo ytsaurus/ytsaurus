@@ -147,10 +147,6 @@ TTaggedProfilingCounters::TTaggedProfilingCounters(TProfiler profiler)
     , ErroneousConsumers(profiler.Gauge("/erroneous_consumers"))
 { }
 
-TGlobalProfilingCounters::TGlobalProfilingCounters(TProfiler profiler)
-    : Registrations(profiler.Gauge("/registrations"))
-{ }
-
 TQueueAgent::TQueueAgent(
     TQueueAgentConfigPtr config,
     NApi::NNative::IConnectionPtr nativeConnection,
@@ -174,7 +170,6 @@ TQueueAgent::TQueueAgent(
         BIND(&TQueueAgent::Pass, MakeWeak(this)),
         DynamicConfig_->PassPeriod))
     , AgentId_(std::move(agentId))
-    , GlobalProfilingCounters_(QueueAgentProfilerGlobal)
     , QueueAgentChannelFactory_(
         NAuth::CreateNativeAuthenticationInjectingChannelFactory(
             CreateCachingChannelFactory(CreateTcpBusChannelFactory(Config_->BusClient)),
@@ -217,8 +212,132 @@ IMapNodePtr TQueueAgent::GetOrchidNode() const
     node->AddChild("pass_error", virtualScalarNode([&] { return PassError_; }));
     node->AddChild("queues", ObjectServiceNodes_[EObjectKind::Queue]);
     node->AddChild("consumers", ObjectServiceNodes_[EObjectKind::Consumer]);
+    node->AddChild("controller_info", GetControllerInfoNode());
 
     return node;
+}
+
+INodePtr TQueueAgent::GetControllerInfoNode() const
+{
+    struct TControllerPassInfo {
+        TInstant PassInstant;
+        bool Leading;
+        TRichYPath Path;
+    };
+
+    return CreateVirtualNode(IYPathService::FromProducer(BIND([&, this, this_ = MakeWeak(this)] (IYsonConsumer* consumer) {
+        auto lockedThis = this_.Lock();
+        if (!lockedThis) {
+            BuildYsonFluently(consumer).Entity();
+        } else {
+            auto config = DynamicConfig_;
+
+            std::vector<TControllerPassInfo> queueControllerPasses;
+            std::vector<TControllerPassInfo> consumerControllerPasses;
+
+            int queueControllerWithErrorCount = 0;
+            int consumerControllerWithErrorCount = 0;
+
+            {
+                auto guard = ReaderGuard(ObjectLock_);
+                for (const auto& [path, object] : Objects_[EObjectKind::Queue]) {
+                    auto snapshot = DynamicPointerCast<TQueueSnapshot>(object.Controller->GetLatestSnapshot());
+                    if (!snapshot->Error.IsOK()) {
+                        ++queueControllerWithErrorCount;
+                        continue;
+                    }
+                    queueControllerPasses.push_back(TControllerPassInfo{
+                        .PassInstant = snapshot->PassInstant,
+                        .Leading = object.Controller->IsLeading(),
+                        .Path = path,
+                    });
+                }
+                for (const auto& [path, object] : Objects_[EObjectKind::Consumer]) {
+                    auto snapshot = DynamicPointerCast<TConsumerSnapshot>(object.Controller->GetLatestSnapshot());
+                    if (!snapshot->Error.IsOK()) {
+                        ++consumerControllerWithErrorCount;
+                        continue;
+                    }
+                    consumerControllerPasses.push_back(TControllerPassInfo{
+                        .PassInstant = snapshot->PassInstant,
+                        .Leading = object.Controller->IsLeading(),
+                        .Path = path,
+                    });
+                }
+            }
+
+            auto comparePassInstant = [] (const auto& lhs, const auto& rhs) {
+                return lhs.PassInstant < rhs.PassInstant;
+            };
+            std::sort(queueControllerPasses.begin(), queueControllerPasses.end(), comparePassInstant);
+            std::sort(consumerControllerPasses.begin(), consumerControllerPasses.end(), comparePassInstant);
+
+            // NB(apachee): Filter out passes with leading = true and return them, while
+            // leaving out passes with leading = false. Implemented using 2 pointers.
+            auto filterLeading = [] (std::vector<TControllerPassInfo>& passes) {
+                std::vector<TControllerPassInfo> leadingPasses;
+
+                auto firstLeadingIt = std::stable_partition(passes.begin(), passes.end(), [] (const auto& pass) {
+                    return !pass.Leading;
+                });
+
+                std::vector<TControllerPassInfo> leading(std::make_move_iterator(firstLeadingIt), std::make_move_iterator(passes.end()));
+
+                passes.erase(firstLeadingIt, passes.end());
+
+                return leading;
+            };
+
+            // NB(apachee): Since relative order does not change, all of the following vectors are already sorted.
+
+            auto leadingQueuePasses = filterLeading(queueControllerPasses);
+            auto leadingConsumerPasses = filterLeading(consumerControllerPasses);
+
+            std::vector<TControllerPassInfo> followingQueuePasses = std::move(queueControllerPasses);
+            std::vector<TControllerPassInfo> followingConsumerPasses = std::move(consumerControllerPasses);
+
+            auto trimByDisplayLimit = [&] (auto& vec) {
+                if (ssize(vec) > config->InactiveObjectDisplayLimit) {
+                    vec.resize(config->InactiveObjectDisplayLimit);
+                }
+            };
+
+            trimByDisplayLimit(leadingQueuePasses);
+            trimByDisplayLimit(leadingConsumerPasses);
+            trimByDisplayLimit(followingQueuePasses);
+            trimByDisplayLimit(followingConsumerPasses);
+
+            auto serializePassesVector = [] (TFluentAny fluent, const std::vector<TControllerPassInfo>& passes) {
+                fluent
+                    .BeginList()
+                    .DoFor(passes, [] (TFluentList fluent, const TControllerPassInfo& pass) {
+                        fluent
+                            .Item()
+                            .BeginMap()
+                                .Item("path").Value(pass.Path)
+                                .Item("pass_instant").Value(pass.PassInstant)
+                            .EndMap();
+                    })
+                    .EndList();
+            };
+
+            BuildYsonFluently(consumer)
+                .BeginMap()
+                    .Item("inactive_objects")
+                    .BeginMap()
+                        .Item("leading_queues").Do(std::bind(serializePassesVector, std::placeholders::_1, leadingQueuePasses))
+                        .Item("leading_consumers").Do(std::bind(serializePassesVector, std::placeholders::_1, leadingConsumerPasses))
+                        .Item("following_queues").Do(std::bind(serializePassesVector, std::placeholders::_1, followingQueuePasses))
+                        .Item("following_consumers").Do(std::bind(serializePassesVector, std::placeholders::_1, followingConsumerPasses))
+                    .EndMap()
+                    .Item("erroneous_objects")
+                    .BeginMap()
+                        .Item("queue_count").Value(queueControllerWithErrorCount)
+                        .Item("consumer_count").Value(consumerControllerWithErrorCount)
+                    .EndMap()
+                .EndMap();
+        }
+    })));
 }
 
 void TQueueAgent::OnDynamicConfigChanged(

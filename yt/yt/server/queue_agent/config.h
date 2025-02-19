@@ -7,6 +7,7 @@
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/client/ypath/public.h>
+#include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -140,6 +141,14 @@ public:
     //! Default is false to reflect previous behavior that is known to work.
     bool EnableCrtTrimByExports;
 
+    //! List of objects, for which controllers must be delayed every pass.
+    //!
+    //! Passes of such controllers take additional #ControllerDelayDuration seconds
+    //! to complete. This should be used for debug only.
+    std::vector<NYPath::TRichYPath> DelayedObjects;
+    //! Delay duration for #DelayedObjects.
+    TDuration ControllerDelayDuration;
+
     TQueueExporterDynamicConfig QueueExporter;
 
     NAlertManager::TAlertManagerDynamicConfigPtr AlertManager;
@@ -184,6 +193,9 @@ public:
 
     //! Configuration of queue export manager.
     TQueueExportManagerDynamicConfigPtr QueueExportManager;
+
+    //! The limit on how much objects are shown in each list of "inactive_objects" in "controller_info".
+    i64 InactiveObjectDisplayLimit;
 
     //! Controls whether replicated objects are handled by this queue agent instance.
     //! NB: Even when set to true, mutating requests are only performed for objects with the corresponding stage.

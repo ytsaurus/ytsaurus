@@ -210,6 +210,9 @@ class QueueAgentOrchid(OrchidWithRegularPasses):
     def get_consumer_orchids(self):
         return [self.get_consumer_orchid(consumer) for consumer in self.get_consumers()]
 
+    def get_controller_info(self):
+        return get(f"{self.orchid_path()}/controller_info")
+
 
 class AlertManagerOrchid(OrchidBase):
     ENTITY_NAME = "alert_manager"

@@ -528,6 +528,16 @@ private:
 
         YT_LOG_INFO("Queue controller pass started");
 
+        {
+            auto config = DynamicConfig_.Acquire();
+            auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), static_cast<TRichYPath>(QueueRow_.Load().Ref));
+            if (it != config->DelayedObjects.end()) {
+                // NB(apachee): Since this should only be used for debug, it is a warning in case "delayed_objects" field is left non-empty accidentally.
+                YT_LOG_WARNING("This pass is delayed since queue is present in \"delayed_objects\" field of dynamic config (DelayDuration: %v)", config->ControllerDelayDuration);
+                TDelayedExecutor::WaitForDuration(config->ControllerDelayDuration);
+            }
+        }
+
         auto registrations = ObjectStore_->GetRegistrations(QueueRef_, EObjectKind::Queue);
         YT_LOG_INFO("Registrations fetched (RegistrationCount: %v)", registrations.size());
         for (const auto& registration : registrations) {

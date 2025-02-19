@@ -30,13 +30,6 @@ struct TTaggedProfilingCounters
     explicit TTaggedProfilingCounters(NProfiling::TProfiler profiler);
 };
 
-struct TGlobalProfilingCounters
-{
-    NProfiling::TGauge Registrations;
-
-    explicit TGlobalProfilingCounters(NProfiling::TProfiler profiler);
-};
-
 //! Object responsible for tracking the list of queues assigned to this particular controller.
 class TQueueAgent
     : public IObjectStore
@@ -84,7 +77,6 @@ private:
     const TString AgentId_;
 
     THashMap<NQueueClient::TProfilingTags, TTaggedProfilingCounters> TaggedProfilingCounters_;
-    TGlobalProfilingCounters GlobalProfilingCounters_;
 
     std::atomic<bool> Active_ = false;
 
@@ -120,11 +112,7 @@ private:
 
     NYTree::IYPathServicePtr RedirectYPathRequest(const TString& host, TStringBuf queryRoot, TStringBuf key) const;
 
-    void BuildObjectYson(
-        EObjectKind objectKind,
-        const NQueueClient::TCrossClusterReference& objectRef,
-        const IObjectControllerPtr& object,
-        NYson::IYsonConsumer* ysonConsumer) const;
+    NYTree::INodePtr GetControllerInfoNode() const;
 
     //! One iteration of state polling and object store updating.
     void Pass();
