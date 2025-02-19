@@ -979,24 +979,6 @@ class TestChunkServerMulticell(TestChunkServer):
 
 ##################################################################
 
-class TestChunkServerTwoChoicesAllocation(TestChunkServer):
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "chunk_manager": {
-            "enable_two_random_choices_write_target_allocation": True,
-        }
-    }
-
-
-class TestTwoRandomChoicesWriteTargetAllocationChunkServerMulticell(TestChunkServerMulticell):
-    DELTA_DYNAMIC_MASTER_CONFIG = {
-        "chunk_manager": {
-            "enable_two_random_choices_write_target_allocation": True,
-        }
-    }
-
-
-##################################################################
-
 
 class TestChunkServerReplicaRemoval(YTEnvSetup):
     NUM_MASTERS = 3
