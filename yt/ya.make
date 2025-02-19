@@ -15,6 +15,7 @@ RECURSE(
     styleguide
     systest
     admin
+    cron
 )
 
 
@@ -24,7 +25,6 @@ IF (NOT OPENSOURCE)
         abcdapter
         buildall
         cfg
-        cron
         docs
         docs/yandex-specific
         docs/ytsaurus
