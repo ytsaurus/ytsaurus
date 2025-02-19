@@ -51,10 +51,17 @@ TLogicalTypePtr ToQLType(const NTableClient::TLogicalTypePtr& columnType)
 
 TExpression::TExpression(NTableClient::TLogicalTypePtr type)
     : LogicalType(std::move(type))
+    , OriginalLogicalType(LogicalType)
+{ }
+
+TExpression::TExpression(NTableClient::TLogicalTypePtr type, NTableClient::TLogicalTypePtr originalType)
+    : LogicalType(std::move(type))
+    , OriginalLogicalType(std::move(originalType))
 { }
 
 TExpression::TExpression(EValueType type)
     : LogicalType(MakeLogicalType(GetLogicalType(type), /*required*/ false))
+    , OriginalLogicalType(LogicalType)
 { }
 
 EValueType TExpression::GetWireType() const
@@ -76,11 +83,11 @@ TLiteralExpression::TLiteralExpression(EValueType type, TOwningValue value)
 ////////////////////////////////////////////////////////////////////////////////
 
 TReferenceExpression::TReferenceExpression(const NTableClient::TLogicalTypePtr& type)
-    : TExpression(ToQLType(type))
+    : TExpression(ToQLType(type), type)
 { }
 
 TReferenceExpression::TReferenceExpression(const NTableClient::TLogicalTypePtr& type, TString columnName)
-    : TExpression(ToQLType(type))
+    : TExpression(ToQLType(type), type)
     , ColumnName(std::move(columnName))
 { }
 
@@ -344,12 +351,14 @@ void TProjectClause::AddProjection(TConstExpressionPtr expression, TString name)
     AddProjection(TNamedItem(std::move(expression), std::move(name)));
 }
 
-TTableSchemaPtr TProjectClause::GetTableSchema() const
+TTableSchemaPtr TProjectClause::GetTableSchema(bool castToQLType) const
 {
     TSchemaColumns result;
+    result.reserve(Projections.size());
 
     for (const auto& item : Projections) {
-        result.emplace_back(item.Name, item.Expression->LogicalType);
+        auto logicalType = castToQLType ? item.Expression->LogicalType : item.Expression->OriginalLogicalType;
+        result.emplace_back(item.Name, std::move(logicalType));
     }
 
     return New<TTableSchema>(std::move(result));
@@ -418,10 +427,10 @@ TTableSchemaPtr TQuery::GetRenamedSchema() const
     return Schema.GetRenamedSchema();
 }
 
-TTableSchemaPtr TQuery::GetTableSchema() const
+TTableSchemaPtr TQuery::GetTableSchema(bool castToQLType) const
 {
     if (ProjectClause) {
-        return ProjectClause->GetTableSchema();
+        return ProjectClause->GetTableSchema(castToQLType);
     }
 
     if (GroupClause) {
@@ -453,10 +462,10 @@ TTableSchemaPtr TFrontQuery::GetRenamedSchema() const
     return Schema;
 }
 
-TTableSchemaPtr TFrontQuery::GetTableSchema() const
+TTableSchemaPtr TFrontQuery::GetTableSchema(bool castToQLType) const
 {
     if (ProjectClause) {
-        return ProjectClause->GetTableSchema();
+        return ProjectClause->GetTableSchema(castToQLType);
     }
 
     if (GroupClause) {
