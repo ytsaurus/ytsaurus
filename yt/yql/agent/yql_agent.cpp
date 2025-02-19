@@ -449,6 +449,7 @@ private:
 
         try {
             auto abortResult = YqlPlugin_->Abort(queryId);
+            YT_LOG_DEBUG("Plugin abortion is finished (QueryId: %v)", queryId);
             if (auto ysonError = abortResult.YsonError) {
                 error = ConvertTo<TError>(TYsonString(*ysonError));
             }
