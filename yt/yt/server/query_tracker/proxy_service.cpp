@@ -335,7 +335,7 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, GetQueryTrackerInfo)
     {
         YT_VERIFY(NRpcProxy::NProto::TReqGetQueryTrackerInfo::GetDescriptor()->field_count() == 2);
-        YT_VERIFY(NRpcProxy::NProto::TRspGetQueryTrackerInfo::GetDescriptor()->field_count() == 4);
+        YT_VERIFY(NRpcProxy::NProto::TRspGetQueryTrackerInfo::GetDescriptor()->field_count() == 5);
 
         auto rpcRequest = request->rpc_proxy_request();
         auto* rpcResponse = response->mutable_rpc_proxy_response();
@@ -356,6 +356,9 @@ private:
         rpcResponse->set_supported_features(result.SupportedFeatures.ToString());
         for (const auto& accessControlObject : result.AccessControlObjects) {
             *rpcResponse->add_access_control_objects() = accessControlObject;
+        }
+        for (const auto& cluster : result.Clusters) {
+            *rpcResponse->add_clusters() = cluster;
         }
 
         context->Reply();
