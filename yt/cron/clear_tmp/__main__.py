@@ -195,7 +195,7 @@ def configure_logger(args):
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Clean operations from cypress.")
+    parser = argparse.ArgumentParser(description="Clean objects from cypress")
     parser.add_argument("--directory", default="//tmp")
     parser.add_argument("--account")
     parser.add_argument("--max-disk-space", type=int, default=None)
