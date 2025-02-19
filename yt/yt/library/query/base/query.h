@@ -35,8 +35,10 @@ struct TExpression
     : public TRefCounted
 {
     NTableClient::TLogicalTypePtr LogicalType;
+    NTableClient::TLogicalTypePtr OriginalLogicalType;
 
     explicit TExpression(NTableClient::TLogicalTypePtr type);
+    TExpression(NTableClient::TLogicalTypePtr type, NTableClient::TLogicalTypePtr originalType);
 
     explicit TExpression(EValueType type);
 

@@ -31,10 +31,17 @@ struct TExpressionRowsetTag
 
 TExpression::TExpression(NTableClient::TLogicalTypePtr type)
     : LogicalType(std::move(type))
+    , OriginalLogicalType(LogicalType)
+{ }
+
+TExpression::TExpression(NTableClient::TLogicalTypePtr type, NTableClient::TLogicalTypePtr originalType)
+    : LogicalType(std::move(type))
+    , OriginalLogicalType(std::move(originalType))
 { }
 
 TExpression::TExpression(EValueType type)
     : LogicalType(MakeLogicalType(GetLogicalType(type), /*required*/ false))
+    , OriginalLogicalType(LogicalType)
 { }
 
 EValueType TExpression::GetWireType() const
@@ -56,11 +63,11 @@ TLiteralExpression::TLiteralExpression(EValueType type, TOwningValue value)
 ////////////////////////////////////////////////////////////////////////////////
 
 TReferenceExpression::TReferenceExpression(const NTableClient::TLogicalTypePtr& type)
-    : TExpression(type)
+    : TExpression(ToQLType(type), type)
 { }
 
 TReferenceExpression::TReferenceExpression(const NTableClient::TLogicalTypePtr& type, const std::string& columnName)
-    : TExpression(type)
+    : TExpression(ToQLType(type), type)
     , ColumnName(columnName)
 { }
 
@@ -463,7 +470,7 @@ TTableSchemaPtr TProjectClause::GetTableSchema(bool castToQLType) const
     result.reserve(Projections.size());
 
     for (const auto& item : Projections) {
-        auto logicalType = castToQLType ? ToQLType(item.Expression->LogicalType) : item.Expression->LogicalType;
+        auto logicalType = castToQLType ? item.Expression->LogicalType : item.Expression->OriginalLogicalType;
         result.emplace_back(item.Name, std::move(logicalType));
     }
 
