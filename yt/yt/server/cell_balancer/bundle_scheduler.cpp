@@ -226,8 +226,10 @@ public:
                 mutations->AlertsToFire.push_back(TAlert{
                     .Id = "zone_is_disrupted",
                     .BundleName = bundleName,
-                    .Description = Format("Zone is disrupted. Disabling all %v allocations.",
-                        adapter->GetInstanceType())
+                    .Description = Format("Zone %Qv is disrupted. Disabling all %v allocations within %Qv.",
+                        zoneName,
+                        adapter->GetInstanceType(),
+                        dataCenterName),
                 });
                 continue;
             }
