@@ -624,7 +624,12 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
 
         context->ReplyFrom(tabletCountFuture.ApplyUnique(BIND(
             [context, response] (TErrorOr<int>&& result) {
-                response->set_tablet_count(result.ValueOrDefault(0));
+                if (!result.IsOK()) {
+                    return TError(std::move(result));
+                }
+
+                response->set_tablet_count(result.Value());
+                return TError();
             })));
     } else {
         context->Reply();
