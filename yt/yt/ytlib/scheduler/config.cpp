@@ -253,6 +253,22 @@ void TDelayConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPatchSpecProtocolTestingOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("delay_before_cypress_flush", &TThis::DelayBeforeCypressFlush)
+        .Default();
+    registrar.Parameter("delay_before_apply", &TThis::DelayBeforeApply)
+        .Default();
+    registrar.Parameter("fail_validate", &TThis::FailValidate)
+        .Default();
+    registrar.Parameter("fail_apply", &TThis::FailApply)
+        .Default();
+    registrar.Parameter("fail_revive", &TThis::FailRevive)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(eshcherbin): Change all delays to TDelayConfigPtr.
 void TTestingOperationOptions::Register(TRegistrar registrar)
 {
@@ -318,6 +334,8 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("throw_exception_during_operation_abort", &TThis::ThrowExceptionDuringOperationAbort)
         .Default(false);
+    registrar.Parameter("patch_spec_protocol", &TThis::PatchSpecProtocol)
+        .Default();
 
     registrar.Postprocessor([] (TTestingOperationOptions* config) {
         if (const auto& delay = config->InsideScheduleAllocationDelay;

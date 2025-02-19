@@ -1189,6 +1189,7 @@ private:
                 "has_secure_vault",
                 "temporary_token_node_id",
                 "need_to_clear_temporary_token_expiration_timeout",
+                "cumulative_spec_patch",
             };
             const int operationsCount = std::ssize(OperationIds_);
 
@@ -1396,7 +1397,8 @@ private:
                 attributes.Get<std::vector<TOperationEvent>>("events", {}),
                 attributes.Get<bool>("suspended", false),
                 attributes.Get<int>("registration_index", 0),
-                attributes.Get<THashMap<EOperationAlertType, TOperationAlert>>("alerts", {}));
+                attributes.Get<THashMap<EOperationAlertType, TOperationAlert>>("alerts", {}),
+                attributes.Find<INodePtr>("cumulative_spec_patch"));
 
             auto schedulingAttributesMap = attributes.Find<THashMap<TString, TOperationPoolTreeAttributes>>("scheduling_attributes_per_pool_tree");
             if (schedulingAttributesMap) {
@@ -1928,6 +1930,14 @@ private:
                 }
             }
 
+            if (operation->GetShouldFlushSpecPatch()) {
+                operation->SetShouldFlushSpecPatch(false);
+                YT_VERIFY(operation->CumulativeSpecPatch());
+                auto req = multisetReq->add_subrequests();
+                req->set_attribute("cumulative_spec_patch");
+                req->set_value(ConvertToYsonStringNestingLimited(operation->CumulativeSpecPatch()).ToString());
+            }
+
             batchReq->AddRequest(multisetReq, "update_op_node");
 
             auto batchRspOrError = WaitFor(batchReq->Invoke());
@@ -2306,6 +2316,11 @@ void TMasterConnector::SetCustomWatcher(
     std::optional<TWatcherLockOptions> lockOptions)
 {
     Impl_->SetCustomWatcher(type, std::move(requester), std::move(handler), period, alertType, lockOptions);
+}
+
+int TMasterConnector::GetYsonNestingLevelLimit() const
+{
+    return Impl_->GetYsonNestingLevelLimit();
 }
 
 DELEGATE_SIGNAL(TMasterConnector, void(), MasterConnecting, *Impl_);

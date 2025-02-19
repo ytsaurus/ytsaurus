@@ -724,6 +724,16 @@ private:
         return Spec_;
     }
 
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TOrderedMergeOperationSpec>(spec);
+    }
+
+    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    {
+        return NYsonStructUpdate::TConfigurator<TOrderedMergeOperationSpec>();
+    }
+
     void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
@@ -943,6 +953,16 @@ private:
         return Spec_;
     }
 
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TMapOperationSpec>(spec);
+    }
+
+    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    {
+        return NYsonStructUpdate::TConfigurator<TMapOperationSpec>();
+    }
+
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOrderedMapController, 0x3be901ca);
 };
 
@@ -1159,6 +1179,16 @@ private:
     TYsonStructPtr GetTypedSpec() const override
     {
         return Spec_;
+    }
+
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TEraseOperationSpec>(spec);
+    }
+
+    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    {
+        return NYsonStructUpdate::TConfigurator<TEraseOperationSpec>();
     }
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TEraseController, 0xfbb39ac0);
@@ -1890,6 +1920,16 @@ private:
     TYsonStructPtr GetTypedSpec() const override
     {
         return Spec_;
+    }
+
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TRemoteCopyOperationSpec>(spec);
+    }
+
+    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    {
+        return NYsonStructUpdate::TConfigurator<TRemoteCopyOperationSpec>();
     }
 
     TCpuResource GetCpuLimit() const override

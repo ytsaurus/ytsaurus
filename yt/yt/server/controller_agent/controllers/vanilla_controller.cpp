@@ -221,6 +221,16 @@ public:
 
     void OnOperationIncarnationChanged(bool operationIsReviving);
 
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TVanillaOperationSpec>(ConvertToNode(spec));
+    }
+
+    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    {
+        return NYsonStructUpdate::TConfigurator<TVanillaOperationSpec>();
+    }
+
 private:
     TVanillaOperationSpecPtr Spec_;
     TVanillaOperationOptionsPtr Options_;

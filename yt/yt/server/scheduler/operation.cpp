@@ -109,7 +109,8 @@ TOperation::TOperation(
     const std::vector<TOperationEvent>& events,
     bool suspended,
     int registrationIndex,
-    const THashMap<EOperationAlertType, TOperationAlert>& alerts)
+    const THashMap<EOperationAlertType, TOperationAlert>& alerts,
+    INodePtr cumulativeSpecPatch)
     : MutationId_(mutationId)
     , Suspended_(suspended)
     , UserTransactionId_(userTransactionId)
@@ -123,6 +124,7 @@ TOperation::TOperation(
     , BaseAcl_(std::move(baseAcl))
     , ExperimentAssignments_(std::move(experimentAssignments))
     , RegistrationIndex_(registrationIndex)
+    , CumulativeSpecPatch_(std::move(cumulativeSpecPatch))
     , Id_(id)
     , Type_(type)
     , StartTime_(startTime)

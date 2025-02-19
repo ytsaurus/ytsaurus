@@ -105,6 +105,14 @@ using TBriefVanillaTaskSpecMap = THashMap<std::string, TBriefVanillaTaskSpec>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPatchSpecInProgressInfo
+{
+    std::string User;
+    TInstant StartTime;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 DEFINE_ENUM(EUnschedulableReason,
     (IsNotRunning)
     (Suspended)
@@ -286,6 +294,15 @@ public:
     //! Index that is incremented after each operation revival.
     DEFINE_BYREF_RW_PROPERTY(TControllerEpoch, ControllerEpoch, 0);
 
+    //! Use it like a lock to prevent concurrent update_op_parameters.
+    //! If set, contains info about update in progress.
+    //! nullopt means that there is no update in progress
+    DEFINE_BYREF_RW_PROPERTY(std::optional<TPatchSpecInProgressInfo>, PatchSpecInProgress);
+
+    //! Nullable.
+    DEFINE_BYREF_RW_PROPERTY_FORCE_FLUSH(NYTree::INodePtr, CumulativeSpecPatch);
+    DEFINE_BYVAL_RW_PROPERTY(bool, ShouldFlushSpecPatch, false);
+
 public:
     //! Returns operation id.
     TOperationId GetId() const override;
@@ -445,7 +462,8 @@ public:
         const std::vector<TOperationEvent>& events = {},
         bool suspended = false,
         int registrationIndex = 0,
-        const THashMap<EOperationAlertType, TOperationAlert>& alerts = {});
+        const THashMap<EOperationAlertType, TOperationAlert>& alerts = {},
+        NYTree::INodePtr cumulativeSpecPatch = nullptr);
 
 private:
     const TOperationId Id_;
