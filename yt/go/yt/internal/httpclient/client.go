@@ -640,6 +640,7 @@ func (c *httpClient) AttachTx(ctx context.Context, txID yt.TxID, options *yt.Att
 
 func (c *httpClient) Stop() {
 	c.stop.Stop()
+	c.httpClient.CloseIdleConnections()
 }
 
 func (c *httpClient) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {
