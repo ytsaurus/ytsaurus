@@ -97,6 +97,28 @@ public:
             });
     }
 
+    TFuture<void> MakeTransactionReadyToCommit(
+        TTransactionId transactionId,
+        TTimestamp commitTimestamp,
+        TClusterTag commitTimestampClusterTag,
+        const NRpc::TAuthenticationIdentity& identity) override
+    {
+        return SendRequest<TTransactionParticipantServiceProxy::TReqMakeTransactionReadyToCommit>(
+            [=, this] (TTransactionParticipantServiceProxy* proxy) {
+                YT_ASSERT_THREAD_AFFINITY_ANY();
+
+                auto req = proxy->MakeTransactionReadyToCommit();
+                req->SetResponseHeavy(true);
+                PrepareRequest(req);
+                NRpc::SetAuthenticationIdentity(req, identity);
+                ToProto(req->mutable_transaction_id(), transactionId);
+                req->set_commit_timestamp(commitTimestamp);
+                req->set_commit_timestamp_cluster_tag(ToProto(commitTimestampClusterTag));
+
+                return req;
+            });
+    }
+
     TFuture<void> CommitTransaction(
         TTransactionId transactionId,
         TTimestamp commitTimestamp,
