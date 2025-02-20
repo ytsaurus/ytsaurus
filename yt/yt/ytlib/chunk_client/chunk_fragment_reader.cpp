@@ -581,7 +581,10 @@ private:
                 auto& replicasWithRevision = chunkProbingResults[chunkIndex].ReplicasWithRevision;
                 replicasWithRevision.Revision = ReplicaInfos_[chunkIndex].Revision;
                 replicasWithRevision.Replicas.push_back(TChunkReplicaInfo{
-                    .Penalty = ComputeProbingPenalty(probingRsp->net_queue_size(), subresponse.disk_queue_size(), chunkIdWithIndexes.MediumIndex),
+                    .Penalty = ComputeProbingPenalty(
+                        probingRsp->net_queue_size(),
+                        subresponse.disk_queue_size(),
+                        chunkIdWithIndexes.MediumIndex),
                     .PeerInfo = peerInfo,
                     .ReplicaIndex = chunkIdWithIndexes.ReplicaIndex,
                 });
@@ -642,7 +645,10 @@ private:
             const auto& allyReplicas = allyReplicasInfos[chunkIndex];
             for (auto chunkReplica : allyReplicas.Replicas) {
                 auto nodeId = chunkReplica.GetNodeId();
-                auto chunkIdWithIndexes = TChunkIdWithIndexes(chunkId, chunkReplica.GetReplicaIndex(), chunkReplica.GetMediumIndex());
+                auto chunkIdWithIndexes = TChunkIdWithIndexes(
+                    chunkId,
+                    chunkReplica.GetReplicaIndex(),
+                    chunkReplica.GetMediumIndex());
                 auto [it, emplaced] = nodeIdToNodeIndex.try_emplace(nodeId);
                 if (emplaced) {
                     it->second = probingInfos.size();
