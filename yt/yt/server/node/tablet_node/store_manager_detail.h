@@ -75,6 +75,11 @@ public:
         const NTabletNode::NProto::TMountHint& mountHint) override;
     void Remount(const TTableSettings& settings) override;
 
+    void PopulateReplicateTabletContentRequest(
+        NProto::TReqReplicateTabletContent* request) override;
+    void LoadReplicatedContent(
+        const NProto::TReqReplicateTabletContent* request) override;
+
     void Rotate(bool createNewStore, NLsm::EStoreRotationReason reason, bool allowEmptyStore = false) override;
 
     bool IsStoreLocked(IStorePtr store) const override;

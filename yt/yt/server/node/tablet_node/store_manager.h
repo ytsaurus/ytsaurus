@@ -113,6 +113,11 @@ struct IStoreManager
         const NTabletNode::NProto::TMountHint& mountHint) = 0;
     virtual void Remount(const TTableSettings& settings) = 0;
 
+    virtual void PopulateReplicateTabletContentRequest(
+        NProto::TReqReplicateTabletContent* request) = 0;
+    virtual void LoadReplicatedContent(
+        const NProto::TReqReplicateTabletContent* request) = 0;
+
     virtual ISortedStoreManagerPtr AsSorted() = 0;
     virtual IOrderedStoreManagerPtr AsOrdered() = 0;
 };

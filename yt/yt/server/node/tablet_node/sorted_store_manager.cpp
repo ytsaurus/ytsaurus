@@ -636,6 +636,35 @@ void TSortedStoreManager::Remount(const NTabletNode::TTableSettings& settings)
     }
 }
 
+void TSortedStoreManager::PopulateReplicateTabletContentRequest(
+    NProto::TReqReplicateTabletContent* request)
+{
+    auto* replicatableContent = request->mutable_replicatable_content();
+    auto& movementData = Tablet_->SmoothMovementData();
+
+    auto onStore = [&] (const IStorePtr& store) {
+        if (store->IsDynamic() && store->GetStoreState() != EStoreState::ActiveDynamic) {
+            movementData.CommonDynamicStoreIds().insert(store->GetId());
+        }
+
+        store->PopulateAddStoreDescriptor(replicatableContent->add_stores());
+        ToProto(
+            request->add_store_partition_ids(),
+            store->AsSorted()->GetPartition()->GetId());
+    };
+
+    for (const auto& store : Tablet_->GetEden()->Stores()) {
+        onStore(store);
+    }
+    for (const auto& partition : Tablet_->PartitionList()) {
+        for (const auto& store : partition->Stores()) {
+            onStore(store);
+        }
+    }
+
+    TStoreManagerBase::PopulateReplicateTabletContentRequest(request);
+}
+
 void TSortedStoreManager::AddStore(IStorePtr store, bool onMount, bool onFlush, TPartitionId partitionIdHint)
 {
     TStoreManagerBase::AddStore(store, onMount, onFlush, partitionIdHint);

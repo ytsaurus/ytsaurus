@@ -1,5 +1,6 @@
 #include "hunk_chunk.h"
 
+#include "private.h"
 #include "serialize.h"
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
@@ -14,6 +15,10 @@ namespace NYT::NTabletNode {
 
 using namespace NChunkClient;
 using namespace NHydra;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static constexpr auto& Logger = TabletNodeLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -80,12 +85,34 @@ bool THunkChunk::IsDangling() const
     return StoreRefCount_ == 0 &&
         PreparedStoreRefCount_ <= 0 &&
         !LockingState_.IsLocked() &&
-        !AttachedCompressionDictionary_;
+        !IsAttachedCompressionDictionary();
 }
 
 int THunkChunk::GetLockCount() const
 {
     return LockingState_.GetLockCount();
+}
+
+void THunkChunk::PopulateAddHunkChunkDescriptor(NProto::TAddHunkChunkDescriptor* descriptor) const
+{
+    if (IsAttachedCompressionDictionary()) {
+        THROW_ERROR_EXCEPTION("Cannot replicate hunk chunk %v which is an attached compression dictionary",
+            Id_);
+    }
+
+    if (PreparedStoreRefCount_ > 0) {
+        YT_LOG_ALERT("Hunk chunk has nonzero ref count during replication "
+            "(HunkChunkId: %v, PreparedStoreRefCount: %v)",
+            Id_,
+            PreparedStoreRefCount_);
+
+        THROW_ERROR_EXCEPTION("Cannot replicate hunk chunk %v with nonzero prepared store ref count",
+            Id_)
+            << TErrorAttribute("prepared_store_ref_count", PreparedStoreRefCount_);
+    }
+
+    ToProto(descriptor->mutable_chunk_id(), Id_);
+    ToProto(descriptor->mutable_chunk_meta(), ChunkMeta_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
