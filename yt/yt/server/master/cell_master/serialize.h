@@ -223,6 +223,7 @@ DEFINE_ENUM(EMasterReign,
     ((ForbidAlterKeyColumnToAny)                                    (2833))  // dtorilov
     ((UpdateRttConfig)                                              (2834))  // akozhikhov
     ((TabletTransactionSerializationType_25_1_NOOP)                 (2835))  // ponasenko-rs
+    ((FixChunkStatisticsInMasterCellRemoval)                        (2836))  // cherepashka
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

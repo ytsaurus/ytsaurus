@@ -584,13 +584,14 @@ private:
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
         const auto& portalManager = Bootstrap_->GetPortalManager();
+        const auto& multicellNodeStatistics = Bootstrap_->GetMulticellStatisticsCollector()->GetMulticellNodeStatistics();
 
         std::vector<std::map<TCellTag, TMasterEntry>::iterator> removedMasterCellTagsIterators;
         THashSet<TCellTag> removedMasterCellTags;
         for (auto it = RegisteredMasterMap_.begin(); it != RegisteredMasterMap_.end(); ++it) {
             auto cellTag = it->first;
-            const auto& entry = it->second;
             if (!IsKnownCellTag(cellTag)) {
+                auto cellStatistics = multicellNodeStatistics.GetCellStatistics(cellTag);
                 YT_LOG_FATAL_UNLESS(
                     GetDynamicConfig()->Testing->AllowMasterCellRemoval,
                     "Unknown master cell tag %v in saved master entry",
@@ -602,10 +603,10 @@ private:
                     cellTag);
 
                 YT_LOG_FATAL_IF(
-                    entry.Statistics.chunk_count() > 0,
+                    cellStatistics.chunk_count() > 0,
                     "Master cell %v with %v chunks was removed",
                     cellTag,
-                    entry.Statistics.chunk_count());
+                    cellStatistics.chunk_count());
 
                 auto cellRoles = ComputeMasterCellRolesFromConfig(cellTag);
                 YT_LOG_FATAL_UNLESS(
