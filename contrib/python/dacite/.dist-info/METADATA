@@ -1,6 +1,6 @@
-Metadata-Version: 2.1
+Metadata-Version: 2.2
 Name: dacite
-Version: 1.8.1
+Version: 1.9.2
 Summary: Simple creation of data classes from dictionaries.
 Home-page: https://github.com/konradhalas/dacite
 Author: Konrad Hałas
@@ -12,26 +12,39 @@ Classifier: Intended Audience :: Developers
 Classifier: License :: OSI Approved :: MIT License
 Classifier: Operating System :: OS Independent
 Classifier: Programming Language :: Python
-Classifier: Programming Language :: Python :: 3.6
 Classifier: Programming Language :: Python :: 3.7
 Classifier: Programming Language :: Python :: 3.8
 Classifier: Programming Language :: Python :: 3.9
 Classifier: Programming Language :: Python :: 3.10
 Classifier: Programming Language :: Python :: 3.11
+Classifier: Programming Language :: Python :: 3.12
+Classifier: Programming Language :: Python :: 3.13
 Classifier: Topic :: Software Development :: Libraries :: Python Modules
-Requires-Python: >=3.6
+Requires-Python: >=3.7
 Description-Content-Type: text/markdown
 License-File: LICENSE
-Requires-Dist: dataclasses ; python_version < "3.7"
+Requires-Dist: dataclasses; python_version < "3.7"
 Provides-Extra: dev
-Requires-Dist: pytest (>=5) ; extra == 'dev'
-Requires-Dist: pytest-benchmark ; extra == 'dev'
-Requires-Dist: pytest-cov ; extra == 'dev'
-Requires-Dist: coveralls ; extra == 'dev'
-Requires-Dist: black ; extra == 'dev'
-Requires-Dist: mypy ; extra == 'dev'
-Requires-Dist: pylint ; extra == 'dev'
-Requires-Dist: pre-commit ; extra == 'dev'
+Requires-Dist: pytest>=5; extra == "dev"
+Requires-Dist: pytest-benchmark; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+Requires-Dist: coveralls; extra == "dev"
+Requires-Dist: black; extra == "dev"
+Requires-Dist: mypy; extra == "dev"
+Requires-Dist: pylint; extra == "dev"
+Requires-Dist: pre-commit; extra == "dev"
+Dynamic: author
+Dynamic: author-email
+Dynamic: classifier
+Dynamic: description
+Dynamic: description-content-type
+Dynamic: home-page
+Dynamic: keywords
+Dynamic: license
+Dynamic: provides-extra
+Dynamic: requires-dist
+Dynamic: requires-python
+Dynamic: summary
 
 ![](https://user-images.githubusercontent.com/1078369/212840759-174c0f2b-d446-4c3a-b97c-67a0b912e7f6.png)
 
@@ -57,7 +70,7 @@ $ pip install dacite
 
 ## Requirements
 
-Minimum Python version supported by `dacite` is 3.6.
+Minimum Python version supported by `dacite` is 3.7.
 
 ## Quick start
 
@@ -89,12 +102,14 @@ assert user == User(name='John', age=30, is_active=True)
 Dacite supports following features:
 
 - nested structures
-- (basic) types checking
+- (basic) type checking
 - optional fields (i.e. `typing.Optional`)
 - unions
+- generics
 - forward references
 - collections
 - custom type hooks
+- case conversion
 
 ## Motivation
 
@@ -144,6 +159,7 @@ Configuration is a (data) class with following fields:
 - `check_types`
 - `strict`
 - `strict_unions_match`
+- `convert_key`
 
 The examples below show all features of `from_dict` function and usage
 of all `Config` parameters.
@@ -268,6 +284,71 @@ result = from_dict(data_class=B, data=data)
 assert result == B(a_list=[A(x='test1', y=1), A(x='test2', y=2)])
 ```
 
+### Generics
+
+Dacite supports generics: (multi-)generic dataclasses, but also dataclasses that inherit from a generic dataclass, or dataclasses that have a generic dataclass field.
+
+```python
+T = TypeVar('T')
+U = TypeVar('U')
+
+@dataclass
+class X:
+    a: str
+
+
+@dataclass
+class A(Generic[T, U]):
+    x: T
+    y: list[U]
+
+data = {
+    'x': {
+        'a': 'foo',
+    },
+    'y': [1, 2, 3]
+}
+
+result = from_dict(data_class=A[X, int], data=data)
+
+assert result == A(x=X(a='foo'), y=[1,2,3])
+
+
+@dataclass
+class B(A[X, int]):
+    z: str
+
+data = {
+    'x': {
+        'a': 'foo',
+    },
+    'y': [1, 2, 3],
+    'z': 'bar'
+}
+
+result = from_dict(data_class=B, data=data)
+
+assert result == B(x=X(a='foo'), y=[1,2,3], z='bar')
+
+
+@dataclass
+class C:
+    z: A[X, int]
+
+data = {
+    'z': {
+        'x': {
+            'a': 'foo',
+        },
+        'y': [1, 2, 3],
+    }
+}
+
+result = from_dict(data_class=C, data=data)
+
+assert result == C(z=A(x=X(a='foo'), y=[1,2,3]))
+```
+
 ### Type hooks
 
 You can use `Config.type_hooks` argument if you want to transform the input 
@@ -348,30 +429,17 @@ data = from_dict(X, {"y": {"s": "text"}}, Config(forward_references={"Y": Y}))
 assert data == X(Y("text"))
 ```
 
-### Types checking
+### Type checking
 
-There are rare cases when `dacite` built-in type checker can not validate 
-your types (e.g. custom generic class) or you have such functionality 
-covered by other library and you don't want to validate your types twice. 
-In such case you can disable type checking with `Config(check_types=False)`.
-By default types checking is enabled.
+If you want to trade-off type checking for speed, you can disabled type checking by setting `check_types` to `False`.
 
 ```python
-T = TypeVar('T')
-
-
-class X(Generic[T]):
-    pass
-
-
 @dataclass
 class A:
-    x: X[str]
+    x: str
 
-
-x = X[str]()
-
-assert from_dict(A, {'x': x}, config=Config(check_types=False)) == A(x=x)
+# won't throw an error even though the type is wrong
+from_dict(A, {'x': 4}, config=Config(check_types=False)) 
 ```
 
 ### Strict mode
@@ -388,6 +456,30 @@ exception.
 returns instance of this type. It means that it's possible that there are other 
 matching types further on the `Union` types list. With `strict_unions_match` 
 only a single match is allowed, otherwise `dacite` raises `StrictUnionMatchError`.
+
+## Convert key
+
+You can pass a callable to the `convert_key` configuration parameter to convert camelCase to snake_case.
+
+```python
+def to_camel_case(key: str) -> str:
+    first_part, *remaining_parts = key.split('_')
+    return first_part + ''.join(part.title() for part in remaining_parts)
+
+@dataclass
+class Person:
+    first_name: str
+    last_name: str
+
+data = {
+    'firstName': 'John',
+    'lastName': 'Doe'
+}
+
+result = from_dict(Person, data, Config(convert_key=to_camel_case))
+
+assert result == Person(first_name='John', last_name='Doe') 
+```
 
 ## Exceptions
 
@@ -427,33 +519,33 @@ first within an issue.
 
 Clone `dacite` repository:
 
-```
-$ git clone git@github.com:konradhalas/dacite.git
+```bash
+git clone git@github.com:konradhalas/dacite.git
 ```
 
 Create and activate virtualenv in the way you like:
 
-```
-$ python3 -m venv dacite-env
-$ source dacite-env/bin/activate
+```bash
+python3 -m venv dacite-env
+source dacite-env/bin/activate
 ```
 
 Install all `dacite` dependencies:
 
-```
-$ pip install -e .[dev]
+```bash
+pip install -e .[dev]
 ```
 
 And, optionally but recommended, install pre-commit hook for black:
 
-```
-$ pre-commit install
+```bash
+pre-commit install
 ```
 
 To run tests you just have to fire:
 
-```
-$ pytest
+```bash
+pytest
 ```
 
 ### Performance testing

@@ -1,15 +1,10 @@
-from dataclasses import InitVar
-from typing import (
-    Type,
-    Any,
-    Optional,
-    Union,
-    Collection,
-    TypeVar,
-    Mapping,
-    Tuple,
-    cast as typing_cast,
-)
+from dataclasses import InitVar, is_dataclass
+from typing import Type, Any, Optional, Union, Collection, TypeVar, Mapping, Tuple, cast as typing_cast
+
+try:
+    from typing import get_origin  # type: ignore
+except ImportError:
+    from typing_extensions import get_origin  # type: ignore
 
 from dacite.cache import cache
 
@@ -94,52 +89,6 @@ def extract_init_var(type_: Type) -> Union[Type, Any]:
         return Any
 
 
-def is_instance(value: Any, type_: Type) -> bool:
-    try:
-        # As described in PEP 484 - section: "The numeric tower"
-        if (type_ in [float, complex] and isinstance(value, (int, float))) or isinstance(value, type_):
-            return True
-    except TypeError:
-        pass
-    if type_ == Any:
-        return True
-    elif is_union(type_):
-        return any(is_instance(value, t) for t in extract_generic(type_))
-    elif is_generic_collection(type_):
-        origin = extract_origin_collection(type_)
-        if not isinstance(value, origin):
-            return False
-        if not extract_generic(type_):
-            return True
-        if isinstance(value, tuple) and is_tuple(type_):
-            tuple_types = extract_generic(type_)
-            if len(tuple_types) == 1 and tuple_types[0] == ():
-                return len(value) == 0
-            elif len(tuple_types) == 2 and tuple_types[1] is ...:
-                return all(is_instance(item, tuple_types[0]) for item in value)
-            else:
-                if len(tuple_types) != len(value):
-                    return False
-                return all(is_instance(item, item_type) for item, item_type in zip(value, tuple_types))
-        if isinstance(value, Mapping):
-            key_type, val_type = extract_generic(type_, defaults=(Any, Any))
-            for key, val in value.items():
-                if not is_instance(key, key_type) or not is_instance(val, val_type):
-                    return False
-            return True
-        return all(is_instance(item, extract_generic(type_, defaults=(Any,))[0]) for item in value)
-    elif is_new_type(type_):
-        return is_instance(value, extract_new_type(type_))
-    elif is_literal(type_):
-        return value in extract_generic(type_)
-    elif is_init_var(type_):
-        return is_instance(value, extract_init_var(type_))
-    elif is_type_generic(type_):
-        return is_subclass(value, extract_generic(type_)[0])
-    else:
-        return False
-
-
 @cache
 def is_generic_collection(type_: Type) -> bool:
     if not is_generic(type_):
@@ -179,3 +128,54 @@ def is_type_generic(type_: Type) -> bool:
         return type_.__origin__ in (type, Type)
     except AttributeError:
         return False
+
+
+@cache
+def is_generic_dataclass(type_: Type) -> bool:
+    return is_dataclass(get_origin(type_))
+
+
+def is_instance(value: Any, type_: Type) -> bool:
+    try:
+        # As described in PEP 484 - section: "The numeric tower"
+        if (type_ in [float, complex] and isinstance(value, (int, float))) or isinstance(value, type_):
+            return True
+    except TypeError:
+        pass
+    if type_ == Any:
+        return True
+    if is_union(type_):
+        return any(is_instance(value, t) for t in extract_generic(type_))
+    if is_generic_collection(type_):
+        origin = extract_origin_collection(type_)
+        if not isinstance(value, origin):
+            return False
+        if not extract_generic(type_):
+            return True
+        if isinstance(value, tuple) and is_tuple(type_):
+            tuple_types = extract_generic(type_)
+            if len(tuple_types) == 1 and tuple_types[0] == ():
+                return len(value) == 0
+            if len(tuple_types) == 2 and tuple_types[1] is ...:
+                return all(is_instance(item, tuple_types[0]) for item in value)
+            if len(tuple_types) != len(value):
+                return False
+            return all(is_instance(item, item_type) for item, item_type in zip(value, tuple_types))
+        if isinstance(value, Mapping):
+            key_type, val_type = extract_generic(type_, defaults=(Any, Any))
+            for key, val in value.items():
+                if not is_instance(key, key_type) or not is_instance(val, val_type):
+                    return False
+            return True
+        return all(is_instance(item, extract_generic(type_, defaults=(Any,))[0]) for item in value)
+    if is_new_type(type_):
+        return is_instance(value, extract_new_type(type_))
+    if is_literal(type_):
+        return value in extract_generic(type_)
+    if is_init_var(type_):
+        return is_instance(value, extract_init_var(type_))
+    if is_type_generic(type_):
+        return is_subclass(value, extract_generic(type_)[0])
+    if is_generic_dataclass(type_):
+        return isinstance(value, get_origin(type_))  # type: ignore[arg-type]
+    return False

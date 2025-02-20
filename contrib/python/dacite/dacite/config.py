@@ -4,7 +4,7 @@ from typing import Dict, Any, Callable, Optional, Type, List
 
 from dacite.frozen_dict import FrozenDict
 
-if sys.version_info.minor >= 8:
+if sys.version_info >= (3, 8):
     from functools import cached_property  # type: ignore  # pylint: disable=no-name-in-module
 else:
     # Remove when we drop support for Python<3.8
@@ -19,6 +19,7 @@ class Config:
     check_types: bool = True
     strict: bool = False
     strict_unions_match: bool = False
+    convert_key: Callable[[str], str] = field(default_factory=lambda: lambda x: x)
 
     @cached_property
     def hashable_forward_references(self) -> Optional[FrozenDict]:

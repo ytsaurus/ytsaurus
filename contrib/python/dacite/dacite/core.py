@@ -1,6 +1,6 @@
 from dataclasses import is_dataclass
 from itertools import zip_longest
-from typing import TypeVar, Type, Optional, get_type_hints, Mapping, Any, Collection, MutableMapping
+from typing import TypeVar, Type, Optional, Mapping, Any, Collection, MutableMapping
 
 from dacite.cache import cache
 from dacite.config import Config
@@ -8,7 +8,6 @@ from dacite.data import Data
 from dacite.dataclasses import (
     get_default_value_for_field,
     DefaultValueNotFoundError,
-    get_fields,
     is_frozen,
 )
 from dacite.exceptions import (
@@ -33,6 +32,8 @@ from dacite.types import (
     is_subclass,
 )
 
+from dacite.generics import get_concrete_type_hints, get_fields, orig
+
 T = TypeVar("T")
 
 
@@ -47,21 +48,25 @@ def from_dict(data_class: Type[T], data: Data, config: Optional[Config] = None) 
     init_values: MutableMapping[str, Any] = {}
     post_init_values: MutableMapping[str, Any] = {}
     config = config or Config()
+
     try:
-        data_class_hints = cache(get_type_hints)(data_class, localns=config.hashable_forward_references)
+        data_class_hints = cache(get_concrete_type_hints)(data_class, localns=config.hashable_forward_references)
     except NameError as error:
-        raise ForwardReferenceError(str(error))
+        raise ForwardReferenceError(str(error)) from None
     data_class_fields = cache(get_fields)(data_class)
+
     if config.strict:
         extra_fields = set(data.keys()) - {f.name for f in data_class_fields}
         if extra_fields:
             raise UnexpectedDataError(keys=extra_fields)
+
     for field in data_class_fields:
         field_type = data_class_hints[field.name]
-        if field.name in data:
+        key = config.convert_key(field.name)
+
+        if key in data:
             try:
-                field_data = data[field.name]
-                value = _build_value(type_=field_type, data=field_data, config=config)
+                value = _build_value(type_=field_type, data=data[key], config=config)
             except DaciteFieldError as error:
                 error.update_path(field.name)
                 raise
@@ -73,14 +78,17 @@ def from_dict(data_class: Type[T], data: Data, config: Optional[Config] = None) 
             except DefaultValueNotFoundError:
                 if not field.init:
                     continue
-                raise MissingValueError(field.name)
+                raise MissingValueError(field.name) from None
         if field.init:
             init_values[field.name] = value
         elif not is_frozen(data_class):
             post_init_values[field.name] = value
+
     instance = data_class(**init_values)
+
     for key, value in post_init_values.items():
         setattr(instance, key, value)
+
     return instance
 
 
@@ -95,7 +103,7 @@ def _build_value(type_: Type, data: Any, config: Config) -> Any:
         data = _build_value_for_union(union=type_, data=data, config=config)
     elif is_generic_collection(type_):
         data = _build_value_for_collection(collection=type_, data=data, config=config)
-    elif cache(is_dataclass)(type_) and isinstance(data, Mapping):
+    elif cache(is_dataclass)(orig(type_)) and isinstance(data, Mapping):
         data = from_dict(data_class=type_, data=data, config=config)
     for cast_type in config.cast:
         if is_subclass(type_, cast_type):
@@ -126,7 +134,7 @@ def _build_value_for_union(union: Type, data: Any, config: Config) -> Any:
                     return value
         except DaciteError:
             pass
-    if config.strict_unions_match:
+    if config.strict_unions_match and union_matches:
         if len(union_matches) > 1:
             raise StrictUnionMatchError(union_matches)
         return union_matches.popitem()[1]
