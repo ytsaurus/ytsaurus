@@ -979,12 +979,13 @@ void TInputManager::FetchInputTablesAttributes()
 
 void TInputManager::AdjustSchemas(const TTableSchema::TSystemColumnOptions& systemColumnOptions)
 {
-    for (auto& table: InputTables_) {
+    for (const auto& table: InputTables_) {
         table->Schema = table->Schema->WithSystemColumns({
             .EnableTableIndex = systemColumnOptions.EnableTableIndex,
             // Row index for sorted dynamic tables cannot be computed.
             .EnableRowIndex = systemColumnOptions.EnableRowIndex && (!table->Dynamic || !table->Schema->IsSorted()),
-            .EnableRangeIndex = systemColumnOptions.EnableRangeIndex});
+            .EnableRangeIndex = systemColumnOptions.EnableRangeIndex,
+        });
     }
 }
 
