@@ -2453,6 +2453,7 @@ TFuture<TGetQueryTrackerInfoResult> TClient::GetQueryTrackerInfo(
             .ClusterName = rsp->cluster_name(),
             .SupportedFeatures = TYsonString(rsp->supported_features()),
             .AccessControlObjects = FromProto<std::vector<TString>>(rsp->access_control_objects()),
+            .Clusters = FromProto<std::vector<TString>>(rsp->clusters())
         };
     }));
 }
