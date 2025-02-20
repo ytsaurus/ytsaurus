@@ -13,6 +13,8 @@ public:
     virtual TMaybe<TString> Download(const TDownloadTaskParams& params) = 0;
 
     virtual TMaybe<TString> Upload(const TUploadTaskParams& params) = 0;
+
+    virtual TMaybe<TString> Merge(const TMergeTaskParams& params) = 0;
 };
 
 } // namespace NYql

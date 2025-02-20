@@ -50,16 +50,19 @@ public:
     {
     }
 
-    TTempFileHandle Download(const TYtTableRef& ytTable) override {
-        TTempFileHandle tmpFile;
+    std::variant<THolder<TTempFileHandle>, TError> Download(const TYtTableRef& ytTable) override {
+        if (!YtUploadedTablesMock_->Contains(ytTable)) {
+            return TError("Table not found");
+        }
+        auto tmpFile = MakeHolder<TTempFileHandle>();
         TString tableContent = YtUploadedTablesMock_->GetTableContent(ytTable);
-        tmpFile.Write(tableContent.data(), tableContent.size());
+        tmpFile->Write(tableContent.data(), tableContent.size());
         return tmpFile;
     }
 
-    void Upload(const TYtTableRef& ytTable, IInputStream& tableContent) override {
+    TMaybe<TError> Upload(const TYtTableRef& ytTable, IInputStream& tableContent) override {
         YtUploadedTablesMock_->AddTable(ytTable, tableContent.ReadAll());
-        return;
+        return Nothing();
     }
 
 private:

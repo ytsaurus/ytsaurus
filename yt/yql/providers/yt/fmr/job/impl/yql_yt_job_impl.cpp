@@ -19,19 +19,25 @@ public:
     {
     }
 
-    virtual TMaybe<TString> Download(const TDownloadTaskParams& params) override {
-        const auto ytTable = params.Input;
-        const auto cluster = params.Input.Cluster;
-        const auto path = params.Input.Path;
-        const auto tableId = params.Output.TableId;
+    virtual TMaybe<TString> Download(const TDownloadTaskParams& params) override { // вынести в приватный метод для переиспользования
+        try {
+            const auto ytTable = params.Input;
+            const auto cluster = params.Input.Cluster;
+            const auto path = params.Input.Path;
+            const auto tableId = params.Output.TableId;
 
-        YQL_CLOG(DEBUG, FastMapReduce) << "Downloading " << cluster << '.' << path;
+            YQL_CLOG(DEBUG, FastMapReduce) << "Downloading " << cluster << '.' << path;
 
-        TTempFileHandle tableFile = YtService_->Download(ytTable);
-        TFileInput inputStream(tableFile.Name());
-        TString tableContent = inputStream.ReadAll();
-
-        TableDataService_->Put(tableId, tableContent).Wait();;
+            auto res = GetYtTableContent(ytTable);
+            auto err = std::get_if<TError>(&res);
+            if (err) {
+                return err->ErrorMessage;
+            }
+            auto tableContent = std::get<TString>(res);
+            TableDataService_->Put(tableId, tableContent).Wait();
+        } catch (...) {
+            return CurrentExceptionMessage();
+        }
 
         return Nothing();
     }
@@ -60,6 +66,63 @@ public:
 
         return Nothing();
     }
+
+    virtual TMaybe<TString> Merge(const TMergeTaskParams& params) override {
+        const auto inputs = params.Input;
+        const auto output = params.Output;
+
+        YQL_CLOG(DEBUG, FastMapReduce) << "Merging " << inputs.size() << " inputs";
+
+        TString mergedTableContent = "";
+
+        for (const auto& inputTableRef : inputs) {
+            if (CancelFlag_->load()) {
+                return "Canceled";
+            }
+            auto res = GetTableContent(inputTableRef);
+
+            auto err = std::get_if<TError>(&res);
+            if (err) {
+                return err->ErrorMessage;
+            }
+            TString tableContent = std::get<TString>(res);
+
+            mergedTableContent += tableContent;
+        }
+
+        TableDataService_->Put(output.TableId, mergedTableContent).Wait();
+
+        return Nothing();
+    }
+private:
+    std::variant<TString, TError> GetTableContent(const TTableRef& tableRef) {
+        auto ytTable = std::get_if<TYtTableRef>(&tableRef);
+        auto fmrTable = std::get_if<TFmrTableRef>(&tableRef);
+        if (ytTable) {
+            return GetYtTableContent(*ytTable);
+        } else if (fmrTable) {
+            return GetFmrTableContent(*fmrTable);
+        } else {
+            ythrow yexception() << "Unsupported table type";
+        }
+    }
+
+    std::variant<TString, TError> GetYtTableContent(const TYtTableRef& ytTable) {
+        auto res = YtService_->Download(ytTable);
+        auto* err = std::get_if<TError>(&res);
+        if (err) {
+            return *err;
+        }
+        auto tableFile = std::get_if<THolder<TTempFileHandle>>(&res);
+        TFileInput inputStream(tableFile->Get()->Name());
+        TString tableContent = inputStream.ReadAll();
+        return tableContent;
+    }
+
+    std::variant<TString, TError> GetFmrTableContent(const TFmrTableRef& fmrTable) {
+        auto res = TableDataService_->Get(fmrTable.TableId);
+        return res.GetValueSync().GetRef();
+    }
 private:
     ITableDataService::TPtr TableDataService_;
     IYtService::TPtr YtService_;
@@ -71,7 +134,7 @@ IFmrJob::TPtr MakeFmrJob(ITableDataService::TPtr tableDataService, IYtService::T
 }
 
 ETaskStatus RunJob(
-    const TTaskParams& taskParams,
+    TTask::TPtr task,
     ITableDataService::TPtr tableDataService,
     IYtService::TPtr ytService,
     std::shared_ptr<std::atomic<bool>> cancelFlag
@@ -86,14 +149,13 @@ ETaskStatus RunJob(
         } else if constexpr (std::is_same_v<T, TDownloadTaskParams>) {
             return job->Download(taskParams);
         } else if constexpr (std::is_same_v<T, TMergeTaskParams>) {
-            TMaybe<TString> errMsg = "Not Defined";
-            return errMsg;
+            return job->Merge(taskParams);
         } else {
             throw std::runtime_error{"Unsupported task type"};
         }
     };
 
-    TMaybe<TString> taskResult = std::visit(processTask, taskParams);
+    TMaybe<TString> taskResult = std::visit(processTask, task->TaskParams);
 
     if (taskResult.Defined()) {
         YQL_CLOG(ERROR, FastMapReduce) << "Task failed: " << taskResult.GetRef();
