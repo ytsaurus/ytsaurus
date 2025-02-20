@@ -20,6 +20,7 @@ PEERDIR(
     yql/essentials/ast
     yql/essentials/sql/pg
     yql/essentials/parser/pg_wrapper
+    yql/essentials/parser/pg_wrapper/interface
     yql/essentials/core/facade
     yql/essentials/core/file_storage
     yql/essentials/core/file_storage/proto
@@ -35,6 +36,7 @@ PEERDIR(
     yql/essentials/utils/backtrace
     yql/essentials/utils/log
     yql/essentials/utils/log/proto
+    yql/essentials/sql/v1
     yql/essentials/providers/common/proto
     yql/essentials/providers/common/codec
     yql/essentials/providers/common/udf_resolve
