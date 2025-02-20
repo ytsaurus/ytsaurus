@@ -47,6 +47,7 @@ DEFINE_ENUM(ETabletReign,
     ((SmoothMovementForwardWrites)                 (101102)) // ifsmirnov
     ((FixPrepareToggleHunkTabletStore)             (101103)) // akozhikhov
     ((CancelTabletTransition)                      (101104)) // ifsmirnov
+    ((PerRowSequencer_25_1_NOOP)                   (101105)) // ponasenko-rs
 );
 
 static_assert(TEnumTraits<ETabletReign>::IsMonotonic, "Tablet reign enum is not monotonic");
