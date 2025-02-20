@@ -615,17 +615,32 @@ class TestAccessControl(YTEnvSetup):
     def test_get_query_tracker_info(self, query_tracker):
         supported_features = {'access_control': True, 'multiple_aco': True}
         assert get_query_tracker_info() == \
-            {'query_tracker_stage': 'production', 'cluster_name': 'primary', 'supported_features': supported_features, 'access_control_objects': ['everyone', 'everyone-share', 'nobody']}
+            {
+                'query_tracker_stage': 'production',
+                'cluster_name': 'primary',
+                'supported_features': supported_features,
+                'access_control_objects': ['everyone', 'everyone-share', 'nobody'],
+                'clusters': ['primary']
+            }
 
-        assert get_query_tracker_info(attributes=[]) == {'query_tracker_stage': 'production', 'cluster_name': '', 'supported_features': {}, 'access_control_objects': []}
-        assert get_query_tracker_info(attributes=["cluster_name"]) == {'query_tracker_stage': 'production', 'cluster_name': 'primary', 'supported_features': {}, 'access_control_objects': []}
+        assert get_query_tracker_info(attributes=[]) == {'query_tracker_stage': 'production', 'cluster_name': '', 'supported_features': {}, 'access_control_objects': [], 'clusters': []}
+        assert get_query_tracker_info(attributes=["cluster_name"]) == \
+            {'query_tracker_stage': 'production', 'cluster_name': 'primary', 'supported_features': {}, 'access_control_objects': [], 'clusters': []}
         assert get_query_tracker_info(attributes=["supported_features"]) == \
-            {'query_tracker_stage': 'production', 'cluster_name': '', 'supported_features': supported_features, 'access_control_objects': []}
+            {'query_tracker_stage': 'production', 'cluster_name': '', 'supported_features': supported_features, 'access_control_objects': [], 'clusters': []}
         assert get_query_tracker_info(attributes=["access_control_objects"]) == \
-            {'query_tracker_stage': 'production', 'cluster_name': '', 'supported_features': {}, 'access_control_objects': ['everyone', 'everyone-share', 'nobody']}
+            {'query_tracker_stage': 'production', 'cluster_name': '', 'supported_features': {}, 'access_control_objects': ['everyone', 'everyone-share', 'nobody'], 'clusters': []}
+        assert get_query_tracker_info(attributes=["clusters"]) == \
+            {'query_tracker_stage': 'production', 'cluster_name': '', 'supported_features': {}, 'access_control_objects': [], 'clusters': ['primary']}
 
         assert get_query_tracker_info(stage='testing') == \
-            {'query_tracker_stage': 'testing', 'cluster_name': 'primary', 'supported_features': supported_features, 'access_control_objects': ['everyone', 'everyone-share', 'nobody']}
+            {
+                'query_tracker_stage': 'testing',
+                'cluster_name': 'primary',
+                'supported_features': supported_features,
+                'access_control_objects': ['everyone', 'everyone-share', 'nobody'],
+                'clusters': ['primary']
+            }
 
 
 class TestShare(YTEnvSetup):
