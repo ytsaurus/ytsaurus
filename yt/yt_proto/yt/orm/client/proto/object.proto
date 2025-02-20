@@ -163,7 +163,7 @@ message TAttributeMigration
     optional bool custom_reverse_writer = 7;
 }
 
-// Next field number 48.
+// Next field number 50.
 message TObjectTypeOption
 {
     reserved 6, 7, 15, 17, 28, 29, 38;
@@ -199,6 +199,7 @@ message TObjectTypeOption
 
     optional bool custom_type_handler = 16;
     optional bool custom_cpp_object = 44;
+    optional bool custom_type_handler_needs_descriptors = 49;
 
     // See FileOptions.skip_store_without_changes.
     optional bool skip_store_without_changes = 18;
@@ -499,6 +500,9 @@ enum EGenerationPolicy
 
 enum EUpdatePolicy
 {
+    // By default, the policy will be propagated from parent (upper level) attribute.
+    // This is done in C++ server code (see FillUpdatePolicies) and therefore applies to
+    // attributes added by plugins as well. Object root attribute is UP_UPDATABLE by default.
     UP_UNDEFINED = 0;
 
     UP_UPDATABLE = 1;
@@ -647,7 +651,7 @@ message TGeohashOption
     optional string source_geo_point_path = 2;
 }
 
-// Next field 31048.
+// Next field 31049.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
