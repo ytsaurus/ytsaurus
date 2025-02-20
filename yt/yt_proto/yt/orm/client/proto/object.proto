@@ -770,6 +770,11 @@ extend google.protobuf.FieldOptions
 
     // Field marked with "geohash" option stores a geohash of specified TGeoPoint field.
     optional TGeohashOption geohash = 31047;
+
+    // Same as computed.
+    // Does not cause parent message to become composite.
+    // Exists for compatibility with old behaviour of computed.
+    optional bool computed_compat = 31048;
 }
 
 // Next field 32014.
