@@ -682,10 +682,10 @@ public:
             THROW_ERROR_EXCEPTION(NScheduler::EErrorCode::CannotUseBothAclAndAco, "Cannot use both ACL and ACO name");
         }
 
-        if (update->Acl || update->AcoName) {
+        if (update->Acl || update->AcoName || update->SchedulingTagFilter) {
             if (update->Acl) {
                 operation->SetAcl(*update->Acl);
-            } else {
+            } else if (update->AcoName) {
                 operation->SetAcoName(*update->AcoName);
             }
             const auto& controller = operation->GetController();

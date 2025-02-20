@@ -1775,7 +1775,12 @@ TSchedulerOperationElement::TSchedulerOperationElement(
         ToString(operation->GetId()),
         EResourceTreeElementKind::Operation,
         logger.WithTag("OperationId: %v", operation->GetId()))
-    , TSchedulerOperationElementFixedState(operation, std::move(controllerConfig), TSchedulingTagFilter(spec->SchedulingTagFilter))
+    , TSchedulerOperationElementFixedState(
+        operation,
+        std::move(controllerConfig),
+        TSchedulingTagFilter(runtimeParameters->SchedulingTagFilter
+            ? *runtimeParameters->SchedulingTagFilter
+            : spec->SchedulingTagFilter))
     , Spec_(std::move(spec))
     , RuntimeParameters_(std::move(runtimeParameters))
     , Controller_(std::move(controller))
@@ -1944,6 +1949,9 @@ TOperationId TSchedulerOperationElement::GetOperationId() const
 
 void TSchedulerOperationElement::SetRuntimeParameters(TOperationFairShareTreeRuntimeParametersPtr runtimeParameters)
 {
+    if (runtimeParameters->SchedulingTagFilter) {
+        SchedulingTagFilter_ = TSchedulingTagFilter(*runtimeParameters->SchedulingTagFilter);
+    }
     RuntimeParameters_ = std::move(runtimeParameters);
 
     Controller_->SetDetailedLogsEnabled(RuntimeParameters_->EnableDetailedLogs);

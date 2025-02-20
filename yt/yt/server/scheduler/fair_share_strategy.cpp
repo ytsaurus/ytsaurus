@@ -636,10 +636,12 @@ public:
             auto tree = GetTree(poolTreeDescription.Name);
             std::optional<TString> poolFromSpec;
             if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
+                treeParams->SchedulingTagFilter = specIt->second->SchedulingTagFilter;
                 treeParams->Weight = specIt->second->Weight ? specIt->second->Weight : spec->Weight;
                 treeParams->ResourceLimits = specIt->second->ResourceLimits->IsNonTrivial() ? specIt->second->ResourceLimits : spec->ResourceLimits;
                 poolFromSpec = specIt->second->Pool ? specIt->second->Pool : spec->Pool;
             } else {
+                treeParams->SchedulingTagFilter = spec->SchedulingTagFilter;
                 treeParams->Weight = spec->Weight;
                 treeParams->ResourceLimits = spec->ResourceLimits;
                 poolFromSpec = spec->Pool;
@@ -721,6 +723,9 @@ public:
             }
             if (newPoolName) {
                 treeParams->Pool = GetTree(poolTree)->CreatePoolName(*newPoolName, user);
+            }
+            if (update->SchedulingTagFilter) {
+                treeParams->SchedulingTagFilter = *update->SchedulingTagFilter;
             }
         }
     }

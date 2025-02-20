@@ -8825,6 +8825,10 @@ void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimePa
     } else if (update->AcoName) {
         AcoName = *update->AcoName;
     }
+    if (update->SchedulingTagFilter) {
+        Spec_->SchedulingTagFilter = *update->SchedulingTagFilter;
+        UpdateExecNodes();
+    }
 }
 
 TOperationSpecBaseUpdater TOperationControllerBase::ConfigureUpdate()
