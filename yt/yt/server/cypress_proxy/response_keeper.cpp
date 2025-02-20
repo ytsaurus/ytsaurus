@@ -140,13 +140,9 @@ private:
         auto responseSharedRefParts = response.ToVector();
         std::vector<std::string> responseStringParts;
         responseStringParts.reserve(responseSharedRefParts.size());
-        std::transform(
-            responseSharedRefParts.begin(),
-            responseSharedRefParts.end(),
-            std::back_inserter(responseStringParts),
-            [] (const TSharedRef& ref) {
-                return std::string(ref.ToStringBuf());
-            });
+        for (const auto& sharedRefPart : responseSharedRefParts) {
+            responseStringParts.push_back(std::string(sharedRefPart.ToStringBuf()));
+        }
 
         transaction->WriteRow(NRecords::TSequoiaResponseKeeper{
             .Key = {.MutationId = mutationId},
