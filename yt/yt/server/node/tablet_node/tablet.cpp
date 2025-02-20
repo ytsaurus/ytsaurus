@@ -1117,9 +1117,7 @@ void TTablet::Load(TLoadContext& context)
     HunkLockManager_->Load(context);
 
     // COMPAT(ponasenko-rs)
-    if ((context.GetVersion() >= ETabletReign::PerRowSequencer_25_1 && context.GetVersion() < ETabletReign::Start_25_2) ||
-        context.GetVersion() >= ETabletReign::PerRowSequencer)
-    {
+    if (context.GetVersion() >= ETabletReign::PerRowSequencer) {
         Load(context, SerializationType_);
     }
 
