@@ -12,7 +12,22 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(pg_catalog)
-add_subdirectory(pg_wrapper)
-add_subdirectory(proto_ast)
-add_subdirectory(lexer_common)
+add_library(essentials-parser-lexer_common)
+
+
+target_link_libraries(essentials-parser-lexer_common PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  essentials-public-issue
+)
+
+target_sources(essentials-parser-lexer_common PRIVATE
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/lexer_common/tokens.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/lexer_common/lexer.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/lexer_common/hints.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/lexer_common/parse_hints_impl.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/lexer_common/lexer.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/lexer_common/hints.h
+  ${PROJECT_SOURCE_DIR}/yql/essentials/parser/lexer_common/parse_hints_impl.h
+)
+

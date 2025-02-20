@@ -12,7 +12,25 @@
 # Please refer to the build instructions in the repository for more information about manual
 # changes in this file.
 
-add_subdirectory(pg_catalog)
-add_subdirectory(pg_wrapper)
-add_subdirectory(proto_ast)
-add_subdirectory(lexer_common)
+add_subdirectory(settings)
+
+add_library(yql-essentials-sql)
+
+
+target_link_libraries(yql-essentials-sql PUBLIC
+  contrib-libs-cxxsupp
+  yutil
+  cpp-deprecated-split
+  yql-essentials-ast
+  essentials-parser-proto_ast
+  essentials-parser-lexer_common
+  essentials-public-issue
+  essentials-sql-settings
+  yql-essentials-utils
+)
+
+target_sources(yql-essentials-sql PRIVATE
+  ${PROJECT_SOURCE_DIR}/yql/essentials/sql/cluster_mapping.cpp
+  ${PROJECT_SOURCE_DIR}/yql/essentials/sql/sql.cpp
+)
+

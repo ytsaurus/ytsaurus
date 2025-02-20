@@ -45,6 +45,8 @@
 #include <yql/essentials/minikql/comp_nodes/mkql_factories.h>
 #include <yql/essentials/utils/backtrace/backtrace.h>
 #include <yql/essentials/utils/log/log.h>
+#include <yql/essentials/sql/v1/sql.h>
+#include <yql/essentials/parser/pg_wrapper/interface/parser.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -780,8 +782,14 @@ private:
         dynamicConfig->FuncRegistry->SetSystemModulePaths(systemModules);
         YQL_LOG(DEBUG) << "Creating dynamic config: SetSystemModulePaths ready";
 
+        NSQLTranslation::TTranslators translators(
+            nullptr,
+            NSQLTranslationV1::MakeTranslator(),
+            NSQLTranslationPG::MakeTranslator()
+        );
+
         TModulesTable modulesTable;
-        if (!CompileLibraries(UserDataTable_, dynamicConfig->ExprContext, modulesTable, true)) {
+        if (!CompileLibraries(translators, UserDataTable_, dynamicConfig->ExprContext, modulesTable, true)) {
             TStringStream err;
             dynamicConfig->ExprContext.IssueManager
                 .GetIssues()
@@ -792,7 +800,7 @@ private:
         }
         YQL_LOG(DEBUG) << "Creating dynamic config: CompileLibraries ready";
 
-        dynamicConfig->ModuleResolver = std::make_shared<NYql::TModuleResolver>(std::move(modulesTable), dynamicConfig->ExprContext.NextUniqueId, dynamicConfig->Clusters, THashSet<TString>{});
+        dynamicConfig->ModuleResolver = std::make_shared<NYql::TModuleResolver>(translators, std::move(modulesTable), dynamicConfig->ExprContext.NextUniqueId, dynamicConfig->Clusters, THashSet<TString>{});
         YQL_LOG(DEBUG) << "Creating dynamic config: ModuleResolver ready";
 
         YQL_LOG(DEBUG) << "Creating dynamic config: done";
