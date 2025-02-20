@@ -11,9 +11,9 @@ public:
 
     using TPtr = TIntrusivePtr<IYtService>;
 
-    virtual TTempFileHandle Download(const TYtTableRef& ytTable) = 0;
+    virtual std::variant<THolder<TTempFileHandle>, TError> Download(const TYtTableRef& ytTable) = 0;
 
-    virtual void Upload(const TYtTableRef& ytTable, IInputStream& tableContent) = 0;
+    virtual TMaybe<TError> Upload(const TYtTableRef& ytTable, IInputStream& tableContent) = 0;
 };
 
 } // namespace NYql::NFmr

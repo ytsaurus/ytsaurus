@@ -25,8 +25,9 @@ Y_UNIT_TEST_SUITE(FmrJobTests) {
 
         ytUploadedTablesMock->AddTable(input, tableContent);
 
-        job->Download(params);
+        auto err = job->Download(params);
 
+        UNIT_ASSERT_C(!err,err.GetRef());
         UNIT_ASSERT_NO_DIFF(tableDataServicePtr->Get("test_table_id").GetValueSync().GetRef(), tableContent);
     }
 
@@ -49,9 +50,96 @@ Y_UNIT_TEST_SUITE(FmrJobTests) {
 
         tableDataServicePtr->Put(input.TableId, ytTableContent);
 
-        job->Upload(params);
+        auto err = job->Upload(params);
 
+        UNIT_ASSERT_C(!err,err.GetRef());
         UNIT_ASSERT_NO_DIFF(ytUploadedTablesMock->GetTableContent(output), ytTableContent);
+    }
+
+    Y_UNIT_TEST(MergeFmrTables) {
+        TString TableContent_1 =
+        "{\"key\"=\"1\";\"subkey\"=\"1\";\"value\"=\"abc\"};"
+        "{\"key\"=\"2\";\"subkey\"=\"2\";\"value\"=\"ddd\"};"
+        "{\"key\"=\"3\";\"subkey\"=\"3\";\"value\"=\"q\"};"
+        "{\"key\"=\"4\";\"subkey\"=\"4\";\"value\"=\"qzz\"};)";
+        TString TableContent_2 =
+        "{\"key\"=\"5\";\"subkey\"=\"1\";\"value\"=\"abc\"};"
+        "{\"key\"=\"6\";\"subkey\"=\"2\";\"value\"=\"ddd\"};"
+        "{\"key\"=\"7\";\"subkey\"=\"3\";\"value\"=\"q\"};"
+        "{\"key\"=\"8\";\"subkey\"=\"4\";\"value\"=\"qzz\"};";
+        TString TableContent_3 =
+        "{\"key\"=\"9\";\"subkey\"=\"1\";\"value\"=\"abc\"};"
+        "{\"key\"=\"10\";\"subkey\"=\"2\";\"value\"=\"ddd\"};"
+        "{\"key\"=\"11\";\"subkey\"=\"3\";\"value\"=\"q\"};"
+        "{\"key\"=\"12\";\"subkey\"=\"4\";\"value\"=\"qzz\"};";
+
+        ITableDataService::TPtr tableDataServicePtr = MakeLocalTableDataService(TLocalTableDataServiceSettings(1));
+        TYtUploadedTablesMock::TPtr ytUploadedTablesMock = MakeYtUploadedTablesMock();
+        NYql::NFmr::IYtService::TPtr ytService = MakeYtServiceMock(ytUploadedTablesMock);
+        std::shared_ptr<std::atomic<bool>> cancelFlag = std::make_shared<std::atomic<bool>>(false);
+        IFmrJob::TPtr job = MakeFmrJob(tableDataServicePtr, ytService, cancelFlag);
+
+        TFmrTableRef input_1 = TFmrTableRef("test_table_id_1");
+        TFmrTableRef input_2 = TFmrTableRef("test_table_id_2");
+        TFmrTableRef input_3 = TFmrTableRef("test_table_id_3");
+        TTableRef input_table_ref_1 = {input_1};
+        TTableRef input_table_ref_2 = {input_2};
+        TTableRef input_table_ref_3 = {input_3};
+        TFmrTableRef output = TFmrTableRef("test_table_id_output");
+        std::vector<TTableRef> inputs = {input_table_ref_1, input_table_ref_2, input_table_ref_3};
+        TMergeTaskParams params = TMergeTaskParams(inputs, output);
+
+        tableDataServicePtr->Put(input_1.TableId, TableContent_1);
+        tableDataServicePtr->Put(input_2.TableId, TableContent_2);
+        tableDataServicePtr->Put(input_3.TableId, TableContent_3);
+
+        auto err = job->Merge(params);
+
+        UNIT_ASSERT_C(!err,err.GetRef());
+        UNIT_ASSERT_NO_DIFF(tableDataServicePtr->Get(output.TableId).GetValueSync().GetRef(), TableContent_1 + TableContent_2 + TableContent_3);
+    }
+
+    Y_UNIT_TEST(MergeMixedTables) {
+        TString TableContent_1 =
+        "{\"key\"=\"1\";\"subkey\"=\"1\";\"value\"=\"abc\"};"
+        "{\"key\"=\"2\";\"subkey\"=\"2\";\"value\"=\"ddd\"};"
+        "{\"key\"=\"3\";\"subkey\"=\"3\";\"value\"=\"q\"};"
+        "{\"key\"=\"4\";\"subkey\"=\"4\";\"value\"=\"qzz\"};)";
+        TString TableContent_2 =
+        "{\"key\"=\"5\";\"subkey\"=\"1\";\"value\"=\"abc\"};"
+        "{\"key\"=\"6\";\"subkey\"=\"2\";\"value\"=\"ddd\"};"
+        "{\"key\"=\"7\";\"subkey\"=\"3\";\"value\"=\"q\"};"
+        "{\"key\"=\"8\";\"subkey\"=\"4\";\"value\"=\"qzz\"};";
+        TString TableContent_3 =
+        "{\"key\"=\"9\";\"subkey\"=\"1\";\"value\"=\"abc\"};"
+        "{\"key\"=\"10\";\"subkey\"=\"2\";\"value\"=\"ddd\"};"
+        "{\"key\"=\"11\";\"subkey\"=\"3\";\"value\"=\"q\"};"
+        "{\"key\"=\"12\";\"subkey\"=\"4\";\"value\"=\"qzz\"};";
+
+        ITableDataService::TPtr tableDataServicePtr = MakeLocalTableDataService(TLocalTableDataServiceSettings(1));
+        TYtUploadedTablesMock::TPtr ytUploadedTablesMock = MakeYtUploadedTablesMock();
+        NYql::NFmr::IYtService::TPtr ytService = MakeYtServiceMock(ytUploadedTablesMock);
+        std::shared_ptr<std::atomic<bool>> cancelFlag = std::make_shared<std::atomic<bool>>(false);
+        IFmrJob::TPtr job = MakeFmrJob(tableDataServicePtr, ytService, cancelFlag);
+
+        TFmrTableRef input_1 = TFmrTableRef("test_table_id_1");
+        TYtTableRef input_2 = TYtTableRef("test_path", "test_cluster", "test_transaction_id");
+        TFmrTableRef input_3 = TFmrTableRef("test_table_id_3");
+        TTableRef input_table_ref_1 = {input_1};
+        TTableRef input_table_ref_2 = {input_2};
+        TTableRef input_table_ref_3 = {input_3};
+        TFmrTableRef output = TFmrTableRef("test_table_id_output");
+        std::vector<TTableRef> inputs = {input_table_ref_1, input_table_ref_2, input_table_ref_3};
+        TMergeTaskParams params = TMergeTaskParams(inputs, output);
+
+        tableDataServicePtr->Put(input_1.TableId, TableContent_1);
+        ytUploadedTablesMock->AddTable(input_2, TableContent_2);
+        tableDataServicePtr->Put(input_3.TableId, TableContent_3);
+
+        auto err = job->Merge(params);
+
+        UNIT_ASSERT_C(!err,err.GetRef());
+        UNIT_ASSERT_NO_DIFF(tableDataServicePtr->Get(output.TableId).GetValueSync().GetRef(), TableContent_1 + TableContent_2 + TableContent_3);
     }
 }
 
@@ -73,8 +161,10 @@ Y_UNIT_TEST_SUITE(TaskRunTests) {
 
         ytUploadedTablesMock->AddTable(input, ytTableContent);
         TDownloadTaskParams params = TDownloadTaskParams(input, output);
+        TTask::TPtr task = MakeTask(ETaskType::Download, "test_task_id", params, "test_session_id");
 
-        ETaskStatus status = RunJob(params, tableDataServicePtr, ytService, cancelFlag);
+
+        ETaskStatus status = RunJob(task, tableDataServicePtr, ytService, cancelFlag);
 
         UNIT_ASSERT_EQUAL(status, ETaskStatus::Completed);
         UNIT_ASSERT_NO_DIFF(tableDataServicePtr->Get("test_table_id").GetValueSync().GetRef(), ytTableContent);
@@ -96,10 +186,11 @@ Y_UNIT_TEST_SUITE(TaskRunTests) {
         TYtTableRef output = TYtTableRef("test_cluster", "test_path");
 
         TUploadTaskParams params = TUploadTaskParams(input, output);
+        TTask::TPtr task = MakeTask(ETaskType::Upload, "test_task_id", params, "test_session_id");
 
         tableDataServicePtr->Put(input.TableId, ytTableContent);
 
-        ETaskStatus status = RunJob(params, tableDataServicePtr, ytService, cancelFlag);
+        ETaskStatus status = RunJob(task, tableDataServicePtr, ytService, cancelFlag);
 
         UNIT_ASSERT_EQUAL(status, ETaskStatus::Completed);
         UNIT_ASSERT_NO_DIFF(ytUploadedTablesMock->GetTableContent(output), ytTableContent);
@@ -121,14 +212,106 @@ Y_UNIT_TEST_SUITE(TaskRunTests) {
         TYtTableRef output = TYtTableRef("test_cluster", "test_path");
 
         TUploadTaskParams params = TUploadTaskParams(input, output);
+        TTask::TPtr task = MakeTask(ETaskType::Upload, "test_task_id", params, "test_session_id");
 
         // No table in tableDataServicePtr
         // tableDataServicePtr->Put(input.TableId, ytTableContent);
 
-        ETaskStatus status = RunJob(params, tableDataServicePtr, ytService, cancelFlag);
+        ETaskStatus status = RunJob(task, tableDataServicePtr, ytService, cancelFlag);
 
         UNIT_ASSERT_EQUAL(status, ETaskStatus::Failed);
         UNIT_ASSERT(ytUploadedTablesMock->IsEmpty());
+    }
+
+    Y_UNIT_TEST(RunMergeTask) {
+        TString TableContent_1 =
+        "{\"key\"=\"1\";\"subkey\"=\"1\";\"value\"=\"abc\"};"
+        "{\"key\"=\"2\";\"subkey\"=\"2\";\"value\"=\"ddd\"};"
+        "{\"key\"=\"3\";\"subkey\"=\"3\";\"value\"=\"q\"};"
+        "{\"key\"=\"4\";\"subkey\"=\"4\";\"value\"=\"qzz\"};)";
+        TString TableContent_2 =
+        "{\"key\"=\"5\";\"subkey\"=\"1\";\"value\"=\"abc\"};"
+        "{\"key\"=\"6\";\"subkey\"=\"2\";\"value\"=\"ddd\"};"
+        "{\"key\"=\"7\";\"subkey\"=\"3\";\"value\"=\"q\"};"
+        "{\"key\"=\"8\";\"subkey\"=\"4\";\"value\"=\"qzz\"};";
+        TString TableContent_3 =
+        "{\"key\"=\"9\";\"subkey\"=\"1\";\"value\"=\"abc\"};"
+        "{\"key\"=\"10\";\"subkey\"=\"2\";\"value\"=\"ddd\"};"
+        "{\"key\"=\"11\";\"subkey\"=\"3\";\"value\"=\"q\"};"
+        "{\"key\"=\"12\";\"subkey\"=\"4\";\"value\"=\"qzz\"};";
+
+        ITableDataService::TPtr tableDataServicePtr = MakeLocalTableDataService(TLocalTableDataServiceSettings(1));
+        TYtUploadedTablesMock::TPtr ytUploadedTablesMock = MakeYtUploadedTablesMock();
+        NYql::NFmr::IYtService::TPtr ytService = MakeYtServiceMock(ytUploadedTablesMock);
+        std::shared_ptr<std::atomic<bool>> cancelFlag = std::make_shared<std::atomic<bool>>(false);
+
+        TFmrTableRef input_1 = TFmrTableRef("test_table_id_1");
+        TYtTableRef input_2 = TYtTableRef("test_path", "test_cluster", "test_transaction_id");
+        TFmrTableRef input_3 = TFmrTableRef("test_table_id_3");
+        TTableRef input_table_ref_1 = {input_1};
+        TTableRef input_table_ref_2 = {input_2};
+        TTableRef input_table_ref_3 = {input_3};
+        TFmrTableRef output = TFmrTableRef("test_table_id_output");
+        std::vector<TTableRef> inputs = {input_table_ref_1, input_table_ref_2, input_table_ref_3};
+        TMergeTaskParams params = TMergeTaskParams(inputs, output);
+
+        TTask::TPtr task = MakeTask(ETaskType::Upload, "test_task_id", params, "test_session_id");
+
+        tableDataServicePtr->Put(input_1.TableId, TableContent_1);
+        ytUploadedTablesMock->AddTable(input_2, TableContent_2);
+        tableDataServicePtr->Put(input_3.TableId, TableContent_3);
+
+        ETaskStatus status = RunJob(task, tableDataServicePtr, ytService, cancelFlag);
+
+        UNIT_ASSERT_EQUAL(status, ETaskStatus::Completed);
+        UNIT_ASSERT_NO_DIFF(tableDataServicePtr->Get(
+            output.TableId).GetValueSync().GetRef(),
+            TableContent_1 + TableContent_2 + TableContent_3
+        );
+    }
+
+    Y_UNIT_TEST(RunMergeTaskWithNoTable) {
+        TString TableContent_1 =
+        "{\"key\"=\"1\";\"subkey\"=\"1\";\"value\"=\"abc\"};"
+        "{\"key\"=\"2\";\"subkey\"=\"2\";\"value\"=\"ddd\"};"
+        "{\"key\"=\"3\";\"subkey\"=\"3\";\"value\"=\"q\"};"
+        "{\"key\"=\"4\";\"subkey\"=\"4\";\"value\"=\"qzz\"};)";
+        TString TableContent_2 =
+        "{\"key\"=\"5\";\"subkey\"=\"1\";\"value\"=\"abc\"};"
+        "{\"key\"=\"6\";\"subkey\"=\"2\";\"value\"=\"ddd\"};"
+        "{\"key\"=\"7\";\"subkey\"=\"3\";\"value\"=\"q\"};"
+        "{\"key\"=\"8\";\"subkey\"=\"4\";\"value\"=\"qzz\"};";
+        TString TableContent_3 =
+        "{\"key\"=\"9\";\"subkey\"=\"1\";\"value\"=\"abc\"};"
+        "{\"key\"=\"10\";\"subkey\"=\"2\";\"value\"=\"ddd\"};"
+        "{\"key\"=\"11\";\"subkey\"=\"3\";\"value\"=\"q\"};"
+        "{\"key\"=\"12\";\"subkey\"=\"4\";\"value\"=\"qzz\"};";
+
+        ITableDataService::TPtr tableDataServicePtr = MakeLocalTableDataService(TLocalTableDataServiceSettings(1));
+        TYtUploadedTablesMock::TPtr ytUploadedTablesMock = MakeYtUploadedTablesMock();
+        NYql::NFmr::IYtService::TPtr ytService = MakeYtServiceMock(ytUploadedTablesMock);
+        std::shared_ptr<std::atomic<bool>> cancelFlag = std::make_shared<std::atomic<bool>>(false);
+
+        TFmrTableRef input_1 = TFmrTableRef("test_table_id_1");
+        TYtTableRef input_2 = TYtTableRef("test_path", "test_cluster", "test_transaction_id");
+        TFmrTableRef input_3 = TFmrTableRef("test_table_id_3");
+        TTableRef input_table_ref_1 = {input_1};
+        TTableRef input_table_ref_2 = {input_2};
+        TTableRef input_table_ref_3 = {input_3};
+        TFmrTableRef output = TFmrTableRef("test_table_id_output");
+        std::vector<TTableRef> inputs = {input_table_ref_1, input_table_ref_2, input_table_ref_3};
+        TMergeTaskParams params = TMergeTaskParams(inputs, output);
+
+        TTask::TPtr task = MakeTask(ETaskType::Upload, "test_task_id", params, "test_session_id");
+
+        tableDataServicePtr->Put(input_1.TableId, TableContent_1);
+        // No table in Yt
+        // ytUploadedTablesMock->AddTable(input_2, TableContent_2);
+        tableDataServicePtr->Put(input_3.TableId, TableContent_3);
+
+        ETaskStatus status = RunJob(task, tableDataServicePtr, ytService, cancelFlag);
+        UNIT_ASSERT_EQUAL(status, ETaskStatus::Failed);
+        UNIT_ASSERT(!tableDataServicePtr->Get(output.TableId).GetValueSync());
     }
 }
 
