@@ -94,6 +94,11 @@ public:
         const NTabletNode::NProto::TMountHint& mountHint) override;
     void Remount(const TTableSettings& settings) override;
 
+    void PopulateReplicateTabletContentRequest(
+        NProto::TReqReplicateTabletContent* request) override;
+    void LoadReplicatedContent(
+        const NProto::TReqReplicateTabletContent* request) override;
+
     ISortedStoreManagerPtr AsSorted() override;
     IOrderedStoreManagerPtr AsOrdered() override;
 

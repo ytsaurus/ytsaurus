@@ -1098,7 +1098,7 @@ void TTablet::Load(TLoadContext& context)
                 continue;
             }
             auto dictionaryHunkChunk = GetHunkChunk(chunkId);
-            YT_VERIFY(!dictionaryHunkChunk->GetAttachedCompressionDictionary());
+            YT_VERIFY(!dictionaryHunkChunk->IsAttachedCompressionDictionary());
             dictionaryHunkChunk->SetAttachedCompressionDictionary(true);
             UpdateDanglingHunkChunks(dictionaryHunkChunk);
         }
@@ -1710,14 +1710,14 @@ void TTablet::AttachCompressionDictionary(
 
     if (oldDictionaryId) {
         auto oldDictionaryHunkChunk = GetHunkChunk(oldDictionaryId);
-        YT_VERIFY(oldDictionaryHunkChunk->GetAttachedCompressionDictionary());
+        YT_VERIFY(oldDictionaryHunkChunk->IsAttachedCompressionDictionary());
         oldDictionaryHunkChunk->SetAttachedCompressionDictionary(false);
         UpdateDanglingHunkChunks(oldDictionaryHunkChunk);
     }
 
     if (chunkId) {
         auto dictionaryHunkChunk = GetHunkChunk(chunkId);
-        YT_VERIFY(!dictionaryHunkChunk->GetAttachedCompressionDictionary());
+        YT_VERIFY(!dictionaryHunkChunk->IsAttachedCompressionDictionary());
         dictionaryHunkChunk->SetAttachedCompressionDictionary(true);
         UpdateDanglingHunkChunks(dictionaryHunkChunk);
     }

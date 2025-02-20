@@ -917,11 +917,6 @@ public:
                 THROW_ERROR_EXCEPTION("Tablet with atomicity %Qlv cannot be moved",
                     table->GetAtomicity());
             }
-
-            const auto& schema = table->GetSchema()->AsTableSchema();
-            if (schema->HasHunkColumns()) {
-                THROW_ERROR_EXCEPTION("Cannot move table with hunk columns");
-            }
         }
 
         auto* action = DoCreateTabletAction(

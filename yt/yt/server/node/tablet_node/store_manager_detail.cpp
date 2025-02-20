@@ -22,6 +22,8 @@
 
 #include <yt/yt/core/utilex/random.h>
 
+#include <library/cpp/iterator/zip.h>
+
 #include <util/generic/cast.h>
 
 namespace NYT::NTabletNode {
@@ -491,7 +493,7 @@ void TStoreManagerBase::Mount(
 
 void TStoreManagerBase::Remount(const TTableSettings& settings)
 {
-    auto oldMountConfig  = Tablet_->GetSettings().MountConfig;
+    auto oldMountConfig = Tablet_->GetSettings().MountConfig;
 
     Tablet_->SetSettings(settings);
 
@@ -502,6 +504,69 @@ void TStoreManagerBase::Remount(const TTableSettings& settings)
     InvalidateCachedChunkReaders();
 
     UpdateInMemoryMode();
+}
+
+void TStoreManagerBase::PopulateReplicateTabletContentRequest(
+    NProto::TReqReplicateTabletContent* request)
+{
+    auto* replicatableContent = request->mutable_replicatable_content();
+
+    for (const auto& [id, hunkChunk] : Tablet_->HunkChunkMap()) {
+        hunkChunk->PopulateAddHunkChunkDescriptor(replicatableContent->add_hunk_chunks());
+    }
+
+    if (const auto& activeStore = Tablet_->GetActiveStore()) {
+        ToProto(request->mutable_active_store_id(), activeStore->GetId());
+    }
+}
+
+void TStoreManagerBase::LoadReplicatedContent(
+    const NProto::TReqReplicateTabletContent* request)
+{
+    const auto& replicatableContent = request->replicatable_content();
+    auto& movementData = Tablet_->SmoothMovementData();
+
+    auto activeStoreId = FromProto<TStoreId>(request->active_store_id());
+
+    for (const auto& descriptor : replicatableContent.hunk_chunks()) {
+        auto chunkId = FromProto<TChunkId>(descriptor.chunk_id());
+        auto hunkChunk = TabletContext_->CreateHunkChunk(
+            Tablet_,
+            chunkId,
+            &descriptor);
+        hunkChunk->Initialize();
+        Tablet_->AddHunkChunk(std::move(hunkChunk));
+    }
+
+    auto partitionIds = FromProto<std::vector<TPartitionId>>(request->store_partition_ids());
+    YT_VERIFY(replicatableContent.stores().size() == ssize(partitionIds));
+    for (const auto& [descriptor, partitionId] : Zip(replicatableContent.stores(), partitionIds)) {
+        auto type = FromProto<EStoreType>(descriptor.store_type());
+        auto storeId = FromProto<TChunkId>(descriptor.store_id());
+
+        if (storeId == activeStoreId) {
+            CreateActiveStore(activeStoreId);
+        } else {
+            auto store = TabletContext_->CreateStore(Tablet_, type, storeId, &descriptor);
+            if (store->IsDynamic()) {
+                store->SetStoreState(EStoreState::PassiveDynamic);
+                InsertOrCrash(movementData.CommonDynamicStoreIds(), store->GetId());
+            }
+
+            store->Initialize();
+            AddStore(store, /*onMount*/ false, /*onFlush*/ false, partitionId);
+
+            if (store->IsChunk()) {
+                for (const auto& ref : store->AsChunk()->HunkChunkRefs()) {
+                    Tablet_->UpdateHunkChunkRef(ref, +1);
+                }
+            }
+        }
+    }
+
+    for (const auto& [_, hunkChunk] : Tablet_->HunkChunkMap()) {
+        Tablet_->UpdateDanglingHunkChunks(hunkChunk);
+    }
 }
 
 void TStoreManagerBase::Rotate(bool createNewStore, EStoreRotationReason reason, bool allowEmptyStore)

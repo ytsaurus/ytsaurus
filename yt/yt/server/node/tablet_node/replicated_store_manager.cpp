@@ -294,6 +294,18 @@ void TReplicatedStoreManager::Remount(const TTableSettings& settings)
     LogStoreManager_->Remount(settings);
 }
 
+void TReplicatedStoreManager::PopulateReplicateTabletContentRequest(
+    NProto::TReqReplicateTabletContent* /*request*/)
+{
+    YT_ABORT();
+}
+
+void TReplicatedStoreManager::LoadReplicatedContent(
+    const NProto::TReqReplicateTabletContent* /*request*/)
+{
+    YT_ABORT();
+}
+
 ISortedStoreManagerPtr TReplicatedStoreManager::AsSorted()
 {
     return this;

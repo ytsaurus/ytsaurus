@@ -7,7 +7,7 @@ from yt_commands import (
     sync_create_cells, sync_mount_table, raises_yt_error,
     sync_reshard_table, insert_rows, ls, abort_transaction,
     build_snapshot, select_rows, update_nodes_dynamic_config,
-    create_area,
+    create_area, sync_flush_table, remount_table,
 )
 
 from yt.common import YtError
@@ -215,6 +215,64 @@ class TestSmoothMovement(DynamicTablesBase):
             self._restart_cell(cell_ids[2])
             assert_items_equal(select_rows("* from [//tmp/t]"), rows1 + rows2)
 
+    @authors("ifsmirnov")
+    @pytest.mark.parametrize("redirect_sweep", [True, False])
+    def test_hunks(self, redirect_sweep):
+        sync_create_cells(2)
+        self._create_sorted_table(
+            "//tmp/t",
+            schema=[
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string", "max_inline_hunk_size": 10},
+            ])
+        sync_mount_table("//tmp/t")
+        tablet_id = get("//tmp/t/@tablets/0/tablet_id")
+
+        rows = [
+            {"key": 1, "value": "q"},
+            {"key": 2, "value": "qwlfjpluqwjfpqwfpqwfpljqywujpqwfpqwfpqwfpqwfp"},
+        ]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        # Create dangling hunk chunk.
+        update_nodes_dynamic_config({"tablet_node": {"hunk_chunk_sweeper": {"enable": False}}})
+        set("//tmp/t/@forced_compaction_revision", 1)
+        remount_table("//tmp/t")
+
+        def _get_hunk_ref_counts():
+            hunk_chunk_ids = ls(f"#{tablet_id}/orchid/hunk_chunks")
+            ref_counts = [
+                get(f"#{tablet_id}/orchid/hunk_chunks/{c}/store_ref_count")
+                for c in hunk_chunk_ids
+            ]
+            return sorted(ref_counts)
+
+        # chunk, two hunks, two dynamic stores
+        wait(lambda: get("//tmp/t/@chunk_count") == 5)
+        assert _get_hunk_ref_counts() == [0, 1]
+
+        if redirect_sweep:
+            self._update_testing_config({
+                "delay_after_stage_at_target": {
+                    "target_activated": 5000,
+                }
+            })
+
+        action_id = self._move_tablet(tablet_id)
+
+        if redirect_sweep:
+            wait(lambda: self._get_movement_stage_from_node(tablet_id) == "target_activated")
+            update_nodes_dynamic_config({"tablet_node": {"hunk_chunk_sweeper": {"enable": True}}})
+
+        wait(lambda: self._check_action(action_id))
+
+        if redirect_sweep:
+            assert _get_hunk_ref_counts() == [1]
+        else:
+            assert _get_hunk_ref_counts() == [0, 1]
+
+        assert_items_equal(rows, select_rows("* from [//tmp/t]"))
 
 ##################################################################
 
