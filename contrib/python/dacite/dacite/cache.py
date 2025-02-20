@@ -8,7 +8,7 @@ __MAX_SIZE: Optional[int] = 2048
 
 @lru_cache(maxsize=None)
 def cache(function: T) -> T:
-    return lru_cache(maxsize=get_cache_size())(function)  # type: ignore
+    return lru_cache(maxsize=get_cache_size(), typed=True)(function)  # type: ignore
 
 
 def set_cache_size(size: Optional[int]) -> None:
