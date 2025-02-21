@@ -30,7 +30,7 @@ using TNetworkStatistics = TNetwork::TStatistics;
 
 struct TVolumeStatistics
 {
-    THashMap<TString, i64> VolumeCounts;
+    std::vector<std::pair<TString, i64>> VolumeCounts;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -108,6 +108,8 @@ private:
     TCpuStatistics ExtractCpuStatistics(const TResourceUsage& resourceUsage) const;
     TMemoryStatistics ExtractMemoryStatistics(const TResourceUsage& resourceUsage) const;
     TBlockIOStatistics ExtractBlockIOStatistics(const TResourceUsage& resourceUsage) const;
+    TBlockIOStatistics::TIOStatistics ExtractTotalBlockIOStatistics(const TResourceUsage& resourceUsage) const;
+    TBlockIOStatistics::TDeviceIOStatistics ExtractBlockIOPerDeviceStatistics(const TResourceUsage& resourceUsage) const;
     TNetworkStatistics ExtractNetworkStatistics(const TResourceUsage& resourceUsage) const;
     TVolumeStatistics ExtractVolumeStatistics(const TResourceUsage& resourceUsage) const;
     TLayerStatistics ExtractLayerStatistics(const TResourceUsage& resourceUsage) const;
@@ -162,6 +164,11 @@ private:
         TTotalStatistics& totalStatistics,
         i64 timeDeltaUsec);
 
+    void WriteBlockingIOPerDeviceMetrics(
+        ISensorWriter* writer,
+        TTotalStatistics& totalStatistics,
+        i64 timeDeltaUsec);
+
     void WriteNetworkMetrics(
         ISensorWriter* writer,
         TTotalStatistics& totalStatistics,
@@ -175,6 +182,11 @@ private:
     void WriteLayerMetrics(
         ISensorWriter* writer,
         TTotalStatistics& totalStatistics,
+        i64 timeDeltaUsec);
+
+    void WriteBlockingIOMetrics(
+        ISensorWriter* writer,
+        const TBlockIOStatistics::TIOStatistics& blockIOStatistics,
         i64 timeDeltaUsec);
 
     void DoUpdateBuffer();
