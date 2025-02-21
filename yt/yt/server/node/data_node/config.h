@@ -554,6 +554,9 @@ public:
     // Delay before cancelling chunk
     std::optional<TDuration> ChunkCancellationDelay;
 
+    // Stop trash scanning at initialization
+    std::optional<bool> TrashScanningBarrier;
+
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
     static void Register(TRegistrar registrar);
@@ -1030,6 +1033,10 @@ public:
 
     //! Distributed chunk session service config.
     NDistributedChunkSessionServer::TDistributedChunkSessionServiceConfigPtr DistributedChunkSessionService;
+
+    //! Blocks trash scan for test purpose.
+    //! Have to be static, because dynamic config loads after initialization.
+    bool TrashScanningBarrier;
 
     i64 GetCacheCapacity() const;
 

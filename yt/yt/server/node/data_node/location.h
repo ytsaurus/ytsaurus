@@ -104,6 +104,8 @@ struct TLocationPerformanceCounters
     NProfiling::TGauge UsedSpace;
     NProfiling::TGauge AvailableSpace;
     NProfiling::TGauge ChunkCount;
+    NProfiling::TGauge TrashChunkCount;
+    NProfiling::TGauge TrashSpace;
     NProfiling::TGauge Full;
 };
 
@@ -320,8 +322,11 @@ public:
     //! Subscribe callback on disk health check.
     void SubscribeDiskCheckFailed(const TCallback<void(const TError&)> callback);
 
-    //! Updates #UsedSpace and #AvailableSpace
+    //! Updates #UsedSpace and #AvailableSpace.
     void UpdateUsedSpace(i64 size);
+
+    //! Updates #TrashSpace.
+    void UpdateTrashSpace(i64 size);
 
     //! Returns the number of bytes used at the location.
     /*!
@@ -329,6 +334,9 @@ public:
      *  This may exceed #GetQuota.
      */
     i64 GetUsedSpace() const;
+
+    //! Returns the number of bytes used in trash.
+     i64 GetTrashSpace() const;
 
     //! Updates #AvailableSpace with a system call and returns the result.
     //! Never throws.
@@ -384,6 +392,9 @@ public:
     //! Changes the number of chunks by a given delta.
     void UpdateChunkCount(int delta);
 
+    //! Changes the number of trash chunks by a given delta.
+    void UpdateTrashChunkCount(int delta);
+
     //! Returns the number of currently active sessions of a given #type.
     int GetSessionCount(ESessionType type) const;
 
@@ -392,6 +403,9 @@ public:
 
     //! Returns the number of chunks.
     int GetChunkCount() const;
+
+    //! Returns the number of trash chunks.
+    int GetTrashChunkCount() const;
 
     //! Returns a full path for a primary chunk file.
     TString GetChunkPath(TChunkId chunkId) const;
@@ -504,8 +518,10 @@ protected:
 
     mutable std::atomic<i64> AvailableSpace_ = 0;
     std::atomic<i64> UsedSpace_ = 0;
+    std::atomic<i64> TrashSpace_ = 0;
     TEnumIndexedArray<ESessionType, std::atomic<int>> PerTypeSessionCount_;
     std::atomic<int> ChunkCount_ = 0;
+    std::atomic<int> TrashChunkCount_ = 0;
 
     static TString GetRelativeChunkPath(TChunkId chunkId);
     static void ForceHashDirectories(const TString& rootPath);
@@ -699,6 +715,8 @@ private:
 
     void RemoveLocationChunks();
 
+    bool IsTrashScanStopped() const;
+
     i64 GetAdditionalSpace() const override;
 
     std::optional<TChunkDescriptor> RepairBlobChunk(TChunkId chunkId);
@@ -710,6 +728,8 @@ private:
 
     void DoStart() override;
     std::vector<TChunkDescriptor> DoScan() override;
+    void DoScanTrash();
+    void DoAsyncScanTrash();
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreLocation)

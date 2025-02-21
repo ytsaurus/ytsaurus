@@ -128,6 +128,13 @@ public:
      */
     IChunkPtr GetChunkOrThrow(TChunkId chunkId, TChunkLocationUuid locationUuid) const;
 
+    //! Returns static data node config.
+    /*!
+     *  \note
+     *  Thread affinity: any
+     */
+    const TDataNodeConfigPtr& GetStaticDataNodeConfig() const;
+
     //! Returns the list of all registered chunks. These are not guaranteed to
     //! have unique IDs because a chunk may be stored on multiple media.
     /*!
