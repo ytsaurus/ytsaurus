@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-//go:build freebsd || linux || netbsd || openbsd
+//go:build dragonfly || freebsd || linux || netbsd || openbsd
 
 package unix_test
 
@@ -16,7 +16,7 @@ import (
 )
 
 func TestDup3(t *testing.T) {
-	tempFile, err := os.Create(filepath.Join(t.TempDir(), "TestDup"))
+	tempFile, err := os.Create(filepath.Join(t.TempDir(), "TestDup3"))
 	if err != nil {
 		t.Fatal(err)
 	}
