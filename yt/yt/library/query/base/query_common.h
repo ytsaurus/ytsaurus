@@ -143,7 +143,7 @@ struct TDataSource
 void ToProto(
     NProto::TDataSource* serialized,
     const TDataSource& original,
-    TRange<NTableClient::TLogicalTypePtr> schema,
+    TRange<TLogicalTypePtr> schema,
     bool lookupSupported,
     size_t keyWidth);
 void FromProto(

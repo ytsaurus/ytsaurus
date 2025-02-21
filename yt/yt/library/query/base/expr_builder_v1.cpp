@@ -7,6 +7,8 @@
 
 namespace NYT::NQueryClient {
 
+////////////////////////////////////////////////////////////////////////////////
+
 TTypeSet GetTypes(const NAst::TLiteralValue& literalValue)
 {
     return Visit(literalValue,

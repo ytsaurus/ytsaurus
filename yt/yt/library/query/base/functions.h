@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include "key_trie.h"
-#include "constraints.h"
 #include "functions_common.h"
 
 namespace NYT::NQueryClient {
