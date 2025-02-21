@@ -698,6 +698,16 @@ std::optional<EScheduleFailReason> TTask::TryScheduleJob(
         return *failReason;
     }
 
+    if (treeIsTentative && !TentativeTreeEligibility_.CanScheduleJob(allocation.TreeId, /*tentative*/ true)) {
+        return EScheduleFailReason::TentativeTreeDeclined;
+    }
+
+    auto chunkPoolOutput = GetChunkPoolOutput();
+    bool speculative = chunkPoolOutput->GetJobCounter()->GetPending() == 0;
+    if (speculative && treeIsTentative) {
+        return EScheduleFailReason::TentativeSpeculativeForbidden;
+    }
+
     auto jobIdOrError = TaskHost_->GenerateJobId(allocation.Id, previousJobId.value_or(TJobId()));
     if (!jobIdOrError) {
         return jobIdOrError.error();
@@ -755,17 +765,6 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
         }
     };
 
-    if (treeIsTentative && !TentativeTreeEligibility_.CanScheduleJob(allocation.TreeId, /*tentative*/ true)) {
-        abortJob(EAbortReason::SchedulingOther);
-        return std::unexpected(EScheduleFailReason::TentativeTreeDeclined);
-    }
-
-    auto chunkPoolOutput = GetChunkPoolOutput();
-    bool speculative = chunkPoolOutput->GetJobCounter()->GetPending() == 0;
-    if (speculative && treeIsTentative) {
-        abortJob(EAbortReason::SchedulingOther);
-        return std::unexpected(EScheduleFailReason::TentativeSpeculativeForbidden);
-    }
 
     int taskJobIndex = TaskJobIndexGenerator_.Next();
     auto joblet = TaskHost_->CreateJoblet(
@@ -779,6 +778,7 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     joblet->OutputCookie = outputCookie;
     joblet->CompetitionType = competitionType;
 
+    auto chunkPoolOutput = GetChunkPoolOutput();
     int sliceCount = chunkPoolOutput->GetStripeListSliceCount(joblet->OutputCookie);
     if (!ValidateChunkCount(sliceCount)) {
         abortJob(EAbortReason::IntermediateChunkLimitExceeded);
