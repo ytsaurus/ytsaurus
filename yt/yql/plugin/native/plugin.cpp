@@ -147,7 +147,6 @@ struct TDynamicConfig
     NYql::TGatewaysConfig GatewaysConfig;
     THashMap<TString, TString> Clusters;
     std::optional<TString> DefaultCluster;
-    ::TIntrusivePtr<NKikimr::NMiniKQL::IMutableFunctionRegistry> FuncRegistry;
     NYql::TExprContext ExprContext;
     NYql::IModuleResolver::TPtr ModuleResolver;
 };
@@ -277,6 +276,39 @@ public:
                 protobufWriterOptions));
 
             FileStorage_ = WithAsync(CreateFileStorage(fileStorageConfig, {MakeYtDownloader(fileStorageConfig)}));
+
+            FuncRegistry_ = NKikimr::NMiniKQL::CreateFunctionRegistry(
+                NKikimr::NMiniKQL::CreateBuiltinRegistry())->Clone();
+            const NKikimr::NMiniKQL::TUdfModuleRemappings emptyRemappings;
+            FuncRegistry_->SetBackTraceCallback(&NYql::NBacktrace::KikimrBackTrace);
+            TVector<TString> udfPaths;
+            NKikimr::NMiniKQL::FindUdfsInDir(gatewayYtConfig->GetMrJobUdfsDir(), &udfPaths);
+            for (const auto& path : udfPaths) {
+                // Skip YQL plugin shared library itself, it is not a UDF.
+                if (path.EndsWith("libyqlplugin.so")) {
+                    continue;
+                }
+                ui32 flags = 0;
+                // System Python UDFs are not used locally so we only need types.
+                if (path.Contains("systempython") && path.Contains(TString("udf") + MKQL_UDF_LIB_SUFFIX)) {
+                    flags |= NUdf::IRegistrator::TFlags::TypesOnly;
+                }
+                FuncRegistry_->LoadUdfs(path, emptyRemappings, flags);
+                if (DqManagerConfig_) {
+                    DqManagerConfig_->UdfsWithMd5.emplace(path, MD5::File(path));
+                }
+            }
+            gatewayYtConfig->ClearMrJobUdfsDir();
+            NKikimr::NMiniKQL::TUdfModulePathsMap systemModules;
+            for (const auto& m : FuncRegistry_->GetAllModuleNames()) {
+                TMaybe<TString> path = FuncRegistry_->FindUdfPath(m);
+                if (!path) {
+                    YQL_LOG(FATAL) << "Unable to detect UDF path for module " << m;
+                    exit(1);
+                }
+                systemModules.emplace(m, *path);
+            }
+            FuncRegistry_->SetSystemModulePaths(systemModules);
 
             if (DqManagerConfig_) {
                 DqManagerConfig_->FileStorage = FileStorage_;
@@ -659,6 +691,7 @@ private:
     const TDqManagerConfigPtr DqManagerConfig_;
     TDqManagerPtr DqManager_;
     NYql::TFileStoragePtr FileStorage_;
+    ::TIntrusivePtr<NKikimr::NMiniKQL::IMutableFunctionRegistry> FuncRegistry_;
     TDynamicConfigPtr DynamicConfig_;
     NYql::TGatewaysConfig GatewaysConfigInitial_;
     THashMap<TString, TString> Modules_;
@@ -731,6 +764,9 @@ private:
         dynamicConfig->GatewaysConfig = std::move(gatewaysConfig);
         auto* gatewayYtConfig = dynamicConfig->GatewaysConfig.MutableYt();
 
+        // Ignore MrJobUdfsDir in dynamic config (we won't reload udfs and won't restart DqManager_).
+        gatewayYtConfig->ClearMrJobUdfsDir();
+
         gatewayYtConfig->SetMrJobBinMd5(MD5::File(gatewayYtConfig->GetMrJobBin()));
         YQL_LOG(DEBUG) << "Creating dynamic config: SetMrJobBinMd5 ready";
 
@@ -741,50 +777,6 @@ private:
             }
         }
         YQL_LOG(DEBUG) << "Creating dynamic config: Clusters ready";
-
-        dynamicConfig->FuncRegistry = NKikimr::NMiniKQL::CreateFunctionRegistry(
-            NKikimr::NMiniKQL::CreateBuiltinRegistry())->Clone();
-
-        const NKikimr::NMiniKQL::TUdfModuleRemappings emptyRemappings;
-        dynamicConfig->FuncRegistry->SetBackTraceCallback(&NYql::NBacktrace::KikimrBackTrace);
-        YQL_LOG(DEBUG) << "Creating dynamic config: SetBackTraceCallback ready";
-
-        TVector<TString> udfPaths;
-        NKikimr::NMiniKQL::FindUdfsInDir(gatewayYtConfig->GetMrJobUdfsDir(), &udfPaths);
-        YQL_LOG(DEBUG) << "Creating dynamic config: FindUdfsInDir ready";
-
-        for (const auto& path : udfPaths) {
-            // Skip YQL plugin shared library itself, it is not a UDF.
-            if (path.EndsWith("libyqlplugin.so")) {
-                continue;
-            }
-            ui32 flags = 0;
-            // System Python UDFs are not used locally so we only need types.
-            if (path.Contains("systempython") && path.Contains(TString("udf") + MKQL_UDF_LIB_SUFFIX)) {
-                flags |= NUdf::IRegistrator::TFlags::TypesOnly;
-            }
-            dynamicConfig->FuncRegistry->LoadUdfs(path, emptyRemappings, flags);
-            if (DqManagerConfig_) {
-                DqManagerConfig_->UdfsWithMd5.emplace(path, MD5::File(path));
-            }
-        }
-        YQL_LOG(DEBUG) << "Creating dynamic config: LoadUdfs ready";
-
-        gatewayYtConfig->ClearMrJobUdfsDir();
-
-        NKikimr::NMiniKQL::TUdfModulePathsMap systemModules;
-        for (const auto& m : dynamicConfig->FuncRegistry->GetAllModuleNames()) {
-            TMaybe<TString> path = dynamicConfig->FuncRegistry->FindUdfPath(m);
-            if (!path) {
-                YQL_LOG(FATAL) << "Unable to detect UDF path for module " << m;
-                exit(1);
-            }
-            systemModules.emplace(m, *path);
-        }
-        YQL_LOG(DEBUG) << "Creating dynamic config: FindUdfPath ready";
-
-        dynamicConfig->FuncRegistry->SetSystemModulePaths(systemModules);
-        YQL_LOG(DEBUG) << "Creating dynamic config: SetSystemModulePaths ready";
 
         NSQLTranslationV1::TLexers lexers;
         lexers.Antlr4 = NSQLTranslationV1::MakeAntlr4LexerFactory();
@@ -822,7 +814,7 @@ private:
         YQL_LOG(DEBUG) << "Creating program factory";
 
         NYql::TYtNativeServices ytServices;
-        ytServices.FunctionRegistry = dynamicConfig.FuncRegistry.Get();
+        ytServices.FunctionRegistry = FuncRegistry_.Get();
         ytServices.FileStorage = FileStorage_;
         ytServices.Config = std::make_shared<NYql::TYtGatewayConfig>(*dynamicConfig.GatewaysConfig.MutableYt());
 
@@ -842,11 +834,11 @@ private:
         YQL_LOG(DEBUG) << "Creating program factory: dataProvidersInit ready";
 
         auto factory = MakeIntrusive<NYql::TProgramFactory>(
-            false, dynamicConfig.FuncRegistry.Get(), dynamicConfig.ExprContext.NextUniqueId, dataProvidersInit, "embedded");
+            false, FuncRegistry_.Get(), dynamicConfig.ExprContext.NextUniqueId, dataProvidersInit, "embedded");
         factory->AddUserDataTable(UserDataTable_);
         factory->SetCredentials(MakeIntrusive<NYql::TCredentials>());
         factory->SetModules(dynamicConfig.ModuleResolver);
-        factory->SetUdfResolver(NYql::NCommon::CreateSimpleUdfResolver(dynamicConfig.FuncRegistry.Get(), FileStorage_));
+        factory->SetUdfResolver(NYql::NCommon::CreateSimpleUdfResolver(FuncRegistry_.Get(), FileStorage_));
         factory->SetGatewaysConfig(&dynamicConfig.GatewaysConfig);
         factory->SetFileStorage(FileStorage_);
         factory->SetUrlPreprocessing(MakeIntrusive<NYql::TUrlPreprocessing>(dynamicConfig.GatewaysConfig));
