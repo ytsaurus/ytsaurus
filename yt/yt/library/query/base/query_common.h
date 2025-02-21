@@ -140,6 +140,10 @@ struct TDataSource
     TSharedRange<TRow> Keys;
 };
 
+void VerifyIdsInRange(const TRowRange& range);
+void VerifyIdsInRanges(TRange<TRowRange> ranges);
+void VerifyIdsInKeys(TRange<TRow> keys);
+
 void ToProto(
     NProto::TDataSource* serialized,
     const TDataSource& original,
