@@ -77,8 +77,8 @@ bool THydraServiceBase::IsUp(const TCtxDiscoverPtr& context)
 {
     const auto& request = context->Request();
     EPeerKind kind;
-    if (request.HasExtension(NProto::TPeerKindExt::peer_kind_ext)) {
-        const auto& ext = request.GetExtension(NProto::TPeerKindExt::peer_kind_ext);
+    if (request.HasExtension(NProto::TPeerKindExt::discover_peer_kind_ext)) {
+        const auto& ext = request.GetExtension(NProto::TPeerKindExt::discover_peer_kind_ext);
         kind = FromProto<EPeerKind>(ext.peer_kind());
     } else {
         kind = EPeerKind::Leader;
@@ -112,6 +112,17 @@ void THydraServiceBase::EnrichDiscoverResponse(TRspDiscover* response)
 
     auto* ext = response->MutableExtension(NProto::TDiscombobulationExt::discombobulation_ext);
     ext->set_discombobulated(hydraManager->IsDiscombobulated());
+}
+
+void THydraServiceBase::BeforeInvoke(IServiceContext* context)
+{
+    TServiceBase::BeforeInvoke(context);
+
+    if (context->RequestHeader().HasExtension(NProto::TPeerKindExt::request_peer_kind_ext)) {
+        const auto& ext = context->RequestHeader().GetExtension(NProto::TPeerKindExt::request_peer_kind_ext);
+        auto kind = FromProto<EPeerKind>(ext.peer_kind());
+        ValidatePeer(kind);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -24,8 +24,7 @@ class TPeerConnectionConfig
 public:
     TCellId CellId;
 
-    //! If true, Hydra peer state is ignored during
-    //! discovery.
+    //! If true, Hydra peer state is ignored during discovery.
     //! This is used for job proxies where master addresses
     //! are overridden with master cache addresses.
     bool IgnorePeerState;

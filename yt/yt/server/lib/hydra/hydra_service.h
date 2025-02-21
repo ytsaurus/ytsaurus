@@ -43,6 +43,7 @@ private:
 
     bool IsUp(const TCtxDiscoverPtr& context) override;
     void EnrichDiscoverResponse(TRspDiscover* response) override;
+    void BeforeInvoke(NRpc::IServiceContext* context) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
