@@ -376,16 +376,24 @@ std::vector<size_t> TJoinClause::GetForeignColumnIndices() const
 {
     std::vector<size_t> foreignColumns;
     auto joinRenamedTableColumns = GetRenamedSchema()->Columns();
-    size_t foreignColumnsIndex = ForeignEquations.size();
-    for (const auto& renamedColumn : joinRenamedTableColumns) {
-        if (ForeignJoinedColumns.contains(renamedColumn.Name())) {
-            foreignColumns.push_back(foreignColumnsIndex++);
-        }
-    }
 
     if (GroupClause) {
+        size_t foreignColumnsIndex = 0;
+        for (const auto& groupItem : GroupClause->GroupItems) {
+            if (ForeignJoinedColumns.contains(groupItem.Name)) {
+                foreignColumns.push_back(foreignColumnsIndex);
+            }
+            foreignColumnsIndex++;
+        }
         for (const auto& _ : GroupClause->AggregateItems) {
             foreignColumns.push_back(foreignColumnsIndex++);
+        }
+    } else {
+        size_t foreignColumnsIndex = ForeignEquations.size();
+        for (const auto& renamedColumn : joinRenamedTableColumns) {
+            if (ForeignJoinedColumns.contains(renamedColumn.Name())) {
+                foreignColumns.push_back(foreignColumnsIndex++);
+            }
         }
     }
 
