@@ -118,7 +118,8 @@ public:
         const NAst::TExpression* expr, TRange<EValueType> resultTypes) = 0;
 
     virtual TConstExpressionPtr BuildTypedExpression(
-        const NAst::TExpression* expr, TRange<EValueType> resultTypes = {
+        const NAst::TExpression* expr,
+        TRange<EValueType> resultTypes = {
             EValueType::Null,
             EValueType::Int64,
             EValueType::Uint64,
@@ -126,8 +127,8 @@ public:
             EValueType::Boolean,
             EValueType::String,
             EValueType::Any,
-            EValueType::Composite});
-
+            EValueType::Composite
+        });
 
     virtual ~TExprBuilder() = default;
 

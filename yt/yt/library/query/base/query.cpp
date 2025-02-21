@@ -29,19 +29,20 @@ struct TExpressionRowsetTag
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TExpression::TExpression(NTableClient::TLogicalTypePtr type)
-    : LogicalType(std::move(type))
-    , OriginalLogicalType(LogicalType)
-{ }
-
-TExpression::TExpression(NTableClient::TLogicalTypePtr type, NTableClient::TLogicalTypePtr originalType)
-    : LogicalType(std::move(type))
-    , OriginalLogicalType(std::move(originalType))
-{ }
 
 TExpression::TExpression(EValueType type)
     : LogicalType(MakeLogicalType(GetLogicalType(type), /*required*/ false))
     , OriginalLogicalType(LogicalType)
+{ }
+
+TExpression::TExpression(TLogicalTypePtr type)
+    : LogicalType(std::move(type))
+    , OriginalLogicalType(LogicalType)
+{ }
+
+TExpression::TExpression(TLogicalTypePtr type, TLogicalTypePtr originalType)
+    : LogicalType(std::move(type))
+    , OriginalLogicalType(std::move(originalType))
 { }
 
 EValueType TExpression::GetWireType() const
@@ -51,10 +52,6 @@ EValueType TExpression::GetWireType() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLiteralExpression::TLiteralExpression(EValueType type)
-    : TExpression(type)
-{ }
-
 TLiteralExpression::TLiteralExpression(EValueType type, TOwningValue value)
     : TExpression(type)
     , Value(std::move(value))
@@ -62,20 +59,16 @@ TLiteralExpression::TLiteralExpression(EValueType type, TOwningValue value)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReferenceExpression::TReferenceExpression(const NTableClient::TLogicalTypePtr& type)
+TReferenceExpression::TReferenceExpression(const TLogicalTypePtr& type)
     : TExpression(ToQLType(type), type)
 { }
 
-TReferenceExpression::TReferenceExpression(const NTableClient::TLogicalTypePtr& type, const std::string& columnName)
+TReferenceExpression::TReferenceExpression(const TLogicalTypePtr& type, const std::string& columnName)
     : TExpression(ToQLType(type), type)
     , ColumnName(columnName)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TFunctionExpression::TFunctionExpression(EValueType type)
-    : TExpression(type)
-{ }
 
 TFunctionExpression::TFunctionExpression(
     EValueType type,
@@ -88,10 +81,6 @@ TFunctionExpression::TFunctionExpression(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnaryOpExpression::TUnaryOpExpression(EValueType type)
-    : TExpression(type)
-{ }
-
 TUnaryOpExpression::TUnaryOpExpression(
     EValueType type,
     EUnaryOp opcode,
@@ -102,10 +91,6 @@ TUnaryOpExpression::TUnaryOpExpression(
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TBinaryOpExpression::TBinaryOpExpression(EValueType type)
-    : TExpression(type)
-{ }
 
 TBinaryOpExpression::TBinaryOpExpression(
     EValueType type,
@@ -204,12 +189,12 @@ TLikeExpression::TLikeExpression(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompositeMemberAccessorExpression::TCompositeMemberAccessorExpression(NTableClient::TLogicalTypePtr type)
+TCompositeMemberAccessorExpression::TCompositeMemberAccessorExpression(TLogicalTypePtr type)
     : TExpression(std::move(type))
 { }
 
 TCompositeMemberAccessorExpression::TCompositeMemberAccessorExpression(
-    NTableClient::TLogicalTypePtr type,
+    TLogicalTypePtr type,
     TConstExpressionPtr compositeExpression,
     TCompositeMemberAccessorPath nestedStructOrTupleItemAccess,
     TDictOrListItemAccessorExpression dictOrListItemAccess)
@@ -965,6 +950,8 @@ void ToProto(NProto::TExpression* serialized, const TConstExpressionPtr& origina
         NTableClient::CastToV1Type(original->LogicalType).first);
 
     serialized->set_type(ToProto(wireType));
+
+    //ToQLType: uint8 -> uint64
 
     if (!IsV1Type(original->LogicalType) ||
         *original->LogicalType != *MakeLogicalType(GetLogicalType(wireType), /*required*/ false))

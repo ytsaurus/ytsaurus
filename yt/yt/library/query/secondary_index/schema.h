@@ -31,8 +31,8 @@ void ValidateUniqueIndexSchema(
     const TTableSchema& indexTableSchema);
 
 bool IsValidUnfoldedColumnPair(
-    const NTableClient::TLogicalTypePtr& tableColumnType,
-    const NTableClient::TLogicalTypePtr& indexColumnType);
+    const TLogicalTypePtr& tableColumnType,
+    const TLogicalTypePtr& indexColumnType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

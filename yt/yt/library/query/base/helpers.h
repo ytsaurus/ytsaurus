@@ -34,7 +34,7 @@ int ColumnNameToKeyPartIndex(const TKeyColumns& keyColumns, const std::string& c
 //! For historical reasons reference expressions used to have `wire type` of column i.e.
 //! if column had `Int16` type its reference would have `Int64` type.
 //! `DeriveReferenceType` keeps this behaviour for V1 types, but for V3 types actual type is returned.
-NTableClient::TLogicalTypePtr ToQLType(const NTableClient::TLogicalTypePtr& columnType);
+TLogicalTypePtr ToQLType(const TLogicalTypePtr& columnType);
 
 ////////////////////////////////////////////////////////////////////////////////
 

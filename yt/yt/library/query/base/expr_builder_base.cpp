@@ -175,7 +175,7 @@ TSharedRange<TRowRange> LiteralRangesListToRows(
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TNotExpressionPropagator
-    : TRewriter<TNotExpressionPropagator>
+    : public TRewriter<TNotExpressionPropagator>
 {
     using TBase = TRewriter<TNotExpressionPropagator>;
 
@@ -233,7 +233,7 @@ struct TNotExpressionPropagator
 };
 
 struct TCastEliminator
-    : TRewriter<TCastEliminator>
+    : public TRewriter<TCastEliminator>
 {
     using TBase = TRewriter<TCastEliminator>;
 
@@ -263,7 +263,7 @@ struct TCastEliminator
 };
 
 struct TExpressionSimplifier
-    : TRewriter<TExpressionSimplifier>
+    : public TRewriter<TExpressionSimplifier>
 {
     using TBase = TRewriter<TExpressionSimplifier>;
 
