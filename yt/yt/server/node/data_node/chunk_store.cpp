@@ -679,6 +679,11 @@ IChunkPtr TChunkStore::GetChunkOrThrow(TChunkId chunkId, TChunkLocationUuid loca
     return chunk;
 }
 
+const TDataNodeConfigPtr& TChunkStore::GetStaticDataNodeConfig() const
+{
+    return Config_;
+}
+
 std::vector<IChunkPtr> TChunkStore::GetChunks() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -974,6 +979,8 @@ void TChunkStore::OnProfiling()
         performanceCounters.AvailableSpace.Update(location->GetAvailableSpace());
         performanceCounters.UsedSpace.Update(location->GetUsedSpace());
         performanceCounters.ChunkCount.Update(location->GetChunkCount());
+        performanceCounters.TrashChunkCount.Update(location->GetTrashChunkCount());
+        performanceCounters.TrashSpace.Update(location->GetTrashSpace());
         performanceCounters.Full.Update(location->IsFull() ? 1 : 0);
     }
 }
