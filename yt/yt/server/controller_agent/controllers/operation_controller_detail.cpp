@@ -3573,9 +3573,10 @@ bool TOperationControllerBase::OnJobAborted(
     }
 
     YT_LOG_DEBUG(
-        "Job aborted (JobId: %v, AbortReason: %v)",
+        "Job aborted (JobId: %v, AbortReason: %v, JobType: %v)",
         jobId,
-        abortReason);
+        abortReason,
+        joblet->JobType);
 
     auto error = jobSummary->Error;
 
