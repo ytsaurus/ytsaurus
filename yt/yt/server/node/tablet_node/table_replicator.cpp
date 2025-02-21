@@ -559,7 +559,7 @@ private:
             TColumnFilter(),
             MakeRowBound(startRowIndex),
             MakeRowBound(std::numeric_limits<i64>::max()),
-            /*timestampRange*/ {},
+            {.Timestamp = AsyncLastCommittedTimestamp},
             chunkReadOptions,
             /*tabletThrottlerKind*/ std::nullopt,
             WorkloadCategory_);
