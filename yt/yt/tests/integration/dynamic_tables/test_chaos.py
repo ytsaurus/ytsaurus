@@ -1241,6 +1241,10 @@ class TestChaos(ChaosTestBase):
 
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="sync")
 
+        # Wait for updated replica progress is reported back to chaos node.
+        timestamp = generate_timestamp()
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replication_lag_timestamp") > timestamp)
+
         assert len(_get_in_sync_replicas("//tmp/t")) == 1
         assert len(_get_in_sync_replicas("//tmp/crt")) == 1
 
