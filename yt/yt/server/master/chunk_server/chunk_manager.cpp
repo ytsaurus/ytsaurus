@@ -5657,12 +5657,8 @@ private:
                 auto nodeState = node->GetLocalState();
                 // If node is offline or being disposed, we might have already cleared the corresponding location and
                 // adding destroyed replica there again will just get it stuck there.
-
-                // If node is registered, she will tell us about her replicas with full heartbeat (including that one),
-                // and we will add it to destroyed set at that moment (we should not add it now, because if node goes back offline
-                // before reporting heartbeat, the replica will get stuck as well).
-                if (nodeState != ENodeState::Online) {
-                    YT_LOG_DEBUG("Skip adding replica to destroyed set as node is not online (NodeId: %v, State: %v, ChunkId: %v)",
+                if (nodeState != ENodeState::Online && nodeState != ENodeState::Registered) {
+                    YT_LOG_DEBUG("Skip adding replica to destroyed set as node is neither online nor registered (NodeId: %v, State: %v, ChunkId: %v)",
                         replica.NodeId,
                         nodeState,
                         chunkId);
