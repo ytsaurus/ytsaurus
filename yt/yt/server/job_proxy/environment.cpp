@@ -157,11 +157,11 @@ void Serialize(const TJobEnvironmentBlockIOStatistics& statistics, NYson::IYsonC
 TErrorOr<TJobEnvironmentBlockIOStatistics> ExtractJobEnvironmentBlockIOStatistics(const TBlockIOStatistics& statistics) noexcept
 {
     return TJobEnvironmentBlockIOStatistics {
-        .IOReadByte = ValueOrNullopt(statistics.IOReadByte),
-        .IOWriteByte = ValueOrNullopt(statistics.IOWriteByte),
-        .IOReadOps = ValueOrNullopt(statistics.IOReadOps),
-        .IOWriteOps = ValueOrNullopt(statistics.IOWriteOps),
-        .IOOps = ValueOrNullopt(statistics.IOOps),
+        .IOReadByte = ValueOrNullopt(statistics.TotalIOStatistics.IOReadByte),
+        .IOWriteByte = ValueOrNullopt(statistics.TotalIOStatistics.IOWriteByte),
+        .IOReadOps = ValueOrNullopt(statistics.TotalIOStatistics.IOReadOps),
+        .IOWriteOps = ValueOrNullopt(statistics.TotalIOStatistics.IOWriteOps),
+        .IOOps = ValueOrNullopt(statistics.TotalIOStatistics.IOOps),
     };
 }
 

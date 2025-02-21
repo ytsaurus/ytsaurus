@@ -51,12 +51,13 @@ DEFINE_REFCOUNTED_TYPE(TPortoProfilers)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TErrorOr<i64> GetFieldOrError(
-    const TResourceUsage& usage,
+template<class T>
+static typename T::mapped_type GetFieldOrError(
+    const T& containerStats,
     EStatField field)
 {
-    auto it = usage.ContainerStats.find(field);
-    if (it == usage.ContainerStats.end()) {
+    auto it = containerStats.find(field);
+    if (it == containerStats.end()) {
         return TError("Resource usage is missing %Qlv field", field);
     }
     const auto& errorOrValue = it->second;
@@ -105,7 +106,7 @@ TCpuStatistics TPortoResourceTracker::ExtractCpuStatistics(const TResourceUsage&
 {
     // NB: Job proxy uses last sample of CPU statistics but we are interested in
     // peak thread count value.
-    auto currentThreadCountPeak = GetFieldOrError(resourceUsage, EStatField::ThreadCount);
+    auto currentThreadCountPeak = GetFieldOrError(resourceUsage.ContainerStats, EStatField::ThreadCount);
 
     PeakThreadCount_ = currentThreadCountPeak.IsOK() && PeakThreadCount_.IsOK()
         ? std::max<i64>(
@@ -113,15 +114,15 @@ TCpuStatistics TPortoResourceTracker::ExtractCpuStatistics(const TResourceUsage&
             currentThreadCountPeak.Value())
         : currentThreadCountPeak.IsOK() ? currentThreadCountPeak : PeakThreadCount_;
 
-    auto burstTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuBurstUsage);
-    auto totalTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuUsage);
-    auto systemTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuSystemUsage);
-    auto userTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuUserUsage);
-    auto waitTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuWait);
-    auto throttledNs = GetFieldOrError(resourceUsage, EStatField::CpuThrottled);
-    auto cfsThrottledNs = GetFieldOrError(resourceUsage, EStatField::CpuCfsThrottled);
-    auto limitTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuLimit);
-    auto guaranteeTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuGuarantee);
+    auto burstTimeNs = GetFieldOrError(resourceUsage.ContainerStats, EStatField::CpuBurstUsage);
+    auto totalTimeNs = GetFieldOrError(resourceUsage.ContainerStats, EStatField::CpuUsage);
+    auto systemTimeNs = GetFieldOrError(resourceUsage.ContainerStats, EStatField::CpuSystemUsage);
+    auto userTimeNs = GetFieldOrError(resourceUsage.ContainerStats, EStatField::CpuUserUsage);
+    auto waitTimeNs = GetFieldOrError(resourceUsage.ContainerStats, EStatField::CpuWait);
+    auto throttledNs = GetFieldOrError(resourceUsage.ContainerStats, EStatField::CpuThrottled);
+    auto cfsThrottledNs = GetFieldOrError(resourceUsage.ContainerStats, EStatField::CpuCfsThrottled);
+    auto limitTimeNs = GetFieldOrError(resourceUsage.ContainerStats, EStatField::CpuLimit);
+    auto guaranteeTimeNs = GetFieldOrError(resourceUsage.ContainerStats, EStatField::CpuGuarantee);
 
     return TCpuStatistics{
         .BurstUsageTime = ExtractDuration(burstTimeNs),
@@ -131,9 +132,9 @@ TCpuStatistics TPortoResourceTracker::ExtractCpuStatistics(const TResourceUsage&
         .WaitTime = ExtractDuration(waitTimeNs),
         .ThrottledTime = ExtractDuration(throttledNs),
         .CfsThrottledTime = ExtractDuration(cfsThrottledNs),
-        .ThreadCount = GetFieldOrError(resourceUsage, EStatField::ThreadCount),
-        .ContextSwitches = GetFieldOrError(resourceUsage, EStatField::ContextSwitches),
-        .ContextSwitchesDelta = GetFieldOrError(resourceUsage, EStatField::ContextSwitchesDelta),
+        .ThreadCount = GetFieldOrError(resourceUsage.ContainerStats, EStatField::ThreadCount),
+        .ContextSwitches = GetFieldOrError(resourceUsage.ContainerStats, EStatField::ContextSwitches),
+        .ContextSwitchesDelta = GetFieldOrError(resourceUsage.ContainerStats, EStatField::ContextSwitchesDelta),
         .PeakThreadCount = PeakThreadCount_,
         .LimitTime = ExtractDuration(limitTimeNs),
         .GuaranteeTime = ExtractDuration(guaranteeTimeNs),
@@ -143,67 +144,115 @@ TCpuStatistics TPortoResourceTracker::ExtractCpuStatistics(const TResourceUsage&
 TMemoryStatistics TPortoResourceTracker::ExtractMemoryStatistics(const TResourceUsage& resourceUsage) const
 {
     return TMemoryStatistics{
-        .ResidentAnon = GetFieldOrError(resourceUsage, EStatField::ResidentAnon),
-        .TmpfsUsage = GetFieldOrError(resourceUsage, EStatField::TmpfsUsage),
-        .MappedFile = GetFieldOrError(resourceUsage, EStatField::MappedFile),
-        .MinorPageFaults = GetFieldOrError(resourceUsage, EStatField::MinorPageFaults),
-        .MajorPageFaults = GetFieldOrError(resourceUsage, EStatField::MajorPageFaults),
-        .FileCacheUsage = GetFieldOrError(resourceUsage, EStatField::FileCacheUsage),
-        .AnonUsage = GetFieldOrError(resourceUsage, EStatField::AnonMemoryUsage),
-        .AnonLimit = GetFieldOrError(resourceUsage, EStatField::AnonMemoryLimit),
-        .MemoryUsage = GetFieldOrError(resourceUsage, EStatField::MemoryUsage),
-        .MemoryGuarantee = GetFieldOrError(resourceUsage, EStatField::MemoryGuarantee),
-        .MemoryLimit = GetFieldOrError(resourceUsage, EStatField::MemoryLimit),
-        .MaxMemoryUsage = GetFieldOrError(resourceUsage, EStatField::MaxMemoryUsage),
-        .OomKills = GetFieldOrError(resourceUsage, EStatField::OomKills),
-        .OomKillsTotal = GetFieldOrError(resourceUsage, EStatField::OomKillsTotal)
+        .ResidentAnon = GetFieldOrError(resourceUsage.ContainerStats, EStatField::ResidentAnon),
+        .TmpfsUsage = GetFieldOrError(resourceUsage.ContainerStats, EStatField::TmpfsUsage),
+        .MappedFile = GetFieldOrError(resourceUsage.ContainerStats, EStatField::MappedFile),
+        .MinorPageFaults = GetFieldOrError(resourceUsage.ContainerStats, EStatField::MinorPageFaults),
+        .MajorPageFaults = GetFieldOrError(resourceUsage.ContainerStats, EStatField::MajorPageFaults),
+        .FileCacheUsage = GetFieldOrError(resourceUsage.ContainerStats, EStatField::FileCacheUsage),
+        .AnonUsage = GetFieldOrError(resourceUsage.ContainerStats, EStatField::AnonMemoryUsage),
+        .AnonLimit = GetFieldOrError(resourceUsage.ContainerStats, EStatField::AnonMemoryLimit),
+        .MemoryUsage = GetFieldOrError(resourceUsage.ContainerStats, EStatField::MemoryUsage),
+        .MemoryGuarantee = GetFieldOrError(resourceUsage.ContainerStats, EStatField::MemoryGuarantee),
+        .MemoryLimit = GetFieldOrError(resourceUsage.ContainerStats, EStatField::MemoryLimit),
+        .MaxMemoryUsage = GetFieldOrError(resourceUsage.ContainerStats, EStatField::MaxMemoryUsage),
+        .OomKills = GetFieldOrError(resourceUsage.ContainerStats, EStatField::OomKills),
+        .OomKillsTotal = GetFieldOrError(resourceUsage.ContainerStats, EStatField::OomKillsTotal),
     };
 }
 
 TBlockIOStatistics TPortoResourceTracker::ExtractBlockIOStatistics(const TResourceUsage& resourceUsage) const
 {
-    auto totalTimeNs = GetFieldOrError(resourceUsage, EStatField::IOTotalTime);
-    auto waitTimeNs = GetFieldOrError(resourceUsage, EStatField::IOWaitTime);
-
     return TBlockIOStatistics{
-        .IOReadByte = GetFieldOrError(resourceUsage, EStatField::IOReadByte),
-        .IOWriteByte = GetFieldOrError(resourceUsage, EStatField::IOWriteByte),
-        .IOBytesLimit = GetFieldOrError(resourceUsage, EStatField::IOBytesLimit),
-        .IOReadOps = GetFieldOrError(resourceUsage, EStatField::IOReadOps),
-        .IOWriteOps = GetFieldOrError(resourceUsage, EStatField::IOWriteOps),
-        .IOOps = GetFieldOrError(resourceUsage, EStatField::IOOps),
-        .IOOpsLimit = GetFieldOrError(resourceUsage, EStatField::IOOpsLimit),
-        .IOTotalTime = ExtractDuration(totalTimeNs),
-        .IOWaitTime = ExtractDuration(waitTimeNs)
+        .TotalIOStatistics = ExtractTotalBlockIOStatistics(resourceUsage),
+        .DeviceIOStatistics = ExtractBlockIOPerDeviceStatistics(resourceUsage),
     };
+}
+
+TBlockIOStatistics::TIOStatistics TPortoResourceTracker::ExtractTotalBlockIOStatistics(const TResourceUsage& resourceUsage) const
+{
+    auto totalTimeNs = GetFieldOrError(resourceUsage.ContainerStats, EStatField::IOTotalTime);
+    auto waitTimeNs = GetFieldOrError(resourceUsage.ContainerStats, EStatField::IOWaitTime);
+
+    return TBlockIOStatistics::TIOStatistics{
+        .IOReadByte = GetFieldOrError(resourceUsage.ContainerStats, EStatField::IOReadByte),
+        .IOWriteByte = GetFieldOrError(resourceUsage.ContainerStats, EStatField::IOWriteByte),
+        .IOBytesLimit = GetFieldOrError(resourceUsage.ContainerStats, EStatField::IOBytesLimit),
+        .IOReadOps = GetFieldOrError(resourceUsage.ContainerStats, EStatField::IOReadOps),
+        .IOWriteOps = GetFieldOrError(resourceUsage.ContainerStats, EStatField::IOWriteOps),
+        .IOOps = GetFieldOrError(resourceUsage.ContainerStats, EStatField::IOOps),
+        .IOOpsLimit = GetFieldOrError(resourceUsage.ContainerStats, EStatField::IOOpsLimit),
+        .IOTotalTime = ExtractDuration(totalTimeNs),
+        .IOWaitTime = ExtractDuration(waitTimeNs),
+    };
+}
+
+TBlockIOStatistics::TDeviceIOStatistics TPortoResourceTracker::ExtractBlockIOPerDeviceStatistics(
+    const TResourceUsage& resourceUsage) const
+{
+    TBlockIOStatistics::TDeviceIOStatistics statistics;
+
+    const auto writeStatisticsToHashMap = [&] <class T> (EStatField field, T TBlockIOStatistics::TIOStatistics::* statField) {
+        auto statisticsVector = GetFieldOrError(resourceUsage.ContainerTaggedStats, field);
+        if (statisticsVector.IsOK()) {
+            for (const auto& [deviceName, value] : statisticsVector.Value()) {
+                if constexpr (std::is_same_v<T, TErrorOr<TDuration>>) {
+                    statistics[deviceName].*statField = ExtractDuration(value);
+                } else {
+                    statistics[deviceName].*statField = value;
+                }
+            }
+        }
+    };
+
+    writeStatisticsToHashMap(EStatField::IOReadByte, &TBlockIOStatistics::TIOStatistics::IOReadByte);
+    writeStatisticsToHashMap(EStatField::IOWriteByte, &TBlockIOStatistics::TIOStatistics::IOWriteByte);
+    writeStatisticsToHashMap(EStatField::IOBytesLimit, &TBlockIOStatistics::TIOStatistics::IOBytesLimit);
+    writeStatisticsToHashMap(EStatField::IOReadOps, &TBlockIOStatistics::TIOStatistics::IOReadOps);
+    writeStatisticsToHashMap(EStatField::IOWriteOps, &TBlockIOStatistics::TIOStatistics::IOWriteOps);
+    writeStatisticsToHashMap(EStatField::IOOps, &TBlockIOStatistics::TIOStatistics::IOOps);
+    writeStatisticsToHashMap(EStatField::IOOpsLimit, &TBlockIOStatistics::TIOStatistics::IOOpsLimit);
+    writeStatisticsToHashMap(EStatField::IOTotalTime, &TBlockIOStatistics::TIOStatistics::IOTotalTime);
+    writeStatisticsToHashMap(EStatField::IOWaitTime, &TBlockIOStatistics::TIOStatistics::IOWaitTime);
+
+    return statistics;
 }
 
 TNetworkStatistics TPortoResourceTracker::ExtractNetworkStatistics(const TResourceUsage& resourceUsage) const
 {
     return TNetworkStatistics{
-        .TxBytes = GetFieldOrError(resourceUsage, EStatField::NetTxBytes),
-        .TxPackets = GetFieldOrError(resourceUsage, EStatField::NetTxPackets),
-        .TxDrops = GetFieldOrError(resourceUsage, EStatField::NetTxDrops),
-        .TxLimit = GetFieldOrError(resourceUsage, EStatField::NetTxLimit),
+        .TxBytes = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetTxBytes),
+        .TxPackets = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetTxPackets),
+        .TxDrops = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetTxDrops),
+        .TxLimit = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetTxLimit),
 
-        .RxBytes = GetFieldOrError(resourceUsage, EStatField::NetRxBytes),
-        .RxPackets = GetFieldOrError(resourceUsage, EStatField::NetRxPackets),
-        .RxDrops = GetFieldOrError(resourceUsage, EStatField::NetRxDrops),
-        .RxLimit = GetFieldOrError(resourceUsage, EStatField::NetRxLimit),
+        .RxBytes = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetRxBytes),
+        .RxPackets = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetRxPackets),
+        .RxDrops = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetRxDrops),
+        .RxLimit = GetFieldOrError(resourceUsage.ContainerStats, EStatField::NetRxLimit),
     };
 }
 
 TVolumeStatistics TPortoResourceTracker::ExtractVolumeStatistics(const TResourceUsage& resourceUsage) const
 {
+    auto volumeCounts = GetFieldOrError(resourceUsage.ContainerTaggedStats, EStatField::VolumeCounts).ValueOrDefault({});
+
+    std::vector<std::pair<TString, i64>> convertedVolumeCounts;
+    convertedVolumeCounts.reserve(volumeCounts.size());
+
+    for (const auto& [deviceName, value] : volumeCounts) {
+        convertedVolumeCounts.emplace_back(deviceName, value);
+    }
+
     return TVolumeStatistics{
-        .VolumeCounts = resourceUsage.VolumeCounts,
+        .VolumeCounts = convertedVolumeCounts,
     };
 }
 
 TLayerStatistics TPortoResourceTracker::ExtractLayerStatistics(const TResourceUsage& resourceUsage) const
 {
     return TLayerStatistics{
-        .LayerCounts = GetFieldOrError(resourceUsage, EStatField::LayerCounts),
+        .LayerCounts = GetFieldOrError(resourceUsage.ContainerStats, EStatField::LayerCounts),
     };
 }
 
@@ -396,8 +445,8 @@ void TPortoResourceTracker::ReCalculateResourceUsage(const TResourceUsage& newRe
         }
     }
 
-    resourceUsage.VolumeCounts = newResourceUsage.VolumeCounts;
-    resourceUsageDelta.VolumeCounts = newResourceUsage.VolumeCounts;
+    resourceUsage.ContainerTaggedStats = newResourceUsage.ContainerTaggedStats;
+    resourceUsageDelta.ContainerTaggedStats = newResourceUsage.ContainerTaggedStats;
 
     ResourceUsage_ = resourceUsage;
     ResourceUsageDelta_ = resourceUsageDelta;
@@ -635,42 +684,61 @@ void TPortoResourceProfiler::WriteBlockingIOMetrics(
     TTotalStatistics& totalStatistics,
     i64 timeDeltaUsec)
 {
+    WriteBlockingIOMetrics(writer, totalStatistics.BlockIOStatistics.TotalIOStatistics, timeDeltaUsec);
+}
+
+void TPortoResourceProfiler::WriteBlockingIOPerDeviceMetrics(
+    ISensorWriter* writer,
+    TTotalStatistics& totalStatistics,
+    i64 timeDeltaUsec)
+{
+    for (const auto& [device, statistics] : totalStatistics.BlockIOStatistics.DeviceIOStatistics) {
+        auto guard = TWithTagGuard(writer, "device_name", device);
+        WriteBlockingIOMetrics(writer, statistics, timeDeltaUsec);
+    }
+}
+
+void TPortoResourceProfiler::WriteBlockingIOMetrics(
+    ISensorWriter* writer,
+    const TBlockIOStatistics::TIOStatistics& blockIOStatistics,
+    i64 timeDeltaUsec)
+{
     WriteCumulativeGaugeIfOk(writer,
         "/io/read_bytes",
-        totalStatistics.BlockIOStatistics.IOReadByte,
+        blockIOStatistics.IOReadByte,
         timeDeltaUsec);
     WriteCumulativeGaugeIfOk(writer,
         "/io/write_bytes",
-        totalStatistics.BlockIOStatistics.IOWriteByte,
+        blockIOStatistics.IOWriteByte,
         timeDeltaUsec);
     WriteCumulativeGaugeIfOk(writer,
         "/io/read_ops",
-        totalStatistics.BlockIOStatistics.IOReadOps,
+        blockIOStatistics.IOReadOps,
         timeDeltaUsec);
     WriteCumulativeGaugeIfOk(writer,
         "/io/write_ops",
-        totalStatistics.BlockIOStatistics.IOWriteOps,
+        blockIOStatistics.IOWriteOps,
         timeDeltaUsec);
     WriteCumulativeGaugeIfOk(writer,
         "/io/ops",
-        totalStatistics.BlockIOStatistics.IOOps,
+        blockIOStatistics.IOOps,
         timeDeltaUsec);
 
     WriteGaugeIfOk(writer,
         "/io/bytes_limit",
-        totalStatistics.BlockIOStatistics.IOBytesLimit);
+        blockIOStatistics.IOBytesLimit);
     WriteGaugeIfOk(writer,
         "/io/ops_limit",
-        totalStatistics.BlockIOStatistics.IOOpsLimit);
+        blockIOStatistics.IOOpsLimit);
 
-    if (totalStatistics.BlockIOStatistics.IOTotalTime.IsOK()) {
-        i64 totalTimeUs = totalStatistics.BlockIOStatistics.IOTotalTime.Value().MicroSeconds();
+    if (blockIOStatistics.IOTotalTime.IsOK()) {
+        i64 totalTimeUs = blockIOStatistics.IOTotalTime.Value().MicroSeconds();
         double totalPercent = std::max<double>(0.0, 100. * totalTimeUs / timeDeltaUsec);
         writer->AddGauge("/io/total", totalPercent);
     }
 
-    if (totalStatistics.BlockIOStatistics.IOWaitTime.IsOK()) {
-        i64 waitTimeUs = totalStatistics.BlockIOStatistics.IOWaitTime.Value().MicroSeconds();
+    if (blockIOStatistics.IOWaitTime.IsOK()) {
+        i64 waitTimeUs = blockIOStatistics.IOWaitTime.Value().MicroSeconds();
         double waitPercent = std::max<double>(0.0, 100. * waitTimeUs / timeDeltaUsec);
         writer->AddGauge("/io/wait", waitPercent);
     }
@@ -749,6 +817,7 @@ void TPortoResourceProfiler::CollectSensors(ISensorWriter* writer)
     WriteCpuMetrics(writer, totalStatistics, timeDeltaUsec);
     WriteMemoryMetrics(writer, totalStatistics, timeDeltaUsec);
     WriteBlockingIOMetrics(writer, totalStatistics, timeDeltaUsec);
+    WriteBlockingIOPerDeviceMetrics(writer, totalStatistics, timeDeltaUsec);
     WriteNetworkMetrics(writer, totalStatistics, timeDeltaUsec);
     WriteVolumeMetrics(writer, totalStatistics, timeDeltaUsec);
     WriteLayerMetrics(writer, totalStatistics, timeDeltaUsec);

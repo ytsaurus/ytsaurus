@@ -167,17 +167,25 @@ public:
 
     struct TStatistics
     {
-        TErrorOr<i64> IOReadByte;
-        TErrorOr<i64> IOWriteByte;
-        TErrorOr<i64> IOBytesLimit;
+        struct TIOStatistics
+        {
+            TErrorOr<i64> IOReadByte{TError("Resource usage is missing IOReadBytes field")};
+            TErrorOr<i64> IOWriteByte{TError("Resource usage is missing IOWriteByte field")};
+            TErrorOr<i64> IOBytesLimit{TError("Resource usage is missing IOBytesLimit field")};
 
-        TErrorOr<i64> IOReadOps;
-        TErrorOr<i64> IOWriteOps;
-        TErrorOr<i64> IOOps;
-        TErrorOr<i64> IOOpsLimit;
+            TErrorOr<i64> IOReadOps{TError("Resource usage is missing IOReadOps field")};
+            TErrorOr<i64> IOWriteOps{TError("Resource usage is missing IOWriteOps field")};
+            TErrorOr<i64> IOOps{TError("Resource usage is missing IOOps field")};
+            TErrorOr<i64> IOOpsLimit{TError("Resource usage is missing IOOpsLimit field")};
 
-        TErrorOr<TDuration> IOTotalTime;
-        TErrorOr<TDuration> IOWaitTime;
+            TErrorOr<TDuration> IOTotalTime{TError("Resource usage is missing IOTotalTime field")};
+            TErrorOr<TDuration> IOWaitTime{TError("Resource usage is missing IOWaitTime field")};
+        };
+
+        using TDeviceIOStatistics = THashMap<TString, TIOStatistics>;
+
+        TIOStatistics TotalIOStatistics;
+        TDeviceIOStatistics DeviceIOStatistics;
     };
 
     struct TStatisticsItem
