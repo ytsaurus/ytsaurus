@@ -72,6 +72,12 @@ RUN apt-get update \
       procps \
       jq \
       htop \
+      vim \
+      ncdu \
+      iperf \
+      netcat-openbsd \
+      tcpdump \
+      wget \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
