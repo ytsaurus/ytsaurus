@@ -37,6 +37,10 @@ PEERDIR(
     yql/essentials/utils/log
     yql/essentials/utils/log/proto
     yql/essentials/sql/v1
+    yql/essentials/sql/v1/lexer/antlr4
+    yql/essentials/sql/v1/lexer/antlr4_ansi
+    yql/essentials/sql/v1/proto_parser/antlr4
+    yql/essentials/sql/v1/proto_parser/antlr4_ansi
     yql/essentials/providers/common/proto
     yql/essentials/providers/common/codec
     yql/essentials/providers/common/udf_resolve
