@@ -44,4 +44,4 @@ INodeTypeHandlerPtr CreateClusterProxyNodeTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTY::NMaintenanceTracker
+} // namespace NYT::NMaintenanceTracker

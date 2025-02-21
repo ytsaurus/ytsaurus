@@ -13,4 +13,4 @@ NCypressServer::INodeTypeHandlerPtr CreateClusterProxyNodeTypeHandler(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NTY::NCypressServer
+} // namespace NYT::NCypressServer
