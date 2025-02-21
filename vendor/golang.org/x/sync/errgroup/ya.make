@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.10.0)
+VERSION(v0.11.0)
 
 SRCS(
     errgroup.go
