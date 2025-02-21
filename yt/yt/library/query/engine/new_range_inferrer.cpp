@@ -77,7 +77,7 @@ public:
             ? 0
             : -Modulo_ + 1;
 
-        return MakeUnversionedSentinelValue(EValueType::Null);
+        return MakeUnversionedSentinelValue(EValueType::Null, Value_.Id);
     }
 private:
     TUnversionedValue Value_;
@@ -867,6 +867,8 @@ public:
                     rowRange = RowRangeFromPrefix(buffer, TRange(boundRow.Begin(), prefixSize));
                 }
 
+                VerifyIdsInRange(rowRange);
+
                 YT_LOG_DEBUG_IF(VerboseLogging_, "Producing range [%kv .. %kv]", rowRange.first, rowRange.second);
 
                 resultRanges.push_back(rowRange);
@@ -1093,6 +1095,8 @@ TSharedRange<TRowRange> CreateNewLightRangeInferrer(
             } else {
                 rowRange = RowRangeFromPrefix(buffer.Get(), TRange(boundRow.Begin(), prefixSize));
             }
+
+            VerifyIdsInRange(rowRange);
 
             if (resultRanges.empty()) {
                 resultRanges.push_back(rowRange);
