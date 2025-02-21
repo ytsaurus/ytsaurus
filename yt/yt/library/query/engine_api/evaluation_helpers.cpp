@@ -303,7 +303,9 @@ bool AllComputedColumnsEvaluated(const TJoinClause& joinClause)
         return false;
     };
 
-    for (const auto& column : joinClause.Schema.Original->Columns()) {
+    auto renamedSchema = joinClause.Schema.GetRenamedSchema();
+
+    for (const auto& column : renamedSchema->Columns()) {
         if (!column.SortOrder()) {
             break;
         }

@@ -96,6 +96,7 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
                 int keyPartIndex = ColumnNameToKeyPartIndex(keyColumns, referenceExpr->ColumnName);
                 if (keyPartIndex >= 0) {
                     auto value = rowBuffer->CaptureValue(constantExpr->Value);
+                    value.Id = keyPartIndex;
                     switch (opcode) {
                         case EBinaryOp::Equal:
                             return Interval(
@@ -210,7 +211,8 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
                 lastKeyStartOffset = columnConstraints.size();
 
                 for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
-                    const auto& value = values[rowIndex][index];
+                    auto value = values[rowIndex][index];
+                    value.Id = keyIndex;
 
                     if (commonKeyPrefixes[rowIndex] > keyIndex) {
                         if (lastKeyIndex >= 0 && commonKeyPrefixes[rowIndex] <= lastKeyIndex) {
@@ -305,7 +307,8 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
                 auto keyColumnIndex = keyColumnIds[expressionIndex];
 
                 if (expressionIndex < lower.GetCount()) {
-                    const auto& lowerValue = lower[expressionIndex];
+                    auto lowerValue = lower[expressionIndex];
+                    lowerValue.Id = keyColumnIndex;
                     currentLower = Append({
                             TConstraint::Make(
                                 TValueBound{lowerValue, false},
@@ -317,7 +320,8 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
                 }
 
                 if (expressionIndex < upper.GetCount()) {
-                    const auto& upperValue = upper[expressionIndex];
+                    auto upperValue = upper[expressionIndex];
+                    upperValue.Id = keyColumnIndex;
                     currentUpper = Append({
                             TConstraint::Make(MinBound, TValueBound{upperValue, false}),
                             TConstraint::Make(
@@ -335,8 +339,9 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
                 auto keyColumnIndex = keyColumnIds[expressionIndex];
 
                 if (expressionIndex < lower.GetCount() && expressionIndex < upper.GetCount()) {
-                    const auto& lowerValue = lower[expressionIndex];
-                    const auto& upperValue = upper[expressionIndex];
+                    auto lowerValue = lower[expressionIndex];
+                    auto upperValue = upper[expressionIndex];
+                    lowerValue.Id = keyColumnIndex;
 
                     current = Append({
                             TConstraint::Make(
@@ -353,7 +358,8 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
                         },
                         keyColumnIndex);
                 } else if (expressionIndex < lower.GetCount()) {
-                    const auto& lowerValue = lower[expressionIndex];
+                    auto lowerValue = lower[expressionIndex];
+                    lowerValue.Id = keyColumnIndex;
                     current = Append({
                             TConstraint::Make(
                                 TValueBound{lowerValue, false},
@@ -363,7 +369,8 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
                         },
                         keyColumnIndex);
                 } else if (expressionIndex < upper.GetCount()) {
-                    const auto& upperValue = upper[expressionIndex];
+                    auto upperValue = upper[expressionIndex];
+                    upperValue.Id = keyColumnIndex;
                     current = Append({
                             TConstraint::Make(MinBound, TValueBound{upperValue, false}),
                             TConstraint::Make(
@@ -380,7 +387,8 @@ TConstraintRef TConstraintsHolder::ExtractFromExpression(
 
                 auto keyColumnIndex = keyColumnIds[expressionIndex];
 
-                const auto& value = lower[expressionIndex];
+                auto value = lower[expressionIndex];
+                value.Id = keyColumnIndex;
                 YT_VERIFY(value == upper[expressionIndex]);
 
                 current = Append({

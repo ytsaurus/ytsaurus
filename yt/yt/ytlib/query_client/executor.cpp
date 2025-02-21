@@ -551,6 +551,11 @@ private:
             inferredDataSource,
             rowBuffer);
 
+        for (const auto& dataSource : allSplits) {
+            VerifyIdsInRanges(dataSource.first.Ranges);
+            VerifyIdsInKeys(dataSource.first.Keys);
+        }
+
         bool sortedDataSource = tableInfo->IsSorted();
 
         std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits;

@@ -408,4 +408,39 @@ void FromProto(TQueryOptions* original, const NProto::TQueryOptions& serialized)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void VerifyIdsInRange(const TRowRange& range)
+{
+    auto validateBorder = [&] (TUnversionedRow row) {
+        int id = 0;
+        for (; id < static_cast<int>(row.GetCount()) - 1; ++id) {
+            YT_VERIFY(row[id].Id == id);
+        }
+
+        if (row.GetCount() != 0) {
+            YT_VERIFY(row[id].Id == id || IsSentinelType(row[id].Type));
+        }
+    };
+
+    validateBorder(range.first);
+    validateBorder(range.second);
+}
+
+void VerifyIdsInRanges(TRange<TRowRange> ranges)
+{
+    for (const auto& range : ranges) {
+        VerifyIdsInRange(range);
+    }
+}
+
+void VerifyIdsInKeys(TRange<TRow> keys)
+{
+    for (const auto& key : keys) {
+        for (ui32 id = 0; id < key.GetCount(); ++id) {
+            YT_VERIFY(key[id].Id == id);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueryClient
