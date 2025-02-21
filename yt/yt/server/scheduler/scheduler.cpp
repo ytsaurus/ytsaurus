@@ -1952,6 +1952,10 @@ private:
             result->ControllerAgentTag = *update->ControllerAgentTag;
         }
 
+        if (update->SchedulingTagFilter) {
+            result->SchedulingTagFilter = *update->SchedulingTagFilter;
+        }
+
         Strategy_->UpdateRuntimeParameters(result, update, user);
 
         return result;
