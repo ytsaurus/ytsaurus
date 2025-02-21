@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "connection.h"
+#include "group_coordinator.h"
 #include "helpers.h"
 #include "private.h"
 
@@ -132,6 +133,13 @@ public:
     void OnDynamicConfigChanged(const TProxyDynamicConfigPtr& config) override
     {
         DynamicConfig_.Store(config);
+
+        {
+            auto guard = ReaderGuard(GroupCoordinatorMapLock_);
+            for (const auto& [_, groupCoordinator] : GroupCoordinators_) {
+                groupCoordinator->Reconfigure(config->GroupCoordinator);
+            }
+        }
     }
 
 private:
@@ -167,6 +175,10 @@ private:
 
     THashMap<TConnectionId, TConnectionStatePtr> Connections_;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConnectionMapLock_);
+
+    using TGroupId = TString;
+    THashMap<TGroupId, IGroupCoordinatorPtr> GroupCoordinators_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, GroupCoordinatorMapLock_);
 
     TEnumIndexedArray<ERequestType, THandler> Handlers_;
 
@@ -303,7 +315,7 @@ private:
         TRequestHeader header;
         header.Deserialize(reader.get());
 
-        YT_LOG_DEBUG("Request received (ApiKey: %v, ApiVersion: %v, CorrelationId: %v, ClientId: %v, ConnectionId: %v)",
+        YT_LOG_DEBUG("Request received (RequestType: %v, ApiVersion: %v, CorrelationId: %v, ClientId: %v, ConnectionId: %v)",
             header.RequestType,
             header.ApiVersion,
             header.CorrelationId,
@@ -334,10 +346,12 @@ private:
         }();
 
         if (auto handler = Handlers_[header.RequestType]; handler) {
-            auto responseMessage = handler(connection->GetConnectionId(), reader.get(), header.ApiVersion);
+            auto responseMessage = handler(connection->GetConnectionId(), reader.get(), header);
 
-            YT_LOG_DEBUG("Response sent (RequestType: %v, ConnectionId: %v, HeaderSize: %v, MessageSize: %v)",
+            YT_LOG_DEBUG("Response sent (RequestType: %v, CorrelationId: %v, ClientId: %v, ConnectionId: %v, HeaderSize: %v, MessageSize: %v)",
                 header.RequestType,
+                header.CorrelationId,
+                header.ClientId,
                 connection->GetConnectionId(),
                 responseHeader.Size(),
                 responseMessage.Size());
@@ -413,8 +427,6 @@ private:
                 .MinVersion = 0,
                 .MaxVersion = 0,
             },
-            /*
-            // TODO(nadya73): support it later.
             TRspApiKey{
                 .ApiKey = static_cast<int>(ERequestType::JoinGroup),
                 .MinVersion = 0,
@@ -424,7 +436,7 @@ private:
                 .ApiKey = static_cast<int>(ERequestType::SyncGroup),
                 .MinVersion = 0,
                 .MaxVersion = 0,
-            },*/
+            },
             TRspApiKey{
                 .ApiKey = static_cast<int>(ERequestType::ListOffsets),
                 .MinVersion = 0,
@@ -675,13 +687,30 @@ private:
             request.MemberId,
             request.ProtocolType);
 
-        TRspJoinGroup response;
-        // TODO(nadya73): fill it with normal data.
-        response.MemberId = request.MemberId;
-        response.ProtocolName = "roundrobin";
-        response.Leader = "leader_123";
+        auto userName = GetConnectionState(connectionId)->UserName;
+        if (!userName) {
+            THROW_ERROR_EXCEPTION("Unknown user name, something went wrong");
+        }
 
-        return response;
+        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(*userName));
+
+        // TODO(nadya73): check permissions and return GROUP_AUTHORIZATION_FAILED.
+
+        auto dynamicConfig = GetDynamicConfig();
+
+        IGroupCoordinatorPtr groupCoordinator;
+        {
+            auto guard = WriterGuard(GroupCoordinatorMapLock_);
+            auto groupCoordinatorIt = GroupCoordinators_.find(request.GroupId);
+            if (groupCoordinatorIt != GroupCoordinators_.end()) {
+                groupCoordinator = groupCoordinatorIt->second;
+            } else {
+                groupCoordinator = CreateGroupCoordinator(request.GroupId, dynamicConfig->GroupCoordinator);
+                GroupCoordinators_[request.GroupId] = groupCoordinator;
+            }
+        }
+
+        return groupCoordinator->JoinGroup(request, Logger.WithTag("GroupId: %v", request.GroupId));
     }
 
     DEFINE_KAFKA_HANDLER(SyncGroup)
@@ -690,14 +719,32 @@ private:
             request.GroupId,
             request.MemberId);
 
-        TRspSyncGroup response;
-        TRspSyncGroupAssignment assignment;
-        // TODO(nadya73): fill it with normal data.
-        assignment.Topic = "primary://tmp/queue";
-        assignment.Partitions = {0};
-        response.Assignments.push_back(std::move(assignment));
+        auto userName = GetConnectionState(connectionId)->UserName;
+        if (!userName) {
+            THROW_ERROR_EXCEPTION("Unknown user name, something went wrong");
+        }
 
-        return response;
+        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(*userName));
+
+        // TODO(nadya73): check permissions and return GROUP_AUTHORIZATION_FAILED.
+
+        IGroupCoordinatorPtr groupCoordinator;
+        {
+            auto guard = ReaderGuard(GroupCoordinatorMapLock_);
+            auto groupCoordinatorIt = GroupCoordinators_.find(request.GroupId);
+            if (groupCoordinatorIt != GroupCoordinators_.end()) {
+                groupCoordinator = groupCoordinatorIt->second;
+            } else {
+                YT_LOG_DEBUG("Unknown group id (GroupId: %v)", request.GroupId);
+                return TRspSyncGroup{ .ErrorCode = NKafka::EErrorCode::NotCoordinator };
+            }
+        }
+
+        return groupCoordinator->SyncGroup(
+            request,
+            Logger
+                .WithTag("GroupId: %v", request.GroupId)
+                .WithTag("MemberId: %v", request.MemberId));
     }
 
     DEFINE_KAFKA_HANDLER(Heartbeat)
@@ -706,9 +753,19 @@ private:
             request.GroupId,
             request.MemberId);
 
-        TRspHeartbeat response;
+        IGroupCoordinatorPtr groupCoordinator;
+        {
+            auto guard = ReaderGuard(GroupCoordinatorMapLock_);
+            auto groupCoordinatorIt = GroupCoordinators_.find(request.GroupId);
+            if (groupCoordinatorIt != GroupCoordinators_.end()) {
+                groupCoordinator = groupCoordinatorIt->second;
+            } else {
+                YT_LOG_DEBUG("Unknown group id (GroupId: %v)", request.GroupId);
+                return TRspHeartbeat{ .ErrorCode = NKafka::EErrorCode::NotCoordinator };
+            }
+        }
 
-        return response;
+        return groupCoordinator->Heartbeat(request, Logger.WithTag("GroupId: %v", request.GroupId));
     }
 
     DEFINE_KAFKA_HANDLER(OffsetCommit)
