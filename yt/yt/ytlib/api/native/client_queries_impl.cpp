@@ -114,7 +114,7 @@ TQueryResult TClient::DoGetQueryResult(TQueryId queryId, i64 resultIndex, const 
         .Schema = rpcResponse.has_schema() ? FromProto<TTableSchemaPtr>(rpcResponse.schema()) : nullptr,
         .DataStatistics = FromProto<TDataStatistics>(rpcResponse.data_statistics()),
         .IsTruncated = rpcResponse.is_truncated(),
-        .FullResult = rpcResponse.has_full_result() ? std::make_optional(TYsonString(rpcResponse.full_result())) : std::nullopt,
+        .FullResult = rpcResponse.has_full_result() ? TYsonString(rpcResponse.full_result()) : TYsonString(),
     };
 }
 

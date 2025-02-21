@@ -272,9 +272,9 @@ private:
         for (int index = 0; index < rsp->rowset_errors_size(); ++index) {
             auto error = FromProto<TError>(rsp->rowset_errors()[index]);
             if (error.IsOK()) {
-                std::optional<TYsonString> fullResult;
+                TYsonString fullResult;
                 if (index < rsp->full_result_size()) {
-                    if (const auto rawFullResult = rsp->full_result()[index]) {
+                    if (const auto& rawFullResult = rsp->full_result()[index]) {
                         fullResult = TYsonString(rawFullResult);
                     }
                 }

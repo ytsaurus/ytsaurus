@@ -292,6 +292,38 @@ class TestQueryTrackerResults(YTEnvSetup):
         query = Query(guid)
         assert query.get_result(0)["full_result"] == yson.YsonMap(full_result)
 
+    @authors("lucius")
+    def test_query_tracker_results_empty(self, query_tracker):
+        guid = generate_uuid()
+        insert_rows("//sys/query_tracker/finished_queries", [{
+            "query_id": guid,
+            "engine": "mock",
+            "query": "select *",
+            "files": None,
+            "settings": None,
+            "user": "test",
+            "access_control_objects": None,
+            "start_time": 0,
+            "state": "completed",
+            "progress": None,
+            "error": {"attributes": {}, "code": 100, "message": ""},
+            "result_count": 1,
+            "finish_time": 0,
+            "annotations": None,
+        }])
+        insert_rows("//sys/query_tracker/finished_query_results", [{
+            "query_id": guid,
+            "result_index": 0,
+            "error": {"attributes": {}, "code": 100, "message": ""},
+            "schema": [{"name": "a", "type": "int64"}],
+            "data_statistics": {},
+            "rowset": """[{"a": 1}]""",
+            "is_truncated": False,
+            "full_result": None,
+        }])
+        query = Query(guid)
+        assert query.get_result(0)["full_result"] == yson.YsonEntity()
+
 
 @pytest.mark.enabled_multidaemon
 class TestQueryTrackerQueryRestart(YTEnvSetup):

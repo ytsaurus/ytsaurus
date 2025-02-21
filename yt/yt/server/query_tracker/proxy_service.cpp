@@ -157,7 +157,7 @@ private:
         ToProto(rpcResponse->mutable_error(), queryResult.Error);
         rpcResponse->set_is_truncated(queryResult.IsTruncated);
         if (queryResult.FullResult) {
-            rpcResponse->set_full_result(queryResult.FullResult->AsStringBuf());
+            rpcResponse->set_full_result(queryResult.FullResult.AsStringBuf());
         }
         ToProto(rpcResponse->mutable_data_statistics(), queryResult.DataStatistics);
 
