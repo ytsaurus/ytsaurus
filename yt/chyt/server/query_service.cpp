@@ -57,7 +57,7 @@ class TExecuteQueryCall
 public:
     using TThis = TExecuteQueryCall<TRequest>;
 
-    TExecuteQueryCall(const TRequest* request, const TString& user, TQueryId queryId, THost* host)
+    TExecuteQueryCall(const TRequest* request, const std::string& user, TQueryId queryId, THost* host)
         : Request_(request)
         , Host_(host)
         , User_(user)
@@ -94,7 +94,7 @@ private:
     const TRequest* Request_;
     THost* Host_;
 
-    TString User_;
+    std::string User_;
     TQueryId QueryId_;
     DB::ContextMutablePtr QueryContext_;
     TString Query_;
@@ -143,7 +143,7 @@ private:
         QueryContext_->checkSettingsConstraints(settingsChanges, DB::SettingSource::QUERY);
         QueryContext_->applySettingsChanges(settingsChanges);
 
-        auto traceContext = NTracing::TTraceContext::NewRoot("ChytRPCQueryHandler");
+        auto traceContext = NTracing::TTraceContext::NewRoot("ChytRpcQueryHandler");
 
         SetupHostContext(Host_, QueryContext_, QueryId_, std::move(traceContext));
     }
@@ -224,7 +224,7 @@ private:
         std::vector<TColumnSchema> columnSchemas;
         columnSchemas.reserve(block.columns());
         for (auto& column : block) {
-            columnSchemas.emplace_back(ToString(column.name), ToLogicalType(column.type, CompositeSettings_));
+            columnSchemas.emplace_back(column.name, ToLogicalType(column.type, CompositeSettings_));
         }
         return TTableSchema(columnSchemas);
     }
@@ -236,9 +236,9 @@ class TQueryService
     : public TServiceBase
 {
 public:
-    TQueryService(THost* host, const IInvokerPtr& invoker)
+    TQueryService(THost* host, IInvokerPtr invoker)
         : TServiceBase(
-            invoker,
+            std::move(invoker),
             TQueryServiceProxy::GetDescriptor(),
             ClickHouseYtLogger())
         , Host_(host)
@@ -248,12 +248,11 @@ public:
     }
 
 private:
-    THost* Host_;
+    THost* const Host_;
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ExecuteQuery)
     {
-        // TODO(babenko): switch to std::string
-        auto user = TString(context->GetAuthenticationIdentity().User);
+        const auto& user = context->GetAuthenticationIdentity().User;
         auto queryId = FromProto<TQueryId>(request->query_id());
 
         context->SetRequestInfo("QueryId: %v, Query: %v, RowCountLimit: %v",

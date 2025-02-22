@@ -177,7 +177,7 @@ static void DoDeserializeAclOrThrow(
 
         // SubjectTagFilter
         if (serializableAce.SubjectTagFilter) {
-            ace.SubjectTagFilter = MakeBooleanFormula(serializableAce.SubjectTagFilter);
+            ace.SubjectTagFilter = MakeBooleanFormula(*serializableAce.SubjectTagFilter);
         } else {
             ace.SubjectTagFilter.reset();
         }

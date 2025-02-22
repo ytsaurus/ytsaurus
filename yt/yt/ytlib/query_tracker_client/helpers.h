@@ -6,9 +6,9 @@ namespace NYT::NQueryTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString GetFilterFactors(const NRecords::TActiveQueryPartial& record);
-TString GetFilterFactors(const NRecords::TFinishedQuery& record);
-TString GetFilterFactors(const NRecords::TFinishedQueryPartial& record);
+std::string GetFilterFactors(const NRecords::TActiveQueryPartial& record);
+std::string GetFilterFactors(const NRecords::TFinishedQuery& record);
+std::string GetFilterFactors(const NRecords::TFinishedQueryPartial& record);
 
 ////////////////////////////////////////////////////////////////////////////////
 

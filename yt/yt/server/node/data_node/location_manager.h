@@ -20,7 +20,7 @@ namespace NYT::NDataNode {
 struct TLocationLivenessInfo
 {
     TStoreLocationPtr Location;
-    TString DiskId;
+    std::string DiskId;
     ELocationState LocationState;
     bool IsDiskAlive;
     NDiskManager::EDiskState DiskState;
@@ -42,7 +42,7 @@ public:
 
     void SetWaitingReplacementDiskAlerts(std::vector<TError> alerts);
 
-    void SetFailedUnlinkedDiskIds(std::vector<TString> diskIds);
+    void SetFailedUnlinkedDiskIds(std::vector<std::string> diskIds);
 
     TFuture<std::vector<NDiskManager::TDiskInfo>> GetDiskInfos();
 
@@ -62,7 +62,7 @@ public:
 
     TFuture<void> UpdateDiskCache();
 
-    TFuture<void> RecoverDisk(const TString& diskId);
+    TFuture<void> RecoverDisk(const std::string& diskId);
 
     NYTree::IYPathServicePtr GetOrchidService();
 
@@ -76,7 +76,7 @@ private:
 
     NThreading::TAtomicObject<std::vector<TError>> DiskFailedAlerts_;
     NThreading::TAtomicObject<std::vector<TError>> DiskWaitingReplacementAlerts_;
-    NThreading::TAtomicObject<std::vector<TString>> FailedUnlinkedDiskIds_;
+    NThreading::TAtomicObject<std::vector<std::string>> FailedUnlinkedDiskIds_;
 
     NYTree::IYPathServicePtr CreateOrchidService();
 

@@ -32,7 +32,7 @@ types:
         column_type: String
 
       - cpp_name: AuthenticatedUser
-        cpp_type: TString
+        cpp_type: std::string
         column_name: authenticated_user
         column_type: String
 

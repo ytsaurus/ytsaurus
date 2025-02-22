@@ -4,14 +4,14 @@ types:
   - type_name: TQueueProducerSession
     fields:
       - cpp_name: QueueCluster
-        cpp_type: TString
+        cpp_type: std::string
         column_name: queue_cluster
         column_type: String
         sort_order: Ascending
         required: True
 
       - cpp_name: QueuePath
-        cpp_type: TString
+        cpp_type: NYPath::TYPath
         column_name: queue_path
         column_type: String
         sort_order: Ascending

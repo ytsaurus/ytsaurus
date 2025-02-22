@@ -67,7 +67,7 @@ TGuid ToGuid(DB::UUID uuid)
 
 void RegisterNewUser(
     DB::AccessControl& accessControl,
-    TString userName,
+    const std::string& userName,
     const std::vector<TString>& userDefinedDatabaseNames,
     bool allowSqlUdfManagement)
 {

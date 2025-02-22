@@ -48,8 +48,7 @@ public:
         }
 
         auto serverConfig = New<TDiscoveryServerConfig>();
-        // TODO(babenko): switch to std::string
-        serverConfig->ServerAddresses = {Addresses_.begin(), Addresses_.end()};
+        serverConfig->ServerAddresses = Addresses_;
         serverConfig->AttributesUpdatePeriod = TDuration::Seconds(2);
 
         for (int i = 0; i < std::ssize(Addresses_); ++i) {
@@ -67,8 +66,7 @@ public:
         int index,
         const TDiscoveryServerConfigPtr& serverConfig = New<TDiscoveryServerConfig>())
     {
-        // TODO(babenko): switch to std::string
-        serverConfig->ServerAddresses = {Addresses_.begin(), Addresses_.end()};
+        serverConfig->ServerAddresses = Addresses_;
 
         DiscoveryServers_[index] = CreateDiscoveryServer(serverConfig, index);
         DiscoveryServers_[index]->Initialize();

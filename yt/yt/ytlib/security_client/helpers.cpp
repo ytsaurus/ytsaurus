@@ -18,8 +18,8 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashSet<TString> GetSubjectClosure(
-    const TString& subject,
+THashSet<std::string> GetSubjectClosure(
+    const std::string& subject,
     NObjectClient::TObjectServiceProxy& proxy,
     const NApi::NNative::IConnectionPtr& connection,
     const NApi::TMasterReadOptions& options)
@@ -36,9 +36,9 @@ THashSet<TString> GetSubjectClosure(
         .ValueOrThrow();
     for (const auto& rspOrError : batchRsp->GetResponses<TYPathProxy::TRspGet>()) {
         if (rspOrError.IsOK()) {
-            auto res = ConvertTo<THashSet<TString>>(TYsonString(rspOrError.Value()->value()));
-            res.insert(subject);
-            return res;
+            auto result = ConvertTo<THashSet<std::string>>(TYsonString(rspOrError.Value()->value()));
+            result.insert(subject);
+            return result;
         } else if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
             THROW_ERROR_EXCEPTION(
                 "Failed to get \"member_of_closure\" attribute for subject %Qv",

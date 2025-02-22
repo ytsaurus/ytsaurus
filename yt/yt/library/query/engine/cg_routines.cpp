@@ -3383,7 +3383,7 @@ void HasPermissions(
     auto acl = ConvertTo<NSecurityClient::TSerializableAccessControlList>(
         FromUnversionedValue<TYsonStringBuf>(*ysonAcl));
     // NB: "subjectClosure" and "permissions" are being passed as strings.
-    auto subjectClosure = ConvertTo<THashSet<TString>>(
+    auto subjectClosure = ConvertTo<THashSet<std::string>>(
         TYsonStringBuf(FromUnversionedValue<TStringBuf>(*ysonSubjectClosureList)));
     auto permissions = ConvertTo<EPermissionSet>(
         TYsonStringBuf(FromUnversionedValue<TStringBuf>(*ysonPermissionList)));

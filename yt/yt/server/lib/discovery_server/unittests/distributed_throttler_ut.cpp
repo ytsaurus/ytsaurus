@@ -50,8 +50,7 @@ public:
         }
 
         auto serverConfig = New<TDiscoveryServerConfig>();
-        // TODO(babenko): switch to std::string
-        serverConfig->ServerAddresses = {Addresses_.begin(), Addresses_.end()};
+        serverConfig->ServerAddresses = Addresses_;
         serverConfig->AttributesUpdatePeriod = TDuration::MilliSeconds(500);
         serverConfig->GossipPeriod = TDuration::MilliSeconds(400);
 

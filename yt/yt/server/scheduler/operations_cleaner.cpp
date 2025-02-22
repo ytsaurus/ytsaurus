@@ -225,7 +225,7 @@ struct TFilteredSpecAttributes
     };
 };
 
-TString GetFilterFactors(const TArchiveOperationRequest& request)
+std::string GetFilterFactors(const TArchiveOperationRequest& request)
 {
     auto getOriginalPath = [] (const INodePtr& node) -> std::optional<TString> {
         try {
@@ -320,8 +320,7 @@ TUnversionedOwningRow BuildOrderedByIdTableRow(
             .IdLo = requestIdAsGuid.Parts64[1],
         },
         .State = FormatEnum(request.State),
-        // TODO(babenko): switch to std::string
-        .AuthenticatedUser = TString(request.AuthenticatedUser),
+        .AuthenticatedUser = request.AuthenticatedUser,
         .OperationType = FormatEnum(request.OperationType),
         .StartTime = request.StartTime.MicroSeconds(),
         .FinishTime = request.FinishTime.MicroSeconds(),
@@ -412,8 +411,7 @@ TUnversionedOwningRow BuildOrderedByStartTimeTableRow(
         },
         .OperationType = FormatEnum(request.OperationType),
         .State = FormatEnum(request.State),
-        // TODO(babenko): switch to std::string
-        .AuthenticatedUser = TString(request.AuthenticatedUser),
+        .AuthenticatedUser = request.AuthenticatedUser,
         .FilterFactors = GetFilterFactors(request),
     };
 

@@ -985,13 +985,13 @@ THashMap<TOperationId, TOperation> TClient::LookupOperationsInArchiveTyped(
 
     YT_LOG_DEBUG("Parsing operations from archive (OperationCount: %v)", ids.size());
 
-    for (auto record : records) {
+    for (const auto& record : records) {
         if (!record) {
             continue;
         }
 
         TOperation operation{
-            .AuthenticatedUser =  record->AuthenticatedUser,
+            .AuthenticatedUser = record->AuthenticatedUser,
             .BriefSpec = record->BriefSpec.value_or(TYsonString()),
             .Spec = record->Spec.value_or(TYsonString()),
             .ProvidedSpec = record->ProvidedSpec.value_or(TYsonString()),

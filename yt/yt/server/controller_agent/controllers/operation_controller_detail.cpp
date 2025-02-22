@@ -3810,8 +3810,7 @@ void TOperationControllerBase::OnJobRunning(
             };
 
             auto userClosure = GetSubjectClosure(
-                // TODO(babenko): switch to std::string
-                TString(AuthenticatedUser),
+                AuthenticatedUser,
                 proxy,
                 client->GetNativeConnection(),
                 readOptions);
@@ -6266,7 +6265,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         if (Config->AllowUsersGroupReadIntermediateData) {
             intermediateDataAcl.Entries.emplace_back(
                 ESecurityAction::Allow,
-                std::vector<TString>{UsersGroupName},
+                std::vector<std::string>{UsersGroupName},
                 EPermissionSet(EPermission::Read));
         }
 
