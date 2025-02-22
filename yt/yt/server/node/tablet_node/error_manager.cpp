@@ -41,18 +41,18 @@ struct TDeduplicationKey
     TString TabletCellBundle;
     NTableClient::TTableId TableId;
     NTabletClient::TTabletId TabletId;
-    TString Method;
-    TString ErrorMessage;
+    std::string Method;
+    std::string ErrorMessage;
 
     TDeduplicationKey(
         const TErrorManagerContext& context,
-        TString method,
-        TString errorMessage)
+        const std::string& method,
+        const std::string& errorMessage)
         : TabletCellBundle(*context.TabletCellBundle)
         , TableId(context.TableId)
         , TabletId(context.TabletId)
-        , Method(std::move(method))
-        , ErrorMessage(std::move(errorMessage))
+        , Method(method)
+        , ErrorMessage(errorMessage)
     { }
 
     operator size_t() const

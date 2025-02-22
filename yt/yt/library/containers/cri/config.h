@@ -37,7 +37,7 @@ public:
     bool MemoryOomGroup;
 
     //! Retry requests on generic error with these message prefixes.
-    std::vector<TString> RetryErrorPrefixes;
+    std::vector<std::string> RetryErrorPrefixes;
 
     REGISTER_YSON_STRUCT(TCriExecutorConfig);
 

@@ -178,7 +178,7 @@ TYtError ToYtError(const TError& err) {
     for (const auto& inner : innerErrors) {
         errors.push_back(ToYtError(inner));
     }
-    return {err.GetCode(), err.GetMessage(), std::move(errors), std::move(attributes)};
+    return {err.GetCode(), TString(err.GetMessage()), std::move(errors), std::move(attributes)};
 }
 
 template <typename TResult>
