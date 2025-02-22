@@ -50,7 +50,7 @@ public class ApiServiceUtil {
         }
         for (int id = 0; id < columnsCount; ++id) {
             ColumnSchema column = schema.getColumns().get(id);
-            ColumnValueType type = column.getType();
+            ColumnValueType type = column.getWireType();
             Object value = UnversionedValue.convertValueTo(values.get(id), type, serializationResolver);
             if (value == null) {
                 type = ColumnValueType.NULL;
@@ -82,7 +82,7 @@ public class ApiServiceUtil {
             if (inputValue == null && skipMissingValues) {
                 continue;
             }
-            ColumnValueType type = column.getType();
+            ColumnValueType type = column.getWireType();
             Object value = UnversionedValue.convertValueTo(inputValue, type, serializationResolver);
             if (value == null) {
                 type = ColumnValueType.NULL;

@@ -248,7 +248,7 @@ public class YTreeWireRowSerializer<T> implements WireRowSerializer<T> {
             for (int i = 0; i < tableSchema.getColumnsCount(); i++) {
                 final ColumnSchema columnSchema = tableSchema.getColumnSchema(i);
                 if (columnSchema != null) {
-                    schema.put(columnSchema.getName(), new ColumnWithIndex(i, columnSchema.getType(),
+                    schema.put(columnSchema.getName(), new ColumnWithIndex(i, columnSchema.getWireType(),
                             columnSchema.getAggregate()));
                 }
             }
@@ -385,11 +385,13 @@ public class YTreeWireRowSerializer<T> implements WireRowSerializer<T> {
                 if (currentColumn.columnType == ColumnValueType.STRING) {
                     this.onBytesDirect(bytes);
                 } else {
-                    if (currentColumn.columnType != ColumnValueType.ANY) {
-                        throw new IllegalStateException();
+                    if (currentColumn.columnType != ColumnValueType.ANY &&
+                            currentColumn.columnType != ColumnValueType.COMPOSITE) {
+                        throw new IllegalStateException("Unexpected type: " + currentColumn.columnType.getName());
                     }
 
-                    // Это может быть только ANY тип и в этом случае мы должны корректно сериализовать массив байтов
+                    // It can only be ANY or COMPOSITE type and
+                    // in this case we must correctly serialize the byte array.
                     final ByteArrayOutputStream output = new ByteArrayOutputStream(bytes.length + 1 + 4);
 
                     try (ClosableYsonConsumer binarySerializer = YTreeBinarySerializer.getSerializer(output)) {
