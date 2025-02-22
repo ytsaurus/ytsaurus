@@ -1351,7 +1351,7 @@ private:
             const auto& spec = preprocessedSpec.Spec;
 
             // NB: Keep stuff below in sync with #RequestOperationAttributes.
-            auto user = attributes.Get<TString>("authenticated_user");
+            auto user = attributes.Get<std::string>("authenticated_user");
 
             YT_VERIFY(attributes.Contains("runtime_parameters"));
 
@@ -1368,7 +1368,7 @@ private:
             if (spec->AddAuthenticatedUserToAcl.value_or(true)) {
                 baseAcl.Entries.emplace_back(
                     ESecurityAction::Allow,
-                    std::vector<TString>{user},
+                    std::vector{user},
                     EPermissionSet(EPermission::Read | EPermission::Manage));
             }
 

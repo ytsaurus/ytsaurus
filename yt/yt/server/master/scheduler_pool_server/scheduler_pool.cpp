@@ -234,8 +234,7 @@ void TSchedulerPool::Load(NCellMaster::TLoadContext& context)
                             Id_,
                             key,
                             ConvertToYsonString(value, EYsonFormat::Text));
-                        // TODO(babenko): switch to std::string
-                        FullConfig_->LoadParameter(TString(key), NYTree::ConvertToNode(value));
+                        FullConfig_->LoadParameter(key, NYTree::ConvertToNode(value));
                         EmplaceOrCrash(SpecifiedAttributes_, internedKey, std::move(value));
                         keysToRemove.push_back(key);
                     } catch (const std::exception& ex) {

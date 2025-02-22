@@ -2921,8 +2921,7 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
     auto nameTable = NQueueClient::NRecords::TQueueProducerSessionDescriptor::Get()->GetNameTable();
 
     NQueueClient::NRecords::TQueueProducerSessionKey sessionKey{
-        // TODO(babenko): switch to std::string
-        .QueueCluster = TString(*queueCluster),
+        .QueueCluster = *queueCluster,
         .QueuePath = queuePath.GetPath(),
         .SessionId = sessionId,
     };
@@ -3013,8 +3012,7 @@ void TClient::DoRemoveQueueProducerSession(
     auto nameTable = NQueueClient::NRecords::TQueueProducerSessionDescriptor::Get()->GetNameTable();
 
     NQueueClient::NRecords::TQueueProducerSessionKey sessionKey{
-        // TODO(babenko): switch to std::string
-        .QueueCluster = TString(*queueCluster),
+        .QueueCluster = *queueCluster,
         .QueuePath = queuePath.GetPath(),
         .SessionId = sessionId,
     };

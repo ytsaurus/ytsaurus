@@ -653,8 +653,7 @@ public:
         if (spec->AddAuthenticatedUserToAcl.value_or(true)) {
             baseAcl.Entries.emplace_back(
                 ESecurityAction::Allow,
-                // TODO(babenko): switch to std::string
-                std::vector{TString(user)},
+                std::vector{user},
                 EPermissionSet(EPermission::Read | EPermission::Manage));
         }
 

@@ -1060,7 +1060,7 @@ public:
     TDuration TimeLimitJobFailTimeout;
 
     //! Users that can change operation parameters, e.g abort or suspend it.
-    std::optional<std::vector<TString>> Owners;
+    std::optional<std::vector<std::string>> Owners;
 
     //! ACL for operation.
     //! It can consist of "allow"-only ACE-s with "read", "manage" and "administer" permissions.
@@ -2158,7 +2158,7 @@ public:
 
     // COMPAT(levysotsky): We need to support both |Owners| and |Acl|
     // to be able to revive old operations.
-    std::vector<TString> Owners;
+    std::vector<std::string> Owners;
     NSecurityClient::TSerializableAccessControlList Acl;
     std::optional<TString> AcoName;
     TJobShellOptionsMap OptionsPerJobShell;

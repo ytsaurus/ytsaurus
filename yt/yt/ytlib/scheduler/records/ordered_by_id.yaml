@@ -16,17 +16,17 @@ types:
         sort_order: Ascending
 
       - cpp_name: State
-        cpp_type: TString
+        cpp_type: std::string
         column_name: state
         column_type: String
 
       - cpp_name: AuthenticatedUser
-        cpp_type: TString
+        cpp_type: std::string
         column_name: authenticated_user
         column_type: String
 
       - cpp_name: OperationType
-        cpp_type: TString
+        cpp_type: std::string
         column_name: operation_type
         column_type: String
 
@@ -81,7 +81,7 @@ types:
         column_type: Int64
 
       - cpp_name: FilterFactors
-        cpp_type: TString
+        cpp_type: std::string
         column_name: filter_factors
         column_type: String
 

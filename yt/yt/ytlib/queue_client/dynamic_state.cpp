@@ -53,7 +53,7 @@ std::optional<TString> MapEnumToString(const std::optional<T>& optionalValue)
 }
 
 template <class T>
-std::optional<T> MapStringToEnum(const std::optional<TString>& optionalString)
+std::optional<T> MapStringToEnum(const std::optional<std::string>& optionalString)
 {
     if (optionalString) {
         return ParseEnum<T>(*optionalString);
@@ -102,8 +102,7 @@ TQueueTableRow RowFromRecord(const NRecords::TQueueObject& record)
 NRecords::TQueueObjectKey RecordKeyFromRow(const TQueueTableRow& row)
 {
     return NRecords::TQueueObjectKey{
-        // TODO(babenko): switch to std::string
-        .Cluster = TString(row.Ref.Cluster),
+        .Cluster = row.Ref.Cluster,
         .Path = row.Ref.Path,
     };
 }
@@ -151,8 +150,7 @@ TConsumerTableRow RowFromRecord(const NRecords::TConsumerObject& record)
 NRecords::TConsumerObjectKey RecordKeyFromRow(const TConsumerTableRow& row)
 {
     return NRecords::TConsumerObjectKey{
-        // TODO(babenko): switch to std::string
-        .Cluster = TString(row.Ref.Cluster),
+        .Cluster = row.Ref.Cluster,
         .Path = row.Ref.Path,
     };
 }
@@ -191,11 +189,9 @@ TConsumerRegistrationTableRow RowFromRecord(const NRecords::TConsumerRegistratio
 NRecords::TConsumerRegistrationKey RecordKeyFromRow(const TConsumerRegistrationTableRow& row)
 {
     return NRecords::TConsumerRegistrationKey{
-        // TODO(babenko): switch to std::string
-        .QueueCluster = TString(row.Queue.Cluster),
+        .QueueCluster = row.Queue.Cluster,
         .QueuePath = row.Queue.Path,
-        // TODO(babenko): switch to std::string
-        .ConsumerCluster = TString(row.Consumer.Cluster),
+        .ConsumerCluster = row.Consumer.Cluster,
         .ConsumerPath = row.Consumer.Path,
     };
 }
@@ -246,8 +242,7 @@ TReplicatedTableMappingTableRow RowFromRecord(const NRecords::TReplicatedTableMa
 NRecords::TReplicatedTableMappingKey RecordKeyFromRow(const TReplicatedTableMappingTableRow& row)
 {
     return NRecords::TReplicatedTableMappingKey{
-        // TODO(babenko): switch to std::string
-        .Cluster = TString(row.Ref.Cluster),
+        .Cluster = row.Ref.Cluster,
         .Path = row.Ref.Path,
     };
 }

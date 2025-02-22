@@ -67,7 +67,9 @@ static void ValidateOperationAcl(const TSerializableAccessControlList& acl)
     }
 }
 
-static void ProcessAclAndOwnersParameters(TSerializableAccessControlList* acl, std::vector<TString>* owners)
+namespace {
+
+void ProcessAclAndOwnersParameters(TSerializableAccessControlList* acl, std::vector<std::string>* owners)
 {
     if (!acl->Entries.empty() && !owners->empty()) {
         // COMPAT(levysotsky): Priority is given to |acl| currently.
@@ -81,7 +83,7 @@ static void ProcessAclAndOwnersParameters(TSerializableAccessControlList* acl, s
     }
 }
 
-static void ValidateNoOutputStreams(const TUserJobSpecPtr& spec, EOperationType operationType)
+void ValidateNoOutputStreams(const TUserJobSpecPtr& spec, EOperationType operationType)
 {
     if (!spec->OutputStreams.empty()) {
         THROW_ERROR_EXCEPTION("\"output_streams\" are currently not allowed in %Qlv operations",
@@ -89,7 +91,7 @@ static void ValidateNoOutputStreams(const TUserJobSpecPtr& spec, EOperationType 
     }
 }
 
-static void ValidateProfilers(const std::vector<TJobProfilerSpecPtr>& profilers)
+void ValidateProfilers(const std::vector<TJobProfilerSpecPtr>& profilers)
 {
     double totalProbability = 0.0;
     for (const auto& profiler : profilers) {
@@ -102,7 +104,7 @@ static void ValidateProfilers(const std::vector<TJobProfilerSpecPtr>& profilers)
     }
 }
 
-static void ValidateOutputTablePaths(std::vector<NYPath::TRichYPath> paths)
+void ValidateOutputTablePaths(std::vector<NYPath::TRichYPath> paths)
 {
     SortBy(paths, [] (const auto& path) { return path.GetPath(); });
     if (auto duplicatePath = AdjacentFind(paths); duplicatePath != paths.end()) {
@@ -111,9 +113,11 @@ static void ValidateOutputTablePaths(std::vector<NYPath::TRichYPath> paths)
     }
 }
 
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int MaxAllowedProfilingTagCount = 200;
+static constexpr int MaxAllowedProfilingTagCount = 200;
 
 TPoolName::TPoolName(TString pool, std::optional<TString> parent)
 {
