@@ -136,6 +136,7 @@ public class UnversionedValue implements YTreeConvertible {
                 }
                 break;
             case ANY:
+            case COMPOSITE:
                 if (value == null || value instanceof byte[]) {
                     return value;
                 }

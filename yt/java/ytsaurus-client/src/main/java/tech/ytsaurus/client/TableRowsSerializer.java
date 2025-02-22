@@ -281,7 +281,7 @@ class TableRowsWireSerializer<T> extends TableRowsSerializerBase<T> {
             if (!columnToId.containsKey(descriptor.getName())) {
                 builder.addNameTableEntries(TRowsetDescriptor.TNameTableEntry.newBuilder()
                         .setName(descriptor.getName())
-                        .setType(descriptor.getType().getValue())
+                        .setType(descriptor.getWireType().getValue())
                         .build());
 
                 columnToId.put(descriptor.getName(), columnToId.size());
