@@ -2,40 +2,45 @@
 
 #include <yt/yt/core/misc/string_builder.h>
 
+#include <library/cpp/yt/misc/global.h>
+
 #include <contrib/libs/re2/re2/re2.h>
 
 namespace NYT {
 
-////////////////////////////////////////////////////////////////////////////////
-
 using namespace re2;
 
-static RE2 GuidPattern = RE2("[0-9a-f]+-[0-9a-f]+-[0-9a-f]+-[0-9a-f]+");
-static RE2 PathPattern = RE2("//[^ ]*");
-static RE2 AddressPattern = RE2("[a-z0-9-.]+.yp-c.yandex.net:[0-9]+");
-static RE2 SemicolonPattern = RE2(";");
-static RE2 KeyPattern = RE2("([Kk]ey) \"[\\w-]+\"");
-static RE2 TimestampPattern = RE2("([Tt]imestamp) [[:xdigit:]]+");
-static RE2 AccountPattern = RE2("([Aa]ccount) \"[\\w-]+\"");
-static RE2 AttributePattern = RE2("([Aa]ttribute) \"[\\w-]+\"");
-static RE2 ReferencePattern = RE2("([Rr]eference) \"[\\w-]+\"");
+////////////////////////////////////////////////////////////////////////////////
 
-static std::vector<std::pair<RE2*, TString>> Replacements{
-    {&GuidPattern, "<guid>"},
-    {&PathPattern, "<path>"},
-    {&AddressPattern, "<address>"},
-    {&SemicolonPattern, ""},
-    {&KeyPattern, "\\1 <key>"},
-    {&TimestampPattern, "\\1 <timestamp>"},
-    {&AccountPattern, "\\1 <account>"},
-    {&AttributePattern, "\\1 <attribute>"},
-    {&ReferencePattern, "\\1 <reference>"},
-};
+namespace {
 
-TString GetErrorFingerprint(const TError& error)
+YT_DEFINE_GLOBAL(const RE2, GuidPattern, "[0-9a-f]+-[0-9a-f]+-[0-9a-f]+-[0-9a-f]+");
+YT_DEFINE_GLOBAL(const RE2, PathPattern, "//[^ ]*");
+YT_DEFINE_GLOBAL(const RE2, AddressPattern, "[a-z0-9-.]+.yp-c.yandex.net:[0-9]+");
+YT_DEFINE_GLOBAL(const RE2, SemicolonPattern, ";");
+YT_DEFINE_GLOBAL(const RE2, KeyPattern, "([Kk]ey) \"[\\w-]+\"");
+YT_DEFINE_GLOBAL(const RE2, TimestampPattern, "([Tt]imestamp) [[:xdigit:]]+");
+YT_DEFINE_GLOBAL(const RE2, AccountPattern, "([Aa]ccount) \"[\\w-]+\"");
+YT_DEFINE_GLOBAL(const RE2, AttributePattern, "([Aa]ttribute) \"[\\w-]+\"");
+YT_DEFINE_GLOBAL(const RE2, ReferencePattern, "([Rr]eference) \"[\\w-]+\"");
+
+using TReplacements = std::vector<std::pair<const RE2*, std::string>>;
+YT_DEFINE_GLOBAL(const TReplacements, Replacements, {
+    {&GuidPattern(), "<guid>"},
+    {&PathPattern(), "<path>"},
+    {&AddressPattern(), "<address>"},
+    {&SemicolonPattern(), ""},
+    {&KeyPattern(), "\\1 <key>"},
+    {&TimestampPattern(), "\\1 <timestamp>"},
+    {&AccountPattern(), "\\1 <account>"},
+    {&AttributePattern(), "\\1 <attribute>"},
+    {&ReferencePattern(), "\\1 <reference>"},
+});
+
+std::string GetErrorFingerprint(const TError& error)
 {
     auto message = error.GetMessage();
-    for (const auto& [pattern, substitution] : Replacements) {
+    for (const auto& [pattern, substitution] : Replacements()) {
         RE2::GlobalReplace(&message, *pattern, substitution);
     }
 
@@ -45,9 +50,11 @@ TString GetErrorFingerprint(const TError& error)
     return result.Flush();
 }
 
-TString GetErrorSkeleton(const TError& error)
+} // namespace
+
+std::string GetErrorSkeleton(const TError& error)
 {
-    std::vector<TString> innerSkeletons;
+    std::vector<std::string> innerSkeletons;
     innerSkeletons.reserve(error.InnerErrors().size());
     for (const auto& innerError : error.InnerErrors()) {
         innerSkeletons.emplace_back(GetErrorSkeleton(innerError));

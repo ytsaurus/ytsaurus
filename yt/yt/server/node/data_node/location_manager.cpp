@@ -294,8 +294,8 @@ TLocationHealthChecker::TLocationHealthChecker(
 {
     for (auto diskState : TEnumTraits<EDiskState>::GetDomainValues()) {
         for (auto storageClass : TEnumTraits<EStorageClass>::GetDomainValues()) {
-            auto diskStateName = FormatEnum(diskState);
-            auto diskFamilyName = FormatEnum(storageClass);
+            auto diskStateName = TString(FormatEnum(diskState));
+            auto diskFamilyName = TString(FormatEnum(storageClass));
 
             diskStateName.to_upper();
             diskFamilyName.to_upper();
@@ -303,7 +303,8 @@ TLocationHealthChecker::TLocationHealthChecker(
             Gauges_[diskState][storageClass] = Profiler_
                 .WithTags(TTagSet(TTagList{
                     {"diskman_state", diskStateName},
-                    {"disk_family", diskFamilyName}}))
+                    {"disk_family", diskFamilyName},
+                }))
                 .Gauge("/diskman_state");
         }
     }

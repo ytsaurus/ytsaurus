@@ -193,7 +193,7 @@ TEST_F(TSequoiaTest, TestRowLockConflict)
         } else if (error.FindMatching(NTabletClient::EErrorCode::TransactionLockConflict)) {
             ++lockConflictCount;
         } else if (error.FindMatching([] (const TError& error) {
-            return error.GetMessage().Contains("already exists");
+            return error.GetMessage().contains("already exists");
         })) {
             ++nodeExistsCount;
         } else {
@@ -335,7 +335,7 @@ TEST_F(TSequoiaTest, ConcurrentCommitTx)
         auto result = *commitFuture.TryGet();
         if (result.IsOK()) {
             ++committed;
-        } else if (result.FindMatching([] (const TError& error) { return error.GetMessage().Contains("No such transaction"); })) {
+        } else if (result.FindMatching([] (const TError& error) { return error.GetMessage().contains("No such transaction"); })) {
             ++alreadyAborted;
         } else {
             YT_LOG_FATAL(result, "Unexpected error");

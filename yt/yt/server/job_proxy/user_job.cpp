@@ -1282,7 +1282,7 @@ private:
                 auto pipe = CreateNamedPipe();
 
                 auto typeStr = FormatEnum(JobProfiler_->GetUserJobProfilerSpec()->Type);
-                SetEnvironment(Format("YT_%v_PROFILER_PATH=%v", to_upper(typeStr), Host_->AdjustPath(pipe->GetPath())));
+                SetEnvironment(Format("YT_%v_PROFILER_PATH=%v", to_upper(TString(typeStr)), Host_->AdjustPath(pipe->GetPath())));
 
                 ProfilePipeReader_ = PrepareOutputPipeReader(
                     std::move(pipe),

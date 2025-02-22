@@ -218,10 +218,10 @@ private:
 private:
     static void SanitizeToken(TError* error, const TString& token)
     {
-        TString message = error->GetMessage();
-        SubstGlobal(message, token, "<hidden_token>");
+        auto message = TString(error->GetMessage());
+        SubstGlobal(message, token, "<redacted>");
         error->SetMessage(message);
-        for (auto& innerError : *(error->MutableInnerErrors())) {
+        for (auto& innerError : *error->MutableInnerErrors()) {
             SanitizeToken(&innerError, token);
         }
     }
