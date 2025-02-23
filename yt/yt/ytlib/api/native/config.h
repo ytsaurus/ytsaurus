@@ -134,10 +134,6 @@ public:
 
     TDuration SequoiaTransactionTimeout;
 
-    TString Account;
-
-    TString Bundle;
-
     REGISTER_YSON_STRUCT(TSequoiaConnectionConfig);
 
     static void Register(TRegistrar registrar);

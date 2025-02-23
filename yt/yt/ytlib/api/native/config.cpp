@@ -101,12 +101,6 @@ void TSequoiaConnectionConfig::Register(TRegistrar registrar)
     registrar.Parameter("sequoia_root_path", &TThis::SequoiaRootPath)
         .Default("//sys/sequoia");
 
-    registrar.Parameter("account", &TThis::Account)
-        .Default("sequoia");
-
-    registrar.Parameter("bundle", &TThis::Bundle)
-        .Default("sequoia");
-
     registrar.Parameter("sequoia_transaction_timeout", &TThis::SequoiaTransactionTimeout)
         .Default(TDuration::Minutes(1));
 }
