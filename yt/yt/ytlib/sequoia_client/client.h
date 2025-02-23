@@ -62,6 +62,7 @@ struct ISequoiaClient
         NTransactionClient::TTimestamp timestamp = NTransactionClient::SyncLastCommittedTimestamp);
 
     virtual TFuture<ISequoiaTransactionPtr> StartTransaction(
+        ESequoiaTransactionType type,
         const NApi::TTransactionStartOptions& options = {},
         const TSequoiaTransactionSequencingOptions& sequencingOptions = {}) = 0;
 

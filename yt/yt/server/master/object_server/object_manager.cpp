@@ -2047,7 +2047,7 @@ TFuture<void> TObjectManager::DestroySequoiaObjects(std::unique_ptr<NProto::TReq
 {
     return Bootstrap_
         ->GetSequoiaClient()
-        ->StartTransaction()
+        ->StartTransaction(ESequoiaTransactionType::ObjectDestruction)
         .Apply(BIND([request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) mutable {
             for (const auto& protoId : request->object_ids()) {
                 auto id = FromProto<TObjectId>(protoId);

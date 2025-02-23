@@ -84,11 +84,13 @@ public:
     }
 
     TFuture<ISequoiaTransactionPtr> StartTransaction(
+        ESequoiaTransactionType type,
         const NApi::TTransactionStartOptions& options,
         const TSequoiaTransactionSequencingOptions& sequencingOptions) override
     {
         return NDetail::StartSequoiaTransaction(
             this,
+            type,
             NativeRootClient_,
             GroundRootClient_,
             options,

@@ -33,6 +33,7 @@ namespace NYT::NCypressProxy {
 // sorting to |TSequoiaSession| and get rid of this function.
 TFuture<NSequoiaClient::ISequoiaTransactionPtr> StartCypressProxyTransaction(
     const NSequoiaClient::ISequoiaClientPtr& sequoiaClient,
+    NSequoiaClient::ESequoiaTransactionType type,
     const NApi::TTransactionStartOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,6 +3,7 @@
 #include "client.h"
 #include "transaction_service_proxy.h"
 #include "write_set.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/api/native/cell_commit_session.h>
 #include <yt/yt/ytlib/api/native/client.h>
@@ -85,22 +86,48 @@ struct TDeleteRowRequest
     TLegacyKey Key;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+struct TPerTransactionTypeCounters
+{
+    NProfiling::TCounter TransactionCommitsSucceeded;
+    NProfiling::TCounter TransactionCommitsFailed;
+};
+
+TPerTransactionTypeCounters* GetPerTransactionTypeCounters(ESequoiaTransactionType type)
+{
+    static auto counters = [] {
+        THashMap<ESequoiaTransactionType, TPerTransactionTypeCounters> counters;
+        for (auto type : TEnumTraits<ESequoiaTransactionType>::GetDomainValues()) {
+            auto profiler = SequoiaClientProfiler().WithTag("type", FormatEnum(type));
+            counters[type].TransactionCommitsSucceeded = profiler.Counter("transaction_commits_succeeded");
+            counters[type].TransactionCommitsFailed = profiler.Counter("transaction_commits_failed");
+        }
+        return counters;
+    }();
+    return &GetOrCrash(counters, type);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TSequoiaTransaction
     : public ISequoiaTransaction
 {
 public:
     TSequoiaTransaction(
         ISequoiaClientPtr sequoiaClient,
+        ESequoiaTransactionType type,
         IClientPtr nativeRootClient,
         IClientPtr groundRootClient,
         const TSequoiaTransactionSequencingOptions& sequencingOptions)
         : SequoiaClient_(std::move(sequoiaClient))
+        , Type_(type)
         , NativeRootClient_(std::move(nativeRootClient))
         , GroundRootClient_(std::move(groundRootClient))
-        , Logger(SequoiaClient_->GetLogger())
         , SerializedInvoker_(CreateSerializedInvoker(
             NativeRootClient_->GetConnection()->GetInvoker()))
         , SequencingOptions_(sequencingOptions)
+        , Logger(SequoiaClient_->GetLogger())
     { }
 
     TTransactionId GetId() const override
@@ -166,7 +193,12 @@ public:
             .Apply(BIND(&TSequoiaTransaction::CommitSessions, MakeStrong(this))
                 .AsyncVia(SerializedInvoker_))
             .Apply(BIND(&TSequoiaTransaction::DoCommitTransaction, MakeStrong(this), options)
-                .AsyncVia(SerializedInvoker_));
+                .AsyncVia(SerializedInvoker_))
+            .Apply(BIND([type = Type_] (const TError& error) {
+                auto* counters = GetPerTransactionTypeCounters(type);
+                (error.IsOK() ? counters->TransactionCommitsSucceeded : counters->TransactionCommitsFailed).Increment();
+                return error;
+            }));
     }
 
     TFuture<TUnversionedLookupRowsResult> LookupRows(
@@ -333,8 +365,11 @@ public:
 
 private:
     const ISequoiaClientPtr SequoiaClient_;
+    const ESequoiaTransactionType Type_;
     const NApi::NNative::IClientPtr NativeRootClient_;
     const NApi::NNative::IClientPtr GroundRootClient_;
+    const IInvokerPtr SerializedInvoker_;
+    const TSequoiaTransactionSequencingOptions SequencingOptions_;
 
     TLogger Logger;
 
@@ -343,10 +378,6 @@ private:
     TTransactionStartOptions StartOptions_;
 
     std::unique_ptr<TRandomGenerator> RandomGenerator_;
-
-    const IInvokerPtr SerializedInvoker_;
-
-    const TSequoiaTransactionSequencingOptions SequencingOptions_;
 
     struct TSequoiaTransactionTag
     { };
@@ -825,6 +856,7 @@ namespace NDetail {
 
 TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
     ISequoiaClientPtr sequoiaClient,
+    ESequoiaTransactionType type,
     IClientPtr nativeRootClient,
     IClientPtr groundRootClient,
     const TTransactionStartOptions& options,
@@ -832,6 +864,7 @@ TFuture<ISequoiaTransactionPtr> StartSequoiaTransaction(
 {
     auto transaction = New<TSequoiaTransaction>(
         std::move(sequoiaClient),
+        type,
         std::move(nativeRootClient),
         std::move(groundRootClient),
         sequencingOptions);

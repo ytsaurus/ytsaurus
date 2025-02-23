@@ -1,0 +1,15 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/library/profiling/sensor.h>
+
+namespace NYT::NSequoiaClient {
+
+////////////////////////////////////////////////////////////////////////////////
+
+YT_DEFINE_GLOBAL(const NProfiling::TProfiler, SequoiaClientProfiler, "/sequoia_client");
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NSequoiaClient

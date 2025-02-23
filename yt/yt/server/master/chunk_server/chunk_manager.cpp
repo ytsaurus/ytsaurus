@@ -3219,7 +3219,7 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction({.CellTag = Bootstrap_->GetCellTag()})
+            ->StartTransaction(ESequoiaTransactionType::ChunkConfirmation, {.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto chunkId = FromProto<TChunkId>(request->chunk_id());
                 auto replicas = FromProto<std::vector<TChunkReplicaWithLocation>>(request->replicas());
@@ -3254,13 +3254,15 @@ private:
             }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
-    TFuture<TRspModifyReplicas> ModifySequoiaReplicas(std::unique_ptr<TReqModifyReplicas> request) override
+    TFuture<TRspModifyReplicas> ModifySequoiaReplicas(
+        ESequoiaTransactionType transactionType,
+        std::unique_ptr<TReqModifyReplicas> request) override
     {
         YT_VERIFY(request->added_chunks_size() + request->removed_chunks_size() > 0);
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction({.CellTag = Bootstrap_->GetCellTag()})
+            ->StartTransaction(transactionType, {.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto nodeId = FromProto<TNodeId>(request->node_id());
 
@@ -5370,7 +5372,7 @@ private:
     {
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction({.CellTag = Bootstrap_->GetCellTag()})
+            ->StartTransaction(ESequoiaTransactionType::DeadChunkReplicaRemoval, {.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 YT_LOG_DEBUG("Removing dead Sequoia chunk replicas (ChunkCount: %v)", request->chunk_ids_size());
                 for (const auto& protoChunkId : request->chunk_ids()) {
