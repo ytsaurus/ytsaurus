@@ -893,7 +893,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Modifies both master's persistent state and Sequoia tables.
-template <class TResult>
+template <class TResult, ESequoiaTransactionType TransactionType>
 class TSequoiaMutation
     : public TRefCounted
 {
@@ -911,7 +911,7 @@ protected:
     const ISequoiaClientPtr SequoiaClient_;
     const TCellId CoordinatorCellId_;
     const IInvokerPtr Invoker_;
-    TLogger Logger;
+    const TLogger Logger;
 
     // Initialized once per class lifetime.
     ISequoiaTransactionPtr SequoiaTransaction_;
@@ -953,7 +953,7 @@ private:
         YT_ASSERT_INVOKER_AFFINITY(Invoker_);
 
         return SequoiaClient_
-            ->StartTransaction()
+            ->StartTransaction(TransactionType)
             .ApplyUnique(
                 BIND(&TSequoiaMutation::OnSequoiaTransactionStarted, MakeStrong(this))
                     .AsyncVia(Invoker_));
@@ -1023,7 +1023,7 @@ private:
  *  10. Reply with transaction id generated in step 1.
  */
 class TStartCypressTransaction
-    : public TSequoiaMutation<TTransactionId>
+    : public TSequoiaMutation<TTransactionId, ESequoiaTransactionType::CypressTransactionMirroring>
 {
 public:
     TStartCypressTransaction(
@@ -1502,7 +1502,7 @@ private:
  *           - child_node
  */
 class TFinishCypressTransaction
-    : public TSequoiaMutation<void>
+    : public TSequoiaMutation<void, ESequoiaTransactionType::CypressTransactionMirroring>
 {
 protected:
     const TTransactionId TransactionId_;
@@ -1516,7 +1516,7 @@ protected:
         TAuthenticationIdentity authenticationIdentity,
         IInvokerPtr invoker,
         TLogger logger)
-        : TSequoiaMutation<void>(
+        : TSequoiaMutation(
             std::move(sequoiaClient),
             cypressTransactionCoordinatorCellId,
             description,
@@ -1887,8 +1887,9 @@ private:
  *  4. Modify current cell's state.
  */
 class TReplicateCypressTransactions
-    : public TSequoiaMutation<void>
+    : public TSequoiaMutation<void, ESequoiaTransactionType::CypressTransactionMirroring>
 {
+private:
     using TThis = TReplicateCypressTransactions;
 
 protected:

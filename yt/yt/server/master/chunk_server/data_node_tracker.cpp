@@ -57,6 +57,7 @@ using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NChunkClient;
+using namespace NSequoiaClient;
 using namespace NYTree;
 
 using NDataNodeTrackerClient::TChunkLocationDirectory;
@@ -223,7 +224,7 @@ public:
                 .Run())
                 .ThrowOnError();
 
-            WaitFor(chunkManager->ModifySequoiaReplicas(std::move(preparedRequest->SequoiaRequest)))
+            WaitFor(chunkManager->ModifySequoiaReplicas(ESequoiaTransactionType::FullHeartbeat, std::move(preparedRequest->SequoiaRequest)))
                 .ThrowOnError();
         }
 
@@ -398,7 +399,7 @@ public:
                 .Run())
                 .ThrowOnError();
 
-            WaitFor(chunkManager->ModifySequoiaReplicas(std::move(preparedRequest->SequoiaRequest)))
+            WaitFor(chunkManager->ModifySequoiaReplicas(ESequoiaTransactionType::IncrementalHeartbeat, std::move(preparedRequest->SequoiaRequest)))
                 .ThrowOnError();
         }
 

@@ -367,7 +367,7 @@ protected:
                 if (useResponseKeeper) {
                     // NB: If commit failed, then some error related to dynamic tables occured and client will receive it,
                     // so we should save this error in case of retries on client side.
-                    auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(Bootstrap_->GetSequoiaClient()))
+                    auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(Bootstrap_->GetSequoiaClient(), ESequoiaTransactionType::ResponseKeeper))
                         .ValueOrThrow();
                     responseKeeper->KeepResponse(sequoiaTransaction, mutationId, TError(ex));
                     WaitFor(sequoiaTransaction->Commit({

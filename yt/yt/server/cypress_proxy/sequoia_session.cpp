@@ -425,7 +425,7 @@ TSequoiaSessionPtr TSequoiaSession::Start(
     IBootstrap* bootstrap,
     TTransactionId cypressTransactionId)
 {
-    auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(bootstrap->GetSequoiaClient()))
+    auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(bootstrap->GetSequoiaClient(), ESequoiaTransactionType::CypressModification))
         .ValueOrThrow();
 
     std::vector<TTransactionId> cypressTransactions;

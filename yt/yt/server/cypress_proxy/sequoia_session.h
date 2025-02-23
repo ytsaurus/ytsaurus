@@ -58,7 +58,6 @@ class TSequoiaSession
     : public TRefCounted
 {
 public:
-
     //! Consists of Cypress transaction and all its ancestors plus null tx ID
     //! signifying trunk. Transactions are ordered from trunk to current.
     using TCypressTransactionAncestry = std::vector<NCypressClient::TTransactionId>;
