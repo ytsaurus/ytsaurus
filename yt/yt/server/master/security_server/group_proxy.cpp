@@ -17,6 +17,10 @@ using namespace NServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static constexpr auto& Logger = SecurityServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TGroupProxy
     : public TSubjectProxy<TGroup>
 {
@@ -97,10 +101,11 @@ private:
         auto* group = GetThisImpl();
 
         if (member->IsUser()) {
-            member->AsUser()->LogIfPendingRemoval(
-                Format("User pending for removal joined group (User: %v, Group: %v)",
+            YT_LOG_ALERT_IF(
+                member->AsUser()->GetPendingRemoval(),
+                "User pending for removal joined group (User: %v, Group: %v)",
                 member->GetName(),
-                group->GetName()));
+                group->GetName());
         }
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();

@@ -260,8 +260,6 @@ public:
 
     void UpdateCounters(const TUserWorkload& workloadType);
 
-    void LogIfPendingRemoval(const TString& message) const;
-
 protected:
     // Transient
     int RequestQueueSize_ = 0;
