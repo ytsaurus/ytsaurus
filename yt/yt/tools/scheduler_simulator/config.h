@@ -43,24 +43,16 @@ TIntrusivePtr<TConfig> LoadConfig(const TString& configFilename)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeResourcesConfig;
-using TNodeResourcesConfigPtr = TIntrusivePtr<TNodeResourcesConfig>;
-
-class TNodeGroupConfig;
-using TNodeGroupConfigPtr = TIntrusivePtr<TNodeGroupConfig>;
-
-class TRemoteEventLogConfig;
-using TRemoteEventLogConfigPtr = TIntrusivePtr<TRemoteEventLogConfig>;
-
-class TSchedulerSimulatorConfig;
-using TSchedulerSimulatorConfigPtr = TIntrusivePtr<TSchedulerSimulatorConfig>;
+DECLARE_REFCOUNTED_STRUCT(TNodeResourcesConfig)
+DECLARE_REFCOUNTED_STRUCT(TNodeGroupConfig)
+DECLARE_REFCOUNTED_STRUCT(TRemoteEventLogConfig)
+DECLARE_REFCOUNTED_STRUCT(TSchedulerSimulatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeResourcesConfig
+struct TNodeResourcesConfig
     : public NYTree::TYsonStruct
 {
-public:
     i64 Memory;
     double Cpu;
     int UserSlots;
@@ -77,10 +69,13 @@ public:
     }
 };
 
-class TNodeGroupConfig
+DEFINE_REFCOUNTED_TYPE(TNodeResourcesConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TNodeGroupConfig
     : public NYTree::TYsonStruct
 {
-public:
     int Count;
     TNodeResourcesConfigPtr ResourceLimits;
     THashSet<std::string> Tags;
@@ -96,10 +91,13 @@ public:
     }
 };
 
-class TRemoteEventLogConfig
+DEFINE_REFCOUNTED_TYPE(TNodeGroupConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TRemoteEventLogConfig
     : public NYTree::TYsonStruct
 {
-public:
     NEventLog::TEventLogManagerConfigPtr EventLogManager;
 
     std::optional<TString> ConnectionFilename;
@@ -132,11 +130,14 @@ public:
     }
 };
 
-class TSchedulerSimulatorConfig
+DEFINE_REFCOUNTED_TYPE(TRemoteEventLogConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TSchedulerSimulatorConfig
     : public NServer::TServerBootstrapConfig
     , public TSingletonsConfig
 {
-public:
     int HeartbeatPeriod;
     TString NodeGroupsFilename;
     TString PoolTreesFilename;
@@ -214,6 +215,8 @@ public:
         });
     }
 };
+
+DEFINE_REFCOUNTED_TYPE(TSchedulerSimulatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

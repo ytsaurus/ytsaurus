@@ -106,8 +106,8 @@ class TSerializeNodeContext;
 class TMaterializeNodeContext;
 using TCopyPersistenceContext = TCustomPersistenceContext<TSerializeNodeContext, TMaterializeNodeContext>;
 
-DECLARE_REFCOUNTED_CLASS(TCypressManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TDynamicCypressManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TCypressManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TDynamicCypressManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

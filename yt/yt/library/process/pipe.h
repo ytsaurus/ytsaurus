@@ -40,10 +40,9 @@ DEFINE_REFCOUNTED_TYPE(TNamedPipe)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNamedPipeConfig
+struct TNamedPipeConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Path;
     int FD = 0;
     bool Write = false;

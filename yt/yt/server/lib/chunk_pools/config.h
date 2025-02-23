@@ -8,10 +8,9 @@ namespace NYT::NChunkPools {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobSizeAdjusterConfig
+struct TJobSizeAdjusterConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration MinJobTime;
     TDuration MaxJobTime;
 

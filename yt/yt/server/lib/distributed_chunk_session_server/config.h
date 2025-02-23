@@ -8,10 +8,9 @@ namespace NYT::NDistributedChunkSessionServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDistributedChunkSessionServiceConfig
+struct TDistributedChunkSessionServiceConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration SessionTimeout;
     TDuration DataNodeRpcTimeout;
 

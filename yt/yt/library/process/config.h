@@ -8,10 +8,9 @@ namespace NYT::NPipes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIODispatcherConfig
+struct TIODispatcherConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration ThreadPoolPollingPeriod;
 
     TIODispatcherConfigPtr ApplyDynamic(const TIODispatcherDynamicConfigPtr& dynamicConfig) const;
@@ -25,10 +24,9 @@ DEFINE_REFCOUNTED_TYPE(TIODispatcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIODispatcherDynamicConfig
+struct TIODispatcherDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<TDuration> ThreadPoolPollingPeriod;
 
     REGISTER_YSON_STRUCT(TIODispatcherDynamicConfig);

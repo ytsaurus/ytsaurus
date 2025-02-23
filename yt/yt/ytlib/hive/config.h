@@ -8,7 +8,7 @@ namespace NYT::NHiveClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellDirectoryConfig
+struct TCellDirectoryConfig
     : public NRpc::TBalancingChannelConfigBase
 {
     REGISTER_YSON_STRUCT(TCellDirectoryConfig);
@@ -21,10 +21,9 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectoryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterDirectorySynchronizerConfig
+struct TClusterDirectorySynchronizerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Interval between consequent directory updates.
     TDuration SyncPeriod;
 
@@ -41,10 +40,9 @@ DEFINE_REFCOUNTED_TYPE(TClusterDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellDirectorySynchronizerConfig
+struct TCellDirectorySynchronizerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Interval between consequent directory updates.
     TDuration SyncPeriod;
 
@@ -67,10 +65,9 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDownedCellTrackerConfig
+struct TDownedCellTrackerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Time for cell tracker to forget downed chaos cells.
     TDuration ChaosCellExpirationTime;
 

@@ -8,10 +8,9 @@ namespace NYT::NTableServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicTableManagerConfig
+struct TDynamicTableManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     i64 MaxSchemaMemoryUsageToLog;
 
     // COMPAT(cherepashka, aleksandra-zh).
@@ -24,10 +23,9 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TDynamicTableManagerConfig)
 
-class TTableManagerConfig
+struct TTableManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
 
     REGISTER_YSON_STRUCT(TTableManagerConfig)
 

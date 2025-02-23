@@ -10,10 +10,9 @@ namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManagerConfig
+struct TSecurityManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     NDistributedThrottler::TDistributedThrottlerConfigPtr UserThrottler;
 
     // COMPAT(gritukan): Remove after RecomputeAccountRefCounters.
@@ -28,10 +27,9 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class  TDynamicSecurityManagerConfig
+struct TDynamicSecurityManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration AccountStatisticsGossipPeriod;
     TDuration AccountsProfilingPeriod;
     TDuration RequestRateSmoothingPeriod;

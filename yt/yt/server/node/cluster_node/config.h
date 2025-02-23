@@ -74,10 +74,9 @@ DEFINE_REFCOUNTED_TYPE(TMemoryLimit)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TResourceLimitsConfig
+struct TResourceLimitsConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Total amount of memory available for node.
     //! This value will be overridden when node runs in
     //! Porto environment.
@@ -139,10 +138,9 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsOverrides)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkReplicaCacheDynamicConfig
+struct TChunkReplicaCacheDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<TDuration> ExpirationTime;
 
     REGISTER_YSON_STRUCT(TChunkReplicaCacheDynamicConfig);
@@ -154,10 +152,9 @@ DEFINE_REFCOUNTED_TYPE(TChunkReplicaCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChaosResidencyCacheDynamicConfig
+struct TChaosResidencyCacheDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<bool> EnableClientMode;
 
     REGISTER_YSON_STRUCT(TChaosResidencyCacheDynamicConfig);
@@ -169,10 +166,9 @@ DEFINE_REFCOUNTED_TYPE(TChaosResidencyCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTopLevelPortoEnvironmentConfig
+struct TTopLevelPortoEnvironmentConfig
     : public NYTree::TYsonStruct
 {
-public:
     NContainers::TPortoExecutorDynamicConfigPtr PortoExecutor;
 
     bool UseDaemonSubcontainer;
@@ -186,10 +182,9 @@ DEFINE_REFCOUNTED_TYPE(TTopLevelPortoEnvironmentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TResourceLimitsDynamicConfig
+struct TResourceLimitsDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     // COMPAT(gritukan)
     TMemoryLimitPtr UserJobs;
     TMemoryLimitPtr TabletStatic;
@@ -218,10 +213,9 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterConnectorDynamicConfig
+struct TMasterConnectorDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<NConcurrency::TRetryingPeriodicExecutorOptions> HeartbeatExecutor;
 
     // COMPAT(gritukan)
@@ -236,10 +230,9 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyingChunkServiceConfig
+struct TProxyingChunkServiceConfig
     : public NYTree::TYsonStruct
 {
-public:
     NConcurrency::TThroughputThrottlerConfigPtr CostThrottler;
 
     REGISTER_YSON_STRUCT(TProxyingChunkServiceConfig);
@@ -251,10 +244,9 @@ DEFINE_REFCOUNTED_TYPE(TProxyingChunkServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicConfigManagerConfig
+struct TDynamicConfigManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Whether dynamic config manager is enabled.
     bool Enabled;
 
@@ -275,10 +267,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicConfigManagerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 // COMPAT(gritukan): Drop optionals here after configs migration.
-class TMasterConnectorConfig
+struct TMasterConnectorConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Timeout for lease transactions.
     std::optional<TDuration> LeaseTransactionTimeout;
 
@@ -318,10 +309,9 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterNodeBootstrapConfig
+struct TClusterNodeBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
-public:
     //! Interval between Orchid cache rebuilds.
     TDuration OrchidCacheUpdatePeriod;
 
@@ -433,11 +423,10 @@ DEFINE_REFCOUNTED_TYPE(TClusterNodeBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterNodeProgramConfig
+struct TClusterNodeProgramConfig
     : public TClusterNodeBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TClusterNodeProgramConfig);
 
     static void Register(TRegistrar registrar);
@@ -447,10 +436,9 @@ DEFINE_REFCOUNTED_TYPE(TClusterNodeProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterNodeDynamicConfig
+struct TClusterNodeDynamicConfig
     : public TSingletonsDynamicConfig
 {
-public:
     static constexpr bool EnableHazard = true;
 
     //! Dynamic config annotation.

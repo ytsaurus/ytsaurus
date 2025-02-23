@@ -10,10 +10,9 @@ namespace NYT::NS3 {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TS3ConnectionConfig
+struct TS3ConnectionConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! Url of the S3 server, for example, http://my_bucket.s3.amazonaws.com
     TString Url;
 
@@ -41,7 +40,7 @@ DEFINE_REFCOUNTED_TYPE(TS3ConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TS3ClientConfig
+struct TS3ClientConfig
     : public TS3ConnectionConfig
     , public NHttp::TClientConfig
 {

@@ -14,10 +14,9 @@ namespace NYT::NClusterDiscoveryServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoveryServerBootstrapConfig
+struct TDiscoveryServerBootstrapConfig
     : public NServer::TServerBootstrapConfig
 {
-public:
     bool AbortOnUnrecognizedOptions;
 
     int WorkerThreadPoolSize;
@@ -35,11 +34,10 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryServerBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoveryServerProgramConfig
+struct TDiscoveryServerProgramConfig
     : public TDiscoveryServerBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TDiscoveryServerProgramConfig);
 
     static void Register(TRegistrar registrar);

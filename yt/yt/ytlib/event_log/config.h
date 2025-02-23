@@ -8,10 +8,9 @@ namespace NYT::NEventLog {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEventLogManagerConfig
+struct TEventLogManagerConfig
     : public NTableClient::TBufferedTableWriterConfig
 {
-public:
     bool Enable;
     NYPath::TYPath Path;
     TDuration PendingRowsFlushPeriod;

@@ -31,10 +31,10 @@ DECLARE_REFCOUNTED_CLASS(TTransaction)
 DECLARE_REFCOUNTED_CLASS(TTransactionManager)
 DECLARE_REFCOUNTED_STRUCT(IClockManager)
 
-DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TPingBatcherConfig)
-DECLARE_REFCOUNTED_CLASS(TClockManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TDynamicClockManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TTransactionManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TPingBatcherConfig)
+DECLARE_REFCOUNTED_STRUCT(TClockManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TDynamicClockManagerConfig)
 
 //! Signatures enable checking tablet transaction integrity.
 /*!

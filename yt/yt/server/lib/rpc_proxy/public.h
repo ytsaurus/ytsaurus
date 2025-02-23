@@ -6,12 +6,12 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TApiServiceConfig)
-DECLARE_REFCOUNTED_CLASS(TApiServiceDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TSecurityManagerDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TStructuredLoggingTopicDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TStructuredLoggingMethodDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TQueryCorpusReporterConfig)
+DECLARE_REFCOUNTED_STRUCT(TApiServiceConfig)
+DECLARE_REFCOUNTED_STRUCT(TApiServiceDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TSecurityManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TStructuredLoggingTopicDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TStructuredLoggingMethodDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueryCorpusReporterConfig)
 DECLARE_REFCOUNTED_CLASS(TProxyHeapUsageProfiler)
 DECLARE_REFCOUNTED_CLASS(TApiTestingOptions)
 

@@ -16,10 +16,9 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManagerDynamicConfig
+struct TSecurityManagerDynamicConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     TAsyncExpiringCacheConfigPtr UserCache;
 
     REGISTER_YSON_STRUCT(TSecurityManagerDynamicConfig);
@@ -31,10 +30,9 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStructuredLoggingMethodDynamicConfig
+struct TStructuredLoggingMethodDynamicConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! Whether to log this particular method.
     bool Enable;
 
@@ -50,10 +48,9 @@ DEFINE_REFCOUNTED_TYPE(TStructuredLoggingMethodDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStructuredLoggingTopicDynamicConfig
+struct TStructuredLoggingTopicDynamicConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! Global switch for enabling or disabling particular structured logging topic.
     bool Enable;
 
@@ -73,10 +70,9 @@ DEFINE_REFCOUNTED_TYPE(TStructuredLoggingTopicDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryCorpusReporterConfig
+struct TQueryCorpusReporterConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
     int MaxBatchSize;
     TDuration Period;
@@ -108,10 +104,9 @@ DEFINE_REFCOUNTED_TYPE(TApiTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TApiServiceConfig
+struct TApiServiceConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     TSlruCacheConfigPtr ClientCache;
 
     TSecurityManagerDynamicConfigPtr SecurityManager;
@@ -131,10 +126,9 @@ DEFINE_REFCOUNTED_TYPE(TApiServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TApiServiceDynamicConfig
+struct TApiServiceDynamicConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     bool VerboseLogging;
     bool EnableModifyRowsRequestReordering;
     bool ForceTracing;

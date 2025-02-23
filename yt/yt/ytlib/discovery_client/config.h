@@ -12,10 +12,9 @@ namespace NYT::NDiscoveryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoveryConnectionConfig
+struct TDiscoveryConnectionConfig
     : public virtual NRpc::TBalancingChannelConfig
 {
-public:
     TDuration RpcTimeout;
     TDuration ServerBanTimeout;
 
@@ -28,10 +27,9 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemberClientConfig
+struct TMemberClientConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     TDuration HeartbeatPeriod;
     TDuration AttributeUpdatePeriod;
     TDuration LeaseTimeout;
@@ -48,11 +46,10 @@ DEFINE_REFCOUNTED_TYPE(TMemberClientConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoveryClientConfig
+struct TDiscoveryClientConfig
     : public virtual NRpc::TRetryingChannelConfig
     , public virtual NYTree::TYsonStruct
 {
-public:
     std::optional<int> ReadQuorum;
 
     REGISTER_YSON_STRUCT(TDiscoveryClientConfig);

@@ -9,16 +9,15 @@ namespace NYT::NIOTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TDriverConfig)
-DECLARE_REFCOUNTED_CLASS(TEpochConfig)
-DECLARE_REFCOUNTED_CLASS(TTestConfig)
+DECLARE_REFCOUNTED_STRUCT(TDriverConfig)
+DECLARE_REFCOUNTED_STRUCT(TEpochConfig)
+DECLARE_REFCOUNTED_STRUCT(TTestConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDriverConfig
+struct TDriverConfig
     : public NYTree::TYsonStruct
 {
-public:
     EDriverType Type;
     NYTree::INodePtr Config;
 
@@ -37,10 +36,9 @@ DEFINE_REFCOUNTED_TYPE(TDriverConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TEpochConfig
+struct TEpochConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString EpochName;
     std::vector<int> IterateThreads;
     std::vector<int> IterateBlockSizeLog;
@@ -106,10 +104,9 @@ DEFINE_REFCOUNTED_TYPE(TEpochConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestConfig
+struct TTestConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Name;
     std::vector<TEpochConfigPtr> Epochs;
 

@@ -10,10 +10,9 @@ namespace NYT::NChaosCache {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChaosCacheConfig
+struct TChaosCacheConfig
     : public TSlruCacheConfig
 {
-public:
     NChaosClient::TReplicationCardsWatcherConfigPtr ReplicationCardsWatcher;
     TDuration UnwatchedCardExpirationDelay;
 

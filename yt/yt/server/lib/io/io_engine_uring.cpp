@@ -65,12 +65,11 @@ DEFINE_ENUM(EQueueSubmitResult,
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TUringIOEngineConfig)
+DECLARE_REFCOUNTED_STRUCT(TUringIOEngineConfig)
 
-class TUringIOEngineConfig
+struct TUringIOEngineConfig
     : public TIOEngineConfigBase
 {
-public:
     int UringThreadCount;
 
     //! Limits the number of concurrent (outstanding) #IIOEngine requests per a single uring thread.

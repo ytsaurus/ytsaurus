@@ -25,7 +25,7 @@ class TOperationElementMock;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestJobResourcesConfig
+struct TTestJobResourcesConfig
     : public TRefCounted
     , public NVectorHdrf::TJobResourcesConfig
 { };
@@ -34,10 +34,9 @@ using TTestJobResourcesConfigPtr = TIntrusivePtr<TTestJobResourcesConfig>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPoolIntegralGuaranteesConfig
+struct TPoolIntegralGuaranteesConfig
     : public TRefCounted
 {
-public:
     NVectorHdrf::EIntegralGuaranteeType GuaranteeType;
 
     TTestJobResourcesConfigPtr ResourceFlow = New<TTestJobResourcesConfig>();

@@ -19,8 +19,8 @@ using TApplyChangeModeCommandsRsp = TIntrusivePtr<NRpc::TTypedClientResponse<
 using TComputeLagTimesRsp = TIntrusivePtr<NRpc::TTypedClientResponse<
     NReplicatedTableTrackerClient::NProto::TRspComputeReplicaLagTimes>>;
 
-DECLARE_REFCOUNTED_CLASS(TReplicatedTableTrackerBootstrapConfig)
-DECLARE_REFCOUNTED_CLASS(TReplicatedTableTrackerProgramConfig)
+DECLARE_REFCOUNTED_STRUCT(TReplicatedTableTrackerBootstrapConfig)
+DECLARE_REFCOUNTED_STRUCT(TReplicatedTableTrackerProgramConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 

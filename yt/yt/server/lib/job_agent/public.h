@@ -8,11 +8,11 @@ namespace NYT::NJobAgent {
 
 struct TTimeStatistics;
 
-DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
-DECLARE_REFCOUNTED_CLASS(TMappedMemoryControllerConfig)
-DECLARE_REFCOUNTED_CLASS(TMemoryPressureDetectorConfig)
-DECLARE_REFCOUNTED_CLASS(TJobResourceManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TJobResourceManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TResourceLimitsConfig)
+DECLARE_REFCOUNTED_STRUCT(TMappedMemoryControllerConfig)
+DECLARE_REFCOUNTED_STRUCT(TMemoryPressureDetectorConfig)
+DECLARE_REFCOUNTED_STRUCT(TJobResourceManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TJobResourceManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -54,11 +54,10 @@ namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterConnectionConfig
+struct TMasterConnectionConfig
     : public NHydra::TPeerConnectionConfig
     , public NRpc::TRetryingChannelConfig
 {
-public:
     //! Timeout for RPC requests to masters.
     TDuration RpcTimeout;
 
@@ -71,10 +70,9 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterCacheConnectionConfig
+struct TMasterCacheConnectionConfig
     : public TMasterConnectionConfig
 {
-public:
     bool EnableMasterCacheDiscovery;
     TDuration MasterCacheDiscoveryPeriod;
     TDuration MasterCacheDiscoveryPeriodSplay;
@@ -88,11 +86,10 @@ DEFINE_REFCOUNTED_TYPE(TMasterCacheConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClockServersConfig
+struct TClockServersConfig
     : public NHydra::TPeerConnectionConfig
     , public NRpc::TRetryingChannelConfig
 {
-public:
     //! Timeout for RPC requests to clock servers.
     TDuration RpcTimeout;
 
@@ -105,11 +102,10 @@ DEFINE_REFCOUNTED_TYPE(TClockServersConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressProxyConnectionConfig
+struct TCypressProxyConnectionConfig
     : public NRpc::TBalancingChannelConfig
     , public NRpc::TRetryingChannelConfig
 {
-public:
     //! Timeout for RPC requests to Cypress proxies.
     TDuration RpcTimeout;
 
@@ -123,10 +119,9 @@ DEFINE_REFCOUNTED_TYPE(TCypressProxyConnectionConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 // Consider adding inheritance from TRetryingChannelConfig and/or TBalancingChannelConfig.
-class TSequoiaConnectionConfig
+struct TSequoiaConnectionConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! If |nullopt|, Sequoia tables are handled on the local cluster.
     std::optional<TString> GroundClusterName;
 
@@ -156,11 +151,10 @@ DEFINE_REFCOUNTED_TYPE(TSequoiaConnectionConfig)
  *  A good reason for an option to be here is when it is required for fetching //sys/@cluster_connection.
  *  In other situations prefer adding fields only to dynamic config.
  */
-class TConnectionStaticConfig
+struct TConnectionStaticConfig
     : public NApi::TConnectionConfig
     , public NCellMasterClient::TCellDirectoryConfig
 {
-public:
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
 
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
@@ -206,11 +200,10 @@ DEFINE_REFCOUNTED_TYPE(TConnectionStaticConfig)
  *  the dynamic config from the static configuration.
  *
  */
-class TConnectionDynamicConfig
+struct TConnectionDynamicConfig
     : public NApi::TConnectionDynamicConfig
     , public NChunkClient::TChunkTeleporterConfig
 {
-public:
     // TODO(max42): distribute these options into two groups: dynamically reconfigurable and not.
 
     NHiveClient::TCellDirectoryConfigPtr CellDirectory;

@@ -30,10 +30,10 @@ DECLARE_REFCOUNTED_CLASS(TPerUserAndWorkloadRequestQueueProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TObjectServiceDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TSequoiaResponseKeeperDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TCypressProxyDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TUserDirectorySynchronizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TObjectServiceDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TSequoiaResponseKeeperDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TCypressProxyDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TUserDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

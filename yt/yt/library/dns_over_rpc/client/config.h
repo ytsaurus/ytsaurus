@@ -10,10 +10,9 @@ namespace NYT::NDns {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDnsOverRpcResolverConfig
+struct TDnsOverRpcResolverConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration ResolveBatchingPeriod;
     TDuration ResolveRpcTimeout;
 

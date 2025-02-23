@@ -18,10 +18,9 @@ namespace NYT::NCellBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellBalancerConfig
+struct TCellBalancerConfig
     : public NYTree::TYsonStruct
 {
-public:
     NTabletServer::TDynamicTabletManagerConfigPtr TabletManager;
 
     REGISTER_YSON_STRUCT(TCellBalancerConfig);
@@ -33,10 +32,9 @@ DEFINE_REFCOUNTED_TYPE(TCellBalancerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellBalancerMasterConnectorConfig
+struct TCellBalancerMasterConnectorConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration ConnectRetryBackoffTime;
 
     REGISTER_YSON_STRUCT(TCellBalancerMasterConnectorConfig);
@@ -48,10 +46,9 @@ DEFINE_REFCOUNTED_TYPE(TCellBalancerMasterConnectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChaosConfig
+struct TChaosConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::vector<std::string> TabletCellClusters;
     std::vector<std::string> ChaosCellClusters;
     NObjectClient::TCellTag ClockClusterTag;
@@ -68,10 +65,9 @@ DEFINE_REFCOUNTED_TYPE(TChaosConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBundleControllerConfig
+struct TBundleControllerConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::string Cluster;
     TDuration BundleScanPeriod;
     TDuration BundleScanTransactionTimeout;
@@ -119,10 +115,9 @@ DEFINE_REFCOUNTED_TYPE(TBundleControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellBalancerBootstrapConfig
+struct TCellBalancerBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
-public:
     bool AbortOnUnrecognizedOptions;
     NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
     TCellBalancerMasterConnectorConfigPtr MasterConnector;
@@ -143,11 +138,10 @@ DEFINE_REFCOUNTED_TYPE(TCellBalancerBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellBalancerProgramConfig
+struct TCellBalancerProgramConfig
     : public TCellBalancerBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TCellBalancerProgramConfig);
 
     static void Register(TRegistrar registrar);

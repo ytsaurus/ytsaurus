@@ -16,10 +16,9 @@ inline const TString DefaultExecutorStderrPath("logs/ytserver_exec_stderr");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserJobSynchronizerConnectionConfig
+struct TUserJobSynchronizerConnectionConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! User job -> Job proxy connection config.
     NBus::TBusClientConfigPtr BusClientConfig;
 
@@ -32,10 +31,9 @@ DEFINE_REFCOUNTED_TYPE(TUserJobSynchronizerConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserJobExecutorConfig
+struct TUserJobExecutorConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Command to execute.
     TString Command;
 

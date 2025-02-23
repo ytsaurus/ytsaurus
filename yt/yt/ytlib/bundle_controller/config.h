@@ -12,10 +12,9 @@ namespace NYT::NBundleController {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBundleControllerChannelConfig
+struct TBundleControllerChannelConfig
     : public NRpc::TRetryingChannelConfig
 {
-public:
     TDuration RpcTimeout;
 
     TDuration RpcAcknowledgementTimeout;

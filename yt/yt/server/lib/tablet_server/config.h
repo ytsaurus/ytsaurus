@@ -14,10 +14,9 @@ namespace NYT::NTabletServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicReplicatedTableTrackerConfig
+struct TDynamicReplicatedTableTrackerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool EnableReplicatedTableTracker;
 
     // COMPAT(akozhikhov): Drop this with old RTT.

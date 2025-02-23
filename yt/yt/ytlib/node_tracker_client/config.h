@@ -6,10 +6,9 @@ namespace NYT::NNodeTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeDirectorySynchronizerConfig
+struct TNodeDirectorySynchronizerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration SyncPeriod;
 
     //! TTL for GetClusterMeta request.

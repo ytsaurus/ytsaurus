@@ -96,10 +96,9 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyControllerThrottling)
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(ignat): move it to subconfig.
-class TFairShareStrategyOperationControllerConfig
+struct TFairShareStrategyOperationControllerConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! Limits on the number and total duration of concurrent schedule allocation calls to a single controller.
     int MaxConcurrentControllerScheduleAllocationCalls;
     TDuration MaxConcurrentControllerScheduleAllocationExecDuration;
@@ -137,10 +136,9 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyOperationControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulerIntegralGuaranteesConfig
+struct TSchedulerIntegralGuaranteesConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration SmoothPeriod;
 
     TDuration PoolCapacitySaturationPeriod;
@@ -156,10 +154,9 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerIntegralGuaranteesConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareStrategySchedulingSegmentsConfig
+struct TFairShareStrategySchedulingSegmentsConfig
     : public NYTree::TYsonStruct
 {
-public:
     ESegmentedSchedulingMode Mode;
 
     TSegmentToResourceAmount ReserveFairResourceAmount;
@@ -203,10 +200,9 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategySchedulingSegmentsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGpuAllocationSchedulerConfig
+struct TGpuAllocationSchedulerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration InitializationTimeout;
 
     TDuration ModuleReconsiderationTimeout;
@@ -239,10 +235,9 @@ DEFINE_REFCOUNTED_TYPE(TGpuAllocationSchedulerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareStrategySsdPriorityPreemptionConfig
+struct TFairShareStrategySsdPriorityPreemptionConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
 
     TSchedulingTagFilter NodeTagFilter;
@@ -258,10 +253,9 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategySsdPriorityPreemptionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBatchOperationSchedulingConfig
+struct TBatchOperationSchedulingConfig
     : public NYTree::TYsonStruct
 {
-public:
     int BatchSize;
 
     TJobResourcesConfigPtr FallbackMinSpareAllocationResources;
@@ -292,10 +286,9 @@ DEFINE_REFCOUNTED_TYPE(TTreeTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareStrategyTreeConfig
+struct TFairShareStrategyTreeConfig
     : virtual public NYTree::TYsonStruct
 {
-public:
     // Specifies nodes that are served by this tree.
     TSchedulingTagFilter NodesFilter;
 
@@ -483,10 +476,9 @@ DEFINE_REFCOUNTED_TYPE(TFairShareStrategyTreeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPoolTreesTemplateConfig
+struct TPoolTreesTemplateConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Priority to apply filter.
     int Priority;
 
@@ -532,10 +524,9 @@ DEFINE_REFCOUNTED_TYPE(TOperationStuckCheckOptions);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareStrategyConfig
+struct TFairShareStrategyConfig
     : public TFairShareStrategyOperationControllerConfig
 {
-public:
     //! How often to update, log, profile fair share in fair share trees.
     TDuration FairShareUpdatePeriod;
     TDuration FairShareProfilingPeriod;
@@ -631,10 +622,9 @@ DEFINE_REFCOUNTED_TYPE(TTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOperationsCleanerConfig
+struct TOperationsCleanerConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! Enables cleaner.
     bool Enable;
 
@@ -747,10 +737,9 @@ struct TAliveControllerAgentThresholds final
     friend void Serialize(const TAliveControllerAgentThresholds& thresholds, NYson::IYsonConsumer* consumer);
 };
 
-class TControllerAgentTrackerConfig
+struct TControllerAgentTrackerConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
     // Scheduler scheduler-to-agent operation request timeout for light requests.
@@ -804,10 +793,9 @@ DEFINE_REFCOUNTED_TYPE(TControllerAgentTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TResourceMeteringConfig
+struct TResourceMeteringConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Default ABC id for use in resource metering
     int DefaultAbcId;
 
@@ -823,11 +811,10 @@ DEFINE_REFCOUNTED_TYPE(TResourceMeteringConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulerConfig
+struct TSchedulerConfig
     : public TFairShareStrategyConfig
     , public TSingletonsDynamicConfig
 {
-public:
     //! Number of shards the nodes are split into.
     int NodeShardCount;
 
@@ -1046,10 +1033,9 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulerBootstrapConfig
+struct TSchedulerBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
-public:
     NScheduler::TSchedulerConfigPtr Scheduler;
 
     //! Known scheduler addresses.
@@ -1068,11 +1054,10 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchedulerProgramConfig
+struct TSchedulerProgramConfig
     : public TSchedulerBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TSchedulerProgramConfig);
 
     static void Register(TRegistrar registrar);

@@ -10,10 +10,9 @@ namespace NYT::NIncumbentServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIncumbentSchedulingConfig
+struct TIncumbentSchedulingConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! If true, incumbent manager will try to schedule this incumbent
     //! to one of the followers (if any).
     //! If false, incumbent will be always scheduled to leader.
@@ -32,10 +31,9 @@ DEFINE_REFCOUNTED_TYPE(TIncumbentSchedulingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIncumbentSchedulerConfig
+struct TIncumbentSchedulerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TEnumIndexedArray<NIncumbentClient::EIncumbentType, TIncumbentSchedulingConfigPtr> Incumbents;
 
     //! If less than |MinAliveFollowers| followers are active according to leader,
@@ -51,10 +49,9 @@ DEFINE_REFCOUNTED_TYPE(TIncumbentSchedulerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIncumbentManagerDynamicConfig
+struct TIncumbentManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TIncumbentSchedulerConfigPtr Scheduler;
 
     //! Period of incumbents assignment both to leader and followers.

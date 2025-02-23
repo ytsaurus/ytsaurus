@@ -20,10 +20,9 @@ namespace NYT::NCellarAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellarConfig
+struct TCellarConfig
     : public NYTree::TYsonStruct
 {
-public:
     int Size;
     TCellarOccupantConfigPtr Occupant;
 
@@ -36,10 +35,9 @@ DEFINE_REFCOUNTED_TYPE(TCellarConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellarManagerConfig
+struct TCellarManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     THashMap<NCellarClient::ECellarType, TCellarConfigPtr> Cellars;
 
     REGISTER_YSON_STRUCT(TCellarManagerConfig);
@@ -51,10 +49,9 @@ DEFINE_REFCOUNTED_TYPE(TCellarManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellarDynamicConfig
+struct TCellarDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<int> Size;
 
     NHydra::TDynamicDistributedHydraManagerConfigPtr HydraManager;
@@ -68,10 +65,9 @@ DEFINE_REFCOUNTED_TYPE(TCellarDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellarManagerDynamicConfig
+struct TCellarManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     THashMap<NCellarClient::ECellarType, TCellarDynamicConfigPtr> Cellars;
 
     REGISTER_YSON_STRUCT(TCellarManagerDynamicConfig);
@@ -83,10 +79,9 @@ DEFINE_REFCOUNTED_TYPE(TCellarManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellarOccupantConfig
+struct TCellarOccupantConfig
     : public NYTree::TYsonStruct
 {
-public:
     // Remote store by default, but can be configured as a local one for dry run.
     NHydra::TSnapshotStoreConfigBasePtr Snapshots;
 

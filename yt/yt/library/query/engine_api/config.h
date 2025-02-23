@@ -10,10 +10,9 @@ namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TExecutorConfig
+struct TExecutorConfig
     : public NYTree::TYsonStruct
 {
-public:
     TSlruCacheConfigPtr CGCache;
 
     REGISTER_YSON_STRUCT(TExecutorConfig);
@@ -25,10 +24,9 @@ DEFINE_REFCOUNTED_TYPE(TExecutorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TColumnEvaluatorCacheConfig
+struct TColumnEvaluatorCacheConfig
     : public NYTree::TYsonStruct
 {
-public:
     TSlruCacheConfigPtr CGCache;
 
     REGISTER_YSON_STRUCT(TColumnEvaluatorCacheConfig);
@@ -40,10 +38,9 @@ DEFINE_REFCOUNTED_TYPE(TColumnEvaluatorCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TColumnEvaluatorCacheDynamicConfig
+struct TColumnEvaluatorCacheDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TSlruCacheDynamicConfigPtr CGCache;
 
     REGISTER_YSON_STRUCT(TColumnEvaluatorCacheDynamicConfig);
@@ -55,10 +52,9 @@ DEFINE_REFCOUNTED_TYPE(TColumnEvaluatorCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TExpressionEvaluatorCacheConfig
+struct TExpressionEvaluatorCacheConfig
     : public NYTree::TYsonStruct
 {
-public:
     TSlruCacheConfigPtr CGCache;
 
     REGISTER_YSON_STRUCT(TExpressionEvaluatorCacheConfig);

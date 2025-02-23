@@ -18,10 +18,9 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPeerConnectionConfig
+struct TPeerConnectionConfig
     : public NRpc::TBalancingChannelConfig
 {
-public:
     TCellId CellId;
 
     //! If true, Hydra peer state is ignored during discovery.

@@ -55,10 +55,9 @@ DEFINE_ENUM(EAmmoType,
     (Write)
 );
 
-class TTestConfig
+struct TTestConfig
     : public TYsonStructLite
 {
-public:
     EIOEngineType IOEngine;
 
     EIOPattern IOPattern;

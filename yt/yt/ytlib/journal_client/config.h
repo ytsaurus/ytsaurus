@@ -12,10 +12,9 @@ namespace NYT::NJournalClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJournalHunkChunkWriterConfig
+struct TJournalHunkChunkWriterConfig
     : public NApi::TJournalChunkWriterConfig
 {
-public:
     i64 MaxRecordSize;
     i64 MaxRecordHunkCount;
 

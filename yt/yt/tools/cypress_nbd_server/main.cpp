@@ -51,10 +51,9 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressFileBlockDeviceConfig
+struct TCypressFileBlockDeviceConfig
     : public NYTree::TYsonStruct
 {
-public:
     TYPath Path;
 
     // For testing purposes: how long to sleep before read request
@@ -71,15 +70,14 @@ public:
     }
 };
 
-DECLARE_REFCOUNTED_CLASS(TCypressFileBlockDeviceConfig)
+DECLARE_REFCOUNTED_STRUCT(TCypressFileBlockDeviceConfig)
 DEFINE_REFCOUNTED_TYPE(TCypressFileBlockDeviceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TConfig
+struct TConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString ClusterUser;
     NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
     TNbdServerConfigPtr NbdServer;
@@ -103,7 +101,7 @@ public:
     }
 };
 
-DECLARE_REFCOUNTED_CLASS(TConfig)
+DECLARE_REFCOUNTED_STRUCT(TConfig)
 DEFINE_REFCOUNTED_TYPE(TConfig)
 
 ////////////////////////////////////////////////////////////////////////////////

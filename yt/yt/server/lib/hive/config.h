@@ -8,10 +8,9 @@ namespace NYT::NHiveServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLogicalTimeRegistryConfig
+struct TLogicalTimeRegistryConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration EvictionPeriod;
     TDuration ExpirationTimeout;
 
@@ -24,10 +23,9 @@ DEFINE_REFCOUNTED_TYPE(TLogicalTimeRegistryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THiveManagerConfig
+struct THiveManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     // COMPAT(babenko)
     bool UseNew;
 
@@ -84,10 +82,9 @@ DEFINE_REFCOUNTED_TYPE(THiveManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellDirectorySynchronizerConfig
+struct TCellDirectorySynchronizerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Interval between consequent SyncCells requests to the primary Hive Manager.
     TDuration SyncPeriod;
 
@@ -100,10 +97,9 @@ DEFINE_REFCOUNTED_TYPE(TCellDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterDirectorySynchronizerConfig
+struct TClusterDirectorySynchronizerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration SyncPeriod;
 
     //! TTL for GetClusterMeta request.

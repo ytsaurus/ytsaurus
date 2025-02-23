@@ -8,10 +8,9 @@ namespace NYT::NChaosServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChaosPeerConfig
+struct TChaosPeerConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<TString> AlienCluster;
 
     REGISTER_YSON_STRUCT(TChaosPeerConfig);
@@ -23,10 +22,9 @@ DEFINE_REFCOUNTED_TYPE(TChaosPeerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChaosHydraConfig
+struct TChaosHydraConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::vector<TChaosPeerConfigPtr> Peers;
 
     REGISTER_YSON_STRUCT(TChaosHydraConfig);

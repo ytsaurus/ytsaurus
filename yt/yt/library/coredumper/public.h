@@ -11,7 +11,7 @@ namespace NYT::NCoreDump {
 DECLARE_REFCOUNTED_STRUCT(ICoreDumper)
 YT_DECLARE_TYPEID(ICoreDumper)
 
-DECLARE_REFCOUNTED_CLASS(TCoreDumperConfig)
+DECLARE_REFCOUNTED_STRUCT(TCoreDumperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

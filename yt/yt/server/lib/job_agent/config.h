@@ -16,10 +16,9 @@ namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TResourceLimitsConfig
+struct TResourceLimitsConfig
     : public NYTree::TYsonStruct
 {
-public:
     int UserSlots;
     double Cpu;
     int Gpu;
@@ -46,10 +45,9 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMappedMemoryControllerConfig
+struct TMappedMemoryControllerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration CheckPeriod;
     i64 ReservedMemory;
 
@@ -62,10 +60,9 @@ DEFINE_REFCOUNTED_TYPE(TMappedMemoryControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemoryPressureDetectorConfig
+struct TMemoryPressureDetectorConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enabled;
 
     TDuration CheckPeriod;
@@ -88,10 +85,9 @@ DEFINE_REFCOUNTED_TYPE(TMemoryPressureDetectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobResourceManagerConfig
+struct TJobResourceManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Port set has higher priority than StartPort ans PortCount if it is specified.
     std::optional<THashSet<int>> PortSet;
     int StartPort;
@@ -111,10 +107,9 @@ DEFINE_REFCOUNTED_TYPE(TJobResourceManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobResourceManagerDynamicConfig
+struct TJobResourceManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<double> CpuToVCpuFactor;
     bool EnableCpuToVCpuFactor;
 

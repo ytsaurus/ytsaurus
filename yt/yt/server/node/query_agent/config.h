@@ -12,10 +12,9 @@ namespace NYT::NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryAgentConfig
+struct TQueryAgentConfig
     : public NQueryClient::TExecutorConfig
 {
-public:
     int QueryThreadPoolSize;
     int LookupThreadPoolSize;
     int FetchThreadPoolSize;
@@ -44,10 +43,9 @@ DEFINE_REFCOUNTED_TYPE(TQueryAgentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryAgentDynamicConfig
+struct TQueryAgentDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<int> QueryThreadPoolSize;
     std::optional<int> LookupThreadPoolSize;
     std::optional<int> FetchThreadPoolSize;
