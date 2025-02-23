@@ -52,62 +52,6 @@ TResult TAbstractAstVisitor<TResult, TDerived, TNode>::Visit(TNode node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TDerived, class TNode>
-TDerived* TAbstractAstVisitor<void, TDerived, TNode>::Derived()
-{
-    return static_cast<TDerived*>(this);
-}
-
-template <class TDerived, class TNode>
-void TAbstractAstVisitor<void, TDerived, TNode>::Visit(TNode node)
-{
-    CheckStackDepth();
-    auto* expr = Derived()->GetExpression(node);
-
-    if (auto* literalExpr = expr->template As<TLiteralExpression>()) {
-        return Derived()->OnLiteral(literalExpr);
-    } else if (auto* referenceExpr = expr->template As<TReferenceExpression>()) {
-        return Derived()->OnReference(referenceExpr);
-    } else if (auto* aliasExpr = expr->template As<TAliasExpression>()) {
-        return Derived()->OnAlias(aliasExpr);
-    } else if (auto* unaryOp = expr->template As<TUnaryOpExpression>()) {
-        return Derived()->OnUnary(unaryOp);
-    } else if (auto* binaryOp = expr->template As<TBinaryOpExpression>()) {
-        return Derived()->OnBinary(binaryOp);
-    } else if (auto* functionExpr = expr->template As<TFunctionExpression>()) {
-        return Derived()->OnFunction(functionExpr);
-    } else if (auto* inExpr = expr->template As<TInExpression>()) {
-        return Derived()->OnIn(inExpr);
-    } else if (auto* betweenExpr = expr->template As<TBetweenExpression>()) {
-        return Derived()->OnBetween(betweenExpr);
-    } else if (auto* transformExpr = expr->template As<TTransformExpression>()) {
-        return Derived()->OnTransform(transformExpr);
-    } else if (auto* caseExpr = expr->template As<TCaseExpression>()) {
-        return Derived()->OnCase(caseExpr);
-    } else if (auto* likeExpr = expr->template As<TLikeExpression>()) {
-        return Derived()->OnLike(likeExpr);
-    }
-    YT_ABORT();
-}
-
-template <class TDerived, class TNode>
-void TAbstractAstVisitor<void, TDerived, TNode>::Visit(const std::vector<TNode>& tuple)
-{
-    for (const auto& element : tuple) {
-        Visit(element);
-    }
-}
-
-template <class TDerived, class TNode>
-void TAbstractAstVisitor<void, TDerived, TNode>::Visit(const std::optional<std::vector<TNode>>& nullableTuple)
-{
-    if (nullableTuple) {
-        Visit(*nullableTuple);
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <class TResult, class TDerived>
 TExpressionPtr TBaseAstVisitor<TResult, TDerived>::GetExpression(TExpressionPtr expr)
 {
