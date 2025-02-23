@@ -1611,9 +1611,10 @@ private:
             }
         }
 
-        User_->LogIfPendingRemoval(
-            Format("User pending for removal has accessed object service (User: %v)",
-            User_->GetName()));
+        YT_LOG_ALERT_IF(
+            User_->GetPendingRemoval(),
+            "User pending for removal has accessed object service (User: %v)",
+            User_->GetName());
 
         if (NeedsUserAccessValidation_) {
             NeedsUserAccessValidation_ = false;
