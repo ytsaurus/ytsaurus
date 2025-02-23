@@ -8,10 +8,9 @@ namespace NYT::NTimestampServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTimestampManagerConfig
+struct TTimestampManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration CalibrationPeriod;
     TDuration TimestampPreallocationInterval;
     int MaxTimestampsPerRequest;

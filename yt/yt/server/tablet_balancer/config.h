@@ -20,10 +20,9 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStandaloneTabletBalancerConfig
+struct TStandaloneTabletBalancerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool AbortOnUnrecognizedOptions;
 
     TDuration Period;
@@ -43,10 +42,9 @@ DEFINE_REFCOUNTED_TYPE(TStandaloneTabletBalancerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletBalancerDynamicConfig
+struct TTabletBalancerDynamicConfig
     : public TSingletonsDynamicConfig
 {
-public:
     // Enable standalone tablet balancer. The balancer will not work at all if set to false.
     bool Enable;
 
@@ -94,10 +92,9 @@ DEFINE_REFCOUNTED_TYPE(TTabletBalancerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TActionManagerConfig
+struct TActionManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     int CreateActionBatchSizeLimit;
     TDuration TabletActionPollingPeriod;
     TDuration TabletActionCreationTimeout;
@@ -112,10 +109,9 @@ DEFINE_REFCOUNTED_TYPE(TActionManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletBalancerBootstrapConfig
+struct TTabletBalancerBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
-public:
     bool AbortOnUnrecognizedOptions;
 
     TStandaloneTabletBalancerConfigPtr TabletBalancer;
@@ -138,11 +134,10 @@ DEFINE_REFCOUNTED_TYPE(TTabletBalancerBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletBalancerProgramConfig
+struct TTabletBalancerProgramConfig
     : public TTabletBalancerBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TTabletBalancerProgramConfig);
 
     static void Register(TRegistrar registrar);

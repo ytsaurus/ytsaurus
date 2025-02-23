@@ -11,7 +11,7 @@ inline const TString ClickHouseUserName("yt-clickhouse");
 DECLARE_REFCOUNTED_CLASS(TCachedDiscovery)
 DECLARE_REFCOUNTED_CLASS(TDiscoveryCache)
 
-DECLARE_REFCOUNTED_CLASS(TDiscoveryCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TDiscoveryCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

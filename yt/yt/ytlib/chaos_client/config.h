@@ -14,10 +14,9 @@ namespace NYT::NChaosClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChaosCellDirectorySynchronizerConfig
+struct TChaosCellDirectorySynchronizerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Interval between consequent directory updates.
     TDuration SyncPeriod;
 
@@ -35,10 +34,9 @@ DEFINE_REFCOUNTED_TYPE(TChaosCellDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChaosResidencyCacheConfig
+struct TChaosResidencyCacheConfig
     : public TAsyncExpiringCacheConfig
 {
-public:
     bool EnableClientMode;
 
     REGISTER_YSON_STRUCT(TChaosResidencyCacheConfig);
@@ -50,10 +48,9 @@ DEFINE_REFCOUNTED_TYPE(TChaosResidencyCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationCardChannelConfig
+struct TReplicationCardChannelConfig
     : public NRpc::TRetryingChannelConfig
 {
-public:
     TDuration RpcAcknowledgementTimeout;
 
     REGISTER_YSON_STRUCT(TReplicationCardChannelConfig);
@@ -65,10 +62,9 @@ DEFINE_REFCOUNTED_TYPE(TReplicationCardChannelConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationCardsWatcherConfig
+struct TReplicationCardsWatcherConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration PollExpirationTime;
     TDuration GoneCardsExpirationTime;
     TDuration ExpirationSweepPeriod;

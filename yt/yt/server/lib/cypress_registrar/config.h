@@ -47,10 +47,9 @@ struct TCypressRegistrarOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressRegistrarConfig
+struct TCypressRegistrarConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Period to call |UpdateNodes| when the registrar is run in periodic mode.
     TDuration UpdatePeriod;
 

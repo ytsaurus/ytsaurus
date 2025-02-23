@@ -25,10 +25,9 @@ namespace NYT::NQueueAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressSynchronizerConfig
+struct TCypressSynchronizerConfig
     : public NYTree::TYsonStruct
 {
-public:
     REGISTER_YSON_STRUCT(TCypressSynchronizerConfig);
 
     static void Register(TRegistrar registrar);
@@ -43,10 +42,9 @@ DEFINE_ENUM(ECypressSynchronizerPolicy,
     (Watching)
 );
 
-class TCypressSynchronizerDynamicConfig
+struct TCypressSynchronizerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Cypress poll period.
     TDuration PassPeriod;
 
@@ -79,10 +77,9 @@ DEFINE_REFCOUNTED_TYPE(TCypressSynchronizerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueAgentConfig
+struct TQueueAgentConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Used to create channels to other queue agents.
     NBus::TBusConfigPtr BusClient;
 
@@ -101,10 +98,9 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentConfig)
 
 // NB(apachee): Separate config for exports for future refactoring. See YT-23208.
 
-class TQueueExporterDynamicConfig
+struct TQueueExporterDynamicConfig
     : public NYTree::TYsonStructLite
 {
-public:
     bool Enable;
 
     //! Queue exporter pass period. Defines the minimum duration between 2 consecutive export iterations.
@@ -121,10 +117,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueControllerDynamicConfig
+struct TQueueControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Controller pass period. Defines the period of monitoring information exporting, automatic
     //! trimming and the maximum age of cached Orchid state.
     TDuration PassPeriod;
@@ -164,10 +159,9 @@ DEFINE_REFCOUNTED_TYPE(TQueueControllerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueExportManagerDynamicConfig
+struct TQueueExportManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Maximum number of export starting per second.
     std::optional<double> ExportRateLimit;
 
@@ -180,10 +174,9 @@ DEFINE_REFCOUNTED_TYPE(TQueueExportManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueAgentDynamicConfig
+struct TQueueAgentDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! State table poll period.
     TDuration PassPeriod;
 
@@ -212,10 +205,9 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueAgentShardingManagerDynamicConfig
+struct TQueueAgentShardingManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration PassPeriod;
     TDuration SyncBannedInstancesPeriod;
 
@@ -228,10 +220,9 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentShardingManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueAgentBootstrapConfig
+struct TQueueAgentBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
-public:
     TQueueAgentConfigPtr QueueAgent;
 
     TCypressSynchronizerConfigPtr CypressSynchronizer;
@@ -260,11 +251,10 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueAgentProgramConfig
+struct TQueueAgentProgramConfig
     : public TQueueAgentBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TQueueAgentProgramConfig);
 
     static void Register(TRegistrar registrar);
@@ -274,10 +264,9 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueAgentComponentDynamicConfig
+struct TQueueAgentComponentDynamicConfig
     : public TSingletonsDynamicConfig
 {
-public:
     NDiscoveryClient::TMemberClientConfigPtr MemberClient;
     NDiscoveryClient::TDiscoveryClientConfigPtr DiscoveryClient;
 

@@ -8,10 +8,9 @@ namespace NYT::NSchedulerPoolServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicSchedulerPoolManagerConfig
+struct TDynamicSchedulerPoolManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     int MaxSchedulerPoolSubtreeSize;
 
     // Pool name validation regex for user with |Administer| permission on scheduler pool schema object.

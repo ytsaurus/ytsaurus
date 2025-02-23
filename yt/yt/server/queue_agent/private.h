@@ -52,22 +52,22 @@ YT_DEFINE_ERROR_ENUM(
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TQueueAgent)
-DECLARE_REFCOUNTED_CLASS(TQueueAgentConfig)
-DECLARE_REFCOUNTED_CLASS(TQueueControllerDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TQueueExportManagerDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TQueueAgentDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueueAgentConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueueControllerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueueExportManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueueAgentDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ICypressSynchronizer)
 DECLARE_REFCOUNTED_CLASS(TCypressSynchronizer)
-DECLARE_REFCOUNTED_CLASS(TCypressSynchronizerConfig)
-DECLARE_REFCOUNTED_CLASS(TCypressSynchronizerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TCypressSynchronizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TCypressSynchronizerDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IQueueAgentShardingManager)
-DECLARE_REFCOUNTED_CLASS(TQueueAgentShardingManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueueAgentShardingManagerDynamicConfig)
 
-DECLARE_REFCOUNTED_CLASS(TQueueAgentBootstrapConfig)
-DECLARE_REFCOUNTED_CLASS(TQueueAgentProgramConfig)
-DECLARE_REFCOUNTED_CLASS(TQueueAgentComponentDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueueAgentBootstrapConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueueAgentProgramConfig)
+DECLARE_REFCOUNTED_STRUCT(TQueueAgentComponentDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 

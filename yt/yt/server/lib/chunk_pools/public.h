@@ -12,7 +12,7 @@ namespace NYT::NChunkPools {
 
 DECLARE_REFCOUNTED_STRUCT(IChunkSliceFetcherFactory)
 
-DECLARE_REFCOUNTED_CLASS(TJobSizeAdjusterConfig)
+DECLARE_REFCOUNTED_STRUCT(TJobSizeAdjusterConfig)
 DECLARE_REFCOUNTED_CLASS(TInputChunkMapping)
 
 DECLARE_REFCOUNTED_STRUCT(IPersistentChunkPoolInput)

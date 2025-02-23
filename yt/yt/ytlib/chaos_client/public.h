@@ -19,10 +19,10 @@ DECLARE_REFCOUNTED_STRUCT(IBannedReplicaTrackerCache)
 DECLARE_REFCOUNTED_STRUCT(IReplicationCardsWatcher)
 DECLARE_REFCOUNTED_STRUCT(IReplicationCardsWatcherClient)
 DECLARE_REFCOUNTED_STRUCT(IReplicationCardWatcherCallbacks)
-DECLARE_REFCOUNTED_CLASS(TChaosCellDirectorySynchronizerConfig)
-DECLARE_REFCOUNTED_CLASS(TChaosResidencyCacheConfig)
-DECLARE_REFCOUNTED_CLASS(TReplicationCardChannelConfig)
-DECLARE_REFCOUNTED_CLASS(TReplicationCardsWatcherConfig)
+DECLARE_REFCOUNTED_STRUCT(TChaosCellDirectorySynchronizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TChaosResidencyCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TReplicationCardChannelConfig)
+DECLARE_REFCOUNTED_STRUCT(TReplicationCardsWatcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -38,10 +38,9 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletHydraManagerConfig
+struct TTabletHydraManagerConfig
     : public NHydra::TDistributedHydraManagerConfig
 {
-public:
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
     REGISTER_YSON_STRUCT(TTabletHydraManagerConfig);
@@ -53,10 +52,9 @@ DEFINE_REFCOUNTED_TYPE(TTabletHydraManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRelativeReplicationThrottlerConfig
+struct TRelativeReplicationThrottlerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
 
     //! Desired ratio of replication speed to lag accumulation speed.
@@ -82,10 +80,9 @@ DEFINE_REFCOUNTED_TYPE(TRelativeReplicationThrottlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRowDigestCompactionConfig
+struct TRowDigestCompactionConfig
     : public NYTree::TYsonStruct
 {
-public:
     double MaxObsoleteTimestampRatio;
     int MaxTimestampsPerValue;
 
@@ -100,10 +97,9 @@ DEFINE_REFCOUNTED_TYPE(TRowDigestCompactionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGradualCompactionConfig
+struct TGradualCompactionConfig
     : public NYTree::TYsonStructLite
 {
-public:
     TInstant StartTime;
     TDuration Duration;
 
@@ -114,10 +110,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBuiltinTableMountConfig
+struct TBuiltinTableMountConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     // Any fields that should not be sent to the tablet node without master
     // consent (by setting it under @mount_config attribute or by an experiment)
     // must be included into the list below.
@@ -162,10 +157,9 @@ DEFINE_REFCOUNTED_TYPE(TBuiltinTableMountConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTestingTableMountConfig
+struct TTestingTableMountConfig
     : public NYTree::TYsonStructLite
 {
-public:
     double CompactionFailureProbability;
     double PartitioningFailureProbability;
     double FlushFailureProbability;
@@ -182,10 +176,9 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCustomTableMountConfig
+struct TCustomTableMountConfig
     : public NTableClient::TRetentionConfig
 {
-public:
     i64 MaxDynamicStoreRowCount;
     i64 MaxDynamicStoreValueCount;
     i64 MaxDynamicStoreTimestampCount;
@@ -331,11 +324,10 @@ DEFINE_REFCOUNTED_TYPE(TCustomTableMountConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTableMountConfig
+struct TTableMountConfig
     : public TBuiltinTableMountConfig
     , public TCustomTableMountConfig
 {
-public:
     REGISTER_YSON_STRUCT(TTableMountConfig);
 
     static void Register(TRegistrar registrar);
@@ -345,10 +337,9 @@ DEFINE_REFCOUNTED_TYPE(TTableMountConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionManagerConfig
+struct TTransactionManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration MaxTransactionTimeout;
     TDuration BarrierCheckPeriod;
     int MaxAbortedTransactionPoolSize;
@@ -363,11 +354,10 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletStoreReaderConfig
+struct TTabletStoreReaderConfig
     : public NTableClient::TChunkReaderConfig
     , public NChunkClient::TErasureReaderConfig
 {
-public:
     bool PreferLocalReplicas;
 
     TAdaptiveHedgingManagerConfigPtr HedgingManager;
@@ -381,12 +371,11 @@ DEFINE_REFCOUNTED_TYPE(TTabletStoreReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletHunkReaderConfig
+struct TTabletHunkReaderConfig
     : public NChunkClient::TChunkFragmentReaderConfig
     , public NTableClient::TBatchHunkReaderConfig
     , public NTableClient::TDictionaryCompressionSessionConfig
 {
-public:
     TAdaptiveHedgingManagerConfigPtr HedgingManager;
 
     REGISTER_YSON_STRUCT(TTabletHunkReaderConfig);
@@ -398,7 +387,7 @@ DEFINE_REFCOUNTED_TYPE(TTabletHunkReaderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletHunkWriterConfig
+struct TTabletHunkWriterConfig
     : public NChunkClient::TMultiChunkWriterConfig
     , public NTableClient::THunkChunkPayloadWriterConfig
 {
@@ -411,10 +400,9 @@ DEFINE_REFCOUNTED_TYPE(TTabletHunkWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletManagerConfig
+struct TTabletManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     i64 PoolChunkSize;
 
     TDuration PreloadBackoffTime;
@@ -450,10 +438,9 @@ DEFINE_REFCOUNTED_TYPE(TTabletManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletManagerDynamicConfig
+struct TTabletManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<int> ReplicatorThreadPoolSize;
 
     REGISTER_YSON_STRUCT(TTabletManagerDynamicConfig);
@@ -465,10 +452,9 @@ DEFINE_REFCOUNTED_TYPE(TTabletManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletCellWriteManagerDynamicConfig
+struct TTabletCellWriteManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Testing option.
     //! If set, write request will fail with this probability.
     //! In case of failure write request will be equiprobably
@@ -484,10 +470,9 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellWriteManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletHunkLockManagerDynamicConfig
+struct TTabletHunkLockManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Period of time each hunks store is kept alive after it is no longer referenced.
     TDuration HunkStoreExtraLifeTime;
 
@@ -502,10 +487,9 @@ DEFINE_REFCOUNTED_TYPE(TTabletHunkLockManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreBackgroundActivityOrchidConfig
+struct TStoreBackgroundActivityOrchidConfig
     : public NYTree::TYsonStruct
 {
-public:
     int MaxFailedTaskCount;
     int MaxCompletedTaskCount;
 
@@ -518,10 +502,9 @@ DEFINE_REFCOUNTED_TYPE(TStoreBackgroundActivityOrchidConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreFlusherConfig
+struct TStoreFlusherConfig
     : public NYTree::TYsonStruct
 {
-public:
     int ThreadPoolSize;
     int MaxConcurrentFlushes;
     i64 MinForcedFlushDataSize;
@@ -535,10 +518,9 @@ DEFINE_REFCOUNTED_TYPE(TStoreFlusherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreFlusherDynamicConfig
+struct TStoreFlusherDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
 
     //! Fraction of #MemoryLimit when tablets must be forcefully flushed.
@@ -559,10 +541,9 @@ DEFINE_REFCOUNTED_TYPE(TStoreFlusherDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreCompactorConfig
+struct TStoreCompactorConfig
     : public NYTree::TYsonStruct
 {
-public:
     int ThreadPoolSize;
     int MaxConcurrentCompactions;
     int MaxConcurrentPartitionings;
@@ -576,10 +557,9 @@ DEFINE_REFCOUNTED_TYPE(TStoreCompactorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreCompactorDynamicConfig
+struct TStoreCompactorDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
     std::optional<int> ThreadPoolSize;
     std::optional<int> MaxConcurrentCompactions;
@@ -606,10 +586,9 @@ DEFINE_REFCOUNTED_TYPE(TStoreCompactorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStoreTrimmerDynamicConfig
+struct TStoreTrimmerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
 
     REGISTER_YSON_STRUCT(TStoreTrimmerDynamicConfig);
@@ -621,10 +600,9 @@ DEFINE_REFCOUNTED_TYPE(TStoreTrimmerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THunkChunkSweeperDynamicConfig
+struct THunkChunkSweeperDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
 
     REGISTER_YSON_STRUCT(THunkChunkSweeperDynamicConfig);
@@ -636,10 +614,9 @@ DEFINE_REFCOUNTED_TYPE(THunkChunkSweeperDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInMemoryManagerConfig
+struct TInMemoryManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     int MaxConcurrentPreloads;
     TDuration InterceptedDataRetentionTime;
     TDuration PingPeriod;
@@ -663,10 +640,9 @@ DEFINE_REFCOUNTED_TYPE(TInMemoryManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInMemoryManagerDynamicConfig
+struct TInMemoryManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<int> MaxConcurrentPreloads;
     std::optional<TDuration> InterceptedDataRetentionTime;
     std::optional<TDuration> PingPeriod;
@@ -684,10 +660,9 @@ DEFINE_REFCOUNTED_TYPE(TInMemoryManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPartitionBalancerConfig
+struct TPartitionBalancerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Limits the rate (measured in chunks) of location requests issued by all active chunk scrapers.
     NConcurrency::TThroughputThrottlerConfigPtr ChunkLocationThrottler;
 
@@ -723,10 +698,9 @@ DEFINE_REFCOUNTED_TYPE(TPartitionBalancerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPartitionBalancerDynamicConfig
+struct TPartitionBalancerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
 
     std::optional<int> MinPartitioningSampleCount;
@@ -743,10 +717,9 @@ DEFINE_REFCOUNTED_TYPE(TPartitionBalancerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManagerConfig
+struct TSecurityManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TAsyncExpiringCacheConfigPtr ResourceLimitsCache;
 
     REGISTER_YSON_STRUCT(TSecurityManagerConfig);
@@ -756,10 +729,9 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
 
-class TSecurityManagerDynamicConfig
+struct TSecurityManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TAsyncExpiringCacheConfigPtr ResourceLimitsCache;
 
     REGISTER_YSON_STRUCT(TSecurityManagerDynamicConfig);
@@ -771,10 +743,9 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterConnectorConfig
+struct TMasterConnectorConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Period between consequent tablet node heartbeats.
     TDuration HeartbeatPeriod;
 
@@ -795,10 +766,9 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterConnectorDynamicConfig
+struct TMasterConnectorDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<NConcurrency::TRetryingPeriodicExecutorOptions> HeartbeatExecutor;
 
     //! Timeout of the tablet node heartbeat RPC request.
@@ -813,10 +783,9 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TResourceLimitsConfig
+struct TResourceLimitsConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Maximum number of Tablet Managers to run.
     int Slots;
 
@@ -835,10 +804,9 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBackupManagerDynamicConfig
+struct TBackupManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration CheckpointFeasibilityCheckBatchPeriod;
     TDuration CheckpointFeasibilityCheckBackoff;
 
@@ -867,10 +835,9 @@ DEFINE_REFCOUNTED_TYPE(TServiceMethod)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TServiceMethodConfig
+struct TServiceMethodConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Service;
     TString Method;
 
@@ -886,10 +853,9 @@ DEFINE_REFCOUNTED_TYPE(TServiceMethodConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOverloadTrackerConfig
+struct TOverloadTrackerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration MeanWaitTimeThreshold;
     std::vector<TServiceMethodPtr> MethodsToThrottle;
 
@@ -902,10 +868,9 @@ DEFINE_REFCOUNTED_TYPE(TOverloadTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TOverloadControllerConfig
+struct TOverloadControllerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enabled;
     THashMap<TString, TOverloadTrackerConfigPtr> Trackers;
     std::vector<TServiceMethodConfigPtr> Methods;
@@ -920,10 +885,9 @@ DEFINE_REFCOUNTED_TYPE(TOverloadControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TStatisticsReporterConfig
+struct TStatisticsReporterConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
     int MaxTabletsPerTransaction;
     TDuration ReportBackoffTime;
@@ -939,10 +903,9 @@ DEFINE_REFCOUNTED_TYPE(TStatisticsReporterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TErrorManagerConfig
+struct TErrorManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration DeduplicationCacheTimeout;
     TDuration ErrorExpirationTimeout;
 
@@ -955,10 +918,9 @@ DEFINE_REFCOUNTED_TYPE(TErrorManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMediumThrottlersConfig
+struct TMediumThrottlersConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool EnableChangelogThrottling;
     bool EnableBlobThrottling;
 
@@ -976,10 +938,9 @@ DEFINE_REFCOUNTED_TYPE(TMediumThrottlersConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCompressionDictionaryBuilderConfig
+struct TCompressionDictionaryBuilderConfig
     : public NYTree::TYsonStruct
 {
-public:
     int ThreadPoolSize;
     int MaxConcurrentBuildTasks;
 
@@ -992,10 +953,9 @@ DEFINE_REFCOUNTED_TYPE(TCompressionDictionaryBuilderConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCompressionDictionaryBuilderDynamicConfig
+struct TCompressionDictionaryBuilderDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
 
     std::optional<int> ThreadPoolSize;
@@ -1010,10 +970,9 @@ DEFINE_REFCOUNTED_TYPE(TCompressionDictionaryBuilderDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSmoothMovementTrackerTestingConfig
+struct TSmoothMovementTrackerTestingConfig
     : public NYTree::TYsonStruct
 {
-public:
     THashMap<ESmoothMovementStage, TDuration> DelayAfterStageAtSource;
     THashMap<ESmoothMovementStage, TDuration> DelayAfterStageAtTarget;
 
@@ -1026,10 +985,9 @@ DEFINE_REFCOUNTED_TYPE(TSmoothMovementTrackerTestingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSmoothMovementTrackerDynamicConfig
+struct TSmoothMovementTrackerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TSmoothMovementTrackerTestingConfigPtr Testing;
 
     REGISTER_YSON_STRUCT(TSmoothMovementTrackerDynamicConfig);
@@ -1041,10 +999,9 @@ DEFINE_REFCOUNTED_TYPE(TSmoothMovementTrackerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletNodeDynamicConfig
+struct TTabletNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Maximum number of Tablet Managers to run.
     //! If set, overrides corresponding value in TResourceLimitsConfig.
     // COMPAT(gritukan): Drop optional.
@@ -1104,10 +1061,9 @@ DEFINE_REFCOUNTED_TYPE(TTabletNodeDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THintManagerConfig
+struct THintManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     NDynamicConfig::TDynamicConfigManagerConfigPtr ReplicatorHintConfigFetcher;
 
     REGISTER_YSON_STRUCT(THintManagerConfig);
@@ -1119,10 +1075,9 @@ DEFINE_REFCOUNTED_TYPE(THintManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTabletNodeConfig
+struct TTabletNodeConfig
     : public NYTree::TYsonStruct
 {
-public:
     // TODO(ifsmirnov): drop in favour of dynamic config.
     double ForcedRotationMemoryRatio;
 
@@ -1191,10 +1146,9 @@ DEFINE_REFCOUNTED_TYPE(TTabletNodeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicatorHintConfig
+struct TReplicatorHintConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Set of replica clusters that are banned to replicate to.
     THashSet<TString> BannedReplicaClusters;
 
@@ -1214,10 +1168,9 @@ DEFINE_REFCOUNTED_TYPE(TReplicatorHintConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THunkStorageMountConfig
+struct THunkStorageMountConfig
     : public NYTree::TYsonStruct
 {
-public:
     int DesiredAllocatedStoreCount;
 
     TDuration StoreRotationPeriod;
@@ -1232,10 +1185,9 @@ DEFINE_REFCOUNTED_TYPE(THunkStorageMountConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THunkStoreWriterConfig
+struct THunkStoreWriterConfig
     : public NJournalClient::TJournalHunkChunkWriterConfig
 {
-public:
     i64 DesiredHunkCountPerChunk;
     i64 DesiredChunkSize;
 

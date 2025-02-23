@@ -14,10 +14,9 @@ namespace NYT::NHydraStressTest {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TConfig
+struct TConfig
     : public NYTree::TYsonStruct
 {
-public:
     int PeerCount;
     int VotingPeerCount;
 

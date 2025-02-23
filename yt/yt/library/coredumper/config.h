@@ -8,10 +8,9 @@ namespace NYT::NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCoreDumperConfig
+struct TCoreDumperConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! A path to store the core files.
     TString Path;
 

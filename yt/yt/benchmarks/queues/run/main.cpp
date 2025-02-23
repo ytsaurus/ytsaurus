@@ -48,12 +48,11 @@ static constexpr auto& Logger = QueueBenchmarkLogger;
 ////////////////////////////////////////////////////////////////////////////////
 
 
-DECLARE_REFCOUNTED_CLASS(TConfig)
+DECLARE_REFCOUNTED_STRUCT(TConfig)
 
-class TConfig
+struct TConfig
     : public TSingletonsConfig
 {
-public:
     NRpcProxy::TConnectionConfigPtr Connection;
 
     REGISTER_YSON_STRUCT(TConfig);

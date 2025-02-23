@@ -8,10 +8,9 @@ namespace NYT::NDiscoveryServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoveryServerConfig
+struct TDiscoveryServerConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::vector<std::string> ServerAddresses;
     TDuration GossipPeriod;
     TDuration AttributesUpdatePeriod;

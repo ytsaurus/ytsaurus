@@ -8,20 +8,20 @@ namespace NYT::NObjectClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TReqExecuteBatchWithRetriesConfig)
+DECLARE_REFCOUNTED_STRUCT(TReqExecuteBatchWithRetriesConfig)
 
-DECLARE_REFCOUNTED_CLASS(TObjectAttributeCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TObjectAttributeCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TObjectAttributeCache)
 
-DECLARE_REFCOUNTED_CLASS(TObjectServiceCacheConfig)
-DECLARE_REFCOUNTED_CLASS(TObjectServiceCacheDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TCachingObjectServiceConfig)
-DECLARE_REFCOUNTED_CLASS(TCachingObjectServiceDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TObjectServiceCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TObjectServiceCacheDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TCachingObjectServiceConfig)
+DECLARE_REFCOUNTED_STRUCT(TCachingObjectServiceDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TObjectServiceCacheEntry)
 DECLARE_REFCOUNTED_CLASS(TObjectServiceCache)
 
-DECLARE_REFCOUNTED_CLASS(TAbcConfig)
+DECLARE_REFCOUNTED_STRUCT(TAbcConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ICachingObjectService)
 

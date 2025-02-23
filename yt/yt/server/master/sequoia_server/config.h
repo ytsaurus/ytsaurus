@@ -10,10 +10,9 @@ namespace NYT::NSequoiaServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicTableUpdateQueueConfig
+struct TDynamicTableUpdateQueueConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration FlushPeriod;
     int FlushBatchSize;
     bool PauseFlush;
@@ -27,10 +26,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTableUpdateQueueConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicGroundUpdateQueueManagerConfig
+struct TDynamicGroundUpdateQueueManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     THashMap<NSequoiaClient::EGroundUpdateQueue, TDynamicTableUpdateQueueConfigPtr> Queues;
 
     const TDynamicTableUpdateQueueConfigPtr& GetQueueConfig(NSequoiaClient::EGroundUpdateQueue queue) const;
@@ -44,10 +42,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicGroundUpdateQueueManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicSequoiaManagerConfig
+struct TDynamicSequoiaManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
     bool EnableCypressTransactionsInSequoia;
     bool EnableGroundUpdateQueues;

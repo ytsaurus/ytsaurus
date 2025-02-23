@@ -8,10 +8,9 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIOTrackerConfig
+struct TIOTrackerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! If set to true, logging of IO events is enabled.
     bool Enable;
 

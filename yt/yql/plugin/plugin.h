@@ -37,9 +37,8 @@ public:
     std::optional<TString> YqlPluginSharedLibrary;
 };
 
-class TYqlPluginDynamicConfig
+struct TYqlPluginDynamicConfig
 {
-public:
     NYson::TYsonString GatewaysConfig;
 };
 

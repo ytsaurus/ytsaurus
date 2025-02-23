@@ -92,12 +92,11 @@ TFuture<IIOEngine::TReadResponse> IIOEngine::ReadAll(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TThreadPoolIOEngineConfig)
+DECLARE_REFCOUNTED_STRUCT(TThreadPoolIOEngineConfig)
 
-class TThreadPoolIOEngineConfig
+struct TThreadPoolIOEngineConfig
     : public TIOEngineConfigBase
 {
-public:
     int ReadThreadCount;
     int WriteThreadCount;
 

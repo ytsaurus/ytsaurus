@@ -6,10 +6,9 @@ namespace NYT::NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDistributedElectionManagerConfig
+struct TDistributedElectionManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration VotingRoundPeriod;
     TDuration ControlRpcTimeout;
     TDuration FollowerPingPeriod;

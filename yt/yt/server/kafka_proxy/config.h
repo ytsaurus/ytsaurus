@@ -16,10 +16,9 @@ namespace NYT::NKafkaProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyBootstrapConfig
+struct TProxyBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
-public:
     //! Kafka proxy will listen on this port.
     int Port;
 
@@ -62,11 +61,10 @@ DEFINE_REFCOUNTED_TYPE(TProxyBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyProgramConfig
+struct TProxyProgramConfig
     : public TProxyBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TProxyProgramConfig);
 
     static void Register(TRegistrar registrar);
@@ -76,10 +74,9 @@ DEFINE_REFCOUNTED_TYPE(TProxyProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGroupCoordinatorConfig
+struct TGroupCoordinatorConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! How long members will be waited during join and sync stages.
     TDuration RebalanceTimeout;
 
@@ -95,10 +92,9 @@ DEFINE_REFCOUNTED_TYPE(TGroupCoordinatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyDynamicConfig
+struct TProxyDynamicConfig
     : public TSingletonsDynamicConfig
 {
-public:
     int PollerThreadCount;
     int AcceptorThreadCount;
 

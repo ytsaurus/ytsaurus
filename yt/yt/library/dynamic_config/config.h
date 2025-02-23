@@ -36,10 +36,9 @@ struct TDynamicConfigManagerOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicConfigManagerConfig
+struct TDynamicConfigManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Period of config fetching from Cypress.
     TDuration UpdatePeriod;
 

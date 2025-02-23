@@ -12,11 +12,11 @@ namespace NYT::NCellarAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TCellarManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TCellarConfig)
-DECLARE_REFCOUNTED_CLASS(TCellarManagerDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TCellarDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TCellarOccupantConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellarManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellarConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellarManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellarDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellarOccupantConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ICellar)
 DECLARE_REFCOUNTED_STRUCT(ICellarManager)

@@ -26,11 +26,10 @@ namespace NYT::NClusterClock {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClockHydraManagerConfig
+struct TClockHydraManagerConfig
     : public NHydra::TDistributedHydraManagerConfig
     , public NHydra::TLocalHydraJanitorConfig
 {
-public:
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
 
     REGISTER_YSON_STRUCT(TClockHydraManagerConfig);
@@ -42,10 +41,9 @@ DEFINE_REFCOUNTED_TYPE(TClockHydraManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterClockBootstrapConfig
+struct TClusterClockBootstrapConfig
     : public NServer::TServerBootstrapConfig
 {
-public:
     NElection::TCellConfigPtr ClockCell;
     NElection::TDistributedElectionManagerConfigPtr ElectionManager;
 
@@ -69,11 +67,10 @@ DEFINE_REFCOUNTED_TYPE(TClusterClockBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterClockProgramConfig
+struct TClusterClockProgramConfig
     : public TClusterClockBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TClusterClockProgramConfig);
 
     static void Register(TRegistrar registrar);

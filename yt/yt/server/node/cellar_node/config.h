@@ -20,10 +20,9 @@ using TMemoryLimitsEnumIndexedVector = TEnumIndexedArray<EMemoryCategory, NClust
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterConnectorConfig
+struct TMasterConnectorConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Period between consequent cellar node heartbeats.
     TDuration HeartbeatPeriod;
 
@@ -41,10 +40,9 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterConnectorDynamicConfig
+struct TMasterConnectorDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<NConcurrency::TRetryingPeriodicExecutorOptions> HeartbeatExecutor;
 
     //! Timeout of the cellar node heartbeat RPC request.
@@ -59,10 +57,9 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellarNodeDynamicConfig
+struct TCellarNodeDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     NCellarAgent::TCellarManagerDynamicConfigPtr CellarManager;
 
     TMasterConnectorDynamicConfigPtr MasterConnector;
@@ -76,10 +73,9 @@ DEFINE_REFCOUNTED_TYPE(TCellarNodeDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellarNodeConfig
+struct TCellarNodeConfig
     : public NYTree::TYsonStruct
 {
-public:
     NCellarAgent::TCellarManagerConfigPtr CellarManager;
 
     TMasterConnectorConfigPtr MasterConnector;

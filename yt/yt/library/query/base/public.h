@@ -86,16 +86,16 @@ DECLARE_REFCOUNTED_STRUCT(IExecutor)
 
 DECLARE_REFCOUNTED_STRUCT(IEvaluator)
 
-DECLARE_REFCOUNTED_CLASS(TExecutorConfig)
+DECLARE_REFCOUNTED_STRUCT(TExecutorConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IColumnEvaluatorCache)
 DECLARE_REFCOUNTED_CLASS(TColumnEvaluator)
-DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheConfig)
-DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TColumnEvaluatorCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TColumnEvaluatorCacheDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IExpressionEvaluatorCache)
 DECLARE_REFCOUNTED_CLASS(TExpressionEvaluator)
-DECLARE_REFCOUNTED_CLASS(TExpressionEvaluatorCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TExpressionEvaluatorCacheConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TExternalCGInfo)
 using TConstExternalCGInfoPtr = TIntrusivePtr<const TExternalCGInfo>;
