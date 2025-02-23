@@ -66,9 +66,10 @@ static const TSequoiaTransactionSequencingOptions SequencingOptions = {
 
 TFuture<ISequoiaTransactionPtr> StartCypressProxyTransaction(
     const ISequoiaClientPtr& sequoiaClient,
+    ESequoiaTransactionType type,
     const TTransactionStartOptions& options)
 {
-    return sequoiaClient->StartTransaction(options, SequencingOptions);
+    return sequoiaClient->StartTransaction(type, options, SequencingOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

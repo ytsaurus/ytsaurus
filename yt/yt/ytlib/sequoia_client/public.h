@@ -14,6 +14,19 @@ namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ESequoiaTransactionType,
+    (CypressModification)
+    (CypressTransactionMirroring)
+    (ResponseKeeper)
+    (IncrementalHeartbeat)
+    (FullHeartbeat)
+    (ChunkLocationDisposal)
+    (ChunkConfirmation)
+    (DeadChunkReplicaRemoval)
+    (GroundUpdateQueueFlush)
+    (ObjectDestruction)
+);
+
 DEFINE_ENUM(ESequoiaTable,
     (PathToNodeId)
     (NodeIdToPath)

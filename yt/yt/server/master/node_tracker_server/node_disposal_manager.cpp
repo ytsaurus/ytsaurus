@@ -338,7 +338,7 @@ private:
         }
 
         chunkManager
-            ->ModifySequoiaReplicas(std::move(sequoiaRequest))
+            ->ModifySequoiaReplicas(ESequoiaTransactionType::ChunkLocationDisposal, std::move(sequoiaRequest))
             .Subscribe(BIND([=, mutation = std::move(mutation), nodeId = node->GetId(), this, this_ = MakeStrong(this)] (const TErrorOr<TRspModifyReplicas>& rspOrError) {
                 if (!rspOrError.IsOK()) {
                     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
