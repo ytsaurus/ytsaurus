@@ -250,6 +250,9 @@ TEST_F(TTableSchemaTest, TableSchemaValidation)
                 .SetMaterialized(false),
             TColumnSchema("MaximumActivity", EValueType::Int64)
                 .SetAggregate(TString("max")),
+            TColumnSchema("SomethingWeird", EValueType::Int64)
+                .SetExpression(TString("MaximumActivity / Weight"))
+                .SetMaterialized(false),
         },
     };
 
