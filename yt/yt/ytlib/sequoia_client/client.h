@@ -77,6 +77,7 @@ struct ISequoiaClient
         i64 trimmedRowCount) = 0;
 
     virtual TFuture<ISequoiaTransactionPtr> StartTransaction(
+        ESequoiaTransactionType type,
         const NApi::TTransactionStartOptions& options = {},
         const TSequoiaTransactionSequencingOptions& sequencingOptions = {}) = 0;
 
