@@ -50,6 +50,10 @@ void TAllocation::TLastJobInfo::Persist(const TPersistenceContext& context)
     if (context.GetVersion() >= ESnapshotVersion::PreserveJobCookieForAllocationInGangs) {
         Persist(context, OutputCookie);
     }
+
+    if (context.GetVersion() >= ESnapshotVersion::MonitoringDescriptorsPreserving) {
+        Persist(context, MonitoringDescriptor);
+    }
 }
 
 TAllocation::TLastJobInfo::operator bool() const noexcept
@@ -253,6 +257,11 @@ void TJoblet::Persist(const TPersistenceContext& context)
         OperationIncarnation = std::move(operationIncarnation);
     } else {
         Persist(context, OperationIncarnation);
+    }
+
+    // COMPAT(pogorelov)
+    if (context.GetVersion() >= ESnapshotVersion::MonitoringDescriptorsPreserving) {
+        Persist(context, UserJobMonitoringDescriptor);
     }
 
     if (context.IsLoad()) {

@@ -57,6 +57,7 @@ struct TAllocation
         TJobId JobId;
         std::optional<EJobCompetitionType> CompetitionType;
         NChunkPools::IChunkPoolOutput::TCookie OutputCookie;
+        std::optional<TJobMonitoringDescriptor> MonitoringDescriptor;
 
         void Persist(const TPersistenceContext& context);
 
@@ -173,8 +174,9 @@ struct TJoblet
     std::vector<TOutputStreamDescriptorPtr> OutputStreamDescriptors;
     std::vector<TInputStreamDescriptorPtr> InputStreamDescriptors;
 
-    // These fields are used only to build job spec and thus transient.
     std::optional<TJobMonitoringDescriptor> UserJobMonitoringDescriptor;
+
+    // These fields are used only to build job spec and thus transient.
     std::optional<TString> PoolPath;
 
     NScheduler::TJobProfilerSpecPtr EnabledJobProfiler;

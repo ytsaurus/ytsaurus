@@ -9071,19 +9071,33 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(TJobId jobId) const
     return joblet;
 }
 
-std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterJobForMonitoring(TJobId jobId)
+std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterJobForMonitoring(
+    TJobId jobId,
+    const std::optional<TJobMonitoringDescriptor>& descriptorHint)
 {
+    YT_LOG_DEBUG("Trying to assign monitoring descriptor to job (JobId: %v)", jobId);
+
     std::optional<TJobMonitoringDescriptor> descriptor;
-    if (MonitoringDescriptorIndexPool_.empty()) {
-        descriptor = RegisterNewMonitoringDescriptor();
-    } else {
-        auto it = MonitoringDescriptorIndexPool_.begin();
-        auto index = *it;
-        MonitoringDescriptorIndexPool_.erase(it);
-        descriptor = TJobMonitoringDescriptor{Host->GetIncarnationId(), index};
+
+    if (descriptorHint) {
+        EraseOrCrash(MonitoringDescriptorPool_, *descriptorHint);
+        descriptor = descriptorHint;
     }
+
+    if (!descriptor) {
+        if (MonitoringDescriptorPool_.empty()) {
+            descriptor = RegisterNewMonitoringDescriptor();
+        } else {
+            auto it = MonitoringDescriptorPool_.begin();
+            auto foundDescriptor = *it;
+            MonitoringDescriptorPool_.erase(it);
+            descriptor = foundDescriptor;
+        }
+    }
+
     if (descriptor) {
-        YT_LOG_DEBUG("Monitoring descriptor assigned to job (JobId: %v, MonitoringDescriptor: %v)",
+        YT_LOG_DEBUG(
+            "Monitoring descriptor assigned to job (JobId: %v, MonitoringDescriptor: %v)",
             jobId,
             descriptor);
 
@@ -9136,7 +9150,7 @@ void TOperationControllerBase::UnregisterJobForMonitoring(const TJobletPtr& jobl
         --MonitoredUserJobAttemptCount_;
     }
     if (joblet->UserJobMonitoringDescriptor) {
-        InsertOrCrash(MonitoringDescriptorIndexPool_, joblet->UserJobMonitoringDescriptor->Index);
+        InsertOrCrash(MonitoringDescriptorPool_, *joblet->UserJobMonitoringDescriptor);
         EraseOrCrash(JobIdToMonitoringDescriptor_, joblet->JobId);
         --MonitoredUserJobCount_;
         // NB: We do not want to remove index, but old version of logic can be done with the following call.
@@ -10794,6 +10808,11 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
         .SinceVersion(ESnapshotVersion::PersistMonitoringCounts));
     PHOENIX_REGISTER_FIELD(72, RegisteredMonitoringDescriptorCount_,
         .SinceVersion(ESnapshotVersion::PersistMonitoringCounts));
+
+    PHOENIX_REGISTER_FIELD(78, MonitoringDescriptorPool_,
+        .SinceVersion(ESnapshotVersion::MonitoringDescriptorsPreserving));
+    PHOENIX_REGISTER_FIELD(79, JobIdToMonitoringDescriptor_,
+        .SinceVersion(ESnapshotVersion::MonitoringDescriptorsPreserving));
 
     PHOENIX_REGISTER_FIELD(73, UnknownExitCodeFailCount_,
         .SinceVersion(ESnapshotVersion::JobFailTolerance));
