@@ -40,6 +40,7 @@ import (
 	typepb "google.golang.org/protobuf/types/known/typepb"
 	reflect "reflect"
 	sync "sync"
+	unsafe "unsafe"
 )
 
 // Api is a light-weight descriptor for an API Interface.
@@ -52,10 +53,7 @@ import (
 // this message itself. See https://cloud.google.com/apis/design/glossary for
 // detailed terminology.
 type Api struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// The fully qualified name of this interface, including package name
 	// followed by the interface's simple name.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
@@ -89,16 +87,16 @@ type Api struct {
 	// Included interfaces. See [Mixin][].
 	Mixins []*Mixin `protobuf:"bytes,6,rep,name=mixins,proto3" json:"mixins,omitempty"`
 	// The source syntax of the service.
-	Syntax typepb.Syntax `protobuf:"varint,7,opt,name=syntax,proto3,enum=google.protobuf.Syntax" json:"syntax,omitempty"`
+	Syntax        typepb.Syntax `protobuf:"varint,7,opt,name=syntax,proto3,enum=google.protobuf.Syntax" json:"syntax,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Api) Reset() {
 	*x = Api{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_google_protobuf_api_proto_msgTypes[0]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
+	mi := &file_google_protobuf_api_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
 }
 
 func (x *Api) String() string {
@@ -109,7 +107,7 @@ func (*Api) ProtoMessage() {}
 
 func (x *Api) ProtoReflect() protoreflect.Message {
 	mi := &file_google_protobuf_api_proto_msgTypes[0]
-	if protoimpl.UnsafeEnabled && x != nil {
+	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
 			ms.StoreMessageInfo(mi)
@@ -175,10 +173,7 @@ func (x *Api) GetSyntax() typepb.Syntax {
 
 // Method represents a method of an API interface.
 type Method struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// The simple name of this method.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// A URL of the input message type.
@@ -192,16 +187,16 @@ type Method struct {
 	// Any metadata attached to the method.
 	Options []*typepb.Option `protobuf:"bytes,6,rep,name=options,proto3" json:"options,omitempty"`
 	// The source syntax of this method.
-	Syntax typepb.Syntax `protobuf:"varint,7,opt,name=syntax,proto3,enum=google.protobuf.Syntax" json:"syntax,omitempty"`
+	Syntax        typepb.Syntax `protobuf:"varint,7,opt,name=syntax,proto3,enum=google.protobuf.Syntax" json:"syntax,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Method) Reset() {
 	*x = Method{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_google_protobuf_api_proto_msgTypes[1]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
+	mi := &file_google_protobuf_api_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
 }
 
 func (x *Method) String() string {
@@ -212,7 +207,7 @@ func (*Method) ProtoMessage() {}
 
 func (x *Method) ProtoReflect() protoreflect.Message {
 	mi := &file_google_protobuf_api_proto_msgTypes[1]
-	if protoimpl.UnsafeEnabled && x != nil {
+	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
 			ms.StoreMessageInfo(mi)
@@ -323,7 +318,7 @@ func (x *Method) GetSyntax() typepb.Syntax {
 // The mixin construct implies that all methods in `AccessControl` are
 // also declared with same name and request/response types in
 // `Storage`. A documentation generator or annotation processor will
-// see the effective `Storage.GetAcl` method after inherting
+// see the effective `Storage.GetAcl` method after inheriting
 // documentation and annotations as follows:
 //
 //	service Storage {
@@ -355,24 +350,21 @@ func (x *Method) GetSyntax() typepb.Syntax {
 //	  ...
 //	}
 type Mixin struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
+	state protoimpl.MessageState `protogen:"open.v1"`
 	// The fully qualified name of the interface which is included.
 	Name string `protobuf:"bytes,1,opt,name=name,proto3" json:"name,omitempty"`
 	// If non-empty specifies a path under which inherited HTTP paths
 	// are rooted.
-	Root string `protobuf:"bytes,2,opt,name=root,proto3" json:"root,omitempty"`
+	Root          string `protobuf:"bytes,2,opt,name=root,proto3" json:"root,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
 }
 
 func (x *Mixin) Reset() {
 	*x = Mixin{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_google_protobuf_api_proto_msgTypes[2]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
+	mi := &file_google_protobuf_api_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
 }
 
 func (x *Mixin) String() string {
@@ -383,7 +375,7 @@ func (*Mixin) ProtoMessage() {}
 
 func (x *Mixin) ProtoReflect() protoreflect.Message {
 	mi := &file_google_protobuf_api_proto_msgTypes[2]
-	if protoimpl.UnsafeEnabled && x != nil {
+	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
 			ms.StoreMessageInfo(mi)
@@ -414,7 +406,7 @@ func (x *Mixin) GetRoot() string {
 
 var File_google_protobuf_api_proto protoreflect.FileDescriptor
 
-var file_google_protobuf_api_proto_rawDesc = []byte{
+var file_google_protobuf_api_proto_rawDesc = string([]byte{
 	0x0a, 0x19, 0x67, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2f, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75,
 	0x66, 0x2f, 0x61, 0x70, 0x69, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x12, 0x0f, 0x67, 0x6f, 0x6f,
 	0x67, 0x6c, 0x65, 0x2e, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75, 0x66, 0x1a, 0x24, 0x67, 0x6f,
@@ -473,16 +465,16 @@ var file_google_protobuf_api_proto_rawDesc = []byte{
 	0x02, 0x1e, 0x47, 0x6f, 0x6f, 0x67, 0x6c, 0x65, 0x2e, 0x50, 0x72, 0x6f, 0x74, 0x6f, 0x62, 0x75,
 	0x66, 0x2e, 0x57, 0x65, 0x6c, 0x6c, 0x4b, 0x6e, 0x6f, 0x77, 0x6e, 0x54, 0x79, 0x70, 0x65, 0x73,
 	0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
-}
+})
 
 var (
 	file_google_protobuf_api_proto_rawDescOnce sync.Once
-	file_google_protobuf_api_proto_rawDescData = file_google_protobuf_api_proto_rawDesc
+	file_google_protobuf_api_proto_rawDescData []byte
 )
 
 func file_google_protobuf_api_proto_rawDescGZIP() []byte {
 	file_google_protobuf_api_proto_rawDescOnce.Do(func() {
-		file_google_protobuf_api_proto_rawDescData = protoimpl.X.CompressGZIP(file_google_protobuf_api_proto_rawDescData)
+		file_google_protobuf_api_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_google_protobuf_api_proto_rawDesc), len(file_google_protobuf_api_proto_rawDesc)))
 	})
 	return file_google_protobuf_api_proto_rawDescData
 }
@@ -516,49 +508,11 @@ func file_google_protobuf_api_proto_init() {
 	if File_google_protobuf_api_proto != nil {
 		return
 	}
-	if !protoimpl.UnsafeEnabled {
-		file_google_protobuf_api_proto_msgTypes[0].Exporter = func(v any, i int) any {
-			switch v := v.(*Api); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_google_protobuf_api_proto_msgTypes[1].Exporter = func(v any, i int) any {
-			switch v := v.(*Method); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_google_protobuf_api_proto_msgTypes[2].Exporter = func(v any, i int) any {
-			switch v := v.(*Mixin); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: file_google_protobuf_api_proto_rawDesc,
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_google_protobuf_api_proto_rawDesc), len(file_google_protobuf_api_proto_rawDesc)),
 			NumEnums:      0,
 			NumMessages:   3,
 			NumExtensions: 0,
@@ -569,7 +523,6 @@ func file_google_protobuf_api_proto_init() {
 		MessageInfos:      file_google_protobuf_api_proto_msgTypes,
 	}.Build()
 	File_google_protobuf_api_proto = out.File
-	file_google_protobuf_api_proto_rawDesc = nil
 	file_google_protobuf_api_proto_goTypes = nil
 	file_google_protobuf_api_proto_depIdxs = nil
 }
