@@ -1,8 +1,7 @@
 from yt_env_setup import (
     YTEnvSetup, Restarter, KAFKA_PROXIES_SERVICE)
 
-from yt_queue_agent_test_base import (
-    TestQueueAgentBase, ReplicatedObjectBase)
+from yt_queue_agent_test_base import TestQueueAgentBase
 
 from yt_commands import (
     authors, get, ls, create, sync_mount_table, insert_rows, sync_create_cells,
@@ -74,7 +73,7 @@ def _check_error(code, err, msg):
     assert isinstance(err, KafkaError) and err.code() == code
 
 
-class TestKafkaProxy(TestQueueAgentBase, ReplicatedObjectBase, YTEnvSetup):
+class TestKafkaProxy(TestQueueAgentBase, YTEnvSetup):
     ENABLE_HTTP_PROXY = True
     NUM_HTTP_PROXIES = 1
     NUM_KAFKA_PROXIES = 1
