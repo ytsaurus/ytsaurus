@@ -8,7 +8,6 @@ from yt.common import YtError
 from yt_master_cell_addition_base import MasterCellAdditionBase, MasterCellAdditionBaseChecks, MasterCellAdditionChaosMultiClusterBaseChecks
 
 import pytest
-
 import builtins
 
 ##################################################################

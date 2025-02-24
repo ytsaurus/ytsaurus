@@ -201,6 +201,12 @@ class MasterCellAdditionBase(YTEnvSetup):
             wait_no_peers_in_read_only(secondary_cell_tags=["11", "12"])
             cls.Env.synchronize()
 
+            for tx in ls("//sys/transactions", attributes=["title"]):
+                title = tx.attributes.get("title", "")
+                id = str(tx)
+                if "World initialization" in title:
+                    abort_transaction(id)
+
         def _move_files(directory):
             files = os.listdir(directory)
             for file in files:
