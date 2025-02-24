@@ -121,6 +121,7 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "job_cookie",
     "controller_state",
     "operation_incarnation",
+    "archive_features",
 };
 
 static const auto DefaultGetJobAttributes = [] {
