@@ -1,7 +1,9 @@
 DOCS()
 
-DOCS_DIR(
-    yt/docs
+DOCS_DIR(yt/docs/)
+
+DOCS_COPY_FILES(
+    FROM ${ARCADIA_ROOT}/yt/docs/datahub NAMESPACE ru presets.yaml
 )
 
 DOCS_INCLUDE_SOURCES(
@@ -82,14 +84,3 @@ DOCS_INCLUDE_SOURCES(
 )
 
 END()
-
-RECURSE(
-    ytsaurus
-    datahub
-)
-
-IF (NOT OPENSOURCE)
-    RECURSE(
-        yandex-specific
-    )
-ENDIF()

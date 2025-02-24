@@ -1,0 +1,33 @@
+title: DataHub docs
+service: yt
+
+ci:
+  permissions:
+    start-flow:
+      - service: edition_89_yt_cs
+      - service: yt
+
+  includes:
+    docs: ci/registry/common/docs/docs.a.yaml
+
+  extends: "docs#/any/default-config"
+
+  secret: sec-01ct4ct9v6ed1xn8vrjqswxnb2
+  runtime:
+    sandbox:
+      owner: YT_ROBOT
+
+  actions:
+    precommit:
+      triggers: !override
+        - on: pr
+          on-demand: true
+          filters:
+            - sub-paths: ['**']
+            - abs-paths: ['yt/docs/**']
+
+  releases:
+    docs:
+      filters: !override
+        - sub-paths: ['**']
+        - abs-paths: ['build/platform/yfm', 'yt/docs/**']
