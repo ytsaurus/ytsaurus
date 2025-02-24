@@ -34,8 +34,6 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/core/misc/ema_counter.h>
-
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
