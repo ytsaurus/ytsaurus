@@ -412,7 +412,6 @@ public:
                 auto* newTabletChunkList = newTabletChunkLists[EChunkListContentType::Main][relativeIndex]->AsChunkList();
                 chunkManager->AttachToChunkList(newTabletChunkList, mergedChunkViews);
 
-                std::vector<TChunkTree*> hunkChunks;
                 for (auto chunkOrView : mergedChunkViews) {
                     if (oldEdenStoreIds.contains(chunkOrView->AsChunkView()->GetUnderlyingTree()->GetId())) {
                         newEdenStoreIds[relativeIndex].push_back(chunkOrView->GetId());
@@ -437,38 +436,66 @@ public:
                 }
             }
         } else {
+            auto cloneTabletChunkList = [&] (EChunkListContentType contentType, int tabletIndex) {
+                auto* oldChunkList = oldRootChunkLists[contentType]->Children()[tabletIndex]->AsChunkList();
+                auto* newChunkList = chunkManager->CloneTabletChunkList(oldChunkList);
+                newTabletChunkLists[contentType].push_back(newChunkList);
+            };
+
+            for (auto contentType : TEnumTraits<EChunkListContentType>::GetDomainValues()) {
+                for (int index = firstTabletIndex; index < firstTabletIndex + std::min(oldTabletCount, newTabletCount); ++index) {
+                    cloneTabletChunkList(contentType, index);
+                }
+            }
+
             // If the number of tablets increases, just leave the new trailing ones empty.
             // If the number of tablets decreases, merge the original trailing ones.
-            auto attachChunksToChunkList = [&] (TChunkList* chunkList, int firstTabletIndex, int lastTabletIndex) {
-                std::vector<TChunkRawPtr> chunks;
-                for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
-                    auto* mainTabletChunkList = oldRootChunkLists[EChunkListContentType::Main]->Children()[index]->AsChunkList();
-                    EnumerateChunksInChunkTree(mainTabletChunkList, &chunks);
-                }
-                for (auto chunk : chunks) {
-                    chunkManager->AttachToChunkList(chunkList, {TChunkTreeRawPtr(chunk)});
-                }
-            };
-            for (int index = firstTabletIndex; index < firstTabletIndex + std::min(oldTabletCount, newTabletCount); ++index) {
-                auto* oldChunkList = oldRootChunkLists[EChunkListContentType::Main]->Children()[index]->AsChunkList();
-                auto* newChunkList = chunkManager->CloneTabletChunkList(oldChunkList);
-                newTabletChunkLists[EChunkListContentType::Main].push_back(newChunkList);
-
-                auto* newHunkChunkList = chunkManager->CreateChunkList(EChunkListKind::Hunk);
-                newTabletChunkLists[EChunkListContentType::Hunk].push_back(newHunkChunkList);
-            }
             if (oldTabletCount > newTabletCount) {
-                auto* chunkList = newTabletChunkLists[EChunkListContentType::Main][newTabletCount - 1]->AsChunkList();
-                attachChunksToChunkList(chunkList, firstTabletIndex + newTabletCount, lastTabletIndex);
+                auto getTrailingChunks = [&] (EChunkListContentType contentType, int firstIndex, int lastIndex) {
+                    std::vector<TChunkRawPtr> chunks;
+                    for (int index = firstIndex; index <= lastIndex; ++index) {
+                        auto* trailingChunkList = oldRootChunkLists[contentType]->Children()[index]->AsChunkList();
+                        EnumerateChunksInChunkTree(trailingChunkList, &chunks);
+                    }
+
+                    std::vector<TChunkTreeRawPtr> chunkTrees;
+                    chunkTrees.reserve(chunks.size());
+                    for (auto chunk : chunks) {
+                        chunkTrees.push_back(TChunkTreeRawPtr(chunk));
+                    }
+                    return chunkTrees;
+                };
+
+                YT_VERIFY(newTabletCount == std::ssize(newTabletChunkLists[EChunkListContentType::Main]));
+                YT_VERIFY(newTabletCount == std::ssize(newTabletChunkLists[EChunkListContentType::Hunk]));
+
+                auto mainTabletTrailingChunks = getTrailingChunks(
+                    EChunkListContentType::Main,
+                    firstTabletIndex + newTabletCount,
+                    lastTabletIndex);
+                auto* mainTabletChunkList = newTabletChunkLists[EChunkListContentType::Main].back()->AsChunkList();
+                chunkManager->AttachToChunkList(mainTabletChunkList, mainTabletTrailingChunks);
+
+                // NB: Here we also include hunk chunks of the last remaining tablet and we simply
+                // reconstruct it so that we can guarantee uniqueness of the hunk chunks within it.
+                auto hunkTabletTrailingChunks = getTrailingChunks(
+                    EChunkListContentType::Hunk,
+                    firstTabletIndex + newTabletCount - 1,
+                    lastTabletIndex);
+                SortUnique(hunkTabletTrailingChunks, TObjectIdComparer());
+                auto* newLastHunkTabletChunkList = chunkManager->CreateChunkList(EChunkListKind::Hunk);
+                chunkManager->AttachToChunkList(newLastHunkTabletChunkList, hunkTabletTrailingChunks);
+                newTabletChunkLists[EChunkListContentType::Hunk].back() = newLastHunkTabletChunkList;
             } else {
                 for (int index = oldTabletCount; index < newTabletCount; ++index) {
                     auto* newMainChunkList = chunkManager->CreateChunkList(EChunkListKind::OrderedDynamicTablet);
+                    auto* newHunkChunkList = chunkManager->CreateChunkList(EChunkListKind::Hunk);
 
                     auto* tablet = newTablets[index]->As<TTablet>();
                     SetLogicalRowCount(newMainChunkList, tablet->GetTrimmedRowCount());
 
                     newTabletChunkLists[EChunkListContentType::Main].push_back(newMainChunkList);
-                    newTabletChunkLists[EChunkListContentType::Hunk].push_back(chunkManager->CreateChunkList(EChunkListKind::Hunk));
+                    newTabletChunkLists[EChunkListContentType::Hunk].push_back(newHunkChunkList);
                 }
             }
 
