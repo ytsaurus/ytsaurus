@@ -1417,6 +1417,16 @@ TBriefJobInfo TJob::GetBriefInfo() const
         jobPorts = GetPorts();
     }
 
+    auto tryGetMonitoringDescriptor = [&] () -> std::optional<std::string> {
+        const auto& monitoringConfig = UserJobSpec_->monitoring_config();
+        if (!monitoringConfig.enable()) {
+            return std::nullopt;
+        }
+
+        YT_VERIFY(monitoringConfig.has_job_descriptor());
+        return monitoringConfig.job_descriptor();
+    };
+
     return TBriefJobInfo(
         GetId(),
         GetState(),
@@ -1435,7 +1445,8 @@ TBriefJobInfo TJob::GetBriefInfo() const
         std::move(jobPorts),
         JobEvents_,
         CoreInfos_,
-        ExecAttributes_);
+        ExecAttributes_,
+        tryGetMonitoringDescriptor());
 }
 
 NYTree::IYPathServicePtr TJob::CreateStaticOrchidService()

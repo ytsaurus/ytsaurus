@@ -43,7 +43,8 @@ class TGangManager
 public:
     //! Used only for persistence.
     TGangManager() = default;
-    TGangManager& operator=(const TGangManager& other) = default;
+    TGangManager(TGangManager&& other) = default;
+    TGangManager& operator=(TGangManager&& other) = default;
 
     TGangManager(
         TVanillaController* controller,
@@ -67,6 +68,8 @@ private:
     TOperationIncarnation GenerateNewIncarnation();
 
     PHOENIX_DECLARE_TYPE(TGangManager, 0xa01a5a9b);
+
+    friend class TVanillaController;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -118,6 +121,8 @@ public:
     IVanillaChunkPoolOutputPtr GetVanillaChunkPool() const noexcept;
 
 private:
+    TVanillaController* VanillaController_ = nullptr;
+
     TVanillaTaskSpecPtr Spec_;
     TString Name_;
 
@@ -132,7 +137,8 @@ private:
 
     void InitJobSpecTemplate();
 
-    IChunkPoolOutput::TCookie ExtractCookieForAllocation(const TAllocation& allocation) final;
+    IChunkPoolOutput::TCookie ExtractCookieForAllocation(const TAllocation& allocation, const TNewJobConstraints& newJobConstraints) final;
+    TNewJobConstraints GetNewJobConstraints(const TAllocation& allocation) const final;
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TVanillaTask, 0x55e9aacd);
 };
@@ -231,6 +237,8 @@ public:
         return TConfigurator<TVanillaOperationSpec>();
     }
 
+    bool IsOperationGang() const;
+
 private:
     TVanillaOperationSpecPtr Spec_;
     TVanillaOperationOptionsPtr Options_;
@@ -238,7 +246,7 @@ private:
     std::vector<TVanillaTaskPtr> Tasks_;
     std::vector<std::vector<TOutputTablePtr>> TaskOutputTables_;
 
-    TGangManager GangManager_;
+    std::optional<TGangManager> GangManager_;
 
     void ValidateOperationLimits();
 
@@ -285,6 +293,9 @@ void TGangManager::RegisterMetadata(auto&& registrar)
             auto incarnationStr = Load<TString>(context);
             this_->Incarnation_ = TOperationIncarnation(std::move(incarnationStr));
         }));
+
+    PHOENIX_REGISTER_FIELD(3, VanillaOperationController_,
+        .SinceVersion(ESnapshotVersion::MonitoringDescriptorsPreserving));
 }
 
 const TOperationIncarnation& TGangManager::GetCurrentIncanation() const noexcept
@@ -353,6 +364,7 @@ TVanillaTask::TVanillaTask(
     std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
     std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors)
     : TTask(std::move(taskHost), std::move(outputStreamDescriptors), std::move(inputStreamDescriptors))
+    , VanillaController_(dynamic_cast<TVanillaController*>(TaskHost_))
     , Spec_(std::move(spec))
     , Name_(std::move(name))
     , VanillaChunkPool_(CreateVanillaChunkPool(TVanillaChunkPoolOptions{
@@ -374,6 +386,9 @@ void TVanillaTask::RegisterMetadata(auto&& registrar)
     registrar.AfterLoad([] (TThis* this_, auto& /*context*/) {
         // COMPAT(pogorelov)
         this_->VanillaChunkPool_->SetJobCount(this_->Spec_->JobCount);
+
+        this_->VanillaController_ = dynamic_cast<TVanillaController*>(this_->TaskHost_);
+        YT_VERIFY(this_->VanillaController_);
     });
 }
 
@@ -520,12 +535,25 @@ void TVanillaTask::InitJobSpecTemplate()
         TaskHost_->GetSpec()->DebugArtifactsAccount);
 }
 
-IChunkPoolOutput::TCookie TVanillaTask::ExtractCookieForAllocation(const TAllocation& allocation)
+TVanillaTask::TNewJobConstraints TVanillaTask::GetNewJobConstraints(const TAllocation& allocation) const
 {
-    if (allocation.LastJobInfo) {
-        VanillaChunkPool_->Extract(allocation.LastJobInfo.OutputCookie);
+    auto result = TTask::GetNewJobConstraints(allocation);
+    if (allocation.LastJobInfo && VanillaController_->IsOperationGang()) {
+        result.OutputCookie = allocation.LastJobInfo.OutputCookie;
+        result.MonitoringDescriptor = allocation.LastJobInfo.MonitoringDescriptor;
+    }
 
-        return allocation.LastJobInfo.OutputCookie;
+    return result;
+}
+
+IChunkPoolOutput::TCookie TVanillaTask::ExtractCookieForAllocation(
+    const TAllocation& allocation,
+    const TNewJobConstraints& newJobConstraints)
+{
+    if (newJobConstraints.OutputCookie) {
+        VanillaChunkPool_->Extract(*newJobConstraints.OutputCookie);
+
+        return *newJobConstraints.OutputCookie;
     }
 
     return VanillaChunkPool_->Extract(NodeIdFromAllocationId(allocation.Id));
@@ -547,8 +575,14 @@ TVanillaController::TVanillaController(
         operation)
     , Spec_(std::move(spec))
     , Options_(options)
-    , GangManager_(this, GetConfig()->VanillaOperationOptions)
-{ }
+{
+    for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
+        if (taskSpec->GangManager) {
+            GangManager_.emplace(this, GetConfig()->VanillaOperationOptions);
+            break;
+        }
+    }
+}
 
 void TVanillaController::RegisterMetadata(auto&& registrar)
 {
@@ -560,7 +594,17 @@ void TVanillaController::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(4, TaskOutputTables_);
 
     PHOENIX_REGISTER_FIELD(5, GangManager_,
-        .SinceVersion(ESnapshotVersion::IntroduceGangManager));
+        .SinceVersion(ESnapshotVersion::MonitoringDescriptorsPreserving)
+        .WhenMissing([] (TThis* this_, auto& context) {
+            auto gangManager = Load<TGangManager>(context);
+
+            for (const auto& [taskName, taskSpec] : this_->Spec_->Tasks) {
+                if (taskSpec->GangManager) {
+                    this_->GangManager_.emplace(std::move(gangManager));
+                    break;
+                }
+            }
+        }));
 }
 
 void TVanillaController::CustomMaterialize()
@@ -813,7 +857,9 @@ TJobletPtr TVanillaController::CreateJoblet(
         std::move(poolPath),
         treeIsTentative);
 
-    joblet->OperationIncarnation = GangManager_.GetCurrentIncanation();
+    if (GangManager_) {
+        joblet->OperationIncarnation = GangManager_->GetCurrentIncanation();
+    }
 
     return joblet;
 }
@@ -822,7 +868,9 @@ void TVanillaController::UpdateConfig(const TControllerAgentConfigPtr& config)
 {
     TOperationControllerBase::UpdateConfig(config);
 
-    GangManager_.UpdateConfig(config->VanillaOperationOptions);
+    if (GangManager_) {
+        GangManager_->UpdateConfig(config->VanillaOperationOptions);
+    }
 }
 
 void TVanillaController::TrySwitchToNewOperationIncarnation(const TJobletPtr& joblet, bool operationIsReviving)
@@ -834,7 +882,9 @@ void TVanillaController::TrySwitchToNewOperationIncarnation(const TJobletPtr& jo
         return;
     }
 
-    GangManager_.TrySwitchToNewIncarnation(joblet->OperationIncarnation, operationIsReviving);
+    YT_VERIFY(GangManager_);
+
+    GangManager_->TrySwitchToNewIncarnation(joblet->OperationIncarnation, operationIsReviving);
 }
 
 // NB(pogorelov): In case of restarting job during operation revival, we do not know the latest job id, started on node in the allocation,
@@ -918,6 +968,11 @@ void TVanillaController::OnOperationIncarnationChanged(bool operationIsReviving)
     TForbidContextSwitchGuard guard;
 
     RestartAllRunningJobsPreservingAllocations(operationIsReviving);
+}
+
+bool TVanillaController::IsOperationGang() const
+{
+    return GangManager_.has_value();
 }
 
 void TVanillaController::ValidateOperationLimits()
@@ -1037,14 +1092,18 @@ void TVanillaController::BuildControllerInfoYson(TFluentMap fluent) const
 
     TOperationControllerBase::BuildControllerInfoYson(fluent);
 
-    fluent.Item("operation_incarnation").Value(GangManager_.GetCurrentIncanation());
+    if (GangManager_) {
+        fluent.Item("operation_incarnation").Value(GangManager_->GetCurrentIncanation());
+    }
 }
 
 void TVanillaController::TrySwitchToNewOperationIncarnation(bool operationIsReviving)
 {
     YT_ASSERT_INVOKER_AFFINITY(GetCancelableInvoker(Config->JobEventsControllerQueue));
 
-    GangManager_.TrySwitchToNewIncarnation(operationIsReviving);
+    YT_VERIFY(GangManager_);
+
+    GangManager_->TrySwitchToNewIncarnation(operationIsReviving);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

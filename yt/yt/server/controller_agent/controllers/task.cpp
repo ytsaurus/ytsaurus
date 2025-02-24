@@ -612,7 +612,7 @@ void TTask::CheckAndProcessOperationCompletedInScheduleJob()
 }
 
 std::expected<TTask::TOutputCookieInfo, EScheduleFailReason>
-TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation)
+TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation, const TNewJobConstraints& newJobConstraints)
 {
     auto chunkPoolOutput = GetChunkPoolOutput();
     bool speculative = chunkPoolOutput->GetJobCounter()->GetPending() == 0;
@@ -630,7 +630,7 @@ TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation)
         result.OutputCookie = SpeculativeJobManager_.PeekJobCandidate();
     } else {
         result.CompetitionType = std::nullopt;
-        result.OutputCookie = ExtractCookieForAllocation(allocation);
+        result.OutputCookie = ExtractCookieForAllocation(allocation, newJobConstraints);
         if (result.OutputCookie == IChunkPoolOutput::NullCookie) {
             YT_LOG_DEBUG("Job input is empty");
 
@@ -644,7 +644,7 @@ TTask::GetOutputCookieInfoForFirstJob(const TAllocation& allocation)
 }
 
 std::expected<TTask::TOutputCookieInfo, EScheduleFailReason>
-TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation)
+TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation, const TNewJobConstraints& newJobConstraints)
 {
     const auto& chunkPoolOutput = GetChunkPoolOutput();
     bool speculative = chunkPoolOutput->GetJobCounter()->GetPending() == 0;
@@ -671,7 +671,7 @@ TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation)
             result.OutputCookie = SpeculativeJobManager_.PeekJobCandidate();
         } else {
             result.CompetitionType = std::nullopt;
-            result.OutputCookie = ExtractCookieForAllocation(allocation);
+            result.OutputCookie = ExtractCookieForAllocation(allocation, newJobConstraints);
             if (result.OutputCookie == IChunkPoolOutput::NullCookie) {
                 YT_LOG_DEBUG("Job input is empty");
 
@@ -685,6 +685,11 @@ TTask::GetOutputCookieInfoForNextJob(const TAllocation& allocation)
     }
 
     return result;
+}
+
+TTask::TNewJobConstraints TTask::GetNewJobConstraints(const TAllocation& /*allocation*/) const
+{
+    return {};
 }
 
 std::optional<EScheduleFailReason> TTask::TryScheduleJob(
@@ -713,9 +718,11 @@ std::optional<EScheduleFailReason> TTask::TryScheduleJob(
         return jobIdOrError.error();
     }
 
+    auto newJobConstraints = GetNewJobConstraints(allocation);
+
     auto cookieInfoOrError = previousJobId
-        ? GetOutputCookieInfoForNextJob(allocation)
-        : GetOutputCookieInfoForFirstJob(allocation);
+        ? GetOutputCookieInfoForNextJob(allocation, newJobConstraints)
+        : GetOutputCookieInfoForFirstJob(allocation, newJobConstraints);
     if (!cookieInfoOrError) {
         return cookieInfoOrError.error();
     }
@@ -729,12 +736,13 @@ std::optional<EScheduleFailReason> TTask::TryScheduleJob(
         jobId,
         treeIsTentative,
         cookieInfo.OutputCookie,
-        cookieInfo.CompetitionType);
+        cookieInfo.CompetitionType,
+        newJobConstraints);
 
     if (result) {
-        if (!previousJobId) {
-            const auto& joblet = allocation.Joblet;
+        const auto& joblet = allocation.Joblet;
 
+        if (!previousJobId) {
             allocation.LastJobInfo.CompetitionType = joblet->CompetitionType;
             allocation.PoolPath = joblet->PoolPath;
             allocation.Task = this;
@@ -743,6 +751,7 @@ std::optional<EScheduleFailReason> TTask::TryScheduleJob(
         }
 
         allocation.LastJobInfo.OutputCookie = cookieInfo.OutputCookie;
+        allocation.LastJobInfo.MonitoringDescriptor = joblet->UserJobMonitoringDescriptor;
 
         return std::nullopt;
     } else {
@@ -756,7 +765,8 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     TJobId jobId,
     bool treeIsTentative,
     NChunkPools::IChunkPoolOutput::TCookie outputCookie,
-    std::optional<EJobCompetitionType> competitionType)
+    std::optional<EJobCompetitionType> competitionType,
+    const TNewJobConstraints& newJobConstraints)
 {
     auto abortJob = [&] (EAbortReason abortReason) {
         if (!competitionType) {
@@ -903,7 +913,9 @@ std::expected<NScheduler::TJobResourcesWithQuota, EScheduleFailReason> TTask::Tr
     joblet->NodeDescriptor = context.GetNodeDescriptor();
 
     if (userJobSpec && userJobSpec->Monitoring->Enable) {
-        joblet->UserJobMonitoringDescriptor = TaskHost_->RegisterJobForMonitoring(joblet->JobId);
+        joblet->UserJobMonitoringDescriptor = TaskHost_->RegisterJobForMonitoring(
+            joblet->JobId,
+            newJobConstraints.MonitoringDescriptor);
     }
 
     if (userJobSpec) {
@@ -1079,7 +1091,9 @@ void TTask::PropagatePartitions(
     }
 }
 
-NChunkPools::IChunkPoolOutput::TCookie  TTask::ExtractCookieForAllocation(const TAllocation& allocation)
+NChunkPools::IChunkPoolOutput::TCookie  TTask::ExtractCookieForAllocation(
+    const TAllocation& allocation,
+    const TNewJobConstraints& /*newJobConstraints*/)
 {
     auto nodeId = HasInputLocality() ? NodeIdFromAllocationId(allocation.Id) : InvalidNodeId;
 
