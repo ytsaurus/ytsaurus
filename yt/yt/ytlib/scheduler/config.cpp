@@ -2768,8 +2768,6 @@ void TOperationFairShareTreeRuntimeParametersUpdate::Register(TRegistrar registr
     registrar.Parameter("weight", &TThis::Weight)
         .Optional()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
-    registrar.Parameter("scheduling_tag_filter", &TThis::SchedulingTagFilter)
-        .Optional();
     registrar.Parameter("pool", &TThis::Pool)
         .NonEmpty()
         .Optional();

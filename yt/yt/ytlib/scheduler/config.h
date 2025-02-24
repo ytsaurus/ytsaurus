@@ -2191,7 +2191,6 @@ public:
     TJobResourcesConfigPtr ResourceLimits;
     // Can only be set by an administrator.
     std::optional<bool> EnableDetailedLogs;
-    std::optional<TBooleanFormula> SchedulingTagFilter;
 
     REGISTER_YSON_STRUCT(TOperationFairShareTreeRuntimeParametersUpdate);
 
