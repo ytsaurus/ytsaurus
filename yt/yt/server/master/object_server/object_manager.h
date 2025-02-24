@@ -223,7 +223,7 @@ struct IObjectManager
     virtual TFuture<TSharedRefArray> ForwardObjectRequest(
         const TSharedRefArray& requestMessage,
         TCellTag cellTag,
-        NApi::EMasterChannelKind channelKind) = 0;
+        NHydra::EPeerKind peerKind) = 0;
 
     //! Posts a creation request to the secondary master.
     virtual void ReplicateObjectCreationToSecondaryMaster(

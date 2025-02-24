@@ -378,11 +378,9 @@ TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromLocal()
 
 TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromRemote(TCellTag cellTag)
 {
-    TObjectServiceProxy proxy(
-        Bootstrap_->GetClusterConnection(),
-        NApi::EMasterChannelKind::Follower,
-        cellTag,
-        /*stickyGroupSizeCache*/ nullptr);
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+        multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetSuppressUpstreamSync(true);
 
@@ -484,11 +482,9 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     const auto* user = securityManager->GetAuthenticatedUser();
 
-    TObjectServiceProxy proxy(
-        Bootstrap_->GetClusterConnection(),
-        NApi::EMasterChannelKind::Follower,
-        cellTag,
-        /*stickyGroupSizeCache*/ nullptr);
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+        multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetUser(user->GetName());
 

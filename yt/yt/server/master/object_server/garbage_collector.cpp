@@ -499,13 +499,13 @@ void TGarbageCollector::OnObjectRemovalCellsSync()
     }
 
     std::vector<TCellId> secondaryCellIds;
-    const auto& connection = Bootstrap_->GetClusterConnection();
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
     for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
-        secondaryCellIds.push_back(connection->GetMasterCellId(cellTag));
+        secondaryCellIds.push_back(multicellManager->GetCellId(cellTag));
     }
 
     std::vector<TFuture<void>> futures;
+    const auto& connection = Bootstrap_->GetClusterConnection();
     for (auto cellId : secondaryCellIds) {
         futures.push_back(connection->SyncHiveCellWithOthers(secondaryCellIds, cellId));
     }
