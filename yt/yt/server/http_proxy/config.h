@@ -372,8 +372,6 @@ public:
 
     TAccessCheckerDynamicConfigPtr AccessChecker;
 
-    NApi::NNative::TConnectionDynamicConfigPtr ClusterConnection;
-
     NBus::TBusServerDynamicConfigPtr BusServer;
 
     TProxyMemoryLimitsConfigPtr MemoryLimits;

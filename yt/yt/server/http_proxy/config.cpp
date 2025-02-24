@@ -334,9 +334,6 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("bus_server", &TThis::BusServer)
         .DefaultNew();
 
-    registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
-        .DefaultNew();
-
     registrar.Parameter("memory_limits", &TThis::MemoryLimits)
         .DefaultNew();
 }
