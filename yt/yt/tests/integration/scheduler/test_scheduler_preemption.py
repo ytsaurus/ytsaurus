@@ -259,9 +259,8 @@ class TestSchedulerPreemption(YTEnvSetup):
     @authors("faucct")
     def test_update_scheduling_tag_filter(self):
         update_pool_tree_config("default", {"node_reconnection_timeout": 0})
-        op = run_test_vanilla(command=with_breakpoint("BREAKPOINT ; sleep 100"), spec={"preemption_mode": "graceful"})
+        op = run_test_vanilla(command=with_breakpoint("BREAKPOINT"), spec={"preemption_mode": "graceful"})
         wait_breakpoint()
-        release_breakpoint()
         update_op_parameters(op.id, parameters={"scheduling_tag_filter": "nonexistent_tag"})
         wait(lambda: op.get_job_count("aborted") == 1)
         assert op.get_job_count("total") == 1
