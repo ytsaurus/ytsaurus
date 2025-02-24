@@ -3885,9 +3885,9 @@ private:
         return ParseOperationSpec<TSortOperationSpec>(spec);
     }
 
-    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
     {
-        return NYsonStructUpdate::TConfigurator<TSortOperationSpec>();
+        return TConfigurator<TSortOperationSpec>();
     }
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TSortController, 0xbca37afe);
@@ -4858,9 +4858,9 @@ private:
         return ParseOperationSpec<TMapReduceOperationSpec>(spec);
     }
 
-    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
     {
-        return NYsonStructUpdate::TConfigurator<TMapReduceOperationSpec>();
+        return TConfigurator<TMapReduceOperationSpec>();
     }
 
 private:

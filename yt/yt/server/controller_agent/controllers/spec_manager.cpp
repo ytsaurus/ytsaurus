@@ -104,7 +104,7 @@ void TSpecManager::DoApply(
         // T{OperationType}Spec.
         //
         // |Update| will check that the metas of all three things are the same.
-        NYsonStructUpdate::Update(*UpdateConfigurator_, currentSpec, parsedNewSpec);
+        UpdateConfigurator_->Update(currentSpec, parsedNewSpec);
         DynamicSpec_.Exchange(std::move(parsedNewSpec));
         // Just for informational purposes.
         InitialCumulativeSpecPatch_ = std::move(patch);

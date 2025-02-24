@@ -729,9 +729,9 @@ private:
         return ParseOperationSpec<TOrderedMergeOperationSpec>(spec);
     }
 
-    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
     {
-        return NYsonStructUpdate::TConfigurator<TOrderedMergeOperationSpec>();
+        return TConfigurator<TOrderedMergeOperationSpec>();
     }
 
     void OnOperationCompleted(bool interrupted) override
@@ -958,9 +958,9 @@ private:
         return ParseOperationSpec<TMapOperationSpec>(spec);
     }
 
-    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
     {
-        return NYsonStructUpdate::TConfigurator<TMapOperationSpec>();
+        return TConfigurator<TMapOperationSpec>();
     }
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOrderedMapController, 0x3be901ca);
@@ -1186,9 +1186,9 @@ private:
         return ParseOperationSpec<TEraseOperationSpec>(spec);
     }
 
-    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
     {
-        return NYsonStructUpdate::TConfigurator<TEraseOperationSpec>();
+        return TConfigurator<TEraseOperationSpec>();
     }
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TEraseController, 0xfbb39ac0);
@@ -1927,9 +1927,9 @@ private:
         return ParseOperationSpec<TRemoteCopyOperationSpec>(spec);
     }
 
-    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
     {
-        return NYsonStructUpdate::TConfigurator<TRemoteCopyOperationSpec>();
+        return TConfigurator<TRemoteCopyOperationSpec>();
     }
 
     TCpuResource GetCpuLimit() const override

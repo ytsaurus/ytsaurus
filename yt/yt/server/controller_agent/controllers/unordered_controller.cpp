@@ -744,9 +744,9 @@ private:
         return ParseOperationSpec<TMapOperationSpec>(spec);
     }
 
-    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
     {
-        return NYsonStructUpdate::TConfigurator<TMapOperationSpec>();
+        return TConfigurator<TMapOperationSpec>();
     }
 
     TError GetAutoMergeError() const override
@@ -933,9 +933,9 @@ private:
         return ParseOperationSpec<TUnorderedMergeOperationSpec>(spec);
     }
 
-    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
     {
-        return NYsonStructUpdate::TConfigurator<TUnorderedMergeOperationSpec>();
+        return TConfigurator<TUnorderedMergeOperationSpec>();
     }
 
     void OnOperationCompleted(bool interrupted) override

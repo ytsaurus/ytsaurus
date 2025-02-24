@@ -983,9 +983,9 @@ protected:
         return ParseOperationSpec<TSortedMergeOperationSpec>(spec);
     }
 
-    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
     {
-        return NYsonStructUpdate::TConfigurator<TSortedMergeOperationSpec>();
+        return TConfigurator<TSortedMergeOperationSpec>();
     }
 
     void OnOperationCompleted(bool interrupted) override
@@ -1249,9 +1249,9 @@ public:
         return ParseOperationSpec<TReduceOperationSpec>(spec);
     }
 
-    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
     {
-        return NYsonStructUpdate::TConfigurator<TReduceOperationSpec>();
+        return TConfigurator<TReduceOperationSpec>();
     }
 
     bool ShouldSlicePrimaryTableByKeys() const override
