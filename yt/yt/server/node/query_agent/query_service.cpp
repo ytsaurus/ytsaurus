@@ -60,6 +60,8 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
+
 #include <yt/yt/client/api/internal_client.h>
 
 #include <yt/yt/client/query_client/query_statistics.h>
@@ -607,6 +609,9 @@ private:
         auto maxDataWeight = request->has_max_data_weight()
             ? request->max_data_weight()
             : std::numeric_limits<i64>::max();
+        auto requestTimeout = request->has_request_timeout()
+            ? FromProto<TDuration>(request->request_timeout())
+            : Bootstrap_->GetConnection()->GetConfig()->DefaultPullRowsTimeout;
 
         // TODO(savrus): Extract this out of RPC request.
         TClientChunkReadOptions chunkReadOptions{
@@ -618,13 +623,17 @@ private:
             .MaxRowsPerRead = request->max_rows_per_read(),
         };
 
-        context->SetRequestInfo("TabletId: %v, StartReplicationRowIndex: %v, Progress: %v, UpperTimestamp: %v, ResponseCodec: %v, ReadSessionId: %v)",
+        context->SetRequestInfo("TabletId: %v, StartReplicationRowIndex: %v, Progress: %v, UpperTimestamp: %v, "
+            "ResponseCodec: %v, ReadSessionId: %v, RequestTimeout: %v)",
             tabletId,
             startReplicationRowIndex,
             progress,
             upperTimestamp,
             responseCodecId,
-            chunkReadOptions.ReadSessionId);
+            chunkReadOptions.ReadSessionId,
+            requestTimeout);
+
+        auto requestDeadLine = (requestTimeout * Config_->PullRowsTimeoutShare).ToDeadLine();
 
         auto* responseCodec = NCompression::GetCodec(responseCodecId);
 
@@ -709,6 +718,8 @@ private:
                         *startRowIndex,
                         upperTimestamp,
                         maxDataWeight,
+                        Config_->PullRowsReadDataWeightLimit,
+                        requestDeadLine,
                         writer.get());
 
                     endReplicationRowIndex = result.EndReplicationRowIndex;
