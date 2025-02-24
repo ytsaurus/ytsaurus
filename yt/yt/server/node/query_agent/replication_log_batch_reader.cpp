@@ -35,7 +35,9 @@ TColumnFilter TReplicationLogBatchReaderBase::CreateColumnFilter() const
 TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBatch(
     i64 startRowIndex,
     TTimestamp upperTimestamp,
-    i64 maxDataWeight)
+    i64 maxDataWeight,
+    i64 readDataWeightLimit,
+    TInstant requestDeadLine)
 {
     auto currentRowIndex = startRowIndex;
 
@@ -98,15 +100,21 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
             auto range = batch->MaterializeRows();
             readerRows.assign(range.begin(), range.end());
 
+            bool isRequestDeadlineExceeded = TInstant::Now() >= requestDeadLine;
+            bool isDataWeightPerPullRowsLimitExceeded = readDataWeightLimit <= 0;
+
             for (auto replicationLogRow : readerRows) {
                 TTypeErasedRow replicationRow;
                 TTimestamp timestamp;
-                i64 rowDataWeight;
+                i64 rowDataWeight = 0;
 
                 if (!ToTypeErasedRow(replicationLogRow, rowBuffer, &replicationRow, &timestamp, &rowDataWeight)) {
-                    ++currentRowIndex;
                     ++discardedByProgress;
-                    continue;
+                    readDataWeightLimit -= rowDataWeight;
+                    if (!isRequestDeadlineExceeded && !isDataWeightPerPullRowsLimitExceeded) {
+                        ++currentRowIndex;
+                        continue;
+                    }
                 }
 
                 if (timestamp != prevTimestamp) {
@@ -130,16 +138,22 @@ TReplicationLogBatchDescriptor TReplicationLogBatchReaderBase::ReadReplicationBa
 
                     if (batchRowCount >= TableMountConfig_->MaxRowsPerReplicationCommit ||
                         batchDataWeight >= maxDataWeight ||
-                        timestampCount >= TableMountConfig_->MaxTimestampsPerReplicationCommit)
+                        timestampCount >= TableMountConfig_->MaxTimestampsPerReplicationCommit ||
+                        isRequestDeadlineExceeded ||
+                        isDataWeightPerPullRowsLimitExceeded)
                     {
                         readAllRows = false;
                         YT_LOG_DEBUG("Stopped reading replication batch because stopping conditions are met "
-                            "(TabletId: %v, Timestamp: %v, ReadRowCountOverflow: %v, ReadDataWeightOverflow: %v, TimestampCountOverflow: %v",
+                            "(TabletId: %v, Timestamp: %v, ReadRowCountOverflow: %v, ReadDataWeightOverflow: %v, "
+                            "TimestampCountOverflow: %v, RequestDeadlineExceeded: %v, "
+                            "DataWeightLimitPerPullRowsIteration: %v)",
                             TabletId_,
                             timestamp,
                             batchRowCount >= TableMountConfig_->MaxRowsPerReplicationCommit,
                             batchDataWeight >= maxDataWeight,
-                            timestampCount >= TableMountConfig_->MaxTimestampsPerReplicationCommit);
+                            timestampCount >= TableMountConfig_->MaxTimestampsPerReplicationCommit,
+                            isRequestDeadlineExceeded,
+                            isDataWeightPerPullRowsLimitExceeded);
                         break;
                     }
 

@@ -315,6 +315,8 @@ TReplicationLogBatchDescriptor ReadReplicationBatch(
     i64 startRowIndex,
     TTimestamp upperTimestamp,
     i64 maxDataWeight,
+    i64 readDataWeightLimit,
+    TInstant requestDeadLine,
     IWireProtocolWriter* writer)
 {
     if (tabletSnapshot->TableSchema->IsSorted()) {
@@ -330,7 +332,9 @@ TReplicationLogBatchDescriptor ReadReplicationBatch(
             .ReadReplicationBatch(
                 startRowIndex,
                 upperTimestamp,
-                maxDataWeight);
+                maxDataWeight,
+                readDataWeightLimit,
+                requestDeadLine);
     } else {
         return NDetail::TOrderedRowBatchReader(
             tabletSnapshot,
@@ -344,7 +348,9 @@ TReplicationLogBatchDescriptor ReadReplicationBatch(
             .ReadReplicationBatch(
                 startRowIndex,
                 upperTimestamp,
-                maxDataWeight);
+                maxDataWeight,
+                readDataWeightLimit,
+                requestDeadLine);
     }
 }
 
