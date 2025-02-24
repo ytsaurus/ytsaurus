@@ -9,6 +9,8 @@
 #include <yt/yt/server/master/security_server/security_manager.h>
 #include <yt/yt/server/master/security_server/user.h>
 
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/yson/string.h>
@@ -26,11 +28,9 @@ TFuture<NYson::TYsonString> TNonversionedObjectProxyBase<TObject>::FetchFromShep
     const auto multicellManager = Bootstrap_->GetMulticellManager();
     YT_ASSERT(multicellManager->IsSecondaryMaster());
 
-    NObjectClient::TObjectServiceProxy proxy(
-        Bootstrap_->GetClusterConnection(),
-        NApi::EMasterChannelKind::Follower,
-        NObjectClient::PrimaryMasterCellTagSentinel,
-        /*stickyGroupSizeCache*/ nullptr);
+    auto proxy = NObjectClient::TObjectServiceProxy::FromDirectMasterChannel(
+        multicellManager->GetMasterChannelOrThrow(multicellManager->GetPrimaryCellTag(), NHydra::EPeerKind::Follower));
+
     auto batchReq = proxy.ExecuteBatch();
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -38,6 +38,7 @@ TFuture<NYson::TYsonString> TNonversionedObjectProxyBase<TObject>::FetchFromShep
     batchReq->SetUser(user->GetName());
 
     auto req = NYTree::TYPathProxy::Get(path);
+    NCypressClient::SetAllowResolveFromSequoiaObject(req, true);
     batchReq->AddRequest(req);
 
     return batchReq->Invoke()
@@ -70,17 +71,15 @@ TFuture<std::vector<T>> TNonversionedObjectProxyBase<TObject>::FetchFromSwarm(NY
     std::vector<TFuture<T>> asyncResults;
 
     for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
-        NObjectClient::TObjectServiceProxy proxy(
-            Bootstrap_->GetClusterConnection(),
-            NApi::EMasterChannelKind::Follower,
-            cellTag,
-            /*stickyGroupSizeCache*/ nullptr);
+        auto proxy = NObjectClient::TObjectServiceProxy::FromDirectMasterChannel(
+            multicellManager->GetMasterChannelOrThrow(cellTag, NHydra::EPeerKind::Follower));
         auto batchReq = proxy.ExecuteBatch();
         batchReq->SetUser(user->GetName());
 
         auto attribute = key.Unintern();
         auto path = NObjectClient::FromObjectId(object->GetId()) + "/@" + attribute;
         auto req = NYTree::TYPathProxy::Get(path);
+        NCypressClient::SetAllowResolveFromSequoiaObject(req, true);
         batchReq->AddRequest(req, "get");
 
         auto result = batchReq->Invoke()
