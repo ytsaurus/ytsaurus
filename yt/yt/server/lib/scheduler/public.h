@@ -107,7 +107,10 @@ DEFINE_ENUM(EOperationAlertType,
     ((IncompatibleStatistics)                      (39))
     ((UnavailableNetworkBandwidthToClusters)       (40))
     ((WriteBufferMemoryOverrun)                    (41))
+    ((Unknown)                                     (42))
 );
+
+DEFINE_ENUM_UNKNOWN_VALUE(EOperationAlertType, Unknown);
 
 DEFINE_ENUM(EAgentToSchedulerOperationEventType,
     ((Completed)                (0))

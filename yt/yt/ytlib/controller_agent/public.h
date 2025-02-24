@@ -131,6 +131,8 @@ DEFINE_ENUM(EScheduleFailReason,
     ((AllocationJobCountReachedLimit)(26))
 );
 
+DEFINE_ENUM_UNKNOWN_VALUE(EScheduleFailReason, Unknown);
+
 YT_DEFINE_ERROR_ENUM(
     ((AgentCallFailed)                            (4400))
     ((NoOnlineNodeToScheduleAllocation)           (4410))
