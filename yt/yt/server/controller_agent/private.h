@@ -75,7 +75,11 @@ struct TStartedAllocationInfo
 struct TJobMonitoringDescriptor
 {
     TIncarnationId IncarnationId;
-    int Index;
+    int Index = 0;
+
+    void Persist(const TPersistenceContext& context);
+
+    auto operator<=>(const TJobMonitoringDescriptor& other) const = default;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& descriptor, TStringBuf /*spec*/);
@@ -131,3 +135,9 @@ TCompositePendingJobCount operator - (const TCompositePendingJobCount& count);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
+
+template <>
+struct THash<NYT::NControllerAgent::TJobMonitoringDescriptor>
+{
+    size_t operator()(const NYT::NControllerAgent::TJobMonitoringDescriptor& descriptor) const;
+};

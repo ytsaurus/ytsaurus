@@ -49,6 +49,8 @@ private:
 
     NServer::TExecAttributes JobExecAttributes_;
 
+    std::optional<std::string> MonitoringDescriptor_;
+
     friend class TJob;
 
     TBriefJobInfo(
@@ -69,7 +71,8 @@ private:
         const std::vector<int>& jobPorts,
         const NServer::TJobEvents& jobEvents,
         const NControllerAgent::TCoreInfos& jobCoreInfos,
-        const NServer::TExecAttributes& jobExecAttributes);
+        const NServer::TExecAttributes& jobExecAttributes,
+        std::optional<std::string> monitoringDescriptor);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

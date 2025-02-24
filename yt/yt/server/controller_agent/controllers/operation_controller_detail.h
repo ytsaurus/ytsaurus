@@ -387,7 +387,9 @@ public:
 
     void RegisterJoblet(const TJobletPtr& joblet) override;
 
-    std::optional<TJobMonitoringDescriptor> RegisterJobForMonitoring(TJobId jobId) override;
+    std::optional<TJobMonitoringDescriptor> RegisterJobForMonitoring(
+        TJobId jobId,
+        const std::optional<TJobMonitoringDescriptor>& descriptorHint) override;
     void UnregisterJobForMonitoring(const TJobletPtr& joblet);
     std::optional<TJobMonitoringDescriptor> RegisterNewMonitoringDescriptor();
 
@@ -651,7 +653,7 @@ protected:
     int MonitoredUserJobAttemptCount_ = 0;
 
     // These values are intentionally transient.
-    THashSet<int> MonitoringDescriptorIndexPool_;
+    THashSet<TJobMonitoringDescriptor> MonitoringDescriptorPool_;
     THashMap<TJobId, TJobMonitoringDescriptor> JobIdToMonitoringDescriptor_;
 
     std::optional<TUserFile> BaseLayer_;
