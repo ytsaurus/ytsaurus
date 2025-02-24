@@ -11,7 +11,7 @@ from yt_commands import (
     authors, wait, wait_no_assert, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs, exists,
     concatenate, create, ls, get, create_account, read_table, write_table,
     map, reduce, map_reduce, vanilla, run_test_vanilla,
-    select_rows, list_jobs, get_job_trace, clean_operations, sync_create_cells,
+    select_rows, list_jobs, get_job, get_job_trace, clean_operations, sync_create_cells,
     set_account_disk_space_limit, raises_yt_error, update_nodes_dynamic_config,
     lookup_rows)
 
@@ -1591,10 +1591,18 @@ class TestJobProfiling(YTEnvSetup):
             assert len(builtins.set(row["profile_type"] for row in profiles)) >= 1
             assert len(profiles) >= 20
 
-        jobs = list_jobs(op.id)["jobs"]
-        for job in jobs:
+        def check_job(job):
+            assert "archive_features" in job
             assert "has_trace" in job["archive_features"]
             assert job["archive_features"]["has_trace"]
+
+        jobs = list_jobs(op.id)["jobs"]
+        for job in jobs:
+            check_job(job)
+
+        first_job_id = jobs[0]["id"]
+        first_job = get_job(op.id, first_job_id)
+        check_job(first_job)
 
 
 @pytest.mark.enabled_multidaemon
