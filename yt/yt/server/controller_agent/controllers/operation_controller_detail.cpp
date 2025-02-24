@@ -8834,7 +8834,7 @@ void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimePa
     }
 }
 
-TOperationSpecBaseUpdater TOperationControllerBase::ConfigureUpdate()
+TOperationSpecBaseSealedConfigurator TOperationControllerBase::ConfigureUpdate()
 {
     auto configurator = GetOperationSpecBaseConfigurator();
     configurator.Field("max_failed_job_count", &TOperationSpecBase::MaxFailedJobCount)
@@ -8844,7 +8844,7 @@ TOperationSpecBaseUpdater TOperationControllerBase::ConfigureUpdate()
             }
         }));
 
-    return configurator;
+    return std::move(configurator).Seal();
 }
 
 void TOperationControllerBase::PatchSpec(INodePtr newCumulativeSpecPatch, bool dryRun)

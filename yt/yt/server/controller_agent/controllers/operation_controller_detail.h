@@ -414,7 +414,7 @@ public:
 
     void UpdateRuntimeParameters(const NScheduler::TOperationRuntimeParametersUpdatePtr& update) override;
 
-    TOperationSpecBaseUpdater ConfigureUpdate() override;
+    TOperationSpecBaseSealedConfigurator ConfigureUpdate() override final;
     void PatchSpec(NYTree::INodePtr newSpec, bool dryRun) override;
     std::any CreateSafeAssertionGuard() const final;
 
@@ -1105,7 +1105,7 @@ protected:
 
     virtual void BuildControllerInfoYson(NYTree::TFluentMap fluent) const;
 
-    virtual TOperationSpecBaseUpdater GetOperationSpecBaseConfigurator() const = 0;
+    virtual TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const = 0;
 
 private:
     NScheduler::TPoolTreeControllerSettingsMap PoolTreeControllerSettingsMap_;

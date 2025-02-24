@@ -13,11 +13,12 @@ namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TOperationSpecBaseUpdater = NYTree::NYsonStructUpdate::TConfigurator<NScheduler::TOperationSpecBase>;
+using TOperationSpecBaseConfigurator = NYTree::TConfigurator<NScheduler::TOperationSpecBase>;
+using TOperationSpecBaseSealedConfigurator = NYTree::TSealedConfigurator<NScheduler::TOperationSpecBase>;
 
 struct ISpecManagerHost
 {
-    virtual TOperationSpecBaseUpdater ConfigureUpdate() = 0;
+    virtual TOperationSpecBaseSealedConfigurator ConfigureUpdate() = 0;
     virtual TOperationSpecBasePtr ParseTypedSpec(const NYTree::INodePtr& spec) const = 0;
 
     virtual std::any CreateSafeAssertionGuard() const = 0;
@@ -59,7 +60,7 @@ private:
     NScheduler::TPatchSpecProtocolTestingOptionsPtr TestingSpec_;
     NScheduler::TOperationSpecBasePtr OriginalSpec_;
     TAtomicIntrusivePtr<NScheduler::TOperationSpecBase> DynamicSpec_;
-    std::optional<NYTree::NYsonStructUpdate::TConfigurator<NScheduler::TOperationSpecBase>> UpdateConfigurator_;
+    std::optional<TOperationSpecBaseSealedConfigurator> UpdateConfigurator_;
     NYTree::INodePtr InitialCumulativeSpecPatch_;
     NLogging::TLogger Logger;
 };

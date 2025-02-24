@@ -226,9 +226,9 @@ public:
         return ParseOperationSpec<TVanillaOperationSpec>(ConvertToNode(spec));
     }
 
-    NYsonStructUpdate::TConfigurator<TOperationSpecBase> GetOperationSpecBaseConfigurator() const override
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
     {
-        return NYsonStructUpdate::TConfigurator<TVanillaOperationSpec>();
+        return TConfigurator<TVanillaOperationSpec>();
     }
 
 private:
