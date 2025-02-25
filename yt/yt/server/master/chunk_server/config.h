@@ -750,6 +750,8 @@ struct TDynamicChunkManagerConfig
     // COMPAT(shakurov)
     bool UseHunkSpecificMediaForRequisitionUpdates;
 
+    bool EnableRepairViaReplication;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);

@@ -1491,6 +1491,8 @@ bool TChunkReplicator::TryScheduleReplicationJob(
         }
     } else if (Any(mediumStatistics.Status & (EChunkStatus::UnsafelyPlaced | EChunkStatus::InconsistentlyPlaced))) {
         replicasNeeded = 1;
+    } else if (Any(mediumStatistics.Status & (EChunkStatus::DataDecommissioned | EChunkStatus::ParityDecommissioned))) {
+        replicasNeeded = 1;
     } else {
         return true;
     }
@@ -2292,6 +2294,8 @@ void TChunkReplicator::RefreshChunk(
         return;
     }
 
+    auto config = GetDynamicConfig();
+
     auto* chunk = ephemeralChunk.Get();
     auto chunkId = chunk->GetId();
     const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -2432,6 +2436,23 @@ void TChunkReplicator::RefreshChunk(
                     AddToChunkRepairQueue(chunkWithIndex, EChunkRepairQueue::Missing);
                 } else if (Any(statistics.Status & (EChunkStatus::DataDecommissioned | EChunkStatus::ParityDecommissioned))) {
                     AddToChunkRepairQueue(chunkWithIndex, EChunkRepairQueue::Decommissioned);
+
+                    if (config->EnableRepairViaReplication) {
+                        for (auto replica : chunkReplicas) {
+                            auto node = replica.GetPtr()->GetNode();
+                            if (!node->ReportedDataNodeHeartbeat() || node->IsPendingRestart()) {
+                                continue;
+                            }
+
+                            if (!IsReplicaDecommissioned(replica.GetPtr())) {
+                                continue;
+                            }
+
+                            auto priority = ReplicationPriorityCount - 1;
+                            TChunkIdWithIndex chunkIdWithIndex(chunkId, replica.GetReplicaIndex());
+                            node->AddToChunkPushReplicationQueue(chunkIdWithIndex, mediumIndex, priority);
+                        }
+                    }
                 }
             }
         }
