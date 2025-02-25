@@ -7275,11 +7275,11 @@ private:
             auto statistics = tablet->GetTabletStatistics();
             switch (table->GetInMemoryMode()) {
                 case EInMemoryMode::None:
-                case EInMemoryMode::Uncompressed:
                     result += statistics.UncompressedDataSize;
                     break;
+                case EInMemoryMode::Uncompressed:
                 case EInMemoryMode::Compressed:
-                    result += statistics.CompressedDataSize;
+                    result += tablet->GetTabletStaticMemorySize(table->GetInMemoryMode());
                     break;
                 default:
                     YT_ABORT();

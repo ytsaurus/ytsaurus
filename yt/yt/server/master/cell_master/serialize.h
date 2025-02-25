@@ -226,6 +226,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixChunkStatisticsInMasterCellRemoval)                        (2836))  // cherepashka
     ((ResetHunkSpecificMedia)                                       (2837))  // shakurov
     ((FixReshardOfOrderedTablesWithHunks)                           (2838))  // akozhikhov
+    ((FixTabletSizeCalculationForCellAssignmentWhenMounting)        (2839))  // alexelexa
     // 25.2 starts here.
     ((Start_25_2)                                                   (2900))  // ponasenko-rs
     ((TabletTransactionSerializationType)                           (2901))  // ponasenko-rs
