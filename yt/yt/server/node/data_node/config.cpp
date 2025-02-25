@@ -543,7 +543,7 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
     registrar.Parameter("columnar_statistics_read_timeout_fraction", &TThis::ColumnarStatisticsReadTimeoutFraction)
         .Default(0.75);
 
-    registrar.Parameter("trash_scanning_barrier", &TThis::TrashScanningBarrier)
+    registrar.Parameter("enable_trash_scanning_barrier", &TThis::EnableTrashScanningBarrier)
         .Default();
 }
 
@@ -933,7 +933,7 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("distributed_chunk_session_service", &TThis::DistributedChunkSessionService)
         .DefaultNew();
 
-    registrar.Parameter("trash_scanning_barrier", &TThis::TrashScanningBarrier)
+    registrar.Parameter("enable_trash_scanning_barrier", &TThis::EnableTrashScanningBarrier)
         .Default(false);
 
     registrar.Preprocessor([] (TThis* config) {

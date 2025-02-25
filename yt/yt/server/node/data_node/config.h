@@ -539,7 +539,7 @@ public:
     std::optional<TDuration> ChunkCancellationDelay;
 
     // Stop trash scanning at initialization
-    std::optional<bool> TrashScanningBarrier;
+    std::optional<bool> EnableTrashScanningBarrier;
 
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
@@ -1007,7 +1007,7 @@ struct TDataNodeConfig
 
     //! Blocks trash scan for test purpose.
     //! Have to be static, because dynamic config loads after initialization.
-    bool TrashScanningBarrier;
+    bool EnableTrashScanningBarrier;
 
     i64 GetCacheCapacity() const;
 
