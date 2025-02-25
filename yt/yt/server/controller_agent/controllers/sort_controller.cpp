@@ -4307,8 +4307,8 @@ private:
         InitPartitionPool(
             partitionJobSizeConstraints,
             Config->EnablePartitionMapJobSizeAdjustment && !Spec->Ordered
-            ? Options->PartitionJobSizeAdjuster
-            : nullptr,
+                ? Options->PartitionJobSizeAdjuster
+                : nullptr,
             Spec->Ordered);
 
         PartitionTasks.resize(PartitionTreeDepth);
