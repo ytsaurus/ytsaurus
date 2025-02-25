@@ -615,7 +615,7 @@ public:
             }
 
             const auto& treeParams = GetOrCrash(runtimeParameters->SchedulingOptionsPerPoolTree, treeId);
-            tree->UpdateOperationRuntimeParameters(operation->GetId(), treeParams);
+            tree->UpdateOperationRuntimeParameters(operation->GetId(), TSchedulingTagFilter(runtimeParameters->SchedulingTagFilter), treeParams);
         }
         state->TreeIdToPoolNameMap() = newPools;
     }

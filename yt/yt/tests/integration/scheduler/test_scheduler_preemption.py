@@ -256,6 +256,20 @@ class TestSchedulerPreemption(YTEnvSetup):
         assert op.get_job_count("total") == 1
         assert op.get_job_count("aborted") == 1
 
+    @authors("faucct")
+    def test_update_scheduling_tag_filter(self):
+        update_pool_tree_config("default", {"node_reconnection_timeout": 0})
+        op = run_test_vanilla(command=with_breakpoint("BREAKPOINT"), spec={"preemption_mode": "graceful"})
+        wait_breakpoint()
+        update_op_parameters(op.id, parameters={"scheduling_tag_filter": "nonexistent_tag"})
+        wait(lambda: op.get_job_count("aborted") == 1)
+        assert op.get_job_count("total") == 1
+        assert op.get_job_count("aborted") == 1
+        update_op_parameters(op.id, parameters={"scheduling_tag_filter": "%true"})
+        wait(lambda: op.get_job_count("running") == 1)
+        assert op.get_job_count("total") == 1
+        assert op.get_job_count("running") == 1
+
     @authors("ignat")
     def test_min_share_ratio(self):
         create_pool("test_min_share_ratio_pool", attributes={"min_share_resources": {"cpu": 3}})

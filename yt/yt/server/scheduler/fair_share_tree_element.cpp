@@ -1775,7 +1775,10 @@ TSchedulerOperationElement::TSchedulerOperationElement(
         ToString(operation->GetId()),
         EResourceTreeElementKind::Operation,
         logger.WithTag("OperationId: %v", operation->GetId()))
-    , TSchedulerOperationElementFixedState(operation, std::move(controllerConfig), TSchedulingTagFilter(spec->SchedulingTagFilter))
+    , TSchedulerOperationElementFixedState(
+        operation,
+        std::move(controllerConfig),
+        TSchedulingTagFilter(spec->SchedulingTagFilter))
     , Spec_(std::move(spec))
     , RuntimeParameters_(std::move(runtimeParameters))
     , Controller_(std::move(controller))
@@ -1986,6 +1989,11 @@ TResourceVector TSchedulerOperationElement::GetMaxShare() const
 const TFairShareStrategyOperationStatePtr& TSchedulerOperationElement::GetFairShareStrategyOperationState() const
 {
     return FairShareStrategyOperationState_;
+}
+
+void TSchedulerOperationElement::SetSchedulingTagFilter(TSchedulingTagFilter schedulingTagFilter)
+{
+    SchedulingTagFilter_ = std::move(schedulingTagFilter);
 }
 
 const TSchedulingTagFilter& TSchedulerOperationElement::GetSchedulingTagFilter() const
