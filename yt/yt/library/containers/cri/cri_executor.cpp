@@ -14,6 +14,8 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/library/re2/re2.h>
+
 namespace NYT::NContainers::NCri {
 
 using namespace NRpc;
@@ -732,10 +734,14 @@ private:
                 return true;
             }
             if (error.GetCode() == NYT::EErrorCode::Generic) {
-                for (const auto& prefix: config->RetryErrorPrefixes) {
-                    if (error.GetMessage().StartsWith(prefix)) {
+                const auto& message = error.GetMessage();
+                for (const auto& prefix : config->RetryErrorPrefixes) {
+                    if (message.StartsWith(prefix)) {
                         return true;
                     }
+                }
+                if (config->RetryErrorPattern) {
+                    return NRe2::RE2::PartialMatch(message, *config->RetryErrorPattern);
                 }
             }
             return false;
