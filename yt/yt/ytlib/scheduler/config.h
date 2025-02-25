@@ -2116,7 +2116,6 @@ public:
     std::optional<double> Weight;
     TPoolName Pool;
     TJobResourcesConfigPtr ResourceLimits;
-    std::optional<TBooleanFormula> SchedulingTagFilter;
 
     // Can only be enabled by an administrator.
     bool EnableDetailedLogs;

@@ -558,11 +558,13 @@ public:
 
     void UpdateOperationRuntimeParameters(
         TOperationId operationId,
+        TSchedulingTagFilter schedulingTagFilter,
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) override
     {
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (const auto& element = FindOperationElement(operationId)) {
+            element->SetSchedulingTagFilter(schedulingTagFilter);
             element->SetRuntimeParameters(runtimeParameters);
         }
     }
