@@ -564,9 +564,7 @@ public:
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
-        auto canUseCypressProxy =
-            (kind == EMasterChannelKind::Follower || kind == EMasterChannelKind::Leader) &&
-            (cellTag == PrimaryMasterCellTagSentinel || cellTag == GetPrimaryMasterCellTag());
+        auto canUseCypressProxy = kind == EMasterChannelKind::Follower || kind == EMasterChannelKind::Leader;
 
         return canUseCypressProxy && CypressProxyChannel_
             ? CypressProxyChannel_

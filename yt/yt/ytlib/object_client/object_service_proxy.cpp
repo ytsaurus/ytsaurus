@@ -173,7 +173,7 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::SerializeHeaderless() 
         req.set_cell_tag(ToProto(*CellTag_));
     }
     if (ChannelKind_) {
-        req.set_peer_kind(ToProto(*ChannelKind_));
+        req.set_master_channel_kind(ToProto(*ChannelKind_));
     }
 
     if (Header().HasExtension(NRpc::NProto::TBalancingExt::balancing_ext)) {

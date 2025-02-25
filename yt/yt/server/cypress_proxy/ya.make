@@ -26,6 +26,7 @@ SRCS(
 
 PEERDIR(
     library/cpp/yt/phdr_cache
+    library/cpp/iterator
 
     library/cpp/getopt
 
@@ -40,4 +41,3 @@ PEERDIR(
 )
 
 END()
-
