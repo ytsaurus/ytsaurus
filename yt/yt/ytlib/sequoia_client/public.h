@@ -79,8 +79,6 @@ struct TSequoiaResponseKeeper;
 DECLARE_REFCOUNTED_STRUCT(ISequoiaClient)
 DECLARE_REFCOUNTED_STRUCT(ISequoiaTransaction)
 
-DECLARE_REFCOUNTED_STRUCT(ILazySequoiaClient)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 YT_DEFINE_STRONG_TYPEDEF(TMangledSequoiaPath, TString);

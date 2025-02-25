@@ -29,7 +29,7 @@
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/sequoia_client/lazy_client.h>
+#include <yt/yt/ytlib/sequoia_client/client.h>
 
 #include <yt/yt/client/logging/dynamic_table_log_writer.h>
 
@@ -149,19 +149,9 @@ public:
         return NativeRootClient_;
     }
 
-    ISequoiaClientPtr GetSequoiaClient() const override
+    const ISequoiaClientPtr& GetSequoiaClient() const override
     {
         return SequoiaClient_;
-    }
-
-    const NApi::NNative::IConnectionPtr& GetGroundConnection() const override
-    {
-        return GroundConnection_;
-    }
-
-    const NApi::NNative::IClientPtr& GetGroundRootClient() const override
-    {
-        return GroundRootClient_;
     }
 
     NApi::IClientPtr GetRootClient() const override
@@ -213,10 +203,7 @@ private:
     NApi::NNative::IClientPtr NativeRootClient_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
-    NApi::NNative::IConnectionPtr GroundConnection_;
-    NApi::NNative::IClientPtr GroundRootClient_;
-
-    ILazySequoiaClientPtr SequoiaClient_;
+    ISequoiaClientPtr SequoiaClient_;
 
     ISequoiaServicePtr SequoiaService_;
 
@@ -255,13 +242,9 @@ private:
 
         NLogging::GetDynamicTableLogWriterFactory()->SetClient(NativeRootClient_);
 
-        SequoiaClient_ = CreateLazySequoiaClient(NativeRootClient_, Logger());
-
-        // If Sequoia is local it's safe to create the client right now.
-        const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName;
-        if (!groundClusterName) {
-            SequoiaClient_->SetGroundClient(NativeRootClient_);
-        }
+        SequoiaClient_ = CreateSequoiaClient(
+            Config_->ClusterConnection->Dynamic->SequoiaConnection,
+            NativeRootClient_);
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
         DynamicConfigManager_->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
@@ -325,17 +308,6 @@ private:
 
     void DoStart()
     {
-        if (const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName) {
-            NativeConnection_->GetClusterDirectory()->SubscribeOnClusterUpdated(
-                BIND_NO_PROPAGATE([=, this] (const std::string& clusterName, const INodePtr& /*configNode*/) {
-                    if (clusterName == *groundClusterName) {
-                        auto groundConnection = NativeConnection_->GetClusterDirectory()->GetConnection(*groundClusterName);
-                        auto groundClient = groundConnection->CreateNativeClient({.User = NSecurityClient::RootUserName});
-                        SequoiaClient_->SetGroundClient(std::move(groundClient));
-                    }
-                }));
-        }
-
         NativeConnection_->GetClusterDirectorySynchronizer()->Start();
         NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
 

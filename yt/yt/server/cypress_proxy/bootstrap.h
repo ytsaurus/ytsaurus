@@ -33,10 +33,8 @@ struct IBootstrap
     virtual const NApi::NNative::IConnectionPtr& GetNativeConnection() const = 0;
     virtual const NApi::NNative::IClientPtr& GetNativeRootClient() const = 0;
 
-    virtual NSequoiaClient::ISequoiaClientPtr GetSequoiaClient() const = 0;
+    virtual const NSequoiaClient::ISequoiaClientPtr& GetSequoiaClient() const = 0;
 
-    virtual const NApi::NNative::IConnectionPtr& GetGroundConnection() const = 0;
-    virtual const NApi::NNative::IClientPtr& GetGroundRootClient() const = 0;
     virtual NApi::IClientPtr GetRootClient() const = 0;
 
     virtual const ISequoiaServicePtr& GetSequoiaService() const = 0;

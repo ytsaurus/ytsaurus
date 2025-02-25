@@ -441,7 +441,6 @@ target_sources(yt-yt-ytlib PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/permission_cache.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/security_client/public.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/client.cpp
-  ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/lazy_client.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/record_helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/ytlib/sequoia_client/table_descriptor.cpp
