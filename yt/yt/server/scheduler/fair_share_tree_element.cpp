@@ -1993,7 +1993,7 @@ const TFairShareStrategyOperationStatePtr& TSchedulerOperationElement::GetFairSh
 
 void TSchedulerOperationElement::SetSchedulingTagFilter(TSchedulingTagFilter schedulingTagFilter)
 {
-    SchedulingTagFilter_ = schedulingTagFilter;
+    SchedulingTagFilter_ = std::move(schedulingTagFilter);
 }
 
 const TSchedulingTagFilter& TSchedulerOperationElement::GetSchedulingTagFilter() const

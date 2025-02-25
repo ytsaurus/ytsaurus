@@ -564,7 +564,7 @@ public:
         YT_ASSERT_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         if (const auto& element = FindOperationElement(operationId)) {
-            element->SetSchedulingTagFilter(schedulingTagFilter);
+            element->SetSchedulingTagFilter(std::move(schedulingTagFilter));
             element->SetRuntimeParameters(runtimeParameters);
         }
     }
