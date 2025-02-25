@@ -2565,4 +2565,3 @@ IObjectManagerPtr CreateObjectManager(TTestingTag tag, NCellMaster::TBootstrap* 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer
-
