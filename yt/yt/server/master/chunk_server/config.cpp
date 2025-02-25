@@ -768,6 +768,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("use_hunk_specific_media_for_requisition_updates", &TThis::UseHunkSpecificMediaForRequisitionUpdates)
         .Default(true);
 
+    registrar.Parameter("enable_repair_via_replication", &TThis::EnableRepairViaReplication)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Postprocessor([] (TThis* config) {
         auto& jobTypeToThrottler = config->JobTypeToThrottler;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {

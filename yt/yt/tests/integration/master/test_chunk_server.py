@@ -76,8 +76,8 @@ class TestChunkServer(YTEnvSetup):
         nodes_to_decommission = self._decommission_chunk_replicas(chunk_id, replica_count, node_to_decommission_count)
 
         wait(
-            lambda: not self._nodes_have_chunk(nodes_to_decommission, chunk_id)
-            and len(get(f"#{chunk_id}/@stored_replicas")) == replica_count
+            lambda: len(get(f"#{chunk_id}/@stored_replicas")) == replica_count and
+            not self._nodes_have_chunk(nodes_to_decommission, chunk_id)
         )
 
     def _decommission_chunk_replicas(self, chunk_id, replica_count, node_to_decommission_count):
@@ -161,6 +161,17 @@ class TestChunkServer(YTEnvSetup):
 
         wait(lambda: get(f"//sys/cluster_nodes/{nodes[0]}/@decommissioned"))
         wait(lambda: len(get(f"#{chunk_id}/@stored_replicas")) == 6)
+
+    @authors("aleksandra-zh")
+    def test_decommission_erasure_via_replication(self):
+        set("//sys/@config/chunk_manager/enable_repair_via_replication", True)
+        for node in ls("//sys/cluster_nodes"):
+            set(f"//sys/cluster_nodes/{node}/@resource_limits_overrides/repair_slots", 0)
+
+        create("table", "//tmp/t")
+        set("//tmp/t/@erasure_codec", "reed_solomon_3_3")
+        write_table("//tmp/t", {"a": "b"})
+        self._test_decommission("//tmp/t", 6)
 
     @authors("babenko")
     def test_decommission_journal(self):
