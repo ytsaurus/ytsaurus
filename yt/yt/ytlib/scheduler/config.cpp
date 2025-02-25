@@ -2699,6 +2699,7 @@ void Serialize(const TOperationRuntimeParameters& parameters, IYsonConsumer* con
             })
             .OptionalItem("aco_name", parameters.AcoName)
             .Item("scheduling_options_per_pool_tree").Value(parameters.SchedulingOptionsPerPoolTree)
+            .Item("scheduling_tag_filter").Value(parameters.SchedulingTagFilter)
             .Item("options_per_job_shell").Value(parameters.OptionsPerJobShell)
             .DoIf(serializeHeavy, [&] (auto fluent) {
                 SerializeHeavyRuntimeParameters(fluent, parameters);
@@ -2731,6 +2732,9 @@ void Deserialize(TOperationRuntimeParameters& parameters, INodePtr node)
     }
     parameters.SchedulingOptionsPerPoolTree = ConvertTo<THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr>>(
         mapNode->GetChildOrThrow("scheduling_options_per_pool_tree"));
+    if (auto child = mapNode->FindChild("scheduling_tag_filter")) {
+        Deserialize(parameters.SchedulingTagFilter, child);
+    }
     if (auto optionsPerJobShell = mapNode->FindChild("options_per_job_shell")) {
         parameters.OptionsPerJobShell = ConvertTo<THashMap<TString, TOperationJobShellRuntimeParametersPtr>>(optionsPerJobShell);
     }
@@ -2794,6 +2798,8 @@ void TOperationRuntimeParametersUpdate::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("scheduling_options_per_pool_tree", &TThis::SchedulingOptionsPerPoolTree)
         .Default();
+    registrar.Parameter("scheduling_tag_filter", &TThis::SchedulingTagFilter)
+        .Optional();
     registrar.Parameter("options_per_job_shell", &TThis::OptionsPerJobShell)
         .Default();
     registrar.Parameter("annotations", &TThis::Annotations)

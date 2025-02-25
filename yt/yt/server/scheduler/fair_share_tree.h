@@ -145,6 +145,7 @@ struct IFairShareTree
 
     virtual void UpdateOperationRuntimeParameters(
         TOperationId operationId,
+        TSchedulingTagFilter schedulingTagFilter,
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) = 0;
 
     virtual void RegisterAllocationsFromRevivedOperation(TOperationId operationId, std::vector<TAllocationPtr> allocations) = 0;

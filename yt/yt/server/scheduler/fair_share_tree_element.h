@@ -837,6 +837,7 @@ public:
     //! Trunk node interface.
     int GetSlotIndex() const;
 
+    void SetSchedulingTagFilter(TSchedulingTagFilter schedulingTagFilter);
     const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 
     TString GetUserName() const;

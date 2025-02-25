@@ -2141,6 +2141,7 @@ public:
     std::optional<TString> AcoName;
     TJobShellOptionsMap OptionsPerJobShell;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
+    TBooleanFormula SchedulingTagFilter;
     NYTree::IMapNodePtr Annotations;
     TString ControllerAgentTag;
 
@@ -2186,6 +2187,7 @@ public:
     std::optional<NSecurityClient::TSerializableAccessControlList> Acl;
     std::optional<TString> AcoName;
     THashMap<TString, TOperationFairShareTreeRuntimeParametersUpdatePtr> SchedulingOptionsPerPoolTree;
+    std::optional<TBooleanFormula> SchedulingTagFilter;
     TJobShellOptionsUpdateMap OptionsPerJobShell;
     std::optional<NYTree::IMapNodePtr> Annotations;
     std::optional<TString> ControllerAgentTag;
