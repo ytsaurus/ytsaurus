@@ -201,7 +201,7 @@ class TestAsyncTrashLoad(YTEnvSetup):
     NUM_SCHEDULERS = 1
     STORE_LOCATION_COUNT = 1
 
-    MEDIUM_NAME = "TestAsyncTrashLoad"
+    MEDIUM_NAME = "test_async_trash_load"
 
     PATCHED_NODE_CONFIGS = []
 
@@ -246,8 +246,6 @@ class TestAsyncTrashLoad(YTEnvSetup):
             "primary_medium": self.MEDIUM_NAME
         })
 
-        set("//tmp/t_trash/@replication_factor", 1)
-
         rows = [{"k": i} for i in range(10)]
         write_table("//tmp/t_trash", rows)
 
@@ -259,7 +257,7 @@ class TestAsyncTrashLoad(YTEnvSetup):
         update_nodes_dynamic_config({
             "data_node": {
                 "testing_options": {
-                    "trash_scanning_barrier": True
+                    "enable_trash_scanning_barrier": True
                 }
             }
         })
@@ -267,8 +265,10 @@ class TestAsyncTrashLoad(YTEnvSetup):
         with Restarter(self.Env, NODES_SERVICE):
             for node_config in self.PATCHED_NODE_CONFIGS:
                 for i in range(self.STORE_LOCATION_COUNT):
-                    node_config["data_node"]["trash_scanning_barrier"] = True
+                    node_config["data_node"]["enable_trash_scanning_barrier"] = True
             self.Env.rewrite_node_configs()
+
+        time.sleep(10)
 
         wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "online")
 
@@ -285,7 +285,7 @@ class TestAsyncTrashLoad(YTEnvSetup):
         update_nodes_dynamic_config({
             "data_node": {
                 "testing_options": {
-                    "trash_scanning_barrier": False
+                    "enable_trash_scanning_barrier": False
                 }
             }
         })

@@ -786,21 +786,6 @@ i64 TChunkLocation::GetUsedSpace() const
     return UsedSpace_.load();
 }
 
-void TChunkLocation::UpdateTrashSpace(i64 size)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    TrashSpace_ += size;
-}
-
-
-i64 TChunkLocation::GetTrashSpace() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return TrashSpace_.load();
-}
-
 std::optional<TDuration> TChunkLocation::GetDelayBeforeBlobSessionBlockFree() const
 {
     return DynamicConfigManager_->GetConfig()->DataNode->TestingOptions->DelayBeforeBlobSessionBlockFree;
@@ -1068,25 +1053,11 @@ void TChunkLocation::UpdateChunkCount(int delta)
     ChunkCount_ += delta;
 }
 
-void TChunkLocation::UpdateTrashChunkCount(int delta)
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    TrashChunkCount_ += delta;
-}
-
 int TChunkLocation::GetChunkCount() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
     return ChunkCount_;
-}
-
-int TChunkLocation::GetTrashChunkCount() const
-{
-    YT_ASSERT_THREAD_AFFINITY_ANY();
-
-    return TrashChunkCount_;
 }
 
 TString TChunkLocation::GetChunkPath(TChunkId chunkId) const
@@ -2003,8 +1974,8 @@ i64 TStoreLocation::GetMaxWriteRateByDwpd() const
 
 bool TStoreLocation::IsTrashScanStopped() const
 {
-    const auto dynamicValue = DynamicConfigManager_->GetConfig()->DataNode->TestingOptions->TrashScanningBarrier;
-    const auto staticValue = ChunkStore_->GetStaticDataNodeConfig()->TrashScanningBarrier;
+    const auto dynamicValue = DynamicConfigManager_->GetConfig()->DataNode->TestingOptions->EnableTrashScanningBarrier;
+    const auto staticValue = ChunkStore_->GetStaticDataNodeConfig()->EnableTrashScanningBarrier;
     return dynamicValue.value_or(staticValue);
 }
 
@@ -2058,6 +2029,35 @@ TJournalManagerConfigPtr TStoreLocation::BuildJournalManagerConfig(
     return journalManagerConfig;
 }
 
+void TStoreLocation::UpdateTrashChunkCount(int delta)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    TrashChunkCount_ += delta;
+}
+
+
+int TStoreLocation::GetTrashChunkCount() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return TrashChunkCount_;
+}
+
+void TStoreLocation::UpdateTrashSpace(i64 size)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    TrashSpace_ += size;
+}
+
+i64 TStoreLocation::GetTrashSpace() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return TrashSpace_.load();
+}
+
 TString TStoreLocation::GetTrashPath() const
 {
     return NFS::CombinePaths(GetPath(), TrashDirectory);
@@ -2087,7 +2087,6 @@ void TStoreLocation::RegisterTrashChunk(TChunkId chunkId)
         {
             auto guard = Guard(TrashMapSpinLock_);
             TrashMap_.emplace(timestamp, TTrashChunkEntry{chunkId, diskSpace});
-            TrashDiskSpace_ += diskSpace;
         }
 
         UpdateTrashChunkCount(+1);
@@ -2134,7 +2133,6 @@ void TStoreLocation::CheckTrashTtl()
                 break;
             entry = it->second;
             TrashMap_.erase(it);
-            TrashDiskSpace_ -= entry.DiskSpace;
         }
         RemoveTrashFiles(entry);
         UpdateTrashChunkCount(-1);
@@ -2151,7 +2149,7 @@ void TStoreLocation::CheckTrashWatermark()
     {
         auto guard = Guard(TrashMapSpinLock_);
         // NB: Available space includes trash disk space.
-        availableSpace = GetAvailableSpace() - TrashDiskSpace_.load();
+        availableSpace = GetAvailableSpace() - GetTrashSpace();
         needsCleanup = availableSpace < config->TrashCleanupWatermark && !TrashMap_.empty();
     }
 
@@ -2172,7 +2170,6 @@ void TStoreLocation::CheckTrashWatermark()
             auto it = TrashMap_.begin();
             entry = it->second;
             TrashMap_.erase(it);
-            TrashDiskSpace_ -= entry.DiskSpace;
         }
         RemoveTrashFiles(entry);
         availableSpace += entry.DiskSpace;
@@ -2326,8 +2323,7 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
 
 i64 TStoreLocation::GetAdditionalSpace() const
 {
-    // NB: Unguarded access to TrashDiskSpace_ seems OK.
-    return TrashDiskSpace_.load();
+    return GetTrashSpace();
 }
 
 std::optional<TChunkDescriptor> TStoreLocation::RepairBlobChunk(TChunkId chunkId)
