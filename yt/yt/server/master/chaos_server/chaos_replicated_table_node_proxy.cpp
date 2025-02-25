@@ -197,7 +197,8 @@ private:
         descriptors->push_back(EInternedAttributeKey::ReplicatedTableOptions);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
             .SetWritable(true)
-            .SetReplicated(true));
+            .SetReplicated(true)
+            .SetOpaque(IsSchemaAttributeOpaque()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TreatAsQueueConsumer)
             .SetWritable(true)
             .SetPresent(hasNonEmptySchema && isSorted));

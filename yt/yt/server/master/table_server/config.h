@@ -15,6 +15,8 @@ struct TDynamicTableManagerConfig
 
     // COMPAT(cherepashka, aleksandra-zh).
     bool MakeSchemaAttributeOpaque;
+    // COMPAT(babenko)
+    std::vector<std::string> NonOpaqueSchemaAttributeUserWhitelist;
 
     REGISTER_YSON_STRUCT(TDynamicTableManagerConfig)
 

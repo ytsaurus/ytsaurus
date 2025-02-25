@@ -28,6 +28,8 @@
 
 #include <yt/yt/server/master/table_server/master_table_schema.h>
 #include <yt/yt/server/master/table_server/table_manager.h>
+// COMPAT(babenko): needed for IsSchemaAttributeOpaque
+#include <yt/yt/server/master/table_server/config.h>
 
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
 #include <yt/yt/server/master/tablet_server/tablet_manager.h>
@@ -1481,6 +1483,19 @@ void TNontemplateCypressNodeProxyBase::SetChildNode(
     bool /*recursive*/)
 {
     YT_ABORT();
+}
+
+bool TNontemplateCypressNodeProxyBase::IsSchemaAttributeOpaque() const
+{
+    const auto& config = Bootstrap_->GetDynamicConfig()->TableManager;
+    if (!config->MakeSchemaAttributeOpaque) {
+        return false;
+    }
+
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    const auto& user = securityManager->GetAuthenticatedUser()->GetName();
+    const auto& userWhitelist = config->NonOpaqueSchemaAttributeUserWhitelist;
+    return std::ranges::find(userWhitelist, user) == userWhitelist.end();
 }
 
 void TNontemplateCypressNodeProxyBase::Lock(const TLockRequest& request, bool waitable, TLockId lockIdHint)
