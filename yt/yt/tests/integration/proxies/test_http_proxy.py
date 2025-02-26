@@ -480,6 +480,62 @@ class TestFullDiscoverVersions(HttpProxyTestBase):
         assert counts["replicated_table_tracker"] == 1
 
 
+@pytest.mark.enabled_multidaemon
+class TestCypressProxyDiscoverVersions(HttpProxyTestBase):
+    ENABLE_MULTIDAEMON = True
+
+    USE_SEQUOIA = True
+    NUM_CLOCKS = 1
+    NUM_CYPRESS_PROXIES = 1
+    NUM_REMOTE_CLUSTERS = 1
+    USE_SEQUOIA_REMOTE_0 = False
+
+    @authors("koloshmet")
+    def test_discover_versions_v2(self):
+        # Give all components some time to be considered online.
+        time.sleep(5)
+
+        rsp = requests.get(self._get_proxy_address() + "/internal/discover_versions/v2")
+        rsp.raise_for_status()
+
+        versions = rsp.json()
+        assert "details" in versions
+        assert "summary" in versions
+
+        print_debug(f"Collected component versions: {versions}")
+
+        counts = collections.Counter()
+
+        for instance in versions["details"]:
+            assert "address" in instance
+            assert "start_time" in instance
+            assert "type" in instance
+            assert "version" in instance
+
+            if "state" in instance:
+                assert instance["state"] == "online"
+
+            counts[instance["type"]] += 1
+
+        summary = versions["summary"]
+        # All components run on the same version + there is a total summary.
+        assert len(summary) == 2
+        for version_summary in summary.values():
+            for type, component_summary in version_summary.items():
+                assert component_summary["total"] == counts[type]
+                assert component_summary["banned"] == 0
+                assert component_summary["offline"] == 0
+
+        assert counts["primary_master"] == 1
+        assert counts["secondary_master"] == 2
+        assert counts["cluster_node"] == 5
+        assert counts["scheduler"] == 1
+        assert counts["http_proxy"] == 1
+        assert counts["rpc_proxy"] == 2
+        assert counts["timestamp_provider"] == 1
+        assert counts["cypress_proxy"] == 1
+
+
 class TestSolomonProxy(HttpProxyTestBase):
     # Instances of the same component have different monitoring ports, since everything is exposed on localhost.
     # For this reason we are only testing components that have a single configured instance ¯\_(ツ)_/¯.
