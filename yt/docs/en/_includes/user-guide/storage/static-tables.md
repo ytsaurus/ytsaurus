@@ -73,14 +73,14 @@ A number of size and content type limitations are imposed on table rows and sche
 
 - The number of columns in a static table cannot exceed 32,768. We do not recommend using more than a thousand columns.
 - The column name is an arbitrary byte sequence that can contain from 1 to 256 characters. In addition, it cannot start with the prefix `@`, which is reserved by the system.
-- The maximum length of `string` values in a static table is limited by the maximum string weight.
-- The maximum string weight is 128 megabytes. The string weight is the sum of the lengths of all values in the given string in bytes. The lengths of the values are counted depending on the type:
+- The maximum length of `string` values in a static table is limited by the maximum row weight.
+- The maximum row weight is 128 megabytes. The row weight is the sum of the lengths of all values in the given row in bytes. The lengths of the values are counted depending on the type:
    - `int64`, `uint64`, and `double`: 8 bytes.
    - `boolean`: 1 byte.
    - `string`: String length.
    - `any`: The length of the structure serialized in binary [yson](../../../user-guide/storage/yson.md), in bytes.
    - `null`: 0 bytes.
-- The maximum key weight in a sorted table is 256 kilobytes. The default limitation is 16 kilobytes. The key weight is counted similarly to the string weight.
+- The maximum key weight in a sorted table is 256 kilobytes. The default limitation is 16 kilobytes. The key weight is counted similarly to the row weight.
 
    {% note warning "Attention" %}
 
