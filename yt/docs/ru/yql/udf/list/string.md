@@ -1,7 +1,7 @@
 # String
 Функции для работы с ASCII-строками.
 
-**Список функций**
+#### Список функций
 
 * ```String::Base64Encode(string:String{Flags:AutoMap}) -> String```
 * ```String::Base64Decode(string:String) -> String?```
