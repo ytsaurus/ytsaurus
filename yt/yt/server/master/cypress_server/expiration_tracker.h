@@ -23,9 +23,13 @@ public:
 
     void Clear();
 
-    void OnNodeExpirationTimeUpdated(TCypressNode* trunkNode);
+    void OnNodeExpirationTimeUpdated(
+        TCypressNode* trunkNode,
+        std::optional<TInstant> oldExpirationTime = std::nullopt);
 
-    void OnNodeExpirationTimeoutUpdated(TCypressNode* trunkNode);
+    void OnNodeExpirationTimeoutUpdated(
+        TCypressNode* trunkNode,
+        std::optional<TDuration> oldExpirationTimeout = std::nullopt);
     void OnNodeTouched(TCypressNode* trunkNode);
 
     void OnNodeDestroyed(TCypressNode* trunkNode);
@@ -33,6 +37,8 @@ public:
 
 private:
     NCellMaster::TBootstrap* const Bootstrap_;
+
+    const NProfiling::TBufferedProducerPtr BufferedProducer_ = New<NProfiling::TBufferedProducer>();
 
     const TCallback<void(NCellMaster::TDynamicClusterConfigPtr)> DynamicConfigChangedCallback_ =
         BIND(&TExpirationTracker::OnDynamicConfigChanged, MakeWeak(this));
@@ -64,7 +70,9 @@ private:
 
     bool IsNodeLocked(TCypressNode* trunkNode) const;
 
-    void OnCheck();
+    void RunCheckIteration();
+    void CollectAndRemoveExpiredNodes(TInstant checkTime);
+    void UpdateProfiling(TInstant checkTime);
 
     bool IsRecovery() const;
 
