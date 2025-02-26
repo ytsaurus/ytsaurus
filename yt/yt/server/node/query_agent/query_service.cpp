@@ -711,7 +711,7 @@ private:
                         rowBatchReadOptions,
                         progress,
                         logParser,
-                        CreateResevingMemoryUsageTracker(
+                        CreateReservingMemoryUsageTracker(
                             PullRowsMemoryTracker_,
                             counters->MemoryUsage),
                         Logger,

@@ -1255,7 +1255,7 @@ DEFINE_REFCOUNTED_TYPE(TReservingMemoryTracker)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IReservingMemoryUsageTrackerPtr CreateResevingMemoryUsageTracker(
+IReservingMemoryUsageTrackerPtr CreateReservingMemoryUsageTracker(
     IMemoryUsageTrackerPtr underlying,
     TCounter memoryUsageCounter)
 {
