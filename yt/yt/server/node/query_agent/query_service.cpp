@@ -241,14 +241,18 @@ public:
             .SetInvoker(Bootstrap_->GetTableRowFetchPoolInvoker())
             .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateDistributedSession)
-            .SetInvoker(bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)));
+            .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this)))
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PingDistributedSession)
-            .SetInvoker(bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)));
+            .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this)))
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CloseDistributedSession)
-            .SetInvoker(bootstrap->GetQueryPoolInvoker(DefaultQLExecutionPoolName, DefaultQLExecutionTag)));
+            .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this)))
+            .SetHandleMethodError(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PushRowset)
             .SetCancelable(true)
-            .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this))));
+            .SetInvokerProvider(BIND(&TQueryService::GetExecuteInvoker, Unretained(this)))
+            .SetHandleMethodError(true));
 
         Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(
             &TQueryService::OnDynamicConfigChanged,
@@ -1763,7 +1767,19 @@ private:
             sessionId,
             codecId);
 
-        DistributedSessionManager_->GetDistributedSessionOrCreate(sessionId, retentionTime, codecId);
+        auto memoryLimitPerNode = YT_PROTO_OPTIONAL(*request, memory_limit_per_node);
+
+        auto memoryChunkProvider = MemoryProvider_->GetProvider(
+            ToString(sessionId),
+            memoryLimitPerNode.value_or(std::numeric_limits<ui64>::max()),
+            MemoryTracker_);
+
+        DistributedSessionManager_->GetDistributedSessionOrCreate(
+            sessionId,
+            retentionTime,
+            codecId,
+            std::move(memoryLimitPerNode),
+            std::move(memoryChunkProvider));
 
         context->Reply();
     }
@@ -1810,15 +1826,16 @@ private:
             rowsetId);
 
         auto session = DistributedSessionManager_->GetDistributedSessionOrThrow(sessionId);
-        session->InsertOrThrow(
-            CreateWireProtocolRowsetReader(
-                request->Attachments(),
-                session->GetCodecId(),
-                schema,
-                false,
-                /*memoryChunkProvider*/ nullptr,
-                Logger),
-            rowsetId);
+
+        auto reader = CreateWireProtocolRowsetReader(
+            request->Attachments(),
+            session->GetCodecId(),
+            schema,
+            /*schemaful*/ true,
+            session->GetMemoryChunkProvider(),
+            Logger);
+
+        session->InsertOrThrow(rowsetId, std::move(reader), std::move(schema));
 
         context->Reply();
     }

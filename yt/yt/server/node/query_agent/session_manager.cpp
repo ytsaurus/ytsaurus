@@ -35,7 +35,9 @@ public:
     IDistributedSessionPtr GetDistributedSessionOrCreate(
         TDistributedSessionId sessionId,
         TDuration retentionTime,
-        ECodec codecId) override
+        ECodec codecId,
+        std::optional<i64> memoryLimitPerNode,
+        IMemoryChunkProviderPtr memoryChunkProvider) override
     {
         THashMap<TDistributedSessionId, IDistributedSessionPtr>::iterator it;
         {
@@ -51,7 +53,13 @@ public:
             retentionTime,
             BIND(&TDistributedSessionManager::OnDistributedSessionLeaseExpired, MakeWeak(this), sessionId)
                 .Via(Invoker_));
-        auto session = CreateDistributedSession(sessionId, std::move(lease), codecId, retentionTime);
+        auto session = CreateDistributedSession(
+            sessionId,
+            std::move(lease),
+            codecId,
+            retentionTime,
+            std::move(memoryLimitPerNode),
+            std::move(memoryChunkProvider));
 
         {
             auto guard = Guard(DistributedSessionMapLock_);
