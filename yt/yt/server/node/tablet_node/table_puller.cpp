@@ -617,7 +617,7 @@ private:
                 << TErrorAttribute("memory_limit", MemoryTracker_->GetLimit());
         }
 
-        auto reservingTracker = CreateResevingMemoryUsageTracker(MemoryTracker_, counters->MemoryUsage);
+        auto reservingTracker = CreateReservingMemoryUsageTracker(MemoryTracker_, counters->MemoryUsage);
         TDuration throttleTime;
         {
             auto throttleFuture = Throttler_->Throttle(1);
