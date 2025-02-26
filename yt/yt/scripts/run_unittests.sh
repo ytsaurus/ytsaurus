@@ -2,11 +2,8 @@
 # Should be run inside build directory
 
 # unittester-containers requires porto to be installed.
-# unittester-library-query-engine-time will be fixed in YT-24122.
 for unittester_binary in $(find . -name "unittester-*" -type f); do
     if [[ ${unittester_binary} =~ "unittester-containers" ]]; then
-        continue
-    elif [[ ${unittester_binary} =~ "unittester-library-query-engine-time" ]]; then
         continue
     fi
     echo "Running ${unittester_binary}"

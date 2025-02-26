@@ -314,9 +314,9 @@ jobs:
           done
 
           if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare --bazel-remote-put ${FOLDERS_WITH_UNITTESTS}
+            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare --bazel-remote-put ${FOLDERS_WITH_UNITTESTS} --link-threads 16
           fi
-          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare ${FOLDERS_WITH_UNITTESTS}
+          ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare ${FOLDERS_WITH_UNITTESTS} --link-threads 16
 
           for build_folder in yt/yt/tests/integration/size_s \
                               yt/yt/tests/integration/size_m \
