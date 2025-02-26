@@ -227,19 +227,12 @@ TEST_F(TWorkerSetTest, ChangeWorkerSet)
     token.Release();
 
     fetcher.Populate(roundB);
-    fetcher.WaitToRun(2);
+    fetcher.Populate(roundB);
+    fetcher.WaitToRun(3);
 
-    i64 i = 0;
-    const i64 iterationsLimit = 10'000'000'000;
-    for (; i < iterationsLimit; ++i) {
-        token = TWorkerSetTest::PickWorker(&workerSet).Get().ValueOrThrow();
-        auto hostPort = token.HostPort();
-        if (std::find(roundB.begin(), roundB.end(), hostPort) != roundB.end()) {
-            break;
-        }
-        token.Release();
-    }
-    EXPECT_LE(i, iterationsLimit);
+    token = TWorkerSetTest::PickWorker(&workerSet).Get().ValueOrThrow();
+    EXPECT_THAT(roundB, ::testing::Contains(token.HostPort()));
+    token.Release();
 
     fetcher.Stop();
 
