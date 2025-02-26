@@ -400,6 +400,52 @@ func (a HTTPAPI) HandleStart(w http.ResponseWriter, r *http.Request, params map[
 	a.ReplyOK(w, briefInfo)
 }
 
+var ForceParameter = CmdParameter{
+	Name:        "force",
+	Action:      ActionStoreTrue,
+	Description: "restart untracked strawberry operation from another user",
+	Validator:   validateBool,
+}
+
+var RestartCmdDescriptor = CmdDescriptor{
+	Name:        "restart",
+	Parameters:  []CmdParameter{AliasParameter.AsExplicit(), ForceParameter},
+	Description: "restart strawberry operation",
+	Handler:     HTTPAPI.HandleRestart,
+}
+
+func (a HTTPAPI) HandleRestart(w http.ResponseWriter, r *http.Request, params map[string]any) {
+	credentials, err := auth.GetCredentials(r)
+	if err != nil && !a.disableAuth {
+		a.ReplyWithError(w, err)
+		return
+	}
+	userClient, err := ythttp.NewClient(&yt.Config{
+		Credentials: credentials,
+		Proxy:       a.API.cfg.AgentInfo.Proxy,
+		Logger:      a.L.Structured(),
+	})
+	if err != nil {
+		a.ReplyWithError(w, err)
+		return
+	}
+	alias := params["alias"].(string)
+	force := false
+	if params["force"] != nil {
+		force = params["force"].(bool)
+	}
+	if err = a.API.Restart(r.Context(), alias, force, userClient); err != nil {
+		a.ReplyWithError(w, err)
+		return
+	}
+	briefInfo, err := a.API.GetBriefInfo(r.Context(), alias)
+	if err != nil {
+		a.ReplyWithError(w, err)
+		return
+	}
+	a.ReplyOK(w, briefInfo)
+}
+
 var StopCmdDescriptor = CmdDescriptor{
 	Name:        "stop",
 	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
@@ -508,6 +554,7 @@ var AllCommands = []CmdDescriptor{
 	SetOptionsCmdDescriptor,
 	EditOptionsCmdDescriptor,
 	StartCmdDescriptor,
+	RestartCmdDescriptor,
 	StopCmdDescriptor,
 	DescribeOptionsCmdDescriptor,
 	GetSecretsCmdDescriptor,
