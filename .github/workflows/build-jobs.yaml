@@ -306,7 +306,7 @@ jobs:
 
           BUILD_FLAGS="${{ steps.vars.outputs.BUILD_FLAGS }} -DSTRIP=${{ steps.vars.outputs.STRIP_VALUE }}"
 
-          FOLDERS_WITH_UNITTESTS=""
+          FOLDERS_WITH_UNITTESTS="../ytsaurus/ytsaurus/yt/yt/tests/integration/size_s ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_m ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_l ../ytsaurus/ytsaurus/yt/yt/tests/integration/size_xl"
           for makefile in $(find ../ytsaurus/ytsaurus/ -name "ya.make" -exec grep -l -e "GTEST(unittester-" -e "UNITTEST()" {} +); do
             folder=$(dirname ${makefile})
             echo ${folder}
@@ -317,19 +317,6 @@ jobs:
             ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare --bazel-remote-put ${FOLDERS_WITH_UNITTESTS} --link-threads 16
           fi
           ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. -A --test-prepare ${FOLDERS_WITH_UNITTESTS} --link-threads 16
-
-          for build_folder in yt/yt/tests/integration/size_s \
-                              yt/yt/tests/integration/size_m \
-                              yt/yt/tests/integration/size_l \
-                              yt/yt/tests/integration/size_xl
-          do
-            echo ${build_folder}
-            build_folder=../ytsaurus/ytsaurus/${build_folder}
-            if [ "${{ inputs.update-remote-cache }}" == "true" ]; then
-              ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${build_folder} -A --test-prepare --bazel-remote-put
-            fi
-            ../ytsaurus/ytsaurus/ya make ${BUILD_FLAGS} --output=. ${build_folder} -A --test-prepare
-          done
 
       - name: Build YQL agent (ya-make, ${{ matrix.build-type }})
         if: ${{ inputs.build-query-tracker }}
