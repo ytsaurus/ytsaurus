@@ -126,6 +126,10 @@ void TTestingTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("sorted_store_manager_hash_check_probability", &TThis::SortedStoreManagerRowHashCheckProbability)
         .Default(0)
         .InRange(0, 1);
+
+    registrar.Parameter("table_puller_replica_ban_iterations_count", &TThis::TablePullerReplicaBanIterationsCount)
+        .GreaterThan(0)
+        .Optional();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
