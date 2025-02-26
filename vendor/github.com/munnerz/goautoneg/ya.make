@@ -1,8 +1,8 @@
 GO_LIBRARY()
 
-LICENSE(Apache-2.0)
+LICENSE(BSD-3-Clause)
 
-VERSION(v0.46.0)
+VERSION(v0.0.0-20191010083416-a7dc8b61c822)
 
 SRCS(
     autoneg.go

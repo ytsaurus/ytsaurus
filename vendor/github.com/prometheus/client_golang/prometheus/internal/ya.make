@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(Apache-2.0)
 
-VERSION(v1.18.0)
+VERSION(v1.20.5)
 
 SRCS(
     almost_equal.go
