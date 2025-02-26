@@ -8,7 +8,7 @@ on:
 jobs:
   check:
     name: Run checks
-    runs-on: ubuntu-20.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         module: ["yt/go", "library/go/core/log", "library/go/x/xreflect", "library/go/blockcodecs"]
