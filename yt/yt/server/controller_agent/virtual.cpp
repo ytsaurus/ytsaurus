@@ -35,10 +35,6 @@ using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = ControllerAgentLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 TVirtualStaticTable::TVirtualStaticTable(
     const THashSet<NChunkClient::TInputChunkPtr>& chunks,
     TTableSchemaPtr schema,
@@ -61,7 +57,6 @@ bool TVirtualStaticTable::DoInvoke(const IYPathServiceContextPtr& context)
     // TODO(max42): Or DISPATCH_YPATH_HEAVY_SERVICE_METHOD(Fetch)?
     DISPATCH_YPATH_SERVICE_METHOD(Fetch);
     DISPATCH_YPATH_SERVICE_METHOD(Exists);
-    DISPATCH_YPATH_SERVICE_METHOD(CheckPermission);
     return TSupportsAttributes::DoInvoke(context);
 }
 
@@ -141,31 +136,6 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, Fetch)
     }
 
     context->SetResponseInfo("ChunkCount: %v", response->chunks_size());
-    context->Reply();
-}
-
-DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, CheckPermission)
-{
-    auto permission = FromProto<EPermission>(request->permission());
-    const auto& user = request->user();
-
-    context->SetRequestInfo("User: %v, Permission: %v",
-        user,
-        permission);
-
-    auto action = ESecurityAction::Allow;
-    try {
-        ValidatePermission(EPermissionCheckScope::This, permission, user);
-    } catch (const std::exception& ex) {
-        // TODO(babenko): rewrite permission checks in CA
-        YT_LOG_DEBUG(ex, "Permission validation failed");
-        action = ESecurityAction::Deny;
-    }
-
-    response->set_action(ToProto(action));
-
-    context->SetResponseInfo("Action: %v",
-        action);
     context->Reply();
 }
 
