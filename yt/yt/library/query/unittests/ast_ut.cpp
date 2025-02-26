@@ -33,6 +33,12 @@ protected:
         EXPECT_TRUE(std::get<NAst::TQuery>(parsedSource1->AstHead.Ast) == std::get<NAst::TQuery>(parsedSource2->AstHead.Ast))
             << source << " -> " << formattedSource;
     }
+
+    TString ParseAndFormat(const TString& source)
+    {
+        auto parsedSource = ParseSource(source, EParseMode::Query);
+        return FormatQuery(std::get<NAst::TQuery>(parsedSource->AstHead.Ast));
+    }
 };
 
 TEST_F(TAstFormatTest, Id)
@@ -185,6 +191,10 @@ TEST_F(TAstFormatTest, Query)
     TestQuery("* from t1 left join t2 on (a1, a2) = (b1, b2) join t3 using x");
     TestQuery("* from t1 array join a1 as u1, a2 as u2 and u1 != 2");
     TestQuery("* from t1 left array join a1 + a2 as u1, b1 as u2");
+    TestQuery("* from t1 left join t2 with hint \"{require_sync_replica=%false;}\" using x");
+    EXPECT_NE(
+        ParseAndFormat("* from t1 left join t2 with hint \"{require_sync_replica=%false;}\" using x"),
+        ParseAndFormat("* from t1 left join t2 using x"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
