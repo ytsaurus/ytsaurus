@@ -22,7 +22,7 @@ using namespace NProfiling;
 IReservingMemoryUsageTrackerPtr CreateReservingMemoryTracker(INodeMemoryTrackerPtr& nodeMemoryTracker)
 {
     auto memoryUsageTracker = nodeMemoryTracker->WithCategory(EMemoryCategory::ChaosReplicationOutgoing);
-    return CreateResevingMemoryUsageTracker(std::move(memoryUsageTracker), TCounter());
+    return CreateReservingMemoryUsageTracker(std::move(memoryUsageTracker), TCounter());
 }
 
 struct TFakeRow
