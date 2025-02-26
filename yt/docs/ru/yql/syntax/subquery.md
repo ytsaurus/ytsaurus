@@ -35,7 +35,7 @@ $out1, $out2 = PROCESS $mySubquery($myParam1, $myParam2);
 ```
 
 
-**Примеры**
+#### Примеры
 
 ``` yql
 DEFINE SUBQUERY $hello_world($name, $suffix?) AS

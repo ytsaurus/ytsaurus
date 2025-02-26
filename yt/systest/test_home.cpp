@@ -5,18 +5,18 @@
 #include <yt/cpp/mapreduce/interface/client.h>
 #include <yt/systest/test_home.h>
 
+#include <util/datetime/systime.h>
+
 namespace NYT::NTest {
 
 static void FillTimeBuf(const char* fmt, int len, char* timebuf)
 {
     time_t currentTime = time(nullptr);
-    struct tm* curGmTime = gmtime(&currentTime);
+    struct tm curGmTime;
 
-    if (curGmTime == nullptr) {
-        THROW_ERROR_EXCEPTION("gmtime() failed, error: %s", strerror(errno));
-    }
+    Y_ABORT_UNLESS(GmTimeR(&currentTime, &curGmTime));
 
-    strftime(timebuf, len, fmt, curGmTime);
+    strftime(timebuf, len, fmt, &curGmTime);
 }
 
 TString TTestHome::GenerateFullRandomId()

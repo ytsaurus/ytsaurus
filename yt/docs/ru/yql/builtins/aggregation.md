@@ -2,7 +2,7 @@
 
 ## COUNT {#count}
 
-**Сигнатура**
+#### Сигнатура
 ```
 COUNT(*)->Uint64
 COUNT(T)->Uint64
@@ -13,7 +13,7 @@ COUNT(T?)->Uint64
 
 Как и другие агрегатные функции, может использоваться в сочетании с [GROUP BY](../syntax/group_by.md) для получения статистики по частям таблицы, соответствующим значениям в столбцах, по которым идет группировка. {% if select_statement != "SELECT STREAM" %}А модификатор [DISTINCT](../syntax/group_by.md#distinct) позволяет посчитать число уникальных значений.{% endif %}
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT COUNT(*) FROM my_table;
 ```
@@ -30,7 +30,7 @@ SELECT COUNT(DISTINCT value) FROM my_table;
 
 ## MIN и MAX {#min-max}
 
-**Сигнатура**
+#### Сигнатура
 ```
 MIN(T?)->T?
 MIN(T)->T?
@@ -42,14 +42,14 @@ MAX(T)->T?
 
 В качестве аргумента допустимо произвольное вычислимое выражение с результатом, допускающим сравнение значений.
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT MIN(value), MAX(value) FROM my_table;
 ```
 
 ## SUM {#sum}
 
-**Сигнатура**
+#### Сигнатура
 ```
 SUM(Unsigned?)->Uint64?
 SUM(Signed?)->Int64?
@@ -69,7 +69,7 @@ SELECT SUM(value) FROM my_table;
 
 ## AVG {#avg}
 
-**Сигнатура**
+#### Сигнатура
 ```
 AVG(Double?)->Double?
 AVG(Interval?)->Interval?
@@ -82,14 +82,14 @@ AVG(Decimal(N, M)?)->Decimal(N, M)?
 
 Целочисленные значения и интервалы времени автоматически приводятся к Double.
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT AVG(value) FROM my_table;
 ```
 
 ## COUNT_IF {#count-if}
 
-**Сигнатура**
+#### Сигнатура
 ```
 COUNT_IF(Bool?)->Uint64?
 ```
@@ -100,7 +100,7 @@ COUNT_IF(Bool?)->Uint64?
 
 Функция *не* выполняет неявного приведения типов к булевым для строк и чисел.
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT
   COUNT_IF(value % 2 == 1) AS odd_count
@@ -116,7 +116,7 @@ SELECT
 
 ## SUM_IF и AVG_IF {#sum-if}
 
-**Сигнатура**
+#### Сигнатура
 ```
 SUM_IF(Unsigned?, Bool?)->Uint64?
 SUM_IF(Signed?, Bool?)->Int64?
@@ -129,7 +129,7 @@ AVG_IF(Double?, Bool?)->Double?
 
 Таким образом, `SUM_IF(value, condition)` является чуть более короткой записью для `SUM(IF(condition, value))`, аналогично для `AVG`. Расширение типа данных аргумента работает так же аналогично одноименным функциям без суффикса.
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT
     SUM_IF(value, value % 2 == 1) AS odd_sum,
@@ -139,7 +139,7 @@ FROM my_table;
 
 При использовании [фабрики агрегационной функции](basic.md#aggregationfactory) в качестве первого аргумента [AGGREGATE_BY](#aggregateby) передается `Tuple` из значения и предиката.
 
-**Примеры**
+#### Примеры
 
 ``` yql
 $sum_if_factory = AggregationFactory("SUM_IF");
@@ -153,7 +153,7 @@ FROM my_table;
 
 ## SOME {#some}
 
-**Сигнатура**
+#### Сигнатура
 ```
 SOME(T?)->T?
 SOME(T)->T?
@@ -163,7 +163,7 @@ SOME(T)->T?
 
 Из-за отсутствия гарантий `SOME` вычислительно дешевле, чем часто использующиеся в подобных ситуациях [MIN](#min)/[MAX](#max).
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT
   SOME(value)
@@ -178,7 +178,7 @@ FROM my_table;
 
 ## CountDistinctEstimate, HyperLogLog и HLL {#countdistinctestimate}
 
-**Сигнатура**
+#### Сигнатура
 ```
 CountDistinctEstimate(T)->Uint64?
 HyperLogLog(T)->Uint64?
@@ -196,7 +196,7 @@ HLL(T)->Uint64?
 
 На данный момент все три функции являются алиасами, но в будущем `CountDistinctEstimate` может начать использовать другой алгоритм.
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT
   CountDistinctEstimate(my_column)
@@ -213,7 +213,7 @@ FROM my_table;
 
 ## AGGREGATE_LIST {#agg-list}
 
-**Сигнатура**
+#### Сигнатура
 ```
 AGGREGATE_LIST(T? [, limit:Uint64])->List<T>
 AGGREGATE_LIST(T [, limit:Uint64])->List<T>
@@ -231,7 +231,7 @@ AGGREGATE_LIST_DISTINCT(T [, limit:Uint64])->List<T>
 
 Например, можно использовать в сочетании с `DISTINCT` и функцией [String::JoinFromList](../udf/list/string.md) (аналог `','.join(list)` из Python) для распечатки в строку всех значений, которые встретились в столбце после применения [GROUP BY](../syntax/group_by.md).
 
-**Примеры**
+#### Примеры
 
 ``` yql
 SELECT
@@ -259,7 +259,7 @@ FROM users
 
 ## MAX_BY и MIN_BY {#max-min-by}
 
-**Сигнатура**
+#### Сигнатура
 ```
 MAX_BY(T1?, T2)->T1?
 MAX_BY(T1, T2)->T1?
@@ -289,7 +289,7 @@ MIN_BY(T1, T2, limit:Uint64)->List<T1>?
 
 При использовании [фабрики агрегационной функции]basic.md#aggregationfactory) в качестве первого аргумента [AGGREGATE_BY](#aggregateby) передается `Tuple` из значения и ключа.
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT
   MIN_BY(value, LENGTH(value)),
@@ -310,7 +310,7 @@ FROM my_table;
 
 ## TOP и BOTTOM {#top-bottom}
 
-**Сигнатура**
+#### Сигнатура
 ```
 TOP(T?, limit:Uint32)->List<T>
 TOP(T, limit:Uint32)->List<T>
@@ -320,7 +320,7 @@ BOTTOM(T, limit:Uint32)->List<T>
 
 Вернуть список максимальных/минимальных значений выражения. Первый аргумент - выражение, второй - ограничение на количество элементов.
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT
     TOP(key, 3),
@@ -340,7 +340,7 @@ FROM my_table;
 
 ## TOP_BY и BOTTOM_BY {#top-bottom-by}
 
-**Сигнатура**
+#### Сигнатура
 ```
 TOP_BY(T1?, T2, limit:Uint32)->List<T1>
 TOP_BY(T1, T2, limit:Uint32)->List<T1>
@@ -352,7 +352,7 @@ BOTTOM_BY(T1, T2, limit:Uint32)->List<T1>
 
 При использовании [фабрики агрегационной функции](basic.md#aggregationfactory) в качестве первого аргумента [AGGREGATE_BY](#aggregateby) передается `Tuple` из значения и ключа. Ограничение на количество элементов в этом случае передаётся вторым аргументом при создании фабрики.
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT
     TOP_BY(value, LENGTH(value), 3),
@@ -373,7 +373,7 @@ FROM my_table;
 
 ## TOPFREQ и MODE {#topfreq-mode}
 
-**Сигнатура**
+#### Сигнатура
 ```
 TOPFREQ(T [, num:Uint32 [, bufSize:Uint32]])->List<Struct<Frequency:Uint64, Value:T>>
 MODE(T [, num:Uint32 [, bufSize:Uint32]])->List<Struct<Frequency:Uint64, Value:T>>
@@ -391,7 +391,7 @@ MODE(T [, num:Uint32 [, bufSize:Uint32]])->List<Struct<Frequency:Uint64, Value:T
 1. Для `TOPFREQ` — желаемое число элементов в результате. `MODE` является алиасом к `TOPFREQ` с 1 в этом аргументе. У `TOPFREQ` по умолчанию тоже 1.
 2. Число элементов в используемом буфере, что позволяет разменивать потребление памяти на точность. По умолчанию 100.
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT
     MODE(my_column),
@@ -402,7 +402,7 @@ FROM my_table;
 
 ## STDDEV и VARIANCE {#stddev-variance}
 
-**Сигнатура**
+#### Сигнатура
 ```
 STDDEV(Double?)->Double?
 STDDEV_POPULATION(Double?)->Double?
@@ -428,7 +428,7 @@ VARIANCE_SAMPLE(Double?)->Double?
 
 Если все переданные значения — `NULL`, возвращает `NULL`.
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT
   STDDEV(numeric_column),
@@ -439,7 +439,7 @@ FROM my_table;
 
 ## CORRELATION и COVARIANCE {#correlation-covariance}
 
-**Сигнатура**
+#### Сигнатура
 ```
 CORRELATION(Double?, Double?)->Double?
 COVARIANCE(Double?, Double?)->Double?
@@ -455,7 +455,7 @@ COVARIANCE_POPULATION(Double?, Double?)->Double?
 
 При использовании [фабрики агрегационной функции](basic.md#aggregationfactory) в качестве первого аргумента [AGGREGATE_BY](#aggregateby) передается `Tuple` из двух значений.
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT
   CORRELATION(numeric_column, another_numeric_column),
@@ -473,7 +473,7 @@ FROM my_table;
 
 ## PERCENTILE и MEDIAN {#percentile-median}
 
-**Сигнатура**
+#### Сигнатура
 ```
 PERCENTILE(Double?, Double)->Double?
 PERCENTILE(Interval?, Double)->Interval?
@@ -501,7 +501,7 @@ FROM my_table;
 
 ## HISTOGRAM {#histogram}
 
-**Сигнатура**
+#### Сигнатура
 ```
 HISTOGRAM(Double?)->HistogramStruct?
 HISTOGRAM(Double?, weight:Double)->HistogramStruct?
@@ -576,7 +576,7 @@ While FastGreedyShrink is used most of the time, SlowShrink is mostly used for h
 
 При использовании [фабрики агрегационной функции](basic.md#aggregationfactory) в качестве первого аргумента [AGGREGATE_BY](#aggregateby) передается `Tuple` из значения и веса.
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT
     HISTOGRAM(numeric_column)
@@ -604,7 +604,7 @@ FROM my_table;
 
 Построение гистограммы по явно указанной фиксированной шкале корзин.
 
-**Сигнатура**
+#### Сигнатура
 ```
 LinearHistogram(Double?)->HistogramStruct?
 LinearHistogram(Double? [, binSize:Double [, min:Double [, max:Double]]])->HistogramStruct?
@@ -626,7 +626,7 @@ LogHistogram(Double? [, logBase:Double [, min:Double [, max:Double]]])->Histogra
 
 Если разброс входных значений неконтролируемо велик, рекомендуется указывать минимальное и максимальное значение для предотвращения потенциальных падений из-за высокого потребления памяти.
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT
     LogarithmicHistogram(numeric_column, 2)
@@ -650,7 +650,7 @@ FROM my_table;
 
 ## BOOL_AND, BOOL_OR и BOOL_XOR {#bool-and-or-xor}
 
-**Сигнатура**
+#### Сигнатура
 ```
 BOOL_AND(Bool?)->Bool?
 BOOL_OR(Bool?)->Bool?
@@ -661,7 +661,7 @@ BOOL_XOR(Bool?)->Bool?
 
 Эти функции **не пропускают** `NULL` значение при агрегации, единственное `NULL` значение превратит результат в `NULL`. Для агрегации с пропуском `NULL`-ов можно использовать функции `MIN`/`MAX` или `BIT_AND`/`BIT_OR`/`BIT_XOR`.
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT
   BOOL_AND(bool_column),
@@ -674,7 +674,7 @@ FROM my_table;
 
 Применение соответствующей битовой операции ко всем значениям числовой колонки или выражения.
 
-**Примеры**
+#### Примеры
 ``` yql
 SELECT
     BIT_XOR(unsigned_numeric_value)
