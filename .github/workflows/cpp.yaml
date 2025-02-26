@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - stable/[0-9]+\.[0-9]+
+      - members/ilyaibraev/test-link-threads
 
 env:
   ACTIONS_ALLOW_USE_UNSECURE_NODE_VERSION: true
