@@ -18,14 +18,24 @@ namespace NYT::NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSessionRowset
+{
+    TSharedRange<NTableClient::TUnversionedRow> Rowset;
+    i64 DataWeight;
+    NTableClient::TTableSchemaPtr Schema;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IDistributedSession
     : public TRefCounted
 {
     virtual void InsertOrThrow(
-        NTableClient::ISchemafulUnversionedReaderPtr reader,
-        NQueryClient::TRowsetId id) = 0;
+        NQueryClient::TRowsetId id,
+        NTableClient::ISchemafulUnversionedReaderPtr rowset,
+        NTableClient::TTableSchemaPtr schema) = 0;
 
-    virtual NTableClient::ISchemafulUnversionedReaderPtr GetOrThrow(NQueryClient::TRowsetId id) const = 0;
+    virtual TFuture<TSessionRowset> GetOrThrow(NQueryClient::TRowsetId id) const = 0;
 
     virtual void RenewLease() const = 0;
 
@@ -34,6 +44,8 @@ struct IDistributedSession
     virtual void ErasePropagationAddresses(const std::vector<std::string>& addresses) = 0;
 
     virtual NCompression::ECodec GetCodecId() const = 0;
+
+    virtual const IMemoryChunkProviderPtr& GetMemoryChunkProvider() const = 0;
 
     virtual TFuture<void> PushRowset(
         const std::string& nodeAddress,
@@ -52,7 +64,9 @@ IDistributedSessionPtr CreateDistributedSession(
     NQueryClient::TDistributedSessionId sessionId,
     NConcurrency::TLease lease,
     NCompression::ECodec codecId,
-    TDuration retentionTime);
+    TDuration retentionTime,
+    std::optional<i64> memoryLimitPerNode,
+    IMemoryChunkProviderPtr memoryChunkProvider);
 
 ////////////////////////////////////////////////////////////////////////////////
 

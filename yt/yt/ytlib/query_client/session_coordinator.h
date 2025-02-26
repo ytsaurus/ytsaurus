@@ -17,6 +17,7 @@ struct TDistributedSessionOptions
     TDuration ControlRpcTimeout;
     TDuration PingPeriod;
     TDuration RetentionTime;
+    std::optional<i64> MemoryLimitPerNode;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
