@@ -1322,10 +1322,6 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
     result.InitialNeededResources = GetNeededResources();
     result.InitialGroupedNeededResources = InitialGroupedNeededResources_;
 
-    if (Spec_->TestingOperationOptions->ReportInvalidNeededResourcesInMaterialize) {
-        result.InitialNeededResources.DefaultResources.SetUserSlots(-1);
-    }
-
     YT_LOG_INFO("Materialization finished");
 
     OnOperationReady();
@@ -1430,10 +1426,6 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     UpdateAllTasks();
 
     result.NeededResources = GetNeededResources();
-
-    if (Spec_->TestingOperationOptions->ReportInvalidNeededResourcesInRevive) {
-        result.NeededResources.DefaultResources.SetUserSlots(-1);
-    }
 
     ReinstallLivePreview();
 
