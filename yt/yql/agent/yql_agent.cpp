@@ -385,7 +385,17 @@ private:
             auto refreshTokenExecutor = New<TPeriodicExecutor>(ControlInvoker_, BIND(&RefreshToken, user, token, queryClients), Config_->RefreshTokenPeriod);
             refreshTokenExecutor->Start();
 
-            const THashMap<TString, THashMap<TString, TString>> credentials = {{"default_yt", {{"category", "yt"}, {"content", token}}}};
+            THashMap<TString, THashMap<TString, TString>> credentials = {{"default_yt", {{"category", "yt"}, {"content", token}}}};
+            for (const auto& src : yqlRequest.credentials()) {
+                auto& dst = credentials[src.id()];
+                if (src.has_category())
+                    dst["category"] = src.category();
+                if (src.has_subcategory())
+                    dst["subcategory"] = src.subcategory();
+                if (src.has_content())
+                    dst["content"] = src.content();
+            }
+
             // This is a long blocking call.
             const auto result = YqlPlugin_->Run(queryId, user, ConvertToYsonString(credentials), query, settings, files, yqlRequest.mode());
             WaitFor(refreshTokenExecutor->Stop()).ThrowOnError();
