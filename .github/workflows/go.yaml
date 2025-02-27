@@ -6,9 +6,6 @@ on:
       - main
       - members/ilyaibraev/go-to-ubuntu-22.04
 
-env:
-  CGO_ENABLED: 0
-
 jobs:
   check:
     name: Run checks
@@ -35,7 +32,7 @@ jobs:
         working-directory: ${{ matrix.module }}
         shell: bash
         run: |
-          go test -v -mod=readonly ./...
+          CGO_ENABLED=0; go test -v -mod=readonly ./...
 
       - name: Run tests with race detector
         working-directory: ${{ matrix.module }}
