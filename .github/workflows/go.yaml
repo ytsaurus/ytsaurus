@@ -6,10 +6,13 @@ on:
       - main
       - members/ilyaibraev/go-to-ubuntu-22.04
 
+env:
+  CGO_ENABLED: 0
+
 jobs:
   check:
     name: Run checks
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-22.04
     strategy:
       matrix:
         module: ["yt/go", "library/go/core/log", "library/go/x/xreflect", "library/go/blockcodecs"]
