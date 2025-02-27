@@ -32,7 +32,8 @@ jobs:
         working-directory: ${{ matrix.module }}
         shell: bash
         run: |
-          CGO_ENABLED=0; go test -v -mod=readonly ./...
+          go env -w CGO_ENABLED=0
+          go test -v -mod=readonly ./...
 
       - name: Run tests with race detector
         working-directory: ${{ matrix.module }}
