@@ -107,7 +107,6 @@ public:
         const TChunkLocationPtrWithReplicaInfoList& replicas);
 
     bool IsReplicatorEnabled();
-    bool IsSealerEnabled();
     bool IsRefreshEnabled();
     bool IsRequisitionUpdateEnabled();
 
@@ -233,7 +232,10 @@ private:
 
     TEnumIndexedArray<EJobType, i64> MisscheduledJobs_;
 
-    std::optional<bool> Enabled_;
+    std::optional<bool> ReplicatorEnabled_;
+    bool RefreshEnabled_ = true;
+    bool SequoiaRefreshEnabled_ = true;
+    bool RequisitionUpdateEnabled_ = true;
 
     TInstant LastActiveShardSetUpdateTime_ = TInstant::Zero();
 
@@ -415,7 +417,8 @@ private:
         int mediumIndex);
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const;
-    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig);
+    void OnDynamicConfigChanged(const NCellMaster::TDynamicClusterConfigPtr& oldConfig);
+
     bool IsConsistentChunkPlacementEnabled() const;
     bool UsePullReplication(TChunk* chunk) const;
 
