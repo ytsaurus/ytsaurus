@@ -714,7 +714,7 @@ class Operation(object):
     def exists(self):
         """Checks if operation attributes can be fetched from Cypress."""
         try:
-            self.get_attributes()
+            self.get_attributes(fields=["state"])
         except YtResponseError as err:
             if err.is_resolve_error():
                 return False
