@@ -80,7 +80,6 @@ def main():
         __modules_info_filename = sys.argv[3]
         __main_filename = sys.argv[4]
         __main_module_name = sys.argv[5]
-        __main_module_type = sys.argv[6]
 
         with open(__modules_info_filename, "rb") as fin:
             modules_info = standard_pickle.load(fin)
@@ -147,17 +146,10 @@ def main():
         if "." in __main_module_name:
             __main_module_package = __main_module_name.rsplit(".", 1)[0]
             __import__(__main_module_package)
-        if sys.version_info[0] == 2:
-            import imp
-            main_module = imp.load_module(__main_module_name,
-                                          open(__main_filename, 'rb'),
-                                          __main_filename,
-                                          ('', 'rb', imp.__dict__[__main_module_type]))
-        else:  # python3
-            import importlib.util
-            spec = importlib.util.spec_from_file_location(__main_module_name, __main_filename)
-            main_module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(main_module)
+        import importlib.util
+        spec = importlib.util.spec_from_file_location(__main_module_name, __main_filename)
+        main_module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(main_module)
 
         main_module_dict = globals()
         if "__main__" in sys.modules:
