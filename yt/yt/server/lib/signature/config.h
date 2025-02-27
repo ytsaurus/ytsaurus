@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/api/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 namespace NYT::NSignature {
@@ -60,6 +62,8 @@ struct TCypressKeyReaderConfig
 {
     //! Prefix path for public keys (will be read from <Path>/<OwnerId>/<KeyId>).
     NYPath::TYPath Path;
+
+    NApi::TSerializableMasterReadOptionsPtr CypressReadOptions;
 
     REGISTER_YSON_STRUCT(TCypressKeyReaderConfig);
 
