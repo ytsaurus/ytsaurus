@@ -33,6 +33,7 @@ using namespace NScheduler;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NLogging;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -92,7 +93,8 @@ public:
             JobSizeAdjuster_ = CreateJobSizeAdjuster(
                 JobSizeConstraints_->GetDataWeightPerJob(),
                 options.JobSizeAdjusterConfig);
-            YT_LOG_DEBUG("Job size adjuster created");
+            YT_LOG_DEBUG("Job size adjuster created (Options: %v)",
+                ConvertToYsonString(options.JobSizeAdjusterConfig, EYsonFormat::Text));
         }
 
         if (auto samplingRate = JobSizeConstraints_->GetSamplingRate()) {

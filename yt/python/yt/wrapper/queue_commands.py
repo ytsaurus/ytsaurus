@@ -312,7 +312,7 @@ def remove_queue_producer_session(producer_path, queue_path, session_id, format=
     return make_formatted_request("remove_queue_producer_session", params, format, client=client)
 
 
-def push_queue_producer(producer_path, queue_path, session_id, epoch, input_stream, user_meta=None, input_format=None, raw=None, output_format=None, client=None):
+def push_queue_producer(producer_path, queue_path, session_id, epoch, input_stream, user_meta=None, input_format=None, raw=None, output_format=None, require_sync_replica=None, client=None):
     """Push rows to queue via queue producer.
     :param producer_path: path to queue producer table.
     :type producer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
@@ -322,6 +322,8 @@ def push_queue_producer(producer_path, queue_path, session_id, epoch, input_stre
     :type session_id: str
     :param epoch: epoch number.
     :type epoch: int
+    :param require_sync_replica: require sync replica write.
+    :type require_sync_replica: bool
     :param input_stream: python file-like object, string, list of strings.
     :param user_meta: arbitrary user meta information.
     :param input_format: format of input data, ``yt.wrapper.config["tabular_data_format"]`` by default.
@@ -342,6 +344,7 @@ def push_queue_producer(producer_path, queue_path, session_id, epoch, input_stre
     set_param(params, "session_id", session_id)
     set_param(params, "epoch", epoch)
     set_param(params, "user_meta", user_meta)
+    set_param(params, "require_sync_replica", require_sync_replica)
 
     chunk_size = get_config(client)["write_retries"]["chunk_size"]
     if chunk_size is None:

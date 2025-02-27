@@ -565,6 +565,46 @@ func TestHTTPAPIStop(t *testing.T) {
 	require.Equal(t, false, result)
 }
 
+func TestHTTPAPIRestart(t *testing.T) {
+	t.Parallel()
+
+	env, c := helpers.PrepareAPI(t)
+	alias := helpers.GenerateAlias()
+
+	r := c.MakePostRequest("create", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+	r = c.MakePostRequest("start", api.RequestParams{
+		Params: map[string]any{
+			"alias":     alias,
+			"untracked": true,
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	var speclet_revision uint64
+	var incarnation_index uint64
+	err := env.YT.GetNode(env.Ctx, env.StrawberryRoot.JoinChild(alias).Attr("strawberry_persistent_state").Child("speclet_revision"), &speclet_revision, nil)
+	require.NoError(t, err)
+	err = env.YT.GetNode(env.Ctx, env.StrawberryRoot.JoinChild(alias).Attr("strawberry_persistent_state").Child("incarnation_index"), &incarnation_index, nil)
+	require.NoError(t, err)
+
+	r = c.MakePostRequest("restart", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	var speclet map[string]any
+	err = env.YT.GetNode(env.Ctx, env.StrawberryRoot.JoinChild(alias, "speclet"), &speclet, nil)
+	require.NoError(t, err)
+	require.Equal(t, speclet_revision+1, speclet["min_speclet_revision"])
+	var new_incarnation_index uint64
+	err = env.YT.GetNode(env.Ctx, env.StrawberryRoot.JoinChild(alias).Attr("strawberry_persistent_state").Child("incarnation_index"), &new_incarnation_index, nil)
+	require.NoError(t, err)
+	require.Equal(t, incarnation_index+1, new_incarnation_index)
+}
+
 func TestHTTPAPIStartStopUntracked(t *testing.T) {
 	t.Parallel()
 

@@ -61,7 +61,7 @@ TEST_F(TSignatureGeneratorTest, SimpleSign)
 {
     WaitFor(Gen->Rotate()).ThrowOnError();
 
-    auto data = ConvertToYsonString("MyImportantData");
+    std::string data("MyImportantData");
     auto signature = Gen->Sign(data);
     EXPECT_EQ(signature->Payload(), data);
 
@@ -86,8 +86,8 @@ TEST_F(TSignatureGeneratorTest, SimpleSign)
     auto toSign = PreprocessSignature(TYsonString(headerString), signature->Payload());
 
     auto signatureNode = ConvertToNode(ConvertToYsonString(signature));
-    auto signatureByteString = signatureNode->AsMap()->GetChildValueOrThrow<TString>("signature");
-    auto signatureBytes = std::as_bytes(std::span(TStringBuf(signatureByteString)));
+    auto signatureByteString = signatureNode->AsMap()->GetChildValueOrThrow<std::string>("signature");
+    auto signatureBytes = std::as_bytes(std::span(signatureByteString));
     EXPECT_EQ(signatureBytes.size(), SignatureSize);
 
     EXPECT_TRUE(Store->Data[Store->GetOwner()][0]->Verify(
@@ -101,7 +101,7 @@ TEST_F(TSignatureGeneratorTest, UninitializedSign)
 {
     EXPECT_TRUE(Store->Data.empty());
 
-    auto data = ConvertToYsonString("MyImportantData");
+    std::string data("MyImportantData");
     EXPECT_THROW_WITH_SUBSTRING(Y_UNUSED(Gen->Sign(data)), "uninitialized generator");
 }
 

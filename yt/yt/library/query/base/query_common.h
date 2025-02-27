@@ -140,10 +140,14 @@ struct TDataSource
     TSharedRange<TRow> Keys;
 };
 
+void VerifyIdsInRange(const TRowRange& range);
+void VerifyIdsInRanges(TRange<TRowRange> ranges);
+void VerifyIdsInKeys(TRange<TRow> keys);
+
 void ToProto(
     NProto::TDataSource* serialized,
     const TDataSource& original,
-    TRange<NTableClient::TLogicalTypePtr> schema,
+    TRange<TLogicalTypePtr> schema,
     bool lookupSupported,
     size_t keyWidth);
 void FromProto(
@@ -166,6 +170,8 @@ struct TQueryBaseOptions
     bool EnableCodeCache = true;
     bool UseCanonicalNullRelations = false;
     bool MergeVersionedRows = true;
+    // COMPAT(sabdenovch)
+    bool AllowUnorderedGroupByWithLimit = false;
 };
 
 struct TQueryOptions
@@ -225,8 +231,6 @@ struct TShuffleNavigator
 using TJoinLayerDataSourceSet = std::vector<NQueryClient::TDataSource>;
 
 ////////////////////////////////////////////////////////////////////////////////
-
-struct TPlanFragment;
 
 using TPlanFragmentPtr = TIntrusivePtr<TPlanFragment>;
 

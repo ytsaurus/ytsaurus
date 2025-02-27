@@ -16,10 +16,9 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkManagerConfig
+struct TChunkManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! A default value for an additional bound for the global replication
     //! factor cap. The value is used when a new medium is created to initialize
     //! corresponding medium-specific setting.
@@ -56,10 +55,9 @@ DEFINE_REFCOUNTED_TYPE(TChunkManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDomesticMediumConfig
+struct TDomesticMediumConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! An additional bound for the global replication factor cap.
     //! Useful when the number of racks is too low to interoperate meaningfully
     //! with the default cap.
@@ -94,10 +92,9 @@ DEFINE_REFCOUNTED_TYPE(TDomesticMediumConfig)
 
 // TODO(gritukan): This config is copied from yt/yt/library/s3 to prevent peerdir
 // from master to library reaches libiconv by dependencies.
-class TS3ConnectionConfig
+struct TS3ConnectionConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! Url of the S3 server, for example, http://my_bucket.s3.amazonaws.com
     TString Url;
 
@@ -122,7 +119,7 @@ DEFINE_REFCOUNTED_TYPE(TS3ConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TS3ClientConfig
+struct TS3ClientConfig
     : public TS3ConnectionConfig
     , public NHttp::TClientConfig
 {
@@ -135,7 +132,7 @@ DEFINE_REFCOUNTED_TYPE(TS3ClientConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TS3MediumConfig
+struct TS3MediumConfig
     : public TS3ConnectionConfig
 {
     REGISTER_YSON_STRUCT(TS3MediumConfig);
@@ -147,10 +144,9 @@ DEFINE_REFCOUNTED_TYPE(TS3MediumConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicChunkMergerConfig
+struct TDynamicChunkMergerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
 
     int MaxChunkCount;
@@ -223,10 +219,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkMergerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicMasterCellChunkStatisticsCollectorConfig
+struct TDynamicMasterCellChunkStatisticsCollectorConfig
     : public NYTree::TYsonStruct
 {
-public:
     int MaxChunksPerScan;
     TDuration ChunkScanPeriod;
 
@@ -241,10 +236,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicMasterCellChunkStatisticsCollectorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicChunkReincarnatorConfig
+struct TDynamicChunkReincarnatorConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
 
     TDuration ChunkScanPeriod;
@@ -289,10 +283,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkReincarnatorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDanglingLocationCleanerConfig
+struct TDanglingLocationCleanerConfig
     : public NYTree::TYsonStruct
 {
-public:
     static constexpr int DefaultMaxLocationsToCleanPerIteration = 10;
 
     // COMPAT(koloshmet)
@@ -312,10 +305,9 @@ DEFINE_REFCOUNTED_TYPE(TDanglingLocationCleanerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicDataNodeTrackerConfig
+struct TDynamicDataNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
-public:
     // COMPAT(danilalexeev): YT-23781.
     int MaxConcurrentFullHeartbeats;
 
@@ -337,10 +329,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicDataNodeTrackerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicDataCenterFaultThresholdsConfig
+struct TDynamicDataCenterFaultThresholdsConfig
     : public NYTree::TYsonStruct
 {
-public:
     int OnlineNodeCountToDisable;
     int OnlineNodeCountToEnable;
     double OnlineNodeFractionToDisable;
@@ -355,10 +346,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicDataCenterFaultThresholdsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicDataCenterFailureDetectorConfig
+struct TDynamicDataCenterFailureDetectorConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDynamicDataCenterFaultThresholdsConfigPtr DefaultThresholds;
     THashMap<std::string, TDynamicDataCenterFaultThresholdsConfigPtr> DataCenterThresholds;
     bool Enable;
@@ -410,10 +400,9 @@ struct TPermissiveChunkTreeBalancerSettings
     static void Register(TRegistrar registrar);
 };
 
-class TDynamicChunkTreeBalancerConfig
+struct TDynamicChunkTreeBalancerConfig
     : public NYTree::TYsonStruct
 {
-public:
     using TChunkTreeBalancerSettingsPtr = TIntrusivePtr<TChunkTreeBalancerSettings>;
 
     TChunkTreeBalancerSettingsPtr StrictSettings;
@@ -430,10 +419,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkTreeBalancerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicAllyReplicaManagerConfig
+struct TDynamicAllyReplicaManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! When a chunk is not fully replicated by approved replicas, its new replicas
     //! still announce replicas to allies but with a certain delay.
     TDuration UnderreplicatedChunkAnnouncementRequestDelay;
@@ -453,10 +441,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicAllyReplicaManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicChunkAutotomizerConfig
+struct TDynamicChunkAutotomizerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration TransactionUpdatePeriod;
 
     TDuration RefreshPeriod;
@@ -488,10 +475,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkAutotomizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicChunkManagerTestingConfig
+struct TDynamicChunkManagerTestingConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! If true, seal will always be unreliable.
     bool ForceUnreliableSeal;
 
@@ -510,10 +496,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkManagerTestingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicSequoiaChunkReplicasConfig
+struct TDynamicSequoiaChunkReplicasConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
 
     TDuration RemovalPeriod;
@@ -543,10 +528,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicSequoiaChunkReplicasConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicConsistentReplicaPlacementConfig
+struct TDynamicConsistentReplicaPlacementConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
 
     bool EnablePullReplication;
@@ -570,10 +554,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicConsistentReplicaPlacementConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicChunkManagerConfig
+struct TDynamicChunkManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     static constexpr auto DefaultProfilingPeriod = TDuration::MilliSeconds(1000);
     static constexpr auto DefaultMaxLostVitalChunksSampleSizePerCell = 10;
 
@@ -767,6 +750,8 @@ public:
     // COMPAT(shakurov)
     bool UseHunkSpecificMediaForRequisitionUpdates;
 
+    bool EnableRepairViaReplication;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);
@@ -776,10 +761,9 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicChunkServiceConfig
+struct TDynamicChunkServiceConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool EnablePerUserRequestWeightThrottling;
     bool EnablePerUserRequestBytesThrottling;
 

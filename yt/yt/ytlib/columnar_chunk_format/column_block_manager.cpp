@@ -238,10 +238,9 @@ public:
         , BlockFetcher_(std::move(blockFetcher))
         , TraceContext_(std::move(traceContext))
         , FinishGuard_(TraceContext_)
-    {
-        BlockCountStatistics_.resize(BlockHolders_.size(), 0);
-        BlockSizeStatistics_.resize(BlockHolders_.size(), 0);
-    }
+        , BlockCountStatistics_(BlockHolders_.size(), 0)
+        , BlockSizeStatistics_(BlockHolders_.size(), 0)
+    { }
 
     ~TAsyncBlockWindowManager()
     {
@@ -359,12 +358,12 @@ private:
     TFuture<std::vector<NChunkClient::TBlock>> FetchedBlocks_;
     TFuture<void> ReadyEvent_ = VoidFuture;
 
-    std::vector<ui32> BlockCountStatistics_;
-    std::vector<ui64> BlockSizeStatistics_;
-
     // TODO(lukyan): Move tracing to block fetcher or underlying chunk reader.
     NTracing::TTraceContextPtr TraceContext_;
     NTracing::TTraceContextFinishGuard FinishGuard_;
+
+    std::vector<ui32> BlockCountStatistics_;
+    std::vector<ui64> BlockSizeStatistics_;
 };
 
 TBlockManagerFactory CreateAsyncBlockWindowManagerFactory(

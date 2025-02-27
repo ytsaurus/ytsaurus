@@ -7,6 +7,7 @@
 
 #include <yt/yt/library/query/engine_api/coordinator.h>
 #include <yt/yt/library/query/engine_api/range_inferrer.h>
+#include <yt/yt/library/query/engine_api/new_range_inferrer.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
@@ -133,16 +134,16 @@ void GetReadRangesInfo(
 void GetFrontQueryInfo(
     TFluentMap fluent,
     const TConstBaseQueryPtr query,
-    TFeatureFlags featureFlags)
+    bool allowUnorderedGroupByWithLimit)
 {
     fluent
-        .Item("is_ordered_scan").Value(query->IsOrdered(featureFlags))
+        .Item("is_ordered_scan").Value(query->IsOrdered(allowUnorderedGroupByWithLimit))
         .DoIf(query->UseDisjointGroupBy, [&] (auto fluent) {
             fluent.Item("common_prefix_with_primary_key").Value(query->GroupClause->CommonPrefixWithPrimaryKey);
         });
 }
 
-void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query, TFeatureFlags featureFlags)
+void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query, bool allowUnorderedGroupByWithLimit)
 {
     const auto& predicate = query->WhereClause;
 
@@ -183,7 +184,7 @@ void GetQueryInfo(TFluentMap fluent, const TConstQueryPtr query, TFeatureFlags f
             })
         .EndList();
 
-    GetFrontQueryInfo(fluent, query, featureFlags);
+    GetFrontQueryInfo(fluent, query, allowUnorderedGroupByWithLimit);
 }
 
 NYson::TYsonString BuildExplainQueryYson(
@@ -192,7 +193,7 @@ NYson::TYsonString BuildExplainQueryYson(
     TStringBuf udfRegistryPath,
     const NApi::TExplainQueryOptions& options,
     const IMemoryChunkProviderPtr& memoryChunkProvider,
-    TFeatureFlags featureFlags)
+    bool allowUnorderedGroupByWithLimit)
 {
     const auto& query = fragment->Query;
     const TDataSource& dataSource = fragment->DataSource;
@@ -202,7 +203,7 @@ NYson::TYsonString BuildExplainQueryYson(
         .Item("udf_registry_path").Value(udfRegistryPath)
         .Item("query")
         .DoMap([&] (auto fluent) {
-            GetQueryInfo(fluent, query, featureFlags);
+            GetQueryInfo(fluent, query, allowUnorderedGroupByWithLimit);
             GetReadRangesInfo(fluent, connection, query, dataSource, options, memoryChunkProvider);
         })
         .Do([&] (TFluentMap fluent) {
@@ -210,11 +211,11 @@ NYson::TYsonString BuildExplainQueryYson(
             fluent
                 .Item("bottom_query")
                 .DoMap([&, bottomQuery = bottomQuery] (auto fluent) {
-                    GetQueryInfo(fluent, bottomQuery, featureFlags);
+                    GetQueryInfo(fluent, bottomQuery, allowUnorderedGroupByWithLimit);
                 });
             fluent.Item("front_query")
                 .DoMap([&, frontQuery = frontQuery] (auto fluent) {
-                    GetFrontQueryInfo(fluent, frontQuery, featureFlags);
+                    GetFrontQueryInfo(fluent, frontQuery, allowUnorderedGroupByWithLimit);
                 });
         })
         .EndMap();

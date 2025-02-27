@@ -41,6 +41,8 @@
 
 #include <yt/yt/client/node_tracker_client/helpers.h>
 
+#include <yt/yt/client/scheduler/spec_patch.h>
+
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_service_proxy.h>
@@ -651,8 +653,7 @@ public:
         if (spec->AddAuthenticatedUserToAcl.value_or(true)) {
             baseAcl.Entries.emplace_back(
                 ESecurityAction::Allow,
-                // TODO(babenko): switch to std::string
-                std::vector{TString(user)},
+                std::vector{user},
                 EPermissionSet(EPermission::Read | EPermission::Manage));
         }
 
@@ -1113,6 +1114,92 @@ public:
         INodePtr parameters)
     {
         return BIND(&TImpl::DoUpdateOperationParameters, MakeStrong(this), operation, user, std::move(parameters))
+            .AsyncVia(operation->GetCancelableControlInvoker())
+            .Run();
+    }
+
+    void DoPatchOperationSpec(
+        TOperationPtr operation,
+        const std::string& user,
+        TSpecPatchList patches)
+    {
+        if (operation->PatchSpecInProgress()) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::TransientFailure,
+                "Cannot patch spec while another patch is in progress")
+                << TErrorAttribute("concurrent_patch_spec_user", operation->PatchSpecInProgress()->User)
+                << TErrorAttribute("concurrent_patch_spec_start_time", operation->PatchSpecInProgress()->StartTime);
+        }
+
+        operation->PatchSpecInProgress().emplace(TPatchSpecInProgressInfo{
+            .User = user,
+            .StartTime = TInstant::Now(),
+        });
+
+        auto resetInProgress = Finally([&] {
+            operation->PatchSpecInProgress().reset();
+        });
+
+        auto controller = operation->GetController();
+        THROW_ERROR_EXCEPTION_UNLESS(
+            controller,
+            NScheduler::EErrorCode::OperationHasNoController,
+            "Controller agent is not assigned to operation %v",
+            operation->GetId());
+
+        THROW_ERROR_EXCEPTION_UNLESS(
+            operation->ControllerAttributes().InitializeAttributes,
+            "Operation %v is not initialized yet",
+            operation->GetId());
+
+        THROW_ERROR_EXCEPTION_UNLESS(
+            operation->GetState() == EOperationState::Running,
+            "Operation %v is not running",
+            operation->GetId());
+
+        auto newCumulativePatch = operation->CumulativeSpecPatch()
+            ? CloneNode(operation->CumulativeSpecPatch())
+            : GetEphemeralNodeFactory()->CreateMap();
+
+        for (const auto& patch : patches) {
+            SetNodeByYPath(newCumulativePatch, patch->Path, patch->Value, /*force*/ true);
+        }
+
+        // Validate that the new structure is not too deep.
+        Y_UNUSED(ConvertToYsonStringNestingLimited(newCumulativePatch, MasterConnector_->GetYsonNestingLevelLimit()));
+
+        auto maybeDelay = [&] (auto sleepType) {
+            const auto& protocolOptions = operation->Spec()->TestingOperationOptions->PatchSpecProtocol;
+            if (protocolOptions) {
+                MaybeDelay((*protocolOptions).*sleepType);
+            }
+        };
+
+        // (2PC-like) Prepare.
+        WaitFor(controller->PatchSpec(newCumulativePatch, /*dryRun*/ true))
+            .ThrowOnError();
+
+        maybeDelay(&TPatchSpecProtocolTestingOptions::DelayBeforeCypressFlush);
+
+        // (2PC-like) Coordinator eager commit.
+        operation->MutableCumulativeSpecPatch() = newCumulativePatch;
+        operation->SetShouldFlushSpecPatch(true);
+        WaitFor(MasterConnector_->FlushOperationNode(operation))
+            .ThrowOnError();
+
+        maybeDelay(&TPatchSpecProtocolTestingOptions::DelayBeforeApply);
+
+        // (2PC-like) Participant commit.
+        WaitFor(controller->PatchSpec(newCumulativePatch, /*dryRun*/ false))
+            .ThrowOnError();
+    }
+
+    TFuture<void> PatchOperationSpec(
+        TOperationPtr operation,
+        const std::string& user,
+        TSpecPatchList patches)
+    {
+        return BIND(&TImpl::DoPatchOperationSpec, MakeStrong(this), operation, user, Passed(std::move(patches)))
             .AsyncVia(operation->GetCancelableControlInvoker())
             .Run();
     }
@@ -1862,6 +1949,10 @@ private:
 
         if (update->ControllerAgentTag) {
             result->ControllerAgentTag = *update->ControllerAgentTag;
+        }
+
+        if (update->SchedulingTagFilter) {
+            result->SchedulingTagFilter = *update->SchedulingTagFilter;
         }
 
         Strategy_->UpdateRuntimeParameters(result, update, user);
@@ -2727,7 +2818,7 @@ private:
 
             const auto& controller = operation->GetController();
 
-            auto initializeResult = WaitFor(controller->Initialize(/*transactions*/ std::nullopt))
+            auto initializeResult = WaitFor(controller->Initialize(/*transactions*/ std::nullopt, /*cumulativeSpecPatch*/ nullptr))
                 .ValueOrThrow();
 
             ValidateOperationState(operation, EOperationState::Initializing);
@@ -2815,7 +2906,9 @@ private:
 
             {
                 YT_VERIFY(operation->RevivalDescriptor());
-                auto result = WaitFor(controller->Initialize(operation->Transactions()))
+                auto result = WaitFor(controller->Initialize(
+                    operation->Transactions(),
+                    /*cumulativeSpecPatch*/ operation->CumulativeSpecPatch()))
                     .ValueOrThrow();
 
                 operation->Transactions() = std::move(result.Transactions);
@@ -4504,6 +4597,14 @@ TFuture<void> TScheduler::UpdateOperationParameters(
     INodePtr parameters)
 {
     return Impl_->UpdateOperationParameters(operation, user, parameters);
+}
+
+TFuture<void> TScheduler::PatchOperationSpec(
+    TOperationPtr operation,
+    const std::string& user,
+    TSpecPatchList patches)
+{
+    return Impl_->PatchOperationSpec(std::move(operation), user, std::move(patches));
 }
 
 void TScheduler::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)

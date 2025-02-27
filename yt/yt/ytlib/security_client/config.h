@@ -10,10 +10,9 @@ namespace NYT::NSecurityClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPermissionCacheConfig
+struct TPermissionCacheConfig
     : public TAsyncExpiringCacheConfig
 {
-public:
     NApi::TSerializableMasterReadOptionsPtr MasterReadOptions;
     std::string RefreshUser;
     bool AlwaysUseRefreshUser;

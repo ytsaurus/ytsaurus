@@ -706,7 +706,8 @@ public:
                 columnMeta->columns(keyColumnIndex),
                 keyColumnIndex,
                 keyColumnIndex,
-                sortOrders[keyColumnIndex]);
+                sortOrders[keyColumnIndex],
+                /*serializeFloatsAsDoubles*/ true);
             KeyColumnReaders_[keyColumnIndex] = columnReader.get();
             TBase::Columns_.emplace_back(std::move(columnReader), keyColumnIndex);
         }

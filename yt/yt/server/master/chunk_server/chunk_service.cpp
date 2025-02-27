@@ -168,9 +168,11 @@ private:
                         return;
                     }
 
-                    user->LogIfPendingRemoval(
-                        Format("User pending for removal has accessed chunk service (User: %v)",
-                        user->GetName()));
+                    const auto& Logger = ChunkServerLogger();
+                    YT_LOG_ALERT_IF(
+                        user->GetPendingRemoval(),
+                        "User pending for removal has accessed chunk service (User: %v)",
+                        user->GetName());
 
                     const auto& chunkServiceConfig = bootstrap->GetConfigManager()->GetConfig()->ChunkService;
                     auto weightThrottlingEnabled = chunkServiceConfig->EnablePerUserRequestWeightThrottling;

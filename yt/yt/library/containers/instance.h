@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/library/containers/cgroup.h>
+
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/net/address.h>
@@ -67,8 +69,14 @@ const std::vector<EStatField> InstanceStatFields{
 
 struct TResourceUsage
 {
+    struct TTaggedStat
+    {
+        TString Tag;
+        i64 Value;
+    };
+
     THashMap<EStatField, TErrorOr<i64>> ContainerStats;
-    THashMap<TString, i64> VolumeCounts;
+    THashMap<EStatField, TErrorOr<std::vector<TTaggedStat>>> ContainerTaggedStats;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1685,10 +1685,6 @@ void GroupOpHelper(
     bool groupByInCompatMode = (!context->RequestFeatureFlags->WithTotalsFinalizesAggregatedOnCoordinator) ||
         (!responseFeatureFlags.WithTotalsFinalizesAggregatedOnCoordinator);
 
-    if (context->RequestFeatureFlags->GroupByWithLimitIsUnordered) {
-        YT_VERIFY(responseFeatureFlags.GroupByWithLimitIsUnordered);
-    }
-
     auto closure = TGroupByClosure(
         context->MemoryChunkProvider,
         prefixEqComparer,
@@ -3387,7 +3383,7 @@ void HasPermissions(
     auto acl = ConvertTo<NSecurityClient::TSerializableAccessControlList>(
         FromUnversionedValue<TYsonStringBuf>(*ysonAcl));
     // NB: "subjectClosure" and "permissions" are being passed as strings.
-    auto subjectClosure = ConvertTo<THashSet<TString>>(
+    auto subjectClosure = ConvertTo<THashSet<std::string>>(
         TYsonStringBuf(FromUnversionedValue<TStringBuf>(*ysonSubjectClosureList)));
     auto permissions = ConvertTo<EPermissionSet>(
         TYsonStringBuf(FromUnversionedValue<TStringBuf>(*ysonPermissionList)));
@@ -3757,7 +3753,7 @@ int memcmp(const void* firstOffset, const void* secondOffset, std::size_t count)
 
 struct tm* gmtime_r(const time_t* time, struct tm* result) // NOLINT
 {
-    auto* gmtime = ::gmtime_r(ConvertPointerFromWasmToHost(time), ConvertPointerFromWasmToHost(result));
+    auto* gmtime = GmTimeR(ConvertPointerFromWasmToHost(time), ConvertPointerFromWasmToHost(result));
     return ConvertPointerFromHostToWasm(gmtime);
 }
 

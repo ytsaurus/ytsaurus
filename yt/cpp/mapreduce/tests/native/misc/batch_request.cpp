@@ -648,6 +648,8 @@ TEST(BatchRequestSuite, TestCanonizeYPath) {
     auto rangeRes = batchRequest->CanonizeYPath(TRichYPath("//foo/baz[#100500]"));
     auto formatSizeRes = batchRequest->CanonizeYPath(TRichYPath("//foo/qux[#100500]").Format("yson"));
     auto errorRes = batchRequest->CanonizeYPath(TRichYPath("//foo/nix[100500").Format("yson"));
+    auto ysonPrefixCluster = batchRequest->CanonizeYPath(TRichYPath("<cluster=mycluster>//foo/bar"));
+    auto namePrefixCluster = batchRequest->CanonizeYPath(TRichYPath("mycluster://foo/bar"));
 
     batchRequest->ExecuteBatch();
 
@@ -660,6 +662,12 @@ TEST(BatchRequestSuite, TestCanonizeYPath) {
     EXPECT_EQ(formatSizeRes.GetValue().Format_, "yson");
 
     EXPECT_THROW(errorRes.GetValue(), TErrorResponse);
+
+    EXPECT_TRUE(ysonPrefixCluster.GetValue().Cluster_.Defined());
+    EXPECT_EQ(*ysonPrefixCluster.GetValue().Cluster_, "mycluster");
+
+    EXPECT_TRUE(namePrefixCluster.GetValue().Cluster_.Defined());
+    EXPECT_EQ(*namePrefixCluster.GetValue().Cluster_, "mycluster");
 }
 
 TGUID GetOrCreateUser(const IClientBasePtr& client, const TString& user)

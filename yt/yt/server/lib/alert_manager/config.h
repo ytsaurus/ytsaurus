@@ -8,10 +8,9 @@ namespace NYT::NAlertManager {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAlertManagerDynamicConfig
+struct TAlertManagerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration AlertCollectionPeriod;
 
     REGISTER_YSON_STRUCT(TAlertManagerDynamicConfig);

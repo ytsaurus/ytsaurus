@@ -16,6 +16,7 @@ DEPENDS(
     yt/yql/tools/mrjob
     yql/essentials/udfs/common/re2
     yql/essentials/udfs/common/file
+    yql/essentials/udfs/common/python/python3_small
 )
 
 PEERDIR(

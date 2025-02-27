@@ -40,10 +40,9 @@ namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoveryServiceConfig
+struct TDiscoveryServiceConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     bool Enable;
     TDuration LivenessUpdatePeriod;
     TDuration ProxyUpdatePeriod;
@@ -61,10 +60,9 @@ DEFINE_REFCOUNTED_TYPE(TDiscoveryServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAccessCheckerConfig
+struct TAccessCheckerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Whether access checker is enabled.
     bool Enabled;
 
@@ -88,10 +86,9 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAccessCheckerDynamicConfig
+struct TAccessCheckerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Whether access checker is enabled.
     std::optional<bool> Enabled;
 
@@ -120,11 +117,10 @@ DEFINE_REFCOUNTED_TYPE(TProxyMemoryLimits)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyBootstrapConfig
+struct TProxyBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
     , public NAuth::TAuthenticationManagerConfig
 {
-public:
     //! Initial config for API service.
     TApiServiceConfigPtr ApiService;
 
@@ -172,11 +168,10 @@ DEFINE_REFCOUNTED_TYPE(TProxyBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyProgramConfig
+struct TProxyProgramConfig
     : public TProxyBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TProxyProgramConfig);
 
     static void Register(TRegistrar registrar);
@@ -186,10 +181,9 @@ DEFINE_REFCOUNTED_TYPE(TProxyProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyDynamicConfig
+struct TProxyDynamicConfig
     : public TSingletonsDynamicConfig
 {
-public:
     TApiServiceDynamicConfigPtr Api;
 
     NTracing::TSamplerConfigPtr Tracing;
@@ -212,10 +206,9 @@ DEFINE_REFCOUNTED_TYPE(TProxyDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBundleProxyDynamicConfig
+struct TBundleProxyDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<NObjectClient::TCellTag> ClockClusterTag;
 
     REGISTER_YSON_STRUCT(TBundleProxyDynamicConfig);

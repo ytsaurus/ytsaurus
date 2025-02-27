@@ -20,7 +20,7 @@ struct IQueueExportManager
 DEFINE_REFCOUNTED_TYPE(IQueueExportManager)
 
 IQueueExportManagerPtr CreateQueueExportManager(
-    const TQueueExportManagerDynamicConfigPtr& dynamicConfig);
+    TQueueExportManagerDynamicConfigPtr dynamicConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 

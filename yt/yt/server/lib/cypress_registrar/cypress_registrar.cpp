@@ -169,7 +169,7 @@ private:
             options.Attributes = Options_.AttributesOnCreation;
             auto errorOrId = WaitFor(Client_->CreateNode(RootPath_, Options_.NodeType, options));
             // COMPAT(kvk1920): Remove after all masters are updated to 23.2.
-            if (errorOrId.GetMessage().Contains("EObjectType(1500)")) {
+            if (errorOrId.GetMessage().contains("EObjectType(1500)")) {
                 // Old master does not support this type.
                 YT_LOG_DEBUG(
                     errorOrId,
@@ -207,7 +207,7 @@ private:
 
                 if (errorOrId.IsOK()) {
                     YT_LOG_INFO("Root node recreated");
-                } else if (errorOrId.GetMessage().Contains("EObjectType(1500)")) {
+                } else if (errorOrId.GetMessage().contains("EObjectType(1500)")) {
                     YT_LOG_INFO("Root node is not recreated: cluster still does not support \"cluster_proxy_node\"");
                 } else {
                     errorOrId.ThrowOnError();

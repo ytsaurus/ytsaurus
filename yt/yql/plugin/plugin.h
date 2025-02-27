@@ -37,6 +37,11 @@ public:
     std::optional<TString> YqlPluginSharedLibrary;
 };
 
+struct TYqlPluginDynamicConfig
+{
+    NYson::TYsonString GatewaysConfig;
+};
+
 struct TQueryResult
 {
     std::optional<TString> YsonResult;
@@ -98,6 +103,8 @@ struct IYqlPlugin
     virtual TQueryResult GetProgress(TQueryId queryId) noexcept = 0;
 
     virtual TAbortResult Abort(TQueryId queryId) noexcept = 0;
+
+    virtual void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) noexcept = 0;
 
     virtual ~IYqlPlugin() = default;
 };

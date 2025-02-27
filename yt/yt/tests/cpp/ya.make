@@ -2,6 +2,7 @@ RECURSE(
     test_base
     test_cypress_election
     test_data_node_rpc
+    test_distributed_chunk_sessions
     test_hydra
     test_native_api
     test_rpc_api

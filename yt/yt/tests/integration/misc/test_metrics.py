@@ -2,7 +2,17 @@ from yt_env_setup import YTEnvSetup
 
 from yt_helpers import profiler_factory
 
-from yt_commands import (authors, wait, ls, get, set)
+from yt_commands import (
+    authors,
+    wait,
+    ls,
+    get,
+    set,
+    create,
+    write_table,
+    remove,
+    print_debug,
+)
 
 import yt.packages.requests as requests
 import yt.yson as yson
@@ -88,6 +98,10 @@ class TestPortoMetrics(MetricsTestBase):
                 }
             },
         },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "enable_porto_resource_tracker": True,
     }
 
     FRAME_TAG_TO_NAME = {
@@ -203,3 +217,53 @@ class TestPortoMetrics(MetricsTestBase):
         wait(lambda: any(check_node_sensors(node, "daemon", gauges) for node in proxies))
         wait(lambda: any(check_node_sensors(node, "pod", gauges) for node in proxies))
         wait(lambda: any(not check_node_sensors(node, "", gauges) for node in proxies))
+
+    @authors("vvshlyaga")
+    def test_check_tagged_io_sensors(self):
+        taggedSensors = [
+            "porto/io/write_bytes",
+            "porto/io/read_bytes",
+            "porto/io/bytes_limit",
+
+            "porto/io/read_ops",
+            "porto/io/write_ops",
+            "porto/io/ops",
+            "porto/io/ops_limit",
+            "porto/io/total",
+        ]
+
+        mayBeWithoutTag = [
+            "porto/io/read_bytes",
+            "porto/io/bytes_limit",
+
+            "porto/io/read_ops",
+            "porto/io/write_ops",
+            "porto/io/ops",
+            "porto/io/ops_limit",
+            "porto/io/total",
+        ]
+
+        nodes = ls("//sys/cluster_nodes")
+
+        create("table", "//tmp/t_trash", attributes={
+            "schema": [{"name": "k", "type": "int64", "sort_order": "ascending"}],
+            "replication_factor": 5
+        })
+
+        def check_sensors():
+            flag = True
+            rows = [{"k": i} for i in range(10)]
+            write_table("//tmp/t_trash", rows)
+            for node in nodes:
+                for taggedSensor in taggedSensors:
+                    try:
+                        value = get(f"//sys/cluster_nodes/{node}/orchid/sensors/yt/{taggedSensor}")
+                        print_debug(f"value of sensor {taggedSensor} on {node} = {value}")
+                        flag = flag and value is not None and ('device_name' in str(value) or taggedSensor in mayBeWithoutTag)
+                    except Exception as err:
+                        print(f"Unexpected {err=}, {type(err)=}")
+                        return False
+            return flag
+
+        wait(check_sensors)
+        remove("//tmp/t_trash")

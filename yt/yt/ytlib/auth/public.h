@@ -8,9 +8,9 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TNativeAuthenticationManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TNativeAuthenticationManagerDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TTvmBridgeConfig)
+DECLARE_REFCOUNTED_STRUCT(TNativeAuthenticationManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TNativeAuthenticationManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TTvmBridgeConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ITvmBridge)
 

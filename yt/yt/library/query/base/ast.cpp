@@ -10,7 +10,7 @@ namespace NYT::NQueryClient::NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool operator == (TNullLiteralValue, TNullLiteralValue)
+bool operator==(TNullLiteralValue, TNullLiteralValue)
 {
     return true;
 }
@@ -102,12 +102,12 @@ bool ExpressionListEqual(const T& lhs, const T& rhs)
     return true;
 }
 
-bool operator == (const TExpressionList& lhs, const TExpressionList& rhs)
+bool operator==(const TExpressionList& lhs, const TExpressionList& rhs)
 {
     return ExpressionListEqual(lhs, rhs);
 }
 
-bool operator == (const TIdentifierList& lhs, const TIdentifierList& rhs)
+bool operator==(const TIdentifierList& lhs, const TIdentifierList& rhs)
 {
     return ExpressionListEqual(lhs, rhs);
 }
@@ -233,11 +233,25 @@ void TTableHint::Register(TRegistrar registrar)
         .Default(false);
 }
 
+const TTableHintPtr DefaultHint = New<TTableHint>();
+
+void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf /*spec*/)
+{
+    builder->AppendString("\"{");
+    if (hint.PushDownGroupBy) {
+        builder->AppendString("push_down_group_by=%true;");
+    }
+    if (!hint.RequireSyncReplica) {
+        builder->AppendString("require_sync_replica=%false;");
+    }
+    builder->AppendString("}\"");
+}
+
 bool operator == (const TTableDescriptor& lhs, const TTableDescriptor& rhs)
 {
     return
-        std::tie(lhs.Path, rhs.Alias) ==
-        std::tie(rhs.Path, rhs.Alias);
+        std::tie(lhs.Path, lhs.Alias, *lhs.Hint) ==
+        std::tie(rhs.Path, rhs.Alias, *rhs.Hint);
 }
 
 bool operator == (const TJoin& lhs, const TJoin& rhs)
@@ -444,8 +458,8 @@ void FormatTableDescriptor(TStringBuilderBase* builder, const TTableDescriptor& 
         builder->AppendString(" AS ");
         FormatId(builder, *descriptor.Alias);
     }
-    if (descriptor.Hint->PushDownGroupBy) {
-        builder->AppendString(" WITH HINT \"{push_down_group_by=%true}\"");
+    if (*descriptor.Hint != *DefaultHint) {
+        Format(builder, " WITH HINT %v", *descriptor.Hint);
     }
 }
 
@@ -828,15 +842,115 @@ TString InferColumnName(const TReference& ref)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYPath::TYPath GetMainTable(const TQuery& query)
+NYPath::TYPath GetMainTablePath(const TQuery& query)
 {
     return Visit(query.FromClause,
         [] (const TTableDescriptor& table) {
             return table.Path;
         },
         [] (const TQueryAstHeadPtr& subquery) {
-            return GetMainTable(subquery->Ast);
+            return GetMainTablePath(subquery->Ast);
         });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+NAst::TExpressionPtr BuildAndExpression(
+    TObjectsHolder* holder,
+    NAst::TExpressionPtr lhs,
+    NAst::TExpressionPtr rhs)
+{
+    if (lhs && !rhs) {
+        return lhs;
+    }
+    if (rhs && !lhs) {
+        return rhs;
+    }
+    if (!lhs && !rhs) {
+        return holder->New<NAst::TLiteralExpression>(TSourceLocation(), NAst::TLiteralValue(true));
+    }
+    return holder->New<NAst::TBinaryOpExpression>(
+        TSourceLocation(),
+        NQueryClient::EBinaryOp::And,
+        NAst::TExpressionList{std::move(lhs)},
+        NAst::TExpressionList{std::move(rhs)});
+}
+
+NAst::TExpressionPtr BuildOrExpression(
+    TObjectsHolder* holder,
+    NAst::TExpressionPtr lhs,
+    NAst::TExpressionPtr rhs)
+{
+    if (lhs && !rhs) {
+        return lhs;
+    }
+    if (rhs && !lhs) {
+        return rhs;
+    }
+    if (!lhs && !rhs) {
+        return holder->New<NAst::TLiteralExpression>(TSourceLocation(), NAst::TLiteralValue(false));
+    }
+    return holder->New<NAst::TBinaryOpExpression>(
+        TSourceLocation(),
+        NQueryClient::EBinaryOp::Or,
+        NAst::TExpressionList{std::move(lhs)},
+        NAst::TExpressionList{std::move(rhs)});
+}
+
+NAst::TExpressionPtr BuildConcatenationExpression(
+    TObjectsHolder* holder,
+    NAst::TExpressionPtr lhs,
+    NAst::TExpressionPtr rhs,
+    const TString& separator)
+{
+    if (lhs && !rhs) {
+        return lhs;
+    }
+    if (rhs && !lhs) {
+        return rhs;
+    }
+    if (!lhs && !rhs) {
+        return holder->New<NAst::TLiteralExpression>(TSourceLocation(), NAst::TLiteralValue(""));
+    }
+
+    auto keySeparator = holder->New<NAst::TLiteralExpression>(TSourceLocation(), separator);
+    lhs = holder->New<NAst::TBinaryOpExpression>(
+        TSourceLocation(),
+        NQueryClient::EBinaryOp::Concatenate,
+        NAst::TExpressionList{std::move(lhs)},
+        NAst::TExpressionList{std::move(keySeparator)});
+
+    return holder->New<NAst::TBinaryOpExpression>(
+        TSourceLocation(),
+        NQueryClient::EBinaryOp::Concatenate,
+        NAst::TExpressionList{std::move(lhs)},
+        NAst::TExpressionList{std::move(rhs)});
+}
+
+NAst::TExpressionPtr BuildBinaryOperationTree(
+    TObjectsHolder* context,
+    std::vector<NAst::TExpressionPtr> leaves,
+    EBinaryOp opCode)
+{
+    if (leaves.empty()) {
+        return nullptr;
+    }
+    if (leaves.size() == 1) {
+        return leaves[0];
+    }
+    std::deque<NAst::TExpressionPtr> expressionQueue(leaves.begin(), leaves.end());
+    while (expressionQueue.size() != 1) {
+        auto lhs = expressionQueue.front();
+        expressionQueue.pop_front();
+        auto rhs = expressionQueue.front();
+        expressionQueue.pop_front();
+        expressionQueue.emplace_back(context->New<NAst::TBinaryOpExpression>(
+            NQueryClient::NullSourceLocation,
+            opCode,
+            NAst::TExpressionList{std::move(lhs)},
+            NAst::TExpressionList{std::move(rhs)}));
+    }
+    return expressionQueue.front();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

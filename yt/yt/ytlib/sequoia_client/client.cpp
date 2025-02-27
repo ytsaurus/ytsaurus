@@ -3,12 +3,21 @@
 #include "helpers.h"
 #include "table_descriptor.h"
 #include "transaction.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/transaction_client/transaction_manager.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/client/query_client/query_builder.h>
 
 #include <yt/yt/client/table_client/record_descriptor.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
 
 namespace NYT::NSequoiaClient {
 
@@ -25,19 +34,126 @@ class TSequoiaClient
 {
 public:
     TSequoiaClient(
-        NNative::IClientPtr nativeClient,
-        NNative::IClientPtr groundClient,
-        TLogger logger)
-        : NativeRootClient_(std::move(nativeClient))
-        , GroundRootClient_(std::move(groundClient))
-        , Logger(std::move(logger))
+        NNative::TSequoiaConnectionConfigPtr config,
+        NNative::IClientPtr nativeClient)
+        : Config_(std::move(config))
+        , NativeClient_(std::move(nativeClient))
     { }
 
-    TFuture<TUnversionedLookupRowsResult> LookupRows(
+    void Initialize()
+    {
+        if (Config_->GroundClusterName) {
+            NativeClient_
+                ->GetNativeConnection()
+                ->GetClusterDirectory()
+                ->SubscribeOnClusterUpdated(
+                    BIND_NO_PROPAGATE([this, weakThis = MakeWeak(this)] (const std::string& clusterName, const NYTree::INodePtr& /*configNode*/) {
+                        auto this_ = weakThis.Lock();
+                        if (!this_) {
+                            return;
+                        }
+
+                        if (clusterName == *Config_->GroundClusterName) {
+                            auto groundConnection = NativeClient_
+                                ->GetNativeConnection()
+                                ->GetClusterDirectory()
+                                ->GetConnection(*Config_->GroundClusterName);
+                            auto groundClient = groundConnection->CreateNativeClient({.User = NSecurityClient::RootUserName});
+                            SetGroundClient(std::move(groundClient));
+                        }
+                    }));
+        } else {
+            // When Sequoia is local it's safe to create the client right now.
+            SetGroundClient(NativeClient_);
+        }
+    }
+
+    const TLogger& GetLogger() const override
+    {
+        return SequoiaClientLogger();
+    }
+
+    #define XX(name, args) \
+        if (auto groundClient = GetGroundClient()) { \
+            return Do ## name args; \
+        } \
+        return GroundClientReadyPromise_ \
+            .ToFuture() \
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] { \
+                return Do ## name args; \
+            }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
+
+    virtual TFuture<NApi::TUnversionedLookupRowsResult> LookupRows(
         ESequoiaTable table,
         TSharedRange<NTableClient::TLegacyKey> keys,
         const NTableClient::TColumnFilter& columnFilter,
         NTransactionClient::TTimestamp timestamp) override
+    {
+        XX(LookupRows, (table, keys, columnFilter, timestamp))
+    }
+
+    virtual TFuture<NApi::TSelectRowsResult> SelectRows(
+        ESequoiaTable table,
+        const TSelectRowsQuery& query,
+        NTransactionClient::TTimestamp timestamp) override
+    {
+        XX(SelectRows, (table, query, timestamp))
+    }
+    virtual TFuture<NApi::TSelectRowsResult> SelectRows(
+        const TSequoiaTablePathDescriptor& descriptor,
+        const TSelectRowsQuery& query,
+        NTransactionClient::TTimestamp timestamp) override
+    {
+        XX(SelectRows, (descriptor, query, timestamp))
+    }
+
+    TFuture<void> TrimTable(
+        const TSequoiaTablePathDescriptor& descriptor,
+        int tabletIndex,
+        i64 trimmedRowCount) override
+    {
+        XX(TrimTable, (descriptor, tabletIndex, trimmedRowCount))
+    }
+
+    virtual TFuture<ISequoiaTransactionPtr> StartTransaction(
+        ESequoiaTransactionType type,
+        const NApi::TTransactionStartOptions& options,
+        const TSequoiaTransactionSequencingOptions& sequencingOptions) override
+    {
+        XX(StartTransaction, (type, options, sequencingOptions))
+    }
+
+#undef XX
+
+private:
+    const NNative::TSequoiaConnectionConfigPtr Config_;
+    const NNative::IClientPtr NativeClient_;
+
+    const TPromise<void> GroundClientReadyPromise_ = NewPromise<void>();
+    TAtomicIntrusivePtr<NNative::IClient> GroundClient_;
+
+    NNative::IClientPtr GetGroundClient() const
+    {
+        return GroundClient_.Acquire();
+    }
+
+    void SetGroundClient(const NNative::IClientPtr& groundClient)
+    {
+        GroundClient_.Store(groundClient);
+
+        bool initial = GroundClientReadyPromise_.TrySet();
+
+        const auto& Logger = GetLogger();
+        YT_LOG_INFO("Sequoia client is %v (GroundConnectionTag: %v)",
+            initial ? "created" : "recreated",
+            groundClient->GetNativeConnection()->GetLoggingTag());
+    }
+
+    TFuture<TUnversionedLookupRowsResult> DoLookupRows(
+        ESequoiaTable table,
+        TSharedRange<NTableClient::TLegacyKey> keys,
+        const NTableClient::TColumnFilter& columnFilter,
+        NTransactionClient::TTimestamp timestamp)
     {
         NApi::TLookupRowsOptions options;
         options.KeepMissingRows = true;
@@ -48,32 +164,32 @@ public:
         TSequoiaTablePathDescriptor tablePathDescriptor{
             .Table = table
         };
-        return GroundRootClient_->LookupRows(
-            GetSequoiaTablePath(NativeRootClient_, tablePathDescriptor),
+        return GetGroundClient()->LookupRows(
+            GetSequoiaTablePath(NativeClient_, tablePathDescriptor),
             tableDescriptor->GetRecordDescriptor()->GetNameTable(),
             std::move(keys),
             options)
             .ApplyUnique(BIND(MaybeWrapSequoiaRetriableError<TUnversionedLookupRowsResult>));
     }
 
-    TFuture<TSelectRowsResult> SelectRows(
+    TFuture<TSelectRowsResult> DoSelectRows(
         ESequoiaTable table,
         const TSelectRowsQuery& query,
-        NTransactionClient::TTimestamp timestamp) override
+        NTransactionClient::TTimestamp timestamp)
     {
         TSequoiaTablePathDescriptor descriptor{
             .Table = table,
         };
-        return SelectRows(descriptor, query, timestamp);
+        return DoSelectRows(descriptor, query, timestamp);
     }
 
-    TFuture<TSelectRowsResult> SelectRows(
+    TFuture<TSelectRowsResult> DoSelectRows(
         const TSequoiaTablePathDescriptor& descriptor,
         const TSelectRowsQuery& query,
-        NTransactionClient::TTimestamp timestamp) override
+        NTransactionClient::TTimestamp timestamp)
     {
         TQueryBuilder builder;
-        builder.SetSource(GetSequoiaTablePath(NativeRootClient_, descriptor));
+        builder.SetSource(GetSequoiaTablePath(NativeClient_, descriptor));
         builder.AddSelectExpression("*");
         for (const auto& whereConjunct : query.WhereConjuncts) {
             builder.AddWhereConjunct(whereConjunct);
@@ -95,57 +211,48 @@ public:
         options.AllowFullScan = false;
         options.Timestamp = timestamp;
 
-        return GroundRootClient_
+        return GetGroundClient()
             ->SelectRows(builder.Build(), options)
             .ApplyUnique(BIND(MaybeWrapSequoiaRetriableError<TSelectRowsResult>));
     }
 
-    TFuture<void> TrimTable(
+    TFuture<void> DoTrimTable(
         const TSequoiaTablePathDescriptor& descriptor,
         int tabletIndex,
-        i64 trimmedRowCount) override
+        i64 trimmedRowCount)
     {
-        return GroundRootClient_->TrimTable(
-            GetSequoiaTablePath(NativeRootClient_, descriptor),
+        return GetGroundClient()->TrimTable(
+            GetSequoiaTablePath(NativeClient_, descriptor),
             tabletIndex,
             trimmedRowCount);
     }
 
-    TFuture<ISequoiaTransactionPtr> StartTransaction(
+    TFuture<ISequoiaTransactionPtr> DoStartTransaction(
+        ESequoiaTransactionType type,
         const NApi::TTransactionStartOptions& options,
-        const TSequoiaTransactionSequencingOptions& sequencingOptions) override
+        const TSequoiaTransactionSequencingOptions& sequencingOptions)
     {
         return NDetail::StartSequoiaTransaction(
             this,
-            NativeRootClient_,
-            GroundRootClient_,
+            type,
+            NativeClient_,
+            GetGroundClient(),
             options,
             sequencingOptions);
     }
-
-    const TLogger& GetLogger() const override
-    {
-        return Logger;
-    }
-
-private:
-    const NNative::IClientPtr NativeRootClient_;
-    const NNative::IClientPtr GroundRootClient_;
-    const TLogger Logger;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Add another client here.
 ISequoiaClientPtr CreateSequoiaClient(
-    NNative::IClientPtr nativeClient,
-    NNative::IClientPtr groundClient,
-    NLogging::TLogger logger)
+    NNative::TSequoiaConnectionConfigPtr config,
+    NNative::IClientPtr nativeClient)
 {
-    return New<TSequoiaClient>(
-        std::move(nativeClient),
-        std::move(groundClient),
-        std::move(logger));
+    auto sequoiaClient = New<TSequoiaClient>(
+        std::move(config),
+        std::move(nativeClient));
+    sequoiaClient->Initialize();
+    return sequoiaClient;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

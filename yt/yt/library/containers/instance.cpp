@@ -8,6 +8,8 @@
 #include <yt/yt/library/containers/cgroup.h>
 #include <yt/yt/library/containers/config.h>
 
+#include <yt/yt/library/re2/re2.h>
+
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -91,7 +93,35 @@ i64 ExtractSum(
     return sum;
 }
 
+std::vector<TResourceUsage::TTaggedStat> ExtractIOStatsPerDevice(
+    const TString& input)
+{
+    // Example of input: 'hw: 34843530298; sdb: 618096087; sdi: 9284833908'.
+    static const NRe2::RE2 regex("([a-z]+) *: *([0-9]+)");
+
+    std::vector<TResourceUsage::TTaggedStat> result;
+    std::string_view inputView{input.c_str(), input.length()};
+
+    TString deviceName;
+    int statisticsValue;
+
+    while(NRe2::RE2::FindAndConsume(&inputView, regex, &deviceName, &statisticsValue)) {
+        // hw - total statistic for all devices.
+        // In that function we extract only per device statistic, because of that we skip hw.
+        if (deviceName != "hw") {
+            result.emplace_back(
+                std::move(deviceName),
+                statisticsValue
+            );
+        }
+    }
+
+    return result;
+}
+
 using TPortoStatRule = std::pair<TString, std::function<i64(const TString& input)>>;
+
+using TPortoTaggedStatRule = std::pair<TString, std::function<std::vector<TResourceUsage::TTaggedStat>(const TString& input)>>;
 
 static const std::function<i64(const TString&)> LongExtractor = [] (const TString& in) {
     return std::stol(in);
@@ -101,6 +131,13 @@ static const std::function<i64(const TString&)> CoreNsPerSecondExtractor = [] (c
     int pos = in.find("c", 0);
     return (std::stod(in.substr(0, pos))) * 1'000'000'000;
 };
+
+static const std::function<std::vector<TResourceUsage::TTaggedStat>(const TString&)> GetIOTaggedStatExtractor()
+{
+    return [] (const TString& in) -> std::vector<TResourceUsage::TTaggedStat> {
+        return ExtractIOStatsPerDevice(in);
+    };
+}
 
 static const std::function<i64(const TString&)> GetIOStatExtractor(const TString& rwMode = "")
 {
@@ -159,6 +196,18 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
     {EStatField::NetRxPackets, {"net_rx_packets[veth]", LongExtractor}},
     {EStatField::NetRxDrops, {"net_rx_drops[veth]", LongExtractor}},
     {EStatField::NetRxLimit, {"net_rx_limit[veth]", LongExtractor}},
+};
+
+const THashMap<EStatField, TPortoTaggedStatRule> PortoTaggedStatRules = {
+    {EStatField::IOReadByte, {"io_read", GetIOTaggedStatExtractor()}},
+    {EStatField::IOWriteByte, {"io_write", GetIOTaggedStatExtractor()}},
+    {EStatField::IOBytesLimit, {"io_limit", GetIOTaggedStatExtractor()}},
+    {EStatField::IOReadOps, {"io_read_ops", GetIOTaggedStatExtractor()}},
+    {EStatField::IOWriteOps, {"io_write_ops", GetIOTaggedStatExtractor()}},
+    {EStatField::IOOps, {"io_ops", GetIOTaggedStatExtractor()}},
+    {EStatField::IOOpsLimit, {"io_ops_limit", GetIOTaggedStatExtractor()}},
+    {EStatField::IOTotalTime, {"io_time", GetIOTaggedStatExtractor()}},
+    {EStatField::IOWaitTime, {"io_wait", GetIOTaggedStatExtractor()}},
 };
 
 std::optional<TString> GetParentName(const TString& name)
@@ -460,6 +509,9 @@ public:
             if (auto it = NDetail::PortoStatRules.find(field)) {
                 const auto& rule = it->second;
                 properties.push_back(rule.first);
+            } else if (auto it = NDetail::PortoTaggedStatRules.find(field)) {
+                const auto& rule = it->second;
+                properties.push_back(rule.first);
             } else if (field == EStatField::ContextSwitchesDelta || field == EStatField::ContextSwitches) {
                 contextSwitchesRequested = true;
             } else if (field == EStatField::CpuUserUsage) {
@@ -479,37 +531,42 @@ public:
 
         TResourceUsage result;
 
-        for (auto field : fields) {
-            auto ruleIt = NDetail::PortoStatRules.find(field);
-            if (ruleIt == NDetail::PortoStatRules.end()) {
-                continue;
-            }
+        auto handleProperties = [&](const auto& statRules, auto& outputContainer) {
+            for (auto field : fields) {
+                auto ruleIt = statRules.find(field);
+                if (ruleIt == statRules.end()) {
+                    continue;
+                }
 
-            const auto& [property, callback] = ruleIt->second;
-            auto& record = result.ContainerStats[field];
-            if (auto responseIt = propertyMap.find(property); responseIt != propertyMap.end()) {
-                const auto& valueOrError = responseIt->second;
-                if (valueOrError.IsOK()) {
-                    const auto& value = valueOrError.Value();
+                const auto& [property, callback] = ruleIt->second;
+                auto& record = outputContainer[field];
+                if (auto responseIt = propertyMap.find(property); responseIt != propertyMap.end()) {
+                    const auto& valueOrError = responseIt->second;
+                    if (valueOrError.IsOK()) {
+                        const auto& value = valueOrError.Value();
 
-                    try {
-                        record = callback(value);
-                    } catch (const std::exception& ex) {
-                        record = TError("Error parsing Porto property %Qlv", field)
+                        try {
+                            record = callback(value);
+                        } catch (const std::exception& ex) {
+                            record = TError("Error parsing Porto property %Qlv", field)
+                                << TErrorAttribute("container", Name_)
+                                << TErrorAttribute("property_value", value)
+                                << ex;
+                        }
+                    } else {
+                        record = TError("Error getting Porto property %Qlv", field)
                             << TErrorAttribute("container", Name_)
-                            << TErrorAttribute("property_value", value)
-                            << ex;
+                            << valueOrError;
                     }
                 } else {
-                    record = TError("Error getting Porto property %Qlv", field)
-                        << TErrorAttribute("container", Name_)
-                        << valueOrError;
+                    record = TError("Missing property %Qlv in Porto response", field)
+                        << TErrorAttribute("container", Name_);
                 }
-            } else {
-                record = TError("Missing property %Qlv in Porto response", field)
-                    << TErrorAttribute("container", Name_);
             }
-        }
+        };
+
+        handleProperties(NDetail::PortoStatRules, result.ContainerStats);
+        handleProperties(NDetail::PortoTaggedStatRules, result.ContainerTaggedStats);
 
         // We should maintain context switch information even if this field
         // is not requested since metrics of individual containers can go up and down.
@@ -541,17 +598,17 @@ public:
 
             if (volumeList.IsOK()) {
                 for (const auto& volume : volumeList.Value()) {
-                    auto it = volumeCounts.find(volume.Backend);
-
-                    if (it.IsEnd()) {
-                        volumeCounts.insert({volume.Backend, 1});
-                    } else {
-                        it->second = it->second + 1;
-                    }
+                    volumeCounts[volume.Backend] += 1;
                 }
             }
 
-            result.VolumeCounts = volumeCounts;
+            auto& volumeCountsErrorOr = result.ContainerTaggedStats[EStatField::VolumeCounts];
+            auto& volumeCountsVec = volumeCountsErrorOr.Value();
+            volumeCountsVec.reserve(volumeCounts.size());
+
+            for (const auto& [deviceName, value] : volumeCounts) {
+                volumeCountsVec.emplace_back(deviceName, value);
+            }
         }
 
         if (layerCountRequested) {

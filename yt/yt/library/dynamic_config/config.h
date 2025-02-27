@@ -19,7 +19,7 @@ struct TDynamicConfigManagerOptions
 
     //! Name of the dynamic config manager. Used in logging
     //! and alerts only.
-    TString Name;
+    std::string Name;
 
     //! If true, node with dynamic config contains not just
     //! a config, but a map from boolean formula to dynamic
@@ -36,10 +36,9 @@ struct TDynamicConfigManagerOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicConfigManagerConfig
+struct TDynamicConfigManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Period of config fetching from Cypress.
     TDuration UpdatePeriod;
 
@@ -47,7 +46,7 @@ public:
     //! should be enabled.
     bool EnableUnrecognizedOptionsAlert;
 
-    //! If true, config node absence will not be tracted as
+    //! If true, config node absence will not be interpreted as
     //! an error.
     bool IgnoreConfigAbsence;
 

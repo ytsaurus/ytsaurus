@@ -17,11 +17,11 @@ using NTabletClient::ETabletActionState;
 
 DECLARE_REFCOUNTED_STRUCT(IBootstrap)
 
-DECLARE_REFCOUNTED_CLASS(TStandaloneTabletBalancerConfig)
-DECLARE_REFCOUNTED_CLASS(TTabletBalancerDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TActionManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TTabletBalancerBootstrapConfig)
-DECLARE_REFCOUNTED_CLASS(TTabletBalancerProgramConfig)
+DECLARE_REFCOUNTED_STRUCT(TStandaloneTabletBalancerConfig)
+DECLARE_REFCOUNTED_STRUCT(TTabletBalancerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TActionManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TTabletBalancerBootstrapConfig)
+DECLARE_REFCOUNTED_STRUCT(TTabletBalancerProgramConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ITabletBalancer)
 

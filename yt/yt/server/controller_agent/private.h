@@ -46,12 +46,12 @@ DECLARE_REFCOUNTED_CLASS(TJobProfiler)
 DECLARE_REFCOUNTED_CLASS(TJobTrackerTestingOptions)
 DECLARE_REFCOUNTED_CLASS(TJobTracker)
 DECLARE_REFCOUNTED_CLASS(TJobTrackerOperationHandler)
-DECLARE_REFCOUNTED_CLASS(TJobTrackerConfig)
-DECLARE_REFCOUNTED_CLASS(TGangManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TJobTrackerConfig)
+DECLARE_REFCOUNTED_STRUCT(TGangManagerConfig)
 
-DECLARE_REFCOUNTED_CLASS(TDockerRegistryConfig)
+DECLARE_REFCOUNTED_STRUCT(TDockerRegistryConfig)
 
-DECLARE_REFCOUNTED_CLASS(TDisallowRemoteOperationsConfig)
+DECLARE_REFCOUNTED_STRUCT(TDisallowRemoteOperationsConfig)
 
 struct TJobStartInfo
 {
@@ -74,7 +74,11 @@ struct TStartedAllocationInfo
 struct TJobMonitoringDescriptor
 {
     TIncarnationId IncarnationId;
-    int Index;
+    int Index = 0;
+
+    void Persist(const TPersistenceContext& context);
+
+    auto operator<=>(const TJobMonitoringDescriptor& other) const = default;
 };
 
 void FormatValue(TStringBuilderBase* builder, const TJobMonitoringDescriptor& descriptor, TStringBuf /*spec*/);
@@ -130,3 +134,9 @@ TCompositePendingJobCount operator - (const TCompositePendingJobCount& count);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent
+
+template <>
+struct THash<NYT::NControllerAgent::TJobMonitoringDescriptor>
+{
+    size_t operator()(const NYT::NControllerAgent::TJobMonitoringDescriptor& descriptor) const;
+};

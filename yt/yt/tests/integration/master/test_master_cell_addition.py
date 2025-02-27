@@ -8,7 +8,6 @@ from yt.common import YtError
 from yt_master_cell_addition_base import MasterCellAdditionBase, MasterCellAdditionBaseChecks, MasterCellAdditionChaosMultiClusterBaseChecks
 
 import pytest
-
 import builtins
 
 ##################################################################
@@ -77,6 +76,71 @@ class TestMasterCellsListChangeWithoutDowntime(MasterCellAdditionBaseChecks):
     def test_add_new_cell(self):
         self.execute_checks_with_cell_addition(downtime=self.DOWNTIME_ALL_COMPONENTS)
 
+
+class TestMasterCellsListChangeWithoutDowntimeRemoveSecondaryCellDefaultRoles(TestMasterCellsListChangeWithoutDowntime):
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "multicell_manager": {
+            "testing": {
+                "allow_master_cell_removal": True,
+                "allow_master_cell_with_empty_role": True,
+            },
+            "remove_secondary_cell_default_roles": True,
+        },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "11": {"roles": ["cypress_node_host", "chunk_host"]},
+        "12": {"roles": ["cypress_node_host", "chunk_host"]},
+    }
+
+##################################################################
+
+
+class TestMasterCellsMultipleAdditions(MasterCellAdditionBase):
+    PATCHED_CONFIGS = []
+    STASHED_CELL_CONFIGS = []
+    CELL_IDS = builtins.set()
+
+    NUM_SECONDARY_MASTER_CELLS = 3
+    NUM_NODES = 1
+    REMOVE_LAST_MASTER_BEFORE_START = False
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "multicell_manager": {
+            "testing": {
+                "allow_master_cell_removal": True,
+                "allow_master_cell_with_empty_role": True,
+            },
+        },
+    }
+
+    MASTER_CELL_DESCRIPTORS = {
+        "13": {"roles": []},
+    }
+
+    DELTA_MASTER_CONFIG = {
+        "world_initializer": {
+            "update_period": 1000,
+        },
+    }
+
+    @authors("cherepashka")
+    @pytest.mark.timeout(200)
+    def test_add_new_cell(self):
+        self._disable_last_cell()
+
+        self._enable_last_cell(downtime=False)
+        wait(lambda: sorted(get("//sys/secondary_masters").keys()) == ["11", "12", "13"])
+
+        self._disable_last_cell()
+        wait(lambda: sorted(get("//sys/secondary_masters").keys()) == ["11", "12"])
+
+        self._enable_last_cell(downtime=False)
+        wait(lambda: sorted(get("//sys/secondary_masters").keys()) == ["11", "12", "13"])
 
 ##################################################################
 

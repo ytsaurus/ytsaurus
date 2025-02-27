@@ -7,6 +7,7 @@ import java.util.function.Function;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.request.QueryStatistics;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.ConsumerSourceRet;
 import tech.ytsaurus.client.rows.UnversionedRowset;
@@ -61,6 +62,10 @@ public class SelectRowsResult {
                     response.attachments(), serializer, consumer, serializationResolver);
             return null;
         });
+    }
+
+    public QueryStatistics getQueryStatistics() {
+        return new QueryStatistics(this.response.body().getStatistics());
     }
 
     public boolean isIncompleteOutput() {

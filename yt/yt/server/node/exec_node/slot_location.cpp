@@ -1083,9 +1083,17 @@ void TSlotLocation::UpdateDiskResources()
 
         {
             auto guard = WriterGuard(DiskResourcesLock_);
-            for (auto [slotIndex, diskSpace] : ReservedDiskSpacePerSlot_) {
-                if (!sandboxOptionsPerSlot.contains(slotIndex)) {
-                    diskUsage += diskSpace;
+
+            for (auto& [slotIndex, reservedDiskSpace] : ReservedDiskSpacePerSlot_) {
+                auto it = sandboxOptionsPerSlot.find(slotIndex);
+                if (it != sandboxOptionsPerSlot.end()) {
+                    const auto& sandboxOptions = it->second;
+                    if (!sandboxOptions.DiskSpaceLimit) {
+                        reservedDiskSpace = GetOrCrash(diskStatisticsPerSlot, slotIndex).Usage;
+                    }
+                    // Otherwise reserved disk space is same as disk space limit of slot.
+                } else {
+                    diskUsage += reservedDiskSpace;
                 }
             }
 

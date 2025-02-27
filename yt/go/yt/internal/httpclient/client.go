@@ -228,6 +228,10 @@ func (c *httpClient) newHTTPRequest(ctx context.Context, call *internal.Call, bo
 		credentials.Set(req)
 	}
 
+	if c.config.ImpersonationUser != "" {
+		req.Header.Add("X-YT-User-Name", c.config.ImpersonationUser)
+	}
+
 	c.logRequest(ctx, req)
 	return
 }
@@ -640,6 +644,7 @@ func (c *httpClient) AttachTx(ctx context.Context, txID yt.TxID, options *yt.Att
 
 func (c *httpClient) Stop() {
 	c.stop.Stop()
+	c.httpClient.CloseIdleConnections()
 }
 
 func (c *httpClient) dialContext(ctx context.Context, network, addr string) (net.Conn, error) {

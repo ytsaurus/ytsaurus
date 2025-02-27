@@ -1610,7 +1610,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
 
-    auto mainTable = NAst::GetMainTable(*astQuery);
+    auto mainTable = NAst::GetMainTablePath(*astQuery);
 
     auto mountCache = CreateStickyCache(Connection_->GetTableMountCache());
     PreheatCache(astQuery, mountCache);
@@ -1700,7 +1700,8 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
     }
 
     auto requestFeatureFlags = MostFreshFeatureFlags();
-    requestFeatureFlags.GroupByWithLimitIsUnordered = dynamicConfig->GroupByWithLimitIsUnordered;
+
+    queryOptions.AllowUnorderedGroupByWithLimit = requestFeatureFlags.GroupByWithLimitIsUnordered && dynamicConfig->GroupByWithLimitIsUnordered;
 
     IUnversionedRowsetWriterPtr writer;
     TFuture<IUnversionedRowsetPtr> asyncRowset;
@@ -1800,7 +1801,7 @@ NYson::TYsonString TClient::DoExplainQuery(
 
     auto requestFeatureFlags = MostFreshFeatureFlags();
 
-    requestFeatureFlags.GroupByWithLimitIsUnordered = GetNativeConnection()
+    auto allowUnorderedGroupByWithLimit = requestFeatureFlags.GroupByWithLimitIsUnordered && GetNativeConnection()
         ->GetConfig()
         ->GroupByWithLimitIsUnordered;
 
@@ -1822,7 +1823,7 @@ NYson::TYsonString TClient::DoExplainQuery(
         udfRegistryPath,
         options,
         memoryChunkProvider,
-        requestFeatureFlags);
+        allowUnorderedGroupByWithLimit);
 }
 
 template <class T>
@@ -2920,8 +2921,7 @@ TCreateQueueProducerSessionResult TClient::DoCreateQueueProducerSession(
     auto nameTable = NQueueClient::NRecords::TQueueProducerSessionDescriptor::Get()->GetNameTable();
 
     NQueueClient::NRecords::TQueueProducerSessionKey sessionKey{
-        // TODO(babenko): switch to std::string
-        .QueueCluster = TString(*queueCluster),
+        .QueueCluster = *queueCluster,
         .QueuePath = queuePath.GetPath(),
         .SessionId = sessionId,
     };
@@ -3012,8 +3012,7 @@ void TClient::DoRemoveQueueProducerSession(
     auto nameTable = NQueueClient::NRecords::TQueueProducerSessionDescriptor::Get()->GetNameTable();
 
     NQueueClient::NRecords::TQueueProducerSessionKey sessionKey{
-        // TODO(babenko): switch to std::string
-        .QueueCluster = TString(*queueCluster),
+        .QueueCluster = *queueCluster,
         .QueuePath = queuePath.GetPath(),
         .SessionId = sessionId,
     };
@@ -3169,7 +3168,8 @@ private:
                 networks);
 
             TQueryServiceProxy proxy(channel);
-            proxy.SetDefaultTimeout(Options_.Timeout.value_or(connection->GetConfig()->DefaultPullRowsTimeout));
+            auto timeout = Options_.Timeout.value_or(connection->GetConfig()->DefaultPullRowsTimeout);
+            proxy.SetDefaultTimeout(timeout);
             auto req = proxy.PullRows();
             req->set_request_codec(ToProto(connection->GetConfig()->LookupRowsRequestCodec));
             req->set_response_codec(ToProto(connection->GetConfig()->LookupRowsResponseCodec));
@@ -3177,6 +3177,7 @@ private:
             req->set_max_rows_per_read(Options_.TabletRowsPerRead);
             req->set_max_data_weight(MaxDataWeight_);
             req->set_upper_timestamp(Options_.UpperTimestamp);
+            req->set_request_timeout(ToProto(timeout));
             ToProto(req->mutable_tablet_id(), TabletInfo_->TabletId);
             ToProto(req->mutable_cell_id(), TabletInfo_->CellId);
             ToProto(req->mutable_start_replication_progress(), ReplicationProgress_);

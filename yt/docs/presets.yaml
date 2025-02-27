@@ -1,11 +1,11 @@
 default:
     yt-server-version: 24.1.0
-    k8s-operator-version: 0.16.2
+    k8s-operator-version: 0.20.0
     chyt-version: 2.14.0
     spyt-version: 2.5.0
     strawberry-version: 0.0.12
     qt-version: 0.0.8
-    yt-stable-branch: 23.2
+    yt-stable-branch: 24.1
     python-sdk-version: 0.13.18
     java-sdk-version: 1.2.5
     python-yson-version: 0.4.9

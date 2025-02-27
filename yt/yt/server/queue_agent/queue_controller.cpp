@@ -34,8 +34,6 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/core/misc/ema_counter.h>
-
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <library/cpp/yt/threading/atomic_object.h>
@@ -404,7 +402,10 @@ public:
         queueSnapshot->ReplicatedTableMappingRow = std::move(replicatedTableMappingRow);
         queueSnapshot->Error = TError("Queue is not processed yet");
         QueueSnapshot_.Exchange(std::move(queueSnapshot));
+    }
 
+    void Initialize() const
+    {
         PassExecutor_->Start();
         AlertManager_->Start();
 
@@ -462,7 +463,7 @@ public:
         {
             auto guard = WriterGuard(QueueExportsLock_);
             if (QueueExports_.IsOK()) {
-                for (auto& exporter : GetValues(QueueExports_.Value())) {
+                for (const auto& exporter : GetValues(QueueExports_.Value())) {
                     exporter->OnDynamicConfigChanged(newConfig->QueueExporter);
                 }
             }
@@ -513,11 +514,11 @@ private:
     const IAlertCollectorPtr TrimAlertCollector_;
     const IAlertCollectorPtr QueueExportsAlertCollector_;
 
-    using QueueExportsMappingOrError = TErrorOr<THashMap<TString, IQueueExporterPtr>>;
-    QueueExportsMappingOrError QueueExports_;
-    TReaderWriterSpinLock QueueExportsLock_;
-
     const IQueueExportManagerPtr QueueExportManager_;
+
+    using TQueueExportsMappingOrError = TErrorOr<THashMap<TString, IQueueExporterPtr>>;
+    TQueueExportsMappingOrError QueueExports_;
+    TReaderWriterSpinLock QueueExportsLock_;
 
     void Pass()
     {
@@ -526,6 +527,16 @@ private:
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueControllerPass"));
 
         YT_LOG_INFO("Queue controller pass started");
+
+        {
+            auto config = DynamicConfig_.Acquire();
+            auto it = std::find(config->DelayedObjects.begin(), config->DelayedObjects.end(), static_cast<TRichYPath>(QueueRow_.Load().Ref));
+            if (it != config->DelayedObjects.end()) {
+                // NB(apachee): Since this should only be used for debug, it is a warning in case "delayed_objects" field is left non-empty accidentally.
+                YT_LOG_WARNING("This pass is delayed since queue is present in \"delayed_objects\" field of dynamic config (DelayDuration: %v)", config->ControllerDelayDuration);
+                TDelayedExecutor::WaitForDuration(config->ControllerDelayDuration);
+            }
+        }
 
         auto registrations = ObjectStore_->GetRegistrations(QueueRef_, EObjectKind::Queue);
         YT_LOG_INFO("Registrations fetched (RegistrationCount: %v)", registrations.size());
@@ -598,7 +609,7 @@ private:
         auto guard = WriterGuard(QueueExportsLock_);
 
         if (!staticExportConfig) {
-            QueueExports_ = QueueExportsMappingOrError();
+            QueueExports_ = TQueueExportsMappingOrError();
             return;
         }
         if (auto staticExportConfigError = CheckStaticExportConfig(*staticExportConfig, nextQueueSnapshot->Row.ObjectType); !staticExportConfigError.IsOK()) {
@@ -612,7 +623,7 @@ private:
         }
 
         if (!QueueExports_.IsOK()) {
-            QueueExports_ = QueueExportsMappingOrError();
+            QueueExports_ = TQueueExportsMappingOrError();
         }
         auto& queueExports = QueueExports_.Value();
         for (const auto& [name, exportConfig] : *staticExportConfig) {
@@ -1555,8 +1566,8 @@ bool UpdateQueueController(
     }
 
     switch (queueFamily.Value()) {
-        case EQueueFamily::OrderedDynamicTable:
-            controller = New<TOrderedDynamicTableController>(
+        case EQueueFamily::OrderedDynamicTable: {
+            auto newController = New<TOrderedDynamicTableController>(
                 leading,
                 row,
                 replicatedTableMappingRow,
@@ -1565,7 +1576,10 @@ bool UpdateQueueController(
                 dynamicConfig,
                 std::move(clientDirectory),
                 std::move(invoker));
+            newController->Initialize();
+            controller = newController;
             break;
+        }
         default:
             YT_ABORT();
     }

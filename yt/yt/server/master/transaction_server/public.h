@@ -31,13 +31,13 @@ using TRspIssueLeases = NTransactionClient::NProto::TRspIssueLeases;
 
 DECLARE_REFCOUNTED_STRUCT(ITransactionManager)
 
-DECLARE_REFCOUNTED_CLASS(TDynamicTransactionManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TDynamicTransactionManagerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTransactionPresenceCache)
-DECLARE_REFCOUNTED_CLASS(TTransactionPresenceCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TTransactionPresenceCacheConfig)
 
 DECLARE_REFCOUNTED_CLASS(TBoomerangTracker)
-DECLARE_REFCOUNTED_CLASS(TBoomerangTrackerConfig)
+DECLARE_REFCOUNTED_STRUCT(TBoomerangTrackerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TTransactionReplicationSessionWithoutBoomerangs)
 DECLARE_REFCOUNTED_CLASS(TTransactionReplicationSessionWithBoomerangs)

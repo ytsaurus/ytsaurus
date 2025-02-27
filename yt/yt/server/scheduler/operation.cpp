@@ -109,7 +109,8 @@ TOperation::TOperation(
     const std::vector<TOperationEvent>& events,
     bool suspended,
     int registrationIndex,
-    const THashMap<EOperationAlertType, TOperationAlert>& alerts)
+    const THashMap<EOperationAlertType, TOperationAlert>& alerts,
+    INodePtr cumulativeSpecPatch)
     : MutationId_(mutationId)
     , Suspended_(suspended)
     , UserTransactionId_(userTransactionId)
@@ -123,6 +124,7 @@ TOperation::TOperation(
     , BaseAcl_(std::move(baseAcl))
     , ExperimentAssignments_(std::move(experimentAssignments))
     , RegistrationIndex_(registrationIndex)
+    , CumulativeSpecPatch_(std::move(cumulativeSpecPatch))
     , Id_(id)
     , Type_(type)
     , StartTime_(startTime)
@@ -621,8 +623,10 @@ void TOperation::SetTemporaryToken(const TString& token, const TNodeId& nodeId)
 {
     YT_VERIFY(State_ == EOperationState::Starting);
     YT_VERIFY(Spec_->IssueTemporaryToken);
-    // We check that the key is not already present in the secure vault before calling this method.
-    YT_VERIFY(AddSecureVaultEntry(Spec_->TemporaryTokenEnvironmentVariableName, ConvertToNode(token)));
+    // We allow issuing unused temporary tokens to support enabling this option by default.
+    if (!AddSecureVaultEntry(Spec_->TemporaryTokenEnvironmentVariableName, ConvertToNode(token))) {
+        YT_LOG_DEBUG("Not using temporary token as there is an explicit one");
+    }
 
     TemporaryTokenNodeId_ = nodeId;
 }

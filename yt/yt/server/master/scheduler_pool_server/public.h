@@ -20,7 +20,7 @@ DECLARE_MASTER_OBJECT_TYPE(TSchedulerPoolTree)
 
 DECLARE_REFCOUNTED_STRUCT(ISchedulerPoolManager)
 
-DECLARE_REFCOUNTED_CLASS(TDynamicSchedulerPoolManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TDynamicSchedulerPoolManagerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TPoolResources)
 

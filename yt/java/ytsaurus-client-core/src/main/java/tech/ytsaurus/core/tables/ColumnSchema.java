@@ -105,6 +105,10 @@ public class ColumnSchema implements YTreeConvertible {
         return name;
     }
 
+    public ColumnValueType getWireType() {
+        return toWireType(typeV3).columnValueType;
+    }
+
     public ColumnValueType getType() {
         return toOldType(typeV3).columnValueType;
     }
@@ -272,6 +276,7 @@ public class ColumnSchema implements YTreeConvertible {
                 newType = TiType.string();
                 break;
             case ANY:
+            case COMPOSITE:
                 newType = TiType.yson();
                 break;
             case MAX:
@@ -348,6 +353,26 @@ public class ColumnSchema implements YTreeConvertible {
                 throw new IllegalStateException("Type " + type + " is not supported by YT");
         }
 
+    }
+
+    private static OldType toWireType(TiType type) {
+        switch (type.getTypeName()) {
+            case Optional:
+                OldType itemOldType = toWireType(type.asOptional().getItem());
+                if (itemOldType.required) {
+                    return new OldType(itemOldType.columnValueType, false);
+                } else {
+                    return new OldType(ColumnValueType.ANY, false);
+                }
+            case List:
+            case Dict:
+            case Struct:
+                return new OldType(ColumnValueType.COMPOSITE, true);
+            case Tagged:
+                return toWireType(type.asTaggedType().getItem());
+            default:
+                return toOldType(type);
+        }
     }
 
     public static class Builder {

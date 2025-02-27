@@ -17,7 +17,7 @@ struct IDistributedChunkWriter
 {
     //! Writes bunch of rows. Returns an asynchronous flag that is set when
     //! the rows are successfully written.
-    virtual TFuture<void> Write(TRange<NTableClient::TUnversionedRow> rows) = 0;
+    virtual TFuture<void> Write(TSharedRange<NTableClient::TUnversionedRow> rows) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedChunkWriter)
@@ -25,7 +25,7 @@ DEFINE_REFCOUNTED_TYPE(IDistributedChunkWriter)
 ////////////////////////////////////////////////////////////////////////////////
 
 IDistributedChunkWriterPtr CreateDistributedChunkWriter(
-    NNodeTrackerClient::TNodeDescriptor coordinator,
+    NNodeTrackerClient::TNodeDescriptor coordinatorNode,
     NChunkClient::TSessionId sessionId,
     NApi::NNative::IConnectionPtr connection,
     TDistributedChunkWriterConfigPtr config,

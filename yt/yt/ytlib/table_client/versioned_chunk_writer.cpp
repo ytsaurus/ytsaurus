@@ -731,6 +731,7 @@ public:
                 columnSchema,
                 BlockWriters_[blockWriterIndex].get(),
                 Options_->MemoryUsageTracker,
+                /*serializeFloatsAsDoubles*/ true,
                 Config_->MaxSegmentValueCount));
         }
 

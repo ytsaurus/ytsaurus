@@ -32,7 +32,6 @@
 
 #include <yt/yt/core/misc/aggregate_property.h>
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/ema_counter.h>
 
 #include <library/cpp/yt/misc/enum.h>
 

@@ -180,7 +180,7 @@ public:
         , Profiler_(TProfiler("/connection").WithTag("connection_name", StaticConfig_->ConnectionName))
         , TabletSyncReplicaCache_(New<TTabletSyncReplicaCache>())
         , BannedReplicaTrackerCache_(CreateBannedReplicaTrackerCache(StaticConfig_->BannedReplicaTrackerCache, Logger))
-        , TableReplicaStatusCache_(New<TTableReplicaSynchronicityCache>())
+        , TableReplicaStatusCache_(CreateTableReplicaSynchronicityCache())
         , QueryEvaluator_(BIND([this] {
             auto config = Config_.Acquire();
             return CreateEvaluator(config->QueryEvaluator);
@@ -476,7 +476,7 @@ public:
         return ChaosResidencyCache_;
     }
 
-    const TTableReplicaSynchronicityCachePtr& GetTableReplicaSynchronicityCache() override
+    const ITableReplicaSynchronicityCachePtr& GetTableReplicaSynchronicityCache() override
     {
         return TableReplicaStatusCache_;
     }
@@ -564,9 +564,7 @@ public:
         EMasterChannelKind kind,
         TCellTag cellTag = PrimaryMasterCellTagSentinel) override
     {
-        auto canUseCypressProxy =
-            (kind == EMasterChannelKind::Follower || kind == EMasterChannelKind::Leader) &&
-            (cellTag == PrimaryMasterCellTagSentinel || cellTag == GetPrimaryMasterCellTag());
+        auto canUseCypressProxy = kind == EMasterChannelKind::Follower || kind == EMasterChannelKind::Leader;
 
         return canUseCypressProxy && CypressProxyChannel_
             ? CypressProxyChannel_
@@ -911,7 +909,7 @@ private:
 
     const TTabletSyncReplicaCachePtr TabletSyncReplicaCache_;
     const IBannedReplicaTrackerCachePtr BannedReplicaTrackerCache_;
-    const TTableReplicaSynchronicityCachePtr TableReplicaStatusCache_;
+    const ITableReplicaSynchronicityCachePtr TableReplicaStatusCache_;
 
     const TLazyIntrusivePtr<IEvaluator> QueryEvaluator_;
     const TLazyIntrusivePtr<IColumnEvaluatorCache> ColumnEvaluatorCache_;

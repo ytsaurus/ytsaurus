@@ -14,10 +14,9 @@ namespace NYT::NCypressServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicCypressManagerConfig
+struct TDynamicCypressManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     int DefaultFileReplicationFactor;
 
     int DefaultTableReplicationFactor;

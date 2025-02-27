@@ -76,10 +76,9 @@ DEFINE_ENUM(EDriverType,
     (Native)
 );
 
-class TTestConfig
+struct TTestConfig
     : public TYsonStructLite
 {
-public:
     std::string User;
     TString Token;
     TString Table;

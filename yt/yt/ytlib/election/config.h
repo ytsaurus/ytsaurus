@@ -8,10 +8,9 @@ namespace NYT::NElection {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellPeerConfig
+struct TCellPeerConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<std::string> Address;
     std::optional<std::string> AlienCluster;
     bool Voting;
@@ -26,10 +25,9 @@ void FormatValue(TStringBuilderBase* builder, const TCellPeerConfigPtr& config, 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCellConfig
+struct TCellConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Cell id; an arbitrary random object id of |Cell| type.
     TCellId CellId;
 

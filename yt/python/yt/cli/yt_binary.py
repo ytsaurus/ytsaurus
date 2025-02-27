@@ -1308,6 +1308,12 @@ def add_push_queue_producer_parser(add_parser):
     parser.add_argument("--session-id", type=str, required=True)
     parser.add_argument("--epoch", type=int, required=True)
 
+    require_sync_replica_parser = parser.add_mutually_exclusive_group(required=False)
+    require_sync_replica_parser.add_argument(
+        "--require-sync-replica", dest="require_sync_replica", default=None, action="store_true")
+    require_sync_replica_parser.add_argument(
+        "--no-require-sync-replica", dest="require_sync_replica", default=None, action="store_false")
+
     add_format_argument(parser, name="--input-format", help="input format")
     add_structured_format_argument(parser, name="--output-format", help="output format")
 
@@ -2689,6 +2695,7 @@ def add_flow_get_flow_view_parser(add_parser):
     add_ypath_argument(parser, "pipeline_path", hybrid=True)
     add_structured_format_argument(parser, default=output_format)
     parser.add_argument("--view-path", help="Path inside flow view yson struct, starting with /")
+    parser.add_argument("--cache", help="Use controller cache")
 
 
 @copy_docstring_from(get_controller_logs)

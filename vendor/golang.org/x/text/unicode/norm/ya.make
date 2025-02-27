@@ -2,7 +2,7 @@ GO_LIBRARY()
 
 LICENSE(BSD-3-Clause)
 
-VERSION(v0.21.0)
+VERSION(v0.22.0)
 
 SRCS(
     composition.go

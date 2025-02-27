@@ -20,7 +20,8 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
     const TColumnMeta& meta,
     int columnIndex,
     int columnId,
-    std::optional<ESortOrder> sortOrder)
+    std::optional<ESortOrder> sortOrder,
+    bool serializeFloatsAsDoubles)
 {
     auto doCreate = [&] (auto factory) {
         return factory(meta, columnIndex, columnId, sortOrder, schema);
@@ -34,11 +35,13 @@ std::unique_ptr<IUnversionedColumnReader> CreateUnversionedColumnReader(
             return doCreate(CreateUnversionedUint64ColumnReader);
 
         case EValueType::Double:
-            switch (auto simplifiedLogicalType = schema.CastToV1Type()) {
+            switch (schema.CastToV1Type()) {
                 case ESimpleLogicalValueType::Float:
-                    return doCreate(CreateUnversionedFloatingPointColumnReader<float>);
+                    if (!serializeFloatsAsDoubles) {
+                        return doCreate(CreateUnversionedFloatingPointColumnReader<float>);
+                    }
+                    [[fallthrough]];
                 default:
-                    YT_VERIFY(simplifiedLogicalType == ESimpleLogicalValueType::Double);
                     return doCreate(CreateUnversionedFloatingPointColumnReader<double>);
             }
         case EValueType::String:
@@ -72,7 +75,6 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
         return factory(meta, columnId, schema);
     };
 
-    auto simplifiedLogicalType = schema.CastToV1Type();
     switch (schema.GetWireType()) {
         case EValueType::Int64:
             return doCreate(CreateVersionedInt64ColumnReader);
@@ -81,12 +83,7 @@ std::unique_ptr<IVersionedColumnReader> CreateVersionedColumnReader(
             return doCreate(CreateVersionedUint64ColumnReader);
 
         case EValueType::Double:
-            switch (simplifiedLogicalType) {
-                case ESimpleLogicalValueType::Float:
-                    return doCreate(CreateVersionedFloatingPointColumnReader<float>);
-                default:
-                    return doCreate(CreateVersionedFloatingPointColumnReader<double>);
-            }
+            return doCreate(CreateVersionedDoubleColumnReader);
 
         case EValueType::Boolean:
             return doCreate(CreateVersionedBooleanColumnReader);

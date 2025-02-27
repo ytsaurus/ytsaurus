@@ -6,9 +6,9 @@ namespace NYT::NUserJob {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TUserJobExecutorConfig)
+DECLARE_REFCOUNTED_STRUCT(TUserJobExecutorConfig)
 
-DECLARE_REFCOUNTED_CLASS(TUserJobSynchronizerConnectionConfig)
+DECLARE_REFCOUNTED_STRUCT(TUserJobSynchronizerConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

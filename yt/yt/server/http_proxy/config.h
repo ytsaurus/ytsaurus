@@ -44,10 +44,9 @@ namespace NYT::NHttpProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides endpoints used for proxying metrics from internal cluster components.
-class TProfilingEndpointProviderConfig
+struct TProfilingEndpointProviderConfig
     : public NYTree::TYsonStruct
 {
-public:
     EClusterComponentType ComponentType;
     //! This monitoring port will be used with all hosts discovered for the configured component.
     int MonitoringPort;
@@ -70,10 +69,9 @@ DEFINE_REFCOUNTED_TYPE(TProfilingEndpointProviderConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! TODO(achulkov2): Dynamic config.
-class TSolomonProxyConfig
+struct TSolomonProxyConfig
     : public NProfiling::TSolomonProxyConfig
 {
-public:
     //! No endpoints are specified by default, which leads to an empty result.
     std::vector<TProfilingEndpointProviderConfigPtr> EndpointProviders;
 
@@ -86,10 +84,9 @@ DEFINE_REFCOUNTED_TYPE(TSolomonProxyConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCoordinatorConfig
+struct TCoordinatorConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
     bool Announce;
 
@@ -154,10 +151,9 @@ DEFINE_REFCOUNTED_TYPE(TApiTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFramingConfig
+struct TFramingConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
     std::optional<TDuration> KeepAlivePeriod;
 
@@ -170,10 +166,9 @@ DEFINE_REFCOUNTED_TYPE(TFramingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TApiConfig
+struct TApiConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration BanCacheExpirationTime;
     int ConcurrencyLimit;
 
@@ -192,10 +187,9 @@ DEFINE_REFCOUNTED_TYPE(TApiConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TApiDynamicConfig
+struct TApiDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TFramingConfigPtr Framing;
 
     THashMap<NFormats::EFormatType, NServer::TFormatConfigPtr> Formats;
@@ -211,10 +205,9 @@ DEFINE_REFCOUNTED_TYPE(TApiDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAccessCheckerConfig
+struct TAccessCheckerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Whether access checker is enabled.
     bool Enabled;
 
@@ -238,10 +231,9 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAccessCheckerDynamicConfig
+struct TAccessCheckerDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Whether access checker is enabled.
     std::optional<bool> Enabled;
 
@@ -254,10 +246,9 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyMemoryLimitsConfig
+struct TProxyMemoryLimitsConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<i64> Total;
     std::optional<i64> HeavyRequest;
 
@@ -270,10 +261,9 @@ DEFINE_REFCOUNTED_TYPE(TProxyMemoryLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyBootstrapConfig
+struct TProxyBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
-public:
     int Port;
     int ThreadCount;
 
@@ -335,11 +325,10 @@ DEFINE_REFCOUNTED_TYPE(TProxyBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyProgramConfig
+struct TProxyProgramConfig
     : public TProxyBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TProxyProgramConfig);
 
     static void Register(TRegistrar registrar);
@@ -353,10 +342,9 @@ DEFINE_REFCOUNTED_TYPE(TProxyProgramConfig)
 //
 // NOTE: config might me unavalable. Users must handle such cases
 // gracefully.
-class TProxyDynamicConfig
+struct TProxyDynamicConfig
     : public TSingletonsDynamicConfig
 {
-public:
     TApiDynamicConfigPtr Api;
 
     NTracing::TSamplerConfigPtr Tracing;
@@ -371,8 +359,6 @@ public:
     NClickHouse::TDynamicClickHouseConfigPtr ClickHouse;
 
     TAccessCheckerDynamicConfigPtr AccessChecker;
-
-    NApi::NNative::TConnectionDynamicConfigPtr ClusterConnection;
 
     NBus::TBusServerDynamicConfigPtr BusServer;
 

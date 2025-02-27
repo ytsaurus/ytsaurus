@@ -110,10 +110,12 @@ class Platform(object):
         self.is_arm = self.is_armv7 or self.is_armv8 or self.is_armv8m or self.is_armv7em
         self.is_armv7_neon = self.arch in ('armv7a_neon', 'armv7ahf', 'armv7a_cortex_a9', 'armv7ahf_cortex_a35', 'armv7ahf_cortex_a53')
         self.is_armv7hf = self.arch in ('armv7ahf', 'armv7ahf_cortex_a35', 'armv7ahf_cortex_a53')
-        self.is_armv5te = self.arch in ('armv5te_arm968e_s')
+        self.is_armv5te = self.arch in ('armv5te_arm968e_s',)
 
-        self.is_rv32imc = self.arch in ('riscv32_esp',)
-        self.is_riscv32 = self.is_rv32imc
+        self.is_rv32imc = self.arch in ('riscv32_imc', 'riscv32_esp')
+        self.is_rv32imc_zicsr = self.arch in ('riscv32_imc_zicsr',)
+
+        self.is_riscv32 = self.is_rv32imc or self.is_rv32imc_zicsr
 
         self.is_nds32 = self.arch in ('nds32le_elf_mculib_v5f',)
         self.is_tc32 = self.arch in ('tc32_elf',)
@@ -1276,6 +1278,9 @@ class GnuToolchain(Toolchain):
         if target.is_rv32imc:
             self.c_flags_platform.append('-march=rv32imc')
 
+        if target.is_rv32imc_zicsr:
+            self.c_flags_platform.append('-march=rv32imc_zicsr')
+
         if self.tc.is_clang or self.tc.is_gcc and self.tc.version_at_least(8, 2):
             target_flags = select(default=[], selectors=[
                 (target.is_linux and target.is_power8le, ['-mcpu=power8', '-mtune=power8', '-maltivec']),
@@ -2016,10 +2021,6 @@ class MSVCCompiler(MSVC, Compiler):
                 # for msvc compatibility
                 # https://clang.llvm.org/docs/UsersManual.html#microsoft-extensions
                 # '-fdelayed-template-parsing',
-                '-Wno-deprecated-this-capture',
-                '-Wno-c++11-narrowing-const-reference',
-                '-Wno-vla-cxx-extension',  # https://github.com/llvm/llvm-project/issues/62836
-                '-Wno-invalid-offsetof',
             ]
             if target.is_x86:
                 flags.append('-m32')
@@ -2040,12 +2041,16 @@ class MSVCCompiler(MSVC, Compiler):
                 # Issue a warning if certain overload is hidden due to inheritance
                 '-Woverloaded-virtual',
                 '-Wno-ambiguous-reversed-operator',
+                '-Wno-c++11-narrowing-const-reference',
                 '-Wno-defaulted-function-deleted',
                 '-Wno-deprecated-anon-enum-enum-conversion',
                 '-Wno-deprecated-enum-enum-conversion',
                 '-Wno-deprecated-enum-float-conversion',
+                '-Wno-deprecated-this-capture',
                 '-Wno-deprecated-volatile',
+                '-Wno-invalid-offsetof',
                 '-Wno-undefined-var-template',
+                '-Wno-vla-cxx-extension',  # https://github.com/llvm/llvm-project/issues/62836
             ]
 
         defines.append('/D_WIN32_WINNT={0}'.format(WINDOWS_VERSION_MIN))
@@ -2522,10 +2527,10 @@ class CuDNN(object):
         self.cudnn_version = Setting('CUDNN_VERSION', auto=self.auto_cudnn_version)
 
     def have_cudnn(self):
-        return self.cudnn_version.value in ('7.6.5', '8.0.5')
+        return self.cudnn_version.value in ('7.6.5', '8.0.5', '8.6.0')
 
     def auto_cudnn_version(self):
-        return '8.0.5'
+        return '8.6.0'
 
     def print_(self):
         if self.cuda.have_cuda.value and self.have_cudnn():

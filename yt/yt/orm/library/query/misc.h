@@ -33,13 +33,13 @@ concept CStringOrLiteralValue = CString<T> || std::same_as<NQueryClient::NAst::T
 ////////////////////////////////////////////////////////////////////////////////
 
 template <CString TReference, CStringOrLiteralValue TValue>
-TString GenerateLexicographicalFilter(
+std::string GenerateLexicographicalFilter(
     const std::vector<TReference>& references,
     const std::vector<TValue>& values,
     EOrderRelation orderRelation);
 
 template <CString TReference, CStringOrLiteralValue TValue>
-TString GenerateLexicographicalRangeFilter(
+std::string GenerateLexicographicalRangeFilter(
     const std::vector<TReference>& references,
     const std::vector<TValue>& leftBound,
     const std::vector<TValue>& rigtBound,
@@ -50,7 +50,7 @@ TString GenerateLexicographicalRangeFilter(
 template <CStringOrLiteralValue TValue>
 TString FormatList(const std::vector<TValue>& values);
 
-TString JoinFilters(const std::vector<TString>& filters);
+std::string JoinFilters(const std::vector<std::string>& filters);
 
 bool IsTargetReference(
     const NQueryClient::NAst::TExpressionList& exprs,

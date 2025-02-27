@@ -238,6 +238,9 @@ private:
         req->set_retention_time(ToProto(Context_->Options.RetentionTime));
         req->set_codec(ToProto(Context_->CodecId));
         req->SetTimeout(Context_->Options.ControlRpcTimeout);
+        if (auto memoryLimit = Context_->Options.MemoryLimitPerNode) {
+            req->set_memory_limit_per_node(*memoryLimit);
+        }
 
         return req->Invoke()
             .AsVoid()

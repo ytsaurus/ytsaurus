@@ -104,6 +104,8 @@ struct TLocationPerformanceCounters
     NProfiling::TGauge UsedSpace;
     NProfiling::TGauge AvailableSpace;
     NProfiling::TGauge ChunkCount;
+    NProfiling::TGauge TrashChunkCount;
+    NProfiling::TGauge TrashSpace;
     NProfiling::TGauge Full;
 };
 
@@ -320,7 +322,7 @@ public:
     //! Subscribe callback on disk health check.
     void SubscribeDiskCheckFailed(const TCallback<void(const TError&)> callback);
 
-    //! Updates #UsedSpace and #AvailableSpace
+    //! Updates #UsedSpace and #AvailableSpace.
     void UpdateUsedSpace(i64 size);
 
     //! Returns the number of bytes used at the location.
@@ -649,6 +651,12 @@ public:
     //! Removes a chunk permanently or moves it to the trash.
     void RemoveChunkFiles(TChunkId chunkId, bool force) override;
 
+    //! Returns the number of trash chunks.
+    int GetTrashChunkCount() const;
+
+    //! Returns the number of bytes used in trash.
+    i64 GetTrashSpace() const;
+
     //! Returns various IO related statistics.
     TIOStatistics GetIOStatistics() const;
 
@@ -676,8 +684,10 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, TrashMapSpinLock_);
     std::multimap<TInstant, TTrashChunkEntry> TrashMap_;
-    std::atomic<i64> TrashDiskSpace_ = 0;
     const NConcurrency::TPeriodicExecutorPtr TrashCheckExecutor_;
+
+    std::atomic<i64> TrashSpace_ = 0;
+    std::atomic<int> TrashChunkCount_ = 0;
 
     class TIOStatisticsProvider;
     const TIntrusivePtr<TIOStatisticsProvider> IOStatisticsProvider_;
@@ -688,6 +698,8 @@ private:
         const TDataNodeConfigPtr& dataNodeConfig,
         const TStoreLocationConfigPtr& storeLocationConfig);
 
+    void UpdateTrashChunkCount(int delta);
+    void UpdateTrashSpace(i64 size);
     TString GetTrashPath() const;
     TString GetTrashChunkPath(TChunkId chunkId) const;
     void RegisterTrashChunk(TChunkId chunkId);
@@ -698,6 +710,8 @@ private:
     void MoveChunkFilesToTrash(TChunkId chunkId);
 
     void RemoveLocationChunks();
+
+    bool IsTrashScanStopped() const;
 
     i64 GetAdditionalSpace() const override;
 
@@ -710,6 +724,8 @@ private:
 
     void DoStart() override;
     std::vector<TChunkDescriptor> DoScan() override;
+    void DoScanTrash();
+    void DoAsyncScanTrash();
 };
 
 DEFINE_REFCOUNTED_TYPE(TStoreLocation)

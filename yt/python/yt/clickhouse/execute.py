@@ -90,6 +90,9 @@ def execute(query, alias=None, raw=None, format=None, settings=None, traceparent
         headers["traceparent"] = traceparent
 
     auth = TokenAuth(get_token(client=client))
+    tvm_auth = get_config(client)["tvm_auth"]
+    if tvm_auth is not None:
+        auth = tvm_auth
 
     random_generator = get_option("_random_generator", client)
     request_id = "%08x" % random_generator.randrange(16**8)

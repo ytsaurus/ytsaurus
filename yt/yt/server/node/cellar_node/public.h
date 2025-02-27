@@ -6,10 +6,10 @@ namespace NYT::NCellarNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TMasterConnectorConfig)
-DECLARE_REFCOUNTED_CLASS(TMasterConnectorDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TCellarNodeConfig)
-DECLARE_REFCOUNTED_CLASS(TCellarNodeDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TMasterConnectorConfig)
+DECLARE_REFCOUNTED_STRUCT(TMasterConnectorDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellarNodeConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellarNodeDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TBundleDynamicConfigManager)
 
 DECLARE_REFCOUNTED_STRUCT(TCpuLimits)

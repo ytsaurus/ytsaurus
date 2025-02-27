@@ -5,7 +5,7 @@ import copy
 import stat
 from typing import List, Dict, Generator
 
-from .conftest import authors
+from .conftest import authors, yt_env_multicluster_v4  # noqa
 from .helpers import (TEST_DIR, wait, get_default_resource_limits,
                       check_rows_equality, set_config_options, set_config_option,
                       get_python, get_binary_path, get_environment_for_binary_test)
@@ -54,6 +54,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import typing
 
 
 def is_process_alive(pid):
@@ -2027,3 +2028,54 @@ class TestMedia:
 
         FILE_PAYLOAD = b"PAYLOAD"
         yt.write_file("//tmp/test_file", FILE_PAYLOAD)
+
+
+@authors("denvr")
+def test_operations_with_other_cluster(yt_env_multicluster_v4):  # noqa
+    env_1, env_2 = yt_env_multicluster_v4
+    client_1 = yt.YtClient(proxy=env_1.config["proxy"]["url"], config={"pickling": {"framework": "cloudpickle"}})
+    client_2 = yt.YtClient(proxy=env_2.config["proxy"]["url"])
+
+    TABLE_CLUSTER_2 = "<cluster=\"{}\";>//tmp/table_1".format(client_2.config["proxy"]["url"])
+    # TABLE_CLUSTER_2 = yt.TablePath("//tmp/table_1", attributes={"cluster": client_2.config["proxy"]["url"]})
+    TABLE_LOCAL = "//tmp/table_2"
+
+    client_2.write_table(TABLE_CLUSTER_2, [{"foo": "bar"}])
+    assert client_2.exists(TABLE_CLUSTER_2)
+    assert not client_1.exists(TABLE_LOCAL)
+
+    client_1.run_map(
+        "cat",
+        source_table=TABLE_CLUSTER_2,
+        destination_table=TABLE_LOCAL,
+        format="json"
+    )
+
+    assert client_2.exists(TABLE_CLUSTER_2)
+    assert client_1.exists(TABLE_LOCAL)
+
+    # with dataclesses
+    client_2.remove(TABLE_CLUSTER_2)
+    client_1.remove(TABLE_LOCAL)
+
+    @yt.yt_dataclass
+    class Rec:
+        foo: str
+
+    class SimpleMapper(yt.TypedJob):
+        def __call__(self, row: Rec) -> typing.Iterable[Rec]:
+            yield row
+
+    client_2.write_table_structured(TABLE_CLUSTER_2, Rec, [Rec("bar")])
+
+    assert client_2.exists(TABLE_CLUSTER_2)
+    assert not client_1.exists(TABLE_LOCAL)
+
+    client_1.run_map(
+        SimpleMapper(),
+        source_table=TABLE_CLUSTER_2,
+        destination_table=TABLE_LOCAL,
+    )
+
+    assert client_2.exists(TABLE_CLUSTER_2)
+    assert client_1.exists(TABLE_LOCAL)

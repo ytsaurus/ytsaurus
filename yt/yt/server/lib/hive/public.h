@@ -39,10 +39,10 @@ DECLARE_REFCOUNTED_STRUCT(TSerializedMessage)
 
 DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizer)
 
-DECLARE_REFCOUNTED_CLASS(TLogicalTimeRegistryConfig)
-DECLARE_REFCOUNTED_CLASS(THiveManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizerConfig)
-DECLARE_REFCOUNTED_CLASS(TClusterDirectorySynchronizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TLogicalTimeRegistryConfig)
+DECLARE_REFCOUNTED_STRUCT(THiveManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellDirectorySynchronizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TClusterDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

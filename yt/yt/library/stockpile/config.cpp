@@ -57,8 +57,7 @@ void TStockpileDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("total_memory_fraction_override", &TThis::TotalMemoryFractionOverride)
         .Optional()
-        .GreaterThanOrEqual(0)
-        .LessThanOrEqual(1.0);
+        .InRange(0, 1.0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

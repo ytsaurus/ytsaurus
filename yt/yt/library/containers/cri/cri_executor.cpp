@@ -722,7 +722,7 @@ private:
             }
             if (error.GetCode() == NYT::EErrorCode::Generic) {
                 for (const auto& prefix : config->RetryErrorPrefixes) {
-                    if (error.GetMessage().StartsWith(prefix)) {
+                    if (error.GetMessage().starts_with(prefix)) {
                         return true;
                     }
                 }

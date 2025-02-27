@@ -250,7 +250,7 @@ public:
     TFuture<TSharedRefArray> ForwardObjectRequest(
         const TSharedRefArray& requestMessage,
         TCellTag cellTag,
-        NApi::EMasterChannelKind channelKind) override;
+        NHydra::EPeerKind peerKind) override;
 
     void ReplicateObjectCreationToSecondaryMaster(
         TObject* object,
@@ -513,13 +513,11 @@ public:
 
         auto forwardedMessage = SetRequestHeader(requestMessage, forwardedRequestHeader);
 
-        auto channelKind = isMutating ? NApi::EMasterChannelKind::Leader : NApi::EMasterChannelKind::Follower;
+        auto peerKind = isMutating ? NHydra::EPeerKind::Leader : NHydra::EPeerKind::Follower;
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+            multicellManager->GetMasterChannelOrThrow(ForwardedCellTag_, peerKind));
 
-        TObjectServiceProxy proxy(
-            Bootstrap_->GetClusterConnection(),
-            channelKind,
-            ForwardedCellTag_,
-            /*stickyGroupSizeCache*/ nullptr);
         auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
         batchReq->SetOriginalRequestId(context->GetRequestId());
         batchReq->SetTimeout(ComputeForwardingTimeout(context, Bootstrap_->GetConfig()->ObjectService));
@@ -533,7 +531,7 @@ public:
         counters->AutomatonForwardingRequestCounter.Increment();
 
         YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, "
-            "TargetPath: %v, %v%v%v, Mutating: %v, CellTag: %v, ChannelKind: %v)",
+            "TargetPath: %v, %v%v%v, Mutating: %v, CellTag: %v, PeerKind: %v)",
             context->GetRequestId(),
             forwardedRequestId,
             context->GetService(),
@@ -552,7 +550,7 @@ public:
             context->GetAuthenticationIdentity(),
             isMutating,
             ForwardedCellTag_,
-            channelKind);
+            peerKind);
 
         batchReq->Invoke().Subscribe(
             BIND([
@@ -591,7 +589,7 @@ public:
                         setResponseKeeperPromise();
                     }
                 }
-            }).Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ObjectService)));
+            }).Via(Bootstrap_->GetHydraFacade()->GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ObjectService)));
     }
 
     void DoWriteAttributesFragment(
@@ -1764,7 +1762,7 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
 TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     const TSharedRefArray& requestMessage,
     TCellTag cellTag,
-    NApi::EMasterChannelKind channelKind)
+    NHydra::EPeerKind peerKind)
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
 
@@ -1786,11 +1784,9 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
 
     auto forwardedRequestMessage = SetRequestHeader(requestMessage, header);
 
-    auto proxy = TObjectServiceProxy(
-        Bootstrap_->GetClusterConnection(),
-        channelKind,
-        cellTag,
-        /*stickyGroupSizeCache*/ nullptr);
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+        multicellManager->GetMasterChannelOrThrow(cellTag, peerKind));
     auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
     batchReq->SetOriginalRequestId(requestId);
     batchReq->SetTimeout(timeout);
@@ -1807,7 +1803,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
         identity,
         ypathExt.mutating(),
         cellTag,
-        channelKind);
+        peerKind);
 
     return batchReq->Invoke().Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
         if (!batchRspOrError.IsOK()) {
@@ -2056,7 +2052,7 @@ TFuture<void> TObjectManager::DestroySequoiaObjects(std::unique_ptr<NProto::TReq
 {
     return Bootstrap_
         ->GetSequoiaClient()
-        ->StartTransaction()
+        ->StartTransaction(ESequoiaTransactionType::ObjectDestruction)
         .Apply(BIND([request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) mutable {
             for (const auto& protoId : request->object_ids()) {
                 auto id = FromProto<TObjectId>(protoId);
@@ -2569,4 +2565,3 @@ IObjectManagerPtr CreateObjectManager(TTestingTag tag, NCellMaster::TBootstrap* 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NObjectServer
-

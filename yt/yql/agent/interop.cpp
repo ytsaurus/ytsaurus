@@ -98,7 +98,8 @@ void ReorderAndSaveRows(
     }
 };
 
-void TYqlRef::Register(TRegistrar registrar) {
+void TYqlRef::Register(TRegistrar registrar)
+{
     // Note that YQL does not follow our lowercase YSON field naming convention.
     registrar.Parameter("Reference", &TThis::Reference);
     registrar.Parameter("Columns", &TThis::Columns)

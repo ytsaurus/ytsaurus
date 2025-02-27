@@ -633,27 +633,6 @@ class TestSchedulerVanillaCommands(YTEnvSetup):
                 }
             )
 
-    @authors("arkady-e1ppa")
-    def test_operation_incarnation_is_set(self):
-        if self.Env.get_component_version("ytserver-controller-agent").abi <= (24, 1):
-            pytest.skip()
-
-        # NB(arkady-e1ppa): Die with code 42 if variable is not set.
-        command = '[[ -z "$YT_OPERATION_INCARNATION" ]] && exit 42 || exit 0'
-        op = vanilla(
-            spec={
-                "tasks": {
-                    "test": {
-                        "job_count": 1,
-                        "command": command,
-                    },
-                },
-                "fail_on_job_restart": True,
-            }
-        )
-        op.wait_for_state("completed")
-        op.track()
-
 
 @pytest.mark.enabled_multidaemon
 class TestYTDiscoveryServiceInVanilla(YTEnvSetup):
@@ -823,6 +802,11 @@ class TestGangManager(YTEnvSetup):
             },
 
             "snapshot_period": 1000,
+
+            "user_job_monitoring": {
+                "max_monitored_user_jobs_per_operation": 5,
+                "max_monitored_user_jobs_per_agent": 10,
+            },
         },
     }
 
@@ -845,6 +829,25 @@ class TestGangManager(YTEnvSetup):
     def _get_job_tracker_orchid_path(self, op):
         controller_agent_address = op.get_controller_agent_address()
         return f"//sys/controller_agents/instances/{controller_agent_address}/orchid/controller_agent/job_tracker"
+
+    @authors("pogorelov", "arkady-e1ppa")
+    def test_operation_incarnation_is_set(self):
+        # NB(arkady-e1ppa): Die with code 42 if variable is not set.
+        command = '[[ -z "$YT_OPERATION_INCARNATION" ]] && exit 42 || exit 0'
+        op = vanilla(
+            spec={
+                "tasks": {
+                    "test": {
+                        "job_count": 1,
+                        "command": command,
+                        "gang_manager": {},
+                    },
+                },
+                "max_failed_job_count": 1,
+            }
+        )
+        op.wait_for_state("completed")
+        op.track()
 
     @authors("pogorelov")
     def test_restart_on_abortion(self):
@@ -1309,6 +1312,71 @@ class TestGangManager(YTEnvSetup):
 
         for allocation_id, old_job_cookie in old_allocation_id_to_job_cookie.items():
             assert old_job_cookie == new_allocation_id_to_job_cookie[allocation_id]
+
+        release_breakpoint()
+
+        op.track()
+
+    @authors("pogorelov")
+    @pytest.mark.parametrize("with_job_revival", [False, True])
+    def test_preserving_monitoring_descriptor_for_allocation(self, with_job_revival):
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT"),
+            job_count=3,
+            task_patch={
+                "gang_manager": {},
+                "monitoring": {
+                    "enable": True,
+                },
+            },
+        )
+
+        first_job_ids = wait_breakpoint(job_count=3)
+        assert len(first_job_ids) == 3
+
+        print_debug(f"First job info is {op.get_job_node_orchid(first_job_ids[0])}")
+
+        first_job_to_monitoring_descriptors = {job_id: op.get_job_node_orchid(job_id)["monitoring_descriptor"] for job_id in first_job_ids}
+        first_allocation_id_to_monitoring_descriptors = {get_allocation_id_from_job_id(job_id): descriptor for job_id, descriptor in first_job_to_monitoring_descriptors.items()}
+
+        if with_job_revival:
+            op.wait_for_fresh_snapshot()
+            with Restarter(self.Env, CONTROLLER_AGENTS_SERVICE):
+                pass
+
+            op.wait_for_job_revival_finished()
+
+        # We create it after CA restart to not compare new value of sensor with value before restart.
+        restarted_job_profiler = JobCountProfiler(
+            "aborted",
+            tags={"tree": "default", "job_type": "vanilla", "abort_reason": "operation_incarnation_changed"},
+        )
+
+        first_job_id = first_job_ids[0]
+
+        print_debug(f"Old allocation id to monitoring descriptor are: {first_allocation_id_to_monitoring_descriptors}")
+
+        print_debug(f"Aborting job {first_job_id}")
+
+        abort_job(first_job_id)
+
+        wait(lambda: restarted_job_profiler.get_job_count_delta() == 2)
+
+        release_breakpoint(job_id=first_job_ids[0])
+        release_breakpoint(job_id=first_job_ids[1])
+        release_breakpoint(job_id=first_job_ids[2])
+
+        first_allocation_id_to_monitoring_descriptors.pop(get_allocation_id_from_job_id(first_job_id))
+
+        second_job_ids = wait_breakpoint(job_count=3)
+
+        assert len(set(first_job_ids) & set(second_job_ids)) == 0
+
+        second_job_to_monitoring_descriptors = {job_id: op.get_job_node_orchid(job_id)["monitoring_descriptor"] for job_id in second_job_ids}
+        second_allocation_id_to_monitoring_descriptors = {get_allocation_id_from_job_id(job_id): descriptor for job_id, descriptor in second_job_to_monitoring_descriptors.items()}
+
+        for allocation_id, profiling_descriptor in first_allocation_id_to_monitoring_descriptors.items():
+            assert profiling_descriptor == second_allocation_id_to_monitoring_descriptors[allocation_id]
 
         release_breakpoint()
 

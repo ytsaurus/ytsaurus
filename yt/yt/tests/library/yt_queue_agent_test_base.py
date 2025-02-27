@@ -210,6 +210,9 @@ class QueueAgentOrchid(OrchidWithRegularPasses):
     def get_consumer_orchids(self):
         return [self.get_consumer_orchid(consumer) for consumer in self.get_consumers()]
 
+    def get_controller_info(self):
+        return get(f"{self.orchid_path()}/controller_info")
+
 
 class AlertManagerOrchid(OrchidBase):
     ENTITY_NAME = "alert_manager"
@@ -434,7 +437,7 @@ class TestQueueAgentBase(YTEnvSetup):
                 "queue_exporter": {
                     "pass_period": 100,
                     # Fixate greater value for tests in case default decreases in the future.
-                    "max_export_count_per_iteration": 10,
+                    "max_exported_table_count_per_task": 10,
                 }
             },
             "queue_export_manager": {
@@ -556,7 +559,8 @@ class TestQueueAgentBase(YTEnvSetup):
     def _drop_tables(self):
         init_queue_agent_state.delete_all_tables(self.client)
 
-    def _create_queue(self, path, partition_count=1, enable_timestamp_column=True,
+    @staticmethod
+    def _create_queue(path, partition_count=1, enable_timestamp_column=True,
                       enable_cumulative_data_weight_column=True, mount=True, max_inline_hunk_size=None, **kwargs):
         schema = [{"name": "data", "type": "string"}]
         if max_inline_hunk_size is not None:

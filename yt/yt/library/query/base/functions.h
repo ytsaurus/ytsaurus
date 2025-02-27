@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include "key_trie.h"
-#include "constraints.h"
 #include "functions_common.h"
 
 namespace NYT::NQueryClient {
@@ -61,29 +59,6 @@ private:
     const TType ResultType_;
 };
 
-class TAggregateTypeInferrer
-    : public ITypeInferrer
-{
-public:
-    TAggregateTypeInferrer(
-        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
-        TType argumentType,
-        TType resultType,
-        TType stateType);
-
-    void GetNormalizedConstraints(
-        TTypeSet* constraint,
-        std::optional<EValueType>* stateType,
-        std::optional<EValueType>* resultType,
-        TStringBuf name) const;
-
-private:
-    const std::unordered_map<TTypeParameter, TUnionType> TypeParameterConstraints_;
-    const TType ArgumentType_;
-    const TType ResultType_;
-    const TType StateType_;
-};
-
 class TAggregateFunctionTypeInferrer
     : public ITypeInferrer
 {
@@ -93,6 +68,18 @@ public:
         std::vector<TType> argumentTypes,
         TType stateType,
         TType resultType);
+
+    TAggregateFunctionTypeInferrer(
+        std::unordered_map<TTypeParameter, TUnionType> typeParameterConstraints,
+        TType argumentType,
+        TType stateType,
+        TType resultType)
+        : TAggregateFunctionTypeInferrer(
+            std::move(typeParameterConstraints),
+            std::vector<TType>{argumentType},
+            stateType,
+            resultType)
+    { }
 
     std::pair<int, int> GetNormalizedConstraints(
         std::vector<TTypeSet>* typeConstraints,

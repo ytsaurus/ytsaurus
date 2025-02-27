@@ -309,7 +309,8 @@ void TFairShareTreeProfileManager::ProfileElement(
             TWithTagGuard guard(
                 writer,
                 "scheduling_stage",
-                schedulingStage ? FormatEnum(*schedulingStage) : ToString(schedulingStage));
+                // TODO(babenko): migrate to std::string
+                schedulingStage ? TString(FormatEnum(*schedulingStage)) : ToString(schedulingStage));
             ProfileResources(writer, scheduledResourcesIt->second, "/scheduled_job_resources", EMetricType::Counter);
         }
     }

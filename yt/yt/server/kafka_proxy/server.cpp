@@ -2,6 +2,7 @@
 
 #include "config.h"
 #include "connection.h"
+#include "group_coordinator.h"
 #include "helpers.h"
 #include "private.h"
 
@@ -23,6 +24,8 @@
 #include <yt/yt/client/table_client/record_helpers.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
+
+#include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/library/auth_server/authentication_manager.h>
 #include <yt/yt/library/auth_server/credentials.h>
@@ -107,6 +110,7 @@ public:
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoSaslHandshake, Unretained(this)));
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoSaslAuthenticate, Unretained(this)));
         RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoProduce, Unretained(this)));
+        RegisterTypedHandler(BIND_NO_PROPAGATE(&TServer::DoListOffsets, Unretained(this)));
     }
 
     void Start() override
@@ -129,6 +133,13 @@ public:
     void OnDynamicConfigChanged(const TProxyDynamicConfigPtr& config) override
     {
         DynamicConfig_.Store(config);
+
+        {
+            auto guard = ReaderGuard(GroupCoordinatorMapLock_);
+            for (const auto& [_, groupCoordinator] : GroupCoordinators_) {
+                groupCoordinator->Reconfigure(config->GroupCoordinator);
+            }
+        }
     }
 
 private:
@@ -164,6 +175,10 @@ private:
 
     THashMap<TConnectionId, TConnectionStatePtr> Connections_;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConnectionMapLock_);
+
+    using TGroupId = TString;
+    THashMap<TGroupId, IGroupCoordinatorPtr> GroupCoordinators_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, GroupCoordinatorMapLock_);
 
     TEnumIndexedArray<ERequestType, THandler> Handlers_;
 
@@ -221,7 +236,7 @@ private:
         try {
             GuardedOnRequest(connection, std::move(request));
         } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Failed to process request "
+            YT_LOG_ERROR(ex, "Failed to process request "
                 "(ConnectionId: %v)",
                 connection->GetConnectionId());
 
@@ -300,7 +315,7 @@ private:
         TRequestHeader header;
         header.Deserialize(reader.get());
 
-        YT_LOG_DEBUG("Request received (ApiKey: %v, ApiVersion: %v, CorrelationId: %v, ClientId: %v, ConnectionId: %v)",
+        YT_LOG_DEBUG("Request received (RequestType: %v, ApiVersion: %v, CorrelationId: %v, ClientId: %v, ConnectionId: %v)",
             header.RequestType,
             header.ApiVersion,
             header.CorrelationId,
@@ -317,6 +332,7 @@ private:
             && header.RequestType != ERequestType::ApiVersions) {
             // User should be authenticated, just ignore all other requests.
             if (!connectionState->UserName) {
+                YT_LOG_DEBUG("User is unknown (RequestType: %v)", header.RequestType);
                 return TSharedRefArrayBuilder(1).Finish();
             }
         }
@@ -330,10 +346,12 @@ private:
         }();
 
         if (auto handler = Handlers_[header.RequestType]; handler) {
-            auto responseMessage = handler(connection->GetConnectionId(), reader.get(), header.ApiVersion);
+            auto responseMessage = handler(connection->GetConnectionId(), reader.get(), header);
 
-            YT_LOG_DEBUG("Response sent (RequestType: %v, ConnectionId: %v, HeaderSize: %v, MessageSize: %v)",
+            YT_LOG_DEBUG("Response sent (RequestType: %v, CorrelationId: %v, ClientId: %v, ConnectionId: %v, HeaderSize: %v, MessageSize: %v)",
                 header.RequestType,
+                header.CorrelationId,
+                header.ClientId,
                 connection->GetConnectionId(),
                 responseHeader.Size(),
                 responseMessage.Size());
@@ -409,8 +427,6 @@ private:
                 .MinVersion = 0,
                 .MaxVersion = 0,
             },
-            /*
-            // TODO(nadya73): support it later.
             TRspApiKey{
                 .ApiKey = static_cast<int>(ERequestType::JoinGroup),
                 .MinVersion = 0,
@@ -420,7 +436,7 @@ private:
                 .ApiKey = static_cast<int>(ERequestType::SyncGroup),
                 .MinVersion = 0,
                 .MaxVersion = 0,
-            },*/
+            },
             TRspApiKey{
                 .ApiKey = static_cast<int>(ERequestType::ListOffsets),
                 .MinVersion = 0,
@@ -481,7 +497,7 @@ private:
         TRspSaslHandshake response;
         response.Mechanisms = {PlainSaslMechanism, OAuthBearerSaslMechanism};
         if (std::find(response.Mechanisms.begin(), response.Mechanisms.end(), request.Mechanism) == response.Mechanisms.end()) {
-            YT_LOG_DEBUG("Unsupported sasl mechanism (Requested: %v, Expected: %v)",
+            YT_LOG_DEBUG("Unsupported SASL mechanism (Requested: %v, Expected: %v)",
                 request.Mechanism,
                 response.Mechanisms);
 
@@ -515,7 +531,7 @@ private:
         };
 
         if (!connectionState->SaslMechanism) {
-            fillError("Unknown sasl mechanism");
+            fillError("Unknown SASL mechanism");
             return response;
         }
 
@@ -535,32 +551,32 @@ private:
         std::optional<TString> expectedUserName;
 
         if (*connectionState->SaslMechanism == OAuthBearerSaslMechanism) {
-            YT_LOG_DEBUG("Authenticating using OAUTHBEARER sasl mechanism");
+            YT_LOG_DEBUG("Authenticating using OAUTHBEARER SASL mechanism");
             TString authBytes = request.AuthBytes;
             auto parts = splitByString(authBytes, "\x01");
             if (parts.size() < 2) {
-                fillError(Format("Unexpected auth_bytes format, got %v \x01-separated parts", parts.size()));
+                fillError(Format("Unexpected \"auth_bytes\" format, got %v \\x01-separated parts", parts.size()));
                 return response;
             }
             parts = splitByString(parts[1], " ");
             if (parts.size() < 2) {
-                fillError(Format("Unexpected auth_bytes format, got %v space-separated parts", parts.size()));
+                fillError(Format("Unexpected \"auth_bytes\" format, got %v space-separated parts", parts.size()));
                 return response;
             }
             token = parts[1];
         } else if (*connectionState->SaslMechanism == PlainSaslMechanism) {
-            YT_LOG_DEBUG("Authenticating using PLAIN sasl mechanism");
+            YT_LOG_DEBUG("Authenticating using PLAIN SASL mechanism");
             TString authBytes = request.AuthBytes;
             auto parts = splitByChar(authBytes, '\0');
             if (parts.size() < 3) {
-                fillError(Format("Unexpected auth_bytes format, got %v \0-separated parts", parts.size()));
+                fillError(Format("Unexpected \"auth_bytes\" format, got %v \\0-separated parts", parts.size()));
                 return response;
             }
 
             expectedUserName = parts[1];
             token = parts[2];
         } else {
-            fillError(Format("Unknown sasl mechanism: %v", *connectionState->SaslMechanism));
+            fillError(Format("Unknown SASL mechanism %Qv", *connectionState->SaslMechanism));
             return response;
         }
 
@@ -577,8 +593,10 @@ private:
 
         auto login = authResultOrError.Value().Login;
         if (expectedUserName && *expectedUserName != login) {
-            YT_LOG_DEBUG("Failed to authenticate user (AuthenticatedUserName: %v, ExpectedUserName: %v)", login, *expectedUserName);
-            fillError(Format("User %v was expected", *expectedUserName));
+            YT_LOG_DEBUG("Failed to authenticate user (AuthenticatedUserName: %v, ExpectedUserName: %v)",
+                login,
+                *expectedUserName);
+            fillError(Format("User %Qv was expected", *expectedUserName));
             return response;
         }
 
@@ -669,13 +687,30 @@ private:
             request.MemberId,
             request.ProtocolType);
 
-        TRspJoinGroup response;
-        // TODO(nadya73): fill it with normal data.
-        response.MemberId = request.MemberId;
-        response.ProtocolName = "roundrobin";
-        response.Leader = "leader_123";
+        auto userName = GetConnectionState(connectionId)->UserName;
+        if (!userName) {
+            THROW_ERROR_EXCEPTION("Unknown user name, something went wrong");
+        }
 
-        return response;
+        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(*userName));
+
+        // TODO(nadya73): check permissions and return GROUP_AUTHORIZATION_FAILED.
+
+        auto dynamicConfig = GetDynamicConfig();
+
+        IGroupCoordinatorPtr groupCoordinator;
+        {
+            auto guard = WriterGuard(GroupCoordinatorMapLock_);
+            auto groupCoordinatorIt = GroupCoordinators_.find(request.GroupId);
+            if (groupCoordinatorIt != GroupCoordinators_.end()) {
+                groupCoordinator = groupCoordinatorIt->second;
+            } else {
+                groupCoordinator = CreateGroupCoordinator(request.GroupId, dynamicConfig->GroupCoordinator);
+                GroupCoordinators_[request.GroupId] = groupCoordinator;
+            }
+        }
+
+        return groupCoordinator->JoinGroup(request, Logger.WithTag("GroupId: %v", request.GroupId));
     }
 
     DEFINE_KAFKA_HANDLER(SyncGroup)
@@ -684,14 +719,32 @@ private:
             request.GroupId,
             request.MemberId);
 
-        TRspSyncGroup response;
-        TRspSyncGroupAssignment assignment;
-        // TODO(nadya73): fill it with normal data.
-        assignment.Topic = "primary://tmp/queue";
-        assignment.Partitions = {0};
-        response.Assignments.push_back(std::move(assignment));
+        auto userName = GetConnectionState(connectionId)->UserName;
+        if (!userName) {
+            THROW_ERROR_EXCEPTION("Unknown user name, something went wrong");
+        }
 
-        return response;
+        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(*userName));
+
+        // TODO(nadya73): check permissions and return GROUP_AUTHORIZATION_FAILED.
+
+        IGroupCoordinatorPtr groupCoordinator;
+        {
+            auto guard = ReaderGuard(GroupCoordinatorMapLock_);
+            auto groupCoordinatorIt = GroupCoordinators_.find(request.GroupId);
+            if (groupCoordinatorIt != GroupCoordinators_.end()) {
+                groupCoordinator = groupCoordinatorIt->second;
+            } else {
+                YT_LOG_DEBUG("Unknown group id (GroupId: %v)", request.GroupId);
+                return TRspSyncGroup{ .ErrorCode = NKafka::EErrorCode::NotCoordinator };
+            }
+        }
+
+        return groupCoordinator->SyncGroup(
+            request,
+            Logger
+                .WithTag("GroupId: %v", request.GroupId)
+                .WithTag("MemberId: %v", request.MemberId));
     }
 
     DEFINE_KAFKA_HANDLER(Heartbeat)
@@ -700,9 +753,19 @@ private:
             request.GroupId,
             request.MemberId);
 
-        TRspHeartbeat response;
+        IGroupCoordinatorPtr groupCoordinator;
+        {
+            auto guard = ReaderGuard(GroupCoordinatorMapLock_);
+            auto groupCoordinatorIt = GroupCoordinators_.find(request.GroupId);
+            if (groupCoordinatorIt != GroupCoordinators_.end()) {
+                groupCoordinator = groupCoordinatorIt->second;
+            } else {
+                YT_LOG_DEBUG("Unknown group id (GroupId: %v)", request.GroupId);
+                return TRspHeartbeat{ .ErrorCode = NKafka::EErrorCode::NotCoordinator };
+            }
+        }
 
-        return response;
+        return groupCoordinator->Heartbeat(request, Logger.WithTag("GroupId: %v", request.GroupId));
     }
 
     DEFINE_KAFKA_HANDLER(OffsetCommit)
@@ -985,6 +1048,57 @@ private:
                 topicResponse.PartitionResponses.push_back(TRspProduceResponsePartitionResponse{
                     .Index = partition.Index,
                 });
+            }
+        }
+
+        return response;
+    }
+
+    DEFINE_KAFKA_HANDLER(ListOffsets)
+    {
+        YT_LOG_DEBUG("Start to handle ListOffsets request");
+
+        auto connectionState = GetConnectionState(connectionId);
+
+        auto userName = GetConnectionState(connectionId)->UserName;
+        if (!userName) {
+            THROW_ERROR_EXCEPTION("Unknown user name, something went wrong");
+        }
+
+        auto client = NativeConnection_->CreateNativeClient(TClientOptions::FromUser(*userName));
+
+        TRspListOffsets response;
+        response.Topics.reserve(request.Topics.size());
+
+        for (const auto& topic : request.Topics) {
+            auto& topicResponse = response.Topics.emplace_back();
+            topicResponse.Partitions.reserve(topic.Partitions.size());
+
+            topicResponse.Name = topic.Name;
+
+            std::vector<int> tabletIndexes;
+            tabletIndexes.reserve(topic.Partitions.size());
+            std::transform(topic.Partitions.begin(), topic.Partitions.end(), std::back_inserter(tabletIndexes),
+                [] (const auto& partition) {
+                    return static_cast<int>(partition.PartitionIndex);
+                });
+
+            auto tabletInfos = WaitFor(client->GetTabletInfos(topic.Name, tabletIndexes))
+                .ValueOrThrow();
+
+            for (int partitionIndex = 0; partitionIndex < std::ssize(topic.Partitions); ++partitionIndex) {
+                const auto& partition = topic.Partitions[partitionIndex];
+                auto& partitionResponse = topicResponse.Partitions.emplace_back();
+
+                partitionResponse.PartitionIndex = partition.PartitionIndex;
+
+                if (partition.Timestamp == -2) {
+                    partitionResponse.Offset = 0;
+                } else if (partition.Timestamp == -1) {
+                    partitionResponse.Offset = tabletInfos[partitionIndex].TotalRowCount;
+                } else {
+                    partitionResponse.ErrorCode = NKafka::EErrorCode::InvalidTimestamp;
+                }
             }
         }
 

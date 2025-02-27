@@ -2,7 +2,7 @@
 
 #include <yt/yt/library/query/base/ast_visitors.h>
 #include <yt/yt/library/query/base/query_common.h>
-#include <yt/yt/library/query/base/query_helpers.h>
+#include <yt/yt/library/query/base/ast.h>
 
 namespace NYT::NOrm::NQuery {
 

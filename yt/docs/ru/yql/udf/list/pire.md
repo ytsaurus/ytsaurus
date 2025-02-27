@@ -1,6 +1,6 @@
 # Pire
 
-**Список функций**
+#### Список функций
 
 * ```Pire::Grep(pattern:String) -> (string:String?) -> Bool```
 * ```Pire::Match(pattern:String) -> (string:String?) -> Bool```
@@ -37,7 +37,7 @@ SELECT * FROM table WHERE $re(key); -- используем его для фил
 
 Есть возможность отключить чувствительность к регистру (то есть включить case-insensitive режим), указав в начале регулярного выражения флаг `(?i)`.
 
-**Примеры**
+#### Примеры
 
 ```sql
 $value = "xaaxaaxaa";
@@ -81,7 +81,7 @@ SELECT
 * В библиотеке Pire установлен лимит на размер конечного автомата (в YQL используется значение этого лимита, установленное по умолчанию в библиотеке). Если лимит превышен, при запуске запроса вернется ошибка `Failed to glue up regexes, probably the finite state machine appeared to be too large`.
 При вызове функций MultiGrep/MultiMatch регулярные выражения передаются по одному на строку с использованием [многострочных строковых литералов](../../syntax/expressions.md#multiline-string-literals):
 
-**Примеры**
+#### Примеры
 
 ```sql
 $multi_match = Pire::MultiMatch(@@a.*

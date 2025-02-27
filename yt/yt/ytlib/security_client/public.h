@@ -17,7 +17,7 @@ struct TSerializableAccessControlList;
 struct TPermissionKey;
 
 DECLARE_REFCOUNTED_CLASS(TPermissionCache)
-DECLARE_REFCOUNTED_CLASS(TPermissionCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TPermissionCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

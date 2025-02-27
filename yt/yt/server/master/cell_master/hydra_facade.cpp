@@ -203,6 +203,8 @@ public:
 
     IInvokerPtr GetEpochAutomatonInvoker(EAutomatonThreadQueue queue) override
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         return EpochInvokers_[queue];
     }
 
@@ -378,7 +380,7 @@ private:
     TEnumIndexedArray<EAutomatonThreadQueue, IInvokerPtr> GuardedInvokers_;
     TEnumIndexedArray<EAutomatonThreadQueue, IInvokerPtr> EpochInvokers_;
 
-    NObjectServer::TEpochContextPtr EpochContext_ = New<NObjectServer::TEpochContext>();
+    const NObjectServer::TEpochContextPtr EpochContext_ = New<NObjectServer::TEpochContext>();
 
     std::atomic<bool> AutomatonBlocked_ = false;
 
@@ -388,6 +390,8 @@ private:
 
     void OnStartEpoch()
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         EpochCancelableContext_ = HydraManager_->GetAutomatonCancelableContext();
         for (auto queue : TEnumTraits<EAutomatonThreadQueue>::GetDomainValues()) {
             EpochInvokers_[queue] = CreateEpochInvoker(GetAutomatonInvoker(queue));
@@ -398,6 +402,8 @@ private:
 
     void OnStopEpoch()
     {
+        YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
+
         std::fill(EpochInvokers_.begin(), EpochInvokers_.end(), nullptr);
 
         NObjectServer::EndEpoch();

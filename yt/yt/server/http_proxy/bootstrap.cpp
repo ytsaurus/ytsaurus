@@ -451,8 +451,6 @@ void TBootstrap::OnDynamicConfigChanged(
 
     BusServer_->OnDynamicConfigChanged(newConfig->BusServer);
 
-    Connection_->Reconfigure(newConfig->ClusterConnection);
-
     Coordinator_->GetTraceSampler()->UpdateConfig(newConfig->Tracing);
 }
 

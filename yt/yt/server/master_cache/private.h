@@ -8,9 +8,9 @@ namespace NYT::NMasterCache {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TMasterCacheBootstrapConfig)
-DECLARE_REFCOUNTED_CLASS(TMasterCacheProgramtConfig)
-DECLARE_REFCOUNTED_CLASS(TMasterCacheDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TMasterCacheBootstrapConfig)
+DECLARE_REFCOUNTED_STRUCT(TMasterCacheProgramtConfig)
+DECLARE_REFCOUNTED_STRUCT(TMasterCacheDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TChaosCache)
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)

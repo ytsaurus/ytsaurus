@@ -372,10 +372,9 @@ DEFINE_REFCOUNTED_TYPE(TQuerySettings)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THealthCheckerConfig
+struct THealthCheckerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration Period;
     TDuration Timeout;
     std::vector<TString> Queries;
@@ -389,10 +388,9 @@ DEFINE_REFCOUNTED_TYPE(THealthCheckerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TShowTablesConfig
+struct TShowTablesConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::vector<TString> Roots;
 
     REGISTER_YSON_STRUCT(TShowTablesConfig);
@@ -404,10 +402,9 @@ DEFINE_REFCOUNTED_TYPE(TShowTablesConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSubqueryConfig
+struct TSubqueryConfig
     : public NYTree::TYsonStruct
 {
-public:
     NChunkClient::TFetcherConfigPtr ColumnarStatisticsFetcher;
     NChunkClient::TChunkSliceFetcherConfigPtr ChunkSliceFetcher;
     int MaxJobCountForPool;
@@ -431,10 +428,9 @@ DEFINE_REFCOUNTED_TYPE(TSubqueryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMemoryWatchdogConfig
+struct TMemoryWatchdogConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Memory limit for the job.
     size_t MemoryLimit;
 
@@ -459,10 +455,9 @@ DEFINE_REFCOUNTED_TYPE(TMemoryWatchdogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSecurityManagerConfig
+struct TSecurityManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enable;
 
     TDuration OperationAclUpdatePeriod;
@@ -476,10 +471,9 @@ DEFINE_REFCOUNTED_TYPE(TSecurityManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TGossipConfig
+struct TGossipConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Period to run the gossip procedure.
     //! Note: TPeriodicExecutor counts down the period since the completion of previous invocation,
     //! so the actual period will be in [Period, Period + Timeout].
@@ -508,10 +502,9 @@ DEFINE_REFCOUNTED_TYPE(TGossipConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TInvokerLivenessCheckerConfig
+struct TInvokerLivenessCheckerConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enabled;
     bool CoreDump;
     TDuration Period;
@@ -526,10 +519,9 @@ DEFINE_REFCOUNTED_TYPE(TInvokerLivenessCheckerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryRegistryConfig
+struct TQueryRegistryConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration ProcessListSnapshotUpdatePeriod;
 
     bool SaveRunningQueries;
@@ -546,10 +538,9 @@ DEFINE_REFCOUNTED_TYPE(TQueryRegistryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQuerySamplingConfig
+struct TQuerySamplingConfig
     : public NYTree::TYsonStruct
 {
-public:
     double QuerySamplingRate;
     NRe2::TRe2Ptr UserAgentRegExp;
 
@@ -562,10 +553,9 @@ DEFINE_REFCOUNTED_TYPE(TQuerySamplingConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClickHouseTableConfig
+struct TClickHouseTableConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Database;
     TString Name;
     TString Engine;
@@ -581,10 +571,9 @@ DEFINE_REFCOUNTED_TYPE(TClickHouseTableConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserDefinedSqlObjectsStorageConfig
+struct TUserDefinedSqlObjectsStorageConfig
     : public NYTree::TYsonStruct
 {
-public:
     bool Enabled;
     NYPath::TYPath Path;
     TDuration UpdatePeriod;
@@ -599,10 +588,9 @@ DEFINE_REFCOUNTED_TYPE(TUserDefinedSqlObjectsStorageConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSystemLogTableExporterConfig
+struct TSystemLogTableExporterConfig
     : public NServer::TArchiveReporterConfig
 {
-public:
     //! Max unflushed data size in ArchiveReporter.
     i64 MaxInProgressDataSize;
 
@@ -623,10 +611,9 @@ DEFINE_REFCOUNTED_TYPE(TSystemLogTableExporterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSystemLogTableExportersConfig
+struct TSystemLogTableExportersConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! A cypress directory where to store all exporter tables.
     //! A system user (aka yt-clickhouse) should have [read; write; remove; mount] permissions to
     //! this directory and the "use" permission to the corresponding account and tablet cell bundle.
@@ -646,10 +633,9 @@ DEFINE_REFCOUNTED_TYPE(TSystemLogTableExportersConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYtConfig
+struct TYtConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Clique id = id of containing operation.
     TGuid CliqueId;
     //! Instance id = job id of containing job.
@@ -743,10 +729,9 @@ DEFINE_REFCOUNTED_TYPE(TYtConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLauncherConfig
+struct TLauncherConfig
     : public NYTree::TYsonStruct
 {
-public:
     int Version;
 
     REGISTER_YSON_STRUCT(TLauncherConfig);
@@ -778,10 +763,9 @@ DEFINE_REFCOUNTED_TYPE(TLauncherConfig)
 //
 // Memory tracking is one hell of a job.
 
-class TMemoryConfig
+struct TMemoryConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<i64> Reader;
     std::optional<i64> UncompressedBlockCache;
     std::optional<i64> CompressedBlockCache;
@@ -810,11 +794,10 @@ struct TPorts
     int Tcp = 0;
 };
 
-class TClickHouseServerBootstrapConfig
+struct TClickHouseServerBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
     , public TSingletonsConfig
 {
-public:
     NCoreDump::TCoreDumperConfigPtr CoreDumper;
 
     NProfiling::TSolomonExporterConfigPtr SolomonExporter;

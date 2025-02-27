@@ -22,7 +22,7 @@ struct ILease;
 
 DECLARE_REFCOUNTED_STRUCT(ILeaseManager)
 
-DECLARE_REFCOUNTED_CLASS(TLeaseManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TLeaseManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -861,6 +861,28 @@ GTEST_ALLOW_UNINSTANTIATED_PARAMETERIZED_TEST(TTestReassignTabletsParameterizedE
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void SortMoveDescriptors(std::vector<TMoveDescriptor>* descriptors)
+{
+    std::sort(
+        descriptors->begin(),
+        descriptors->end(),
+        [] (const TMoveDescriptor& lhs, const TMoveDescriptor& rhs)
+        {
+            return std::tie(lhs.TabletCellId, lhs.TabletId) < std::tie(rhs.TabletCellId, rhs.TabletId);
+        });
+}
+
+void SortMoveDescriptors(std::vector<TTestMoveDescriptorPtr>* descriptors)
+{
+    std::sort(
+        descriptors->begin(),
+        descriptors->end(),
+        [] (const TTestMoveDescriptorPtr& lhs, const TTestMoveDescriptorPtr& rhs)
+        {
+            return std::tie(lhs->CellIndex, lhs->TabletIndex) < std::tie(rhs->CellIndex, rhs->TabletIndex);
+        });
+}
+
 class TTestReassignTabletsParameterizedByNodes
     : public TTestReassignTabletsParameterized
 { };
@@ -887,6 +909,9 @@ TEST_P(TTestReassignTabletsParameterizedByNodes, ManyNodesWithInMemoryTablets)
         Logger());
 
     auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));
+
+    SortMoveDescriptors(&expected);
+    SortMoveDescriptors(&descriptors);
 
     EXPECT_EQ(std::ssize(expected), std::ssize(descriptors));
 
@@ -1074,7 +1099,29 @@ INSTANTIATE_TEST_SUITE_P(
             /*moveDescriptors*/ "[{tablet_index=3; cell_index=2}]",
             /*moveActionLimit*/ 2,
             /*distribution*/ std::vector<int>{2, 2},
-            /*cellSizes*/ std::vector<i64>{40, 20})));
+            /*cellSizes*/ std::vector<i64>{40, 20}),
+        std::tuple(
+            "{config={enable_parameterized_by_default=%true; safe_used_tablet_static_ratio=0.5; "
+                "groups={default={parameterized={metric=\"double([/statistics/memory_size])\"}}}};"
+            "tables=[{in_memory_mode=uncompressed; tablets=["
+            "{tablet_index=1; cell_index=1;"
+                "statistics={uncompressed_data_size=40; memory_size=40; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=2; cell_index=1;"
+                "statistics={uncompressed_data_size=11; memory_size=11; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=3; cell_index=1;"
+                "statistics={uncompressed_data_size=10; memory_size=10; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=4; cell_index=1;"
+                "statistics={uncompressed_data_size=9; memory_size=9; compressed_data_size=0; partition_count=1}};"
+            "{tablet_index=5; cell_index=1;"
+                "statistics={uncompressed_data_size=8; memory_size=8; compressed_data_size=0; partition_count=1}}]}];"
+            "cells=[{cell_index=1; memory_size=70; node_address=home1};"
+                   "{cell_index=2; memory_size=0; node_address=home2}];"
+            "nodes=[{node_address=home1; memory_used=80; memory_limit=90};"
+                   "{node_address=home2; memory_used=0; memory_limit=60}]}",
+            /*moveDescriptors*/ "[{tablet_index=2; cell_index=2}; {tablet_index=3; cell_index=2}; {tablet_index=4; cell_index=2}]",
+            /*moveActionLimit*/ 5,
+            /*distribution*/ std::vector<int>{2, 3},
+            /*cellSizes*/ std::vector<i64>{48, 30})));
 
 ////////////////////////////////////////////////////////////////////////////////
 

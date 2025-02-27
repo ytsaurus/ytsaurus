@@ -146,6 +146,7 @@ using TFuncBridgeGetUsedClusters = TBridgeClustersResult*(
 using TFuncBridgeGetProgress = TBridgeQueryResult*(TBridgeYqlPlugin* plugin, const char* queryId);
 using TFuncBridgeAbort = TBridgeAbortResult*(TBridgeYqlPlugin* plugin, const char* queryId);
 using TFuncBridgeFreeAbortResult = void(TBridgeAbortResult* result);
+using TFuncBridgeOnDynamicConfigChanged = void(TBridgeYqlPlugin* plugin, const /*TYqlPluginDynamicConfig*/ void* config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,6 +161,7 @@ using TFuncBridgeFreeAbortResult = void(TBridgeAbortResult* result);
     XX(BridgeGetProgress) \
     XX(BridgeGetAbiVersion) \
     XX(BridgeAbort) \
-    XX(BridgeFreeAbortResult)
+    XX(BridgeFreeAbortResult) \
+    XX(BridgeOnDynamicConfigChanged)
 
 ////////////////////////////////////////////////////////////////////////////////

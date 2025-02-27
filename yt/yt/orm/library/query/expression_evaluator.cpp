@@ -213,9 +213,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const TString& GetFakeTableColumnName(const NYPath::TYPath& attributePath)
+const std::string& GetFakeTableColumnName(const NYPath::TYPath& attributePath)
 {
-    static const TString Default = "data";
+    static const std::string Default = "data";
     return attributePath.empty()
         ? Default
         : attributePath;
@@ -292,14 +292,14 @@ std::vector<TColumnSchema> CreateColumnsFromPaths(const std::vector<TTypedAttrib
 } // namespace
 
 IExpressionEvaluatorPtr CreateExpressionEvaluator(
-    TString query,
+    std::string query,
     std::vector<TColumnSchema> columns)
 {
     auto parsedQuery = ParseSource(query, NQueryClient::EParseMode::Expression);
     auto queryExpression = std::get<TExpressionPtr>(parsedQuery->AstHead.Ast);
     auto& objectsHolder = parsedQuery->AstHead;
 
-    std::optional<TString> tableName;
+    std::optional<std::string> tableName;
     auto referenceMapping = [&] (const TReference& reference) {
         if (reference.TableName) {
             if (tableName) {
@@ -327,7 +327,7 @@ IExpressionEvaluatorPtr CreateExpressionEvaluator(
 }
 
 IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
-    TString query,
+    std::string query,
     std::vector<TTypedAttributePath> typedAttributePaths)
 {
     ValidateAttributePaths(typedAttributePaths);
@@ -353,8 +353,8 @@ IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
 }
 
 IExpressionEvaluatorPtr CreateOrmExpressionEvaluator(
-    TString query,
-    std::vector<TString> attributePaths)
+    std::string query,
+    std::vector<TYPath> attributePaths)
 {
     std::vector<TTypedAttributePath> typedAttributePaths;
     typedAttributePaths.reserve(attributePaths.size());

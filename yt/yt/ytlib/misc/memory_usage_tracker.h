@@ -107,7 +107,7 @@ TSharedRefArray TrackMemory(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IReservingMemoryUsageTrackerPtr CreateResevingMemoryUsageTracker(
+IReservingMemoryUsageTrackerPtr CreateReservingMemoryUsageTracker(
     IMemoryUsageTrackerPtr underlying,
     NProfiling::TCounter memoryUsageCounter);
 

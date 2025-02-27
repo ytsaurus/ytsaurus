@@ -1330,7 +1330,10 @@ class TestUserJobIsolation(YTEnvSetup):
         job_id = wait_breakpoint()[0]
         network_project_id, hostname, _ = get_job_stderr(op.id, job_id).split(b"\n")
         assert network_project_id == str(int("0xDEADBEEF", base=16)).encode("ascii")
-        assert hostname.startswith(b"slot_")
+        hostname_prefix = b"slot_"
+        if self.Env.get_component_version("ytserver-job-proxy").abi > (25, 1):
+            hostname_prefix = b"slot-"
+        assert hostname.startswith(hostname_prefix)
         release_breakpoint()
         op.track()
 
@@ -2238,20 +2241,18 @@ class TestTemporaryTokens(YTEnvSetup):
         op.track()
         assert get("//tmp/created_from_operation_first/@owner") == "alice"
 
-        with raises_yt_error("already exists"):
-            run_test_vanilla(
-                spec={
-                    "max_failed_job_count": 1,
-                    "issue_temporary_token": True,
-                    "temporary_token_environment_variable_name": "ANOTHER_YT_TOKEN",
-                    "secure_vault": {"NODE_SUFFIX": "second", "ANOTHER_YT_TOKEN": "i-am-not-a-token"},
-                },
-                command=command,
-                authenticated_user="alice")
-
-        assert not exists("//tmp/created_from_operation_second")
-
-        wait(lambda: not list_user_tokens("alice"))
+        op = run_test_vanilla(
+            spec={
+                "max_failed_job_count": 1,
+                "issue_temporary_token": True,
+                "temporary_token_environment_variable_name": "ANOTHER_YT_TOKEN",
+                "secure_vault": {"NODE_SUFFIX": "second", "ANOTHER_YT_TOKEN": "i-am-not-a-token"},
+            },
+            command='test "$YT_SECURE_VAULT_ANOTHER_YT_TOKEN" = i-am-not-a-token',
+            authenticated_user="alice")
+        op.track()
+        wait(lambda: not exists(op.get_path()))
+        assert not list_user_tokens("alice")
 
     @authors("achulkov2")
     def test_revive(self):
@@ -4353,3 +4354,53 @@ class TestJobStatistics(YTEnvSetup):
 @pytest.mark.skipif(not is_uring_supported() or is_uring_disabled(), reason="io_uring is not available on this host")
 class TestJobStatisticsUring(TestJobStatistics):
     NODE_IO_ENGINE_TYPE = "uring"
+
+
+##################################################################
+
+
+@authors("khlebnikov")
+class TestJobSetupCommandCri(YTEnvSetup):
+    JOB_ENVIRONMENT_TYPE = "cri"
+
+    NUM_MASTERS = 1
+    NUM_SCHEDULERS = 1
+    NUM_NODES = 1
+
+    def test_success(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "job_setup_command": {
+                            "path": "/bin/bash",
+                            "args": ["-c", "echo success >setup.txt"],
+                        },
+                    },
+                },
+            },
+        })
+
+        op = run_test_vanilla("cat ../home/setup.txt >&2", track=True)
+        check_all_stderrs(op, b"success\n", 1)
+
+    def test_failure(self):
+        update_nodes_dynamic_config({
+            "exec_node": {
+                "job_controller": {
+                    "job_common": {
+                        "job_setup_command": {
+                            "path": "/bin/false",
+                            "args": [],
+                        },
+                    },
+                },
+            },
+        })
+
+        op = run_test_vanilla("true")
+        op.track(raise_on_failed=False)
+        assert op.get_state() == "failed"
+        err = op.get_error()
+        assert err.contains_code(10000)
+        assert err.find_matching_error(10000).attributes.get("exit_code") == 1

@@ -13,9 +13,9 @@ using NIncumbentClient::EIncumbentType;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TIncumbentBase)
-DECLARE_REFCOUNTED_CLASS(TIncumbentSchedulerConfig)
-DECLARE_REFCOUNTED_CLASS(TIncumbentSchedulingConfig)
-DECLARE_REFCOUNTED_CLASS(TIncumbentManagerDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TIncumbentSchedulerConfig)
+DECLARE_REFCOUNTED_STRUCT(TIncumbentSchedulingConfig)
+DECLARE_REFCOUNTED_STRUCT(TIncumbentManagerDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IIncumbent)
 DECLARE_REFCOUNTED_STRUCT(IIncumbentManager)

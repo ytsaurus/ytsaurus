@@ -8,7 +8,7 @@ namespace NYT {
 
 struct TCypressRegistrarOptions;
 
-DECLARE_REFCOUNTED_CLASS(TCypressRegistrarConfig)
+DECLARE_REFCOUNTED_STRUCT(TCypressRegistrarConfig)
 
 DECLARE_REFCOUNTED_STRUCT(ICypressRegistrar)
 

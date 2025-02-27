@@ -10,9 +10,9 @@ using namespace NQueryClient::NAst;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString JoinFilters(const std::vector<TString>& filters)
+std::string JoinFilters(const std::vector<std::string>& filters)
 {
-    return JoinToString(std::views::filter(filters, std::not_fn(&TString::empty)), TStringBuf(" AND "));
+    return JoinToString(std::views::filter(filters, std::not_fn(&std::string::empty)), TStringBuf(" AND "));
 }
 
 bool IsTargetReference(const TExpressionList& exprs, const NQueryClient::NAst::TReference& reference)

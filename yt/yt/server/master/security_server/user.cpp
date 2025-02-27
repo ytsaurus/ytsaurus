@@ -25,10 +25,6 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr auto& Logger = SecurityServerLogger;
-
-////////////////////////////////////////////////////////////////////////////////
-
 static void ValidateCellTags(const auto& perCell)
 {
     for (const auto& [cellTag, value] : perCell) {
@@ -444,13 +440,6 @@ void TUser::UpdateCounters(const TUserWorkload& workload)
         default:
             YT_ABORT();
     }
-}
-
-void TUser::LogIfPendingRemoval(const TString& message) const
-{
-    YT_LOG_ERROR_IF(
-        GetPendingRemoval(),
-        message);
 }
 
 const IReconfigurableThroughputThrottlerPtr& TUser::GetRequestRateThrottler(EUserWorkloadType workloadType)

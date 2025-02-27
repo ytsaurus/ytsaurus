@@ -71,10 +71,9 @@ DEFINE_REFCOUNTED_TYPE(TRemoteWriterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDispatcherDynamicConfig
+struct TDispatcherDynamicConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     std::optional<int> ChunkReaderPoolSize;
 
     REGISTER_YSON_STRUCT(TDispatcherDynamicConfig);
@@ -86,10 +85,9 @@ DEFINE_REFCOUNTED_TYPE(TDispatcherDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDispatcherConfig
+struct TDispatcherConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     static constexpr int DefaultChunkReaderPoolSize = 8;
     int ChunkReaderPoolSize;
 
@@ -174,10 +172,9 @@ DEFINE_REFCOUNTED_TYPE(TMetaAggregatingWriterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlockCacheConfig
+struct TBlockCacheConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     // TODO(akozhikhov): Use enumeration instead (same for dynamic config).
     TSlruCacheConfigPtr CompressedData;
     TSlruCacheConfigPtr UncompressedData;
@@ -194,10 +191,9 @@ DEFINE_REFCOUNTED_TYPE(TBlockCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClientChunkMetaCacheConfig
+struct TClientChunkMetaCacheConfig
     : public TSlruCacheConfig
 {
-public:
     REGISTER_YSON_STRUCT(TClientChunkMetaCacheConfig);
 
     static void Register(TRegistrar)
@@ -208,10 +204,9 @@ DEFINE_REFCOUNTED_TYPE(TClientChunkMetaCacheConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBlockCacheDynamicConfig
+struct TBlockCacheDynamicConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     TSlruCacheDynamicConfigPtr CompressedData;
     TSlruCacheDynamicConfigPtr UncompressedData;
     TSlruCacheDynamicConfigPtr HashTableChunkIndex;
@@ -227,10 +222,9 @@ DEFINE_REFCOUNTED_TYPE(TBlockCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkScraperConfig
+struct TChunkScraperConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! Number of chunks scratched per one LocateChunks.
     int MaxChunksPerRequest;
 
@@ -243,10 +237,9 @@ DEFINE_REFCOUNTED_TYPE(TChunkScraperConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkTeleporterConfig
+struct TChunkTeleporterConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     //! Maximum number of chunks to export/import per request.
     i64 MaxTeleportChunksPerRequest;
 
@@ -259,10 +252,9 @@ DEFINE_REFCOUNTED_TYPE(TChunkTeleporterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMediumDirectorySynchronizerConfig
+struct TMediumDirectorySynchronizerConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Interval between consequent directory updates.
     TDuration SyncPeriod;
 
@@ -275,10 +267,9 @@ DEFINE_REFCOUNTED_TYPE(TMediumDirectorySynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChunkReplicaCacheConfig
+struct TChunkReplicaCacheConfig
     : public virtual NYTree::TYsonStruct
 {
-public:
     TDuration ExpirationTime;
     TDuration ExpirationSweepPeriod;
     int MaxChunksPerLocate;

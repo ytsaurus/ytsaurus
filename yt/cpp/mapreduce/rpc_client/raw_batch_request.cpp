@@ -381,7 +381,7 @@ TFuture<TRichYPath> TRpcRawBatchRequest::CanonizeYPath(const TRichYPath& path)
         result.Path_ = AddPathPrefix(result.Path_, Config_->Prefix);
     }
 
-    if (result.Path_.find_first_of("<>{}[]") != TString::npos) {
+    if (result.Path_.find_first_of("<>{}[]:") != TString::npos) {
         auto request = MakeIntrusive<TSingleRequest<TRichYPath>>(
             MakeIntrusive<TAttemptLimitedRetryPolicy>(/*attemptLimit*/ 1u, Config_),
             [=, this] (TMutationId& /*mutationId*/) {

@@ -17,10 +17,6 @@ struct IMasterConnector
     //! Initialize master connector.
     virtual void Initialize() = 0;
 
-    //! Returns a future that becomes set when an incremental data node heartbeat is
-    //! successfully sent to a given cell.
-    virtual TFuture<void> GetHeartbeatBarrier(NObjectClient::TCellTag cellTag) = 0;
-
     //! Schedules out-of-order data node heartbeat to all the master cells.
     /*!
      *  \note

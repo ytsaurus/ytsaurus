@@ -217,7 +217,15 @@ NJobTrackerClient::EJobType ToApiJobType(EJobType type)
             return NJobTrackerClient::EJobType::RepairChunk;
         case EJobType::SealChunk:
             return NJobTrackerClient::EJobType::SealChunk;
-    }
+        case EJobType::ShallowMerge:
+            return NJobTrackerClient::EJobType::ShallowMerge;
+        case EJobType::MergeChunks:
+            return NJobTrackerClient::EJobType::MergeChunks;
+        case EJobType::AutotomizeChunk:
+            return NJobTrackerClient::EJobType::AutotomizeChunk;
+        case EJobType::ReincarnateChunk:
+            return NJobTrackerClient::EJobType::ReincarnateChunk;
+        }
     YT_ABORT();
 }
 

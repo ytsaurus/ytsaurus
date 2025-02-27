@@ -19,6 +19,8 @@
 
 namespace NYT::NControllerAgent {
 
+static constexpr TStringBuf DockerAuthEnv("docker_auth");
+
 ////////////////////////////////////////////////////////////////////////////////
 
 NNodeTrackerClient::TNodeId NodeIdFromJobId(TJobId jobId);

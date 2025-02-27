@@ -3723,10 +3723,12 @@ def get_pipeline_state(pipeline_path, **kwargs):
         return "unknown"
 
 
-def get_flow_view(pipeline_path, view_path=None, **kwargs):
+def get_flow_view(pipeline_path, view_path=None, cache=None, **kwargs):
     kwargs["pipeline_path"] = pipeline_path
     if view_path is not None:
         kwargs["view_path"] = view_path
+    if cache is not None:
+        kwargs["cache"] = cache
 
     return execute_command("get_flow_view", kwargs, parse_yson=True)
 

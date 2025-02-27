@@ -8,6 +8,7 @@
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 
 #include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
@@ -29,6 +30,9 @@ using namespace NQueryClient;
 using namespace NTableClient;
 using namespace NThreading;
 
+struct TDistributedSessionRowsetTag
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto& Logger = QueryAgentLogger;
@@ -43,25 +47,40 @@ public:
         TDistributedSessionId sessionId,
         TLease lease,
         ECodec codecId,
-        TDuration retentionTime)
+        TDuration retentionTime,
+        std::optional<i64> memoryLimitPerNode,
+        IMemoryChunkProviderPtr memoryChunkProvider)
         : SessionId_(sessionId)
         , Lease_(std::move(lease))
         , CodecId_(codecId)
         , RetentionTime_(retentionTime)
+        , MemoryLimitPerNode_(std::move(memoryLimitPerNode))
+        , MemoryChunkProvider_(std::move(memoryChunkProvider))
     { }
 
-    void InsertOrThrow(ISchemafulUnversionedReaderPtr reader, TRowsetId rowsetId) override
+    void InsertOrThrow(
+        TRowsetId rowsetId,
+        ISchemafulUnversionedReaderPtr reader,
+        TTableSchemaPtr schema) override
     {
-        auto guard = Guard(SessionLock_);
+        auto rowBuffer = New<TRowBuffer>(TDistributedSessionRowsetTag(), MemoryChunkProvider_);
 
-        auto [_, inserted] = RowsetMap_.emplace(rowsetId, std::move(reader));
-        THROW_ERROR_EXCEPTION_UNLESS(inserted,
-            "Rowset %v is already present in session %v",
-            rowsetId,
-            SessionId_);
+        auto futureRowset = BIND(MakeRowset, std::move(reader), std::move(schema), std::move(rowBuffer))
+            .AsyncVia(GetCurrentInvoker())
+            .Run();
+
+        {
+            auto guard = Guard(SessionLock_);
+
+            auto [_, inserted] = RowsetMap_.emplace(rowsetId, std::move(futureRowset));
+            THROW_ERROR_EXCEPTION_UNLESS(inserted,
+                "Rowset %v is already present in session %v",
+                rowsetId,
+                SessionId_);
+        }
     }
 
-    ISchemafulUnversionedReaderPtr GetOrThrow(TRowsetId rowsetId) const override
+    TFuture<TSessionRowset> GetOrThrow(TRowsetId rowsetId) const override
     {
         auto guard = Guard(SessionLock_);
 
@@ -121,6 +140,9 @@ public:
             ToProto(request->mutable_session_id(), SessionId_);
             request->set_retention_time(ToProto(RetentionTime_));
             request->set_codec(ToProto(CodecId_));
+            if (MemoryLimitPerNode_) {
+                request->set_memory_limit_per_node(*MemoryLimitPerNode_);
+            }
 
             WaitFor(request->Invoke())
                 .ValueOrThrow();
@@ -132,7 +154,7 @@ public:
             CodecId_,
             desiredUncompressedBlockSize,
             schema,
-            false,
+            /*schemaful*/ true,
             QueryAgentLogger());
 
         bool ready = true;
@@ -163,21 +185,59 @@ public:
         }
     }
 
+    const IMemoryChunkProviderPtr& GetMemoryChunkProvider() const override
+    {
+        return MemoryChunkProvider_;
+    }
+
 private:
     const TDistributedSessionId SessionId_;
     const TLease Lease_;
     const ECodec CodecId_;
     const TDuration RetentionTime_;
+    const std::optional<i64> MemoryLimitPerNode_;
+    const IMemoryChunkProviderPtr MemoryChunkProvider_;
 
     YT_DECLARE_SPIN_LOCK(TSpinLock, SessionLock_);
     THashSet<std::string> PropagationAddressQueue_;
-    THashMap<TRowsetId, ISchemafulUnversionedReaderPtr> RowsetMap_;
+    THashMap<TRowsetId, TFuture<TSessionRowset>> RowsetMap_;
 
     void PropagateToNode(const std::string& address)
     {
         auto guard = Guard(SessionLock_);
 
         PropagationAddressQueue_.insert(address);
+    }
+
+
+    static TSessionRowset MakeRowset(
+        ISchemafulUnversionedReaderPtr reader,
+        TTableSchemaPtr schema,
+        TRowBufferPtr rowBuffer)
+    {
+        std::vector<TUnversionedRow> rowset;
+        i64 dataWeight = 0;
+
+        while (auto batch = reader->Read()) {
+            if (batch->IsEmpty()) {
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+            } else {
+                for (auto row : batch->MaterializeRows()) {
+                    // Could verify sortedness declared in schema, while we're at it.
+                    auto capturedRow = rowBuffer->CaptureRow(row);
+                    // TWireProtocolRowsetReader does not support GetDataStatistics method.
+                    dataWeight += GetDataWeight(capturedRow);
+                    rowset.push_back(capturedRow);
+                }
+            }
+        }
+
+        return {
+            MakeSharedRange(std::move(rowset), std::move(rowBuffer)),
+            dataWeight,
+            std::move(schema),
+        };
     }
 };
 
@@ -189,9 +249,17 @@ IDistributedSessionPtr CreateDistributedSession(
     TDistributedSessionId sessionId,
     TLease lease,
     ECodec codecId,
-    TDuration retentionTime)
+    TDuration retentionTime,
+    std::optional<i64> memoryLimitPerNode,
+    IMemoryChunkProviderPtr memoryChunkProvider)
 {
-    return New<TDistributedSession>(sessionId, std::move(lease), codecId, retentionTime);
+    return New<TDistributedSession>(
+        sessionId,
+        std::move(lease),
+        codecId,
+        retentionTime,
+        std::move(memoryLimitPerNode),
+        std::move(memoryChunkProvider));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

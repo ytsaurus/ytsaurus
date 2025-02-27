@@ -103,10 +103,7 @@ std::strong_ordering TOverrunTableWriteBufferMemoryInfo::operator <=> (const TOv
     } else if (relativeDifference > otherRelativeDifference) {
         return std::strong_ordering::less;
     } else {
-        auto jobId = GetJobId();
-        auto otherJobId = other.GetJobId();
-
-        return jobId <=> otherJobId;
+        return GetJobId() <=> other.GetJobId();
     }
 }
 

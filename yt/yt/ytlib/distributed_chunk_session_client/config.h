@@ -6,10 +6,9 @@ namespace NYT::NDistributedChunkSessionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDistributedChunkSessionControllerConfig
+struct TDistributedChunkSessionControllerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration DataNodePingPeriod;
     TDuration WriteSessionPingPeriod;
     std::string Account;
@@ -26,10 +25,9 @@ DEFINE_REFCOUNTED_TYPE(TDistributedChunkSessionControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDistributedChunkWriterConfig
+struct TDistributedChunkWriterConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration RpcTimeout;
 
     REGISTER_YSON_STRUCT(TDistributedChunkWriterConfig);

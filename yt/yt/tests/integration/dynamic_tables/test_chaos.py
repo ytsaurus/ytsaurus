@@ -1,4 +1,4 @@
-from yt_chaos_test_base import ChaosTestBase
+from yt_chaos_test_base import ChaosTestBase, MAX_KEY
 
 from yt_env_setup import (
     Restarter,
@@ -40,10 +40,6 @@ from copy import deepcopy
 from itertools import zip_longest
 
 import builtins
-
-##################################################################
-
-MAX_KEY = [yson.to_yson_type(None, attributes={"type": "max"})]
 
 
 class TestChaos(ChaosTestBase):
@@ -1070,10 +1066,9 @@ class TestChaos(ChaosTestBase):
             if len(errors) != 1 or errors[0]["attributes"]["background_activity"] != "pull":
                 return False
 
-            return any(
-                error["message"].startswith("Target queue has no corresponding tablet")
-                for error in errors[0]["inner_errors"]
-            )
+            def _check(error):
+                return error["message"].startswith("Target queue has no corresponding tablet")
+            return self._check_pull_fail_reason(errors, _check)
 
         wait(_pull_failed)
 
@@ -1240,6 +1235,10 @@ class TestChaos(ChaosTestBase):
         assert len(_get_in_sync_replicas("//tmp/crt")) == 0
 
         self._sync_alter_replica(card_id, replicas, replica_ids, 0, mode="sync")
+
+        # Wait for updated replica progress is reported back to chaos node.
+        timestamp = generate_timestamp()
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replication_lag_timestamp") > timestamp)
 
         assert len(_get_in_sync_replicas("//tmp/t")) == 1
         assert len(_get_in_sync_replicas("//tmp/crt")) == 1
@@ -2302,10 +2301,9 @@ class TestChaos(ChaosTestBase):
             if len(errors) != 1 or errors[0]["attributes"]["background_activity"] != "pull":
                 return False
 
-            return any(
-                error["message"] == "Upstream replica id corresponds to another table"
-                for error in errors[0]["inner_errors"]
-            )
+            def _check(error):
+                return error["message"] == "Upstream replica id corresponds to another table"
+            return self._check_pull_fail_reason(errors, _check)
 
         wait(_check)
 
@@ -2347,39 +2345,10 @@ class TestChaos(ChaosTestBase):
         values = [{"key": 0, "value": "0"}]
         insert_rows("//tmp/t", values)
 
-        def _get_rows_from_queue(path, replica_id):
-            rows = pull_rows(
-                path,
-                replication_progress={
-                    "segments": [{"lower_key": [], "timestamp": 0}],
-                    "upper_key": MAX_KEY,
-                },
-                upstream_replica_id=replica_id,
-            )
-
-            encountered_keys = builtins.set()
-            result_rows = []
-            for row in rows:
-                key = row["key"]
-                assert key not in encountered_keys
-                encountered_keys.add(key)
-
-                assert len(row["value"]) == 1
-                result_rows.append({"key": row["key"], "value": str(row["value"][0])})
-
-            return sorted(result_rows, key=lambda row: row["key"])
-
-        def _lookup_over_pull_rows(path, replica_id, key):
-            for row in _get_rows_from_queue(path, replica_id):
-                if row["key"] == key:
-                    return row
-
-            return None
-
         if content_type == "data":
             wait(lambda: lookup_rows("//tmp/t", [{"key": 0}]) == values)
         else:
-            wait(lambda: _lookup_over_pull_rows("//tmp/t", replica_ids1[1], 0) == values[0])
+            wait(lambda: self._lookup_over_pull_rows("//tmp/t", replica_ids1[1], 0) == values[0])
 
         if queue_mode == "async":
             with pytest.raises(YtError, match=f"Mismatched upstream replica: expected {replica_ids1[1]}, got {replica_ids2[1]}"):
@@ -2408,7 +2377,7 @@ class TestChaos(ChaosTestBase):
         if content_type == "data":
             wait(lambda: lookup_rows("//tmp/t", [{"key": 10}]) == [{"key": 10, "value": "10"}])
         else:
-            wait(lambda: _lookup_over_pull_rows("//tmp/t", replica_ids2[1], 10) == {"key": 10, "value": "10"})
+            wait(lambda: self._lookup_over_pull_rows("//tmp/t", replica_ids2[1], 10) == {"key": 10, "value": "10"})
 
         wait(lambda: lookup_rows("//tmp/data-2", [{"key": 10}]) == [{"key": 10, "value": "10"}])
         with pytest.raises(WaitFailed):
@@ -2431,7 +2400,7 @@ class TestChaos(ChaosTestBase):
                         error["inner_errors"][0]["message"] == f"Mismatched upstream replica: expected {replica_ids2[1]}, got {replica_ids1[1]}"
                     )
 
-                return any(_is_mismatched_replica_error(error) for error in errors[0]["inner_errors"])
+                return self._check_pull_fail_reason(errors, _is_mismatched_replica_error)
 
             wait(_check)
         else:
@@ -2441,11 +2410,77 @@ class TestChaos(ChaosTestBase):
         if content_type == "data":
             wait(lambda: select_rows("* from [//tmp/t] LIMIT 3") == expected)
         else:
-            wait(lambda: _get_rows_from_queue("//tmp/t", replica_ids2[1]) == expected)
+            wait(lambda: self._get_rows_from_queue("//tmp/t", replica_ids2[1]) == expected)
 
         wait(lambda: select_rows("* from [//tmp/data-1] LIMIT 2") == [{"key": 0, "value": "0"}])
         expected = [{"key": 0, "value": "0"}, {"key": 10, "value": "10"}] if queue_mode == "async" and reset_type == "reset_progress" else [{"key": 10, "value": "10"}]
         wait(lambda: select_rows("* from [//tmp/data-2] LIMIT 2") == expected)
+
+    @authors("shamteev")
+    def test_banned_replica_errors_correctness(self):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r1"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r2"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "async", "enabled": False, "replica_path": "//tmp/catchup_queue-1"}
+        ]
+
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas)
+
+        create("chaos_replicated_table", "//tmp/crt", attributes={
+            "replication_card_id": card_id,
+            "chaos_cell_bundle": "c"
+        })
+
+        set("//tmp/catchup_queue-1/@mount_config/testing", {
+            "table_puller_replica_ban_iterations_count": 1000,
+        })
+
+        remount_table("//tmp/catchup_queue-1")
+
+        values = [{"key": 0, "value": "0"}]
+        insert_rows("//tmp/r1", values)
+
+        timestamp = generate_timestamp()
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[0]}/replication_lag_timestamp") > timestamp)
+        wait(lambda: get(f"//tmp/crt/@replicas/{replica_ids[1]}/replication_lag_timestamp") > timestamp)
+
+        wait(lambda: self._lookup_over_pull_rows("//tmp/r1", replica_ids[0], 0) == values[0])
+        wait(lambda: self._lookup_over_pull_rows("//tmp/r2", replica_ids[1], 0) == values[0])
+
+        sync_unmount_table("//tmp/r1")
+        sync_unmount_table("//tmp/r2")
+
+        alter_table("//tmp/r1", upstream_replica_id="0-0-0-0")
+        alter_table("//tmp/r2", upstream_replica_id="0-0-0-0")
+
+        sync_mount_table("//tmp/r1")
+        sync_mount_table("//tmp/r2")
+
+        alter_table_replica(replica_ids[2], enabled=True)
+
+        def _check():
+            tablet_infos = get_tablet_infos("//tmp/catchup_queue-1", [0], request_errors=True)
+            errors = tablet_infos["tablets"][0]["tablet_errors"]
+
+            if len(errors) != 1 or errors[0]["attributes"]["background_activity"] != "pull":
+                return False
+
+            pull_failed_reason = errors[0]["inner_errors"][0]
+
+            return (
+                pull_failed_reason["message"] == "Unable to pick a queue replica to replicate from" and
+                len(pull_failed_reason["inner_errors"]) == 2 and
+                pull_failed_reason["inner_errors"][1]["message"] == "Some queue replicas are banned" and
+                len(pull_failed_reason["inner_errors"][1]["inner_errors"]) > 0 and
+                all(
+                    reason["inner_errors"][0]["message"].startswith("Mismatched upstream replica")
+                    for reason in pull_failed_reason["inner_errors"][1]["inner_errors"]
+                )
+            )
+
+        wait(_check)
 
     @authors("savrus")
     def test_new_data_replica(self):
@@ -3984,10 +4019,9 @@ class TestChaos(ChaosTestBase):
             if len(errors) != 1 or errors[0]["attributes"]["background_activity"] != "pull":
                 return False
 
-            return any(
-                error["message"].startswith("Table schemas are incompatible")
-                for error in errors[0]["inner_errors"]
-            )
+            def _check(error):
+                return error["message"].startswith("Table schemas are incompatible")
+            return self._check_pull_fail_reason(errors, _check)
 
         wait(_check)
 
@@ -4075,10 +4109,9 @@ class TestChaos(ChaosTestBase):
             if len(errors) != 1 or errors[0]["attributes"]["background_activity"] != "pull":
                 return False
 
-            return any(
-                error["message"].startswith("Table schemas are incompatible")
-                for error in errors[0]["inner_errors"]
-            )
+            def _check(error):
+                return error["message"].startswith("Table schemas are incompatible")
+            return self._check_pull_fail_reason(errors, _check)
 
         wait(_check)
 
@@ -4128,10 +4161,9 @@ class TestChaos(ChaosTestBase):
             if len(errors) != 1 or errors[0]["attributes"]["background_activity"] != "pull":
                 return False
 
-            return any(
-                error["message"].startswith("Table schemas are incompatible")
-                for error in errors[0]["inner_errors"]
-            )
+            def _check(error):
+                return error["message"].startswith("Table schemas are incompatible")
+            return self._check_pull_fail_reason(errors, _check)
 
         wait(_check)
 

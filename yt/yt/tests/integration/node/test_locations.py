@@ -1,9 +1,11 @@
 from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
+from yt_helpers import profiler_factory
+
 from yt_commands import (
     authors, wait, ls, set, get, map, update_nodes_dynamic_config, create,
     write_file, write_table, merge, create_domestic_medium, exists,
-    set_account_disk_space_limit, get_account_disk_space_limit)
+    set_account_disk_space_limit, get_account_disk_space_limit, remove)
 
 import yt_error_codes
 
@@ -191,3 +193,106 @@ class TestPerLocationFullHeartbeats(YTEnvSetup):
         set("//sys/@config/chunk_manager/data_node_tracker/enable_per_location_full_heartbeats", False)
 
         wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "online")
+
+
+class TestAsyncTrashLoad(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    STORE_LOCATION_COUNT = 1
+
+    MEDIUM_NAME = "test_async_trash_load"
+
+    PATCHED_NODE_CONFIGS = []
+
+    @classmethod
+    def setup_class(cls):
+        super().setup_class()
+
+        disk_space_limit = get_account_disk_space_limit("tmp", "default")
+        set_account_disk_space_limit("tmp", disk_space_limit, medium=cls.MEDIUM_NAME)
+
+    @classmethod
+    def on_masters_started(cls):
+        create_domestic_medium(cls.MEDIUM_NAME)
+
+    @classmethod
+    def modify_node_config(cls, config, cluster_index):
+        cls.PATCHED_NODE_CONFIGS.append(config)
+
+        assert len(config["data_node"]["store_locations"]) == cls.STORE_LOCATION_COUNT
+
+        for i in range(cls.STORE_LOCATION_COUNT):
+            config["data_node"]["store_locations"][i]["trash_check_period"] = 10000
+            config["data_node"]["store_locations"][i]["medium_name"] = cls.MEDIUM_NAME
+
+    @authors("vvshlyaga")
+    def test_async_trash_load(self):
+        nodes = ls("//sys/cluster_nodes")
+        assert len(nodes) == 1
+
+        node = nodes[0]
+
+        def get_sensor(sensor_name):
+            return profiler_factory().at_node(node).gauge(name=sensor_name).get()
+
+        def check_sensor_is_not_zero(sensor_name):
+            sensor = get_sensor(sensor_name)
+            return sensor is not None and sensor != 0
+
+        create("table", "//tmp/t_trash", attributes={
+            "schema": [{"name": "k", "type": "int64", "sort_order": "ascending"}],
+            "replication_factor": 1,
+            "primary_medium": self.MEDIUM_NAME
+        })
+
+        rows = [{"k": i} for i in range(10)]
+        write_table("//tmp/t_trash", rows)
+
+        remove("//tmp/t_trash")
+
+        wait(lambda: check_sensor_is_not_zero('location/trash_space'))
+        wait(lambda: check_sensor_is_not_zero('location/trash_chunk_count'))
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "testing_options": {
+                    "enable_trash_scanning_barrier": True
+                }
+            }
+        })
+
+        with Restarter(self.Env, NODES_SERVICE):
+            for node_config in self.PATCHED_NODE_CONFIGS:
+                for i in range(self.STORE_LOCATION_COUNT):
+                    node_config["data_node"]["enable_trash_scanning_barrier"] = True
+            self.Env.rewrite_node_configs()
+
+        time.sleep(10)
+
+        wait(lambda: get(f"//sys/cluster_nodes/{node}/@state") == "online")
+
+        def check_sensor_is_zero(sensor_name):
+            sensor = get_sensor(sensor_name)
+            return sensor is not None and sensor == 0
+
+        wait(lambda: check_sensor_is_zero('location/trash_space'))
+        wait(lambda: check_sensor_is_zero('location/trash_chunk_count'))
+
+        trash_space = get_sensor('location/trash_space')
+        trash_chunk_count = get_sensor('location/trash_chunk_count')
+
+        update_nodes_dynamic_config({
+            "data_node": {
+                "testing_options": {
+                    "enable_trash_scanning_barrier": False
+                }
+            }
+        })
+
+        def wait_sensor_change(sensor_name, prev_value):
+            sensor = get_sensor(sensor_name)
+            return sensor is not None and sensor != prev_value
+
+        wait(lambda: wait_sensor_change('location/trash_space', trash_space))
+        wait(lambda: wait_sensor_change('location/trash_chunk_count', trash_chunk_count))

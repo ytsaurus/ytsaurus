@@ -67,7 +67,9 @@ static void ValidateOperationAcl(const TSerializableAccessControlList& acl)
     }
 }
 
-static void ProcessAclAndOwnersParameters(TSerializableAccessControlList* acl, std::vector<TString>* owners)
+namespace {
+
+void ProcessAclAndOwnersParameters(TSerializableAccessControlList* acl, std::vector<std::string>* owners)
 {
     if (!acl->Entries.empty() && !owners->empty()) {
         // COMPAT(levysotsky): Priority is given to |acl| currently.
@@ -81,7 +83,7 @@ static void ProcessAclAndOwnersParameters(TSerializableAccessControlList* acl, s
     }
 }
 
-static void ValidateNoOutputStreams(const TUserJobSpecPtr& spec, EOperationType operationType)
+void ValidateNoOutputStreams(const TUserJobSpecPtr& spec, EOperationType operationType)
 {
     if (!spec->OutputStreams.empty()) {
         THROW_ERROR_EXCEPTION("\"output_streams\" are currently not allowed in %Qlv operations",
@@ -89,7 +91,7 @@ static void ValidateNoOutputStreams(const TUserJobSpecPtr& spec, EOperationType 
     }
 }
 
-static void ValidateProfilers(const std::vector<TJobProfilerSpecPtr>& profilers)
+void ValidateProfilers(const std::vector<TJobProfilerSpecPtr>& profilers)
 {
     double totalProbability = 0.0;
     for (const auto& profiler : profilers) {
@@ -102,7 +104,7 @@ static void ValidateProfilers(const std::vector<TJobProfilerSpecPtr>& profilers)
     }
 }
 
-static void ValidateOutputTablePaths(std::vector<NYPath::TRichYPath> paths)
+void ValidateOutputTablePaths(std::vector<NYPath::TRichYPath> paths)
 {
     SortBy(paths, [] (const auto& path) { return path.GetPath(); });
     if (auto duplicatePath = AdjacentFind(paths); duplicatePath != paths.end()) {
@@ -111,9 +113,11 @@ static void ValidateOutputTablePaths(std::vector<NYPath::TRichYPath> paths)
     }
 }
 
+} // namespace
+
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int MaxAllowedProfilingTagCount = 200;
+static constexpr int MaxAllowedProfilingTagCount = 200;
 
 TPoolName::TPoolName(TString pool, std::optional<TString> parent)
 {
@@ -253,6 +257,22 @@ void TDelayConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TPatchSpecProtocolTestingOptions::Register(TRegistrar registrar)
+{
+    registrar.Parameter("delay_before_cypress_flush", &TThis::DelayBeforeCypressFlush)
+        .Default();
+    registrar.Parameter("delay_before_apply", &TThis::DelayBeforeApply)
+        .Default();
+    registrar.Parameter("fail_validate", &TThis::FailValidate)
+        .Default();
+    registrar.Parameter("fail_apply", &TThis::FailApply)
+        .Default();
+    registrar.Parameter("fail_revive", &TThis::FailRevive)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(eshcherbin): Change all delays to TDelayConfigPtr.
 void TTestingOperationOptions::Register(TRegistrar registrar)
 {
@@ -318,6 +338,8 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("throw_exception_during_operation_abort", &TThis::ThrowExceptionDuringOperationAbort)
         .Default(false);
+    registrar.Parameter("patch_spec_protocol", &TThis::PatchSpecProtocol)
+        .Default();
 
     registrar.Postprocessor([] (TTestingOperationOptions* config) {
         if (const auto& delay = config->InsideScheduleAllocationDelay;
@@ -787,6 +809,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("use_chunk_slice_statistics", &TThis::UseChunkSliceStatistics)
         .Default(false);
+    registrar.Parameter("enable_read_size_estimation", &TThis::EnableReadSizeEstimation)
+        .Default(true);
 
     registrar.Parameter("ban_nodes_with_failed_jobs", &TThis::BanNodesWithFailedJobs)
         .Default(false);
@@ -938,12 +962,6 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
         if (spec->IssueTemporaryToken) {
             NControllerAgent::ValidateEnvironmentVariableName(spec->TemporaryTokenEnvironmentVariableName);
-
-            if (spec->SecureVault && spec->SecureVault->FindChild(spec->TemporaryTokenEnvironmentVariableName)) {
-                THROW_ERROR_EXCEPTION(
-                    "Temporary token environment variable %Qv already exists in secure vault",
-                    spec->TemporaryTokenEnvironmentVariableName);
-            }
         }
 
         if (spec->Alias && !spec->Alias->StartsWith(OperationAliasPrefix)) {
@@ -2677,6 +2695,7 @@ void Serialize(const TOperationRuntimeParameters& parameters, IYsonConsumer* con
             })
             .OptionalItem("aco_name", parameters.AcoName)
             .Item("scheduling_options_per_pool_tree").Value(parameters.SchedulingOptionsPerPoolTree)
+            .Item("scheduling_tag_filter").Value(parameters.SchedulingTagFilter)
             .Item("options_per_job_shell").Value(parameters.OptionsPerJobShell)
             .DoIf(serializeHeavy, [&] (auto fluent) {
                 SerializeHeavyRuntimeParameters(fluent, parameters);
@@ -2709,6 +2728,9 @@ void Deserialize(TOperationRuntimeParameters& parameters, INodePtr node)
     }
     parameters.SchedulingOptionsPerPoolTree = ConvertTo<THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr>>(
         mapNode->GetChildOrThrow("scheduling_options_per_pool_tree"));
+    if (auto child = mapNode->FindChild("scheduling_tag_filter")) {
+        Deserialize(parameters.SchedulingTagFilter, child);
+    }
     if (auto optionsPerJobShell = mapNode->FindChild("options_per_job_shell")) {
         parameters.OptionsPerJobShell = ConvertTo<THashMap<TString, TOperationJobShellRuntimeParametersPtr>>(optionsPerJobShell);
     }
@@ -2772,6 +2794,8 @@ void TOperationRuntimeParametersUpdate::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("scheduling_options_per_pool_tree", &TThis::SchedulingOptionsPerPoolTree)
         .Default();
+    registrar.Parameter("scheduling_tag_filter", &TThis::SchedulingTagFilter)
+        .Optional();
     registrar.Parameter("options_per_job_shell", &TThis::OptionsPerJobShell)
         .Default();
     registrar.Parameter("annotations", &TThis::Annotations)

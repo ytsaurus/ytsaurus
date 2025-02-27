@@ -284,6 +284,7 @@ message TQueryOptions
     optional int32 execution_backend = 18; // EExecutionBackend
     optional bool use_lookup_cache = 19;
     optional int64 min_row_count_per_subquery = 20;
+    optional bool allow_unordered_group_by_with_limit = 21; // COMPAT(sabdenovch)
 }
 
 message TFeatureFlags

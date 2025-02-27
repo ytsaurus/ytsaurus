@@ -623,6 +623,25 @@ def check_queue_agent_objects():
     assert builtins.set(queue_agent_revision["consumers"].keys()) == {"//tmp/c", "//tmp/rep_c", "//tmp/chaos_rep_c"}
 
 
+def check_hunk_media():
+    create_domestic_medium("m1")
+    create_dynamic_table(
+        "//tmp/t_medium",
+        schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ],
+        hunk_primary_medium="m1",
+        hunk_media={"m1": {"replication_factor": 5, "data_parts_only": False}})
+    create("hunk_storage", "//tmp/h")
+    set("//tmp/t_medium/@hunk_storage_node", "//tmp/h")
+
+    yield
+
+    assert get("//tmp/t_medium/@hunk_primary_medium") == "m1"
+    assert get("//tmp/t_medium/@hunk_media") == {"m1": {"replication_factor": 5, "data_parts_only": False}}
+
+
 def get_monitoring(monitoring_prefix, master):
     return get(
         "{}/{}/orchid/monitoring/hydra".format(monitoring_prefix, master),
@@ -677,6 +696,7 @@ MASTER_SNAPSHOT_CHECKER_LIST = [
     check_account_resource_usage_lease,
     check_queue_agent_objects,
     check_secondary_indices,
+    check_hunk_media,
     check_removed_account,  # keep this item last as it's sensitive to timings
 ]
 
@@ -693,6 +713,9 @@ MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_queue_agent_objects)
 
 # secondary indices are a feature from 24.1.
 MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_secondary_indices)
+
+# @hunk_primary_medium and @hunk_media are unconditionally removed for all chunk owners during migration to 25.1.
+MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST.remove(check_hunk_media)
 
 
 class TestMasterSnapshots(YTEnvSetup):

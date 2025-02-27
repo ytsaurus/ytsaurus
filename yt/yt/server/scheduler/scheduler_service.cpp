@@ -132,7 +132,7 @@ private:
             error,
             user);
 
-        context->ReplyFrom(asyncResult);
+        context->ReplyFrom(std::move(asyncResult));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, SuspendOperation)
@@ -160,7 +160,7 @@ private:
             abortRunningAllocations,
             request->has_reason() ? std::optional(request->reason()) : std::nullopt);
 
-        context->ReplyFrom(asyncResult);
+        context->ReplyFrom(std::move(asyncResult));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, ResumeOperation)
@@ -183,7 +183,7 @@ private:
             operation,
             context->GetAuthenticationIdentity().User);
 
-        context->ReplyFrom(asyncResult);
+        context->ReplyFrom(std::move(asyncResult));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, CompleteOperation)
@@ -207,7 +207,7 @@ private:
             TError("Operation completed by user request"),
             context->GetAuthenticationIdentity().User);
 
-        context->ReplyFrom(asyncResult);
+        context->ReplyFrom(std::move(asyncResult));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, UpdateOperationParameters)
@@ -239,18 +239,14 @@ private:
             context->GetAuthenticationIdentity().User,
             parametersNode);
 
-        context->ReplyFrom(asyncResult);
+        context->ReplyFrom(std::move(asyncResult));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, PatchOperationSpec)
     {
         auto operationIdOrAlias = FromProto<TOperationIdOrAlias>(*request);
 
-        TSpecPatchList patches;
-        for (const auto& protoChange : request->patches()) {
-            patches.emplace_back(New<TSpecPatch>());
-            FromProto(patches.back(), &protoChange);
-        }
+        auto patches = FromProto<TSpecPatchList>(request->patches());
         context->SetRequestInfo(
             "OperationId: %v, Patches: %v",
             operationIdOrAlias,
@@ -263,7 +259,14 @@ private:
             return;
         }
 
-        context->Reply(TError("PatchSpec is not yet implemented"));
+        auto operation = scheduler->GetOperationOrThrow(operationIdOrAlias);
+
+        auto asyncResult = scheduler->PatchOperationSpec(
+            std::move(operation),
+            context->GetAuthenticationIdentity().User,
+            std::move(patches));
+
+        context->ReplyFrom(std::move(asyncResult));
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, GetAllocationBriefInfo)

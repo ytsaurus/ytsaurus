@@ -5,28 +5,28 @@ types:
     descriptor_verbatim: static constexpr TStringBuf Name = "consumer_registrations";
     fields:
       - cpp_name: QueueCluster
-        cpp_type: TString
+        cpp_type: std::string
         column_name: queue_cluster
         column_type: String
         sort_order: Ascending
         required: True
 
       - cpp_name: QueuePath
-        cpp_type: TString
+        cpp_type: NYPath::TYPath
         column_name: queue_path
         column_type: String
         sort_order: Ascending
         required: True
 
       - cpp_name: ConsumerCluster
-        cpp_type: TString
+        cpp_type: std::string
         column_name: consumer_cluster
         column_type: String
         sort_order: Ascending
         required: True
 
       - cpp_name: ConsumerPath
-        cpp_type: TString
+        cpp_type: NYPath::TYPath
         column_name: consumer_path
         column_type: String
         sort_order: Ascending

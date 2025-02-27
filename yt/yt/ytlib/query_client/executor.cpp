@@ -551,11 +551,16 @@ private:
             inferredDataSource,
             rowBuffer);
 
+        for (const auto& dataSource : allSplits) {
+            VerifyIdsInRanges(dataSource.first.Ranges);
+            VerifyIdsInKeys(dataSource.first.Keys);
+        }
+
         bool sortedDataSource = tableInfo->IsSorted();
 
         std::vector<std::pair<std::vector<TDataSource>, TString>> groupedDataSplits;
 
-        if (coordinatedQuery->IsOrdered(requestFeatureFlags)) {
+        if (coordinatedQuery->IsOrdered(options.AllowUnorderedGroupByWithLimit)) {
             // Splits are ordered by tablet bounds.
             YT_LOG_DEBUG("Got ordered splits (SplitCount: %v)", allSplits.size());
 
@@ -699,7 +704,7 @@ private:
         int splitCount = std::ssize(groupedDataSplits);
 
         return CoordinateAndExecute(
-            query->IsOrdered(requestFeatureFlags),
+            query->IsOrdered(options.AllowUnorderedGroupByWithLimit),
             query->IsPrefetching(),
             splitCount,
             [

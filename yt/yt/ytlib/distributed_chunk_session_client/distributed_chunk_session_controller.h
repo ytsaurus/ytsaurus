@@ -16,7 +16,7 @@ struct IDistributedChunkSessionController
     // Starts session and returns the address of distributed write coordinator.
     virtual TFuture<NNodeTrackerClient::TNodeDescriptor> StartSession() = 0;
 
-    virtual bool IsActive() = 0;
+    virtual bool IsActive() const = 0;
 
     // Must be the last call.
     // Finishes and confirms chunk.
@@ -33,7 +33,7 @@ IDistributedChunkSessionControllerPtr CreateDistributedChunkSessionController(
     NApi::NNative::IClientPtr client,
     TDistributedChunkSessionControllerConfigPtr config,
     NObjectClient::TTransactionId transactionId,
-    std::vector<std::string> columns,
+    NTableClient::TNameTablePtr chunkNameTable,
     IInvokerPtr invoker);
 
 ////////////////////////////////////////////////////////////////////////////////

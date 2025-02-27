@@ -14,10 +14,9 @@ namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChaosCellSynchronizerConfig
+struct TChaosCellSynchronizerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration SyncPeriod;
 
     REGISTER_YSON_STRUCT(TChaosCellSynchronizerConfig);
@@ -29,10 +28,9 @@ DEFINE_REFCOUNTED_TYPE(TChaosCellSynchronizerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReplicationCardObserverConfig
+struct TReplicationCardObserverConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration ObservationPeriod;
     i64 ReplicationCardCountPerRound;
 
@@ -45,10 +43,9 @@ DEFINE_REFCOUNTED_TYPE(TReplicationCardObserverConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMigratedReplicationCardRemoverConfig
+struct TMigratedReplicationCardRemoverConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration RemovePeriod;
 
     REGISTER_YSON_STRUCT(TMigratedReplicationCardRemoverConfig);
@@ -60,10 +57,9 @@ DEFINE_REFCOUNTED_TYPE(TMigratedReplicationCardRemoverConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TForeignMigratedReplicationCardRemoverConfig
+struct TForeignMigratedReplicationCardRemoverConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration RemovePeriod;
     TDuration ReplicationCardKeepAlivePeriod;
 
@@ -76,10 +72,9 @@ DEFINE_REFCOUNTED_TYPE(TForeignMigratedReplicationCardRemoverConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChaosManagerConfig
+struct TChaosManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TChaosCellSynchronizerConfigPtr ChaosCellSynchronizer;
     TReplicationCardObserverConfigPtr ReplicationCardObserver;
     TDuration EraCommencingPeriod;
@@ -96,10 +91,9 @@ DEFINE_REFCOUNTED_TYPE(TChaosManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCoordinatorManagerConfig
+struct TCoordinatorManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     REGISTER_YSON_STRUCT(TCoordinatorManagerConfig);
 
     static void Register(TRegistrar )
@@ -110,10 +104,9 @@ DEFINE_REFCOUNTED_TYPE(TCoordinatorManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionManagerConfig
+struct TTransactionManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration MaxTransactionTimeout;
     int MaxAbortedTransactionPoolSize;
 
@@ -126,10 +119,9 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TChaosNodeConfig
+struct TChaosNodeConfig
     : public NYTree::TYsonStruct
 {
-public:
     NCellarAgent::TCellarOccupantConfigPtr CellarOccupant;
 
     TTransactionManagerConfigPtr TransactionManager;

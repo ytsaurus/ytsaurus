@@ -724,6 +724,16 @@ private:
         return Spec_;
     }
 
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TOrderedMergeOperationSpec>(spec);
+    }
+
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
+    {
+        return TConfigurator<TOrderedMergeOperationSpec>();
+    }
+
     void OnOperationCompleted(bool interrupted) override
     {
         if (!interrupted) {
@@ -943,6 +953,16 @@ private:
         return Spec_;
     }
 
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TMapOperationSpec>(spec);
+    }
+
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
+    {
+        return TConfigurator<TMapOperationSpec>();
+    }
+
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TOrderedMapController, 0x3be901ca);
 };
 
@@ -1159,6 +1179,16 @@ private:
     TYsonStructPtr GetTypedSpec() const override
     {
         return Spec_;
+    }
+
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TEraseOperationSpec>(spec);
+    }
+
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
+    {
+        return TConfigurator<TEraseOperationSpec>();
     }
 
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TEraseController, 0xfbb39ac0);
@@ -1890,6 +1920,16 @@ private:
     TYsonStructPtr GetTypedSpec() const override
     {
         return Spec_;
+    }
+
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TRemoteCopyOperationSpec>(spec);
+    }
+
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
+    {
+        return TConfigurator<TRemoteCopyOperationSpec>();
     }
 
     TCpuResource GetCpuLimit() const override

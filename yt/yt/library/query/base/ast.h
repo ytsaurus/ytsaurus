@@ -403,13 +403,13 @@ struct TLikeExpression
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TTableHint)
-
 struct TTableHint
     : public NYTree::TYsonStruct
 {
     bool RequireSyncReplica;
     bool PushDownGroupBy;
+
+    bool operator == (const TTableHint& other) const = default;
 
     REGISTER_YSON_STRUCT(TTableHint);
 
@@ -503,8 +503,6 @@ struct TArrayJoin
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TQueryAstHead);
-
 struct TQuery
 {
     std::variant<TTableDescriptor, TQueryAstHeadPtr> FromClause;
@@ -562,10 +560,35 @@ TString FormatArrayJoin(const TArrayJoin& join);
 TString FormatQuery(const TQuery& query);
 TString InferColumnName(const TExpression& expr);
 TString InferColumnName(const TReference& ref);
+void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYPath::TYPath GetMainTable(const TQuery& query);
+NYPath::TYPath GetMainTablePath(const TQuery& query);
+
+////////////////////////////////////////////////////////////////////////////////
+
+NAst::TExpressionPtr BuildAndExpression(
+    TObjectsHolder* holder,
+    NAst::TExpressionPtr lhs,
+    NAst::TExpressionPtr rhs);
+
+NAst::TExpressionPtr BuildOrExpression(
+    TObjectsHolder* holder,
+    NAst::TExpressionPtr lhs,
+    NAst::TExpressionPtr rhs);
+
+NAst::TExpressionPtr BuildConcatenationExpression(
+    TObjectsHolder* holder,
+    NAst::TExpressionPtr lhs,
+    NAst::TExpressionPtr rhs,
+    const TString& separator);
+
+//! For commutative operations only.
+NAst::TExpressionPtr BuildBinaryOperationTree(
+    TObjectsHolder* holder,
+    std::vector<NAst::TExpressionPtr> leaves,
+    EBinaryOp opCode);
 
 ////////////////////////////////////////////////////////////////////////////////
 

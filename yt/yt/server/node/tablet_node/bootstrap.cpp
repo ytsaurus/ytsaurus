@@ -82,17 +82,17 @@ using namespace NYson;
 
 static constexpr auto& Logger = TabletNodeLogger;
 
-static const TString BusXferThreadPoolName = "BusXfer";
-static const TString CompressionThreadPoolName = "Compression";
-static const TString LookupThreadPoolName = "TabletLookup";
-static const TString QueryThreadPoolName = "Query";
+static const std::string BusXferThreadPoolName = "BusXfer";
+static const std::string CompressionThreadPoolName = "Compression";
+static const std::string LookupThreadPoolName = "TabletLookup";
+static const std::string QueryThreadPoolName = "Query";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TPoolWeightCache)
 
 class TPoolWeightCache
-    : public TAsyncExpiringCache<TString, double>
+    : public TAsyncExpiringCache<std::string, double>
     , public IPoolWeightProvider
 {
 public:
@@ -107,7 +107,7 @@ public:
         , Invoker_(std::move(invoker))
     { }
 
-    double GetWeight(const TString& poolName) override
+    double GetWeight(const std::string& poolName) override
     {
         auto poolWeight = DefaultQLExecutionPoolWeight;
         auto weightFuture = this->Get(poolName);
@@ -124,7 +124,7 @@ private:
     const IInvokerPtr Invoker_;
 
     TFuture<double> DoGet(
-        const TString& poolName,
+        const std::string& poolName,
         bool /*isPeriodicUpdate*/) noexcept override
     {
         auto client = Client_.Lock();
@@ -136,7 +136,7 @@ private:
             .Run();
     }
 
-    static double GetPoolWeight(const NApi::NNative::IClientPtr& client, const TString& poolName)
+    static double GetPoolWeight(const NApi::NNative::IClientPtr& client, const std::string& poolName)
     {
         auto path = QueryPoolsPath + "/" + NYPath::ToYPathLiteral(poolName);
 
@@ -490,7 +490,7 @@ public:
     }
 
     IInvokerPtr GetQueryPoolInvoker(
-        const TString& poolName,
+        const std::string& poolName,
         const TFairShareThreadPoolTag& tag) const override
     {
         return QueryThreadPool_->GetInvoker(poolName, tag);

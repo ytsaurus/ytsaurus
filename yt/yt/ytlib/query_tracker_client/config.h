@@ -10,10 +10,9 @@ namespace NYT::NQueryTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryTrackerChannelConfig
+struct TQueryTrackerChannelConfig
     : public NRpc::TBalancingChannelConfig
 {
-public:
     TDuration Timeout;
 
     REGISTER_YSON_STRUCT(TQueryTrackerChannelConfig);
@@ -25,10 +24,9 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerChannelConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryTrackerStageConfig
+struct TQueryTrackerStageConfig
     : public NYTree::TYsonStruct
 {
-public:
     TQueryTrackerChannelConfigPtr Channel;
     NYPath::TYPath Root;
     std::string User;
@@ -42,10 +40,9 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerStageConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryTrackerConnectionConfig
+struct TQueryTrackerConnectionConfig
     : public NYTree::TYsonStruct
 {
-public:
     THashMap<TString, TQueryTrackerStageConfigPtr> Stages;
 
     REGISTER_YSON_STRUCT(TQueryTrackerConnectionConfig);

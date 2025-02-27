@@ -197,7 +197,8 @@ private:
         descriptors->push_back(EInternedAttributeKey::ReplicatedTableOptions);
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Schema)
             .SetWritable(true)
-            .SetReplicated(true));
+            .SetReplicated(true)
+            .SetOpaque(IsSchemaAttributeOpaque()));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TreatAsQueueConsumer)
             .SetWritable(true)
             .SetPresent(hasNonEmptySchema && isSorted));
@@ -624,7 +625,12 @@ DEFINE_YPATH_SERVICE_METHOD(TChaosReplicatedTableNodeProxy, GetMountInfo)
 
         context->ReplyFrom(tabletCountFuture.ApplyUnique(BIND(
             [context, response] (TErrorOr<int>&& result) {
-                response->set_tablet_count(result.ValueOrDefault(0));
+                if (!result.IsOK()) {
+                    return TError(std::move(result));
+                }
+
+                response->set_tablet_count(result.Value());
+                return TError();
             })));
     } else {
         context->Reply();

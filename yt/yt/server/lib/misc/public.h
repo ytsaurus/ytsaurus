@@ -58,8 +58,8 @@ struct IArchiveRowlet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TClusterThrottlersConfig)
-DECLARE_REFCOUNTED_CLASS(TClusterLimitsConfig)
+DECLARE_REFCOUNTED_STRUCT(TClusterThrottlersConfig)
+DECLARE_REFCOUNTED_STRUCT(TClusterLimitsConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

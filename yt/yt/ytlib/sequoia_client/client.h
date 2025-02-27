@@ -6,6 +6,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
+#include <yt/yt/ytlib/hive/public.h>
+
 #include <yt/yt/client/api/table_client.h>
 
 namespace NYT::NSequoiaClient {
@@ -77,6 +79,7 @@ struct ISequoiaClient
         i64 trimmedRowCount) = 0;
 
     virtual TFuture<ISequoiaTransactionPtr> StartTransaction(
+        ESequoiaTransactionType type,
         const NApi::TTransactionStartOptions& options = {},
         const TSequoiaTransactionSequencingOptions& sequencingOptions = {}) = 0;
 
@@ -88,9 +91,8 @@ DEFINE_REFCOUNTED_TYPE(ISequoiaClient)
 ////////////////////////////////////////////////////////////////////////////////
 
 ISequoiaClientPtr CreateSequoiaClient(
-    NApi::NNative::IClientPtr nativeClient,
-    NApi::NNative::IClientPtr groundClient,
-    NLogging::TLogger logger);
+    NApi::NNative::TSequoiaConnectionConfigPtr config,
+    NApi::NNative::IClientPtr nativeClient);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -47,6 +47,7 @@ target_sources(yt-server-kafka_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/connection.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/dynamic_config_manager.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/group_coordinator.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/helpers.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/program.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/kafka_proxy/server.cpp

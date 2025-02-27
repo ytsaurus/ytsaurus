@@ -229,25 +229,12 @@ protected:
         return CellIdFromCellTag(CellTagFromId(id));
     }
 
-    TObjectServiceProxy CreateReadProxyToCell(TCellTag cellTag)
-    {
-        return CreateObjectServiceReadProxy(
-            Bootstrap_->GetNativeRootClient(),
-            EMasterChannelKind::Follower,
-            cellTag,
-            Bootstrap_->GetNativeConnection()->GetStickyGroupSizeCache());
-    }
-
     TObjectServiceProxy CreateReadProxyForObject(TObjectId id)
     {
-        return CreateReadProxyToCell(CellTagFromId(id));
-    }
-
-    TObjectServiceProxy CreateWriteProxyForObject(TObjectId id)
-    {
-        return CreateObjectServiceWriteProxy(
-            Bootstrap_->GetNativeRootClient(),
-            CellTagFromId(id));
+        return TObjectServiceProxy::FromDirectMasterChannel(
+            Bootstrap_
+                ->GetNativeConnection()
+                ->GetMasterChannelOrThrow(EMasterChannelKind::Follower, CellTagFromId(id)));
     }
 
     void ValidateCreateOptions(const TReqCreate* request)
@@ -286,6 +273,7 @@ protected:
         auto rspOrError = WaitFor(CreateReadProxyForObject(Id_).Execute(std::move(req)));
         if (!rspOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Node touch failed")
+                << TErrorAttribute("node_id", Id_)
                 << rspOrError;
         }
     }
@@ -311,39 +299,14 @@ protected:
         return SequoiaSession_->RemoveRootstock(rootstockId);
     }
 
-    void ForwardRequestAndAbortSequoiaSession(auto requestFactory, const auto& context)
+    void AbortSequoiaSessionForLaterForwardingToMaster()
     {
-        auto newRequest = requestFactory(NYPath::TYPath());
-        newRequest->CopyFrom(context->Request());
-
-        // TODO(kvk1920): it could be better to deal with Cypress tx replication
-        // here since we already have started Sequoia tx. This will require a
-        // request flag "suppress_mirrored_tx_sync" or something similar.
-
-        auto suffix = GetRequestTargetYPath(context->GetRequestHeader());
-        SetRequestTargetYPath(&newRequest->Header(), FromObjectId(Id_) + suffix);
-        SetTransactionId(newRequest, SequoiaSession_->GetCurrentCypressTransactionId());
-        SetAccessTrackingOptions(newRequest, AccessTrackingOptions_);
-        SetAllowResolveFromSequoiaObject(newRequest, true);
-        auto proxy = IsRequestMutating(context->GetRequestHeader())
-            ? CreateWriteProxyForObject(Id_)
-            : CreateReadProxyForObject(Id_);
-
-        // TODO(kvk1920): it always prints "0-0-0-0 -> 0-0-0-0". Investigate it.
-
-        YT_LOG_DEBUG("Forwarded request to master (RequestId: %v -> %v)",
-            context->GetRequestId(),
-            newRequest->GetRequestId());
-
+        InvokeResult_ = EInvokeResult::ForwardToMaster;
         SequoiaSession_->Abort();
-
-        auto rsp = WaitFor(proxy.Execute(std::move(newRequest)))
-            .ValueOrThrow();
-        context->Response().CopyFrom(*rsp);
-        context->Reply();
     }
 
-    // Constructs the response message, saves it into Sequoia response keeper if needed, commits sequoia session and replies with constructed message.
+    // Constructs the response message, saves it into Sequoia response keeper if
+    // needed, commits sequoia session and replies with constructed message.
     void FinishSequoiaSessionAndReply(
         const auto& context,
         TCellId coordinatorCellId,
@@ -366,7 +329,7 @@ protected:
                 if (useResponseKeeper) {
                     // NB: If commit failed, then some error related to dynamic tables occured and client will receive it,
                     // so we should save this error in case of retries on client side.
-                    auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(Bootstrap_->GetSequoiaClient()))
+                    auto sequoiaTransaction = WaitFor(StartCypressProxyTransaction(Bootstrap_->GetSequoiaClient(), ESequoiaTransactionType::ResponseKeeper))
                         .ValueOrThrow();
                     responseKeeper->KeepResponse(sequoiaTransaction, mutationId, TError(ex));
                     WaitFor(sequoiaTransaction->Commit({
@@ -480,7 +443,7 @@ protected:
             limit,
             attributeFilter);
 
-        ForwardRequestAndAbortSequoiaSession(TYPathProxy::Get, context);
+        AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
     void SetSelf(TReqSet* request, TRspSet* /*response*/, const TCtxSetPtr& context) override
@@ -540,7 +503,7 @@ protected:
         const TCtxExistsPtr& context) override
     {
         context->SetRequestInfo();
-        ForwardRequestAndAbortSequoiaSession(TYPathProxy::Exists, context);
+        AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
     void ExistsAttribute(
@@ -550,7 +513,7 @@ protected:
         const TCtxExistsPtr& context) override
     {
         context->SetRequestInfo();
-        ForwardRequestAndAbortSequoiaSession(TYPathProxy::Exists, context);
+        AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
     void GetAttribute(
@@ -560,7 +523,7 @@ protected:
         const TCtxGetPtr& context) override
     {
         context->SetRequestInfo();
-        ForwardRequestAndAbortSequoiaSession(TYPathProxy::Get, context);
+        AbortSequoiaSessionForLaterForwardingToMaster();
     }
 
     void SetAttribute(
@@ -609,7 +572,7 @@ protected:
         const TCtxListPtr& context) override
     {
         context->SetRequestInfo();
-        ForwardRequestAndAbortSequoiaSession(TYPathProxy::List, context);
+        AbortSequoiaSessionForLaterForwardingToMaster();
     }
 };
 
@@ -645,7 +608,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, GetBasicAttributes)
     }
 
     context->SetRequestInfo();
-    ForwardRequestAndAbortSequoiaSession(TObjectYPathProxy::GetBasicAttributes, context);
+    AbortSequoiaSessionForLaterForwardingToMaster();
 }
 
 DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Create)

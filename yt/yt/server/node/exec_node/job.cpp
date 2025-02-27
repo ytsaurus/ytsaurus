@@ -165,8 +165,6 @@ using NCypressClient::EObjectType;
 
 static constexpr auto DisableSandboxCleanupEnv = "YT_DISABLE_SANDBOX_CLEANUP";
 
-static constexpr TStringBuf DockerAuthEnvPrefix("YT_SECURE_VAULT_docker_auth=");
-
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -1419,6 +1417,16 @@ TBriefJobInfo TJob::GetBriefInfo() const
         jobPorts = GetPorts();
     }
 
+    auto tryGetMonitoringDescriptor = [&] () -> std::optional<std::string> {
+        const auto& monitoringConfig = UserJobSpec_->monitoring_config();
+        if (!monitoringConfig.enable()) {
+            return std::nullopt;
+        }
+
+        YT_VERIFY(monitoringConfig.has_job_descriptor());
+        return monitoringConfig.job_descriptor();
+    };
+
     return TBriefJobInfo(
         GetId(),
         GetState(),
@@ -1437,7 +1445,8 @@ TBriefJobInfo TJob::GetBriefInfo() const
         std::move(jobPorts),
         JobEvents_,
         CoreInfos_,
-        ExecAttributes_);
+        ExecAttributes_,
+        tryGetMonitoringDescriptor());
 }
 
 NYTree::IYPathServicePtr TJob::CreateStaticOrchidService()
@@ -3071,7 +3080,7 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
             proxyInternalConfig->DisableNetwork = UserJobSpec_->disable_network();
         }
 
-        proxyInternalConfig->HostName = Format("slot_%v.%v",
+        proxyInternalConfig->HostName = Format("slot-%v.%v",
             GetUserSlot()->GetSlotIndex(),
             Bootstrap_->GetConfig()->Addresses[0].second);
     } else {
@@ -3153,9 +3162,10 @@ TJobProxyInternalConfigPtr TJob::CreateConfig()
 NCri::TCriAuthConfigPtr TJob::BuildDockerAuthConfig()
 {
     if (UserJobSpec_ && UserJobSpec_->environment_size()) {
+        TString prefix = Format("%s_%s=", SecureVaultEnvPrefix, DockerAuthEnv);
         for (const auto& var : UserJobSpec_->environment()) {
-            if (var.StartsWith(DockerAuthEnvPrefix)) {
-                auto ysonConfig = TYsonString(var.substr(DockerAuthEnvPrefix.length()));
+            if (var.StartsWith(prefix)) {
+                auto ysonConfig = TYsonString(var.substr(prefix.length()));
                 return ConvertTo<NCri::TCriAuthConfigPtr>(ysonConfig);
             }
         }

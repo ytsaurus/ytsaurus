@@ -46,6 +46,8 @@ PEERDIR(
     yt/cpp/mapreduce/tests/yt_unittest_lib
     yt/cpp/mapreduce/tests/gtest_main
     yt/cpp/mapreduce/util
+    library/cpp/dwarf_backtrace
+    library/cpp/dwarf_backtrace/registry
 )
 
 SIZE(MEDIUM)

@@ -33,7 +33,7 @@ struct IDistributedChunkSessionCoordinator
     : virtual public TRefCounted
 {
     // Returns future that is set when the session is finished.
-    virtual TFuture<void> Run() = 0;
+    virtual TFuture<void> StartSession() = 0;
 
     virtual TFuture<void> SendBlocks(
         std::vector<NChunkClient::TBlock> blocks,
@@ -51,7 +51,7 @@ struct IDistributedChunkSessionCoordinator
     // Close(/*force*/ true) cancels all pending SendBlocks requests, regardless of their state.
     //
     // New SendBlocks calls attempted after Close will result in a SessionClosed error.
-    virtual void Close(bool force = false) = 0;
+    virtual TFuture<void> Close(bool force = false) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IDistributedChunkSessionCoordinator)

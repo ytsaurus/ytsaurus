@@ -9,6 +9,7 @@ TEST_SRCS(
     test_list_jobs.py
     test_list_operations.py
     test_new_live_preview.py
+    test_patch_spec.py
     test_scheduler_acls.py
     test_scheduler_alerts.py
     test_scheduler_alert_history.py
@@ -33,7 +34,6 @@ TEST_SRCS(
     test_scheduler_user_statistics.py
     test_scheduling_segments.py
     test_speculative_jobs.py
-    test_patch_spec.py
     test_probing_jobs.py
     test_resource_metering.py
 )

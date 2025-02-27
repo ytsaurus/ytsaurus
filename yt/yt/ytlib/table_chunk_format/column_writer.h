@@ -47,6 +47,7 @@ std::unique_ptr<IValueColumnWriter> CreateUnversionedColumnWriter(
     const NTableClient::TColumnSchema& columnSchema,
     TDataBlockWriter* blockWriter,
     IMemoryUsageTrackerPtr memoryUsageTracker,
+    bool serializeFloatsAsDoubles = false,
     int maxValueCount = DefaultMaxSegmentValueCount);
 
 std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(

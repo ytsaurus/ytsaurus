@@ -15,6 +15,7 @@
 add_subdirectory(test_base)
 add_subdirectory(test_cypress_election)
 add_subdirectory(test_data_node_rpc)
+add_subdirectory(test_distributed_chunk_sessions)
 add_subdirectory(test_hydra)
 add_subdirectory(test_native_api)
 add_subdirectory(test_rpc_api)

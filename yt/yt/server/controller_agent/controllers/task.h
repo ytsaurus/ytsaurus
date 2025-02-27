@@ -151,17 +151,6 @@ public:
 
     virtual bool ValidateChunkCount(int chunkCount);
 
-    struct TOutputCookieInfo
-    {
-        std::optional<EJobCompetitionType> CompetitionType;
-        NChunkPools::IChunkPoolOutput::TCookie OutputCookie{};
-    };
-
-    std::expected<TOutputCookieInfo, EScheduleFailReason>
-    GetOutputCookieInfoForFirstJob(const TAllocation& allocation);
-    std::expected<TOutputCookieInfo, EScheduleFailReason>
-    GetOutputCookieInfoForNextJob(const TAllocation& allocation);
-
     std::optional<EScheduleFailReason> TryScheduleJob(
         TAllocation& allocation,
         const TSchedulingContext& context,
@@ -239,8 +228,6 @@ public:
         const std::vector<TOutputStreamDescriptorPtr>& streamDescriptors,
         const NChunkPools::TChunkStripeListPtr& inputStripeList,
         std::vector<NChunkPools::TChunkStripePtr>* outputStripes);
-
-    virtual NChunkPools::IChunkPoolOutput::TCookie ExtractCookieForAllocation(const TAllocation& allocation);
 
     void UpdateMemoryDigests(const TJobletPtr& joblet, bool resourceOverdraft);
 
@@ -430,6 +417,17 @@ protected:
 
     virtual TJobSplitterConfigPtr GetJobSplitterConfig() const = 0;
 
+    struct TNewJobConstraints
+    {
+        std::optional<NChunkPools::IChunkPoolOutput::TCookie> OutputCookie;
+        std::optional<TJobMonitoringDescriptor> MonitoringDescriptor;
+    };
+    virtual TNewJobConstraints GetNewJobConstraints(const TAllocation& allocation) const;
+
+    virtual NChunkPools::IChunkPoolOutput::TCookie ExtractCookieForAllocation(
+        const TAllocation& allocation,
+        const TNewJobConstraints& newJobConstraints);
+
 private:
     TCompositePendingJobCount CachedPendingJobCount_;
     int CachedTotalJobCount_;
@@ -514,7 +512,8 @@ private:
         TJobId jobId,
         bool treeIsTentative,
         NChunkPools::IChunkPoolOutput::TCookie outputCookie,
-        std::optional<EJobCompetitionType> competitionType);
+        std::optional<EJobCompetitionType> competitionType,
+        const TNewJobConstraints& newJobConstraints);
 
     std::optional<TDuration> InferWaitingForResourcesTimeout(
         const NScheduler::NProto::TScheduleAllocationSpec& allocationSpec) const;
@@ -564,6 +563,17 @@ private:
         i64 maxRunnableJobCount = std::numeric_limits<i64>::max()) const;
 
     NScheduler::TCompositeNeededResources GetTotalNeededResourcesDefaultDelta();
+
+    struct TOutputCookieInfo
+    {
+        std::optional<EJobCompetitionType> CompetitionType;
+        NChunkPools::IChunkPoolOutput::TCookie OutputCookie{};
+    };
+
+    std::expected<TOutputCookieInfo, EScheduleFailReason>
+    GetOutputCookieInfoForFirstJob(const TAllocation& allocation, const TNewJobConstraints& newJobConstraints);
+    std::expected<TOutputCookieInfo, EScheduleFailReason>
+    GetOutputCookieInfoForNextJob(const TAllocation& allocation, const TNewJobConstraints& newJobConstraints);
 
     PHOENIX_DECLARE_FRIEND();
     PHOENIX_DECLARE_POLYMORPHIC_TYPE(TTask, 0x81ab3cd3);

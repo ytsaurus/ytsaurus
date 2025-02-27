@@ -55,9 +55,10 @@ def active_environment():
 
 def init_environment_for_test_session(request, mode, **kwargs):
     active_environment = request.getfixturevalue("active_environment")
-    assert not active_environment, "another test environment is already active"
-    active_environment.add(request.fixturename)
-    request.addfinalizer(lambda: active_environment.remove(request.fixturename))
+    if mode != "multicluster_v4":
+        assert not active_environment, "another test environment is already active"
+        active_environment.add(request.fixturename)
+        request.addfinalizer(lambda: active_environment.remove(request.fixturename))
 
     config = {"api_version": "v3"}
     if mode in ("native_v3", "native_v4"):
@@ -67,6 +68,9 @@ def init_environment_for_test_session(request, mode, **kwargs):
     elif mode == "rpc":
         config["backend"] = "rpc"
     elif mode in ("native_multicell", "yamr", "job_archive"):
+        config["backend"] = "http"
+        config["api_version"] = "v4"
+    elif mode == "multicluster_v4":
         config["backend"] = "http"
         config["api_version"] = "v4"
     else:
@@ -112,6 +116,59 @@ def test_environment(request):
 def test_environment_v4(request):
     environment = init_environment_for_test_session(request, request.param)
     return environment
+
+
+@pytest.fixture(scope="function")
+def yt_env_multicluster_v4(request):
+    delta_controller_agent_config = {
+        "controller_agent": {
+            "snapshot_period": 500,
+            "remote_copy_operation_options": {
+                "spec_template": {
+                    "use_remote_master_caches": True,
+                },
+            },
+            "disallow_remote_operations": {
+                "allowed_users": ["root"],
+                "allowed_clusters": ["first", "second"],
+            }
+        }
+    }
+    environments = (
+        init_environment_for_test_session(
+            request,
+            mode="multicluster_v4",
+            delta_controller_agent_config=delta_controller_agent_config,
+            cluster_name="first",
+            env_options={"primary_cell_tag": 1}
+        ),
+        init_environment_for_test_session(
+            request,
+            mode="multicluster_v4",
+            delta_controller_agent_config=delta_controller_agent_config,
+            cluster_name="second",
+            env_options={"primary_cell_tag": 2}
+        ),
+    )
+    for env in environments:
+        env.check_liveness()
+        env.reload_global_configuration()
+        test_function_setup()
+        register_test_function_finalizer(request)
+
+    client_1, client_2 = map(lambda env: yt.YtClient(proxy=env.config["proxy"]["url"]), environments)
+    client_1.set("//sys/clusters/second", client_2.get("//sys/@cluster_connection"))
+    client_2.set("//sys/clusters/first", client_1.get("//sys/@cluster_connection"))
+
+    # create fake clusters (cluster_name == proxy_url)
+    client_1.set("//sys/controller_agents/config/disallow_remote_operations/allowed_clusters", [client_2.config["proxy"]["url"]], recursive=True)
+    client_2.set("//sys/controller_agents/config/disallow_remote_operations/allowed_clusters", [client_1.config["proxy"]["url"]], recursive=True)
+    client_1.set("//sys/clusters/{}".format(client_2.config["proxy"]["url"]), client_2.get("//sys/@cluster_connection"))
+    client_2.set("//sys/clusters/{}".format(client_1.config["proxy"]["url"]), client_1.get("//sys/@cluster_connection"))
+    client_1.remove("//sys/clusters/second", recursive=True)
+    client_2.remove("//sys/clusters/first", recursive=True)
+
+    return environments
 
 
 @pytest.fixture(scope="class", params=["v3", "v4"])

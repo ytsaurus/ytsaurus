@@ -2,7 +2,7 @@
 
 PY3_LIBRARY()
 
-VERSION(1.8.1)
+VERSION(1.9.2)
 
 LICENSE(MIT)
 
@@ -18,6 +18,7 @@ PY_SRCS(
     dacite/dataclasses.py
     dacite/exceptions.py
     dacite/frozen_dict.py
+    dacite/generics.py
     dacite/types.py
 )
 

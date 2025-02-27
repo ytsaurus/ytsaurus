@@ -20,10 +20,9 @@ namespace NYT::NMasterCache {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterCacheBootstrapConfig
+struct TMasterCacheBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
-public:
     bool AbortOnUnrecognizedOptions;
 
     NBus::TBusConfigPtr BusClient;
@@ -45,11 +44,10 @@ DEFINE_REFCOUNTED_TYPE(TMasterCacheBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterCacheProgramConfig
+struct TMasterCacheProgramConfig
     : public TMasterCacheBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TMasterCacheProgramConfig);
 
     static void Register(TRegistrar registrar);
@@ -59,10 +57,9 @@ DEFINE_REFCOUNTED_TYPE(TMasterCacheProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TMasterCacheDynamicConfig
+struct TMasterCacheDynamicConfig
     : public TSingletonsDynamicConfig
 {
-public:
     NObjectClient::TCachingObjectServiceDynamicConfigPtr CachingObjectService;
 
     REGISTER_YSON_STRUCT(TMasterCacheDynamicConfig);

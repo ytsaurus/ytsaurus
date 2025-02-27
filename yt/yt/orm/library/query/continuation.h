@@ -8,11 +8,11 @@ namespace NYT::NOrm::NLibrary::NQuery {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString SerializeContinuationToken(
+std::string SerializeContinuationToken(
     const google::protobuf::Message& message);
 
 void DeserializeContinuationToken(
-    const TString& token,
+    const std::string& token,
     google::protobuf::Message* message);
 
 ////////////////////////////////////////////////////////////////////////////////

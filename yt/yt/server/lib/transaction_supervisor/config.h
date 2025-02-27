@@ -8,10 +8,9 @@ namespace NYT::NTransactionSupervisor {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionSupervisorConfig
+struct TTransactionSupervisorConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration ParticipantProbationPeriod;
     TDuration RpcTimeout;
     TDuration ParticipantBackoffTime;
@@ -27,10 +26,9 @@ DEFINE_REFCOUNTED_TYPE(TTransactionSupervisorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionLeaseTrackerConfig
+struct TTransactionLeaseTrackerConfig
     : public NYTree::TYsonStruct
 {
-public:
     int ThreadCount;
 
     REGISTER_YSON_STRUCT(TTransactionLeaseTrackerConfig);

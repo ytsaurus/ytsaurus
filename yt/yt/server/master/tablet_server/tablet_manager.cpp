@@ -917,11 +917,6 @@ public:
                 THROW_ERROR_EXCEPTION("Tablet with atomicity %Qlv cannot be moved",
                     table->GetAtomicity());
             }
-
-            const auto& schema = table->GetSchema()->AsTableSchema();
-            if (schema->HasHunkColumns()) {
-                THROW_ERROR_EXCEPTION("Cannot move table with hunk columns");
-            }
         }
 
         auto* action = DoCreateTabletAction(
@@ -2877,13 +2872,13 @@ private:
     TTimeCounter TabletNodeHeartbeatCounter_ = TabletServerProfiler().TimeCounter("/tablet_node_heartbeat");
 
     // Mount config keys received from nodes. Persisted.
-    THashSet<TString> MountConfigKeysFromNodes_;
+    THashSet<std::string> MountConfigKeysFromNodes_;
     // Mount config keys known to the binary (by the moment of most recent reign change). Persisted.
-    THashSet<TString> LocalMountConfigKeys_;
+    THashSet<std::string> LocalMountConfigKeys_;
 
     INodePtr BuildOrchidYson() const
     {
-        std::vector<TString> extraMountConfigKeys;
+        std::vector<std::string> extraMountConfigKeys;
         for (const auto& key : MountConfigKeysFromNodes_) {
             if (!LocalMountConfigKeys_.contains(key)) {
                 extraMountConfigKeys.push_back(key);
@@ -7280,11 +7275,11 @@ private:
             auto statistics = tablet->GetTabletStatistics();
             switch (table->GetInMemoryMode()) {
                 case EInMemoryMode::None:
-                case EInMemoryMode::Uncompressed:
                     result += statistics.UncompressedDataSize;
                     break;
+                case EInMemoryMode::Uncompressed:
                 case EInMemoryMode::Compressed:
-                    result += statistics.CompressedDataSize;
+                    result += tablet->GetTabletStaticMemorySize(table->GetInMemoryMode());
                     break;
                 default:
                     YT_ABORT();

@@ -1,3 +1,5 @@
+#pragma once
+
 #include <library/cpp/threading/future/core/future.h>
 
 namespace NYql::NFmr {

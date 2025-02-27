@@ -28,6 +28,7 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
     private final UserJobSpec reducerSpec;
     private final List<String> reduceBy;
     private final List<String> joinBy;
+    private final List<String> sortBy;
 
     private final @Nullable
     JobIo jobIo;
@@ -106,6 +107,7 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
         }
         reduceBy = builder.reduceBy;
         joinBy = builder.joinBy;
+        sortBy = builder.sortBy;
 
         if (reducerSpec instanceof MapperOrReducerSpec) {
             MapperOrReducerSpec mapperOrReducerSpec = (MapperOrReducerSpec) reducerSpec;
@@ -150,6 +152,13 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
     }
 
     /**
+     * @see Builder#setSortBy(List)
+     */
+    public List<String> getSortBy() {
+        return sortBy;
+    }
+
+    /**
      * Create yson reduce spec to transfer to YT.
      */
     @Override
@@ -171,6 +180,7 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
                 .key("reducer").apply(b -> reducerSpec.prepare(b, yt, specPreparationContext, formatContext))
                 .key("reduce_by").value(reduceBy)
                 .when(!joinBy.isEmpty(), b -> b.key("join_by").value(joinBy))
+                .when(!sortBy.isEmpty(), b -> b.key("sort_by").value(sortBy))
                 .when(jobIo != null, b -> b.key("job_io").value(jobIo.prepare()))
                 .when(!enableKeyGuarantee, b -> b.key("enable_key_guarantee").value(false))
                 .apply(b -> dumpToSpec(b, specPreparationContext))
@@ -207,6 +217,7 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
         private JobIo jobIo;
         private List<String> reduceBy = new ArrayList<>();
         private List<String> joinBy = new ArrayList<>();
+        private List<String> sortBy = new ArrayList<>();
         private boolean enableKeyGuarantee = true;
 
         protected BuilderBase() {
@@ -239,7 +250,7 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
         }
 
         /**
-         * Set a list of columns by which reduce is carried out;
+         * Set a list of columns by which reduce is carried out.
          */
         public T setReduceBy(List<String> reduceBy) {
             this.reduceBy = new ArrayList<>(reduceBy);
@@ -247,7 +258,7 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
         }
 
         /**
-         * Set a list of columns by which reduce is carried out;
+         * Set a list of columns by which reduce is carried out.
          */
         public T setReduceBy(String... reduceBy) {
             return setReduceBy(Arrays.asList(reduceBy));
@@ -260,6 +271,25 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
 
         public T setJoinBy(String... joinBy) {
             return setJoinBy(Arrays.asList(joinBy));
+        }
+
+        /**
+         * Set a list of columns used for sorting primary input tables.
+         * <p>
+         * Defaults to reduceBy.
+         */
+        public T setSortBy(List<String> sortBy) {
+            this.sortBy = new ArrayList<>(sortBy);
+            return self();
+        }
+
+        /**
+         * Set a list of columns used for sorting primary input tables.
+         * <p>
+         * Defaults to reduceBy.
+         */
+        public T setSortBy(String... sortBy) {
+            return setSortBy(Arrays.asList(sortBy));
         }
 
         /**

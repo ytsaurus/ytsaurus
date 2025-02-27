@@ -7,6 +7,7 @@ import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
 message TReqGetFlowView
 {
     optional bytes path = 1 [default = ""];
+    optional bool cache = 2 [default = true];
 }
 
 message TRspGetFlowView

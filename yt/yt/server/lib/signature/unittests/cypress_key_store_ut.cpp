@@ -57,6 +57,11 @@ struct TCypressKeyReaderTest
         .ExpiresAt = ExpiresAt,
     };
     TCypressKeyReaderConfigPtr Config = New<TCypressKeyReaderConfig>();
+
+    TCypressKeyReaderTest()
+    {
+        Config->CypressReadOptions->ReadFrom = EMasterChannelKind::LocalCache;
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -65,8 +70,9 @@ TEST_F(TCypressKeyReaderTest, FindKey)
 {
     TPublicKey key{};
     auto simpleKeyInfo = New<TKeyInfo>(key, Meta);
-
-    EXPECT_CALL(*Client, GetNode("//sys/public_keys/by_owner/test/4-3-2-1", _))
+    EXPECT_CALL(*Client, GetNode(
+        "//sys/public_keys/by_owner/test/4-3-2-1",
+        Field("ReadFrom", &TGetNodeOptions::ReadFrom, EMasterChannelKind::LocalCache)))
         .WillOnce(Return(MakeFuture(ConvertToYsonString(simpleKeyInfo))));
 
     auto reader = CreateCypressKeyReader(Config, Client);

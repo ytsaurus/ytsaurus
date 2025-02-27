@@ -39,10 +39,9 @@ using NYT::ToProto;
 ////////////////////////////////////////////////////////////////////////////////
 
 // COMPAT(savrus)
-class TTabletCellConfig
+struct TTabletCellConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::vector<std::optional<std::string>> Addresses;
 
     REGISTER_YSON_STRUCT(TTabletCellConfig);

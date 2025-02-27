@@ -14,7 +14,9 @@ class TChaosReplicatedNodeProxyTest
 TEST_F(TChaosReplicatedNodeProxyTest, GetMinimalTabletCountTest)
 {
     std::vector<TErrorOr<int>> tabletCounts;
-    ASSERT_FALSE(GetMinimalTabletCount(tabletCounts).IsOK());
+    auto result = GetMinimalTabletCount(tabletCounts);
+    ASSERT_TRUE(result.IsOK());
+    ASSERT_EQ(result.Value(), 0);
 
     tabletCounts.emplace_back(TError("Timeout"));
     ASSERT_FALSE(GetMinimalTabletCount(tabletCounts).IsOK());
@@ -23,7 +25,7 @@ TEST_F(TChaosReplicatedNodeProxyTest, GetMinimalTabletCountTest)
     ASSERT_FALSE(GetMinimalTabletCount(tabletCounts).IsOK());
 
     tabletCounts.emplace_back(1);
-    auto result = GetMinimalTabletCount(tabletCounts);
+    result = GetMinimalTabletCount(tabletCounts);
     ASSERT_TRUE(result.IsOK());
     ASSERT_EQ(result.Value(), 1);
 

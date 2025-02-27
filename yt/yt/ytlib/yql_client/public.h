@@ -33,9 +33,9 @@ class TYqlResponse;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TYqlAgentChannelConfig)
-DECLARE_REFCOUNTED_CLASS(TYqlAgentStageConfig)
-DECLARE_REFCOUNTED_CLASS(TYqlAgentConnectionConfig)
+DECLARE_REFCOUNTED_STRUCT(TYqlAgentChannelConfig)
+DECLARE_REFCOUNTED_STRUCT(TYqlAgentStageConfig)
+DECLARE_REFCOUNTED_STRUCT(TYqlAgentConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

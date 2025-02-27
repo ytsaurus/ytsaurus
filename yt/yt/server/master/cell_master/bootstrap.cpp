@@ -161,7 +161,7 @@
 
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 
-#include <yt/yt/ytlib/sequoia_client/lazy_client.h>
+#include <yt/yt/ytlib/sequoia_client/client.h>
 
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
@@ -375,7 +375,7 @@ const NNative::IClientPtr& TBootstrap::GetRootClient() const
     return RootClient_;
 }
 
-ISequoiaClientPtr TBootstrap::GetSequoiaClient() const
+const ISequoiaClientPtr& TBootstrap::GetSequoiaClient() const
 {
     return SequoiaClient_;
 }
@@ -777,13 +777,9 @@ void TBootstrap::DoInitialize()
 
     NLogging::GetDynamicTableLogWriterFactory()->SetClient(RootClient_);
 
-    SequoiaClient_ = CreateLazySequoiaClient(RootClient_, Logger());
-
-    // If Sequoia is local it's safe to create the client right now.
-    const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName;
-    if (!groundClusterName) {
-        SequoiaClient_->SetGroundClient(RootClient_);
-    }
+    SequoiaClient_ = CreateSequoiaClient(
+        Config_->ClusterConnection->Dynamic->SequoiaConnection,
+        RootClient_);
 
     NativeAuthenticator_ = NNative::CreateNativeAuthenticator(ClusterConnection_);
 
@@ -853,7 +849,7 @@ void TBootstrap::DoInitialize()
     EpochHistoryManager_ = CreateEpochHistoryManager(this);
 
     // NB: It is important to register multicell manager's automaton part before node tracker's,
-    // because its state depend on proper list of master cells.
+    // because its state depends on proper list of master cells.
     MulticellManager_ = CreateMulticellManager(this);
 
     WorldInitializer_ = CreateWorldInitializer(this);
@@ -1019,19 +1015,6 @@ void TBootstrap::DoInitialize()
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::CellDirectorySynchronizer));
     CellDirectorySynchronizer_->Start();
 
-    auto localTransactionParticipantProvider = CreateTransactionParticipantProvider(
-        CellDirectory_,
-        CellDirectorySynchronizer_,
-        TimestampProvider_,
-        GetKnownParticipantCellTags());
-
-    auto transactionParticipantProviders = std::vector{std::move(localTransactionParticipantProvider)};
-
-    if (groundClusterName) {
-        auto remoteTransactionParticipantProvider = CreateTransactionParticipantProvider(ClusterConnection_->GetClusterDirectory());
-        transactionParticipantProviders.push_back(std::move(remoteTransactionParticipantProvider));
-    }
-
     TransactionSupervisor_ = CreateTransactionSupervisor(
         Config_->TransactionSupervisor,
         HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::TransactionSupervisor),
@@ -1042,7 +1025,15 @@ void TBootstrap::DoInitialize()
         CellId_,
         PrimaryCellTag_,
         TimestampProvider_,
-        std::move(transactionParticipantProviders),
+        {
+            CreateTransactionParticipantProvider(
+                CellDirectory_,
+                CellDirectorySynchronizer_,
+                TimestampProvider_,
+                GetKnownParticipantCellTags()),
+            CreateTransactionParticipantProvider(
+                ClusterConnection_->GetClusterDirectory()),
+        },
         NativeAuthenticator_);
 
     auto discoveryServerConfig = New<TDiscoveryServerConfig>();
@@ -1126,16 +1117,6 @@ void TBootstrap::InitializeTimestampProvider()
 
 void TBootstrap::DoStart()
 {
-    if (const auto& groundClusterName = Config_->ClusterConnection->Dynamic->SequoiaConnection->GroundClusterName) {
-        ClusterConnection_->GetClusterDirectory()->SubscribeOnClusterUpdated(
-            BIND_NO_PROPAGATE([=, this] (const std::string& clusterName, const INodePtr& /*configNode*/) {
-                if (clusterName == *groundClusterName) {
-                    auto groundConnection = ClusterConnection_->GetClusterDirectory()->GetConnection(*groundClusterName);
-                    auto groundClient = groundConnection->CreateNativeClient({.User = NSecurityClient::RootUserName});
-                    SequoiaClient_->SetGroundClient(std::move(groundClient));
-                }
-            }));
-    }
     ClusterConnection_->GetClusterDirectorySynchronizer()->Start();
 
     // Initialize periodic update of latest timestamp.

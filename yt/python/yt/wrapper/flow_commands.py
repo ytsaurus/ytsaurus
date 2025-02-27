@@ -250,15 +250,17 @@ def wait_pipeline_state(target_state, pipeline_path, client=None, timeout=600):
         time.sleep(1)
 
 
-def get_flow_view(pipeline_path, view_path=None, format=None, client=None):
+def get_flow_view(pipeline_path, view_path=None, cache=None, format=None, client=None):
     """Get YT Flow flow view
 
     :param pipeline_path: path to pipeline
     :param view_path: path inside flow view yson struct, starting with /
+    :param cache: use controller cache
     """
 
     params = {"pipeline_path": YPath(pipeline_path, client=client)}
     set_param(params, "view_path", view_path)
+    set_param(params, "cache", cache)
 
     result = make_formatted_request(
         "get_flow_view",

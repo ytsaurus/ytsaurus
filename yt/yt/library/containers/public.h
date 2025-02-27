@@ -184,8 +184,8 @@ DECLARE_REFCOUNTED_CLASS(TContainerDevicesChecker)
 DECLARE_REFCOUNTED_CLASS(TInstanceLimitsTracker)
 DECLARE_REFCOUNTED_CLASS(TPortoProcess)
 DECLARE_REFCOUNTED_CLASS(TPortoResourceTracker)
-DECLARE_REFCOUNTED_CLASS(TPortoExecutorDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TPodSpecConfig)
+DECLARE_REFCOUNTED_STRUCT(TPortoExecutorDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TPodSpecConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

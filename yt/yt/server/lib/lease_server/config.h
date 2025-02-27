@@ -6,10 +6,9 @@ namespace NYT::NLeaseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLeaseManagerConfig
+struct TLeaseManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration LeaseRemovalPeriod;
 
     int MaxLeasesPerRemoval;

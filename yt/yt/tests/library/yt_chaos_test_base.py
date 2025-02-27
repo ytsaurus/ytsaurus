@@ -1,13 +1,18 @@
 from yt_dynamic_tables_base import DynamicTablesBase
 
 from yt_commands import (
-    print_debug, wait, get_driver, get, set, ls, exists, create, sync_create_cells, sync_mount_table, alter_table, insert_rows,
+    print_debug, wait, get_driver, get, set, ls, exists, create, sync_create_cells, sync_mount_table, alter_table, insert_rows, pull_rows,
     create_replication_card, create_chaos_table_replica, alter_table_replica,
     sync_create_chaos_cell, create_chaos_cell_bundle, generate_chaos_cell_id, migrate_replication_cards)
 
 from yt.common import YtError
+import yt.yson as yson
 
 import builtins
+
+##################################################################
+
+MAX_KEY = [yson.to_yson_type(None, attributes={"type": "max"})]
 
 
 class ChaosTestBase(DynamicTablesBase):
@@ -421,3 +426,45 @@ class ChaosTestBase(DynamicTablesBase):
         self._create_replica_tables(replicas, replica_ids)
         self._sync_replication_era(card_id, replicas)
         return crt, card_id, replicas, replica_ids
+
+    def _get_rows_from_queue(self, path, replica_id):
+        rows = pull_rows(
+            path,
+            replication_progress={
+                "segments": [{"lower_key": [], "timestamp": 0}],
+                "upper_key": MAX_KEY,
+            },
+            upstream_replica_id=replica_id,
+        )
+
+        encountered_keys = builtins.set()
+        result_rows = []
+        for row in rows:
+            key = row["key"]
+            assert key not in encountered_keys
+            encountered_keys.add(key)
+
+            assert len(row["value"]) == 1
+            result_rows.append({"key": row["key"], "value": str(row["value"][0])})
+
+        return sorted(result_rows, key=lambda row: row["key"])
+
+    def _lookup_over_pull_rows(self, path, replica_id, key):
+        for row in self._get_rows_from_queue(path, replica_id):
+            if row["key"] == key:
+                return row
+
+        return None
+
+    def _check_pull_fail_reason(self, errors, check_func):
+        pull_failed_reason = errors[0]["inner_errors"][0]
+        if (pull_failed_reason["message"] == "Unable to pick a queue replica to replicate from"):
+            return any(
+                check_func(error)
+                for error in pull_failed_reason["inner_errors"][1]["inner_errors"]
+            )
+        else:
+            return any(
+                check_func(error)
+                for error in errors[0]["inner_errors"]
+            )

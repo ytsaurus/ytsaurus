@@ -10,10 +10,9 @@ namespace NYT::NTransactionClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPingBatcherConfig
+struct TPingBatcherConfig
     : public NYTree::TYsonStruct
 {
-public:
     // COMPAT(gryzlov-ad): Remove when all masters support PingTransactions RPC.
     bool Enable;
 
@@ -29,10 +28,9 @@ DEFINE_REFCOUNTED_TYPE(TPingBatcherConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTransactionManagerConfig
+struct TTransactionManagerConfig
     : public NRpc::TRetryingChannelConfig
 {
-public:
     //! Timeout for all RPC requests to participants.
     TDuration RpcTimeout;
 
@@ -56,10 +54,9 @@ DEFINE_REFCOUNTED_TYPE(TTransactionManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClockManagerConfig
+struct TClockManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     NObjectClient::TCellTag ClockClusterTag;
 
     TClockManagerConfigPtr ApplyDynamic(const TDynamicClockManagerConfigPtr& dynamicConfig) const;
@@ -73,10 +70,9 @@ DEFINE_REFCOUNTED_TYPE(TClockManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDynamicClockManagerConfig
+struct TDynamicClockManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<NObjectClient::TCellTag> ClockClusterTag;
 
     REGISTER_YSON_STRUCT(TDynamicClockManagerConfig);

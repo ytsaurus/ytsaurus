@@ -630,6 +630,35 @@ class TestTables(YTEnvSetup):
         assert read_table("//tmp/table{doubled_num}") == [{"doubled_num": 2 * i} for i in [1, 1, 2, 3, 5, 8, 13]]
 
     @authors("cherepashka")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_non_materializied_computed_columns_dependencies(self, optimize_for):
+        create(
+            "table",
+            "//tmp/table",
+            attributes={
+                "optimize_for": optimize_for,
+                "schema": [
+                    {"name": "b", "type": "int64", "sort_order": "ascending"},
+                    {"name": "a", "type": "int64"},
+                    {
+                        "name": "mul",
+                        "type": "int64",
+                        "expression": "a * b",
+                        "materialized": False,
+                    },
+                ]
+            },
+        )
+        assert get("//tmp/table/@schema_mode") == "strong"
+
+        ab_list = list(zip([1, 2, 3], [4, 5, 6]))
+        for a, b in ab_list:
+            write_table("<append=true>//tmp/table", [{"a": a, "b": b}])
+
+        assert read_table("//tmp/table") == [{"mul": a * b, "a": a, "b": b} for a, b in ab_list]
+        assert read_table("//tmp/table{mul}") == [{"mul": a * b} for a, b in ab_list]
+
+    @authors("cherepashka")
     def test_alter_materializability_of_computed_columns(self):
         schema_with_materialized_columns = [
             {"name": "num", "type": "int64"},
@@ -2856,6 +2885,19 @@ class TestTables(YTEnvSetup):
             create("portal_entrance", "//non_tmp", attributes={"exit_cell_tag": 12})
             copy("//tmp/table", "//non_tmp/table_copy")
             assert get("//tmp/table/@schema") == get("//non_tmp/table_copy/@schema")
+
+    @authors("cherepashka", "babenko")
+    def test_opaque_schema_attribute(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "x", "type": "int64"}]})
+        create_user("u")
+
+        set("//sys/@config/table_manager/make_schema_attribute_opaque", False)
+        assert get("//tmp/t/@")["schema"][0]["name"] == "x"
+
+        set("//sys/@config/table_manager/make_schema_attribute_opaque", True)
+        set("//sys/@config/table_manager/non_opaque_schema_attribute_user_whitelist", ["u"])
+        assert get("//tmp/t/@", authenticated_user="root")["schema"] == yson.YsonEntity()
+        assert get("//tmp/t/@", authenticated_user="u")["schema"][0]["name"] == "x"
 
 
 ##################################################################

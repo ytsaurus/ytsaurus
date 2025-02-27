@@ -101,6 +101,10 @@ constexpr auto DefaultDQGatewaySettings = std::to_array<std::pair<TStringBuf, TS
     {"_EnablePrecompute", "1"},
     {"UseAggPhases", "true"},
     {"UseWideChannels", "true"},
+    {"HashJoinMode","off"},
+    {"UseFastPickleTransport","true"},
+    {"UseOOBTransport","true"},
+    {"_MaxAttachmentsSize","3221225472"},
 });
 
 constexpr auto DefaultClusterSettings = std::to_array<std::pair<TStringBuf, TStringBuf>>({
@@ -331,8 +335,6 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(10));
     registrar.Parameter("issue_token_attempts", &TThis::IssueTokenAttempts)
         .Default(10);
-    registrar.Parameter("bus_client", &TThis::BusClient)
-        .DefaultNew();
     registrar.Parameter("yql_thread_count", &TThis::YqlThreadCount)
         .Default(256);
 }
@@ -345,6 +347,9 @@ void TYqlAgentDynamicConfig::Register(TRegistrar registrar)
         .Default(128);
     registrar.Parameter("state_check_period", &TThis::StateCheckPeriod)
         .Default(TDuration::Seconds(15));
+    registrar.Parameter("gateways_config", &TThis::GatewaysConfig)
+        .Default(GetEphemeralNodeFactory()->CreateMap())
+        .ResetOnLoad();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

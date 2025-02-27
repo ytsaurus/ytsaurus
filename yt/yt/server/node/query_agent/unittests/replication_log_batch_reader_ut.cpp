@@ -22,7 +22,7 @@ using namespace NProfiling;
 IReservingMemoryUsageTrackerPtr CreateReservingMemoryTracker(INodeMemoryTrackerPtr& nodeMemoryTracker)
 {
     auto memoryUsageTracker = nodeMemoryTracker->WithCategory(EMemoryCategory::ChaosReplicationOutgoing);
-    return CreateResevingMemoryUsageTracker(std::move(memoryUsageTracker), TCounter());
+    return CreateReservingMemoryUsageTracker(std::move(memoryUsageTracker), TCounter());
 }
 
 struct TFakeRow
@@ -203,7 +203,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadEmpty)
     auto result = reader.ReadReplicationBatch(
         0,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB);
+        /*maxDataWeight*/ 1_GB,
+        16_GB,
+        TInstant::Max());
 
     EXPECT_TRUE(result.ReadAllRows);
     EXPECT_TRUE(reader.GetProcessedRows().empty());
@@ -235,7 +237,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadAll)
     auto result = reader.ReadReplicationBatch(
         0,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB);
+        /*maxDataWeight*/ 1_GB,
+        16_GB,
+        TInstant::Max());
 
     EXPECT_TRUE(result.ReadAllRows);
     EXPECT_EQ(result.ReadRowCount, 30ll);
@@ -267,7 +271,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
     auto result = reader.ReadReplicationBatch(
         0,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB);
+        /*maxDataWeight*/ 1_GB,
+        16_GB,
+        TInstant::Max());
 
     EXPECT_FALSE(result.ReadAllRows);
     EXPECT_EQ(result.ReadRowCount, 24ll);
@@ -281,7 +287,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadUntilLimits)
     result = reader.ReadReplicationBatch(
         20,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB);
+        /*maxDataWeight*/ 1_GB,
+        16_GB,
+        TInstant::Max());
 
     EXPECT_TRUE(result.ReadAllRows);
     EXPECT_EQ(result.ReadRowCount, 10ll);
@@ -315,7 +323,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
     auto result = reader.ReadReplicationBatch(
         0,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB);
+        /*maxDataWeight*/ 1_GB,
+        16_GB,
+        TInstant::Max());
 
     EXPECT_FALSE(result.ReadAllRows);
     EXPECT_EQ(result.ReadRowCount, 106ll);
@@ -329,7 +339,9 @@ TEST(TReplicationLogBatchReaderTest, TestReadLargeTransactionBreakingLimits)
     result = reader.ReadReplicationBatch(
         100,
         NullTimestamp,
-        /*maxDataWeight*/ 1_GB);
+        /*maxDataWeight*/ 1_GB,
+        16_GB,
+        TInstant::Max());
 
     EXPECT_TRUE(result.ReadAllRows);
     EXPECT_EQ(result.ReadRowCount, 20ll);

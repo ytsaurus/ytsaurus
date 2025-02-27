@@ -35,10 +35,7 @@ message TDataSource
 
     optional string cluster_name = 18;
 
-    optional NYT.NTableClient.NProto.TVersionedReadOptions versioned_read_options = 19;
-    optional NYT.NTableClient.NProto.TVersionedWriteOptions versioned_write_options = 20;
-
-    reserved 5, 6;
+    reserved 5, 6, 19, 20;
 }
 
 message TDataSourceDirectoryExt

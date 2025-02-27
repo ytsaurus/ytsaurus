@@ -262,6 +262,13 @@ public:
             DynamicConfig_->MaxSimultaneousQueries = Config_->YqlThreadCount - 1;
         }
         ActiveQueriesGuardFactory_.Update(DynamicConfig_->MaxSimultaneousQueries);
+
+        if (newConfig->GatewaysConfig) {
+            NYqlPlugin::TYqlPluginDynamicConfig pluginDynamicConfig{
+                .GatewaysConfig = ConvertToYsonString(newConfig->GatewaysConfig),
+            };
+            YqlPlugin_->OnDynamicConfigChanged(std::move(pluginDynamicConfig));
+        }
     }
 
     TFuture<std::pair<TRspStartQuery, std::vector<TSharedRef>>> StartQuery(TQueryId queryId, const TString& user, const TReqStartQuery& request) override
@@ -442,6 +449,7 @@ private:
 
         try {
             auto abortResult = YqlPlugin_->Abort(queryId);
+            YT_LOG_DEBUG("Plugin abortion is finished (QueryId: %v)", queryId);
             if (auto ysonError = abortResult.YsonError) {
                 error = ConvertTo<TError>(TYsonString(*ysonError));
             }

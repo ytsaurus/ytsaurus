@@ -204,6 +204,7 @@ private:
         i64 FreeNodeMemory = 0;
         int Index;
         bool Overloaded = false;
+        i64 SafeFreeMemoryAmount;
     };
 
     struct TTabletCellInfo
@@ -520,6 +521,7 @@ void TParameterizedReassignSolver::CalculateMemory(const THashMap<TTabletCellId,
         auto& node = GetOrCrash(Nodes_, address);
         node.FreeNodeMemory = free;
         node.Overloaded = free < 0;
+        node.SafeFreeMemoryAmount = statistics.MemoryLimit * (1 - Bundle_->Config->SafeUsedTabletStaticRatio);
 
         EmplaceOrCrash(cellMemoryLimit, address, cellLimit);
     }
@@ -695,7 +697,9 @@ bool TParameterizedReassignSolver::CheckMoveFollowsMemoryLimits(
     }
 
     return destinationCell->Node == sourceCell->Node ||
-        destinationCell->Node->FreeNodeMemory >= size && !destinationCell->Node->Overloaded;
+        (destinationCell->Node->FreeNodeMemory >= size &&
+         !destinationCell->Node->Overloaded &&
+         destinationCell->Node->SafeFreeMemoryAmount <= destinationCell->Node->FreeNodeMemory - size);
 }
 
 //! Generates an action moving |tablet| to |cell|. Returns |false| if it can be proven that all further actions will be pruned and the iteration can be stopped.
@@ -1345,6 +1349,7 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
         IsPossibleToAddTablet(statistics, enlargedTabletSize, enlargedTabletMetric, leftTabletIndex - 1))
     {
         --leftTabletIndex;
+
         enlargedTabletSize += statistics.TabletSizes[leftTabletIndex];
         enlargedTabletMetric += statistics.TabletMetrics[leftTabletIndex];
 
@@ -1361,12 +1366,13 @@ std::optional<TReshardDescriptor> TParameterizedResharder::MergeTablets(
     {
         enlargedTabletSize += statistics.TabletSizes[rightTabletIndex];
         enlargedTabletMetric += statistics.TabletMetrics[rightTabletIndex];
-        ++rightTabletIndex;
 
         deviation = std::min({
             deviation,
             statistics.TabletMetrics[rightTabletIndex] / statistics.DesiredTabletMetric,
             static_cast<double>(statistics.TabletSizes[rightTabletIndex]) / statistics.DesiredTabletSize});
+
+        ++rightTabletIndex;
     }
 
     if (rightTabletIndex - leftTabletIndex == 1) {

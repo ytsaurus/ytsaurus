@@ -184,7 +184,7 @@ private:
             delay);
         TDelayedExecutor::Submit(
             BIND(&TWorldInitializer::Initialize, MakeStrong(this))
-                .Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic)),
+                .Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic)),
             delay);
     }
 
@@ -199,21 +199,21 @@ private:
             delay);
         TDelayedExecutor::Submit(
             BIND(&TWorldInitializer::UpdateAnnotations, MakeStrong(this))
-                .Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::Periodic)),
+                .Via(Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::Periodic)),
             delay);
     }
 
     void Initialize()
     {
+        auto traceContext = NTracing::TTraceContext::NewRoot("WorldInitializer");
+        traceContext->SetSampled();
+        NTracing::TTraceContextGuard contextGuard(traceContext);
+
         if (IsInitialized()) {
             YT_LOG_INFO("World update started");
         } else {
             YT_LOG_INFO("World initialization started");
         }
-
-        auto traceContext = NTracing::TTraceContext::NewRoot("WorldInitializer");
-        traceContext->SetSampled();
-        NTracing::TTraceContextGuard contextGuard(traceContext);
 
         TTransactionId transactionId;
 
@@ -1211,7 +1211,7 @@ private:
 
     void ScheduleCreateObject(
         EObjectType type,
-        const NYTree::IAttributeDictionaryPtr attributesPtr)
+        const IAttributeDictionaryPtr attributesPtr)
     {
         auto attributes = attributesPtr ? attributesPtr->Clone() : EmptyAttributes().Clone();
         auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetRootClient());
@@ -1250,7 +1250,8 @@ private:
         return TYsonString(rsp->value());
     }
 
-    TErrorOr<TYsonString> TryListNode(const TYPath& path)
+    TErrorOr<TYsonString> TryListNode(
+        const TYPath& path)
     {
         auto service = Bootstrap_->GetObjectManager()->GetRootService();
         auto req = TCypressYPathProxy::List(path);

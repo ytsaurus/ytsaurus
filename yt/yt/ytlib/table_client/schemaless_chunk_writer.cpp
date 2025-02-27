@@ -2998,7 +2998,7 @@ private:
     // by rpc proxy later.
     TSignedWriteFragmentResultPtr SignedResult_;
 
-    const NSignature::TSignatureGeneratorBasePtr DummySignatureGenerator_;
+    const NSignature::ISignatureGeneratorPtr DummySignatureGenerator_;
 
     bool FirstRow_ = true;
 
@@ -3126,7 +3126,7 @@ private:
                 << underlyingWriterCloseError;
         }
 
-        SignedResult_ = TSignedWriteFragmentResultPtr(DummySignatureGenerator_->Sign(ConvertToYsonString(WriteResult_)));
+        SignedResult_ = TSignedWriteFragmentResultPtr(DummySignatureGenerator_->Sign(ConvertToYsonString(WriteResult_).ToString()));
 
         // Log all statistics.
         YT_LOG_DEBUG("Writer data statistics (DataStatistics: %v)", UnderlyingWriter_->GetDataStatistics());

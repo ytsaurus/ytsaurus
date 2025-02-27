@@ -617,8 +617,8 @@ public:
         TProfiler profiler,
         INodeMemoryTrackerPtr memoryTracker,
         IStickyTransactionPoolPtr stickyTransactionPool,
-        TSignatureValidatorBasePtr signatureValidator,
-        TSignatureGeneratorBasePtr signatureGenerator,
+        ISignatureValidatorPtr signatureValidator,
+        ISignatureGeneratorPtr signatureGenerator,
         IQueryCorpusReporterPtr queryCorpusReporter)
         : TServiceBase(
             std::move(workerInvoker),
@@ -882,8 +882,8 @@ private:
     const IInvokerPtr ControlInvoker_;
     const THeapProfilerTestingOptionsPtr HeapProfilerTestingOptions_;
     const IMemoryUsageTrackerPtr HeavyRequestMemoryUsageTracker_;
-    const TSignatureValidatorBasePtr SignatureValidator_;
-    const TSignatureGeneratorBasePtr SignatureGenerator_;
+    const ISignatureValidatorPtr SignatureValidator_;
+    const ISignatureGeneratorPtr SignatureGenerator_;
 
     const IQueryCorpusReporterPtr QueryCorpusReporter_;
 
@@ -1604,8 +1604,10 @@ private:
                     ToProto(response->add_tablets(), *tabletInfoPtr);
                 }
 
+                auto tabletCount = tableMountInfo->Tablets.size();
                 if (tableMountInfo->IsChaosReplicated() && tableMountInfo->UpperCapBound.GetCount() != 0) {
-                    response->set_tablet_count(tableMountInfo->UpperCapBound[0].Data.Int64);
+                    tabletCount = tableMountInfo->UpperCapBound[0].Data.Int64;
+                    response->set_tablet_count(tabletCount);
                 }
 
                 response->set_dynamic(tableMountInfo->Dynamic);
@@ -1634,7 +1636,7 @@ private:
 
                 context->SetResponseInfo("Dynamic: %v, TabletCount: %v, ReplicaCount: %v",
                     tableMountInfo->Dynamic,
-                    tableMountInfo->Tablets.size(),
+                    tabletCount,
                     tableMountInfo->Replicas.size());
             });
     }
@@ -4277,17 +4279,22 @@ private:
         TPushQueueProducerOptions options;
         SetTimeoutOptions(&options, context.Get());
         options.SequenceNumber = YT_PROTO_OPTIONAL(*request, sequence_number, TQueueProducerSequenceNumber);
+        if (request->has_require_sync_replica()) {
+            options.RequireSyncReplica = request->require_sync_replica();
+        }
+
         if (request->has_user_meta()) {
             options.UserMeta = ConvertToNode(TYsonStringBuf(request->user_meta()));
         }
 
         context->SetRequestInfo(
             "ProducerPath: %v, QueuePath: %v, SessionId: %v, "
-            "Epoch: %v, TransactionId: %v",
+            "Epoch: %v, RequireSyncReplica: %v, TransactionId: %v",
             producerPath,
             queuePath,
             sessionId,
             request->epoch(),
+            options.RequireSyncReplica,
             transactionId);
 
         auto transaction = GetTransactionOrThrow(
@@ -6140,7 +6147,7 @@ private:
         TDistributedWriteSessionFinishOptions options;
         ParseRequest(&sessionWithResults, &options, *request);
 
-        auto session = ConvertTo<TDistributedWriteSession>(sessionWithResults.Session.Underlying()->Payload());
+        auto session = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(sessionWithResults.Session.Underlying()->Payload()));
 
         context->SetRequestInfo(
             "TableId: %v",
@@ -6153,7 +6160,7 @@ private:
                 validation.reserve(1 + std::ssize(sessionWithResults.Results));
                 validation.push_back(ValidateSignature(sessionWithResults.Session.Underlying()));
                 for (const auto& signedResult : sessionWithResults.Results) {
-                    auto result = ConvertTo<TWriteFragmentResult>(signedResult.Underlying()->Payload());
+                    auto result = ConvertTo<TWriteFragmentResult>(TYsonStringBuf(signedResult.Underlying()->Payload()));
                     if (sessionId != result.SessionId) {
                         THROW_ERROR_EXCEPTION(
                             "Found write results with a different session id")
@@ -6190,7 +6197,7 @@ private:
 
         PatchTableWriterOptions(&options);
 
-        auto concreteCookie = ConvertTo<TWriteFragmentCookie>(cookie.Underlying()->Payload());
+        auto concreteCookie = ConvertTo<TWriteFragmentCookie>(TYsonString(cookie.Underlying()->Payload()));
 
         context->SetRequestInfo(
             "TableId: %v, Main transaction id: %v",
@@ -6507,6 +6514,7 @@ private:
 
         TGetFlowViewOptions options;
         SetTimeoutOptions(&options, context.Get());
+        options.Cache = request->cache();
 
         auto pipelinePath = FromProto<TYPath>(request->pipeline_path());
         auto viewPath = FromProto<TYPath>(request->view_path());
@@ -6946,8 +6954,8 @@ IApiServicePtr CreateApiService(
     NTracing::TSamplerPtr traceSampler,
     NLogging::TLogger logger,
     TProfiler profiler,
-    TSignatureValidatorBasePtr signatureValidator,
-    TSignatureGeneratorBasePtr signatureGenerator,
+    ISignatureValidatorPtr signatureValidator,
+    ISignatureGeneratorPtr signatureGenerator,
     INodeMemoryTrackerPtr memoryUsageTracker,
     IStickyTransactionPoolPtr stickyTransactionPool,
     IQueryCorpusReporterPtr queryCorpusReporter)

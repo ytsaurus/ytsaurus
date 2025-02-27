@@ -175,19 +175,19 @@ DEFINE_ENUM(EChunkListContentType,
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TRemoteReaderOptions)
-DECLARE_REFCOUNTED_CLASS(TDispatcherConfig)
-DECLARE_REFCOUNTED_CLASS(TDispatcherDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TDispatcherConfig)
+DECLARE_REFCOUNTED_STRUCT(TDispatcherDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TMultiChunkWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TMultiChunkReaderOptions)
 DECLARE_REFCOUNTED_CLASS(TRemoteWriterOptions)
 DECLARE_REFCOUNTED_CLASS(TMetaAggregatingWriterOptions)
-DECLARE_REFCOUNTED_CLASS(TBlockCacheConfig)
-DECLARE_REFCOUNTED_CLASS(TBlockCacheDynamicConfig)
-DECLARE_REFCOUNTED_CLASS(TClientChunkMetaCacheConfig)
-DECLARE_REFCOUNTED_CLASS(TChunkScraperConfig)
-DECLARE_REFCOUNTED_CLASS(TChunkTeleporterConfig)
-DECLARE_REFCOUNTED_CLASS(TMediumDirectorySynchronizerConfig)
-DECLARE_REFCOUNTED_CLASS(TChunkReplicaCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TBlockCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TBlockCacheDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TClientChunkMetaCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TChunkScraperConfig)
+DECLARE_REFCOUNTED_STRUCT(TChunkTeleporterConfig)
+DECLARE_REFCOUNTED_STRUCT(TMediumDirectorySynchronizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TChunkReplicaCacheConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IFetcherChunkScraper)
 

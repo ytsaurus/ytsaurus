@@ -16,6 +16,7 @@
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/client/table_client/private.h>
+#include <yt/yt/client/table_client/timestamped_schema_helpers.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
@@ -92,6 +93,10 @@ TTableReadSpec FetchRegularTableReadSpec(
         chunkCount = attributes->Get<int>("chunk_count");
         dynamic = attributes->Get<bool>("dynamic");
         schema = attributes->Get<TTableSchemaPtr>("schema");
+        // NB: Works only for read_table, map-reduce operations do not pass rich path options.
+        if (options.RichPath.GetVersionedReadOptions().ReadMode == EVersionedIOMode::LatestTimestamp) {
+            schema = ToLatestTimestampSchema(schema);
+        }
         fetchFromTablets = attributes->Get<bool>("fetch_from_tablets", false);
         account = attributes->Get<TString>("account", "");
 

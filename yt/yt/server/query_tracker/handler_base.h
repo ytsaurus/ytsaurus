@@ -22,14 +22,14 @@ struct TWireRowset
 {
     TSharedRef Rowset;
     bool IsTruncated = false;
-    std::optional<TYsonString> FullResult;
+    TYsonString FullResult;
 };
 
 struct TRowset
 {
     NApi::IUnversionedRowsetPtr Rowset;
     bool IsTruncated = false;
-    std::optional<TYsonString> FullResult;
+    TYsonString FullResult;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

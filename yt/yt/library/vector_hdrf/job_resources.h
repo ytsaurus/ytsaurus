@@ -107,9 +107,8 @@ TJobResources Min(const TJobResources& lhs, const TJobResources& rhs);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TJobResourcesConfig
+struct TJobResourcesConfig
 {
-public:
     std::optional<int> UserSlots;
     std::optional<double> Cpu;
     std::optional<int> Network;

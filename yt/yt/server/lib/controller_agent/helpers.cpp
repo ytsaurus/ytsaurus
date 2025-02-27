@@ -159,8 +159,7 @@ void ValidateJobShellAccess(
     readOptions.ReadFrom = EMasterChannelKind::Cache;
 
     auto userClosure = GetSubjectClosure(
-        // TODO(babenko): switch to std::string
-        TString(user),
+        user,
         proxy,
         client->GetNativeConnection(),
         readOptions);

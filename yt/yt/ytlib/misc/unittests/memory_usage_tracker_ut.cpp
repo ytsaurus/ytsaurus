@@ -417,7 +417,7 @@ TEST(TReservingMemoryUsageTrackerTest, TestReturnedAll)
     NProfiling::TCounter memoryUsageCounter;
     auto tracker = New<TTestNodeMemoryTracker>();
     auto categoryTracker = tracker->WithCategory(EMemoryCategory::ChaosReplicationIncoming);
-    auto reservingTracker = CreateResevingMemoryUsageTracker(categoryTracker, memoryUsageCounter);
+    auto reservingTracker = CreateReservingMemoryUsageTracker(categoryTracker, memoryUsageCounter);
 
     reservingTracker->SetLimit(10000);
     ASSERT_EQ(tracker->GetLimit(EMemoryCategory::ChaosReplicationIncoming), 10000);
@@ -456,7 +456,7 @@ TEST(TReservingMemoryUsageTrackerTest, TestReturnedAll)
     EXPECT_EQ(reservingTracker->GetFree(), 10000);
     EXPECT_EQ(tracker->GetFree(EMemoryCategory::ChaosReplicationIncoming), 6200);
 
-    reservingTracker = CreateResevingMemoryUsageTracker(categoryTracker, memoryUsageCounter);
+    reservingTracker = CreateReservingMemoryUsageTracker(categoryTracker, memoryUsageCounter);
     EXPECT_EQ(tracker->GetFree(EMemoryCategory::ChaosReplicationIncoming), 10000);
 
     tracker->ClearTrackers();

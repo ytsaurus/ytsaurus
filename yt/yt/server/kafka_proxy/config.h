@@ -16,10 +16,9 @@ namespace NYT::NKafkaProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyBootstrapConfig
+struct TProxyBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
-public:
     //! Kafka proxy will listen on this port.
     int Port;
 
@@ -62,11 +61,10 @@ DEFINE_REFCOUNTED_TYPE(TProxyBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyProgramConfig
+struct TProxyProgramConfig
     : public TProxyBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TProxyProgramConfig);
 
     static void Register(TRegistrar registrar);
@@ -76,14 +74,33 @@ DEFINE_REFCOUNTED_TYPE(TProxyProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyDynamicConfig
+struct TGroupCoordinatorConfig
+    : public virtual NYTree::TYsonStruct
+{
+    //! How long members will be waited during join and sync stages.
+    TDuration RebalanceTimeout;
+
+    //! How often members should send a heartbeat.
+    TDuration SessionTimeout;
+
+    REGISTER_YSON_STRUCT(TGroupCoordinatorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TGroupCoordinatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TProxyDynamicConfig
     : public TSingletonsDynamicConfig
 {
-public:
     int PollerThreadCount;
     int AcceptorThreadCount;
 
     std::optional<std::string> LocalHostName;
+
+    TGroupCoordinatorConfigPtr GroupCoordinator;
 
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 

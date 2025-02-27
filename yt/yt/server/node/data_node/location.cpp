@@ -141,6 +141,8 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
     UsedSpace = profiler.Gauge("/used_space");
     AvailableSpace = profiler.Gauge("/available_space");
     ChunkCount = profiler.Gauge("/chunk_count");
+    TrashChunkCount = profiler.Gauge("/trash_chunk_count");
+    TrashSpace = profiler.Gauge("/trash_space");
     Full = profiler.Gauge("/full");
 }
 
@@ -1970,6 +1972,13 @@ i64 TStoreLocation::GetMaxWriteRateByDwpd() const
     return config->MaxWriteRateByDwpd;
 }
 
+bool TStoreLocation::IsTrashScanStopped() const
+{
+    const auto dynamicValue = DynamicConfigManager_->GetConfig()->DataNode->TestingOptions->EnableTrashScanningBarrier;
+    const auto staticValue = ChunkStore_->GetStaticDataNodeConfig()->EnableTrashScanningBarrier;
+    return dynamicValue.value_or(staticValue);
+}
+
 bool TStoreLocation::IsFull() const
 {
     YT_ASSERT_THREAD_AFFINITY_ANY();
@@ -2020,6 +2029,35 @@ TJournalManagerConfigPtr TStoreLocation::BuildJournalManagerConfig(
     return journalManagerConfig;
 }
 
+void TStoreLocation::UpdateTrashChunkCount(int delta)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    TrashChunkCount_ += delta;
+}
+
+
+int TStoreLocation::GetTrashChunkCount() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return TrashChunkCount_;
+}
+
+void TStoreLocation::UpdateTrashSpace(i64 size)
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    TrashSpace_ += size;
+}
+
+i64 TStoreLocation::GetTrashSpace() const
+{
+    YT_ASSERT_THREAD_AFFINITY_ANY();
+
+    return TrashSpace_.load();
+}
+
 TString TStoreLocation::GetTrashPath() const
 {
     return NFS::CombinePaths(GetPath(), TrashDirectory);
@@ -2049,8 +2087,10 @@ void TStoreLocation::RegisterTrashChunk(TChunkId chunkId)
         {
             auto guard = Guard(TrashMapSpinLock_);
             TrashMap_.emplace(timestamp, TTrashChunkEntry{chunkId, diskSpace});
-            TrashDiskSpace_ += diskSpace;
         }
+
+        UpdateTrashChunkCount(+1);
+        UpdateTrashSpace(+diskSpace);
 
         YT_LOG_DEBUG("Trash chunk registered (ChunkId: %v, Timestamp: %v, DiskSpace: %v)",
             chunkId,
@@ -2093,9 +2133,10 @@ void TStoreLocation::CheckTrashTtl()
                 break;
             entry = it->second;
             TrashMap_.erase(it);
-            TrashDiskSpace_ -= entry.DiskSpace;
         }
         RemoveTrashFiles(entry);
+        UpdateTrashChunkCount(-1);
+        UpdateTrashSpace(-entry.DiskSpace);
     }
 }
 
@@ -2108,7 +2149,7 @@ void TStoreLocation::CheckTrashWatermark()
     {
         auto guard = Guard(TrashMapSpinLock_);
         // NB: Available space includes trash disk space.
-        availableSpace = GetAvailableSpace() - TrashDiskSpace_.load();
+        availableSpace = GetAvailableSpace() - GetTrashSpace();
         needsCleanup = availableSpace < config->TrashCleanupWatermark && !TrashMap_.empty();
     }
 
@@ -2129,7 +2170,6 @@ void TStoreLocation::CheckTrashWatermark()
             auto it = TrashMap_.begin();
             entry = it->second;
             TrashMap_.erase(it);
-            TrashDiskSpace_ -= entry.DiskSpace;
         }
         RemoveTrashFiles(entry);
         availableSpace += entry.DiskSpace;
@@ -2283,8 +2323,7 @@ bool TStoreLocation::ScheduleDisable(const TError& reason)
 
 i64 TStoreLocation::GetAdditionalSpace() const
 {
-    // NB: Unguarded access to TrashDiskSpace_ seems OK.
-    return TrashDiskSpace_.load();
+    return GetTrashSpace();
 }
 
 std::optional<TChunkDescriptor> TStoreLocation::RepairBlobChunk(TChunkId chunkId)
@@ -2431,9 +2470,11 @@ bool TStoreLocation::ShouldSkipFileName(const TString& fileName) const
     return false;
 }
 
-std::vector<TChunkDescriptor> TStoreLocation::DoScan()
+void TStoreLocation::DoScanTrash()
 {
-    auto result = TChunkLocation::DoScan();
+    while (IsTrashScanStopped()) {
+        TDelayedExecutor::WaitForDuration(TDuration::Seconds(1));
+    }
 
     YT_LOG_INFO("Started scanning location trash");
 
@@ -2462,6 +2503,27 @@ std::vector<TChunkDescriptor> TStoreLocation::DoScan()
 
     YT_LOG_INFO("Finished scanning location trash (ChunkCount: %v)",
         trashChunkIds.size());
+}
+
+void TStoreLocation::DoAsyncScanTrash()
+{
+    BIND(&TStoreLocation::DoScanTrash, MakeStrong(this))
+    .AsyncVia(GetAuxPoolInvoker())
+    .Run()
+    .Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<void>& err) {
+        if (err.IsOK()) {
+            TrashCheckExecutor_->Start();
+        } else {
+            YT_LOG_ERROR(err, "Error scanning location trash");
+        }
+    }));
+}
+
+std::vector<TChunkDescriptor> TStoreLocation::DoScan()
+{
+    auto result = TChunkLocation::DoScan();
+
+    DoAsyncScanTrash();
 
     return result;
 }
@@ -2471,8 +2533,6 @@ void TStoreLocation::DoStart()
     TChunkLocation::DoStart();
 
     JournalManager_->Initialize();
-
-    TrashCheckExecutor_->Start();
 }
 
 TStoreLocation::TIOStatistics TStoreLocation::GetIOStatistics() const

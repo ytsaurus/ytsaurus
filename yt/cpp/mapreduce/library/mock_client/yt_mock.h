@@ -107,7 +107,7 @@ public:
     MOCK_METHOD(TYPath, PutFileToCache, (const TYPath&, const TString& md5Signature, const TYPath& cachePath, const TPutFileToCacheOptions&), (override));
     MOCK_METHOD(TCheckPermissionResponse, CheckPermission, (const TString&, EPermission, const TYPath&, const TCheckPermissionOptions&), (override));
 
-    MOCK_METHOD(IClientPtr, GetParentClient, (), (override));
+    MOCK_METHOD(IClientPtr, GetParentClient, (bool), (override));
     MOCK_METHOD(void, Shutdown, (), (override));
 
     MOCK_METHOD(TNodeId, CreateTable, (const TYPath&, const ::google::protobuf::Descriptor&, const TSortColumns&, const TCreateOptions&), ());
@@ -182,7 +182,7 @@ public:
     MOCK_METHOD(void, Abort, (), (override));
     MOCK_METHOD(void, Ping, (), (override));
 
-    MOCK_METHOD(IClientPtr, GetParentClient, (), (override));
+    MOCK_METHOD(IClientPtr, GetParentClient, (bool), (override));
 
     MOCK_METHOD(TMaybe<TYPath>, GetFileFromCache, (const TString& md5Signature, const TYPath& cachePath, const TGetFileFromCacheOptions&), (override));
     MOCK_METHOD(TYPath, PutFileToCache, (const TYPath&, const TString& md5Signature, const TYPath& cachePath, const TPutFileToCacheOptions&), (override));

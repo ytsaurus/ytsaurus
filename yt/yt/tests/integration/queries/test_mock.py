@@ -292,6 +292,38 @@ class TestQueryTrackerResults(YTEnvSetup):
         query = Query(guid)
         assert query.get_result(0)["full_result"] == yson.YsonMap(full_result)
 
+    @authors("lucius")
+    def test_query_tracker_results_empty(self, query_tracker):
+        guid = generate_uuid()
+        insert_rows("//sys/query_tracker/finished_queries", [{
+            "query_id": guid,
+            "engine": "mock",
+            "query": "select *",
+            "files": None,
+            "settings": None,
+            "user": "test",
+            "access_control_objects": None,
+            "start_time": 0,
+            "state": "completed",
+            "progress": None,
+            "error": {"attributes": {}, "code": 100, "message": ""},
+            "result_count": 1,
+            "finish_time": 0,
+            "annotations": None,
+        }])
+        insert_rows("//sys/query_tracker/finished_query_results", [{
+            "query_id": guid,
+            "result_index": 0,
+            "error": {"attributes": {}, "code": 100, "message": ""},
+            "schema": [{"name": "a", "type": "int64"}],
+            "data_statistics": {},
+            "rowset": """[{"a": 1}]""",
+            "is_truncated": False,
+            "full_result": None,
+        }])
+        query = Query(guid)
+        assert query.get_result(0)["full_result"] == yson.YsonEntity()
+
 
 @pytest.mark.enabled_multidaemon
 class TestQueryTrackerQueryRestart(YTEnvSetup):
@@ -626,17 +658,32 @@ class TestAccessControl(YTEnvSetup):
     def test_get_query_tracker_info(self, query_tracker):
         supported_features = {'access_control': True, 'multiple_aco': True}
         assert get_query_tracker_info() == \
-            {'query_tracker_stage': 'production', 'cluster_name': 'primary', 'supported_features': supported_features, 'access_control_objects': ['everyone', 'everyone-share', 'nobody']}
+            {
+                'query_tracker_stage': 'production',
+                'cluster_name': 'primary',
+                'supported_features': supported_features,
+                'access_control_objects': ['everyone', 'everyone-share', 'nobody'],
+                'clusters': ['primary']
+            }
 
-        assert get_query_tracker_info(attributes=[]) == {'query_tracker_stage': 'production', 'cluster_name': '', 'supported_features': {}, 'access_control_objects': []}
-        assert get_query_tracker_info(attributes=["cluster_name"]) == {'query_tracker_stage': 'production', 'cluster_name': 'primary', 'supported_features': {}, 'access_control_objects': []}
+        assert get_query_tracker_info(attributes=[]) == {'query_tracker_stage': 'production', 'cluster_name': '', 'supported_features': {}, 'access_control_objects': [], 'clusters': []}
+        assert get_query_tracker_info(attributes=["cluster_name"]) == \
+            {'query_tracker_stage': 'production', 'cluster_name': 'primary', 'supported_features': {}, 'access_control_objects': [], 'clusters': []}
         assert get_query_tracker_info(attributes=["supported_features"]) == \
-            {'query_tracker_stage': 'production', 'cluster_name': '', 'supported_features': supported_features, 'access_control_objects': []}
+            {'query_tracker_stage': 'production', 'cluster_name': '', 'supported_features': supported_features, 'access_control_objects': [], 'clusters': []}
         assert get_query_tracker_info(attributes=["access_control_objects"]) == \
-            {'query_tracker_stage': 'production', 'cluster_name': '', 'supported_features': {}, 'access_control_objects': ['everyone', 'everyone-share', 'nobody']}
+            {'query_tracker_stage': 'production', 'cluster_name': '', 'supported_features': {}, 'access_control_objects': ['everyone', 'everyone-share', 'nobody'], 'clusters': []}
+        assert get_query_tracker_info(attributes=["clusters"]) == \
+            {'query_tracker_stage': 'production', 'cluster_name': '', 'supported_features': {}, 'access_control_objects': [], 'clusters': ['primary']}
 
         assert get_query_tracker_info(stage='testing') == \
-            {'query_tracker_stage': 'testing', 'cluster_name': 'primary', 'supported_features': supported_features, 'access_control_objects': ['everyone', 'everyone-share', 'nobody']}
+            {
+                'query_tracker_stage': 'testing',
+                'cluster_name': 'primary',
+                'supported_features': supported_features,
+                'access_control_objects': ['everyone', 'everyone-share', 'nobody'],
+                'clusters': ['primary']
+            }
 
 
 @pytest.mark.enabled_multidaemon

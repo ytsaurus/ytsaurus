@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, with_additional_threads
 
 from yt_type_helpers import (
     make_schema
@@ -15,7 +15,7 @@ from yt_commands import (
     get_active_primary_master_follower_address, sync_mount_table, sync_create_cells, check_permission,
     get_driver, create_access_control_object_namespace)
 
-from yt_helpers import get_current_time
+from yt_helpers import get_current_time, profiler_factory
 
 from yt.common import YtError, YtResponseError
 from yt.environment.helpers import assert_items_equal
@@ -1450,8 +1450,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/b&/@x")
         assert not exists("//tmp/b&/x")
 
-    @authors("ignat")
-    @not_implemented_in_sequoia
+    @authors("ignat", "danilalexeev")
     def test_link7(self):
         set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         tx = start_transaction()
@@ -1459,13 +1458,12 @@ class TestCypress(YTEnvSetup):
         link("//tmp/t1", "//tmp/l1", tx=tx)
         assert get("//tmp/l1", tx=tx) == 1
 
-    @authors("s-v-m")
-    @not_implemented_in_sequoia
+    @authors("s-v-m", "danilalexeev")
     def test_link_dst_doesnt_exist(self):
         set("//sys/@config/cypress_manager/forbid_list_node_creation", False)
         tx = start_transaction()
         set("//tmp/t", 1, tx=tx)
-        with pytest.raises(YtError):
+        with raises_yt_error("does not exist"):
             link("//tmp/t", "//tmp/link1")
         link("//tmp/t", "//tmp/link1", tx=tx)
         link("//tmp/t", "//tmp/link2", force=True)
@@ -2008,6 +2006,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_expiration_time_removal(self):
         create("table", "//tmp/t", attributes={"expiration_time": str(get_current_time())})
         time.sleep(1)
@@ -2179,7 +2178,50 @@ class TestCypress(YTEnvSetup):
         time.sleep(1)
         assert not exists("//tmp/t1")
 
+    @authors("h0pless")
+    @with_additional_threads
+    @not_implemented_in_sequoia
+    def test_expiration_time_lag_profiling(self):
+        # Portals and scions make this test uselessly complicated.
+        if get("//tmp/@native_cell_tag") != 10:
+            pytest.skip()
+
+        set("//sys/@config/cypress_manager/max_expired_nodes_removals_per_commit", 1)
+        set("//sys/@config/cypress_manager/expiration_backoff_time", 0)
+        tx = start_transaction()
+        create(
+            "table",
+            "//tmp/table",
+            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=3.0))},
+        )
+        lock("//tmp/table", tx=tx, mode="exclusive")
+
+        create(
+            "table",
+            "//tmp/other_table",
+            attributes={"expiration_time": str(get_current_time() + timedelta(seconds=3.0))},
+        )
+        lock("//tmp/other_table", tx=tx, mode="exclusive")
+
+        leader_address = get_active_primary_master_leader_address(self)
+        leader_profiler = profiler_factory().at_primary_master(leader_address)
+        gauge = leader_profiler.gauge("expiration_tracker/expiration_time_lag")
+
+        def wait_for_counter_to_change():
+            wait(lambda: gauge.get() > 0, ignore_exceptions=True)
+        checker = self.spawn_additional_thread(name="wait for profiling counter to change",
+                                               target=wait_for_counter_to_change)
+
+        # Both tables should exceed it's expiration time by now, and only 1 table processed at a time,
+        # the other one should be lagging behind.
+        time.sleep(5)
+        assert exists("//tmp/table")
+        assert exists("//tmp/other_table")
+
+        checker.join()
+
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_preserve_expiration_time(self):
         create(
             "table",
@@ -2193,6 +2235,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("babenko")
+    @not_implemented_in_sequoia
     def test_copy_dont_preserve_expiration_time(self):
         create(
             "table",
@@ -2206,6 +2249,7 @@ class TestCypress(YTEnvSetup):
         assert exists("//tmp/t2")
 
     @authors("egor-gutrov")
+    @not_implemented_in_sequoia
     def test_copy_preserve_expiration_timeout(self):
         create(
             "table",
@@ -2219,6 +2263,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("egor-gutrov")
+    @not_implemented_in_sequoia
     def test_copy_dont_preserve_expiration_timeout(self):
         create(
             "table",
@@ -2285,6 +2330,7 @@ class TestCypress(YTEnvSetup):
         time.sleep(2)
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout1(self):
         create("table", "//tmp/t", attributes={"expiration_timeout": 1000})
@@ -2293,6 +2339,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout2(self):
         set("//sys/@config/cypress_manager/expiration_check_period", 200)
@@ -2305,6 +2352,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout3(self):
         create("table", "//tmp/t1", attributes={"expiration_timeout": 2000})
@@ -2318,6 +2366,7 @@ class TestCypress(YTEnvSetup):
         wait(lambda: not exists("//tmp/t2", suppress_expiration_timeout_renewal=True))
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout4(self):
         create("table", "//tmp/t1", attributes={"expiration_timeout": 4000})
@@ -2403,6 +2452,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_timeout_zero(self):
         # Very small - including zero timeouts - should be handled normally.
@@ -2420,6 +2470,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t4")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_time_and_timeout1(self):
         create(
@@ -2445,6 +2496,7 @@ class TestCypress(YTEnvSetup):
         assert not exists("//tmp/t2")
 
     @authors("shakurov")
+    @not_implemented_in_sequoia
     @flaky(max_runs=3)
     def test_expiration_time_and_timeout2(self):
         create(

@@ -8,16 +8,16 @@ namespace NYT::NChaosNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_CLASS(TChaosNodeConfig)
-DECLARE_REFCOUNTED_CLASS(TChaosCellSynchronizerConfig)
-DECLARE_REFCOUNTED_CLASS(TReplicationCardObserverConfig)
-DECLARE_REFCOUNTED_CLASS(TMigratedReplicationCardRemoverConfig)
-DECLARE_REFCOUNTED_CLASS(TForeignMigratedReplicationCardRemoverConfig)
-DECLARE_REFCOUNTED_CLASS(TChaosManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TCoordinatorManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TMetadataCacheServiceConfig)
-DECLARE_REFCOUNTED_CLASS(TMetadataCacheConfig)
-DECLARE_REFCOUNTED_CLASS(TTransactionManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TChaosNodeConfig)
+DECLARE_REFCOUNTED_STRUCT(TChaosCellSynchronizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TReplicationCardObserverConfig)
+DECLARE_REFCOUNTED_STRUCT(TMigratedReplicationCardRemoverConfig)
+DECLARE_REFCOUNTED_STRUCT(TForeignMigratedReplicationCardRemoverConfig)
+DECLARE_REFCOUNTED_STRUCT(TChaosManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TCoordinatorManagerConfig)
+DECLARE_REFCOUNTED_STRUCT(TMetadataCacheServiceConfig)
+DECLARE_REFCOUNTED_STRUCT(TMetadataCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TTransactionManagerConfig)
 
 using NTransactionClient::TTransactionSignature;
 using NTransactionClient::InitialTransactionSignature;

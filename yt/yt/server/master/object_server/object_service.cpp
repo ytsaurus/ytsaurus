@@ -1384,22 +1384,21 @@ private:
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
 
-        using TBatchKey = std::tuple<TCellTag, NApi::EMasterChannelKind>;
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        using TBatchKey = std::tuple<TCellTag, NHydra::EPeerKind>;
         struct TBatchValue
         {
             TObjectServiceProxy::TReqExecuteBatchBasePtr BatchReq;
             TCompactVector<int, 16> Indexes;
         };
         THashMap<TBatchKey, TBatchValue> batchMap;
-        auto getOrCreateBatch = [&] (TCellTag cellTag, NApi::EMasterChannelKind channelKind) {
-            auto key = std::tuple(cellTag, channelKind);
+        auto getOrCreateBatch = [&] (TCellTag cellTag, NHydra::EPeerKind peerKind) {
+            auto key = std::tuple(cellTag, peerKind);
             auto it = batchMap.find(key);
             if (it == batchMap.end()) {
-                TObjectServiceProxy proxy(
-                    Bootstrap_->GetClusterConnection(),
-                    channelKind,
-                    cellTag,
-                    /*stickyGroupSizeCache*/ nullptr);
+                auto proxy = TObjectServiceProxy::FromDirectMasterChannel(
+                    multicellManager->GetMasterChannelOrThrow(cellTag, peerKind));
                 auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
                 batchReq->SetOriginalRequestId(RequestId_);
                 batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_));
@@ -1420,18 +1419,18 @@ private:
 
             const auto& requestHeader = subrequest.RequestHeader;
             const auto& ypathExt = *subrequest.YPathExt;
-            auto channelKind = subrequest.YPathExt->mutating()
-                ? NApi::EMasterChannelKind::Leader
-                : NApi::EMasterChannelKind::Follower;
+            auto peerKind = subrequest.YPathExt->mutating()
+                ? NHydra::EPeerKind::Leader
+                : NHydra::EPeerKind::Follower;
 
-            auto* batch = getOrCreateBatch(subrequest.ForwardedCellTag, channelKind);
+            auto* batch = getOrCreateBatch(subrequest.ForwardedCellTag, peerKind);
             batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
             batch->Indexes.push_back(subrequestIndex);
 
             AcquireReplyLock();
 
             YT_LOG_DEBUG("Forwarding object request (ForwardedRequestId: %v, Method: %v.%v, "
-                "%v%v%v%v, Mutating: %v, CellTag: %v, ChannelKind: %v)",
+                "%v%v%v%v, Mutating: %v, CellTag: %v, PeerKind: %v)",
                 batch->BatchReq->GetRequestId(),
                 requestHeader.service(),
                 requestHeader.method(),
@@ -1453,7 +1452,7 @@ private:
                 RpcContext_->GetAuthenticationIdentity(),
                 ypathExt.mutating(),
                 subrequest.ForwardedCellTag,
-                channelKind);
+                peerKind);
         }
 
         for (auto& [cellTag, batch] : batchMap) {
@@ -1586,7 +1585,7 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
 
         if (!User_) {
-            auto* user = securityManager->GetUserByNameOrThrow(Identity_.User, /*activeLifeStageOnly*/ true);
+            auto* user = securityManager->GetUserByNameOrAliasOrThrow(Identity_.User, /*activeLifeStageOnly*/ true);
             User_ = TEphemeralObjectPtr<TUser>(user);
 
             const auto& config = Owner_->GetDynamicConfig();
@@ -1611,9 +1610,10 @@ private:
             }
         }
 
-        User_->LogIfPendingRemoval(
-            Format("User pending for removal has accessed object service (User: %v)",
-            User_->GetName()));
+        YT_LOG_ALERT_IF(
+            User_->GetPendingRemoval(),
+            "User pending for removal has accessed object service (User: %v)",
+            User_->GetName());
 
         if (NeedsUserAccessValidation_) {
             NeedsUserAccessValidation_ = false;
@@ -1835,7 +1835,7 @@ private:
         auto asyncSubresponse = objectManager->ForwardObjectRequest(
             subrequest->RequestMessage,
             Bootstrap_->GetMulticellManager()->GetCellTag(),
-            NApi::EMasterChannelKind::Leader);
+            NHydra::EPeerKind::Leader);
 
         SubscribeToSubresponse(subrequest, std::move(asyncSubresponse));
     }

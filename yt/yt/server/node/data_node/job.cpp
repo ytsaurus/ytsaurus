@@ -630,8 +630,7 @@ private:
                         {FormatIOTag(EAggregateIOTag::DiskFamily), location->GetDiskFamily()},
                         {FormatIOTag(EAggregateIOTag::Direction), "read"},
                         {FormatIOTag(ERawIOTag::ChunkId), ToString(DecodeChunkId(ChunkId_).Id)},
-                        // TODO(babenko): switch to std::string
-                        {FormatIOTag(EAggregateIOTag::User), TString(NRpc::RootUserName)},
+                        {FormatIOTag(EAggregateIOTag::User), NRpc::RootUserName},
                     });
             }
 

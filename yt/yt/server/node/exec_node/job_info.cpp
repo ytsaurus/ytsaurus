@@ -26,7 +26,8 @@ TBriefJobInfo::TBriefJobInfo(
     const std::vector<int>& jobPorts,
     const TJobEvents& jobEvents,
     const NControllerAgent::TCoreInfos& jobCoreInfos,
-    const TExecAttributes& jobExecAttributes)
+    const TExecAttributes& jobExecAttributes,
+    std::optional<std::string> monitoringDescriptor)
     : JobId_(jobId)
     , OperationId_(operationId)
     , JobState_(jobState)
@@ -45,6 +46,7 @@ TBriefJobInfo::TBriefJobInfo(
     , JobEvents_(jobEvents)
     , JobCoreInfos_(jobCoreInfos)
     , JobExecAttributes_(jobExecAttributes)
+    , MonitoringDescriptor_(std::move(monitoringDescriptor))
 { }
 
 void TBriefJobInfo::BuildOrchid(TFluentMap fluent) const
@@ -66,7 +68,8 @@ void TBriefJobInfo::BuildOrchid(TFluentMap fluent) const
         .Item("job_ports").Value(JobPorts_)
         .Item("events").Value(JobEvents_)
         .Item("core_infos").Value(JobCoreInfos_)
-        .Item("exec_attributes").Value(JobExecAttributes_);
+        .Item("exec_attributes").Value(JobExecAttributes_)
+        .OptionalItem("monitoring_descriptor", MonitoringDescriptor_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

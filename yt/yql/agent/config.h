@@ -84,10 +84,9 @@ public:
 
 DEFINE_REFCOUNTED_TYPE(TDQYTCoordinator)
 
-class TDQManagerConfig
+struct TDQManagerConfig
     : public NYTree::TYsonStruct
 {
-public:
     ui16 InterconnectPort;
     ui16 GrpcPort;
     ui32 ActorThreads;
@@ -110,10 +109,9 @@ DEFINE_REFCOUNTED_TYPE(TDQManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlPluginConfig
+struct TYqlPluginConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Set default settings for NYql::TYtClusterConfig.
     static NYTree::IListNodePtr MergeClusterDefaultSettings(const NYTree::IListNodePtr& clusterConfigSettings);
 
@@ -149,16 +147,12 @@ DEFINE_REFCOUNTED_TYPE(TYqlPluginConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlAgentConfig
+struct TYqlAgentConfig
     : public TYqlPluginConfig
 {
-public:
     TDuration TokenExpirationTimeout;
     TDuration RefreshTokenPeriod;
     int IssueTokenAttempts;
-
-    //! Used to create channels to other queue agents.
-    NBus::TBusConfigPtr BusClient;
 
     int YqlThreadCount;
 
@@ -171,12 +165,14 @@ DEFINE_REFCOUNTED_TYPE(TYqlAgentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlAgentDynamicConfig
+struct TYqlAgentDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     int MaxSimultaneousQueries;
     TDuration StateCheckPeriod;
+
+    //! Fields from NYql::TGatewaysConfig with snake case keys.
+    NYTree::INodePtr GatewaysConfig;
 
     REGISTER_YSON_STRUCT(TYqlAgentDynamicConfig);
 
@@ -187,11 +183,10 @@ DEFINE_REFCOUNTED_TYPE(TYqlAgentDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlAgentServerConfig
+struct TYqlAgentServerConfig
     : public NServer::TNativeServerBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     TYqlAgentConfigPtr YqlAgent;
 
     bool AbortOnUnrecognizedOptions;
@@ -216,10 +211,9 @@ DEFINE_REFCOUNTED_TYPE(TYqlAgentServerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlAgentServerDynamicConfig
+struct TYqlAgentServerDynamicConfig
     : public TSingletonsDynamicConfig
 {
-public:
     TYqlAgentDynamicConfigPtr YqlAgent;
 
     REGISTER_YSON_STRUCT(TYqlAgentServerDynamicConfig);

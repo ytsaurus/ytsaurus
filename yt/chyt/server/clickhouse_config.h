@@ -10,10 +10,9 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUserConfig
+struct TUserConfig
     : public NYTree::TYsonStruct
 {
-public:
     // This field is overridden by DefaultProfile in TEngineConfig.
     THashMap<TString, THashMap<TString, NYTree::INodePtr>> Profiles;
     NYTree::IMapNodePtr Quotas;
@@ -29,10 +28,9 @@ DEFINE_REFCOUNTED_TYPE(TUserConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDictionarySourceYtConfig
+struct TDictionarySourceYtConfig
     : public NYTree::TYsonStruct
 {
-public:
     NYPath::TRichYPath Path;
 
     REGISTER_YSON_STRUCT(TDictionarySourceYtConfig);
@@ -47,10 +45,9 @@ DEFINE_REFCOUNTED_TYPE(TDictionarySourceYtConfig)
 //! Source configuration.
 //! Extra supported configuration type is "yt".
 //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict_sources/
-class TDictionarySourceConfig
+struct TDictionarySourceConfig
     : public NYTree::TYsonStruct
 {
-public:
     // TODO(max42): proper value omission.
     TDictionarySourceYtConfigPtr Yt;
 
@@ -65,10 +62,9 @@ DEFINE_REFCOUNTED_TYPE(TDictionarySourceConfig)
 
 //! External dictionary configuration.
 //! See: https://clickhouse.yandex/docs/en/query_language/dicts/external_dicts_dict/
-class TDictionaryConfig
+struct TDictionaryConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Name;
 
     //! Source configuration.
@@ -95,10 +91,9 @@ DEFINE_REFCOUNTED_TYPE(TDictionaryConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSystemLogConfig
+struct TSystemLogConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Engine;
     int FlushIntervalMilliseconds;
 
@@ -111,10 +106,9 @@ DEFINE_REFCOUNTED_TYPE(TSystemLogConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPocoInvalidCertificateHandlerConfig
+struct TPocoInvalidCertificateHandlerConfig
     : public NYTree::TYsonStruct
 {
-public:
     TString Name;
 
     REGISTER_YSON_STRUCT(TPocoInvalidCertificateHandlerConfig);
@@ -142,10 +136,9 @@ DEFINE_REFCOUNTED_TYPE(TPocoOpenSslConfigEntry)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPocoOpenSslConfig
+struct TPocoOpenSslConfig
     : public NYTree::TYsonStruct
 {
-public:
     TPocoOpenSslConfigEntryPtr Server;
     TPocoOpenSslConfigEntryPtr Client;
 
@@ -158,10 +151,9 @@ DEFINE_REFCOUNTED_TYPE(TPocoOpenSslConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryCacheConfig
+struct TQueryCacheConfig
     : public NYTree::TYsonStruct
 {
-public:
     size_t MaxSizeInBytes;
     size_t MaxEntries;
     size_t MaxEntrySizeInBytes;
@@ -177,10 +169,9 @@ DEFINE_REFCOUNTED_TYPE(TQueryCacheConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Config containing native clickhouse settings. Do not add our own settings here.
-class TClickHouseConfig
+struct TClickHouseConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! A map with users.
     TUserConfigPtr Users;
 

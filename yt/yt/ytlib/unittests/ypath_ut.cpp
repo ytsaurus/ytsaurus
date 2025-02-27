@@ -22,7 +22,7 @@ TEST(TYPathTest, Correctness)
         ::testing::HasSubstr("Expected \"slash\" in YPath but found \"literal\""));
 }
 
-TEST(YPathTest, RootDesignator)
+TEST(TYPathTest, RootDesignator)
 {
     {
         auto p = TAbsoluteYPath("//foo");
@@ -39,7 +39,7 @@ TEST(YPathTest, RootDesignator)
     }
 }
 
-TEST(YPathTest, Segments)
+TEST(TYPathTest, Segments)
 {
     auto p = TYPath("/foo/bar&/@baz");
     auto segments = p.AsSegments();

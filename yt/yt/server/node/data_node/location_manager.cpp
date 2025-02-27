@@ -103,9 +103,9 @@ void TLocationManager::SetWaitingReplacementDiskAlerts(std::vector<TError> alert
     DiskWaitingReplacementAlerts_.Store(alerts);
 }
 
-void TLocationManager::SetFailedUnlinkedDiskIds(std::vector<TString> diskIds)
+void TLocationManager::SetFailedUnlinkedDiskIds(std::vector<std::string> diskIds)
 {
-    FailedUnlinkedDiskIds_.Store(diskIds);
+    FailedUnlinkedDiskIds_.Store(std::move(diskIds));
 }
 
 std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
@@ -137,8 +137,7 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
 
         locationLivenessInfos.push_back(TLocationLivenessInfo{
             .Location = location,
-            // TODO(babenko): switch to std::string
-            .DiskId = TString(it->second.DiskId),
+            .DiskId = it->second.DiskId,
             .LocationState = location->GetState(),
             .IsDiskAlive = !failedDisks.contains(location->GetStaticConfig()->DeviceName),
             .DiskState = it->second.State,
@@ -211,7 +210,7 @@ std::vector<TGuid> TLocationManager::DoDestroyLocations(bool recoverUnlinkedDisk
     }
 
     if (recoverUnlinkedDisk) {
-        auto unlinkedDiskIds = FailedUnlinkedDiskIds_.Exchange(std::vector<TString>());
+        auto unlinkedDiskIds = FailedUnlinkedDiskIds_.Exchange(std::vector<std::string>());
         for (const auto& diskId : unlinkedDiskIds) {
             YT_UNUSED_FUTURE(RecoverDisk(diskId)
                 .Apply(BIND([] (const TError& result) {
@@ -265,7 +264,7 @@ TFuture<std::vector<TGuid>> TLocationManager::ResurrectChunkLocations(const THas
         .Run(locationUuids);
 }
 
-TFuture<void> TLocationManager::RecoverDisk(const TString& diskId)
+TFuture<void> TLocationManager::RecoverDisk(const std::string& diskId)
 {
     if (!DiskInfoProvider_) {
         return MakeFuture<void>(TError("Cannot recover disk: hotswap dispatcher is not configured"));
@@ -294,8 +293,8 @@ TLocationHealthChecker::TLocationHealthChecker(
 {
     for (auto diskState : TEnumTraits<EDiskState>::GetDomainValues()) {
         for (auto storageClass : TEnumTraits<EStorageClass>::GetDomainValues()) {
-            auto diskStateName = FormatEnum(diskState);
-            auto diskFamilyName = FormatEnum(storageClass);
+            auto diskStateName = TString(FormatEnum(diskState));
+            auto diskFamilyName = TString(FormatEnum(storageClass));
 
             diskStateName.to_upper();
             diskFamilyName.to_upper();
@@ -303,7 +302,8 @@ TLocationHealthChecker::TLocationHealthChecker(
             Gauges_[diskState][storageClass] = Profiler_
                 .WithTags(TTagSet(TTagList{
                     {"diskman_state", diskStateName},
-                    {"disk_family", diskFamilyName}}))
+                    {"disk_family", diskFamilyName},
+                }))
                 .Gauge("/diskman_state");
         }
     }
@@ -415,9 +415,9 @@ void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
 {
     auto livenessInfos = LocationManager_->MapLocationToLivenessInfo(diskInfos);
 
-    THashMap<TString, TError> diskFailedAlertsMap;
-    THashMap<TString, TError> diskWaitingReplacementAlertsMap;
-    std::vector<TString> unlinkedDiskIds;
+    THashMap<std::string, TError> diskFailedAlertsMap;
+    THashMap<std::string, TError> diskWaitingReplacementAlertsMap;
+    std::vector<std::string> unlinkedDiskIds;
 
     for (const auto& diskInfo : diskInfos) {
         if (diskInfo.State == NDiskManager::EDiskState::Failed) {
@@ -460,9 +460,9 @@ void TLocationHealthChecker::HandleHotSwap(std::vector<TDiskInfo> diskInfos)
     LocationManager_->SetWaitingReplacementDiskAlerts(GetValues(diskWaitingReplacementAlertsMap));
     LocationManager_->SetFailedUnlinkedDiskIds(unlinkedDiskIds);
 
-    THashSet<TString> diskWithLivenessLocations;
-    THashSet<TString> diskWithNotDestroyingLocations;
-    THashSet<TString> diskWithDestroyingLocations;
+    THashSet<std::string> diskWithLivenessLocations;
+    THashSet<std::string> diskWithNotDestroyingLocations;
+    THashSet<std::string> diskWithDestroyingLocations;
 
     for (const auto& livenessInfo : livenessInfos) {
         const auto& location = livenessInfo.Location;

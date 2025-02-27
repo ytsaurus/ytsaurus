@@ -193,7 +193,7 @@ public:
     {
         THROW_ERROR_EXCEPTION_IF(error.IsOK(), "Expected error");
 
-        THROW_ERROR_EXCEPTION_IF(!error.GetMessage().Contains(substring),
+        THROW_ERROR_EXCEPTION_IF(!error.GetMessage().contains(substring),
             "Expected error message to contain %Qv, got %Qv",
             substring,
             error.GetMessage());

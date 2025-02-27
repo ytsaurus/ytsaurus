@@ -8,8 +8,8 @@ namespace NYT::NSecurityClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-THashSet<TString> GetSubjectClosure(
-    const TString& subject,
+THashSet<std::string> GetSubjectClosure(
+    const std::string& subject,
     NObjectClient::TObjectServiceProxy& proxy,
     const NApi::NNative::IConnectionPtr& connection,
     const NApi::TMasterReadOptions& options);

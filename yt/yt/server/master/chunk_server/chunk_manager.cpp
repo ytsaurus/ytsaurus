@@ -3180,7 +3180,21 @@ private:
         const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
         if (config->StoreSequoiaReplicasOnMaster) {
             ProcessAddedReplicas(locationDirectory, node, request->added_chunks());
+        } else {
+            auto deadChunkIds = FromProto<THashSet<TChunkId>>(request->dead_chunk_ids());
+            for (const auto& chunkInfo : request->added_chunks()) {
+                auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                auto chunkId = chunkIdWithIndex.Id;
+                if (deadChunkIds.contains(chunkId)) {
+                    YT_VERIFY(!ProcessAddedChunk(
+                        node,
+                        locationDirectory,
+                        chunkInfo,
+                        /*incremental*/ true));
+                }
+            }
         }
+
         if (!config->EnableSequoiaChunkRefresh) {
             refreshSequoiaChunks(request->added_chunks());
         }
@@ -3247,7 +3261,7 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction({.CellTag = Bootstrap_->GetCellTag()})
+            ->StartTransaction(ESequoiaTransactionType::ChunkConfirmation, {.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto chunkId = FromProto<TChunkId>(request->chunk_id());
                 auto replicas = FromProto<std::vector<TChunkReplicaWithLocation>>(request->replicas());
@@ -3283,7 +3297,9 @@ private:
             }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));
     }
 
-    TFuture<TRspModifyReplicas> ModifySequoiaReplicas(std::unique_ptr<TReqModifyReplicas> request) override
+    TFuture<TRspModifyReplicas> ModifySequoiaReplicas(
+        ESequoiaTransactionType transactionType,
+        std::unique_ptr<TReqModifyReplicas> request) override
     {
         YT_VERIFY(request->added_chunks_size() + request->removed_chunks_size() > 0);
 
@@ -3295,17 +3311,14 @@ private:
 
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction({.CellTag = Bootstrap_->GetCellTag()})
+            ->StartTransaction(transactionType, {.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 auto nodeId = FromProto<TNodeId>(request->node_id());
 
                 const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
                 auto locationDirectory = ParseLocationDirectory(dataNodeTracker, *request);
 
-                THashSet<TChunkId> deadChunkIds;
-                for (const auto& protoChunkId : request->dead_chunk_ids()) {
-                    deadChunkIds.insert(FromProto<TChunkId>(protoChunkId));
-                }
+                auto deadChunkIds = FromProto<THashSet<TChunkId>>(request->dead_chunk_ids());
 
                 struct TReplicaList
                 {
@@ -3439,7 +3452,19 @@ private:
                 // If we do not need replicas on master, we can make request more lightweight.
                 if (enableChunkRefresh && clearMasterRequest) {
                     if (!storeSequoiaReplicasOnMaster) {
+                        std::vector<TChunkAddInfo> deadAddedChunks;
+                        for (const auto& chunkInfo : request->added_chunks()) {
+                            auto chunkIdWithIndex = DecodeChunkId(FromProto<TChunkId>(chunkInfo.chunk_id()));
+                            auto chunkId = chunkIdWithIndex.Id;
+
+                            if (deadChunkIds.contains(chunkId)) {
+                                deadAddedChunks.push_back(chunkInfo);
+                            }
+                        }
                         request->mutable_added_chunks()->Clear();
+                        for (const auto& chunkInfo : deadAddedChunks) {
+                            *request->add_added_chunks() = chunkInfo;
+                        }
                     }
                     if (!processRemovedSequoiaReplicasOnMaster && request->caused_by_node_disposal()) {
                         request->mutable_removed_chunks()->Clear();
@@ -5530,7 +5555,7 @@ private:
     {
         return Bootstrap_
             ->GetSequoiaClient()
-            ->StartTransaction({.CellTag = Bootstrap_->GetCellTag()})
+            ->StartTransaction(ESequoiaTransactionType::DeadChunkReplicaRemoval, {.CellTag = Bootstrap_->GetCellTag()})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] (const ISequoiaTransactionPtr& transaction) {
                 YT_LOG_DEBUG("Removing dead Sequoia chunk replicas (ChunkCount: %v)", request->chunk_ids_size());
                 for (const auto& protoChunkId : request->chunk_ids()) {
@@ -5634,12 +5659,8 @@ private:
                 auto nodeState = node->GetLocalState();
                 // If node is offline or being disposed, we might have already cleared the corresponding location and
                 // adding destroyed replica there again will just get it stuck there.
-
-                // If node is registered, she will tell us about her replicas with full heartbeat (including that one),
-                // and we will add it to destroyed set at that moment (we should not add it now, because if node goes back offline
-                // before reporting heartbeat, the replica will get stuck as well).
-                if (nodeState != ENodeState::Online) {
-                    YT_LOG_DEBUG("Skip adding replica to destroyed set as node is not online (NodeId: %v, State: %v, ChunkId: %v)",
+                if (nodeState != ENodeState::Online && nodeState != ENodeState::Registered) {
+                    YT_LOG_DEBUG("Skip adding replica to destroyed set as node is neither online nor registered (NodeId: %v, State: %v, ChunkId: %v)",
                         replica.NodeId,
                         nodeState,
                         chunkId);

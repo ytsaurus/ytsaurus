@@ -739,6 +739,16 @@ private:
         return Spec;
     }
 
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TMapOperationSpec>(spec);
+    }
+
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
+    {
+        return TConfigurator<TMapOperationSpec>();
+    }
+
     TError GetAutoMergeError() const override
     {
         return TError();
@@ -916,6 +926,16 @@ private:
     TYsonStructPtr GetTypedSpec() const override
     {
         return Spec;
+    }
+
+    TOperationSpecBasePtr ParseTypedSpec(const INodePtr& spec) const override
+    {
+        return ParseOperationSpec<TUnorderedMergeOperationSpec>(spec);
+    }
+
+    TOperationSpecBaseConfigurator GetOperationSpecBaseConfigurator() const override
+    {
+        return TConfigurator<TUnorderedMergeOperationSpec>();
     }
 
     void OnOperationCompleted(bool interrupted) override

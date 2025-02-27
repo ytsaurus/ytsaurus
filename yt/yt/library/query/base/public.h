@@ -18,6 +18,8 @@ using TReadSessionId = TGuid;
 
 struct TDataSplit;
 
+struct TPlanFragment;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
@@ -84,16 +86,16 @@ DECLARE_REFCOUNTED_STRUCT(IExecutor)
 
 DECLARE_REFCOUNTED_STRUCT(IEvaluator)
 
-DECLARE_REFCOUNTED_CLASS(TExecutorConfig)
+DECLARE_REFCOUNTED_STRUCT(TExecutorConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IColumnEvaluatorCache)
 DECLARE_REFCOUNTED_CLASS(TColumnEvaluator)
-DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheConfig)
-DECLARE_REFCOUNTED_CLASS(TColumnEvaluatorCacheDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TColumnEvaluatorCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TColumnEvaluatorCacheDynamicConfig)
 
 DECLARE_REFCOUNTED_STRUCT(IExpressionEvaluatorCache)
 DECLARE_REFCOUNTED_CLASS(TExpressionEvaluator)
-DECLARE_REFCOUNTED_CLASS(TExpressionEvaluatorCacheConfig)
+DECLARE_REFCOUNTED_STRUCT(TExpressionEvaluatorCacheConfig)
 
 DECLARE_REFCOUNTED_STRUCT(TExternalCGInfo)
 using TConstExternalCGInfoPtr = TIntrusivePtr<const TExternalCGInfo>;
@@ -140,6 +142,7 @@ using TValue = NTableClient::TUnversionedValue;
 using TValueData = NTableClient::TUnversionedValueData;
 using TOwningValue = NTableClient::TUnversionedOwningValue;
 using TLegacyOwningKey = NTableClient::TLegacyOwningKey;
+using TUnversionedRowBuilder = NTableClient::TUnversionedRowBuilder;
 
 using TKeyRange = std::pair<TLegacyOwningKey, TLegacyOwningKey>;
 using TMutableRowRange = std::pair<TMutableRow, TMutableRow>;
@@ -147,6 +150,18 @@ using TRowRanges = std::vector<TRowRange>;
 using TMutableRowRanges = std::vector<TMutableRowRange>;
 
 using TColumnSet = THashSet<std::string>;
+
+using TLogicalTypePtr = NTableClient::TLogicalTypePtr;
+using ELogicalMetatype = NTableClient::ELogicalMetatype;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NAst {
+
+DECLARE_REFCOUNTED_STRUCT(TTableHint);
+DECLARE_REFCOUNTED_STRUCT(TQueryAstHead);
+
+} // namespace NAst
 
 ////////////////////////////////////////////////////////////////////////////////
 

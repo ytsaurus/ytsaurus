@@ -28,7 +28,7 @@ class TFilterMatcher
 {
 public:
     TFilterMatcher(
-        TString filterQuery,
+        std::string filterQuery,
         std::vector<TTypedAttributePath> attributePaths)
         : Evaluator_(CreateOrmExpressionEvaluator(
             std::move(filterQuery),
@@ -95,7 +95,7 @@ private:
 }
 
 IFilterMatcherPtr CreateFilterMatcher(
-    TString filterQuery,
+    std::string filterQuery,
     std::vector<TTypedAttributePath> typedAttributePaths)
 {
     return New<TFilterMatcher>(
@@ -104,8 +104,8 @@ IFilterMatcherPtr CreateFilterMatcher(
 }
 
 IFilterMatcherPtr CreateFilterMatcher(
-    TString filterQuery,
-    std::vector<TString> attributePaths)
+    std::string filterQuery,
+    std::vector<TYPath> attributePaths)
 {
     std::vector<TTypedAttributePath> typedAttributePaths;
     typedAttributePaths.reserve(attributePaths.size());

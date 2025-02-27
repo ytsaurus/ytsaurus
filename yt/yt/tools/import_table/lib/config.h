@@ -12,10 +12,9 @@ namespace NYT::NTools::NImporter {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TImportConfig
+struct TImportConfig
     : public NYTree::TYsonStruct
 {
-public:
     //! Singletons configuration to be used in the main importer process.
     TSingletonsConfigPtr Singletons;
     //! Singletons configuration to be used in the map-reduce jobs.

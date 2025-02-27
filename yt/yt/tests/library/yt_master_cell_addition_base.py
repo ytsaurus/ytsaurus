@@ -144,6 +144,8 @@ class MasterCellAdditionBase(YTEnvSetup):
 
     @classmethod
     def _disable_last_cell(cls):
+        print_debug("Disabling last master cell")
+
         optional_services = [
             SCHEDULERS_SERVICE if cls.NUM_SCHEDULERS != 0 else None,
             CONTROLLER_AGENTS_SERVICE if cls.NUM_CONTROLLER_AGENTS != 0 else None,
@@ -168,7 +170,7 @@ class MasterCellAdditionBase(YTEnvSetup):
             for tag in [configs["master"]["primary_cell_tag"]] + configs["master"]["secondary_cell_tags"]:
                 for peer_index, _ in enumerate(configs["master"][tag]):
                     cls.proceed_master_config(configs["master"][tag][peer_index], cls.PRIMARY_CLUSTER_INDEX, remove_last_master=True)
-                    configs["master"][tag][peer_index]["hive_manager"]["allowed_for_removal_master_cells"] = [13]
+                    configs["master"][tag][peer_index]["hive_manager"]["allowed_for_removal_master_cell_tags"] = [13]
             for service in services:
                 # Config keys are services in the singular, drop plural.
                 service_name_singular = service[:-1]
@@ -176,9 +178,9 @@ class MasterCellAdditionBase(YTEnvSetup):
                     cls._collect_cell_ids_and_maybe_stash_last_cell(config["cluster_connection"], cls.PRIMARY_CLUSTER_INDEX, remove_last_master=True)
                     if service == NODES_SERVICE:
                         if "tablet_node" in config.keys():
-                            config["tablet_node"]["hive_manager"]["allowed_for_removal_master_cells"] = [13]
+                            config["tablet_node"]["hive_manager"]["allowed_for_removal_master_cell_tags"] = [13]
                     elif service == CHAOS_NODES_SERVICE:
-                        config["cellar_node"]["cellar_manager"]["cellars"]["chaos"]["occupant"]["hive_manager"]["allowed_for_removal_master_cells"] = [13]
+                        config["cellar_node"]["cellar_manager"]["cellars"]["chaos"]["occupant"]["hive_manager"]["allowed_for_removal_master_cell_tags"] = [13]
             for driver in drivers:
                 cls.proceed_driver_config(cls.Env.configs[driver], remove_last_master=True)
 
@@ -199,6 +201,12 @@ class MasterCellAdditionBase(YTEnvSetup):
             wait_no_peers_in_read_only(secondary_cell_tags=["11", "12"])
             cls.Env.synchronize()
 
+            for tx in ls("//sys/transactions", attributes=["title"]):
+                title = tx.attributes.get("title", "")
+                id = str(tx)
+                if "World initialization" in title:
+                    abort_transaction(id)
+
         def _move_files(directory):
             files = os.listdir(directory)
             for file in files:
@@ -215,6 +223,8 @@ class MasterCellAdditionBase(YTEnvSetup):
 
     @classmethod
     def _enable_last_cell(cls, downtime):
+        print_debug("Enabling last master cell")
+
         assert len(cls.PATCHED_CONFIGS) == len(cls.STASHED_CELL_CONFIGS)
 
         optional_services = [
@@ -256,6 +266,9 @@ class MasterCellAdditionBase(YTEnvSetup):
             id = str(tx)
             if "World initialization" in title:
                 abort_transaction(id)
+
+        cls.PATCHED_CONFIGS = []
+        cls.STASHED_CELL_CONFIGS = []
 
     def _do_for_cell(self, cell_index, callback):
         return callback(get_driver(cell_index))

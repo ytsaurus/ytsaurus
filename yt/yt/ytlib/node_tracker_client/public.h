@@ -23,7 +23,7 @@ class TNodeDirectoryBuilder;
 
 DECLARE_REFCOUNTED_STRUCT(INodeDirectorySynchronizer)
 
-DECLARE_REFCOUNTED_CLASS(TNodeDirectorySynchronizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TNodeDirectorySynchronizerConfig)
 
 DECLARE_REFCOUNTED_STRUCT(INodeChannelFactory)
 

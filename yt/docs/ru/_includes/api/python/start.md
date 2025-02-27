@@ -12,11 +12,13 @@ pip install ytsaurus-client
 
 После установки пакета становится доступным:
 
-- Python библиотека yt;
+- Python библиотека [yt](https://pydoc.ytsaurus.tech/yt.html);
 - Бинарный файл [yt](../../../api/cli/cli.md);
 {% if audience == "internal" %}
 - Бинарный файл yt-fuse для подключения [Кипариса](../../../user-guide/storage/cypress.md) в качестве файловой системы локально.
 {% endif %}
+
+Текущая вресия пакета требует **Python 3.8+**
 
 ### Установка { #install }
 

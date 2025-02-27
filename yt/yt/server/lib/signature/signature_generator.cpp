@@ -109,7 +109,7 @@ void TSignatureGenerator::Sign(const TSignaturePtr& signature)
         "Created signature (SignatureId: %v, Header: %v, Payload: %v)",
         signatureId,
         header,
-        ConvertToYsonString(signature->Payload(), EYsonFormat::Text).ToString());
+        signature->Payload());
 
     YT_LOG_DEBUG(
         "Created signature (SignatureId: %v)",

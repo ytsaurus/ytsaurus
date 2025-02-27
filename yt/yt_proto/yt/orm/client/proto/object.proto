@@ -66,6 +66,8 @@ message TRevisionTracker
     repeated string tracked_paths = 6;
 
     repeated string excluded_paths = 7;
+
+    repeated string tracked_tags = 8;
 }
 
 message TAccessControlPermissionInfo
@@ -161,7 +163,7 @@ message TAttributeMigration
     optional bool custom_reverse_writer = 7;
 }
 
-// Next field number 48.
+// Next field number 50.
 message TObjectTypeOption
 {
     reserved 6, 7, 15, 17, 28, 29, 38;
@@ -197,6 +199,7 @@ message TObjectTypeOption
 
     optional bool custom_type_handler = 16;
     optional bool custom_cpp_object = 44;
+    optional bool custom_type_handler_needs_descriptors = 49;
 
     // See FileOptions.skip_store_without_changes.
     optional bool skip_store_without_changes = 18;
@@ -307,7 +310,8 @@ enum ESetUpdateObjectMode
     SUOM_LEGACY = 1;
 }
 
-message TCommonHistoryOptions {
+message TCommonHistoryOptions
+{
     // Adds forced attributes for every object history.
     repeated string forced_paths = 1;
 }
@@ -365,7 +369,7 @@ message THistoryTableOptions
     optional bool use_deprecated_hashing = 10;
 }
 
-// Next field 30044.
+// Next field 30045.
 extend google.protobuf.FileOptions
 {
     repeated TObjectTypeOption object_type = 30000;
@@ -496,6 +500,9 @@ enum EGenerationPolicy
 
 enum EUpdatePolicy
 {
+    // By default, the policy will be propagated from parent (upper level) attribute.
+    // This is done in C++ server code (see FillUpdatePolicies) and therefore applies to
+    // attributes added by plugins as well. Object root attribute is UP_UPDATABLE by default.
     UP_UNDEFINED = 0;
 
     UP_UPDATABLE = 1;
@@ -504,14 +511,14 @@ enum EUpdatePolicy
     // Updates the attributes when a path is explicitly specified.
     UP_OPAQUE_UPDATABLE = 2;
 
+    // Implicit changes will result in an error.
+    // For the superuser, it behaves as UPDATABLE.
+    UP_READ_ONLY = 4;
+
     // Ignores implicit changes.
     // Explicit changes will result in an error.
     // For the superuser, it behaves as OPAQUE_UPDATABLE.
     UP_OPAQUE_READ_ONLY = 3;
-
-    // Implicit changes will result in an error.
-    // For the superuser, it behaves as UPDATABLE.
-    UP_READ_ONLY = 4;
 }
 
 message TReferenceOption
@@ -537,6 +544,11 @@ message TReferenceOption
         optional string override_prefix = 2;
     }
 
+    message TCountingKeyStorage
+    {
+        optional string counter_path = 1;
+    }
+
     message TReferenceViewOption
     {
         optional string path = 1;
@@ -550,7 +562,7 @@ message TReferenceOption
         PP_DEFAULT = 0;
 
         // Key fields are stored in a container that has an empty state (a table, or a repeated
-        // field). Present key fields constitute a valid reference key. Default mode for repeated
+        // field). Present key fields constitute a valid reference key. Default for multi
         // references.
         PP_CONTAINER = 1;
 
@@ -611,6 +623,7 @@ message TReferenceOption
         TColumnarKeyStorageOption columnar_key_storage = 3;
         TProtoKeyStorageOption proto_key_storage = 4;
         TTabularKeyStorageOption tabular_key_storage = 5;
+        TCountingKeyStorage counting_key_storage = 9;
     }
 
     // If no view is mentioned, one will be automatically generated in the same message.
@@ -638,7 +651,7 @@ message TGeohashOption
     optional string source_geo_point_path = 2;
 }
 
-// Next field 31048.
+// Next field 31049.
 extend google.protobuf.FieldOptions
 {
     optional bool column = 31001;
@@ -761,6 +774,11 @@ extend google.protobuf.FieldOptions
 
     // Field marked with "geohash" option stores a geohash of specified TGeoPoint field.
     optional TGeohashOption geohash = 31047;
+
+    // Same as computed.
+    // Does not cause parent message to become composite.
+    // Exists for compatibility with old behaviour of computed.
+    optional bool computed_compat = 31048;
 }
 
 // Next field 32014.

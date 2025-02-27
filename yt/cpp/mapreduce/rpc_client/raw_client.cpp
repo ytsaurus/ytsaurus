@@ -5,9 +5,12 @@
 
 #include <yt/cpp/mapreduce/common/helpers.h>
 
+#include <yt/cpp/mapreduce/interface/logging/yt_log.h>
+
 #include <yt/yt/client/api/file_reader.h>
 
 #include <yt/yt/client/api/rpc_proxy/client_base.h>
+#include <yt/yt/client/api/rpc_proxy/row_stream.h>
 
 #include <yt/yt/client/table_client/blob_reader.h>
 
@@ -38,6 +41,170 @@ ESecurityAction FromApiSecurityAction(NSecurityClient::ESecurityAction action)
     YT_ABORT();
 }
 
+TString FromApiOperationState(NScheduler::EOperationState state)
+{
+    switch (state) {
+        case NScheduler::EOperationState::None:
+            return "none";
+        case NScheduler::EOperationState::Starting:
+            return "starting";
+        case NScheduler::EOperationState::Orphaned:
+            return "orphaned";
+        case NScheduler::EOperationState::WaitingForAgent:
+            return "waiting_for_agent";
+        case NScheduler::EOperationState::Initializing:
+            return "initializing";
+        case NScheduler::EOperationState::Preparing:
+            return "preparing";
+        case NScheduler::EOperationState::Materializing:
+            return "materializing";
+        case NScheduler::EOperationState::ReviveInitializing:
+            return "revive_initializing";
+        case NScheduler::EOperationState::Reviving:
+            return "reviving";
+        case NScheduler::EOperationState::RevivingJobs:
+            return "reviving_jobs";
+        case NScheduler::EOperationState::Pending:
+            return "pending";
+        case NScheduler::EOperationState::Running:
+            return "running";
+        case NScheduler::EOperationState::Completing:
+            return "completing";
+        case NScheduler::EOperationState::Completed:
+            return "completed";
+        case NScheduler::EOperationState::Aborting:
+            return "aborting";
+        case NScheduler::EOperationState::Aborted:
+            return "aborted";
+        case NScheduler::EOperationState::Failing:
+            return "failing";
+        case NScheduler::EOperationState::Failed:
+            return "failed";
+    }
+    YT_ABORT();
+}
+
+EJobType FromApiJobType(NJobTrackerClient::EJobType type)
+{
+    switch (type) {
+        case NJobTrackerClient::EJobType::Map:
+            return EJobType::Map;
+        case NJobTrackerClient::EJobType::PartitionMap:
+            return EJobType::PartitionMap;
+        case NJobTrackerClient::EJobType::SortedMerge:
+            return EJobType::SortedMerge;
+        case NJobTrackerClient::EJobType::OrderedMerge:
+            return EJobType::OrderedMerge;
+        case NJobTrackerClient::EJobType::UnorderedMerge:
+            return EJobType::UnorderedMerge;
+        case NJobTrackerClient::EJobType::Partition:
+            return EJobType::Partition;
+        case NJobTrackerClient::EJobType::SimpleSort:
+            return EJobType::SimpleSort;
+        case NJobTrackerClient::EJobType::FinalSort:
+            return EJobType::FinalSort;
+        case NJobTrackerClient::EJobType::SortedReduce:
+            return EJobType::SortedReduce;
+        case NJobTrackerClient::EJobType::PartitionReduce:
+            return EJobType::PartitionReduce;
+        case NJobTrackerClient::EJobType::ReduceCombiner:
+            return EJobType::ReduceCombiner;
+        case NJobTrackerClient::EJobType::RemoteCopy:
+            return EJobType::RemoteCopy;
+        case NJobTrackerClient::EJobType::IntermediateSort:
+            return EJobType::IntermediateSort;
+        case NJobTrackerClient::EJobType::OrderedMap:
+            return EJobType::OrderedMap;
+        case NJobTrackerClient::EJobType::JoinReduce:
+            return EJobType::JoinReduce;
+        case NJobTrackerClient::EJobType::Vanilla:
+            return EJobType::Vanilla;
+        case NJobTrackerClient::EJobType::ShallowMerge:
+            return EJobType::ShallowMerge;
+        case NJobTrackerClient::EJobType::SchedulerUnknown:
+            return EJobType::SchedulerUnknown;
+        case NJobTrackerClient::EJobType::ReplicateChunk:
+            return EJobType::ReplicateChunk;
+        case NJobTrackerClient::EJobType::RemoveChunk:
+            return EJobType::RemoveChunk;
+        case NJobTrackerClient::EJobType::RepairChunk:
+            return EJobType::RepairChunk;
+        case NJobTrackerClient::EJobType::SealChunk:
+            return EJobType::SealChunk;
+        case NJobTrackerClient::EJobType::MergeChunks:
+            return EJobType::MergeChunks;
+        case NJobTrackerClient::EJobType::AutotomizeChunk:
+            return EJobType::AutotomizeChunk;
+        case NJobTrackerClient::EJobType::ReincarnateChunk:
+            return EJobType::ReincarnateChunk;
+    }
+    YT_ABORT();
+}
+
+EJobState FromApiJobState(NJobTrackerClient::EJobState state)
+{
+    switch (state) {
+        case NJobTrackerClient::EJobState::Waiting:
+            return EJobState::Waiting;
+        case NJobTrackerClient::EJobState::Running:
+            return EJobState::Running;
+        case NJobTrackerClient::EJobState::Aborting:
+            return EJobState::Aborting;
+        case NJobTrackerClient::EJobState::Completed:
+            return EJobState::Completed;
+        case NJobTrackerClient::EJobState::Failed:
+            return EJobState::Failed;
+        case NJobTrackerClient::EJobState::Aborted:
+            return EJobState::Aborted;
+        case NJobTrackerClient::EJobState::Lost:
+            return EJobState::Lost;
+        case NJobTrackerClient::EJobState::None:
+            return EJobState::None;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYtError ToYtError(const TError& err) {
+    TNode::TMapType attributes;
+    for (const auto& [key, value] : err.Attributes().ListPairs()) {
+        attributes.emplace(key, value);
+    }
+
+    const auto& innerErrors = err.InnerErrors();
+
+    TVector<TYtError> errors;
+    errors.reserve(innerErrors.size());
+    for (const auto& inner : innerErrors) {
+        errors.push_back(ToYtError(inner));
+    }
+    return {err.GetCode(), TString(err.GetMessage()), std::move(errors), std::move(attributes)};
+}
+
+template <typename TResult>
+TResult WaitAndProcess(TFuture<TResult> future) {
+    try {
+        if constexpr (std::is_same_v<TResult, void>) {
+            NConcurrency::WaitFor(future).ThrowOnError();
+        } else {
+            auto result = NConcurrency::WaitFor(future).ValueOrThrow();
+            return result;
+        }
+    } catch (const TErrorException& ex) {
+        const auto& err = ex.Error();
+
+        const auto ytError = ToYtError(err);
+        const auto requestId = err.Attributes().Get<TString>("request_id");
+
+        YT_LOG_ERROR("RSP %v - RPC %v - %v",
+            requestId,
+            err.GetCode(),
+            ytError.FullDescription());
+
+        throw TErrorResponse(std::move(ytError), requestId);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TRpcRawClient::TRpcRawClient(
@@ -54,7 +221,7 @@ TNode TRpcRawClient::Get(
 {
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->GetNode(newPath, SerializeOptionsForGet(transactionId, options));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return NodeFromYsonString(result.AsStringBuf());
 }
 
@@ -83,7 +250,7 @@ void TRpcRawClient::Set(
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto ysonValue = NYson::TYsonString(NodeToYsonString(value, NYson::EYsonFormat::Binary));
     auto future = Client_->SetNode(newPath, ysonValue, SerializeOptionsForSet(mutationId, transactionId, options));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 bool TRpcRawClient::Exists(
@@ -93,7 +260,7 @@ bool TRpcRawClient::Exists(
 {
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->NodeExists(newPath, SerializeOptionsForExists(transactionId, options));
-    return WaitFor(future).ValueOrThrow();
+    return WaitAndProcess(future);
 }
 
 void TRpcRawClient::MultisetAttributes(
@@ -107,7 +274,7 @@ void TRpcRawClient::MultisetAttributes(
     auto attributes = NYTree::ConvertToAttributes(
         NYson::TYsonString(NodeToYsonString(value, NYson::EYsonFormat::Binary)));
     auto future = Client_->MultisetAttributesNode(newPath, attributes->ToMap(), SerializeOptionsForMultisetAttributes(mutationId, transactionId, options));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 TNodeId TRpcRawClient::Create(
@@ -119,7 +286,7 @@ TNodeId TRpcRawClient::Create(
 {
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->CreateNode(newPath, ToApiObjectType(type), SerializeOptionsForCreate(mutationId, transactionId, options));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return UtilGuidFromYtGuid(result);
 }
 
@@ -133,7 +300,7 @@ TNodeId TRpcRawClient::CopyWithoutRetries(
     auto newSourcePath = AddPathPrefix(sourcePath, Config_->Prefix);
     auto newDestinationPath = AddPathPrefix(destinationPath, Config_->Prefix);
     auto future = Client_->CopyNode(newSourcePath, newDestinationPath, SerializeOptionsForCopy(mutationId, transactionId, options));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return UtilGuidFromYtGuid(result);
 }
 
@@ -152,7 +319,7 @@ TNodeId TRpcRawClient::CopyInsideMasterCell(
     newOptions.EnableCrossCellCopying = false;
 
     auto future = Client_->CopyNode(newSourcePath, newDestinationPath, newOptions);
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return UtilGuidFromYtGuid(result);
 }
 
@@ -166,7 +333,7 @@ TNodeId TRpcRawClient::MoveWithoutRetries(
     auto newSourcePath = AddPathPrefix(sourcePath, Config_->Prefix);
     auto newDestinationPath = AddPathPrefix(destinationPath, Config_->Prefix);
     auto future = Client_->MoveNode(newSourcePath, newDestinationPath, SerializeOptionsForMove(mutationId, transactionId, options));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return UtilGuidFromYtGuid(result);
 }
 
@@ -185,7 +352,7 @@ TNodeId TRpcRawClient::MoveInsideMasterCell(
     newOptions.EnableCrossCellCopying = false;
 
     auto future = Client_->MoveNode(newSourcePath, newDestinationPath, newOptions);
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return UtilGuidFromYtGuid(result);
 }
 
@@ -197,7 +364,7 @@ void TRpcRawClient::Remove(
 {
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->RemoveNode(newPath, SerializeOptionsForRemove(mutationId, transactionId, options));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 TNode::TListType TRpcRawClient::List(
@@ -207,7 +374,7 @@ TNode::TListType TRpcRawClient::List(
 {
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->ListNode(newPath, SerializeOptionsForList(transactionId, options));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return NodeFromYsonString(result.AsStringBuf()).AsList();
 }
 
@@ -221,7 +388,7 @@ TNodeId TRpcRawClient::Link(
     auto newTargetPath = AddPathPrefix(targetPath, Config_->Prefix);
     auto newLinkPath = AddPathPrefix(linkPath, Config_->Prefix);
     auto future = Client_->LinkNode(newTargetPath, newLinkPath, SerializeOptionsForLink(mutationId, transactionId, options));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return UtilGuidFromYtGuid(result);
 }
 
@@ -234,7 +401,7 @@ TLockId TRpcRawClient::Lock(
 {
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->LockNode(newPath, ToApiLockMode(mode), SerializeOptionsForLock(mutationId, transactionId, options));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return UtilGuidFromYtGuid(result.LockId);
 }
 
@@ -246,7 +413,7 @@ void TRpcRawClient::Unlock(
 {
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->UnlockNode(newPath, SerializeOptionsForUnlock(mutationId, transactionId, options));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 void TRpcRawClient::Concatenate(
@@ -270,7 +437,7 @@ void TRpcRawClient::Concatenate(
 
     TMutationId mutationId;
     auto future = Client_->ConcatenateNodes(newSourcePaths, newDestinationPath, SerializeOptionsForConcatenate(mutationId, transactionId, options));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 TTransactionId TRpcRawClient::StartTransaction(
@@ -281,14 +448,14 @@ TTransactionId TRpcRawClient::StartTransaction(
     auto future = Client_->StartTransaction(
         NTransactionClient::ETransactionType::Master,
         SerializeOptionsForStartTransaction(mutationId, parentId, Config_->TxTimeout, options));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return UtilGuidFromYtGuid(result->GetId());
 }
 
 void TRpcRawClient::PingTransaction(const TTransactionId& transactionId)
 {
     auto tx = Client_->AttachTransaction(YtGuidFromUtilGuid(transactionId));
-    WaitFor(tx->Ping()).ThrowOnError();
+    WaitAndProcess(tx->Ping());
 }
 
 void TRpcRawClient::AbortTransaction(
@@ -296,7 +463,7 @@ void TRpcRawClient::AbortTransaction(
     const TTransactionId& transactionId)
 {
     auto tx = Client_->AttachTransaction(YtGuidFromUtilGuid(transactionId));
-    WaitFor(tx->Abort(SerializeOptionsForAbortTransaction(mutationId))).ThrowOnError();
+    WaitAndProcess(tx->Abort(SerializeOptionsForAbortTransaction(mutationId)));
 }
 
 void TRpcRawClient::CommitTransaction(
@@ -304,7 +471,7 @@ void TRpcRawClient::CommitTransaction(
     const TTransactionId& transactionId)
 {
     auto tx = Client_->AttachTransaction(YtGuidFromUtilGuid(transactionId));
-    WaitFor(tx->Commit(SerializeOptionsForCommitTransaction(mutationId))).ThrowOnError();
+    WaitAndProcess(tx->Commit(SerializeOptionsForCommitTransaction(mutationId)));
 }
 
 TOperationId TRpcRawClient::StartOperation(
@@ -317,7 +484,7 @@ TOperationId TRpcRawClient::StartOperation(
         NScheduler::EOperationType(type),
         NYson::TYsonString(NodeToYsonString(spec, NYson::EYsonFormat::Binary)),
         SerializeOptionsForStartOperation(mutationId, transactionId));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return UtilGuidFromYtGuid(result.Underlying());
 }
 
@@ -331,7 +498,7 @@ TOperationAttributes ParseOperationAttributes(const NApi::TOperation& operation)
         result.Type = EOperationType(*operation.Type);
     }
     if (operation.State) {
-        result.State = ToString(*operation.State);
+        result.State = FromApiOperationState(*operation.State);
         if (*result.State == "completed") {
             result.BriefState = EOperationBriefState::Completed;
         } else if (*result.State == "aborted") {
@@ -432,7 +599,7 @@ TOperationAttributes TRpcRawClient::GetOperation(
     auto future = Client_->GetOperation(
         NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
         SerializeOptionsForGetOperation(options, /*useAlias*/ false));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return ParseOperationAttributes(result);
 }
 
@@ -441,7 +608,7 @@ TOperationAttributes TRpcRawClient::GetOperation(
     const TGetOperationOptions& options)
 {
     auto future = Client_->GetOperation(alias, SerializeOptionsForGetOperation(options, /*useAlias*/ true));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return ParseOperationAttributes(result);
 }
 
@@ -450,7 +617,7 @@ void TRpcRawClient::AbortOperation(
     const TOperationId& operationId)
 {
     auto future = Client_->AbortOperation(NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 void TRpcRawClient::CompleteOperation(
@@ -458,7 +625,7 @@ void TRpcRawClient::CompleteOperation(
     const TOperationId& operationId)
 {
     auto future = Client_->CompleteOperation(NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 void TRpcRawClient::SuspendOperation(
@@ -469,7 +636,7 @@ void TRpcRawClient::SuspendOperation(
     auto future = Client_->SuspendOperation(
         NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
         SerializeOptionsForSuspendOperation(options));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 void TRpcRawClient::ResumeOperation(
@@ -478,13 +645,13 @@ void TRpcRawClient::ResumeOperation(
     const TResumeOperationOptions& /*options*/)
 {
     auto future = Client_->ResumeOperation(NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 TListOperationsResult TRpcRawClient::ListOperations(const TListOperationsOptions& options)
 {
     auto future = Client_->ListOperations(SerializeOptionsForListOperations(options));
-    auto listOperationsResult = WaitFor(future).ValueOrThrow();
+    auto listOperationsResult = WaitAndProcess(future);
 
     TListOperationsResult result;
     result.Operations.reserve(listOperationsResult.Operations.size());
@@ -500,7 +667,7 @@ TListOperationsResult TRpcRawClient::ListOperations(const TListOperationsOptions
     if (listOperationsResult.StateCounts) {
         result.StateCounts.ConstructInPlace();
         for (const auto& key : TEnumTraits<NScheduler::EOperationState>::GetDomainValues()) {
-            (*result.StateCounts)[ToString(key)] = (*listOperationsResult.StateCounts)[key];
+            (*result.StateCounts)[FromApiOperationState(key)] = (*listOperationsResult.StateCounts)[key];
         }
     }
     if (listOperationsResult.TypeCounts) {
@@ -523,7 +690,7 @@ void TRpcRawClient::UpdateOperationParameters(
     auto future = Client_->UpdateOperationParameters(
         NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
         SerializeParametersForUpdateOperationParameters(options));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 NYson::TYsonString TRpcRawClient::GetJob(
@@ -534,7 +701,7 @@ NYson::TYsonString TRpcRawClient::GetJob(
     auto future = Client_->GetJob(
         NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
         NJobTrackerClient::TJobId(YtGuidFromUtilGuid(jobId)));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return result;
 }
 
@@ -542,8 +709,12 @@ TJobAttributes ParseJobAttributes(const NApi::TJob& job)
 {
     TJobAttributes result;
     result.Id = UtilGuidFromYtGuid(job.Id.Underlying());
-    result.Type = FromString<EJobType>(ToString(*job.Type));
-    result.State = FromString<EJobState>(ToString(*job.GetState()));
+    if (job.Type) {
+        result.Type = FromApiJobType(*job.Type);
+    }
+    if (auto state = job.GetState()) {
+        result.State = FromApiJobState(*state);
+    }
     if (job.Address) {
         result.Address = *job.Address;
     }
@@ -605,7 +776,7 @@ TListJobsResult TRpcRawClient::ListJobs(
     auto future = Client_->ListJobs(
         NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
         SerializeOptionsForListJobs(options));
-    auto listJobsResult = WaitFor(future).ValueOrThrow();
+    auto listJobsResult = WaitAndProcess(future);
 
     TListJobsResult result;
     result.Jobs.reserve(listJobsResult.Jobs.size());
@@ -681,7 +852,7 @@ IFileReaderPtr TRpcRawClient::GetJobInput(
     const TGetJobInputOptions& /*options*/)
 {
     auto future = Client_->GetJobInput(NJobTrackerClient::TJobId(YtGuidFromUtilGuid(jobId)));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     auto stream = CreateSyncAdapter(CreateCopyingAdapter(result));
     return MakeIntrusive<TRpcResponseStream>(std::move(stream));
 }
@@ -694,7 +865,7 @@ IFileReaderPtr TRpcRawClient::GetJobFailContext(
     auto future = Client_->GetJobFailContext(
         NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
         NJobTrackerClient::TJobId(YtGuidFromUtilGuid(jobId)));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     std::unique_ptr<IInputStream> stream(new TFixedStringStream(std::move(result)));
     return MakeIntrusive<TRpcResponseStream>(std::move(stream));
 }
@@ -707,7 +878,7 @@ IFileReaderPtr TRpcRawClient::GetJobStderr(
     auto future = Client_->GetJobStderr(
         NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
         NJobTrackerClient::TJobId(YtGuidFromUtilGuid(jobId)));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     std::unique_ptr<IInputStream> stream(new TFixedStringStream(std::move(result.Data)));
     return MakeIntrusive<TRpcResponseStream>(std::move(stream));
 }
@@ -719,7 +890,7 @@ std::vector<TJobTraceEvent> TRpcRawClient::GetJobTrace(
     auto future = Client_->GetJobTrace(
         NScheduler::TOperationId(YtGuidFromUtilGuid(operationId)),
         SerializeOptionsForGetJobTrace(options));
-    auto jobTraceEvents = WaitFor(future).ValueOrThrow();
+    auto jobTraceEvents = WaitAndProcess(future);
 
     std::vector<TJobTraceEvent> result;
     result.reserve(jobTraceEvents.size());
@@ -742,7 +913,7 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadFile(
     const TFileReaderOptions& options)
 {
     auto future = Client_->CreateFileReader(path.Path_, SerializeOptionsForReadFile(transactionId, options));
-    auto reader = WaitFor(future).ValueOrThrow();
+    auto reader = WaitAndProcess(future);
     return CreateSyncAdapter(CreateCopyingAdapter(reader));
 }
 
@@ -753,7 +924,7 @@ TMaybe<TYPath> TRpcRawClient::GetFileFromCache(
     const TGetFileFromCacheOptions& options)
 {
     auto future = Client_->GetFileFromCache(md5Signature, SerializeOptionsForGetFileFromCache(transactionId, cachePath, options));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return result.Path.empty() ? Nothing() : TMaybe<TYPath>(result.Path);
 }
 
@@ -766,7 +937,7 @@ TYPath TRpcRawClient::PutFileToCache(
 {
     auto newFilePath = AddPathPrefix(filePath, Config_->Prefix);
     auto future = Client_->PutFileToCache(newFilePath, md5Signature, SerializeOptionsForPutFileToCache(transactionId, cachePath, options));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return result.Path;
 }
 
@@ -777,7 +948,7 @@ void TRpcRawClient::MountTable(
 {
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->MountTable(newPath, SerializeOptionsForMountTable(mutationId, options));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 void TRpcRawClient::UnmountTable(
@@ -787,7 +958,7 @@ void TRpcRawClient::UnmountTable(
 {
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->UnmountTable(newPath, SerializeOptionsForUnmountTable(mutationId, options));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 void TRpcRawClient::RemountTable(
@@ -797,7 +968,7 @@ void TRpcRawClient::RemountTable(
 {
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->RemountTable(newPath, SerializeOptionsForRemountTable(mutationId, options));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 void TRpcRawClient::ReshardTableByPivotKeys(
@@ -825,7 +996,7 @@ void TRpcRawClient::ReshardTableByPivotKeys(
     }
 
     auto future = Client_->ReshardTable(newPath, pivotKeys,  SerializeOptionsForReshardTable(mutationId, options));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 void TRpcRawClient::ReshardTableByTabletCount(
@@ -836,7 +1007,7 @@ void TRpcRawClient::ReshardTableByTabletCount(
 {
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->ReshardTable(newPath, tabletCount, SerializeOptionsForReshardTable(mutationId, options));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 void TRpcRawClient::InsertRows(
@@ -854,7 +1025,7 @@ void TRpcRawClient::TrimRows(
     const TTrimRowsOptions& /*options*/)
 {
     auto future = Client_->TrimTable(path, tabletIndex, rowCount);
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 TNode::TListType TRpcRawClient::LookupRows(
@@ -870,7 +1041,7 @@ TNode::TListType TRpcRawClient::SelectRows(
     const TSelectRowsOptions& options)
 {
     auto future = Client_->SelectRows(query, SerializeOptionsForSelectRows(options));
-    auto selectRowsResult = WaitFor(future).ValueOrThrow();
+    auto selectRowsResult = WaitAndProcess(future);
 
     const auto& rowset = selectRowsResult.Rowset;
     const auto columnNames  = rowset->GetSchema()->GetColumnNames();
@@ -898,8 +1069,29 @@ void TRpcRawClient::AlterTable(
     const TAlterTableOptions& options)
 {
     auto future = Client_->AlterTable(path, SerializeOptionsForAlterTable(mutationId, transactionId, options));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
+
+class TTableRowsStream
+    : public IAsyncZeroCopyInputStream
+{
+public:
+    TTableRowsStream(IAsyncZeroCopyInputStreamPtr stream)
+        : Underlying_(std::move(stream))
+    { }
+
+    TFuture<TSharedRef> Read() override
+    {
+        return Underlying_->Read().Apply(BIND([=] (const TSharedRef& block) {
+            NApi::NRpcProxy::NProto::TRowsetDescriptor descriptor;
+            NApi::NRpcProxy::NProto::TRowsetStatistics statistics;
+            return NApi::NRpcProxy::DeserializeRowStreamBlockEnvelope(block, &descriptor, &statistics);
+        }));
+    }
+
+private:
+    const IAsyncZeroCopyInputStreamPtr Underlying_;
+};
 
 std::unique_ptr<IInputStream> TRpcRawClient::ReadTable(
     const TTransactionId& transactionId,
@@ -930,15 +1122,24 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadTable(
 
     if (format) {
         req->set_desired_rowset_format(NApi::NRpcProxy::NProto::RF_FORMAT);
-        req->set_format(NodeToYsonString(format->Config, NYson::EYsonFormat::Text));
+        req->set_format(NYson::TYsonString(NodeToYsonString(format->Config, NYson::EYsonFormat::Text)).ToString());
     }
 
     ToProto(req->mutable_transactional_options(), apiOptions);
     ToProto(req->mutable_suppressable_access_tracking_options(), apiOptions);
 
     auto future = NRpc::CreateRpcClientInputStream(std::move(req));
-    auto stream = WaitFor(future).ValueOrThrow();
-    return CreateSyncAdapter(CreateCopyingAdapter(std::move(stream)));
+    auto stream = WaitAndProcess(future);
+
+    auto metaRef = WaitFor(stream->Read()).ValueOrThrow();
+
+    NApi::NRpcProxy::NProto::TRspReadTableMeta meta;
+    if (!TryDeserializeProto(&meta, metaRef)) {
+        THROW_ERROR_EXCEPTION("Failed to deserialize table reader meta information");
+    }
+
+    auto rowsStream = New<TTableRowsStream>(std::move(stream));
+    return CreateSyncAdapter(CreateCopyingAdapter(std::move(rowsStream)));
 }
 
 std::unique_ptr<IInputStream> TRpcRawClient::ReadBlobTable(
@@ -976,7 +1177,7 @@ std::unique_ptr<IInputStream> TRpcRawClient::ReadBlobTable(
             NChunkClient::TReadLimit{upperKeyBound}}});
 
     auto future = Client_->CreateTableReader(richPath, SerializeOptionsForReadTable(transactionId));
-    auto reader = WaitFor(future).ValueOrThrow();
+    auto reader = WaitAndProcess(future);
 
     std::optional<std::string> partIndexColumnName;
     if (options.PartIndexColumnName_) {
@@ -1005,7 +1206,7 @@ void TRpcRawClient::AlterTableReplica(
     auto future = Client_->AlterTableReplica(
         YtGuidFromUtilGuid(replicaId),
         SerializeOptionsForAlterTableReplica(mutationId, options));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 void TRpcRawClient::DeleteRows(
@@ -1022,7 +1223,7 @@ void TRpcRawClient::FreezeTable(
 {
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->FreezeTable(newPath, SerializeOptionsForFreezeTable(options));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 void TRpcRawClient::UnfreezeTable(
@@ -1031,7 +1232,7 @@ void TRpcRawClient::UnfreezeTable(
 {
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->UnfreezeTable(newPath, SerializeOptionsForUnfreezeTable(options));
-    WaitFor(future).ThrowOnError();
+    WaitAndProcess(future);
 }
 
 TCheckPermissionResponse ParseCheckPermissionResponse(const NApi::TCheckPermissionResponse& response)
@@ -1069,7 +1270,7 @@ TCheckPermissionResponse TRpcRawClient::CheckPermission(
 {
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->CheckPermission(user, newPath, ToApiPermission(permission), SerializeOptionsForCheckPermission(options));
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return ParseCheckPermissionResponse(result);
 }
 
@@ -1080,7 +1281,7 @@ TVector<TTabletInfo> TRpcRawClient::GetTabletInfos(
 {
     auto newPath = AddPathPrefix(path, Config_->Prefix);
     auto future = Client_->GetTabletInfos(newPath, tabletIndexes);
-    auto tabletInfos = WaitFor(future).ValueOrThrow();
+    auto tabletInfos = WaitAndProcess(future);
 
     TVector<TTabletInfo> result;
     result.reserve(tabletInfos.size());
@@ -1103,7 +1304,7 @@ TVector<TTableColumnarStatistics> TRpcRawClient::GetTableColumnarStatistics(
     std::transform(paths.begin(), paths.end(), newPaths.begin(), ToApiRichPath);
 
     auto future = Client_->GetColumnarStatistics(newPaths, SerializeOptionsForGetTableColumnarStatistics(transactionId, options));
-    auto tableColumnarStatistics = WaitFor(future).ValueOrThrow();
+    auto tableColumnarStatistics = WaitAndProcess(future);
 
     YT_VERIFY(newPaths.size() == tableColumnarStatistics.size());
     for (int index = 0; index < std::ssize(tableColumnarStatistics); ++index) {
@@ -1143,7 +1344,7 @@ TMultiTablePartitions TRpcRawClient::GetTablePartitions(
     std::transform(paths.begin(), paths.end(), newPaths.begin(), ToApiRichPath);
 
     auto future = Client_->PartitionTables(newPaths, SerializeOptionsForGetTablePartitions(transactionId, options));
-    auto multiTablePartitions = WaitFor(future).ValueOrThrow();
+    auto multiTablePartitions = WaitAndProcess(future);
 
     TMultiTablePartitions result;
     result.Partitions.reserve(multiTablePartitions.Partitions.size());
@@ -1177,7 +1378,7 @@ TMultiTablePartitions TRpcRawClient::GetTablePartitions(
 ui64 TRpcRawClient::GenerateTimestamp()
 {
     auto future = Client_->GetTimestampProvider()->GenerateTimestamps();
-    auto result = WaitFor(future).ValueOrThrow();
+    auto result = WaitAndProcess(future);
     return result;
 }
 

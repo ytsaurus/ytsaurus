@@ -35,10 +35,10 @@ DECLARE_REFCOUNTED_STRUCT(IClusterDirectorySynchronizer)
 
 DECLARE_REFCOUNTED_CLASS(TClientDirectory)
 
-DECLARE_REFCOUNTED_CLASS(TCellDirectoryConfig)
-DECLARE_REFCOUNTED_CLASS(TClusterDirectorySynchronizerConfig)
-DECLARE_REFCOUNTED_CLASS(TCellDirectorySynchronizerConfig)
-DECLARE_REFCOUNTED_CLASS(TDownedCellTrackerConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellDirectoryConfig)
+DECLARE_REFCOUNTED_STRUCT(TClusterDirectorySynchronizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TCellDirectorySynchronizerConfig)
+DECLARE_REFCOUNTED_STRUCT(TDownedCellTrackerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TDownedCellTracker)
 

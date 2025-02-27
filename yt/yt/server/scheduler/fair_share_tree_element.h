@@ -246,6 +246,7 @@ public:
     EStarvationStatus GetStarvationStatus() const;
 
     TJobResources GetInstantResourceUsage(bool withPrecommit = false) const;
+    TResourceTreeElement::TDetailedResourceUsage GetInstantDetailedResourceUsage() const;
 
     virtual std::optional<double> GetSpecifiedFairShareStarvationTolerance() const = 0;
     virtual std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const = 0;
@@ -836,6 +837,7 @@ public:
     //! Trunk node interface.
     int GetSlotIndex() const;
 
+    void SetSchedulingTagFilter(TSchedulingTagFilter schedulingTagFilter);
     const TSchedulingTagFilter& GetSchedulingTagFilter() const override;
 
     TString GetUserName() const;
@@ -954,7 +956,7 @@ private:
 
     std::optional<EUnschedulableReason> ComputeUnschedulableReason() const;
 
-    TJobResources ComputeResourceDemand() const;
+    void InitializeResourceUsageAndDemand();
 
     TJobResourcesConfigPtr GetSpecifiedResourceLimitsConfig() const override;
 

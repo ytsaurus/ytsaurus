@@ -319,6 +319,12 @@ public:
         return Key_.GetData();
     }
 
+    void CopyFrom(const void* row)
+    {
+        Key_.CopyFrom(row);
+        Hash_ = Key_.GetRowVtable().Hash(Key_.GetData());
+    }
+
 private:
     TRawRowHolder Key_;
     size_t Hash_ = 0;

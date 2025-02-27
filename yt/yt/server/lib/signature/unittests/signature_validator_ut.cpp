@@ -38,7 +38,7 @@ struct TSignatureValidatorTest
     TKeyPair Key;
     TSignatureValidatorConfigPtr Config;
     TSignatureValidatorPtr Validator;
-    TYsonString Payload = TYsonString("MyImportantData"_sb);
+    std::string Payload = "MyImportantData";
 
     TSignatureValidatorTest()
         : Store(New<TStubKeyStore>())
@@ -95,7 +95,7 @@ TEST_F(TSignatureValidatorTest, ValidateGoodSignature)
         writer.OnBeginMap();
         BuildYsonMapFragmentFluently(&writer)
             .Item("header").Value(headerString.ToString())
-            .Item("payload").Value(Payload.ToString())
+            .Item("payload").Value(Payload)
             .Item("signature").Value(TString(
                 reinterpret_cast<const char*>(signatureBytes.data()),
                 signatureBytes.size()
@@ -128,7 +128,7 @@ TEST_F(TSignatureValidatorTest, ValidateBadSignature)
     writer.OnBeginMap();
     BuildYsonMapFragmentFluently(&writer)
         .Item("header").Value(headerString.ToString())
-        .Item("payload").Value(Payload.ToString())
+        .Item("payload").Value(Payload)
         .Item("signature").Value(TString(SignatureSize, 'a'));
     writer.OnEndMap();
     writer.Flush();
@@ -153,7 +153,7 @@ TEST_F(TSignatureValidatorTest, ValidateInvalidSignature)
         writer.OnBeginMap();
         BuildYsonMapFragmentFluently(&writer)
             .Item("header").Value("abacaba")
-            .Item("payload").Value(Payload.ToString())
+            .Item("payload").Value(Payload)
             .Item("signature").Value(TString(SignatureSize, 'a'));
         writer.OnEndMap();
         writer.Flush();
@@ -167,7 +167,7 @@ TEST_F(TSignatureValidatorTest, ValidateInvalidSignature)
         writer.OnBeginMap();
         BuildYsonMapFragmentFluently(&writer)
             .Item("header").Value("abacaba")
-            .Item("payload").Value(Payload.ToString())
+            .Item("payload").Value(Payload)
             .Item("signature").Value("123456789");
         writer.OnEndMap();
         writer.Flush();

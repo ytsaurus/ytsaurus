@@ -1629,6 +1629,29 @@ public:
         return it == UserNameMap_.end() ? nullptr : it->second;
     }
 
+    TUser* DoFindUserByNameOrAlias(const std::string& name)
+    {
+        if (auto* user = DoFindUserByName(name)) {
+            return user;
+        }
+
+        if (auto* subjectByAlias = DoFindSubjectByAlias(name); subjectByAlias && subjectByAlias->IsUser()) {
+            return subjectByAlias->AsUser();
+        }
+
+        return nullptr;
+    }
+
+    void ValidateUserFound(TUser* user, const std::string& name)
+    {
+        if (!user) {
+            THROW_ERROR_EXCEPTION(
+                NSecurityClient::EErrorCode::AuthenticationError,
+                "No such user %Qv; create user by requesting any IDM role on this cluster",
+                name);
+        }
+    }
+
     TUser* FindUserByName(const std::string& name, bool activeLifeStageOnly) override
     {
         auto* user = DoFindUserByName(name);
@@ -1658,13 +1681,20 @@ public:
     TUser* GetUserByNameOrThrow(const std::string& name, bool activeLifeStageOnly) override
     {
         auto* user = DoFindUserByName(name);
+        ValidateUserFound(user, name);
 
-        if (!IsObjectAlive(user)) {
-            THROW_ERROR_EXCEPTION(
-                NSecurityClient::EErrorCode::AuthenticationError,
-                "No such user %Qv; create user by requesting any IDM role on this cluster",
-                name);
+        if (activeLifeStageOnly) {
+            const auto& objectManager = Bootstrap_->GetObjectManager();
+            objectManager->ValidateObjectLifeStage(user);
         }
+
+        return user;
+    }
+
+    TUser* GetUserByNameOrAliasOrThrow(const std::string& name, bool activeLifeStageOnly) override
+    {
+        auto* user = DoFindUserByNameOrAlias(name);
+        ValidateUserFound(user, name);
 
         if (activeLifeStageOnly) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -2177,10 +2207,11 @@ public:
     {
         TWallTimer checkPermissionTimer;
 
-        user->LogIfPendingRemoval(
-            Format("User pending for removal was mentioned in permission check for object (User: %v, ObjectId: %v)",
+        YT_LOG_ALERT_IF(
+            user->GetPendingRemoval(),
+            "User pending for removal was mentioned in permission check for object (User: %v, ObjectId: %v)",
             user->GetName(),
-            object->GetId()));
+            object->GetId());
 
         if (IsVersionedType(object->GetType()) && object->IsForeign()) {
             YT_LOG_DEBUG("Checking permission for a versioned foreign object (ObjectId: %v)",
@@ -2319,10 +2350,11 @@ public:
         EPermission permission,
         TPermissionCheckOptions options = {}) override
     {
-        user->LogIfPendingRemoval(
-            Format("User pending for removal was mentioned in validating permission for object (User: %v, ObjectId: %v)",
+        YT_LOG_ALERT_IF(
+            user->GetPendingRemoval(),
+            "User pending for removal was mentioned in validating permission for object (User: %v, ObjectId: %v)",
             user->GetName(),
-            object->GetId()));
+            object->GetId());
 
         // TODO(cherepashka): remove after acl & inherited attributes are implemented in Sequoia.
         if (GetSequoiaContext()) {
@@ -2653,9 +2685,10 @@ public:
 
     TError CheckUserAccess(TUser* user) override
     {
-        user->LogIfPendingRemoval(
-            Format("User pending for removal was mentioned in check user access (User: %v)",
-            user->GetName()));
+        YT_LOG_ALERT_IF(
+            user->GetPendingRemoval(),
+            "User pending for removal was mentioned in check user access (User: %v)",
+            user->GetName());
 
         if (user->GetBanned()) {
             return TError(

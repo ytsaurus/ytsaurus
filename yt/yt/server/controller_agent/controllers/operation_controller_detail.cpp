@@ -6,6 +6,7 @@
 #include "job_helpers.h"
 #include "job_info.h"
 #include "sink.h"
+#include "spec_manager.h"
 #include "task.h"
 
 #include <yt/yt/server/controller_agent/chunk_list_pool.h>
@@ -144,6 +145,7 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_resolver.h>
+#include <yt/yt/core/ytree/yson_struct_update.h>
 
 #include <yt/yt/core/logging/fluent_log.h>
 
@@ -207,6 +209,14 @@ using std::placeholders::_1;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError GetMaxFailedJobCountReachedError(int maxFailedJobCount)
+{
+    return TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
+        << TErrorAttribute("max_failed_job_count", maxFailedJobCount);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TOperationControllerBase::TOperationControllerBase(
     TOperationSpecBasePtr spec,
     TControllerAgentConfigPtr config,
@@ -257,6 +267,7 @@ TOperationControllerBase::TOperationControllerBase(
     , PoolTreeControllerSettingsMap_(operation->PoolTreeControllerSettingsMap())
     , Spec_(std::move(spec))
     , Options(std::move(options))
+    , SpecManager_(New<TSpecManager>(this, Spec_, Logger))
     , CachedRunningJobs_(
         Config->CachedRunningJobsUpdatePeriod,
         BIND(&TOperationControllerBase::DoBuildJobsYson, Unretained(this)))
@@ -361,6 +372,7 @@ void TOperationControllerBase::BuildTestingState(TFluentAny fluent) const
     fluent
         .BeginMap()
             .Item("commit_sleep_started").Value(CommitSleepStarted_)
+            .Item("dynamic_spec").Value(SpecManager_->GetSpec())
         .EndMap();
 }
 
@@ -527,12 +539,16 @@ IAttributeDictionaryPtr TOperationControllerBase::CreateTransactionAttributes(ET
         .Finish();
 }
 
-TOperationControllerInitializeResult TOperationControllerBase::InitializeReviving(const TControllerTransactionIds& transactions)
+TOperationControllerInitializeResult TOperationControllerBase::InitializeReviving(
+    const TControllerTransactionIds& transactions,
+    INodePtr cumulativeSpecPatch)
 {
     YT_LOG_INFO("Initializing operation for revive");
 
     InitializeClients();
     InitializeInputTransactions();
+
+    SpecManager_->InitializeReviving(std::move(cumulativeSpecPatch));
 
     auto attachTransaction = [&] (TTransactionId transactionId, const NNative::IClientPtr& client, bool ping) -> ITransactionPtr {
         if (!transactionId) {
@@ -731,6 +747,8 @@ TOperationControllerInitializeResult TOperationControllerBase::InitializeClean()
 
     WaitFor(Host->UpdateInitializedOperationNode(/*isCleanOperationStart*/ true))
         .ThrowOnError();
+
+    SpecManager_->InitializeClean();
 
     YT_LOG_INFO("Operation initialized");
 
@@ -1462,6 +1480,8 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
     // Monitoring tags are transient by design.
     // So after revive we do reset the corresponding alert.
     SetOperationAlert(EOperationAlertType::UserJobMonitoringLimited, TError());
+
+    SpecManager_->ApplySpecPatchReviving();
 
     YT_LOG_INFO("Operation revived");
 
@@ -3495,12 +3515,8 @@ bool TOperationControllerBase::OnJobFailed(
         }
     };
 
-    int maxFailedJobCount = Spec_->MaxFailedJobCount;
-    if (FailedJobCount_ >= maxFailedJobCount) {
-        auto failedJobsLimitExceededError = TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
-                << TErrorAttribute("max_failed_job_count", maxFailedJobCount);
-
-        OnOperationFailed(makeOperationFailedError(std::move(failedJobsLimitExceededError)));
+    if (int maxFailedJobCount = SpecManager_->GetSpec()->MaxFailedJobCount; FailedJobCount_ >= maxFailedJobCount) {
+        OnOperationFailed(makeOperationFailedError(GetMaxFailedJobCountReachedError(maxFailedJobCount)));
         return false;
     }
     if (IsJobsFailToleranceExceeded(maybeExitCode)) {
@@ -3557,9 +3573,10 @@ bool TOperationControllerBase::OnJobAborted(
     }
 
     YT_LOG_DEBUG(
-        "Job aborted (JobId: %v, AbortReason: %v)",
+        "Job aborted (JobId: %v, AbortReason: %v, JobType: %v)",
         jobId,
-        abortReason);
+        abortReason,
+        joblet->JobType);
 
     auto error = jobSummary->Error;
 
@@ -3793,8 +3810,7 @@ void TOperationControllerBase::OnJobRunning(
             };
 
             auto userClosure = GetSubjectClosure(
-                // TODO(babenko): switch to std::string
-                TString(AuthenticatedUser),
+                AuthenticatedUser,
                 proxy,
                 client->GetNativeConnection(),
                 readOptions);
@@ -3804,7 +3820,7 @@ void TOperationControllerBase::OnJobRunning(
 
         if (canCrashControllerAgent) {
             YT_LOG_ERROR("Crashing controller agent");
-            YT_ABORT();
+            YT_VERIFY(false && "Crashed intentionally by spec option");
         } else {
             auto error = TError(
                 "User %Qv is not a superuser but tried to crash controller agent using testing options in spec; "
@@ -6249,7 +6265,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         if (Config->AllowUsersGroupReadIntermediateData) {
             intermediateDataAcl.Entries.emplace_back(
                 ESecurityAction::Allow,
-                std::vector<TString>{UsersGroupName},
+                std::vector<std::string>{UsersGroupName},
                 EPermissionSet(EPermission::Read));
         }
 
@@ -8808,6 +8824,40 @@ void TOperationControllerBase::UpdateRuntimeParameters(const TOperationRuntimePa
     } else if (update->AcoName) {
         AcoName = *update->AcoName;
     }
+    if (update->SchedulingTagFilter) {
+        Spec_->SchedulingTagFilter = *update->SchedulingTagFilter;
+        UpdateExecNodes();
+    }
+}
+
+TOperationSpecBaseSealedConfigurator TOperationControllerBase::ConfigureUpdate()
+{
+    auto configurator = GetOperationSpecBaseConfigurator();
+    configurator.Field("max_failed_job_count", &TOperationSpecBase::MaxFailedJobCount)
+        .Updater(BIND_NO_PROPAGATE([&] (const int& newMaxFailedJobCount) {
+            if (FailedJobCount_ >= newMaxFailedJobCount) {
+                OnOperationFailed(GetMaxFailedJobCountReachedError(newMaxFailedJobCount));
+            }
+        }));
+
+    return std::move(configurator).Seal();
+}
+
+void TOperationControllerBase::PatchSpec(INodePtr newCumulativeSpecPatch, bool dryRun)
+{
+    if (dryRun) {
+        SpecManager_->ValidateSpecPatch(std::move(newCumulativeSpecPatch));
+    } else {
+        SpecManager_->ApplySpecPatch(std::move(newCumulativeSpecPatch));
+    }
+}
+
+std::any TOperationControllerBase::CreateSafeAssertionGuard() const
+{
+    return NYT::CreateSafeAssertionGuard(
+        Host->GetCoreDumper(),
+        Host->GetCoreSemaphore(),
+        CoreNotes_);
 }
 
 TOperationJobMetrics TOperationControllerBase::PullJobMetricsDelta(bool force)
@@ -9017,19 +9067,33 @@ TJobletPtr TOperationControllerBase::GetJobletOrThrow(TJobId jobId) const
     return joblet;
 }
 
-std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterJobForMonitoring(TJobId jobId)
+std::optional<TJobMonitoringDescriptor> TOperationControllerBase::RegisterJobForMonitoring(
+    TJobId jobId,
+    const std::optional<TJobMonitoringDescriptor>& descriptorHint)
 {
+    YT_LOG_DEBUG("Trying to assign monitoring descriptor to job (JobId: %v)", jobId);
+
     std::optional<TJobMonitoringDescriptor> descriptor;
-    if (MonitoringDescriptorIndexPool_.empty()) {
-        descriptor = RegisterNewMonitoringDescriptor();
-    } else {
-        auto it = MonitoringDescriptorIndexPool_.begin();
-        auto index = *it;
-        MonitoringDescriptorIndexPool_.erase(it);
-        descriptor = TJobMonitoringDescriptor{Host->GetIncarnationId(), index};
+
+    if (descriptorHint) {
+        EraseOrCrash(MonitoringDescriptorPool_, *descriptorHint);
+        descriptor = descriptorHint;
     }
+
+    if (!descriptor) {
+        if (MonitoringDescriptorPool_.empty()) {
+            descriptor = RegisterNewMonitoringDescriptor();
+        } else {
+            auto it = MonitoringDescriptorPool_.begin();
+            auto foundDescriptor = *it;
+            MonitoringDescriptorPool_.erase(it);
+            descriptor = foundDescriptor;
+        }
+    }
+
     if (descriptor) {
-        YT_LOG_DEBUG("Monitoring descriptor assigned to job (JobId: %v, MonitoringDescriptor: %v)",
+        YT_LOG_DEBUG(
+            "Monitoring descriptor assigned to job (JobId: %v, MonitoringDescriptor: %v)",
             jobId,
             descriptor);
 
@@ -9082,7 +9146,7 @@ void TOperationControllerBase::UnregisterJobForMonitoring(const TJobletPtr& jobl
         --MonitoredUserJobAttemptCount_;
     }
     if (joblet->UserJobMonitoringDescriptor) {
-        InsertOrCrash(MonitoringDescriptorIndexPool_, joblet->UserJobMonitoringDescriptor->Index);
+        InsertOrCrash(MonitoringDescriptorPool_, *joblet->UserJobMonitoringDescriptor);
         EraseOrCrash(JobIdToMonitoringDescriptor_, joblet->JobId);
         --MonitoredUserJobCount_;
         // NB: We do not want to remove index, but old version of logic can be done with the following call.
@@ -10059,10 +10123,14 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_rpc_proxy_worker_thread_pool_size(jobSpecConfig->RpcProxyWorkerThreadPoolSize);
 
     // Pass external docker image into job spec as is.
-    if (jobSpecConfig->DockerImage &&
-        !TDockerImageSpec(*jobSpecConfig->DockerImage, Config->DockerRegistry).IsInternal())
-    {
-        jobSpec->set_docker_image(*jobSpecConfig->DockerImage);
+    if (jobSpecConfig->DockerImage) {
+        TDockerImageSpec dockerImageSpec(*jobSpecConfig->DockerImage, Config->DockerRegistry);
+        if (!dockerImageSpec.IsInternal() || Config->DockerRegistry->ForwardInternalImagesToJobSpecs) {
+            jobSpec->set_docker_image(*jobSpecConfig->DockerImage);
+        }
+        if (dockerImageSpec.IsInternal() && Config->DockerRegistry->UseYtTokenForInternalRegistry) {
+            GenerateDockerAuthFromToken(SecureVault, AuthenticatedUser, jobSpec);
+        }
     }
 }
 
@@ -10737,6 +10805,11 @@ void TOperationControllerBase::RegisterMetadata(auto&& registrar)
     PHOENIX_REGISTER_FIELD(72, RegisteredMonitoringDescriptorCount_,
         .SinceVersion(ESnapshotVersion::PersistMonitoringCounts));
 
+    PHOENIX_REGISTER_FIELD(78, MonitoringDescriptorPool_,
+        .SinceVersion(ESnapshotVersion::MonitoringDescriptorsPreserving));
+    PHOENIX_REGISTER_FIELD(79, JobIdToMonitoringDescriptor_,
+        .SinceVersion(ESnapshotVersion::MonitoringDescriptorsPreserving));
+
     PHOENIX_REGISTER_FIELD(73, UnknownExitCodeFailCount_,
         .SinceVersion(ESnapshotVersion::JobFailTolerance));
     PHOENIX_REGISTER_FIELD(74, NoExitCodeFailCount_,
@@ -10842,7 +10915,7 @@ TOutputStreamDescriptorPtr TOperationControllerBase::GetIntermediateStreamDescri
         if (auto tableWriterConfig = Spec_->FastIntermediateMediumTableWriterConfig) {
             descriptor->TableWriterOptions->ReplicationFactor = tableWriterConfig->UploadReplicationFactor;
             descriptor->TableWriterOptions->ErasureCodec = tableWriterConfig->ErasureCodec;
-            descriptor->TableWriterOptions->EnableStripedErasure = tableWriterConfig->EnableStripedErasure;
+            descriptor->TableWriterOptions->EnableStripedErasure = false; // TODO(galtsev): use tableWriterConfig->EnableStripedErasure when the striped erasure reader is implemented, see YT-24207
         }
         YT_LOG_INFO("Fast intermediate medium enabled (FastMedium: %v, SlowMedium: %v, FastMediumLimit: %v, "
             "ReplicationFactor: %v, ErasureCodec: %v, EnableStripedErasure: %v)",

@@ -16,10 +16,9 @@ namespace NYT::NTcpProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRouterConfig
+struct TRouterConfig
     : public NYTree::TYsonStruct
 {
-public:
     NNet::TDialerConfigPtr Dialer;
 
     int MaxListenerBacklogSize;
@@ -33,10 +32,9 @@ DEFINE_REFCOUNTED_TYPE(TRouterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyBootstrapConfig
+struct TProxyBootstrapConfig
     : public NServer::TNativeServerBootstrapConfig
 {
-public:
     bool AbortOnUnrecognizedOptions;
 
     std::string Role;
@@ -56,11 +54,10 @@ DEFINE_REFCOUNTED_TYPE(TProxyBootstrapConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyProgramConfig
+struct TProxyProgramConfig
     : public TProxyBootstrapConfig
     , public TServerProgramConfig
 {
-public:
     REGISTER_YSON_STRUCT(TProxyProgramConfig);
 
     static void Register(TRegistrar registrar);
@@ -70,10 +67,9 @@ DEFINE_REFCOUNTED_TYPE(TProxyProgramConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TRouterDynamicConfig
+struct TRouterDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     TDuration RoutingTableUpdatePeriod;
 
     REGISTER_YSON_STRUCT(TRouterDynamicConfig);
@@ -85,10 +81,9 @@ DEFINE_REFCOUNTED_TYPE(TRouterDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TProxyDynamicConfig
+struct TProxyDynamicConfig
     : public TSingletonsDynamicConfig
 {
-public:
     int PollerThreadCount;
     int AcceptorThreadCount;
 

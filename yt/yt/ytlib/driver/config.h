@@ -14,10 +14,9 @@ namespace NYT::NDriver {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNativeDriverConfig
+struct TNativeDriverConfig
     : public TDriverConfig
 {
-public:
     NAuth::TTvmServiceConfigPtr TvmService;
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
     bool StartQueueConsumerRegistrationManager;

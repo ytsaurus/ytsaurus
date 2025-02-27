@@ -416,6 +416,7 @@ struct TAbstractExpressionPrinter
         }
     }
 
+    // TODO(lukyan): Provide parent oprerator priority in arguments and wrap expression if needed.
     static bool CanOmitParenthesis(TConstExpressionPtr expr)
     {
         return

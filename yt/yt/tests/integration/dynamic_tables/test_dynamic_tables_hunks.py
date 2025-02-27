@@ -1505,9 +1505,11 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
     DELTA_MASTER_CONFIG = {}
 
     DELTA_DYNAMIC_NODE_CONFIG = {
-        "tablet_node": {
-            "hunk_lock_manager": {
-                "unlock_check_period": 100
+        "%true": {
+            "tablet_node": {
+                "hunk_lock_manager": {
+                    "unlock_check_period": 100
+                }
             }
         }
     }
@@ -1882,6 +1884,81 @@ class TestOrderedDynamicTablesHunks(TestSortedDynamicTablesBase):
         with raises_yt_error("table schema contains hunk columns"):
             alter_table("//tmp/t", dynamic=False)
 
+    @authors("akozhikhov")
+    def test_reshard_ordered_table_with_hunks(self):
+        sync_create_cells(1)
+        self._create_table()
+        sync_reshard_table("//tmp/t", 5)
+
+        hunk_storage_id = create("hunk_storage", "//tmp/h")
+        set("//tmp/t/@hunk_storage_id", hunk_storage_id)
+
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        for i in range(5):
+            insert_rows(
+                "//tmp/t",
+                [{"$tablet_index": i, "key": i, "value": str(i) + "x" * 20}],
+            )
+
+        sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/h")
+
+        def _get_chunk_ids():
+            chunk_ids = get("//tmp/t/@chunk_ids")
+            store_chunk_ids = builtins.set(self._get_store_chunk_ids("//tmp/t"))
+            hunk_chunk_ids = builtins.set([chunk_id for chunk_id in chunk_ids if chunk_id not in store_chunk_ids])
+            return store_chunk_ids, hunk_chunk_ids
+
+        store_chunk_ids, hunk_chunk_ids = _get_chunk_ids()
+
+        sync_reshard_table("//tmp/t", 3)
+        new_store_chunk_ids, new_hunk_chunk_ids = _get_chunk_ids()
+        assert store_chunk_ids == new_store_chunk_ids
+        assert hunk_chunk_ids == new_hunk_chunk_ids
+
+        sync_reshard_table("//tmp/t", 2, first_tablet_index=1, last_tablet_index=1)
+        new_store_chunk_ids, new_hunk_chunk_ids = _get_chunk_ids()
+        assert store_chunk_ids == new_store_chunk_ids
+        assert hunk_chunk_ids == new_hunk_chunk_ids
+
+        # XXX(akozhikhov): YT-24195.
+        '''
+        sync_mount_table("//tmp/h")
+        sync_mount_table("//tmp/t")
+
+        rows = [
+            {"$tablet_index": 0, "$row_index": 0, "key": 0, "value": str(0) + "x" * 20},
+            {"$tablet_index": 1, "$row_index": 0, "key": 1, "value": str(1) + "x" * 20},
+            {"$tablet_index": 3, "$row_index": 0, "key": 2, "value": str(2) + "x" * 20},
+            {"$tablet_index": 3, "$row_index": 1, "key": 3, "value": str(3) + "x" * 20},
+            {"$tablet_index": 3, "$row_index": 2, "key": 4, "value": str(4) + "x" * 20},
+        ]
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        for i in range(4):
+            insert_rows(
+                "//tmp/t",
+                [{"$tablet_index": i, "key": i, "value": str(i) + "y" * 20}],
+            )
+
+        rows.extend([
+            {"$tablet_index": 0, "$row_index": 1, "key": 0, "value": str(0) + "y" * 20},
+            {"$tablet_index": 1, "$row_index": 1, "key": 1, "value": str(1) + "y" * 20},
+            {"$tablet_index": 2, "$row_index": 0, "key": 2, "value": str(2) + "y" * 20},
+            {"$tablet_index": 3, "$row_index": 3, "key": 3, "value": str(3) + "y" * 20},
+        ])
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+
+        sync_unmount_table("//tmp/t")
+        sync_unmount_table("//tmp/h")
+
+        assert_items_equal(select_rows("* from [//tmp/t]"), rows)
+        '''
+
 
 ################################################################################
 
@@ -1891,10 +1968,12 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
     NUM_NODES = 10
     STORE_LOCATION_COUNT = 3
     DELTA_DYNAMIC_NODE_CONFIG = {
-        "tablet_node": {
-            "hunk_lock_manager": {
-                "hunk_store_extra_lifetime": 100,
-                "unlock_check_period": 100
+        "%true": {
+            "tablet_node": {
+                "hunk_lock_manager": {
+                    "hunk_store_extra_lifetime": 100,
+                    "unlock_check_period": 100
+                }
             }
         }
     }
@@ -2340,7 +2419,7 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
                     "replication_factor": 3,
                     "data_parts_only": False,
                 },
-                "committed": False,
+                "committed": True,
             }
         ]
 
@@ -2350,7 +2429,7 @@ class TestDynamicTablesHunkMedia(YTEnvSetup):
         if is_sorted_table:
             assert self._chunk_has_requisition(hunk_chunk, requisition_2)
         else:
-            assert self._chunk_has_requisition(hunk_chunk, requisition_default)
+            assert self._chunk_has_requisition(hunk_chunk, requisition_2 + requisition_default)
             self._speed_up_hunk_storage_store_rotation("//tmp/s")
             # Unmounting shouldn't really be necessary here, get rid of it.
             sync_unmount_table("//tmp/s")

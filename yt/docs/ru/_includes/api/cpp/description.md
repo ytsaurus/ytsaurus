@@ -1052,7 +1052,7 @@ TMaybe<TYPath> GetFileFromCache(
 
 ## Юнит-тесты
 
-Юнит-тесты для {{product-name}}-операций оформляются с помощью целей UNITTEST или GTEST с добавлением в PEERDIR хука `yt/cpp/mapreduce/tests/yt_initialize_hook`. Потребуется также подключение библиотеки `yt/cpp/mapreduce/tests/yt_unittest_lib`, из которой надо использовать в тестах метод `CreateTestClient()` вместо обычного `CreateClient()`, а также рецепта `mapreduce/yt/python/recipe/recipe.inc`, который создает локальную песочницу {{product-name}}, в которую тестовый клиент и ходит. Если в тестах нужен архив операций, то вместо указанного рецепта нужно использовать `mapreduce/yt/python/init_operations_archive/recipe/recipe194.inc`.
+Юнит-тесты для {{product-name}}-операций оформляются с помощью целей UNITTEST или GTEST с добавлением в PEERDIR хука `yt/cpp/mapreduce/tests/yt_initialize_hook`. Потребуется также подключение библиотеки `yt/cpp/mapreduce/tests/yt_unittest_lib`, из которой надо использовать в тестах метод `CreateTestClient()` вместо обычного `CreateClient()`, а также рецепта `mapreduce/yt/python/recipe/recipe.inc`, который создаёт локальную песочницу {{product-name}}, в которую тестовый клиент и ходит. Если в тестах нужен архив операций, то вместо указанного рецепта нужно использовать `mapreduce/yt/python/init_operations_archive/recipe/recipe194.inc`.
 
 В остальном это обычные юнит-тесты Arcadia.
 

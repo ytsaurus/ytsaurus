@@ -42,8 +42,8 @@ TEST_F(TDistributedTableSignaturesTest, FinishWithFakeSession)
 
     {
         TDistributedWriteSession session;
-        session.PatchInfo.ChunkSchema = ConvertTo<TTableSchemaPtr>(TYsonString("[{name=v1;type=string};]"_sb));
-        auto signedSession = CreateDummySignatureGenerator()->Sign(ConvertToYsonString(session));
+        session.PatchInfo.ChunkSchema = ConvertTo<TTableSchemaPtr>(TYsonStringBuf("[{name=v1;type=string};]"_sb));
+        auto signedSession = CreateDummySignatureGenerator()->Sign(ConvertToYsonString(session).ToString());
         EXPECT_THROW_WITH_SUBSTRING(FinishDistributedWriteSession(
             TSignedDistributedWriteSessionPtr(std::move(signedSession))), "Signature validation failed");
     }
@@ -61,9 +61,9 @@ TEST_F(TDistributedTableSignaturesTest, FinishWithFakeWriteResult)
 
     {
         TWriteFragmentResult result;
-        auto session = ConvertTo<TDistributedWriteSession>(sessionWithCookies.Session.Underlying()->Payload());
+        auto session = ConvertTo<TDistributedWriteSession>(TYsonStringBuf(sessionWithCookies.Session.Underlying()->Payload()));
         result.SessionId = session.RootChunkListId;
-        auto signedResult = CreateDummySignatureGenerator()->Sign(ConvertToYsonString(result));
+        auto signedResult = CreateDummySignatureGenerator()->Sign(ConvertToYsonString(result).ToString());
         EXPECT_THROW_WITH_SUBSTRING(FinishDistributedWriteSession(
             sessionWithCookies.Session,
             {TSignedWriteFragmentResultPtr(std::move(signedResult))}), "Signature validation failed");
@@ -84,8 +84,8 @@ TEST_F(TDistributedTableSignaturesTest, WriteFragmentWithFakeCookie)
 
     {
         TWriteFragmentCookie cookie;
-        cookie.PatchInfo.ChunkSchema = ConvertTo<TTableSchemaPtr>(TYsonString("[{name=v1;type=string};]"_sb));
-        auto signedCookie = CreateDummySignatureGenerator()->Sign(ConvertToYsonString(cookie));
+        cookie.PatchInfo.ChunkSchema = ConvertTo<TTableSchemaPtr>(TYsonStringBuf("[{name=v1;type=string};]"_sb));
+        auto signedCookie = CreateDummySignatureGenerator()->Sign(ConvertToYsonString(cookie).ToString());
         EXPECT_THROW_WITH_SUBSTRING(DistributedWriteTable(
             TSignedWriteFragmentCookiePtr(std::move(signedCookie)),
             {"v1"},

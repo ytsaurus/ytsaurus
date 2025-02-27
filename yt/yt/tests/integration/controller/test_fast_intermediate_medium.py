@@ -147,12 +147,17 @@ class TestFastIntermediateMedium(TestFastIntermediateMediumBase):
             assert get_intermediate_usage(medium) > 0, f"the medium '{medium}' was not used at all"
 
     @authors("galtsev")
-    @pytest.mark.parametrize("fast_intermediate_config", [(1, None), (4, None), (1, "isa_reed_solomon_6_3")])
+    @pytest.mark.parametrize("fast_intermediate_config", [
+        (1, None, False),
+        (4, None, False),
+        (1, "isa_reed_solomon_6_3", False),
+        (1, "isa_reed_solomon_6_3", True),
+    ])
     def test_intermediate_writer_config(self, fast_intermediate_config):
         if self.Env.get_component_version("ytserver-controller-agent").abi <= (24, 2) or self.Env.get_component_version("ytserver-job-proxy").abi <= (24, 2):
             pytest.skip()
 
-        (upload_replication_factor, erasure_codec) = fast_intermediate_config
+        (upload_replication_factor, erasure_codec, enable_striped_erasure) = fast_intermediate_config
 
         create("table", "//tmp/t_in")
         create("table", "//tmp/t_out")
@@ -165,6 +170,7 @@ class TestFastIntermediateMedium(TestFastIntermediateMediumBase):
         }
         if erasure_codec is not None:
             fast_intermediate_medium_table_writer_config["erasure_codec"] = erasure_codec
+            fast_intermediate_medium_table_writer_config["enable_striped_erasure"] = enable_striped_erasure
 
         def find_intermediate_chunks():
             return [

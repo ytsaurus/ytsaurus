@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/compression/public.h>
 
+#include <library/cpp/yt/memory/public.h>
+
 namespace NYT::NQueryAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,7 +20,9 @@ struct IDistributedSessionManager
     virtual IDistributedSessionPtr GetDistributedSessionOrCreate(
         NQueryClient::TDistributedSessionId sessionId,
         TDuration retentionTime,
-        NCompression::ECodec codecId) = 0;
+        NCompression::ECodec codecId,
+        std::optional<i64> memoryLimitPerNode,
+        IMemoryChunkProviderPtr memoryChunkProvider) = 0;
 
     virtual IDistributedSessionPtr GetDistributedSessionOrThrow(
         NQueryClient::TDistributedSessionId sessionId) = 0;

@@ -1,8 +1,8 @@
 from yt_queries import start_query
 
-from yt.environment.helpers import assert_items_equal
+from yt.environment.helpers import assert_items_equal, wait_for_dynamic_config_update
 
-from yt_commands import (authors, create, write_table, read_table)
+from yt_commands import (authors, create, write_table, read_table, get, set)
 
 from yt_env_setup import YTEnvSetup
 
@@ -68,3 +68,87 @@ class TestUdfs(TestQueriesYqlBase):
         query.track()
         result = query.read_result(0)
         assert_items_equal(expected_rows, result)
+
+    @authors("lucius")
+    def test_simple_python_udf(self, query_tracker, yql_agent):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "Int32"}]})
+        write_table("//tmp/t", [
+            {"a": -1},
+            {"a": 0},
+            {"a": 1},
+            {"a": 2},
+        ])
+        yql_with_python = """
+$python_code = @@
+def f(x):
+    return x > 0
+@@;
+$f = Python3::f(Callable<(Int32)->Bool>, $python_code);
+select a from primary.`//tmp/t` where $f(unwrap(a));
+"""
+        query = start_query("yql", yql_with_python)
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal(result, [{"a": 1}, {"a": 2}])
+
+
+class TestUdfsWithDynamicConfig(TestQueriesYqlBase):
+    NUM_TEST_PARTITIONS = 4
+
+    def _update_dyn_config(self, yql_agent, dyn_config):
+        config = get("//sys/yql_agent/config")
+        config["yql_agent"] = dyn_config
+        set("//sys/yql_agent/config", config)
+        wait_for_dynamic_config_update(yql_agent.yql_agent.client, config, "//sys/yql_agent/instances")
+
+    @authors("lucius")
+    def test_simple_udf_dyn_config(self, query_tracker, yql_agent):
+        self._update_dyn_config(yql_agent, {
+            "gateways_config": {
+                "yt": {
+                    "cluster_mapping": [
+                    ],
+                },
+            },
+        })
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "string"}]})
+        write_table("//tmp/t", [
+            {"a": "there is"},
+            {"a": "a meow"},
+            {"a": "in a word"},
+            {"a": "homeowner"},
+        ])
+        query = start_query("yql", 'select a from primary.`//tmp/t` where a like "%meow%"')
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal(result, [{"a": "a meow"}, {"a": "homeowner"}])
+
+    @authors("lucius")
+    def test_simple_python_udf_dyn_config(self, query_tracker, yql_agent):
+        self._update_dyn_config(yql_agent, {
+            "gateways_config": {
+                "yt": {
+                    "cluster_mapping": [
+                    ],
+                },
+            },
+        })
+        create("table", "//tmp/t", attributes={"schema": [{"name": "a", "type": "Int32"}]})
+        write_table("//tmp/t", [
+            {"a": -1},
+            {"a": 0},
+            {"a": 1},
+            {"a": 2},
+        ])
+        yql_with_python = """
+$python_code = @@
+def f(x):
+    return x > 0
+@@;
+$f = Python3::f(Callable<(Int32)->Bool>, $python_code);
+select a from primary.`//tmp/t` where $f(unwrap(a));
+"""
+        query = start_query("yql", yql_with_python)
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal(result, [{"a": 1}, {"a": 2}])
