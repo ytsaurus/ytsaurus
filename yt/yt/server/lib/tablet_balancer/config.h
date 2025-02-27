@@ -42,7 +42,7 @@ struct TParameterizedBalancingConfig
 {
     TString Metric;
     std::optional<bool> EnableReshard;
-    std::optional<bool> EnableUniform;
+    std::optional<bool> PerTableUniform;
     std::optional<int> MaxActionCount;
     std::optional<int> BoundedPriorityQueueSize;
     std::optional<double> NodeDeviationThreshold;
