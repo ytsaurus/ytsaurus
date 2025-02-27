@@ -367,7 +367,7 @@ def process_rows(operation_dump_filename, config_dump_filename, start_time):
     if params.use_yamr_descriptors:
         output_streams = [FDOutputStream(i + 3) for i in range(params.output_table_count)]
     else:
-        output_streams = [FDOutputStream(i * 3 + 1) for i in range(params.output_table_count)]
+        output_streams = [FDOutputStream(i * 3 + int(os.environ.get("YT_FIRST_OUTPUT_TABLE_FD", 1))) for i in range(params.output_table_count)]
 
     apply_stdout_fd_protection(output_streams, yt.wrapper.config["pickling"]["stdout_fd_protection"])
 

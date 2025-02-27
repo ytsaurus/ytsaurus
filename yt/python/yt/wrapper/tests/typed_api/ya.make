@@ -53,6 +53,7 @@ TEST_SRCS(
     conftest.py
     test_arrow.py
     test_typed_api.py
+    test_stdout_redirect.py
     test_structured_skiff.py
     test_validation_schema.py
     test_parquet.py
