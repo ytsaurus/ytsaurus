@@ -1513,6 +1513,8 @@ void TOperationControllerBase::AbortAllJoblets(EAbortReason abortReason, bool ho
     AllocationMap_.clear();
     RunningJobCount_ = 0;
 
+    CachedRunningJobs_.Flush();
+
     if (!std::empty(jobsToRelease)) {
         YT_LOG_DEBUG(
             "Releasing aborted jobs (JobCount: %v)",
@@ -11566,6 +11568,11 @@ const NYson::TYsonString& TOperationControllerBase::TCachedYsonCallback::GetValu
         UpdateTime_ = now;
     }
     return Value_;
+}
+
+void TOperationControllerBase::TCachedYsonCallback::Flush()
+{
+    UpdateTime_ = TInstant::Zero();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
