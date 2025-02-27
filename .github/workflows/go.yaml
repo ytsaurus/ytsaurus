@@ -34,6 +34,7 @@ jobs:
         run: |
           go env -w CGO_ENABLED=0
           go test -v -mod=readonly ./...
+          go env -w CGO_ENABLED=1
 
       - name: Run tests with race detector
         working-directory: ${{ matrix.module }}
