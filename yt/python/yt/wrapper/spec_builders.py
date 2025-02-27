@@ -457,6 +457,10 @@ class UserJobSpecBuilder(object):
     def enable_input_table_index(self, flag=True):
         return _set_spec_value(self, "enable_input_table_index", flag)
 
+    @spec_option("Redirect job stdout into stderr")
+    def redirect_stdout_to_stderr(self, flag=True):
+        return _set_spec_value(self, "redirect_stdout_to_stderr", flag)
+
     @spec_option("Whether to copy user files to sandbox")
     def copy_files(self, flag=True):
         return _set_spec_value(self, "copy_files", flag)
@@ -557,7 +561,9 @@ class UserJobSpecBuilder(object):
             should_process_key_switch=should_process_key_switch,
             input_table_count=len(input_tables),
             output_table_count=len(output_tables),
-            use_yamr_descriptors=spec.get("use_yamr_descriptors", False))
+            use_yamr_descriptors=spec.get("use_yamr_descriptors", False),
+            redirect_stdout_to_stderr=spec.get("redirect_stdout_to_stderr", False),
+        )
 
         is_cpp_job = _is_cpp_job(spec["command"])
         if is_cpp_job:
@@ -817,6 +823,8 @@ class UserJobSpecBuilder(object):
             spec["output_format"] = output_format.to_yson_type()
 
         spec = self._prepare_ld_library_path(spec, client)
+        spec.setdefault("redirect_stdout_to_stderr",
+                        get_config(client)["pickling"]["redirect_stdout_to_stderr"])
         spec, tmpfs_size, input_tables = self._prepare_job_files(
             spec, group_by, should_process_key_switch, operation_type, local_files_to_remove, uploaded_files,
             input_format, output_format, input_tables, output_tables, client)
