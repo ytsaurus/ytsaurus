@@ -34,7 +34,7 @@ def _resolve_alias(operation_alias, client=None):
     try:
         return get_operation(
             operation_alias=operation_alias,
-            include_scheduler=True,
+            include_runtime=True,
             attributes=["id", "state"],
             client=client)
     except:  # noqa

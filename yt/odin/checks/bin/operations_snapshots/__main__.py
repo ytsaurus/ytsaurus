@@ -17,7 +17,7 @@ def run_check(yt_client, logger, options, states):
         args = {"attributes": ["events", "progress"]}
         if operation.startswith("*"):
             args["operation_alias"] = operation
-            args["include_scheduler"] = True
+            args["include_runtime"] = True
         else:
             args["operation_id"] = operation
 

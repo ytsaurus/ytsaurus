@@ -930,7 +930,7 @@ class TestOperationCommands(object):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": "0"}])
         op = yt.run_map("cat; echo 'AAA' >&2", table, table, spec={"alias": "*alias"})
-        assert yt.get_operation(operation_alias="*alias", include_scheduler=True)["id"] == op.id
+        assert yt.get_operation(operation_alias="*alias", include_runtime=True)["id"] == op.id
 
     @authors("ignat")
     def test_list_operations(self):
@@ -1010,7 +1010,7 @@ class TestOperationCommands(object):
         wait(lambda: op.get_state() == "running")
         yt.update_operation_parameters(op.id, {"scheduling_options_per_pool_tree": {"default": {"weight": 10.0}}})
         wait(lambda: are_almost_equal(
-            yt.get_operation(op.id, include_scheduler=True)["progress"]["scheduling_info_per_pool_tree"]["default"].get("weight", 0.0),
+            yt.get_operation(op.id, include_runtime=True)["progress"]["scheduling_info_per_pool_tree"]["default"].get("weight", 0.0),
             10.0))
 
     @authors("coteeq")

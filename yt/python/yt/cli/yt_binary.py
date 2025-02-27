@@ -1797,7 +1797,7 @@ def get_operation(**kwargs):
 def add_get_operation_parser(add_parser):
     parser = add_parser("get-operation", get_operation)
     parser.add_argument("--attribute", action="append", dest="attributes", help="desired attributes in the response")
-    parser.add_argument("--include-scheduler", action="store_true", help="request runtime operation information")
+    parser.add_argument("--include-runtime", action="store_true", help="request runtime operation information")
     operation_id_args(parser, dest="operation_id")
     add_structured_format_argument(parser)
 
