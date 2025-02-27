@@ -50,7 +50,7 @@ public:
     {
     }
 
-    std::variant<THolder<TTempFileHandle>, TError> Download(const TYtTableRef& ytTable) override {
+    std::variant<THolder<TTempFileHandle>, TError> Download(const TYtTableRef& ytTable, const TClusterConnection& /*clusterConnection*/) override {
         if (!YtUploadedTablesMock_->Contains(ytTable)) {
             return TError("Table not found");
         }
@@ -60,7 +60,7 @@ public:
         return tmpFile;
     }
 
-    TMaybe<TError> Upload(const TYtTableRef& ytTable, IInputStream& tableContent) override {
+    TMaybe<TError> Upload(const TYtTableRef& ytTable, IInputStream& tableContent, const TClusterConnection& /*clusterConnection*/) override {
         YtUploadedTablesMock_->AddTable(ytTable, tableContent.ReadAll());
         return Nothing();
     }
@@ -80,3 +80,5 @@ TYtUploadedTablesMock::TPtr MakeYtUploadedTablesMock() {
 }
 
 } // namespace NYql::NFmr
+
+// TODO - move this to .cpp file
