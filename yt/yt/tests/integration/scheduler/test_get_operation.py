@@ -116,7 +116,7 @@ class TestGetOperation(YTEnvSetup):
 
         wait(lambda: get_running_job_count(op.id) == 1)
 
-        res_get_operation = get_operation(op.id, include_scheduler=True)
+        res_get_operation = get_operation(op.id, include_runtime=True)
         res_cypress = _get_operation_from_cypress(op.id)
         res_orchid_progress = get(_get_orchid_operation_path(op.id))
 
@@ -292,7 +292,7 @@ class TestGetOperation(YTEnvSetup):
             res_get_operation = get_operation(
                 op.id,
                 attributes=["progress", "state"],
-                include_scheduler=True,
+                include_runtime=True,
                 read_from=read_from,
             )
             wait(lambda: "state" in get(op.get_path() + "/@", attributes=["state"]))

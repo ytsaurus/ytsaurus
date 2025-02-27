@@ -1085,14 +1085,14 @@ class YtClient(ClientState):
 
     def get_operation(
             self,
-            operation_id=None, operation_alias=None, attributes=None, include_scheduler=None, format=None):
+            operation_id=None, operation_alias=None, attributes=None, include_runtime=None, format=None):
         """
         Get operation attributes through API.
 
         """
         return client_api.get_operation(
             client=self,
-            operation_id=operation_id, operation_alias=operation_alias, attributes=attributes, include_scheduler=include_scheduler,
+            operation_id=operation_id, operation_alias=operation_alias, attributes=attributes, include_runtime=include_runtime,
             format=format)
 
     def get_operation_attributes(
