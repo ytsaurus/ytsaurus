@@ -9,6 +9,8 @@ namespace NYT::NChaosNode {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TChaosNodeConfig)
+DECLARE_REFCOUNTED_STRUCT(TChaosSlotDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TChaosNodeDynamicConfig)
 DECLARE_REFCOUNTED_STRUCT(TChaosCellSynchronizerConfig)
 DECLARE_REFCOUNTED_STRUCT(TReplicationCardObserverConfig)
 DECLARE_REFCOUNTED_STRUCT(TMigratedReplicationCardRemoverConfig)
