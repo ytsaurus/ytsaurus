@@ -22,6 +22,18 @@ void TQueryFile::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQuerySecret::Register(TRegistrar registrar)
+{
+    registrar.Parameter("id", &TThis::Id)
+        .NonEmpty();
+    registrar.Parameter("category", &TThis::Category);
+    registrar.Parameter("subcategory", &TThis::Subcategory);
+    registrar.Parameter("ypath", &TThis::YPath)
+        .NonEmpty();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Serialize(const TQuery& query, NYson::IYsonConsumer* consumer)
 {
     static_assert(pfr::tuple_size<TQuery>::value == 16);

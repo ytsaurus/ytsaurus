@@ -340,8 +340,8 @@ public: \
         NQueryTrackerClient::EQueryEngine engine,
         const TString& query,
         const TStartQueryOptions& options,
-        const THashMap<TString, TCredetials>& extraCredentials),
-        (engine, query, options, extraCredentials))
+        const THashMap<TString, TSecret>& secrets),
+        (engine, query, options, secrets))
     IMPLEMENT_METHOD(void, AbortQuery, (
         NQueryTrackerClient::TQueryId queryId,
         const TAbortQueryOptions& options = {}),

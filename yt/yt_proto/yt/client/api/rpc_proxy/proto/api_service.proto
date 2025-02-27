@@ -3283,12 +3283,12 @@ message TReqStartQuery
         repeated string items = 1;
     }
 
-    message TCredentials
+    message TSecret
     {
         optional string id = 1;
         optional string category = 2;
         optional string subcategory = 3;
-        optional string content = 4;
+        optional string ypath = 4;
     }
 
     required string query_tracker_stage = 1;
@@ -3300,7 +3300,7 @@ message TReqStartQuery
     repeated TQueryFile files = 7;
     optional string access_control_object = 8; // COMPAT(mpereskokova)
     optional TAccessControlObjects access_control_objects = 9;
-    repeated TCredentials credentials = 10;
+    repeated TSecret secrets = 10;
 }
 
 message TRspStartQuery

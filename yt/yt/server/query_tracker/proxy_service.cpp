@@ -92,6 +92,15 @@ private:
             options.Files.emplace_back(file);
         }
 
+        for (const auto& requestCred : rpcRequest.secrets()) {
+            auto secret = New<TQuerySecret>();
+            secret->Id = requestCred.id();
+            secret->Category = requestCred.category();
+            secret->Subcategory = requestCred.subcategory();
+            secret->YPath = requestCred.ypath();
+            options.Secrets.emplace_back(std::move(secret));
+        }
+
         auto engine = ConvertQueryEngineFromProto(rpcRequest.engine());
         auto query = rpcRequest.query();
         auto user = context->GetAuthenticationIdentity().User;

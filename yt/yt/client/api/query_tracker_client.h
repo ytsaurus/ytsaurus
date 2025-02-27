@@ -34,6 +34,21 @@ struct TQueryFile
 
 DEFINE_REFCOUNTED_TYPE(TQueryFile)
 
+struct TQuerySecret
+    : public NYTree::TYsonStruct
+{
+    TString Id;
+    TString Category;
+    TString Subcategory;
+    TString YPath;
+
+    REGISTER_YSON_STRUCT(TQuerySecret);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQuerySecret)
+
 struct TStartQueryOptions
     : public TTimeoutOptions
     , public TQueryTrackerOptions
@@ -44,6 +59,7 @@ struct TStartQueryOptions
     std::vector<TQueryFilePtr> Files;
     std::optional<TString> AccessControlObject; // COMPAT(mpereskokova)
     std::optional<std::vector<TString>> AccessControlObjects;
+    std::vector<NYTree::TYsonStructPtr> Secrets;
 };
 
 struct TAbortQueryOptions
@@ -160,11 +176,11 @@ struct TGetQueryTrackerInfoResult
     std::vector<TString> Clusters;
 };
 
-struct TCredetials
+struct TSecret
 {
     TString Category;
     TString Subcategory;
-    TString ContentOrUrl;
+    TString YPath;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -177,7 +193,7 @@ struct IQueryTrackerClient
         NQueryTrackerClient::EQueryEngine engine,
         const TString& query,
         const TStartQueryOptions& options = {},
-        const THashMap<TString, TCredetials>& extraCredentials = {}) = 0;
+        const THashMap<TString, TSecret>& secrets = {}) = 0;
 
     virtual TFuture<void> AbortQuery(
         NQueryTrackerClient::TQueryId queryId,
