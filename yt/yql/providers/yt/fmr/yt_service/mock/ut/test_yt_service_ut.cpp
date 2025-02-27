@@ -3,7 +3,7 @@
 #include <util/stream/file.h>
 
 #include <yt/yql/providers/yt/fmr/request_options/yql_yt_request_options.h>
-#include <yt/yql/providers/yt/fmr/yt_service/mock/yql_yt_yt_service_impl.h>
+#include <yt/yql/providers/yt/fmr/yt_service/mock/yql_yt_yt_service_mock.h>
 #include <yt/yql/providers/yt/fmr/yt_service/interface/yql_yt_yt_service.h>
 
 using namespace NYql::NFmr;
@@ -18,7 +18,7 @@ Y_UNIT_TEST_SUITE(TLocalTableServiceTest)
         "{\"key\"=\"020\";\"subkey\"=\"3\";\"value\"=\"q\"};"
         "{\"key\"=\"150\";\"subkey\"=\"4\";\"value\"=\"qzz\"};";
 
-        TYtTableRef ytTable = TYtTableRef{"test_path","test_cluster","test_transaction_id"};
+        TYtTableRef ytTable = TYtTableRef{"test_path","test_cluster"};
         TYtUploadedTablesMock::TPtr ytUploadedTablesMock = MakeYtUploadedTablesMock();
         ytUploadedTablesMock->AddTable(ytTable, TableContent);
         NYql::NFmr::IYtService::TPtr ytService = MakeYtServiceMock(ytUploadedTablesMock);
@@ -36,7 +36,7 @@ Y_UNIT_TEST_SUITE(TLocalTableServiceTest)
         UNIT_ASSERT_NO_DIFF(TableContent, localContent);
     }
     Y_UNIT_TEST(DownloadNonExistentTable) {
-        TYtTableRef ytTable = TYtTableRef{"test_path","test_cluster","test_transaction_id"};
+        TYtTableRef ytTable = TYtTableRef{"test_path","test_cluster"};
         TYtUploadedTablesMock::TPtr ytUploadedTablesMock = MakeYtUploadedTablesMock();
         // No table
         // ytUploadedTablesMock->AddTable(ytTable, TableContent);
@@ -56,7 +56,7 @@ Y_UNIT_TEST_SUITE(TLocalTableServiceTest)
 
         TYtUploadedTablesMock::TPtr ytUploadedTablesMock = MakeYtUploadedTablesMock();
         NYql::NFmr::IYtService::TPtr ytService = MakeYtServiceMock(ytUploadedTablesMock);
-        TYtTableRef ytTable = TYtTableRef{"test_path","test_cluster","test_transaction_id"};
+        TYtTableRef ytTable = TYtTableRef{"test_path","test_cluster"};
         TStringInput inputStream(TableContent);
 
         auto err = ytService->Upload(ytTable, inputStream);

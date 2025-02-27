@@ -1,7 +1,7 @@
 #include <library/cpp/testing/unittest/registar.h>
 #include <yt/yql/providers/yt/fmr/job/impl/yql_yt_job_impl.h>
 #include <yt/yql/providers/yt/fmr/table_data_service/local/table_data_service.h>
-#include <yt/yql/providers/yt/fmr/yt_service/mock/yql_yt_yt_service_impl.h>
+#include <yt/yql/providers/yt/fmr/yt_service/mock/yql_yt_yt_service_mock.h>
 
 namespace NYql::NFmr {
 
@@ -123,7 +123,7 @@ Y_UNIT_TEST_SUITE(FmrJobTests) {
         IFmrJob::TPtr job = MakeFmrJob(tableDataServicePtr, ytService, cancelFlag);
 
         TFmrTableRef input_1 = TFmrTableRef("test_table_id_1");
-        TYtTableRef input_2 = TYtTableRef("test_path", "test_cluster", "test_transaction_id");
+        TYtTableRef input_2 = TYtTableRef("test_path", "test_cluster");
         TFmrTableRef input_3 = TFmrTableRef("test_table_id_3");
         TTableRef input_table_ref_1 = {input_1};
         TTableRef input_table_ref_2 = {input_2};
@@ -246,7 +246,7 @@ Y_UNIT_TEST_SUITE(TaskRunTests) {
         std::shared_ptr<std::atomic<bool>> cancelFlag = std::make_shared<std::atomic<bool>>(false);
 
         TFmrTableRef input_1 = TFmrTableRef("test_table_id_1");
-        TYtTableRef input_2 = TYtTableRef("test_path", "test_cluster", "test_transaction_id");
+        TYtTableRef input_2 = TYtTableRef("test_path", "test_cluster");
         TFmrTableRef input_3 = TFmrTableRef("test_table_id_3");
         TTableRef input_table_ref_1 = {input_1};
         TTableRef input_table_ref_2 = {input_2};
@@ -293,7 +293,7 @@ Y_UNIT_TEST_SUITE(TaskRunTests) {
         std::shared_ptr<std::atomic<bool>> cancelFlag = std::make_shared<std::atomic<bool>>(false);
 
         TFmrTableRef input_1 = TFmrTableRef("test_table_id_1");
-        TYtTableRef input_2 = TYtTableRef("test_path", "test_cluster", "test_transaction_id");
+        TYtTableRef input_2 = TYtTableRef("test_path", "test_cluster");
         TFmrTableRef input_3 = TFmrTableRef("test_table_id_3");
         TTableRef input_table_ref_1 = {input_1};
         TTableRef input_table_ref_2 = {input_2};
