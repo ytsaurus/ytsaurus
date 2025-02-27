@@ -97,4 +97,20 @@ void TChaosNodeConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TChaosSlotDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable_extended_logging", &TThis::EnableExtendedLogging)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChaosNodeDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("per_bundle_configs", &TThis::PerBundleConfigs)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChaosNode
