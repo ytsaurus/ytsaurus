@@ -468,6 +468,9 @@ public:
     //! Tablet node configuration part.
     NTabletNode::TTabletNodeDynamicConfigPtr TabletNode;
 
+    //! Chaos node configuration part.
+    NChaosNode::TChaosNodeDynamicConfigPtr ChaosNode;
+
     //! Query agent configuration part.
     NQueryAgent::TQueryAgentDynamicConfigPtr QueryAgent;
 

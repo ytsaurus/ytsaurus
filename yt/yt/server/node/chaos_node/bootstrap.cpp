@@ -1,9 +1,11 @@
 #include "bootstrap.h"
 
+#include "chaos_slot.h"
 #include "config.h"
 #include "slot_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
 
@@ -53,6 +55,9 @@ public:
         ReplicatedTableTrackerConfigFetcher_ = New<TReplicatedTableTrackerConfigFetcher>(
             GetConfig()->ChaosNode->ReplicatedTableTrackerConfigFetcher,
             ClusterNodeBootstrap_);
+
+        GetDynamicConfigManager()
+            ->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TBootstrap::OnDynamicConfigChanged, MakeWeak(this)));
     }
 
     void Run() override
@@ -120,6 +125,31 @@ private:
     NCellarNode::IBootstrap* GetCellarNodeBootstrap() const override
     {
         return ClusterNodeBootstrap_->GetCellarNodeBootstrap();
+    }
+
+    void Reconfigure(const TChaosNodeDynamicConfigPtr& config)
+    {
+        auto cellar = GetCellarManager()->FindCellar(ECellarType::Chaos);
+        if (!cellar) {
+            return;
+        }
+
+        for (const auto& occupant : cellar->Occupants()) {
+            if (occupant) {
+                auto occupier = occupant->GetTypedOccupier<IChaosSlot>();
+                occupant->GetTypedOccupier<IChaosSlot>()->Reconfigure(config);
+            }
+        }
+    }
+
+    static void OnDynamicConfigChanged(
+        TWeakPtr<TBootstrap> bootstrap,
+        const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
+        const TClusterNodeDynamicConfigPtr& newConfig)
+    {
+        if (auto strongPtr = bootstrap.Lock()) {
+            strongPtr->Reconfigure(newConfig->ChaosNode);
+        }
     }
 };
 

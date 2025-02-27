@@ -407,6 +407,22 @@ public:
         return Bootstrap_->GetReplicatedTableTrackerConfig();
     }
 
+    bool IsExtendedLoggingEnabled() const override
+    {
+        YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        return ExtendedLoggingEnabled_;
+    }
+
+    void Reconfigure(const TChaosNodeDynamicConfigPtr& config) override
+    {
+        YT_ASSERT_THREAD_AFFINITY(ControlThread);
+
+        if (auto it = config->PerBundleConfigs.find(GetCellBundleName()); it != config->PerBundleConfigs.end()) {
+            ExtendedLoggingEnabled_ = it->second->EnableExtendedLogging;
+        }
+    }
+
 private:
     const TChaosNodeConfigPtr Config_;
     const IShortcutSnapshotStorePtr ShortcutSnapshotStore_;
@@ -433,6 +449,8 @@ private:
     NRpc::IServicePtr CoordinatorService_;
 
     IYPathServicePtr OrchidService_;
+
+    std::atomic<bool> ExtendedLoggingEnabled_ = false;
 
     NLogging::TLogger Logger;
 

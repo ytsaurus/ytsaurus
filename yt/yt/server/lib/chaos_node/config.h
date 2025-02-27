@@ -154,4 +154,34 @@ DEFINE_REFCOUNTED_TYPE(TChaosNodeConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TChaosSlotDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool EnableExtendedLogging;
+
+    REGISTER_YSON_STRUCT(TChaosSlotDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosSlotDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TChaosNodeDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    THashMap<std::string, TChaosSlotDynamicConfigPtr> PerBundleConfigs;
+
+    REGISTER_YSON_STRUCT(TChaosNodeDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChaosNodeDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChaosNode
