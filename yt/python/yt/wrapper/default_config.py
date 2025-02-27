@@ -325,6 +325,8 @@ default_config = {
         #  * close - stdout will be closed for user writes. Warning: may lead to errors that are hard to debug;
         #  * none - disable protection.
         "stdout_fd_protection": "redirect_to_stderr",
+        # Any stdout output will be redirected to stderr (by cluster, not client).
+        "redirect_stdout_to_stderr": False,
         # Enables using tmpfs for modules archive.
         "enable_tmpfs_archive": True,
         # Add tmpfs archive size to memory limit.
