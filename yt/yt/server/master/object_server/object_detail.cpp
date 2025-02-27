@@ -340,6 +340,9 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
     const auto& ypathExt = requestHeader.GetExtension(NYTree::NProto::TYPathHeaderExt::ypath_header_ext);
     YT_VERIFY(!ypathExt.mutating() || NHydra::HasHydraContext());
 
+    auto originalTargetPath = GetOriginalRequestTargetYPath(context->GetRequestHeader());
+    auto originalAdditionalPaths = GetOriginalRequestAdditionalPaths(context->GetRequestHeader());
+
     const auto& objectManager = Bootstrap_->GetObjectManager();
     if (requestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
         const auto& prerequisitesExt = requestHeader.GetExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
@@ -355,7 +358,7 @@ void TObjectProxyBase::BeforeInvoke(const IYPathServiceContextPtr& context)
             GetOriginalRequestAdditionalPaths(requestHeader),
             prerequisitesExt.revisions());
 
-        objectManager->ValidatePrerequisites(prerequisitesExt);
+        objectManager->ValidatePrerequisites(originalTargetPath, originalAdditionalPaths, prerequisitesExt);
     }
 
     for (const auto& additionalPath : ypathExt.additional_paths()) {
