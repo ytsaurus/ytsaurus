@@ -327,6 +327,8 @@ def get_controller_agent_config():
 
         static_orchid_cache_update_period = 300;
 
+        controller_orchid_keys_update_period = 100;
+
         controller_static_orchid_update_period = 0;
 
         operations_push_period = 10;
