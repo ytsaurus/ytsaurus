@@ -1150,6 +1150,8 @@ private:
 
         const NYson::TYsonString& GetValue();
 
+        void Flush();
+
     private:
         const TCallback Callback_;
 

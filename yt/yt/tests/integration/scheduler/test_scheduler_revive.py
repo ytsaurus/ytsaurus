@@ -1651,10 +1651,11 @@ class TestDisabledJobRevival(TestJobRevivalBase):
             "operations_update_period": 100,
             "operation_time_limit_check_period": 100,
             "enable_job_revival": False,
+            "static_orchid_cache_update_period": 0,
         }
     }
 
-    @authors("max42", "ignat")
+    @authors("pogorelov", "max42", "ignat")
     @pytest.mark.parametrize(
         "components_to_kill",
         [["schedulers"], ["controller_agents"], ["schedulers", "controller_agents"]],
@@ -1681,7 +1682,14 @@ class TestDisabledJobRevival(TestJobRevivalBase):
         events_on_fs().wait_event("snapshot_written")
         op.wait_for_fresh_snapshot()
 
+        ca_addresses = ls("//sys/controller_agents/instances")
+        assert len(ca_addresses) == 1
+        ca_address = ca_addresses[0]
+
+        ca_incarnation_path = f"//sys/controller_agents/instances/{ca_address}/orchid/controller_agent/incarnation_id"
+        ca_incarnation = get(ca_incarnation_path)
         self._kill_and_start(components_to_kill)
+        wait(lambda: get(ca_incarnation_path) != ca_incarnation, error_message="Controller agent did not reconnect", ignore_exceptions=True)
 
         wait(lambda: exists(orchid_path), "Operation did not re-appear")
 
