@@ -174,7 +174,7 @@ SELECT RFIND("abcdefg_abcdefg", "bcd", 0); -- null
 
 Проверка наличия префикса или суффикса в строке.
 
-**Сигнатуры**
+#### Сигнатуры
 ```
 StartsWith(Utf8, Utf8)->Bool
 StartsWith(Utf8[?], Utf8[?])->Bool?
@@ -265,7 +265,7 @@ FROM my_table;
 * `RandomNumber()` — целое число из всего диапазона Uint64;
 * `RandomUuid()` — [Uuid version 4](https://tools.ietf.org/html/rfc4122#section-4.4).
 
-**Сигнатуры**
+#### Сигнатуры
 ```
 Random(T1[, T2, ...])->Double
 RandomNumber(T1[, T2, ...])->Uint64
@@ -335,7 +335,7 @@ FROM my_table;
 * `Udf(Foo::Bar, "1e9+7" as RunConfig")(1, 'extended' As Precision)` — Вызов udf `Foo::Bar` с указанным `RunConfig` и именоваными параметрами.
 
 
-**Сигнатуры**
+#### Сигнатуры
 ```
 Udf(Callable[, T1, T2, ..., T_N][, V1 as TypeConfig][,V2 as RunConfig]])->Callable
 ```
@@ -362,7 +362,7 @@ SELECT Udf(Protobuf::TryParse, $config As TypeConfig)("")
 
 `CurrentUtcDate()`, `CurrentUtcDatetime()` и `CurrentUtcTimestamp()` - получение текущей даты и/или времени в UTC. Тип данных результата указан в конце названия функции.
 
-**Сигнатуры**
+#### Сигнатуры
 ```
 CurrentUtcDate(...)->Date
 CurrentUtcDatetime(...)->Datetime
@@ -384,7 +384,7 @@ SELECT CurrentUtcTimestamp(TableRow()) FROM my_table;
 
 `CurrentTzDate()`, `CurrentTzDatetime()` и `CurrentTzTimestamp()` - получение текущей даты и/или времени в указанной в первом аргументе [IANA временной зоне](https://en.wikipedia.org/wiki/List_of_tz_database_time_zones). Тип данных результата указан в конце названия функции.
 
-**Сигнатуры**
+#### Сигнатуры
 ```
 CurrentTzDate(String, ...)->TzDate
 CurrentTzDatetime(String, ...)->TzDatetime
@@ -457,7 +457,7 @@ SELECT RemoveTimezone(TzDatetime("2018-02-01T12:00:00,Europe/Moscow"));
 
 Возвращает минимальный или максимальный среди N аргументов. Эти функции позволяют не использовать стандартную для SQL конструкцию `CASE WHEN a < b THEN a ELSE b END`, которая была бы особенно громоздкой для N больше двух.
 
-**Сигнатуры**
+#### Сигнатуры
 ```
 MIN_OF(T[,T,...})->T
 MAX_OF(T[,T,...})->T
@@ -749,7 +749,7 @@ SELECT TableRow() FROM my_table;
 
 Как {% if audience == "internal" %}[консольный](https://yql.yandex-team.ru/docs/yt/interfaces/cli){% else %}консольный{% endif %}, так и {% if audience == "internal" %}[веб](https://yql.yandex-team.ru/docs/yt/interfaces/web){% else %}веб{% endif %}-интерфейсы позволяют «прикладывать» к запросу произвольные именованные файлы. С помощью этих функций можно по имени приложенного файла получить его содержимое или путь в «песочнице» и в дальнейшем использовать в запросе произвольным образом.
 
-**Сигнатуры**
+#### Сигнатуры
 ```
 FilePath(String)->String
 FileContent(String)->String
@@ -845,7 +845,7 @@ FROM my_table;
 
 Если проверка не прошла успешно, то весь запрос завершается с ошибкой.
 
-**Сигнатуры**
+#### Сигнатуры
 ```
 Ensure(T, Bool, String)->T
 EnsureType(T, Type<T>, String)->T
@@ -1022,7 +1022,7 @@ SELECT
 * `CurrentOperationSharedId()` — публичный идентификатор операции;
 * `CurrentAuthenticatedUser()` — логин текущего пользователя.
 
-**Сигнатуры**
+#### Сигнатуры
 ```
 CurrentOperationId()->String
 CurrentOperationSharedId()->String
@@ -1048,7 +1048,7 @@ SELECT
 
 Конвертация [простых типов данных](../types/primitive.md) в строку со своим бинарным представлением и обратно. Числа представляются в [little endian](https://en.wikipedia.org/wiki/Endianness#Little-endian).
 
-**Сигнатуры**
+#### Сигнатуры
 ```
 ToBytes(T)->String
 ToBytes(T?)->String?
@@ -1099,7 +1099,7 @@ SELECT
 
 `TestBit()`, `ClearBit()`, `SetBit()` и `FlipBit()` - проверить, сбросить, установить или инвертировать бит в беззнаковом числе по указанному порядковому номеру бита.
 
-**Сигнатуры**
+#### Сигнатуры
 ```
 TestBit(T, Uint8)->Bool
 TestBit(T?, Uint8)->Bool?
@@ -1236,7 +1236,7 @@ SELECT $callables.0(10), $callables.1(true);
 
 `Unpickle()` — обратная операция (десериализация), где первым аргументом передается тип данных результата, а вторым — строка с результатом `Pickle()` или `StablePickle()`.
 
-**Сигнатуры**
+#### Сигнатуры
 ```
 Pickle(T)->String
 StablePickle(T)->String
