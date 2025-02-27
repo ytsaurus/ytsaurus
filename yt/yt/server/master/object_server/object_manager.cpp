@@ -152,6 +152,30 @@ TPathResolver::TResolveResult ResolvePath(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static TError ValidatePrerequisiteRevisionPaths(
+    TYPathMaybeRef originalTargetPath,
+    const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
+    const TProtobufString& prerequisitePath)
+{
+    if (prerequisitePath == originalTargetPath) {
+        return TError();
+    }
+        for (const auto& additionalPath : originalAdditionalPaths) {
+            if (prerequisitePath == additionalPath) {
+                return TError();
+            }
+        }
+        return TError(
+            NObjectClient::EErrorCode::PrerequisitePathDifferFromExecutionPaths,
+            "Requests with prerequisitive paths different from target paths are prohibited in Cypress "
+            "(PrerequisitivePath: %v, TargetPath: %v, AdditionalPaths: %v)",
+            prerequisitePath,
+            originalTargetPath,
+            originalAdditionalPaths);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TObjectManager
     : public IObjectManager
     , public NCellMaster::TMasterAutomatonPart
@@ -245,7 +269,10 @@ public:
     TFuture<std::vector<TErrorOr<TVersionedObjectPath>>> ResolveObjectIdsToPaths(
         const std::vector<TVersionedObjectId>& objectIds) override;
 
-    void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites) override;
+    void ValidatePrerequisites(
+        NYTree::TYPathMaybeRef originalTargetPath,
+        const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
+        const NObjectClient::NProto::TPrerequisitesExt& prerequisites) override;
 
     TFuture<TSharedRefArray> ForwardObjectRequest(
         const TSharedRefArray& requestMessage,
@@ -468,6 +495,8 @@ public:
             forwardedYPathExt->set_additional_paths(index, additionalPathRewrite.Rewritten);
             additionalPathRewrites.push_back(std::move(additionalPathRewrite));
         }
+        auto originalTargetPath = GetOriginalRequestTargetYPath(context->GetRequestHeader());
+        auto originalAdditionalPaths = GetOriginalRequestAdditionalPaths(context->GetRequestHeader());
 
         TCompactVector<TYPathRewrite, 4> prerequisiteRevisionPathRewrites;
         if (forwardedRequestHeader.HasExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext)) {
@@ -475,6 +504,9 @@ public:
             for (int index = 0; index < prerequisitesExt->revisions_size(); ++index) {
                 auto* prerequisite = prerequisitesExt->mutable_revisions(index);
                 const auto& prerequisitePath = prerequisite->path();
+                if (Bootstrap_->GetDynamicConfig()->ObjectManager->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
+                    THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(originalTargetPath, originalAdditionalPaths, prerequisitePath));
+                }
                 auto prerequisiteResolveResult = ResolvePath(Bootstrap_, prerequisitePath, context);
                 const auto* prerequisitePayload = std::get_if<TPathResolver::TRemoteObjectPayload>(&prerequisiteResolveResult.Payload);
                 if (!prerequisitePayload || CellTagFromId(prerequisitePayload->ObjectId) != ForwardedCellTag_) {
@@ -1709,7 +1741,10 @@ auto TObjectManager::ResolveObjectIdsToPaths(const std::vector<TVersionedObjectI
         }));
 }
 
-void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
+void TObjectManager::ValidatePrerequisites(
+    NYTree::TYPathMaybeRef originalTargetPath,
+    const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
+    const NObjectClient::NProto::TPrerequisitesExt& prerequisites)
 {
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
     const auto& cypressManager = Bootstrap_->GetCypressManager();
@@ -1735,6 +1770,9 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
 
     for (const auto& prerequisite : prerequisites.revisions()) {
         const auto& path = prerequisite.path();
+        if (GetDynamicConfig()->ProhibitPrerequisiteRevisionsDifferFromExecutionPaths) {
+            THROW_ERROR_EXCEPTION_IF_FAILED(ValidatePrerequisiteRevisionPaths(originalTargetPath, originalAdditionalPaths, path));
+        }
         auto revision = FromProto<NHydra::TRevision>(prerequisite.revision());
 
         TCypressNode* trunkNode;
