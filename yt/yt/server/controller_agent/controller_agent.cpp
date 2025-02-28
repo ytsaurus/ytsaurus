@@ -1914,7 +1914,7 @@ private:
                             FromProto<TJobResources>(protoRequest->allocation_resource_limits()),
                             FromProto<NScheduler::TDiskResources>(protoRequest->node_disk_resources()),
                             descriptorIt->second,
-                            YT_PROTO_OPTIONAL(*protoRequest, pool_path),
+                            YT_OPTIONAL_FROM_PROTO(*protoRequest, pool_path),
                             protoRequest->spec());
 
                         response.OperationId = operationId;

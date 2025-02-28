@@ -38,6 +38,18 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError WrapCypressProxyRegistrationError(TError error)
+{
+    if (error.IsOK()) {
+        return error;
+    }
+
+    return TError(NRpc::EErrorCode::Unavailable, "Cypress proxy is not registered")
+        << std::move(error);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void SetAccessTrackingOptions(
     const IClientRequestPtr& request,
     const TSuppressableAccessTrackingOptions& commandOptions)

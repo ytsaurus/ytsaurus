@@ -233,11 +233,25 @@ void TTableHint::Register(TRegistrar registrar)
         .Default(false);
 }
 
+const TTableHintPtr DefaultHint = New<TTableHint>();
+
+void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf /*spec*/)
+{
+    builder->AppendString("\"{");
+    if (hint.PushDownGroupBy) {
+        builder->AppendString("push_down_group_by=%true;");
+    }
+    if (!hint.RequireSyncReplica) {
+        builder->AppendString("require_sync_replica=%false;");
+    }
+    builder->AppendString("}\"");
+}
+
 bool operator == (const TTableDescriptor& lhs, const TTableDescriptor& rhs)
 {
     return
-        std::tie(lhs.Path, rhs.Alias) ==
-        std::tie(rhs.Path, rhs.Alias);
+        std::tie(lhs.Path, lhs.Alias, *lhs.Hint) ==
+        std::tie(rhs.Path, rhs.Alias, *rhs.Hint);
 }
 
 bool operator == (const TJoin& lhs, const TJoin& rhs)
@@ -444,8 +458,8 @@ void FormatTableDescriptor(TStringBuilderBase* builder, const TTableDescriptor& 
         builder->AppendString(" AS ");
         FormatId(builder, *descriptor.Alias);
     }
-    if (descriptor.Hint->PushDownGroupBy) {
-        builder->AppendString(" WITH HINT \"{push_down_group_by=%true}\"");
+    if (*descriptor.Hint != *DefaultHint) {
+        Format(builder, " WITH HINT %v", *descriptor.Hint);
     }
 }
 

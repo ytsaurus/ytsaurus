@@ -28,6 +28,8 @@ DECLARE_REFCOUNTED_CLASS(TUserDirectory)
 
 DECLARE_REFCOUNTED_CLASS(TPerUserAndWorkloadRequestQueueProvider);
 
+DECLARE_REFCOUNTED_STRUCT(IMasterConnector)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TObjectServiceDynamicConfig)

@@ -34,7 +34,7 @@ target_link_libraries(yt-server-cypress_proxy PUBLIC
   yt-yt-ytlib
   server-lib-admin
   server-lib-misc
-  server-lib-cypress_registrar
+  server-lib-sequoia
 )
 
 target_sources(yt-server-cypress_proxy PRIVATE
@@ -44,6 +44,7 @@ target_sources(yt-server-cypress_proxy PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/config.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/dynamic_config_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/helpers.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/master_connector.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/node_proxy.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/node_proxy_base.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/cypress_proxy/object_service.cpp

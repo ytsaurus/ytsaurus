@@ -1081,7 +1081,7 @@ class TestChunkServerReplicaRemoval(YTEnvSetup):
             }
         })
         create("journal", "//tmp/j")
-        write_journal("//tmp/j", [{"payload": "payload" + str(i)} for i in range(0, 10)])
+        write_journal("//tmp/j", [{"payload": "payload" + str(i)} for i in range(0, 10)], enable_chunk_preallocation=False)
 
         self._wait_for_replicas_removal("//tmp/j", service_to_restart)
 

@@ -478,6 +478,7 @@
     XX(Sealed, sealed) \
     XX(Servants, servants) \
     XX(Sequoia, sequoia) \
+    XX(SequoiaReign, sequoia_reign) \
     XX(SharedToSkynet, shared_to_skynet) \
     XX(SuccessorTransactionLeaseCount, successor_transaction_lease_count) \
     XX(ReplicatedToCellTags, replicated_to_cell_tags) \

@@ -105,14 +105,14 @@ def complete_operation(operation, client=None):
     return make_request(command_name, {"operation_id": operation}, client=client)
 
 
-def get_operation(operation_id=None, operation_alias=None, attributes=None, include_scheduler=None, format=None, client=None):
+def get_operation(operation_id=None, operation_alias=None, attributes=None, include_runtime=None, format=None, client=None):
     """Get operation attributes through API.
     """
     params = {}
     set_param(params, "operation_id", operation_id)
     set_param(params, "operation_alias", operation_alias)
     set_param(params, "attributes", attributes)
-    set_param(params, "include_scheduler", include_scheduler)
+    set_param(params, "include_runtime", include_runtime)
 
     timeout = get_config(client)["operation_info_commands_timeout"]
 
@@ -714,7 +714,7 @@ class Operation(object):
     def exists(self):
         """Checks if operation attributes can be fetched from Cypress."""
         try:
-            self.get_attributes()
+            self.get_attributes(fields=["state"])
         except YtResponseError as err:
             if err.is_resolve_error():
                 return False

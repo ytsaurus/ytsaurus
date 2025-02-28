@@ -69,7 +69,7 @@ TParameterizedReassignSolverConfig TParameterizedReassignSolverConfig::MergeWith
 
     // Temporary. Verify that if uniform is enable then factors was changed properly.
     auto factors = Factors->MergeWith(groupConfig->Factors);
-    YT_VERIFY(!groupConfig->EnableUniform.value_or(false) ||
+    YT_VERIFY(!groupConfig->PerTableUniform.value_or(false) ||
         factors->TableCell > 0.0 && factors->TableNode > 0.0);
 
     return TParameterizedReassignSolverConfig{

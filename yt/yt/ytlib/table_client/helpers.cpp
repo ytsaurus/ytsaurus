@@ -941,18 +941,14 @@ void ToProto(
     protoStatisticsExt->Clear();
 
     ToProto(protoStatisticsExt->mutable_column_data_weights(), statistics.ColumnDataWeights);
-    if (statistics.TimestampTotalWeight) {
-        protoStatisticsExt->set_timestamp_total_weight(*statistics.TimestampTotalWeight);
-    }
+    YT_OPTIONAL_SET_PROTO(protoStatisticsExt, timestamp_total_weight, statistics.TimestampTotalWeight);
     YT_VERIFY(statistics.LegacyChunkDataWeight == 0);
 
     ToProto(protoStatisticsExt->mutable_column_min_values(), statistics.ColumnMinValues);
     ToProto(protoStatisticsExt->mutable_column_max_values(), statistics.ColumnMaxValues);
     ToProto(protoStatisticsExt->mutable_column_non_null_value_counts(), statistics.ColumnNonNullValueCounts);
 
-    if (statistics.ChunkRowCount) {
-        protoStatisticsExt->set_chunk_row_count(*statistics.ChunkRowCount);
-    }
+    YT_OPTIONAL_SET_PROTO(protoStatisticsExt, chunk_row_count, statistics.ChunkRowCount);
     YT_VERIFY(statistics.LegacyChunkRowCount == 0);
 }
 

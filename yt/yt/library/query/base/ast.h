@@ -409,6 +409,8 @@ struct TTableHint
     bool RequireSyncReplica;
     bool PushDownGroupBy;
 
+    bool operator == (const TTableHint& other) const = default;
+
     REGISTER_YSON_STRUCT(TTableHint);
 
     static void Register(TRegistrar registrar);
@@ -558,6 +560,7 @@ TString FormatArrayJoin(const TArrayJoin& join);
 TString FormatQuery(const TQuery& query);
 TString InferColumnName(const TExpression& expr);
 TString InferColumnName(const TReference& ref);
+void FormatValue(TStringBuilderBase* builder, const TTableHint& hint, TStringBuf spec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

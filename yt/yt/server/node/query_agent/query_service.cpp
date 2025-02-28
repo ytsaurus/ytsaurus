@@ -1635,7 +1635,7 @@ private:
                 MakeStrong(this),
                 FromProto<TTabletId>(subrequest.tablet_id()),
                 FromProto<TCellId>(subrequest.cell_id()),
-                YT_PROTO_OPTIONAL(subrequest, mount_revision, NHydra::TRevision),
+                YT_OPTIONAL_FROM_PROTO(subrequest, mount_revision, NHydra::TRevision),
                 subrequest.timestamp())
                 .AsyncVia(GetCurrentInvoker())
                 .Run());
@@ -1767,7 +1767,7 @@ private:
             sessionId,
             codecId);
 
-        auto memoryLimitPerNode = YT_PROTO_OPTIONAL(*request, memory_limit_per_node);
+        auto memoryLimitPerNode = YT_OPTIONAL_FROM_PROTO(*request, memory_limit_per_node);
 
         auto memoryChunkProvider = MemoryProvider_->GetProvider(
             ToString(sessionId),

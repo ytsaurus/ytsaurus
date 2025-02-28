@@ -8,7 +8,9 @@ SRCS(
     filter_introspection_ut.cpp
     filter_matcher_ut.cpp
     query_optimizer_ut.cpp
+    split_filter_ut.cpp
     type_inference_ut.cpp
+    unaggregated_column_detector_ut.cpp
 )
 
 INCLUDE(${ARCADIA_ROOT}/yt/opensource.inc)

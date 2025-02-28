@@ -637,11 +637,11 @@ protected:
         YT_ASSERT(ExternalCellTags_.empty());
 
         for (const auto& [_, data] : NodeIdToSerializedData_) {
-            if (auto schemaId = YT_PROTO_OPTIONAL(data->serialized_node(), schema_id, TMasterTableSchemaId)) {
+            if (auto schemaId = YT_OPTIONAL_FROM_PROTO(data->serialized_node(), schema_id, TMasterTableSchemaId)) {
                 SchemaIds_.emplace(*schemaId);
             }
 
-            if (auto cellTag = YT_PROTO_OPTIONAL(data->serialized_node(), external_cell_tag, TCellTag)) {
+            if (auto cellTag = YT_OPTIONAL_FROM_PROTO(data->serialized_node(), external_cell_tag, TCellTag)) {
                 ExternalCellTags_.emplace(*cellTag);
             }
         }

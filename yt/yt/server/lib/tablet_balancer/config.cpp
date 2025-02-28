@@ -69,7 +69,7 @@ void TParameterizedBalancingConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_reshard", &TThis::EnableReshard)
         .Default();
-    registrar.Parameter("enable_uniform", &TThis::EnableUniform)
+    registrar.Parameter("per_table_uniform", &TThis::PerTableUniform)
         .Default();
     registrar.Parameter("metric", &TThis::Metric)
         .Default();
@@ -92,7 +92,7 @@ void TParameterizedBalancingConfig::Register(TRegistrar registrar)
         .Default();
 
     registrar.Postprocessor([] (TThis* config) {
-        if (config->EnableUniform.value_or(false) && !config->Factors) {
+        if (config->PerTableUniform.value_or(false) && !config->Factors) {
             config->Factors = TComponentFactorConfig::MakeUniformIdentity();
         } else if (!config->Factors) {
             config->Factors = New<TComponentFactorConfig>();

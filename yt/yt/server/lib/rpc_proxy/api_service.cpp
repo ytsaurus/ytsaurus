@@ -329,7 +329,7 @@ IRowStreamDecoderPtr CreateRowStreamDecoder(
 {
     switch (rowsetFormat) {
         case NApi::NRpcProxy::NProto::RF_YT_WIRE:
-            return CreateWireRowStreamDecoder(std::move(nameTable));
+            return CreateWireRowStreamDecoder(std::move(nameTable), CreateUnlimitedWireProtocolOptions());
 
         case NApi::NRpcProxy::NProto::RF_ARROW:
             return CreateArrowRowStreamDecoder(std::move(schema), std::move(nameTable));
@@ -541,7 +541,7 @@ private:
             .Item("error").Value(error)
             .Item("error_skeleton").Value(error.GetSkeleton())
             .Item("error_codes").Value(errorCodes)
-            .OptionalItem("user_agent", YT_PROTO_OPTIONAL(header, user_agent))
+            .OptionalItem("user_agent", YT_OPTIONAL_FROM_PROTO(header, user_agent))
             .OptionalItem("request_body_size", GetMessageBodySize(this->GetRequestMessage()))
             .OptionalItem("request_attachment_total_size", GetTotalMessageAttachmentSize(this->GetRequestMessage()))
             .DoIf(!this->IsCanceled(), [&] (auto fluent) {
@@ -4278,7 +4278,7 @@ private:
 
         TPushQueueProducerOptions options;
         SetTimeoutOptions(&options, context.Get());
-        options.SequenceNumber = YT_PROTO_OPTIONAL(*request, sequence_number, TQueueProducerSequenceNumber);
+        options.SequenceNumber = YT_OPTIONAL_FROM_PROTO(*request, sequence_number, TQueueProducerSequenceNumber);
         if (request->has_require_sync_replica()) {
             options.RequireSyncReplica = request->require_sync_replica();
         }
@@ -4367,7 +4367,7 @@ private:
         TAdvanceQueueConsumerOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        auto oldOffset = YT_PROTO_OPTIONAL(*request, old_offset);
+        auto oldOffset = YT_OPTIONAL_FROM_PROTO(*request, old_offset);
         context->SetRequestInfo(
             "ConsumerPath: %v, QueuePath: %v, PartitionIndex: %v, "
             "OldOffset: %v, NewOffset: %v, TransactionId: %v",
@@ -4475,7 +4475,7 @@ private:
 
         auto rowBatchReadOptions = FromProto<NQueueClient::TQueueRowBatchReadOptions>(request->row_batch_read_options());
 
-        std::optional<i64> offset = YT_PROTO_OPTIONAL(*request, offset);
+        std::optional<i64> offset = YT_OPTIONAL_FROM_PROTO(*request, offset);
 
         context->SetRequestInfo(
             "ConsumerPath: %v, QueuePath: %v, Offset: %v, PartitionIndex: %v, "

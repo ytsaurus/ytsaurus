@@ -3154,6 +3154,18 @@ private:
         YT_VERIFY(options.Persistent);
         YT_VERIFY(options.LatePrepare);
 
+        const auto& dynamicConfig = GetDynamicConfig();
+        if (request->enable_chunk_refresh() != dynamicConfig->EnableChunkRefresh) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::TransientFailure,
+                "\"enable_chunk_refresh\" setting mismatch");
+        }
+        if (request->enable_sequoia_chunk_refresh() != dynamicConfig->SequoiaChunkReplicas->EnableSequoiaChunkRefresh) {
+            THROW_ERROR_EXCEPTION(
+                NRpc::EErrorCode::TransientFailure,
+                "\"enable_sequoia_chunk_refresh\" setting mismatch");
+        }
+
         auto nodeId = FromProto<TNodeId>(request->node_id());
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
@@ -3303,11 +3315,13 @@ private:
     {
         YT_VERIFY(request->added_chunks_size() + request->removed_chunks_size() > 0);
 
-        const auto& config = GetDynamicConfig()->SequoiaChunkReplicas;
-        auto enableChunkRefresh = config->EnableSequoiaChunkRefresh;
-        auto processRemovedSequoiaReplicasOnMaster = config->ProcessRemovedSequoiaReplicasOnMaster;
-        auto storeSequoiaReplicasOnMaster = config->StoreSequoiaReplicasOnMaster;
-        auto clearMasterRequest = config->ClearMasterRequest;
+        const auto& config = GetDynamicConfig();
+        const auto& sequoiaConfig = config->SequoiaChunkReplicas;
+        auto enableChunkRefresh = config->EnableChunkRefresh;
+        auto enableSequoiaChunkRefresh = sequoiaConfig->EnableSequoiaChunkRefresh;
+        auto processRemovedSequoiaReplicasOnMaster = sequoiaConfig->ProcessRemovedSequoiaReplicasOnMaster;
+        auto storeSequoiaReplicasOnMaster = sequoiaConfig->StoreSequoiaReplicasOnMaster;
+        auto clearMasterRequest = sequoiaConfig->ClearMasterRequest;
 
         return Bootstrap_
             ->GetSequoiaClient()
@@ -3439,7 +3453,7 @@ private:
                         };
                         transaction->DeleteRow(locationReplicaKey);
                     }
-                    if (enableChunkRefresh) {
+                    if (enableSequoiaChunkRefresh && enableChunkRefresh) {
                         NRecords::TChunkRefreshQueue refreshQueueEntry{
                             .TabletIndex = GetChunkShardIndex(chunkId),
                             .ChunkId = chunkId,
@@ -3450,7 +3464,7 @@ private:
                 }
 
                 // If we do not need replicas on master, we can make request more lightweight.
-                if (enableChunkRefresh && clearMasterRequest) {
+                if (enableSequoiaChunkRefresh && clearMasterRequest) {
                     if (!storeSequoiaReplicasOnMaster) {
                         std::vector<TChunkAddInfo> deadAddedChunks;
                         for (const auto& chunkInfo : request->added_chunks()) {
@@ -3470,6 +3484,9 @@ private:
                         request->mutable_removed_chunks()->Clear();
                     }
                 }
+
+                request->set_enable_chunk_refresh(enableChunkRefresh);
+                request->set_enable_sequoia_chunk_refresh(enableSequoiaChunkRefresh);
 
                 transaction->AddTransactionAction(
                     Bootstrap_->GetCellTag(),

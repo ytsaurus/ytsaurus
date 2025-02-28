@@ -1329,7 +1329,17 @@ class YTEnvSetup(object):
             )
         else:
             scheduler_pool_trees_root = "//sys/pool_trees"
-        yt_commands.create("map_node", "//sys/cypress_proxies", ignore_existing=True, driver=driver)
+
+        # COMPAT(kvk1920): drop when pre-25.1 compat tests will be removed.
+        for version, components in self.ARTIFACT_COMPONENTS.items():
+            if "master" in components:
+                if version == "24_1" or version == "24_2":
+                    yt_commands.create(
+                        "map_node",
+                        "//sys/cypress_proxies",
+                        ignore_existing=True,
+                        driver=driver)
+
         self._restore_globals(
             cluster_index=cluster_index,
             scheduler_count=scheduler_count,

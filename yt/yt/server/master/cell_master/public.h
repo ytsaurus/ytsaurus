@@ -131,6 +131,7 @@ DEFINE_ENUM(EAutomatonThreadQueue,
     (TransactionService)
     (LeaseManager)
     (GroundUpdateQueueManager)
+    (CypressProxyTracker)
 );
 
 DEFINE_ENUM(EAutomatonThreadBucket,

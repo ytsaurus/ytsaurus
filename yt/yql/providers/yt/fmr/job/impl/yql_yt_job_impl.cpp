@@ -19,7 +19,7 @@ public:
     {
     }
 
-    virtual TMaybe<TString> Download(const TDownloadTaskParams& params) override { // вынести в приватный метод для переиспользования
+    virtual TMaybe<TString> Download(const TDownloadTaskParams& params, const TClusterConnection& clusterConnection) override { // вынести в приватный метод для переиспользования
         try {
             const auto ytTable = params.Input;
             const auto cluster = params.Input.Cluster;
@@ -28,7 +28,7 @@ public:
 
             YQL_CLOG(DEBUG, FastMapReduce) << "Downloading " << cluster << '.' << path;
 
-            auto res = GetYtTableContent(ytTable);
+            auto res = GetYtTableContent(ytTable, clusterConnection);
             auto err = std::get_if<TError>(&res);
             if (err) {
                 return err->ErrorMessage;
@@ -42,7 +42,7 @@ public:
         return Nothing();
     }
 
-    virtual TMaybe<TString> Upload(const TUploadTaskParams& params) override {
+    virtual TMaybe<TString> Upload(const TUploadTaskParams& params, const TClusterConnection& clusterConnection) override {
         const auto ytTable = params.Output;
         const auto cluster = params.Output.Cluster;
         const auto path = params.Output.Path;
@@ -53,21 +53,19 @@ public:
         TMaybe<TString> getResult = TableDataService_->Get(tableId).GetValueSync();
 
         if (!getResult) {
-
             YQL_CLOG(ERROR, FastMapReduce) << "Table " << tableId << " not found";
             return "Table not found";
-
         }
 
         TString tableContent = getResult.GetRef();
         TStringInput inputStream(tableContent);
 
-        YtService_->Upload(ytTable, inputStream);
+        YtService_->Upload(ytTable, inputStream, clusterConnection);
 
         return Nothing();
     }
 
-    virtual TMaybe<TString> Merge(const TMergeTaskParams& params) override {
+    virtual TMaybe<TString> Merge(const TMergeTaskParams& params, const TClusterConnection& clusterConnection) override {
         const auto inputs = params.Input;
         const auto output = params.Output;
 
@@ -79,7 +77,7 @@ public:
             if (CancelFlag_->load()) {
                 return "Canceled";
             }
-            auto res = GetTableContent(inputTableRef);
+            auto res = GetTableContent(inputTableRef, clusterConnection);
 
             auto err = std::get_if<TError>(&res);
             if (err) {
@@ -95,11 +93,11 @@ public:
         return Nothing();
     }
 private:
-    std::variant<TString, TError> GetTableContent(const TTableRef& tableRef) {
+    std::variant<TString, TError> GetTableContent(const TTableRef& tableRef, const TClusterConnection& clusterConnection) {
         auto ytTable = std::get_if<TYtTableRef>(&tableRef);
         auto fmrTable = std::get_if<TFmrTableRef>(&tableRef);
         if (ytTable) {
-            return GetYtTableContent(*ytTable);
+            return GetYtTableContent(*ytTable, clusterConnection);
         } else if (fmrTable) {
             return GetFmrTableContent(*fmrTable);
         } else {
@@ -107,8 +105,8 @@ private:
         }
     }
 
-    std::variant<TString, TError> GetYtTableContent(const TYtTableRef& ytTable) {
-        auto res = YtService_->Download(ytTable);
+    std::variant<TString, TError> GetYtTableContent(const TYtTableRef& ytTable, const TClusterConnection& clusterConnection) {
+        auto res = YtService_->Download(ytTable, clusterConnection);
         auto* err = std::get_if<TError>(&res);
         if (err) {
             return *err;
@@ -141,15 +139,15 @@ ETaskStatus RunJob(
 ) {
     IFmrJob::TPtr job = MakeFmrJob(tableDataService, ytService, cancelFlag);
 
-    auto processTask = [job] (auto&& taskParams) {
+    auto processTask = [job, task] (auto&& taskParams) {
         using T = std::decay_t<decltype(taskParams)>;
 
         if constexpr (std::is_same_v<T, TUploadTaskParams>) {
-            return job->Upload(taskParams);
+            return job->Upload(taskParams, task->ClusterConnection);
         } else if constexpr (std::is_same_v<T, TDownloadTaskParams>) {
-            return job->Download(taskParams);
+            return job->Download(taskParams, task->ClusterConnection);
         } else if constexpr (std::is_same_v<T, TMergeTaskParams>) {
-            return job->Merge(taskParams);
+            return job->Merge(taskParams, task->ClusterConnection);
         } else {
             throw std::runtime_error{"Unsupported task type"};
         }

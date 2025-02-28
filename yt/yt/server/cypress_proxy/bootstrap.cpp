@@ -1,13 +1,15 @@
 #include "bootstrap.h"
 
-#include "dynamic_config_manager.h"
 #include "private.h"
+
+#include "dynamic_config_manager.h"
 #include "config.h"
+#include "master_connector.h"
 #include "object_service.h"
+#include "response_keeper.h"
 #include "sequoia_service.h"
 #include "user_directory.h"
 #include "user_directory_synchronizer.h"
-#include "response_keeper.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -169,6 +171,11 @@ public:
         return ResponseKeeper_;
     }
 
+    const IMasterConnectorPtr& GetMasterConnector() const override
+    {
+        return MasterConnector_;
+    }
+
     IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         TDistributedThrottlerConfigPtr config,
         IInvokerPtr invoker,
@@ -217,12 +224,13 @@ private:
 
     IMapNodePtr OrchidRoot_;
     IMonitoringManagerPtr MonitoringManager_;
-    ICypressRegistrarPtr CypressRegistrar_;
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
 
     TUserDirectoryPtr UserDirectory_;
     IUserDirectorySynchronizerPtr UserDirectorySynchronizer_;
+
+    IMasterConnectorPtr MasterConnector_;
 
     void DoRun()
     {
@@ -256,20 +264,7 @@ private:
             UserDirectory_,
             GetControlInvoker());
 
-        {
-            TCypressRegistrarOptions options{
-                .RootPath = NYPath::YPathJoin(Config_->RootPath, BuildServiceAddress(
-                    GetLocalHostName(),
-                    Config_->RpcPort)),
-                .OrchidRemoteAddresses = GetLocalAddresses(/*addresses*/ {}, Config_->RpcPort),
-                .ExpireSelf = true,
-            };
-            CypressRegistrar_ = CreateCypressRegistrar(
-                std::move(options),
-                Config_->CypressRegistrar,
-                NativeRootClient_,
-                GetControlInvoker());
-        }
+        MasterConnector_ = CreateMasterConnector(this);
 
         NMonitoring::Initialize(
             HttpServer_,
@@ -290,6 +285,10 @@ private:
         SetBuildAttributes(
             OrchidRoot_,
             "cypress_proxy");
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/sequoia_reign",
+            ConvertToNode(GetCurrentSequoiaReign()));
 
         RpcServer_->RegisterService(CreateOrchidService(
             OrchidRoot_,
@@ -311,7 +310,8 @@ private:
         NativeConnection_->GetClusterDirectorySynchronizer()->Start();
         NativeConnection_->GetMasterCellDirectorySynchronizer()->Start();
 
-        CypressRegistrar_->Start();
+        MasterConnector_->Start();
+
         DynamicConfigManager_->Start();
         UserDirectorySynchronizer_->Start();
 

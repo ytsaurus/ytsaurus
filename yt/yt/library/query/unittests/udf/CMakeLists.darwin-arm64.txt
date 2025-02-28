@@ -58,11 +58,11 @@ target_link_libraries(query-unittests-udf.global PUBLIC
 )
 
 target_sources(query-unittests-udf.global PRIVATE
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/2062ac0d56b10bdeaa23560378a409a3.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/bac0e4f65ff99b8fb74dd4fd574cfc92.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/9ee5169557a669d524c6d6d45b5b6de8.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/553b3a2404ace59eb76ee28e72b94162.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/4ee93022b700d3503f4d3f9b1b2e49a7.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/6d2b5e4995c4d2c8f0563a825debcab7.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/af0d06bfd2364888c83b6b7a7147e5a1.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/1ec8017324a25b0ab057737e53b12612.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/fc5d8127542f4f07c837cb3228e4b94b.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/d6ccd8a8f2f9cc1b8c786a3d73860824.cpp
 )
 
 
@@ -229,7 +229,7 @@ llvm_compile_c(query-unittests-udf.global
 )
 
 resources(query-unittests-udf.global
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/2062ac0d56b10bdeaa23560378a409a3.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/6d2b5e4995c4d2c8f0563a825debcab7.cpp
   INPUTS
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/malloc_udf_optimized.bc
   KEYS
@@ -238,7 +238,7 @@ resources(query-unittests-udf.global
 )
 
 resources(query-unittests-udf.global
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/bac0e4f65ff99b8fb74dd4fd574cfc92.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/af0d06bfd2364888c83b6b7a7147e5a1.cpp
   INPUTS
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_optimized.bc
   KEYS
@@ -247,7 +247,7 @@ resources(query-unittests-udf.global
 )
 
 resources(query-unittests-udf.global
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/9ee5169557a669d524c6d6d45b5b6de8.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/1ec8017324a25b0ab057737e53b12612.cpp
   INPUTS
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/test_udfs_fc_optimized.bc
   KEYS
@@ -256,7 +256,7 @@ resources(query-unittests-udf.global
 )
 
 resources(query-unittests-udf.global
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/553b3a2404ace59eb76ee28e72b94162.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/fc5d8127542f4f07c837cb3228e4b94b.cpp
   INPUTS
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/xor_aggregate_optimized.bc
   KEYS
@@ -265,7 +265,7 @@ resources(query-unittests-udf.global
 )
 
 resources(query-unittests-udf.global
-  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/4ee93022b700d3503f4d3f9b1b2e49a7.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/d6ccd8a8f2f9cc1b8c786a3d73860824.cpp
   INPUTS
   ${PROJECT_BINARY_DIR}/yt/yt/library/query/unittests/udf/concat_all_optimized.bc
   KEYS

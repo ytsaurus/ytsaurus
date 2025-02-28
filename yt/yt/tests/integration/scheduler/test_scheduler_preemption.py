@@ -1782,7 +1782,7 @@ class BaseTestDiskPreemption(YTEnvSetup):
         "fair_share_aggressive_starvation_timeout": 200,
         "preemptive_scheduling_backoff": 0,
         "max_ephemeral_pools_per_user": 5,
-        "node_reconnection_timeout": 100,
+        "node_reconnection_timeout": 500,
         "ssd_priority_preemption": {
             "enable": False,
             "node_tag_filter": SSD_NODE_TAG,

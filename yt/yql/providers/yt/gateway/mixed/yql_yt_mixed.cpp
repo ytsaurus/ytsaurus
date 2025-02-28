@@ -308,6 +308,10 @@ public:
         NativeGateway_->AddCluster(cluster);
     }
 
+    TClusterConnectionResult GetClusterConnection(const TClusterConnectionOptions&& options) override {
+        return NativeGateway_->GetClusterConnection(std::move(options));
+    }
+
 private:
     NFile::TYtFileServices::TPtr FileServices_;
     IYtGateway::TPtr FileGateway_;

@@ -186,6 +186,11 @@ public:
     void AddCluster(const TYtClusterConfig&) override {
     }
 
+    TClusterConnectionResult GetClusterConnection(const TClusterConnectionOptions&& options) override {
+        YQL_PROFILE_FUNC(TRACE);
+        return Slave_->GetClusterConnection(std::move(options));
+    }
+
 private:
     IYtGateway::TPtr Slave_;
 };

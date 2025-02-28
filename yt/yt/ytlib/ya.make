@@ -396,6 +396,7 @@ SRCS(
 
     sequoia_client/client.cpp
     sequoia_client/helpers.cpp
+    sequoia_client/public.cpp
     sequoia_client/record_helpers.cpp
     sequoia_client/table_descriptor.cpp
     sequoia_client/transaction.cpp

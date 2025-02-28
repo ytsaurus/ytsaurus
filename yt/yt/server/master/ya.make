@@ -327,10 +327,18 @@ SRCS(
 
     sequoia_server/config.cpp
     sequoia_server/context.cpp
-    sequoia_server/proto/ground_update_queue_manager.proto
-    sequoia_server/sequoia_manager.cpp
+    sequoia_server/cypress_integration.cpp
+    sequoia_server/cypress_proxy_object.cpp
+    sequoia_server/cypress_proxy_object_proxy.cpp
+    sequoia_server/cypress_proxy_tracker.cpp
+    sequoia_server/cypress_proxy_tracker_service.cpp
+    sequoia_server/cypress_proxy_type_handler.cpp
+    sequoia_server/helpers.cpp
     sequoia_server/ground_update_queue_manager.cpp
+    sequoia_server/sequoia_manager.cpp
     sequoia_server/sequoia_transaction_service.cpp
+
+    sequoia_server/proto/ground_update_queue_manager.proto
 
     table_server/config.cpp
     table_server/cypress_integration.cpp

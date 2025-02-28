@@ -489,6 +489,8 @@ void TClusterNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("tablet_node", &TThis::TabletNode)
         .DefaultNew();
+    registrar.Parameter("chaos_node", &TThis::ChaosNode)
+        .DefaultNew();
     registrar.Parameter("query_agent", &TThis::QueryAgent)
         .DefaultNew();
     registrar.Parameter("exec_node", &TThis::ExecNode)

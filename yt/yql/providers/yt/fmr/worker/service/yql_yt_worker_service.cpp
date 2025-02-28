@@ -1,10 +1,13 @@
 #include <library/cpp/getopt/last_getopt.h>
 #include <library/cpp/uri/http_url.h>
 #include <util/system/interrupt_signals.h>
-#include <yt/yql/providers/yt/fmr/job_factory/impl/yql_yt_job_factory_impl.h>
-#include <yt/yql/providers/yt/fmr/worker/impl/yql_yt_worker_impl.h>
 #include <yt/yql/providers/yt/fmr/coordinator/client/yql_yt_coordinator_client.h>
 #include <yt/yql/providers/yt/fmr/coordinator/impl/yql_yt_coordinator_impl.h>
+#include <yt/yql/providers/yt/fmr/job/impl/yql_yt_job_impl.h>
+#include <yt/yql/providers/yt/fmr/job_factory/impl/yql_yt_job_factory_impl.h>
+#include <yt/yql/providers/yt/fmr/table_data_service/local/table_data_service.h>
+#include <yt/yql/providers/yt/fmr/worker/impl/yql_yt_worker_impl.h>
+#include <yt/yql/providers/yt/fmr/yt_service/impl/yql_yt_yt_service_impl.h>
 
 
 using namespace NYql::NFmr;
@@ -43,17 +46,18 @@ int main(int argc, const char *argv[]) {
         coordinatorClientSettings.Host = parsedUrl.GetHost();
         auto coordinator = MakeFmrCoordinatorClient(coordinatorClientSettings);
 
-        auto func = [&] (TTask::TPtr /*task*/, std::shared_ptr<std::atomic<bool>> cancelFlag) {
-            while (!cancelFlag->load()) {
-                Sleep(TDuration::Seconds(3));
-                return ETaskStatus::Completed;
-            }
-            return ETaskStatus::Failed;
-        }; // TODO - use function which actually calls Downloader/Uploader based on task params
+        auto tableDataService = MakeLocalTableDataService(TLocalTableDataServiceSettings(3));
+        auto fmrYtSerivce = MakeFmrYtSerivce();
+
+        auto func = [tableDataService, fmrYtSerivce] (TTask::TPtr task, std::shared_ptr<std::atomic<bool>> cancelFlag) mutable {
+            return RunJob(task, tableDataService, fmrYtSerivce, cancelFlag);
+        };
+
         TFmrJobFactorySettings settings{.Function=func};
         auto jobFactory = MakeFmrJobFactory(settings);
         auto worker = MakeFmrWorker(coordinator, jobFactory, workerSettings);
         worker->Start();
+        Cerr << "Fast map reduce worker has started\n";
 
         while (!isInterrupted) {
             Sleep(TDuration::Seconds(1));

@@ -62,7 +62,7 @@ bool TVirtualStaticTable::DoInvoke(const IYPathServiceContextPtr& context)
 
 DEFINE_YPATH_SERVICE_METHOD(TVirtualStaticTable, GetBasicAttributes)
 {
-    auto permission = YT_PROTO_OPTIONAL(*request, permission, EPermission);
+    auto permission = YT_OPTIONAL_FROM_PROTO(*request, permission, EPermission);
 
     context->SetRequestInfo("Permission: %v",
         permission);

@@ -1,5 +1,6 @@
 #include "sequoia_transaction_service.h"
 
+#include "helpers.h"
 #include "private.h"
 #include "sequoia_manager.h"
 
@@ -39,9 +40,14 @@ private:
         ValidateClusterInitialized();
         ValidatePeer(EPeerKind::Leader);
 
-        context->SetRequestInfo("TransactionId: %v, Timeout: %v",
+        auto sequoiaReign = FromProto<ESequoiaReign>(request->sequoia_reign());
+
+        context->SetRequestInfo("TransactionId: %v, Timeout: %v, SequoiaReign: %v",
             FromProto<TTransactionId>(request->id()),
-            FromProto<TDuration>(request->timeout()));
+            FromProto<TDuration>(request->timeout()),
+            sequoiaReign);
+
+        ValidateSequoiaReign(sequoiaReign);
 
         const auto& sequoiaManager = Bootstrap_->GetSequoiaManager();
         sequoiaManager->StartTransaction(request);
