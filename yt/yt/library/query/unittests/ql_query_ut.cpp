@@ -244,18 +244,10 @@ TEST_F(TQueryPrepareTest, KeywordAlias)
 
 TEST_F(TQueryPrepareTest, AnyInNull)
 {
-    {
-        TDataSplit dataSplit;
-
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
-
-        dataSplit.TableSchema = New<TTableSchema>(std::vector{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
             TColumnSchema("any_value", EValueType::Any).SetRequired(false),
-        });
-
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-            .WillRepeatedly(Return(MakeFuture(dataSplit)));
-    }
+        }))));
 
     ExpectPrepareThrowsWithDiagnostics(
         "* from [//t] where any_value in (#)",
@@ -486,31 +478,18 @@ TEST_F(TQueryPrepareTest, IncorrectDivision)
 
 TEST_F(TQueryPrepareTest, SelectColumns)
 {
-    {
-        TDataSplit dataSplit;
-
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
-
-        auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("h", EValueType::Int64, ESortOrder::Ascending)
-                .SetExpression(TString("a")),
-            TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("c", EValueType::Int64),
-            TColumnSchema("d", EValueType::Int64)
-        });
-
-        dataSplit.TableSchema = schema;
-
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-            .WillRepeatedly(Return(MakeFuture(dataSplit)));
-    }
-
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+        TColumnSchema("h", EValueType::Int64, ESortOrder::Ascending)
+            .SetExpression(TString("a")),
+        TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("c", EValueType::Int64),
+        TColumnSchema("d", EValueType::Int64)
+    }))));
 
     {
-        TString queryString = "* from [//t]";
-
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = PreparePlanFragment(&PrepareMock_, "* from [//t]")->Query;
 
         auto schema = query->GetReadSchema();
 
@@ -523,9 +502,7 @@ TEST_F(TQueryPrepareTest, SelectColumns)
     }
 
     {
-        TString queryString = "d, c, a from [//t]";
-
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
+        auto query = PreparePlanFragment(&PrepareMock_, "d, c, a from [//t]")->Query;
 
         auto schema = query->GetReadSchema();
 
@@ -538,93 +515,53 @@ TEST_F(TQueryPrepareTest, SelectColumns)
 
 TEST_F(TQueryPrepareTest, SortMergeJoin)
 {
-    {
-        TDataSplit dataSplit;
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//bids"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+        TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
+            .SetExpression(TString("int64(farm_hash(cid))")),
+        TColumnSchema("cid", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("id", EValueType::Int64),
+        TColumnSchema("__shard__", EValueType::Int64),
+        TColumnSchema("PhraseID", EValueType::Int64),
+        TColumnSchema("price", EValueType::Int64),
+    }))));
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//DirectPhraseStat"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+        TColumnSchema("ExportIDHash", EValueType::Int64, ESortOrder::Ascending)
+            .SetExpression(TString("int64(farm_hash(ExportID))")),
+        TColumnSchema("ExportID", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("GroupExportID", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("PhraseID", EValueType::Uint64, ESortOrder::Ascending),
+        TColumnSchema("UpdateTime", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("Shows", EValueType::Int64),
+        TColumnSchema("Clicks", EValueType::Int64),
+    }))));
 
-        auto tableSchema = New<TTableSchema>(std::vector{
-            TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-                .SetExpression(TString("int64(farm_hash(cid))")),
-            TColumnSchema("cid", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("id", EValueType::Int64),
-            TColumnSchema("__shard__", EValueType::Int64),
-            TColumnSchema("PhraseID", EValueType::Int64),
-            TColumnSchema("price", EValueType::Int64),
-        });
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//phrases"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+        TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
+            .SetExpression(TString("int64(farm_hash(pid))")),
+        TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("__shard__", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("status", EValueType::Int64),
+    }))));
 
-        dataSplit.TableSchema = tableSchema;
-
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//bids"))
-            .WillRepeatedly(Return(MakeFuture(dataSplit)));
-    }
-
-    {
-        TDataSplit dataSplit;
-
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
-
-        auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("ExportIDHash", EValueType::Int64, ESortOrder::Ascending)
-                .SetExpression(TString("int64(farm_hash(ExportID))")),
-            TColumnSchema("ExportID", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("GroupExportID", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("PhraseID", EValueType::Uint64, ESortOrder::Ascending),
-            TColumnSchema("UpdateTime", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("Shows", EValueType::Int64),
-            TColumnSchema("Clicks", EValueType::Int64),
-        });
-
-        dataSplit.TableSchema = schema;
-
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//DirectPhraseStat"))
-            .WillRepeatedly(Return(MakeFuture(dataSplit)));
-    }
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//campaigns"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+        TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
+            .SetExpression(TString("int64(farm_hash(cid))")),
+        TColumnSchema("cid", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("__shard__", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("value", EValueType::Int64),
+    }))));
 
     {
-        TDataSplit dataSplit;
-
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
-
-        auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-                .SetExpression(TString("int64(farm_hash(pid))")),
-            TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("__shard__", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("status", EValueType::Int64),
-        });
-
-        dataSplit.TableSchema = schema;
-
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//phrases"))
-            .WillRepeatedly(Return(MakeFuture(dataSplit)));
-    }
-
-    {
-        TDataSplit dataSplit;
-
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
-
-        auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
-                .SetExpression(TString("int64(farm_hash(cid))")),
-            TColumnSchema("cid", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("__shard__", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("value", EValueType::Int64),
-        });
-
-        dataSplit.TableSchema = schema;
-
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//campaigns"))
-            .WillRepeatedly(Return(MakeFuture(dataSplit)));
-    }
-
-    {
-        TString queryString = "* from [//bids] D\n"
-            "left join [//campaigns] C on D.cid = C.cid\n"
-            "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
-            "left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__)";
+        auto queryString = std::string(R"(* from [//bids] D
+            left join [//campaigns] C on D.cid = C.cid
+            left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)
+            left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__))");
 
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
@@ -642,10 +579,10 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 
     {
-        TString queryString = "* from [//bids] D\n"
-            "left join [//campaigns] C on (D.cid, D.__shard__) = (C.cid, C.__shard__)\n"
-            "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
-            "left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__)";
+        auto queryString = std::string(R"(* from [//bids] D
+            left join [//campaigns] C on (D.cid, D.__shard__) = (C.cid, C.__shard__)
+            left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)
+            left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__))");
 
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
@@ -663,10 +600,10 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
     }
 
     {
-        TString queryString = "* from [//bids] D\n"
-            "left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)\n"
-            "left join [//campaigns] C on (D.cid, D.__shard__) = (C.cid, C.__shard__)\n"
-            "left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__)";
+        auto queryString = std::string(R"(* from [//bids] D
+            left join [//DirectPhraseStat] S on (D.cid, D.pid, uint64(D.PhraseID)) = (S.ExportID, S.GroupExportID, S.PhraseID)
+            left join [//campaigns] C on (D.cid, D.__shard__) = (C.cid, C.__shard__)
+            left join [//phrases] P on (D.pid, D.__shard__) = (P.pid, P.__shard__))");
 
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
@@ -746,12 +683,8 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
 
 TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
 {
-    {
-        TDataSplit dataSplit;
-
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
-
-        auto schema = New<TTableSchema>(std::vector{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//a"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
             TColumnSchema("kind", EValueType::String, ESortOrder::Ascending).SetRequired(true),
             TColumnSchema("type", EValueType::String).SetRequired(false),
             TColumnSchema("ride_date", EValueType::String).SetRequired(true),
@@ -773,20 +706,11 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
             TColumnSchema("tags", EValueType::Any).SetRequired(false),
             TColumnSchema("tickets", EValueType::Any).SetRequired(false),
             TColumnSchema("updated_at", EValueType::Uint64).SetRequired(false)
-        });
+        }))));
 
-        dataSplit.TableSchema = schema;
 
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//a"))
-            .WillRepeatedly(Return(MakeFuture(dataSplit)));
-    }
-
-    {
-        TDataSplit dataSplit;
-
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
-
-        auto schema = New<TTableSchema>(std::vector{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//b"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
             TColumnSchema("ride_date", EValueType::String, ESortOrder::Ascending).SetRequired(true),
             TColumnSchema("ride_time", EValueType::String, ESortOrder::Ascending).SetRequired(true),
             TColumnSchema("log_time", EValueType::String, ESortOrder::Ascending).SetRequired(true),
@@ -796,25 +720,19 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
             TColumnSchema("track", EValueType::String).SetRequired(false),
             TColumnSchema("flag_hardtest", EValueType::Boolean).SetRequired(false),
             TColumnSchema("ride_tags", EValueType::Any).SetRequired(false)
-        });
+        }))));
 
-        dataSplit.TableSchema = schema;
-
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//b"))
-            .WillRepeatedly(Return(MakeFuture(dataSplit)));
-    }
 
     llvm::FoldingSetNodeID id1;
     {
-        TString queryString =
-        R"(
+        auto queryString = std::string(R"(
             *
             FROM [//a] e
             LEFT JOIN [//b] l ON (e.ride_date, e.ride_time, e.log_time, e.rover) = (l.ride_date, l.ride_time, l.log_time, l.rover)
             WHERE
             if(NOT is_null(e.tags), list_contains(e.tags, "0"), false) AND (l.profile IN ("")) AND (l.track IN ("")) AND NOT if(NOT is_null(e.tags), list_contains(e.tags, "1"), false)
             ORDER BY e._key DESC OFFSET 0 LIMIT 200
-        )";
+        )");
 
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
@@ -826,15 +744,14 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
 
     llvm::FoldingSetNodeID id2;
     {
-        TString queryString =
-        R"(
+        auto queryString = std::string(R"(
             *
             FROM [//a] e
             LEFT JOIN [//b] l ON (e.ride_date, e.ride_time, e.log_time, e.rover) = (l.ride_date, l.ride_time, l.log_time, l.rover)
             WHERE
             (l.profile IN ("")) AND (l.track IN ("")) AND if(NOT is_null(e.tags), list_contains(e.tags, "0"), false) AND NOT if(NOT is_null(e.tags), list_contains(e.tags, "1"), false)
             ORDER BY e._key DESC OFFSET 0 LIMIT 200
-        )";
+        )");
 
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
@@ -849,48 +766,23 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
 
 TEST_F(TQueryPrepareTest, DisjointGroupBy)
 {
-    {
-        TDataSplit dataSplit;
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+        TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("b", EValueType::Int64),
+        TColumnSchema("c", EValueType::Int64)
+    }))));
 
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
-
-        auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("b", EValueType::Int64),
-            TColumnSchema("c", EValueType::Int64)
-        });
-
-        dataSplit.TableSchema = schema;
-
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-            .WillRepeatedly(Return(MakeFuture(dataSplit)));
-    }
-
-    {
-        TDataSplit dataSplit;
-
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
-
-        auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("c", EValueType::Int64)
-        });
-
-        dataSplit.TableSchema = schema;
-
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//s"))
-            .WillRepeatedly(Return(MakeFuture(dataSplit)));
-    }
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//s"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+        TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("c", EValueType::Int64)
+    }))));
 
     llvm::FoldingSetNodeID id1;
     {
-        TString queryString =
-        R"(
-            *
-            FROM [//t]
-            GROUP by a
-        )";
+        auto queryString = std::string("* FROM [//t] GROUP by a");
 
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
@@ -902,12 +794,7 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
 
     llvm::FoldingSetNodeID id2;
     {
-        TString queryString =
-        R"(
-            *
-            FROM [//s]
-            GROUP by a
-        )";
+        auto queryString = std::string("* FROM [//s] GROUP by a");
 
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
@@ -961,24 +848,14 @@ TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
 
 TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
 {
-    {
-        TDataSplit dataSplit;
-
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
-
-        auto schema = New<TTableSchema>(std::vector{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
             TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
                 .SetExpression(TString("int64(farm_hash(a))")),
             TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("v", EValueType::Int64),
-        });
-
-        dataSplit.TableSchema = schema;
-
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-            .WillRepeatedly(Return(MakeFuture(dataSplit)));
-    }
+        }))));
 
     {
         TString queryString = "* from [//t] group by hash, a, b";
@@ -1002,48 +879,26 @@ TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
 
 TEST_F(TQueryPrepareTest, OrderByPrimaryKeyPrefix)
 {
-    {
-        TDataSplit dataSplit;
-
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
-
-        auto schema = New<TTableSchema>(std::vector{
+    EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
             TColumnSchema("hash", EValueType::Int64, ESortOrder::Ascending)
                 .SetExpression(TString("int64(farm_hash(a))")),
             TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
             TColumnSchema("v", EValueType::Int64),
-        });
+        }))));
 
-        dataSplit.TableSchema = schema;
+    auto query = PreparePlanFragment(&PrepareMock_, "* from [//t] order by hash, a limit 10")->Query;
+    EXPECT_FALSE(query->OrderClause);
 
-        EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-            .WillRepeatedly(Return(MakeFuture(dataSplit)));
-    }
+    query = PreparePlanFragment(&PrepareMock_, "* from [//t] order by hash, a, b limit 10")->Query;
+    EXPECT_FALSE(query->OrderClause);
 
-    {
-        TString queryString = "* from [//t] order by hash, a limit 10";
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
-        EXPECT_FALSE(query->OrderClause);
-    }
+    query = PreparePlanFragment(&PrepareMock_, "* from [//t] order by hash, a offset 5 limit 5")->Query;
+    EXPECT_FALSE(query->OrderClause);
 
-    {
-        TString queryString = "* from [//t] order by hash, a, b limit 10";
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
-        EXPECT_FALSE(query->OrderClause);
-    }
-
-    {
-        TString queryString = "* from [//t] order by hash, a offset 5 limit 5";
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
-        EXPECT_FALSE(query->OrderClause);
-    }
-
-    {
-        TString queryString = "* from [//t] order by a, b limit 10";
-        auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
-        EXPECT_TRUE(query->OrderClause);
-    }
+    query = PreparePlanFragment(&PrepareMock_, "* from [//t] order by a, b limit 10")->Query;
+    EXPECT_TRUE(query->OrderClause);
 }
 
 TEST_F(TQueryPrepareTest, InvalidUdfImpl)
@@ -1336,7 +1191,7 @@ protected:
 
         auto prunedRanges = GetPrunedRanges(
             fragment->Query,
-            MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe),
+            TGuid::Create(),
             MakeSharedRange(std::move(sources), buffer),
             rowBuffer,
             ColumnEvaluatorCache_,
@@ -6615,67 +6470,37 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
 {
     std::map<TString, TDataSplit> splits;
 
-    {
-        TDataSplit dataSplit;
-
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xdeadbabe));
-
-        auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("cid", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("value", EValueType::Int64),
-        });
-
-        dataSplit.TableSchema = schema;
-
-        splits["//phrases"] = dataSplit;
-    }
+    splits["//phrases"] = MakeSplit({
+        TColumnSchema("cid", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("value", EValueType::Int64),
+    });
 
     std::vector<TString> phrases = {
         "cid=49353617;pid=4098243503"
     };
 
-    {
-        TDataSplit dataSplit;
-
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 1, 0xdeadbabe));
-
-        auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("__hash__", EValueType::Int64, ESortOrder::Ascending)
-                .SetExpression(TString("int64(farm_hash(pid) % 64)")),
-            TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("tag_id", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("value", EValueType::Int64),
-        });
-
-        dataSplit.TableSchema = schema;
-
-        splits["//tag_group"] = dataSplit;
-    }
+    splits["//tag_group"] = MakeSplit({
+        TColumnSchema("__hash__", EValueType::Int64, ESortOrder::Ascending)
+            .SetExpression(TString("int64(farm_hash(pid) % 64)")),
+        TColumnSchema("pid", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("tag_id", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("value", EValueType::Int64),
+    });
 
     std::vector<TString> tag_group = {
         "__hash__=13;pid=4098243503;tag_id=39139420",
         "__hash__=13;pid=4098243503;tag_id=39139421"
     };
 
-    {
-        TDataSplit dataSplit;
-
-        SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 2, 0xdeadbabe));
-
-        auto schema = New<TTableSchema>(std::vector{
-            TColumnSchema("YTHash", EValueType::Int64, ESortOrder::Ascending)
-                .SetExpression(TString("int64(farm_hash(ExportID))")),
-            TColumnSchema("ExportID", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("GroupExportID", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("UpdateTime", EValueType::Int64, ESortOrder::Ascending),
-            TColumnSchema("value", EValueType::Int64),
-        });
-
-        dataSplit.TableSchema = schema;
-
-        splits["//DirectPhraseStatV2"] = dataSplit;
-    }
+    splits["//DirectPhraseStatV2"] = MakeSplit({
+        TColumnSchema("YTHash", EValueType::Int64, ESortOrder::Ascending)
+            .SetExpression(TString("int64(farm_hash(ExportID))")),
+        TColumnSchema("ExportID", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("GroupExportID", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("UpdateTime", EValueType::Int64, ESortOrder::Ascending),
+        TColumnSchema("value", EValueType::Int64),
+    });
 
     std::vector<TString> DirectPhraseStatV2 = {
         "YTHash=-9217565170028083870;ExportID=49353617;GroupExportID=4098243503;UpdateTime=1579813200",
