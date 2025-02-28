@@ -542,7 +542,7 @@ protected:
 
         Merger_->AddPartialRow(lookupedRow, Timestamp_ + 1);
 
-        if (auto cachedItem = std::move(RowsFromCache_[WriteRowIndex_])) {
+        if (const auto* cachedItem = RowsFromCache_[WriteRowIndex_].Get()) {
             if (Timestamp_ < cachedItem->RetainedTimestamp) {
                 THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::TimestampOutOfRange,
                     "Timestamp %v is less than retained timestamp %v of cached row in tablet %v",
