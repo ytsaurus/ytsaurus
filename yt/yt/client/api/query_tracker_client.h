@@ -42,6 +42,8 @@ struct TQuerySecret
     TString Subcategory;
     TString YPath;
 
+    using TPtr = NYT::TIntrusivePtr<TQuerySecret>;
+
     REGISTER_YSON_STRUCT(TQuerySecret);
 
     static void Register(TRegistrar registrar);
@@ -59,7 +61,7 @@ struct TStartQueryOptions
     std::vector<TQueryFilePtr> Files;
     std::optional<TString> AccessControlObject; // COMPAT(mpereskokova)
     std::optional<std::vector<TString>> AccessControlObjects;
-    std::vector<NYTree::TYsonStructPtr> Secrets;
+    std::vector<TQuerySecret::TPtr> Secrets;
 };
 
 struct TAbortQueryOptions
@@ -176,13 +178,6 @@ struct TGetQueryTrackerInfoResult
     std::vector<TString> Clusters;
 };
 
-struct TSecret
-{
-    TString Category;
-    TString Subcategory;
-    TString YPath;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IQueryTrackerClient
@@ -192,8 +187,7 @@ struct IQueryTrackerClient
     virtual TFuture<NQueryTrackerClient::TQueryId> StartQuery(
         NQueryTrackerClient::EQueryEngine engine,
         const TString& query,
-        const TStartQueryOptions& options = {},
-        const THashMap<TString, TSecret>& secrets = {}) = 0;
+        const TStartQueryOptions& options = {}) = 0;
 
     virtual TFuture<void> AbortQuery(
         NQueryTrackerClient::TQueryId queryId,

@@ -475,8 +475,7 @@ public:
     TFuture<NQueryTrackerClient::TQueryId> StartQuery(
         NQueryTrackerClient::EQueryEngine engine,
         const TString& query,
-        const TStartQueryOptions& options,
-        const THashMap<TString, TSecret>& secrets) override;
+        const TStartQueryOptions& options) override;
 
     TFuture<void> AbortQuery(
         NQueryTrackerClient::TQueryId queryId,

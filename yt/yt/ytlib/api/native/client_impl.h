@@ -339,9 +339,8 @@ public: \
     IMPLEMENT_METHOD(NQueryTrackerClient::TQueryId, StartQuery, (
         NQueryTrackerClient::EQueryEngine engine,
         const TString& query,
-        const TStartQueryOptions& options,
-        const THashMap<TString, TSecret>& secrets),
-        (engine, query, options, secrets))
+        const TStartQueryOptions& options),
+        (engine, query, options))
     IMPLEMENT_METHOD(void, AbortQuery, (
         NQueryTrackerClient::TQueryId queryId,
         const TAbortQueryOptions& options = {}),

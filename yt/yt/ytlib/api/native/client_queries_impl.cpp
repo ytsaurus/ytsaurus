@@ -22,7 +22,7 @@ using namespace NChunkClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const TStartQueryOptions& options, const THashMap<TString, TSecret>& secrets)
+TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const TStartQueryOptions& options)
 {
     TQueryTrackerServiceProxy proxy(
         Connection_->GetQueryTrackerChannelOrThrow(options.QueryTrackerStage));
@@ -57,17 +57,17 @@ TQueryId TClient::DoStartQuery(EQueryEngine engine, const TString& query, const 
         }
     }
 
-    for (const auto& [id, data] : secrets) {
+    for (const auto& sec : options.Secrets) {
         const auto secret = rpcRequest->add_secrets();
-        secret->set_id(id);
-        if (!data.Category.empty()) {
-            secret->set_category(data.Category);
+        secret->set_id(sec->Id);
+        if (!sec->Category.empty()) {
+            secret->set_category(sec->Category);
         }
-        if (!data.Subcategory.empty()) {
-            secret->set_subcategory(data.Subcategory);
+        if (!sec->Subcategory.empty()) {
+            secret->set_subcategory(sec->Subcategory);
         }
-        if (!data.YPath.empty()) {
-            secret->set_ypath(data.YPath);
+        if (!sec->YPath.empty()) {
+            secret->set_ypath(sec->YPath);
         }
     }
 

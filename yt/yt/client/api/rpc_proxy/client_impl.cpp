@@ -2277,8 +2277,7 @@ TFuture<TCollectCoverageResult> TClient::CollectCoverage(
 TFuture<NQueryTrackerClient::TQueryId> TClient::StartQuery(
     NQueryTrackerClient::EQueryEngine engine,
     const TString& query,
-    const TStartQueryOptions& options,
-    const THashMap<TString, TSecret>& secrets)
+    const TStartQueryOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
 
@@ -2313,17 +2312,17 @@ TFuture<NQueryTrackerClient::TQueryId> TClient::StartQuery(
         protoFile->set_type(static_cast<NProto::EContentType>(file->Type));
     }
 
-    for (const auto& [id, data] : secrets) {
+    for (const auto& sec : options.Secrets) {
         const auto secret = req->add_secrets();
-        secret->set_id(id);
-        if (!data.Category.empty()) {
-            secret->set_category(data.Category);
+        secret->set_id(sec->Id);
+        if (!sec->Category.empty()) {
+            secret->set_category(sec->Category);
         }
-        if (!data.Subcategory.empty()) {
-            secret->set_subcategory(data.Subcategory);
+        if (!sec->Subcategory.empty()) {
+            secret->set_subcategory(sec->Subcategory);
         }
-        if (!data.YPath.empty()) {
-            secret->set_ypath(data.YPath);
+        if (!sec->YPath.empty()) {
+            secret->set_ypath(sec->YPath);
         }
     }
 

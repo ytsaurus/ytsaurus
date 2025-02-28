@@ -762,9 +762,8 @@ public:
     DELEGATE_METHOD(TFuture<NQueryTrackerClient::TQueryId>, StartQuery, (
         NQueryTrackerClient::EQueryEngine engine,
         const TString& query,
-        const TStartQueryOptions& options,
-        const THashMap<TString, TSecret>& secrets),
-        (engine, query, options, secrets))
+        const TStartQueryOptions& options),
+        (engine, query, options))
 
     DELEGATE_METHOD(TFuture<void>, AbortQuery, (
         NQueryTrackerClient::TQueryId queryId,
