@@ -412,6 +412,7 @@ struct TDynamicClusterConfig
     NSchedulerPoolServer::TDynamicSchedulerPoolManagerConfigPtr SchedulerPoolManager;
     NSequoiaServer::TDynamicSequoiaManagerConfigPtr SequoiaManager;
     NSequoiaServer::TDynamicGroundUpdateQueueManagerConfigPtr GroundUpdateQueueManager;
+    NSequoiaServer::TDynamicCypressProxyTrackerConfigPtr CypressProxyTracker;
     NIncumbentServer::TIncumbentManagerDynamicConfigPtr IncumbentManager;
     TDynamicQueueAgentServerConfigPtr QueueAgentServer;
     NHydra::TDynamicDistributedHydraManagerConfigPtr HydraManager;

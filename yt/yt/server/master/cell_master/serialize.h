@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "automaton.h"
 
 #include <yt/yt/server/master/chunk_server/public.h>
 
@@ -233,6 +232,7 @@ DEFINE_ENUM(EMasterReign,
     // 25.2 starts here.
     ((Start_25_2)                                                   (2900))  // ponasenko-rs
     ((TabletTransactionSerializationType)                           (2901))  // ponasenko-rs
+    ((CypressProxyTracker)                                          (2902))  // kvk1920
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");

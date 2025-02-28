@@ -1,14 +1,15 @@
 #pragma once
 
-#include <yt/yt/server/master/cell_master/public.h>
+#include "public.h"
 
-#include <yt/yt/core/rpc/public.h>
+#include <yt/yt/ytlib/sequoia_client/public.h>
 
 namespace NYT::NSequoiaServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateSequoiaTransactionService(NCellMaster::TBootstrap* bootstrap);
+TError CheckSequoiaReign(NSequoiaClient::ESequoiaReign requestReign);
+void ValidateSequoiaReign(NSequoiaClient::ESequoiaReign requestReign);
 
 ////////////////////////////////////////////////////////////////////////////////
 

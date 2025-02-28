@@ -6,6 +6,7 @@
 #include "config.h"
 #include "dynamic_config_manager.h"
 #include "helpers.h"
+#include "master_connector.h"
 #include "path_resolver.h"
 #include "per_user_and_workload_request_queue_provider.h"
 #include "sequoia_service.h"
@@ -103,6 +104,11 @@ public:
     IServicePtr GetService() override
     {
         return MakeStrong(this);
+    }
+
+    bool IsUp(const TCtxDiscoverPtr& /*context*/) override
+    {
+        return Bootstrap_->GetMasterConnector()->IsRegistered();
     }
 
     const TObjectServiceDynamicConfigPtr& GetDynamicConfig() const
@@ -786,6 +792,9 @@ private:
 
     void InvokeSequoiaRequests()
     {
+        const auto& masterConnector = Owner_->Bootstrap_->GetMasterConnector();
+        masterConnector->ValidateRegistration();
+
         for (int index = 0; index < std::ssize(Subrequests_); ++index) {
             auto& subrequest = Subrequests_[index];
             auto target = subrequest.Target;

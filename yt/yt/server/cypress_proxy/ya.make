@@ -9,6 +9,7 @@ SRCS(
     config.cpp
     dynamic_config_manager.cpp
     helpers.cpp
+    master_connector.cpp
     node_proxy.cpp
     node_proxy_base.cpp
     object_service.cpp
@@ -37,7 +38,7 @@ PEERDIR(
 
     yt/yt/server/lib/admin
     yt/yt/server/lib/misc
-    yt/yt/server/lib/cypress_registrar
+    yt/yt/server/lib/sequoia
 )
 
 END()

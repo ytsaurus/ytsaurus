@@ -138,14 +138,7 @@ private:
         sequoiaTransaction->AddTransactionAction(rootstockCellTag, MakeTransactionActionData(rootstockAction));
 
         auto rootstockCellId = connection->GetMasterCellId(rootstockCellTag);
-        TTransactionCommitOptions commitOptions{
-            .CoordinatorCellId = rootstockCellId,
-            .Force2PC = true,
-            .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
-            .StronglyOrdered = true,
-        };
-        WaitFor(sequoiaTransaction->Commit(commitOptions))
-            .ThrowOnError();
+        SequoiaSession_->Commit(rootstockCellId);
 
         // After transaction commit, scion creation request is posted via Hive,
         // so we sync secondary master with primary to make sure that scion is created.

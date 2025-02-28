@@ -41,6 +41,8 @@ struct IBootstrap
 
     virtual const ISequoiaResponseKeeperPtr& GetResponseKeeper() const = 0;
 
+    virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
+
     virtual NDistributedThrottler::IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
         NDistributedThrottler::TDistributedThrottlerConfigPtr config,
         IInvokerPtr invoker,

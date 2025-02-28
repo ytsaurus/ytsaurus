@@ -4,15 +4,14 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
-namespace NYT::NNodeTrackerServer {
+#include <yt/yt/server/master/cypress_server/public.h>
+
+namespace NYT::NSequoiaServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NObjectServer::IObjectProxyPtr CreateClusterNodeProxy(
-    NCellMaster::TBootstrap* bootstrap,
-    NObjectServer::TObjectTypeMetadata* metadata,
-    TNode* node);
+NCypressServer::INodeTypeHandlerPtr CreateCypressProxyMapTypeHandler(NCellMaster::TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NNodeTrackerServer
+} // namespace NYT::NSequoiaServer

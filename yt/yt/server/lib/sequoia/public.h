@@ -1,15 +1,19 @@
 #pragma once
 
-#include <yt/yt/server/master/cell_master/public.h>
-
-#include <yt/yt/core/rpc/public.h>
+#include <library/cpp/yt/misc/strong_typedef.h>
 
 namespace NYT::NSequoiaServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateSequoiaTransactionService(NCellMaster::TBootstrap* bootstrap);
+namespace NProto {
+
+class TReqHeartbeat;
+class TRspHeartbeat;
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSequoiaServer
+

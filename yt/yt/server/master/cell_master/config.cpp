@@ -423,6 +423,8 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("ground_update_queue_manager", &TThis::GroundUpdateQueueManager)
         .DefaultNew();
+    registrar.Parameter("cypress_proxy_tracker", &TThis::CypressProxyTracker)
+        .DefaultNew();
     registrar.Parameter("cell_master", &TThis::CellMaster)
         .DefaultNew();
     registrar.Parameter("object_service", &TThis::ObjectService)

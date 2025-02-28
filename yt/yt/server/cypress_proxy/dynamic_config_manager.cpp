@@ -4,17 +4,19 @@
 
 namespace NYT::NCypressProxy {
 
+using namespace NDynamicConfig;
+
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NDynamicConfig;
+static const NYPath::TYPath CypressProxyConfigPath = "//sys/cypress_proxies/@config";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TDynamicConfigManager::TDynamicConfigManager(IBootstrap* bootstrap)
     : TDynamicConfigManagerBase(
         TDynamicConfigManagerOptions{
-            .ConfigPath = bootstrap->GetConfig()->DynamicConfigPath,
-            .Name = "MasterCache",
+            .ConfigPath = CypressProxyConfigPath,
+            .Name = "CypressProxy",
         },
         bootstrap->GetConfig()->DynamicConfigManager,
         bootstrap->GetRootClient(),
