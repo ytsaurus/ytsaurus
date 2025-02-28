@@ -912,7 +912,7 @@ class TestGangManager(YTEnvSetup):
 
         incarnation_switch_counter = self._get_controller_profiler().counter("controller_agent/gang_operations/incarnation_switch_count")
 
-        restarted_job_profiler = JobCountProfiler(
+        aborted_job_profiler = JobCountProfiler(
             "aborted",
             tags={"tree": "default", "job_type": "vanilla"},
         )
@@ -941,9 +941,9 @@ class TestGangManager(YTEnvSetup):
 
         release_breakpoint()
 
-        op.track()
+        op.wait_for_state("failed")
 
-        assert restarted_job_profiler.get_job_count_delta() == 1
+        assert aborted_job_profiler.get_job_count_delta() == 3
 
         assert incarnation_switch_counter.get_delta() == 0
 

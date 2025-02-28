@@ -328,7 +328,10 @@ void TGangManager::TrySwitchToNewIncarnation(bool operationIsReviving, EOperatio
     const auto& Logger = VanillaOperationController_->GetLogger();
 
     if (!IsEnabled()) {
-        YT_LOG_INFO("Switching operation to new incarnation is disabled by config");
+        YT_LOG_INFO("Switching operation to new incarnation is disabled by config; fail operation");
+        VanillaOperationController_->OnOperationFailed(
+            TError("Switching gang operation to new incarnation is disabled by config")
+            << TErrorAttribute("incarnation_switch_reason", reason));
         return;
     }
 
