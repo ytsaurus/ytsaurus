@@ -1,7 +1,7 @@
 LIBRARY()
 
 SRCS(
-    yql_yt_yt_service_impl.h
+    yql_yt_yt_service_mock.h
 )
 
 PEERDIR(

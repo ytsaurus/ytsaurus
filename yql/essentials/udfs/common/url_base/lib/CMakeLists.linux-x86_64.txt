@@ -27,7 +27,7 @@ target_link_libraries(common-url_base-lib PUBLIC
   linux-headers-generic::linux-headers-generic
   contrib-libs-cxxsupp
   yutil
-  library-cpp-charset
+  cpp-charset-lite
   cpp-string_utils-quote
   cpp-string_utils-url
   library-cpp-tld

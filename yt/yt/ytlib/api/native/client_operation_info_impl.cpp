@@ -57,7 +57,7 @@ static const THashSet<TString> SupportedOperationAttributes = {
     "state",
     "authenticated_user",
     "type",
-    // COMPAT(levysotsky): "operation_type" is deprecated
+    // COMPAT(levysotsky): "operation_type" is deprecated (YT-24340)
     "operation_type",
     "progress",
     "spec",
@@ -255,7 +255,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
     }
 
     if (auto type = attributeDictionary->Find<EOperationType>("operation_type")) {
-        // COMPAT(levysotsky): When "operation_type" is disallowed, this code
+        // COMPAT(levysotsky): (YT-24340) When "operation_type" is disallowed, this code
         // will be simplified to unconditionally removing the child
         // (and also child will not have to be cloned).
         if (options.Attributes && !options.Attributes->contains("operation_type")) {

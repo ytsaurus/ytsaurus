@@ -31,7 +31,6 @@ target_link_libraries(string_udf PUBLIC
   essentials-public-udf
   public-udf-support
   public-udf-arrow
-  library-cpp-charset
   cpp-deprecated-split
   cpp-html-pcdata
   cpp-string_utils-base32
@@ -80,7 +79,6 @@ target_link_libraries(string_udf.global PUBLIC
   essentials-public-udf
   public-udf-support
   public-udf-arrow
-  library-cpp-charset
   cpp-deprecated-split
   cpp-html-pcdata
   cpp-string_utils-base32

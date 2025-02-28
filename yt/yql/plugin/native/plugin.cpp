@@ -157,6 +157,10 @@ DEFINE_REFCOUNTED_TYPE(TDynamicConfig)
 
 struct TActiveQuery
 {
+    // Store shared data for TProgram after dyn config changing.
+    TDynamicConfigPtr ProgramSharedData;
+    NYql::TProgramFactoryPtr ProgramFactory;
+
     NYql::TProgramPtr Program;
     bool Compiled = false;
     bool Finished = false;
@@ -164,10 +168,6 @@ struct TActiveQuery
     TProgressMerger ProgressMerger;
     TQueryPipelineConfiguratorPtr PipelineConfigurator;
     std::optional<TString> Plan;
-
-    // Store shared data for TProgram after dyn config changing.
-    TDynamicConfigPtr ProgramSharedData;
-    NYql::TProgramFactoryPtr ProgramFactory;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -661,6 +661,7 @@ public:
     void OnDynamicConfigChanged(TYqlPluginDynamicConfig config) noexcept override
     {
         YQL_LOG(INFO) << "Dynamic config update started";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": config.GatewaysConfig = " << config.GatewaysConfig.AsStringBuf();
 
         NYson::TProtobufWriterOptions protobufWriterOptions;
         protobufWriterOptions.ConvertSnakeToCamelCase = true;
@@ -678,6 +679,10 @@ public:
 
         auto newGatewaysConfig = GatewaysConfigInitial_;
         newGatewaysConfig.MergeFrom(dynamicGatewaysConfig);
+
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": GatewaysConfigInitial_ = " << GatewaysConfigInitial_.ShortDebugString();
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": dynamicGatewaysConfig = " << dynamicGatewaysConfig.ShortDebugString();
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": newGatewaysConfig = " << newGatewaysConfig.ShortDebugString();
 
         auto dynamicConfig = CreateDynamicConfig(std::move(newGatewaysConfig));
         {
@@ -758,7 +763,7 @@ private:
     }
 
     TDynamicConfigPtr CreateDynamicConfig(NYql::TGatewaysConfig&& gatewaysConfig) const {
-        YQL_LOG(DEBUG) << "Creating dynamic config";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": start";
 
         auto dynamicConfig = New<TDynamicConfig>();
         dynamicConfig->GatewaysConfig = std::move(gatewaysConfig);
@@ -766,9 +771,10 @@ private:
 
         // Ignore MrJobUdfsDir in dynamic config (we won't reload udfs and won't restart DqManager_).
         gatewayYtConfig->ClearMrJobUdfsDir();
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": TDynamicConfig ready";
 
         gatewayYtConfig->SetMrJobBinMd5(MD5::File(gatewayYtConfig->GetMrJobBin()));
-        YQL_LOG(DEBUG) << "Creating dynamic config: SetMrJobBinMd5 ready";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": SetMrJobBinMd5 ready";
 
         for (const auto& mapping : gatewayYtConfig->GetClusterMapping()) {
             dynamicConfig->Clusters.insert({mapping.name(), TString(NYql::YtProviderName)});
@@ -776,7 +782,7 @@ private:
                 dynamicConfig->DefaultCluster = mapping.name();
             }
         }
-        YQL_LOG(DEBUG) << "Creating dynamic config: Clusters ready";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": Clusters ready";
 
         NSQLTranslationV1::TLexers lexers;
         lexers.Antlr4 = NSQLTranslationV1::MakeAntlr4LexerFactory();
@@ -801,17 +807,17 @@ private:
                            << err.Str();
             exit(1);
         }
-        YQL_LOG(DEBUG) << "Creating dynamic config: CompileLibraries ready";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": CompileLibraries ready";
 
         dynamicConfig->ModuleResolver = std::make_shared<NYql::TModuleResolver>(translators, std::move(modulesTable), dynamicConfig->ExprContext.NextUniqueId, dynamicConfig->Clusters, THashSet<TString>{});
-        YQL_LOG(DEBUG) << "Creating dynamic config: ModuleResolver ready";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": ModuleResolver ready";
 
-        YQL_LOG(DEBUG) << "Creating dynamic config: done";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": done";
         return std::move(dynamicConfig);
     }
 
     NYql::TProgramFactoryPtr CreateProgramFactory(TDynamicConfig& dynamicConfig) {
-        YQL_LOG(DEBUG) << "Creating program factory";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": start";
 
         NYql::TYtNativeServices ytServices;
         ytServices.FunctionRegistry = FuncRegistry_.Get();
@@ -831,7 +837,7 @@ private:
 
         auto ytNativeGateway = CreateYtNativeGateway(ytServices);
         dataProvidersInit.push_back(GetYtNativeDataProviderInitializer(ytNativeGateway, NDq::MakeCBOOptimizerFactory(), MakeDqHelper()));
-        YQL_LOG(DEBUG) << "Creating program factory: dataProvidersInit ready";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": dataProvidersInit ready";
 
         auto factory = MakeIntrusive<NYql::TProgramFactory>(
             false, FuncRegistry_.Get(), dynamicConfig.ExprContext.NextUniqueId, dataProvidersInit, "embedded");
@@ -843,7 +849,7 @@ private:
         factory->SetFileStorage(FileStorage_);
         factory->SetUrlPreprocessing(MakeIntrusive<NYql::TUrlPreprocessing>(dynamicConfig.GatewaysConfig));
 
-        YQL_LOG(DEBUG) << "Creating program factory: done";
+        YQL_LOG(DEBUG) << __FUNCTION__ << ": done";
         return std::move(factory);
     }
 };

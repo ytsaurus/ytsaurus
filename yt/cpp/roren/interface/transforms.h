@@ -135,7 +135,7 @@ public:
 
     TPCollection<TOutputRow> ApplyTo(const TPipeline& pipeline) const
     {
-        auto rawPipeline = NPrivate::GetRawPipeline(pipeline);
+        const auto& rawPipeline = NPrivate::GetRawPipeline(pipeline);
         auto transformNode = rawPipeline->AddTransform(RawRead_, {});
         const auto& sinkNodeList = transformNode->GetTaggedSinkNodeList();
         Y_ABORT_UNLESS(sinkNodeList.size() == 1);
@@ -242,6 +242,24 @@ public:
         if constexpr (std::is_same_v<TOutput, TMultiRow>) {
             return NPrivate::MakeMultiPCollection(taggedSinkNodeList, rawPipeline);
         } else if constexpr (std::is_same_v<TOutput, void>) {
+            return;
+        } else {
+            Y_ABORT_UNLESS(taggedSinkNodeList.size() == 1);
+            auto rawNode = taggedSinkNodeList[0].second;
+            return NPrivate::MakePCollection<TOutput>(rawNode, rawPipeline);
+        }
+    }
+
+    auto ApplyTo(const TPipeline& pipeline) const
+    {
+        static_assert(std::is_same_v<TInput, void>);
+        const auto& rawPipeline = NPrivate::GetRawPipeline(pipeline);
+        auto transformNode = rawPipeline->AddTransform(RawParDo_, {});
+        auto taggedSinkNodeList = transformNode->GetTaggedSinkNodeList();
+
+        //if constexpr (std::is_same_v<TOutput, TMultiRow>) {
+        //    return NPrivate::MakeMultiPCollection(taggedSinkNodeList, rawPipeline);
+        if constexpr (std::is_same_v<TOutput, void>) {
             return;
         } else {
             Y_ABORT_UNLESS(taggedSinkNodeList.size() == 1);

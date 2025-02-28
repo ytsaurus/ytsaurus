@@ -647,7 +647,7 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
             )
         else:
             set(
-                "//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized/enable_uniform",
+                "//sys/tablet_cell_bundles/default/@tablet_balancer_config/groups/default/parameterized/per_table_uniform",
                 True
             )
 

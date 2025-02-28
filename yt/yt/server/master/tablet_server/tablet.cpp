@@ -153,6 +153,7 @@ void TTablet::Save(NCellMaster::TSaveContext& context) const
     using NYT::Save;
     Save(context, PivotKey_);
     Save(context, NodeStatistics_);
+    Save(context, AuxiliaryNodeStatistics_);
     Save(context, TrimmedRowCount_);
     Save(context, Replicas_);
     Save(context, RetainedTimestamp_);
@@ -173,6 +174,10 @@ void TTablet::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, PivotKey_);
     Load(context, NodeStatistics_);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::PersistAuxiliaryNodeStatistics) {
+        Load(context, AuxiliaryNodeStatistics_);
+    }
     Load(context, TrimmedRowCount_);
     Load(context, Replicas_);
     Load(context, RetainedTimestamp_);
