@@ -3,7 +3,7 @@ DOCS()
 DOCS_DIR(yt/docs/)
 
 DOCS_COPY_FILES(
-    FROM ${ARCADIA_ROOT}/yt/docs/datahub NAMESPACE ru presets.yaml
+    FROM ${ARCADIA_ROOT}/yt/docs/ru/datahub NAMESPACE ru presets.yaml
 )
 
 DOCS_INCLUDE_SOURCES(
