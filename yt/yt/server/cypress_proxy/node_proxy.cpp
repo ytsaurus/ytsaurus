@@ -437,7 +437,7 @@ protected:
         auto attributeFilter = request->has_attributes()
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
-        auto limit = YT_PROTO_OPTIONAL(*request, limit);
+        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
         context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
             limit,
@@ -933,8 +933,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNodeProxy, Lock)
     }
 
     auto mode = FromProto<ELockMode>(request->mode());
-    auto childKey = YT_PROTO_OPTIONAL(*request, child_key);
-    auto attributeKey = YT_PROTO_OPTIONAL(*request, attribute_key);
+    auto childKey = YT_OPTIONAL_FROM_PROTO(*request, child_key);
+    auto attributeKey = YT_OPTIONAL_FROM_PROTO(*request, attribute_key);
     auto timestamp = request->timestamp();
     auto waitable = request->waitable();
 
@@ -1272,7 +1272,7 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        auto limit = YT_PROTO_OPTIONAL(*request, limit);
+        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
         if (limit && limit < 0) {
             THROW_ERROR_EXCEPTION("Limit is negative")
@@ -1408,7 +1408,7 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        auto limit = YT_PROTO_OPTIONAL(*request, limit);
+        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
         context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
             limit,
@@ -1433,7 +1433,7 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        auto limit = YT_PROTO_OPTIONAL(*request, limit);
+        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
         context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
             limit,
@@ -1517,7 +1517,7 @@ private:
             ? FromProto<TAttributeFilter>(request->attributes())
             : TAttributeFilter();
 
-        auto limit = YT_PROTO_OPTIONAL(*request, limit);
+        auto limit = YT_OPTIONAL_FROM_PROTO(*request, limit);
 
         context->SetRequestInfo("Limit: %v, AttributeFilter: %v",
             limit,
