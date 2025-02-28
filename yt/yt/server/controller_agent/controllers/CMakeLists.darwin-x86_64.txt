@@ -36,6 +36,7 @@ target_sources(server-controller_agent-controllers PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/auto_merge_director.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/auto_merge_task.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/chunk_pool_adapters.cpp
+  ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/common_state.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/competitive_job_manager.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/data_balancer.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/server/controller_agent/controllers/data_flow_graph.cpp

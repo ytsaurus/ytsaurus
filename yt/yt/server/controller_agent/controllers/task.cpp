@@ -67,6 +67,21 @@ using NControllerAgent::NProto::TTableInputSpec;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TTask::TNewJobConstraints::operator bool () const noexcept
+{
+    return OutputCookie || MonitoringDescriptor;
+}
+
+void FormatValue(TStringBuilderBase* builder, const TTask::TNewJobConstraints& newJobConstraints, TStringBuf /*format*/)
+{
+    builder->AppendFormat(
+        "{OutputCookie: %v, MonitoringDescriptor: %v}",
+        newJobConstraints.OutputCookie,
+        newJobConstraints.MonitoringDescriptor);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TTask::TTask()
     : Logger(ControllerLogger())
     , CachedPendingJobCount_{.DefaultCount = -1}
@@ -719,6 +734,11 @@ std::optional<EScheduleFailReason> TTask::TryScheduleJob(
     }
 
     auto newJobConstraints = GetNewJobConstraints(allocation);
+    if (newJobConstraints) {
+        YT_LOG_DEBUG(
+            "Scheduling new job considering job constraints (NewJobConstraints: %v)",
+            newJobConstraints);
+    }
 
     auto cookieInfoOrError = previousJobId
         ? GetOutputCookieInfoForNextJob(allocation, newJobConstraints)

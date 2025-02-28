@@ -421,7 +421,11 @@ protected:
     {
         std::optional<NChunkPools::IChunkPoolOutput::TCookie> OutputCookie;
         std::optional<TJobMonitoringDescriptor> MonitoringDescriptor;
+
+        operator bool() const noexcept;
     };
+    friend void FormatValue(TStringBuilderBase* builder, const TNewJobConstraints& newJobConstraints, TStringBuf /*format*/);
+
     virtual TNewJobConstraints GetNewJobConstraints(const TAllocation& allocation) const;
 
     virtual NChunkPools::IChunkPoolOutput::TCookie ExtractCookieForAllocation(
