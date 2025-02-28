@@ -79,6 +79,8 @@ public:
     // COMPAT(akozhikhov).
     bool ResetHunkStorageInTableDestroy;
 
+    bool ProhibitPrerequisiteRevisionsDifferFromExecutionPaths;
+
     REGISTER_YSON_STRUCT(TDynamicObjectManagerConfig);
 
     static void Register(TRegistrar registrar);

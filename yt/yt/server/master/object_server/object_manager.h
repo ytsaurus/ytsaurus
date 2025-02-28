@@ -18,6 +18,8 @@
 
 #include <yt/yt/library/profiling/sensor.h>
 
+#include <yt/yt/core/ytree/ypath_client.h>
+
 #include <yt/yt/core/test_framework/testing_tag.h>
 
 namespace NYT::NObjectServer {
@@ -217,7 +219,10 @@ struct IObjectManager
         const std::vector<TVersionedObjectId>& objectIds) = 0;
 
     //! Validates prerequisites, throws on failure.
-    virtual void ValidatePrerequisites(const NObjectClient::NProto::TPrerequisitesExt& prerequisites) = 0;
+    virtual void ValidatePrerequisites(
+        NYTree::TYPathMaybeRef originalTargetPath,
+        const google::protobuf::RepeatedPtrField<TProtobufString>& originalAdditionalPaths,
+        const NObjectClient::NProto::TPrerequisitesExt& prerequisites) = 0;
 
     //! Forwards an object request to a given cell.
     virtual TFuture<TSharedRefArray> ForwardObjectRequest(

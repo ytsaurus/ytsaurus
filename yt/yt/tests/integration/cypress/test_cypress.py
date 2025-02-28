@@ -2741,6 +2741,41 @@ class TestCypress(YTEnvSetup):
             ],
         )
 
+    @authors("cherepashka")
+    @not_implemented_in_sequoia
+    def test_prerequisite_revisions_restriction(self):
+        set("//sys/@config/object_manager/prohibit_prerequisite_revisions_differ_from_execution_paths", True)
+        create("map_node", "//home/revision_node", recursive=True, force=True)
+        create("map_node", "//home/test_node", recursive=True, force=True)
+        revision = get("//home/revision_node/@revision")
+
+        with raises_yt_error("Requests with prerequisitive paths different from target paths are prohibited in Cypress"):
+            create(
+                "map_node",
+                "//tmp/test_node",
+                prerequisite_revisions=[
+                    {
+                        "path": "//home/revision_node",
+                        "transaction_id": "0-0-0-0",
+                        "revision": revision,
+                    }
+                ],
+            )
+        with raises_yt_error("Requests with prerequisitive paths different from target paths are prohibited in Cypress"):
+            copy(
+                "//home/test_node",
+                "//home/test_node2",
+                prerequisite_revisions=[
+                    {
+                        "path": "//home/revision_node",
+                        "transaction_id": "0-0-0-0",
+                        "revision": revision,
+                    }
+                ],
+            )
+
+        set("//sys/@config/object_manager/prohibit_prerequisite_revisions_differ_from_execution_paths", False)
+
     @authors("babenko")
     # COMPAT(babenko): YT-11903
     @not_implemented_in_sequoia

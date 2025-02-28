@@ -47,6 +47,9 @@ void TDynamicObjectManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("reset_hunk_storage_in_table_destroy", &TThis::ResetHunkStorageInTableDestroy)
         .Default(true)
         .DontSerializeDefault();
+    registrar.Parameter("prohibit_prerequisite_revisions_differ_from_execution_paths", &TThis::ProhibitPrerequisiteRevisionsDifferFromExecutionPaths)
+        .Default(false)
+        .DontSerializeDefault();
 }
 
 DEFINE_REFCOUNTED_TYPE(TDynamicObjectManagerConfig)
