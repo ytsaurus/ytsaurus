@@ -595,7 +595,7 @@ private:
                 // We must copy all fields of active query except for incarnation, ping time, assigned query and abort request
                 // (which do not matter for finished query) and filter factors field (which goes to finished_queries_by_start_time,
                 // finished_queries_by_user_and_start_time, finished_queries_by_aco_and_start_time tables).
-                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryDescriptor::FieldCount == 14);
+                static_assert(TActiveQueryDescriptor::FieldCount == 20 && TFinishedQueryDescriptor::FieldCount == 15);
                 TFinishedQuery newRecord{
                     .Key = TFinishedQueryKey{.QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
@@ -611,6 +611,7 @@ private:
                     .ResultCount = activeQueryRecord->ResultCount,
                     .FinishTime = activeQueryRecord->FinishTime,
                     .Annotations = activeQueryRecord->Annotations,
+                    .Secrets = activeQueryRecord->Secrets,
                 };
                 std::vector newRows = {
                     newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetIdMapping()),
@@ -622,7 +623,7 @@ private:
             }
 
             {
-                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryByStartTimeDescriptor::FieldCount == 7);
+                static_assert(TActiveQueryDescriptor::FieldCount == 20 && TFinishedQueryByStartTimeDescriptor::FieldCount == 7);
                 TFinishedQueryByStartTime newRecord{
                     .Key = TFinishedQueryByStartTimeKey{.MinusStartTime = -i64(activeQueryRecord->StartTime.MicroSeconds()), .QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
@@ -641,7 +642,7 @@ private:
             }
 
             {
-                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryByUserAndStartTimeDescriptor::FieldCount == 6);
+                static_assert(TActiveQueryDescriptor::FieldCount == 20 && TFinishedQueryByUserAndStartTimeDescriptor::FieldCount == 6);
                 TFinishedQueryByUserAndStartTime newRecord{
                     .Key = TFinishedQueryByUserAndStartTimeKey{.User = activeQueryRecord->User, .MinusStartTime = -i64(activeQueryRecord->StartTime.MicroSeconds()), .QueryId = queryId},
                     .Engine = activeQueryRecord->Engine,
@@ -658,7 +659,7 @@ private:
             }
 
             {
-                static_assert(TActiveQueryDescriptor::FieldCount == 19 && TFinishedQueryByAcoAndStartTimeDescriptor::FieldCount == 7);
+                static_assert(TActiveQueryDescriptor::FieldCount == 20 && TFinishedQueryByAcoAndStartTimeDescriptor::FieldCount == 7);
 
                 auto accessControlObjects = activeQueryRecord->AccessControlObjects ? ConvertTo<std::vector<TString>>(activeQueryRecord->AccessControlObjects) : std::vector<TString>{};
                 if (!accessControlObjects.empty()) {

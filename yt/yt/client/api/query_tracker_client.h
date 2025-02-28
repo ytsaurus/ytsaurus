@@ -129,6 +129,7 @@ struct TQuery
     std::optional<TError> Error;
     NYson::TYsonString Annotations;
     NYTree::IAttributeDictionaryPtr OtherAttributes;
+    std::optional<NYson::TYsonString> Secrets;
 };
 
 void Serialize(const TQuery& query, NYson::IYsonConsumer* consumer);
