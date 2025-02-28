@@ -101,6 +101,8 @@ def create_response_error(underlying_error):
         error = YtChunkNotPreloaded(underlying_error)
     elif sample_error.is_no_in_sync_replicas():
         error = YtNoInSyncReplicas(underlying_error)
+    elif sample_error.is_authentication_error():
+        error = YtAuthenticationError(underlying_error)
     else:
         error = sample_error
     return error
@@ -302,6 +304,11 @@ class YtNoInSyncReplicas(YtResponseError):
 
 class YtSequoiaRetriableError(YtResponseError):
     """Transient error in Sequoia request, usually caused by lock conflict"""
+    pass
+
+
+class YtAuthenticationError(YtResponseError):
+    """Authentication error"""
     pass
 
 
