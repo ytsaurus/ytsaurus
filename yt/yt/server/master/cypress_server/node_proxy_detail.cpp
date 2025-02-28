@@ -1538,8 +1538,8 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Lock)
     DeclareMutating();
 
     auto mode = FromProto<ELockMode>(request->mode());
-    auto childKey = YT_PROTO_OPTIONAL(*request, child_key);
-    auto attributeKey = YT_PROTO_OPTIONAL(*request, attribute_key);
+    auto childKey = YT_OPTIONAL_FROM_PROTO(*request, child_key);
+    auto attributeKey = YT_OPTIONAL_FROM_PROTO(*request, attribute_key);
     auto timestamp = request->timestamp();
     bool waitable = request->waitable();
 

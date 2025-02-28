@@ -154,7 +154,7 @@ void TRecovery::DoRun()
         auto snapshotRecordId = snapshotMeta.last_record_id();
         auto snapshotLastMutationTerm = snapshotMeta.last_mutation_term();
         // COMPAT(danilalexeev)
-        auto snapshotLastMutationReign = YT_PROTO_OPTIONAL(snapshotMeta, last_mutation_reign)
+        auto snapshotLastMutationReign = YT_OPTIONAL_FROM_PROTO(snapshotMeta, last_mutation_reign)
             .value_or(InvalidReign);
         auto snapshotReadOnly = snapshotMeta.read_only();
 

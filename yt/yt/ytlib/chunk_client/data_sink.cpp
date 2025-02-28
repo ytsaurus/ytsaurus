@@ -29,17 +29,13 @@ void ToProto(NProto::TDataSink* protoDataSink, const TDataSink& dataSink)
 {
     using NYT::ToProto;
 
-    if (dataSink.GetPath()) {
-        protoDataSink->set_object_path(*dataSink.GetPath());
-    }
+    YT_OPTIONAL_TO_PROTO(protoDataSink, object_path, dataSink.GetPath());
 
     if (dataSink.GetObjectId()) {
         ToProto(protoDataSink->mutable_object_id(), dataSink.GetObjectId());
     }
 
-    if (dataSink.GetAccount()) {
-        protoDataSink->set_account(*dataSink.GetAccount());
-    }
+    YT_OPTIONAL_TO_PROTO(protoDataSink, account, dataSink.GetAccount());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

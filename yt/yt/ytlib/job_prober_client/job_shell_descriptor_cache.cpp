@@ -140,9 +140,7 @@ private:
         ToProto(req->mutable_incarnation_id(), allocationBriefInfo.ControllerAgentDescriptor.IncarnationId);
         ToProto(req->mutable_operation_id(), allocationBriefInfo.OperationId);
         ToProto(req->mutable_job_id(), key.JobId);
-        if (key.ShellName) {
-            req->set_shell_name(*key.ShellName);
-        }
+        YT_OPTIONAL_TO_PROTO(req, shell_name, key.ShellName);
 
         auto rspOrError = WaitFor(req->Invoke());
 

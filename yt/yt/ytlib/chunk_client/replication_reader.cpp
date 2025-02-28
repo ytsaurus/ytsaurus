@@ -2891,12 +2891,8 @@ private:
         req->set_enable_throttling(true);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         req->set_all_extension_tags(!ExtensionTags_);
-        if (PartitionTag_) {
-            req->set_partition_tag(*PartitionTag_);
-        }
-        if (ExtensionTags_) {
-            ToProto(req->mutable_extension_tags(), *ExtensionTags_);
-        }
+        YT_OPTIONAL_SET_PROTO(req, partition_tag, PartitionTag_);
+        YT_OPTIONAL_TO_PROTO(req, extension_tags, ExtensionTags_);
         req->set_supported_chunk_features(ToUnderlying(GetSupportedChunkFeatures()));
 
         auto rspFuture = req->Invoke();
