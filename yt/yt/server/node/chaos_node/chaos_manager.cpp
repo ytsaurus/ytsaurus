@@ -1088,7 +1088,7 @@ private:
         NChaosClient::NProto::TRspRemoveTableReplica* /*response*/)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        auto replicaId = FromProto<NChaosClient::TReplicaId>(request->replica_id());
+        auto replicaId = FromProto<TReplicaId>(request->replica_id());
 
         auto* replicationCard = GetReplicationCardOrThrow(replicationCardId);
         auto* replicaInfo = replicationCard->GetReplicaOrThrow(replicaId);
@@ -1120,7 +1120,7 @@ private:
     void HydraExecuteAlterTableReplica(NChaosClient::NProto::TReqAlterTableReplica* request)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        auto replicaId = FromProto<TTableId>(request->replica_id());
+        auto replicaId = FromProto<TReplicaId>(request->replica_id());
         auto mode = request->has_mode()
             ? std::make_optional(FromProto<ETableReplicaMode>(request->mode()))
             : std::nullopt;
@@ -2220,7 +2220,7 @@ private:
         NChaosClient::NProto::TRspUpdateTableReplicaProgress* /*response*/)
     {
         auto replicationCardId = FromProto<TReplicationCardId>(request->replication_card_id());
-        auto replicaId = FromProto<TTableId>(request->replica_id());
+        auto replicaId = FromProto<TReplicaId>(request->replica_id());
         auto newProgress = FromProto<TReplicationProgress>(request->replication_progress());
         auto force = request->force();
 
