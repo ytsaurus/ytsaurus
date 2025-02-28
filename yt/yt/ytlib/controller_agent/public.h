@@ -129,6 +129,7 @@ DEFINE_ENUM(EScheduleFailReason,
     ((NewJobsForbidden)              (24))
     ((NoPendingProbingJobs)          (25))
     ((AllocationJobCountReachedLimit)(26))
+    ((AllocationFinishRequested)     (27))
 );
 
 DEFINE_ENUM_UNKNOWN_VALUE(EScheduleFailReason, Unknown);
