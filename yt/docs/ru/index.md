@@ -65,6 +65,9 @@ h3 {
     </div>
 </div>
 
+{% if datahub %}
+{% else %}
+
 ## Полезные ссылки { #links }
 
 {% if audience == "internal" %}
@@ -72,9 +75,12 @@ h3 {
 {% include [Полезные ссылки](_includes/links-int.md) %}
 
 {% else %}
+
 * [GitHub](https://github.com/ytsaurus/ytsaurus)
 * [Сайт {{product-name}}](https://ytsaurus.tech/ru)
 * [Telegram](https://t.me/ytsaurus_ru)
 * [Stack Overflow](https://stackoverflow.com/tags/ytsaurus)
 * [Рассылка для вопросов](mailto:community_ru@ytsaurus.tech)
+{% endif %}
+
 {% endif %}
