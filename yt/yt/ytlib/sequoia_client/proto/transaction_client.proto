@@ -41,6 +41,11 @@ message TReqStartTransaction
     };
 
     optional TAuthenticationIdentity identity = 6;
+
+    // COMPAT(kvk1920): make it required after 25.1.
+    optional int32 sequoia_reign = 7; // ESequoiaReign
+
+    extensions 100 to max;
 }
 
 message TRspStartTransaction

@@ -918,6 +918,11 @@ private:
                         .Item("inherit_acl").Value(false)
                     .EndMap());
 
+            ScheduleCreateNode(
+                "//sys/cypress_proxies",
+                transactionId,
+                EObjectType::CypressProxyMap);
+
             FlushScheduled();
 
             // Level 3

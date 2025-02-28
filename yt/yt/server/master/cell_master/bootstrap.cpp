@@ -84,8 +84,10 @@
 #include <yt/yt/server/master/security_server/config.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 
-#include <yt/yt/server/master/sequoia_server/sequoia_manager.h>
+#include <yt/yt/server/master/sequoia_server/cypress_proxy_tracker.h>
+#include <yt/yt/server/master/sequoia_server/cypress_proxy_tracker_service.h>
 #include <yt/yt/server/master/sequoia_server/ground_update_queue_manager.h>
+#include <yt/yt/server/master/sequoia_server/sequoia_manager.h>
 #include <yt/yt/server/master/sequoia_server/sequoia_transaction_service.h>
 
 #include <yt/yt/server/master/table_server/table_manager.h>
@@ -565,6 +567,11 @@ const ISequoiaManagerPtr& TBootstrap::GetSequoiaManager() const
     return SequoiaManager_;
 }
 
+const ICypressProxyTrackerPtr& TBootstrap::GetCypressProxyTracker() const
+{
+    return CypressProxyTracker_;
+}
+
 const IHiveManagerPtr& TBootstrap::GetHiveManager() const
 {
     return HiveManager_;
@@ -934,6 +941,8 @@ void TBootstrap::DoInitialize()
 
     SequoiaManager_ = CreateSequoiaManager(this);
 
+    CypressProxyTracker_ = CreateCypressProxyTracker(this, ChannelFactory_);
+
     ReplicatedTableTracker_ = New<TReplicatedTableTracker>(Config_->ReplicatedTableTracker, this);
 
     SchedulerPoolManager_ = CreateSchedulerPoolManager(this);
@@ -992,6 +1001,7 @@ void TBootstrap::DoInitialize()
     BackupManager_->Initialize();
     ChaosManager_->Initialize();
     SchedulerPoolManager_->Initialize();
+    CypressProxyTracker_->Initialize();
     GroundUpdateQueueManager_->Initialize();
     GraftingManager_->Initialize();
     MulticellStatisticsCollector_->Initialize();
@@ -1072,6 +1082,7 @@ void TBootstrap::DoInitialize()
     RpcServer_->RegisterService(CreateMasterChaosService(this));
     RpcServer_->RegisterService(CreateCellTrackerService(this));
     RpcServer_->RegisterService(CreateSequoiaTransactionService(this));
+    RpcServer_->RegisterService(CreateCypressProxyTrackerService(this));
     RpcServer_->RegisterService(CreateIncumbentService(this));
     RpcServer_->RegisterService(CreateTabletHydraService(this));
     RpcServer_->RegisterService(CreateReplicatedTableTrackerService(this, rttInvoker));
@@ -1181,6 +1192,10 @@ void TBootstrap::DoStart()
         orchidRoot,
         "/reign",
         ConvertTo<INodePtr>(GetCurrentReign()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/sequoia_reign",
+        ConvertToNode(GetCurrentSequoiaReign()));
     SetBuildAttributes(
         orchidRoot,
         "master");

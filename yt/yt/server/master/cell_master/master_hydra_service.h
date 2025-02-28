@@ -14,15 +14,30 @@ class TMasterHydraServiceBase
 protected:
     TBootstrap* const Bootstrap_;
 
+    struct TRpcHeavyDefaultInvoker
+    { };
+
+    using TDefaultInvokerKind = std::variant<EAutomatonThreadQueue, TRpcHeavyDefaultInvoker>;
+
     TMasterHydraServiceBase(
         TBootstrap* bootstrap,
         const NRpc::TServiceDescriptor& descriptor,
-        EAutomatonThreadQueue defaultQueue,
+        TDefaultInvokerKind defaultInvokerKind,
         NLogging::TLogger logger,
         NRpc::TServiceOptions options = {});
 
     IInvokerPtr GetGuardedAutomatonInvoker(EAutomatonThreadQueue queue);
     void ValidateClusterInitialized();
+
+private:
+    using TValidateClusterInititalizedFunction = void(TBootstrap*);
+    TValidateClusterInititalizedFunction* const ValidateClusterInitialized_;
+
+    static TValidateClusterInititalizedFunction* SelectClusterInitializationValidator(
+        TDefaultInvokerKind invokerKind);
+    static IInvokerPtr SelectDefaultInvoker(
+        TDefaultInvokerKind invokerKind,
+        TBootstrap* bootsrap);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

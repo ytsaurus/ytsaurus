@@ -867,6 +867,7 @@ private:
                 ToProto(req->add_actions(), action);
             }
             WriteAuthenticationIdentityToProto(req->mutable_identity(), session->UserIdentity);
+            req->set_sequoia_reign(NYT::ToProto(GetCurrentSequoiaReign()));
 
             futures.push_back(req->Invoke().AsVoid());
         }
