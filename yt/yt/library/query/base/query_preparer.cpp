@@ -683,7 +683,7 @@ std::vector<std::pair<TConstExpressionPtr, int>> MakeExpressionsFromComputedColu
 TJoinClausePtr BuildJoinClause(
     const TDataSplit& foreignDataSplit,
     const NAst::TJoin& tableJoin,
-    const TString& source,
+    TStringBuf source,
     const NAst::TAliasMap& aliasMap,
     const TConstTypeInferrerMapPtr& functions,
     size_t* globalCommonKeyPrefix,
@@ -892,7 +892,7 @@ TJoinClausePtr BuildJoinClause(
 
 TJoinClausePtr BuildArrayJoinClause(
     const NAst::TArrayJoin& arrayJoin,
-    const TString& source,
+    TStringBuf source,
     const NAst::TAliasMap& aliasMap,
     const TConstTypeInferrerMapPtr& functions,
     TExprBuilder* builder)
@@ -978,7 +978,7 @@ TPlanFragmentPtr PreparePlanFragment(
 
 TPlanFragmentPtr PreparePlanFragment(
     IPrepareCallbacks* callbacks,
-    const TString& source,
+    TStringBuf source,
     const NAst::TQuery& queryAst,
     const NAst::TAliasMap& aliasMap,
     IMemoryUsageTrackerPtr memoryTracker,
