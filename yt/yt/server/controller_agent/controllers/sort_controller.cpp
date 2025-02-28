@@ -3793,11 +3793,11 @@ private:
         auto jobProxyMemory = GetFinalIOMemorySize(
             UnorderedMergeJobIOConfig,
             /*useEstimatedBufferSize*/ true,
-            stat);
+            AggregateStatistics(stat));
         auto jobProxyMemoryWithFixedWriteBufferSize = GetFinalIOMemorySize(
             UnorderedMergeJobIOConfig,
             /*useEstimatedBufferSize*/ false,
-            stat);
+            AggregateStatistics(stat));
 
         result.SetJobProxyMemory(jobProxyMemory);
         result.SetJobProxyMemoryWithFixedWriteBufferSize(jobProxyMemoryWithFixedWriteBufferSize);
