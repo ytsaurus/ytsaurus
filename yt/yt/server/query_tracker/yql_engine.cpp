@@ -174,6 +174,15 @@ private:
             protoFile->set_content(file->Content);
             protoFile->set_type(static_cast<TYqlQueryFile_EContentType>(file->Type));
         }
+
+        for (const auto& secret : Secrets_) {
+            const auto protoCred = yqlRequest->add_credentials();
+            protoCred->set_id(secret->Id);
+            protoCred->set_category(secret->Category);
+            protoCred->set_subcategory(secret->Subcategory);
+            protoCred->set_content(secret->YPath);
+        }
+
         startQueryReq->set_build_rowsets(true);
 
         {
