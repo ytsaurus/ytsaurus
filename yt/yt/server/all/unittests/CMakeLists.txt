@@ -72,7 +72,7 @@ target_link_options(unittester-all PRIVATE
 
 target_sources(unittester-all PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/server/all/unittests/config_ut.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/server/all/unittests/8a8382a18083988df754644fce9e5fe3.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/all/unittests/8bef419f4c4145de137eb7a9d1d66770.cpp
 )
 
 
@@ -99,7 +99,7 @@ set_property(
 )
 
 resources(unittester-all
-  ${PROJECT_BINARY_DIR}/yt/yt/server/all/unittests/8a8382a18083988df754644fce9e5fe3.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/server/all/unittests/8bef419f4c4145de137eb7a9d1d66770.cpp
   INPUTS
   ${PROJECT_SOURCE_DIR}/yt/yt/server/all/unittests/data/controller-agent.yson
   ${PROJECT_SOURCE_DIR}/yt/yt/server/all/unittests/data/http-proxy.yson

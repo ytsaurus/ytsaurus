@@ -101,7 +101,7 @@ target_sources(unittester-formats PRIVATE
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yamr_parser_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yamr_writer_ut.cpp
   ${PROJECT_SOURCE_DIR}/yt/yt/library/formats/unittests/yson_helpers.cpp
-  ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/50a4baadff663ce8fbdc82d4d2a5691e.cpp
   ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/protobuf_format_ut.pb.h
 )
 
@@ -147,7 +147,7 @@ target_proto_addincls(unittester-formats
 )
 
 resources(unittester-formats
-  ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/5e5361e0329be49ce689f46dafdeeab6.cpp
+  ${PROJECT_BINARY_DIR}/yt/yt/library/formats/unittests/50a4baadff663ce8fbdc82d4d2a5691e.cpp
   INPUTS
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test-data/good-types.txt
   ${PROJECT_SOURCE_DIR}/library/cpp/type_info/ut/test-data/bad-types.txt
