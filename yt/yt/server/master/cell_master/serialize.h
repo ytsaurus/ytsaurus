@@ -228,12 +228,13 @@ DEFINE_ENUM(EMasterReign,
     ((FixTabletSizeCalculationForCellAssignmentWhenMounting)        (2839))  // alexelexa
     ((ResetHunkSpecificMediaAndRecomputeTabletStatistics)           (2840))  // shakurov
     ((PrepareModifyReplicasRefreshFlagsChecks)                      (2841))  // babenko
-    ((PersistAuxiliaryNodeStatistics)                               (2842))  // ifsmirnov
+    ((PersistAuxiliaryNodeStatistics_25_1)                          (2842))  // ifsmirnov
     ((GlobalObjectReplicationRespectsTypeHandlers)                  (2843))  // shakurov
     // 25.2 starts here.
     ((Start_25_2)                                                   (2900))  // ponasenko-rs
     ((TabletTransactionSerializationType)                           (2901))  // ponasenko-rs
     ((CypressProxyTracker)                                          (2902))  // kvk1920
+    ((PersistAuxiliaryNodeStatistics)                               (2903))  // ifsmirnov
 );
 
 static_assert(TEnumTraits<EMasterReign>::IsMonotonic, "Master reign enum is not monotonic");
