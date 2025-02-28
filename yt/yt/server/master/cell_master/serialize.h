@@ -229,6 +229,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixTabletSizeCalculationForCellAssignmentWhenMounting)        (2839))  // alexelexa
     ((ResetHunkSpecificMediaAndRecomputeTabletStatistics)           (2840))  // shakurov
     ((PrepareModifyReplicasRefreshFlagsChecks)                      (2841))  // babenko
+    ((PersistAuxiliaryNodeStatistics)                               (2842))  // ifsmirnov
     // 25.2 starts here.
     ((Start_25_2)                                                   (2900))  // ponasenko-rs
     ((TabletTransactionSerializationType)                           (2901))  // ponasenko-rs
