@@ -1550,7 +1550,7 @@ public:
                 "NonMirroredTransactionId: %v, Title: %v)",
                 mirroredSample,
                 nonMirroredSample,
-                YT_PROTO_OPTIONAL(context->Request(), title));
+                YT_OPTIONAL_FROM_PROTO(context->Request(), title));
             THROW_ERROR_EXCEPTION(
                 "Cypress transaction cannot depend on both mirrored and non-mirrored "
                 "transactions at the same time")
@@ -2111,10 +2111,10 @@ private:
             ? FromProto(request->attributes())
             : CreateEphemeralAttributes();
 
-        auto title = YT_PROTO_OPTIONAL(*request, title);
+        auto title = YT_OPTIONAL_FROM_PROTO(*request, title);
         auto timeout = FromProto<TDuration>(request->timeout());
-        auto deadline = YT_PROTO_OPTIONAL(*request, deadline, TInstant);
-        auto hintId = YT_PROTO_OPTIONAL(*request, hint_id, TTransactionId)
+        auto deadline = YT_OPTIONAL_FROM_PROTO(*request, deadline, TInstant);
+        auto hintId = YT_OPTIONAL_FROM_PROTO(*request, hint_id, TTransactionId)
             .value_or(TTransactionId{});
 
         auto replicateToCellTags = FromProto<TCellTagList>(request->replicate_to_cell_tags());
@@ -2183,7 +2183,7 @@ private:
         // NB: DoStartTransaction below cares about authenticated user.
         TAuthenticatedUserGuard userGuard(securityManager, user);
 
-        auto title = YT_PROTO_OPTIONAL(*request, title);
+        auto title = YT_OPTIONAL_FROM_PROTO(*request, title);
 
         YT_VERIFY(
             isUpload == (

@@ -9,9 +9,9 @@ namespace NYT::NCypressProxy {
 void FromProto(TUserDescriptor* userDescriptor, const NObjectClient::NProto::TUserDescriptor& proto)
 {
     userDescriptor->Name = proto.user_name();
-    userDescriptor->QueueSizeLimit = YT_PROTO_OPTIONAL(proto, request_queue_size_limit);
-    userDescriptor->ReadRequestRateLimit = YT_PROTO_OPTIONAL(proto, read_request_rate_limit);
-    userDescriptor->WriteRequestRateLimit = YT_PROTO_OPTIONAL(proto, write_request_rate_limit);
+    userDescriptor->QueueSizeLimit = YT_OPTIONAL_FROM_PROTO(proto, request_queue_size_limit);
+    userDescriptor->ReadRequestRateLimit = YT_OPTIONAL_FROM_PROTO(proto, read_request_rate_limit);
+    userDescriptor->WriteRequestRateLimit = YT_OPTIONAL_FROM_PROTO(proto, write_request_rate_limit);
 }
 
 void ToProto(NObjectClient::NProto::TUserDescriptor* proto, const TUserDescriptor& userLimits)

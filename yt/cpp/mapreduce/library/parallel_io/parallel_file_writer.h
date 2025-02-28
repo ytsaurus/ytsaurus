@@ -45,11 +45,6 @@ struct TParallelFileWriterOptions
 
     /// @brief Options for each single-threaded writer.
     FLUENT_FIELD_OPTION(TWriterOptions, WriterOptions);
-
-    /// Number of files to single call of concatenate.
-    ///
-    /// Usually users shouldn't touch this option.
-    FLUENT_FIELD_DEFAULT(size_t, ConcatenateBatchSize, 50);
 };
 
 /// @brief Allow to write a whole file in parallel.

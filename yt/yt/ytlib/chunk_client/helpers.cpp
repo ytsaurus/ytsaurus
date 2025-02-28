@@ -552,12 +552,8 @@ TChunkReplicaWithMediumList AllocateWriteTargets(
     auto* req = batchReq->add_subrequests();
     req->set_desired_target_count(desiredTargetCount);
     req->set_min_target_count(minTargetCount);
-    if (replicationFactorOverride) {
-        req->set_replication_factor_override(*replicationFactorOverride);
-    }
-    if (preferredHostName) {
-        req->set_preferred_host_name(ToProto(*preferredHostName));
-    }
+    YT_OPTIONAL_SET_PROTO(req, replication_factor_override, replicationFactorOverride);
+    YT_OPTIONAL_SET_PROTO(req, preferred_host_name, preferredHostName);
     ToProto(req->mutable_forbidden_addresses(), forbiddenAddresses);
     ToProto(req->mutable_allocated_addresses(), allocatedAddresses);
     ToProto(req->mutable_session_id(), sessionId);
