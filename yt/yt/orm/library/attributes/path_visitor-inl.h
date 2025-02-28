@@ -87,9 +87,7 @@ TValue TPathVisitorUtil::ValueOrThrow(TErrorOr<TValue> errorOrValue) const
 }
 
 #define IMPLEMENT_ORM_THROW(...) \
-    THROW_ERROR TError(__VA_ARGS__) \
-        << TErrorAttribute("path", Tokenizer_.GetPath()) \
-        << TErrorAttribute("position", CurrentPath_.GetPath()); \
+    THROW_ERROR TError(__VA_ARGS__); \
     static_assert(true)
 
 template <class U>
@@ -127,6 +125,13 @@ template <typename TSelf>
 template <typename TVisitParam>
 void TPathVisitor<TSelf>::Visit(TVisitParam&& target, NYPath::TYPathBuf path)
 {
+    auto pathCodicil = TErrorCodicils::Guard("path", [this] () -> std::string {
+        return std::string(Self()->Tokenizer_.GetPath());
+    });
+    auto positionCodicil = TErrorCodicils::Guard("position", [this] () -> std::string {
+        return std::string(Self()->CurrentPath_.GetPath());
+    });
+
     Self()->Reset(path);
     Self()->VisitGeneric(std::forward<TVisitParam>(target), EVisitReason::TopLevel);
 }
