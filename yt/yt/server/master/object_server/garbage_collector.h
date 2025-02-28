@@ -56,9 +56,9 @@ public:
     void DestroyZombie(TObject* object);
     const THashSet<TObjectRawPtr>& GetZombies() const;
 
-    void RegisterRemovalAwaitingCellsSyncObject(TObject* object);
+    void RegisterRemovalAwaitingCellsSyncObject(TObject* object, const TCellTagList& cellTags);
     void UnregisterRemovalAwaitingCellsSyncObject(TObject* object);
-    const THashSet<TObjectRawPtr>& GetRemovalAwaitingCellsSyncObjects() const;
+    const THashMap<TObjectRawPtr, TCellTagList>& GetRemovalAwaitingCellsSyncObjects() const;
 
     TObject* GetWeakGhostObject(TObjectId id);
 
@@ -103,7 +103,7 @@ private:
     std::atomic<int> LockedObjectCount_ = 0;
 
     //! Objects in |RemovalAwaitingCellsSync| life stage.
-    THashSet<TObjectRawPtr> RemovalAwaitingCellsSyncObjects_;
+    THashMap<TObjectRawPtr, TCellTagList> RemovalAwaitingCellsSyncObjects_;
 
     //! List of the ephemeral ghosts waiting for ephemeral unref.
     TMpscStack<std::pair<TObject*, TEpoch>> EphemeralGhostUnrefQueue_;
