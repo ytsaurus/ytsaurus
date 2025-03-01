@@ -129,14 +129,10 @@ struct TPoolTreeKeysHolder
 {
     TPoolTreeKeysHolder()
     {
-        auto treeConfigTemplate = New<TFairShareStrategyTreeConfig>();
-        auto treeConfigKeys = treeConfigTemplate->GetRegisteredKeys();
-
         auto poolConfigTemplate = New<TPoolConfig>();
         auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
 
-        Keys.reserve(treeConfigKeys.size() + poolConfigKeys.size() + 3);
-        Keys.insert(Keys.end(), treeConfigKeys.begin(), treeConfigKeys.end());
+        Keys.reserve(poolConfigKeys.size() + 3);
         Keys.insert(Keys.end(), poolConfigKeys.begin(), poolConfigKeys.end());
         Keys.insert(Keys.end(), DefaultTreeAttributeName);
         Keys.insert(Keys.end(), TreeConfigAttributeName);
