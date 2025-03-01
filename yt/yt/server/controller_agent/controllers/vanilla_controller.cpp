@@ -42,7 +42,7 @@ DEFINE_ENUM(EOperationIncarnationSwitchReason,
     (JobAborted)
     (JobFailed)
     (JobInterrupted)
-    (JobIncarnationsDefferAfterRevival)
+    (JobIncarnationsDifferAfterRevival)
     (JobLackAfterRevival)
 );
 
@@ -1101,7 +1101,7 @@ std::optional<EOperationIncarnationSwitchReason> TVanillaController::ShouldResta
             error,
             "Some of revived jobs are in different operation incarnations, switching to new incarnation");
 
-        return EOperationIncarnationSwitchReason::JobIncarnationsDefferAfterRevival;
+        return EOperationIncarnationSwitchReason::JobIncarnationsDifferAfterRevival;
     }
 
     THashMap<TTask*, int> jobCountByTasks;
