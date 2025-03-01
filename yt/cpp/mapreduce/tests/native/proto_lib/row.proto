@@ -98,3 +98,8 @@ message TGrepperRecord
     optional string key = 1;
     optional bytes other = 2 [(NYT.flags) = OTHER_COLUMNS];
 }
+
+message TNumberRecord
+{
+    optional int64 Number = 1 [(NYT.column_name) = "number"];
+}

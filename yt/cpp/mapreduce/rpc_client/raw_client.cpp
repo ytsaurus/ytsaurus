@@ -1,5 +1,6 @@
 #include "raw_client.h"
 
+#include "client_impl.h"
 #include "raw_batch_request.h"
 #include "rpc_parameters_serialization.h"
 
@@ -1390,6 +1391,11 @@ IRawBatchRequestPtr TRpcRawClient::CreateRawBatchRequest()
 IRawClientPtr TRpcRawClient::Clone()
 {
     return ::MakeIntrusive<TRpcRawClient>(Client_, Config_);
+}
+
+IRawClientPtr TRpcRawClient::Clone(const TClientContext& context)
+{
+    return ::MakeIntrusive<TRpcRawClient>(CreateApiClient(context), context.Config);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

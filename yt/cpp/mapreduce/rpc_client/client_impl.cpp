@@ -15,24 +15,17 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IClientPtr CreateRpcClient(
-    const TString& serverName,
-    const TCreateClientOptions& options)
+namespace NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYT::NApi::IClientPtr CreateApiClient(const TClientContext& context)
 {
-    auto context = NDetail::CreateClientContext(serverName, options);
-
-    auto globalTxId = GetGuid(context.Config->GlobalTxId);
-
-    auto retryConfigProvider = options.RetryConfigProvider_;
-    if (!retryConfigProvider) {
-        retryConfigProvider = CreateDefaultRetryConfigProvider();
-    }
-
     auto connectionConfig = New<NApi::NRpcProxy::TConnectionConfig>();
     connectionConfig->SetDefaults();
     connectionConfig->ClusterUrl = context.ServerName;
-    if (options.ProxyRole_) {
-        connectionConfig->ProxyRole = *options.ProxyRole_;
+    if (context.ProxyRole) {
+        connectionConfig->ProxyRole = *context.ProxyRole;
     }
     if (context.ProxyAddress) {
         connectionConfig->ProxyAddresses = {*context.ProxyAddress};
@@ -48,9 +41,33 @@ IClientPtr CreateRpcClient(
     }
 
     auto connection = NApi::NRpcProxy::CreateConnection(connectionConfig);
+    return connection->CreateClient(clientOptions);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NDetail
+
+////////////////////////////////////////////////////////////////////////////////
+
+IClientPtr CreateRpcClient(
+    const TString& serverName,
+    const TCreateClientOptions& options)
+{
+    auto context = NDetail::CreateClientContext(serverName, options);
+    if (options.ProxyRole_) {
+        context.ProxyRole = *options.ProxyRole_;
+    }
+
+    auto globalTxId = GetGuid(context.Config->GlobalTxId);
+
+    auto retryConfigProvider = options.RetryConfigProvider_;
+    if (!retryConfigProvider) {
+        retryConfigProvider = CreateDefaultRetryConfigProvider();
+    }
 
     auto rawClient = MakeIntrusive<NDetail::TRpcRawClient>(
-        connection->CreateClient(clientOptions),
+        NDetail::CreateApiClient(context),
         context.Config);
 
     NDetail::EnsureInitialized();
