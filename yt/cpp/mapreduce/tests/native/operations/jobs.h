@@ -42,6 +42,30 @@ public:
     }
 };
 
+class TIdProtoMapper
+    : public IMapper<TTableReader<TNumberRecord>, TTableWriter<TNumberRecord>>
+{
+public:
+    void Do(TReader* reader, TWriter* writer)
+    {
+        for (; reader->IsValid(); reader->Next()) {
+            writer->AddRow(reader->GetRow());
+        }
+    }
+};
+
+class TIdProtoReducer
+    : public IReducer<TTableReader<TNumberRecord>, TTableWriter<TNumberRecord>>
+{
+public:
+    void Do(TReader* reader, TWriter* writer)
+    {
+        for (; reader->IsValid(); reader->Next()) {
+            writer->AddRow(reader->GetRow());
+        }
+    }
+};
+
 class TSleepingMapper : public IMapper<TTableReader<TNode>, TTableWriter<TNode>>
 {
 public:
