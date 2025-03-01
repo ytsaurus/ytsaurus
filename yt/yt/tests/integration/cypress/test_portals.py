@@ -67,31 +67,31 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_cannot_create_portal_exit(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Nodes of type \"portal_exit\" cannot be created explicitly"):
             create("portal_exit", "//tmp/e")
 
     @authors("babenko")
     def test_cannot_create_portal_to_primary1(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Portal exit cannot be placed on the primary cell"):
             create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 10})
 
     @authors("babenko")
     def test_cannot_create_portal_to_primary2(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
-        with pytest.raises(YtError):
+        with raises_yt_error("Portal entrance cannot be placed on the secondary cell"):
             create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": 10})
 
     @authors("babenko")
     def test_validate_cypress_node_host_cell_role1(self):
-        set("//sys/@config/multicell_manager/cell_descriptors", {"11": {"roles": ["chunk_host"]}})
-        with pytest.raises(YtError):
-            create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
+        set("//sys/@config/multicell_manager/cell_descriptors", {"12": {"roles": ["chunk_host"]}})
+        with raises_yt_error("cannot host Cypress nodes"):
+            create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 12})
 
     @authors("aleksandra-zh")
     def test_validate_cypress_node_host_cell_role2(self):
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", True)
         set("//sys/@config/multicell_manager/cell_descriptors", {})
-        with pytest.raises(YtError):
+        with raises_yt_error("cannot host Cypress nodes"):
             create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
 
         set("//sys/@config/multicell_manager/remove_secondary_cell_default_roles", False)
@@ -99,7 +99,7 @@ class TestPortals(YTEnvSetup):
 
     @authors("babenko")
     def test_need_exit_cell_tag_on_create(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Attribute \"exit_cell_tag\" is not found"):
             create("portal_entrance", "//tmp/p")
 
     @authors("babenko")
@@ -491,7 +491,7 @@ class TestPortals(YTEnvSetup):
         create("list_node", "//tmp/p1/m/l")
         set("//sys/@config/cypress_manager/forbid_list_node_creation", True)
 
-        with pytest.raises(YtError):
+        with raises_yt_error("List nodes are deprecated and do not support cross-cell copying"):
             copy("//tmp/p1/m", "//tmp/p2/m", preserve_account=True)
 
         # XXX(babenko): cleanup is weird
@@ -1058,7 +1058,7 @@ class TestPortals(YTEnvSetup):
 
         assert check_permission("u", "remove", "//tmp/p")["action"] == "deny"
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Access denied"):
             remove("//tmp/p", authenticated_user="u")
 
     @authors("shakurov")
@@ -1392,7 +1392,7 @@ class TestResolveCache(YTEnvSetup):
     @authors("gritukan")
     def test_nested_portals_are_forbidden(self):
         create("portal_entrance", "//tmp/p", attributes={"exit_cell_tag": 11})
-        with pytest.raises(YtError):
+        with raises_yt_error("Portal entrance cannot be placed on the secondary cell"):
             create("portal_entrance", "//tmp/p/q", attributes={"exit_cell_tag": 12})
 
 

@@ -49,7 +49,7 @@ class TestUsers(YTEnvSetup):
 
         set("//sys/users/u/@banned", True)
         assert get("//sys/users/u/@banned")
-        with pytest.raises(YtError):
+        with raises_yt_error("User \"u\" is banned"):
             get("//tmp", authenticated_user="u")
 
         set("//sys/users/u/@banned", False)
@@ -73,16 +73,16 @@ class TestUsers(YTEnvSetup):
         assert is_banned("u")
 
         assert not is_banned("root")
-        with pytest.raises(YtError):
+        with raises_yt_error("User \"root\" cannot be banned"):
             set("//sys/users/root/@banned", True)
         assert not is_banned("root")
 
     @authors("babenko")
     def test_request_rate_limit1(self):
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("cannot be negative"):
             set("//sys/users/u/@read_request_rate_limit", -1)
-        with pytest.raises(YtError):
+        with raises_yt_error("cannot be negative"):
             set("//sys/users/u/@write_request_rate_limit", -1)
 
     @authors("babenko")
@@ -93,7 +93,7 @@ class TestUsers(YTEnvSetup):
     @authors("babenko")
     def test_request_queue_size_limit1(self):
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("cannot be negative"):
             set("//sys/users/u/@request_queue_size_limit", -1)
 
     @authors("babenko")
@@ -105,7 +105,7 @@ class TestUsers(YTEnvSetup):
     def test_request_queue_size_limit3(self):
         create_user("u")
         set("//sys/users/u/@request_queue_size_limit", 0)
-        with pytest.raises(YtError):
+        with raises_yt_error("has exceeded its request queue size limit"):
             ls("/", authenticated_user="u")
         set("//sys/users/u/@request_queue_size_limit", 1)
         ls("/", authenticated_user="u")
@@ -215,9 +215,9 @@ class TestUsers(YTEnvSetup):
     @authors("babenko", "ignat")
     def test_create_user2(self):
         create_user("max")
-        with pytest.raises(YtError):
+        with raises_yt_error("User \"max\" already exists"):
             create_user("max")
-        with pytest.raises(YtError):
+        with raises_yt_error("User \"max\" already exists"):
             create_group("max")
 
     @authors("babenko", "ignat")
@@ -228,23 +228,23 @@ class TestUsers(YTEnvSetup):
     @authors("babenko", "ignat")
     def test_create_group2(self):
         create_group("devs")
-        with pytest.raises(YtError):
+        with raises_yt_error("Group \"devs\" already exists"):
             create_user("devs")
-        with pytest.raises(YtError):
+        with raises_yt_error("Group \"devs\" already exists"):
             create_group("devs")
 
     @authors("babenko", "ignat")
     def test_user_remove_builtin(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot remove a built-in user"):
             remove_user("root")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot remove a built-in user"):
             remove_user("guest")
 
     @authors("babenko", "ignat")
     def test_group_remove_builtin(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot remove a built-in group"):
             remove_group("everyone")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot remove a built-in group"):
             remove_group("users")
 
     @authors("ignat")
@@ -298,7 +298,7 @@ class TestUsers(YTEnvSetup):
 
         add_member("g2", "g1")
         add_member("g3", "g2")
-        with pytest.raises(YtError):
+        with raises_yt_error("would produce a cycle"):
             add_member("g1", "g3")
 
     @authors("ignat")
@@ -323,29 +323,29 @@ class TestUsers(YTEnvSetup):
         create_user("u")
         create_group("g")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("is not present in group"):
             remove_member("u", "g")
 
         add_member("u", "g")
-        with pytest.raises(YtError):
+        with raises_yt_error("is already present in group"):
             add_member("u", "g")
 
     @authors("babenko")
     def test_membership7(self):
         create_group("g")
-        with pytest.raises(YtError):
+        with raises_yt_error("would produce a cycle"):
             add_member("g", "g")
 
     @authors("ignat")
     def test_modify_builtin(self):
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot modify group"):
             remove_member("u", "everyone")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot modify group"):
             remove_member("u", "users")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot modify group"):
             add_member("u", "everyone")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot modify group"):
             add_member("u", "users")
 
     @authors("babenko")
@@ -378,10 +378,10 @@ class TestUsers(YTEnvSetup):
     def test_prerequisite_transactions(self):
         create_group("g8")
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown transaction cell tag"):
             add_member("root", "g8", prerequisite_transaction_ids=["a-b-c-d"])
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Unknown transaction cell tag"):
             remove_member("root", "g8", prerequisite_transaction_ids=["a-b-c-d"])
 
         tx = start_transaction()
@@ -502,7 +502,7 @@ class TestUsers(YTEnvSetup):
         create("table", "//tmp/t1", attributes={"external": False})
 
         create_user("u")
-        with pytest.raises(YtError):
+        with raises_yt_error("is not allowed to create explicitly non-external nodes"):
             create(
                 "table",
                 "//tmp/t2",
@@ -514,7 +514,7 @@ class TestUsers(YTEnvSetup):
         create("table", "//tmp/t3", attributes={"external": False}, authenticated_user="u")
 
         set("//sys/users/u/@allow_external_false", False)
-        with pytest.raises(YtError):
+        with raises_yt_error("is not allowed to create explicitly non-external nodes"):
             create(
                 "table",
                 "//tmp/t4",
