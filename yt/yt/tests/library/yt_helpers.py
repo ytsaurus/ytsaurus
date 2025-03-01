@@ -29,11 +29,10 @@ class JobCountProfiler:
         ]
 
     def get_job_count_delta(self, **kwargs):
-        delta = 0
-        for counter in self._counters:
-            delta += counter.get_delta(verbose=True, **kwargs)
+        return sum(counter.get_delta(verbose=True, **kwargs) for counter in self._counters)
 
-        return delta
+    def get(self, **kwargs):
+        return sum(counter.get(verbose=True, **kwargs) for counter in self._counters)
 
 
 def profiler_factory():
