@@ -1137,12 +1137,14 @@ void TVanillaController::OnOperationRevived()
 
     TOperationControllerBase::OnOperationRevived();
 
-    if (auto maybeIncarnationSwitchReason = ShouldRestartJobsOnRevival()) {
-        YT_LOG_DEBUG(
-            "Switching to new operation incarnation during revival (Reason: %v)",
-            *maybeIncarnationSwitchReason);
+    if (IsOperationGang()) {
+        if (auto maybeIncarnationSwitchReason = ShouldRestartJobsOnRevival()) {
+            YT_LOG_DEBUG(
+                "Switching to new operation incarnation during revival (Reason: %v)",
+                *maybeIncarnationSwitchReason);
 
-        TrySwitchToNewOperationIncarnation(/*operationIsReviving*/ true, *maybeIncarnationSwitchReason);
+            TrySwitchToNewOperationIncarnation(/*operationIsReviving*/ true, *maybeIncarnationSwitchReason);
+        }
     }
 }
 
