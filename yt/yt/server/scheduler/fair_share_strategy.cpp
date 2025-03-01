@@ -1806,20 +1806,21 @@ private:
         }
     }
 
-    TFairShareStrategyTreeConfigPtr ParsePoolTreeConfig(const INodePtr& poolTreeNode, const INodePtr& commonConfig) const
+    TFairShareStrategyTreeConfigPtr ParsePoolTreeConfig(
+        const INodePtr& poolTreeNode,
+        const INodePtr& patchConfigNode = nullptr) const
     {
         const auto& attributes = poolTreeNode->Attributes();
-        auto ysonConfig = attributes.FindYson(TreeConfigAttributeName);
-
-        if (!commonConfig) {
-            return ysonConfig
-                ? ConvertTo<TFairShareStrategyTreeConfigPtr>(ysonConfig)
-                : ConvertTo<TFairShareStrategyTreeConfigPtr>(attributes.ToMap());
+        auto configYson = attributes.FindYson(TreeConfigAttributeName);
+        if (!configYson) {
+            configYson = BuildYsonStringFluently()
+                .BeginMap()
+                .EndMap();
         }
 
-        return ysonConfig
-            ? ConvertTo<TFairShareStrategyTreeConfigPtr>(PatchNode(commonConfig, ConvertToNode(ysonConfig)))
-            : ConvertTo<TFairShareStrategyTreeConfigPtr>(PatchNode(commonConfig, attributes.ToMap()));
+        return patchConfigNode
+            ? ConvertTo<TFairShareStrategyTreeConfigPtr>(PatchNode(patchConfigNode, ConvertToNode(configYson)))
+            : ConvertTo<TFairShareStrategyTreeConfigPtr>(configYson);
     }
 
     TFairShareStrategyTreeConfigPtr BuildConfig(
@@ -1844,7 +1845,7 @@ private:
         }
 
         if (matchedTemplateConfigs.empty()) {
-            return ParsePoolTreeConfig(poolTreeAttributes, /*commonConfig*/ nullptr);
+            return ParsePoolTreeConfig(poolTreeAttributes);
         }
 
         std::sort(
@@ -1854,12 +1855,12 @@ private:
                 return first.config->Priority < second.config->Priority;
             });
 
-        INodePtr compiledConfig = GetEphemeralNodeFactory()->CreateMap();
+        INodePtr compiledConfigNode = GetEphemeralNodeFactory()->CreateMap();
         for (const auto& config : matchedTemplateConfigs) {
-            compiledConfig = PatchNode(compiledConfig, config.config->Config);
+            compiledConfigNode = PatchNode(compiledConfigNode, config.config->Config);
         }
 
-        return ParsePoolTreeConfig(poolTreeAttributes, compiledConfig);
+        return ParsePoolTreeConfig(poolTreeAttributes, compiledConfigNode);
     }
 
     void CollectTreeChanges(
@@ -1875,7 +1876,7 @@ private:
             if (IdToTree_.find(key) == IdToTree_.end()) {
                 treesToAdd->insert(key);
                 try {
-                    auto config = ParsePoolTreeConfig(poolsMap->FindChild(key), /*commonConfig*/ nullptr);
+                    auto config = ParsePoolTreeConfig(poolsMap->FindChild(key));
                     treeIdToFilter->emplace(key, config->NodesFilter);
                 } catch (const std::exception&) {
                     // Do nothing, alert will be set later.
@@ -1892,7 +1893,7 @@ private:
             }
 
             try {
-                auto config = ParsePoolTreeConfig(child, /*commonConfig*/ nullptr);
+                auto config = ParsePoolTreeConfig(child);
                 treeIdToFilter->emplace(treeId, config->NodesFilter);
 
                 if (config->NodesFilter != tree->GetNodesFilter()) {
