@@ -10,4 +10,4 @@ PY_SRCS(
 
 END()
 
-RECURSE(tests)
+RECURSE_FOR_TESTS(tests)
