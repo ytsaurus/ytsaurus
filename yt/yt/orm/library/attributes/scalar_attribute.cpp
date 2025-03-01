@@ -67,9 +67,7 @@ protected:
         EVisitReason reason)
     {
         Y_UNUSED(reason);
-
-        Self()->ThrowOnError(
-            SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, CurrentValue_));
+        SetScalarRepeatedFieldEntry(message, fieldDescriptor, index, CurrentValue_).ThrowOnError();
     }
 
     void VisitScalarSingularField(
@@ -81,8 +79,7 @@ protected:
 
         const auto* reflection = message->GetReflection();
         reflection->ClearField(message, fieldDescriptor);
-        Self()->ThrowOnError(
-            SetScalarField(message, fieldDescriptor, CurrentValue_));
+        SetScalarField(message, fieldDescriptor, CurrentValue_).ThrowOnError();
     }
 };
 
@@ -130,7 +127,7 @@ protected:
                     }
                 }
             } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
-                Throw(NAttributes::EErrorCode::Unimplemented,
+                THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::Unimplemented,
                     "Cannot set a message from a yson node of type %v",
                     CurrentValue_->GetType());
             }
@@ -185,10 +182,10 @@ protected:
             if (PathComplete() || GetMissingFieldPolicy() == EMissingFieldPolicy::Force) {
                 item = unknownFields->AddLengthDelimited(UnknownYsonFieldNumber);
             } else {
-                Throw(errorOrItem);
+                THROW_ERROR_EXCEPTION(errorOrItem);
             }
         } else {
-            Throw(errorOrItem);
+            THROW_ERROR_EXCEPTION(errorOrItem);
         }
 
         StoreCurrentValueToYsonString(value);
@@ -210,14 +207,13 @@ protected:
             if (CurrentValue_->GetType() == NYTree::ENodeType::Map) {
                 for (const auto& [key, value] : SortedMapChildren()) {
                     auto checkpoint = CheckpointBranchedTraversal(key);
-                    auto entry = ValueOrThrow(
-                        AddAttributeDictionaryEntry(message, fieldDescriptor, key));
-                    ThrowOnError(SetAttributeDictionaryEntryValue(
-                        entry,
-                        ConvertToYsonString(value)));
+                    auto entry = AddAttributeDictionaryEntry(message, fieldDescriptor, key)
+                        .ValueOrThrow();
+                    SetAttributeDictionaryEntryValue(entry, ConvertToYsonString(value))
+                        .ThrowOnError();
                 }
             } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
-                Throw(NAttributes::EErrorCode::Unimplemented,
+                THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::Unimplemented,
                     "Cannot set an attribute dictionary from a yson node of type %v",
                     CurrentValue_->GetType());
             }
@@ -235,17 +231,17 @@ protected:
         TYsonString value;
         if (error.IsOK()) {
             entry = reflection->MutableRepeatedMessage(message, fieldDescriptor, index);
-            value = ValueOrThrow(GetAttributeDictionaryEntryValue(entry));
+            value = GetAttributeDictionaryEntryValue(entry).ValueOrThrow();
         } else if (error.GetCode() == NAttributes::EErrorCode::MissingKey) {
-            ThrowOnError(AddAttributeDictionaryEntry(message, fieldDescriptor, key));
+            AddAttributeDictionaryEntry(message, fieldDescriptor, key).ThrowOnError();
             RotateLastEntryBeforeIndex(message, fieldDescriptor, index);
             entry = reflection->MutableRepeatedMessage(message, fieldDescriptor, index);
         } else {
-            Throw(error);
+            THROW_ERROR_EXCEPTION(error);
         }
 
         StoreCurrentValueToYsonString(value);
-        ThrowOnError(SetAttributeDictionaryEntryValue(entry, value));
+        SetAttributeDictionaryEntryValue(entry, value).ThrowOnError();
     }
 
     void VisitMapField(
@@ -261,7 +257,7 @@ protected:
                 for (const auto& [key, value] : SortedMapChildren()) {
                     auto checkpoint = CheckpointBranchedTraversal(key);
                     TemporarilySetCurrentValue(checkpoint, value);
-                    auto keyMessage = ValueOrThrow(MakeMapKeyMessage(fieldDescriptor, key));
+                    auto keyMessage = MakeMapKeyMessage(fieldDescriptor, key).ValueOrThrow();
                     // The key is obviously missing from the cleared map. This will populate the
                     // entry.
                     OnKeyError(
@@ -278,7 +274,7 @@ protected:
                 // Falling back to a list of maps with explicit |key| and |value| fields.
                 VisitRepeatedField(message, fieldDescriptor, reason);
             } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
-                Throw(NAttributes::EErrorCode::Unimplemented,
+                THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::Unimplemented,
                     "Cannot set a proto map from a yson node of type %v",
                     CurrentValue_->GetType());
             }
@@ -310,7 +306,7 @@ protected:
                         EVisitReason::Manual);
                 }
             } else if (CurrentValue_->GetType() != NYTree::ENodeType::Entity) {
-                Throw(NAttributes::EErrorCode::Unimplemented,
+                THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::Unimplemented,
                     "Cannot set a repeated proto field from a yson node of type %v",
                     CurrentValue_->GetType());
             }
@@ -344,7 +340,7 @@ protected:
                     GetMissingFieldPolicy() == EMissingFieldPolicy::Force);
                 value = ConvertToYsonString(root);
             } catch (std::exception& ex) {
-                Throw(TError("Failed to store yson string") << ex);
+                THROW_ERROR_EXCEPTION(TError("Failed to store yson string") << ex);
             }
         }
     }
@@ -402,7 +398,8 @@ protected:
             return;
         }
 
-        Throw("Partial set of TAttributeDictionary could not be performed via wire format");
+        THROW_ERROR_EXCEPTION(
+            "Partial set of TAttributeDictionary could not be performed via wire format");
     }
 
     void VisitMapField(
@@ -415,7 +412,7 @@ protected:
             reflection->ClearField(message, fieldDescriptor);
             for (auto wireStringPart : CurrentValue_) {
                 if (!reflection->AddMessage(message, fieldDescriptor)->MergeFromString(wireStringPart.AsStringView())) {
-                    Throw(TError(NAttributes::EErrorCode::InvalidData,
+                    THROW_ERROR_EXCEPTION(TError(NAttributes::EErrorCode::InvalidData,
                         "Cannot parse map key-value pair from wire representation"));
                 }
             }
@@ -434,8 +431,7 @@ protected:
             const auto* reflection = message->GetReflection();
             reflection->ClearField(message, fieldDescriptor);
             for (auto wireStringPart : CurrentValue_) {
-                ThrowOnError(
-                    AddScalarRepeatedFieldEntry(message, fieldDescriptor, wireStringPart));
+                AddScalarRepeatedFieldEntry(message, fieldDescriptor, wireStringPart).ThrowOnError();
             }
             return;
         }
@@ -542,10 +538,10 @@ protected:
             if (reason == EVisitReason::Path) {
                 // The caller wants to pinpoint a specific entry in two arrays of different sizes...
                 // let's try!
-                auto sizes = ValueOrThrow(TTraits::Combine(
+                auto sizes = TTraits::Combine(
                     TTraits::TSubTraits::GetRepeatedFieldSize(message.first, fieldDescriptor),
                     TTraits::TSubTraits::GetRepeatedFieldSize(message.second, fieldDescriptor),
-                    NAttributes::EErrorCode::MismatchingSize));
+                    NAttributes::EErrorCode::MismatchingSize).ValueOrThrow();
 
                 // Negative index may result in different parsed values!
                 auto errorOrIndexParseResults = TTraits::Combine(
@@ -563,12 +559,12 @@ protected:
                     // Equally out of bounds.
                     return;
                 }
-                auto indexParseResults = ValueOrThrow(errorOrIndexParseResults);
+                auto indexParseResults = errorOrIndexParseResults.ValueOrThrow();
 
                 if (indexParseResults.first.IndexType != EListIndexType::Relative ||
                     indexParseResults.second.IndexType != EListIndexType::Relative)
                 {
-                    Throw(NAttributes::EErrorCode::MalformedPath,
+                    THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MalformedPath,
                         "Unexpected relative path specifier %v",
                         GetToken());
                 }

@@ -8,7 +8,7 @@ namespace NYT::NOrm::NAttributes {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TPathVisitorUtil::SkipSlash()
+void TPathVisitorMixin::SkipSlash()
 {
     if (Tokenizer_.Skip(NYPath::ETokenType::Slash)) {
         return;
@@ -18,10 +18,12 @@ void TPathVisitorUtil::SkipSlash()
         return;
     }
 
-    Throw(NAttributes::EErrorCode::MalformedPath, "Expected slash but got %Qv", Tokenizer_.GetToken());
+    THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MalformedPath,
+        "Expected slash but got %Qv",
+        Tokenizer_.GetToken());
 }
 
-void TPathVisitorUtil::Push(TToken token)
+void TPathVisitorMixin::Push(TToken token)
 {
     Visit(token,
         [this] (int index) { CurrentPath_.Push(index); },
@@ -29,7 +31,7 @@ void TPathVisitorUtil::Push(TToken token)
         [this] (TStringBuf key) { CurrentPath_.Push(key); });
 }
 
-void TPathVisitorUtil::AdvanceOver(TToken token)
+void TPathVisitorMixin::AdvanceOver(TToken token)
 {
     if (!PathComplete()) {
         Tokenizer_.Advance();
@@ -37,27 +39,27 @@ void TPathVisitorUtil::AdvanceOver(TToken token)
     Push(token);
 }
 
-void TPathVisitorUtil::AdvanceOverAsterisk()
+void TPathVisitorMixin::AdvanceOverAsterisk()
 {
     if (!AllowAsterisk_) {
-        Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle asterisks");
+        THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::Unimplemented, "Cannot handle asterisks");
     }
 
     Tokenizer_.Advance();
 }
 
-TPathVisitorUtil::TCheckpoint::TCheckpoint(NYPath::TTokenizer& tokenizer)
+TPathVisitorMixin::TCheckpoint::TCheckpoint(NYPath::TTokenizer& tokenizer)
     : TokenizerCheckpoint_(tokenizer)
 { }
 
-TPathVisitorUtil::TCheckpoint::~TCheckpoint()
+TPathVisitorMixin::TCheckpoint::~TCheckpoint()
 {
     if (Defer_) {
         Defer_();
     }
 }
 
-void TPathVisitorUtil::TCheckpoint::Defer(std::function<void()> defer)
+void TPathVisitorMixin::TCheckpoint::Defer(std::function<void()> defer)
 {
     if (Defer_) {
         Defer_ = [oldDefer = std::move(Defer_), defer = std::move(defer)] () {
@@ -69,7 +71,7 @@ void TPathVisitorUtil::TCheckpoint::Defer(std::function<void()> defer)
     }
 }
 
-TPathVisitorUtil::TCheckpoint TPathVisitorUtil::CheckpointBranchedTraversal(TToken token)
+TPathVisitorMixin::TCheckpoint TPathVisitorMixin::CheckpointBranchedTraversal(TToken token)
 {
     TCheckpoint result(Tokenizer_);
     Push(token);
@@ -77,32 +79,32 @@ TPathVisitorUtil::TCheckpoint TPathVisitorUtil::CheckpointBranchedTraversal(TTok
     return result;
 }
 
-NYPath::ETokenType TPathVisitorUtil::GetTokenizerType() const
+NYPath::ETokenType TPathVisitorMixin::GetTokenizerType() const
 {
     return Tokenizer_.GetType();
 }
 
-TStringBuf TPathVisitorUtil::GetTokenizerInput() const
+TStringBuf TPathVisitorMixin::GetTokenizerInput() const
 {
     return Tokenizer_.GetInput();
 }
 
-TStringBuf TPathVisitorUtil::GetToken() const
+TStringBuf TPathVisitorMixin::GetToken() const
 {
     return Tokenizer_.GetToken();
 }
 
-const TString& TPathVisitorUtil::GetLiteralValue() const
+const TString& TPathVisitorMixin::GetLiteralValue() const
 {
     return Tokenizer_.GetLiteralValue();
 }
 
-const NYPath::TYPath& TPathVisitorUtil::GetCurrentPath() const
+const NYPath::TYPath& TPathVisitorMixin::GetCurrentPath() const
 {
     return CurrentPath_.GetPath();
 }
 
-void TPathVisitorUtil::Expect(NYPath::ETokenType type) const
+void TPathVisitorMixin::Expect(NYPath::ETokenType type) const
 {
     if (Tokenizer_.GetType() == type) {
         return;
@@ -117,15 +119,15 @@ void TPathVisitorUtil::Expect(NYPath::ETokenType type) const
         error <<= TErrorAttribute("note", "the path cannot normally end with a slash");
     }
 
-    Throw(error);
+    THROW_ERROR_EXCEPTION(error);
 }
 
-bool TPathVisitorUtil::PathComplete() const
+bool TPathVisitorMixin::PathComplete() const
 {
     return Tokenizer_.GetType() == NYPath::ETokenType::EndOfStream;
 }
 
-void TPathVisitorUtil::Reset(NYPath::TYPathBuf path)
+void TPathVisitorMixin::Reset(NYPath::TYPathBuf path)
 {
     Tokenizer_.Reset(path);
     Tokenizer_.Advance();
@@ -133,7 +135,7 @@ void TPathVisitorUtil::Reset(NYPath::TYPathBuf path)
     StopIteration_ = false;
 }
 
-TErrorOr<TIndexParseResult> TPathVisitorUtil::ParseCurrentListIndex(int size) const
+TErrorOr<TIndexParseResult> TPathVisitorMixin::ParseCurrentListIndex(int size) const
 {
     Expect(NYPath::ETokenType::Literal);
     auto indexParseResult = ParseListIndex(Tokenizer_.GetToken(), size);
@@ -146,13 +148,6 @@ TErrorOr<TIndexParseResult> TPathVisitorUtil::ParseCurrentListIndex(int size) co
     }
 
     return indexParseResult;
-}
-
-void TPathVisitorUtil::ThrowOnError(TError error) const
-{
-    if (!error.IsOK()) {
-        Throw(std::move(error));
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
