@@ -1330,15 +1330,13 @@ class YTEnvSetup(object):
         else:
             scheduler_pool_trees_root = "//sys/pool_trees"
 
-        # COMPAT(kvk1920): drop when pre-25.1 compat tests will be removed.
-        for version, components in self.ARTIFACT_COMPONENTS.items():
-            if "master" in components:
-                if version == "24_1" or version == "24_2":
-                    yt_commands.create(
-                        "map_node",
-                        "//sys/cypress_proxies",
-                        ignore_existing=True,
-                        driver=driver)
+        # COMPAT(kvk1920): CypressProxyTracker.
+        if self._get_master_reign() < 2902:
+            yt_commands.create(
+                "map_node",
+                "//sys/cypress_proxies",
+                ignore_existing=True,
+                driver=driver)
 
         self._restore_globals(
             cluster_index=cluster_index,
@@ -1564,6 +1562,10 @@ class YTEnvSetup(object):
                 self.teardown_cluster(method, cluster_index + self.get_ground_index_offset())
 
         yt_commands.reset_events_on_fs()
+
+    def _get_master_reign(self):
+        master = yt_commands.ls("//sys/primary_masters")[0]
+        return yt_commands.get(f"//sys/primary_masters/{master}/orchid/reign")
 
     def teardown_cluster(self, method, cluster_index, wait_for_nodes=True):
         cluster_name = self.get_cluster_name(cluster_index)
