@@ -64,8 +64,8 @@ using namespace NYson;
 using NChunkClient::NProto::TDataStatistics;
 using NCodegen::EExecutionBackend;
 
-void SetObjectId(TDataSplit* /*dataSplit*/, NObjectClient::TObjectId /*objectId*/)
-{ }
+using TSplitMap = std::map<TYPath, TDataSplit>;
+using TSource = std::vector<std::string>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -95,8 +95,7 @@ static void DumpTime(const TQueryStatistics& statistics, EExecutionBackend execu
 
     SumCodegenExecute(statistics, &codegen, &execute);
 
-    Cerr << ToString(executionBackend) << " Codegen: " << codegen << Endl;
-    Cerr << ToString(executionBackend) << " Execute: " << execute << Endl;
+    Cerr << Format("%Qlv, Codegen: %v, Execute: %v", executionBackend, codegen, execute) << Endl;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -117,7 +116,7 @@ protected:
 
     template <class TMatcher>
     void ExpectPrepareThrowsWithDiagnostics(
-        const TString& query,
+        TStringBuf query,
         TMatcher matcher,
         TYsonStringBuf placeholderValues = {},
         int syntaxVersion = 1)
@@ -148,7 +147,7 @@ TEST_F(TQueryPrepareTest, BadSyntax)
 TEST_F(TQueryPrepareTest, BadWhere)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "* from [//t] where (a = 1, b = 2)",
@@ -168,7 +167,7 @@ TEST_F(TQueryPrepareTest, BadTableName)
 TEST_F(TQueryPrepareTest, BadColumnNameInProject)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "foo from [//t]",
@@ -178,7 +177,7 @@ TEST_F(TQueryPrepareTest, BadColumnNameInProject)
 TEST_F(TQueryPrepareTest, BadColumnNameInFilter)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "k from [//t] where bar = 1",
@@ -188,7 +187,7 @@ TEST_F(TQueryPrepareTest, BadColumnNameInFilter)
 TEST_F(TQueryPrepareTest, BadTypecheck)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "k from [//t] where a > \"xyz\"",
@@ -260,12 +259,12 @@ TEST_F(TQueryPrepareTest, TooBigQuery)
 {
     TString query = "k from [//t] where a ";
     for (int i = 0; i < 50; ++i) {
-        query += "+ " + ToString(i);
+        query += "+ " + std::to_string(i);
     }
     query += " > 0";
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         query,
@@ -274,8 +273,7 @@ TEST_F(TQueryPrepareTest, TooBigQuery)
 
 TEST_F(TQueryPrepareTest, TooBigQuery2)
 {
-    TString query =
-    R"(
+    auto query = std::string(R"(
         * from [//t]
         where
         (a = 3735 and s = 'd0b160b8-1d27-40ad-8cad-1b69c2187195') or
@@ -352,11 +350,10 @@ TEST_F(TQueryPrepareTest, TooBigQuery2)
         (a = 4353 and s = 'ec994ea3-5cf8-4951-a409-8a04ad1cffaf') or
         (a = 4354 and s = '644f26c6-f4ee-4cac-8885-807be11941c3') or
         (a = 4212 and s = '322c92c1-4d3d-463d-8001-97557e9e93f9') or
-        (a = 4325 and s = '932c592b-6ec4-4ec8-a4bd-79c4900996ab')
-    )";
+        (a = 4325 and s = '932c592b-6ec4-4ec8-a4bd-79c4900996ab'))");
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         query,
@@ -367,14 +364,14 @@ TEST_F(TQueryPrepareTest, TooBigQuery2)
 
 TEST_F(TQueryPrepareTest, BigQuery)
 {
-    TString query = "k from [//t] where a in (0";
+    auto query = std::string("k from [//t] where a in (0");
     for (int i = 1; i < 1000; ++i) {
-        query += ", " + ToString(i);
+        query += ", " + std::to_string(i);
     }
     query += ")";
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     PreparePlanFragment(&PrepareMock_, query);
 }
@@ -389,21 +386,21 @@ TEST_F(TQueryPrepareTest, ResultSchemaCollision)
 TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "sum(sum(a)) from [//t] group by k",
         ContainsRegex("Misuse of aggregate .*"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "sum(a) from [//t]",
         ContainsRegex("Misuse of aggregate .*"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "argmin(a, a) from [//t]",
@@ -413,7 +410,7 @@ TEST_F(TQueryPrepareTest, MisuseAggregateFunction)
 TEST_F(TQueryPrepareTest, FailedTypeInference)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "null from [//t]",
@@ -423,7 +420,7 @@ TEST_F(TQueryPrepareTest, FailedTypeInference)
 TEST_F(TQueryPrepareTest, AdditionPrecedence)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillRepeatedly(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillRepeatedly(Return(MakeFuture(MakeSimpleSplit())));
 
     PreparePlanFragment(&PrepareMock_, "1 + 2 IN (3, 4, 5) from [//t]");
     PreparePlanFragment(&PrepareMock_, "1 + 2 BETWEEN 3 AND 4 from [//t]");
@@ -432,20 +429,20 @@ TEST_F(TQueryPrepareTest, AdditionPrecedence)
 TEST_F(TQueryPrepareTest, JoinColumnCollision)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//s"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//s"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "a, b from [//t] join [//s] using b",
         ContainsRegex("Ambiguous resolution"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//s"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//s"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "* from [//t] join [//s] using b",
@@ -455,21 +452,21 @@ TEST_F(TQueryPrepareTest, JoinColumnCollision)
 TEST_F(TQueryPrepareTest, IncorrectDivision)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "* from [//t] where a = -9223372036854775808 / -1",
         ContainsRegex("Division of INT_MIN by -1"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "* from [//t] where a = -9223372036854775808 % -1",
         ContainsRegex("Division of INT_MIN by -1"));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+        .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
     ExpectPrepareThrowsWithDiagnostics(
         "* from [//t] where a = 42 % 0",
@@ -480,17 +477,16 @@ TEST_F(TQueryPrepareTest, SelectColumns)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
-        TColumnSchema("h", EValueType::Int64, ESortOrder::Ascending)
-            .SetExpression(TString("a")),
-        TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
-        TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
-        TColumnSchema("c", EValueType::Int64),
-        TColumnSchema("d", EValueType::Int64)
-    }))));
+            TColumnSchema("h", EValueType::Int64, ESortOrder::Ascending)
+                .SetExpression(TString("a")),
+            TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("c", EValueType::Int64),
+            TColumnSchema("d", EValueType::Int64)
+        }))));
 
     {
         auto query = PreparePlanFragment(&PrepareMock_, "* from [//t]")->Query;
-
         auto schema = query->GetReadSchema();
 
         EXPECT_EQ(schema->GetColumnCount(), 5);
@@ -503,7 +499,6 @@ TEST_F(TQueryPrepareTest, SelectColumns)
 
     {
         auto query = PreparePlanFragment(&PrepareMock_, "d, c, a from [//t]")->Query;
-
         auto schema = query->GetReadSchema();
 
         EXPECT_EQ(schema->GetColumnCount(), 3);
@@ -623,27 +618,21 @@ TEST_F(TQueryPrepareTest, SortMergeJoin)
 
 TEST_F(TQueryPrepareTest, ArrayJoin)
 {
-    auto split = MakeSplit({
-        {"key", EValueType::Int64},
-        {"value", EValueType::Int64},
-        {"nested", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
-    });
-
-
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillRepeatedly(Return(MakeFuture(split)));
-
-    TQueryPtr query;
-    TTableSchemaPtr schema;
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"key", EValueType::Int64},
+            {"value", EValueType::Int64},
+            {"nested", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))},
+        }))));
 
     {
-        query = PreparePlanFragment(&PrepareMock_, "key, nested, N FROM [//t] ARRAY JOIN nested AS N")->Query;
+        auto query = PreparePlanFragment(&PrepareMock_, "key, nested, N FROM [//t] ARRAY JOIN nested AS N")->Query;
         const auto* originalColumn = query->Schema.Original->FindColumn("nested");
         const auto* flattenedColumn = query->JoinClauses[0]->Schema.Original->FindColumn("N");
         EXPECT_EQ(originalColumn->GetWireType(), EValueType::Composite);
         EXPECT_EQ(flattenedColumn->GetWireType(), EValueType::Int64);
 
-        schema = query->GetTableSchema();
+        auto schema = query->GetTableSchema();
         const auto* nested = schema->FindColumn("nested");
         const auto* aliased = schema->FindColumn("N");
         EXPECT_EQ(nested->GetWireType(), EValueType::Composite);
@@ -651,13 +640,13 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
     }
 
     {
-        query = PreparePlanFragment(&PrepareMock_, "T.key, T.nested, N FROM [//t] AS T ARRAY JOIN T.nested AS N")->Query;
+        auto query = PreparePlanFragment(&PrepareMock_, "T.key, T.nested, N FROM [//t] AS T ARRAY JOIN T.nested AS N")->Query;
         const auto* originalColumn = query->Schema.Original->FindColumn("nested");
         const auto* flattenedColumn = query->JoinClauses[0]->Schema.Original->FindColumn("N");
         EXPECT_EQ(originalColumn->GetWireType(), EValueType::Composite);
         EXPECT_EQ(flattenedColumn->GetWireType(), EValueType::Int64);
 
-        schema = query->GetTableSchema();
+        auto schema = query->GetTableSchema();
         const auto* nested = schema->FindColumn("T.nested");
         const auto* aliased = schema->FindColumn("N");
         EXPECT_EQ(nested->GetWireType(), EValueType::Composite);
@@ -665,7 +654,7 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
     }
 
     {
-        query = PreparePlanFragment(&PrepareMock_, "T.key FROM [//t] AS T ARRAY JOIN T.nested AS N AND N = 2")->Query;
+        auto query = PreparePlanFragment(&PrepareMock_, "T.key FROM [//t] AS T ARRAY JOIN T.nested AS N AND N = 2")->Query;
         const auto* originalColumn = query->Schema.Original->FindColumn("nested");
         const auto* flattenedColumn = query->JoinClauses[0]->Schema.Original->FindColumn("N");
         EXPECT_EQ(originalColumn->GetWireType(), EValueType::Composite);
@@ -673,7 +662,7 @@ TEST_F(TQueryPrepareTest, ArrayJoin)
 
         EXPECT_TRUE(query->JoinClauses[0]->ForeignJoinedColumns.empty());
 
-        schema = query->GetTableSchema();
+        auto schema = query->GetTableSchema();
         const auto* nested = schema->FindColumn("T.nested");
         EXPECT_FALSE(nested);
         const auto* aliased = schema->FindColumn("N");
@@ -733,7 +722,6 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
             if(NOT is_null(e.tags), list_contains(e.tags, "0"), false) AND (l.profile IN ("")) AND (l.track IN ("")) AND NOT if(NOT is_null(e.tags), list_contains(e.tags, "1"), false)
             ORDER BY e._key DESC OFFSET 0 LIMIT 200
         )");
-
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
@@ -752,7 +740,6 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
             (l.profile IN ("")) AND (l.track IN ("")) AND if(NOT is_null(e.tags), list_contains(e.tags, "0"), false) AND NOT if(NOT is_null(e.tags), list_contains(e.tags, "1"), false)
             ORDER BY e._key DESC OFFSET 0 LIMIT 200
         )");
-
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
@@ -768,22 +755,21 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
 {
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
-        TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
-        TColumnSchema("b", EValueType::Int64),
-        TColumnSchema("c", EValueType::Int64)
-    }))));
+            TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("b", EValueType::Int64),
+            TColumnSchema("c", EValueType::Int64)
+        }))));
 
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//s"))
         .WillRepeatedly(Return(MakeFuture(MakeSplit({
-        TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
-        TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
-        TColumnSchema("c", EValueType::Int64)
-    }))));
+            TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("b", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("c", EValueType::Int64)
+        }))));
 
     llvm::FoldingSetNodeID id1;
     {
         auto queryString = std::string("* FROM [//t] GROUP by a");
-
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
@@ -795,7 +781,6 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
     llvm::FoldingSetNodeID id2;
     {
         auto queryString = std::string("* FROM [//s] GROUP by a");
-
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
@@ -809,19 +794,11 @@ TEST_F(TQueryPrepareTest, DisjointGroupBy)
 
 TEST_F(TQueryPrepareTest, GroupByWithLimitFolding)
 {
-    TDataSplit dataSplit;
-
-    SetObjectId(&dataSplit, MakeId(EObjectType::Table, TCellTag(0x42), 0, 0xeeeeeeee));
-
-    auto schema = New<TTableSchema>(std::vector{
-        TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
-        TColumnSchema("b", EValueType::Int64),
-    });
-
-    dataSplit.TableSchema = schema;
-
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillRepeatedly(Return(MakeFuture(dataSplit)));
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
+            TColumnSchema("b", EValueType::Int64),
+        }))));
 
     llvm::FoldingSetNodeID id1;
     {
@@ -858,19 +835,19 @@ TEST_F(TQueryPrepareTest, GroupByPrimaryKey)
         }))));
 
     {
-        TString queryString = "* from [//t] group by hash, a, b";
+        auto queryString = std::string("* from [//t] group by hash, a, b");
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_TRUE(query->UseDisjointGroupBy);
     }
 
     {
-        TString queryString = "* from [//t] group by a, b";
+        auto queryString = std::string("* from [//t] group by a, b");
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_TRUE(query->UseDisjointGroupBy);
     }
 
     {
-        TString queryString = "* from [//t] group by a, v";
+        auto queryString = std::string("* from [//t] group by a, v");
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
         EXPECT_EQ(query->GroupClause->CommonPrefixWithPrimaryKey, 1u);
         EXPECT_FALSE(query->UseDisjointGroupBy);
@@ -1038,12 +1015,10 @@ TEST_F(TQueryPrepareTest, InvalidUdfImpl)
 
 TEST_F(TQueryPrepareTest, WronglyTypedAggregate)
 {
-    auto split = MakeSplit({
-        {"a", EValueType::String}
-    });
-
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillRepeatedly(Return(MakeFuture(split)));
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"a", EValueType::String}
+        }))));
 
     EXPECT_THROW_THAT({
         PreparePlanFragment(&PrepareMock_, "avg(a) from [//t] group by 1");
@@ -1052,12 +1027,10 @@ TEST_F(TQueryPrepareTest, WronglyTypedAggregate)
 
 TEST_F(TQueryPrepareTest, OrderByWithoutLimit)
 {
-    auto split = MakeSplit({
-        {"a", EValueType::String}
-    });
-
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillRepeatedly(Return(MakeFuture(split)));
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"a", EValueType::String}
+        }))));
 
     EXPECT_THROW_THAT({
         PreparePlanFragment(&PrepareMock_, "* from [//t] order by a");
@@ -1066,12 +1039,10 @@ TEST_F(TQueryPrepareTest, OrderByWithoutLimit)
 
 TEST_F(TQueryPrepareTest, OrderByWithNegativeLimit)
 {
-    auto split = MakeSplit({
-        {"a", EValueType::String}
-    });
-
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillRepeatedly(Return(MakeFuture(split)));
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"a", EValueType::String}
+        }))));
 
     EXPECT_THROW_THAT({
         PreparePlanFragment(&PrepareMock_, "* from [//t] order by a limit -1");
@@ -1080,12 +1051,10 @@ TEST_F(TQueryPrepareTest, OrderByWithNegativeLimit)
 
 TEST_F(TQueryPrepareTest, OffsetLimit)
 {
-    auto split = MakeSplit({
-        {"a", EValueType::String}
-    });
-
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillRepeatedly(Return(MakeFuture(split)));
+        .WillRepeatedly(Return(MakeFuture(MakeSplit({
+            {"a", EValueType::String}
+        }))));
 
     EXPECT_THROW_THAT({
         PreparePlanFragment(&PrepareMock_, "* from [//t] offset 5");
@@ -1094,7 +1063,7 @@ TEST_F(TQueryPrepareTest, OffsetLimit)
 
 TEST_F(TQueryPrepareTest, FormatQueryDepthLimit)
 {
-    TString expr;
+    std::string expr;
     expr.reserve(1000);
     for (int depth = 0; depth < 100; ++depth) {
         expr += "true and ";
@@ -1110,14 +1079,12 @@ TEST_F(TQueryPrepareTest, FormatQueryDepthLimit)
 
 TEST_F(TQueryPrepareTest, SubqueryAliases)
 {
-    auto split = MakeSplit({
-        {"a", EValueType::String}
-    });
-
     EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-        .WillOnce(Return(MakeFuture(split)));
+        .WillOnce(Return(MakeFuture(MakeSplit({
+            {"a", EValueType::String}
+        }))));
 
-    TString source = "b as c from (SELECT a as b from [//t])";
+    auto source = std::string("b as c from (SELECT a as b from [//t])");
 
     auto parsedSource = ParseSource(source, EParseMode::Query);
 
@@ -1157,8 +1124,6 @@ TEST_F(TJobQueryPrepareTest, FalsePredicate)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TDataSplits = std::vector<TDataSplit>;
-
 class TQueryCoordinateTest
     : public ::testing::Test
 {
@@ -1166,7 +1131,7 @@ protected:
     void SetUp() override
     {
         EXPECT_CALL(PrepareMock_, GetInitialSplit("//t"))
-            .WillOnce(Return(MakeFuture(MakeSimpleSplit("//t"))));
+            .WillOnce(Return(MakeFuture(MakeSimpleSplit())));
 
         auto config = New<TColumnEvaluatorCacheConfig>();
         ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(config);
@@ -1174,26 +1139,20 @@ protected:
         MergeFrom(RangeExtractorMap_.Get(), *GetBuiltinRangeExtractors());
     }
 
-    void Coordinate(const TString& source, size_t subqueriesCount)
+    void Coordinate(TStringBuf source, size_t subqueriesCount)
     {
-        auto fragment = PreparePlanFragment(
-            &PrepareMock_,
-            source);
+        auto fragment = PreparePlanFragment(&PrepareMock_, source);
 
-        auto buffer = New<TRowBuffer>();
-        TRowRanges sources;
-
-        auto rowBuffer = New<TRowBuffer>();
-
-        TQueryOptions options;
-        options.RangeExpansionLimit = 1000;
-        options.VerboseLogging = true;
+        auto options = TQueryOptions{
+            .RangeExpansionLimit = 1000,
+            .VerboseLogging = true,
+        };
 
         auto prunedRanges = GetPrunedRanges(
             fragment->Query,
             TGuid::Create(),
-            MakeSharedRange(std::move(sources), buffer),
-            rowBuffer,
+            MakeSharedRange(TRowRanges()),
+            New<TRowBuffer>(),
             ColumnEvaluatorCache_,
             RangeExtractorMap_,
             options,
@@ -1259,10 +1218,7 @@ public:
     MOCK_METHOD(TFuture<void>, GetReadyEvent, (), (override));
 };
 
-TOwningRow YsonToRow(
-    const TString& yson,
-    const TDataSplit& dataSplit,
-    bool treatMissingAsNull = true)
+TOwningRow YsonToRow(TStringBuf yson, const TDataSplit& dataSplit, bool treatMissingAsNull = true)
 {
     auto tableSchema = dataSplit.TableSchema;
     return NTableClient::YsonToSchemafulRow(yson, *tableSchema, treatMissingAsNull);
@@ -1270,7 +1226,7 @@ TOwningRow YsonToRow(
 
 TQueryStatistics DoExecuteQuery(
     IEvaluatorPtr evaluator,
-    const std::vector<TString>& source,
+    const TSource& source,
     TFunctionProfilerMapPtr functionProfilers,
     TAggregateProfilerMapPtr aggregateProfilers,
     TConstQueryPtr query,
@@ -1342,7 +1298,7 @@ TQueryStatistics DoExecuteQuery(
         MakeFuture(MostFreshFeatureFlags()));
 }
 
-std::vector<TRow> OrderRowsBy(TRange<TRow> rows, const std::vector<std::string>& columns, const TTableSchema& tableSchema)
+std::vector<TRow> OrderRowsBy(TRange<TRow> rows, TRange<std::string> columns, const TTableSchema& tableSchema)
 {
     std::vector<int> indexes;
     for (const auto& column : columns) {
@@ -1412,9 +1368,7 @@ TResultMatcher ResultMatcher(std::vector<TOwningRow> expectedResult, TTableSchem
         };
 }
 
-TResultMatcher OrderedResultMatcher(
-    std::vector<TOwningRow> expectedResult,
-    std::vector<std::string> columns)
+TResultMatcher OrderedResultMatcher(std::vector<TOwningRow> expectedResult, std::vector<std::string> columns)
 {
     return [
             expectedResult = std::move(expectedResult),
@@ -1525,9 +1479,9 @@ protected:
     }
 
     std::pair<TQueryPtr, TQueryStatistics> EvaluateWithQueryStatistics(
-        const TString& query,
-        const std::map<TString, TDataSplit>& dataSplits,
-        const std::vector<std::vector<TString>>& owningSources,
+        TStringBuf query,
+        const TSplitMap& dataSplits,
+        const std::vector<TSource>& owningSources,
         const TResultMatcher& resultMatcher,
         TEvaluateOptions options)
     {
@@ -1545,9 +1499,9 @@ protected:
     }
 
     TQueryPtr Evaluate(
-        const TString& query,
-        const std::map<TString, TDataSplit>& dataSplits,
-        const std::vector<std::vector<TString>>& owningSources,
+        TStringBuf query,
+        const TSplitMap& dataSplits,
+        const std::vector<TSource>& owningSources,
         const TResultMatcher& resultMatcher,
         TEvaluateOptions evaluateOptions = {})
     {
@@ -1569,16 +1523,16 @@ protected:
     }
 
     std::pair<TQueryPtr, TQueryStatistics> EvaluateWithQueryStatistics(
-        const TString& query,
+        TStringBuf query,
         const TDataSplit& dataSplit,
-        const std::vector<TString>& owningSourceRows,
+        const TSource& owningSourceRows,
         const TResultMatcher& resultMatcher,
         TEvaluateOptions evaluateOptions = {})
     {
-        std::vector<std::vector<TString>> owningSources = {
+        std::vector<TSource> owningSources = {
             owningSourceRows
         };
-        std::map<TString, TDataSplit> dataSplits = {
+        TSplitMap dataSplits = {
             {"//t", dataSplit}
         };
 
@@ -1600,9 +1554,9 @@ protected:
     }
 
     TQueryPtr Evaluate(
-        const TString& query,
+        TStringBuf query,
         const TDataSplit& dataSplit,
-        const std::vector<TString>& owningSourceRows,
+        const TSource& owningSourceRows,
         const TResultMatcher& resultMatcher,
         TEvaluateOptions evaluateOptions = {})
     {
@@ -1615,9 +1569,9 @@ protected:
     }
 
     TQueryPtr EvaluateWithSyntaxV2(
-        const TString& query,
+        TStringBuf query,
         const TDataSplit& dataSplit,
-        const std::vector<TString>& owningSourceRows,
+        const TSource& owningSourceRows,
         const TResultMatcher& resultMatcher,
         TEvaluateOptions evaluateOptions = {})
     {
@@ -1631,17 +1585,17 @@ protected:
     }
 
     TQueryPtr EvaluateOnlyViaNativeExecutionBackend(
-        const TString& query,
+        TStringBuf query,
         const TDataSplit& dataSplit,
-        const std::vector<TString>& owningSourceRows,
+        const TSource& owningSourceRows,
         const TResultMatcher& resultMatcher,
         TEvaluateOptions evaluateOptions = {})
     {
-        std::vector<std::vector<TString>> owningSources = {
+        std::vector<TSource> owningSources = {
             owningSourceRows
         };
 
-        std::map<TString, TDataSplit> dataSplits = {
+        TSplitMap dataSplits = {
             {"//t", dataSplit}
         };
 
@@ -1655,16 +1609,16 @@ protected:
     }
 
     TQueryPtr EvaluateExpectingError(
-        const TString& query,
+        TStringBuf query,
         const TDataSplit& dataSplit,
-        const std::vector<TString>& owningSourceRows,
+        const TSource& owningSourceRows,
         TEvaluateOptions evaluateOptions = {},
         TString expectedError = {})
     {
-        std::vector<std::vector<TString>> owningSources = {
+        std::vector<TSource> owningSources = {
             owningSourceRows
         };
-        std::map<TString, TDataSplit> dataSplits = {
+        TSplitMap dataSplits = {
             {"//t", dataSplit}
         };
 
@@ -1696,8 +1650,8 @@ protected:
     }
 
     TQueryPtr Prepare(
-        const TString& query,
-        const std::map<TString, TDataSplit>& dataSplits,
+        TStringBuf query,
+        const TSplitMap& dataSplits,
         TYsonStringBuf placeholderValues,
         int syntaxVersion)
     {
@@ -1716,9 +1670,9 @@ protected:
     }
 
     std::pair<TQueryPtr, TQueryStatistics> DoEvaluate(
-        const TString& query,
-        const std::map<TString, TDataSplit>& dataSplits,
-        const std::vector<std::vector<TString>>& owningSources,
+        TStringBuf query,
+        const TSplitMap& dataSplits,
+        const std::vector<TSource>& owningSources,
         const TResultMatcher& resultMatcher,
         TEvaluateOptions evaluateOptions,
         std::optional<TString> expectedError)
@@ -1815,9 +1769,9 @@ protected:
     }
 
     TQueryStatistics EvaluateCoordinatedGroupByImpl(
-        const TString& query,
+        TStringBuf query,
         const TDataSplit& dataSplit,
-        const std::vector<std::vector<TString>>& owningSources,
+        const std::vector<TSource>& owningSources,
         const TResultMatcher& resultMatcher,
         EExecutionBackend executionBackend)
     {
@@ -1825,7 +1779,7 @@ protected:
             return {};
         }
 
-        auto primaryQuery = Prepare(query, std::map<TString, TDataSplit>{{"//t", dataSplit}}, {}, /*syntaxVersion*/ 1);
+        auto primaryQuery = Prepare(query, TSplitMap{{"//t", dataSplit}}, {}, /*syntaxVersion*/ 1);
         YT_VERIFY(primaryQuery->GroupClause);
 
         int tabletCount = owningSources.size();
@@ -1926,9 +1880,9 @@ protected:
     }
 
     TQueryStatistics EvaluateCoordinatedGroupBy(
-        const TString& query,
+        TStringBuf query,
         const TDataSplit& dataSplit,
-        const std::vector<std::vector<TString>>& owningSources,
+        const std::vector<TSource>& owningSources,
         const TResultMatcher& resultMatcher)
     {
         EvaluateCoordinatedGroupByImpl(query, dataSplit, owningSources, resultMatcher, EExecutionBackend::WebAssembly);
@@ -1937,7 +1891,7 @@ protected:
 
     TSchemafulPipePtr RunOnNodeThread(
         TConstQueryPtr query,
-        const std::vector<TString>& rows,
+        const TSource& rows,
         EExecutionBackend executionBackend)
     {
         i64 progress = 0;
@@ -1987,7 +1941,7 @@ protected:
 
     TSchemafulPipePtr RunOnNode(
         TConstQueryPtr nodeQuery,
-        const std::vector<std::vector<TString>>& tabletData,
+        const std::vector<TSource>& tabletData,
         EExecutionBackend executionBackend)
     {
         int partCount = std::ssize(tabletData);
@@ -2034,7 +1988,7 @@ protected:
 
     TSharedRange<TUnversionedRow> RunOnCoordinator(
         TQueryPtr primary,
-        const std::vector<std::vector<std::vector<TString>>>& tabletsData,
+        const std::vector<std::vector<TSource>>& tabletsData,
         EExecutionBackend executionBackend)
     {
         int tabletCount = std::ssize(tabletsData);
@@ -2079,21 +2033,21 @@ protected:
     }
 
     void EvaluateFullCoordinatedGroupByImpl(
-        const TString& queryString,
+        TStringBuf queryString,
         const TDataSplit& dataSplit,
-        const std::vector<std::vector<std::vector<TString>>>& data,
+        const std::vector<std::vector<TSource>>& data,
         const TResultMatcher& resultMatcher,
         EExecutionBackend executionBackend)
     {
-        auto query = Prepare(queryString, std::map<TString, TDataSplit>{{"//t", dataSplit}}, {}, /*syntaxVersion*/ 1);
+        auto query = Prepare(queryString, TSplitMap{{"//t", dataSplit}}, {}, /*syntaxVersion*/ 1);
         auto rows = RunOnCoordinator(query, data, executionBackend);
 
         resultMatcher(rows, *query->GetTableSchema());
     }
 
-    std::vector<std::vector<std::vector<TString>>> RandomSplitData(const std::vector<TString>& data)
+    std::vector<std::vector<TSource>> RandomSplitData(const TSource& data)
     {
-        auto result = std::vector<std::vector<std::vector<TString>>>();
+        auto result = std::vector<std::vector<TSource>>();
 
         result.emplace_back();
         result.back().emplace_back();
@@ -2115,9 +2069,9 @@ protected:
     }
 
     void EvaluateFullCoordinatedGroupBy(
-        const TString& query,
+        TStringBuf query,
         const TDataSplit& dataSplit,
-        const std::vector<TString>& data,
+        const TSource& data,
         const TResultMatcher& resultMatcher,
         int iterations = 100)
     {
@@ -2144,7 +2098,7 @@ protected:
     TActionQueuePtr ActionQueue_;
 };
 
-std::vector<TOwningRow> YsonToRows(TRange<TString> rowsData, const TDataSplit& split)
+std::vector<TOwningRow> YsonToRows(TRange<std::string> rowsData, const TDataSplit& split)
 {
     std::vector<TOwningRow> result;
 
@@ -2162,7 +2116,7 @@ TEST_F(TQueryEvaluateTest, Simple)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=4;b=5",
         "a=10;b=11"
     };
@@ -2183,7 +2137,7 @@ TEST_F(TQueryEvaluateTest, SimpleOffsetLimit)
         {"a", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=0",
         "a=1",
         "a=2",
@@ -2223,7 +2177,7 @@ TEST_F(TQueryEvaluateTest, SimpleAlias)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=4;b=5",
         "a=10;b=11"
     };
@@ -2243,7 +2197,7 @@ TEST_F(TQueryEvaluateTest, SelectAll)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=4;b=5",
         "a=10;b=11"
     };
@@ -2263,7 +2217,7 @@ TEST_F(TQueryEvaluateTest, FilterNulls1)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=4;b=5",
         "a=6",
         "a=10;b=11"
@@ -2284,7 +2238,7 @@ TEST_F(TQueryEvaluateTest, FilterNulls2)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=4;b=5",
         "a=6",
         "a=10;b=11"
@@ -2306,7 +2260,7 @@ TEST_F(TQueryEvaluateTest, FilterNulls3)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=4;b=5",
         "a=6",
         "a=10;b=11"
@@ -2332,7 +2286,7 @@ TEST_F(TQueryEvaluateTest, SimpleCmpInt)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=4;b=5",
         "a=6;b=6"
     };
@@ -2364,7 +2318,7 @@ TEST_F(TQueryEvaluateTest, SimpleCmpString)
         {"b", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=\"a\";b=\"aa\"",
         "a=\"aa\";b=\"aa\""
     };
@@ -2396,7 +2350,7 @@ TEST_F(TQueryEvaluateTest, SimpleBetweenAnd)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=4;b=5",
         "a=10;b=11",
         "a=15;b=11"
@@ -2416,7 +2370,7 @@ TEST_F(TQueryEvaluateTest, MultipleBetweenAnd)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=1;b=30",
         "a=2;b=20",
@@ -2463,14 +2417,14 @@ TEST_F(TQueryEvaluateTest, MultipleBetweenAnd2)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source;
+    TSource source;
     for (size_t i = 0; i < 100; ++i) {
-        source.push_back(TString() + "a=" + ToString(i / 10) + ";b=" + ToString(i % 10));
+        source.push_back(std::string() + "a=" + std::to_string(i / 10) + ";b=" + std::to_string(i % 10));
     }
 
     auto data = source.data();
 
-    std::vector<TString> resultData;
+    TSource resultData;
     resultData.insert(resultData.end(), data + 10, data + 13);
     resultData.insert(resultData.end(), data + 23, data + 25);
     resultData.insert(resultData.end(), data + 35, data + 40);
@@ -2501,7 +2455,7 @@ TEST_F(TQueryEvaluateTest, MultipleBetweenAndString)
         {"b", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         R"(a="1";b="10")",
         R"(a="1";b="30")",
         R"(a="2";b="20")",
@@ -2548,7 +2502,7 @@ TEST_F(TQueryEvaluateTest, SimpleIn)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=4;b=5",
         "a=-10;b=11",
         "a=15;b=11"
@@ -2584,7 +2538,7 @@ TEST_F(TQueryEvaluateTest, BigIn)
 
     inBuilder.AppendString(")");
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=4",
         "a=10",
         "a=15",
@@ -2611,7 +2565,7 @@ TEST_F(TQueryEvaluateTest, SimpleInWithNull)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "b=1",
         "a=2",
         "a=2;b=1",
@@ -2632,7 +2586,7 @@ TEST_F(TQueryEvaluateTest, SimpleTransform)
         {"a", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=4",
         "a=-10",
         "a=15"
@@ -2678,7 +2632,7 @@ TEST_F(TQueryEvaluateTest, BigTransform)
 
     transformBuilder.AppendString("))");
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=4",
         "a=-10",
         "a=7",
@@ -2706,7 +2660,7 @@ TEST_F(TQueryEvaluateTest, SimpleTransform2)
         {"b", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=4;b=p",
         "a=-10;b=q",
         "a=-10;b=s",
@@ -2738,7 +2692,7 @@ TEST_F(TQueryEvaluateTest, SimpleTransformWithDefault)
         {"b", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=4;b=p",
         "a=-10;b=q",
         "a=-10;b=s",
@@ -2771,7 +2725,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull)
         {"c", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=4;b=5",
         "a=10;b=11;c=9",
         "a=16"
@@ -2794,7 +2748,7 @@ TEST_F(TQueryEvaluateTest, SimpleWithNull2)
         {"c", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=2;c=3",
         "a=4",
         "a=5;b=5",
@@ -2824,7 +2778,7 @@ TEST_F(TQueryEvaluateTest, Strings)
         {"s", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         ""
     };
 
@@ -2846,7 +2800,7 @@ TEST_F(TQueryEvaluateTest, SimpleStrings)
         {"s", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "s=foo",
         "s=bar",
         "s=baz"
@@ -2868,7 +2822,7 @@ TEST_F(TQueryEvaluateTest, SimpleStrings2)
         {"u", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "s=foo; u=x",
         "s=bar; u=y",
         "s=baz; u=x",
@@ -2889,7 +2843,7 @@ TEST_F(TQueryEvaluateTest, IsPrefixStrings)
         {"s", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "s=foobar",
         "s=bar",
         "s=baz"
@@ -2908,7 +2862,7 @@ TEST_F(TQueryEvaluateTest, IsSubstrStrings)
         {"s", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "s=foobar",
         "s=barfoo",
         "s=abc",
@@ -2935,7 +2889,7 @@ TEST_F(TQueryEvaluateTest, GroupByBool)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -2969,7 +2923,7 @@ TEST_F(TQueryEvaluateTest, GroupByString)
         {"s", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         R"(a=42;s="d")",
 
         R"(a=1;s="a")",
@@ -3016,7 +2970,7 @@ TEST_F(TQueryEvaluateTest, GroupByOrderBy)
         {"d", EValueType::Int64},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=0;c=11;d=9",
         "a=2;b=1;c=12;d=8",
         "a=3;b=2;c=13;d=7",
@@ -3154,7 +3108,7 @@ TEST_F(TQueryEvaluateTest, GroupByOrderBy2)
         {"d", EValueType::Int64},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=a;c=1;d=1",
         "a=2;b=a;c=2;d=2",
         "a=3;b=b;c=3;d=3",
@@ -3233,7 +3187,7 @@ TEST_F(TQueryEvaluateTest, GroupByOrderBy3)
         {"b", EValueType::Int64},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=0",
         "a=2;b=1",
         "a=3;b=2",
@@ -3289,7 +3243,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithAvgCoordinated)
         {"v", EValueType::Int64},
     });
 
-    std::vector<std::vector<TString>> source;
+    std::vector<TSource> source;
 
     for (int i = 0; i < 6; ++i) {
         if (i % 2 == 0) {
@@ -3298,26 +3252,24 @@ TEST_F(TQueryEvaluateTest, GroupByWithAvgCoordinated)
         source.back().push_back(Format("k=%v;v=%v", i, i));
     }
 
-    {
-        auto resultSplit = MakeSplit({
-            {"av", EValueType::Double},
-        });
+    auto resultSplit = MakeSplit({
+        {"av", EValueType::Double},
+    });
 
-        auto result = YsonToRows({
-            "av=0.0",
-            "av=1.0",
-            "av=2.0",
-            "av=3.0",
-            "av=4.0",
-            "av=5.0",
-        }, resultSplit);
+    auto result = YsonToRows({
+        "av=0.0",
+        "av=1.0",
+        "av=2.0",
+        "av=3.0",
+        "av=4.0",
+        "av=5.0",
+    }, resultSplit);
 
-        EvaluateCoordinatedGroupBy(
-            "avg(v) as av FROM [//t] group by k",
-            split,
-            source,
-            OrderedResultMatcher(result, {"av"}));
-    }
+    EvaluateCoordinatedGroupBy(
+        "avg(v) as av FROM [//t] group by k",
+        split,
+        source,
+        OrderedResultMatcher(result, {"av"}));
 }
 
 TEST_F(TQueryEvaluateTest, GroupByWithAvgFullCoordinated)
@@ -3329,7 +3281,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithAvgFullCoordinated)
     });
 
     auto source = [] {
-        auto source = std::vector<TString>();
+        auto source = TSource();
         int k0 = 0;
         for (int cardinality = 0; cardinality < 100; ++cardinality) {
             int k1 = 0;
@@ -3349,7 +3301,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithAvgFullCoordinated)
             {"av", EValueType::Uint64},
         });
 
-        auto resultRows = std::vector<TString>();
+        auto resultRows = TSource();
         for (int i = 1; i < 100; ++i) {
             resultRows.push_back(Format("av=%vu", i));
         }
@@ -3381,7 +3333,7 @@ TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinated1)
         {"d", EValueType::Int64},
     });
 
-    auto sources = std::vector<std::vector<TString>>{
+    auto sources = std::vector<TSource>{
         {"a=1;b=0;c=11;d=3", "a=2;b=1;c=12;d=2", "a=3;b=2;c=13;d=1"},
         {"a=4;b=0;c=14;d=3", "a=5;b=1;c=15;d=2", "a=6;b=2;c=16;d=1"},
         {"a=7;b=0;c=17;d=3", "a=8;b=1;c=18;d=2", "a=9;b=2;c=19;d=1"},
@@ -3458,7 +3410,7 @@ TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinated2)
             int limit = (std::rand() % (dataLength * 2));
 
             auto split = MakeSplit({{"a", EValueType::Int64, ESortOrder::Ascending}});
-            auto sources = std::vector<std::vector<TString>>{};
+            auto sources = std::vector<TSource>{};
             for (int a = 0; a < dataLength; ++a) {
                 if (sources.empty() || std::ssize(sources.back()) == splitLength) {
                     sources.emplace_back();
@@ -3467,7 +3419,7 @@ TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinated2)
             }
 
             auto resultSplit = MakeSplit({{"a", EValueType::Int64}});
-            auto resultData = std::vector<TString>{};
+            auto resultData = TSource{};
             for (int a = offset; a < std::min(offset + limit, dataLength); ++a) {
                 resultData.push_back(Format("a=%v", a));
             }
@@ -3489,7 +3441,7 @@ TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinated3)
         {"b", EValueType::Int64, ESortOrder::Ascending},
     });
 
-    auto sources = std::vector<std::vector<TString>>{
+    auto sources = std::vector<TSource>{
         {"a=1;b=0", "a=2;b=1", "a=3;b=2"},
         {"a=4;b=0", "a=5;b=1", "a=6;b=2"},
         {"a=7;b=0", "a=8;b=1", "a=9;b=2"},
@@ -3524,7 +3476,7 @@ TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinated4)
         {"k3", EValueType::Int64, ESortOrder::Ascending},
     });
 
-    std::vector<std::vector<TString>> sources = {
+    std::vector<TSource> sources = {
         {"k1=1;k2=2;k3=5"},
         {"k1=1;k2=3;k3=6"},
         {"k1=1;k2=3;k3=8"},
@@ -3544,13 +3496,13 @@ TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinatedWithPrimaryKeyPrefix)
         {"v", EValueType::Int64},
     });
 
-    auto sources = std::vector<std::vector<TString>>{
+    auto sources = std::vector<TSource>{
         {"k1=1;k2=1;v=0", "k1=1;k2=2;v=0", "k1=2;k2=3;v=0", "k1=3;k2=4;v=0", "k1=4;k2=5;v=0", "k1=5;k2=6;v=0"},
         {"k1=6;k2=7;v=0", "k1=6;k2=8;v=0", "k1=7;k2=9;v=0", "k1=8;k2=10;v=0", "k1=9;k2=11;v=0"},
     };
 
     auto resultSplit = MakeSplit({{"k1", EValueType::Int64}});
-    auto resultData = std::vector<TString>{};
+    auto resultData = TSource{};
     for (int i = 1; i <= 9; ++i) {
         resultData.push_back(Format("k1=%v", i));
     }
@@ -3567,7 +3519,7 @@ TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinatedWithAggregates)
         {"v2", EValueType::Int64},
     });
 
-    auto sources = std::vector<std::vector<TString>>{
+    auto sources = std::vector<TSource>{
         {"k1=a;k2=0;v1=1;v2=1", "k1=a;k2=1;v1=2;v2=2", "k1=a;k2=2;v1=4;v2=4"},
         {"k1=a;k2=3;v1=2;v2=6", "k1=a;k2=4;v1=1;v2=9"},
         {"k1=b;k2=5;v1=3;v2=3", "k1=b;k2=6;v1=1;v2=5"},
@@ -3575,11 +3527,6 @@ TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinatedWithAggregates)
     };
 
     {
-        auto resultSplit = MakeSplit({
-            {"k1", EValueType::String},
-            {"v1", EValueType::Int64},
-            {"s", EValueType::Int64},
-        });
         auto result = YsonToRows({
             "k1=a;v1=1;s=10",
             "k1=a;v1=2;s=8",
@@ -3587,33 +3534,78 @@ TEST_F(TQueryEvaluateTest, GroupByOrderByCoordinatedWithAggregates)
             "k1=b;v1=1;s=5",
             "k1=b;v1=3;s=10",
             "k1=b;v1=4;s=8",
+        }, MakeSplit({
+            {"k1", EValueType::String},
+            {"v1", EValueType::Int64},
+            {"s", EValueType::Int64},
+        }));
+        EvaluateCoordinatedGroupBy(
+            "k1, v1, sum(v2) as s from [//t] group by k1, v1 order by k1, v1 limit 1000",
+            split,
+            sources,
+            ResultMatcher(result));
+    }
+    {
+        auto resultSplit = MakeSplit({{"k1", EValueType::String}, {"s", EValueType::Int64}});
+        auto result = YsonToRows({
+            "k1=a;s=1",
+            "k1=a;s=1",
+            "k1=a;s=1",
+            "k1=a;s=1",
+            "k1=a;s=1",
+            "k1=b;s=1",
+            "k1=b;s=1",
+            "k1=b;s=1",
+            "k1=b;s=1",
         }, resultSplit);
-        EvaluateCoordinatedGroupBy("k1, v1, sum(v2) as s from [//t] group by k1, v1 order by k1, v1 limit 1000", split, sources, ResultMatcher(result));
+        EvaluateCoordinatedGroupBy(
+            "k1, sum(1) as s from [//t] group by k1, k2 order by k1, k2 limit 1000",
+            split,
+            sources,
+            ResultMatcher(result));
     }
     {
         auto resultSplit = MakeSplit({{"k1", EValueType::String}, {"s", EValueType::Int64}});
-        auto result = YsonToRows({"k1=a;s=1", "k1=a;s=1", "k1=a;s=1", "k1=a;s=1", "k1=a;s=1", "k1=b;s=1", "k1=b;s=1", "k1=b;s=1", "k1=b;s=1"}, resultSplit);
-        EvaluateCoordinatedGroupBy("k1, sum(1) as s from [//t] group by k1, k2 order by k1, k2 limit 1000", split, sources, ResultMatcher(result));
-    }
-    {
-        auto resultSplit = MakeSplit({{"k1", EValueType::String}, {"s", EValueType::Int64}});
-        auto result = YsonToRows({"k1=a;s=1", "k1=a;s=1", "k1=a;s=1", "k1=a;s=1", "k1=a;s=1", "k1=b;s=1"}, resultSplit);
-        EvaluateCoordinatedGroupBy("k1, sum(1) as s from [//t] group by k1, k2 order by k1, k2 limit 6", split, sources, ResultMatcher(result));
+        auto result = YsonToRows({
+            "k1=a;s=1",
+            "k1=a;s=1",
+            "k1=a;s=1",
+            "k1=a;s=1",
+            "k1=a;s=1",
+            "k1=b;s=1",
+        }, resultSplit);
+        EvaluateCoordinatedGroupBy(
+            "k1, sum(1) as s from [//t] group by k1, k2 order by k1, k2 limit 6",
+            split,
+            sources,
+            ResultMatcher(result));
     }
     {
         auto resultSplit = MakeSplit({{"k1", EValueType::String}, {"s", EValueType::Int64}});
         auto result = YsonToRows({"k1=a;s=5", "k1=b;s=4"}, resultSplit);
-        EvaluateCoordinatedGroupBy("k1, sum(1) as s from [//t] group by k1 order by k1 limit 1000", split, sources, ResultMatcher(result));
+        EvaluateCoordinatedGroupBy(
+            "k1, sum(1) as s from [//t] group by k1 order by k1 limit 1000",
+            split,
+            sources,
+            ResultMatcher(result));
     }
     {
         auto resultSplit = MakeSplit({{"k1", EValueType::String}, {"s", EValueType::Int64}});
         auto result = YsonToRows({"k1=a;s=5", "k1=b;s=4"}, resultSplit);
-        EvaluateCoordinatedGroupBy("k1, sum(1) as s from [//t] group by k1 order by k1 limit 3", split, sources, ResultMatcher(result));
+        EvaluateCoordinatedGroupBy(
+            "k1, sum(1) as s from [//t] group by k1 order by k1 limit 3",
+            split,
+            sources,
+            ResultMatcher(result));
     }
     {
         auto resultSplit = MakeSplit({{"s", EValueType::Int64}});
         auto result = YsonToRows({}, resultSplit);
-        EvaluateCoordinatedGroupBy("sum(1) as s from [//t] group by 1000+1 limit 0", split, sources, ResultMatcher(result));
+        EvaluateCoordinatedGroupBy(
+            "sum(1) as s from [//t] group by 1000+1 limit 0",
+            split,
+            sources,
+            ResultMatcher(result));
     }
     {
         auto resultSplit = MakeSplit({{"s", EValueType::Int64}});
@@ -3636,7 +3628,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithAggregates1)
         {"v", EValueType::Int64},
     });
 
-    auto sources = std::vector<std::vector<TString>>{
+    auto sources = std::vector<TSource>{
         {
             "k1=0;k2=0;v=0",
             "k1=1;k2=0;v=1",
@@ -3657,7 +3649,11 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithAggregates1)
             "k1=3;sv=7",
             "k1=4;sv=5",
         }, resultSplit);
-        EvaluateCoordinatedGroupBy("k1, sum(v) as sv from [//t] group by k1 offset 1 limit 5", split, sources, ResultMatcher(result));
+        EvaluateCoordinatedGroupBy(
+            "k1, sum(v) as sv from [//t] group by k1 offset 1 limit 5",
+            split,
+            sources,
+            ResultMatcher(result));
     }
 }
 
@@ -3670,7 +3666,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithAggregates2)
         {"v3", EValueType::Int64},
     });
 
-    auto sources = std::vector<std::vector<TString>>{
+    auto sources = std::vector<TSource>{
         {
             "k0=1;k1=1;v2=1;v3=42",
             "k0=1;k1=2;v2=2;v3=1",
@@ -3692,7 +3688,10 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithAggregates2)
             "k0=1;v2=1;mv=0",
         }, resultSplit);
         EvaluateCoordinatedGroupBy(
-            "select k0, v2, min(v3) as mv from [//t] group by k0, v2 limit 1", split, sources, ResultMatcher(result));
+            "select k0, v2, min(v3) as mv from [//t] group by k0, v2 limit 1",
+            split,
+            sources,
+            ResultMatcher(result));
     }
 }
 
@@ -3704,7 +3703,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithAggregates3)
         {"v1", EValueType::Int64},
     });
 
-    auto sources = std::vector<std::vector<TString>>{};
+    auto sources = std::vector<TSource>{};
     for (int i = 0; i < 100; ++i) {
         if (i == 0 || i == 30 || i == 60) {
             sources.emplace_back();
@@ -3716,19 +3715,31 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithAggregates3)
     {
         auto resultSplit = MakeSplit({{"k1", EValueType::Int64}, {"s", EValueType::Int64}});
         auto result = YsonToRows({"k1=0;s=45"}, resultSplit);
-        EvaluateCoordinatedGroupBy("k1, sum(v1) as s from [//t] group by k1 limit 1", split, sources, ResultMatcher(result));
+        EvaluateCoordinatedGroupBy(
+            "k1, sum(v1) as s from [//t] group by k1 limit 1",
+            split,
+            sources,
+            ResultMatcher(result));
     }
 
     {
         auto resultSplit = MakeSplit({{"k1", EValueType::Int64}, {"s", EValueType::Int64}});
         auto result = YsonToRows({"k1=0;s=45", "k1=1;s=145"}, resultSplit);
-        EvaluateCoordinatedGroupBy("k1, sum(v1) as s from [//t] group by k1 limit 2", split, sources, ResultMatcher(result));
+        EvaluateCoordinatedGroupBy(
+            "k1, sum(v1) as s from [//t] group by k1 limit 2",
+            split,
+            sources,
+            ResultMatcher(result));
     }
 
     {
         auto resultSplit = MakeSplit({{"k1", EValueType::Int64}, {"s", EValueType::Int64}});
         auto result = YsonToRows({"k1=1;s=145"}, resultSplit);
-        EvaluateCoordinatedGroupBy("k1, sum(v1) as s from [//t] group by k1 offset 1 limit 1", split, sources, ResultMatcher(result));
+        EvaluateCoordinatedGroupBy(
+            "k1, sum(v1) as s from [//t] group by k1 offset 1 limit 1",
+            split,
+            sources,
+            ResultMatcher(result));
     }
 }
 
@@ -3740,7 +3751,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithAggregates4)
         {"k2", EValueType::Int64, ESortOrder::Ascending},
     });
 
-    auto sources = std::vector<std::vector<TString>>{
+    auto sources = std::vector<TSource>{
         {
             "k0=#;k1=1;k2=9",
             "k0=#;k1=2;k2=8",
@@ -3762,18 +3773,20 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithAggregates4)
     };
 
     {
-        auto resultSplit = MakeSplit({
-            {"k0", EValueType::Int64},
-            {"k2", EValueType::Int64},
-        });
         auto result = YsonToRows({
             "k0=#;k2=1",
             "k0=0;k2=0",
-        },
-        resultSplit);
+        }, MakeSplit({
+            {"k0", EValueType::Int64},
+            {"k2", EValueType::Int64},
+        }));
 
         for (int i = 0; i < 10; ++i) {
-            EvaluateCoordinatedGroupBy("select k0, min(k2) as mk from [//t] group by k0", split, sources, ResultMatcher(result));
+            EvaluateCoordinatedGroupBy(
+                "select k0, min(k2) as mk from [//t] group by k0",
+                split,
+                sources,
+                ResultMatcher(result));
         }
     }
 }
@@ -3787,7 +3800,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsNoLimitNoPrimaryKeyInGrou
     });
 
     for (int iteration = 0; iteration < 10; ++iteration) {
-        auto sources = std::vector<std::vector<TString>>();
+        auto sources = std::vector<TSource>();
         auto expected = THashMap<std::optional<i64>, i64>();
 
         for (i64 pk = 0; pk < 100; ++pk) {
@@ -3831,7 +3844,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsTotalRowCount)
         {"v", EValueType::Int64},
     });
 
-    auto sources = std::vector<std::vector<TString>>();
+    auto sources = std::vector<TSource>();
 
     std::set<i64> cardinality;
 
@@ -3889,7 +3902,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsNoLimitPrimaryKeyPrefixIn
     });
 
     for (int iteration = 0; iteration < 10; ++iteration) {
-        auto sources = std::vector<std::vector<TString>>();
+        auto sources = std::vector<TSource>();
         auto expected = THashMap<std::optional<i64>, i64>();
 
         for (i64 i = 0; i < 100; ++i) {
@@ -3937,7 +3950,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsWithLimitNoPrimaryKeyInGr
     });
 
     for (int iteration = 0; iteration < 1; ++iteration) {
-        auto sources = std::vector<std::vector<TString>>();
+        auto sources = std::vector<TSource>();
         auto expected = THashMap<std::optional<i64>, i64>();
 
         for (i64 pk = 0; pk < 100; ++pk) {
@@ -3982,7 +3995,7 @@ TEST_F(TQueryEvaluateTest, GroupByCoordinatedWithTotalsWithLimitPrimaryKeyPrefix
     });
 
     for (int iteration = 0; iteration < 10; ++iteration) {
-        auto sources = std::vector<std::vector<TString>>();
+        auto sources = std::vector<TSource>();
 
         auto expectedList = std::vector<THashMap<std::optional<i64>, i64>>();
 
@@ -4039,7 +4052,7 @@ TEST_F(TQueryEvaluateTest, GroupByNoLimitCoordinated)
         {"v", EValueType::Int64},
     });
 
-    auto sources = std::vector<std::vector<TString>>{};
+    auto sources = std::vector<TSource>{};
     for (int i = 0; i < 100; ++i) {
         if (i == 0 || i == 30 || i == 60) {
             sources.emplace_back();
@@ -4063,7 +4076,7 @@ TEST_F(TQueryEvaluateTest, GroupByNoLimitCoordinated)
     }
 
     std::sort(unsortedRows.begin(), unsortedRows.end());
-    auto sortedRows = std::vector<TString>{};
+    auto sortedRows = TSource{};
     for (auto& item : unsortedRows) {
         sortedRows.push_back(Format("k=%v;x=%v;s=%v", std::get<0>(item), std::get<1>(item), std::get<2>(item)));
     }
@@ -4087,7 +4100,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithNoKeyColumnsInTableSchema)
         {"b", EValueType::Int64},
     });
 
-    auto sources = std::vector<std::vector<TString>>{
+    auto sources = std::vector<TSource>{
         {"a=0;b=0", "a=1;b=1", "a=2;b=1"},
         {"a=2;b=1", "a=3;b=1", "a=3;b=1"},
         {"a=3;b=1", "a=4;b=1", "a=4;b=1"},
@@ -4097,23 +4110,31 @@ TEST_F(TQueryEvaluateTest, GroupByWithNoKeyColumnsInTableSchema)
     {
         auto resultSplit = MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::Int64}});
         auto result = YsonToRows({"a=0;b=0", "a=1;b=1", "a=2;b=2", "a=3;b=3", "a=4;b=4"}, resultSplit);
-        EvaluateCoordinatedGroupBy("a, sum(b) as b from [//t] group by a", split, sources, [] (TRange<TRow> result, const TTableSchema& /*tableSchema*/) {
-            for (int i = 0; i < 5; ++i) {
-                bool found = false;
-                for (const auto& row : result) {
-                    if (row[0].Data.Int64 == i && row[1].Data.Int64 == i) {
-                        found = true;
+        EvaluateCoordinatedGroupBy(
+            "a, sum(b) as b from [//t] group by a",
+            split,
+            sources,
+            [] (TRange<TRow> result, const TTableSchema& /*tableSchema*/) {
+                for (int i = 0; i < 5; ++i) {
+                    bool found = false;
+                    for (const auto& row : result) {
+                        if (row[0].Data.Int64 == i && row[1].Data.Int64 == i) {
+                            found = true;
+                        }
                     }
+                    ASSERT_TRUE(found);
                 }
-                ASSERT_TRUE(found);
-            }
-        });
+            });
     }
 
     {
         auto resultSplit = MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::Int64}});
         auto result = YsonToRows({"a=0;b=0", "a=1;b=1", "a=2;b=2", "a=3;b=3", "a=4;b=4"}, resultSplit);
-        EvaluateCoordinatedGroupBy("a, sum(b) as b from [//t] group by a limit 1000", split, sources, OrderedResultMatcher(result, {"a"}));
+        EvaluateCoordinatedGroupBy(
+            "a, sum(b) as b from [//t] group by a limit 1000",
+            split,
+            sources,
+            OrderedResultMatcher(result, {"a"}));
     }
 }
 
@@ -4125,7 +4146,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithIdenticalOrderKey)
         {"v2", EValueType::Int64},
     });
 
-    auto sources = std::vector<std::vector<TString>>{
+    auto sources = std::vector<TSource>{
         {
             "k0=0;v1=1;v2=42",
             "k0=1;v1=2;v2=1",
@@ -4150,7 +4171,7 @@ TEST_F(TQueryEvaluateTest, GroupByAlias)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -4185,7 +4206,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithTotals)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -4258,7 +4279,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithTotalsNulls)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "b=20",
     };
@@ -4287,7 +4308,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithTotalsEmpty)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
     };
 
     auto resultSplit = MakeSplit({
@@ -4311,7 +4332,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithLimitFirst)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source;
+    TSource source;
     for (int i = 0; i < 10; i++) {
         source.push_back(Format("a=%v;b=%v", 1, i));
     }
@@ -4324,8 +4345,12 @@ TEST_F(TQueryEvaluateTest, GroupByWithLimitFirst)
         "f=0"
     }, resultSplit);
 
-    auto queryStatistics = EvaluateWithQueryStatistics("first(b) as f FROM [//t] group by a limit 1", split, source, ResultMatcher(result)).second;
-    EXPECT_EQ(queryStatistics.RowsRead, 3);
+    auto rowsRead = EvaluateWithQueryStatistics(
+        "first(b) as f FROM [//t] group by a limit 1",
+        split,
+        source,
+        ResultMatcher(result)).second.RowsRead;
+    EXPECT_EQ(rowsRead, 3);
 
     SUCCEED();
 }
@@ -4338,7 +4363,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithLimitFirstString)
         {"c", EValueType::Int64}
     });
 
-    std::vector<TString> source;
+    TSource source;
     for (int i = 0; i < 10; i++) {
         source.push_back(Format("a=%v;b=%Qv;c=%v", i % 3, i, i));
     }
@@ -4368,7 +4393,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithAliases)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -4402,7 +4427,7 @@ TEST_F(TQueryEvaluateTest, Complex)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -4436,7 +4461,7 @@ TEST_F(TQueryEvaluateTest, Complex2)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -4459,7 +4484,11 @@ TEST_F(TQueryEvaluateTest, Complex2)
         "x=1;q=0;t=241"
     }, resultSplit);
 
-    Evaluate("x, q, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x, 0 as q", split, source, ResultMatcher(result));
+    Evaluate(
+        "x, q, sum(b) + x as t FROM [//t] where a > 1 group by a % 2 as x, 0 as q",
+        split,
+        source,
+        ResultMatcher(result));
 
     SUCCEED();
 }
@@ -4471,9 +4500,9 @@ TEST_F(TQueryEvaluateTest, ComplexBigResult)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source;
+    TSource source;
     for (size_t i = 0; i < 10000; ++i) {
-        source.push_back(TString() + "a=" + ToString(i) + ";b=" + ToString(i * 10));
+        source.push_back(Format("a=%v;b=%v", i, i * 10));
     }
 
     auto resultSplit = MakeSplit({
@@ -4484,7 +4513,7 @@ TEST_F(TQueryEvaluateTest, ComplexBigResult)
     std::vector<TOwningRow> result;
 
     for (size_t i = 2; i < 10000; ++i) {
-        result.push_back(YsonToRow(TString() + "x=" + ToString(i) + ";t=" + ToString(i * 10 + i), resultSplit, false));
+        result.push_back(YsonToRow(Format("x=%v;t=%v", i, i * 10 + i), resultSplit, false));
     }
 
     Evaluate("x, sum(b) + x as t FROM [//t] where a > 1 group by a as x", split, source, ResultMatcher(result));
@@ -4497,7 +4526,7 @@ TEST_F(TQueryEvaluateTest, ComplexWithNull)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -4548,7 +4577,7 @@ TEST_F(TQueryEvaluateTest, GroupByWithTotalsAndLimit)
         totalSum += value;
     };
 
-    std::vector<TString> source;
+    TSource source;
     for (int i = 0; i < 1000; ++i) {
         auto key = std::rand() % 10000 + 1000;
         auto value = key * 10;
@@ -4609,7 +4638,7 @@ TEST_F(TQueryEvaluateTest, GroupByDisjointTotalsLimit)
         totalSum += value;
     };
 
-    std::vector<TString> source;
+    TSource source;
     for (int i = 0; i < 100; ++i) {
         auto a = i / 10;
         auto b = i % 10;
@@ -4631,7 +4660,7 @@ TEST_F(TQueryEvaluateTest, GroupByDisjointTotalsLimit)
         result.push_back(YsonToRow(resultRow, resultSplit, false));
     }
     // TODO(lukyan): Try to make stable order of totals row
-    result.push_back(YsonToRow("s=" + ToString(totalSum), resultSplit, true));
+    result.push_back(YsonToRow("s=" + std::to_string(totalSum), resultSplit, true));
 
     Evaluate("x, y, sum(v) as s FROM [//t] group by a as x, b % 3 as y with totals limit 20",
         split, source, ResultMatcher(result));
@@ -4641,17 +4670,17 @@ TEST_F(TQueryEvaluateTest, GroupByDisjointTotalsLimit)
 
 TEST_F(TQueryEvaluateTest, JoinGroupByWithLimit)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources(2);
+    TSplitMap splits;
+    std::vector<TSource> sources(2);
 
     splits["//left"] = MakeSplit({
         {"a", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//right"] = MakeSplit({
         {"a", EValueType::Int64},
         {"b", EValueType::Int64}
-    }, 1);
+    });
 
     const size_t limit = 20;
     const i64 groupKeyCardinality = 31;
@@ -4688,7 +4717,10 @@ TEST_F(TQueryEvaluateTest, JoinGroupByWithLimit)
     }
 
     Evaluate(
-        Format("x, sum(b) as y FROM [//left] join [//right] using a group by a %% %v as x with totals limit %v", groupKeyCardinality, limit),
+        Format(
+            "x, sum(b) as y FROM [//left] join [//right] using a group by a %% %v as x with totals limit %v",
+            groupKeyCardinality,
+            limit),
         splits,
         sources,
         [&] (TRange<TRow> actual, const TTableSchema& /*schema*/) {
@@ -4713,7 +4745,7 @@ TEST_F(TQueryEvaluateTest, HavingClause1)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=1;b=10",
         "a=2;b=20",
@@ -4741,7 +4773,7 @@ TEST_F(TQueryEvaluateTest, HavingClause2)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=1;b=10",
         "a=2;b=20",
@@ -4769,7 +4801,7 @@ TEST_F(TQueryEvaluateTest, HavingClause3)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=1;b=10",
         "a=2;b=20",
@@ -4796,7 +4828,7 @@ TEST_F(TQueryEvaluateTest, IsNull)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=2;b=20",
         "a=9;b=90",
@@ -4827,7 +4859,7 @@ TEST_F(TQueryEvaluateTest, DoubleSum)
         {"a", EValueType::Double}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1.",
         "a=1.",
         ""
@@ -4852,7 +4884,7 @@ TEST_F(TQueryEvaluateTest, ComplexStrings)
         {"s", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=10;s=x",
         "a=20;s=y",
         "a=30;s=x",
@@ -4893,7 +4925,7 @@ TEST_F(TQueryEvaluateTest, ComplexStringsLower)
         {"s", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=XyZ;s=one",
         "a=aB1C;s=two",
         "a=cs1dv;s=three",
@@ -4925,7 +4957,7 @@ TEST_F(TQueryEvaluateTest, If)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -4960,7 +4992,7 @@ TEST_F(TQueryEvaluateTest, InputRowLimit)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -4989,7 +5021,7 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -5016,7 +5048,7 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit2)
 {
     auto split = MakeSplit({});
 
-    std::vector<TString> source;
+    TSource source;
     for (size_t i = 0; i < 10000; ++i) {
         source.push_back(TString());
     }
@@ -5026,7 +5058,7 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit2)
     });
 
     std::vector<TOwningRow> result;
-    result.push_back(YsonToRow(TString() + "x=" + ToString(10000), resultSplit, false));
+    result.push_back(YsonToRow(TString() + "x=" + std::to_string(10000), resultSplit, false));
 
     Evaluate("sum(1) as x FROM [//t] group by 0 as q", split, source, ResultMatcher(result), {.OutputRowLimit=100});
 
@@ -5039,7 +5071,7 @@ TEST_F(TQueryEvaluateTest, OutputRowLimit3)
         {"a", EValueType::Int64}
     });
 
-    std::vector<TString> source;
+    TSource source;
     for (size_t i = 0; i < 20; ++i) {
         source.push_back(Format("a=%v", i));
     }
@@ -5065,7 +5097,7 @@ TEST_F(TQueryEvaluateTest, TypeInference)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=2;b=20",
         "a=3;b=30",
@@ -5095,7 +5127,7 @@ TEST_F(TQueryEvaluateTest, TypeInference)
 
 TEST_F(TQueryEvaluateTest, ArrayJoinSimple)
 {
-    std::vector<TString> source{
+    TSource source{
         "a=1;nestedA=[1;2;3;4];nestedB=[-1;-2;-3]",
         "a=3;nestedA=[5;6;7];nestedB=[-5;-6;-7;-8]",
         "a=5;nestedA=[];nestedB=[]",
@@ -5176,7 +5208,7 @@ TEST_F(TQueryEvaluateTest, ArrayJoinSimple)
 
 TEST_F(TQueryEvaluateTest, ArrayJoinWithTableJoin)
 {
-    std::vector<std::vector<TString>> sources{
+    std::vector<TSource> sources{
         {
             "key=1;nestedA=[2;3];",
             "key=6;nestedA=[4;5];",
@@ -5189,7 +5221,7 @@ TEST_F(TQueryEvaluateTest, ArrayJoinWithTableJoin)
         },
     };
 
-    std::map<TString, TDataSplit> splits;
+    TSplitMap splits;
     splits["//a"] = MakeSplit({
         {"key", EValueType::Int64},
         {"nestedA", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))},
@@ -5229,7 +5261,7 @@ TEST_F(TQueryEvaluateTest, ArrayJoinWithTableJoin)
 
 TEST_F(TQueryEvaluateTest, ArrayJoinWithPredicate)
 {
-    std::vector<TString> source{
+    TSource source{
         "key=1;nestedA=[1;2;3;4];nestedB=[-1;-2;-3]",
         "key=3;nestedA=[5;6;7];nestedB=[-5;-6;-7;-8]",
         "key=5;nestedA=[9];nestedB=[-9]",
@@ -5267,13 +5299,13 @@ TEST_F(TQueryEvaluateTest, ArrayJoinWithPredicate)
 
 TEST_F(TQueryEvaluateTest, JoinEmpty)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64},
         {"b", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -5287,7 +5319,7 @@ TEST_F(TQueryEvaluateTest, JoinEmpty)
     auto rightSplit = MakeSplit({
         {"b", EValueType::Int64},
         {"c", EValueType::Int64}
-    }, 1);
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -5305,19 +5337,23 @@ TEST_F(TQueryEvaluateTest, JoinEmpty)
 
     auto result = YsonToRows({ }, resultSplit);
 
-    Evaluate("sum(a) as x, sum(b) as y, z FROM [//left] join [//right] using b group by c % 2 as z", splits, sources, ResultMatcher(result));
+    Evaluate(
+        "sum(a) as x, sum(b) as y, z FROM [//left] join [//right] using b group by c % 2 as z",
+        splits,
+        sources,
+        ResultMatcher(result));
 
     SUCCEED();
 }
 
 TEST_F(TQueryEvaluateTest, JoinSimple2)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -5327,7 +5363,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple2)
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
-    }, 1);
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -5351,12 +5387,12 @@ TEST_F(TQueryEvaluateTest, JoinSimple2)
 
 TEST_F(TQueryEvaluateTest, JoinSimple3)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -5366,7 +5402,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple3)
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
-    }, 1);
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -5390,12 +5426,12 @@ TEST_F(TQueryEvaluateTest, JoinSimple3)
 
 TEST_F(TQueryEvaluateTest, JoinSimple4)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -5405,7 +5441,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple4)
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
-    }, 1);
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -5429,12 +5465,12 @@ TEST_F(TQueryEvaluateTest, JoinSimple4)
 
 TEST_F(TQueryEvaluateTest, JoinSimple5)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -5445,7 +5481,7 @@ TEST_F(TQueryEvaluateTest, JoinSimple5)
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
-    }, 1);
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -5477,14 +5513,14 @@ TEST_F(TQueryEvaluateTest, JoinSimple5)
 
 TEST_F(TQueryEvaluateTest, JoinWithComplexEvaluatedColumn)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     splits["//A"] = MakeSplit({
         TColumnSchema("ak1", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("ak2", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("av0", EValueType::Int64),
-    }, 0);
+    });
     sources.push_back({
         "ak1=1; ak2=1; av0=-1",
         "ak1=1; ak2=2; av0=-2",
@@ -5499,7 +5535,7 @@ TEST_F(TQueryEvaluateTest, JoinWithComplexEvaluatedColumn)
         TColumnSchema("bk2", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("bk3", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("bv0", EValueType::Int64),
-    }, 1);
+    });
     sources.push_back({
         "bk0=2; bk1=1; bk2=1; bk3=1; bv0=-1",
         "bk0=2; bk1=1; bk2=2; bk3=1; bv0=-3",
@@ -5523,12 +5559,12 @@ TEST_F(TQueryEvaluateTest, JoinWithComplexEvaluatedColumn)
 
 TEST_F(TQueryEvaluateTest, JoinRowLimit)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -5541,7 +5577,7 @@ TEST_F(TQueryEvaluateTest, JoinRowLimit)
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
-    }, 1);
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -5569,12 +5605,12 @@ TEST_F(TQueryEvaluateTest, JoinRowLimit)
 
 TEST_F(TQueryEvaluateTest, JoinRowLimit2)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -5584,7 +5620,7 @@ TEST_F(TQueryEvaluateTest, JoinRowLimit2)
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
-    }, 1);
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -5612,12 +5648,12 @@ TEST_F(TQueryEvaluateTest, JoinRowLimit2)
 
 TEST_F(TQueryEvaluateTest, JoinWithLimit)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -5632,7 +5668,7 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit)
 
     auto rightSplit = MakeSplit({
         {"a", EValueType::Int64}
-    }, 1);
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -5671,15 +5707,15 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit)
 
 TEST_F(TQueryEvaluateTest, JoinWithLimit2)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64, ESortOrder::Ascending},
         {"ut", EValueType::Int64, ESortOrder::Ascending},
         {"b", EValueType::Int64, ESortOrder::Ascending},
         {"v", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -5694,7 +5730,7 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit2)
     auto rightSplit = MakeSplit({
         {"b", EValueType::Int64, ESortOrder::Ascending},
         {"c", EValueType::Int64}
-    }, 1);
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -5734,13 +5770,13 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit2)
 
 TEST_F(TQueryEvaluateTest, JoinWithLimit3)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     auto leftSplit = MakeSplit({
         {"publisherId", EValueType::String, ESortOrder::Ascending},
         {"itemId", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//publishers"] = leftSplit;
     sources.push_back({
@@ -5762,7 +5798,7 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit3)
     auto rightSplit = MakeSplit({
         {"publisherId", EValueType::String, ESortOrder::Ascending},
         {"timestamp", EValueType::Uint64}
-    }, 1);
+    });
 
     splits["//draft"] = rightSplit;
     sources.push_back({
@@ -5806,13 +5842,13 @@ TEST_F(TQueryEvaluateTest, JoinWithLimit3)
 
 TEST_F(TQueryEvaluateTest, JoinNonPrefixColumns)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     auto leftSplit = MakeSplit({
         TColumnSchema("x", EValueType::String, ESortOrder::Ascending),
         TColumnSchema("y", EValueType::String)
-    }, 0);
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -5824,7 +5860,7 @@ TEST_F(TQueryEvaluateTest, JoinNonPrefixColumns)
     auto rightSplit = MakeSplit({
         TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending),
         TColumnSchema("x", EValueType::String)
-    }, 1);
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -5852,13 +5888,13 @@ TEST_F(TQueryEvaluateTest, JoinNonPrefixColumns)
 
 TEST_F(TQueryEvaluateTest, JoinManySimple)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     splits["//a"] = MakeSplit({
         {"a", EValueType::Int64},
         {"c", EValueType::String}
-    }, 0);
+    });
     sources.push_back({
         "a=2;c=b",
         "a=3;c=c",
@@ -5869,7 +5905,7 @@ TEST_F(TQueryEvaluateTest, JoinManySimple)
         {"b", EValueType::Int64},
         {"c", EValueType::String},
         {"d", EValueType::String}
-    }, 1);
+    });
     sources.push_back({
         "b=100;c=a;d=X",
         "b=200;c=b;d=Y",
@@ -5882,12 +5918,11 @@ TEST_F(TQueryEvaluateTest, JoinManySimple)
     splits["//c"] = MakeSplit({
         {"d", EValueType::String},
         {"e", EValueType::Int64},
-    }, 2);
+    });
     sources.push_back({
         "d=X;e=1234",
         "d=Y;e=5678"
     });
-
 
     auto resultSplit = MakeSplit({
         {"a", EValueType::Int64},
@@ -5917,12 +5952,12 @@ TEST_F(TQueryEvaluateTest, JoinManySimple)
 
 TEST_F(TQueryEvaluateTest, Multijoin)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     splits["//x"] = MakeSplit({
         {"a", EValueType::Int64}
-    }, 0);
+    });
     sources.push_back({
         "a=0"
     });
@@ -5930,7 +5965,7 @@ TEST_F(TQueryEvaluateTest, Multijoin)
     splits["//y"] = MakeSplit({
         {"a", EValueType::Int64},
         {"b", EValueType::Int64}
-    }, 1);
+    });
     sources.push_back({
         "a=0;b=1",
         "a=0;b=2"
@@ -5939,7 +5974,7 @@ TEST_F(TQueryEvaluateTest, Multijoin)
     splits["//z"] = MakeSplit({
         {"a", EValueType::Int64},
         {"c", EValueType::Int64},
-    }, 2);
+    });
     sources.push_back({
         "a=0;c=1",
         "a=0;c=2",
@@ -5949,7 +5984,7 @@ TEST_F(TQueryEvaluateTest, Multijoin)
     splits["//q"] = MakeSplit({
         {"a", EValueType::Int64},
         {"d", EValueType::Int64},
-    }, 2);
+    });
     sources.push_back({ });
 
     auto resultSplit = MakeSplit({
@@ -5978,13 +6013,13 @@ TEST_F(TQueryEvaluateTest, Multijoin)
 
 TEST_F(TQueryEvaluateTest, SortMergeJoin)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64, ESortOrder::Ascending},
         {"b", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -5998,7 +6033,7 @@ TEST_F(TQueryEvaluateTest, SortMergeJoin)
     auto rightSplit = MakeSplit({
         {"c", EValueType::Int64, ESortOrder::Ascending},
         {"d", EValueType::Int64}
-    }, 1);
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -6035,14 +6070,14 @@ TEST_F(TQueryEvaluateTest, SortMergeJoin)
 
 TEST_F(TQueryEvaluateTest, PartialSortMergeJoin)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64, ESortOrder::Ascending},
         {"b", EValueType::Int64},
         {"c", EValueType::Int64},
-    }, 0);
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -6066,7 +6101,7 @@ TEST_F(TQueryEvaluateTest, PartialSortMergeJoin)
         {"d", EValueType::Int64, ESortOrder::Ascending},
         {"e", EValueType::Int64, ESortOrder::Ascending},
         {"f", EValueType::Int64},
-    }, 1);
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -6131,7 +6166,7 @@ TEST_F(TQueryEvaluateTest, PartialSortMergeJoin)
             {"d", EValueType::Int64, ESortOrder::Ascending},
             {"e", EValueType::Int64},
             {"f", EValueType::Int64},
-        }, 1);
+        });
         splits["//right"] = rightSplit;
         sources[1] = {
             "d=1;e=4;f=4 ",
@@ -6167,13 +6202,13 @@ TEST_F(TQueryEvaluateTest, PartialSortMergeJoin)
 
 TEST_F(TQueryEvaluateTest, Join)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64},
         {"b", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -6191,7 +6226,7 @@ TEST_F(TQueryEvaluateTest, Join)
     auto rightSplit = MakeSplit({
         {"b", EValueType::Int64},
         {"c", EValueType::Int64}
-    }, 1);
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -6225,13 +6260,13 @@ TEST_F(TQueryEvaluateTest, Join)
 
 TEST_F(TQueryEvaluateTest, LeftJoin)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64},
         {"b", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -6249,7 +6284,7 @@ TEST_F(TQueryEvaluateTest, LeftJoin)
     auto rightSplit = MakeSplit({
         {"b", EValueType::Int64},
         {"c", EValueType::Int64}
-    }, 1);
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -6289,12 +6324,12 @@ TEST_F(TQueryEvaluateTest, LeftJoin)
 
 TEST_F(TQueryEvaluateTest, LeftJoinWithCondition)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     auto leftSplit = MakeSplit({
         {"a", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//left"] = leftSplit;
     sources.push_back({
@@ -6308,7 +6343,7 @@ TEST_F(TQueryEvaluateTest, LeftJoinWithCondition)
         {"a", EValueType::Int64},
         {"b", EValueType::Int64},
         {"c", EValueType::Int64},
-    }, 1);
+    });
 
     splits["//right"] = rightSplit;
     sources.push_back({
@@ -6359,7 +6394,7 @@ TEST_F(TQueryEvaluateTest, ComplexAlias)
         {"s", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=10;s=x",
         "a=20;s=y",
         "a=30;s=x",
@@ -6393,13 +6428,13 @@ TEST_F(TQueryEvaluateTest, ComplexAlias)
 
 TEST_F(TQueryEvaluateTest, JoinMany)
 {
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources;
+    TSplitMap splits;
+    std::vector<TSource> sources;
 
     splits["//primary"] = MakeSplit({
         {"a", EValueType::Int64},
         {"b", EValueType::Int64}
-    }, 0);
+    });
     sources.push_back({
         "a=1;b=10",
         "a=2;b=20",
@@ -6415,7 +6450,7 @@ TEST_F(TQueryEvaluateTest, JoinMany)
     splits["//secondary"] = MakeSplit({
         {"b", EValueType::Int64},
         {"c", EValueType::Int64}
-    }, 1);
+    });
     sources.push_back({
         "c=1;b=10",
         "c=2;b=20",
@@ -6431,7 +6466,7 @@ TEST_F(TQueryEvaluateTest, JoinMany)
     splits["//tertiary"] = MakeSplit({
         {"c", EValueType::Int64},
         {"d", EValueType::Int64}
-    }, 2);
+    });
     sources.push_back({
         "c=1;d=10",
         "c=2;d=20",
@@ -6468,7 +6503,7 @@ TEST_F(TQueryEvaluateTest, JoinMany)
 // Tests common subexpressions in join equations.
 TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
 {
-    std::map<TString, TDataSplit> splits;
+    TSplitMap splits;
 
     splits["//phrases"] = MakeSplit({
         TColumnSchema("cid", EValueType::Int64, ESortOrder::Ascending),
@@ -6476,7 +6511,7 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
         TColumnSchema("value", EValueType::Int64),
     });
 
-    std::vector<TString> phrases = {
+    TSource phrases = {
         "cid=49353617;pid=4098243503"
     };
 
@@ -6488,7 +6523,7 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
         TColumnSchema("value", EValueType::Int64),
     });
 
-    std::vector<TString> tag_group = {
+    TSource tag_group = {
         "__hash__=13;pid=4098243503;tag_id=39139420",
         "__hash__=13;pid=4098243503;tag_id=39139421"
     };
@@ -6502,7 +6537,7 @@ TEST_F(TQueryEvaluateTest, TwoLeftJoinOneToMany)
         TColumnSchema("value", EValueType::Int64),
     });
 
-    std::vector<TString> DirectPhraseStatV2 = {
+    TSource DirectPhraseStatV2 = {
         "YTHash=-9217565170028083870;ExportID=49353617;GroupExportID=4098243503;UpdateTime=1579813200",
         "YTHash=-9217565170028083870;ExportID=49353617;GroupExportID=4098243503;UpdateTime=1580072400",
         "YTHash=-9217565170028083870;ExportID=49353617;GroupExportID=4098243503;UpdateTime=1580158800"
@@ -6557,16 +6592,16 @@ TEST_F(TQueryEvaluateTest, OrderBy)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source;
+    TSource source;
 
     for (int i = 0; i < 10000; ++i) {
         auto value = std::rand() % 100000 + 10000;
-        source.push_back(TString() + "a=" + ToString(value) + ";b=" + ToString(value * 10));
+        source.push_back(TString() + "a=" + std::to_string(value) + ";b=" + std::to_string(value * 10));
     }
 
     for (int i = 0; i < 10000; ++i) {
         auto value = 10000 - i;
-        source.push_back(TString() + "a=" + ToString(value) + ";b=" + ToString(value * 10));
+        source.push_back(TString() + "a=" + std::to_string(value) + ";b=" + std::to_string(value * 10));
     }
 
     std::vector<TOwningRow> result;
@@ -6591,7 +6626,7 @@ TEST_F(TQueryEvaluateTest, OrderBy)
     source.clear();
     for (int i = 0; i < 10; ++i) {
         auto value = 10 - i;
-        source.push_back(TString() + "a=" + ToString(i % 3) + ";b=" + ToString(value));
+        source.push_back(TString() + "a=" + std::to_string(i % 3) + ";b=" + std::to_string(value));
     }
 
     result.clear();
@@ -6610,7 +6645,7 @@ TEST_F(TQueryEvaluateTest, OrderByWithHugeLimit)
 {
     auto split = MakeSplit({{"a", EValueType::Int64}});
 
-    auto source = std::vector<TString>{
+    auto source = TSource{
         "a=3",
         "a=2",
         "a=1",
@@ -6629,7 +6664,7 @@ TEST_F(TQueryEvaluateTest, OrderByWithSmallLimit)
 {
     auto split = MakeSplit({{"a", EValueType::Int64}});
 
-    auto source = std::vector<TString>{
+    auto source = TSource{
         "a=3",
         "a=2",
         "a=1",
@@ -6675,9 +6710,9 @@ TEST_F(TQueryEvaluateTest, GroupByTotalsOrderBy)
 
     groupedValues.resize(50);
 
-    std::vector<TString> source;
+    TSource source;
     for (const auto& row : sourceValues) {
-        source.push_back(TString() + "a=" + ToString(row.first) + ";b=" + ToString(row.second));
+        source.push_back(TString() + "a=" + std::to_string(row.first) + ";b=" + std::to_string(row.second));
     }
 
     auto resultSplit = MakeSplit({
@@ -6686,10 +6721,10 @@ TEST_F(TQueryEvaluateTest, GroupByTotalsOrderBy)
     });
 
     std::vector<TOwningRow> result;
-    result.push_back(YsonToRow("y=" + ToString(totalSum), resultSplit, true));
+    result.push_back(YsonToRow("y=" + std::to_string(totalSum), resultSplit, true));
 
     for (const auto& row : groupedValues) {
-        TString resultRow = TString() + "x=" + ToString(row.first) + ";y=" + ToString(row.second);
+        TString resultRow = TString() + "x=" + std::to_string(row.first) + ";y=" + std::to_string(row.second);
         result.push_back(YsonToRow(resultRow, resultSplit, false));
     }
 
@@ -6706,7 +6741,7 @@ TEST_F(TQueryEvaluateTest, Udf)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=10",
         "a=-2;b=20",
         "a=9;b=90",
@@ -6735,7 +6770,7 @@ TEST_F(TQueryEvaluateTest, ZeroArgumentUdf)
         {"a", EValueType::Uint64},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1u",
         "a=2u",
         "a=75u",
@@ -6765,7 +6800,7 @@ TEST_F(TQueryEvaluateTest, UdfNullPropagation)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;",
         "a=-2;b=-20",
         "a=9;",
@@ -6795,7 +6830,7 @@ TEST_F(TQueryEvaluateTest, UdfNullPropagation2)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;",
         "a=2;b=10",
         "b=9",
@@ -6824,7 +6859,7 @@ TEST_F(TQueryEvaluateTest, UdfStringArgument)
         {"a", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=\"123\"",
         "a=\"50\"",
         "a=\"\"",
@@ -6853,7 +6888,7 @@ TEST_F(TQueryEvaluateTest, UdfStringResult)
         {"a", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=\"HELLO\"",
         "a=\"HeLlO\"",
         "a=\"\"",
@@ -6882,7 +6917,7 @@ TEST_F(TQueryEvaluateTest, UnversionedValueUdf)
         {"a", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=\"Hello\"",
         "a=\"\"",
         ""
@@ -6909,7 +6944,7 @@ TEST_F(TQueryEvaluateTest, UnversionedValueUdf2)
         {"a", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=\"Hello\"",
         "a=\"\"",
         "a=\"42\"",
@@ -6938,7 +6973,7 @@ TEST_F(TQueryEvaluateTest, AnyToYsonString)
         {"any", EValueType::Any},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "any={}",
         "any={a=42;}",
         "any={a={b=c}}",
@@ -6966,7 +7001,7 @@ TEST_F(TQueryEvaluateTest, YPathTryGetInt64)
         {"ypath", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "yson={b={c=4};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/1\"",
         "",
@@ -7000,7 +7035,7 @@ TEST_F(TQueryEvaluateTest, YPathGetInt64)
         {"ypath", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "yson={b={c=4};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/1\"",
         "",
@@ -7032,7 +7067,7 @@ TEST_F(TQueryEvaluateTest, YPathGetInt64Fail)
         {"ypath", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
@@ -7059,7 +7094,7 @@ TEST_F(TQueryEvaluateTest, YPathTryGetUint64)
         {"ypath", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "yson={b={c=4u};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
         "",
@@ -7093,7 +7128,7 @@ TEST_F(TQueryEvaluateTest, YPathGetUint64)
         {"ypath", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "yson={b={c=4u};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
         "",
@@ -7125,7 +7160,7 @@ TEST_F(TQueryEvaluateTest, YPathGetUint64Fail)
         {"ypath", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "yson={b={c=4u};d=[1u;2u]};ypath=\"/b/d\"",
         "yson={b={c=4u};d=[1u;2u]};ypath=\"/d/2\"",
         "yson={b={c=4u};d=[1u;2]};ypath=\"/d/1\"",
@@ -7152,7 +7187,7 @@ TEST_F(TQueryEvaluateTest, YPathTryGetDouble)
         {"ypath", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "yson={b={c=4.};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;2.]};ypath=\"/d/1\"",
         "",
@@ -7186,7 +7221,7 @@ TEST_F(TQueryEvaluateTest, YPathGetDouble)
         {"ypath", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "yson={b={c=4.};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;2.]};ypath=\"/d/1\"",
         "",
@@ -7218,7 +7253,7 @@ TEST_F(TQueryEvaluateTest, YPathGetDoubleFail)
         {"ypath", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
@@ -7245,7 +7280,7 @@ TEST_F(TQueryEvaluateTest, YPathTryGetBoolean)
         {"ypath", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "yson={b={c=%true};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;%false]};ypath=\"/d/1\"",
         "",
@@ -7279,7 +7314,7 @@ TEST_F(TQueryEvaluateTest, YPathGetBoolean)
         {"ypath", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "yson={b={c=%false};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;%true]};ypath=\"/d/1\"",
         "",
@@ -7311,7 +7346,7 @@ TEST_F(TQueryEvaluateTest, YPathGetBooleanFail)
         {"ypath", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
         "yson={b={c=4};d=[1;2u]};ypath=\"/d/1\"",
@@ -7338,7 +7373,7 @@ TEST_F(TQueryEvaluateTest, YPathTryGetString)
         {"ypath", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "yson={b={c=\"hello\"};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;\"world\"]};ypath=\"/d/1\"",
         "",
@@ -7372,7 +7407,7 @@ TEST_F(TQueryEvaluateTest, YPathGetString)
         {"ypath", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "yson={b={c=\"here\"};d=[1;2]};ypath=\"/b/c\"",
         "yson={b={c=4};d=[1;\"there\"]};ypath=\"/d/1\"",
         "",
@@ -7404,7 +7439,7 @@ TEST_F(TQueryEvaluateTest, YPathGetStringFail)
         {"ypath", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "",
         "yson={b={c=4};d=[1;2]};ypath=\"/b/d\"",
         "yson={b={c=4};d=[1;2]};ypath=\"/d/2\"",
@@ -7434,7 +7469,7 @@ TEST_F(TQueryEvaluateTest, YPathGetAny)
         {"value", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "yson={b={c=\"here\"};d=[1;2]};ypath0=\"/b\";ypath1=\"/c\";value=\"here\"",
         "yson={b={c=4};d=[1;\"there\"]};ypath0=\"/d\";ypath1=\"/1\";value=\"there\"",
         "",
@@ -7469,7 +7504,7 @@ TEST_F(TQueryEvaluateTest, CompareAny)
         {"b", EValueType::Any}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=%false;b=%true;",
         "a=%false;b=%false;",
         "a=1;b=2;",
@@ -7533,8 +7568,8 @@ TEST_F(TQueryEvaluateTest, CompareAnyMixed)
         "r1=%false;r2=%false;r3=%true;r4=%true;r5=%true;r6=%false;r7=%true",
     }, resultSplit);
 
-    TString query = "a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5, a != b as r6, a < b = b "
-        "> a and a > b = b < a as r7 FROM [//t]";
+    auto query = std::string("a < b as r1, a > b as r2, a <= b as r3, a >= b as r4, a = b as r5, a != b as r6, a < b = b "
+        "> a and a > b = b < a as r7 FROM [//t]");
 
     Evaluate(query, MakeSplit({
             {"a", EValueType::Any},
@@ -7589,7 +7624,7 @@ TEST_F(TQueryEvaluateTest, ToAnyAndCompare)
         "r=%true",
     }, resultSplit);
 
-    TString query = "to_any(a) = a FROM [//t]";
+    auto query = std::string("to_any(a) = a FROM [//t]");
 
     Evaluate(query, MakeSplit({
             {"a", EValueType::Boolean}
@@ -7629,7 +7664,7 @@ TEST_F(TQueryEvaluateTest, YsonStringToAny)
     // TODO(dtorilov): Add WebAssembly UDF.
     {
         auto split = MakeSplit({{"a", EValueType::String}});
-        auto source = std::vector<TString>{
+        auto source = TSource{
             R"(a="1")",
             R"(a="1u")",
             R"(a="1.0")",
@@ -7695,7 +7730,7 @@ TEST_F(TQueryEvaluateTest, YsonStringToAny)
     }
     {
         auto split = MakeSplit({{"a", EValueType::String}});
-        auto source = std::vector<TString>{R"(a="#")"};
+        auto source = TSource{R"(a="#")"};
 
         auto resultSplit = MakeSplit({{"r", EValueType::Boolean}});
         auto result = YsonToRows({R"(r=%true)"}, resultSplit);
@@ -7705,7 +7740,7 @@ TEST_F(TQueryEvaluateTest, YsonStringToAny)
     }
     {
         auto split = MakeSplit({{"a", EValueType::String}});
-        auto source = std::vector<TString>{R"(a=dummy)"};
+        auto source = TSource{R"(a=dummy)"};
 
         auto resultSplit = MakeSplit({{"r", EValueType::Any}});
         auto result = YsonToRows({R"(r=[""])"}, resultSplit);
@@ -7715,7 +7750,7 @@ TEST_F(TQueryEvaluateTest, YsonStringToAny)
     }
     {
         auto split = MakeSplit({{"a", EValueType::String}});
-        auto source = std::vector<TString>{R"(a=dummy)"};
+        auto source = TSource{R"(a=dummy)"};
 
         auto resultSplit = MakeSplit({});
         auto result = YsonToRows({}, resultSplit);
@@ -7727,7 +7762,7 @@ TEST_F(TQueryEvaluateTest, YsonStringToAny)
     }
     {
         auto split = MakeSplit({{"a", EValueType::String}});
-        auto source = std::vector<TString>{R"(a=dummy)"};
+        auto source = TSource{R"(a=dummy)"};
 
         auto resultSplit = MakeSplit({});
         auto result = YsonToRows({}, resultSplit);
@@ -7739,7 +7774,7 @@ TEST_F(TQueryEvaluateTest, YsonStringToAny)
     }
     {
         auto split = MakeSplit({{"a", EValueType::String}});
-        auto source = std::vector<TString>{R"(a="")"};
+        auto source = TSource{R"(a="")"};
 
         auto resultSplit = MakeSplit({});
         auto result = YsonToRows({}, resultSplit);
@@ -7762,7 +7797,7 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStruct)
                     {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})},
             {"d", SimpleLogicalType(ESimpleLogicalValueType::String)}})}});
 
-    auto source = std::vector<TString> {
+    auto source = TSource{
         "struct={a={b={c=1}};d=a}",
         "struct={a={b={c=2}};d=b}",
         "struct={a={b={c=3}};d=c}",
@@ -7806,7 +7841,7 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStruct2)
                 {"b", StructLogicalType({
                     {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})}})}});
 
-    auto source = std::vector<TString> {
+    auto source = TSource{
         "struct={a={b={c=1}}}",
         "struct={a={b={}}}",
         "struct={a={b=abc}}",
@@ -7842,7 +7877,7 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorStructPositionalEncoding)
                     {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})},
             {"d", SimpleLogicalType(ESimpleLogicalValueType::String)}})}});
 
-    auto source = std::vector<TString> {
+    auto source = TSource{
         "struct=[[[1]];a]",
         "struct=[[[2]];b]",
         "struct=[[[3]];c]",
@@ -7887,7 +7922,7 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorTuple)
                     {"c", SimpleLogicalType(ESimpleLogicalValueType::Int32)}})}})},
             {SimpleLogicalType(ESimpleLogicalValueType::String)}})}});
 
-    auto source = std::vector<TString> {
+    auto source = TSource{
         "tuple=[{b={c=1}};a]",
         "tuple=[{b={c=2}};b]",
         "tuple=[{b={c=3}};c]",
@@ -7937,7 +7972,7 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorListAndDict)
             SimpleLogicalType(ESimpleLogicalValueType::String),
             OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::String)))}});
 
-    auto source = std::vector<TString> {
+    auto source = TSource{
         "struct={a={b={list=[1;2;3];dict={i=1;j=2;k=3}}}};dict={a=b;c=d}",
         "struct={a={b={list=[2];dict={i=2}}}}",
         "struct={a={b={list=[3];dict={i=3}}}}",
@@ -8014,7 +8049,7 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorDifferentTypes)
             {"i32", SimpleLogicalType(ESimpleLogicalValueType::Int32)},
             {"ui32", SimpleLogicalType(ESimpleLogicalValueType::Uint32)}})}});
 
-    auto source = std::vector<TString> {
+    auto source = TSource{
         "struct={i64=1;ui64=5u;double=0.5;boolean=%true;string=abc;any={a={b=1}};i8=1;ui8=5u;i16=9;ui16=13u;i32=17;ui32=21u}",
         "struct={i64=2;ui64=6u;double=0.25;boolean=%false;string=def;any={a={b=2}};i8=2;ui8=6u;i16=10;ui16=14u;i32=18;ui32=22u}",
         "struct={i64=3;ui64=7u;double=0.125;boolean=%true;string=ghi;any={a={b=3}};i8=3;ui8=7u;i16=11;ui16=15u;i32=19;ui32=23u}",
@@ -8090,7 +8125,7 @@ TEST_F(TQueryEvaluateTest, CompositeMemberAccessorWithIncorrectPath)
             {"tuple", TupleLogicalType({
                 SimpleLogicalType(ESimpleLogicalValueType::Int32)})}})}});
 
-    auto source = std::vector<TString> {
+    auto source = TSource{
         "struct={a={b={c=1}};d=a;tuple=[1]}",
         "struct={a={b={c=2}};tuple=[2]}",
     };
@@ -8135,7 +8170,7 @@ TEST_F(TQueryEvaluateTest, VarargUdf)
         {"a", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1",
         "a=2"
     };
@@ -8162,7 +8197,7 @@ TEST_F(TQueryEvaluateTest, FarmHash)
         {"c", EValueType::Boolean}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=3;b=\"hello\";c=%true",
         "a=54;c=%false"
     };
@@ -8187,7 +8222,7 @@ TEST_F(TQueryEvaluateTest, BigbHash)
         {"A", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "A=\"y12345\"",
         "A=\"y12345b\"",
         "A=\"p12345\"",
@@ -8224,7 +8259,7 @@ TEST_F(TQueryEvaluateTest, RegexParseError)
         {"a", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=\"hello\"",
         "a=\"hell\"",
         "",
@@ -8249,7 +8284,7 @@ TEST_F(TQueryEvaluateTest, RegexFullMatch)
         {"a", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=\"hello\"",
         "a=\"hell\"",
         "",
@@ -8276,7 +8311,7 @@ TEST_F(TQueryEvaluateTest, RegexPartialMatch)
         {"a", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=\"xx\"",
         "a=\"x43x\"",
         "",
@@ -8303,7 +8338,7 @@ TEST_F(TQueryEvaluateTest, RegexReplaceFirst)
         {"a", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=\"x43x43x\"",
         "",
     };
@@ -8328,7 +8363,7 @@ TEST_F(TQueryEvaluateTest, RegexReplaceAll)
         {"a", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=\"x43x43x\"",
         "",
     };
@@ -8353,7 +8388,7 @@ TEST_F(TQueryEvaluateTest, RegexExtract)
         {"a", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=\"Send root@ya.com an email.\"",
         "",
     };
@@ -8367,7 +8402,11 @@ TEST_F(TQueryEvaluateTest, RegexExtract)
         "",
     }, resultSplit);
 
-    Evaluate("regex_extract(\"([a-z]*)@(.*).com\", a, \"\\\\1 at \\\\2\") as x FROM [//t]", split, source, ResultMatcher(result));
+    Evaluate(
+        "regex_extract(\"([a-z]*)@(.*).com\", a, \"\\\\1 at \\\\2\") as x FROM [//t]",
+        split,
+        source,
+        ResultMatcher(result));
 
     SUCCEED();
 }
@@ -8378,7 +8417,7 @@ TEST_F(TQueryEvaluateTest, RegexEscape)
         {"a", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=\"1.5\"",
         "",
     };
@@ -8403,7 +8442,7 @@ TEST_F(TQueryEvaluateTest, AverageAgg)
         {"a", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=3",
         "a=53",
         "a=8",
@@ -8430,7 +8469,7 @@ TEST_F(TQueryEvaluateTest, AverageAgg2)
         {"c", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=3;b=3;c=1",
         "a=53;b=2;c=3",
         "a=8;b=5;c=32",
@@ -8454,7 +8493,11 @@ TEST_F(TQueryEvaluateTest, AverageAgg2)
         "r1=35.5;x=0;r2=9;r3=3.5;r4=23"
     }, resultSplit);
 
-    Evaluate("avg(a) as r1, x, max(c) as r2, avg(c) as r3, min(a) as r4 from [//t] group by b % 2 as x", split, source, ResultMatcher(result));
+    Evaluate(
+        "avg(a) as r1, x, max(c) as r2, avg(c) as r3, min(a) as r4 from [//t] group by b % 2 as x",
+        split,
+        source,
+        ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, AverageAgg3)
@@ -8464,7 +8507,7 @@ TEST_F(TQueryEvaluateTest, AverageAgg3)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=3.0;b=1",
         "b=1",
         "b=0",
@@ -8490,7 +8533,7 @@ TEST_F(TQueryEvaluateTest, StringAgg)
         {"a", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=\"one\"",
         "a=\"two\"",
         "a=\"three\"",
@@ -8517,7 +8560,7 @@ TEST_F(TQueryEvaluateTest, ArgMin)
         {"integer", EValueType::Int64}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "any=[1;2;3];   double=5.55;    integer=1",
         "any=%true;     double=4.44;    integer=1",
         "any={x=1};     double=3.33;    integer=2",
@@ -8545,10 +8588,10 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
         {"a", EValueType::Int64}
     });
 
-    std::vector<TString> source;
+    TSource source;
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 2000; j++) {
-            source.push_back("a=" + ToString(j));
+            source.push_back("a=" + std::to_string(j));
         }
     }
 
@@ -8561,7 +8604,11 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregate)
         "upper=%true;lower=%true"
     }, resultSplit);
 
-    Evaluate("cardinality(a) < 2020 as upper, cardinality(a) > 1980 as lower from [//t] group by 1", split, source, ResultMatcher(result));
+    Evaluate(
+        "cardinality(a) < 2020 as upper, cardinality(a) > 1980 as lower from [//t] group by 1",
+        split,
+        source,
+        ResultMatcher(result));
 }
 
 TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals)
@@ -8570,10 +8617,10 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals)
         {"a", EValueType::Int64}
     });
 
-    std::vector<TString> source;
+    TSource source;
     for (int i = 0; i < 4; i++) {
         for (int j = 0; j < 2000; j++) {
-            source.push_back("a=" + ToString(j));
+            source.push_back("a=" + std::to_string(j));
         }
     }
 
@@ -8601,10 +8648,10 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals2)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source;
+    TSource source;
     for (int i = 0; i < 12; i++) {
         for (int j = 0; j < 1000 * (i % 3 + 1); j++) {
-            source.push_back("a=" + ToString(j) + "; b=" + ToString(i % 3 + 1));
+            source.push_back("a=" + std::to_string(j) + "; b=" + std::to_string(i % 3 + 1));
         }
     }
 
@@ -8636,10 +8683,10 @@ TEST_F(TQueryEvaluateTest, CardinalityAggregateTotals3)
         {"b", EValueType::Int64}
     });
 
-    std::vector<TString> source;
+    TSource source;
     for (int i = 0; i < 16; i++) {
         for (int j = 0; j < 500; j++) {
-            source.push_back("a=" + ToString(j + 1000 * (i % 3)) + "; b=" + ToString(i % 3));
+            source.push_back("a=" + std::to_string(j + 1000 * (i % 3)) + "; b=" + std::to_string(i % 3));
         }
     }
 
@@ -8673,7 +8720,7 @@ TEST_F(TQueryEvaluateTest, Casts)
         {"c", EValueType::Double}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=3u;b=34",
         "c=1.23",
         "a=12u",
@@ -8704,7 +8751,7 @@ TEST_F(TQueryEvaluateTest, UdfException)
         {"a", EValueType::Int64},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=-3",
     };
 
@@ -8725,7 +8772,7 @@ TEST_F(TQueryEvaluateTest, MakeMapSuccess)
         {"v_null", EValueType::Any}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "v_any={hello=world}"
     };
 
@@ -8763,7 +8810,7 @@ TEST_F(TQueryEvaluateTest, MakeMapFailure)
         {"a", EValueType::Any}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1"
     };
 
@@ -8778,7 +8825,7 @@ TEST_F(TQueryEvaluateTest, MakeMapFailure)
 TEST_F(TQueryEvaluateTest, MakeList)
 {
     auto split = MakeSplit({{"v_any", EValueType::Any}, {"v_null", EValueType::Any}});
-    auto source = std::vector<TString>{"v_any={hello=world}"};
+    auto source = TSource{"v_any={hello=world}"};
 
     auto resultSplit = MakeSplit({{"x", EValueType::Any}});
     auto result = YsonToRows({"x=[1;2u;%true;3.14;abc;{hello=world};#]"}, resultSplit);
@@ -8789,7 +8836,7 @@ TEST_F(TQueryEvaluateTest, MakeList)
 TEST_F(TQueryEvaluateTest, MakeEntity)
 {
     auto split = MakeSplit({{"a", EValueType::Int64}});
-    auto source = std::vector<TString>{"a=42"};
+    auto source = TSource{"a=42"};
 
     auto resultSplit = MakeSplit({{"x", EValueType::Any}});
     auto result = YsonToRows({"x=[#]"}, resultSplit);
@@ -8802,7 +8849,7 @@ TEST_F(TQueryEvaluateTest, DecimalExpr)
     auto split = MakeSplit({
         {"a", DecimalLogicalType(5, 2)}
     });
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=\"\\x80\\x00\\x2a\\x3a\""
     };
 
@@ -8818,7 +8865,7 @@ TEST_F(TQueryEvaluateTest, TypeV1Propagation)
     auto split = MakeSplit({
         {"a", SimpleLogicalType(ESimpleLogicalValueType::Int32)}
     });
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=5"
     };
 
@@ -8834,7 +8881,7 @@ TEST_F(TQueryEvaluateTest, ListExpr)
     auto split = MakeSplit({
         {"a", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))}
     });
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=[1;2;3]"
     };
 
@@ -8848,7 +8895,7 @@ TEST_F(TQueryEvaluateTest, ListExprToAny)
     auto split = MakeSplit({
         {"a", ListLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int32))}
     });
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=[1;2;3]"
     };
 
@@ -8864,7 +8911,7 @@ TEST_F(TQueryEvaluateTest, CoordinatedMaxGroupBy)
         {"revision", EValueType::Int64},
         {"person", EValueType::String},
     });
-    std::vector<std::vector<TString>> sources = {
+    std::vector<TSource> sources = {
         {
             "id=1; revision=2; person=\"britney\"",
             "id=2; revision=3; person=\"camilla\"",
@@ -8913,7 +8960,7 @@ TEST_F(TQueryEvaluateTest, CoordinatedArgMaxGroupBy)
         {"person", EValueType::String},
         {"date", EValueType::Int64},
     });
-    std::vector<std::vector<TString>> source = {
+    std::vector<TSource> source = {
         {
             "id=1; revision=1; person=\"daisy\"; date=4",
             "id=2; revision=2; person=\"britney\"; date=2",
@@ -9099,9 +9146,7 @@ protected:
         TJoinColumns joinEq,
         TGroupColumns groupEq,
         TStringBuf groupTotals);
-
 };
-
 
 void TQueryEvaluateComplexTest::DoTest(
     const std::vector<TPrimaryRow>& primaryTable,
@@ -9117,7 +9162,7 @@ void TQueryEvaluateComplexTest::DoTest(
     // Secondary columns: (d, e) -> w
     // Group columns x, y, z
 
-    TString queryString = Format(
+    auto queryString = Format(
         "x, y, z, sum(1) as count, sum(v) as sumv, sum(w) as sumw "
         "from [//t] %v join [//s] on (%v) = (%v) group by %v as x, %v as y, %v as z %v offset %v limit %v",
         joinType,
@@ -9217,15 +9262,15 @@ void TQueryEvaluateComplexTest::DoTest(
         }
     }
 
-    std::map<TString, TDataSplit> splits;
-    std::vector<std::vector<TString>> sources(2);
+    TSplitMap splits;
+    std::vector<TSource> sources(2);
 
     auto primarySplit = MakeSplit({
         {"a", EValueType::Int64, ESortOrder::Ascending},
         {"b", EValueType::Int64, ESortOrder::Ascending},
         {"c", EValueType::Int64, ESortOrder::Ascending},
         {"v", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//t"] = primarySplit;
 
@@ -9237,7 +9282,7 @@ void TQueryEvaluateComplexTest::DoTest(
         {"d", EValueType::Int64, ESortOrder::Ascending},
         {"e", EValueType::Int64, ESortOrder::Ascending},
         {"w", EValueType::Int64}
-    }, 0);
+    });
 
     splits["//s"] = secondarySplit;
 
@@ -9395,7 +9440,7 @@ TEST_F(TQueryEvaluateTest, QuotedColumnNames)
 {
     {
         auto split = MakeSplit({{"column ]]] \n \t \x42 \u2019 ` ", EValueType::Int64}});
-        auto source = std::vector<TString>{
+        auto source = TSource{
             R"("column ]]] \n \t \x42 \u2019 ` "=4)",
             R"("column ]]] \n \t \x42 \u2019 ` "=10)",
         };
@@ -9407,7 +9452,7 @@ TEST_F(TQueryEvaluateTest, QuotedColumnNames)
 
     {
         auto split = MakeSplit({{"where", EValueType::Int64}});
-        auto source = std::vector<TString>{
+        auto source = TSource{
             R"("where"=4)",
             R"("where"=10)",
         };
@@ -9424,7 +9469,7 @@ TEST_F(TQueryEvaluateTest, SelectKeyword)
 {
     {
         auto split = MakeSplit({{"a", EValueType::Int64}});
-        auto source = std::vector<TString>{
+        auto source = TSource{
             R"("a"=4)",
             R"("a"=10)",
         };
@@ -9437,7 +9482,7 @@ TEST_F(TQueryEvaluateTest, SelectKeyword)
 
     {
         auto split = MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::String}, });
-        auto source = std::vector<TString>{
+        auto source = TSource{
             R"(a=4;b=four)",
             R"(a=10;b=ten)",
         };
@@ -9457,7 +9502,7 @@ TEST_F(TQueryEvaluateTest, UnaryNullOperations)
 {
     auto split = MakeSplit({ {"a", EValueType::Int64}, });
 
-    std::vector<TString> source = { "a=4", "a=10" };
+    auto source = TSource{ "a=4", "a=10" };
 
     auto result = YsonToRows({ "a=4", "a=10" }, split);
 
@@ -9471,7 +9516,7 @@ TEST_F(TQueryEvaluateTest, DataWeightRead)
 {
     auto split = MakeSplit({{"a", EValueType::Int64},  {"b", EValueType::Boolean},  {"c", EValueType::String}});
 
-    std::vector<TString> source = {"a=4;b=%true;c=abc", "a=10;b=%false;c=defg"};
+    auto source = TSource{"a=4;b=%true;c=abc", "a=10;b=%false;c=defg"};
 
     auto result = YsonToRows(source, split);
 
@@ -9503,7 +9548,7 @@ class TQueryEvaluatePlaceholdersTest
 TEST_P(TQueryEvaluatePlaceholdersTest, Simple)
 {
     auto split = MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::Int64}, });
-    auto source = std::vector<TString>{
+    auto source = TSource{
         R"(a=1;b=2)",
         R"(a=3;b=4)",
         R"(a=5;b=6)",
@@ -9551,7 +9596,7 @@ TEST_F(TQueryEvaluatePlaceholdersTest, Complex)
 {
     {
         auto split = MakeSplit({{"a", EValueType::String}, {"b", EValueType::String}, });
-        auto source = std::vector<TString>{ R"(a="1";b="2")", };
+        auto source = TSource{ R"(a="1";b="2")", };
         auto result = std::vector<TOwningRow>{};
         Evaluate("b from [//t] where a = {a}", split, source, ResultMatcher(result), {
             .PlaceholderValues=TYsonStringBuf("{a=\"42\\\" or \\\"1\\\" = \\\"1\"}"sv),
@@ -9560,7 +9605,7 @@ TEST_F(TQueryEvaluatePlaceholdersTest, Complex)
 
     {
         auto split = MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::Int64}, });
-        auto source = std::vector<TString>{
+        auto source = TSource{
             R"(a=1;b=2)",
             R"(a=3;b=4)",
             R"(a=5;b=6)",
@@ -9664,7 +9709,7 @@ class TQueryEvaluateYsonLengthTest
 TEST_F(TQueryEvaluateYsonLengthTest, Simple)
 {
     auto split = MakeSplit({{"any", EValueType::Any},});
-    auto source = std::vector<TString>{
+    auto source = TSource{
         "any={}",
         "any=[]",
         "any={a={b=c}}",
@@ -9706,7 +9751,7 @@ TEST_F(TQueryEvaluateYsonLengthTest, Simple)
 TEST_F(TQueryEvaluateYsonLengthTest, GetAny)
 {
     auto split = MakeSplit({{"any", EValueType::Any},});
-    auto source = std::vector<TString>{
+    auto source = TSource{
         "any={a=[1;2;3;4]}",
         "any=#",
     };
@@ -9733,7 +9778,7 @@ TEST_P(TQueryYsonLengthWithIncorrectSyntaxTest, Simple)
     const auto& errorMessage = std::get<1>(args);
 
     auto split = MakeSplit({{"any", EValueType::Any},});
-    auto source = std::vector<TString>{row,};
+    auto source = TSource{row,};
 
     EvaluateExpectingError("yson_length(any) as length from [//t]", split, source, /*evaluateOptions*/ {}, errorMessage);
 }
@@ -9811,7 +9856,7 @@ TEST_P(TQueryEvaluateCaseTest, Simple)
         {"b", EValueType::Int64},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=9",
         "a=2;b=8",
         "a=3;b=7",
@@ -9897,14 +9942,14 @@ TEST_F(TQueryEvaluateCaseTest, Lazy)
         {"a", EValueType::Int64},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=0",
         "a=3",
         "a=1",
     };
 
     {
-        auto result = YsonToRows(std::vector<TString>{
+        auto result = YsonToRows(TSource{
             "m=aaa",
             "m=bbb",
             "m=ccc",
@@ -9920,7 +9965,7 @@ TEST_F(TQueryEvaluateCaseTest, Lazy)
     }
 
     {
-        auto result = YsonToRows(std::vector<TString>{
+        auto result = YsonToRows(TSource{
             "m=#",
             "m=5",
             "m=15",
@@ -9937,7 +9982,7 @@ TEST_F(TQueryEvaluateCaseTest, Lazy)
     }
 
     {
-        auto result = YsonToRows(std::vector<TString>{
+        auto result = YsonToRows(TSource{
             "m=a",
             "m=b",
             "m=c",
@@ -9954,7 +9999,7 @@ TEST_F(TQueryEvaluateCaseTest, Lazy)
     }
 
     {
-        auto result = YsonToRows(std::vector<TString>{
+        auto result = YsonToRows(TSource{
             "m=a",
             "m=b",
             "m=c",
@@ -9978,14 +10023,14 @@ TEST_F(TQueryEvaluateCaseTest, Complex)
         {"b", EValueType::String},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=a;b=d",
         "a=b;b=e",
         "a=c;b=f",
     };
 
     {
-        auto result = YsonToRows(std::vector<TString>{
+        auto result = YsonToRows(TSource{
             "m=ad",
             "m=be",
             "m=cf",
@@ -10016,7 +10061,7 @@ TEST_F(TQueryEvaluateCaseTest, Complex)
     }
 
     {
-        auto result = YsonToRows(std::vector<TString>{
+        auto result = YsonToRows(TSource{
             "m=ccc",
             "m=bbb",
             "m=aaa",
@@ -10089,7 +10134,7 @@ INSTANTIATE_TEST_SUITE_P(
 TEST_P(TQueryEvaluateCaseWithIncorrectSemanticsTest, Simple)
 {
     auto split = MakeSplit({{"a", EValueType::Int64},});
-    auto source = std::vector<TString>{};
+    auto source = TSource{};
 
     const auto& args = GetParam();
     const auto& query = std::get<0>(args);
@@ -10115,7 +10160,7 @@ TEST_P(TQueryEvaluateLikeTest, Simple)
 {
     auto split = MakeSplit({{"a", EValueType::String},});
 
-    std::vector<TString> source = {
+    auto source = TSource{
         R"(a="--- ---")",
         R"(a="--- abc ---")",
         R"(a="abc")",
@@ -10136,19 +10181,31 @@ INSTANTIATE_TEST_SUITE_P(
     ::testing::Values(
         std::tuple(
             "a from [//t] where a like '%abc%'",
-            YsonToRows({R"(a="--- abc ---")", R"(a="abc")",}, MakeSplit({{"a", EValueType::String},}))),
+            YsonToRows({R"(a="--- abc ---")", R"(a="abc")",}, MakeSplit({{"a", EValueType::String}}))),
         std::tuple(
             "a from [//t] where a like '%Abc%'",
-            YsonToRows({R"(a="--- Abc ---")",}, MakeSplit({{"a", EValueType::String},}))),
+            YsonToRows({R"(a="--- Abc ---")",}, MakeSplit({{"a", EValueType::String}}))),
         std::tuple(
             "a from [//t] where a not like '%abc%'",
-            YsonToRows({R"(a="--- ---")", R"(a="--- Abc ---")", R"(a="--- --- Ab ---")",}, MakeSplit({{"a", EValueType::String},}))),
+            YsonToRows({
+                R"(a="--- ---")",
+                R"(a="--- Abc ---")",
+                R"(a="--- --- Ab ---")",
+            }, MakeSplit({{"a", EValueType::String}}))),
         std::tuple(
             "a from [//t] where a ilike '%abc%'",
-            YsonToRows({R"(a="--- abc ---")", R"(a="abc")", R"(a="--- Abc ---")",}, MakeSplit({{"a", EValueType::String},}))),
+            YsonToRows({
+                R"(a="--- abc ---")",
+                R"(a="abc")",
+                R"(a="--- Abc ---")",
+            }, MakeSplit({{"a", EValueType::String}}))),
         std::tuple(
             "a from [//t] where a ilike '%_bc%'",
-            YsonToRows({R"(a="--- abc ---")", R"(a="abc")", R"(a="--- Abc ---")",}, MakeSplit({{"a", EValueType::String},}))),
+            YsonToRows({
+                R"(a="--- abc ---")",
+                R"(a="abc")",
+                R"(a="--- Abc ---")",
+            }, MakeSplit({{"a", EValueType::String}}))),
         std::tuple(
             "a from [//t] where a rlike '.*[aA]bc.*'",
             YsonToRows({
@@ -10170,7 +10227,7 @@ INSTANTIATE_TEST_SUITE_P(
 TEST_F(TQueryEvaluateLikeTest, Complex)
 {
     auto split = MakeSplit({{"pattern", EValueType::String}, {"escape_character", EValueType::String}, });
-    std::vector<TString> source = {
+    auto source = TSource{
         R"(pattern="abc";escape_character="_")",
         R"(pattern="a_c";escape_character="b")",
         R"(pattern="abbc";escape_character="b")",
@@ -10198,7 +10255,11 @@ TEST_F(TQueryEvaluateLikeTest, Complex)
         "match=#",
     }, MakeSplit({{"match", EValueType::Boolean},}));
 
-    Evaluate("select 'abc' like pattern escape escape_character as match from [//t]", split, source, ResultMatcher(result));
+    Evaluate(
+        "select 'abc' like pattern escape escape_character as match from [//t]",
+        split,
+        source,
+        ResultMatcher(result));
 }
 
 class TQueryLikeWithIncorrectSyntaxTest
@@ -10215,7 +10276,7 @@ TEST_P(TQueryLikeWithIncorrectSyntaxTest, Simple)
     const auto& errorMessage = std::get<1>(args);
 
     auto split = MakeSplit({{"a", EValueType::String},});
-    auto source = std::vector<TString>{ R"(a="")", };
+    auto source = TSource{ R"(a="")", };
 
     EXPECT_THROW_THAT(
         Evaluate(
@@ -10249,7 +10310,7 @@ TEST_F(TQueryEvaluateTest, Greatest)
         {"e", EValueType::String}
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1;b=1u;c=1.;d=%true;e=\"a\"",
         "a=-10;b=10u;c=-10.;d=%false;e=\"xa\"",
         "a=1333;b=1333u;c=1333.3;d=%true;e=\"abac\""
@@ -10328,7 +10389,7 @@ TEST_F(TQueryEvaluateTest, GreatestError)
         {"b", EValueType::Boolean},
     });
 
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=1",
         "b=%false"
     };
@@ -10345,7 +10406,7 @@ TEST_F(TQueryEvaluateTest, ListHasIntersection)
         {"a", EValueType::Any},
         {"b", EValueType::Any},
     });
-    std::vector<TString> source = {
+    auto source = TSource{
         "a=[1;2;3];b=[4;6;2;#]",
         "a=[\"a\"; \"b\"];b=[\"a\"]",
         "a=[1;2;3];b=[4;6]",
@@ -10383,7 +10444,7 @@ TEST_F(TQueryEvaluateTest, ListHasIntersection)
 TEST_F(TQueryEvaluateTest, OrderByAny)
 {
     auto split = MakeSplit({{"a", EValueType::Any}});
-    auto source = std::vector<TString>{
+    auto source = TSource{
         "a=[1;2;3]",
         "a=[2;4;5]",
         "a=[2;3;4]",
@@ -10405,7 +10466,7 @@ TEST_F(TQueryEvaluateTest, OrderByAny)
 TEST_F(TQueryEvaluateTest, GroupByAny)
 {
     auto split = MakeSplit({{"a", EValueType::Any}});
-    auto source = std::vector<TString>{
+    auto source = TSource{
         "a=[1;2;3]",
         "a=[2;4;5]",
         "a=[2;3;4]",
@@ -10437,8 +10498,8 @@ TEST_F(TQueryEvaluateTest, GroupByAny)
 
 TEST_F(TQueryEvaluateTest, BigJoin1)
 {
-    auto splits = std::map<TString, TDataSplit>();
-    auto sources = std::vector<std::vector<TString>>();
+    auto splits = TSplitMap();
+    auto sources = std::vector<TSource>();
 
     const int bigJoinNumber = 220;
 
@@ -10450,7 +10511,7 @@ TEST_F(TQueryEvaluateTest, BigJoin1)
     auto resultSplit = MakeSplit({{"a", EValueType::Int64}});
     auto result = YsonToRows({}, resultSplit);
 
-    auto query = TString("a_0.a from [//a_0] as a_0 ");
+    auto query = std::string("a_0.a from [//a_0] as a_0 ");
     for (int i = 1; i < bigJoinNumber; ++i) {
         query += Format("join [//a_%v] as a_%v on (a_%v.b) = (a_%v.a) ", i, i, 0, i);
     }
@@ -10463,8 +10524,8 @@ TEST_F(TQueryEvaluateTest, BigJoin1)
 
 TEST_F(TQueryEvaluateTest, BigJoin2)
 {
-    auto splits = std::map<TString, TDataSplit>();
-    auto sources = std::vector<std::vector<TString>>();
+    auto splits = TSplitMap();
+    auto sources = std::vector<TSource>();
 
     const int bigMultiJoinGroupNumber = 18;
 
@@ -10476,7 +10537,7 @@ TEST_F(TQueryEvaluateTest, BigJoin2)
     auto resultSplit = MakeSplit({{"a", EValueType::Int64}});
     auto result = YsonToRows({}, resultSplit);
 
-    auto query = TString("a_0.a from [//a_0] as a_0 ");
+    auto query = std::string("a_0.a from [//a_0] as a_0 ");
     for (int i = 1; i < bigMultiJoinGroupNumber; ++i) {
         query += Format("join [//a_%v] as a_%v on (a_%v.b) = (a_%v.a) ", i, i, i-1, i);
     }
