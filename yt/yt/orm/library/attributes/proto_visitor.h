@@ -64,7 +64,7 @@ namespace NYT::NOrm::NAttributes {
 
 template <typename TWrappedMessage, typename TSelf>
 class TProtoVisitor
-    : public TPathVisitorUtil
+    : public TPathVisitorMixin
     , public TPathVisitor<TSelf>
 {
     friend class TPathVisitor<TSelf>;
