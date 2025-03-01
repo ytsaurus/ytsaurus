@@ -36,7 +36,7 @@ class TestGrafting(YTEnvSetup):
 
     @authors("kvk1920", "gritukan")
     def test_cannot_create_scion(self):
-        with pytest.raises(YtError):
+        with raises_yt_error("Nodes of type \"scion\" cannot be created explicitly"):
             create("scion", "//tmp/s")
 
     @authors("kvk1920", "gritukan")
@@ -82,9 +82,9 @@ class TestGrafting(YTEnvSetup):
     @authors("kvk1920", "gritukan")
     def test_cannot_copy_move_rootstock(self):
         create("rootstock", "//tmp/r")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot clone a rootstock"):
             copy("//tmp/r&", "//tmp/r2")
-        with pytest.raises(YtError):
+        with raises_yt_error("Cannot clone a rootstock"):
             move("//tmp/r&", "//tmp/r2")
 
     @authors("kvk1920")

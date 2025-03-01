@@ -88,7 +88,7 @@ class TestMasterTransactions(YTEnvSetup):
         assert not exists(f"//sys/transactions/{tx}")
 
         # cannot commit committed transaction
-        with pytest.raises(YtError):
+        with raises_yt_error("No such transaction"):
             commit_transaction(tx)
 
     @authors("babenko")
@@ -102,7 +102,7 @@ class TestMasterTransactions(YTEnvSetup):
         assert not exists("//sys/transactions/" + tx)
 
         # cannot commit aborted transaction
-        with pytest.raises(YtError):
+        with raises_yt_error("No such transaction"):
             commit_transaction(tx)
 
     @authors("panin", "ignat")
@@ -134,7 +134,7 @@ class TestMasterTransactions(YTEnvSetup):
         set("//sys/@config/transaction_manager/alert_transaction_is_not_compatible_with_method", False)
         set("//sys/@config/transaction_manager/transaction_type_to_method_whitelist/transaction", [])
         tx = start_transaction()
-        with pytest.raises(YtError, match="Method .* is not supported for type"):
+        with raises_yt_error("Method \"Set\" is not supported for type"):
             set("//tmp/value", "100", tx=tx)
 
         remove("//sys/@config/transaction_manager/transaction_type_to_method_whitelist")
