@@ -1979,7 +1979,7 @@ public:
         networkProject->SetName(newName);
     }
 
-    TProxyRole* CreateProxyRole(const std::string& name, EProxyKind proxyKind, TObjectId hintId)
+    TProxyRole* CreateProxyRole(const std::string& name, NApi::EProxyKind proxyKind, TObjectId hintId)
     {
         if (ProxyRoleNameMaps_[proxyKind].contains(name)) {
             THROW_ERROR_EXCEPTION(
@@ -2024,7 +2024,7 @@ public:
             .Item("proxy_kind").Value(proxyKind);
     }
 
-    const THashMap<std::string, TProxyRole*>& GetProxyRolesWithProxyKind(EProxyKind proxyKind) const override
+    const THashMap<std::string, TProxyRole*>& GetProxyRolesWithProxyKind(NApi::EProxyKind proxyKind) const override
     {
         return ProxyRoleNameMaps_[proxyKind];
     }
@@ -2943,7 +2943,7 @@ private:
     THashMap<std::string, TNetworkProject*> NetworkProjectNameMap_;
 
     NHydra::TEntityMap<TProxyRole> ProxyRoleMap_;
-    TEnumIndexedArray<EProxyKind, THashMap<std::string, TProxyRole*>> ProxyRoleNameMaps_;
+    TEnumIndexedArray<NApi::EProxyKind, THashMap<std::string, TProxyRole*>> ProxyRoleNameMaps_;
 
     TSyncMap<TString, TProfilerTagPtr> CpuProfilerTags_;
 
@@ -3143,7 +3143,7 @@ private:
         return networkProject;
     }
 
-    TProxyRole* DoCreateProxyRole(TProxyRoleId id, const std::string& name, EProxyKind proxyKind)
+    TProxyRole* DoCreateProxyRole(TProxyRoleId id, const std::string& name, NApi::EProxyKind proxyKind)
     {
         auto proxyRoleHolder = TPoolAllocator::New<TProxyRole>(id);
         proxyRoleHolder->SetName(name);
@@ -3348,7 +3348,7 @@ private:
             YT_VERIFY(NetworkProjectNameMap_.emplace(networkProject->GetName(), networkProject).second);
         }
 
-        for (auto proxyKind : TEnumTraits<EProxyKind>::GetDomainValues()) {
+        for (auto proxyKind : TEnumTraits<NApi::EProxyKind>::GetDomainValues()) {
             ProxyRoleNameMaps_[proxyKind].clear();
         }
         for (auto [proxyRoleId, proxyRole] : ProxyRoleMap_) {
@@ -3761,7 +3761,7 @@ private:
         NetworkProjectNameMap_.clear();
 
         ProxyRoleMap_.Clear();
-        for (auto proxyKind : TEnumTraits<EProxyKind>::GetDomainValues()) {
+        for (auto proxyKind : TEnumTraits<NApi::EProxyKind>::GetDomainValues()) {
             ProxyRoleNameMaps_[proxyKind].clear();
         }
 
@@ -5218,7 +5218,7 @@ TObject* TProxyRoleTypeHandler::CreateObject(
     IAttributeDictionary* attributes)
 {
     auto name = attributes->GetAndRemove<std::string>("name");
-    auto proxyKind = attributes->GetAndRemove<EProxyKind>("proxy_kind");
+    auto proxyKind = attributes->GetAndRemove<NApi::EProxyKind>("proxy_kind");
 
     return Owner_->CreateProxyRole(name, proxyKind, hintId);
 }

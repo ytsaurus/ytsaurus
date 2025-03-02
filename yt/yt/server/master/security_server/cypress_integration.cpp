@@ -45,12 +45,12 @@ static constexpr auto& Logger = SecurityServerLogger;
 
 namespace {
 
-EObjectType RoleMapObjectTypeFromProxyKind(EProxyKind proxyKind)
+EObjectType RoleMapObjectTypeFromProxyKind(NApi::EProxyKind proxyKind)
 {
     switch (proxyKind) {
-        case EProxyKind::Http:
+        case NApi::EProxyKind::Http:
             return EObjectType::HttpProxyRoleMap;
-        case EProxyKind::Rpc:
+        case NApi::EProxyKind::Rpc:
             return EObjectType::RpcProxyRoleMap;
         default:
             YT_ABORT();
@@ -372,13 +372,13 @@ class TVirtualProxyRoleMap
     : public TVirtualSinglecellMapBase
 {
 public:
-    TVirtualProxyRoleMap(TBootstrap* bootstrap, INodePtr owningNode, EProxyKind proxyKind)
+    TVirtualProxyRoleMap(TBootstrap* bootstrap, INodePtr owningNode, NApi::EProxyKind proxyKind)
         : TVirtualSinglecellMapBase(bootstrap, std::move(owningNode))
         , ProxyKind_(proxyKind)
     { }
 
 private:
-    const EProxyKind ProxyKind_;
+    const NApi::EProxyKind ProxyKind_;
 
     std::vector<std::string> GetKeys(i64 limit) const override
     {
@@ -416,7 +416,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-INodeTypeHandlerPtr CreateProxyRoleMapTypeHandler(TBootstrap* bootstrap, EProxyKind proxyKind)
+INodeTypeHandlerPtr CreateProxyRoleMapTypeHandler(TBootstrap* bootstrap, NApi::EProxyKind proxyKind)
 {
     YT_VERIFY(bootstrap);
 
