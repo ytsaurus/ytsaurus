@@ -149,7 +149,8 @@ class TestSequoiaReplicas(YTEnvSetup):
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 0)
 
     @authors("aleksandra-zh")
-    def test_chunk_replicas_node_offline2(self):
+    @pytest.mark.parametrize("erasure_codec", ["none", "lrc_12_2_2"])
+    def test_chunk_replicas_node_offline2(self, erasure_codec):
         def no_chunk():
             for node in ls("//sys/cluster_nodes"):
                 if chunk_id in ls("//sys/cluster_nodes/{0}/orchid/data_node/stored_chunks".format(node)):
@@ -159,15 +160,16 @@ class TestSequoiaReplicas(YTEnvSetup):
 
         set("//sys/@config/chunk_manager/sequoia_chunk_replicas/enable", True)
         set("//sys/accounts/tmp/@resource_limits/disk_space_per_medium/{}".format(self.TABLE_MEDIUM_1), 10000)
-        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1})
+        create("table", "//tmp/t",  attributes={"primary_medium": self.TABLE_MEDIUM_1, "erasure_codec": erasure_codec})
 
         write_table("//tmp/t", [{"x": 1}])
         assert read_table("//tmp/t") == [{"x": 1}]
 
         chunk_id = get_singular_chunk_id("//tmp/t")
 
+        desired_replica_count = 3 if erasure_codec == "none" else 16
         wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.chunk_replicas.get_default_path()}]")) == 1)
-        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == 3)
+        wait(lambda: len(select_rows_from_ground(f"* from [{DESCRIPTORS.location_replicas.get_default_path()}]")) == desired_replica_count)
 
         with Restarter(self.Env, NODES_SERVICE, indexes=self.table_node_indexes):
             remove("//tmp/t")
