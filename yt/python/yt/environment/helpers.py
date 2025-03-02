@@ -477,14 +477,13 @@ def push_front_env_path(path):
 
 
 def find_cri_endpoint():
-    socket_path = "/run/containerd/containerd.sock"
-    endpoint = None
+    endpoint = os.getenv("CONTAINER_RUNTIME_ENDPOINT", "unix:///run/containerd/containerd.sock")
     try:
         sock = socket.socket(socket.AF_UNIX, socket.SOCK_STREAM)
-        sock.connect(socket_path)
-        endpoint = "unix://" + socket_path
+        sock.connect(endpoint.removeprefix("unix://"))
     except:  # noqa
-        logger.exception("CRI connection {} failed.".format(socket_path))
+        logger.exception("CRI connection {} failed".format(endpoint))
+        endpoint = None
     finally:
         sock.close()
     return endpoint
