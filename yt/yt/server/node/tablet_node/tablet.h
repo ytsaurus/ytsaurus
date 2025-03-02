@@ -987,15 +987,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluentMap fluent);
+void BuildTableSettingsOrchidYson(
+    const TTableSettings& options,
+    NYTree::TFluentMap fluent);
 
 NConcurrency::IThroughputThrottlerPtr GetBlobMediumWriteThrottler(
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
     const TTabletSnapshotPtr& tabletSnapshot);
-
 NConcurrency::IThroughputThrottlerPtr GetBlobMediumReadThrottler(
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& dynamicConfigManager,
     const TTabletSnapshotPtr& tabletSnapshot);
+
+bool IsInUnmountWorkflow(ETabletState state);
+bool IsInFreezeWorkflow(ETabletState state);
 
 ////////////////////////////////////////////////////////////////////////////////
 
