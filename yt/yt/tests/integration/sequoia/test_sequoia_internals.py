@@ -472,7 +472,6 @@ class TestSequoiaInternals(YTEnvSetup):
 
     @authors("danilalexeev")
     def test_mixed_read_write_batch(self):
-        create("map_node", "//sys/cypress_proxies", ignore_existing=True)
         set("//sys/cypress_proxies/@config", {
             "object_service": {
                 "alert_on_mixed_read_write_batch": True,
@@ -492,6 +491,23 @@ class TestSequoiaInternals(YTEnvSetup):
         assert not get_batch_output(results[0])
         with raises_yt_error():
             get_batch_output(results[1])
+
+    @authors("kvk1920")
+    def test_cypress_proxy_registry(self):
+        assert get("//sys/cypress_proxies/@count") == self.NUM_CYPRESS_PROXIES
+
+        cypress_proxy = ls("//sys/cypress_proxies")[0]
+        cypress_proxy_object_id = get(f"//sys/cypress_proxies/{cypress_proxy}/@id")
+        cypress_proxy_reign = get(f"//sys/cypress_proxies/{cypress_proxy}/orchid/sequoia_reign")
+
+        master = ls("//sys/primary_masters")[0]
+        master_reign = get(f"//sys/primary_masters/{master}/orchid/sequoia_reign")
+
+        assert cypress_proxy_reign == master_reign
+
+        remove(f"//sys/cypress_proxies/{cypress_proxy}")
+        wait(lambda: exists(f"//sys/cypress_proxies/{cypress_proxy}"))
+        assert cypress_proxy_object_id != get(f"//sys/cypress_proxies/{cypress_proxy}/@id")
 
 
 @pytest.mark.enabled_multidaemon
@@ -2672,6 +2688,7 @@ class TestSequoiaMultipleCypressProxies(YTEnvSetup):
         "user_directory_synchronizer": {
             "sync_period": 100,
         },
+        "heartbeat_period": 1000,
     }
 
     @authors("danilalexeev")

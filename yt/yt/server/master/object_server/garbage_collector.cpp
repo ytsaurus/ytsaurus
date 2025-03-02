@@ -137,7 +137,19 @@ void TGarbageCollector::LoadValues(NCellMaster::TLoadContext& context)
     using NYT::Load;
 
     Load(context, Zombies_);
-    Load(context, RemovalAwaitingCellsSyncObjects_);
+    // COMPAT(shakurov)
+    if (context.GetVersion() < EMasterReign::GlobalObjectReplicationRespectsTypeHandlers) {
+        auto removalAwaitingCellsSyncObjects = Load<THashSet<TRawObjectPtr<TObject>>>(context);
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        TCellTagList secondaryCellTags(
+            multicellManager->GetSecondaryCellTags().begin(),
+            multicellManager->GetSecondaryCellTags().end());
+        for (auto object : removalAwaitingCellsSyncObjects) {
+            EmplaceOrCrash(RemovalAwaitingCellsSyncObjects_, object, secondaryCellTags);
+        }
+    } else {
+        Load(context, RemovalAwaitingCellsSyncObjects_);
+    }
 
     YT_VERIFY(EphemeralGhosts_.empty());
 }
@@ -336,14 +348,15 @@ const THashSet<TObjectRawPtr>& TGarbageCollector::GetZombies() const
     return Zombies_;
 }
 
-void TGarbageCollector::RegisterRemovalAwaitingCellsSyncObject(TObject* object)
+void TGarbageCollector::RegisterRemovalAwaitingCellsSyncObject(TObject* object, const TCellTagList& cellTags)
 {
     YT_ASSERT_THREAD_AFFINITY(AutomatonThread);
 
-    YT_VERIFY(RemovalAwaitingCellsSyncObjects_.insert(object).second);
+    EmplaceOrCrash(RemovalAwaitingCellsSyncObjects_, object, cellTags);
 
-    YT_LOG_DEBUG("Removal awaiting cells sync object registered (ObjectId: %v)",
-        object->GetId());
+    YT_LOG_DEBUG("Removal awaiting cells sync object registered (ObjectId: %v, CellTags: %v)",
+        object->GetId(),
+        cellTags);
 }
 
 void TGarbageCollector::UnregisterRemovalAwaitingCellsSyncObject(TObject* object)
@@ -359,7 +372,7 @@ void TGarbageCollector::UnregisterRemovalAwaitingCellsSyncObject(TObject* object
     }
 }
 
-const THashSet<TObjectRawPtr>& TGarbageCollector::GetRemovalAwaitingCellsSyncObjects() const
+const THashMap<TObjectRawPtr, TCellTagList>& TGarbageCollector::GetRemovalAwaitingCellsSyncObjects() const
 {
     VerifyPersistentStateRead();
 
@@ -492,22 +505,33 @@ void TGarbageCollector::OnObjectRemovalCellsSync()
         return;
     }
 
+    // NB: On the one hand, different objects may need to sync different sets of cells.
+    // On the other hand, we want to batch syncing for multiple objects. This leads
+    // to potentially excessive syncing but simplifies things. In practice, most objects
+    // are globally replicated and thus require syncing all secondary cells anyway.
+    THashSet<TCellTag> cellTags;
+
     std::vector<TObjectId> objectIds;
     objectIds.reserve(RemovalAwaitingCellsSyncObjects_.size());
-    for (auto object : RemovalAwaitingCellsSyncObjects_) {
+    for (const auto& [object, objectCellTags] : RemovalAwaitingCellsSyncObjects_) {
         objectIds.push_back(object->GetId());
+        cellTags.insert(objectCellTags.begin(), objectCellTags.end());
     }
 
-    std::vector<TCellId> secondaryCellIds;
+    std::vector<TCellId> cellIds(cellTags.size());
     const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    for (auto cellTag : multicellManager->GetSecondaryCellTags()) {
-        secondaryCellIds.push_back(multicellManager->GetCellId(cellTag));
-    }
+    std::ranges::transform(
+        cellTags,
+        cellIds.begin(),
+        [&] (TCellTag cellTag) {
+            return multicellManager->GetCellId(cellTag);
+        });
 
     std::vector<TFuture<void>> futures;
+    futures.reserve(std::ssize(cellIds));
     const auto& connection = Bootstrap_->GetClusterConnection();
-    for (auto cellId : secondaryCellIds) {
-        futures.push_back(connection->SyncHiveCellWithOthers(secondaryCellIds, cellId));
+    for (auto cellId : cellIds) {
+        futures.push_back(connection->SyncHiveCellWithOthers(cellIds, cellId));
     }
 
     auto result = WaitFor(AllSucceeded(futures));

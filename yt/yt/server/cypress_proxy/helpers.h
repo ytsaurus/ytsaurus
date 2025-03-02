@@ -12,6 +12,10 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TError WrapCypressProxyRegistrationError(TError error);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void SetAccessTrackingOptions(
     const NRpc::IClientRequestPtr& request,
     const NApi::TSuppressableAccessTrackingOptions& commandOptions);

@@ -146,6 +146,9 @@ class LocalYtConfig(object):
     delta_master_cache_config = attr.ib(None)
     delta_global_cluster_connection_config = attr.ib(None)
 
+    # COMPAT
+    enable_legacy_logging_scheme = attr.ib(False)
+
     @enable_auth.validator
     def check_native_yson_available_for_auth_configuration(self, attribute, value):
         if value and not self.native_client_supported:

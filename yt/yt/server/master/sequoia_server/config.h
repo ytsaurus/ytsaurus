@@ -42,6 +42,21 @@ DEFINE_REFCOUNTED_TYPE(TDynamicGroundUpdateQueueManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDynamicCypressProxyTrackerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration CypressProxyOrchidTimeout;
+
+    REGISTER_YSON_STRUCT(TDynamicCypressProxyTrackerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicCypressProxyTrackerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDynamicSequoiaManagerConfig
     : public NYTree::TYsonStruct
 {

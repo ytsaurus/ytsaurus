@@ -21,7 +21,7 @@ DEFINE_ENUM(EVisitReason,
 );
 
 // Mixin class for managing the current path
-class TPathVisitorUtil
+class TPathVisitorMixin
 {
     template <typename TSelf>
     friend class TPathVisitor;
@@ -94,21 +94,6 @@ protected:
     // Computes the repeated field index from the current token.
     TErrorOr<TIndexParseResult> ParseCurrentListIndex(int size) const;
 
-    /// Error management.
-    // Same as error.h but uses our throw.
-    template <typename TValue>
-    TValue ValueOrThrow(TErrorOr<TValue> errorOrValue) const;
-    void ThrowOnError(TError error) const;
-    // Feeds the arguments to TError, enriches it with path info and throws.
-    template <class U>
-        requires (!CStringLiteral<std::remove_cvref_t<U>>)
-    [[noreturn]] void Throw(U&& u) const;
-    template <class... TArgs>
-    [[noreturn]] void Throw(TFormatString<TArgs...> format, TArgs&&... args) const;
-    template <class... TArgs>
-    [[noreturn]] void Throw(TErrorCode code, TFormatString<TArgs...> format, TArgs&&... args) const;
-    [[noreturn]] inline void Throw() const;
-
 private:
     // Maintains the path supplied by the caller.
     NYPath::TTokenizer Tokenizer_;
@@ -125,9 +110,9 @@ private:
 /// Construction kit for pain-free (hopefully) path-guided traversals.
 //
 // 1. Make your own visitor by subclassing a CRTP specialization of TPathVisitor and also
-//    TPathVisitorUtil. Make it final to let the compiler inline stuff.
+//    TPathVisitorMixin. Make it final to let the compiler inline stuff.
 //
-// 2. Set policy flags of TPathVisitorUtil in the constructor or at call site.
+// 2. Set policy flags of TPathVisitorMixin in the constructor or at call site.
 //
 // 3. Override (by hiding) the methods that handle structures that are relevant to your task. As a
 //    general pattern, try to handle a situation (say, PathComplete says you've reached your
@@ -136,8 +121,7 @@ private:
 //
 // 4. Befriend TPathVisitor and/or add "using TPathVisitor::Self" if the compiler complains.
 //
-// 5. Feel free to use utilities in the base. In particular, Throw() enriches errors with path
-//    information, which is always available in Tokenizer_/CurrentPath_.
+// 5. Feel free to use utilities in the base.
 //
 // Tokenizer_ is always advanced after a token is converted into something that will be passed into
 // the next method (the next message, an index or a key). Expect every method to be at the next /token

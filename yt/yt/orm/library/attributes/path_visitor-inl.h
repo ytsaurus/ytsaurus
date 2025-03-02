@@ -76,50 +76,6 @@ struct TDefaultTraits
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TValue>
-TValue TPathVisitorUtil::ValueOrThrow(TErrorOr<TValue> errorOrValue) const
-{
-    if (errorOrValue.IsOK()) {
-        return std::move(errorOrValue).Value();
-    } else {
-        Throw(std::move(errorOrValue));
-    }
-}
-
-#define IMPLEMENT_ORM_THROW(...) \
-    THROW_ERROR TError(__VA_ARGS__) \
-        << TErrorAttribute("path", Tokenizer_.GetPath()) \
-        << TErrorAttribute("position", CurrentPath_.GetPath()); \
-    static_assert(true)
-
-template <class U>
-    requires (!CStringLiteral<std::remove_cvref_t<U>>)
-[[noreturn]] void TPathVisitorUtil::Throw(U&& u) const
-{
-    IMPLEMENT_ORM_THROW(std::forward<U>(u));
-}
-
-template <class... TArgs>
-[[noreturn]] void TPathVisitorUtil::Throw(TFormatString<TArgs...> format, TArgs&&... args) const
-{
-    IMPLEMENT_ORM_THROW(format, std::forward<TArgs>(args)...);
-}
-
-template <class... TArgs>
-[[noreturn]] void TPathVisitorUtil::Throw(TErrorCode code, TFormatString<TArgs...> format, TArgs&&... args) const
-{
-    IMPLEMENT_ORM_THROW(code, format, std::forward<TArgs>(args)...);
-}
-
-[[noreturn]] inline void TPathVisitorUtil::Throw() const
-{
-    IMPLEMENT_ORM_THROW();
-}
-
-#undef IMPLEMENT_ORM_THROW
-
-////////////////////////////////////////////////////////////////////////////////
-
 // Every method call begins with "self" which has the type of the concrete class;
 // everything is iterable... feels like Python.
 
@@ -127,6 +83,13 @@ template <typename TSelf>
 template <typename TVisitParam>
 void TPathVisitor<TSelf>::Visit(TVisitParam&& target, NYPath::TYPathBuf path)
 {
+    auto pathCodicil = TErrorCodicils::Guard("path", [this] () -> std::string {
+        return std::string(Self()->Tokenizer_.GetPath());
+    });
+    auto positionCodicil = TErrorCodicils::Guard("position", [this] () -> std::string {
+        return std::string(Self()->CurrentPath_.GetPath());
+    });
+
     Self()->Reset(path);
     Self()->VisitGeneric(std::forward<TVisitParam>(target), EVisitReason::TopLevel);
 }
@@ -173,7 +136,8 @@ void TPathVisitor<TSelf>::VisitVector(
                 EVisitReason::AfterPath);
             return;
         } else {
-            Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot handle whole vectors");
+            THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::Unimplemented,
+                "Cannot handle whole vectors");
         }
     }
 
@@ -266,7 +230,7 @@ void TPathVisitor<TSelf>::VisitVectorEntryRelative(
             }
     }
 
-    Self()->Throw(NAttributes::EErrorCode::MalformedPath,
+    THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MalformedPath,
         "Unexpected relative path specifier %v (producing an index of %v)",
         Self()->GetToken(),
         index);
@@ -305,7 +269,7 @@ void TPathVisitor<TSelf>::OnVectorIndexError(
         }
     }
 
-    Self()->Throw(std::move(error));
+    THROW_ERROR_EXCEPTION(std::move(error));
 }
 
 template <typename TSelf>
@@ -321,7 +285,7 @@ void TPathVisitor<TSelf>::VisitMap(
                 EVisitReason::AfterPath);
             return;
         } else {
-            Self()->Throw(NAttributes::EErrorCode::Unimplemented,
+            THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::Unimplemented,
                 "Cannot handle whole message maps");
         }
     }
@@ -344,7 +308,9 @@ void TPathVisitor<TSelf>::VisitMap(
             mapKey = key;
         } else {
             if (!TryFromString(key, mapKey)) {
-                Self()->Throw(NAttributes::EErrorCode::MalformedPath, "Invalid map key %v", key);
+                THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MalformedPath,
+                    "Invalid map key %v",
+                    key);
             }
         }
 
@@ -423,7 +389,7 @@ void TPathVisitor<TSelf>::OnMapKeyError(
             return;
     }
 
-    Self()->Throw(NAttributes::EErrorCode::MissingKey, "Key %v not found in map", key);
+    THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::MissingKey, "Key %v not found in map", key);
 }
 
 template <typename TSelf>
@@ -435,7 +401,9 @@ void TPathVisitor<TSelf>::VisitOther(
     Y_UNUSED(target);
     Y_UNUSED(reason);
 
-    Self()->Throw(NAttributes::EErrorCode::Unimplemented, "Cannot visit type %v", TypeName<TVisitParam>());
+    THROW_ERROR_EXCEPTION(NAttributes::EErrorCode::Unimplemented,
+        "Cannot visit type %v",
+        TypeName<TVisitParam>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

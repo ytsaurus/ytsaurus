@@ -1647,7 +1647,7 @@ public:
         if (!user) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthenticationError,
-                "No such user %Qv; create user by requesting any IDM role on this cluster",
+                "No such user %Qv",
                 name);
         }
     }

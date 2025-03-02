@@ -3362,6 +3362,29 @@ class TestHunkValuesDictionaryCompression(TestSortedDynamicTablesHunks):
 
         assert_items_equal(lookup_rows("//tmp/t", keys + [{"key": 100}]), rows + [{"key": 100, "value": ""}])
 
+    @authors("akozhikhov")
+    def test_value_compression_multiple_chunks_compaction(self):
+        sync_create_cells(1)
+        self._create_table()
+        self._setup_for_dictionary_compression("//tmp/t")
+        set("//tmp/t/@chunk_writer", {"desired_chunk_weight": 750})
+        set("//tmp/t/@mount_config/value_dictionary_compression/elect_random_policy", True)
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": "x" * 100} for i in range(10)]
+        insert_rows("//tmp/t", rows)
+        sync_flush_table("//tmp/t")
+
+        self._wait_dictionaries_built("//tmp/t", 1)
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
+        get("//tmp/t/@chunk_ids")
+
+        remove("//tmp/t/@chunk_writer")
+        remount_table("//tmp/t")
+
+        self._perform_forced_compaction("//tmp/t", "compaction")
+
 
 ################################################################################
 

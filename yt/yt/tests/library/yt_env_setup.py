@@ -691,6 +691,15 @@ class YTEnvSetup(object):
         if os.environ.get("YT_DISABLE_MULTIDAEMON"):
             enable_multidaemon = False
 
+        job_proxy_logging = cls.get_param("JOB_PROXY_LOGGING", index)
+        # COMPAT(pogorelov): drop after migrating compat tests in 25.1
+        if "node" in cls.ARTIFACT_COMPONENTS.get("24_2", []):
+            if "mode" in job_proxy_logging:
+                job_proxy_logging["mode"] = "simple"
+            enable_legacy_logging_scheme = True
+        else:
+            enable_legacy_logging_scheme = False
+
         yt_config = LocalYtConfig(
             use_porto_for_servers=cls.USE_PORTO,
             jobs_environment_type="porto" if cls.USE_PORTO else cls.JOB_ENVIRONMENT_TYPE,
@@ -714,7 +723,7 @@ class YTEnvSetup(object):
             master_cache_count=cls.get_param("NUM_MASTER_CACHES", index),
             scheduler_count=cls.get_param("NUM_SCHEDULERS", index),
             defer_scheduler_start=cls.get_param("DEFER_SCHEDULER_START", index),
-            job_proxy_logging=cls.get_param("JOB_PROXY_LOGGING", index),
+            job_proxy_logging=job_proxy_logging,
             controller_agent_count=(
                 cls.get_param("NUM_CONTROLLER_AGENTS", index)
                 if cls.get_param("NUM_CONTROLLER_AGENTS", index) is not None
@@ -745,6 +754,7 @@ class YTEnvSetup(object):
             enable_tvm_only_proxies=cls.get_param("ENABLE_TVM_ONLY_PROXIES", index),
             mock_tvm_id=(1000 + index if use_native_auth else None),
             enable_tls=cls.ENABLE_TLS,
+            enable_legacy_logging_scheme=enable_legacy_logging_scheme,
             wait_for_dynamic_config=cls.WAIT_FOR_DYNAMIC_CONFIG,
             enable_chyt_http_proxies=cls.get_param("ENABLE_CHYT_HTTP_PROXIES", index),
             enable_chyt_https_proxies=cls.get_param("ENABLE_CHYT_HTTPS_PROXIES", index),
@@ -1329,7 +1339,15 @@ class YTEnvSetup(object):
             )
         else:
             scheduler_pool_trees_root = "//sys/pool_trees"
-        yt_commands.create("map_node", "//sys/cypress_proxies", ignore_existing=True, driver=driver)
+
+        # COMPAT(kvk1920): CypressProxyTracker.
+        if self._get_master_reign() < 2902:
+            yt_commands.create(
+                "map_node",
+                "//sys/cypress_proxies",
+                ignore_existing=True,
+                driver=driver)
+
         self._restore_globals(
             cluster_index=cluster_index,
             scheduler_count=scheduler_count,
@@ -1554,6 +1572,10 @@ class YTEnvSetup(object):
                 self.teardown_cluster(method, cluster_index + self.get_ground_index_offset())
 
         yt_commands.reset_events_on_fs()
+
+    def _get_master_reign(self):
+        master = yt_commands.ls("//sys/primary_masters")[0]
+        return yt_commands.get(f"//sys/primary_masters/{master}/orchid/reign")
 
     def teardown_cluster(self, method, cluster_index, wait_for_nodes=True):
         cluster_name = self.get_cluster_name(cluster_index)

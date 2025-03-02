@@ -324,6 +324,21 @@ protected:
         << " }";
 }
 
+TKeyColumns GetSampleKeyColumns()
+{
+    return {"k", "l", "m"};
+}
+
+TKeyColumns GetSampleKeyColumns2()
+{
+    return {"k", "l", "m", "s"};
+}
+
+TKeyColumns GetSampleKeyColumns3()
+{
+    return {"k", "any_key"};
+}
+
 TEST_P(TRefineKeyRangeTest, Basic)
 {
     auto testCase = GetParam();

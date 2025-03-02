@@ -1,24 +1,28 @@
 #include "master_hydra_service.h"
+
 #include "bootstrap.h"
 #include "hydra_facade.h"
-#include "world_initializer.h"
 #include "multicell_manager.h"
+#include "world_initializer.h"
+#include "world_initializer_cache.h"
 
 namespace NYT::NCellMaster {
 
+using namespace NConcurrency;
 using namespace NHydra;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TMasterHydraServiceBase::TMasterHydraServiceBase(
     TBootstrap* bootstrap,
     const NRpc::TServiceDescriptor& descriptor,
-    EAutomatonThreadQueue defaultQueue,
+    TDefaultInvokerKind defaultInvokerKind,
     NLogging::TLogger logger,
     NRpc::TServiceOptions options)
     : THydraServiceBase(
         bootstrap->GetHydraFacade()->GetHydraManager(),
-        bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(defaultQueue),
+        SelectDefaultInvoker(defaultInvokerKind, bootstrap),
         descriptor,
         std::move(logger),
         CreateMulticellUpstreamSynchronizer(bootstrap),
@@ -27,7 +31,8 @@ TMasterHydraServiceBase::TMasterHydraServiceBase(
             options.Authenticator = bootstrap->GetNativeAuthenticator();
             return options;
         }())
-        , Bootstrap_(bootstrap)
+    , Bootstrap_(bootstrap)
+    , ValidateClusterInitialized_(SelectClusterInitializationValidator(defaultInvokerKind))
 {
     YT_VERIFY(Bootstrap_);
 }
@@ -39,8 +44,43 @@ IInvokerPtr TMasterHydraServiceBase::GetGuardedAutomatonInvoker(EAutomatonThread
 
 void TMasterHydraServiceBase::ValidateClusterInitialized()
 {
-    const auto& worldInitializer = Bootstrap_->GetWorldInitializer();
-    worldInitializer->ValidateInitialized();
+    ValidateClusterInitialized_(Bootstrap_);
+}
+
+IInvokerPtr TMasterHydraServiceBase::SelectDefaultInvoker(
+    TDefaultInvokerKind invokerKind,
+    TBootstrap* bootstrap)
+{
+    return Visit(invokerKind,
+        [&] (EAutomatonThreadQueue threadQueue) {
+            return bootstrap->GetHydraFacade()->GetGuardedAutomatonInvoker(threadQueue);
+        },
+        [&] (TRpcHeavyDefaultInvoker /*rpcHeavy*/) {
+            return TDispatcher::Get()->GetHeavyInvoker();
+        });
+}
+
+auto TMasterHydraServiceBase::SelectClusterInitializationValidator(
+    TDefaultInvokerKind invokerKind) -> TValidateClusterInititalizedFunction*
+{
+    static const auto& validateViaWorldInitializer = [] (TBootstrap* bootstrap) {
+        const auto& worldInitializer = bootstrap->GetWorldInitializer();
+        worldInitializer->ValidateInitialized();
+    };
+
+    static const auto& validateViaWorldInitializerCache = [] (TBootstrap* bootstrap) {
+        const auto& worldInitializerCache = bootstrap->GetWorldInitializerCache();
+        WaitForFast(worldInitializerCache->ValidateWorldInitialized())
+            .ThrowOnError();
+    };
+
+    return Visit(invokerKind,
+        [&] (EAutomatonThreadQueue /*automatonThreadQueue*/) -> TValidateClusterInititalizedFunction* {
+            return validateViaWorldInitializer;
+        },
+        [&] (TRpcHeavyDefaultInvoker /*rpcHeavy*/) -> TValidateClusterInititalizedFunction* {
+            return validateViaWorldInitializerCache;
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

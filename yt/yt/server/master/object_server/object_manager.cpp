@@ -387,8 +387,8 @@ private:
     void SendObjectLifeStageConfirmation(TObjectId objectId);
     void CheckRemovingObjectRefCounter(TObject* object);
     void CheckObjectLifeStageVoteCount(TObject* object);
-    void ConfirmObjectLifeStageToPrimaryMaster(TObject* object);
-    void AdvanceObjectLifeStageAtSecondaryMasters(TObject* object);
+    void ConfirmObjectLifeStageToNativeMasterCell(TObject* object);
+    void AdvanceObjectLifeStageAtForeignMasterCells(TObject* object);
 
     void DoDestroyObjects(NProto::TReqDestroyObjects* request) noexcept;
 
@@ -888,12 +888,19 @@ void TObjectManager::RegisterHandler(IObjectTypeHandlerPtr handler)
     // This will be called during init-time only but from an unspecified thread.
     YT_VERIFY(handler);
 
-    auto type = handler->GetType();
-
     TTypeEntry entry;
-    entry.Handler = handler;
-    YT_VERIFY(TypeToEntry_.emplace(type, entry).second);
-    YT_VERIFY(RegisteredTypes_.insert(type).second);
+    entry.Handler = std::move(handler);
+    auto type = entry.Handler->GetType();
+    EmplaceOrCrash(TypeToEntry_, type, entry);
+    EmplaceOrCrash(RegisteredTypes_, type);
+
+    auto flags = entry.Handler->GetFlags();
+    YT_LOG_ALERT_IF(Any(flags & ETypeFlags::TwoPhaseCreation) && !Any(flags & ETypeFlags::ReplicateCreate),
+        "Two-phase creation is enabled for an object type that has creation replication disabled (ObjectType: %v)",
+        type);
+    YT_LOG_ALERT_IF(Any(flags & ETypeFlags::TwoPhaseRemoval) && !Any(flags & ETypeFlags::ReplicateDestroy),
+        "Two-phase removal is enabled for an object that has destruction replication disabled (ObjectType: %v)",
+        type);
 
     if (HasSchema(type)) {
         auto schemaType = SchemaTypeFromType(type);
@@ -1310,7 +1317,8 @@ void TObjectManager::RemoveObject(TObject* object)
     }
 
     const auto& handler = GetHandler(object);
-    if (None(handler->GetFlags() & ETypeFlags::Removable)) {
+    auto flags = handler->GetFlags();
+    if (None(flags & ETypeFlags::Removable)) {
         THROW_ERROR_EXCEPTION("Object cannot be removed");
     }
 
@@ -1320,9 +1328,8 @@ void TObjectManager::RemoveObject(TObject* object)
 
     auto objectRefCounter = object->GetObjectRefCounter(/*flushUnrefs*/ true);
 
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    if (multicellManager->IsPrimaryMaster() &&
-        Any(handler->GetFlags() & ETypeFlags::TwoPhaseRemoval))
+    if (object->IsNative() &&
+        Any(flags & ETypeFlags::TwoPhaseRemoval))
     {
         YT_LOG_DEBUG("Two-phase object removal started (ObjectId: %v, RefCounter: %v)",
             object->GetId(),
@@ -1331,9 +1338,10 @@ void TObjectManager::RemoveObject(TObject* object)
         object->SetLifeStage(EObjectLifeStage::RemovalStarted);
         object->ResetLifeStageVoteCount();
 
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         NProto::TReqRemoveForeignObject request;
         ToProto(request.mutable_object_id(), object->GetId());
-        multicellManager->PostToSecondaryMasters(request);
+        multicellManager->PostToMasters(request, handler->GetReplicationCellTags(object));
 
         CheckRemovingObjectRefCounter(object);
     } else {
@@ -1481,10 +1489,18 @@ TObject* TObjectManager::CreateObject(
             type);
     }
 
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    bool replicate =
-        multicellManager->IsPrimaryMaster() &&
-        Any(flags & ETypeFlags::ReplicateCreate);
+    if (hintId.operator bool() != IsHiveMutation()) {
+        if (hintId) {
+            YT_LOG_ALERT("Hint ID specified while creating object not via Hive (HintId: %v, ObjectType: %v)",
+                hintId,
+                type);
+        } else {
+            YT_LOG_ALERT("Hint ID was not specified while creating object via Hive (ObjectType: %v)",
+                type);
+        }
+    }
+
+    auto replicate = Any(flags & ETypeFlags::ReplicateCreate) && !hintId;
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     auto* user = securityManager->GetAuthenticatedUser();
@@ -1524,7 +1540,15 @@ TObject* TObjectManager::CreateObject(
         replicatedAttributes->Set("index", medium->GetIndex());
     }
 
-    if (multicellManager->IsMulticell() && Any(flags & ETypeFlags::TwoPhaseCreation)) {
+    // NB: two-phase object creation/removal depends on the foreign flag.
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    if (object->GetNativeCellTag() != multicellManager->GetCellTag() && !IsAlienType(type)) {
+        object->SetForeign();
+    }
+
+    if (Any(flags & ETypeFlags::TwoPhaseCreation) &&
+        (object->IsForeign() || !handler->GetReplicationCellTags(object).empty()))
+    {
         object->SetLifeStage(EObjectLifeStage::CreationStarted);
         object->ResetLifeStageVoteCount();
         YT_VERIFY(object->IncrementLifeStageVoteCount() == 1);
@@ -1535,10 +1559,6 @@ TObject* TObjectManager::CreateObject(
     }
 
     YT_VERIFY(object->GetObjectRefCounter() == 1);
-
-    if (object->GetNativeCellTag() != multicellManager->GetCellTag() && !IsAlienType(type)) {
-        object->SetForeign();
-    }
 
     if (auto lifeStage = attributes->Find<EObjectLifeStage>("life_stage")) {
         attributes->Remove("life_stage");
@@ -1565,27 +1585,28 @@ TObject* TObjectManager::CreateObject(
         ToProto(replicationRequest.mutable_object_id(), object->GetId());
         replicationRequest.set_type(ToProto(type));
         ToProto(replicationRequest.mutable_object_attributes(), *replicatedAttributes);
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto replicationCellTags = handler->GetReplicationCellTags(object);
-        multicellManager->PostToMasters(replicationRequest, replicationCellTags);
+        multicellManager->PostToMasters(replicationRequest, handler->GetReplicationCellTags(object));
     }
 
-    switch (object->GetLifeStage()) {
-        case EObjectLifeStage::RemovalPreCommitted:
-            object->SetLifeStage(EObjectLifeStage::RemovalStarted);
-            [[fallthrough]];
+    if (object->IsForeign() &&
+        (Any(flags & ETypeFlags::TwoPhaseCreation) || Any(flags & ETypeFlags::TwoPhaseRemoval)))
+    {
+        switch (object->GetLifeStage()) {
+            case EObjectLifeStage::RemovalPreCommitted:
+                object->SetLifeStage(EObjectLifeStage::RemovalStarted);
+                [[fallthrough]];
 
-        case EObjectLifeStage::RemovalStarted:
-            CheckRemovingObjectRefCounter(object);
-            break;
+            case EObjectLifeStage::RemovalStarted:
+                CheckRemovingObjectRefCounter(object);
+                break;
 
-        case EObjectLifeStage::RemovalAwaitingCellsSync:
-            object->SetLifeStage(EObjectLifeStage::RemovalPreCommitted);
-            break;
+            case EObjectLifeStage::RemovalAwaitingCellsSync:
+                object->SetLifeStage(EObjectLifeStage::RemovalPreCommitted);
+                break;
 
-        default:
-            ConfirmObjectLifeStageToPrimaryMaster(object);
+            default:
+                ConfirmObjectLifeStageToNativeMasterCell(object);
+        }
     }
 
     return object;
@@ -1603,9 +1624,7 @@ bool TObjectManager::IsObjectLifeStageValid(const TObject* object) const
         return true;
     }
 
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-
-    if (multicellManager->IsSecondaryMaster() &&
+    if (object->IsForeign() &&
         object->GetLifeStage() == EObjectLifeStage::CreationPreCommitted)
     {
         return true;
@@ -1635,10 +1654,11 @@ std::optional<TObject*> TObjectManager::FindObjectByAttributes(
     return handler->FindObjectByAttributes(attributes);
 }
 
-void TObjectManager::ConfirmObjectLifeStageToPrimaryMaster(TObject* object)
+void TObjectManager::ConfirmObjectLifeStageToNativeMasterCell(TObject* object)
 {
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    if (!multicellManager->IsSecondaryMaster()) {
+    if (!object->IsForeign()) {
+        YT_LOG_ALERT("Detected an attempt to send object life stage confirmation from non-foreign cell (ObjectId: %v)",
+            object->GetId());
         return;
     }
 
@@ -1649,29 +1669,36 @@ void TObjectManager::ConfirmObjectLifeStageToPrimaryMaster(TObject* object)
         return;
     }
 
-    YT_LOG_DEBUG("Confirming object life stage to primary master (ObjectId: %v, LifeStage: %v)",
+    YT_LOG_DEBUG("Confirming object life stage to native master cell (ObjectId: %v, LifeStage: %v)",
         object->GetId(),
         lifeStage);
 
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     NProto::TReqConfirmObjectLifeStage request;
     ToProto(request.mutable_object_id(), object->GetId());
     request.set_cell_tag(ToProto(multicellManager->GetCellTag()));
-    multicellManager->PostToPrimaryMaster(request);
+    multicellManager->PostToMaster(request, object->GetNativeCellTag());
 }
 
-void TObjectManager::AdvanceObjectLifeStageAtSecondaryMasters(TObject* object)
+void TObjectManager::AdvanceObjectLifeStageAtForeignMasterCells(TObject* object)
 {
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    YT_VERIFY(multicellManager->IsPrimaryMaster());
+    YT_LOG_ALERT_UNLESS(object->IsNative(),
+        "Object life stage advancement initiated on non-native cell (ObjectId: %v)",
+        object->GetId());
 
-    YT_LOG_DEBUG("Advancing object life stage at secondary masters (ObjectId: %v, LifeStage: %v)",
+    const auto& handler = GetHandler(object);
+    auto replicationCellTags = handler->GetReplicationCellTags(object);
+
+    YT_LOG_DEBUG("Advancing object life stage at foreign master cells (ObjectId: %v, LifeStage: %v, CellTags: %v)",
         object->GetId(),
-        object->GetLifeStage());
+        object->GetLifeStage(),
+        replicationCellTags);
 
+    const auto& multicellManager = Bootstrap_->GetMulticellManager();
     NProto::TReqAdvanceObjectLifeStage advanceRequest;
     ToProto(advanceRequest.mutable_object_id(), object->GetId());
     advanceRequest.set_new_life_stage(ToProto(object->GetLifeStage()));
-    multicellManager->PostToSecondaryMasters(advanceRequest);
+    multicellManager->PostToMasters(advanceRequest, replicationCellTags);
 }
 
 TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* transaction, const TResolvePathOptions& options)
@@ -1869,18 +1896,43 @@ void TObjectManager::ReplicateObjectCreationToSecondaryMaster(
         return;
     }
 
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
+    const auto& handler = GetHandler(object);
+    YT_LOG_ALERT_UNLESS(Any(handler->GetFlags() & ETypeFlags::ReplicateCreate),
+        "Detected an attempt to replicate creation of an object that has creation replication disabled (ObjectId: %v)",
+        object->GetId());
+
+    auto replicationCellTags = handler->GetReplicationCellTags(object);
+    auto shouldReplicate = std::ranges::find(replicationCellTags, cellTag) != replicationCellTags.end();
     if (object->IsBuiltin()) {
+        if (!shouldReplicate) {
+            YT_LOG_DEBUG("Skipped replicating builtin object mandatory attributes since destination cell is absent from replication cells "
+                "(ObjectId: %v, CellTag: %v, ReplicationCellTags: %v)",
+                object->GetId(),
+                cellTag,
+                replicationCellTags);
+            return;
+        }
+
         // Builtin objects are already created at secondary masters,
         // so we just replicate mandatory attributes here.
         DoReplicateObjectAttributesToSecondaryMaster(object, cellTag, /*mandatory*/ true);
     } else {
+        if (!shouldReplicate) {
+            YT_LOG_DEBUG("Skipped replicating object creation since destination cell is absent from replication cells "
+                "(ObjectId: %v, CellTag: %v, ReplicationCellTags: %v)",
+                object->GetId(),
+                cellTag,
+                replicationCellTags);
+            return;
+        }
+
         NProto::TReqCreateForeignObject request;
         ToProto(request.mutable_object_id(), object->GetId());
         request.set_type(ToProto(object->GetType()));
         auto replicatedAttributes = GetReplicatedAttributes(object, /*mandatory*/ true, /*writableOnly*/ false);
         ToProto(request.mutable_object_attributes(), *replicatedAttributes);
 
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         multicellManager->PostToMaster(request, cellTag);
     }
 }
@@ -1890,6 +1942,21 @@ void TObjectManager::ReplicateObjectAttributesToSecondaryMaster(
     TCellTag cellTag)
 {
     if (!IsObjectAlive(object)) {
+        return;
+    }
+
+    const auto& handler = GetHandler(object);
+    YT_LOG_ALERT_UNLESS(Any(handler->GetFlags() & ETypeFlags::ReplicateAttributes),
+        "Detected an attempt to replicate attributes of an object that has attribute replication disabled (ObjectId: %v)",
+        object->GetId());
+
+    auto replicationCellTags = handler->GetReplicationCellTags(object);
+    if (std::ranges::find(replicationCellTags, cellTag) == replicationCellTags.end()) {
+        YT_LOG_DEBUG("Skipped replicating object attributes since destination cell is absent from replication cells "
+            "(ObjectId: %v, CellTag: %v, ReplicationCellTags: %v)",
+            object->GetId(),
+            cellTag,
+            replicationCellTags);
         return;
     }
 
@@ -2255,20 +2322,21 @@ void TObjectManager::HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects*
 
 void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeStage* confirmRequest) noexcept
 {
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    YT_VERIFY(multicellManager->IsPrimaryMaster());
-
     auto objectId = FromProto<TObjectId>(confirmRequest->object_id());
     auto* object = FindObject(objectId);
     if (!object) {
-        YT_LOG_DEBUG("A non-existing object creation confirmed by secondary cell (ObjectId: %v)",
+        YT_LOG_DEBUG("A non-existing object creation confirmed by foreign cell (ObjectId: %v)",
             objectId);
         return;
     }
 
+    YT_LOG_ALERT_UNLESS(object->IsNative(),
+        "A non-native object creation confirmed by foreign cell (ObjectId: %v)",
+        objectId);
+
     auto voteCount = object->IncrementLifeStageVoteCount();
     YT_LOG_DEBUG(
-        "Object life stage confirmed by secondary cell (ObjectId: %v, CellTag: %v, VoteCount: %v)",
+        "Object life stage confirmed by foreign cell (ObjectId: %v, CellTag: %v, VoteCount: %v)",
         objectId,
         confirmRequest->cell_tag(),
         voteCount);
@@ -2278,21 +2346,18 @@ void TObjectManager::HydraConfirmObjectLifeStage(NProto::TReqConfirmObjectLifeSt
 
 void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeStage* request) noexcept
 {
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    YT_VERIFY(multicellManager->IsSecondaryMaster());
-
     auto objectId = FromProto<TObjectId>(request->object_id());
     auto* object = FindObject(objectId);
     if (!object) {
         YT_LOG_DEBUG(
-            "Life stage advancement for a non-existing object requested by the primary cell (ObjectId: %v)",
+            "Life stage advancement for a non-existing object requested by native cell (ObjectId: %v)",
             objectId);
         return;
     }
 
     if (object->IsNative()) {
-        YT_LOG_DEBUG(
-            "Life stage advancement for a non-foreign object requested by primary cell (ObjectId: %v)",
+        YT_LOG_ALERT(
+            "Life stage advancement for a non-foreign object requested by native cell (ObjectId: %v)",
             objectId);
         return;
     }
@@ -2302,12 +2367,12 @@ void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeSt
     object->SetLifeStage(newLifeStage);
 
     YT_LOG_DEBUG(
-        "Object life stage advanced by primary cell (ObjectId: %v, LifeStage: %v -> %v)",
+        "Foreign object life stage advanced as requested by native cell (ObjectId: %v, LifeStage: %v -> %v)",
         objectId,
         oldLifeStage,
         newLifeStage);
 
-    ConfirmObjectLifeStageToPrimaryMaster(object);
+    ConfirmObjectLifeStageToNativeMasterCell(object);
 
     if (newLifeStage == EObjectLifeStage::RemovalCommitted) {
         DoRemoveObject(object);
@@ -2316,9 +2381,6 @@ void TObjectManager::HydraAdvanceObjectLifeStage(NProto::TReqAdvanceObjectLifeSt
 
 void TObjectManager::HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::TReqConfirmRemovalAwaitingCellsSyncObjects* request) noexcept
 {
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    YT_VERIFY(multicellManager->IsPrimaryMaster());
-
     auto objectIds = FromProto<std::vector<TObjectId>>(request->object_ids());
     for (auto objectId : objectIds) {
         auto* object = FindObject(objectId);
@@ -2328,6 +2390,10 @@ void TObjectManager::HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::TReqCon
                 objectId);
             continue;
         }
+
+        YT_LOG_ALERT_UNLESS(object->IsNative(),
+            "Cells sync confirmed for a non-native object (ObjectId: %v)",
+            objectId);
 
         auto oldLifeStage = object->GetLifeStage();
         if (oldLifeStage != EObjectLifeStage::RemovalAwaitingCellsSync) {
@@ -2347,7 +2413,7 @@ void TObjectManager::HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::TReqCon
             oldLifeStage,
             newLifeStage);
 
-        AdvanceObjectLifeStageAtSecondaryMasters(object);
+        AdvanceObjectLifeStageAtForeignMasterCells(object);
         GarbageCollector_->UnregisterRemovalAwaitingCellsSyncObject(object);
         DoRemoveObject(object);
     }
@@ -2388,12 +2454,11 @@ void TObjectManager::CheckRemovingObjectRefCounter(TObject* object)
         oldLifeStage,
         newLifeStage);
 
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    if (multicellManager->IsPrimaryMaster()) {
+    if (object->IsNative()) {
         object->IncrementLifeStageVoteCount();
         CheckObjectLifeStageVoteCount(object);
     } else {
-        ConfirmObjectLifeStageToPrimaryMaster(object);
+        ConfirmObjectLifeStageToNativeMasterCell(object);
     }
 }
 
@@ -2401,10 +2466,12 @@ void TObjectManager::CheckObjectLifeStageVoteCount(TObject* object)
 {
     YT_VERIFY(HasMutationContext());
 
+    const auto& handler = GetHandler(object);
+    auto replicationCellTags = handler->GetReplicationCellTags(object);
+    auto votingCellCount = std::ssize(replicationCellTags) + 1;
+
     while (true) {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto voteCount = object->GetLifeStageVoteCount();
-        auto votingCellCount = std::ssize(multicellManager->GetRegisteredMasterCellTags()) + 1;
         YT_VERIFY(voteCount <= votingCellCount);
         if (voteCount < votingCellCount) {
             break;
@@ -2441,9 +2508,12 @@ void TObjectManager::CheckObjectLifeStageVoteCount(TObject* object)
             newLifeStage);
 
         if (newLifeStage == EObjectLifeStage::RemovalAwaitingCellsSync) {
-            GarbageCollector_->RegisterRemovalAwaitingCellsSyncObject(object);
+            YT_LOG_ALERT_UNLESS(object->IsNative(),
+                "Detected removal awaiting cells sync for non-native object (ObjectId: %v)",
+                object->GetId());
+            GarbageCollector_->RegisterRemovalAwaitingCellsSyncObject(object, replicationCellTags);
         } else {
-            AdvanceObjectLifeStageAtSecondaryMasters(object);
+            AdvanceObjectLifeStageAtForeignMasterCells(object);
             if (newLifeStage == EObjectLifeStage::CreationPreCommitted) {
                 object->IncrementLifeStageVoteCount();
             }

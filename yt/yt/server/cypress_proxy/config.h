@@ -25,14 +25,11 @@ struct TCypressProxyBootstrapConfig
 {
     bool AbortOnUnrecognizedOptions;
 
-    TCypressRegistrarConfigPtr CypressRegistrar;
-
-    NYPath::TYPath RootPath;
+    TUserDirectorySynchronizerConfigPtr UserDirectorySynchronizer;
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
-    NYPath::TYPath DynamicConfigPath;
 
-    TUserDirectorySynchronizerConfigPtr UserDirectorySynchronizer;
+    TDuration HeartbeatPeriod;
 
     REGISTER_YSON_STRUCT(TCypressProxyBootstrapConfig);
 

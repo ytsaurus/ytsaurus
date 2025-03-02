@@ -174,10 +174,15 @@ void TTablet::Load(NCellMaster::TLoadContext& context)
     using NYT::Load;
     Load(context, PivotKey_);
     Load(context, NodeStatistics_);
+
     // COMPAT(ifsmirnov)
-    if (context.GetVersion() >= EMasterReign::PersistAuxiliaryNodeStatistics) {
+    if (context.GetVersion() >= EMasterReign::PersistAuxiliaryNodeStatistics ||
+        (context.GetVersion() < EMasterReign::Start_25_2 &&
+            context.GetVersion() >= EMasterReign::PersistAuxiliaryNodeStatistics_25_1))
+    {
         Load(context, AuxiliaryNodeStatistics_);
     }
+
     Load(context, TrimmedRowCount_);
     Load(context, Replicas_);
     Load(context, RetainedTimestamp_);

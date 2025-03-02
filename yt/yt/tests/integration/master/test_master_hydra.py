@@ -1,11 +1,9 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, get, set, ls, switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
+    authors, raises_yt_error, wait, get, set, ls, switch_leader, is_active_primary_master_leader, is_active_primary_master_follower,
     get_active_primary_master_leader_address, get_active_primary_master_follower_address, build_snapshot,
     reset_state_hash, build_master_snapshots, discombobulate_nonvoting_peers, get_master_consistent_state)
-
-from yt.common import YtError
 
 import os
 import pytest
@@ -24,17 +22,17 @@ class TestMasterLeaderSwitch(YTEnvSetup):
             "leader_lease_grace_delay": 6000,
             "leader_lease_timeout": 5000,
             "disable_leader_lease_grace_delay": False,
-        }
+        },
     }
 
     @authors("babenko")
     def test_invalid_params(self):
         cell_id = get("//sys/@cell_id")
-        with pytest.raises(YtError):
+        with raises_yt_error("is not a valid cell id"):
             switch_leader("1-2-3-4", get_active_primary_master_follower_address(self))
-        with pytest.raises(YtError):
+        with raises_yt_error("resolve failed for"):
             switch_leader(cell_id, "foo.bar:9012")
-        with pytest.raises(YtError):
+        with raises_yt_error("Invalid peer state"):
             switch_leader(cell_id, get_active_primary_master_leader_address(self))
 
     @authors("babenko")
@@ -118,7 +116,7 @@ class TestDiscombobulate(YTEnvSetup):
             assert get("//tmp/hello") == "world"
 
             if voting:
-                with pytest.raises(YtError, match="Read-only mode is active"):
+                with raises_yt_error("Read-only mode is active"):
                     set("//tmp/hello", "hello")
 
             self.Env.start_master_cell(set_config=False)

@@ -14,6 +14,8 @@
 #include "private.h"
 #include "scheduling_context.h"
 
+#include <yt/yt/server/controller_agent/controllers/common_state.h>
+
 #include <yt/yt/server/lib/scheduler/message_queue.h>
 #include <yt/yt/server/lib/scheduler/controller_agent_tracker_service_proxy.h>
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
@@ -252,6 +254,8 @@ public:
     void Initialize()
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
+
+        NControllers::InitCommonState(ControllerAgentProfiler());
 
         MasterConnector_->Initialize();
         ScheduleConnect(true);

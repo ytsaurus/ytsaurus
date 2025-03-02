@@ -7,7 +7,7 @@ import yt_commands
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove, create_secondary_index,
-    exists, concatenate,
+    exists, concatenate, raises_yt_error,
     remove_account, create_proxy_role, create_account_resource_usage_lease, start_transaction, abort_transaction, commit_transaction, lock, insert_rows,
     lookup_rows, alter_table, write_table, read_table, wait_for_cells,
     sync_create_cells, sync_mount_table, sync_freeze_table, sync_reshard_table, get_singular_chunk_id,
@@ -866,7 +866,7 @@ class TestMastersPersistentReadOnly(YTEnvSetup):
 
         wait(lambda: is_leader_in_read_only("//sys/primary_masters", primary))
 
-        with pytest.raises(YtError):
+        with raises_yt_error("Read-only mode is active"):
             create("table", "//tmp/t1")
 
         master_exit_read_only_sync()

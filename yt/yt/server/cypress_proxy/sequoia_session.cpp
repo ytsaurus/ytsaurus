@@ -539,10 +539,19 @@ void TSequoiaSession::Commit(TCellId coordinatorCellId)
     MaybeLockAndReplicateCypressTransaction();
 
     WaitFor(SequoiaTransaction_->Commit({
-        .CoordinatorCellId = coordinatorCellId,
-        .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
-        .StronglyOrdered = true,
-    }))
+            .CoordinatorCellId = coordinatorCellId,
+            .CoordinatorPrepareMode = ETransactionCoordinatorPrepareMode::Late,
+            .StronglyOrdered = true,
+        })
+        .Apply(BIND([] (const TError& error) -> TError {
+            if (!error.IsOK() && error.FindMatching(NSequoiaClient::EErrorCode::InvalidSequoiaReign)) {
+                YT_LOG_ALERT(error, "Failed to commit Sequoia transaction");
+
+                return WrapCypressProxyRegistrationError(std::move(error));
+            }
+
+            return error;
+        })))
         .ThrowOnError();
 
     Finished_ = true;
