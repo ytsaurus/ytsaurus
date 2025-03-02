@@ -310,7 +310,7 @@ public:
 
     //! Returns a map from proxy role name to proxy role for proxy roles
     //! with a given proxy kind.
-    virtual const THashMap<std::string, TProxyRole*>& GetProxyRolesWithProxyKind(EProxyKind proxyKind) const = 0;
+    virtual const THashMap<std::string, TProxyRole*>& GetProxyRolesWithProxyKind(NApi::EProxyKind proxyKind) const = 0;
 
 
     //! Returns the object ACD or |nullptr| if access is not controlled.

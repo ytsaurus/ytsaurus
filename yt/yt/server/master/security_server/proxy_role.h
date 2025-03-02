@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/master/object_server/object.h>
 
+#include <yt/yt/client/api/public.h>
+
 namespace NYT::NSecurityServer {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,7 +16,7 @@ class TProxyRole
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(std::string, Name);
-    DEFINE_BYVAL_RW_PROPERTY(NSecurityClient::EProxyKind, ProxyKind);
+    DEFINE_BYVAL_RW_PROPERTY(NApi::EProxyKind, ProxyKind);
     DEFINE_BYREF_RW_PROPERTY(TAccessControlDescriptor, Acd);
 
 public:
