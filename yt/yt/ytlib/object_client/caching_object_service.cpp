@@ -299,7 +299,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
 
                 const auto& responseMessage = cacheEntry->GetResponseMessage();
                 subresponse->set_part_count(responseMessage.Size());
-                subresponse->set_revision(ToProto(cacheEntry->GetRevision()));
+                subresponse->set_revision(cacheEntry->GetRevision());
                 // COMPAT(babenko)
                 response->add_part_counts(responseMessage.Size());
 
