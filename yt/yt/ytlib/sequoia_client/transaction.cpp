@@ -591,10 +591,8 @@ private:
         const TTableCommitSessionPtr& session,
         const TTableMountInfoPtr& tableMountInfo,
         const TColumnEvaluatorPtr& evaluator,
-        ETableSchemaKind /*schemaKind*/,
         TUnversionedRow row)
     {
-        // Maybe change ETableSchemaKind::Primary to schemaKind.
         const auto& primarySchema = tableMountInfo->Schemas[ETableSchemaKind::Primary];
         const auto& modificationIdMapping = session->ColumnIdMappings[ETableSchemaKind::Primary];
         auto capturedRow = RowBuffer_->CaptureAndPermuteRow(
@@ -626,7 +624,9 @@ private:
         if (!tableMountInfo->IsSorted()) {
             tabletIndexColumnId = nameTable->GetIdOrRegisterName(TabletIndexColumnName);
         }
-        for (auto schemaKind : {ETableSchemaKind::Primary, ETableSchemaKind::Write, ETableSchemaKind::Delete, ETableSchemaKind::Lock}) {
+
+        for (auto schemaKind : {ETableSchemaKind::Primary, ETableSchemaKind::Write, ETableSchemaKind::Delete, ETableSchemaKind::Lock})
+        {
             session->ColumnIdMappings[schemaKind] = BuildColumnIdMapping(
                 *tableMountInfo->Schemas[schemaKind],
                 // nameTable here can differ from
@@ -641,6 +641,7 @@ private:
                 /*allowMissingKeyColumns*/ false);
         }
 
+        const auto& primaryIdMapping = session->ColumnIdMappings[ETableSchemaKind::Primary];
         const auto& writeIdMapping = session->ColumnIdMappings[ETableSchemaKind::Write];
         const auto& deleteIdMapping = session->ColumnIdMappings[ETableSchemaKind::Delete];
         const auto& lockIdMapping = session->ColumnIdMappings[ETableSchemaKind::Lock];
@@ -667,7 +668,6 @@ private:
                         session,
                         tableMountInfo,
                         evaluator,
-                        ETableSchemaKind::Lock,
                         request.Key);
 
                     YT_VERIFY(tableMountInfo->IsSorted());
@@ -713,7 +713,6 @@ private:
                         session,
                         tableMountInfo,
                         evaluator,
-                        ETableSchemaKind::Lock,
                         request.Key);
 
                     YT_VERIFY(tableMountInfo->IsSorted());
@@ -747,7 +746,6 @@ private:
                         session,
                         tableMountInfo,
                         evaluator,
-                        ETableSchemaKind::Write,
                         request.Row);
 
                     TLockMask lockMask;
@@ -759,7 +757,8 @@ private:
                             /*validateWrite*/ true);
 
                         for (const auto& value : request.Row) {
-                            if (auto lockIndex = columnIndexToLockIndex[value.Id]; lockIndex != -1) {
+                            auto mappedId = ApplyIdMapping(value, &primaryIdMapping);
+                            if (auto lockIndex = columnIndexToLockIndex[mappedId]; lockIndex != -1) {
                                 lockMask.Set(lockIndex, request.LockType);
                             }
                         }
@@ -794,7 +793,6 @@ private:
                         session,
                         tableMountInfo,
                         evaluator,
-                        ETableSchemaKind::Delete,
                         request.Key);
 
                     TTabletInfoPtr tabletInfo;
