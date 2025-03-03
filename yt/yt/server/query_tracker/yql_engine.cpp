@@ -244,7 +244,12 @@ private:
             }
             OnQueryThrottled();
             TDelayedExecutor::WaitForDuration(Config_->StartQueryAttemptPeriod);
-            TryStart();
+            try {
+                TryStart();
+            } catch (const std::exception& ex) {
+                YT_LOG_INFO(ex, "Unrecoverable error on query start, finishing query");
+                OnQueryFailed(TError(ex));
+            }
             return;
         }
 
