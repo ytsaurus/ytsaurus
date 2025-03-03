@@ -32,7 +32,10 @@ public:
     static const TVertexDescriptor CoreDescriptor;
     static const TVertexDescriptor StderrDescriptor;
 
+    //! Used for persistence only.
     TDataFlowGraph();
+
+    explicit TDataFlowGraph(NLogging::TLogger logger);
     ~TDataFlowGraph();
 
     void Initialize();

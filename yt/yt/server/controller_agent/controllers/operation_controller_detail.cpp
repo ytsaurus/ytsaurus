@@ -263,6 +263,7 @@ TOperationControllerBase::TOperationControllerBase(
     , JobSpecBuildInvoker_(Host->GetJobSpecBuildPoolInvoker())
     , RowBuffer(New<TRowBuffer>(TRowBufferTag(), Config->ControllerRowBufferChunkSize))
     , InputManager(New<TInputManager>(this, Logger))
+    , DataFlowGraph_(New<TDataFlowGraph>(Logger))
     , LivePreviews_(std::make_shared<TLivePreviewMap>())
     , PoolTreeControllerSettingsMap_(operation->PoolTreeControllerSettingsMap())
     , Spec_(std::move(spec))
@@ -6250,6 +6251,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         (*LivePreviews_)[name] = New<TLivePreview>(
             New<TTableSchema>(),
             OutputNodeDirectory_,
+            Logger,
             OperationId,
             name);
     }
@@ -8439,7 +8441,7 @@ void TOperationControllerBase::RegisterLivePreviewTable(TString name, const TOut
     auto schema = table->TableUploadOptions.TableSchema.Get();
     LivePreviews_->emplace(
         name,
-        New<TLivePreview>(std::move(schema), OutputNodeDirectory_, OperationId, name, table->Path.GetPath()));
+        New<TLivePreview>(std::move(schema), OutputNodeDirectory_, Logger, OperationId, name, table->Path.GetPath()));
     table->LivePreviewTableName = std::move(name);
 }
 
