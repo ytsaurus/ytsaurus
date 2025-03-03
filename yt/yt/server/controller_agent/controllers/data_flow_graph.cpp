@@ -27,6 +27,7 @@ namespace NYT::NControllerAgent::NControllers {
 using namespace NYTree;
 using namespace NChunkClient::NProto;
 using namespace NChunkClient;
+using namespace NLogging;
 using namespace NTableClient;
 using namespace NYson;
 using namespace NNodeTrackerClient;
@@ -221,9 +222,11 @@ public:
 
     TVertex(
         TVertexDescriptor vertexDescriptor,
-        TNodeDirectoryPtr nodeDirectory)
+        TNodeDirectoryPtr nodeDirectory,
+        TLogger logger)
         : VertexDescriptor_(std::move(vertexDescriptor))
         , NodeDirectory_(std::move(nodeDirectory))
+        , Logger(std::move(logger))
     {
         Initialize();
     }
@@ -251,6 +254,12 @@ public:
         Persist(context, *Edges_);
         Persist(context, NodeDirectory_);
 
+        if (context.GetVersion() >= ESnapshotVersion::ValidateLivePreviewChunks) {
+            Persist(context, Logger);
+        } else {
+            Logger = ControllerLogger();
+        }
+
         if (context.IsLoad()) {
             Initialize();
         }
@@ -270,7 +279,7 @@ public:
                 schema = GetStderrBlobTableSchema().ToTableSchema();
             }
 
-            (*LivePreviews_)[index] = New<TLivePreview>(std::move(schema), NodeDirectory_);
+            (*LivePreviews_)[index] = New<TLivePreview>(std::move(schema), NodeDirectory_, Logger);
         }
 
         return (*LivePreviews_)[index]->TryInsertChunk(std::move(chunk));
@@ -286,6 +295,7 @@ public:
 
 private:
     TNodeDirectoryPtr NodeDirectory_;
+    TSerializableLogger Logger;
 
     void Initialize()
     {
@@ -313,6 +323,10 @@ class TDataFlowGraph::TImpl
     : public TRefCounted
 {
 public:
+    explicit TImpl(TLogger logger)
+        : Logger(std::move(logger))
+    { }
+
     void Initialize()
     {
         using TVertexMapService = TCollectionBoundMapService<TVertexMap>;
@@ -349,6 +363,12 @@ public:
         Persist(context, *Vertices_);
         Persist(context, TopologicalOrdering_);
         Persist(context, NodeDirectory_);
+
+        if (context.GetVersion() >= ESnapshotVersion::ValidateLivePreviewChunks) {
+            Persist(context, Logger);
+        } else {
+            Logger = ControllerLogger();
+        }
 
         if (context.IsLoad()) {
             Initialize();
@@ -488,12 +508,14 @@ private:
 
     NYTree::IYPathServicePtr Service_;
 
+    TSerializableLogger Logger;
+
     const TVertexPtr& GetOrRegisterVertex(const TVertexDescriptor& descriptor)
     {
         auto it = Vertices_->find(descriptor);
         if (it == Vertices_->end()) {
             auto& vertex = (*Vertices_)[descriptor];
-            vertex = New<TVertex>(descriptor, NodeDirectory_);
+            vertex = New<TVertex>(descriptor, NodeDirectory_, Logger);
             vertex->JobCounter()->AddParent(TotalJobCounter_);
             return vertex;
         } else {
@@ -511,7 +533,11 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TDataFlowGraph::TDataFlowGraph()
-    : Impl_(New<TImpl>())
+    : Impl_(New<TImpl>(ControllerLogger()))
+{ }
+
+TDataFlowGraph::TDataFlowGraph(TLogger logger)
+    : Impl_(New<TImpl>(std::move(logger)))
 { }
 
 TDataFlowGraph::~TDataFlowGraph() = default;
