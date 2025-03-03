@@ -121,7 +121,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
                 removed.append(op)
         return removed
 
-    @authors("asaitgalin")
+    @authors("asaitgalin", "eshcherbin")
     def test_basic_sanity(self):
         init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
@@ -145,7 +145,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             assert row["runtime_parameters"]["scheduling_options_per_pool_tree"]["default"]["pool"] == "root"
             assert row["full_spec"] != {}
 
-    @authors("asaitgalin")
+    @authors("asaitgalin", "eshcherbin")
     def test_operations_archive_is_not_initialized(self):
         ops = _run_maps_parallel(7, "cat")
 
@@ -181,15 +181,17 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         wait(lambda: len(self._get_removed_operations(ops)) == 4)
         return ops
 
-    @authors("asaitgalin")
+    @authors("asaitgalin", "eshcherbin")
     def test_start_stop(self):
         self._test_start_stop_impl("cat")
 
-    @authors("asaitgalin")
+    @authors("asaitgalin", "eshcherbin")
     def test_revive(self):
         init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
+
+        update_scheduler_config("operations_cleaner/max_operation_age", 1000000)
 
         _run_maps_parallel(7, "cat")
 
@@ -200,7 +202,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         wait(lambda: get(CLEANER_ORCHID + "/submitted") == 3)
 
-    @authors("asaitgalin")
+    @authors("asaitgalin", "eshcherbin")
     def test_max_operation_count_per_user(self):
         init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
@@ -212,7 +214,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
     def list_op_format(t):
         return t.strftime(YT_DATETIME_FORMAT_STRING)
 
-    @authors("omgronny")
+    @authors("asaitgalin", "eshcherbin")
     def test_archive_lookup(self):
         before_start_time = datetime.utcnow()
         ops = self._test_start_stop_impl(
@@ -234,7 +236,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
             assert res["failed_jobs_count"] == len(ops)
             assert list(reversed(ops)) == [op["id"] for op in res["operations"]]
 
-    @authors("omgronny")
+    @authors("asaitgalin", "eshcherbin")
     def test_archive_lookup_failure(self):
         before_start_time = datetime.utcnow()
         self._test_start_stop_impl(
@@ -255,7 +257,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         assert res["failed_jobs_count"] == 3
         assert len(res["operations"]) == 3
 
-    @authors("omgronny")
+    @authors("asaitgalin", "eshcherbin")
     def test_get_original_path(self):
         init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
@@ -280,7 +282,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
         assert input_table_name in row["filter_factors"]
         assert output_table_name in row["filter_factors"]
 
-    @authors("omgronny")
+    @authors("asaitgalin", "eshcherbin")
     def test_profiling(self):
         init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
@@ -330,7 +332,7 @@ class TestSchedulerOperationsCleaner(YTEnvSetup):
 
         wait(lambda: remove_pending_locked.get() == 1.0 and remove_pending.get() == 2.0)
 
-    @authors("omgronny")
+    @authors("asaitgalin", "eshcherbin")
     def test_locked_operations(self):
         init_operations_archive.create_tables_latest_version(
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
