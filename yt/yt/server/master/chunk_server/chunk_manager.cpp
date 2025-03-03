@@ -142,6 +142,7 @@
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/rpc/dispatcher.h>
+#include <yt/yt/core/rpc/retrying_channel.h>
 
 #include <yt/yt/core/logging/log.h>
 
@@ -6317,7 +6318,11 @@ private:
 
         const auto& channelFactory = Bootstrap_->GetClusterConnection()->GetChannelFactory();
         auto channel = channelFactory->CreateChannel(*address);
-        return CreateRealmChannel(std::move(channel), Bootstrap_->GetCellId());
+        channel = CreateRealmChannel(std::move(channel), Bootstrap_->GetCellId());
+
+        const auto& masterConnection = Bootstrap_->GetConfig()->MulticellManager->MasterConnection;
+        channel = CreateRetryingChannel(masterConnection, std::move(channel));
+        return CreateDefaultTimeoutChannel(std::move(channel), masterConnection->RpcTimeout);
     }
 
     NRpc::IChannelPtr GetChunkReplicatorChannelOrThrow(TChunk* chunk) override
