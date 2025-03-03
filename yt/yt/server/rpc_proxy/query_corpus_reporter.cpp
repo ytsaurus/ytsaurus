@@ -2,7 +2,8 @@
 
 #include "config.h"
 #include "dynamic_config_manager.h"
-#include "private.h"
+
+#include <yt/yt/server/lib/rpc_proxy/private.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/transaction.h>

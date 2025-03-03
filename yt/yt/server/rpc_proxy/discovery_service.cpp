@@ -2,9 +2,9 @@
 
 #include "bootstrap.h"
 #include "config.h"
-#include "private.h"
 
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
+#include <yt/yt/server/lib/rpc_proxy/private.h>
 
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 #include <yt/yt/server/lib/cypress_registrar/config.h>
