@@ -551,7 +551,9 @@ message TReferenceOption
 
     message TReferenceViewOption
     {
+        // If omitted, a default path will be generated from the reference.
         optional string path = 1;
+        // If omitted, a default field number will be generated from the reference.
         optional int32 number = 2;
     }
 
@@ -626,8 +628,6 @@ message TReferenceOption
         TCountingKeyStorage counting_key_storage = 9;
     }
 
-    // If no view is mentioned, one will be automatically generated in the same message.
-    // To disable automatic view generation, write |view: {}|.
     optional TReferenceViewOption view = 7;
 
     optional bool store_foreign_parent_key = 11;
