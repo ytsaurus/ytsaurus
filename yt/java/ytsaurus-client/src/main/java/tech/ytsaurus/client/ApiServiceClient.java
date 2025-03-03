@@ -20,6 +20,8 @@ import tech.ytsaurus.client.request.CheckClusterLiveness;
 import tech.ytsaurus.client.request.CommitTransaction;
 import tech.ytsaurus.client.request.CompleteOperation;
 import tech.ytsaurus.client.request.CreateObject;
+import tech.ytsaurus.client.request.CreateShuffleReader;
+import tech.ytsaurus.client.request.CreateShuffleWriter;
 import tech.ytsaurus.client.request.FreezeTable;
 import tech.ytsaurus.client.request.GcCollect;
 import tech.ytsaurus.client.request.GenerateTimestamps;
@@ -49,7 +51,9 @@ import tech.ytsaurus.client.request.RegisterQueueConsumer;
 import tech.ytsaurus.client.request.RemountTable;
 import tech.ytsaurus.client.request.ReshardTable;
 import tech.ytsaurus.client.request.ResumeOperation;
+import tech.ytsaurus.client.request.ShuffleHandle;
 import tech.ytsaurus.client.request.StartQuery;
+import tech.ytsaurus.client.request.StartShuffle;
 import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.client.request.SuspendOperation;
 import tech.ytsaurus.client.request.TabletInfo;
@@ -59,6 +63,7 @@ import tech.ytsaurus.client.request.UnmountTable;
 import tech.ytsaurus.client.request.UpdateOperationParameters;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.QueueRowset;
+import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.core.GUID;
@@ -417,6 +422,30 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> suspendOperation(SuspendOperation req);
 
     CompletableFuture<Void> resumeOperation(ResumeOperation req);
+
+    /**
+     * Starts a new shuffle under a transaction specified in StartShuffle request.
+     *
+     * @param req Shuffle parameters including parent transaction id and number of partitions.
+     * @return Shuffle descriptor that will be used in createShuffleWriter and createShuffleReader.
+     */
+    CompletableFuture<ShuffleHandle> startShuffle(StartShuffle req);
+
+    /**
+     * Creates ShuffleDataWriter for writing shuffle rows.
+     *
+     * @param req A request to create Shuffle writer containing shuffle descriptor.
+     * @return ShuffleDataWriter that can be used to write shuffle rows.
+     */
+    CompletableFuture<AsyncWriter<UnversionedRow>> createShuffleWriter(CreateShuffleWriter req);
+
+    /**
+     * Creates ShuffleDataReader for reading shuffle rows of specified shuffle partition.
+     *
+     * @param req A request to create Shuffle reader containing shuffle descriptor and a partition number to read.
+     * @return ShuffleDataReader that can be used to read shuffle rows.
+     */
+    CompletableFuture<AsyncReader<UnversionedRow>> createShuffleReader(CreateShuffleReader req);
 
     /**
      * @deprecated prefer to use {@link #resumeOperation(ResumeOperation)}
