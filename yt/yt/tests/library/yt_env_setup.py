@@ -512,6 +512,8 @@ class YTEnvSetup(object):
 
     ENABLE_MULTIDAEMON = False
 
+    ENABLE_LOG_COMPRESSION = True
+
     @classmethod
     def is_multicell(cls):
         return cls.NUM_SECONDARY_MASTER_CELLS > 0
@@ -743,8 +745,8 @@ class YTEnvSetup(object):
             has_ground=has_ground,
             clock_cluster_tag=clock_cluster_tag,
             enable_structured_logging=True,
-            enable_log_compression=True,
-            log_compression_method="zstd",
+            enable_log_compression=cls.ENABLE_LOG_COMPRESSION,
+            log_compression_method="zstd" if cls.ENABLE_LOG_COMPRESSION else None,
             node_port_set_size=cls.get_param("NODE_PORT_SET_SIZE", index),
             store_location_count=cls.get_param("STORE_LOCATION_COUNT", index),
             node_io_engine_type=cls.get_param("NODE_IO_ENGINE_TYPE", index),
