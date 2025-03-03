@@ -199,7 +199,7 @@ TEST_F(TSequoiaTest, TestRowLockConflict)
         } else {
             // NB: In case of "socket closed" error all suite hangs. It's better
             // just crash it on unexcepted error.
-            YT_LOG_FATAL(error, "Unexpected error");
+            GTEST_FAIL() << Format("Unexpected error: %v", error).c_str();
         }
     }
 
@@ -287,7 +287,7 @@ TEST_F(TSequoiaTest, ConcurrentCommitTx)
             YT_LOG_DEBUG(
                 "Request started (TransactionId: %v, InFlightRequestCount: %v)",
                 transactions[txIndex]->GetId(),
-                inFlightRequests);
+                inFlightRequests.fetch_add(1, std::memory_order::relaxed) + 1);
 
             auto finally = Finally([&] {
                 YT_LOG_DEBUG(
@@ -338,7 +338,7 @@ TEST_F(TSequoiaTest, ConcurrentCommitTx)
         } else if (result.FindMatching([] (const TError& error) { return error.GetMessage().contains("No such transaction"); })) {
             ++alreadyAborted;
         } else {
-            YT_LOG_FATAL(result, "Unexpected error");
+            GTEST_FAIL() << Format("Unexpected error: %v", result);
         }
     }
 
