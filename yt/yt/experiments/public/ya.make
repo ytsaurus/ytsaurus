@@ -33,4 +33,5 @@ RECURSE(
     uring
     value_dictionary_compression
     ytserver_dummy
+    poison
 )
