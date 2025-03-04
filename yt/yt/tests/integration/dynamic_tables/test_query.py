@@ -2534,29 +2534,38 @@ class TestQuery(DynamicTablesBase):
     def test_push_down_group_by_primary_key(self):
         sync_create_cells(1)
 
-        self._create_table(
-            "//tmp/t",
-            [
+        tables = [
+            {"path": "//tmp/t", "schema": [
                 {"name": "k", "type": "int64", "sort_order": "ascending"},
                 {"name": "v", "type": "int64"},
-            ],
-            [{"k": i, "v": 0} for i in range(10)],
-        )
+            ]},
+            {"path": "//tmp/d", "schema": [
+                {"name": "k", "type": "int64", "sort_order": "ascending"},
+                {"name": "k_extra", "type": "int64", "sort_order": "ascending"},
+                {"name": "clicks", "type": "int64"},
+            ]},
+        ]
 
-        create(
-            "table",
-            "//tmp/d",
-            attributes={
-                "dynamic": True,
-                "schema": [
-                    {"name": "k", "type": "int64", "sort_order": "ascending"},
-                    {"name": "k_extra", "type": "int64", "sort_order": "ascending"},
-                    {"name": "clicks", "type": "int64"},
-                ],
-            },
-        )
-        reshard_table("//tmp/d", [[], [2, 0], [3, 1], [4, 1]])
-        sync_mount_table("//tmp/d")
+        for table in tables:
+            path = table["path"]
+            schema = table["schema"]
+            create("replicated_table", path, attributes={"dynamic": True, "schema": schema})
+            replica_id = create_table_replica(
+                path,
+                self.get_cluster_name(0),
+                f"{path}_replica", attributes={"mode": "sync", "enabled": True})
+            create(
+                "table",
+                f"{path}_replica",
+                attributes={
+                    "dynamic": True,
+                    "schema": schema,
+                    "upstream_replica_id": replica_id
+                })
+            sync_mount_table(path)
+            sync_mount_table(f"{path}_replica")
+
+        insert_rows("//tmp/t", [{"k": i, "v": 0} for i in range(10)])
         insert_rows("//tmp/d", [{"k": i // 10, "k_extra": i % 10, "clicks": i} for i in range(66)])
 
         query = """
