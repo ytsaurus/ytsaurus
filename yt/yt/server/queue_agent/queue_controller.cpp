@@ -475,6 +475,17 @@ public:
             ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
+    void Stop() override
+    {
+        auto guard = WriterGuard(QueueExportsLock_);
+
+        if (QueueExports_.IsOK()) {
+            for (const auto& [_, exporter] : QueueExports_.Value()) {
+                exporter->Stop();
+            }
+        }
+    }
+
     TRefCountedPtr GetLatestSnapshot() const override
     {
         return QueueSnapshot_.Acquire();
@@ -652,7 +663,11 @@ private:
             }
         }
         for (const auto& name : unusedExportNames) {
-            queueExports.erase(name);
+            auto it = queueExports.find(name);
+            YT_VERIFY(it != queueExports.end());
+            it->second->Stop();
+
+            queueExports.erase(it);
         }
     }
 
@@ -1493,6 +1508,9 @@ public:
     {
         // Row update is handled in UpdateQueueController.
     }
+
+    void Stop() override
+    { }
 
     TRefCountedPtr GetLatestSnapshot() const override
     {
