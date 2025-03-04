@@ -331,6 +331,10 @@ struct TBlockDeviceStat
 TBlockDeviceStat ParseBlockDeviceStat(const TString& statLine);
 
 std::optional<TBlockDeviceStat> GetBlockDeviceStat(const TString& deviceName);
+std::optional<TBlockDeviceStat> GetBlockDeviceStat(NFS::TDeviceId deviceId);
+
+NFS::TDeviceId GetBlockDeviceId(const TString& deviceName);
+TString GetBlockDeviceName(NFS::TDeviceId deviceId);
 std::vector<TString> ListDisks();
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -152,6 +152,12 @@ TEST(TProcTest, BlockDeviceStat)
         for (const TString& disk : ListDisks()) {
             auto stat = GetBlockDeviceStat(disk);
             EXPECT_TRUE(stat);
+            auto deviceId = GetBlockDeviceId(disk);
+            EXPECT_NE(deviceId, std::pair{0, 0}) << "disk=" << disk;
+            stat = GetBlockDeviceStat(deviceId);
+            EXPECT_TRUE(stat);
+            auto deviceName = GetBlockDeviceName(deviceId);
+            EXPECT_EQ(deviceName, disk);
         }
     }
 }
