@@ -1955,9 +1955,18 @@ def list_user_tokens(**kwargs):
     print_to_output(result)
 
 
-def add_list_user_tokens(add_parser):
+def add_list_user_tokens_parser(add_parser):
     parser = add_parser("list-user-tokens", list_user_tokens)
     parser.add_argument("user", help="user to revoke token")
+
+
+@copy_docstring_from(cli_impl._whoami)
+def whoami(**kwargs):
+    print_to_output(cli_impl._whoami(**kwargs))
+
+
+def add_whoami_parser(add_parser):
+    add_parser("whoami", whoami)
 
 
 @copy_docstring_from(yt.get_supported_features)
@@ -2804,7 +2813,8 @@ def _prepare_parser():
     add_set_user_password_parser(add_parser)
     add_issue_token_parser(add_parser)
     add_revoke_token_parser(add_parser)
-    add_list_user_tokens(add_parser)
+    add_list_user_tokens_parser(add_parser)
+    add_whoami_parser(add_parser)
 
     add_execute_parser(add_parser)
 
