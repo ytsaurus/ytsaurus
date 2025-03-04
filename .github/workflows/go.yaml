@@ -4,12 +4,11 @@ on:
   push:
     branches:
       - main
-      - members/ilyaibraev/go-to-ubuntu-22.04
 
 jobs:
   check:
     name: Run checks
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     strategy:
       matrix:
         module: ["yt/go", "library/go/core/log", "library/go/x/xreflect", "library/go/blockcodecs"]
@@ -17,30 +16,44 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up Go
-        uses: actions/setup-go@v5
-        with:
-          go-version: 1.22.1
+      - name: Prepare Dockerfile
+        shell: bash
+        run: |
+          echo "FROM ubuntu:20.04 " > Dockerfile
+          echo "WORKDIR /home/ytsaurus " >> Dockerfile
+          echo "RUN apt update && apt install -y ca-certificates wget build-essential curl" >> Dockerfile
+          echo "RUN wget https://go.dev/dl/go1.22.1.linux-amd64.tar.gz && tar -C /usr/local -xzf go1.22.1.linux-amd64.tar.gz" >> Dockerfile
+          echo "COPY . /home/ytsaurus/ " >> Dockerfile
+          echo "ENTRYPOINT [\"tail\", \"-f\", \"/dev/null\"]" >> Dockerfile
+
+      - name: Build Docker image
+        shell: bash
+        run: |
+          docker build -t test-image .
+      
+      - name: Run Docker container
+        working-directory: ${{ matrix.module }}
+        shell: bash
+        run: |
+          docker run --privileged -v "/var/run/docker.sock":"/var/run/docker.sock" --network host -d --name test-container test-image
 
       - name: Build
         working-directory: ${{ matrix.module }}
         shell: bash
         run: |
-          go build -v -mod=readonly ./...
+          docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd ${{ matrix.module }} && go build -v -mod=readonly ./..."
 
       - name: Run tests
         working-directory: ${{ matrix.module }}
         shell: bash
         run: |
-          go env -w CGO_ENABLED=0
-          go test -v -mod=readonly ./...
-          go env -w CGO_ENABLED=1
+          docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd ${{ matrix.module }} && go test -v -mod=readonly ./..."
 
       - name: Run tests with race detector
         working-directory: ${{ matrix.module }}
         shell: bash
         run: |
-          go test -v -mod=readonly -race ./...
+          docker exec test-container /bin/bash -c "export PATH=\$PATH:/usr/local/go/bin && cd ${{ matrix.module }} && go test -v -mod=readonly -race ./..."
 
   send-notifications:
     name: Send notifications
