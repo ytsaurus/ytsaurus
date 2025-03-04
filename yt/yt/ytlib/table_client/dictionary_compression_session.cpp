@@ -286,7 +286,8 @@ public:
     { }
 
     TFuture<IDictionaryCompressionSessionPtr> MaybeCreateDictionaryCompressionSession(
-        const TClientChunkReadOptions& /*chunkReadOptions*/) const override
+        const TClientChunkReadOptions& /*chunkReadOptions*/,
+        std::optional<TChunkId> /*presetCompressionDictionaryId*/) const override
     {
         YT_UNIMPLEMENTED();
     }

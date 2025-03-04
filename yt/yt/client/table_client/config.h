@@ -260,6 +260,9 @@ public:
     //! Upper limit on acceptable compression ratio. No chunk compression is performed if this limit is exceeded.
     double MaxAcceptableCompressionRatio;
 
+    //! For testing purposes only.
+    bool ElectRandomPolicy;
+
     REGISTER_YSON_STRUCT(TDictionaryCompressionConfig);
 
     static void Register(TRegistrar registrar);
