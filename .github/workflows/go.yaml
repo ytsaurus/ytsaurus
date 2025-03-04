@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - members/ilyaibraev/go-to-ubuntu-22.04
 
 jobs:
   check:
