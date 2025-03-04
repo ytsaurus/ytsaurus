@@ -1,4 +1,4 @@
-from .http_helpers import get_user_name
+from .http_helpers import get_user_name, get_backend_type
 from .common import YtError
 from .auth_commands import encode_sha256
 
@@ -118,3 +118,10 @@ def _list_user_tokens_interactive(user, client=None):
     """Lists sha256-encoded user tokens, reading password interactively and securely from console."""
     password = _maybe_request_password(user, client=client)
     return yt.list_user_tokens(user, password=password, client=client)
+
+
+def _whoami(client=None):
+    """Invokes whoami command at YT API and returns login. Works only for HTTP backend."""
+    if get_backend_type(client) != "http":
+        raise YtError("Whoami is implemented only for HTTP backend")
+    return get_user_name(client=client)
