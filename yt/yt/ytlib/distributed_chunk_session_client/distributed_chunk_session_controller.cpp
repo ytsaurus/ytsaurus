@@ -6,7 +6,6 @@
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 
-#include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
@@ -16,6 +15,8 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/client/table_client/name_table.h>
 
 #include <yt/yt/client/rpc/helpers.h>
 
@@ -60,7 +61,7 @@ public:
         , ChunkNameTable_(std::move(chunkNameTable))
         , Invoker_(std::move(invoker))
         , SerializedInvoker_(CreateSerializedInvoker(Invoker_))
-        , Logger(DistributedChunkSessionLogger().WithTag("(TransactionId: %v)", TransactionId_))
+        , Logger(DistributedChunkSessionLogger().WithTag("TransactionId: %v", TransactionId_))
     { }
 
     TFuture<TNodeDescriptor> StartSession() final
@@ -110,9 +111,10 @@ private:
             , ChunkReplica(std::move(chunkReplica))
         { }
 
-        TNodeDescriptor Descriptor;
-        IChannelPtr Channel;
-        TChunkReplicaWithMedium ChunkReplica;
+        const TNodeDescriptor Descriptor;
+        const IChannelPtr Channel;
+        const TChunkReplicaWithMedium ChunkReplica;
+
         TChunkLocationUuid TargetLocationUuid = InvalidChunkLocationUuid;
 
         TPeriodicExecutorPtr PingExecutor;
@@ -128,7 +130,7 @@ private:
     const IInvokerPtr Invoker_;
     const IInvokerPtr SerializedInvoker_;
 
-    TLogger Logger;
+    const TLogger Logger;
 
     TPeriodicExecutorPtr CoordinatorPingExecutor_;
 
@@ -147,7 +149,7 @@ private:
 
     TChunkMeta ChunkMeta_;
 
-    std::atomic_bool SessionStarted_ = false;
+    std::atomic<bool> SessionStarted_ = false;
 
     TNodeDescriptor DoStartSession()
     {
@@ -165,9 +167,7 @@ private:
             TChunkListId{},
             Logger());
 
-        Logger.AddTag("ChunkId: %v", SessionId_);
-
-        YT_LOG_INFO("Chunk created");
+        YT_LOG_INFO("Chunk created (ChunkId: %v)", SessionId_);
 
         auto targets = AllocateWriteTargets(
             Client_,
@@ -216,13 +216,13 @@ private:
             Nodes_[index].TargetLocationUuid = FromProto<TChunkLocationUuid>(responses[index]->location_uuid());
             Nodes_[index].PingExecutor = New<TPeriodicExecutor>(
                 SerializedInvoker_,
-                BIND(&TDistributedChunkSessionController::SendDataNodePing, MakeStrong(this), index),
+                BIND(&TDistributedChunkSessionController::SendDataNodePing, MakeWeak(this), index),
                 Config_->DataNodePingPeriod);
 
             Nodes_[index].PingExecutor->Start();
         }
 
-        CoordinatorNode_ = &Nodes_[RandomNumber<ui32>(Nodes_.size())];
+        CoordinatorNode_ = &Nodes_[RandomNumber<size_t>(Nodes_.size())];
 
         YT_LOG_INFO("Selected coordinator node (Address: %v)", CoordinatorNode_->Descriptor.GetAddressOrThrow(networks));
 
@@ -237,7 +237,7 @@ private:
 
         CoordinatorPingExecutor_ = New<TPeriodicExecutor>(
             SerializedInvoker_,
-            BIND(&TDistributedChunkSessionController::SendCoordinatorPing, MakeStrong(this)),
+            BIND(&TDistributedChunkSessionController::SendCoordinatorPing, MakeWeak(this)),
             Config_->WriteSessionPingPeriod);
 
         CoordinatorPingExecutor_->Start();
@@ -371,8 +371,8 @@ private:
 
         std::vector<TFuture<void>> stopNodesPingFutures;
         stopNodesPingFutures.reserve(Nodes_.size());
-        for (auto& node : Nodes_) {
-            stopNodesPingFutures.emplace_back(node.PingExecutor->Stop());
+        for (const auto& node : Nodes_) {
+            stopNodesPingFutures.push_back(node.PingExecutor->Stop());
         }
 
         auto stopCoordinatorResult = WaitFor(stopCoordinatorFuture);
@@ -440,7 +440,7 @@ private:
         std::vector<TFuture<void>> finishChunkFutures;
         finishChunkFutures.reserve(Nodes_.size());
         for (auto& node : Nodes_) {
-            finishChunkFutures.emplace_back(FinishChunkOnNode(&node));
+            finishChunkFutures.push_back(FinishChunkOnNode(&node));
         }
 
         return AllSet(std::move(finishChunkFutures))
@@ -480,7 +480,6 @@ private:
     void OnChunkFinished(TNode* node, TErrorOr<TDataNodeServiceProxy::TRspFinishChunkPtr>&& rspOrError)
     {
         YT_ASSERT_THREAD_AFFINITY_ANY();
-        YT_UNUSED_FUTURE(node->PingExecutor->Stop());
 
         if (!rspOrError.IsOK()) {
             YT_LOG_DEBUG(rspOrError, "Finish chunk failed (Address: %v)", node->Descriptor.GetDefaultAddress());

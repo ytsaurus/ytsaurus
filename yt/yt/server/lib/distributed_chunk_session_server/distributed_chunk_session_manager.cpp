@@ -107,9 +107,9 @@ public:
     }
 
 private:
-    TDistributedChunkSessionServiceConfigPtr Config_;
-    IInvokerPtr Invoker_;
-    IConnectionPtr Connection_;
+    const TDistributedChunkSessionServiceConfigPtr Config_;
+    const IInvokerPtr Invoker_;
+    const IConnectionPtr Connection_;
 
     YT_DECLARE_SPIN_LOCK(TReaderWriterSpinLock, CoordinatorMapLock_);
     THashMap<TSessionId, std::pair<IDistributedChunkSessionCoordinatorPtr, TLease>> Coordinators_;
