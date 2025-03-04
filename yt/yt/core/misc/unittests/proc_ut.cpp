@@ -152,6 +152,12 @@ TEST(TProcTest, BlockDeviceStat)
         for (const TString& disk : ListDisks()) {
             auto stat = GetBlockDeviceStat(disk);
             EXPECT_TRUE(stat);
+            auto deviceId = GetBlockDeviceId(disk);
+            EXPECT_NE(deviceId.first, NFS::UnnamedDeviceMajor) << "disk=" << disk;
+            auto deviceName = GetBlockDeviceName(deviceId);
+            EXPECT_EQ(deviceName, disk);
+            stat = GetBlockDeviceStat(deviceId);
+            EXPECT_TRUE(stat);
         }
     }
 }

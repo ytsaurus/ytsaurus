@@ -1570,6 +1570,53 @@ std::optional<TBlockDeviceStat> GetBlockDeviceStat(const TString& deviceName)
 #endif
 }
 
+std::optional<TBlockDeviceStat> GetBlockDeviceStat(NFS::TDeviceId deviceId)
+{
+#ifdef _linux_
+    if (deviceId.first != NFS::UnnamedDeviceMajor) {
+        const TString path = Format("/sys/dev/block/%v:%v/stat", deviceId.first, deviceId.second);
+        TFileInput diskStatsFile(path);
+        auto data = diskStatsFile.ReadAll();
+        return ParseBlockDeviceStat(Strip(data));
+    }
+#else
+    Y_UNUSED(deviceId);
+#endif
+    return std::nullopt;
+}
+
+NFS::TDeviceId GetBlockDeviceId(const TString& deviceName)
+{
+#ifdef _linux_
+    const TString path = Format("/sys/block/%v/dev", deviceName);
+    TFileInput blockDevFile(path);
+    auto majorMinor = SplitString(Strip(blockDevFile.ReadAll()), ":", 2);
+    ui32 major, minor;
+    if (majorMinor.size() == 2 &&
+        TryFromString(majorMinor[0], major) &&
+        TryFromString(majorMinor[1], minor))
+    {
+        return {major, minor};
+    }
+#else
+    Y_UNUSED(deviceName);
+#endif
+    return {0, 0};
+}
+
+TString GetBlockDeviceName(NFS::TDeviceId deviceId)
+{
+#ifdef _linux_
+    if (deviceId.first != NFS::UnnamedDeviceMajor) {
+        auto link = NFs::ReadLink(Format("/sys/dev/block/%v:%v", deviceId.first, deviceId.second));
+        return NFS::GetFileName(link);
+    }
+#else
+    Y_UNUSED(deviceId);
+#endif
+    return "";
+}
+
 std::vector<TString> ListDisks()
 {
 #ifdef _linux_
