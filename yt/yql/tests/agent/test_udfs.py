@@ -91,6 +91,24 @@ select a from primary.`//tmp/t` where $f(unwrap(a));
         result = query.read_result(0)
         assert_items_equal(result, [{"a": 1}, {"a": 2}])
 
+    @authors("a-romanov")
+    def test_secure_param(self, query_tracker, yql_agent):
+        yql_with_python = """
+$get_secure_param = Python3::get_secure_param(
+    Callable<(String)->Text>,
+    @@#py
+def get_secure_param(key):
+    return get_secure_param._yql_secure_param(key)[0:5]
+    @@
+);
+
+select $get_secure_param(SecureParam("token:default_yt")) as sp;
+"""
+        query = start_query("yql", yql_with_python)
+        query.track()
+        result = query.read_result(0)
+        assert_items_equal(result, [{"sp": "ytct-"}])
+
 
 class TestUdfsWithDynamicConfig(TestQueriesYqlBase):
     NUM_TEST_PARTITIONS = 4
