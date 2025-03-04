@@ -523,7 +523,10 @@ private:
 
     void EmitSample(TUnversionedRow row)
     {
-        auto sampleValues = TruncateUnversionedValues(row.Elements(), TruncatedSampleValueBuffer_, {.ClipAfterOverflow = false, .MaxTotalSize = MaxSampleSize});
+        auto sampleValues = TruncateUnversionedValues(row.Elements(), TruncatedSampleValueBuffer_, {
+            .ClipAfterOverflow = false,
+            .UseOriginalDataWeightInSamples = Config_->UseOriginalDataWeightInSamples,
+            .MaxTotalSize = MaxSampleSize});
 
         auto entry = SerializeToString(sampleValues.Values);
         SamplesExt_.add_entries(entry);

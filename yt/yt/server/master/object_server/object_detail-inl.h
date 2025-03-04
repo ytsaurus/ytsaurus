@@ -38,6 +38,8 @@ TFuture<NYson::TYsonString> TNonversionedObjectProxyBase<TObject>::FetchFromShep
     batchReq->SetUser(user->GetName());
 
     auto req = NYTree::TYPathProxy::Get(path);
+    // NB: it's legal to fetch attributes of Sequoia objects this way so it's
+    // marked explicitly.
     NCypressClient::SetAllowResolveFromSequoiaObject(req, true);
     batchReq->AddRequest(req);
 
@@ -79,6 +81,8 @@ TFuture<std::vector<T>> TNonversionedObjectProxyBase<TObject>::FetchFromSwarm(NY
         auto attribute = key.Unintern();
         auto path = NObjectClient::FromObjectId(object->GetId()) + "/@" + attribute;
         auto req = NYTree::TYPathProxy::Get(path);
+        // NB: it's legal to fetch attributes of Sequoia objects this way so
+        // it's marked explicitly.
         NCypressClient::SetAllowResolveFromSequoiaObject(req, true);
         batchReq->AddRequest(req, "get");
 

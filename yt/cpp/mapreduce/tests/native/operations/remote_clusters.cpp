@@ -116,6 +116,7 @@ void TestOperations(ENodeReaderFormat format)
     CreateTable(thirdClient, thirdTestingDir + "/output", tableSchema);
     thirdClient->Map(
         TMapOperationSpec()
+            .Ordered(true)
             .template AddInput<TRowFormat>(TRichYPath(firstTestingDir + "/input1").Cluster(GetClusterName(firstClient).AsString()))
             .template AddInput<TRowFormat>(TRichYPath(firstTestingDir + "/input2").Cluster(GetClusterName(firstClient).AsString()))
             .template AddInput<TRowFormat>(TRichYPath(secondTestingDir + "/input1").Cluster(GetClusterName(secondClient).AsString()))
