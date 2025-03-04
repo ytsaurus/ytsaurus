@@ -13,3 +13,7 @@
 # changes in this file.
 
 add_subdirectory(jsonpath)
+add_subdirectory(v1_proto_split)
+add_subdirectory(v1)
+add_subdirectory(v1_antlr4)
+add_subdirectory(v1_ansi_antlr4)

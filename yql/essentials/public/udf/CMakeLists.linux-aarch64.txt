@@ -17,6 +17,7 @@ find_package(linux-headers-generic REQUIRED)
 add_subdirectory(support)
 add_subdirectory(arrow)
 add_subdirectory(tz)
+add_subdirectory(service)
 
 add_library(essentials-public-udf)
 

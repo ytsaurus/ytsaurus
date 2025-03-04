@@ -14,6 +14,8 @@
 
 add_subdirectory(antlr3)
 add_subdirectory(gen)
+add_subdirectory(collect_issues)
+add_subdirectory(antlr4)
 
 add_library(essentials-parser-proto_ast)
 

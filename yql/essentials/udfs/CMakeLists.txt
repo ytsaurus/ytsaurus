@@ -14,3 +14,4 @@
 
 add_subdirectory(logs)
 add_subdirectory(common)
+add_subdirectory(language)

@@ -19,17 +19,19 @@ get_built_tool_path(
   enum_parser
 )
 
-add_subdirectory(pg_settings)
-add_subdirectory(sql_types)
 add_subdirectory(issue)
 add_subdirectory(url_lister)
 add_subdirectory(credentials)
 add_subdirectory(url_preprocessing)
-add_subdirectory(cbo)
 add_subdirectory(file_storage)
+add_subdirectory(sql_types)
+add_subdirectory(pg_settings)
+add_subdirectory(cbo)
 add_subdirectory(minsketch)
 add_subdirectory(expr_nodes)
 add_subdirectory(expr_nodes_gen)
+add_subdirectory(services)
+add_subdirectory(user_data)
 
 add_library(yql-essentials-core)
 

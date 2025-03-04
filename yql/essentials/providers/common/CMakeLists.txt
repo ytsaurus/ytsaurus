@@ -14,3 +14,6 @@
 
 add_subdirectory(codec)
 add_subdirectory(proto)
+add_subdirectory(mkql)
+add_subdirectory(schema)
+add_subdirectory(provider)

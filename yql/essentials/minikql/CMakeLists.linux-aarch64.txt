@@ -15,10 +15,10 @@
 find_package(linux-headers-generic REQUIRED)
 
 add_subdirectory(dom)
-add_subdirectory(datetime)
-add_subdirectory(computation)
-add_subdirectory(arrow)
 add_subdirectory(jsonpath)
+add_subdirectory(arrow)
+add_subdirectory(computation)
+add_subdirectory(datetime)
 add_subdirectory(protobuf_udf)
 
 add_library(yql-essentials-minikql)
