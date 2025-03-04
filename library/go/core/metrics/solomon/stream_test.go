@@ -39,6 +39,44 @@ func Test_streamJson(t *testing.T) {
 			133,
 			nil,
 		},
+		{
+			"memOnly",
+			func() *Registry {
+				r := NewRegistry(NewRegistryOpts())
+
+				counter := r.Counter("counter")
+				counter.Add(42)
+				MemOnly(counter)
+				gauge := r.Gauge("gauge")
+				gauge.Set(42)
+				MemOnly(gauge)
+				intGauge := r.IntGauge("intGauge")
+				intGauge.Set(42)
+				MemOnly(intGauge)
+
+				funcGauge := r.FuncGauge("funcGauge", func() float64 { return 42 })
+				MemOnly(funcGauge)
+				funcIntGauge := r.FuncIntGauge("funcIntGauge", func() int64 { return 42 })
+				MemOnly(funcIntGauge)
+				funcCounter := r.FuncCounter("funcCounter", func() int64 { return 42 })
+				MemOnly(funcCounter)
+
+				histogram := r.Histogram("histogram", metrics.NewBuckets(0, 0.1, 0.11))
+				MemOnly(histogram)
+
+				return r
+			}(),
+			`{"metrics":[` +
+				`{"type":"COUNTER","labels":{"sensor":"counter"},"memOnly":true,"value":42},` +
+				`{"type":"DGAUGE","labels":{"sensor":"gauge"},"memOnly":true,"value":42},` +
+				`{"type":"IGAUGE","labels":{"sensor":"intGauge"},"memOnly":true,"value":42},` +
+				`{"type":"DGAUGE","labels":{"sensor":"funcGauge"},"memOnly":true,"value":42},` +
+				`{"type":"IGAUGE","labels":{"sensor":"funcIntGauge"},"memOnly":true,"value":42},` +
+				`{"type":"COUNTER","labels":{"sensor":"funcCounter"},"memOnly":true,"value":42},` +
+				`{"hist":{"bounds":[0,0.1,0.11],"buckets":[0,0,0]},"labels":{"sensor":"histogram"},"memOnly":true,"type":"HIST"}]}`,
+			581,
+			nil,
+		},
 	}
 
 	for _, tc := range testCases {

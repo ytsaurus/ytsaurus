@@ -68,6 +68,7 @@ func (g *FuncGauge) MarshalJSON() ([]byte, error) {
 		Labels    map[string]string `json:"labels"`
 		Value     float64           `json:"value"`
 		Timestamp *int64            `json:"ts,omitempty"`
+		MemOnly   bool              `json:"memOnly,omitempty"`
 	}{
 		Type:  g.metricType.String(),
 		Value: g.function(),
@@ -80,6 +81,7 @@ func (g *FuncGauge) MarshalJSON() ([]byte, error) {
 			return labels
 		}(),
 		Timestamp: tsAsRef(g.timestamp),
+		MemOnly:   g.memOnly,
 	})
 }
 
