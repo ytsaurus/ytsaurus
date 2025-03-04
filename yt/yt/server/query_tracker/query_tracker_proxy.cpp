@@ -88,7 +88,7 @@ TQuery PartialRecordToQuery(const auto& partialRecord)
     query.Progress = partialRecord.Progress.value_or(TYsonString());
     query.Error = partialRecord.Error.value_or(std::nullopt);
     query.Annotations = partialRecord.Annotations.value_or(TYsonString());
-    query.Secrets = partialRecord.Secrets;
+    query.Secrets = partialRecord.Secrets.value_or(TYsonString(TString("{}")));
 
     IAttributeDictionaryPtr otherAttributes;
     auto fillIfPresent = [&] (const TString& key, const auto& value) {

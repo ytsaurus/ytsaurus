@@ -56,7 +56,7 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NQueryTrackerClient::NProto, StartQuery)
     {
-        YT_VERIFY(NRpcProxy::NProto::TReqStartQuery::GetDescriptor()->field_count() == 9);
+        YT_VERIFY(NRpcProxy::NProto::TReqStartQuery::GetDescriptor()->field_count() == 10);
         YT_VERIFY(NRpcProxy::NProto::TRspStartQuery::GetDescriptor()->field_count() == 1);
 
         auto rpcRequest = request->rpc_proxy_request();

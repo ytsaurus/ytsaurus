@@ -611,7 +611,7 @@ private:
                     .ResultCount = activeQueryRecord->ResultCount,
                     .FinishTime = activeQueryRecord->FinishTime,
                     .Annotations = activeQueryRecord->Annotations,
-                    .Secrets = activeQueryRecord->Secrets,
+                    .Secrets = activeQueryRecord->Secrets.value_or(TYsonString(TString("{}"))),
                 };
                 std::vector newRows = {
                     newRecord.ToUnversionedRow(rowBuffer, TFinishedQueryDescriptor::Get()->GetIdMapping()),
